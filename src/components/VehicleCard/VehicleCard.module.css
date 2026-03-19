@@ -1,0 +1,19 @@
+.card {
+  width: 250px;
+  border-radius: 15px;
+  overflow: hidden;
+  background: white;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+}
+
+.card img {
+  width: 100%;
+}
+
+.card button {
+  background: #ff4d2d;
+  color: white;
+  border: none;
+  width: 100%;
+  padding: 10px;
+}
