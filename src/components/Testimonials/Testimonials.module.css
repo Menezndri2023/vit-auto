@@ -1,0 +1,195 @@
+.section {
+  width: 100%;
+  padding: 80px 24px;
+  background: white;
+}
+
+.container {
+  max-width: 1240px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.tag {
+  color: #ff4d2d;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  display: block;
+}
+
+.title {
+  font-size: clamp(2rem, 3vw, 2.6rem);
+  color: #121d3a;
+  margin-bottom: 50px;
+  font-weight: 800;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 28px;
+}
+
+.card {
+  background: white;
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+}
+
+.header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  background: linear-gradient(135deg, #fff5f0 0%, #ffe6d5 100%);
+  flex-shrink: 0;
+}
+
+.info {
+  text-align: left;
+}
+
+.name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #121d3a;
+  margin: 0;
+  display: block;
+}
+
+.role {
+  font-size: 0.8rem;
+  color: #999;
+  margin: 2px 0 0;
+  display: block;
+}
+
+.stars {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-start;
+  margin: 4px 0;
+}
+
+.stars span {
+  font-size: 0.9rem;
+  opacity: 0.4;
+}
+
+.starFilled {
+  opacity: 1 !important;
+}
+
+.starEmpty {
+  opacity: 0.25;
+}
+
+.text {
+  font-size: 0.9rem;
+  color: #555;
+  line-height: 1.6;
+  margin: 0;
+  text-align: left;
+  font-weight: 500;
+}
+
+/* RESPONSIVE */
+@media (max-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+
+  .card {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .section {
+    padding: 60px 20px;
+  }
+
+  .title {
+    font-size: 2rem;
+    margin-bottom: 40px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .card {
+    padding: 18px;
+  }
+
+  .text {
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .section {
+    padding: 40px 16px;
+  }
+
+  .title {
+    font-size: 1.5rem;
+    margin-bottom: 30px;
+  }
+
+  .card {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 1.4rem;
+  }
+
+  .name {
+    font-size: 0.9rem;
+  }
+
+  .role {
+    font-size: 0.75rem;
+  }
+
+  .text {
+    font-size: 0.8rem;
+  }
+
+  .stars {
+    gap: 1px;
+  }
+
+  .stars span {
+    font-size: 0.75rem;
+  }
+}

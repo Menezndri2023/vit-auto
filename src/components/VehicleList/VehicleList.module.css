@@ -1,9 +1,13 @@
 .container {
-  padding: 50px;
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 50px 24px 80px;
 }
 
 .grid {
   display: flex;
+  justify-content: center;
   gap: 20px;
   flex-wrap: wrap;
 }
