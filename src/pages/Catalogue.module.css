@@ -1,0 +1,26 @@
+.container {
+  padding: 40px;
+}
+
+.filters {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.filters label {
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.filters span {
+  margin-right: 12px;
+}
+
+.grid {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
