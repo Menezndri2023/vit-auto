@@ -5,9 +5,59 @@
   padding: 50px 24px 80px;
 }
 
-.grid {
+.header {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 24px;
+  gap: 16px;
+}
+
+.tag {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #ff4d2d;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: inline-block;
+}
+
+h2 {
+  margin: 0;
+  color: #121d3a;
+  font-size: clamp(1.75rem, 2.3vw, 2.4rem);
+}
+
+.ctaLink {
+  color: #ff4d2d;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.95rem;
+  border: 1px solid #ff4d2d;
+  padding: 8px 18px;
+  border-radius: 999px;
+  transition: all 0.25s ease;
+}
+
+.ctaLink:hover {
+  background: #ff4d2d;
+  color: white;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 20px;
-  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ctaLink {
+    font-size: 0.9rem;
+  }
 }

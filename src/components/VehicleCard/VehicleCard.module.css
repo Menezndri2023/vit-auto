@@ -1,44 +1,120 @@
 .card {
-  width: 250px;
-  border-radius: 15px;
+  width: 100%;
+  min-width: 280px;
+  border-radius: 20px;
   overflow: hidden;
   background: white;
-  box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
-.card img {
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.15);
+}
+
+.cover {
+  position: relative;
+}
+
+.cover img {
   width: 100%;
-  height: 160px;
+  height: 180px;
   object-fit: cover;
+}
+
+.badges {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: white;
+  border-radius: 999px;
+  padding: 5px 10px;
+  text-transform: uppercase;
+}
+
+.location {
+  background: rgba(0, 115, 255, 0.9);
+}
+
+.sale {
+  background: rgba(255, 77, 45, 0.95);
+}
+
+.available {
+  background: #2ecc71;
+}
+
+.reserve {
+  background: #e67e22;
 }
 
 .info {
   padding: 16px;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.topRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .info h3 {
-  margin: 0 0 8px;
-  font-size: 18px;
+  margin: 0;
+  font-size: 1.1rem;
+  color: #0f1b3f;
+}
+
+.km {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #ff4d2d;
 }
 
 .type {
-  font-size: 14px;
-  opacity: 0.75;
-  margin-bottom: 8px;
+  font-size: 0.85rem;
+  opacity: 0.8;
+  margin: 0;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: #6d7a95;
+  font-size: 0.8rem;
 }
 
 .price {
-  font-weight: 700;
-  margin-bottom: 12px;
+  margin: 0;
+  font-weight: 900;
+  color: #ff4d2d;
+  font-size: 1.25rem;
+}
+
+.buyPrice {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #6d7a95;
 }
 
 .actions {
   display: flex;
-  gap: 8px;
-  padding: 0 16px 16px;
+  gap: 12px;
+  padding: 16px;
 }
 
 .actions button {
@@ -46,11 +122,39 @@
   color: white;
   border: none;
   flex: 1;
-  padding: 10px;
-  border-radius: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
   cursor: pointer;
+  font-weight: 600;
 }
 
 .actions button:hover {
   filter: brightness(1.05);
 }
+
+.actions .secondary {
+  background: #f6f8fc;
+  color: #0f1b3f;
+  border: 1px solid #dfe3ef;
+}
+
+.actions .secondary:hover {
+  background: #e8edf9;
+}
+
+@media (max-width: 900px) {
+  .card {
+    min-width: 240px;
+  }
+}
+
+@media (max-width: 640px) {
+  .card {
+    min-width: 100%;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+}
+
