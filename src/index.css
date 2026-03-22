@@ -11,6 +11,10 @@ html, body, #root {
   width: 100%;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 /* STYLE BODY */
 body {
   font-family: "Poppins", sans-serif;

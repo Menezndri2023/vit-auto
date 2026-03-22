@@ -1,13 +1,14 @@
+import React from "react";
 import { useNavigate } from "react-router-dom";
 import styles from "../VehicleCard/VehicleCard.module.css";
 
-const VehicleCard = ({ car }) => {
+const VehicleCard = React.memo(({ car }) => {
   const navigate = useNavigate();
 
   return (
     <div className={styles.card}>
       <div className={styles.cover}>
-        <img src={car.image} alt={car.name} />
+        <img src={car.image} alt={car.name} loading="lazy" />
         <div className={styles.badges}>
           <span className={`${styles.badge} ${car.mode === "Acheter" ? styles.sale : styles.location}`}>
             {car.mode}
@@ -48,6 +49,6 @@ const VehicleCard = ({ car }) => {
       </div>
     </div>
   );
-};
+});
 
 export default VehicleCard;

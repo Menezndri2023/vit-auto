@@ -1,71 +1,57 @@
-import React, { useState } from "react";
+import React, { useState, memo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import ModeToggle from "./ModeToggle";
 import styles from "../SearchBar/SearchBar.module.css";
 
-const SearchBar = () => {
+const SearchBar = memo(() => {
   const [mode, setMode] = useState("Louer");
   const [location, setLocation] = useState("");
-  const [type, setType] = useState("Tous types");
-  const [focus, setFocus] = useState(null);
+  const [type, setType] = useState("Tous");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleSearch = () => {
-    setLoading(true);
+  const goToCatalogue = useCallback((selectedMode) => {
     const params = new URLSearchParams();
-    params.set("mode", mode);
+    params.set("mode", selectedMode);
     if (location.trim()) params.set("location", location.trim());
-    if (type !== "Tous types") params.set("type", type);
-    
-    // Simulate API call
+    if (type !== "Tous") params.set("type", type);
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+    navigate(`/catalogue?${params.toString()}`);
+  }, [location, type, startDate, endDate, navigate]);
+
+  const handleSearch = useCallback(() => {
+    setLoading(true);
+    goToCatalogue(mode);
     setTimeout(() => {
-      navigate(`/catalogue?${params.toString()}`);
       setLoading(false);
     }, 300);
-  };
+  }, [mode, goToCatalogue]);
 
-  const handleKeyPress = (e) => {
+  const handleKeyPress = useCallback((e) => {
     if (e.key === "Enter") {
       handleSearch();
     }
-  };
+  }, [handleSearch]);
 
-  const resetFilters = () => {
+  const resetFilters = useCallback(() => {
     setMode("Louer");
     setLocation("");
-    setType("Tous types");
-  };
+    setType("Tous");
+    setStartDate("");
+    setEndDate("");
+  }, []);
 
   return (
     <div className={styles.container}>
       <div className={styles.searchBox}>
         {/* MODE SECTION */}
-        <div className={styles.field}>
-          <label>Mode</label>
-          <div className={styles.modeToggle}>
-            <button
-              className={`${styles.toggleBtn} ${mode === "Louer" ? styles.active : ""}`}
-              onClick={() => setMode("Louer")}
-              type="button"
-              title="Louer un véhicule"
-            >
-              <span className={styles.icon}>🚗</span>
-              <span>Louer</span>
-            </button>
-            <button
-              className={`${styles.toggleBtn} ${mode === "Acheter" ? styles.active : ""}`}
-              onClick={() => setMode("Acheter")}
-              type="button"
-              title="Acheter un véhicule"
-            >
-              <span className={styles.icon}>💳</span>
-              <span>Acheter</span>
-            </button>
-          </div>
-        </div>
+        <ModeToggle mode={mode} setMode={setMode} goToCatalogue={goToCatalogue} />
 
-        {/* LOCATION SECTION */}
-        <div className={`${styles.field} ${styles.inputField}`}>
+        {/* LOCATION FIELD */}
+        <div className={`${styles.field} ${styles.locationField}`}>
           <label>Localisation</label>
           <div className={styles.inputWrapper}>
             <span className={styles.inputIcon}>📍</span>
@@ -74,8 +60,6 @@ const SearchBar = () => {
               placeholder="Entrez une ville..."
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              onFocus={() => setFocus("location")}
-              onBlur={() => setFocus(null)}
               onKeyPress={handleKeyPress}
             />
             {location && (
@@ -83,7 +67,7 @@ const SearchBar = () => {
                 type="button"
                 className={styles.clearBtn}
                 onClick={() => setLocation("")}
-                title="Effacer"
+                aria-label="Effacer"
               >
                 ✕
               </button>
@@ -91,21 +75,17 @@ const SearchBar = () => {
           </div>
         </div>
 
-        {/* TYPE SECTION */}
-        <div className={`${styles.field} ${styles.selectField}`}>
+        {/* TYPE FIELD */}
+        <div className={`${styles.field} ${styles.typeField}`}>
           <label>Type de véhicule</label>
           <div className={styles.selectWrapper}>
             <span className={styles.selectIcon}>🔧</span>
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-              onFocus={() => setFocus("type")}
-              onBlur={() => setFocus(null)}
-            >
+            <select value={type} onChange={(e) => setType(e.target.value)}>
               <option>Tous types</option>
               <option>SUV</option>
               <option>Berline</option>
-              <option>Coupé</option>
+              <option>Sportif</option>
+              <option>Citadine</option>
             </select>
           </div>
         </div>
@@ -115,17 +95,17 @@ const SearchBar = () => {
           className={`${styles.btn} ${loading ? styles.loading : ""}`}
           onClick={handleSearch}
           disabled={loading}
-          type="submit"
+          type="button"
+          aria-label="Chercher les véhicules"
         >
           {loading ? (
             <>
               <span className={styles.spinner}></span>
-              <span>Recherche...</span>
             </>
           ) : (
             <>
               <span>🔍</span>
-              <span>Rechercher</span>
+              <span>Chercheur</span>
             </>
           )}
         </button>
@@ -136,22 +116,13 @@ const SearchBar = () => {
           onClick={resetFilters}
           type="button"
           title="Réinitialiser les filtres"
+          aria-label="Réinitialiser les filtres"
         >
           ↻
         </button>
       </div>
-
-      {/* ACTIVE FILTERS DISPLAY */}
-      {(location || type !== "Tous types") && (
-        <div className={styles.activeFilters}>
-          <p>Filtres actifs :</p>
-          {location && <span className={styles.filterTag}>📍 {location}</span>}
-          {type !== "Tous types" && <span className={styles.filterTag}>🔧 {type}</span>}
-          {mode === "Acheter" && <span className={styles.filterTag}>💳 Achat</span>}
-        </div>
-      )}
     </div>
   );
-};
+});
 
 export default SearchBar;

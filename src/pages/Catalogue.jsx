@@ -98,56 +98,64 @@ const Catalogue = () => {
         <aside className={styles.sidebar}>
           <div className={styles.filterBlock}>
             <h3>Filtres</h3>
-            <div className={styles.filterItem}>
-              <label>Prix max / jour: {maxPrice} €</label>
-              <input
-                type="range"
-                min="20"
-                max="300"
-                value={maxPrice}
-                onChange={(e) => setMaxPrice(Number(e.target.value))}
-              />
-            </div>
 
-            <div className={styles.filterItem}>
-              <label>Fuels</label>
-              <div className={styles.checkboxGroup}>
-                {fuels.map((fuel) => (
-                  <label key={fuel}>
-                    <input
-                      type="radio"
-                      name="fuel"
-                      value={fuel}
-                      checked={fuelType === fuel}
-                      onChange={() => {
-                        setFuelType(fuel);
-                        setParam("fuel", fuel);
-                      }}
-                    />
-                    {fuel}
-                  </label>
-                ))}
+            <div className={styles.filterSection}>
+              <h4>Prix max / jour</h4>
+              <div className={styles.filterItem}>
+                <label>{maxPrice} €</label>
+                <input
+                  type="range"
+                  min="20"
+                  max="300"
+                  value={maxPrice}
+                  onChange={(e) => setMaxPrice(Number(e.target.value))}
+                />
               </div>
             </div>
 
-            <div className={styles.filterItem}>
-              <label>Transmission</label>
-              <div className={styles.checkboxGroup}>
-                {transmissions.map((t) => (
-                  <label key={t}>
-                    <input
-                      type="radio"
-                      name="transmission"
-                      value={t}
-                      checked={transmission === t}
-                      onChange={() => {
-                        setTransmission(t);
-                        setParam("transmission", t);
-                      }}
-                    />
-                    {t}
-                  </label>
-                ))}
+            <div className={styles.filterSection}>
+              <h4>Carburants</h4>
+              <div className={styles.filterItem}>
+                <div className={styles.checkboxGroup}>
+                  {fuels.map((fuel) => (
+                    <label key={fuel}>
+                      <input
+                        type="radio"
+                        name="fuel"
+                        value={fuel}
+                        checked={fuelType === fuel}
+                        onChange={() => {
+                          setFuelType(fuel);
+                          setParam("fuel", fuel);
+                        }}
+                      />
+                      {fuel}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.filterSection}>
+              <h4>Transmission</h4>
+              <div className={styles.filterItem}>
+                <div className={styles.checkboxGroup}>
+                  {transmissions.map((t) => (
+                    <label key={t}>
+                      <input
+                        type="radio"
+                        name="transmission"
+                        value={t}
+                        checked={transmission === t}
+                        onChange={() => {
+                          setTransmission(t);
+                          setParam("transmission", t);
+                        }}
+                      />
+                      {t}
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
 

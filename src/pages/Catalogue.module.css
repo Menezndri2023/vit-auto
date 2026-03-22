@@ -112,18 +112,18 @@
 
 .sidebar {
   background: #ffffff;
-  border-radius: 20px;
-  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.09);
-  padding: 24px;
+  border-radius: 16px;
+  box-shadow: 0 12px 24px rgba(18, 48, 91, 0.14);
+  padding: 16px;
   min-height: 520px;
-  border: 1px solid #e2e8f4;
+  border: 1px solid #dce5f4;
 }
 
 .filterBlock h3 {
   margin: 0;
-  font-size: 1.2rem;
-  color: #112a4a;
-  margin-bottom: 18px;
+  font-size: 1.25rem;
+  color: #0f1b3f;
+  margin-bottom: 16px;
   letter-spacing: 0.01em;
 }
 
@@ -132,29 +132,46 @@
   top: 100px;
 }
 
-.filterItem {
-  margin-bottom: 18px;
+.filterSection {
   background: #f8fbff;
-  border: 1px solid #e8effc;
-  border-radius: 12px;
-  padding: 12px;
+  border: 1px solid #dde8f7;
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.filterSection h4 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  color: #22385a;
+  font-weight: 700;
+}
+
+
+.filterItem {
+  margin-bottom: 16px;
+  background: #ffffff;
+  border: 1px solid #e3eaf9;
+  border-radius: 14px;
+  padding: 14px;
 }
 
 .filterItem label {
   display: block;
   margin-bottom: 10px;
   font-weight: 700;
-  color: #1b3158;
+  color: #233558;
 }
 
 .filterItem input[type="range"] {
   width: 100%;
-  height: 6px;
+  height: 8px;
   cursor: pointer;
   accent-color: #ff4d2d;
-  background: linear-gradient(90deg, #ff4d2d 0%, #ff4d2d 50%, #d8e0ed 50%, #d8e0ed 100%);
+  background: linear-gradient(90deg, #ff4d2d 0%, #ff4d2d 50%, #e4ebf7 50%, #e4ebf7 100%);
   border-radius: 999px;
 }
+
 
 .checkboxGroup {
   display: grid;
@@ -236,11 +253,29 @@
   cursor: pointer;
   font-weight: 500;
   color: #2f3d5b;
+  border: 1px solid #e7f0fd;
+  border-radius: 10px;
+  padding: 8px 10px;
+  transition: all 0.2s ease;
+  background: #fbfdff;
+}
+
+.checkboxGroup label:hover {
+  background: #f1f6ff;
+  border-color: #d8e6fb;
 }
 
 .checkboxGroup input {
   accent-color: #ff4d2d;
+  transform: scale(1.15);
 }
+
+.checkboxGroup input:checked + span,
+.checkboxGroup input:checked ~ span {
+  color: #102a53;
+  font-weight: 700;
+}
+
 
 .resetBtn {
   width: 100%;

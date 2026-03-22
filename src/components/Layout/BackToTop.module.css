@@ -1,0 +1,24 @@
+.backToTop {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #ff4d2d;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  font-size: 20px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(255, 77, 45, 0.3);
+  transition: all 0.3s ease;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.backToTop:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 77, 45, 0.4);
+}
