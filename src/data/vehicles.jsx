@@ -101,4 +101,22 @@ export const vehicles = [
     fuel: "Essence",
     available: false,
   },
+  {
+    id: 7,
+    name: "Mercedes-Benz Viano",
+    type: "Viano",
+    mode: "Louer",
+    image: "https://images.unsplash.com/photo-1604215161874-27ce0516e6f8",
+    description: "Viano spacieux idéal pour navettes et voyages familiaux. Capacité jusqu'à 8 places.",
+    pricePerDay: 85,
+    buyPrice: 45000,
+    rating: 4.6,
+    reviews: 56,
+    distance: 0.9,
+    seats: 8,
+    transmission: "Automatique",
+    fuel: "Diesel",
+    available: true,
+  }
 ];
+

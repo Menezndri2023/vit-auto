@@ -5,7 +5,7 @@ import { vehicles } from "../data/vehicles";
 import styles from "./Catalogue.module.css";
 
 const catalogueMode = ["Tout", "Louer", "Acheter"];
-const types = ["Tous", "SUV", "Berline", "Sportif", "Citadine"];
+const types = ["Tous", "SUV", "Berline", "Sportif", "Citadine", "Viano"];
 const fuels = ["Tous", "Essence", "Diesel", "Hybride", "Électrique"];
 const transmissions = ["Tous", "Automatique", "Manuelle"];
 

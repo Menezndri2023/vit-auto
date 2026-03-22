@@ -1,12 +1,13 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import VehicleCard from "../VehicleCard/VehicleCard";
-import { vehicles } from "../../data/vehicles";
+import { useVehicles } from "../../context/VehicleContext";
 import styles from "../VehicleList/VehicleList.module.css";
 
-const featured = vehicles.filter((car) => car.available).slice(0, 3);
-
 const VehicleList = () => {
+  const { vehicles } = useVehicles();
+  const featured = vehicles.filter((car) => car.available).slice(0, 3);
+
   return (
     <section className={styles.container}>
       <div className={styles.header}>

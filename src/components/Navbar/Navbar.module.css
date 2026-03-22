@@ -25,7 +25,24 @@
 
 .navRight {
   display: flex;
-  gap: 15px;
+  gap: 12px;
+  align-items: center;
+}
+
+.userBadge {
+  font-size: 0.9rem;
+  padding: 6px 10px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 999px;
+}
+
+.linkBtn {
+  background: transparent;
+  border: 1px solid white;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
 }
 
 .ctaBtn {

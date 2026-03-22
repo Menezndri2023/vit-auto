@@ -153,6 +153,47 @@
   box-shadow: 0 6px 20px rgba(255, 77, 45, 0.4);
 }
 
+.empty {
+  text-align: center;
+  padding: 80px 20px;
+  color: #5a6476;
+}
+
+.centerContainer {
+  width: min(680px, 100%);
+  margin: 0 auto;
+  background: white;
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+}
+
+.error {
+  color: #dc3545;
+  font-weight: 600;
+  margin-top: -6px;
+}
+
+.infoMessage {
+  padding: 10px 14px;
+  background: #e3f6ff;
+  color: #036b94;
+  border-radius: 8px;
+  margin-top: 12px;
+}
+
+.footerLink {
+  margin-top: 12px;
+  text-align: center;
+}
+
+.footerLink a {
+  color: #ff4d2d;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+
 .notifications {
   display: flex;
   flex-direction: column;

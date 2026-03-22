@@ -1,15 +1,31 @@
 import React, { useState } from "react";
 import { useVehicles } from "../context/VehicleContext";
+import { useAuth } from "../context/AuthContext";
+import { Link } from "react-router-dom";
 import styles from "./Profile.module.css";
 
 const Profile = () => {
+  const { user, isAuthenticated } = useAuth();
   const { bookings } = useVehicles();
+
+  if (!isAuthenticated) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.empty}>
+          <h1>Accès au profil</h1>
+          <p>Veuillez vous connecter pour voir et modifier votre profil.</p>
+          <Link to="/login" className={styles.primaryBtn}>Connexion</Link>
+        </div>
+      </div>
+    );
+  }
+
   const [activeTab, setActiveTab] = useState("personal");
   const [profileData, setProfileData] = useState({
-    firstName: "Jean",
-    lastName: "Dupont",
-    email: "jean.dupont@email.com",
-    phone: "+225 01 02 03 04 05",
+    firstName: user?.firstName || "Jean",
+    lastName: user?.lastName || "Dupont",
+    email: user?.email || "jean.dupont@email.com",
+    phone: user?.phone || "+225 01 02 03 04 05",
     address: "Abidjan, Côte d'Ivoire",
     licenseNumber: "CI-123456789",
     licenseExpiry: "2025-12-31"

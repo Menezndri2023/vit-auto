@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useVehicles } from "../context/VehicleContext";
+import { useAuth } from "../context/AuthContext";
 import styles from "./Booking.module.css";
 
 const optionsData = [
@@ -14,6 +15,7 @@ const Booking = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { getVehicleById, addBooking } = useVehicles();
+  const { token } = useAuth();
   const vehicle = getVehicleById(id);
 
   const isTrial = vehicle?.mode === "Acheter";
@@ -126,7 +128,7 @@ const Booking = () => {
     setStep(2);
   };
 
-  const handlePaymentSubmit = (e) => {
+  const handlePaymentSubmit = async (e) => {
     e.preventDefault();
 
     if (!paymentForm.paymentMethod) {
@@ -184,6 +186,19 @@ const Booking = () => {
     }
 
     addBooking(booking);
+
+    try {
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      await fetch("/api/bookings", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(booking),
+      });
+    } catch {
+      // Backend non disponible, réservation conservée côté client
+    }
+
     navigate("/booking/success", { state: { booking, trial: isTrial, payment: paymentForm } });
   };
 

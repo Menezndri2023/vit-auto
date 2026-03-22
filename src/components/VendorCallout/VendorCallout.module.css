@@ -1,0 +1,5 @@
+.vendor {background:#fff2ec;border:1px solid #ffd4c4;border-radius:14px;padding:20px 22px;display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;box-shadow:0 10px 16px rgba(238,55,0,0.18);}
+.vendor h2 {margin:0;font-size:1.35rem;color:#d9481d;}
+.vendor p {margin:8px 0 0;color:#5f4632;max-width:640px;}
+.vendor .btn {padding:10px 16px;border:none;border-radius:10px;background:#ff4d2d;color:white;font-weight:700;text-decoration:none;transition:filter .2s ease;}
+.vendor .btn:hover {filter:brightness(1.05);}
