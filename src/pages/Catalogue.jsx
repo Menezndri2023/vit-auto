@@ -4,17 +4,19 @@ import VehicleCard from "../components/VehicleCard/VehicleCard";
 import { vehicles } from "../data/vehicles";
 import styles from "./Catalogue.module.css";
 
-const catalogueMode = ["Tout", "Louer", "Acheter"];
+const catalogueMode = ["Tout", "Louer", "Acheter", "Chauffeur"];
 const types = ["Tous", "SUV", "Berline", "Sportif", "Citadine", "Viano"];
 const fuels = ["Tous", "Essence", "Diesel", "Hybride", "Électrique"];
 const transmissions = ["Tous", "Automatique", "Manuelle"];
 
 const Catalogue = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+
   const [activeMode, setActiveMode] = useState(() => {
-    const mode = searchParams.get("mode");
-    return catalogueMode.includes(mode) ? mode : catalogueMode[0];
+    const mode = searchParams.get("mode") || "Louer";
+    return catalogueMode.includes(mode) ? mode : "Louer";
   });
+
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get("location") || "");
   const [activeType, setActiveType] = useState(() => searchParams.get("type") || "Tous");
   const [fuelType, setFuelType] = useState("Tous");

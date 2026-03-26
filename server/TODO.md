@@ -3,7 +3,7 @@
 ## Completed Steps
 - [x] Create config/db.js from db/index.js
 - [x] Rename/move server/index.js to server/server.js and update imports
-- [x] Fix middleware/auth.js to use useDB
+- [x] Fix middleware/auth.js to use mongodb 
 - [x] Create missing models: Driver.js, Payment.js
 - [x] Create controllers: authController.js, vehicleController.js, bookingController.js, paymentController.js, driverController.js, usersController.js
 - [x] Update routes/*.js to thin layers using controllers

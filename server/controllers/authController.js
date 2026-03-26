@@ -1,6 +1,5 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { useDB } from "../config/db.js";
 import User from "../models/User.js";
 
 const SECRET = process.env.JWT_SECRET || "secretkey";
@@ -12,16 +11,15 @@ export const register = async (req, res) => {
   }
 
   try {
-    const db = useDB(User, "users");
-    const existing = await db.findOne({ email: email.toLowerCase() });
+    const existing = await User.findOne({ email: email.toLowerCase() });
     if (existing) return res.status(409).json({ message: "Email déjà utilisé" });
 
-    const foundAdmin = await db.findOne({ role: "admin" });
+    const foundAdmin = await User.findOne({ role: "admin" });
     const role = foundAdmin ? "user" : "admin";
 
     const hash = await bcrypt.hash(password, 10);
     const userDoc = { firstName, lastName, email: email.toLowerCase(), password: hash, phone, role, createdAt: new Date() };
-    const user = await db.create(userDoc);
+    const user = await User.create(userDoc);
     
     const token = jwt.sign({ id: user._id, email: user.email, role }, SECRET, { expiresIn: "7d" });
 
@@ -47,8 +45,7 @@ export const login = async (req, res) => {
   if (!email || !password) return res.status(400).json({ message: "Données manquantes" });
 
   try {
-    const db = useDB(User, "users");
-    const user = await db.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) return res.status(401).json({ message: "Identifiants invalides" });
 
     const isValid = await bcrypt.compare(password, user.password);

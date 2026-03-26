@@ -15,6 +15,7 @@ const ModeToggle = memo(({ mode, setMode, goToCatalogue }) => {
           <span className={styles.icon}>🚗</span>
           <span>Louer</span>
         </button>
+
         <button
           className={`${styles.toggleBtn} ${mode === "Acheter" ? styles.active : ""}`}
           onClick={() => { setMode("Acheter"); goToCatalogue("Acheter"); }}
@@ -23,6 +24,15 @@ const ModeToggle = memo(({ mode, setMode, goToCatalogue }) => {
         >
           <span className={styles.icon}>💳</span>
           <span>Acheter</span>
+        </button>
+        <button
+          className={`${styles.toggleBtn} ${mode === "Chauffeur" ? styles.active : ""}`}
+          onClick={() => { setMode("Chauffeur"); goToCatalogue("Chauffeur"); }}
+          type="button"
+          title="Réserver un chauffeur"
+        >
+          <span className={styles.icon}>👨‍✈️</span>
+          <span>Chauffeur</span>
         </button>
       </div>
     </div>
