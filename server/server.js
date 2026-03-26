@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
-import { initDatabase } from "./config/db.js";
+import connectDB from "./config/db.js";
 import authRoutes from "./routes/auth.js";
 import vehicleRoutes from "./routes/vehicles.js";
 import bookingRoutes from "./routes/bookings.js";
@@ -20,7 +20,7 @@ app.use(express.urlencoded({ extended: true }));
 const PORT = process.env.PORT || 5000;
 
 (async () => {
-  await initDatabase();
+  await connectDB();
 
   app.get("/api/ping", (_req, res) => res.json({ status: "ok" }));
   app.use("/api/auth", authRoutes);

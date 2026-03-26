@@ -1,4 +1,3 @@
-import { useDB } from "../config/db.js";
 import Booking from "../models/Booking.js";
 import { authenticate } from "../middleware/auth.js";
 

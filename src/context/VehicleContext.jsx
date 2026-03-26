@@ -33,6 +33,7 @@ const saveBookings = (bookings) => {
 export const VehicleProvider = ({ children }) => {
   const { token } = useAuth();
   const [vehicles, setVehicles] = useState(initialVehicles);
+  const [drivers, setDrivers] = useState([]);
   const [bookings, setBookings] = useState(() => loadBookings());
 
   useEffect(() => {
@@ -49,7 +50,23 @@ export const VehicleProvider = ({ children }) => {
     loadVehicles();
   }, []);
 
-  const getVehicleById = (id) => vehicles.find((v) => v.id === Number(id));
+  useEffect(() => {
+    const loadDrivers = async () => {
+      try {
+        const response = await fetch("/api/drivers");
+        if (!response.ok) throw new Error("Failed to fetch drivers");
+        const data = await response.json();
+        if (Array.isArray(data)) setDrivers(data);
+      } catch {
+        // Fallback empty
+      }
+    };
+    loadDrivers();
+  }, []);
+
+  const getItemById = (id) => {
+    return vehicles.find((v) => v._id === id || v.id === id) || drivers.find((d) => d._id === id || d.id === id);
+  };
 
   const addVehicle = async (newVehicle) => {
     const pending = { ...newVehicle, status: "pending" };
@@ -67,6 +84,25 @@ export const VehicleProvider = ({ children }) => {
       setVehicles((prev) => prev.map((v) => (v.id === newVehicle.id ? saved : v)));
     } catch {
       // fallback to local state only
+    }
+  };
+
+  const addDriver = async (newDriver) => {
+    const pending = { ...newDriver, status: "pending" };
+    setDrivers((prev) => [...prev, pending]);
+    try {
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const response = await fetch("/api/drivers", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(pending),
+      });
+      if (!response.ok) throw new Error("Unable to add driver");
+      const saved = await response.json();
+      setDrivers((prev) => prev.map((d) => (d.id === newDriver.id ? saved : d)));
+    } catch {
+      // fallback
     }
   };
 
@@ -88,22 +124,9 @@ export const VehicleProvider = ({ children }) => {
     }
   };
 
-  const rejectVehicle = async (id) => {
-    try {
-      const headers = { "Content-Type": "application/json" };
-      if (token) headers.Authorization = `Bearer ${token}`;
-      const response = await fetch(`/api/vehicles/${id}/status`, {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({ status: "rejected" }),
-      });
-      if (!response.ok) throw new Error("Failed");
-      const vehicle = await response.json();
-      setVehicles((prev) => prev.map((v) => (v._id === vehicle._id || v.id === vehicle._id ? { ...v, status: "rejected" } : v)));
-      return vehicle;
-    } catch {
-      return null;
-    }
+  const approveDriver = async (id) => {
+    // Similar for drivers if needed
+    return null;
   };
 
   const addBooking = (booking) => {
@@ -119,9 +142,21 @@ export const VehicleProvider = ({ children }) => {
   };
 
   const value = useMemo(
-    () => ({ vehicles, bookings, getVehicleById, addVehicle, addBooking, removeBooking, approveVehicle, rejectVehicle }),
-    [vehicles, bookings]
+    () => ({
+      vehicles,
+      drivers,
+      bookings,
+      getItemById,
+      addVehicle,
+      addDriver,
+      addBooking,
+      removeBooking,
+      approveVehicle,
+      approveDriver,
+    }),
+    [vehicles, drivers, bookings]
   );
 
   return <VehicleContext.Provider value={value}>{children}</VehicleContext.Provider>;
 };
+
