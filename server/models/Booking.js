@@ -3,9 +3,10 @@ import mongoose from "mongoose";
 const bookingSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   vehicleId: { type: mongoose.Schema.Types.ObjectId, ref: "Vehicle" },
+  driverId: { type: mongoose.Schema.Types.ObjectId, ref: "Driver" },
   vehicleName: String,
-  vehicleType: String,
-  vehicleMode: String,
+  driverName: String,
+  type: String, // location/vente/driver
   pricePerDay: Number,
   startDate: Date,
   endDate: Date,
