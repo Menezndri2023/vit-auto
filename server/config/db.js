@@ -36,3 +36,4 @@ const createOfflineProxy = (db, collectionName) => {
 };
 
 export default offlineDB;
+
