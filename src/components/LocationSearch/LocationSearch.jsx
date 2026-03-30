@@ -1,92 +1,91 @@
-import React, { useState } from "react";
-import styles from "./LocationSearch.module.css";
+import React, { useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+import { useLocation } from '../../context/LocationContext';
+import styles from './LocationSearch.module.css';
+
+// Fix for default marker icon
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+});
+
+// Mock vehicles
+const mockVehicles = [
+  { id: 1, lat: 48.8566, lng: 2.3522, model: 'Renault Clio', price: '25€/j', color: 'red' },
+  { id: 2, lat: 48.8606, lng: 2.3376, model: 'Peugeot 208', price: '30€/j', color: 'blue' },
+  { id: 3, lat: 48.8473, lng: 2.3731, model: 'Citroën C3', price: '28€/j', color: 'green' },
+  { id: 4, lat: 48.8630, lng: 2.3300, model: 'Tesla Model 3', price: '80€/j', color: 'black' },
+];
+
+const LocationMarker = ({ position }) => {
+  useMapEvents({
+    click() {
+      console.log('Map clicked');
+    },
+  });
+
+  return position ? (
+    <Marker position={[position.lat, position.lng]}>
+      <Popup>Vous êtes ici ! 📍 <br /> Rafraîchir: Ctrl+R</Popup>
+    </Marker>
+  ) : null;
+};
 
 const LocationSearch = () => {
-  const [locationEnabled, setLocationEnabled] = useState(false);
+  const { position, refreshLocation, loading, error, address } = useLocation();
 
-  const features = [
-    {
-      icon: "🎯",
-      title: "Détection automatique de votre position",
-    },
-    {
-      icon: "📏",
-      title: "Calcul de distance en temps réel",
-    },
-    {
-      icon: "🔍",
-      title: "Filtres avancés par zone géographique",
-    },
-  ];
-
-  const handleLocationClick = () => {
-    setLocationEnabled(true);
-    // Trigger geolocation API
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          console.log("Latitude:", position.coords.latitude);
-          console.log("Longitude:", position.coords.longitude);
-        },
-        (error) => {
-          console.error("Erreur de géolocalisation:", error);
-          alert("Impossible d'accéder à votre position.");
-        }
-      );
+  useEffect(() => {
+    if (!position) {
+      refreshLocation();
     }
-  };
+  }, [position, refreshLocation]);
 
   return (
     <section className={styles.section}>
       <div className={styles.container}>
-        {/* LEFT SIDE */}
         <div className={styles.content}>
-          <p className={styles.tag}>🗺️ RECHERCHE PAR POSITION</p>
-          <h2 className={styles.title}>
-            Trouvez le véhicule <br /> le plus proche de vous
-          </h2>
-
+          <p className={styles.tag}>🗺️ CARTE INTERACTIVE</p>
+          <h2 className={styles.title}>Véhicules proches de votre position</h2>
           <p className={styles.description}>
-            Notre technologie de géolocalisation vous permet de voir en temps
-            réel tous les véhicules disponibles dans un rayon de votre choix.
-            Filtrez par distance, catégorie ou disponibilité pour trouver
-            exactement ce qu'il vous faut.
+            Géolocalisation automatique activée. Cliquez sur "Rafraîchir" pour mettre à jour.
           </p>
+          
+          <div className={styles.status}>
+            {loading && <span>⏳ Détection position...</span>}
+            {error && <span className={styles.error}>❌ {error}</span>}
+            {position && <span>✅ {address}</span>}
+          </div>
 
-          {/* FEATURES */}
-          <ul className={styles.features}>
-            {features.map((feature, idx) => (
-              <li key={idx} className={styles.featureItem}>
-                <span className={styles.featureIcon}>{feature.icon}</span>
-                <span className={styles.featureTitle}>{feature.title}</span>
-              </li>
-            ))}
-          </ul>
-
-          {/* BUTTON */}
-          <button
-            className={`${styles.btn} ${locationEnabled ? styles.active : ""}`}
-            onClick={handleLocationClick}
-          >
-            <span>📍</span>
-            <span>
-              {locationEnabled
-                ? "Géolocalisation activée"
-                : "Activer la géolocalisation"}
-            </span>
+          <button onClick={refreshLocation} className={styles.refreshBtn} disabled={loading}>
+            🔄 Rafraîchir position
           </button>
         </div>
 
-        {/* RIGHT SIDE - MAP */}
         <div className={styles.mapContainer}>
-          <iframe
+          <MapContainer 
+            center={position || [48.8566, 2.3522]} 
+            zoom={13} 
+            style={{ height: '100%', width: '100%' }}
             className={styles.map}
-            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2624.896425321226!2d2.2922926!3d48.8589507!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x47e66fec69c7ccc7%3A0x5f8e0a7e2e7e2e7e!2sParis%2C%20France!5e0!3m2!1sfr!2sfr!4v1234567890"
-            allowFullScreen=""
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-            title="Carte de localisation"
-          ></iframe>
+          >
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            <LocationMarker position={position} />
+            {mockVehicles.map((vehicle) => (
+              <Marker key={vehicle.id} position={[vehicle.lat, vehicle.lng]}>
+                <Popup>
+                  <strong>{vehicle.model}</strong><br />
+                  {vehicle.price} <br />
+                  <button className={styles.popupBtn}>Réserver</button>
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
         </div>
       </div>
     </section>
