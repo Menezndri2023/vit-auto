@@ -3,6 +3,7 @@ import { Suspense, lazy } from "react";
 import { VehicleProvider } from "./context/VehicleContext";
 import { AuthProvider } from "./context/AuthContext";
 import { ToastProvider } from "./context/ToastContext";
+import { LocationProvider } from "./context/LocationContext";
 import Layout from "./components/Layout/Layout";
 import ToastContainer from "./components/Toast/Toast";
 import Loading from "./components/Loading/Loading";
@@ -29,30 +30,32 @@ function App() {
     <BrowserRouter>
       <ToastProvider>
         <AuthProvider>
-          <VehicleProvider>
-            <Layout>
-              <Suspense fallback={<Loading />}>
-                <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/catalogue" element={<Catalogue />} />
-                  <Route path="/vehicle/:id" element={<VehicleDetails />} />
-                  <Route path="/booking/:id" element={<Booking />} />
-                  <Route path="/checkout" element={<Checkout />} />
-                  <Route path="/booking/success" element={<BookingSuccess />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/profile" element={<Profile />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/register" element={<Register />} />
-                  <Route path="/vendor" element={<VendorSubmit />} />
-                  <Route path="/vendor/dashboard" element={<VendorDashboard />} />
-                  <Route path="/admin" element={<AdminPanel />} />
-                  <Route path="/stats" element={<DashboardStats />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </Suspense>
-            </Layout>
-            <ToastContainer />
-          </VehicleProvider>
+          <LocationProvider>
+            <VehicleProvider>
+              <Layout>
+                <Suspense fallback={<Loading />}>
+                  <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/catalogue" element={<Catalogue />} />
+                    <Route path="/vehicle/:id" element={<VehicleDetails />} />
+                    <Route path="/booking/:id" element={<Booking />} />
+                    <Route path="/checkout" element={<Checkout />} />
+                    <Route path="/booking/success" element={<BookingSuccess />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/register" element={<Register />} />
+                    <Route path="/vendor" element={<VendorSubmit />} />
+                    <Route path="/vendor/dashboard" element={<VendorDashboard />} />
+                    <Route path="/admin" element={<AdminPanel />} />
+                    <Route path="/stats" element={<DashboardStats />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </Suspense>
+              </Layout>
+              <ToastContainer />
+            </VehicleProvider>
+          </LocationProvider>
         </AuthProvider>
       </ToastProvider>
     </BrowserRouter>

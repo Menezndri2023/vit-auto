@@ -1,15 +1,17 @@
 import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useLocation } from "../../context/LocationContext";
 import styles from "./Navbar.module.css";
 
 const Navbar = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
+  const { address, refreshLocation, loading } = useLocation();
 
   return (
     <nav className={styles.navbar}>
-      <div className={styles.logo}>🚘</div>
+      <div className={styles.logo}>🚘 VIT AUTO</div>
 
       <ul className={styles.navLinks}>
         <li>
@@ -54,8 +56,16 @@ const Navbar = () => {
       </ul>
 
       <div className={styles.navRight}>
-        <span className={styles.location}>📍 Paris, France</span>
-        <button className={styles.ctaBtn} onClick={() => navigate("/catalogue")}>Trouver un véhicule</button>
+        <span className={styles.location}>
+          📍 {loading ? 'Détection...' : address}
+        </span>
+        <button 
+          className={styles.ctaBtn} 
+          onClick={() => navigate("/catalogue")}
+          title="Voitures près de vous"
+        >
+          Trouver un véhicule
+        </button>
         {isAuthenticated ? (
           <>
             <span className={styles.userBadge}>Bonjour, {user?.firstName || user?.email}</span>

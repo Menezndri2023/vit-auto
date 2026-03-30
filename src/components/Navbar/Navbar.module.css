@@ -8,25 +8,45 @@
   color: white;
 }
 
+.logo {
+  font-size: 2rem;
+}
+
 .navLinks {
   display: flex;
   gap: 30px;
   list-style: none;
+  align-items: center;
 }
 
 .navLinks a {
   color: white;
   text-decoration: none;
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+.navLinks a:hover {
+  color: #ff4d2d;
 }
 
 .active {
   border-bottom: 2px solid #ff4d2d;
+  color: #ff4d2d !important;
 }
 
 .navRight {
   display: flex;
   gap: 12px;
   align-items: center;
+}
+
+.location {
+  font-size: 0.9rem;
+  padding: 6px 12px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 20px;
+  white-space: nowrap;
 }
 
 .userBadge {
@@ -43,6 +63,12 @@
   padding: 8px 12px;
   border-radius: 8px;
   cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.linkBtn:hover {
+  background: white;
+  color: #333;
 }
 
 .ctaBtn {
@@ -52,4 +78,33 @@
   border-radius: 8px;
   color: white;
   cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.ctaBtn:hover {
+  background: #e63a1a;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 768px) {
+  .navbar {
+    padding: 15px 20px;
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .navLinks {
+    gap: 20px;
+    font-size: 0.9rem;
+  }
+
+  .navRight {
+    gap: 8px;
+  }
+
+  .location {
+    font-size: 0.8rem;
+    padding: 4px 8px;
+  }
 }
