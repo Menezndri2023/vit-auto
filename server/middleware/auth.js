@@ -1,30 +1,36 @@
 import jwt from "jsonwebtoken";
-import { useDB } from "../config/db.js";
 import User from "../models/User.js";
 
-const SECRET = process.env.JWT_SECRET || "secretkey";
-
+// 🔐 Authentification
 export const authenticate = async (req, res, next) => {
-  const auth = req.headers.authorization;
-  if (!auth?.startsWith("Bearer ")) return res.status(401).json({ message: "Token manquant" });
-
-  const token = auth.split(" ")[1];
   try {
-    const decoded = jwt.verify(token, SECRET);
-    const db = useDB(User, "users");
-    const user = await db.findById(decoded.id);
-    if (!user) return res.status(401).json({ message: "Utilisateur introuvable" });
-    const { password: _, ...userWithoutPassword } = user;
-    req.user = userWithoutPassword;
+    const token = req.headers.authorization?.split(" ")[1];
+
+    if (!token) {
+      return res.status(401).json({ message: "Non autorisé" });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const user = await User.findById(decoded.id);
+
+    if (!user) {
+      return res.status(401).json({ message: "Utilisateur introuvable" });
+    }
+
+    req.user = user;
+
     next();
   } catch (err) {
-    return res.status(401).json({ message: "Token invalide" });
+    console.error(err);
+    res.status(401).json({ message: "Token invalide" });
   }
 };
 
+// 👑 Autorisation admin
 export const authorizeAdmin = (req, res, next) => {
-  if (!req.user) return res.status(401).json({ message: "Utilisateur non authentifié" });
-  if (req.user.role !== "admin") return res.status(403).json({ message: "Accès refusé" });
+  if (!req.user || req.user.role !== "admin") {
+    return res.status(403).json({ message: "Accès refusé (admin uniquement)" });
+  }
   next();
 };
-
