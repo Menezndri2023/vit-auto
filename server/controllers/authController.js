@@ -14,8 +14,7 @@ export const register = async (req, res) => {
     const existing = await User.findOne({ email: email.toLowerCase() });
     if (existing) return res.status(409).json({ message: "Email déjà utilisé" });
 
-    const foundAdmin = await User.findOne({ role: "admin" });
-    const role = foundAdmin ? "user" : "admin";
+    const role = req.body.role || 'client'; // from form
 
     const hash = await bcrypt.hash(password, 10);
     const userDoc = { firstName, lastName, email: email.toLowerCase(), password: hash, phone, role, createdAt: new Date() };

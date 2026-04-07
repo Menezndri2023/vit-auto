@@ -1,0 +1,14 @@
+.errorPage {
+  padding: 2rem;
+  text-align: center;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.errorPage h1 {
+  color: #dc3545;
+}
+
+.actions button {
+  margin: 0 0.5rem;
+}

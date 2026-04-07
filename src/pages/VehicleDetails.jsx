@@ -5,13 +5,15 @@ import styles from "./VehicleDetails.module.css";
 const VehicleDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { getVehicleById } = useVehicles();
+  const vehiclesCtx = useVehicles();
+  const getVehicleById = vehiclesCtx.getItemById || ((id) => vehiclesCtx.vehicles?.find(v => String(v.id) === String(id) || v._id === String(id)));
   const vehicle = getVehicleById(id);
 
   if (!vehicle) {
     return <div className={styles.page}>Véhicule non trouvé</div>;
   }
 
+  const fmt = (n) => n != null ? Number(n).toLocaleString("fr-FR") + " FCFA" : "N/A";
   const priceLabel = vehicle.mode === "Acheter" ? vehicle.buyPrice : vehicle.pricePerDay;
   const priceType = vehicle.mode === "Acheter" ? "Prix d'achat" : "Prix / jour";
 
@@ -28,7 +30,7 @@ const VehicleDetails = () => {
           <div className={styles.meta}>
             <div className={styles.metaItem}>
               <span>{priceType}</span>
-              <span>{priceLabel ? `${priceLabel.toLocaleString()} €` : "N/A"}</span>
+              <span>{fmt(priceLabel)}</span>
             </div>
             <div className={styles.metaItem}>
               <span>Type</span>
@@ -48,7 +50,7 @@ const VehicleDetails = () => {
 
           <button
             className={styles.actionBtn}
-            onClick={() => navigate(`/booking/${vehicle.id}`)}
+            onClick={() => navigate(`/booking/${vehicle._id || vehicle.id}`)}
           >
             {vehicle.mode === "Acheter" ? "Demander un essai" : "Réserver"}
           </button>

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { vehicles as initialVehicles } from "../data/vehicles";
 
@@ -65,7 +65,11 @@ export const VehicleProvider = ({ children }) => {
   }, []);
 
   const getItemById = (id) => {
-    return vehicles.find((v) => v._id === id || v.id === id) || drivers.find((d) => d._id === id || d.id === id);
+    const sid = String(id);
+    return (
+      vehicles.find((v) => v._id === sid || String(v.id) === sid) ||
+      drivers.find((d) => d._id === sid || String(d.id) === sid)
+    );
   };
 
   const addVehicle = async (newVehicle) => {
