@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import VehicleCard from "../components/VehicleCard/VehicleCard";
-import { vehicles } from "../data/vehicles";
+import { useVehicles } from "../context/VehicleContext";
 import styles from "./Catalogue.module.css";
 
 const catalogueMode = ["Tout", "Louer", "Acheter", "Chauffeur"];
@@ -10,6 +10,7 @@ const fuels = ["Tous", "Essence", "Diesel", "Hybride", "Électrique"];
 const transmissions = ["Tous", "Automatique", "Manuelle"];
 
 const Catalogue = () => {
+  const { vehicles } = useVehicles();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [activeMode, setActiveMode] = useState(() => {
@@ -21,7 +22,7 @@ const Catalogue = () => {
   const [activeType, setActiveType] = useState(() => searchParams.get("type") || "Tous");
   const [fuelType, setFuelType] = useState("Tous");
   const [transmission, setTransmission] = useState("Tous");
-  const [maxPrice, setMaxPrice] = useState(250);
+  const [maxPrice, setMaxPrice] = useState(200000);
 
   const filteredVehicles = useMemo(() => {
     return vehicles.filter((vehicle) => {
@@ -104,11 +105,12 @@ const Catalogue = () => {
             <div className={styles.filterSection}>
               <h4>Prix max / jour</h4>
               <div className={styles.filterItem}>
-                <label>{maxPrice} €</label>
+                <label>{Number(maxPrice).toLocaleString("fr-FR")} FCFA</label>
                 <input
                   type="range"
-                  min="20"
-                  max="300"
+                  min="10000"
+                  max="200000"
+                  step="5000"
                   value={maxPrice}
                   onChange={(e) => setMaxPrice(Number(e.target.value))}
                 />

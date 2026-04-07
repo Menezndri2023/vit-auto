@@ -67,7 +67,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, [user, token]);
 
-  const register = async ({ firstName, lastName, email, password, phone }) => {
+  const register = async ({ firstName, lastName, email, password, phone, role }) => {
     const existingUsers = loadUsers();
     if (existingUsers.some((u) => u.email.toLowerCase() === email.toLowerCase())) {
       throw new Error("Un compte existe déjà pour cet e-mail.");
@@ -80,7 +80,7 @@ export const AuthProvider = ({ children }) => {
       email: email.toLowerCase(),
       phone,
       password,
-      role: "user",
+      role: role || "client",
       createdAt: new Date().toISOString(),
     };
 
@@ -143,8 +143,10 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     setUser(null);
+    setToken(null);
     try {
       localStorage.removeItem(STORAGE_KEY_USER);
+      localStorage.removeItem(STORAGE_KEY_TOKEN);
     } catch {
       // ignore
     }

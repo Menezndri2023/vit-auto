@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import styles from "./Profile.module.css";
+import styles from "./Auth.module.css";
 
 const Login = () => {
   const { login } = useAuth();
@@ -18,10 +18,9 @@ const Login = () => {
       error("Veuillez remplir tous les champs.");
       return;
     }
-
     try {
       await login({ email: form.email, password: form.password });
-      success("Connexion réussie !");
+      success("Connexion réussie ! Redirection...");
       setTimeout(() => navigate("/dashboard"), 1500);
     } catch (err) {
       error(err.message || "Identifiants incorrects.");
@@ -30,12 +29,34 @@ const Login = () => {
 
   return (
     <div className={styles.page}>
-      <div className={styles.centerContainer}>
-        <h1>Connexion</h1>
+      <div className={styles.card}>
+        <div className={styles.logo}>
+          <div className={styles.logoIcon}>🚗</div>
+          <h1>VIT AUTO</h1>
+          <p>Connectez-vous à votre espace</p>
+        </div>
+
         <form className={styles.form} onSubmit={onSubmit}>
-          <input type="email" name="email" value={form.email} onChange={handleChange} placeholder="Email" required />
-          <input type="password" name="password" value={form.password} onChange={handleChange} placeholder="Mot de passe" required />
-          <button type="submit" className={styles.primaryBtn}>Se connecter</button>
+          <input
+            type="email"
+            name="email"
+            value={form.email}
+            onChange={handleChange}
+            placeholder="Adresse e-mail"
+            required
+          />
+          <input
+            type="password"
+            name="password"
+            value={form.password}
+            onChange={handleChange}
+            placeholder="Mot de passe"
+            required
+            minLength="6"
+          />
+          <button type="submit" className={styles.submitBtn}>
+            Se connecter
+          </button>
           <div className={styles.footerLink}>
             <span>Pas encore de compte ? </span>
             <Link to="/register">Créer un compte</Link>

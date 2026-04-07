@@ -1,160 +1,203 @@
+/* ─── Card container ─────────────────────────────────────── */
 .card {
   width: 100%;
-  min-width: 280px;
-  border-radius: 20px;
+  border-radius: 18px;
   overflow: hidden;
-  background: white;
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(15, 27, 63, 0.08);
   display: flex;
   flex-direction: column;
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  transition: transform 0.28s ease, box-shadow 0.28s ease;
+  border: 1px solid #edf1fb;
 }
 
 .card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.15);
+  transform: translateY(-6px);
+  box-shadow: 0 18px 40px rgba(15, 27, 63, 0.14);
 }
 
+/* ─── Cover / image ─────────────────────────────────────── */
 .cover {
   position: relative;
+  overflow: hidden;
 }
 
 .cover img {
   width: 100%;
-  height: 180px;
+  height: 210px;
   object-fit: cover;
+  display: block;
+  transition: transform 0.4s ease;
 }
 
+.card:hover .cover img {
+  transform: scale(1.04);
+}
+
+/* dark gradient at bottom of image */
+.cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 45%, rgba(10, 15, 40, 0.55) 100%);
+  pointer-events: none;
+}
+
+/* ─── Badges ────────────────────────────────────────────── */
 .badges {
   position: absolute;
-  top: 10px;
-  left: 10px;
+  top: 12px;
+  left: 12px;
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  z-index: 2;
 }
 
 .badge {
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-size: 0.65rem;
+  font-weight: 800;
   color: white;
   border-radius: 999px;
-  padding: 5px 10px;
+  padding: 4px 10px;
   text-transform: uppercase;
+  letter-spacing: 0.06em;
+  backdrop-filter: blur(4px);
 }
 
-.location {
-  background: rgba(0, 115, 255, 0.9);
-}
+.location  { background: rgba(37, 99, 235, 0.88); }
+.sale      { background: rgba(220, 38, 38, 0.88); }
+.available { background: rgba(22, 163, 74, 0.88); }
+.reserve   { background: rgba(234, 88, 12, 0.88); }
 
-.sale {
-  background: rgba(255, 77, 45, 0.95);
-}
-
-.available {
-  background: #2ecc71;
-}
-
-.reserve {
-  background: #e67e22;
-}
-
+/* ─── Info block ────────────────────────────────────────── */
 .info {
-  padding: 16px;
+  padding: 16px 18px 12px;
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .topRow {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 .info h3 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
+  font-weight: 800;
   color: #0f1b3f;
+  line-height: 1.3;
 }
 
 .km {
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 0.78rem;
+  font-weight: 700;
   color: #ff4d2d;
+  white-space: nowrap;
+  flex-shrink: 0;
+  background: #fff3f0;
+  padding: 2px 8px;
+  border-radius: 999px;
 }
 
 .type {
-  font-size: 0.85rem;
-  opacity: 0.8;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #8493b0;
   margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
+/* ─── Meta chips ────────────────────────────────────────── */
 .meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  color: #6d7a95;
-  font-size: 0.8rem;
+  gap: 6px;
+}
+
+.meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #5a6d8a;
+  background: #f4f7fd;
+  border: 1px solid #e6ecf8;
+  border-radius: 8px;
+  padding: 3px 9px;
+}
+
+/* ─── Price ─────────────────────────────────────────────── */
+.priceBlock {
+  margin-top: 4px;
 }
 
 .price {
   margin: 0;
   font-weight: 900;
   color: #ff4d2d;
-  font-size: 1.25rem;
+  font-size: 1.22rem;
+  letter-spacing: -0.02em;
 }
 
 .buyPrice {
-  margin: 0;
-  font-size: 0.8rem;
-  color: #6d7a95;
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  color: #8493b0;
+  font-weight: 600;
 }
 
+/* ─── Actions ───────────────────────────────────────────── */
 .actions {
   display: flex;
-  gap: 12px;
-  padding: 16px;
+  gap: 10px;
+  padding: 12px 18px 16px;
+  border-top: 1px solid #f0f3fb;
 }
 
 .actions button {
-  background: #ff4d2d;
+  background: linear-gradient(135deg, #ff4d2d 0%, #e03519 100%);
   color: white;
   border: none;
   flex: 1;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 0.88rem;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 12px rgba(255, 77, 45, 0.28);
 }
 
 .actions button:hover {
-  filter: brightness(1.05);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(255, 77, 45, 0.38);
+}
+
+.actions button:active {
+  transform: translateY(0);
 }
 
 .actions .secondary {
-  background: #f6f8fc;
+  background: #f4f7fd;
   color: #0f1b3f;
-  border: 1px solid #dfe3ef;
+  border: 1px solid #dde6f5;
+  box-shadow: none;
 }
 
 .actions .secondary:hover {
-  background: #e8edf9;
+  background: #e8eef9;
+  box-shadow: none;
 }
 
-@media (max-width: 900px) {
-  .card {
-    min-width: 240px;
-  }
-}
-
+/* ─── Responsive ────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .card {
-    min-width: 100%;
-  }
-
-  .actions {
-    flex-direction: column;
-  }
+  .cover img { height: 180px; }
+  .actions   { flex-direction: column; }
 }
-

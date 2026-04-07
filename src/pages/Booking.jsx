@@ -1,22 +1,44 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import { useAuth } from "../context/AuthContext";
 import styles from "./Booking.module.css";
 
 const optionsData = [
-  { id: "gps", label: "GPS intégré", price: 15 },
-  { id: "babySeat", label: "Siège bébé", price: 10 },
-  { id: "insurance", label: "Prime d'assurance", price: 25 },
-  { id: "driver", label: "Chauffeur privé", price: 80 },
+  { id: "gps", label: "GPS intégré", price: 10000 },
+  { id: "babySeat", label: "Siège bébé", price: 7000 },
+  { id: "insurance", label: "Prime d'assurance", price: 15000 },
+  { id: "driver", label: "Chauffeur privé", price: 50000 },
 ];
 
 const Booking = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { getVehicleById, addBooking } = useVehicles();
+  const vehicles = useVehicles();
+  const getVehicleById = vehicles.getItemById || ((id) => vehicles.vehicles?.find(v => String(v.id) === String(id) || v._id === String(id)));
+  const addBooking = vehicles.addBooking;
   const { token } = useAuth();
   const vehicle = getVehicleById(id);
+
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    if (!id) {
+      setError("ID véhicule manquant.");
+      setLoading(false);
+      return;
+    }
+    if (getVehicleById) {
+      const veh = getVehicleById(id);
+      if (!veh) {
+        setError("Véhicule non trouvé. Retournez au catalogue.");
+      }
+    }
+    setLoading(false);
+  }, [id, getVehicleById]);
 
   const isTrial = vehicle?.mode === "Acheter";
   const [step, setStep] = useState(1);
@@ -58,14 +80,48 @@ const Booking = () => {
     driver: false,
   });
 
-  if (!vehicle) {
-    return <div className={styles.page}>Véhicule non trouvé</div>;
+  if (loading) {
+    return (
+      <div className={styles.page}>
+        <div style={{ textAlign: 'center', padding: '4rem' }}>
+          Chargement de la réservation...
+        </div>
+      </div>
+    );
   }
+
+  if (error || !vehicle) {
+    return (
+      <div className={styles.page}>
+        <div style={{ textAlign: 'center', padding: '2rem', maxWidth: '500px', margin: '0 auto' }}>
+          <h2>Erreur</h2>
+          <p>{error || "Véhicule non trouvé"}</p>
+          <button 
+            onClick={() => navigate('/catalogue')}
+            style={{
+              background: '#007bff',
+              color: 'white',
+              border: 'none',
+              padding: '0.75rem 1.5rem',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              marginTop: '1rem'
+            }}
+          >
+            Voir le catalogue
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const fmt = (n) => Number(n).toLocaleString("fr-FR") + " FCFA";
 
   const days = (() => {
     if (!form.startDate || !form.endDate) return 0;
     const start = new Date(form.startDate);
     const end = new Date(form.endDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
     const diff = Math.ceil((end - start) / (1000 * 3600 * 24));
     return diff > 0 ? diff : 0;
   })();
@@ -76,7 +132,7 @@ const Booking = () => {
     return acc + (option?.price || 0) * Math.max(days, 1);
   }, 0);
 
-  const baseTotal = vehicle.pricePerDay ? vehicle.pricePerDay * Math.max(days, 1) : 0;
+  const baseTotal = (vehicle.pricePerDay || 0) * Math.max(days, 1);
   const total = baseTotal + optionsTotal;
 
   const handleChange = (e) => {
@@ -156,7 +212,7 @@ const Booking = () => {
     if (isTrial) {
       booking = {
         id: Date.now(),
-        vehicleId: vehicle.id,
+        vehicleId: vehicle._id || vehicle.id,
         vehicleName: vehicle.name,
         vehicleMode: vehicle.mode,
         vehicleType: vehicle.type,
@@ -168,7 +224,7 @@ const Booking = () => {
     } else {
       booking = {
         id: Date.now(),
-        vehicleId: vehicle.id,
+        vehicleId: vehicle._id || vehicle.id,
         vehicleName: vehicle.name,
         vehicleMode: vehicle.mode,
         vehicleType: vehicle.type,
@@ -362,7 +418,7 @@ const Booking = () => {
                     {optionsData.map((option) => (
                       <label key={option.id} className={styles.optionItem}>
                         <input type="checkbox" name={option.id} checked={selectedOptions[option.id]} onChange={handleChange} />
-                        <span>{option.label} +{option.price}€/jour</span>
+                        <span>{option.label} +{option.price.toLocaleString("fr-FR")} FCFA/jour</span>
                       </label>
                     ))}
                   </div>
@@ -429,7 +485,7 @@ const Booking = () => {
                 Retour
               </button>
               <button type="submit" className={styles.primaryBtn}>
-                Confirmer et payer {isTrial ? "(Essai)" : `${total.toFixed(2)} €`}
+                Confirmer et payer {isTrial ? "(Essai)" : fmt(total)}
               </button>
             </div>
           </form>
@@ -451,10 +507,10 @@ const Booking = () => {
           </>
         ) : (
           <>
-            <div className={styles.summaryItem}><span>Prix base</span><strong>{baseTotal ? `${baseTotal.toFixed(2)} €` : "0 €"}</strong></div>
-            <div className={styles.summaryItem}><span>Options</span><strong>{optionsTotal.toFixed(2)} €</strong></div>
+            <div className={styles.summaryItem}><span>Prix base</span><strong>{baseTotal ? fmt(baseTotal) : "0 FCFA"}</strong></div>
+            <div className={styles.summaryItem}><span>Options</span><strong>{fmt(optionsTotal)}</strong></div>
             <div className={styles.summaryItem}><span>Jours</span><strong>{days || 0}</strong></div>
-            <div className={styles.summaryTotal}><span>Total TTC</span><strong>{total.toFixed(2)} €</strong></div>
+            <div className={styles.summaryTotal}><span>Total TTC</span><strong>{fmt(total)}</strong></div>
           </>
         )}
 

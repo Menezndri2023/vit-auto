@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { Suspense, lazy } from "react";
 import { VehicleProvider } from "./context/VehicleContext";
 import { AuthProvider } from "./context/AuthContext";
@@ -38,9 +39,13 @@ function App() {
                     <Route path="/" element={<Home />} />
                     <Route path="/catalogue" element={<Catalogue />} />
                     <Route path="/vehicle/:id" element={<VehicleDetails />} />
-                    <Route path="/booking/:id" element={<Booking />} />
-                    <Route path="/checkout" element={<Checkout />} />
                     <Route path="/booking/success" element={<BookingSuccess />} />
+                    <Route path="/booking/:id" element={
+                      <ErrorBoundary>
+                        <Booking />
+                      </ErrorBoundary>
+                    } />
+                    <Route path="/checkout" element={<Checkout />} />
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/login" element={<Login />} />

@@ -1,22 +1,20 @@
 import express from "express";
-import * as vehicleController from "../controllers/vehicleController.js";
+import * as v from "../controllers/vehicleController.js";
 import { authenticate, authorizeAdmin } from "../middleware/auth.js";
 
 const router = express.Router();
 
-// 📄 Voir tous les véhicules
-router.get("/", vehicleController.getVehicles);
+// ── Public ────────────────────────────────────────────────
+router.get("/", v.getVehicles);                                              // tous les véhicules approuvés
 
-// 👤 Voir ses véhicules
-router.get("/mine", authenticate, vehicleController.getMyVehicles);
+// ── Partenaire authentifié ────────────────────────────────
+router.post("/", authenticate, v.createVehicle);                             // créer une annonce
+router.get("/mine", authenticate, v.getMyVehicles);                          // mes annonces
+router.put("/:id", authenticate, v.updateVehicle);                           // modifier mon annonce
+router.delete("/:id", authenticate, v.deleteVehicle);                        // supprimer mon annonce
 
-// ➕ Créer véhicule (admin uniquement)
-router.post("/", authenticate, authorizeAdmin, vehicleController.createVehicle);
-
-// ⏳ Véhicules en attente (admin)
-router.get("/pending", authenticate, authorizeAdmin, vehicleController.getPendingVehicles);
-
-// 🔄 Modifier statut (admin)
-router.patch("/:id/status", authenticate, authorizeAdmin, vehicleController.updateVehicleStatus);
+// ── Admin ─────────────────────────────────────────────────
+router.get("/pending", authenticate, authorizeAdmin, v.getPendingVehicles);  // annonces en attente
+router.patch("/:id/status", authenticate, authorizeAdmin, v.updateVehicleStatus); // approuver/rejeter
 
 export default router;
