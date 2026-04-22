@@ -18,6 +18,13 @@ const vehicleSchema = new mongoose.Schema({
     required: true,
   },
 
+  // ── Catégorie du véhicule (SUV, Berline, etc.) ────────────
+  vehicleType: {
+    type: String,
+    enum: ["SUV", "Berline", "Sportif", "Citadine", "Monospace", "Pick-up", "Cabriolet", "Utilitaire"],
+    default: "Berline",
+  },
+
   // ── Caractéristiques techniques ───────────────────────────
   carburant: {
     type: String,
@@ -76,6 +83,12 @@ const vehicleSchema = new mongoose.Schema({
     default: "pending",
   },
   rejectionReason: { type: String, default: null },
+
+  // ── Validation automatique ────────────────────────────────
+  validationScore:    { type: Number, default: null },
+  validationErrors:   { type: [String], default: [] },
+  validationWarnings: { type: [String], default: [] },
+  autoValidated:      { type: Boolean, default: false },
 
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },

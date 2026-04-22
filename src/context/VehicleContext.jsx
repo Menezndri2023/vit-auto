@@ -1,8 +1,26 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import { useAuth } from "./AuthContext";
 import { vehicles as initialVehicles } from "../data/vehicles";
 
 const VehicleContext = createContext(null);
+
+// Normalize a vehicle from the MongoDB backend to match frontend field expectations
+const normalizeVehicle = (v) => {
+  if (!v || !v._id) return v; // Local fixture data already in correct format
+  return {
+    ...v,
+    id:           v._id?.toString() || v.id,
+    name:         v.title || `${v.marque || ""} ${v.modele || ""}`.trim() || "Véhicule",
+    image:        (Array.isArray(v.images) && v.images[0]) || v.image || null,
+    mode:         v.type === "vente" ? "Acheter" : "Louer",
+    type:         v.vehicleType || "Voiture",
+    fuel:         v.carburant || "",
+    seats:        v.nombrePlaces ?? 5,
+    buyPrice:     v.priceForSale,
+    description:  v.description || "",
+    transmission: v.transmission || "",
+  };
+};
 
 export const useVehicles = () => {
   const ctx = useContext(VehicleContext);
@@ -33,6 +51,7 @@ const saveBookings = (bookings) => {
 export const VehicleProvider = ({ children }) => {
   const { token } = useAuth();
   const [vehicles, setVehicles] = useState(initialVehicles);
+  const [partnerVehicles, setPartnerVehicles] = useState([]); // Partner's own vehicles (all statuses)
   const [drivers, setDrivers] = useState([]);
   const [bookings, setBookings] = useState(() => loadBookings());
 
@@ -42,7 +61,7 @@ export const VehicleProvider = ({ children }) => {
         const response = await fetch("/api/vehicles");
         if (!response.ok) throw new Error("Failed to fetch vehicles");
         const data = await response.json();
-        if (Array.isArray(data)) setVehicles(data);
+        if (Array.isArray(data)) setVehicles(data.map(normalizeVehicle));
       } catch {
         // Keep local fixture when backend is unavailable
       }
@@ -50,15 +69,35 @@ export const VehicleProvider = ({ children }) => {
     loadVehicles();
   }, []);
 
+  // Load the partner's own vehicles (pending + approved + rejected)
+  const loadPartnerVehicles = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/vehicles/mine", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.vehicles) setPartnerVehicles(data.vehicles.map(normalizeVehicle));
+    } catch {}
+  }, [token]);
+
+  useEffect(() => {
+    loadPartnerVehicles();
+  }, [loadPartnerVehicles]);
+
   useEffect(() => {
     const loadDrivers = async () => {
       try {
         const response = await fetch("/api/drivers");
-        if (!response.ok) throw new Error("Failed to fetch drivers");
+        if (!response.ok) {
+          setDrivers([]);
+          return;
+        }
         const data = await response.json();
         if (Array.isArray(data)) setDrivers(data);
       } catch {
-        // Fallback empty
+        setDrivers([]);
       }
     };
     loadDrivers();
@@ -73,22 +112,23 @@ export const VehicleProvider = ({ children }) => {
   };
 
   const addVehicle = async (newVehicle) => {
-    const pending = { ...newVehicle, status: "pending" };
-    setVehicles((prev) => [...prev, pending]);
-    try {
-      const headers = { "Content-Type": "application/json" };
-      if (token) headers.Authorization = `Bearer ${token}`;
-      const response = await fetch("/api/vehicles", {
-        method: "POST",
-        headers,
-        body: JSON.stringify(pending),
-      });
-      if (!response.ok) throw new Error("Unable to add vehicle");
-      const saved = await response.json();
-      setVehicles((prev) => prev.map((v) => (v.id === newVehicle.id ? saved : v)));
-    } catch {
-      // fallback to local state only
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch("/api/vehicles", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(newVehicle),
+    });
+    if (!response.ok) throw new Error("Unable to add vehicle");
+    const data = await response.json();
+    const saved = normalizeVehicle(data.vehicle || data);
+    // Always add to partner's own listing
+    setPartnerVehicles((prev) => [saved, ...prev]);
+    // If auto-approved, also add to public catalogue
+    if (saved.status === "approved" && saved.available !== false) {
+      setVehicles((prev) => [saved, ...prev]);
     }
+    return saved;
   };
 
   const addDriver = async (newDriver) => {
@@ -145,9 +185,27 @@ export const VehicleProvider = ({ children }) => {
     saveBookings(next);
   };
 
+  // Met à jour le statut d'une commande (ex: "confirmed", "cancelled", "completed")
+  const updateBookingStatus = (id, status, note = "") => {
+    const next = bookings.map((b) =>
+      String(b.id) === String(id) ? { ...b, status, vendorNote: note } : b
+    );
+    setBookings(next);
+    saveBookings(next);
+    // Sync backend si disponible
+    if (token) {
+      fetch(`/api/bookings/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status, note }),
+      }).catch(() => {});
+    }
+  };
+
   const value = useMemo(
     () => ({
       vehicles,
+      partnerVehicles,
       drivers,
       bookings,
       getItemById,
@@ -155,10 +213,13 @@ export const VehicleProvider = ({ children }) => {
       addDriver,
       addBooking,
       removeBooking,
+      updateBookingStatus,
       approveVehicle,
       approveDriver,
+      loadPartnerVehicles,
     }),
-    [vehicles, drivers, bookings]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [vehicles, partnerVehicles, drivers, bookings, loadPartnerVehicles]
   );
 
   return <VehicleContext.Provider value={value}>{children}</VehicleContext.Provider>;

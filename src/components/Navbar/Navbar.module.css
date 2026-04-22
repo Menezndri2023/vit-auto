@@ -1,85 +1,115 @@
+/* ── Base ─────────────────────────────────────────────────── */
 .navbar {
   display: flex;
   justify-content: space-between;
-  padding: 20px 50px;
-  position: relative;
-  z-index: 2;
-  background: rgba(0,0,0,0.8);
+  align-items: center;
+  padding: 18px 50px;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   color: white;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+/* ── Logo ─────────────────────────────────────────────────── */
 .logo {
-  font-size: 2rem;
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #ff4d2d;
+  flex-shrink: 0;
 }
 
+/* ── Nav links ────────────────────────────────────────────── */
 .navLinks {
   display: flex;
-  gap: 30px;
+  gap: 4px;
   list-style: none;
   align-items: center;
+  margin: 0;
+  padding: 0;
 }
 
 .navLinks a {
-  color: white;
+  color: rgba(255, 255, 255, 0.85);
   text-decoration: none;
   font-weight: 500;
-  transition: color 0.3s ease;
+  font-size: 0.95rem;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: color 0.25s, background 0.25s;
 }
 
 .navLinks a:hover {
-  color: #ff4d2d;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .active {
-  border-bottom: 2px solid #ff4d2d;
   color: #ff4d2d !important;
+  background: rgba(255, 77, 45, 0.1) !important;
 }
 
+/* ── Right side ───────────────────────────────────────────── */
 .navRight {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
+  flex-shrink: 0;
 }
 
-.location {
-  font-size: 0.9rem;
+/* ── User badges ──────────────────────────────────────────── */
+.userBadge {
+  font-size: 0.88rem;
   padding: 6px 12px;
-  background: rgba(255,255,255,0.1);
-  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
   white-space: nowrap;
 }
 
-.userBadge {
-  font-size: 0.9rem;
-  padding: 6px 10px;
-  background: rgba(255,255,255,0.2);
+.badgePartner {
+  font-size: 0.85rem;
+  padding: 5px 12px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
   border-radius: 999px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
+/* ── Buttons ──────────────────────────────────────────────── */
 .linkBtn {
   background: transparent;
-  border: 1px solid white;
+  border: 1px solid rgba(255, 255, 255, 0.4);
   color: white;
-  padding: 8px 12px;
+  padding: 8px 14px;
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  font-size: 0.9rem;
+  transition: all 0.25s ease;
+  white-space: nowrap;
 }
 
 .linkBtn:hover {
   background: white;
   color: #333;
+  border-color: white;
 }
 
 .ctaBtn {
   background: #ff4d2d;
   border: none;
-  padding: 10px 15px;
+  padding: 10px 16px;
   border-radius: 8px;
   color: white;
   cursor: pointer;
   font-weight: 600;
-  transition: all 0.3s ease;
+  font-size: 0.9rem;
+  transition: all 0.25s ease;
+  white-space: nowrap;
 }
 
 .ctaBtn:hover {
@@ -87,24 +117,239 @@
   transform: translateY(-1px);
 }
 
-@media (max-width: 768px) {
+/* ── Dropdown burger (desktop, non connecté) ──────────────── */
+.burgerDropdownWrapper {
+  position: relative;
+}
+
+.dropdownTrigger {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 9px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.25s ease;
+}
+
+.dropdownTrigger:hover,
+.dropdownTriggerOpen {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.dropdownLines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dropdownLines span {
+  display: block;
+  width: 16px;
+  height: 2px;
+  background: white;
+  border-radius: 2px;
+  transition: all 0.3s;
+}
+
+/* Animate the lines when open */
+.dropdownTriggerOpen .dropdownLines span:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+.dropdownTriggerOpen .dropdownLines span:nth-child(2) {
+  opacity: 0;
+}
+.dropdownTriggerOpen .dropdownLines span:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
+.dropdownLabel {
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+/* ── Dropdown menu ────────────────────────────────────────── */
+.dropdownMenu {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  background: #16181c;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  min-width: 210px;
+  padding: 8px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.04);
+  animation: dropFadeIn 0.18s ease;
+  z-index: 300;
+}
+
+@keyframes dropFadeIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)   scale(1);    }
+}
+
+.dropdownMenu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.85);
+  padding: 10px 14px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background 0.18s, color 0.18s;
+  text-align: left;
+}
+
+.dropdownMenu button:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+}
+
+.dropdownDivider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 6px 4px;
+}
+
+.diIcon {
+  font-size: 1rem;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.partnerItem {
+  color: #f59e0b !important;
+}
+
+.partnerItem:hover {
+  background: rgba(245, 158, 11, 0.12) !important;
+}
+
+/* ── Mobile burger (toggle navLinks) ─────────────────────── */
+.burger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.burger:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+.burger span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: #fff;
+  border-radius: 2px;
+  transition: all 0.3s;
+}
+
+.burgerOpen span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+.burgerOpen span:nth-child(2) {
+  opacity: 0;
+}
+.burgerOpen span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+/* ── Mobile-only nav items ────────────────────────────────── */
+.mobileOnly {
+  display: none;
+}
+
+.mobileDivider {
+  display: none;
+}
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width: 900px) {
   .navbar {
-    padding: 15px 20px;
-    flex-direction: column;
-    gap: 15px;
+    padding: 14px 20px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  /* Cacher le dropdown desktop sur mobile */
+  .burgerDropdownWrapper {
+    display: none;
+  }
+
+  .burger {
+    display: flex;
   }
 
   .navLinks {
-    gap: 20px;
-    font-size: 0.9rem;
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    gap: 0;
+    background: rgba(14, 14, 14, 0.97);
+    border-radius: 0.85rem;
+    padding: 0.5rem 0;
+    margin-top: 0.5rem;
+    border: 1px solid rgba(255,255,255,0.07);
+  }
+
+  .navLinks li {
+    width: 100%;
+  }
+
+  .navLinks a {
+    display: block;
+    padding: 0.8rem 1.5rem;
+    border-radius: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.95rem;
+  }
+
+  .navOpen {
+    display: flex;
   }
 
   .navRight {
     gap: 8px;
   }
 
-  .location {
-    font-size: 0.8rem;
-    padding: 4px 8px;
+  .badgePartner,
+  .userBadge {
+    display: none;
+  }
+
+  /* Afficher les items mobiles */
+  .mobileOnly {
+    display: block;
+  }
+
+  .mobileDivider {
+    display: block;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 6px 1rem;
+    list-style: none;
+  }
+
+  .mobilePartner a {
+    color: #f59e0b !important;
+    font-weight: 600;
   }
 }

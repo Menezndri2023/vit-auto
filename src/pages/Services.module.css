@@ -1,0 +1,313 @@
+/* ── Page ─────────────────────────────────────────────────── */
+.page {
+  min-height: 100vh;
+  background: #f8fafc;
+  color: #1e293b;
+}
+
+/* ── Hero ─────────────────────────────────────────────────── */
+.hero {
+  background: linear-gradient(135deg, #0f172a 0%, #1c3a5f 55%, #0f172a 100%);
+  color: white;
+  padding: 6rem 2rem 5rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 60% 40%, rgba(255,77,45,0.15) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.heroContent {
+  position: relative;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.heroBadge {
+  display: inline-block;
+  background: rgba(255, 77, 45, 0.15);
+  color: #ff6b52;
+  border: 1px solid rgba(255, 77, 45, 0.3);
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 1.2rem;
+}
+
+.hero h1 {
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 1.2rem;
+}
+
+.hero p {
+  font-size: 1.1rem;
+  color: #94a3b8;
+  line-height: 1.7;
+  margin-bottom: 2.2rem;
+}
+
+.heroBtns {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ── Buttons ──────────────────────────────────────────────── */
+.primaryBtn {
+  background: #ff4d2d;
+  color: white;
+  border: none;
+  padding: 13px 28px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.primaryBtn:hover {
+  background: #e63a1a;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(255, 77, 45, 0.35);
+}
+
+.secondaryBtn {
+  background: rgba(255,255,255,0.1);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.25);
+  padding: 13px 28px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.secondaryBtn:hover {
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.5);
+}
+
+.ghostBtn {
+  background: transparent;
+  color: white;
+  border: 1px solid rgba(255,255,255,0.4);
+  padding: 13px 28px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.ghostBtn:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+/* ── Section header ───────────────────────────────────────── */
+.sectionHeader {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.sectionHeader h2 {
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 0.75rem;
+}
+
+.sectionHeader p {
+  font-size: 1rem;
+  color: #64748b;
+  max-width: 560px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* ── Services grid ────────────────────────────────────────── */
+.servicesSection {
+  padding: 5rem 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.card {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+  border: 1px solid rgba(0,0,0,0.05);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.1);
+}
+
+.cardIcon {
+  font-size: 2.2rem;
+  line-height: 1;
+}
+
+.card h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.card p {
+  font-size: 0.92rem;
+  color: #64748b;
+  line-height: 1.6;
+  flex: 1;
+}
+
+.cardBtn {
+  background: transparent;
+  border: none;
+  color: #ff4d2d;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  transition: color 0.2s;
+}
+
+.cardBtn:hover {
+  color: #e63a1a;
+}
+
+/* ── How it works ─────────────────────────────────────────── */
+.howSection {
+  background: #0f172a;
+  color: white;
+  padding: 5rem 2rem;
+}
+
+.howSection .sectionHeader h2 {
+  color: white;
+}
+
+.howSection .sectionHeader p {
+  color: #94a3b8;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.5rem;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.stepCard {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 1.75rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.stepNumber {
+  font-size: 2rem;
+  font-weight: 900;
+  color: #ff4d2d;
+  line-height: 1;
+}
+
+.stepCard h4 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: white;
+  margin: 0;
+}
+
+.stepCard p {
+  font-size: 0.88rem;
+  color: #94a3b8;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── CTA Banner ───────────────────────────────────────────── */
+.ctaBanner {
+  background: linear-gradient(135deg, #ff4d2d 0%, #c93c20 100%);
+  color: white;
+  text-align: center;
+  padding: 5rem 2rem;
+}
+
+.ctaBanner h2 {
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 800;
+  margin-bottom: 0.85rem;
+}
+
+.ctaBanner p {
+  font-size: 1.05rem;
+  opacity: 0.9;
+  margin-bottom: 2.2rem;
+}
+
+.ctaBtns {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.ctaBanner .primaryBtn {
+  background: white;
+  color: #ff4d2d;
+}
+
+.ctaBanner .primaryBtn:hover {
+  background: #f1f5f9;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .hero {
+    padding: 4rem 1.25rem 3.5rem;
+  }
+
+  .servicesSection {
+    padding: 3.5rem 1.25rem;
+  }
+
+  .howSection {
+    padding: 3.5rem 1.25rem;
+  }
+
+  .ctaBanner {
+    padding: 3.5rem 1.25rem;
+  }
+}

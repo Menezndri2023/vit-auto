@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
+import PartnerRoute from "./components/PartnerRoute";
 import { Suspense, lazy } from "react";
 import { VehicleProvider } from "./context/VehicleContext";
 import { AuthProvider } from "./context/AuthContext";
@@ -21,9 +22,12 @@ const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
 const VendorSubmit = lazy(() => import("./pages/VendorSubmit"));
 const VendorDashboard = lazy(() => import("./pages/VendorDashboard"));
+const Plans = lazy(() => import("./pages/Plans"));
 const AdminPanel = lazy(() => import("./pages/AdminPanel"));
 const DashboardStats = lazy(() => import("./pages/DashboardStats"));
 const Checkout = lazy(() => import("./pages/Checkout"));
+const Services = lazy(() => import("./pages/Services"));
+const Help     = lazy(() => import("./pages/Help"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 function App() {
@@ -50,10 +54,13 @@ function App() {
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />
-                    <Route path="/vendor" element={<VendorSubmit />} />
-                    <Route path="/vendor/dashboard" element={<VendorDashboard />} />
+                    <Route path="/vendor" element={<PartnerRoute><VendorSubmit /></PartnerRoute>} />
+                    <Route path="/vendor/dashboard" element={<PartnerRoute><VendorDashboard /></PartnerRoute>} />
+                    <Route path="/plans" element={<PartnerRoute><Plans /></PartnerRoute>} />
                     <Route path="/admin" element={<AdminPanel />} />
-                    <Route path="/stats" element={<DashboardStats />} />
+                    <Route path="/stats"    element={<DashboardStats />} />
+                    <Route path="/services" element={<Services />} />
+                    <Route path="/help"     element={<Help />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Suspense>

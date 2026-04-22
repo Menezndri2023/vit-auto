@@ -5,6 +5,218 @@
   padding: 2rem;
 }
 
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.header h1 {
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  color: #1e293b;
+  margin: 0 0 0.25rem;
+}
+
+.header p {
+  color: #64748b;
+  margin: 0;
+}
+
+/* ── Plan banners ──────────────────────────────────────── */
+.proBanner,
+.freeBanner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border-radius: 1rem;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.proBanner {
+  background: linear-gradient(135deg, #f59e0b20, #fef3c7);
+  border: 1px solid #fcd34d;
+}
+
+.freeBanner {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.planBadge {
+  background: #f59e0b;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 0.3rem 0.9rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.planBadgeFree {
+  background: #64748b;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 0.3rem 0.9rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.proBanner strong,
+.freeBanner strong {
+  display: block;
+  font-size: 0.95rem;
+  color: #1e293b;
+}
+
+.proBanner span,
+.freeBanner span {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.upgradeBtn {
+  margin-left: auto;
+  background: #f59e0b;
+  color: #fff;
+  border-radius: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  font-weight: 700;
+  font-size: 0.875rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* ── Commission banner ─────────────────────────────────── */
+.commissionBanner {
+  display: flex;
+  gap: 1px;
+  background: #e2e8f0;
+  border-radius: 1rem;
+  overflow: hidden;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.commItem {
+  background: #fff;
+  flex: 1;
+  min-width: 160px;
+  padding: 1rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border-left: 3px solid #6366f1;
+}
+
+.commItem span {
+  font-size: 0.75rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.commItem strong {
+  font-size: 1rem;
+  color: #1e293b;
+  font-weight: 800;
+}
+
+/* ── Section ───────────────────────────────────────────── */
+.section {
+  margin-top: 2rem;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.sectionHeader h2 {
+  font-size: 1.3rem;
+  color: #1e293b;
+  margin: 0;
+}
+
+.filterSelect {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: #374151;
+  cursor: pointer;
+}
+
+/* ── Vehicle card extra ─────────────────────────────────── */
+.vehicleCardBoosted {
+  border: 2px solid #f59e0b !important;
+  box-shadow: 0 8px 24px rgba(245,158,11,0.15) !important;
+}
+
+.boostBadge {
+  position: absolute;
+  top: -1px;
+  right: 1rem;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0 0 0.5rem 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.priceLine {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.75rem;
+}
+
+.priceLine span {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.priceLine small {
+  font-size: 0.78rem;
+  color: #10b981;
+}
+
+/* ── Boost message ──────────────────────────────────────── */
+.boostMessage {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+  border-radius: 0.75rem;
+  padding: 1rem 1.5rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+}
+
+/* ── Boost button ───────────────────────────────────────── */
+.boostBtn {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+}
+
+.boostBtn:hover {
+  opacity: 0.85;
+}
+
 .statsGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -151,7 +363,64 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Score chip affiché à côté du statut */
+.scoreChip {
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 2px 9px;
+  border-radius: 999px;
+  letter-spacing: 0.03em;
+}
+
+/* Bloc de feedback validation (pending / rejected) */
+.validationBlock {
   margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  background: rgba(0,0,0,0.03);
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+.scoreBarWrap {
+  height: 6px;
+  background: rgba(0,0,0,0.08);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+
+.scoreBarFill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.5s ease;
+}
+
+.validErrList,
+.validWarnList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.validErrList + .validWarnList {
+  margin-top: 6px;
+}
+
+.validErrItem {
+  font-size: 0.78rem;
+  color: #ef4444;
+}
+
+.validWarnItem {
+  font-size: 0.78rem;
+  color: #92400e;
 }
 
 .vehicleDescription {
@@ -251,13 +520,287 @@
   font-weight: 500;
 }
 
+/* ── Onglets ─────────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin: 2rem 0 0;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.tab {
+  background: transparent;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: color 0.2s;
+}
+
+.tab:hover { color: #1e293b; }
+
+.tabActive {
+  color: #1e293b;
+  border-bottom-color: #f59e0b;
+}
+
+.tabBadge {
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  border-radius: 9999px;
+  padding: 0.1rem 0.5rem;
+  min-width: 20px;
+  text-align: center;
+}
+
+/* ── Indicateur nouvelles commandes sur stat card ─────────── */
+.newBadge {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: #fbbf24;
+  color: #7c2d12;
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 0.15rem 0.6rem;
+  border-radius: 9999px;
+}
+
+/* ── Hint bouton commandes sur carte annonce ─────────────── */
+.orderHintBtn {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 0.75rem;
+  transition: background 0.2s;
+}
+
+.orderHintBtn:hover { background: #dbeafe; }
+
+/* ── Liste des commandes ─────────────────────────────────── */
+.ordersList {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-top: 1rem;
+}
+
+.orderCard {
+  background: #fff;
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  transition: box-shadow 0.2s;
+}
+
+.orderCard:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
+
+.orderCardNew {
+  border-left: 4px solid #f59e0b;
+}
+
+.orderHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.orderTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.orderType {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #94a3b8;
+}
+
+.orderTitle strong {
+  font-size: 1.05rem;
+  color: #1e293b;
+}
+
+.orderStatus {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.3rem 0.9rem;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.orderGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.orderInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.orderInfo span {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.orderInfo strong {
+  font-size: 0.875rem;
+  color: #1e293b;
+}
+
+.orderActions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.btnConfirm {
+  background: #10b981;
+  color: #fff;
+  border: none;
+  border-radius: 0.6rem;
+  padding: 0.6rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btnConfirm:hover { opacity: 0.85; }
+
+.btnComplete {
+  background: #6366f1;
+  color: #fff;
+  border: none;
+  border-radius: 0.6rem;
+  padding: 0.6rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btnComplete:hover { opacity: 0.85; }
+
+.btnReject {
+  background: transparent;
+  color: #ef4444;
+  border: 1px solid #fca5a5;
+  border-radius: 0.6rem;
+  padding: 0.6rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btnReject:hover { background: #fef2f2; }
+
+.orderNote {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-style: italic;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: #f8fafc;
+  border-radius: 0.4rem;
+}
+
+.orderDate {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-top: 0.75rem;
+  text-align: right;
+}
+
+/* ── Modal refus ─────────────────────────────────────────── */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 1.25rem;
+  padding: 2rem;
+  max-width: 440px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+
+.modal h3 {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0 0 0.5rem;
+}
+
+.modal p {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin: 0 0 1rem;
+}
+
+.rejectTextarea {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.6rem;
+  padding: 0.75rem;
+  font-size: 0.875rem;
+  color: #1e293b;
+  resize: vertical;
+  outline: none;
+  margin-bottom: 1rem;
+  box-sizing: border-box;
+}
+
+.rejectTextarea:focus { border-color: #f59e0b; }
+
+.modalActions {
+  display: flex;
+  gap: 0.75rem;
+}
+
 @media (max-width: 768px) {
   .page {
     padding: 1rem;
   }
 
   .statsGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 1rem;
   }
 
@@ -267,7 +810,11 @@
   }
 
   .cardActions {
-    flex-direction: column;
+    flex-wrap: wrap;
+  }
+
+  .orderGrid {
+    grid-template-columns: 1fr 1fr;
   }
 }
 

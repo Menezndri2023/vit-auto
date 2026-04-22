@@ -3,14 +3,15 @@ import cors from "cors";
 import dotenv from "dotenv";
 import connectDB from "./config/db.js";
 
-import authRoutes         from "./routes/auth.js";
-import vehicleRoutes      from "./routes/vehicles.js";
-import bookingRoutes      from "./routes/bookings.js";
-import paymentRoutes      from "./routes/payments.js";
-import userRoutes         from "./routes/users.js";
-import driverRoutes       from "./routes/drivers.js";
-import reviewRoutes       from "./routes/reviews.js";
-import notificationRoutes from "./routes/notifications.js";
+import authRoutes          from "./routes/auth.js";
+import vehicleRoutes       from "./routes/vehicles.js";
+import bookingRoutes       from "./routes/bookings.js";
+import paymentRoutes       from "./routes/payments.js";
+import userRoutes          from "./routes/users.js";
+import driverRoutes        from "./routes/drivers.js";
+import reviewRoutes        from "./routes/reviews.js";
+import notificationRoutes  from "./routes/notifications.js";
+import subscriptionRoutes  from "./routes/subscriptions.js";
 
 dotenv.config();
 
@@ -25,14 +26,15 @@ app.use(express.urlencoded({ extended: true }));
 app.get("/api/ping", (_req, res) => res.json({ status: "ok", timestamp: new Date() }));
 
 // ── Routes API ────────────────────────────────────────────
-app.use("/api/auth",          authRoutes);
-app.use("/api/vehicles",      vehicleRoutes);
-app.use("/api/bookings",      bookingRoutes);
-app.use("/api/payments",      paymentRoutes);
-app.use("/api/users",         userRoutes);
-app.use("/api/drivers",       driverRoutes);
-app.use("/api/reviews",       reviewRoutes);
-app.use("/api/notifications", notificationRoutes);
+app.use("/api/auth",           authRoutes);
+app.use("/api/vehicles",       vehicleRoutes);
+app.use("/api/bookings",       bookingRoutes);
+app.use("/api/payments",       paymentRoutes);
+app.use("/api/users",          userRoutes);
+app.use("/api/drivers",        driverRoutes);
+app.use("/api/reviews",        reviewRoutes);
+app.use("/api/notifications",  notificationRoutes);
+app.use("/api/subscriptions",  subscriptionRoutes);
 
 // ── 404 ───────────────────────────────────────────────────
 app.use((req, res) => {
@@ -60,6 +62,7 @@ const startServer = async () => {
       console.log(`   → Avis          : /api/reviews`);
       console.log(`   → Notifications : /api/notifications`);
       console.log(`   → Utilisateurs  : /api/users`);
+      console.log(`   → Abonnements   : /api/subscriptions`);
     });
   } catch (error) {
     console.error("❌ Erreur démarrage :", error);
