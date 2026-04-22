@@ -28,7 +28,7 @@ const WhySection = () => {
   return (
     <section className={styles.section}>
       <div className={styles.content}>
-        <p className={styles.subtitle}>⭐ POURQUOI AUTODRIVE</p>
+        <p className={styles.subtitle}>⭐ POURQUOI VIT AUTO</p>
         <h2 className={styles.title}>L'expérience automobile réinventée</h2>
         <div className={styles.cards}>
           {cards.map((item) => (

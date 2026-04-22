@@ -379,6 +379,279 @@ select:focus {
   border-color: #ffbca1;
 }
 
+.stepDone {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #6ee7b7;
+}
+
+.cautionBox {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-top: 4px;
+}
+
+.cautionHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1rem;
+  margin-bottom: 8px;
+  color: #92400e;
+}
+
+.cautionBox p {
+  font-size: 0.875rem;
+  color: #78350f;
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+.cautionNote {
+  background: #fef9ec;
+  border: 1px dashed #fbbf24;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: #92400e;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cautionNote small {
+  font-size: 0.78rem;
+  color: #b45309;
+}
+
+.checkLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.875rem;
+  color: #374151;
+  cursor: pointer;
+  line-height: 1.5;
+}
+
+.checkLabel a {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+/* ── Prise en charge ──────────────────────────────────────── */
+.pickupCards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 1.25rem;
+}
+
+.pickupCard {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #fff;
+}
+
+.pickupCard:hover {
+  border-color: #ff4d2d;
+  background: #fff5f2;
+}
+
+.pickupCardActive {
+  border-color: #ff4d2d;
+  background: #fff5f2;
+}
+
+.pickupIcon { font-size: 1.8rem; flex-shrink: 0; }
+
+.pickupCard > div:nth-child(2) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.pickupCard > div:nth-child(2) strong {
+  font-size: 0.9rem;
+  color: #1e293b;
+}
+
+.pickupCard > div:nth-child(2) span {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.pickupRadio {
+  font-size: 1.3rem;
+  color: #ff4d2d;
+  flex-shrink: 0;
+}
+
+/* Adresse block */
+.addressBlock { margin-top: 0.5rem; }
+
+.addressLabel {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.75rem;
+}
+
+.addressModeTabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.addressModeTab {
+  flex: 1;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #64748b;
+  transition: all 0.2s;
+}
+
+.addressModeTab:hover { background: #e2e8f0; }
+
+.addressModeTabActive {
+  background: #ff4d2d;
+  color: #fff;
+  border-color: #ff4d2d;
+}
+
+/* GPS block */
+.gpsBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.gpsDetected {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+}
+
+.gpsDetected span { font-size: 1.5rem; flex-shrink: 0; }
+
+.gpsDetected div {
+  flex: 1;
+}
+
+.gpsDetected div strong {
+  font-size: 0.875rem;
+  color: #065f46;
+  display: block;
+}
+
+.gpsDetected div p {
+  font-size: 0.78rem;
+  color: #047857;
+  margin: 0.1rem 0 0;
+  line-height: 1.4;
+}
+
+.gpsRefreshBtn {
+  background: #10b981;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 0.2s;
+}
+
+.gpsRefreshBtn:disabled { opacity: 0.6; cursor: wait; }
+
+.gpsDetectBtn {
+  width: 100%;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 0.875rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.gpsDetectBtn:disabled { opacity: 0.7; cursor: wait; }
+
+.addressInput {
+  width: 100%;
+  border: 1px solid #dbe2f0;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 0.9rem;
+  color: #1e293b;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.addressInput:focus { border-color: #ff4d2d; box-shadow: 0 0 0 3px rgba(255,77,45,0.12); }
+
+/* Info retrait */
+.retraitInfo {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 1rem;
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: #1e40af;
+}
+
+.retraitInfo span { font-size: 1.4rem; flex-shrink: 0; }
+.retraitInfo p { margin: 0; line-height: 1.5; }
+
+/* Pickup résumé dans sidebar */
+.pickupSummary {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.82rem;
+  color: #475569;
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.pickupSummary small {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+@media (max-width: 600px) {
+  .pickupCards { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 1024px) {
   .page {
     grid-template-columns: 1fr;

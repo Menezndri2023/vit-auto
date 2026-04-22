@@ -123,20 +123,57 @@
 }
 
 .clearBtn {
-  position: absolute;
-  right: 8px;
+  background: none;
+  border: none;
+  font-size: 0.85rem;
+  color: #999;
+  cursor: pointer;
+  padding: 2px 5px;
+  transition: color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.clearBtn:hover { color: #ff4d2d; }
+
+/* Bouton GPS dans le champ localisation */
+.gpsBtn {
   background: none;
   border: none;
   font-size: 1rem;
-  color: #999;
   cursor: pointer;
   padding: 2px 6px;
-  transition: color 0.2s ease;
+  flex-shrink: 0;
+  transition: transform 0.2s;
 }
 
-.clearBtn:hover {
-  color: #ff4d2d;
+.gpsBtn:hover:not(:disabled) { transform: scale(1.2); }
+.gpsBtn:disabled { opacity: 0.5; cursor: wait; }
+
+/* Indicateur position détectée sous la barre */
+.geoHint {
+  font-size: 0.82rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255,255,255,0.7);
+  border-radius: 8px;
+  padding: 0.3rem 0.9rem;
 }
+
+.geoUseBtn {
+  background: #ff4d2d;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.geoUseBtn:hover { opacity: 0.85; }
 
 /** ========== SELECT WRAPPER ========== */
 .selectWrapper {

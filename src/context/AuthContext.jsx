@@ -152,8 +152,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateUser = (updates) => {
+    const updated = { ...user, ...updates };
+    setUser(updated);
+    // Met à jour aussi dans la liste globale des utilisateurs
+    const existingUsers = loadUsers();
+    const nextUsers = existingUsers.map((u) =>
+      u.id === user.id ? { ...u, ...updates } : u
+    );
+    saveUsers(nextUsers);
+  };
+
   const value = useMemo(
-    () => ({ user, token, isAuthenticated: !!user, register, login, logout }),
+    () => ({ user, token, isAuthenticated: !!user, register, login, logout, updateUser }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [user, token]
   );
 

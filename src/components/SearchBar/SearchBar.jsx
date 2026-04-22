@@ -1,56 +1,69 @@
-import React, { useState, memo, useCallback } from "react";
+import { useState, memo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useLocation } from "../../context/LocationContext";
 import ModeToggle from "./ModeToggle";
-import styles from "../SearchBar/SearchBar.module.css";
+import styles from "./SearchBar.module.css";
 
 const SearchBar = memo(() => {
-  const [mode, setMode] = useState("Louer");
+  const [mode, setMode]         = useState("Louer");
   const [location, setLocation] = useState("");
-  const [type, setType] = useState("Tous");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [type, setType]         = useState("Tous");
+  const [loading, setLoading]   = useState(false);
+  const [geoLoading, setGeoLoading] = useState(false);
   const navigate = useNavigate();
+
+  // Contexte géolocalisation global
+  const { position, address: detectedAddress, refreshLocation } = useLocation();
 
   const goToCatalogue = useCallback((selectedMode) => {
     const params = new URLSearchParams();
     params.set("mode", selectedMode);
     if (location.trim()) params.set("location", location.trim());
     if (type !== "Tous") params.set("type", type);
-    if (startDate) params.set("startDate", startDate);
-    if (endDate) params.set("endDate", endDate);
     navigate(`/catalogue?${params.toString()}`);
-  }, [location, type, startDate, endDate, navigate]);
+  }, [location, type, navigate]);
 
   const handleSearch = useCallback(() => {
     setLoading(true);
     goToCatalogue(mode);
-    setTimeout(() => {
-      setLoading(false);
-    }, 300);
+    setTimeout(() => setLoading(false), 300);
   }, [mode, goToCatalogue]);
 
   const handleKeyPress = useCallback((e) => {
-    if (e.key === "Enter") {
-      handleSearch();
-    }
+    if (e.key === "Enter") handleSearch();
   }, [handleSearch]);
+
+  // Bouton GPS : rempli le champ avec la position détectée
+  const handleUseGPS = useCallback(async () => {
+    setGeoLoading(true);
+    if (position) {
+      // Position déjà disponible
+      setLocation(detectedAddress || `${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}`);
+      setGeoLoading(false);
+    } else {
+      // Déclenche la détection
+      await refreshLocation();
+      // Le context se met à jour, on attend un tick
+      setTimeout(() => {
+        setLocation(detectedAddress || "Position détectée");
+        setGeoLoading(false);
+      }, 1200);
+    }
+  }, [position, detectedAddress, refreshLocation]);
 
   const resetFilters = useCallback(() => {
     setMode("Louer");
     setLocation("");
     setType("Tous");
-    setStartDate("");
-    setEndDate("");
   }, []);
 
   return (
     <div className={styles.container}>
       <div className={styles.searchBox}>
-        {/* MODE SECTION */}
+        {/* MODE */}
         <ModeToggle mode={mode} setMode={setMode} goToCatalogue={goToCatalogue} />
 
-        {/* LOCATION FIELD */}
+        {/* LOCALISATION */}
         <div className={`${styles.field} ${styles.locationField}`}>
           <label>Localisation</label>
           <div className={styles.inputWrapper}>
@@ -62,20 +75,23 @@ const SearchBar = memo(() => {
               onChange={(e) => setLocation(e.target.value)}
               onKeyPress={handleKeyPress}
             />
+            {/* Bouton GPS */}
+            <button
+              type="button"
+              className={styles.gpsBtn}
+              onClick={handleUseGPS}
+              disabled={geoLoading}
+              title="Utiliser ma position GPS"
+            >
+              {geoLoading ? "⏳" : "🎯"}
+            </button>
             {location && (
-              <button
-                type="button"
-                className={styles.clearBtn}
-                onClick={() => setLocation("")}
-                aria-label="Effacer"
-              >
-                ✕
-              </button>
+              <button type="button" className={styles.clearBtn} onClick={() => setLocation("")} aria-label="Effacer">✕</button>
             )}
           </div>
         </div>
 
-        {/* TYPE FIELD */}
+        {/* TYPE */}
         <div className={`${styles.field} ${styles.typeField}`}>
           <label>Type de véhicule</label>
           <div className={styles.selectWrapper}>
@@ -90,37 +106,29 @@ const SearchBar = memo(() => {
           </div>
         </div>
 
-        {/* SEARCH BUTTON */}
+        {/* SEARCH */}
         <button
           className={`${styles.btn} ${loading ? styles.loading : ""}`}
           onClick={handleSearch}
           disabled={loading}
           type="button"
-          aria-label="Chercher les véhicules"
         >
-          {loading ? (
-            <>
-              <span className={styles.spinner}></span>
-            </>
-          ) : (
-            <>
-              <span>🔍</span>
-              <span>Chercheur</span>
-            </>
-          )}
+          {loading ? <span className={styles.spinner} /> : <><span>🔍</span><span>Chercher</span></>}
         </button>
 
-        {/* RESET BUTTON */}
-        <button
-          className={styles.resetBtn}
-          onClick={resetFilters}
-          type="button"
-          title="Réinitialiser les filtres"
-          aria-label="Réinitialiser les filtres"
-        >
-          ↻
-        </button>
+        {/* RESET */}
+        <button className={styles.resetBtn} onClick={resetFilters} type="button" title="Réinitialiser">↻</button>
       </div>
+
+      {/* Indicateur position détectée */}
+      {position && (
+        <p className={styles.geoHint}>
+          📍 Position détectée — <strong>{detectedAddress?.split(",")[0]}</strong>
+          <button type="button" className={styles.geoUseBtn} onClick={() => setLocation(detectedAddress)}>
+            Utiliser
+          </button>
+        </p>
+      )}
     </div>
   );
 });

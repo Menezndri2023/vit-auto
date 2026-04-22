@@ -55,8 +55,23 @@ const bookingSchema = new mongoose.Schema({
     startDate:      { type: Date },
     endDate:        { type: Date },
     days:           { type: Number, default: 0 },
+
+    // Prise en charge (texte + coordonnées GPS)
     pickupLocation: { type: String },
+    pickupPosition: {
+      lat:     { type: Number, default: null },
+      lng:     { type: Number, default: null },
+      address: { type: String, default: null },
+    },
+
+    // Point de retour / relais (texte + coordonnées GPS)
     returnLocation: { type: String },
+    returnPosition: {
+      lat:     { type: Number, default: null },
+      lng:     { type: Number, default: null },
+      address: { type: String, default: null },
+    },
+
     options: {
       gps:       { type: Boolean, default: false },
       babySeat:  { type: Boolean, default: false },
@@ -86,6 +101,29 @@ const bookingSchema = new mongoose.Schema({
   montantOptions: { type: Number, default: 0 },
   montantTotal:   { type: Number, default: 0 },
   devise:         { type: String, default: "XOF" },
+
+  // ── Commission & Frais plateforme ─────────────────────────
+  // location → 15 % | vente/essai → 3 %
+  commissionRate:   { type: Number, default: 0 },      // ex: 0.15
+  commissionAmount: { type: Number, default: 0 },      // montantBase * commissionRate
+  serviceFeeFCFA:   { type: Number, default: 1000 },   // 1 000 FCFA fixe
+  cautionAmount:    { type: Number, default: 0 },      // caution / dépôt de garantie
+  partnerPayout:    { type: Number, default: 0 },      // net versé au partenaire
+
+  // ── Vérification client ───────────────────────────────────
+  clientVerification: {
+    idType:     { type: String, enum: ["cni", "passport", "permis", null], default: null },
+    idNumber:   { type: String, default: null },
+    isVerified: { type: Boolean, default: false },
+    verifiedAt: { type: Date, default: null },
+  },
+
+  // ── Contrat digital ───────────────────────────────────────
+  contract: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Contract",
+    default: null,
+  },
 
   // ── Paiement ──────────────────────────────────────────────
   payment: {
