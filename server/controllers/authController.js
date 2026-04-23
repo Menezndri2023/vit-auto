@@ -2,8 +2,6 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 
-const SECRET = process.env.JWT_SECRET || "secretkey";
-
 export const register = async (req, res) => {
   const { firstName, lastName, email, password, phone } = req.body;
   if (!email || !password || !firstName || !lastName) {
@@ -19,8 +17,9 @@ export const register = async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     const userDoc = { firstName, lastName, email: email.toLowerCase(), password: hash, phone, role, createdAt: new Date() };
     const user = await User.create(userDoc);
-    
-    const token = jwt.sign({ id: user._id, email: user.email, role }, SECRET, { expiresIn: "7d" });
+
+    const secret = process.env.JWT_SECRET || "secretkey";
+    const token = jwt.sign({ id: user._id, email: user.email, role }, secret, { expiresIn: "7d" });
 
     res.json({ 
       user: { 
@@ -50,7 +49,8 @@ export const login = async (req, res) => {
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) return res.status(401).json({ message: "Identifiants invalides" });
 
-    const token = jwt.sign({ id: user._id, email: user.email, role: user.role }, SECRET, { expiresIn: "7d" });
+    const secret = process.env.JWT_SECRET || "secretkey";
+    const token = jwt.sign({ id: user._id, email: user.email, role: user.role }, secret, { expiresIn: "7d" });
     res.json({ 
       user: { 
         id: user._id, 

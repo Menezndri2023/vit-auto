@@ -70,7 +70,7 @@ const scoreAnnonce = (data) => {
   if (descLen >= 100)      score += 15;
   else if (descLen >= 50)  { score += 10; warnings.push("Description courte — décrivez davantage votre véhicule"); }
   else if (descLen >= 10)  { score += 5;  warnings.push("Description trop courte (50 caractères minimum recommandés)"); }
-  else errors.push("Description manquante ou insuffisante (minimum 10 caractères)");
+  else warnings.push("Ajoutez une description (50 caractères min. recommandés pour un meilleur score)");
 
   // ── 6. PHOTOS ─────────────────────────────────────────────────────────────
   const photoCount = (data.images || []).filter(Boolean).length;
@@ -131,30 +131,29 @@ export const createVehicle = async (req, res) => {
         : null,
     });
 
-    // ── Notification contextuelle selon le résultat ─────────────────────────
-    const notifMap = {
-      approved: {
-        type:    "listing_approved",
-        titre:   "✅ Annonce approuvée et publiée !",
-        message: `Votre annonce "${vehicle.title}" est maintenant visible dans le catalogue. Score de qualité : ${validation.score}/100.`,
-      },
-      rejected: {
-        type:    "listing_rejected",
-        titre:   "❌ Annonce non conforme",
-        message: `Votre annonce "${vehicle.title}" a été rejetée automatiquement. Problèmes : ${validation.errors.slice(0, 2).join(", ")}.`,
-      },
-      pending: {
-        type:    "system",
-        titre:   "⏳ Annonce en cours d'examen",
-        message: `Votre annonce "${vehicle.title}" est en cours de vérification manuelle. Score actuel : ${validation.score}/100. Vous serez notifié sous 24h.`,
-      },
-    };
-
-    await Notification.create({
-      user:    req.user._id,
-      lien:    "/vendor/dashboard",
-      ...notifMap[validation.status],
-    });
+    // ── Notification contextuelle (non bloquante) ────────────────────────────
+    try {
+      const notifMap = {
+        approved: {
+          type:    "listing_approved",
+          titre:   "✅ Annonce approuvée et publiée !",
+          message: `Votre annonce "${vehicle.title}" est maintenant visible dans le catalogue. Score : ${validation.score}/100.`,
+        },
+        rejected: {
+          type:    "listing_rejected",
+          titre:   "❌ Annonce non conforme",
+          message: `Votre annonce "${vehicle.title}" a été rejetée. Problèmes : ${validation.errors.slice(0, 2).join(", ")}.`,
+        },
+        pending: {
+          type:    "system",
+          titre:   "⏳ Annonce en cours d'examen",
+          message: `Votre annonce "${vehicle.title}" est en cours de vérification. Score actuel : ${validation.score}/100.`,
+        },
+      };
+      await Notification.create({ user: req.user._id, lien: "/vendor/dashboard", ...notifMap[validation.status] });
+    } catch (notifErr) {
+      console.error("Notification (non bloquant) :", notifErr.message);
+    }
 
     res.status(201).json({ vehicle, validation });
   } catch (err) {

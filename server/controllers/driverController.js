@@ -8,24 +8,34 @@ export const createDriver = async (req, res) => {
       return res.status(403).json({ message: "Réservé aux partenaires." });
     }
 
+    // Mapper telephone → phone (le frontend envoie "telephone", le schéma attend "phone")
+    const { telephone, contactTel, ...rest } = req.body;
+    const phone = telephone || contactTel || req.body.phone;
+
     const driver = await Driver.create({
-      ...req.body,
+      ...rest,
+      ...(phone ? { phone } : {}),
       owner: req.user._id,
       status: req.user.role === "admin" ? "approved" : "pending",
     });
 
-    await Notification.create({
-      user: req.user._id,
-      type: "system",
-      titre: "Profil chauffeur soumis",
-      message: "Votre profil chauffeur est en cours de vérification.",
-      lien: "/vendor/dashboard",
-    });
+    // Notification non bloquante
+    try {
+      await Notification.create({
+        user: req.user._id,
+        type: "system",
+        titre: "Profil chauffeur soumis",
+        message: "Votre profil chauffeur est en cours de vérification.",
+        lien: "/vendor/dashboard",
+      });
+    } catch (notifErr) {
+      console.error("Notification (non bloquant) :", notifErr.message);
+    }
 
     res.status(201).json({ driver });
   } catch (err) {
     console.error("createDriver:", err);
-    res.status(400).json({ message: "Erreur création chauffeur." });
+    res.status(400).json({ message: err.message || "Erreur création chauffeur." });
   }
 };
 

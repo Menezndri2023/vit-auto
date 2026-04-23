@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
@@ -29,9 +29,8 @@ const fmt = (n) => Number(n || 0).toLocaleString("fr-FR");
 // ─── Composant ─────────────────────────────────────────────────────────────────
 const VendorSubmit = () => {
   const { user, token } = useAuth();
-  const { error: toastError } = useToast();
-  const { addVehicle } = useVehicles();
   const { success, error } = useToast();
+  const { addVehicle } = useVehicles();
   const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
@@ -82,6 +81,20 @@ const VendorSubmit = () => {
 
   const [errors, setErrors] = useState({});
 
+  const isPartner = !!user && ["partenaire", "admin"].includes(user.role);
+
+  // Redirections via effect — jamais pendant le render (évite removeChild en StrictMode)
+  useEffect(() => {
+    if (!user) return;
+    if (!token) {
+      error("🔐 Session expirée ou incomplète. Reconnectez-vous pour publier.");
+      navigate("/login", { replace: true });
+    } else if (!isPartner) {
+      error("Compte partenaire requis pour publier des annonces.");
+      navigate("/register?role=partenaire", { replace: true });
+    }
+  }, [user, token, isPartner]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ─── Garde d'accès ──────────────────────────────────────────────────────────
   if (!user) {
     return (
@@ -98,28 +111,15 @@ const VendorSubmit = () => {
     );
   }
 
-  // Check for valid backend token (fix 401)
-  if (!token) {
-    setTimeout(() => toastError("🔐 Session expirée ou incomplète. Reconnectez-vous pour publier."), 0);
-    navigate("/login", { replace: true });
-    return null;
-  }
-
-  // Check role for publication
-  if (!["partenaire", "admin"].includes(user.role)) {
-    setTimeout(() => toastError("Compte partenaire requis pour publier des annonces."), 0);
-    navigate(`/register?role=partenaire`, { replace: true });
-    return null;
-  }
-
-  if (user.role === "client") {
+  if (!token || !isPartner) {
+    // useEffect gère la redirection ; on évite tout rendu de formulaire
     return (
       <div className={styles.page}>
         <div className={styles.accessCard}>
           <div className={styles.accessIcon}>🤝</div>
-          <h2>Compte partenaire requis</h2>
-          <p>Seuls les partenaires peuvent publier des annonces. Créez un compte partenaire gratuitement.</p>
-          <button className={styles.primaryBtn} onClick={() => navigate("/register")}>
+          <h2>Accès restreint</h2>
+          <p>Seuls les partenaires peuvent publier des annonces.</p>
+          <button className={styles.primaryBtn} onClick={() => navigate("/register?role=partenaire")}>
             Devenir partenaire
           </button>
         </div>
@@ -234,6 +234,8 @@ const VendorSubmit = () => {
       const desc = adType === "chauffeur" ? driver.description : vehicle.description;
       if (desc.trim().length > 0 && desc.trim().length < 10)
         e.description = "Description trop courte (min 10 caractères si renseignée)";
+      if (adType !== "chauffeur" && photos.length === 0)
+        e.photos = "Au moins 1 photo est requise pour votre annonce véhicule";
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -246,7 +248,7 @@ const VendorSubmit = () => {
   const handleSubmit = async () => {
     // Double-check token before API call
     if (!token) {
-      toastError("Session invalide. Rechargez la page ou reconnectez-vous.");
+      error("Session invalide. Rechargez la page ou reconnectez-vous.");
       navigate("/login", { replace: true });
       return;
     }
@@ -738,6 +740,10 @@ const VendorSubmit = () => {
           <div className={styles.card}>
             <h2 className={styles.cardTitle}>📸 Photos & Description</h2>
 
+            {errors.photos && (
+              <p className={styles.err} style={{ marginBottom: "0.75rem" }}>{errors.photos}</p>
+            )}
+
             {/* ── Zone upload ── */}
             <div className={styles.uploadSection}>
               <div className={styles.uploadMeta}>
@@ -800,8 +806,11 @@ const VendorSubmit = () => {
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <span>📎</span> Glisser ou cliquer pour ajouter d'autres photos
-                  <span className={styles.remainBadge}>{MAX_PHOTOS - photos.length} restante{MAX_PHOTOS - photos.length > 1 ? "s" : ""}</span>
+                  <span>📎</span>
+                  <span> Glisser ou cliquer pour ajouter d'autres photos</span>
+                  <span className={styles.remainBadge}>
+                    {`${MAX_PHOTOS - photos.length} restante${MAX_PHOTOS - photos.length > 1 ? "s" : ""}`}
+                  </span>
                 </div>
               )}
 
@@ -1058,8 +1067,10 @@ const VendorSubmit = () => {
         ))}
       </div>
 
-      {/* Contenu de l'étape */}
-      {renderStep()}
+      {/* Contenu de l'étape — key force un remontage propre à chaque changement d'étape */}
+      <div key={step}>
+        {renderStep()}
+      </div>
 
       {/* Navigation */}
       <div className={styles.nav}>

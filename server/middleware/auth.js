@@ -10,7 +10,7 @@ export const authenticate = async (req, res, next) => {
       return res.status(401).json({ message: "Non autorisé" });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "secretkey");
 
     const user = await User.findById(decoded.id);
 
