@@ -49,6 +49,10 @@ const vehicleSchema = new mongoose.Schema({
   permisRequis:         { type: Boolean, default: true },
   assuranceOptionnelle: { type: Boolean, default: true },
 
+  // ── Contact de l'annonceur ────────────────────────────────
+  contactNom: { type: String, trim: true },
+  contactTel: { type: String, trim: true },
+
   // ── Localisation ──────────────────────────────────────────
   ville:      { type: String, trim: true },
   adresse:    { type: String, trim: true },

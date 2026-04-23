@@ -19,6 +19,8 @@ const normalizeVehicle = (v) => {
     buyPrice:     v.priceForSale,
     description:  v.description || "",
     transmission: v.transmission || "",
+    // Champ original préservé pour les filtres internes
+    listingType:  v.type,
   };
 };
 
