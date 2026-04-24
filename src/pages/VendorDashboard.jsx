@@ -1,10 +1,10 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
 import { Link, useNavigate } from "react-router-dom";
 import styles from "./VendorDashboard.module.css";
 
-const fmt = (n) => Number(n).toLocaleString("fr-FR") + " FCFA";
+const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " FCFA";
 
 const COMMISSION_LOCATION = 0.15;
 const COMMISSION_VENTE    = 0.03;
@@ -17,30 +17,260 @@ const STATUS_CONFIG = {
 };
 
 const BOOKING_STATUS = {
-  "À confirmer": { label: "Nouveau",     color: "#f59e0b", bg: "#fffbeb" },
-  pending:       { label: "Nouveau",     color: "#f59e0b", bg: "#fffbeb" },
-  confirmed:     { label: "Confirmé",   color: "#10b981", bg: "#ecfdf5" },
-  in_progress:   { label: "En cours",   color: "#6366f1", bg: "#eef2ff" },
-  completed:     { label: "Terminé",    color: "#64748b", bg: "#f8fafc" },
-  cancelled:     { label: "Annulé",     color: "#ef4444", bg: "#fef2f2" },
+  "À confirmer": { label: "Nouveau",    color: "#f59e0b", bg: "#fffbeb" },
+  pending:       { label: "Nouveau",    color: "#f59e0b", bg: "#fffbeb" },
+  confirmed:     { label: "Confirmé",  color: "#10b981", bg: "#ecfdf5" },
+  in_progress:   { label: "En cours",  color: "#6366f1", bg: "#eef2ff" },
+  completed:     { label: "Terminé",   color: "#64748b", bg: "#f8fafc" },
+  cancelled:     { label: "Annulé",    color: "#ef4444", bg: "#fef2f2" },
 };
 
 const TYPE_LABELS = { location: "Location", essai: "Essai", chauffeur: "Chauffeur" };
 
+// ── Composant modal de gestion de commande ────────────────────────────────────
+function GererModal({ order, onClose, onConfirm, onInProgress, onComplete, onReject }) {
+  if (!order) return null;
+
+  const bst = BOOKING_STATUS[order.status] || BOOKING_STATUS.pending;
+  const isNew     = order.status === "À confirmer" || order.status === "pending";
+  const isConfirmed = order.status === "confirmed";
+  const isInProg  = order.status === "in_progress";
+  const isDone    = order.status === "completed" || order.status === "cancelled";
+  const hasGps    = order.pickupLat != null && order.pickupLng != null;
+  const isLivraison = order.pickupMethod === "livraison" || order.pickupLocation;
+
+  const mapsUrl = hasGps
+    ? `https://www.google.com/maps?q=${order.pickupLat},${order.pickupLng}`
+    : order.pickupAddress
+      ? `https://www.google.com/maps/search/${encodeURIComponent(order.pickupAddress)}`
+      : null;
+
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={styles.gererModal} onClick={(e) => e.stopPropagation()}>
+        {/* ── En-tête ── */}
+        <div className={styles.gererHeader}>
+          <div>
+            <span className={styles.gererType}>{TYPE_LABELS[order.type] || order.type}</span>
+            <h2 className={styles.gererTitle}>{order.vehicleName}</h2>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <span className={styles.orderStatus} style={{ background: bst.bg, color: bst.color, fontSize: "0.9rem", padding: "0.4rem 0.9rem" }}>
+              {bst.label}
+            </span>
+            <button className={styles.closeBtn} onClick={onClose} aria-label="Fermer">✕</button>
+          </div>
+        </div>
+
+        <div className={styles.gererBody}>
+          {/* ── Client ── */}
+          <section className={styles.gererSection}>
+            <h3 className={styles.gererSectionTitle}>👤 Informations client</h3>
+            <div className={styles.gererGrid}>
+              <div className={styles.gererField}>
+                <span>Nom complet</span>
+                <strong>{order.firstName} {order.lastName}</strong>
+              </div>
+              <div className={styles.gererField}>
+                <span>Contact</span>
+                <strong>
+                  {order.phone && (
+                    <a href={`tel:${order.phone}`} className={styles.phoneLink}>{order.phone}</a>
+                  )}
+                  {!order.phone && order.email}
+                </strong>
+              </div>
+              {order.email && order.phone && (
+                <div className={styles.gererField}>
+                  <span>Email</span>
+                  <strong>{order.email}</strong>
+                </div>
+              )}
+              {order.clientVerification?.idType && (
+                <div className={styles.gererField}>
+                  <span>Pièce d'identité</span>
+                  <strong className={styles.idBadge}>
+                    {order.clientVerification.idType.toUpperCase()} — {order.clientVerification.idNumber}
+                  </strong>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* ── Détails commande ── */}
+          <section className={styles.gererSection}>
+            <h3 className={styles.gererSectionTitle}>📋 Détails de la commande</h3>
+            <div className={styles.gererGrid}>
+              {order.type === "location" && (
+                <>
+                  <div className={styles.gererField}>
+                    <span>Période</span>
+                    <strong>
+                      {order.startDate ? new Date(order.startDate).toLocaleDateString("fr-FR") : "—"}
+                      {" → "}
+                      {order.endDate   ? new Date(order.endDate).toLocaleDateString("fr-FR")   : "—"}
+                      {order.days ? ` (${order.days} jour${order.days > 1 ? "s" : ""})` : ""}
+                    </strong>
+                  </div>
+                  <div className={styles.gererField}>
+                    <span>Total client</span>
+                    <strong>{fmt(order.total || 0)}</strong>
+                  </div>
+                  <div className={styles.gererField}>
+                    <span>Votre net</span>
+                    <strong style={{ color: "#10b981" }}>
+                      {fmt(order.partnerPayout || Math.max((order.baseTotal || 0) * 0.85 - SERVICE_FEE, 0))}
+                    </strong>
+                  </div>
+                </>
+              )}
+              {order.type === "essai" && (
+                <>
+                  <div className={styles.gererField}>
+                    <span>Date souhaitée</span>
+                    <strong>
+                      {order.preferredDate ? new Date(order.preferredDate).toLocaleDateString("fr-FR") : "—"}
+                      {order.preferredTime ? ` à ${order.preferredTime}` : ""}
+                    </strong>
+                  </div>
+                  {order.notes && (
+                    <div className={`${styles.gererField} ${styles.colSpan2}`}>
+                      <span>Message client</span>
+                      <strong>{order.notes}</strong>
+                    </div>
+                  )}
+                </>
+              )}
+              <div className={styles.gererField}>
+                <span>Paiement</span>
+                <strong>{order.isPaid ? "✅ Payé" : "⏳ En attente"} {order.paidWith ? `— ${order.paidWith}` : ""}</strong>
+              </div>
+              <div className={styles.gererField}>
+                <span>Reçue le</span>
+                <strong>
+                  {order.createdAt
+                    ? new Date(order.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })
+                    : "—"}
+                </strong>
+              </div>
+            </div>
+          </section>
+
+          {/* ── Livraison GPS ── */}
+          {isLivraison && (
+            <section className={styles.gererSection}>
+              <h3 className={styles.gererSectionTitle}>📍 Lieu de livraison</h3>
+              <div className={styles.gpsBlock}>
+                <div className={styles.gpsInfo}>
+                  <div className={styles.gpsAddress}>
+                    <span className={styles.gpsIcon}>📌</span>
+                    <div>
+                      <p className={styles.gpsAddressText}>
+                        {order.pickupAddress || order.pickupLocation || "Adresse non précisée"}
+                      </p>
+                      {hasGps && (
+                        <p className={styles.gpsCoords}>
+                          GPS : {Number(order.pickupLat).toFixed(5)}, {Number(order.pickupLng).toFixed(5)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {mapsUrl && (
+                    <a
+                      href={mapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={styles.mapsBtn}
+                    >
+                      🗺️ Ouvrir dans Maps
+                    </a>
+                  )}
+                </div>
+
+                {hasGps && (
+                  <div className={styles.gpsMapFrame}>
+                    <iframe
+                      title="Carte livraison"
+                      loading="lazy"
+                      src={`https://www.openstreetmap.org/export/embed.html?bbox=${order.pickupLng - 0.01},${order.pickupLat - 0.01},${order.pickupLng + 0.01},${order.pickupLat + 0.01}&layer=mapnik&marker=${order.pickupLat},${order.pickupLng}`}
+                      className={styles.gpsIframe}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {order.returnLocation && (
+                <div className={styles.returnBlock}>
+                  <span className={styles.gpsIcon}>🔄</span>
+                  <div>
+                    <p className={styles.returnLabel}>Lieu de retour</p>
+                    <p className={styles.gpsAddressText}>{order.returnLocation}</p>
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+        </div>
+
+        {/* ── Actions ── */}
+        {!isDone && (
+          <div className={styles.gererActions}>
+            {isNew && (
+              <button className={styles.btnConfirm} onClick={() => { onConfirm(order.id); onClose(); }}>
+                ✓ Accepter la commande
+              </button>
+            )}
+            {isConfirmed && (
+              <button className={styles.btnInProgress} onClick={() => { onInProgress(order.id); onClose(); }}>
+                🚗 Marquer en route
+              </button>
+            )}
+            {isInProg && (
+              <button className={styles.btnComplete} onClick={() => { onComplete(order.id); onClose(); }}>
+                ✅ Marquer terminé
+              </button>
+            )}
+            <button className={styles.btnReject} onClick={() => onReject(order.id)}>
+              ✕ Refuser / Annuler
+            </button>
+          </div>
+        )}
+        {isDone && (
+          <div className={styles.gererActions}>
+            <p style={{ color: "#64748b", fontSize: "0.95rem", margin: 0 }}>
+              {order.status === "completed" ? "✅ Cette commande est terminée." : "❌ Cette commande a été annulée."}
+              {order.vendorNote && ` Raison : ${order.vendorNote}`}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Composant principal ───────────────────────────────────────────────────────
 export default function VendorDashboard() {
   const { user, isAuthenticated, token } = useAuth();
-  const { partnerVehicles: myVehicles, bookings, updateBookingStatus, loadPartnerVehicles } = useVehicles();
+  const {
+    partnerVehicles: myVehicles,
+    partnerBookings,
+    bookings,
+    updateBookingStatus,
+    loadPartnerVehicles,
+    loadPartnerOrders,
+  } = useVehicles();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab]         = useState("annonces"); // "annonces" | "commandes"
-  const [subscription, setSubscription]   = useState(null);
-  const [subLoading, setSubLoading]       = useState(true);
-  const [boostTarget, setBoostTarget]     = useState(null);
-  const [boostMsg, setBoostMsg]           = useState("");
-  const [statusFilter, setStatusFilter]   = useState("all");
-  const [orderFilter, setOrderFilter]     = useState("all");
-  const [rejectModal, setRejectModal]     = useState(null); // { bookingId }
-  const [rejectNote, setRejectNote]       = useState("");
+  const [activeTab, setActiveTab]       = useState("annonces");
+  const [subscription, setSubscription] = useState(null);
+  const [subLoading, setSubLoading]     = useState(true);
+  const [boostTarget, setBoostTarget]   = useState(null);
+  const [boostMsg, setBoostMsg]         = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [orderFilter, setOrderFilter]   = useState("all");
+  const [rejectModal, setRejectModal]   = useState(null); // bookingId
+  const [rejectNote, setRejectNote]     = useState("");
+  const [gererModal, setGererModal]     = useState(null); // order object
 
   useEffect(() => {
     if (!isAuthenticated || !token) { setSubLoading(false); return; }
@@ -51,41 +281,58 @@ export default function VendorDashboard() {
       .finally(() => setSubLoading(false));
   }, [isAuthenticated, token]);
 
-  // Commandes qui concernent les véhicules du vendeur
+  // IDs des véhicules du partenaire (pour filtrer les commandes localStorage)
   const myVehicleIds = useMemo(
     () => new Set(myVehicles.map((v) => String(v.id || v._id))),
     [myVehicles]
   );
 
-  const myOrders = useMemo(
+  // Commandes depuis localStorage filtrées par véhicules du partenaire
+  const localOrders = useMemo(
     () => bookings.filter((b) => myVehicleIds.has(String(b.vehicleId))),
     [bookings, myVehicleIds]
   );
 
+  // Fusion localStorage + backend (le backend a priorité — il a les données GPS et le statut réel)
+  const allOrders = useMemo(() => {
+    const map = new Map();
+    localOrders.forEach((b)     => map.set(String(b.id), b));
+    partnerBookings.forEach((b) => map.set(String(b.id), { ...map.get(String(b.id)), ...b }));
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+    );
+  }, [localOrders, partnerBookings]);
+
   const filteredOrders = useMemo(() => {
-    if (orderFilter === "all") return myOrders;
-    const map = { new: ["À confirmer", "pending"], confirmed: ["confirmed"], done: ["completed", "in_progress"], cancelled: ["cancelled"] };
-    return myOrders.filter((b) => (map[orderFilter] || []).includes(b.status));
-  }, [myOrders, orderFilter]);
+    if (orderFilter === "all") return allOrders;
+    const map = {
+      new:       ["À confirmer", "pending"],
+      confirmed: ["confirmed"],
+      enroute:   ["in_progress"],
+      done:      ["completed"],
+      cancelled: ["cancelled"],
+    };
+    return allOrders.filter((b) => (map[orderFilter] || []).includes(b.status));
+  }, [allOrders, orderFilter]);
 
   const stats = useMemo(() => {
-    const approved = myVehicles.filter((v) => v.status === "approved");
-    const locationV = approved.filter((v) => v.mode === "Louer" || v.mode === "location");
-    const venteV    = approved.filter((v) => v.mode === "Vendre" || v.mode === "vente");
-    const grossLoc  = locationV.reduce((s, v) => s + (v.pricePerDay || 0) * 7, 0);
-    const commLoc   = Math.round(grossLoc * COMMISSION_LOCATION);
-    const grossVte  = venteV.reduce((s, v) => s + (v.buyPrice || 0), 0) * 0.1;
-    const commVte   = Math.round(grossVte * COMMISSION_VENTE);
-    const netRev    = Math.max(grossLoc + grossVte - commLoc - commVte - SERVICE_FEE * approved.length, 0);
-    const newOrders = myOrders.filter((b) => b.status === "À confirmer" || b.status === "pending").length;
+    const approved   = myVehicles.filter((v) => v.status === "approved");
+    const locationV  = approved.filter((v) => v.mode === "Louer");
+    const venteV     = approved.filter((v) => v.mode === "Acheter");
+    const grossLoc   = locationV.reduce((s, v) => s + (v.pricePerDay || 0) * 7, 0);
+    const commLoc    = Math.round(grossLoc * COMMISSION_LOCATION);
+    const grossVte   = venteV.reduce((s, v) => s + (v.buyPrice || 0), 0) * 0.1;
+    const commVte    = Math.round(grossVte * COMMISSION_VENTE);
+    const netRev     = Math.max(grossLoc + grossVte - commLoc - commVte - SERVICE_FEE * approved.length, 0);
+    const newOrders  = allOrders.filter((b) => b.status === "À confirmer" || b.status === "pending").length;
     return {
-      total: myVehicles.length,
+      total:    myVehicles.length,
       approved: approved.length,
-      pending:  myVehicles.filter((v) => v.status === "pending" || !v.status).length,
+      pending:  myVehicles.filter((v) => (v.status || "pending") === "pending").length,
       rejected: myVehicles.filter((v) => v.status === "rejected").length,
       netRev, newOrders,
     };
-  }, [myVehicles, myOrders]);
+  }, [myVehicles, allOrders]);
 
   const isPro  = subscription?.plan === "pro" && subscription?.proDetails?.isActive;
   const proEnd = subscription?.proDetails?.endDate
@@ -113,18 +360,26 @@ export default function VendorDashboard() {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-    } catch {}
-    loadPartnerVehicles(); // Refresh from server
+    } catch { /* ignore network error */ }
+    loadPartnerVehicles();
   };
 
-  const handleConfirm = (bookingId) => updateBookingStatus(bookingId, "confirmed");
-  const handleComplete = (bookingId) => updateBookingStatus(bookingId, "completed");
-  const handleReject = () => {
+  const handleConfirm    = useCallback((id) => updateBookingStatus(id, "confirmed"),    [updateBookingStatus]);
+  const handleInProgress = useCallback((id) => updateBookingStatus(id, "in_progress"),  [updateBookingStatus]);
+  const handleComplete   = useCallback((id) => updateBookingStatus(id, "completed"),    [updateBookingStatus]);
+  const handleReject     = useCallback(() => {
     if (!rejectModal) return;
     updateBookingStatus(rejectModal, "cancelled", rejectNote);
     setRejectModal(null);
     setRejectNote("");
-  };
+    setGererModal(null);
+  }, [rejectModal, rejectNote, updateBookingStatus]);
+
+  const handleGerer = useCallback((order) => setGererModal(order), []);
+  const handleRefresh = useCallback(() => {
+    loadPartnerOrders();
+    loadPartnerVehicles();
+  }, [loadPartnerOrders, loadPartnerVehicles]);
 
   const filteredVehicles = statusFilter === "all"
     ? myVehicles
@@ -146,19 +401,23 @@ export default function VendorDashboard() {
 
   return (
     <div className={styles.page}>
-      {/* ── Header ──────────────────────────── */}
+
+      {/* ── Header ── */}
       <header className={styles.header}>
         <div>
           <h1>Espace Partenaire</h1>
           <p>Bienvenue {user.firstName || user.name} — gérez vos annonces et commandes</p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+          <button className={`${styles.actionBtn} ${styles.viewBtn}`} onClick={handleRefresh} style={{ padding: "0.75rem 1.25rem" }}>
+            ↻ Actualiser
+          </button>
           <Link to="/plans" className={`${styles.actionBtn} ${styles.viewBtn}`} style={{ padding: "0.75rem 1.25rem" }}>Tarifs</Link>
           <Link to="/vendor" className={`${styles.actionBtn} ${styles.editBtn}`} style={{ padding: "0.75rem 1.25rem" }}>+ Nouvelle annonce</Link>
         </div>
       </header>
 
-      {/* ── Plan banner ─────────────────────── */}
+      {/* ── Plan banner ── */}
       {!subLoading && (
         <div className={isPro ? styles.proBanner : styles.freeBanner}>
           <span className={isPro ? styles.planBadge : styles.planBadgeFree}>{isPro ? "Pro" : "Gratuit"}</span>
@@ -170,7 +429,7 @@ export default function VendorDashboard() {
         </div>
       )}
 
-      {/* ── Commission info ─────────────────── */}
+      {/* ── Commission info ── */}
       <div className={styles.commissionBanner}>
         <div className={styles.commItem}><span>Commission location</span><strong>15 %</strong></div>
         <div className={styles.commItem}><span>Commission vente</span><strong>3 %</strong></div>
@@ -181,7 +440,7 @@ export default function VendorDashboard() {
         </div>
       </div>
 
-      {/* ── Stats ───────────────────────────── */}
+      {/* ── Stats ── */}
       <div className={styles.statsGrid}>
         <div className={styles.statCard} style={{ background: "linear-gradient(135deg,#1e3a5f,#2563eb)" }}>
           <span className={styles.statNumber}>{stats.total}</span>
@@ -200,7 +459,7 @@ export default function VendorDashboard() {
           <span className={styles.statLabel}>Revenus nets estimés</span>
         </div>
         <div className={styles.statCard} style={{ background: "linear-gradient(135deg,#7f1d1d,#ef4444)", position: "relative" }}>
-          <span className={styles.statNumber}>{myOrders.length}</span>
+          <span className={styles.statNumber}>{allOrders.length}</span>
           <span className={styles.statLabel}>Commandes reçues</span>
           {stats.newOrders > 0 && (
             <span className={styles.newBadge}>{stats.newOrders} nouveau{stats.newOrders > 1 ? "x" : ""}</span>
@@ -208,7 +467,6 @@ export default function VendorDashboard() {
         </div>
       </div>
 
-      {/* ── Boost message ───────────────────── */}
       {boostMsg && (
         <div className={styles.boostMessage}>
           {boostMsg}
@@ -216,26 +474,18 @@ export default function VendorDashboard() {
         </div>
       )}
 
-      {/* ── Onglets ─────────────────────────── */}
+      {/* ── Onglets ── */}
       <div className={styles.tabs}>
-        <button
-          className={`${styles.tab} ${activeTab === "annonces" ? styles.tabActive : ""}`}
-          onClick={() => setActiveTab("annonces")}
-        >
+        <button className={`${styles.tab} ${activeTab === "annonces" ? styles.tabActive : ""}`} onClick={() => setActiveTab("annonces")}>
           Mes annonces ({myVehicles.length})
         </button>
-        <button
-          className={`${styles.tab} ${activeTab === "commandes" ? styles.tabActive : ""}`}
-          onClick={() => setActiveTab("commandes")}
-        >
-          Commandes ({myOrders.length})
+        <button className={`${styles.tab} ${activeTab === "commandes" ? styles.tabActive : ""}`} onClick={() => setActiveTab("commandes")}>
+          Commandes ({allOrders.length})
           {stats.newOrders > 0 && <span className={styles.tabBadge}>{stats.newOrders}</span>}
         </button>
       </div>
 
-      {/* ══════════════════════════════════════ */}
-      {/* TAB ANNONCES                           */}
-      {/* ══════════════════════════════════════ */}
+      {/* ══ TAB ANNONCES ══ */}
       {activeTab === "annonces" && (
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
@@ -260,13 +510,13 @@ export default function VendorDashboard() {
           ) : (
             <div className={styles.vehicleGrid}>
               {filteredVehicles.map((vehicle) => {
-                const vid    = vehicle.id || vehicle._id;
-                const status = STATUS_CONFIG[vehicle.status || "pending"];
+                const vid       = vehicle.id || vehicle._id;
+                const status    = STATUS_CONFIG[vehicle.status || "pending"];
                 const isBoosted = subscription?.boosts?.some((b) => b.isActive && String(b.vehicle) === String(vid));
-                const commRate  = (vehicle.mode === "Louer" || vehicle.mode === "location") ? COMMISSION_LOCATION : COMMISSION_VENTE;
+                const commRate  = vehicle.mode === "Louer" ? COMMISSION_LOCATION : COMMISSION_VENTE;
                 const priceLabel = vehicle.pricePerDay ? `${fmt(vehicle.pricePerDay)} / jour` : vehicle.buyPrice ? fmt(vehicle.buyPrice) : "—";
                 const netLabel   = vehicle.pricePerDay ? `Net : ${fmt(Math.round(vehicle.pricePerDay * (1 - commRate) - SERVICE_FEE / 30))} / jour` : "—";
-                const orderCount = myOrders.filter((b) => String(b.vehicleId) === String(vid)).length;
+                const orderCount = allOrders.filter((b) => String(b.vehicleId) === String(vid)).length;
 
                 return (
                   <div key={vid} className={`${styles.vehicleCard} ${isBoosted ? styles.vehicleCardBoosted : ""}`}>
@@ -291,34 +541,27 @@ export default function VendorDashboard() {
                       </div>
                     </div>
 
-                    {/* Barre de score + feedback pour annonces non approuvées */}
                     {vehicle.validationScore != null && (vehicle.status === "pending" || vehicle.status === "rejected") && (
                       <div className={styles.validationBlock}>
                         <div className={styles.scoreBarWrap}>
-                          <div
-                            className={styles.scoreBarFill}
-                            style={{
-                              width: `${vehicle.validationScore}%`,
-                              background: vehicle.validationScore >= 65 ? "#10b981" : vehicle.validationScore >= 40 ? "#f59e0b" : "#ef4444",
-                            }}
-                          />
+                          <div className={styles.scoreBarFill} style={{
+                            width: `${vehicle.validationScore}%`,
+                            background: vehicle.validationScore >= 65 ? "#10b981" : vehicle.validationScore >= 40 ? "#f59e0b" : "#ef4444",
+                          }} />
                         </div>
                         {vehicle.validationErrors?.length > 0 && (
                           <ul className={styles.validErrList}>
-                            {vehicle.validationErrors.map((e, i) => (
-                              <li key={i} className={styles.validErrItem}>❌ {e}</li>
-                            ))}
+                            {vehicle.validationErrors.map((e, i) => <li key={i} className={styles.validErrItem}>❌ {e}</li>)}
                           </ul>
                         )}
                         {vehicle.validationWarnings?.length > 0 && (
                           <ul className={styles.validWarnList}>
-                            {vehicle.validationWarnings.slice(0, 3).map((w, i) => (
-                              <li key={i} className={styles.validWarnItem}>⚠️ {w}</li>
-                            ))}
+                            {vehicle.validationWarnings.slice(0, 3).map((w, i) => <li key={i} className={styles.validWarnItem}>⚠️ {w}</li>)}
                           </ul>
                         )}
                       </div>
                     )}
+
                     <div className={styles.vehicleTags}>
                       <span className={`${styles.tag} ${styles.tagMode}`}>{vehicle.mode}</span>
                       <span className={`${styles.tag} ${styles.tagType}`}>{vehicle.type}</span>
@@ -329,10 +572,7 @@ export default function VendorDashboard() {
                       <small>{netLabel}</small>
                     </div>
                     {orderCount > 0 && (
-                      <button
-                        className={styles.orderHintBtn}
-                        onClick={() => { setActiveTab("commandes"); setOrderFilter("all"); }}
-                      >
+                      <button className={styles.orderHintBtn} onClick={() => { setActiveTab("commandes"); setOrderFilter("all"); }}>
                         {orderCount} commande{orderCount > 1 ? "s" : ""} →
                       </button>
                     )}
@@ -355,9 +595,7 @@ export default function VendorDashboard() {
         </div>
       )}
 
-      {/* ══════════════════════════════════════ */}
-      {/* TAB COMMANDES                          */}
-      {/* ══════════════════════════════════════ */}
+      {/* ══ TAB COMMANDES ══ */}
       {activeTab === "commandes" && (
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
@@ -366,7 +604,8 @@ export default function VendorDashboard() {
               <option value="all">Tous les statuts</option>
               <option value="new">Nouveaux</option>
               <option value="confirmed">Confirmés</option>
-              <option value="done">En cours / Terminés</option>
+              <option value="enroute">En route</option>
+              <option value="done">Terminés</option>
               <option value="cancelled">Annulés</option>
             </select>
           </div>
@@ -380,10 +619,12 @@ export default function VendorDashboard() {
           ) : (
             <div className={styles.ordersList}>
               {filteredOrders.map((order) => {
-                const bst    = BOOKING_STATUS[order.status] || BOOKING_STATUS.pending;
+                const bst       = BOOKING_STATUS[order.status] || BOOKING_STATUS.pending;
                 const typeLabel = TYPE_LABELS[order.type] || order.type;
-                const isNew  = order.status === "À confirmer" || order.status === "pending";
-                const isDone = order.status === "completed" || order.status === "cancelled";
+                const isNew     = order.status === "À confirmer" || order.status === "pending";
+                const isDone    = order.status === "completed" || order.status === "cancelled";
+                const hasGps    = order.pickupLat != null && order.pickupLng != null;
+                const isLiv     = order.pickupMethod === "livraison" || order.pickupLocation;
 
                 return (
                   <div key={order.id} className={`${styles.orderCard} ${isNew ? styles.orderCardNew : ""}`}>
@@ -393,9 +634,11 @@ export default function VendorDashboard() {
                         <span className={styles.orderType}>{typeLabel}</span>
                         <strong>{order.vehicleName}</strong>
                       </div>
-                      <span className={styles.orderStatus} style={{ background: bst.bg, color: bst.color }}>
-                        {bst.label}
-                      </span>
+                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                        <span className={styles.orderStatus} style={{ background: bst.bg, color: bst.color }}>
+                          {bst.label}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Infos client */}
@@ -406,17 +649,30 @@ export default function VendorDashboard() {
                       </div>
                       <div className={styles.orderInfo}>
                         <span>Contact</span>
-                        <strong>{order.phone || order.email}</strong>
+                        <strong>
+                          {order.phone
+                            ? <a href={`tel:${order.phone}`} className={styles.phoneLink}>{order.phone}</a>
+                            : order.email}
+                        </strong>
                       </div>
                       {order.type === "location" && (
                         <>
                           <div className={styles.orderInfo}>
                             <span>Période</span>
-                            <strong>{order.startDate} → {order.endDate} ({order.days}j)</strong>
+                            <strong>
+                              {order.startDate ? new Date(order.startDate).toLocaleDateString("fr-FR") : order.startDate}
+                              {" → "}
+                              {order.endDate   ? new Date(order.endDate).toLocaleDateString("fr-FR")   : order.endDate}
+                              {order.days ? ` (${order.days}j)` : ""}
+                            </strong>
                           </div>
                           <div className={styles.orderInfo}>
                             <span>Lieu de prise en charge</span>
-                            <strong>{order.pickupLocation || "—"}</strong>
+                            <strong className={isLiv ? styles.deliveryAddr : ""}>
+                              {isLiv ? "🚚 " : "📍 "}
+                              {order.pickupAddress || order.pickupLocation || "—"}
+                              {hasGps && <span className={styles.gpsPill}>GPS</span>}
+                            </strong>
                           </div>
                           <div className={styles.orderInfo}>
                             <span>Total client</span>
@@ -434,12 +690,17 @@ export default function VendorDashboard() {
                         <>
                           <div className={styles.orderInfo}>
                             <span>Date RDV</span>
-                            <strong>{order.preferredDate} à {order.preferredTime}</strong>
+                            <strong>
+                              {order.preferredDate ? new Date(order.preferredDate).toLocaleDateString("fr-FR") : order.preferredDate}
+                              {order.preferredTime ? ` à ${order.preferredTime}` : ""}
+                            </strong>
                           </div>
-                          <div className={styles.orderInfo}>
-                            <span>Notes</span>
-                            <strong>{order.notes || "Aucune"}</strong>
-                          </div>
+                          {order.notes && (
+                            <div className={styles.orderInfo}>
+                              <span>Notes</span>
+                              <strong>{order.notes}</strong>
+                            </div>
+                          )}
                         </>
                       )}
                       {order.clientVerification?.idType && (
@@ -452,36 +713,45 @@ export default function VendorDashboard() {
                       )}
                       <div className={styles.orderInfo}>
                         <span>Paiement</span>
-                        <strong>{order.paidWith === "card" ? "Carte bancaire" : order.paidWith || "—"}</strong>
+                        <strong>{order.paidWith || "—"}</strong>
                       </div>
                     </div>
 
                     {/* Actions */}
-                    {!isDone && (
-                      <div className={styles.orderActions}>
-                        {isNew && (
-                          <button className={styles.btnConfirm} onClick={() => handleConfirm(order.id)}>
-                            ✓ Accepter la commande
-                          </button>
-                        )}
-                        {order.status === "confirmed" && (
-                          <button className={styles.btnComplete} onClick={() => handleComplete(order.id)}>
-                            Marquer terminé
-                          </button>
-                        )}
-                        <button className={styles.btnReject} onClick={() => setRejectModal(order.id)}>
-                          ✕ Refuser / Annuler
+                    <div className={styles.orderActions}>
+                      <button className={styles.btnGerer} onClick={() => handleGerer(order)}>
+                        ⚙️ Gérer
+                      </button>
+                      {!isDone && isNew && (
+                        <button className={styles.btnConfirm} onClick={() => handleConfirm(order.id)}>
+                          ✓ Accepter
                         </button>
-                      </div>
-                    )}
+                      )}
+                      {!isDone && order.status === "confirmed" && (
+                        <button className={styles.btnInProgress} onClick={() => handleInProgress(order.id)}>
+                          🚗 En route
+                        </button>
+                      )}
+                      {!isDone && order.status === "in_progress" && (
+                        <button className={styles.btnComplete} onClick={() => handleComplete(order.id)}>
+                          ✅ Terminé
+                        </button>
+                      )}
+                      {!isDone && (
+                        <button className={styles.btnReject} onClick={() => setRejectModal(order.id)}>
+                          ✕ Refuser
+                        </button>
+                      )}
+                    </div>
 
-                    {/* Note vendeur si refusé */}
                     {order.vendorNote && (
                       <p className={styles.orderNote}>Note : {order.vendorNote}</p>
                     )}
 
                     <div className={styles.orderDate}>
-                      Reçue le {new Date(order.id).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}
+                      Reçue le {order.createdAt
+                        ? new Date(order.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })
+                        : "—"}
                     </div>
                   </div>
                 );
@@ -491,7 +761,19 @@ export default function VendorDashboard() {
         </div>
       )}
 
-      {/* ── Modal refus ─────────────────────── */}
+      {/* ── Modal Gérer ── */}
+      {gererModal && (
+        <GererModal
+          order={gererModal}
+          onClose={() => setGererModal(null)}
+          onConfirm={handleConfirm}
+          onInProgress={handleInProgress}
+          onComplete={handleComplete}
+          onReject={(id) => { setRejectModal(id); setGererModal(null); }}
+        />
+      )}
+
+      {/* ── Modal refus ── */}
       {rejectModal && (
         <div className={styles.modalOverlay} onClick={() => setRejectModal(null)}>
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>

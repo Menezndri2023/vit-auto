@@ -347,6 +347,169 @@
   font-size: 1.05rem;
 }
 
+/* ══════════════════════════════════════════════════
+   SUIVI DE LIVRAISON — TIMELINE + GPS
+   ══════════════════════════════════════════════════ */
+
+/* ── Timeline de progression ─────────────────────── */
+.timeline {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 1rem 1.25rem 0.5rem;
+  overflow-x: auto;
+}
+
+.timelineStep {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.timelineDot {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  transition: all 0.3s;
+  z-index: 1;
+}
+
+.timelineDotDone {
+  background: #10b981;
+  color: #fff;
+}
+
+.timelineDotActive {
+  background: #3b82f6;
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(59,130,246,0.2);
+}
+
+.timelineLine {
+  width: 3.5rem;
+  height: 3px;
+  background: #e2e8f0;
+  margin: 0;
+  position: absolute;
+  top: 1rem;
+  left: calc(100% - 2px);
+  z-index: 0;
+}
+
+.timelineLineDone { background: #10b981; }
+
+.timelineLabel {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  margin-top: 0.4rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.timelineLabelActive {
+  color: #3b82f6;
+  font-weight: 700;
+}
+
+.timelineCancelled {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: #fef2f2;
+  border-radius: 0.6rem;
+  margin: 0.75rem 1.25rem 0;
+  color: #ef4444;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/* ── Bloc livraison GPS ───────────────────────────── */
+.deliveryBlock {
+  margin: 0.75rem 1.25rem;
+  background: linear-gradient(135deg, #eff6ff, #f0fdf4);
+  border: 1px solid #bfdbfe;
+  border-radius: 0.875rem;
+  padding: 1rem 1.125rem;
+}
+
+.deliveryHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.deliveryIcon { font-size: 1.1rem; }
+
+.deliveryLabel {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.deliveryAddress { margin-bottom: 0.75rem; }
+
+.deliveryAddressText {
+  font-size: 0.925rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 0.25rem;
+}
+
+.deliveryCoords {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-family: monospace;
+  margin: 0;
+}
+
+.mapsLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #1d4ed8;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 0.5rem;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.825rem;
+  font-weight: 600;
+  transition: opacity 0.2s;
+}
+.mapsLink:hover { opacity: 0.85; }
+
+/* ── Alerte "en route" ───────────────────────────── */
+.enRouteAlert {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.875rem;
+  background: #7c3aed;
+  color: #fff;
+  border-radius: 0.6rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.8; }
+}
+
 /* ── Actions ─────────────────────────────────────────────────────────────── */
 .cardActions {
   display: flex;

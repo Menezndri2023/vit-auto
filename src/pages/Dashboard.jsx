@@ -1,17 +1,16 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
 import styles from "./Dashboard.module.css";
 
-// ── Constantes ────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " FCFA";
 
 const STATUS_CONFIG = {
   "À confirmer": { label: "En attente",  color: "#f59e0b", bg: "#fffbeb" },
   pending:       { label: "En attente",  color: "#f59e0b", bg: "#fffbeb" },
   confirmed:     { label: "Confirmé",    color: "#3b82f6", bg: "#eff6ff" },
-  in_progress:   { label: "En cours",    color: "#8b5cf6", bg: "#f5f3ff" },
+  in_progress:   { label: "En route",    color: "#8b5cf6", bg: "#f5f3ff" },
   completed:     { label: "Terminé",     color: "#10b981", bg: "#ecfdf5" },
   cancelled:     { label: "Annulé",      color: "#ef4444", bg: "#fef2f2" },
 };
@@ -37,13 +36,109 @@ const OPTIONS_LABELS = {
   driver:    "Chauffeur privé",
 };
 
+// ── Étapes de suivi de livraison ──────────────────────────────────────────────
+const TRACKING_STEPS = [
+  { label: "Reçue",     icon: "📋" },
+  { label: "Confirmée", icon: "✓"  },
+  { label: "En route",  icon: "🚗" },
+  { label: "Terminée",  icon: "✅" },
+];
+
+function getStepIndex(status) {
+  if (status === "À confirmer" || status === "pending") return 0;
+  if (status === "confirmed")   return 1;
+  if (status === "in_progress") return 2;
+  if (status === "completed")   return 3;
+  return -1;
+}
+
+// ── Timeline suivi ────────────────────────────────────────────────────────────
+function DeliveryTimeline({ booking }) {
+  const currentIdx  = getStepIndex(booking.status);
+  const isCancelled = booking.status === "cancelled";
+
+  if (isCancelled) {
+    return (
+      <div className={styles.timelineCancelled}>
+        <span>❌</span>
+        <span>Commande annulée{booking.vendorNote ? ` — ${booking.vendorNote}` : ""}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.timeline}>
+      {TRACKING_STEPS.map((step, idx) => {
+        const isDone    = idx < currentIdx;
+        const isCurrent = idx === currentIdx;
+        return (
+          <div key={step.label} className={styles.timelineStep}>
+            <div className={[
+              styles.timelineDot,
+              isDone    ? styles.timelineDotDone   : "",
+              isCurrent ? styles.timelineDotActive : "",
+            ].join(" ")}>
+              <span>{isDone ? "✓" : step.icon}</span>
+            </div>
+            {idx < TRACKING_STEPS.length - 1 && (
+              <div className={`${styles.timelineLine}${isDone ? ` ${styles.timelineLineDone}` : ""}`} />
+            )}
+            <span className={`${styles.timelineLabel}${isCurrent ? ` ${styles.timelineLabelActive}` : ""}`}>
+              {step.label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Composant principal ───────────────────────────────────────────────────────
 const Dashboard = () => {
-  const { user, isAuthenticated } = useAuth();
-  const { bookings, removeBooking } = useVehicles();
+  const { user, isAuthenticated, token } = useAuth();
+  const { bookings, removeBooking, loadMyOrders } = useVehicles();
   const [activeTab, setActiveTab] = useState("all");
 
-  // ── Garde : non connecté ─────────────────────────────────
+  // Synchroniser avec le backend au montage — TOUS les hooks avant les early returns
+  useEffect(() => {
+    if (token) loadMyOrders();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  const now = new Date();
+
+  // Ces useMemo doivent être AVANT les early returns (règles des hooks React)
+  const myBookings = useMemo(
+    () => (isAuthenticated && user ? bookings.filter((b) => b.email === user.email) : []),
+    [bookings, user, isAuthenticated]
+  );
+
+  const activeBookings = useMemo(
+    () => myBookings.filter((b) => {
+      if (b.status === "cancelled" || b.status === "completed") return false;
+      if (b.type === "essai") return true;
+      const end = new Date(b.endDate);
+      return isNaN(end.getTime()) || end >= now;
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [myBookings]
+  );
+
+  const doneBookings = useMemo(
+    () => myBookings.filter((b) =>
+      b.status === "completed" || b.status === "cancelled" ||
+      (b.type !== "essai" && !isNaN(new Date(b.endDate).getTime()) && new Date(b.endDate) < now)
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [myBookings]
+  );
+
+  const totalSpent = useMemo(
+    () => myBookings.reduce((s, b) => s + (b.total || b.serviceFeeFCFA || 0), 0),
+    [myBookings]
+  );
+
+  // ── Early returns APRÈS tous les hooks ──────────────────
   if (!isAuthenticated) {
     return (
       <div className={styles.page}>
@@ -57,7 +152,6 @@ const Dashboard = () => {
     );
   }
 
-  // ── Garde : partenaire (espace dédié) ────────────────────
   const isPartner = user?.role === "partenaire" || user?.role === "admin";
   if (isPartner) {
     return (
@@ -72,45 +166,14 @@ const Dashboard = () => {
     );
   }
 
-  // ── Réservations de l'utilisateur connecté ───────────────
-  const myBookings = useMemo(
-    () => bookings.filter((b) => b.email === user?.email),
-    [bookings, user?.email]
-  );
-
-  const now = new Date();
-
-  const activeBookings = useMemo(
-    () => myBookings.filter((b) => {
-      if (b.status === "cancelled" || b.status === "completed") return false;
-      if (b.type === "essai") return true;
-      const end = new Date(b.endDate);
-      return isNaN(end.getTime()) || end >= now;
-    }),
-    [myBookings]
-  );
-
-  const doneBookings = useMemo(
-    () => myBookings.filter((b) =>
-      b.status === "completed" || b.status === "cancelled" ||
-      (b.type !== "essai" && !isNaN(new Date(b.endDate).getTime()) && new Date(b.endDate) < now)
-    ),
-    [myBookings]
-  );
-
   const displayed = activeTab === "active" ? activeBookings
     : activeTab === "done"   ? doneBookings
     : myBookings;
 
-  const totalSpent = myBookings.reduce(
-    (s, b) => s + (b.total || b.serviceFeeFCFA || 0), 0
-  );
-
-  // ── Rendu ─────────────────────────────────────────────────
   return (
     <div className={styles.page}>
 
-      {/* ── En-tête ───────────────────────────────────────── */}
+      {/* ── En-tête ── */}
       <header className={styles.header}>
         <div>
           <h1>Tableau de bord</h1>
@@ -123,7 +186,7 @@ const Dashboard = () => {
         </Link>
       </header>
 
-      {/* ── Statistiques ──────────────────────────────────── */}
+      {/* ── Statistiques ── */}
       <div className={styles.statsGrid}>
         <div className={styles.statCard}>
           <span className={styles.statIcon}>📋</span>
@@ -147,12 +210,12 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* ── Onglets ───────────────────────────────────────── */}
+      {/* ── Onglets ── */}
       <div className={styles.tabs}>
         {[
-          { key: "all",    label: "Toutes",                count: myBookings.length     },
-          { key: "active", label: "En cours",              count: activeBookings.length },
-          { key: "done",   label: "Terminées / Annulées",  count: doneBookings.length   },
+          { key: "all",    label: "Toutes",               count: myBookings.length     },
+          { key: "active", label: "En cours",             count: activeBookings.length },
+          { key: "done",   label: "Terminées / Annulées", count: doneBookings.length   },
         ].map(({ key, label, count }) => (
           <button
             key={key}
@@ -165,7 +228,7 @@ const Dashboard = () => {
         ))}
       </div>
 
-      {/* ── Liste des réservations ─────────────────────────── */}
+      {/* ── Liste des réservations ── */}
       {displayed.length === 0 ? (
         <div className={styles.emptyCard}>
           <div className={styles.emptyIcon}>📭</div>
@@ -194,9 +257,9 @@ const Dashboard = () => {
 const BookingCard = ({ booking, onCancel }) => {
   const [confirmCancel, setConfirmCancel] = useState(false);
 
-  const status   = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending;
+  const status    = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending;
   const canCancel = booking.status === "À confirmer" || booking.status === "pending" || !booking.status;
-  const isTrial  = booking.type === "essai";
+  const isTrial   = booking.type === "essai";
 
   const startDate = booking.startDate ? new Date(booking.startDate).toLocaleDateString("fr-FR") : null;
   const endDate   = booking.endDate   ? new Date(booking.endDate).toLocaleDateString("fr-FR")   : null;
@@ -205,32 +268,67 @@ const BookingCard = ({ booking, onCancel }) => {
     .filter(([, v]) => v)
     .map(([k]) => OPTIONS_LABELS[k] || k);
 
+  const hasGps      = booking.pickupLat != null && booking.pickupLng != null;
+  const isLivraison = booking.pickupMethod === "livraison";
+  const mapsUrl     = hasGps
+    ? `https://www.google.com/maps?q=${booking.pickupLat},${booking.pickupLng}`
+    : booking.pickupAddress
+      ? `https://www.google.com/maps/search/${encodeURIComponent(booking.pickupAddress)}`
+      : null;
+
   return (
     <div className={styles.bookingCard}>
-
-      {/* ── Bandeau supérieur ─── */}
       <div className={styles.cardStripe} style={{ background: status.color }} />
 
-      {/* ── En-tête carte ──────── */}
+      {/* ── En-tête ── */}
       <div className={styles.cardHeader}>
         <div className={styles.cardTitle}>
           <span className={styles.bookingTypeTag}>
             {isTrial ? "🔑 Essai" : "🚗 Location"}
           </span>
           <h3 className={styles.vehicleName}>{booking.vehicleName || "Véhicule"}</h3>
-          {booking.vehicleType && (
-            <p className={styles.vehicleMeta}>{booking.vehicleType}</p>
-          )}
+          {booking.vehicleType && <p className={styles.vehicleMeta}>{booking.vehicleType}</p>}
         </div>
-        <span
-          className={styles.statusBadge}
-          style={{ color: status.color, background: status.bg }}
-        >
+        <span className={styles.statusBadge} style={{ color: status.color, background: status.bg }}>
           {status.label}
         </span>
       </div>
 
-      {/* ── Détails ────────────── */}
+      {/* ── Timeline suivi (location uniquement) ── */}
+      {!isTrial && <DeliveryTimeline booking={booking} />}
+
+      {/* ── Bloc livraison GPS ── */}
+      {!isTrial && isLivraison && (
+        <div className={styles.deliveryBlock}>
+          <div className={styles.deliveryHeader}>
+            <span className={styles.deliveryIcon}>🚚</span>
+            <span className={styles.deliveryLabel}>Livraison à domicile</span>
+          </div>
+          <div className={styles.deliveryAddress}>
+            <p className={styles.deliveryAddressText}>
+              {booking.pickupAddress || booking.pickupLocation || "Adresse à confirmer par le partenaire"}
+            </p>
+            {hasGps && (
+              <p className={styles.deliveryCoords}>
+                📍 GPS : {Number(booking.pickupLat).toFixed(5)}, {Number(booking.pickupLng).toFixed(5)}
+              </p>
+            )}
+          </div>
+          {mapsUrl && (
+            <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className={styles.mapsLink}>
+              🗺️ Voir sur Maps
+            </a>
+          )}
+          {booking.status === "in_progress" && (
+            <div className={styles.enRouteAlert}>
+              <span>🚗</span>
+              <span>Le partenaire est en route vers vous !</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Détails ── */}
       <div className={styles.cardBody}>
         {isTrial ? (
           <>
@@ -246,9 +344,9 @@ const BookingCard = ({ booking, onCancel }) => {
                 value={`${startDate} → ${endDate}  (${booking.days} jour${booking.days > 1 ? "s" : ""})`}
               />
             )}
-            {booking.pickupMethod && (
+            {booking.pickupMethod && !isLivraison && (
               <DetailRow
-                icon={booking.pickupMethod === "livraison" ? "🚚" : "📍"}
+                icon="📍"
                 label="Prise en charge"
                 value={`${PICKUP_LABELS[booking.pickupMethod] || booking.pickupMethod}${booking.pickupAddress ? ` — ${booking.pickupAddress}` : ""}`}
               />
@@ -287,20 +385,18 @@ const BookingCard = ({ booking, onCancel }) => {
         </div>
       </div>
 
-      {/* ── Actions ─────────────── */}
+      {/* ── Actions ── */}
       <div className={styles.cardActions}>
         {booking.vehicleId && (
           <Link to={`/vehicle/${booking.vehicleId}`} className={styles.btnSecondary}>
             Voir le véhicule
           </Link>
         )}
-
         {canCancel && !confirmCancel && (
           <button className={styles.btnDanger} onClick={() => setConfirmCancel(true)}>
             Annuler
           </button>
         )}
-
         {confirmCancel && (
           <div className={styles.confirmBar}>
             <span>Confirmer l'annulation ?</span>
@@ -317,7 +413,6 @@ const BookingCard = ({ booking, onCancel }) => {
   );
 };
 
-// ── Ligne de détail ───────────────────────────────────────────────────────────
 const DetailRow = ({ icon, label, value }) => (
   <div className={styles.detailRow}>
     <span className={styles.detailLabel}>
