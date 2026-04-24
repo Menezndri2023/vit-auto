@@ -2,6 +2,56 @@ import { createContext, useContext, useEffect, useMemo, useState, useCallback } 
 import { useAuth } from "./AuthContext";
 import { vehicles as initialVehicles } from "../data/vehicles";
 
+// Convertit une commande MongoDB (backend) en format plat utilisé par les dashboards
+const normalizeBackendBooking = (b) => {
+  const pos = b.location?.pickupPosition;
+  const hasGps = pos && pos.lat != null && pos.lng != null;
+  const veh = b.vehicle;
+  return {
+    id:            b._id?.toString(),
+    createdAt:     b.createdAt,
+    status:        b.status,
+    type:          b.type,
+    vehicleName:   veh
+      ? [veh.title, veh.marque, veh.modele].filter(Boolean).join(" ")
+      : "Véhicule",
+    vehicleId:     veh?._id?.toString() || (typeof veh === "string" ? veh : null),
+    // Client
+    firstName:     b.clientInfo?.firstName,
+    lastName:      b.clientInfo?.lastName,
+    email:         b.clientInfo?.email,
+    phone:         b.clientInfo?.phone,
+    // Location
+    startDate:     b.location?.startDate,
+    endDate:       b.location?.endDate,
+    days:          b.location?.days,
+    pickupLocation: b.location?.pickupLocation,
+    pickupMethod:  b.location?.pickupLocation ? "livraison" : "retrait",
+    pickupAddress: pos?.address || b.location?.pickupLocation,
+    pickupLat:     hasGps ? pos.lat : null,
+    pickupLng:     hasGps ? pos.lng : null,
+    returnLocation: b.location?.returnLocation,
+    selectedOptions: b.location?.options || {},
+    // Essai
+    preferredDate: b.essai?.preferredDate,
+    preferredTime: b.essai?.preferredTime,
+    notes:         b.essai?.notes || b.chauffeur?.notes,
+    // Finances
+    total:         b.montantTotal,
+    baseTotal:     b.montantBase,
+    optionsTotal:  b.montantOptions,
+    serviceFeeFCFA: b.serviceFeeFCFA ?? 1000,
+    partnerPayout: b.partnerPayout,
+    pricePerDay:   veh?.pricePerDay,
+    // Vérif & paiement
+    clientVerification: b.clientVerification,
+    paidWith:      b.payment?.method,
+    isPaid:        b.isPaid,
+    vendorNote:    b.cancelReason,
+    _fromBackend:  true,
+  };
+};
+
 const VehicleContext = createContext(null);
 
 // Normalize a vehicle from the MongoDB backend to match frontend field expectations
@@ -24,6 +74,7 @@ const normalizeVehicle = (v) => {
   };
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useVehicles = () => {
   const ctx = useContext(VehicleContext);
   if (!ctx) throw new Error("useVehicles must be used within VehicleProvider");
@@ -53,7 +104,8 @@ const saveBookings = (bookings) => {
 export const VehicleProvider = ({ children }) => {
   const { token } = useAuth();
   const [vehicles, setVehicles] = useState(initialVehicles);
-  const [partnerVehicles, setPartnerVehicles] = useState([]); // Partner's own vehicles (all statuses)
+  const [partnerVehicles, setPartnerVehicles] = useState([]);
+  const [partnerBookings, setPartnerBookings] = useState([]); // Commandes reçues (partenaire) — depuis backend
   const [drivers, setDrivers] = useState([]);
   const [bookings, setBookings] = useState(() => loadBookings());
 
@@ -81,12 +133,48 @@ export const VehicleProvider = ({ children }) => {
       if (!res.ok) return;
       const data = await res.json();
       if (data.vehicles) setPartnerVehicles(data.vehicles.map(normalizeVehicle));
-    } catch {}
+    } catch { /* backend unavailable */ }
+  }, [token]);
+
+  // Commandes reçues par le partenaire (depuis le backend — inclut les coords GPS)
+  const loadPartnerOrders = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/bookings/partner", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const { bookings: raw } = await res.json();
+      if (Array.isArray(raw)) setPartnerBookings(raw.map(normalizeBackendBooking));
+    } catch { /* backend unavailable */ }
+  }, [token]);
+
+  // Commandes du client connecté (synchronise le localStorage avec le backend)
+  const loadMyOrders = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/bookings/mine", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const { bookings: raw } = await res.json();
+      if (Array.isArray(raw)) {
+        const normalized = raw.map(normalizeBackendBooking);
+        setBookings((prev) => {
+          const ids = new Set(normalized.map((b) => b.id));
+          return [...normalized, ...prev.filter((b) => !ids.has(String(b.id)))];
+        });
+      }
+    } catch { /* backend unavailable */ }
   }, [token]);
 
   useEffect(() => {
     loadPartnerVehicles();
   }, [loadPartnerVehicles]);
+
+  useEffect(() => {
+    loadPartnerOrders();
+  }, [loadPartnerOrders]);
 
   useEffect(() => {
     const loadDrivers = async () => {
@@ -170,8 +258,7 @@ export const VehicleProvider = ({ children }) => {
     }
   };
 
-  const approveDriver = async (id) => {
-    // Similar for drivers if needed
+  const approveDriver = async () => {
     return null;
   };
 
@@ -187,27 +274,31 @@ export const VehicleProvider = ({ children }) => {
     saveBookings(next);
   };
 
-  // Met à jour le statut d'une commande (ex: "confirmed", "cancelled", "completed")
-  const updateBookingStatus = (id, status, note = "") => {
-    const next = bookings.map((b) =>
-      String(b.id) === String(id) ? { ...b, status, vendorNote: note } : b
+  // Met à jour le statut d'une commande (localStorage + partnerBookings + backend)
+  const updateBookingStatus = useCallback((id, status, note = "") => {
+    const sid = String(id);
+    setBookings((prev) => {
+      const next = prev.map((b) => String(b.id) === sid ? { ...b, status, vendorNote: note } : b);
+      saveBookings(next);
+      return next;
+    });
+    setPartnerBookings((prev) =>
+      prev.map((b) => String(b.id) === sid ? { ...b, status, vendorNote: note } : b)
     );
-    setBookings(next);
-    saveBookings(next);
-    // Sync backend si disponible
     if (token) {
       fetch(`/api/bookings/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status, note }),
+        body: JSON.stringify({ status, cancelReason: note }),
       }).catch(() => {});
     }
-  };
+  }, [token]);
 
   const value = useMemo(
     () => ({
       vehicles,
       partnerVehicles,
+      partnerBookings,
       drivers,
       bookings,
       getItemById,
@@ -219,9 +310,11 @@ export const VehicleProvider = ({ children }) => {
       approveVehicle,
       approveDriver,
       loadPartnerVehicles,
+      loadPartnerOrders,
+      loadMyOrders,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [vehicles, partnerVehicles, drivers, bookings, loadPartnerVehicles]
+    [vehicles, partnerVehicles, partnerBookings, drivers, bookings, loadPartnerVehicles, loadPartnerOrders, loadMyOrders, updateBookingStatus]
   );
 
   return <VehicleContext.Provider value={value}>{children}</VehicleContext.Provider>;
