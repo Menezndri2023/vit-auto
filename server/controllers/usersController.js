@@ -75,42 +75,120 @@ export const toggleUserActive = async (req, res) => {
   }
 };
 
-// ── Tableau de bord statistiques admin ────────────────────────────────────
+// ── Supprimer un utilisateur (admin) ──────────────────────────────────────
+export const deleteUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
+    if (user.role === "admin") return res.status(403).json({ message: "Impossible de supprimer un admin." });
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ message: "Utilisateur supprimé." });
+  } catch (err) {
+    console.error("deleteUser:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Tableau de bord statistiques admin (enrichi) ──────────────────────────
 export const getAdminStats = async (req, res) => {
   try {
+    const now   = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1); // 1er du mois courant
+
     const [
-      totalUsers,
+      totalClients,
       totalPartenaires,
-      totalVehicles,
+      totalAdmins,
+      blockedUsers,
+      approvedVehicles,
       pendingVehicles,
+      rejectedVehicles,
       totalDrivers,
       totalBookings,
       pendingBookings,
+      confirmedBookings,
       completedBookings,
+      cancelledBookings,
+      newUsersThisMonth,
+      newBookingsThisMonth,
     ] = await Promise.all([
       User.countDocuments({ role: "client" }),
       User.countDocuments({ role: "partenaire" }),
+      User.countDocuments({ role: "admin" }),
+      User.countDocuments({ isActive: false }),
       Vehicle.countDocuments({ status: "approved" }),
       Vehicle.countDocuments({ status: "pending" }),
+      Vehicle.countDocuments({ status: "rejected" }),
       Driver.countDocuments({ status: "approved" }),
       Booking.countDocuments(),
       Booking.countDocuments({ status: "pending" }),
+      Booking.countDocuments({ status: { $in: ["confirmed", "preparing", "ready", "in_progress"] } }),
       Booking.countDocuments({ status: "completed" }),
+      Booking.countDocuments({ status: "cancelled" }),
+      User.countDocuments({ createdAt: { $gte: start } }),
+      Booking.countDocuments({ createdAt: { $gte: start } }),
     ]);
 
-    // Revenus totaux
-    const revenueAgg = await Booking.aggregate([
-      { $match: { isPaid: true } },
-      { $group: { _id: null, total: { $sum: "$montantTotal" } } },
+    // Revenus totaux + ce mois
+    const [revenueAgg, revenueMonthAgg] = await Promise.all([
+      Booking.aggregate([
+        { $match: { isPaid: true } },
+        { $group: { _id: null, total: { $sum: "$montantTotal" } } },
+      ]),
+      Booking.aggregate([
+        { $match: { isPaid: true, createdAt: { $gte: start } } },
+        { $group: { _id: null, total: { $sum: "$montantTotal" } } },
+      ]),
     ]);
-    const totalRevenue = revenueAgg[0]?.total || 0;
+
+    // Répartition par type de booking
+    const bookingsByType = await Booking.aggregate([
+      { $group: { _id: "$type", count: { $sum: 1 } } },
+    ]);
+
+    // 6 derniers mois de revenus
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const revenueByMonth = await Booking.aggregate([
+      { $match: { isPaid: true, createdAt: { $gte: sixMonthsAgo } } },
+      { $group: {
+        _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
+        total: { $sum: "$montantTotal" },
+        count: { $sum: 1 },
+      }},
+      { $sort: { "_id.year": 1, "_id.month": 1 } },
+    ]);
 
     res.json({
-      users: { total: totalUsers, partenaires: totalPartenaires },
-      vehicles: { total: totalVehicles, pending: pendingVehicles },
+      users: {
+        total: totalClients + totalPartenaires + totalAdmins,
+        clients: totalClients,
+        partenaires: totalPartenaires,
+        admins: totalAdmins,
+        blocked: blockedUsers,
+        newThisMonth: newUsersThisMonth,
+      },
+      vehicles: {
+        approved: approvedVehicles,
+        pending: pendingVehicles,
+        rejected: rejectedVehicles,
+        total: approvedVehicles + pendingVehicles + rejectedVehicles,
+      },
       drivers: { total: totalDrivers },
-      bookings: { total: totalBookings, pending: pendingBookings, completed: completedBookings },
-      revenue: { total: totalRevenue, devise: "XOF" },
+      bookings: {
+        total: totalBookings,
+        pending: pendingBookings,
+        confirmed: confirmedBookings,
+        completed: completedBookings,
+        cancelled: cancelledBookings,
+        newThisMonth: newBookingsThisMonth,
+        byType: bookingsByType,
+      },
+      revenue: {
+        total: revenueAgg[0]?.total || 0,
+        thisMonth: revenueMonthAgg[0]?.total || 0,
+        byMonth: revenueByMonth,
+        devise: "XOF",
+      },
     });
   } catch (err) {
     console.error("getAdminStats:", err);

@@ -44,6 +44,16 @@ const vehicleSchema = new mongoose.Schema({
   priceForSale: { type: Number }, // vente
   caution:      { type: Number }, // caution location (FCFA)
 
+  // ── Leasing (pour type "vente" uniquement) ─────────────────
+  leasing: {
+    disponible:    { type: Boolean, default: false },
+    apportInitial: { type: Number, default: 0 },     // FCFA
+    mensualite:    { type: Number, default: 0 },     // FCFA/mois
+    duree:         { type: Number, default: 36 },    // mois
+    tauxInteret:   { type: Number, default: 8 },     // % annuel
+    description:   { type: String, default: "" },
+  },
+
   // ── Conditions de location ────────────────────────────────
   ageMin:               { type: Number, default: 21 },
   permisRequis:         { type: Boolean, default: true },

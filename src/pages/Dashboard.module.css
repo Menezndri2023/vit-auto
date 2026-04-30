@@ -607,6 +607,248 @@
   background: #f1f5f9;
 }
 
+/* ── Timeline améliorée ──────────────────────────────────────────────────── */
+.timelineWrapper {
+  padding: 0.75rem 1.25rem 0.25rem;
+}
+
+.timelineStatusMsg {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  background: #f0f9ff;
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  color: #0369a1;
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+.timelineStatusIcon { font-size: 1rem; }
+
+.readyAlert {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.875rem;
+  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+  border: 1px solid #c4b5fd;
+  border-radius: 0.6rem;
+  font-size: 0.85rem;
+  color: #5b21b6;
+  font-weight: 700;
+  margin-top: 0.5rem;
+  animation: pulse 2.5s infinite;
+}
+
+.enRouteAlertClient {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.875rem;
+  background: linear-gradient(135deg, #ecfeff, #cffafe);
+  border: 1px solid #67e8f9;
+  border-radius: 0.6rem;
+  font-size: 0.85rem;
+  color: #0e7490;
+  font-weight: 700;
+  margin-top: 0.5rem;
+  animation: pulse 2s infinite;
+}
+
+/* ── Boutons contact et avis ─────────────────────────────────────────────── */
+.btnContract {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  background: #f0f4ff;
+  color: #4f46e5;
+  border: 1px solid #c7d2fe;
+  transition: all 0.2s;
+}
+.btnContract:hover {
+  background: #6366f1;
+  color: #fff;
+  border-color: #6366f1;
+}
+
+.btnContact {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  transition: all 0.2s;
+}
+
+.btnContact:hover {
+  background: #059669;
+  color: white;
+  border-color: #059669;
+}
+
+.btnReview {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fcd34d;
+  transition: all 0.2s;
+}
+
+.btnReview:hover {
+  background: #f59e0b;
+  color: white;
+  border-color: #f59e0b;
+}
+
+/* ── Modal avis ──────────────────────────────────────────────────────────── */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  backdrop-filter: blur(4px);
+}
+
+.reviewModal {
+  background: #fff;
+  border-radius: 1.25rem;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  overflow: hidden;
+}
+
+.reviewHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.reviewHeader h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f1b3f;
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 1.1rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+}
+
+.closeBtn:hover {
+  color: #ef4444;
+  background: #fef2f2;
+}
+
+.reviewVehicle {
+  padding: 0.75rem 1.5rem 0;
+  font-size: 0.875rem;
+  color: #64748b;
+  font-weight: 600;
+  margin: 0;
+}
+
+.starRow {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.75rem 1.5rem;
+}
+
+.star {
+  background: none;
+  border: none;
+  font-size: 1.75rem;
+  cursor: pointer;
+  color: #d1d5db;
+  transition: color 0.15s, transform 0.15s;
+  line-height: 1;
+  padding: 0;
+}
+
+.starOn { color: #f59e0b; }
+.star:hover { transform: scale(1.2); }
+
+.noteLabel {
+  margin-left: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #f59e0b;
+}
+
+.reviewTextarea {
+  width: 100%;
+  border: none;
+  border-top: 1px solid #f1f5f9;
+  padding: 1rem 1.5rem;
+  font-size: 0.9rem;
+  color: #1e293b;
+  resize: none;
+  outline: none;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.reviewTextarea:focus { background: #fafbff; }
+
+.reviewActions {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.btnSubmitReview {
+  flex: 1;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  border: none;
+  border-radius: 0.6rem;
+  padding: 0.7rem 1.5rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btnSubmitReview:disabled { opacity: 0.5; cursor: not-allowed; }
+.btnSubmitReview:hover:not(:disabled) { opacity: 0.9; }
+
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .statsGrid {

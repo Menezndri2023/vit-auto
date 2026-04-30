@@ -7,6 +7,10 @@ import authRoutes from "./routes/auth.js";
 import vehicleRoutes from "./routes/vehicles.js";
 import bookingRoutes from "./routes/bookings.js";
 import paymentRoutes from "./routes/payments.js";
+import contractRoutes from "./routes/contracts.js";
+import notificationRoutes from "./routes/notifications.js";
+import reviewRoutes from "./routes/reviews.js";
+import userRoutes from "./routes/users.js";
 
 dotenv.config();
 
@@ -25,6 +29,10 @@ const PORT = process.env.PORT || 5000;
   app.use("/api/vehicles", vehicleRoutes);
   app.use("/api/bookings", bookingRoutes);
   app.use("/api/payments", paymentRoutes);
+  app.use("/api/contracts", contractRoutes);
+  app.use("/api/notifications", notificationRoutes);
+  app.use("/api/reviews", reviewRoutes);
+  app.use("/api/users", userRoutes);
 
   app.use((req, res) => {
     res.status(404).json({ message: "Route non trouvée" });

@@ -1,0 +1,268 @@
+/* ContractPage — Contrat électronique VIT AUTO */
+
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+  font-family: "Inter", "Segoe UI", Roboto, sans-serif;
+}
+
+/* ── Loading / Error ────────────────────────────────────── */
+.loadingBox, .errorBox {
+  text-align: center;
+  padding: 5rem 2rem;
+  color: #64748b;
+}
+.spinner {
+  width: 3rem; height: 3rem;
+  border: 4px solid #e2e8f0;
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 1.5rem;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.errorBox span { font-size: 3rem; display: block; margin-bottom: 1rem; }
+.errorBox p { margin-bottom: 1.5rem; font-size: 1rem; }
+
+/* ── Contrat wrapper ────────────────────────────────────── */
+.contractWrapper {
+  background: #fff;
+  border-radius: 1.25rem;
+  box-shadow: 0 4px 30px rgba(0,0,0,0.08);
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+
+/* ── En-tête ─────────────────────────────────────────────── */
+.contractHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 2rem 2.5rem;
+  background: linear-gradient(135deg, #1e3a5f, #2563eb);
+  color: #fff;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+.contractLogo { display: flex; align-items: center; gap: 1rem; }
+.contractLogoIcon { font-size: 2.5rem; }
+.contractBrand { font-size: 1.75rem; font-weight: 900; margin: 0; letter-spacing: -0.5px; }
+.contractSubBrand { font-size: 0.8rem; opacity: 0.8; margin: 0.15rem 0 0; }
+.contractMeta { text-align: right; }
+.contractNumber { font-size: 1.1rem; font-weight: 800; font-family: monospace; }
+.contractType { font-size: 0.8rem; opacity: 0.85; margin: 0.2rem 0; text-transform: uppercase; letter-spacing: 0.05em; }
+.contractDate { font-size: 0.8rem; opacity: 0.7; }
+.contractSigned { font-size: 0.82rem; font-weight: 700; margin-top: 0.35rem; color: #a7f3d0; }
+
+/* ── Parties ─────────────────────────────────────────────── */
+.partiesGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border-bottom: 2px solid #e2e8f0;
+}
+.partyBlock {
+  padding: 1.5rem 2.5rem;
+  border-right: 1px solid #e2e8f0;
+}
+.partyBlock:last-child { border-right: none; }
+.partyTitle { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6366f1; margin: 0 0 0.875rem; }
+.partyInfo { display: flex; flex-direction: column; gap: 0.3rem; }
+.partyInfo span { font-size: 0.875rem; color: #1e293b; }
+.idChip { display: inline-block; background: #ede9fe; color: #5b21b6; font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 0.4rem; }
+
+/* ── Section ─────────────────────────────────────────────── */
+.section {
+  padding: 1.5rem 2.5rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+.sectionTitle {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #475569;
+  margin: 0 0 1.25rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+/* ── Véhicule ────────────────────────────────────────────── */
+.vehicleGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.75rem;
+}
+.vehicleField {
+  background: #f8fafc;
+  border-radius: 0.6rem;
+  padding: 0.6rem 0.875rem;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.vehicleField span { font-size: 0.68rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; }
+.vehicleField strong { font-size: 0.875rem; color: #1e293b; font-weight: 600; }
+
+/* ── Finances ────────────────────────────────────────────── */
+.finGrid { display: flex; flex-direction: column; gap: 0; }
+.finRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.875rem;
+}
+.finRow:last-child { border-bottom: none; }
+.finRow span { color: #64748b; }
+.finRow strong { color: #1e293b; font-weight: 700; }
+.finTotal { background: #f0fdf4; border-radius: 0.5rem; padding: 0.75rem 1rem; margin-top: 0.5rem; border-bottom: none !important; }
+.finTotal span { font-weight: 700; color: #1e293b; }
+.finTotal strong { font-size: 1.05rem; color: #10b981; }
+
+/* ── Conditions générales ────────────────────────────────── */
+.conditionsBox {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 1.25rem 1.5rem;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.conditionLine {
+  font-size: 0.825rem;
+  color: #475569;
+  line-height: 1.7;
+  margin: 0 0 0.5rem;
+}
+.conditionLine:last-child { margin: 0; }
+
+/* ── Signature ───────────────────────────────────────────── */
+.signatureBlock { }
+.signatureInfo { font-size: 0.875rem; color: #64748b; margin-bottom: 1rem; }
+.canvasWrapper { position: relative; }
+.signatureCanvas {
+  width: 100%;
+  max-width: 600px;
+  height: 150px;
+  border: 2px dashed #cbd5e1;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+  cursor: crosshair;
+  display: block;
+  touch-action: none;
+}
+.canvasHint {
+  position: absolute;
+  bottom: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.72rem;
+  color: #94a3b8;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.signatureActions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+.btnClear {
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  border-radius: 0.6rem;
+  padding: 0.6rem 1.25rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+.btnClear:hover:not(:disabled) { background: #f1f5f9; }
+.btnClear:disabled { opacity: 0.4; cursor: not-allowed; }
+.btnSign {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff;
+  border: none;
+  border-radius: 0.6rem;
+  padding: 0.6rem 1.75rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(99,102,241,0.3);
+}
+.btnSign:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(99,102,241,0.4); }
+.btnSign:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+/* ── Signé ───────────────────────────────────────────────── */
+.signedBlock { text-align: center; padding: 1.5rem 0; }
+.signedIcon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+.signedText { font-size: 1rem; font-weight: 700; color: #10b981; margin-bottom: 1rem; }
+.signatureImg { max-width: 300px; border: 1px solid #e2e8f0; border-radius: 0.5rem; display: block; margin: 0 auto 1rem; }
+.signatureLegal { font-size: 0.72rem; color: #94a3b8; font-style: italic; }
+
+/* ── Pied de page ────────────────────────────────────────── */
+.contractFooter {
+  padding: 1.25rem 2.5rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  text-align: center;
+}
+.contractFooter p { font-size: 0.72rem; color: #94a3b8; margin: 0.2rem 0; }
+
+/* ── Actions de la page ──────────────────────────────────── */
+.pageActions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+.btnBack {
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  border-radius: 0.6rem;
+  padding: 0.6rem 1.25rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s;
+}
+.btnBack:hover { background: #f1f5f9; }
+.btnPrint {
+  background: #1e293b;
+  color: #fff;
+  border: none;
+  border-radius: 0.6rem;
+  padding: 0.6rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.2s;
+}
+.btnPrint:hover { opacity: 0.85; }
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .page { padding: 1rem 0.875rem 3rem; }
+  .contractHeader { padding: 1.5rem; }
+  .contractMeta { text-align: left; }
+  .partiesGrid { grid-template-columns: 1fr; }
+  .partyBlock { border-right: none; border-bottom: 1px solid #e2e8f0; padding: 1.25rem 1.5rem; }
+  .section { padding: 1.25rem 1.5rem; }
+  .contractFooter { padding: 1rem 1.5rem; }
+}
+
+/* ── Impression ──────────────────────────────────────────── */
+@media print {
+  .pageActions { display: none; }
+  .contractWrapper { box-shadow: none; border: 1px solid #000; }
+  .page { padding: 0; }
+  .signatureCanvas { border-style: solid; }
+}

@@ -110,16 +110,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const login = async ({ email, password }) => {
-    const existingUsers = loadUsers();
-    const matched = existingUsers.find((u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
-
-    if (!matched) {
-      throw new Error("Identifiants invalides.");
-    }
-
-    let loggedUser = { ...matched, password: undefined };
-    let authToken = null;
-
+    // 1. Essayer l'API backend en priorité (comptes MongoDB)
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
@@ -128,17 +119,30 @@ export const AuthProvider = ({ children }) => {
       });
       if (response.ok) {
         const data = await response.json();
-        if (data.user) loggedUser = data.user;
-        if (data.token) authToken = data.token;
+        const loggedUser = data.user;
+        const authToken  = data.token;
+        setUser(loggedUser);
+        if (authToken) setToken(authToken);
+        return loggedUser;
       }
-    } catch {
-      // ignore
+      // Backend accessible mais credentials incorrects → erreur directe
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.message || "Identifiants invalides.");
+    } catch (networkErr) {
+      // 2. Backend inaccessible (offline) → fallback localStorage
+      if (networkErr.message === "Failed to fetch") {
+        const existingUsers = loadUsers();
+        const matched = existingUsers.find(
+          (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+        );
+        if (!matched) throw new Error("Identifiants invalides.");
+        const loggedUser = { ...matched, password: undefined };
+        setUser(loggedUser);
+        return loggedUser;
+      }
+      // Autre erreur (identifiants incorrects côté serveur) → remonter
+      throw networkErr;
     }
-
-    setUser(loggedUser);
-    if (authToken) setToken(authToken);
-
-    return loggedUser;
   };
 
   const logout = () => {

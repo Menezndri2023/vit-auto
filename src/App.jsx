@@ -1,11 +1,13 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
 import PartnerRoute from "./components/PartnerRoute";
+import AdminRoute from "./components/AdminRoute";
 import { Suspense, lazy } from "react";
 import { VehicleProvider } from "./context/VehicleContext";
 import { AuthProvider } from "./context/AuthContext";
 import { ToastProvider } from "./context/ToastContext";
 import { LocationProvider } from "./context/LocationContext";
+import { NotificationProvider } from "./context/NotificationContext";
 import Layout from "./components/Layout/Layout";
 import ToastContainer from "./components/Toast/Toast";
 import Loading from "./components/Loading/Loading";
@@ -26,15 +28,17 @@ const Plans = lazy(() => import("./pages/Plans"));
 const AdminPanel = lazy(() => import("./pages/AdminPanel"));
 const DashboardStats = lazy(() => import("./pages/DashboardStats"));
 const Checkout = lazy(() => import("./pages/Checkout"));
-const Services = lazy(() => import("./pages/Services"));
-const Help     = lazy(() => import("./pages/Help"));
-const NotFound = lazy(() => import("./pages/NotFound"));
+const Services    = lazy(() => import("./pages/Services"));
+const Help        = lazy(() => import("./pages/Help"));
+const ContractPage = lazy(() => import("./pages/ContractPage"));
+const NotFound    = lazy(() => import("./pages/NotFound"));
 
 function App() {
   return (
     <BrowserRouter>
       <ToastProvider>
         <AuthProvider>
+          <NotificationProvider>
           <LocationProvider>
             <VehicleProvider>
               <Layout>
@@ -57,10 +61,11 @@ function App() {
                     <Route path="/vendor" element={<PartnerRoute><VendorSubmit /></PartnerRoute>} />
                     <Route path="/vendor/dashboard" element={<PartnerRoute><VendorDashboard /></PartnerRoute>} />
                     <Route path="/plans" element={<PartnerRoute><Plans /></PartnerRoute>} />
-                    <Route path="/admin" element={<AdminPanel />} />
+                    <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
                     <Route path="/stats"    element={<DashboardStats />} />
                     <Route path="/services" element={<Services />} />
                     <Route path="/help"     element={<Help />} />
+                    <Route path="/contract/:bookingId" element={<ContractPage />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Suspense>
@@ -68,6 +73,7 @@ function App() {
               <ToastContainer />
             </VehicleProvider>
           </LocationProvider>
+          </NotificationProvider>
         </AuthProvider>
       </ToastProvider>
     </BrowserRouter>

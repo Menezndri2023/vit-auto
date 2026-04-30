@@ -1,8 +1,10 @@
+import mongoose from "mongoose";
 import Booking from "../models/Booking.js";
 import Vehicle from "../models/Vehicle.js";
 import Driver from "../models/Driver.js";
 import Payment from "../models/Payment.js";
 import Notification from "../models/Notification.js";
+import Contract from "../models/Contract.js";
 
 // Prix des options en FCFA
 const PRIX_OPTIONS = { gps: 10000, babySeat: 7000, insurance: 15000, driver: 50000 };
@@ -20,7 +22,7 @@ export const createBooking = async (req, res) => {
     let vehicle = null;
     let driver = null;
 
-    if (type === "location" || type === "essai") {
+    if (type === "location" || type === "essai" || type === "leasing") {
       if (!vehicleId) return res.status(400).json({ message: "vehicleId requis." });
       vehicle = await Vehicle.findById(vehicleId);
       if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable." });
@@ -29,6 +31,9 @@ export const createBooking = async (req, res) => {
       }
       if (type === "location") {
         montantBase = (vehicle.pricePerDay || 0) * (location?.days || 1);
+      }
+      if (type === "leasing") {
+        montantBase = req.body.leasing?.apportInitial || 0;
       }
     }
 
@@ -122,8 +127,8 @@ export const getMyBookings = async (req, res) => {
   try {
     const bookings = await Booking.find({ client: req.user._id })
       .sort({ createdAt: -1 })
-      .populate("vehicle", "title marque modele images pricePerDay ville")
-      .populate("driver", "firstName lastName profilePhoto tarif zone")
+      .populate("vehicle", "title marque modele images pricePerDay ville contactTel contactNom")
+      .populate("driver", "firstName lastName profilePhoto tarif zone phone")
       .populate("payment", "method status amount devise");
     res.json({ bookings });
   } catch (err) {
@@ -189,9 +194,14 @@ export const updateBookingStatus = async (req, res) => {
     const { id } = req.params;
     const { status, cancelReason } = req.body;
 
-    const validStatuses = ["pending", "confirmed", "in_progress", "completed", "cancelled"];
+    const validStatuses = ["pending", "confirmed", "preparing", "ready", "in_progress", "completed", "cancelled"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: "Statut invalide." });
+    }
+
+    // Les commandes localStorage ont un ID timestamp (ex: 1777051492923), pas un ObjectId MongoDB
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(404).json({ message: "Commande non trouvée dans la base de données (commande locale uniquement)." });
     }
 
     const booking = await Booking.findById(id)
@@ -215,13 +225,73 @@ export const updateBookingStatus = async (req, res) => {
     }
     await booking.save();
 
+    // Créer automatiquement le contrat lors de l'acceptation
+    if (status === "confirmed" && !booking.contract) {
+      try {
+        const veh = booking.vehicle;
+        const ci  = booking.clientInfo;
+        const contract = await Contract.create({
+          booking: booking._id,
+          type:    booking.type,
+          client: {
+            firstName: ci?.firstName,
+            lastName:  ci?.lastName,
+            email:     ci?.email,
+            phone:     ci?.phone,
+            idType:    booking.clientVerification?.idType,
+            idNumber:  booking.clientVerification?.idNumber,
+          },
+          vendor: {
+            name:  veh?.contactNom || req.user.firstName || "",
+            email: req.user.email,
+            phone: veh?.contactTel || "",
+          },
+          vehicle: {
+            name:    veh ? [veh.title, veh.marque, veh.modele].filter(Boolean).join(" ") : "",
+            brand:   veh?.marque,
+            year:    veh?.annee,
+            color:   veh?.couleur,
+            mileage: veh?.kilometrage,
+          },
+          terms: {
+            startDate:       booking.location?.startDate,
+            endDate:         booking.location?.endDate,
+            days:            booking.location?.days,
+            pickupLocation:  booking.location?.pickupLocation,
+            returnLocation:  booking.location?.returnLocation,
+            dailyRateXOF:    veh?.pricePerDay,
+            cautionXOF:      200000,
+            serviceFeeXOF:   booking.serviceFeeFCFA ?? 1000,
+            optionsXOF:      booking.montantOptions ?? 0,
+            baseXOF:         booking.montantBase,
+            totalXOF:        booking.montantTotal,
+            commissionRate:  booking.commissionRate,
+            commissionXOF:   booking.commissionAmount,
+            partnerPayoutXOF: booking.partnerPayout,
+            apportInitial:   booking.leasing?.apportInitial ?? 0,
+            mensualite:      booking.leasing?.mensualite ?? 0,
+            dureeLeasing:    booking.leasing?.duree ?? 0,
+            tauxInteret:     booking.leasing?.tauxInteret ?? 0,
+            totalLeasing:    booking.leasing?.totalLeasing ?? 0,
+          },
+          status: "sent",
+        });
+        booking.contract = contract._id;
+        await booking.save();
+      } catch (contractErr) {
+        console.error("Auto-contrat échoué (non bloquant) :", contractErr.message);
+      }
+    }
+
     // Notifier le client
     if (booking.client) {
       const notifs = {
-        confirmed:   { type: "booking_confirmed",  titre: "Réservation confirmée",  msg: "Votre réservation a été confirmée par le partenaire." },
-        cancelled:   { type: "booking_cancelled",  titre: "Réservation annulée",    msg: `Votre réservation a été annulée. ${cancelReason || ""}` },
-        completed:   { type: "booking_completed",  titre: "Commande terminée",      msg: "Merci ! Laissez un avis sur votre expérience." },
-        in_progress: { type: "booking_confirmed",  titre: "En cours",               msg: "Votre réservation est maintenant en cours." },
+        confirmed:   { type: "booking_confirmed",  titre: "✅ Réservation acceptée",    msg: "Votre réservation a été acceptée par le partenaire." },
+        preparing:   { type: "booking_confirmed",  titre: "⚙️ Préparation en cours",    msg: "Le partenaire prépare votre véhicule. Vous serez notifié quand il sera prêt." },
+        ready:       { type: "booking_confirmed",  titre: "🚗 Véhicule prêt !",          msg: "Votre véhicule est prêt. Le partenaire va vous contacter pour la livraison." },
+        in_progress: { type: "booking_confirmed",  titre: "🚀 En route vers vous !",     msg: "Le partenaire est en route. Préparez votre pièce d'identité." },
+        completed:   { type: "booking_completed",  titre: "🏁 Commande terminée",        msg: "Merci pour votre confiance ! Laissez un avis sur votre expérience." },
+        cancelled:   { type: "booking_cancelled",  titre: "❌ Réservation annulée",      msg: `Votre réservation a été annulée.${cancelReason ? ` Raison : ${cancelReason}` : ""}` },
       };
       const n = notifs[status];
       if (n) {

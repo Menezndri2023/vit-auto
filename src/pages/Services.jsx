@@ -44,6 +44,21 @@ const services = [
     cta: "Centre d'aide",
     link: "/help",
   },
+  {
+    icon: "🏦",
+    title: "Leasing / Achat en mensualités",
+    desc: "Accédez à la propriété de votre véhicule sans payer comptant. Apport initial réduit + mensualités adaptées à votre budget. Contrat électronique sécurisé.",
+    cta: "Voir les offres leasing",
+    link: "/catalogue?type=vente",
+    highlight: true,
+  },
+  {
+    icon: "📄",
+    title: "Contrats électroniques",
+    desc: "Chaque location ou achat génère un contrat électronique sécurisé, signable en ligne depuis votre tableau de bord. Valeur légale garantie.",
+    cta: "Mon tableau de bord",
+    link: "/dashboard",
+  },
 ];
 
 const steps = [
@@ -86,7 +101,7 @@ const Services = () => {
         </div>
         <div className={styles.grid}>
           {services.map((s) => (
-            <div key={s.title} className={styles.card}>
+            <div key={s.title} className={`${styles.card} ${s.highlight ? styles.cardHighlight : ""}`}>
               <div className={styles.cardIcon}>{s.icon}</div>
               <h3>{s.title}</h3>
               <p>{s.desc}</p>

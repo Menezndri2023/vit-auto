@@ -14,7 +14,7 @@ const contractSchema = new mongoose.Schema({
 
   type: {
     type: String,
-    enum: ["location", "essai", "chauffeur"],
+    enum: ["location", "essai", "chauffeur", "leasing"],
     required: true,
   },
 
@@ -62,6 +62,19 @@ const contractSchema = new mongoose.Schema({
     commissionRate:   { type: Number },   // 0.15 ou 0.03
     commissionXOF:    { type: Number },
     partnerPayoutXOF: { type: Number },
+    // Leasing
+    apportInitial: { type: Number, default: 0 },
+    mensualite:    { type: Number, default: 0 },
+    dureeLeasing:  { type: Number, default: 0 },
+    tauxInteret:   { type: Number, default: 0 },
+    totalLeasing:  { type: Number, default: 0 },
+  },
+
+  // Signature IP + User-Agent pour valeur légale
+  signatureMetadata: {
+    ip:        { type: String },
+    userAgent: { type: String },
+    timestamp: { type: Date },
   },
 
   // Conditions générales du contrat

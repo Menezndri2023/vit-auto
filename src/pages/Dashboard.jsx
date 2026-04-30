@@ -1,18 +1,21 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
+import { useToast } from "../context/ToastContext";
 import styles from "./Dashboard.module.css";
 
 const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " FCFA";
 
 const STATUS_CONFIG = {
-  "À confirmer": { label: "En attente",  color: "#f59e0b", bg: "#fffbeb" },
-  pending:       { label: "En attente",  color: "#f59e0b", bg: "#fffbeb" },
-  confirmed:     { label: "Confirmé",    color: "#3b82f6", bg: "#eff6ff" },
-  in_progress:   { label: "En route",    color: "#8b5cf6", bg: "#f5f3ff" },
-  completed:     { label: "Terminé",     color: "#10b981", bg: "#ecfdf5" },
-  cancelled:     { label: "Annulé",      color: "#ef4444", bg: "#fef2f2" },
+  "À confirmer": { label: "En attente",     color: "#f59e0b", bg: "#fffbeb" },
+  pending:       { label: "En attente",     color: "#f59e0b", bg: "#fffbeb" },
+  confirmed:     { label: "Acceptée",       color: "#10b981", bg: "#ecfdf5" },
+  preparing:     { label: "En cours",       color: "#06b6d4", bg: "#ecfeff" },
+  ready:         { label: "Prêt !",         color: "#8b5cf6", bg: "#f5f3ff" },
+  in_progress:   { label: "En route",       color: "#3b82f6", bg: "#eff6ff" },
+  completed:     { label: "Terminée",       color: "#64748b", bg: "#f8fafc" },
+  cancelled:     { label: "Annulée",        color: "#ef4444", bg: "#fef2f2" },
 };
 
 const PICKUP_LABELS = {
@@ -36,20 +39,23 @@ const OPTIONS_LABELS = {
   driver:    "Chauffeur privé",
 };
 
-// ── Étapes de suivi de livraison ──────────────────────────────────────────────
+// ── Étapes de suivi de livraison (6 étapes) ──────────────────────────────────
 const TRACKING_STEPS = [
-  { label: "Reçue",     icon: "📋" },
-  { label: "Confirmée", icon: "✓"  },
-  { label: "En route",  icon: "🚗" },
-  { label: "Terminée",  icon: "✅" },
+  { key: "pending",     label: "Reçue",      icon: "📋", desc: "Votre demande a été envoyée au partenaire" },
+  { key: "confirmed",   label: "Acceptée",   icon: "✅", desc: "Le partenaire a accepté votre réservation" },
+  { key: "preparing",   label: "En cours",   icon: "⚙️", desc: "Le partenaire prépare votre véhicule" },
+  { key: "ready",       label: "Prêt !",     icon: "🚗", desc: "Votre véhicule est prêt pour la livraison" },
+  { key: "in_progress", label: "En route",   icon: "🚀", desc: "Le partenaire est en route vers vous" },
+  { key: "completed",   label: "Terminée",   icon: "🏁", desc: "Location terminée — merci !" },
 ];
 
+const STEP_ORDER_CLIENT = ["pending", "confirmed", "preparing", "ready", "in_progress", "completed"];
+
 function getStepIndex(status) {
-  if (status === "À confirmer" || status === "pending") return 0;
-  if (status === "confirmed")   return 1;
-  if (status === "in_progress") return 2;
-  if (status === "completed")   return 3;
-  return -1;
+  const idx = STEP_ORDER_CLIENT.indexOf(status);
+  if (idx !== -1) return idx;
+  if (status === "À confirmer") return 0;
+  return 0;
 }
 
 // ── Timeline suivi ────────────────────────────────────────────────────────────
@@ -66,29 +72,124 @@ function DeliveryTimeline({ booking }) {
     );
   }
 
+  const currentStep = TRACKING_STEPS[currentIdx];
+
   return (
-    <div className={styles.timeline}>
-      {TRACKING_STEPS.map((step, idx) => {
-        const isDone    = idx < currentIdx;
-        const isCurrent = idx === currentIdx;
-        return (
-          <div key={step.label} className={styles.timelineStep}>
-            <div className={[
-              styles.timelineDot,
-              isDone    ? styles.timelineDotDone   : "",
-              isCurrent ? styles.timelineDotActive : "",
-            ].join(" ")}>
-              <span>{isDone ? "✓" : step.icon}</span>
+    <div className={styles.timelineWrapper}>
+      {/* Barre de progression */}
+      <div className={styles.timeline}>
+        {TRACKING_STEPS.map((step, idx) => {
+          const isDone    = idx < currentIdx;
+          const isCurrent = idx === currentIdx;
+          return (
+            <div key={step.key} className={styles.timelineStep}>
+              <div className={[
+                styles.timelineDot,
+                isDone    ? styles.timelineDotDone   : "",
+                isCurrent ? styles.timelineDotActive : "",
+              ].join(" ")}>
+                <span>{isDone ? "✓" : step.icon}</span>
+              </div>
+              {idx < TRACKING_STEPS.length - 1 && (
+                <div className={`${styles.timelineLine}${isDone ? ` ${styles.timelineLineDone}` : ""}`} />
+              )}
+              <span className={`${styles.timelineLabel}${isCurrent ? ` ${styles.timelineLabelActive}` : ""}`}>
+                {step.label}
+              </span>
             </div>
-            {idx < TRACKING_STEPS.length - 1 && (
-              <div className={`${styles.timelineLine}${isDone ? ` ${styles.timelineLineDone}` : ""}`} />
-            )}
-            <span className={`${styles.timelineLabel}${isCurrent ? ` ${styles.timelineLabelActive}` : ""}`}>
-              {step.label}
-            </span>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+      {/* Description étape courante */}
+      {currentStep && booking.status !== "completed" && (
+        <div className={styles.timelineStatusMsg}>
+          <span className={styles.timelineStatusIcon}>{currentStep.icon}</span>
+          <span>{currentStep.desc}</span>
+        </div>
+      )}
+      {/* Alertes contextuelles selon statut */}
+      {booking.status === "confirmed" && (
+        <div className={styles.timelineStatusMsg}>
+          <span className={styles.timelineStatusIcon}>✅</span>
+          <span>Réservation acceptée ! Le partenaire prépare votre véhicule.</span>
+        </div>
+      )}
+      {booking.status === "preparing" && (
+        <div className={styles.timelineStatusMsg}>
+          <span className={styles.timelineStatusIcon}>⚙️</span>
+          <span>Votre véhicule est en cours de préparation.</span>
+        </div>
+      )}
+      {booking.status === "ready" && (
+        <div className={styles.readyAlert}>
+          <span>🎉</span>
+          <span>Votre véhicule est prêt ! Le partenaire va vous contacter pour la livraison.</span>
+        </div>
+      )}
+      {booking.status === "in_progress" && (
+        <div className={styles.enRouteAlertClient}>
+          <span>🚀</span>
+          <span>Le partenaire est en route vers vous. Préparez votre pièce d'identité.</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Modal avis ────────────────────────────────────────────────────────────────
+function ReviewModal({ booking, token, onClose, onSuccess }) {
+  const [note, setNote] = useState(5);
+  const [commentaire, setCommentaire] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    if (!token || !booking.vehicleId) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          bookingId: booking.id,
+          targetType: "vehicle",
+          targetId: booking.vehicleId,
+          note,
+          commentaire,
+        }),
+      });
+      if (res.ok) { onSuccess(); onClose(); }
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={styles.reviewModal} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.reviewHeader}>
+          <h3>Laisser un avis</h3>
+          <button className={styles.closeBtn} onClick={onClose}>✕</button>
+        </div>
+        <p className={styles.reviewVehicle}>{booking.vehicleName}</p>
+        <div className={styles.starRow}>
+          {[1,2,3,4,5].map((s) => (
+            <button key={s} className={`${styles.star} ${s <= note ? styles.starOn : ""}`} onClick={() => setNote(s)}>★</button>
+          ))}
+          <span className={styles.noteLabel}>{note}/5</span>
+        </div>
+        <textarea
+          className={styles.reviewTextarea}
+          rows={4}
+          placeholder="Partagez votre expérience avec ce véhicule..."
+          value={commentaire}
+          onChange={(e) => setCommentaire(e.target.value)}
+        />
+        <div className={styles.reviewActions}>
+          <button className={styles.btnSubmitReview} onClick={submit} disabled={loading || !commentaire.trim()}>
+            {loading ? "Envoi..." : "Publier l'avis"}
+          </button>
+          <button className={styles.btnGhost} onClick={onClose}>Annuler</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -97,7 +198,13 @@ function DeliveryTimeline({ booking }) {
 const Dashboard = () => {
   const { user, isAuthenticated, token } = useAuth();
   const { bookings, removeBooking, loadMyOrders } = useVehicles();
+  const { success: toastSuccess } = useToast();
   const [activeTab, setActiveTab] = useState("all");
+  const [reviewTarget, setReviewTarget] = useState(null);
+
+  const handleReviewSuccess = useCallback(() => {
+    toastSuccess("Merci pour votre avis !");
+  }, [toastSuccess]);
 
   // Synchroniser avec le backend au montage — TOUS les hooks avant les early returns
   useEffect(() => {
@@ -245,20 +352,31 @@ const Dashboard = () => {
       ) : (
         <div className={styles.bookingList}>
           {displayed.map((booking) => (
-            <BookingCard key={booking.id} booking={booking} onCancel={removeBooking} />
+            <BookingCard key={booking.id} booking={booking} onCancel={removeBooking} onReview={setReviewTarget} />
           ))}
         </div>
+      )}
+
+      {reviewTarget && (
+        <ReviewModal
+          booking={reviewTarget}
+          token={token}
+          onClose={() => setReviewTarget(null)}
+          onSuccess={handleReviewSuccess}
+        />
       )}
     </div>
   );
 };
 
 // ── Carte de réservation ──────────────────────────────────────────────────────
-const BookingCard = ({ booking, onCancel }) => {
+const BookingCard = ({ booking, onCancel, onReview }) => {
   const [confirmCancel, setConfirmCancel] = useState(false);
 
-  const status    = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending;
-  const canCancel = booking.status === "À confirmer" || booking.status === "pending" || !booking.status;
+  const status      = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending;
+  const canCancel   = booking.status === "À confirmer" || booking.status === "pending" || !booking.status;
+  const isCompleted = booking.status === "completed";
+  const isActive    = booking.status === "confirmed" || booking.status === "in_progress";
   const isTrial   = booking.type === "essai";
 
   const startDate = booking.startDate ? new Date(booking.startDate).toLocaleDateString("fr-FR") : null;
@@ -391,6 +509,22 @@ const BookingCard = ({ booking, onCancel }) => {
           <Link to={`/vehicle/${booking.vehicleId}`} className={styles.btnSecondary}>
             Voir le véhicule
           </Link>
+        )}
+        {/* Lien vers le contrat (disponible après acceptation) */}
+        {(booking.status === "confirmed" || booking.status === "preparing" || booking.status === "ready" || booking.status === "in_progress" || booking.status === "completed") && booking.id && (
+          <Link to={`/contract/${booking.id}`} className={styles.btnContract}>
+            📄 Mon contrat
+          </Link>
+        )}
+        {isActive && booking.partnerPhone && (
+          <a href={`tel:${booking.partnerPhone}`} className={styles.btnContact}>
+            📞 Appeler le partenaire
+          </a>
+        )}
+        {isCompleted && booking.vehicleId && (
+          <button className={styles.btnReview} onClick={() => onReview(booking)}>
+            ⭐ Laisser un avis
+          </button>
         )}
         {canCancel && !confirmCancel && (
           <button className={styles.btnDanger} onClick={() => setConfirmCancel(true)}>

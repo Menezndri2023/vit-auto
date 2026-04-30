@@ -167,6 +167,14 @@
   box-shadow: 0 12px 40px rgba(0,0,0,0.1);
 }
 
+.cardHighlight {
+  background: linear-gradient(135deg, #f0f4ff, #e8f0fe);
+  border: 2px solid #c7d2fe;
+}
+.cardHighlight:hover {
+  box-shadow: 0 12px 40px rgba(99,102,241,0.2);
+}
+
 .cardIcon {
   font-size: 2.2rem;
   line-height: 1;

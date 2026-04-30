@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "seed:admin": "node scripts/createAdmin.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.0",

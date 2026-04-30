@@ -429,6 +429,7 @@
   margin-bottom: 1.5rem;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -1081,6 +1082,685 @@
   border-radius: 0 0 1.5rem 1.5rem;
   position: sticky;
   bottom: 0;
+}
+
+/* ══════════════════════════════════════════════════════════
+   INFOS CLIENT — redesign carte compacte
+   ══════════════════════════════════════════════════════════ */
+
+.clientCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.875rem;
+  padding: 1rem 1.125rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.clientMain {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.clientName {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.clientPhone {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+.clientPhone:hover { background: #059669; color: #fff; border-color: #059669; }
+
+.clientSub {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.clientEmail {
+  font-size: 0.8rem;
+  color: #64748b;
+  text-decoration: none;
+}
+.clientEmail:hover { color: #2563eb; text-decoration: underline; }
+
+/* ── Résumé de commande compact ──────────────────────── */
+.orderSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.summaryRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+.summaryRow:last-child { border-bottom: none; }
+.summaryRow span  { color: #64748b; }
+.summaryRow strong { color: #1e293b; font-weight: 700; }
+
+.netAmount { color: #10b981 !important; }
+.paidOk    { color: #10b981 !important; }
+.paidPending { color: #f59e0b !important; }
+
+/* ══════════════════════════════════════════════════════════
+   DÉCISION — Accepter / Refuser
+   ══════════════════════════════════════════════════════════ */
+
+.decisionBlock {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.btnDecisionAccept,
+.btnDecisionRefuse {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 1rem 1.25rem;
+  border-radius: 1rem;
+  border: 2px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.btnDecisionAccept {
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  border-color: #6ee7b7;
+  color: #065f46;
+}
+.btnDecisionAccept:hover {
+  background: linear-gradient(135deg, #10b981, #059669);
+  border-color: #059669;
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(16,185,129,0.3);
+}
+
+.btnDecisionRefuse {
+  background: linear-gradient(135deg, #fef2f2, #fee2e2);
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+.btnDecisionRefuse:hover {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  border-color: #dc2626;
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(239,68,68,0.3);
+}
+
+.decisionIcon { font-size: 1.5rem; flex-shrink: 0; }
+
+.decisionLabel {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.decisionHint {
+  display: block;
+  font-size: 0.72rem;
+  opacity: 0.75;
+  font-weight: 400;
+  line-height: 1.3;
+  margin-top: 0.15rem;
+}
+
+/* ══════════════════════════════════════════════════════════
+   CHECKLIST — cases à cocher verticales
+   ══════════════════════════════════════════════════════════ */
+
+.checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0.25rem 0;
+}
+
+.checkItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  padding: 0.65rem 0;
+  position: relative;
+}
+
+.checkItemDone    { opacity: 1; }
+.checkItemCurrent { opacity: 1; }
+.checkItemFuture  { opacity: 0.45; }
+
+/* Case à cocher */
+.checkbox {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 2.5px solid #d1d5db;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  transition: all 0.25s;
+  z-index: 1;
+  position: relative;
+}
+
+.checkboxDone {
+  background: #10b981;
+  border-color: #10b981;
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+.checkboxCurrent {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(245,158,11,0.2);
+}
+
+/* Ligne de connexion entre étapes */
+.checkLine {
+  position: absolute;
+  left: 0.9375rem;       /* (2rem / 2) + 0.875rem gap - (largeur ligne / 2) ≈ centré sur la case */
+  top: calc(2rem + 0.65rem);
+  width: 2px;
+  height: calc(100% + 0);
+  background: #e2e8f0;
+  transform: translateX(-50%);
+  z-index: 0;
+}
+.checkLineDone { background: #10b981; }
+
+/* Contenu texte */
+.checkContent {
+  flex: 1;
+  padding-top: 0.2rem;
+}
+
+.checkLabel {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.2;
+}
+
+.checkHint {
+  display: block;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-top: 0.15rem;
+}
+
+/* Bouton "Marquer" flottant à droite de chaque étape */
+.btnStepAdvance {
+  flex-shrink: 0;
+  padding: 0.4rem 0.875rem;
+  border-radius: 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  align-self: center;
+}
+
+.btnStepPrepare {
+  background: #ecfeff;
+  color: #0e7490;
+  border: 1px solid #a5f3fc;
+}
+.btnStepPrepare:hover { background: #06b6d4; color: #fff; border-color: #06b6d4; }
+
+.btnStepReady {
+  background: #f5f3ff;
+  color: #5b21b6;
+  border: 1px solid #c4b5fd;
+}
+.btnStepReady:hover { background: #8b5cf6; color: #fff; border-color: #8b5cf6; }
+
+.btnStepRoute {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+.btnStepRoute:hover { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+
+.btnStepDone {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+.btnStepDone:hover { background: #16a34a; color: #fff; border-color: #16a34a; }
+
+/* Commande terminée */
+.completedBlock {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 0.6rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #166534;
+  text-align: center;
+}
+
+/* ── Bouton action principale — EN DEHORS des cases ──────── */
+.btnMainStep {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 1rem 1.5rem;
+  border-radius: 0.875rem;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+  margin-bottom: 1.25rem;
+}
+
+.btnMainStepLabel {
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.btnMainStepHint {
+  font-size: 0.72rem;
+  opacity: 0.8;
+  font-weight: 400;
+}
+
+/* Réutilise les mêmes couleurs que btnStepXxx */
+.btnMainStep.btnStepPrepare {
+  background: linear-gradient(135deg, #06b6d4, #0891b2);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(6,182,212,0.3);
+}
+.btnMainStep.btnStepPrepare:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(6,182,212,0.4); }
+
+.btnMainStep.btnStepReady {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(139,92,246,0.3);
+}
+.btnMainStep.btnStepReady:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(139,92,246,0.4); }
+
+.btnMainStep.btnStepRoute {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(59,130,246,0.3);
+}
+.btnMainStep.btnStepRoute:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(59,130,246,0.4); }
+
+.btnMainStep.btnStepDone {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(16,185,129,0.3);
+}
+.btnMainStep.btnStepDone:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(16,185,129,0.4); }
+
+/* ── Case à cocher — étape suivante (cliquable) ──────────── */
+.checkItemNext {
+  cursor: pointer;
+  border-radius: 0.6rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  border: 1.5px dashed #f59e0b;
+  opacity: 1 !important;
+  transition: background 0.2s, border-color 0.2s, transform 0.15s;
+}
+.checkItemNext:hover {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border-color: #d97706;
+  transform: translateX(3px);
+}
+
+.checkboxNext {
+  border: 2.5px dashed #f59e0b !important;
+  background: #fffbeb !important;
+  animation: checkNextPulse 1.8s infinite;
+}
+
+@keyframes checkNextPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); }
+  50%       { box-shadow: 0 0 0 5px rgba(245,158,11,0.2); }
+}
+
+.checkboxNextIcon {
+  color: #f59e0b;
+  font-size: 1.1rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+/* Texte indicateur cliquable */
+.checkClickHint {
+  font-size: 0.7rem;
+  color: #d97706;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.checkItemNext:hover .checkClickHint { opacity: 1; }
+
+/* ── Bandeaux de statut dans le modal SUIVI ─────────────── */
+.acceptedBanner,
+.preparingBanner,
+.readyBanner,
+.inProgressBanner {
+  border-radius: 0.6rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.825rem;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-bottom: 1rem;
+}
+
+.acceptedBanner {
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  color: #065f46;
+}
+
+.preparingBanner {
+  background: #ecfeff;
+  border: 1px solid #a5f3fc;
+  color: #0e7490;
+}
+
+.readyBanner {
+  background: #f5f3ff;
+  border: 1px solid #c4b5fd;
+  color: #5b21b6;
+}
+
+.inProgressBanner {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+}
+
+/* Bouton annuler commande (dans le suivi) */
+.btnContractLink {
+  display: block;
+  margin-top: 0.75rem;
+  text-align: center;
+  background: #f0f4ff;
+  color: #4f46e5;
+  border: 1px solid #c7d2fe;
+  border-radius: 0.6rem;
+  padding: 0.55rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+.btnContractLink:hover { background: #6366f1; color: #fff; border-color: #6366f1; }
+
+.btnCancelOrder {
+  margin-top: 0.5rem;
+  width: 100%;
+  background: transparent;
+  border: 1px solid #fca5a5;
+  color: #dc2626;
+  border-radius: 0.6rem;
+  padding: 0.55rem 1rem;
+  font-size: 0.825rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-family: inherit;
+}
+.btnCancelOrder:hover { background: #fef2f2; }
+
+/* Commande annulée */
+.cancelledBlock {
+  margin: 0.5rem 1.75rem 1rem;
+  padding: 0.875rem 1rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 0.6rem;
+  color: #dc2626;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* Bouton Gérer mis en évidence pour nouvelles commandes */
+.btnGererNew {
+  background: #f59e0b !important;
+  animation: gererPulse 2s infinite;
+}
+
+@keyframes gererPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); }
+  50%       { box-shadow: 0 0 0 6px rgba(245,158,11,0.2); }
+}
+
+/* ══════════════════════════════════════════════════════════
+   TRACKING BAR — suivi de commande (partenaire)
+   ══════════════════════════════════════════════════════════ */
+
+.trackBar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0.875rem 0;
+  overflow-x: auto;
+}
+
+.trackStep {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.trackDot {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  z-index: 1;
+  transition: all 0.3s;
+}
+
+.trackDotDone    { background: #10b981; color: #fff; }
+.trackDotCurrent { background: #f59e0b; color: #fff; box-shadow: 0 0 0 4px rgba(245,158,11,0.2); }
+
+.trackLine {
+  width: 3rem;
+  height: 3px;
+  background: #e2e8f0;
+  position: absolute;
+  top: 1.1rem;
+  left: calc(100% - 2px);
+  z-index: 0;
+}
+.trackLineDone { background: #10b981; }
+
+.trackLabel {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  margin-top: 0.4rem;
+  text-align: center;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.trackLabelCurrent { color: #f59e0b; font-weight: 800; }
+
+.trackCancelled {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  background: #fef2f2;
+  border-radius: 0.5rem;
+  color: #ef4444;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin: 0.5rem 0;
+}
+
+/* ── Barre d'action principale dans modal ─────────────── */
+.mainActionBar {
+  padding: 1rem 1.75rem;
+  background: linear-gradient(135deg, #f8faff, #fff);
+  border-top: 1px solid #f0f4ff;
+  border-bottom: 1px solid #f0f4ff;
+}
+
+.btnAccept {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  border: none;
+  border-radius: 0.875rem;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(16,185,129,0.3);
+}
+.btnAccept:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(16,185,129,0.4); }
+
+.btnReady {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: #fff;
+  border: none;
+  border-radius: 0.875rem;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(139,92,246,0.3);
+}
+.btnReady:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(139,92,246,0.4); }
+
+.btnEnRoute {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, #06b6d4, #0891b2);
+  color: #fff;
+  border: none;
+  border-radius: 0.875rem;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(6,182,212,0.3);
+}
+.btnEnRoute:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(6,182,212,0.4); }
+
+.btnDone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff;
+  border: none;
+  border-radius: 0.875rem;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(99,102,241,0.3);
+}
+.btnDone:hover { transform: translateY(-2px); }
+
+.actionHint {
+  font-size: 0.72rem;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+/* ── Footer de la modale (refus) ─────────────────────── */
+.gererFooter {
+  padding: 1rem 1.75rem 1.25rem;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ── Bloc terminé / annulé ───────────────────────────── */
+.doneBlock {
+  background: #f8fafc;
+  border-radius: 0.6rem;
+  padding: 0.875rem 1rem;
+  font-size: 0.875rem;
+  color: #475569;
+  font-weight: 600;
+  text-align: center;
 }
 
 @media (max-width: 600px) {

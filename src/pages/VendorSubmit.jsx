@@ -57,6 +57,16 @@ const VendorSubmit = () => {
   // ── Étape 2 : Type d'annonce
   const [adType, setAdType] = useState(""); // "location" | "vente" | "chauffeur"
 
+  // ── Leasing (pour vente uniquement)
+  const [leasing, setLeasing] = useState({
+    disponible:    false,
+    apportInitial: "",
+    mensualite:    "",
+    duree:         36,
+    tauxInteret:   8,
+    description:   "",
+  });
+
   // ── Données véhicule
   const [vehicle, setVehicle] = useState({
     title: "", marque: "", modele: "", annee: new Date().getFullYear(),
@@ -289,6 +299,14 @@ const VendorSubmit = () => {
           vehicleType: vehicle.vehicleType || "SUV",
           ...contactInfo,
           images: imageUrls,
+          leasing: adType === "vente" ? {
+            disponible:    leasing.disponible,
+            apportInitial: Number(leasing.apportInitial) || 0,
+            mensualite:    Number(leasing.mensualite) || 0,
+            duree:         Number(leasing.duree) || 36,
+            tauxInteret:   Number(leasing.tauxInteret) || 8,
+            description:   leasing.description,
+          } : undefined,
         });
 
         // Afficher le résultat de validation
@@ -704,15 +722,89 @@ const VendorSubmit = () => {
               </>}
 
               {adType === "vente" && (
-                <div className={`${styles.field} ${styles.colSpan2}`}>
-                  <label>Prix de vente (FCFA) *</label>
-                  <div className={styles.inputAffix}>
-                    <input type="number" name="priceForSale" value={vehicle.priceForSale}
-                      onChange={handleVehChange} placeholder="Ex : 12000000" min="1000" />
-                    <span>FCFA</span>
+                <>
+                  <div className={`${styles.field} ${styles.colSpan2}`}>
+                    <label>Prix de vente (FCFA) *</label>
+                    <div className={styles.inputAffix}>
+                      <input type="number" name="priceForSale" value={vehicle.priceForSale}
+                        onChange={handleVehChange} placeholder="Ex : 12000000" min="1000" />
+                      <span>FCFA</span>
+                    </div>
+                    {errors.priceForSale && <span className={styles.err}>{errors.priceForSale}</span>}
                   </div>
-                  {errors.priceForSale && <span className={styles.err}>{errors.priceForSale}</span>}
-                </div>
+
+                  {/* ── LEASING OPTION ── */}
+                  <div className={`${styles.field} ${styles.colSpan2}`}>
+                    <label className={`${styles.checkItem} ${leasing.disponible ? styles.checkActive : ""}`}
+                      style={{ fontSize: "0.95rem", fontWeight: 700, padding: "0.75rem 1rem", borderRadius: "0.75rem" }}>
+                      <input type="checkbox" checked={leasing.disponible}
+                        onChange={(e) => setLeasing(p => ({ ...p, disponible: e.target.checked }))} />
+                      🏦 Proposer l'option Leasing (paiement en mensualités)
+                    </label>
+                  </div>
+
+                  {leasing.disponible && (
+                    <>
+                      <div className={styles.field}>
+                        <label>Apport initial (FCFA)</label>
+                        <div className={styles.inputAffix}>
+                          <input type="number" value={leasing.apportInitial} min="0"
+                            onChange={(e) => setLeasing(p => ({ ...p, apportInitial: e.target.value }))}
+                            placeholder="Ex : 2000000" />
+                          <span>FCFA</span>
+                        </div>
+                      </div>
+                      <div className={styles.field}>
+                        <label>Mensualité (FCFA/mois)</label>
+                        <div className={styles.inputAffix}>
+                          <input type="number" value={leasing.mensualite} min="0"
+                            onChange={(e) => setLeasing(p => ({ ...p, mensualite: e.target.value }))}
+                            placeholder="Ex : 350000" />
+                          <span>FCFA/mois</span>
+                        </div>
+                      </div>
+                      <div className={styles.field}>
+                        <label>Durée du leasing</label>
+                        <div className={styles.inputAffix}>
+                          <select value={leasing.duree}
+                            onChange={(e) => setLeasing(p => ({ ...p, duree: Number(e.target.value) }))}
+                            style={{ flex: 1, padding: "0.65rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0" }}>
+                            {[12, 24, 36, 48, 60].map(m => (
+                              <option key={m} value={m}>{m} mois ({Math.round(m / 12)} an{m > 12 ? "s" : ""})</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className={styles.field}>
+                        <label>Taux d'intérêt annuel (%)</label>
+                        <div className={styles.inputAffix}>
+                          <input type="number" value={leasing.tauxInteret} min="0" max="30" step="0.5"
+                            onChange={(e) => setLeasing(p => ({ ...p, tauxInteret: e.target.value }))}
+                            placeholder="Ex : 8" />
+                          <span>%/an</span>
+                        </div>
+                      </div>
+                      <div className={`${styles.field} ${styles.colSpan2}`}>
+                        <label>Conditions du leasing (optionnel)</label>
+                        <textarea rows={2} value={leasing.description} placeholder="Ex : Apport + 36 mensualités sans intérêts..."
+                          onChange={(e) => setLeasing(p => ({ ...p, description: e.target.value }))}
+                          style={{ width: "100%", padding: "0.65rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", resize: "vertical", fontFamily: "inherit" }} />
+                      </div>
+                      {leasing.mensualite > 0 && (
+                        <div className={`${styles.pricePreview} ${styles.colSpan2}`} style={{ marginTop: 0 }}>
+                          <div className={styles.priceItem}><span>Apport initial</span><strong>{fmt(leasing.apportInitial || 0)} FCFA</strong></div>
+                          <div className={styles.priceItem}><span>Mensualité</span><strong>{fmt(leasing.mensualite)} FCFA / mois</strong></div>
+                          <div className={styles.priceItem}><span>Durée</span><strong>{leasing.duree} mois</strong></div>
+                          <div className={styles.priceItem}><span>Total estimé</span>
+                            <strong style={{ color: "#6366f1" }}>
+                              {fmt(Number(leasing.apportInitial || 0) + Number(leasing.mensualite) * Number(leasing.duree))} FCFA
+                            </strong>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
               )}
             </div>
 

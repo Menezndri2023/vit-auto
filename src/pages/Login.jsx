@@ -19,9 +19,13 @@ const Login = () => {
       return;
     }
     try {
-      await login({ email: form.email, password: form.password });
+      const loggedUser = await login({ email: form.email, password: form.password });
       success("Connexion réussie ! Redirection...");
-      setTimeout(() => navigate("/dashboard"), 1500);
+      const role = loggedUser?.role;
+      const dest = role === "admin"      ? "/admin"
+                 : role === "partenaire" ? "/vendor/dashboard"
+                 : "/dashboard";
+      setTimeout(() => navigate(dest), 1000);
     } catch (err) {
       error(err.message || "Identifiants incorrects.");
     }

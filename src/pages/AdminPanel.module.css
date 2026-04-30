@@ -1,0 +1,335 @@
+/* ═══════════════════════════════════════════════════
+   AdminPanel — Dashboard Admin VIT AUTO
+   ═══════════════════════════════════════════════════ */
+
+.page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+  font-family: "Inter", "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+/* ── Toast ──────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.25rem;
+  z-index: 9999;
+  padding: 0.875rem 1.5rem;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  animation: slideIn 0.25s ease;
+}
+.toastSuccess { background: #ecfdf5; color: #065f46; border: 1px solid #6ee7b7; }
+.toastError   { background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5; }
+@keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── Modal confirmation ─────────────────────────────── */
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 9000; padding: 1rem;
+}
+.confirmBox {
+  background: #fff; border-radius: 1rem;
+  padding: 2rem; max-width: 420px; width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+.confirmMsg { font-size: 1rem; color: #1e293b; margin: 0 0 1.5rem; line-height: 1.5; text-align: center; }
+.confirmActions { display: flex; gap: 0.75rem; justify-content: center; }
+
+/* ── Header ─────────────────────────────────────────── */
+.header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;
+  padding: 1.75rem 2rem;
+  background: linear-gradient(135deg, #1e3a5f, #2563eb);
+  border-radius: 1.25rem;
+  color: #fff;
+}
+.headerTitle { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 900; margin: 0 0 0.25rem; }
+.headerSub   { font-size: 0.875rem; opacity: 0.8; margin: 0; }
+.headerRight { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.adminBadge {
+  background: rgba(255,255,255,0.15); color: #fff;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 9999px; padding: 0.4rem 1rem;
+  font-size: 0.82rem; font-weight: 700;
+}
+.btnRefresh {
+  background: rgba(255,255,255,0.2); color: #fff;
+  border: 1px solid rgba(255,255,255,0.3); border-radius: 0.6rem;
+  padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 600;
+  cursor: pointer; font-family: inherit; transition: background 0.2s;
+}
+.btnRefresh:hover { background: rgba(255,255,255,0.35); }
+
+/* ── Navigation ─────────────────────────────────────── */
+.tabs {
+  display: flex; gap: 0.25rem; flex-wrap: wrap;
+  margin-bottom: 2rem;
+  background: #fff; border-radius: 1rem; padding: 0.4rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  border: 1px solid #e2e8f0;
+}
+.tab {
+  flex: 1; min-width: 120px;
+  background: transparent; border: none;
+  padding: 0.75rem 1.25rem; font-size: 0.875rem; font-weight: 600;
+  color: #64748b; cursor: pointer; border-radius: 0.75rem;
+  transition: all 0.2s; display: flex; align-items: center; justify-content: center;
+  gap: 0.4rem; position: relative; white-space: nowrap;
+}
+.tab:hover { background: #f1f5f9; color: #1e293b; }
+.tabActive  { background: linear-gradient(135deg, #1e40af, #2563eb); color: #fff !important; }
+.alertDot {
+  position: absolute; top: 0.35rem; right: 0.35rem;
+  background: #ef4444; color: #fff;
+  font-size: 0.62rem; font-weight: 800;
+  border-radius: 9999px; padding: 0.1rem 0.45rem;
+  min-width: 18px; text-align: center;
+}
+
+/* ── Chargement ─────────────────────────────────────── */
+.loadingBox { text-align: center; padding: 5rem 2rem; color: #64748b; }
+.spinner {
+  width: 3rem; height: 3rem;
+  border: 4px solid #e2e8f0; border-top-color: #2563eb;
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+  margin: 0 auto 1.5rem;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Contenu onglets ────────────────────────────────── */
+.tabContent { display: flex; flex-direction: column; gap: 1.5rem; }
+
+/* ── Stats cards ─────────────────────────────────────── */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+}
+.statCard {
+  background: #fff; border-radius: 1rem;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  border: 1px solid #e2e8f0;
+  display: flex; align-items: flex-start; gap: 1rem;
+  transition: box-shadow 0.2s;
+}
+.statCard:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
+.statIcon {
+  width: 2.75rem; height: 2.75rem; border-radius: 0.75rem;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem; flex-shrink: 0;
+}
+.statBody { flex: 1; }
+.statValue { display: block; font-size: 1.5rem; font-weight: 900; color: #0f172a; line-height: 1.2; }
+.statLabel { display: block; font-size: 0.78rem; color: #64748b; margin-top: 0.2rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.statSub   { display: block; font-size: 0.72rem; color: #94a3b8; margin-top: 0.25rem; }
+
+/* ── Alertes ─────────────────────────────────────────── */
+.alertBanner {
+  display: flex; align-items: center; gap: 0.75rem;
+  background: #fffbeb; border: 1px solid #fde68a;
+  border-radius: 0.75rem; padding: 0.875rem 1.25rem;
+  font-size: 0.875rem; font-weight: 600; color: #92400e;
+  flex-wrap: wrap;
+}
+.alertBtn {
+  margin-left: auto; background: #f59e0b; color: #fff;
+  border: none; border-radius: 0.5rem; padding: 0.35rem 0.875rem;
+  font-size: 0.78rem; font-weight: 700; cursor: pointer;
+  font-family: inherit;
+}
+.alertBtn:hover { opacity: 0.85; }
+
+/* ── Graphiques ──────────────────────────────────────── */
+.chartCard {
+  background: #fff; border-radius: 1rem;
+  padding: 1.5rem; border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.chartTitle {
+  font-size: 1rem; font-weight: 700; color: #1e293b;
+  margin: 0 0 1.5rem;
+}
+
+/* Bar chart */
+.chart { display: flex; align-items: flex-end; gap: 0.75rem; height: 180px; }
+.chartCol { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; flex: 1; }
+.chartVal { font-size: 0.65rem; color: #64748b; font-weight: 600; }
+.chartBarWrap { flex: 1; width: 100%; display: flex; align-items: flex-end; background: #f1f5f9; border-radius: 0.4rem; overflow: hidden; min-height: 4px; }
+.chartBar { width: 100%; background: linear-gradient(180deg, #3b82f6, #1d4ed8); border-radius: 0.4rem 0.4rem 0 0; transition: height 0.4s ease; min-height: 4px; }
+.chartLabel { font-size: 0.7rem; color: #94a3b8; font-weight: 600; }
+
+/* Pie / donut simple */
+.pieGrid { display: flex; flex-direction: column; gap: 0.75rem; }
+.pieItem { display: flex; align-items: center; gap: 0.75rem; }
+.pieDot { width: 0.875rem; height: 0.875rem; border-radius: 50%; flex-shrink: 0; }
+.pieLabel { flex: 1; font-size: 0.875rem; color: #475569; }
+.pieCount { font-size: 0.875rem; font-weight: 800; color: #1e293b; min-width: 2.5rem; text-align: right; }
+.miniBarWrap { width: 80px; height: 6px; background: #f1f5f9; border-radius: 9999px; overflow: hidden; flex-shrink: 0; }
+.miniBar { height: 100%; border-radius: 9999px; transition: width 0.4s ease; }
+
+/* ── Filtres ─────────────────────────────────────────── */
+.filterBar {
+  display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;
+  background: #fff; border-radius: 0.875rem; padding: 1rem 1.25rem;
+  border: 1px solid #e2e8f0;
+}
+.searchInput {
+  flex: 1; min-width: 200px;
+  border: 1px solid #e2e8f0; border-radius: 0.6rem;
+  padding: 0.6rem 0.875rem; font-size: 0.875rem; font-family: inherit;
+  color: #1e293b; outline: none; transition: border-color 0.2s;
+}
+.searchInput:focus { border-color: #2563eb; }
+.filterSelect {
+  border: 1px solid #e2e8f0; border-radius: 0.6rem;
+  padding: 0.6rem 0.875rem; font-size: 0.875rem; font-family: inherit;
+  color: #1e293b; background: #fff; cursor: pointer; outline: none;
+}
+.filterCount { font-size: 0.78rem; color: #94a3b8; white-space: nowrap; }
+
+/* ── Table ───────────────────────────────────────────── */
+.tableWrap {
+  background: #fff; border-radius: 1rem; overflow: hidden;
+  border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.table { width: 100%; border-collapse: collapse; }
+.table thead { background: #f8fafc; }
+.table th {
+  padding: 0.875rem 1rem; text-align: left;
+  font-size: 0.72rem; font-weight: 700; color: #64748b;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  border-bottom: 1px solid #e2e8f0; white-space: nowrap;
+}
+.tr { border-bottom: 1px solid #f1f5f9; transition: background 0.15s; }
+.tr:last-child { border-bottom: none; }
+.tr:hover { background: #f8fafc; }
+.trBlocked { background: #fef2f2; }
+.trBlocked:hover { background: #fee2e2; }
+.table td { padding: 0.875rem 1rem; vertical-align: middle; }
+
+/* Cellules spéciales */
+.userCell { display: flex; align-items: center; gap: 0.75rem; }
+.avatar {
+  width: 2.25rem; height: 2.25rem; border-radius: 50%;
+  background: #e2e8f0; display: flex; align-items: center; justify-content: center;
+  font-size: 0.9rem; font-weight: 700; color: #64748b; overflow: hidden; flex-shrink: 0;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.selfTag {
+  display: inline-block; background: #eff6ff; color: #1d4ed8;
+  font-size: 0.62rem; font-weight: 700; border-radius: 9999px;
+  padding: 0.1rem 0.45rem; margin-left: 0.35rem;
+}
+.tdEmail { font-size: 0.82rem; color: #64748b; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tdDate  { font-size: 0.78rem; color: #94a3b8; white-space: nowrap; }
+.tdPrice { font-size: 0.82rem; font-weight: 700; color: #1e293b; white-space: nowrap; }
+.tdVeh   { font-size: 0.82rem; color: #1e293b; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.vehicleCell { display: flex; align-items: center; gap: 0.75rem; }
+.vehThumb { width: 3rem; height: 2.25rem; object-fit: cover; border-radius: 0.4rem; flex-shrink: 0; }
+.vehThumbPlaceholder { width: 3rem; height: 2.25rem; background: #f1f5f9; border-radius: 0.4rem; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+.vehMeta { display: block; font-size: 0.72rem; color: #94a3b8; margin-top: 0.1rem; }
+
+.scoreChip { font-size: 0.75rem; font-weight: 800; padding: 0.2rem 0.5rem; background: #f8fafc; border-radius: 0.4rem; }
+.contractLink { font-size: 1rem; text-decoration: none; }
+.noContract   { color: #d1d5db; }
+
+/* ── Sélecteur de rôle dans table ───────────────────── */
+.roleSelect {
+  border-radius: 9999px; padding: 0.25rem 0.75rem;
+  font-size: 0.78rem; font-weight: 700; cursor: pointer;
+  border-width: 1.5px; border-style: solid; outline: none;
+  font-family: inherit; transition: all 0.2s;
+}
+.roleSelect:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── Badge ───────────────────────────────────────────── */
+.badge {
+  display: inline-block; padding: 0.2rem 0.65rem; border-radius: 9999px;
+  font-size: 0.72rem; font-weight: 700; white-space: nowrap;
+}
+
+/* ── Boutons d'action ────────────────────────────────── */
+.actionBtns { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+
+.btnBlock, .btnUnblock, .btnApprove, .btnReject {
+  border: none; border-radius: 0.5rem; padding: 0.35rem 0.75rem;
+  font-size: 0.72rem; font-weight: 700; cursor: pointer;
+  font-family: inherit; transition: opacity 0.2s; white-space: nowrap;
+}
+.btnBlock   { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
+.btnUnblock { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+.btnApprove { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+.btnReject  { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; }
+.btnBlock:hover, .btnReject:hover { opacity: 0.8; }
+.btnUnblock:hover, .btnApprove:hover { opacity: 0.8; }
+
+.btnDeleteSm {
+  background: #f1f5f9; border: 1px solid #e2e8f0; color: #64748b;
+  border-radius: 0.5rem; padding: 0.35rem 0.55rem; font-size: 0.82rem;
+  cursor: pointer; transition: all 0.2s; font-family: inherit;
+}
+.btnDeleteSm:hover { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
+
+/* Boutons génériques */
+.btnPrimary {
+  background: #2563eb; color: #fff; border: none;
+  border-radius: 0.6rem; padding: 0.6rem 1.5rem;
+  font-size: 0.875rem; font-weight: 700; cursor: pointer;
+  font-family: inherit; transition: opacity 0.2s;
+}
+.btnPrimary:hover { opacity: 0.85; }
+.btnDanger {
+  background: #ef4444; color: #fff; border: none;
+  border-radius: 0.6rem; padding: 0.6rem 1.5rem;
+  font-size: 0.875rem; font-weight: 700; cursor: pointer;
+  font-family: inherit; transition: opacity 0.2s;
+}
+.btnDanger:hover { opacity: 0.85; }
+.btnGhost {
+  background: transparent; border: 1px solid #e2e8f0; color: #64748b;
+  border-radius: 0.6rem; padding: 0.6rem 1.5rem;
+  font-size: 0.875rem; cursor: pointer; font-family: inherit; transition: background 0.2s;
+}
+.btnGhost:hover { background: #f1f5f9; }
+
+/* ── Pagination ──────────────────────────────────────── */
+.pagination {
+  display: flex; gap: 0.4rem; justify-content: center;
+  margin-top: 1rem; flex-wrap: wrap;
+}
+.pageBtn {
+  width: 2.25rem; height: 2.25rem; border-radius: 0.5rem;
+  background: #fff; border: 1px solid #e2e8f0; color: #475569;
+  font-size: 0.875rem; font-weight: 600; cursor: pointer;
+  font-family: inherit; display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+.pageBtn:hover:not(:disabled) { background: #f1f5f9; border-color: #2563eb; color: #2563eb; }
+.pageBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.pageBtnActive { background: #2563eb !important; color: #fff !important; border-color: #2563eb !important; }
+
+/* ── Responsive ──────────────────────────────────────── */
+@media (max-width: 900px) {
+  .page { padding: 1rem 0.875rem 3rem; }
+  .header { padding: 1.25rem; }
+  .statsGrid { grid-template-columns: 1fr 1fr; }
+  .tableWrap { overflow-x: auto; }
+  .table { min-width: 700px; }
+}
+@media (max-width: 600px) {
+  .statsGrid { grid-template-columns: 1fr; }
+  .tabs { flex-direction: column; }
+  .tab { justify-content: flex-start; }
+  .chart { gap: 0.4rem; height: 140px; }
+}

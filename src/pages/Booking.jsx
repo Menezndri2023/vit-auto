@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import { useAuth } from "../context/AuthContext";
@@ -18,6 +18,7 @@ const fmt = (n) => Number(n).toLocaleString("fr-FR") + " FCFA";
 
 const Booking = () => {
   const { id }      = useParams();
+  const [searchParams] = useSearchParams();
   const navigate    = useNavigate();
   const vehicles    = useVehicles();
   const getVehicleById = vehicles.getItemById ||
@@ -26,6 +27,9 @@ const Booking = () => {
   const { token, user } = useAuth();
   const { position, address: geoAddress, refreshLocation } = useGeoLocation();
   const vehicle = getVehicleById(id);
+
+  // Détecter si leasing demandé via query param ?type=leasing
+  const isLeasingRequest = searchParams.get("type") === "leasing";
 
   const [error, setError]     = useState(null);
   const [loading, setLoading] = useState(true);
@@ -39,7 +43,11 @@ const Booking = () => {
     setLoading(false);
   }, [id]);
 
-  const isTrial = vehicle?.mode === "Acheter";
+  // isTrial : mode achat/essai (pas location)
+  // isLeasing : mode leasing
+  const isSaleMode = vehicle?.mode === "Acheter";
+  const isTrial    = isSaleMode && !isLeasingRequest;
+  const isLeasing  = isSaleMode && isLeasingRequest && vehicle?.leasing?.disponible;
 
   // ── Pickup : méthode de prise en charge ───────────────────
   // pickupMethod: "livraison" (vendor vient) | "retrait" (client passe)
@@ -199,15 +207,32 @@ const Booking = () => {
       alert("Indiquez votre numéro mobile."); return;
     }
 
-    const commissionRate   = isTrial ? 0.03 : 0.15;
-    const commissionAmount = Math.round(baseTotal * commissionRate);
-    const partnerPayout    = Math.max(baseTotal - commissionAmount - SERVICE_FEE, 0);
+    const commissionRate   = (isTrial || isLeasing) ? 0.03 : 0.15;
+    const leasingData      = vehicle?.leasing || {};
+    const leasingApport    = leasingData.apportInitial || 0;
+    const leasingMensual   = leasingData.mensualite || 0;
+    const leasingDuree     = leasingData.duree || 36;
+    const leasingTotal     = leasingApport + leasingMensual * leasingDuree;
+    const commissionAmount = Math.round((isLeasing ? leasingApport : baseTotal) * commissionRate);
+    const partnerPayout    = Math.max((isLeasing ? leasingApport : baseTotal) - commissionAmount - SERVICE_FEE, 0);
 
     const finalPickup = pickupMethod === "retrait"
       ? `Retrait chez le vendeur (${vehicle.pickupAddress || "adresse communiquée par le vendeur"})`
       : pickupAddress;
 
-    const booking = isTrial
+    const booking = isLeasing
+      ? {
+          id: Date.now(), userId: user?.id,
+          vehicleId: vehicle._id || vehicle.id,
+          vehicleName: vehicle.name, vehicleMode: vehicle.mode,
+          ...trialForm, type: "leasing", status: "À confirmer",
+          createdAt: new Date().toISOString(),
+          serviceFeeFCFA: SERVICE_FEE, commissionRate, commissionAmount, partnerPayout,
+          leasingInfo: { apportInitial: leasingApport, mensualite: leasingMensual, duree: leasingDuree, totalLeasing: leasingTotal, tauxInteret: leasingData.tauxInteret || 8 },
+          total: leasingApport,
+          paymentInfo: paymentForm, clientVerification: verificationForm,
+        }
+      : isTrial
       ? {
           id: Date.now(), userId: user?.id,
           vehicleId: vehicle._id || vehicle.id,
@@ -230,6 +255,7 @@ const Booking = () => {
           paidWith: paymentForm.paymentMethod,
           paymentInfo: paymentForm, clientVerification: verificationForm,
           type: "location",
+          status: "À confirmer",
         };
 
     addBooking(booking);
@@ -240,7 +266,7 @@ const Booking = () => {
       await fetch("/api/bookings", { method: "POST", headers, body: JSON.stringify(booking) });
     } catch { /* offline */ }
 
-    navigate("/booking/success", { state: { booking, trial: isTrial, payment: paymentForm } });
+    navigate("/booking/success", { state: { booking, trial: isTrial || isLeasing, payment: paymentForm } });
   };
 
   const paymentOptions = [

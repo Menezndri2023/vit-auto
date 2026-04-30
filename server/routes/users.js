@@ -10,5 +10,6 @@ router.get("/stats", authenticate, authorizeAdmin, u.getAdminStats);           /
 router.get("/:id", authenticate, authorizeAdmin, u.getUser);                   // détail utilisateur
 router.patch("/:id/role", authenticate, authorizeAdmin, u.updateUserRole);     // changer rôle
 router.patch("/:id/toggle", authenticate, authorizeAdmin, u.toggleUserActive); // activer/désactiver
+router.delete("/:id",        authenticate, authorizeAdmin, u.deleteUser);        // supprimer
 
 export default router;

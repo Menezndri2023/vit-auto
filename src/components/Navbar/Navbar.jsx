@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import NotificationBell from "../NotificationBell/NotificationBell";
 import styles from "./Navbar.module.css";
 
 const Navbar = () => {
@@ -53,7 +54,24 @@ const Navbar = () => {
         )}
 
         {isAdmin && (
-          <li><NavLink to="/admin" className={navLink} onClick={() => setMenuOpen(false)}>Admin</NavLink></li>
+          <li>
+            <NavLink to="/admin" onClick={() => setMenuOpen(false)}
+              style={({ isActive }) => ({
+                background: isActive ? "#1e40af" : "#eff6ff",
+                color: isActive ? "#fff" : "#1d4ed8",
+                border: "1.5px solid #bfdbfe",
+                borderRadius: "0.5rem",
+                padding: "0.3rem 0.875rem",
+                fontWeight: 700,
+                fontSize: "0.875rem",
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.3rem",
+              })}>
+              ⚙️ Admin
+            </NavLink>
+          </li>
         )}
 
         {/* Tableau de bord : uniquement pour les clients */}
@@ -89,6 +107,7 @@ const Navbar = () => {
       <div className={styles.navRight}>
         {isAuthenticated ? (
           <>
+            <NotificationBell />
             <span className={isPartner ? styles.badgePartner : styles.userBadge}>
               {isPartner ? "🤝 " : "👤 "}
               {user?.firstName || user?.email}

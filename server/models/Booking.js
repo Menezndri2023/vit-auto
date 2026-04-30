@@ -10,14 +10,15 @@ const bookingSchema = new mongoose.Schema({
   // ── Type de commande ──────────────────────────────────────
   type: {
     type: String,
-    enum: ["location", "essai", "chauffeur"],
+    enum: ["location", "essai", "chauffeur", "leasing"],
     required: true,
   },
 
   // ── Statut de la commande ─────────────────────────────────
+  // pending → confirmed → preparing → ready → in_progress → completed
   status: {
     type: String,
-    enum: ["pending", "confirmed", "in_progress", "completed", "cancelled"],
+    enum: ["pending", "confirmed", "preparing", "ready", "in_progress", "completed", "cancelled"],
     default: "pending",
   },
 
@@ -133,6 +134,15 @@ const bookingSchema = new mongoose.Schema({
   },
   isPaid: { type: Boolean, default: false },
   paidAt: { type: Date, default: null },
+
+  // ── Leasing ───────────────────────────────────────────────
+  leasing: {
+    apportInitial: { type: Number, default: 0 },
+    mensualite:    { type: Number, default: 0 },
+    duree:         { type: Number, default: 36 },
+    tauxInteret:   { type: Number, default: 8 },
+    totalLeasing:  { type: Number, default: 0 },
+  },
 
   // ── Avis post-commande ────────────────────────────────────
   review: {

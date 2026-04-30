@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
+import { useToast } from "../context/ToastContext";
 import { Link, useNavigate } from "react-router-dom";
 import styles from "./VendorDashboard.module.css";
 
@@ -17,26 +18,38 @@ const STATUS_CONFIG = {
 };
 
 const BOOKING_STATUS = {
-  "À confirmer": { label: "Nouveau",    color: "#f59e0b", bg: "#fffbeb" },
-  pending:       { label: "Nouveau",    color: "#f59e0b", bg: "#fffbeb" },
-  confirmed:     { label: "Confirmé",  color: "#10b981", bg: "#ecfdf5" },
-  in_progress:   { label: "En cours",  color: "#6366f1", bg: "#eef2ff" },
-  completed:     { label: "Terminé",   color: "#64748b", bg: "#f8fafc" },
-  cancelled:     { label: "Annulé",    color: "#ef4444", bg: "#fef2f2" },
+  "À confirmer": { label: "Nouvelle",      color: "#f59e0b", bg: "#fffbeb" },
+  pending:       { label: "Nouvelle",      color: "#f59e0b", bg: "#fffbeb" },
+  confirmed:     { label: "Acceptée",      color: "#10b981", bg: "#ecfdf5" },
+  preparing:     { label: "En cours",      color: "#06b6d4", bg: "#ecfeff" },
+  ready:         { label: "Prête",         color: "#8b5cf6", bg: "#f5f3ff" },
+  in_progress:   { label: "En route",      color: "#3b82f6", bg: "#eff6ff" },
+  completed:     { label: "Terminée",      color: "#64748b", bg: "#f8fafc" },
+  cancelled:     { label: "Annulée",       color: "#ef4444", bg: "#fef2f2" },
 };
+
+// Étapes du suivi (cases à cocher) — après acceptation
+// "Acceptée" est gérée par le bloc DÉCISION, pas dans ces cases
+const CHECKLIST_STEPS = [
+  { key: "preparing",   label: "En cours",   icon: "⚙️", hint: "Vous préparez le véhicule"              },
+  { key: "ready",       label: "Prête",      icon: "🚗", hint: "Le véhicule est prêt pour la livraison" },
+  { key: "in_progress", label: "En route",   icon: "🚀", hint: "Vous êtes en route vers le client"      },
+  { key: "completed",   label: "Terminée",   icon: "🏁", hint: "Location terminée"                      },
+];
+
+const STEP_ORDER = ["pending", "confirmed", "preparing", "ready", "in_progress", "completed"];
 
 const TYPE_LABELS = { location: "Location", essai: "Essai", chauffeur: "Chauffeur" };
 
-// ── Composant modal de gestion de commande ────────────────────────────────────
-function GererModal({ order, onClose, onConfirm, onInProgress, onComplete, onReject }) {
+// ── Modal GÉRER — redesign complet avec cases à cocher ─────────────────────────
+function GererModal({ order, onClose, onConfirm, onPrepare, onReady, onInProgress, onComplete, onReject }) {
   if (!order) return null;
 
-  const bst = BOOKING_STATUS[order.status] || BOOKING_STATUS.pending;
-  const isNew     = order.status === "À confirmer" || order.status === "pending";
-  const isConfirmed = order.status === "confirmed";
-  const isInProg  = order.status === "in_progress";
-  const isDone    = order.status === "completed" || order.status === "cancelled";
-  const hasGps    = order.pickupLat != null && order.pickupLng != null;
+  const bst         = BOOKING_STATUS[order.status] || BOOKING_STATUS.pending;
+  const isNew       = !order.status || order.status === "À confirmer" || order.status === "pending";
+  const isAccepted  = !isNew && order.status !== "cancelled";
+  const isDone      = order.status === "completed" || order.status === "cancelled";
+  const hasGps      = order.pickupLat != null && order.pickupLng != null;
   const isLivraison = order.pickupMethod === "livraison" || order.pickupLocation;
 
   const mapsUrl = hasGps
@@ -45,17 +58,28 @@ function GererModal({ order, onClose, onConfirm, onInProgress, onComplete, onRej
       ? `https://www.google.com/maps/search/${encodeURIComponent(order.pickupAddress)}`
       : null;
 
+  const currentStepIdx = STEP_ORDER.indexOf(order.status);
+
+  // Quelle action appeler pour passer à l'étape suivante
+  const NEXT_ACTIONS = {
+    confirmed:   { fn: onPrepare,     label: "Marquer en cours",  btnClass: styles.btnStepPrepare },
+    preparing:   { fn: onReady,       label: "Marquer prête",     btnClass: styles.btnStepReady   },
+    ready:       { fn: onInProgress,  label: "Marquer en route",  btnClass: styles.btnStepRoute   },
+    in_progress: { fn: onComplete,    label: "Marquer terminée",  btnClass: styles.btnStepDone    },
+  };
+
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.gererModal} onClick={(e) => e.stopPropagation()}>
-        {/* ── En-tête ── */}
+
+        {/* ══ EN-TÊTE ══ */}
         <div className={styles.gererHeader}>
           <div>
             <span className={styles.gererType}>{TYPE_LABELS[order.type] || order.type}</span>
-            <h2 className={styles.gererTitle}>{order.vehicleName}</h2>
+            <h2 className={styles.gererTitle}>{order.vehicleName || "Commande"}</h2>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            <span className={styles.orderStatus} style={{ background: bst.bg, color: bst.color, fontSize: "0.9rem", padding: "0.4rem 0.9rem" }}>
+            <span className={styles.orderStatus} style={{ background: bst.bg, color: bst.color, fontSize: "0.82rem", padding: "0.3rem 0.75rem" }}>
               {bst.label}
             </span>
             <button className={styles.closeBtn} onClick={onClose} aria-label="Fermer">✕</button>
@@ -63,100 +87,86 @@ function GererModal({ order, onClose, onConfirm, onInProgress, onComplete, onRej
         </div>
 
         <div className={styles.gererBody}>
-          {/* ── Client ── */}
+
+          {/* ══ INFOS CLIENT ══ */}
           <section className={styles.gererSection}>
-            <h3 className={styles.gererSectionTitle}>👤 Informations client</h3>
-            <div className={styles.gererGrid}>
-              <div className={styles.gererField}>
-                <span>Nom complet</span>
-                <strong>{order.firstName} {order.lastName}</strong>
+            <h3 className={styles.gererSectionTitle}>👤 Client</h3>
+            <div className={styles.clientCard}>
+              <div className={styles.clientMain}>
+                <span className={styles.clientName}>{order.firstName} {order.lastName}</span>
+                {order.phone && (
+                  <a href={`tel:${order.phone}`} className={styles.clientPhone}>
+                    📞 {order.phone}
+                  </a>
+                )}
               </div>
-              <div className={styles.gererField}>
-                <span>Contact</span>
-                <strong>
-                  {order.phone && (
-                    <a href={`tel:${order.phone}`} className={styles.phoneLink}>{order.phone}</a>
-                  )}
-                  {!order.phone && order.email}
-                </strong>
+              <div className={styles.clientSub}>
+                {order.email && (
+                  <a href={`mailto:${order.email}`} className={styles.clientEmail}>{order.email}</a>
+                )}
+                {order.clientVerification?.idType && (
+                  <span className={styles.idBadge}>
+                    {order.clientVerification.idType.toUpperCase()} {order.clientVerification.idNumber}
+                  </span>
+                )}
               </div>
-              {order.email && order.phone && (
-                <div className={styles.gererField}>
-                  <span>Email</span>
-                  <strong>{order.email}</strong>
-                </div>
-              )}
-              {order.clientVerification?.idType && (
-                <div className={styles.gererField}>
-                  <span>Pièce d'identité</span>
-                  <strong className={styles.idBadge}>
-                    {order.clientVerification.idType.toUpperCase()} — {order.clientVerification.idNumber}
-                  </strong>
-                </div>
-              )}
             </div>
           </section>
 
-          {/* ── Détails commande ── */}
+          {/* ══ DÉTAILS COMMANDE ══ */}
           <section className={styles.gererSection}>
-            <h3 className={styles.gererSectionTitle}>📋 Détails de la commande</h3>
-            <div className={styles.gererGrid}>
+            <h3 className={styles.gererSectionTitle}>📋 Commande</h3>
+            <div className={styles.orderSummary}>
               {order.type === "location" && (
                 <>
-                  <div className={styles.gererField}>
+                  <div className={styles.summaryRow}>
                     <span>Période</span>
                     <strong>
                       {order.startDate ? new Date(order.startDate).toLocaleDateString("fr-FR") : "—"}
                       {" → "}
-                      {order.endDate   ? new Date(order.endDate).toLocaleDateString("fr-FR")   : "—"}
-                      {order.days ? ` (${order.days} jour${order.days > 1 ? "s" : ""})` : ""}
+                      {order.endDate ? new Date(order.endDate).toLocaleDateString("fr-FR") : "—"}
+                      {order.days ? ` (${order.days}j)` : ""}
                     </strong>
                   </div>
-                  <div className={styles.gererField}>
+                  <div className={styles.summaryRow}>
                     <span>Total client</span>
                     <strong>{fmt(order.total || 0)}</strong>
                   </div>
-                  <div className={styles.gererField}>
+                  <div className={styles.summaryRow}>
                     <span>Votre net</span>
-                    <strong style={{ color: "#10b981" }}>
+                    <strong className={styles.netAmount}>
                       {fmt(order.partnerPayout || Math.max((order.baseTotal || 0) * 0.85 - SERVICE_FEE, 0))}
                     </strong>
                   </div>
                 </>
               )}
               {order.type === "essai" && (
-                <>
-                  <div className={styles.gererField}>
-                    <span>Date souhaitée</span>
-                    <strong>
-                      {order.preferredDate ? new Date(order.preferredDate).toLocaleDateString("fr-FR") : "—"}
-                      {order.preferredTime ? ` à ${order.preferredTime}` : ""}
-                    </strong>
-                  </div>
-                  {order.notes && (
-                    <div className={`${styles.gererField} ${styles.colSpan2}`}>
-                      <span>Message client</span>
-                      <strong>{order.notes}</strong>
-                    </div>
-                  )}
-                </>
+                <div className={styles.summaryRow}>
+                  <span>Date souhaitée</span>
+                  <strong>
+                    {order.preferredDate ? new Date(order.preferredDate).toLocaleDateString("fr-FR") : "—"}
+                    {order.preferredTime ? ` à ${order.preferredTime}` : ""}
+                  </strong>
+                </div>
               )}
-              <div className={styles.gererField}>
+              <div className={styles.summaryRow}>
                 <span>Paiement</span>
-                <strong>{order.isPaid ? "✅ Payé" : "⏳ En attente"} {order.paidWith ? `— ${order.paidWith}` : ""}</strong>
+                <strong className={order.isPaid ? styles.paidOk : styles.paidPending}>
+                  {order.isPaid ? "✅ Payé" : "⏳ En attente"}
+                </strong>
               </div>
-              <div className={styles.gererField}>
+              <div className={styles.summaryRow}>
                 <span>Reçue le</span>
                 <strong>
                   {order.createdAt
-                    ? new Date(order.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })
+                    ? new Date(order.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "long" })
                     : "—"}
                 </strong>
               </div>
             </div>
           </section>
 
-          {/* ── Livraison GPS ── */}
+          {/* ══ LIVRAISON GPS ══ */}
           {isLivraison && (
             <section className={styles.gererSection}>
               <h3 className={styles.gererSectionTitle}>📍 Lieu de livraison</h3>
@@ -176,17 +186,11 @@ function GererModal({ order, onClose, onConfirm, onInProgress, onComplete, onRej
                     </div>
                   </div>
                   {mapsUrl && (
-                    <a
-                      href={mapsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={styles.mapsBtn}
-                    >
-                      🗺️ Ouvrir dans Maps
+                    <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className={styles.mapsBtn}>
+                      🗺️ Maps
                     </a>
                   )}
                 </div>
-
                 {hasGps && (
                   <div className={styles.gpsMapFrame}>
                     <iframe
@@ -198,7 +202,6 @@ function GererModal({ order, onClose, onConfirm, onInProgress, onComplete, onRej
                   </div>
                 )}
               </div>
-
               {order.returnLocation && (
                 <div className={styles.returnBlock}>
                   <span className={styles.gpsIcon}>🔄</span>
@@ -210,39 +213,162 @@ function GererModal({ order, onClose, onConfirm, onInProgress, onComplete, onRej
               )}
             </section>
           )}
-        </div>
 
-        {/* ── Actions ── */}
-        {!isDone && (
-          <div className={styles.gererActions}>
-            {isNew && (
-              <button className={styles.btnConfirm} onClick={() => { onConfirm(order.id); onClose(); }}>
-                ✓ Accepter la commande
-              </button>
-            )}
-            {isConfirmed && (
-              <button className={styles.btnInProgress} onClick={() => { onInProgress(order.id); onClose(); }}>
-                🚗 Marquer en route
-              </button>
-            )}
-            {isInProg && (
-              <button className={styles.btnComplete} onClick={() => { onComplete(order.id); onClose(); }}>
-                ✅ Marquer terminé
-              </button>
-            )}
-            <button className={styles.btnReject} onClick={() => onReject(order.id)}>
-              ✕ Refuser / Annuler
-            </button>
-          </div>
-        )}
-        {isDone && (
-          <div className={styles.gererActions}>
-            <p style={{ color: "#64748b", fontSize: "0.95rem", margin: 0 }}>
-              {order.status === "completed" ? "✅ Cette commande est terminée." : "❌ Cette commande a été annulée."}
-              {order.vendorNote && ` Raison : ${order.vendorNote}`}
-            </p>
-          </div>
-        )}
+          {/* ══ DÉCISION — nouvelle commande ══ */}
+          {isNew && (
+            <section className={styles.gererSection}>
+              <h3 className={styles.gererSectionTitle}>⚡ Décision</h3>
+              <div className={styles.decisionBlock}>
+                <button
+                  className={styles.btnDecisionAccept}
+                  onClick={() => onConfirm(order.id)}
+                >
+                  <span className={styles.decisionIcon}>✅</span>
+                  <div>
+                    <span className={styles.decisionLabel}>Accepter</span>
+                    <span className={styles.decisionHint}>Le client sera notifié</span>
+                  </div>
+                </button>
+                <button
+                  className={styles.btnDecisionRefuse}
+                  onClick={() => onReject(order.id)}
+                >
+                  <span className={styles.decisionIcon}>✕</span>
+                  <div>
+                    <span className={styles.decisionLabel}>Refuser</span>
+                    <span className={styles.decisionHint}>Avec raison optionnelle</span>
+                  </div>
+                </button>
+              </div>
+            </section>
+          )}
+
+          {/* ══ SUIVI — cases à cocher (une fois acceptée) ══ */}
+          {isAccepted && (
+            <section className={styles.gererSection}>
+              <h3 className={styles.gererSectionTitle}>📊 Suivi de commande</h3>
+
+              {/* ── Bandeau statut actuel ── */}
+              {order.status === "confirmed" && (
+                <div className={styles.acceptedBanner}>
+                  ✅ Commande acceptée — le client a été notifié. Cliquez sur "Marquer en cours" quand vous commencez la préparation.
+                </div>
+              )}
+              {order.status === "preparing" && (
+                <div className={styles.preparingBanner}>
+                  ⚙️ En cours de préparation — cliquez "Marquer prête" quand le véhicule est prêt.
+                </div>
+              )}
+              {order.status === "ready" && (
+                <div className={styles.readyBanner}>
+                  🚗 Véhicule prêt — cliquez "Marquer en route" quand vous partez vers le client.
+                </div>
+              )}
+              {order.status === "in_progress" && (
+                <div className={styles.inProgressBanner}>
+                  🚀 En route ! Cliquez "Marquer terminée" une fois la livraison effectuée.
+                </div>
+              )}
+
+              {/* ── Bouton action principale — EN DEHORS des cases ── */}
+              {(() => {
+                const nextAction = NEXT_ACTIONS[order.status];
+                if (!nextAction || order.status === "completed") return null;
+                return (
+                  <button
+                    className={`${styles.btnMainStep} ${nextAction.btnClass}`}
+                    onClick={() => nextAction.fn(order.id)}
+                  >
+                    <span className={styles.btnMainStepLabel}>{nextAction.label}</span>
+                    <span className={styles.btnMainStepHint}>Le client sera notifié automatiquement</span>
+                  </button>
+                );
+              })()}
+
+              {/* ── Cases à cocher cliquables ── */}
+              <div className={styles.checklist}>
+                {CHECKLIST_STEPS.map((step, idx) => {
+                  const stepIdx    = STEP_ORDER.indexOf(step.key);
+                  const isDoneStep = currentStepIdx > stepIdx;
+                  const isCurrent  = currentStepIdx === stepIdx;
+                  const isFuture   = currentStepIdx < stepIdx;
+                  const nextAction = NEXT_ACTIONS[order.status];
+                  const isNextStep = nextAction && STEP_ORDER.indexOf(step.key) === currentStepIdx + 1 && order.status !== "completed";
+
+                  return (
+                    <div
+                      key={step.key}
+                      className={[
+                        styles.checkItem,
+                        isDoneStep ? styles.checkItemDone    : "",
+                        isCurrent  ? styles.checkItemCurrent : "",
+                        isFuture   ? styles.checkItemFuture  : "",
+                        isNextStep ? styles.checkItemNext    : "",
+                      ].join(" ")}
+                      onClick={isNextStep ? () => nextAction.fn(order.id) : undefined}
+                      title={isNextStep ? `Cliquer pour : ${nextAction.label}` : undefined}
+                    >
+                      {/* Case à cocher */}
+                      <div className={[
+                        styles.checkbox,
+                        isDoneStep ? styles.checkboxDone    : "",
+                        isCurrent  ? styles.checkboxCurrent : "",
+                        isNextStep ? styles.checkboxNext    : "",
+                      ].join(" ")}>
+                        {isDoneStep && <span>✓</span>}
+                        {isCurrent  && <span>{step.icon}</span>}
+                        {isNextStep && <span className={styles.checkboxNextIcon}>+</span>}
+                      </div>
+
+                      {/* Ligne verticale de connexion */}
+                      {idx < CHECKLIST_STEPS.length - 1 && (
+                        <div className={`${styles.checkLine} ${isDoneStep ? styles.checkLineDone : ""}`} />
+                      )}
+
+                      {/* Contenu */}
+                      <div className={styles.checkContent}>
+                        <span className={styles.checkLabel}>{step.label}</span>
+                        <span className={styles.checkHint}>{step.hint}</span>
+                      </div>
+
+                      {/* Indicateur cliquable */}
+                      {isNextStep && (
+                        <span className={styles.checkClickHint}>Cliquer ici →</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {order.status === "completed" && (
+                <div className={styles.completedBlock}>🏁 Commande terminée avec succès</div>
+              )}
+
+              {/* Lien contrat partenaire */}
+              <a
+                href={`/contract/${order.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.btnContractLink}
+              >
+                📄 Voir / Générer le contrat
+              </a>
+
+              {order.status !== "completed" && (
+                <button className={styles.btnCancelOrder} onClick={() => onReject(order.id)}>
+                  ✕ Annuler cette commande
+                </button>
+              )}
+            </section>
+          )}
+
+          {/* Annulée */}
+          {order.status === "cancelled" && (
+            <div className={styles.cancelledBlock}>
+              ❌ Commande annulée{order.vendorNote ? ` — ${order.vendorNote}` : ""}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -259,6 +385,7 @@ export default function VendorDashboard() {
     loadPartnerVehicles,
     loadPartnerOrders,
   } = useVehicles();
+  const { success: toastSuccess, error: toastError } = useToast();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab]       = useState("annonces");
@@ -270,7 +397,7 @@ export default function VendorDashboard() {
   const [orderFilter, setOrderFilter]   = useState("all");
   const [rejectModal, setRejectModal]   = useState(null); // bookingId
   const [rejectNote, setRejectNote]     = useState("");
-  const [gererModal, setGererModal]     = useState(null); // order object
+  const [gererModalId, setGererModalId] = useState(null); // order id
 
   useEffect(() => {
     if (!isAuthenticated || !token) { setSubLoading(false); return; }
@@ -303,12 +430,17 @@ export default function VendorDashboard() {
     );
   }, [localOrders, partnerBookings]);
 
+  // Dérivé de allOrders → se met à jour automatiquement quand le statut change
+  const gererModal = useMemo(
+    () => (gererModalId != null ? allOrders.find((o) => String(o.id) === String(gererModalId)) ?? null : null),
+    [gererModalId, allOrders]
+  );
+
   const filteredOrders = useMemo(() => {
     if (orderFilter === "all") return allOrders;
     const map = {
       new:       ["À confirmer", "pending"],
-      confirmed: ["confirmed"],
-      enroute:   ["in_progress"],
+      confirmed: ["confirmed", "preparing", "ready", "in_progress"],
       done:      ["completed"],
       cancelled: ["cancelled"],
     };
@@ -364,18 +496,47 @@ export default function VendorDashboard() {
     loadPartnerVehicles();
   };
 
-  const handleConfirm    = useCallback((id) => updateBookingStatus(id, "confirmed"),    [updateBookingStatus]);
-  const handleInProgress = useCallback((id) => updateBookingStatus(id, "in_progress"),  [updateBookingStatus]);
-  const handleComplete   = useCallback((id) => updateBookingStatus(id, "completed"),    [updateBookingStatus]);
-  const handleReject     = useCallback(() => {
+  const handleConfirm = useCallback((id) => {
+    updateBookingStatus(id, "confirmed");
+    toastSuccess("✅ Commande acceptée — le client a été notifié.");
+    setTimeout(() => loadPartnerOrders(), 800);
+  }, [updateBookingStatus, toastSuccess, loadPartnerOrders]);
+
+  const handlePrepare = useCallback((id) => {
+    updateBookingStatus(id, "preparing");
+    toastSuccess("⚙️ En cours — le client a été informé.");
+    setTimeout(() => loadPartnerOrders(), 800);
+  }, [updateBookingStatus, toastSuccess, loadPartnerOrders]);
+
+  const handleReady = useCallback((id) => {
+    updateBookingStatus(id, "ready");
+    toastSuccess("🚗 Véhicule prêt — le client a été notifié.");
+    setTimeout(() => loadPartnerOrders(), 800);
+  }, [updateBookingStatus, toastSuccess, loadPartnerOrders]);
+
+  const handleInProgress = useCallback((id) => {
+    updateBookingStatus(id, "in_progress");
+    toastSuccess("🚀 En route ! Le client a été alerté.");
+    setTimeout(() => loadPartnerOrders(), 800);
+  }, [updateBookingStatus, toastSuccess, loadPartnerOrders]);
+
+  const handleComplete = useCallback((id) => {
+    updateBookingStatus(id, "completed");
+    toastSuccess("🏁 Commande terminée avec succès.");
+    setTimeout(() => loadPartnerOrders(), 800);
+  }, [updateBookingStatus, toastSuccess, loadPartnerOrders]);
+
+  const handleReject = useCallback(() => {
     if (!rejectModal) return;
     updateBookingStatus(rejectModal, "cancelled", rejectNote);
+    toastError("Commande refusée — le client a été informé.");
     setRejectModal(null);
     setRejectNote("");
-    setGererModal(null);
-  }, [rejectModal, rejectNote, updateBookingStatus]);
+    setGererModalId(null);
+    setTimeout(() => loadPartnerOrders(), 800);
+  }, [rejectModal, rejectNote, updateBookingStatus, toastError, loadPartnerOrders]);
 
-  const handleGerer = useCallback((order) => setGererModal(order), []);
+  const handleGerer = useCallback((order) => setGererModalId(order.id), []);
   const handleRefresh = useCallback(() => {
     loadPartnerOrders();
     loadPartnerVehicles();
@@ -578,7 +739,7 @@ export default function VendorDashboard() {
                     )}
                     <p className={styles.vehicleDescription}>{vehicle.description || "Pas de description disponible"}</p>
                     <div className={styles.cardActions}>
-                      <button className={`${styles.actionBtn} ${styles.editBtn}`}>Modifier</button>
+                      <Link to={`/vendor?edit=${vid}`} className={`${styles.actionBtn} ${styles.editBtn}`}>Modifier</Link>
                       <Link to={`/vehicle/${vid}`} className={`${styles.actionBtn} ${styles.viewBtn}`}>Voir</Link>
                       {!isBoosted && (
                         <button className={`${styles.actionBtn} ${styles.boostBtn}`} onClick={() => handleBoost(vid)} disabled={boostTarget === vid}>
@@ -602,11 +763,10 @@ export default function VendorDashboard() {
             <h2>Commandes reçues ({filteredOrders.length})</h2>
             <select className={styles.filterSelect} value={orderFilter} onChange={(e) => setOrderFilter(e.target.value)}>
               <option value="all">Tous les statuts</option>
-              <option value="new">Nouveaux</option>
-              <option value="confirmed">Confirmés</option>
-              <option value="enroute">En route</option>
-              <option value="done">Terminés</option>
-              <option value="cancelled">Annulés</option>
+              <option value="new">Nouvelles</option>
+              <option value="confirmed">En traitement</option>
+              <option value="done">Terminées</option>
+              <option value="cancelled">Annulées</option>
             </select>
           </div>
 
@@ -621,7 +781,7 @@ export default function VendorDashboard() {
               {filteredOrders.map((order) => {
                 const bst       = BOOKING_STATUS[order.status] || BOOKING_STATUS.pending;
                 const typeLabel = TYPE_LABELS[order.type] || order.type;
-                const isNew     = order.status === "À confirmer" || order.status === "pending";
+                const isNew     = !order.status || order.status === "À confirmer" || order.status === "pending";
                 const isDone    = order.status === "completed" || order.status === "cancelled";
                 const hasGps    = order.pickupLat != null && order.pickupLng != null;
                 const isLiv     = order.pickupMethod === "livraison" || order.pickupLocation;
@@ -719,25 +879,15 @@ export default function VendorDashboard() {
 
                     {/* Actions */}
                     <div className={styles.orderActions}>
-                      <button className={styles.btnGerer} onClick={() => handleGerer(order)}>
-                        ⚙️ Gérer
+                      <button className={`${styles.btnGerer} ${isNew ? styles.btnGererNew : ""}`} onClick={() => handleGerer(order)}>
+                        {isNew ? "⚡ Traiter" : "⚙️ Gérer"}
                       </button>
                       {!isDone && isNew && (
                         <button className={styles.btnConfirm} onClick={() => handleConfirm(order.id)}>
-                          ✓ Accepter
+                          ✅ Accepter
                         </button>
                       )}
-                      {!isDone && order.status === "confirmed" && (
-                        <button className={styles.btnInProgress} onClick={() => handleInProgress(order.id)}>
-                          🚗 En route
-                        </button>
-                      )}
-                      {!isDone && order.status === "in_progress" && (
-                        <button className={styles.btnComplete} onClick={() => handleComplete(order.id)}>
-                          ✅ Terminé
-                        </button>
-                      )}
-                      {!isDone && (
+                      {!isDone && isNew && (
                         <button className={styles.btnReject} onClick={() => setRejectModal(order.id)}>
                           ✕ Refuser
                         </button>
@@ -765,11 +915,13 @@ export default function VendorDashboard() {
       {gererModal && (
         <GererModal
           order={gererModal}
-          onClose={() => setGererModal(null)}
+          onClose={() => setGererModalId(null)}
           onConfirm={handleConfirm}
+          onPrepare={handlePrepare}
+          onReady={handleReady}
           onInProgress={handleInProgress}
           onComplete={handleComplete}
-          onReject={(id) => { setRejectModal(id); setGererModal(null); }}
+          onReject={(id) => { setRejectModal(id); setGererModalId(null); }}
         />
       )}
 

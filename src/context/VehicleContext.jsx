@@ -48,6 +48,9 @@ const normalizeBackendBooking = (b) => {
     paidWith:      b.payment?.method,
     isPaid:        b.isPaid,
     vendorNote:    b.cancelReason,
+    // Contact partenaire (pour appel depuis le dashboard client)
+    partnerPhone:  veh?.contactTel || b.driver?.phone || null,
+    partnerName:   veh?.contactNom || (b.driver ? `${b.driver.firstName} ${b.driver.lastName}` : null),
     _fromBackend:  true,
   };
 };
@@ -71,6 +74,8 @@ const normalizeVehicle = (v) => {
     transmission: v.transmission || "",
     // Champ original préservé pour les filtres internes
     listingType:  v.type,
+    // Leasing
+    leasing:      v.leasing || null,
   };
 };
 
@@ -87,7 +92,9 @@ const loadBookings = () => {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    // Migration : ajouter status manquant aux anciennes commandes
+    return parsed.map((b) => (!b.status ? { ...b, status: "À confirmer" } : b));
   } catch {
     return [];
   }
@@ -277,6 +284,9 @@ export const VehicleProvider = ({ children }) => {
   // Met à jour le statut d'une commande (localStorage + partnerBookings + backend)
   const updateBookingStatus = useCallback((id, status, note = "") => {
     const sid = String(id);
+    const validStatuses = ["pending", "confirmed", "preparing", "ready", "in_progress", "completed", "cancelled"];
+    if (!validStatuses.includes(status)) return;
+
     setBookings((prev) => {
       const next = prev.map((b) => String(b.id) === sid ? { ...b, status, vendorNote: note } : b);
       saveBookings(next);
