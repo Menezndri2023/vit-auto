@@ -8,10 +8,20 @@ import styles from "./Booking.module.css";
 const SERVICE_FEE = 1000; // FCFA fixe plateforme
 
 const optionsData = [
-  { id: "gps",       label: "GPS intégré",      price: 10000 },
   { id: "babySeat",  label: "Siège bébé",        price: 7000  },
   { id: "insurance", label: "Prime d'assurance", price: 15000 },
   { id: "driver",    label: "Chauffeur privé",   price: 50000 },
+];
+
+// GPS disponible en option seulement pour le retrait (livraison = GPS inclus)
+const gpsOption = { id: "gps", label: "GPS intégré", price: 10000 };
+
+// Zones de livraison à domicile avec frais fixes
+const DELIVERY_ZONES = [
+  { id: "z1", label: "Même quartier (< 5 km)",   fee: 3000  },
+  { id: "z2", label: "Même ville (5 – 15 km)",   fee: 5000  },
+  { id: "z3", label: "Banlieue (15 – 30 km)",    fee: 7500  },
+  { id: "z4", label: "Interurbain (> 30 km)",    fee: 10000 },
 ];
 
 const fmt = (n) => Number(n).toLocaleString("fr-FR") + " FCFA";
@@ -41,7 +51,7 @@ const Booking = () => {
     if (!id) { setError("ID véhicule manquant."); setLoading(false); return; }
     if (!getVehicleById(id)) setError("Véhicule non trouvé. Retournez au catalogue.");
     setLoading(false);
-  }, [id]);
+  }, [id, getVehicleById]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // isTrial : mode achat/essai (pas location)
   // isLeasing : mode leasing
@@ -52,10 +62,11 @@ const Booking = () => {
   // ── Pickup : méthode de prise en charge ───────────────────
   // pickupMethod: "livraison" (vendor vient) | "retrait" (client passe)
   // addressMode: "gps" | "text"
-  const [pickupMethod, setPickupMethod]   = useState("livraison");
-  const [addressMode,  setAddressMode]    = useState("gps");
-  const [pickupAddress, setPickupAddress] = useState("");
+  const [pickupMethod, setPickupMethod]     = useState("livraison");
+  const [addressMode,  setAddressMode]      = useState("gps");
+  const [pickupAddress, setPickupAddress]   = useState("");
   const [pickupPosition, setPickupPosition] = useState(null);
+  const [deliveryZone, setDeliveryZone]     = useState("z1"); // zone de livraison par défaut
 
   // Remplir automatiquement avec le GPS disponible
   useEffect(() => {
@@ -117,6 +128,9 @@ const Booking = () => {
     gps: false, babySeat: false, insurance: false, driver: false,
   });
 
+  // GPS automatiquement inclus (sans frais) pour la livraison à domicile
+  const gpsAutoIncluded = pickupMethod === "livraison";
+
   if (loading) return (
     <div className={styles.page}><div style={{ textAlign: "center", padding: "4rem" }}>Chargement...</div></div>
   );
@@ -142,18 +156,25 @@ const Booking = () => {
     return d > 0 ? d : 0;
   })();
 
+  // GPS gratuit en livraison — on exclut son coût si pickupMethod === "livraison"
+  const allOptions = gpsAutoIncluded ? optionsData : [gpsOption, ...optionsData];
   const optionsTotal = Object.entries(selectedOptions).reduce((acc, [key, val]) => {
     if (!val) return acc;
-    const opt = optionsData.find((o) => o.id === key);
+    if (key === "gps" && gpsAutoIncluded) return acc; // GPS offert
+    const opt = allOptions.find((o) => o.id === key);
     return acc + (opt?.price || 0) * Math.max(days, 1);
   }, 0);
 
+  // Frais de livraison selon zone (0 si retrait)
+  const selectedZone  = DELIVERY_ZONES.find((z) => z.id === deliveryZone) || DELIVERY_ZONES[0];
+  const deliveryFee   = pickupMethod === "livraison" ? selectedZone.fee : 0;
+
   const baseTotal  = (vehicle.pricePerDay || 0) * Math.max(days, 1);
-  const totalToPay = isTrial ? SERVICE_FEE : baseTotal + optionsTotal + SERVICE_FEE;
+  const totalToPay = isTrial ? SERVICE_FEE : baseTotal + optionsTotal + deliveryFee + SERVICE_FEE;
 
   // ── Handlers ─────────────────────────────────────────────
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
+    const { name, value, checked } = e.target;
     if (name in selectedOptions) { setSelectedOptions({ ...selectedOptions, [name]: checked }); return; }
     if (name in form)            { setForm({ ...form, [name]: value }); return; }
     if (name in paymentForm)     { setPaymentForm({ ...paymentForm, [name]: value }); return; }
@@ -207,6 +228,7 @@ const Booking = () => {
       alert("Indiquez votre numéro mobile."); return;
     }
 
+    const bookingId        = `local-${performance.now().toFixed(0)}-${Math.random().toString(36).slice(2, 7)}`;
     const commissionRate   = (isTrial || isLeasing) ? 0.03 : 0.15;
     const leasingData      = vehicle?.leasing || {};
     const leasingApport    = leasingData.apportInitial || 0;
@@ -248,6 +270,9 @@ const Booking = () => {
           vehicleName: vehicle.name, vehicleMode: vehicle.mode, vehicleType: vehicle.type,
           pricePerDay: vehicle.pricePerDay, ...form,
           pickupMethod, pickupAddress: finalPickup, pickupPosition,
+          deliveryZone: pickupMethod === "livraison" ? selectedZone.id : null,
+          deliveryZoneLabel: pickupMethod === "livraison" ? selectedZone.label : null,
+          deliveryFee,
           selectedOptions, days, optionsTotal, baseTotal,
           serviceFeeFCFA: SERVICE_FEE, total: totalToPay,
           createdAt: new Date().toISOString(),
@@ -276,6 +301,7 @@ const Booking = () => {
     { value: "moov",   label: "Moov Money" },
     { value: "card",   label: "Carte bancaire" },
     { value: "paypal", label: "PayPal" },
+    { value: "cash",   label: "💵 Espèces à la livraison" },
   ];
 
   const stepLabels = ["1. Réservation", "2. Vérification", "3. Paiement"];
@@ -445,12 +471,83 @@ const Booking = () => {
                       <p>L'adresse exacte du point de retrait vous sera communiquée par le vendeur après confirmation de votre réservation.</p>
                     </div>
                   )}
+
+                  {/* ── Frais de livraison selon distance ── */}
+                  {pickupMethod === "livraison" && (
+                    <div style={{ marginTop: "1.25rem" }}>
+                      <p style={{ fontWeight: 600, fontSize: "0.9rem", color: "#0f1b3f", marginBottom: "0.6rem" }}>
+                        🚚 Distance de livraison
+                      </p>
+                      <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.75rem" }}>
+                        Sélectionnez la distance approximative entre vous et le vendeur pour calculer les frais de livraison.
+                      </p>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                        {DELIVERY_ZONES.map((zone) => (
+                          <label
+                            key={zone.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "0.65rem 0.9rem",
+                              border: `2px solid ${deliveryZone === zone.id ? "#2563eb" : "#e2e8f0"}`,
+                              borderRadius: "10px",
+                              cursor: "pointer",
+                              background: deliveryZone === zone.id ? "#eff6ff" : "#fff",
+                              transition: "all 0.15s",
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                              <input
+                                type="radio"
+                                name="deliveryZone"
+                                value={zone.id}
+                                checked={deliveryZone === zone.id}
+                                onChange={() => setDeliveryZone(zone.id)}
+                                style={{ accentColor: "#2563eb" }}
+                              />
+                              <span style={{ fontSize: "0.87rem", color: "#0f1b3f" }}>{zone.label}</span>
+                            </div>
+                            <span style={{
+                              fontWeight: 700,
+                              fontSize: "0.87rem",
+                              color: deliveryZone === zone.id ? "#2563eb" : "#64748b",
+                            }}>
+                              {zone.fee.toLocaleString("fr-FR")} FCFA
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Options */}
                 <div className={styles.section}>
                   <h3>Options supplémentaires</h3>
+
+                  {/* Badge GPS inclus pour la livraison */}
+                  {gpsAutoIncluded && (
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: "0.5rem",
+                      background: "#f0fdf4", border: "1px solid #bbf7d0",
+                      borderRadius: "10px", padding: "0.6rem 0.9rem",
+                      marginBottom: "0.75rem", fontSize: "0.87rem", color: "#166534",
+                    }}>
+                      <span>📍</span>
+                      <strong>GPS de livraison inclus gratuitement</strong>
+                      <span style={{ color: "#16a34a", fontSize: "0.8rem" }}>— associé automatiquement à votre adresse de livraison</span>
+                    </div>
+                  )}
+
                   <div className={styles.optionsGrid}>
+                    {/* GPS affiché en option payante seulement pour le retrait */}
+                    {!gpsAutoIncluded && (
+                      <label key="gps" className={styles.optionItem}>
+                        <input type="checkbox" name="gps" checked={selectedOptions.gps} onChange={handleChange} />
+                        <span>{gpsOption.label} +{gpsOption.price.toLocaleString("fr-FR")} FCFA/jour</span>
+                      </label>
+                    )}
                     {optionsData.map((option) => (
                       <label key={option.id} className={styles.optionItem}>
                         <input type="checkbox" name={option.id} checked={selectedOptions[option.id]} onChange={handleChange} />
@@ -584,6 +681,12 @@ const Booking = () => {
             {days > 0 && <div className={styles.summaryItem}><span>Durée</span><strong>{days} jour{days > 1 ? "s" : ""}</strong></div>}
             <div className={styles.summaryItem}><span>Base</span><strong>{fmt(baseTotal)}</strong></div>
             <div className={styles.summaryItem}><span>Options</span><strong>{fmt(optionsTotal)}</strong></div>
+            {pickupMethod === "livraison" && (
+              <div className={styles.summaryItem}>
+                <span>🚚 Livraison ({selectedZone.label.split("(")[0].trim()})</span>
+                <strong>{fmt(deliveryFee)}</strong>
+              </div>
+            )}
             <div className={styles.summaryItem}><span>Frais de service</span><strong>{fmt(SERVICE_FEE)}</strong></div>
             <div className={styles.summaryTotal}><span>Total TTC</span><strong>{fmt(totalToPay)}</strong></div>
             {/* Prise en charge */}

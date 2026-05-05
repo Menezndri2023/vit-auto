@@ -16,5 +16,6 @@ router.patch("/:id/status", authenticate, b.updateBookingStatus);              /
 
 // ── Admin ─────────────────────────────────────────────────
 router.get("/", authenticate, authorizeAdmin, b.getAllBookings);                // toutes les commandes
+router.patch("/:id/admin-status", authenticate, authorizeAdmin, b.updateBookingStatus); // admin change statut
 
 export default router;

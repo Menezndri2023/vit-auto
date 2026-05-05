@@ -4,12 +4,18 @@ import { authenticate, authorizeAdmin } from "../middleware/auth.js";
 
 const router = express.Router();
 
-// ── Admin ─────────────────────────────────────────────────
-router.get("/", authenticate, authorizeAdmin, u.getUsers);                     // liste utilisateurs
-router.get("/stats", authenticate, authorizeAdmin, u.getAdminStats);           // statistiques globales
-router.get("/:id", authenticate, authorizeAdmin, u.getUser);                   // détail utilisateur
-router.patch("/:id/role", authenticate, authorizeAdmin, u.updateUserRole);     // changer rôle
-router.patch("/:id/toggle", authenticate, authorizeAdmin, u.toggleUserActive); // activer/désactiver
-router.delete("/:id",        authenticate, authorizeAdmin, u.deleteUser);        // supprimer
+// ── Utilisateur connecté ───────────────────────────────────────────────────
+router.get("/me",              authenticate, u.getMyProfile);          // profil complet
+router.post("/me/identity",    authenticate, u.submitIdentity);        // soumettre pièce d'identité
+
+// ── Admin ─────────────────────────────────────────────────────────────────
+router.get("/",                authenticate, authorizeAdmin, u.getUsers);
+router.get("/stats",           authenticate, authorizeAdmin, u.getAdminStats);
+router.get("/pending-identity",authenticate, authorizeAdmin, u.getPendingIdentities);
+router.get("/:id",             authenticate, authorizeAdmin, u.getUser);
+router.patch("/:id/role",      authenticate, authorizeAdmin, u.updateUserRole);
+router.patch("/:id/toggle",    authenticate, authorizeAdmin, u.toggleUserActive);
+router.patch("/:id/verify-identity", authenticate, authorizeAdmin, u.adminVerifyIdentity);
+router.delete("/:id",          authenticate, authorizeAdmin, u.deleteUser);
 
 export default router;

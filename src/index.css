@@ -1,32 +1,290 @@
-/* RESET GLOBAL */
+/* Leaflet CSS — doit être en premier (règle PostCSS @import) */
 @import '../public/leaflet.css';
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+
+/* ════════════════════════════════════════════════════════════
+   VIT AUTO — Design System Global
+   Toutes les pages héritent de ces variables.
+   ════════════════════════════════════════════════════════════ */
+
+/* ── Design Tokens ──────────────────────────────────────────── */
+:root {
+  /* Couleurs primaires */
+  --c-primary:        #ff4d2d;
+  --c-primary-dark:   #e03519;
+  --c-primary-light:  #ff7557;
+  --c-primary-bg:     #fff5f3;
+  --c-primary-soft:   rgba(255, 77, 45, 0.12);
+
+  /* Couleurs de marque */
+  --c-brand:          #0f1b3f;
+  --c-brand-mid:      #1e3a6e;
+  --c-brand-light:    #2563eb;
+
+  /* Texte */
+  --c-text-primary:   #0f1b3f;
+  --c-text-secondary: #4a5876;
+  --c-text-muted:     #8493b0;
+  --c-text-white:     #ffffff;
+
+  /* Fonds */
+  --c-bg:             #f5f7fb;
+  --c-bg-card:        #ffffff;
+  --c-bg-subtle:      #f0f4ff;
+  --c-bg-dark:        #0f1b3f;
+
+  /* Bordures */
+  --c-border:         #e5eaf5;
+  --c-border-strong:  #c8d3e8;
+
+  /* États */
+  --c-success:        #10b981;
+  --c-success-bg:     #ecfdf5;
+  --c-warning:        #f59e0b;
+  --c-warning-bg:     #fffbeb;
+  --c-error:          #ef4444;
+  --c-error-bg:       #fef2f2;
+  --c-info:           #3b82f6;
+  --c-info-bg:        #eff6ff;
+
+  /* Espacement (base 4px) */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  20px;
+  --sp-6:  24px;
+  --sp-8:  32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+
+  /* Rayons */
+  --r-xs:  6px;
+  --r-sm:  10px;
+  --r-md:  14px;
+  --r-lg:  18px;
+  --r-xl:  24px;
+  --r-full: 9999px;
+
+  /* Ombres */
+  --sh-xs:  0 1px 3px rgba(15, 27, 63, 0.06);
+  --sh-sm:  0 2px 8px  rgba(15, 27, 63, 0.08);
+  --sh-md:  0 6px 20px rgba(15, 27, 63, 0.10);
+  --sh-lg:  0 12px 36px rgba(15, 27, 63, 0.13);
+  --sh-xl:  0 24px 56px rgba(15, 27, 63, 0.18);
+  --sh-glow: 0 0 0 4px rgba(255, 77, 45, 0.18);
+
+  /* Typographie */
+  --font-base: "Poppins", system-ui, -apple-system, sans-serif;
+  --fs-xs:   0.72rem;
+  --fs-sm:   0.82rem;
+  --fs-base: 0.95rem;
+  --fs-md:   1.05rem;
+  --fs-lg:   1.2rem;
+  --fs-xl:   1.5rem;
+  --fs-2xl:  1.875rem;
+  --fs-3xl:  clamp(1.8rem, 3vw, 2.5rem);
+  --fw-normal: 500;
+  --fw-semi:   600;
+  --fw-bold:   700;
+  --fw-heavy:  800;
+  --fw-black:  900;
+
+  /* Transitions */
+  --t-fast:   0.15s ease;
+  --t-base:   0.25s ease;
+  --t-slow:   0.4s ease;
+
+  /* Layout */
+  --max-w:      1240px;
+  --navbar-h:   64px;
+
+  /* Safe area (notch iOS / barre Android) */
+  --safe-top:    env(safe-area-inset-top,    0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left:   env(safe-area-inset-left,   0px);
+  --safe-right:  env(safe-area-inset-right,  0px);
 }
 
-/* HTML + BODY prennent toute la hauteur */
-html, body, #root {
-  height: 100%;
-  width: 100%;
+/* ── Reset ──────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 html {
   scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
-/* STYLE BODY */
-body {
-  font-family: "Poppins", sans-serif;
-  background-color: #f5f5f5;
-  min-height: 100vh;
-  width: 100%;
-  overflow-x: hidden;
-}
-
-/* OPTIONNEL : empêcher scroll horizontal */
 html, body, #root {
+  height: 100%;
+  width: 100%;
   min-width: 100%;
-  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-base);
+  font-size: var(--fs-base);
+  color: var(--c-text-primary);
+  background: var(--c-bg);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Padding safe area pour Capacitor (notch) */
+  padding-top: var(--safe-top);
+}
+
+/* ── Typographie de base ────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: var(--fw-bold);
+  line-height: 1.25;
+  color: var(--c-text-primary);
+}
+
+p {
+  line-height: 1.6;
+}
+
+a {
+  color: var(--c-primary);
+  text-decoration: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+button {
+  font-family: var(--font-base);
+  cursor: pointer;
+}
+
+input, select, textarea {
+  font-family: var(--font-base);
+  /* Empêche le zoom automatique sur iOS */
+  font-size: max(16px, var(--fs-base));
+}
+
+/* ── Scrollbar personnalisée (desktop) ──────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--c-border-strong);
+  border-radius: var(--r-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--c-text-muted);
+}
+
+/* ── Focus visible accessible ───────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Sélection texte ────────────────────────────────────────── */
+::selection {
+  background: var(--c-primary-soft);
+  color: var(--c-brand);
+}
+
+/* ── Animations globales réutilisables ──────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+/* ── Utilitaires globaux ────────────────────────────────────── */
+.vit-page {
+  width: 100%;
+  min-height: calc(100vh - var(--navbar-h));
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: var(--sp-6);
+}
+
+/* Skeleton loader */
+.skeleton {
+  background: linear-gradient(90deg, #eef2f7 25%, #e2e8f0 50%, #eef2f7 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease infinite;
+  border-radius: var(--r-sm);
+}
+
+/* ── Breakpoints de référence ───────────────────────────────── */
+/* mobile:  < 640px  */
+/* tablet:  640px — 1024px */
+/* desktop: > 1024px */
+/* xl:      > 1280px */
+
+/* ── Mobile : améliorations touch ──────────────────────────── */
+@media (max-width: 640px) {
+  body {
+    /* Fond légèrement plus blanc sur mobile */
+    background: #f8f9fc;
+  }
+
+  /* Meilleure lisibilité sur petits écrans */
+  h1 { font-size: clamp(1.5rem, 5vw, 2rem); }
+  h2 { font-size: clamp(1.2rem, 4vw, 1.5rem); }
+
+  /* Inputs plus grands sur mobile (UX touch) */
+  input, select, textarea {
+    min-height: 44px;
+    padding: 10px 14px;
+  }
+
+  /* Boutons tactiles : taille minimale 44px */
+  button:not([class]) {
+    min-height: 44px;
+  }
+}
+
+/* ── Capacitor / Mobile app ─────────────────────────────────── */
+@media (display-mode: standalone) {
+  /* Mode PWA / Capacitor installé */
+  body {
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+  }
 }

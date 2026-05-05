@@ -42,12 +42,13 @@
 .card {
   width: min(460px, 100%);
   background: #ffffff;
-  border-radius: 24px;
-  padding: 44px 40px;
+  border-radius: var(--r-xl, 24px);
+  padding: clamp(24px, 5vw, 44px) clamp(20px, 5vw, 40px);
   box-shadow: 0 32px 80px rgba(0, 0, 0, 0.35);
   position: relative;
   z-index: 1;
   animation: slideUp 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  font-family: var(--font-base, "Poppins", sans-serif);
 }
 
 @keyframes slideUp {

@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useVehicles } from "../context/VehicleContext";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import styles from "./Profile.module.css";
 
 const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " FCFA";
@@ -117,10 +118,25 @@ const PublicationCard = ({ vehicle }) => {
 };
 
 // ── Page principale ────────────────────────────────────────
+const IDENTITY_TYPE_LABELS = {
+  cni:          "Carte Nationale d'Identité",
+  passport:     "Passeport",
+  permis:       "Permis de conduire",
+  carte_sejour: "Carte de séjour",
+};
+
+const IDENTITY_STATUS_CFG = {
+  not_submitted: { label: "Non soumise",   color: "#94a3b8", bg: "#f8fafc"  },
+  pending:       { label: "En vérification", color: "#f59e0b", bg: "#fffbeb" },
+  verified:      { label: "Vérifiée ✓",    color: "#10b981", bg: "#ecfdf5"  },
+  rejected:      { label: "Refusée",        color: "#ef4444", bg: "#fef2f2"  },
+};
+
 const Profile = () => {
   const navigate  = useNavigate();
-  const { user, isAuthenticated, updateUser } = useAuth();
+  const { user, isAuthenticated, token, updateUser } = useAuth();
   const { bookings, partnerVehicles } = useVehicles();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const isPartner = user?.role === "partenaire" || user?.role === "admin";
 
@@ -128,6 +144,19 @@ const Profile = () => {
   const [activeTab, setActiveTab] = useState("personal");
   const [saving, setSaving]       = useState(false);
   const [saved, setSaved]         = useState(false);
+
+  // ── Identité ───────────────────────────────────────────────
+  const [identityForm, setIdentityForm] = useState({
+    type: "cni", number: "", expiryDate: "",
+    frontImage: "", backImage: "", selfie: "",
+  });
+  const [identitySubmitting, setIdentitySubmitting] = useState(false);
+  const [identitySubmitted,  setIdentitySubmitted]  = useState(false);
+
+  // ── Changement de mot de passe ─────────────────────────────
+  const [pwdForm,     setPwdForm]     = useState({ current: "", next: "", confirm: "" });
+  const [pwdChanging, setPwdChanging] = useState(false);
+  const [showPwdForm, setShowPwdForm] = useState(false);
 
   const [profileData, setProfileData] = useState({
     firstName:     user?.firstName     || "",
@@ -275,6 +304,61 @@ const Profile = () => {
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
+  };
+
+  // ── Handler identité ───────────────────────────────────────
+  const handleIdentityImage = (field) => (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setIdentityForm((p) => ({ ...p, [field]: reader.result }));
+    reader.readAsDataURL(file);
+  };
+
+  const handleIdentitySubmit = async (e) => {
+    e.preventDefault();
+    if (!identityForm.number.trim()) { toastError("Numéro de pièce requis."); return; }
+    setIdentitySubmitting(true);
+    try {
+      const res  = await fetch("/api/users/me/identity", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify(identityForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Erreur.");
+      toastSuccess("Pièce d'identité soumise. En attente de vérification.");
+      setIdentitySubmitted(true);
+      updateUser({ ...user, identity: { ...user.identity, status: "pending" } });
+    } catch (err) {
+      toastError(err.message || "Erreur lors de la soumission.");
+    } finally {
+      setIdentitySubmitting(false);
+    }
+  };
+
+  // ── Handler changement mot de passe ────────────────────────
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (pwdForm.next.length < 6) { toastError("Minimum 6 caractères."); return; }
+    if (pwdForm.next !== pwdForm.confirm) { toastError("Les mots de passe ne correspondent pas."); return; }
+    setPwdChanging(true);
+    try {
+      const res  = await fetch("/api/auth/change-password", {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ currentPassword: pwdForm.current, newPassword: pwdForm.next }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Erreur.");
+      toastSuccess("Mot de passe modifié avec succès !");
+      setPwdForm({ current: "", next: "", confirm: "" });
+      setShowPwdForm(false);
+    } catch (err) {
+      toastError(err.message || "Erreur.");
+    } finally {
+      setPwdChanging(false);
+    }
   };
 
   // ── Guard ──────────────────────────────────────────────────
@@ -427,6 +511,84 @@ const Profile = () => {
                   {saved && <span className={styles.savedMsg}>Vos informations ont été mises à jour.</span>}
                 </div>
               </form>
+
+              {/* ── Vérification d'identité ──────────────── */}
+              <div className={styles.sectionDivider} style={{ marginTop: "2rem" }}><span>Vérification d'identité</span></div>
+              {(() => {
+                const idStatus = user?.identityStatus || user?.identity?.status || "not_submitted";
+                const cfg = IDENTITY_STATUS_CFG[idStatus] || IDENTITY_STATUS_CFG.not_submitted;
+                return (
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                      <div>
+                        <p style={{ margin: 0, fontWeight: 600, color: "#374151" }}>Statut de votre pièce d'identité</p>
+                        <span style={{ display: "inline-block", marginTop: 4, padding: "3px 10px", borderRadius: 20, fontSize: "0.82rem", fontWeight: 700, color: cfg.color, background: cfg.bg }}>
+                          {cfg.label}
+                        </span>
+                      </div>
+                    </div>
+
+                    {(idStatus === "not_submitted" || idStatus === "rejected") && !identitySubmitted && (
+                      <form onSubmit={handleIdentitySubmit} className={styles.form}>
+                        {idStatus === "rejected" && (
+                          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "10px 14px", color: "#991b1b", fontSize: "0.88rem", marginBottom: 8 }}>
+                            Votre pièce a été refusée. Vous pouvez en soumettre une nouvelle.
+                          </div>
+                        )}
+                        <div className={styles.row}>
+                          <div className={styles.field}>
+                            <label>Type de pièce</label>
+                            <select value={identityForm.type} onChange={(e) => setIdentityForm((p) => ({ ...p, type: e.target.value }))}>
+                              {Object.entries(IDENTITY_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                            </select>
+                          </div>
+                          <div className={styles.field}>
+                            <label>Numéro de la pièce</label>
+                            <input type="text" placeholder="Ex : CI1234567" value={identityForm.number}
+                              onChange={(e) => setIdentityForm((p) => ({ ...p, number: e.target.value }))} required />
+                          </div>
+                        </div>
+                        <div className={styles.field}>
+                          <label>Date d'expiration</label>
+                          <input type="date" value={identityForm.expiryDate}
+                            onChange={(e) => setIdentityForm((p) => ({ ...p, expiryDate: e.target.value }))} />
+                        </div>
+                        <div className={styles.row}>
+                          <div className={styles.field}>
+                            <label>Recto de la pièce</label>
+                            <input type="file" accept="image/*" onChange={handleIdentityImage("frontImage")} />
+                          </div>
+                          <div className={styles.field}>
+                            <label>Verso de la pièce</label>
+                            <input type="file" accept="image/*" onChange={handleIdentityImage("backImage")} />
+                          </div>
+                        </div>
+                        <div className={styles.field}>
+                          <label>Selfie avec la pièce</label>
+                          <input type="file" accept="image/*" onChange={handleIdentityImage("selfie")} />
+                        </div>
+                        <div className={styles.formFooter}>
+                          <button type="submit" className={styles.primaryBtn} disabled={identitySubmitting}>
+                            {identitySubmitting ? "Envoi en cours…" : "Soumettre pour vérification"}
+                          </button>
+                        </div>
+                      </form>
+                    )}
+
+                    {(idStatus === "pending" || identitySubmitted) && (
+                      <p style={{ color: "#f59e0b", margin: 0 }}>
+                        📋 Votre dossier est en cours d'examen par notre équipe. Vous recevrez une notification une fois la vérification effectuée.
+                      </p>
+                    )}
+
+                    {idStatus === "verified" && (
+                      <p style={{ color: "#10b981", margin: 0 }}>
+                        ✅ Votre identité a été vérifiée et validée par notre équipe.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
             </section>
           )}
 
@@ -570,20 +732,68 @@ const Profile = () => {
             <section className={styles.section}>
               <h2>Sécurité du compte</h2>
               <div className={styles.securityList}>
-                {[
-                  { title: "Changer le mot de passe",         desc: "Mettez à jour votre mot de passe régulièrement.",          btn: "Modifier",   danger: false },
-                  { title: "Authentification à deux facteurs", desc: "Renforcez la sécurité avec une double vérification.",       btn: "Activer",    danger: false },
-                  { title: "Historique des connexions",        desc: "Consultez les dernières connexions à votre compte.",        btn: "Consulter",  danger: false },
-                  { title: "Supprimer le compte",              desc: "Action irréversible — toutes vos données seront effacées.", btn: "Supprimer",  danger: true  },
-                ].map(({ title, desc, btn, danger }) => (
-                  <div key={title} className={`${styles.securityItem} ${danger ? styles.dangerZone : ""}`}>
-                    <div>
-                      <p className={styles.secTitle}>{title}</p>
-                      <p className={styles.secDesc}>{desc}</p>
-                    </div>
-                    <button className={danger ? styles.dangerBtn : styles.secondaryBtn}>{btn}</button>
+                {/* Changement de mot de passe */}
+                <div className={styles.securityItem}>
+                  <div>
+                    <p className={styles.secTitle}>Changer le mot de passe</p>
+                    <p className={styles.secDesc}>Mettez à jour votre mot de passe régulièrement.</p>
                   </div>
-                ))}
+                  <button className={styles.secondaryBtn} onClick={() => setShowPwdForm((v) => !v)}>
+                    {showPwdForm ? "Annuler" : "Modifier"}
+                  </button>
+                </div>
+
+                {showPwdForm && (
+                  <form onSubmit={handleChangePassword} className={styles.form} style={{ marginTop: 0, paddingTop: 0 }}>
+                    <div className={styles.field}>
+                      <label>Mot de passe actuel</label>
+                      <input type="password" placeholder="Votre mot de passe actuel"
+                        value={pwdForm.current} onChange={(e) => setPwdForm((p) => ({ ...p, current: e.target.value }))} required />
+                    </div>
+                    <div className={styles.row}>
+                      <div className={styles.field}>
+                        <label>Nouveau mot de passe</label>
+                        <input type="password" placeholder="Min. 6 caractères"
+                          value={pwdForm.next} onChange={(e) => setPwdForm((p) => ({ ...p, next: e.target.value }))} required />
+                      </div>
+                      <div className={styles.field}>
+                        <label>Confirmer</label>
+                        <input type="password" placeholder="Répéter le nouveau"
+                          value={pwdForm.confirm} onChange={(e) => setPwdForm((p) => ({ ...p, confirm: e.target.value }))} required />
+                      </div>
+                    </div>
+                    <div className={styles.formFooter}>
+                      <button type="submit" className={styles.primaryBtn} disabled={pwdChanging}>
+                        {pwdChanging ? "Modification…" : "Enregistrer le nouveau mot de passe"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* E-mail de connexion */}
+                <div className={styles.securityItem}>
+                  <div>
+                    <p className={styles.secTitle}>Adresse e-mail de connexion</p>
+                    <p className={styles.secDesc}>{user?.email}</p>
+                  </div>
+                  <span style={{ padding: "6px 14px", borderRadius: 20, fontSize: "0.78rem", fontWeight: 700,
+                    color: user?.emailVerified ? "#10b981" : "#f59e0b",
+                    background: user?.emailVerified ? "#ecfdf5" : "#fffbeb" }}>
+                    {user?.emailVerified ? "✓ Vérifié" : "Non vérifié"}
+                  </span>
+                </div>
+
+                {/* Supprimer le compte */}
+                <div className={`${styles.securityItem} ${styles.dangerZone}`}>
+                  <div>
+                    <p className={styles.secTitle}>Supprimer le compte</p>
+                    <p className={styles.secDesc}>Action irréversible — toutes vos données seront effacées.</p>
+                  </div>
+                  <button className={styles.dangerBtn}
+                    onClick={() => window.confirm("Êtes-vous sûr ? Cette action est irréversible.") && toastError("Contactez le support pour supprimer votre compte.")}>
+                    Supprimer
+                  </button>
+                </div>
               </div>
             </section>
           )}

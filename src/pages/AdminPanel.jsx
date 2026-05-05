@@ -1,10 +1,8 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
 import styles from "./AdminPanel.module.css";
 
 // ─── Utilitaires ───────────────────────────────────────────────────────────────
-const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " FCFA";
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 const MOIS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
 
@@ -81,13 +79,13 @@ function ConfirmModal({ message, onConfirm, onCancel, danger }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function AdminPanel() {
   const { user, isAuthenticated, token } = useAuth();
-  const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState("dashboard");
   const [stats,     setStats]     = useState(null);
   const [users,     setUsers]     = useState([]);
   const [vehicles,  setVehicles]  = useState([]);
   const [bookings,  setBookings]  = useState([]);
+  const [drivers,   setDrivers]   = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [toast,     setToast]     = useState(null);
 
@@ -106,17 +104,28 @@ export default function AdminPanel() {
   // Confirmation
   const [confirm, setConfirm] = useState(null);
 
+  // Rejection reason (vehicles)
+  const [rejectModal, setRejectModal] = useState(null); // { vid, name }
+  const [rejectReason, setRejectReason] = useState("");
+
+  // Rejection reason (drivers) — utilisé dans le modal + la section Validations
+  const [driverRejectModal,  setDriverRejectModal]  = useState(null);
+  const [driverRejectReason, setDriverRejectReason] = useState("");
+
+  // Booking action
+  const [bkActionModal, setBkActionModal] = useState(null); // { id, name, action }
+  const [bkCancelReason, setBkCancelReason] = useState("");
+
+  // Broadcast notification
+  const [broadcastModal, setBroadcastModal] = useState(false);
+  const [broadcastForm, setBroadcastForm] = useState({ titre: "", message: "", targetRole: "all", lien: "" });
+  const [broadcastSending, setBroadcastSending] = useState(false);
+
   // ── Toasts ─────────────────────────────────────────────────────────────────
   const showToast = useCallback((msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
   }, []);
-
-  // ── Auth guard ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!isAuthenticated) navigate("/login");
-    else if (user?.role !== "admin") navigate("/");
-  }, [isAuthenticated, user, navigate]);
 
   // ── Headers API ─────────────────────────────────────────────────────────────
   const headers = useMemo(() => ({
@@ -129,11 +138,12 @@ export default function AdminPanel() {
     if (!token) return;
     setLoading(true);
     try {
-      const [sRes, uRes, vRes, bRes] = await Promise.all([
+      const [sRes, uRes, vRes, bRes, dRes] = await Promise.all([
         fetch("/api/users/stats",    { headers }),
         fetch("/api/users?limit=200", { headers }),
         fetch("/api/vehicles?limit=200&status=all", { headers }),
         fetch("/api/bookings?limit=200", { headers }),
+        fetch("/api/drivers/pending", { headers }),
       ]);
       if (sRes.ok) setStats((await sRes.json()));
       if (uRes.ok) setUsers((await uRes.json()).users || []);
@@ -142,6 +152,7 @@ export default function AdminPanel() {
         setVehicles(Array.isArray(d) ? d : d.vehicles || []);
       }
       if (bRes.ok) setBookings((await bRes.json()).bookings || []);
+      if (dRes.ok) setDrivers((await dRes.json()).drivers || []);
     } catch { /* ignore */ }
     setLoading(false);
   }, [token, headers]);
@@ -201,6 +212,49 @@ export default function AdminPanel() {
     } catch { showToast("Erreur lors de la suppression", "error"); }
   }, [headers, showToast]);
 
+  // ── Actions chauffeurs ──────────────────────────────────────────────────────
+  const updateDriverStatus = useCallback(async (did, status, reason = "") => {
+    try {
+      const res = await fetch(`/api/drivers/${did}/status`, {
+        method: "PATCH", headers, body: JSON.stringify({ status, rejectionReason: reason }),
+      });
+      if (!res.ok) throw new Error();
+      setDrivers((prev) => prev.filter((d) => d._id !== did));
+      showToast(`Chauffeur ${status === "approved" ? "approuvé" : "rejeté"}`);
+    } catch { showToast("Erreur lors de la mise à jour", "error"); }
+  }, [headers, showToast]);
+
+  // ── Actions commandes (admin) ───────────────────────────────────────────────
+  const adminUpdateBooking = useCallback(async (bid, status, reason = "") => {
+    try {
+      const res = await fetch(`/api/bookings/${bid}/status`, {
+        method: "PATCH", headers, body: JSON.stringify({ status, cancelReason: reason }),
+      });
+      if (!res.ok) throw new Error();
+      setBookings((prev) => prev.map((b) => b._id === bid ? { ...b, status } : b));
+      showToast(`Commande ${status === "cancelled" ? "annulée" : status === "confirmed" ? "confirmée" : "mise à jour"}`);
+    } catch { showToast("Erreur lors de la mise à jour", "error"); }
+  }, [headers, showToast]);
+
+  // ── Broadcast notification ─────────────────────────────────────────────────
+  const sendBroadcast = useCallback(async () => {
+    if (!broadcastForm.titre || !broadcastForm.message) {
+      showToast("Titre et message requis", "error"); return;
+    }
+    setBroadcastSending(true);
+    try {
+      const res = await fetch("/api/notifications/admin/broadcast", {
+        method: "POST", headers, body: JSON.stringify(broadcastForm),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.message);
+      showToast(d.message || "Notification envoyée");
+      setBroadcastModal(false);
+      setBroadcastForm({ titre: "", message: "", targetRole: "all", lien: "" });
+    } catch (e) { showToast(e.message || "Erreur envoi", "error"); }
+    finally { setBroadcastSending(false); }
+  }, [broadcastForm, headers, showToast]);
+
   // ── Filtres & pagination ────────────────────────────────────────────────────
   const filteredUsers = useMemo(() => {
     let r = users;
@@ -256,6 +310,107 @@ export default function AdminPanel() {
         />
       )}
 
+      {/* ── Reject driver modal ── */}
+      {driverRejectModal && (
+        <div className={styles.overlay} onClick={() => setDriverRejectModal(null)}>
+          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
+            <p className={styles.confirmMsg}>Raison du rejet pour « {driverRejectModal.name} » (facultatif)</p>
+            <textarea
+              style={{ width: "100%", borderRadius: 8, border: "1px solid #e2e8f0", padding: "0.6rem", fontSize: "0.9rem", marginBottom: "0.75rem", resize: "vertical" }}
+              rows={3} placeholder="Ex: Documents insuffisants, informations incomplètes..."
+              value={driverRejectReason} onChange={(e) => setDriverRejectReason(e.target.value)}
+            />
+            <div className={styles.confirmActions}>
+              <button className={styles.btnDanger} onClick={() => {
+                updateDriverStatus(driverRejectModal.did, "rejected", driverRejectReason);
+                setDriverRejectModal(null); setDriverRejectReason("");
+              }}>Confirmer le rejet</button>
+              <button className={styles.btnGhost} onClick={() => { setDriverRejectModal(null); setDriverRejectReason(""); }}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reject vehicle modal ── */}
+      {rejectModal && (
+        <div className={styles.overlay} onClick={() => setRejectModal(null)}>
+          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
+            <p className={styles.confirmMsg}>Raison du rejet pour « {rejectModal.name} » (facultatif)</p>
+            <textarea
+              style={{ width: "100%", borderRadius: 8, border: "1px solid #e2e8f0", padding: "0.6rem", fontSize: "0.9rem", marginBottom: "0.75rem", resize: "vertical" }}
+              rows={3} placeholder="Ex: Images insuffisantes, informations incomplètes..."
+              value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}
+            />
+            <div className={styles.confirmActions}>
+              <button className={styles.btnDanger} onClick={() => {
+                updateVehicleStatus(rejectModal.vid, "rejected", rejectReason);
+                setRejectModal(null); setRejectReason("");
+              }}>Confirmer le rejet</button>
+              <button className={styles.btnGhost} onClick={() => { setRejectModal(null); setRejectReason(""); }}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Booking action modal ── */}
+      {bkActionModal && (
+        <div className={styles.overlay} onClick={() => setBkActionModal(null)}>
+          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
+            <p className={styles.confirmMsg}>
+              {bkActionModal.action === "cancelled" ? `Annuler la commande de « ${bkActionModal.name} » ?` : `Confirmer la commande de « ${bkActionModal.name} » ?`}
+            </p>
+            {bkActionModal.action === "cancelled" && (
+              <textarea
+                style={{ width: "100%", borderRadius: 8, border: "1px solid #e2e8f0", padding: "0.6rem", fontSize: "0.9rem", marginBottom: "0.75rem", resize: "vertical" }}
+                rows={2} placeholder="Raison de l'annulation (optionnelle)..."
+                value={bkCancelReason} onChange={(e) => setBkCancelReason(e.target.value)}
+              />
+            )}
+            <div className={styles.confirmActions}>
+              <button className={bkActionModal.action === "cancelled" ? styles.btnDanger : styles.btnPrimary} onClick={() => {
+                adminUpdateBooking(bkActionModal.id, bkActionModal.action, bkCancelReason);
+                setBkActionModal(null); setBkCancelReason("");
+              }}>Confirmer</button>
+              <button className={styles.btnGhost} onClick={() => { setBkActionModal(null); setBkCancelReason(""); }}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Broadcast notification modal ── */}
+      {broadcastModal && (
+        <div className={styles.overlay} onClick={() => setBroadcastModal(false)}>
+          <div className={styles.confirmBox} style={{ maxWidth: 480, width: "95%" }} onClick={(e) => e.stopPropagation()}>
+            <p className={styles.confirmMsg}>📢 Envoyer une notification à tous les utilisateurs</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", marginBottom: "0.75rem" }}>
+              <input style={{ borderRadius: 8, border: "1px solid #e2e8f0", padding: "0.55rem 0.75rem", fontSize: "0.9rem" }}
+                placeholder="Titre *" value={broadcastForm.titre}
+                onChange={(e) => setBroadcastForm({ ...broadcastForm, titre: e.target.value })} />
+              <textarea style={{ borderRadius: 8, border: "1px solid #e2e8f0", padding: "0.55rem 0.75rem", fontSize: "0.9rem", resize: "vertical" }}
+                rows={3} placeholder="Message *" value={broadcastForm.message}
+                onChange={(e) => setBroadcastForm({ ...broadcastForm, message: e.target.value })} />
+              <select style={{ borderRadius: 8, border: "1px solid #e2e8f0", padding: "0.55rem 0.75rem", fontSize: "0.9rem" }}
+                value={broadcastForm.targetRole}
+                onChange={(e) => setBroadcastForm({ ...broadcastForm, targetRole: e.target.value })}>
+                <option value="all">Tous les utilisateurs</option>
+                <option value="client">Clients uniquement</option>
+                <option value="partenaire">Partenaires uniquement</option>
+                <option value="chauffeur">Chauffeurs uniquement</option>
+              </select>
+              <input style={{ borderRadius: 8, border: "1px solid #e2e8f0", padding: "0.55rem 0.75rem", fontSize: "0.9rem" }}
+                placeholder="Lien (ex: /catalogue) — optionnel" value={broadcastForm.lien}
+                onChange={(e) => setBroadcastForm({ ...broadcastForm, lien: e.target.value })} />
+            </div>
+            <div className={styles.confirmActions}>
+              <button className={styles.btnPrimary} disabled={broadcastSending} onClick={sendBroadcast}>
+                {broadcastSending ? "Envoi..." : "📤 Envoyer"}
+              </button>
+              <button className={styles.btnGhost} onClick={() => setBroadcastModal(false)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Header ── */}
       <header className={styles.header}>
         <div>
@@ -264,6 +419,9 @@ export default function AdminPanel() {
         </div>
         <div className={styles.headerRight}>
           <span className={styles.adminBadge}>🔐 {user.firstName} · Admin</span>
+          <button className={styles.btnRefresh} onClick={() => setBroadcastModal(true)} title="Envoyer notification" style={{ background: "#6366f1", color: "#fff", border: "none" }}>
+            📢 Broadcast
+          </button>
           <button className={styles.btnRefresh} onClick={loadAll} title="Actualiser">↻ Actualiser</button>
         </div>
       </header>
@@ -271,10 +429,11 @@ export default function AdminPanel() {
       {/* ── Navigation ── */}
       <nav className={styles.tabs}>
         {[
-          { key: "dashboard", icon: "📊", label: "Dashboard" },
-          { key: "users",     icon: "👥", label: `Utilisateurs (${users.length})` },
-          { key: "vehicles",  icon: "🚗", label: `Annonces (${vehicles.length})` },
-          { key: "bookings",  icon: "📋", label: `Commandes (${bookings.length})` },
+          { key: "dashboard",   icon: "📊", label: "Dashboard" },
+          { key: "validations", icon: "✅", label: "Validations" },
+          { key: "users",       icon: "👥", label: `Utilisateurs (${users.length})` },
+          { key: "vehicles",    icon: "🚗", label: `Annonces (${vehicles.length})` },
+          { key: "bookings",    icon: "📋", label: `Commandes (${bookings.length})` },
         ].map(({ key, icon, label }) => (
           <button
             key={key}
@@ -285,6 +444,14 @@ export default function AdminPanel() {
             {key === "vehicles" && (stats?.vehicles?.pending || 0) > 0 && (
               <span className={styles.alertDot}>{stats.vehicles.pending}</span>
             )}
+            {key === "validations" && (() => {
+              const pendingV = vehicles.filter((v) => v.status === "pending").length;
+              const pendingD = drivers.length;
+              const pendingB = bookings.filter((b) => b.status === "pending").length;
+              return (pendingV + pendingD + pendingB) > 0
+                ? <span className={styles.alertDot}>{pendingV + pendingD + pendingB}</span>
+                : null;
+            })()}
           </button>
         ))}
       </nav>
@@ -297,6 +464,180 @@ export default function AdminPanel() {
       ) : (
 
         <>
+          {/* ══════════════════════ TAB VALIDATIONS ══════════════════ */}
+          {activeTab === "validations" && (
+            <div className={styles.tabContent}>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", marginBottom: "1.25rem" }}>
+                ✅ File de validation
+              </h2>
+
+              {/* Annonces en attente */}
+              <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
+                <h3 className={styles.chartTitle}>🚗 Annonces en attente ({vehicles.filter((v) => v.status === "pending").length})</h3>
+                {vehicles.filter((v) => v.status === "pending").length === 0 ? (
+                  <p style={{ color: "#64748b", fontSize: "0.9rem", padding: "0.5rem 0" }}>Aucune annonce en attente.</p>
+                ) : (
+                  <div className={styles.tableWrap}>
+                    <table className={styles.table}>
+                      <thead>
+                        <tr><th>Véhicule</th><th>Type</th><th>Prix</th><th>Score</th><th>Soumis le</th><th>Actions</th></tr>
+                      </thead>
+                      <tbody>
+                        {vehicles.filter((v) => v.status === "pending").map((v) => {
+                          const vid = v._id || v.id;
+                          const score = v.validationScore;
+                          return (
+                            <tr key={vid} className={styles.tr}>
+                              <td>
+                                <div className={styles.vehicleCell}>
+                                  {(v.images?.[0] || v.image)
+                                    ? <img src={v.images?.[0] || v.image} alt="" className={styles.vehThumb} />
+                                    : <div className={styles.vehThumbPlaceholder}>🚗</div>}
+                                  <div>
+                                    <strong>{v.title || v.name}</strong>
+                                    <span className={styles.vehMeta}>{v.marque} {v.modele} {v.annee}</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td><Badge label={v.type === "location" ? "📅 Location" : "💰 Vente"} color="#64748b" bg="#f1f5f9" /></td>
+                              <td className={styles.tdPrice}>
+                                {v.pricePerDay ? `${Number(v.pricePerDay).toLocaleString("fr-FR")} FCFA/j` :
+                                 v.priceForSale ? `${Number(v.priceForSale).toLocaleString("fr-FR")} FCFA` : "—"}
+                              </td>
+                              <td>
+                                {score != null && (
+                                  <span className={styles.scoreChip}
+                                    style={{ color: score >= 65 ? "#10b981" : score >= 40 ? "#f59e0b" : "#ef4444" }}>
+                                    {score}/100
+                                  </span>
+                                )}
+                              </td>
+                              <td className={styles.tdDate}>{fmtDate(v.createdAt)}</td>
+                              <td>
+                                <div className={styles.actionBtns}>
+                                  <button className={styles.btnApprove}
+                                    onClick={() => setConfirm({
+                                      message: `Approuver l'annonce "${v.title || v.name}" ?`,
+                                      action: () => updateVehicleStatus(vid, "approved"),
+                                    })}>✅ Valider</button>
+                                  <button className={styles.btnReject}
+                                    onClick={() => { setRejectModal({ vid, name: v.title || v.name }); setRejectReason(""); }}>
+                                    ✕ Rejeter
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Chauffeurs en attente */}
+              <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
+                <h3 className={styles.chartTitle}>👨‍✈️ Chauffeurs en attente ({drivers.length})</h3>
+                {drivers.length === 0 ? (
+                  <p style={{ color: "#64748b", fontSize: "0.9rem", padding: "0.5rem 0" }}>Aucun profil chauffeur en attente.</p>
+                ) : (
+                  <div className={styles.tableWrap}>
+                    <table className={styles.table}>
+                      <thead>
+                        <tr><th>Chauffeur</th><th>Disponibilité</th><th>Tarif</th><th>Zone</th><th>Soumis le</th><th>Actions</th></tr>
+                      </thead>
+                      <tbody>
+                        {drivers.map((d) => (
+                          <tr key={d._id} className={styles.tr}>
+                            <td>
+                              <div className={styles.vehicleCell}>
+                                {d.profilePhoto
+                                  ? <img src={d.profilePhoto} alt="" className={styles.vehThumb} style={{ borderRadius: "50%" }} />
+                                  : <div className={styles.vehThumbPlaceholder}>👤</div>}
+                                <div>
+                                  <strong>{d.firstName} {d.lastName}</strong>
+                                  <span className={styles.vehMeta}>{d.title}</span>
+                                  {d.owner && <span className={styles.vehMeta} style={{ color: "#64748b" }}>par {d.owner.firstName} {d.owner.lastName}</span>}
+                                </div>
+                              </div>
+                            </td>
+                            <td><Badge label={d.disponibilite || "—"} color="#8b5cf6" bg="#f5f3ff" /></td>
+                            <td className={styles.tdPrice}>
+                              {d.tarif ? `${Number(d.tarif).toLocaleString("fr-FR")} FCFA/j` : "—"}
+                            </td>
+                            <td style={{ fontSize: "0.85rem", color: "#64748b" }}>{d.zone || d.ville || "—"}</td>
+                            <td className={styles.tdDate}>{fmtDate(d.createdAt)}</td>
+                            <td>
+                              <div className={styles.actionBtns}>
+                                <button className={styles.btnApprove}
+                                  onClick={() => setConfirm({
+                                    message: `Approuver le profil de ${d.firstName} ${d.lastName} ?`,
+                                    action: () => updateDriverStatus(d._id, "approved"),
+                                  })}>✅ Valider</button>
+                                <button className={styles.btnReject}
+                                  onClick={() => { setDriverRejectModal({ did: d._id, name: `${d.firstName} ${d.lastName}` }); setDriverRejectReason(""); }}>
+                                  ✕ Rejeter
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Commandes en attente */}
+              <div className={styles.chartCard}>
+                <h3 className={styles.chartTitle}>📋 Commandes en attente ({bookings.filter((b) => b.status === "pending").length})</h3>
+                {bookings.filter((b) => b.status === "pending").length === 0 ? (
+                  <p style={{ color: "#64748b", fontSize: "0.9rem", padding: "0.5rem 0" }}>Aucune commande en attente.</p>
+                ) : (
+                  <div className={styles.tableWrap}>
+                    <table className={styles.table}>
+                      <thead>
+                        <tr><th>Client</th><th>Véhicule</th><th>Type</th><th>Montant</th><th>Date</th><th>Actions</th></tr>
+                      </thead>
+                      <tbody>
+                        {bookings.filter((b) => b.status === "pending").map((b) => {
+                          const clientName = `${b.clientInfo?.firstName || ""} ${b.clientInfo?.lastName || ""}`.trim() || "—";
+                          const vName = b.vehicle
+                            ? [b.vehicle.title, b.vehicle.marque, b.vehicle.modele].filter(Boolean).join(" ")
+                            : "—";
+                          const typeLabels = { location: "📅 Location", essai: "🔑 Essai", chauffeur: "🚘 Chauffeur", leasing: "🏦 Leasing" };
+                          return (
+                            <tr key={b._id} className={styles.tr}>
+                              <td><div><strong>{clientName}</strong><span className={styles.vehMeta}>{b.clientInfo?.email}</span></div></td>
+                              <td className={styles.tdVeh}>{vName}</td>
+                              <td><Badge label={typeLabels[b.type] || b.type} color="#64748b" bg="#f1f5f9" /></td>
+                              <td className={styles.tdPrice}>
+                                {b.montantTotal > 0 ? `${Number(b.montantTotal).toLocaleString("fr-FR")} FCFA` : "—"}
+                              </td>
+                              <td className={styles.tdDate}>{fmtDate(b.createdAt)}</td>
+                              <td>
+                                <div className={styles.actionBtns}>
+                                  <button className={styles.btnApprove}
+                                    onClick={() => setBkActionModal({ id: b._id, name: clientName, action: "confirmed" })}>
+                                    ✅ Confirmer
+                                  </button>
+                                  <button className={styles.btnReject}
+                                    onClick={() => { setBkActionModal({ id: b._id, name: clientName, action: "cancelled" }); setBkCancelReason(""); }}>
+                                    ✕ Annuler
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ══════════════════════ TAB DASHBOARD ══════════════════════ */}
           {activeTab === "dashboard" && (
             <div className={styles.tabContent}>
@@ -588,11 +929,9 @@ export default function AdminPanel() {
                               )}
                               {v.status !== "rejected" && (
                                 <button className={styles.btnReject}
-                                  onClick={() => setConfirm({
-                                    message: `Rejeter l'annonce "${v.title || v.name}" ?`,
-                                    danger: true,
-                                    action: () => updateVehicleStatus(vid, "rejected"),
-                                  })}>✕ Rejeter</button>
+                                  onClick={() => { setRejectModal({ vid, name: v.title || v.name }); setRejectReason(""); }}>
+                                  ✕ Rejeter
+                                </button>
                               )}
                               <button className={styles.btnDeleteSm}
                                 onClick={() => setConfirm({
@@ -664,10 +1003,24 @@ export default function AdminPanel() {
                           <td><Badge label={bs.label} color={bs.color} bg={bs.bg} /></td>
                           <td className={styles.tdDate}>{fmtDate(b.createdAt)}</td>
                           <td>
-                            {b.contract ? (
-                              <a href={`/contract/${b._id}`} target="_blank" rel="noopener noreferrer"
-                                className={styles.contractLink}>📄</a>
-                            ) : <span className={styles.noContract}>—</span>}
+                            <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                              {b.contract && (
+                                <a href={`/contract/${b._id}`} target="_blank" rel="noopener noreferrer"
+                                  className={styles.contractLink}>📄</a>
+                              )}
+                              {b.status === "pending" && (
+                                <button className={styles.btnApprove} style={{ padding: "0.25rem 0.6rem", fontSize: "0.76rem" }}
+                                  onClick={() => setBkActionModal({ id: b._id, name: `${b.clientInfo?.firstName || ""} ${b.clientInfo?.lastName || ""}`.trim(), action: "confirmed" })}>
+                                  ✅
+                                </button>
+                              )}
+                              {b.status !== "cancelled" && b.status !== "completed" && (
+                                <button className={styles.btnReject} style={{ padding: "0.25rem 0.6rem", fontSize: "0.76rem" }}
+                                  onClick={() => { setBkActionModal({ id: b._id, name: `${b.clientInfo?.firstName || ""} ${b.clientInfo?.lastName || ""}`.trim(), action: "cancelled" }); setBkCancelReason(""); }}>
+                                  ✕
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );

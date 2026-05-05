@@ -68,6 +68,15 @@ const userSchema = new mongoose.Schema({
     lng:     { type: Number, default: null },
   },
 
+  // ── Vérification e-mail ────────────────────────────────────
+  emailVerified:            { type: Boolean, default: false },
+  emailVerificationToken:   { type: String,  default: null },
+  emailVerificationExpires: { type: Date,    default: null },
+
+  // ── Réinitialisation mot de passe ────────────────────────
+  passwordResetToken:   { type: String, default: null },
+  passwordResetExpires: { type: Date,   default: null },
+
   // Suivi de vérification & statut
   documentsVerified: { type: Boolean, default: false },
   isActive:          { type: Boolean, default: true },
@@ -76,8 +85,7 @@ const userSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
-// Index pour les recherches fréquentes
-userSchema.index({ email: 1 });
+// Index pour les recherches fréquentes (email déjà indexé via unique:true)
 userSchema.index({ role: 1 });
 
 const User = mongoose.models.User || mongoose.model("User", userSchema);

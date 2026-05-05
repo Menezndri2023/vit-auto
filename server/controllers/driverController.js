@@ -15,8 +15,8 @@ export const createDriver = async (req, res) => {
     const driver = await Driver.create({
       ...rest,
       ...(phone ? { phone } : {}),
-      owner: req.user._id,
-      status: req.user.role === "admin" ? "approved" : "pending",
+      owner:  req.user._id,
+      status: "pending", // toujours en attente de validation admin
     });
 
     // Notification non bloquante

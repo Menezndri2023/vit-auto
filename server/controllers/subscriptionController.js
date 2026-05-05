@@ -94,11 +94,18 @@ export const purchaseBoost = async (req, res) => {
 };
 
 // Calcule la commission sur une transaction
+// Commission = % du montant brut, frais de service = prélèvement plateforme séparé
+// Net partenaire = montantBase - commission (les frais service sont facturés AU CLIENT)
 export const computeCommission = (montantBase, type) => {
-  const rate   = type === "location" ? COMMISSION_LOCATION : COMMISSION_VENTE;
-  const amount = Math.round(montantBase * rate);
-  const payout = Math.round(montantBase - amount - SERVICE_FEE_XOF);
-  return { rate, amount, serviceFeeFCFA: SERVICE_FEE_XOF, partnerPayout: Math.max(payout, 0) };
+  const rate             = type === "location" ? COMMISSION_LOCATION : COMMISSION_VENTE;
+  const commissionAmount = Math.round(montantBase * rate);
+  const partnerPayout    = Math.max(montantBase - commissionAmount, 0);
+  return {
+    rate,
+    commissionAmount,
+    serviceFeeFCFA: SERVICE_FEE_XOF,   // facturé au client en sus du montant
+    partnerPayout,
+  };
 };
 
 // Retourne les infos tarifaires publiques (sans auth)

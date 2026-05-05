@@ -48,7 +48,7 @@ function GererModal({ order, onClose, onConfirm, onPrepare, onReady, onInProgres
   const bst         = BOOKING_STATUS[order.status] || BOOKING_STATUS.pending;
   const isNew       = !order.status || order.status === "À confirmer" || order.status === "pending";
   const isAccepted  = !isNew && order.status !== "cancelled";
-  const isDone      = order.status === "completed" || order.status === "cancelled";
+
   const hasGps      = order.pickupLat != null && order.pickupLng != null;
   const isLivraison = order.pickupMethod === "livraison" || order.pickupLocation;
 
@@ -537,10 +537,45 @@ export default function VendorDashboard() {
   }, [rejectModal, rejectNote, updateBookingStatus, toastError, loadPartnerOrders]);
 
   const handleGerer = useCallback((order) => setGererModalId(order.id), []);
-  const handleRefresh = useCallback(() => {
-    loadPartnerOrders();
-    loadPartnerVehicles();
-  }, [loadPartnerOrders, loadPartnerVehicles]);
+  const [refreshing,  setRefreshing]  = useState(false);
+  const [myDrivers,   setMyDrivers]   = useState([]);
+  const [driverLoading, setDriverLoading] = useState(false);
+
+  const loadMyDrivers = useCallback(async () => {
+    if (!token) return;
+    setDriverLoading(true);
+    try {
+      const res = await fetch("/api/drivers/mine", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMyDrivers(data.drivers || []);
+      }
+    } catch { /* ignore */ }
+    finally { setDriverLoading(false); }
+  }, [token]);
+
+  useEffect(() => { loadMyDrivers(); }, [loadMyDrivers]);
+
+  const handleDeleteDriver = useCallback(async (id) => {
+    if (!confirm("Supprimer définitivement ce profil chauffeur ?")) return;
+    try {
+      await fetch(`/api/drivers/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setMyDrivers((prev) => prev.filter((d) => d._id !== id));
+      toastSuccess("Profil chauffeur supprimé.");
+    } catch { toastError("Erreur lors de la suppression."); }
+  }, [token, toastSuccess, toastError]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([loadPartnerOrders(), loadPartnerVehicles(), loadMyDrivers()]);
+    setRefreshing(false);
+    toastSuccess("Données actualisées");
+  }, [loadPartnerOrders, loadPartnerVehicles, loadMyDrivers, toastSuccess]);
 
   const filteredVehicles = statusFilter === "all"
     ? myVehicles
@@ -570,8 +605,9 @@ export default function VendorDashboard() {
           <p>Bienvenue {user.firstName || user.name} — gérez vos annonces et commandes</p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-          <button className={`${styles.actionBtn} ${styles.viewBtn}`} onClick={handleRefresh} style={{ padding: "0.75rem 1.25rem" }}>
-            ↻ Actualiser
+          <button className={`${styles.actionBtn} ${styles.viewBtn}`} onClick={handleRefresh} disabled={refreshing} style={{ padding: "0.75rem 1.25rem" }}>
+            <span style={{ display: "inline-block", animation: refreshing ? "spin 0.8s linear infinite" : "none" }}>↻</span>
+            {refreshing ? " …" : " Actualiser"}
           </button>
           <Link to="/plans" className={`${styles.actionBtn} ${styles.viewBtn}`} style={{ padding: "0.75rem 1.25rem" }}>Tarifs</Link>
           <Link to="/vendor" className={`${styles.actionBtn} ${styles.editBtn}`} style={{ padding: "0.75rem 1.25rem" }}>+ Nouvelle annonce</Link>
@@ -747,6 +783,66 @@ export default function VendorDashboard() {
                         </button>
                       )}
                       <button className={`${styles.actionBtn} ${styles.deleteBtn}`} onClick={() => handleDeleteVehicle(vid)}>Supprimer</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── Mes profils chauffeurs ── */}
+          <div className={styles.sectionHeader} style={{ marginTop: "2.5rem" }}>
+            <h2>Mes profils chauffeurs ({myDrivers.length})</h2>
+            <Link to="/vendor" className={`${styles.actionBtn} ${styles.editBtn}`} style={{ padding: "0.5rem 1rem", fontSize: "0.85rem" }}>
+              + Ajouter un chauffeur
+            </Link>
+          </div>
+
+          {driverLoading ? (
+            <p style={{ color: "#64748b", padding: "1rem 0" }}>Chargement…</p>
+          ) : myDrivers.length === 0 ? (
+            <div className={styles.emptyStats} style={{ padding: "2rem", marginTop: 0 }}>
+              <div style={{ fontSize: "3rem", marginBottom: "0.75rem" }}>👨‍✈️</div>
+              <h3>Aucun profil chauffeur</h3>
+              <p>Publiez votre premier profil chauffeur depuis "Nouvelle annonce".</p>
+            </div>
+          ) : (
+            <div className={styles.vehicleGrid}>
+              {myDrivers.map((drv) => {
+                const drvStatus = STATUS_CONFIG[drv.status || "pending"];
+                return (
+                  <div key={drv._id} className={styles.vehicleCard}>
+                    <div className={styles.vehicleImage} style={{ background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "3rem" }}>
+                      {drv.profilePhoto
+                        ? <img src={drv.profilePhoto} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        : "👨‍✈️"}
+                    </div>
+                    <div className={styles.vehicleInfo}>
+                      <div className={styles.vehicleHeader}>
+                        <div>
+                          <h3 className={styles.vehicleName}>{drv.firstName} {drv.lastName}</h3>
+                          <p style={{ margin: 0, fontSize: "0.82rem", color: "#64748b" }}>{drv.title || "Service chauffeur"}</p>
+                        </div>
+                        <span className={drvStatus?.cls || ""} style={{
+                          padding: "3px 10px", borderRadius: 20, fontSize: "0.78rem", fontWeight: 700,
+                          color: drv.status === "approved" ? "#10b981" : drv.status === "rejected" ? "#ef4444" : "#f59e0b",
+                          background: drv.status === "approved" ? "#ecfdf5" : drv.status === "rejected" ? "#fef2f2" : "#fffbeb",
+                        }}>
+                          {drvStatus?.label || "En attente"}
+                        </span>
+                      </div>
+                      <div className={styles.vehicleTags} style={{ marginTop: 8 }}>
+                        {drv.disponibilite && <span className={`${styles.tag} ${styles.tagMode}`}>{drv.disponibilite}</span>}
+                        {drv.zone && <span className={`${styles.tag} ${styles.tagType}`}>{drv.zone}</span>}
+                        {drv.permisCategorie && <span className={`${styles.tag} ${styles.tagFuel}`}>Permis {drv.permisCategorie}</span>}
+                      </div>
+                      <div className={styles.priceLine}>
+                        <span>{drv.tarif ? `${Number(drv.tarif).toLocaleString("fr-FR")} FCFA / jour` : "Tarif non renseigné"}</span>
+                        {drv.tarifHeure > 0 && <small>{Number(drv.tarifHeure).toLocaleString("fr-FR")} FCFA / h</small>}
+                      </div>
+                      <div className={styles.cardActions}>
+                        <button className={`${styles.actionBtn} ${styles.deleteBtn}`} onClick={() => handleDeleteDriver(drv._id)}>Supprimer</button>
+                      </div>
                     </div>
                   </div>
                 );

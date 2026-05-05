@@ -24,6 +24,7 @@ const notificationSchema = new mongoose.Schema({
       "new_booking",          // Partenaire : nouvelle réservation reçue
       "new_review",           // Nouveau avis reçu
       "payment_received",     // Paiement confirmé
+      "new_message",          // Nouveau message chat
       "system",               // Message général
     ],
     required: true,

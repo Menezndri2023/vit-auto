@@ -1,0 +1,48 @@
+{
+  "appId": "com.vitauto.app",
+  "appName": "VIT AUTO",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": [
+      "*.vitauto.com",
+      "*.openstreetmap.org"
+    ]
+  },
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#0f1b3f",
+    "overrideUserAgent": "VIT-AUTO-Android"
+  },
+  "ios": {
+    "backgroundColor": "#0f1b3f",
+    "contentInset": "automatic",
+    "overrideUserAgent": "VIT-AUTO-iOS",
+    "scheme": "vitauto"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#0f1b3f",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "LIGHT",
+      "backgroundColor": "#0f1b3f"
+    },
+    "Keyboard": {
+      "resize": "body",
+      "style": "DARK"
+    },
+    "PushNotifications": {
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "alert"
+      ]
+    }
+  }
+}

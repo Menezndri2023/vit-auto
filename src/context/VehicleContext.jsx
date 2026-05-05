@@ -109,26 +109,34 @@ const saveBookings = (bookings) => {
 };
 
 export const VehicleProvider = ({ children }) => {
-  const { token } = useAuth();
+  const { token, user, authReady } = useAuth();
   const [vehicles, setVehicles] = useState(initialVehicles);
   const [partnerVehicles, setPartnerVehicles] = useState([]);
   const [partnerBookings, setPartnerBookings] = useState([]); // Commandes reçues (partenaire) — depuis backend
   const [drivers, setDrivers] = useState([]);
   const [bookings, setBookings] = useState(() => loadBookings());
+  const [vehiclesLoading, setVehiclesLoading] = useState(false);
+
+  const loadVehicles = useCallback(async (page = 1, append = false) => {
+    setVehiclesLoading(true);
+    try {
+      const response = await fetch(`/api/vehicles?limit=50&page=${page}`);
+      if (!response.ok) throw new Error("Failed to fetch vehicles");
+      const data = await response.json();
+      // Gère l'ancien format (tableau) et le nouveau format paginé ({ vehicles, total })
+      const list = Array.isArray(data) ? data : (data.vehicles || []);
+      const normalized = list.map(normalizeVehicle);
+      setVehicles((prev) => append ? [...prev, ...normalized] : normalized);
+    } catch {
+      // Keep local fixture when backend is unavailable
+    } finally {
+      setVehiclesLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const loadVehicles = async () => {
-      try {
-        const response = await fetch("/api/vehicles");
-        if (!response.ok) throw new Error("Failed to fetch vehicles");
-        const data = await response.json();
-        if (Array.isArray(data)) setVehicles(data.map(normalizeVehicle));
-      } catch {
-        // Keep local fixture when backend is unavailable
-      }
-    };
     loadVehicles();
-  }, []);
+  }, [loadVehicles]);
 
   // Load the partner's own vehicles (pending + approved + rejected)
   const loadPartnerVehicles = useCallback(async () => {
@@ -176,12 +184,16 @@ export const VehicleProvider = ({ children }) => {
   }, [token]);
 
   useEffect(() => {
-    loadPartnerVehicles();
-  }, [loadPartnerVehicles]);
+    if (authReady && (user?.role === "partenaire" || user?.role === "admin")) {
+      loadPartnerVehicles();
+    }
+  }, [authReady, loadPartnerVehicles, user?.role]);
 
   useEffect(() => {
-    loadPartnerOrders();
-  }, [loadPartnerOrders]);
+    if (authReady && (user?.role === "partenaire" || user?.role === "admin")) {
+      loadPartnerOrders();
+    }
+  }, [authReady, loadPartnerOrders, user?.role]);
 
   useEffect(() => {
     const loadDrivers = async () => {
@@ -307,6 +319,7 @@ export const VehicleProvider = ({ children }) => {
   const value = useMemo(
     () => ({
       vehicles,
+      vehiclesLoading,
       partnerVehicles,
       partnerBookings,
       drivers,
@@ -322,9 +335,10 @@ export const VehicleProvider = ({ children }) => {
       loadPartnerVehicles,
       loadPartnerOrders,
       loadMyOrders,
+      refreshVehicles: loadVehicles,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [vehicles, partnerVehicles, partnerBookings, drivers, bookings, loadPartnerVehicles, loadPartnerOrders, loadMyOrders, updateBookingStatus]
+    [vehicles, vehiclesLoading, partnerVehicles, partnerBookings, drivers, bookings, loadPartnerVehicles, loadPartnerOrders, loadMyOrders, updateBookingStatus, loadVehicles]
   );
 
   return <VehicleContext.Provider value={value}>{children}</VehicleContext.Provider>;

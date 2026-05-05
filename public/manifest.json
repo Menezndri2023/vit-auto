@@ -1,0 +1,24 @@
+{
+  "name": "VIT AUTO",
+  "short_name": "VIT AUTO",
+  "description": "Louez, achetez et vendez des véhicules en Afrique de l'Ouest",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f1b3f",
+  "theme_color": "#ff4d2d",
+  "orientation": "portrait-primary",
+  "lang": "fr",
+  "categories": ["automotive", "shopping"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Catalogue", "url": "/catalogue", "description": "Parcourir les véhicules" },
+    { "name": "Mon Espace", "url": "/dashboard", "description": "Mon tableau de bord" }
+  ]
+}

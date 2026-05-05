@@ -30,6 +30,29 @@ export const createBooking = async (req, res) => {
         return res.status(409).json({ message: "Véhicule non disponible." });
       }
       if (type === "location") {
+        // Vérifier chevauchement de dates (anti double-booking)
+        const startDate = location?.startDate ? new Date(location.startDate) : null;
+        const endDate   = location?.endDate   ? new Date(location.endDate)   : null;
+        if (startDate && endDate) {
+          if (endDate <= startDate) {
+            return res.status(400).json({ message: "La date de fin doit être postérieure à la date de début." });
+          }
+          const conflict = await Booking.findOne({
+            vehicle: vehicleId,
+            status:  { $in: ["pending", "confirmed", "preparing", "ready", "in_progress"] },
+            "location.startDate": { $lt: endDate },
+            "location.endDate":   { $gt: startDate },
+          });
+          if (conflict) {
+            return res.status(409).json({
+              message: "Ce véhicule est déjà réservé sur ces dates. Choisissez d'autres dates.",
+              conflict: {
+                startDate: conflict.location.startDate,
+                endDate:   conflict.location.endDate,
+              },
+            });
+          }
+        }
         montantBase = (vehicle.pricePerDay || 0) * (location?.days || 1);
       }
       if (type === "leasing") {
@@ -287,9 +310,9 @@ export const updateBookingStatus = async (req, res) => {
     if (booking.client) {
       const notifs = {
         confirmed:   { type: "booking_confirmed",  titre: "✅ Réservation acceptée",    msg: "Votre réservation a été acceptée par le partenaire." },
-        preparing:   { type: "booking_confirmed",  titre: "⚙️ Préparation en cours",    msg: "Le partenaire prépare votre véhicule. Vous serez notifié quand il sera prêt." },
-        ready:       { type: "booking_confirmed",  titre: "🚗 Véhicule prêt !",          msg: "Votre véhicule est prêt. Le partenaire va vous contacter pour la livraison." },
-        in_progress: { type: "booking_confirmed",  titre: "🚀 En route vers vous !",     msg: "Le partenaire est en route. Préparez votre pièce d'identité." },
+        preparing:   { type: "system",             titre: "⚙️ Préparation en cours",    msg: "Le partenaire prépare votre véhicule. Vous serez notifié quand il sera prêt." },
+        ready:       { type: "system",             titre: "🚗 Véhicule prêt !",          msg: "Votre véhicule est prêt. Le partenaire va vous contacter pour la livraison." },
+        in_progress: { type: "system",             titre: "🚀 En route vers vous !",     msg: "Le partenaire est en route. Préparez votre pièce d'identité." },
         completed:   { type: "booking_completed",  titre: "🏁 Commande terminée",        msg: "Merci pour votre confiance ! Laissez un avis sur votre expérience." },
         cancelled:   { type: "booking_cancelled",  titre: "❌ Réservation annulée",      msg: `Votre réservation a été annulée.${cancelReason ? ` Raison : ${cancelReason}` : ""}` },
       };

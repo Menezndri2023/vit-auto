@@ -43,20 +43,6 @@ const VendorPublish = () => {
   
   const [errors, setErrors] = useState({});
 
-  if (!user || user.role !== 'partenaire') {
-    return (
-      <div className={styles.page}>
-        <div className={styles.centerContainer}>
-          <h1>Accès restreint</h1>
-          <p>Seuls les partenaires peuvent publier des annonces.</p>
-          <button className={styles.primaryBtn} onClick={() => navigate('/register')}>
-            Devenir partenaire
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const validateStep = useCallback(() => {
     const newErrors = {};
     // Validation logic per step
@@ -109,17 +95,17 @@ const VendorPublish = () => {
           <div>
             <h3>Choisissez le type d'annonce</h3>
             <div className={styles.typeCards}>
-              <button className={styles.typeCard + (adType === 'location' ? ' ' + styles.active)} onClick={() => handleTypeChange('location')}>
+              <button className={styles.typeCard + (adType === 'location' ? ' ' + styles.active : '')} onClick={() => handleTypeChange('location')}>
                 <div className={styles.typeIcon}>🚗</div>
                 <h4>Location véhicule</h4>
                 <p>Prix au jour, caution, âge min.</p>
               </button>
-              <button className={styles.typeCard + (adType === 'vente' ? ' ' + styles.active)} onClick={() => handleTypeChange('vente')}>
+              <button className={styles.typeCard + (adType === 'vente' ? ' ' + styles.active : '')} onClick={() => handleTypeChange('vente')}>
                 <div className={styles.typeIcon}>💰</div>
                 <h4>Vente véhicule</h4>
                 <p>Prix fixe, kilométrage, état.</p>
               </button>
-              <button className={styles.typeCard + (adType === 'chauffeur' ? ' ' + styles.active)} onClick={() => handleTypeChange('chauffeur')}>
+              <button className={styles.typeCard + (adType === 'chauffeur' ? ' ' + styles.active : '')} onClick={() => handleTypeChange('chauffeur')}>
                 <div className={styles.typeIcon}>👨‍✈️</div>
                 <h4>Chauffeur</h4>
                 <p>Tarifs, disponibilité, zone.</p>
@@ -173,6 +159,20 @@ const VendorPublish = () => {
         return <div>Étape {currentStep}</div>;
     }
   };
+
+  if (!user || user.role !== 'partenaire') {
+    return (
+      <div className={styles.page}>
+        <div className={styles.centerContainer}>
+          <h1>Accès restreint</h1>
+          <p>Seuls les partenaires peuvent publier des annonces.</p>
+          <button className={styles.primaryBtn} onClick={() => navigate('/register')}>
+            Devenir partenaire
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.page}>

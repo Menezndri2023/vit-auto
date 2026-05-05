@@ -3,17 +3,61 @@ import { useAuth } from "./AuthContext";
 
 const NotificationContext = createContext(null);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useNotifications = () => {
   const ctx = useContext(NotificationContext);
   if (!ctx) throw new Error("useNotifications must be used within NotificationProvider");
   return ctx;
 };
 
+// Synthèse d'un son de notification via Web Audio API (aucun fichier externe)
+function playNotifSound() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+
+    const makeNote = (freq, start, duration) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now + start);
+      gain.gain.setValueAtTime(0, now + start);
+      gain.gain.linearRampToValueAtTime(0.25, now + start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + start + duration);
+      osc.start(now + start);
+      osc.stop(now + start + duration);
+    };
+
+    makeNote(880,  0,    0.18);
+    makeNote(1100, 0.12, 0.22);
+    makeNote(1320, 0.27, 0.35);
+  } catch {
+    // Contexte audio non disponible
+  }
+}
+
 export const NotificationProvider = ({ children }) => {
-  const { token, isAuthenticated } = useAuth();
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const intervalRef = useRef(null);
+  const { token, isAuthenticated, authReady } = useAuth();
+  const [notifications, setNotifications]   = useState([]);
+  const [unreadCount,   setUnreadCount]     = useState(0);
+  const [soundEnabled,  setSoundEnabled]    = useState(() => {
+    try { return localStorage.getItem("vit-notif-sound") !== "false"; } catch { return true; }
+  });
+  const prevUnreadRef  = useRef(0);
+  const intervalRef    = useRef(null);
+  const isFirstFetch   = useRef(true);
+
+  const toggleSound = useCallback(() => {
+    setSoundEnabled((prev) => {
+      const next = !prev;
+      try { localStorage.setItem("vit-notif-sound", String(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
 
   const fetchNotifications = useCallback(async () => {
     if (!token) return;
@@ -23,24 +67,37 @@ export const NotificationProvider = ({ children }) => {
       });
       if (!res.ok) return;
       const data = await res.json();
-      setNotifications(data.notifications || []);
-      setUnreadCount(data.nonLues || 0);
-    } catch {
-      // backend unavailable
-    }
-  }, [token]);
+      const newList  = data.notifications || [];
+      const newCount = data.nonLues || 0;
 
-  // Polling toutes les 30 secondes
+      setNotifications(newList);
+      setUnreadCount(newCount);
+
+      // Jouer le son si nouvelles notifications (après le premier chargement)
+      if (!isFirstFetch.current && soundEnabled && newCount > prevUnreadRef.current) {
+        playNotifSound();
+      }
+      prevUnreadRef.current = newCount;
+      isFirstFetch.current  = false;
+    } catch {
+      return; // backend indisponible
+    }
+  }, [token, soundEnabled]);
+
+  // Polling toutes les 15 secondes
   useEffect(() => {
-    if (!isAuthenticated || !token) {
+    if (!authReady || !isAuthenticated || !token) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNotifications([]);
       setUnreadCount(0);
+      prevUnreadRef.current = 0;
+      isFirstFetch.current  = true;
       return;
     }
     fetchNotifications();
-    intervalRef.current = setInterval(fetchNotifications, 30_000);
+    intervalRef.current = setInterval(fetchNotifications, 15_000);
     return () => clearInterval(intervalRef.current);
-  }, [isAuthenticated, token, fetchNotifications]);
+  }, [authReady, isAuthenticated, token, fetchNotifications]);
 
   const markAsRead = useCallback(async (id) => {
     if (!token) return;
@@ -49,10 +106,9 @@ export const NotificationProvider = ({ children }) => {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}` },
       });
-      setNotifications((prev) =>
-        prev.map((n) => (n._id === id ? { ...n, lu: true } : n))
-      );
+      setNotifications((prev) => prev.map((n) => (n._id === id ? { ...n, lu: true } : n)));
       setUnreadCount((prev) => Math.max(0, prev - 1));
+      prevUnreadRef.current = Math.max(0, prevUnreadRef.current - 1);
     } catch { /* ignore */ }
   }, [token]);
 
@@ -65,6 +121,7 @@ export const NotificationProvider = ({ children }) => {
       });
       setNotifications((prev) => prev.map((n) => ({ ...n, lu: true })));
       setUnreadCount(0);
+      prevUnreadRef.current = 0;
     } catch { /* ignore */ }
   }, [token]);
 
@@ -75,19 +132,27 @@ export const NotificationProvider = ({ children }) => {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-      setNotifications((prev) => prev.filter((n) => n._id !== id));
-      setUnreadCount((prev) => {
-        const notif = notifications.find((n) => n._id === id);
-        return notif && !notif.lu ? Math.max(0, prev - 1) : prev;
+      setNotifications((prev) => {
+        const notif = prev.find((n) => n._id === id);
+        if (notif && !notif.lu) {
+          setUnreadCount((c) => Math.max(0, c - 1));
+          prevUnreadRef.current = Math.max(0, prevUnreadRef.current - 1);
+        }
+        return prev.filter((n) => n._id !== id);
       });
     } catch { /* ignore */ }
-  }, [token, notifications]);
+  }, [token]);
+
+  // Permettre un rafraîchissement manuel depuis d'autres composants
+  const refresh = useCallback(() => fetchNotifications(), [fetchNotifications]);
 
   return (
     <NotificationContext.Provider value={{
       notifications,
       unreadCount,
-      fetchNotifications,
+      soundEnabled,
+      toggleSound,
+      fetchNotifications: refresh,
       markAsRead,
       markAllAsRead,
       deleteNotification,

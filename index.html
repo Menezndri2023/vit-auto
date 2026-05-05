@@ -1,14 +1,54 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
+    <!-- SEO -->
+    <title>VIT AUTO — Location & Vente de Véhicules en Afrique</title>
+    <meta name="description" content="Louez, achetez ou vendez des véhicules en Afrique de l'Ouest. Catalogue de véhicules, chauffeurs privés, service client 24h/24." />
+    <meta name="keywords" content="location voiture, vente voiture, chauffeur privé, Dakar, Abidjan, Bamako, VIT AUTO" />
+    <meta name="author" content="VIT AUTO" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Open Graph (partage réseaux sociaux) -->
+    <meta property="og:type"        content="website" />
+    <meta property="og:title"       content="VIT AUTO — Location & Vente de Véhicules" />
+    <meta property="og:description" content="Louez ou achetez votre véhicule en Afrique de l'Ouest" />
+    <meta property="og:image"       content="/icons/icon-512x512.png" />
+    <meta property="og:url"         content="https://vitauto.vercel.app" />
+
+    <!-- Mobile / PWA -->
+    <meta name="theme-color" content="#ff4d2d" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="VIT AUTO" />
+
+    <!-- Icônes -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>vit-auto</title>
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <!-- Enregistrement du Service Worker -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(() => console.log('SW enregistré'))
+            .catch(() => {}); // silencieux en dev
+        });
+      }
+    </script>
   </body>
 </html>

@@ -1,81 +1,107 @@
-/* ─── Card container ─────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════
+   VEHICLE CARD — Design premium, mobile ready
+   ═══════════════════════════════════════════════════ */
+
 .card {
   width: 100%;
-  border-radius: 18px;
+  border-radius: var(--r-lg, 18px);
   overflow: hidden;
-  background: #ffffff;
-  box-shadow: 0 4px 16px rgba(15, 27, 63, 0.08);
+  background: var(--c-bg-card, #fff);
+  box-shadow: var(--sh-sm);
   display: flex;
   flex-direction: column;
-  transition: transform 0.28s ease, box-shadow 0.28s ease;
-  border: 1px solid #edf1fb;
+  transition:
+    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.3s ease;
+  border: 1px solid var(--c-border, #e5eaf5);
+  position: relative;
 }
 
 .card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 18px 40px rgba(15, 27, 63, 0.14);
+  transform: translateY(-5px);
+  box-shadow: var(--sh-lg);
 }
 
-/* ─── Cover / image ─────────────────────────────────────── */
+/* ── Image ─────────────────────────────────────────── */
 .cover {
   position: relative;
   overflow: hidden;
+  background: var(--c-bg, #f5f7fb);
 }
 
 .cover img {
   width: 100%;
-  height: 210px;
+  height: 200px;
   object-fit: cover;
   display: block;
-  transition: transform 0.4s ease;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .card:hover .cover img {
-  transform: scale(1.04);
+  transform: scale(1.06);
 }
 
-/* dark gradient at bottom of image */
+/* Dégradé bas d'image */
 .cover::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(to bottom, transparent 45%, rgba(10, 15, 40, 0.55) 100%);
+  background: linear-gradient(
+    to bottom,
+    transparent 40%,
+    rgba(8, 12, 28, 0.50) 100%
+  );
   pointer-events: none;
 }
 
-/* ─── Badges ────────────────────────────────────────────── */
+/* Placeholder sans image */
+.coverPlaceholder {
+  width: 100%;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #e8eef9 0%, #d4ddf5 100%);
+  font-size: 3.5rem;
+  color: var(--c-text-muted, #8493b0);
+}
+
+/* ── Badges ────────────────────────────────────────── */
 .badges {
   position: absolute;
-  top: 12px;
-  left: 12px;
+  top: 10px;
+  left: 10px;
   display: flex;
-  gap: 6px;
+  gap: 5px;
   z-index: 2;
+  flex-wrap: wrap;
 }
 
 .badge {
-  font-size: 0.65rem;
-  font-weight: 800;
+  font-size: 0.68rem;
+  font-weight: 700;
   color: white;
-  border-radius: 999px;
+  border-radius: var(--r-full, 9999px);
   padding: 4px 10px;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  backdrop-filter: blur(4px);
+  letter-spacing: 0.07em;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.20);
 }
 
-.location  { background: rgba(37, 99, 235, 0.88); }
-.sale      { background: rgba(220, 38, 38, 0.88); }
-.available { background: rgba(22, 163, 74, 0.88); }
-.reserve   { background: rgba(234, 88, 12, 0.88); }
+.location  { background: rgba(37, 99, 235, 0.85); }
+.sale      { background: rgba(239, 68, 68, 0.85); }
+.available { background: rgba(16, 185, 129, 0.85); }
+.reserve   { background: rgba(234, 88, 12, 0.85); }
 
-/* ─── Info block ────────────────────────────────────────── */
+/* ── Corps ─────────────────────────────────────────── */
 .info {
-  padding: 16px 18px 12px;
+  padding: 15px 17px 11px;
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
 }
 
 .topRow {
@@ -87,117 +113,165 @@
 
 .info h3 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 800;
-  color: #0f1b3f;
+  color: var(--c-text-primary, #0f1b3f);
   line-height: 1.3;
+  /* Tronque les titres trop longs */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .km {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  color: #ff4d2d;
+  color: var(--c-primary, #ff4d2d);
   white-space: nowrap;
   flex-shrink: 0;
-  background: #fff3f0;
-  padding: 2px 8px;
-  border-radius: 999px;
+  background: var(--c-primary-bg, #fff5f3);
+  padding: 3px 9px;
+  border-radius: var(--r-full, 9999px);
+  border: 1px solid rgba(255, 77, 45, 0.18);
 }
 
 .type {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  color: #8493b0;
-  margin: 0;
+  color: var(--c-text-muted, #8493b0);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
 }
 
-/* ─── Meta chips ────────────────────────────────────────── */
+/* ── Chips caractéristiques ────────────────────────── */
 .meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
 }
 
 .meta span {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  color: #5a6d8a;
-  background: #f4f7fd;
-  border: 1px solid #e6ecf8;
-  border-radius: 8px;
+  color: var(--c-text-secondary, #4a5876);
+  background: var(--c-bg, #f5f7fb);
+  border: 1px solid var(--c-border, #e5eaf5);
+  border-radius: var(--r-xs, 6px);
   padding: 3px 9px;
+  white-space: nowrap;
 }
 
-/* ─── Price ─────────────────────────────────────────────── */
+/* ── Prix ──────────────────────────────────────────── */
 .priceBlock {
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .price {
-  margin: 0;
   font-weight: 900;
-  color: #ff4d2d;
-  font-size: 1.22rem;
-  letter-spacing: -0.02em;
+  color: var(--c-primary, #ff4d2d);
+  font-size: 1.18rem;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
 }
 
 .buyPrice {
   margin: 2px 0 0;
-  font-size: 0.78rem;
-  color: #8493b0;
+  font-size: 0.75rem;
+  color: var(--c-text-muted, #8493b0);
   font-weight: 600;
 }
 
-/* ─── Actions ───────────────────────────────────────────── */
+/* ── Ville ─────────────────────────────────────────── */
+.ville {
+  font-size: 0.75rem;
+  color: var(--c-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* ── Actions ───────────────────────────────────────── */
 .actions {
   display: flex;
-  gap: 10px;
-  padding: 12px 18px 16px;
-  border-top: 1px solid #f0f3fb;
+  gap: 8px;
+  padding: 10px 14px 14px;
+  border-top: 1px solid var(--c-border, #e5eaf5);
 }
 
 .actions button {
-  background: linear-gradient(135deg, #ff4d2d 0%, #e03519 100%);
+  background: linear-gradient(
+    135deg,
+    var(--c-primary, #ff4d2d) 0%,
+    var(--c-primary-dark, #e03519) 100%
+  );
   color: white;
   border: none;
   flex: 1;
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: var(--r-md, 14px);
   cursor: pointer;
   font-weight: 700;
-  font-size: 0.88rem;
-  transition: all 0.25s ease;
-  box-shadow: 0 4px 12px rgba(255, 77, 45, 0.28);
+  font-size: 0.85rem;
+  transition: all var(--t-base);
+  box-shadow: 0 3px 10px rgba(255, 77, 45, 0.25);
+  min-height: 40px;
+  font-family: var(--font-base);
 }
 
 .actions button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(255, 77, 45, 0.38);
+  box-shadow: 0 5px 16px rgba(255, 77, 45, 0.38);
 }
 
 .actions button:active {
   transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(255, 77, 45, 0.20);
 }
 
 .actions .secondary {
-  background: #f4f7fd;
-  color: #0f1b3f;
-  border: 1px solid #dde6f5;
+  background: var(--c-bg, #f5f7fb);
+  color: var(--c-text-primary, #0f1b3f);
+  border: 1.5px solid var(--c-border, #e5eaf5);
   box-shadow: none;
 }
 
 .actions .secondary:hover {
-  background: #e8eef9;
+  background: var(--c-bg-subtle, #f0f4ff);
+  border-color: var(--c-brand-light, #2563eb);
   box-shadow: none;
 }
 
-/* ─── Responsive ────────────────────────────────────────── */
+/* ── Mobile ────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .cover img { height: 180px; }
-  .actions   { flex-direction: column; }
+  .cover img,
+  .coverPlaceholder {
+    height: 175px;
+  }
+
+  .info {
+    padding: 12px 14px 8px;
+  }
+
+  .info h3 {
+    font-size: 0.95rem;
+  }
+
+  .price {
+    font-size: 1.1rem;
+  }
+
+  .actions {
+    padding: 8px 12px 12px;
+    gap: 6px;
+  }
+
+  .actions button {
+    padding: 11px 10px;
+    font-size: 0.82rem;
+    min-height: 44px; /* touch target */
+  }
 }

@@ -94,16 +94,16 @@ const scoreAnnonce = (data) => {
     e.includes("Modèle")
   );
 
-  let status;
-  if (criticalErrors.length === 0 && score >= 65) {
-    status = "approved"; // Auto-approuvé ✅
-  } else if (criticalErrors.length >= 2 || score < 30) {
-    status = "rejected"; // Auto-rejeté ❌
-  } else {
-    status = "pending";  // Examen manuel requis ⏳
-  }
+  // Toutes les annonces passent par la validation admin — status toujours pending
+  // Le score sert uniquement de guide pour l'admin (qualité de l'annonce)
+  const autoRejected = criticalErrors.length >= 2 || score < 30;
 
-  return { score, status, errors, warnings };
+  return {
+    score,
+    status:   autoRejected ? "rejected" : "pending",
+    errors,
+    warnings,
+  };
 };
 
 // ── Créer une annonce véhicule (partenaire) ───────────────────────────────────
@@ -162,27 +162,50 @@ export const createVehicle = async (req, res) => {
   }
 };
 
-// ── Tous les véhicules approuvés (public) ─────────────────────────────────────
+// ── Tous les véhicules approuvés (public) avec pagination ────────────────────
 export const getVehicles = async (req, res) => {
   try {
-    const { type, ville, carburant, transmission, minPrice, maxPrice } = req.query;
-    const filter = { status: "approved", available: true };
+    const {
+      type, ville, carburant, transmission, minPrice, maxPrice,
+      vehicleType, search,
+      page  = 1,
+      limit = 20,
+      status,    // admin uniquement
+    } = req.query;
+
+    const isAdmin = req.user?.role === "admin";
+
+    const filter = isAdmin && status
+      ? { status }                              // admin peut voir tous les statuts
+      : { status: "approved", available: true }; // public = approuvés seulement
 
     if (type)         filter.type = type;
+    if (vehicleType)  filter.vehicleType = vehicleType;
     if (ville)        filter.ville = new RegExp(ville, "i");
     if (carburant)    filter.carburant = carburant;
     if (transmission) filter.transmission = transmission;
+    if (search)       filter.$or = [
+      { title:  new RegExp(search, "i") },
+      { marque: new RegExp(search, "i") },
+      { modele: new RegExp(search, "i") },
+    ];
     if (minPrice || maxPrice) {
       filter.pricePerDay = {};
       if (minPrice) filter.pricePerDay.$gte = Number(minPrice);
       if (maxPrice) filter.pricePerDay.$lte = Number(maxPrice);
     }
 
-    const vehicles = await Vehicle.find(filter)
-      .sort({ createdAt: -1 })
-      .populate("owner", "firstName phone ville");
+    const skip  = (Math.max(Number(page), 1) - 1) * Number(limit);
+    const [vehicles, total] = await Promise.all([
+      Vehicle.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit))
+        .populate("owner", "firstName phone ville"),
+      Vehicle.countDocuments(filter),
+    ]);
 
-    res.json(vehicles);
+    res.json({ vehicles, total, page: Number(page), pages: Math.ceil(total / Number(limit)) });
   } catch (err) {
     console.error("getVehicles:", err);
     res.status(500).json({ message: "Erreur récupération véhicules." });

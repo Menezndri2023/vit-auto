@@ -201,10 +201,19 @@ const Dashboard = () => {
   const { success: toastSuccess } = useToast();
   const [activeTab, setActiveTab] = useState("all");
   const [reviewTarget, setReviewTarget] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const handleReviewSuccess = useCallback(() => {
     toastSuccess("Merci pour votre avis !");
   }, [toastSuccess]);
+
+  const handleRefresh = useCallback(async () => {
+    if (!token) return;
+    setRefreshing(true);
+    await loadMyOrders();
+    setRefreshing(false);
+    toastSuccess("Réservations actualisées");
+  }, [token, loadMyOrders, toastSuccess]);
 
   // Synchroniser avec le backend au montage — TOUS les hooks avant les early returns
   useEffect(() => {
@@ -288,9 +297,33 @@ const Dashboard = () => {
             Bonjour <strong>{user?.firstName || user?.name || user?.email}</strong> — suivez toutes vos réservations
           </p>
         </div>
-        <Link to="/catalogue" className={styles.ctaBtn}>
-          + Nouvelle réservation
-        </Link>
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className={styles.refreshBtn || ""}
+            style={{
+              background: "transparent",
+              border: "2px solid rgba(255,255,255,0.3)",
+              color: "#fff",
+              borderRadius: "8px",
+              padding: "0.5rem 1rem",
+              cursor: refreshing ? "not-allowed" : "pointer",
+              fontWeight: 600,
+              fontSize: "0.85rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.4rem",
+            }}
+          >
+            <span style={{ display: "inline-block", animation: refreshing ? "spin 0.8s linear infinite" : "none" }}>↻</span>
+            {refreshing ? "…" : "Actualiser"}
+          </button>
+          <Link to="/catalogue" className={styles.ctaBtn}>
+            + Nouvelle réservation
+          </Link>
+        </div>
       </header>
 
       {/* ── Statistiques ── */}

@@ -4,16 +4,25 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "kill-port": "kill-port 5001 5173 || true",
+    "dev": "npm run kill-port && concurrently -n backend,frontend -c bgBlue.bold,bgGreen.bold --kill-others-on-fail \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:frontend": "vite",
     "dev:backend": "cd server && node server.js",
+    "dev:only-backend": "cd server && node server.js",
+    "dev:only-frontend": "vite",
     "build": "vite build",
+    "build:mobile": "vite build && npx cap sync",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cap:android": "npx cap open android",
+    "cap:ios": "npx cap open ios"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/cli": "^8.3.1",
+    "@capacitor/core": "^8.3.1",
+    "@capacitor/ios": "^8.3.1",
     "leaflet": "^1.9.4",
-    "mongoose": "^9.3.2",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-leaflet": "^5.0.0",
@@ -29,6 +38,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
+    "kill-port": "^2.0.1",
     "vite": "^8.0.0"
   }
 }

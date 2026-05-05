@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">VIT AUTO</string>
+    <string name="title_activity_main">VIT AUTO</string>
+    <string name="package_name">com.vitauto.app</string>
+    <string name="custom_url_scheme">com.vitauto.app</string>
+</resources>

@@ -2,6 +2,8 @@ import User from "../models/User.js";
 import Booking from "../models/Booking.js";
 import Vehicle from "../models/Vehicle.js";
 import Driver from "../models/Driver.js";
+import Notification from "../models/Notification.js";
+import { transporter, FROM_ADDRESS, identityRejectedTemplate } from "../config/email.js";
 
 // ── Liste de tous les utilisateurs (admin) ────────────────────────────────
 export const getUsers = async (req, res) => {
@@ -192,6 +194,133 @@ export const getAdminStats = async (req, res) => {
     });
   } catch (err) {
     console.error("getAdminStats:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Soumettre sa pièce d'identité (utilisateur connecté) ─────────────────
+export const submitIdentity = async (req, res) => {
+  try {
+    const { type, number, expiryDate, frontImage, backImage, selfie } = req.body;
+
+    if (!type || !number) {
+      return res.status(400).json({ message: "Type et numéro de pièce requis." });
+    }
+    const allowed = ["cni", "passport", "permis", "carte_sejour"];
+    if (!allowed.includes(type)) {
+      return res.status(400).json({ message: "Type de pièce invalide." });
+    }
+    // Validation basique du numéro (non vide, longueur raisonnable)
+    if (number.trim().length < 4) {
+      return res.status(400).json({ message: "Numéro de pièce trop court." });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
+
+    user.identity = {
+      type,
+      number:      number.trim(),
+      expiryDate:  expiryDate ? new Date(expiryDate) : null,
+      frontImage:  frontImage || null,
+      backImage:   backImage  || null,
+      selfie:      selfie     || null,
+      status:      "pending",
+      submittedAt: new Date(),
+    };
+    await user.save();
+
+    // Notifier l'admin
+    const admins = await User.find({ role: "admin", isActive: true }).select("_id");
+    const notifs = admins.map((a) => ({
+      user:    a._id,
+      type:    "system",
+      titre:   "📋 Nouvelle pièce d'identité soumise",
+      message: `${user.firstName} ${user.lastName} a soumis sa pièce d'identité.`,
+      lien:    "/admin",
+    }));
+    if (notifs.length) await Notification.insertMany(notifs);
+
+    res.json({ message: "Pièce d'identité soumise. En attente de vérification.", status: "pending" });
+  } catch (err) {
+    console.error("submitIdentity:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Vérifier / rejeter une identité (admin) ───────────────────────────────
+export const adminVerifyIdentity = async (req, res) => {
+  try {
+    const { status, rejectionReason } = req.body;
+    if (!["verified", "rejected"].includes(status)) {
+      return res.status(400).json({ message: "Statut invalide (verified | rejected)." });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
+    if (!user.identity?.number) {
+      return res.status(400).json({ message: "Aucune pièce soumise pour cet utilisateur." });
+    }
+
+    user.identity.status = status;
+    if (status === "verified") {
+      user.identity.verifiedAt  = new Date();
+      user.documentsVerified    = true;
+    } else {
+      user.identity.rejectionReason = rejectionReason || null;
+      user.documentsVerified        = false;
+    }
+    await user.save();
+
+    // Notifier l'utilisateur
+    await Notification.create({
+      user:    user._id,
+      type:    status === "verified" ? "listing_approved" : "listing_rejected",
+      titre:   status === "verified" ? "✅ Identité vérifiée" : "❌ Identité refusée",
+      message: status === "verified"
+        ? "Votre pièce d'identité a été vérifiée avec succès."
+        : `Votre pièce a été refusée. ${rejectionReason || ""}`,
+      lien: "/profile",
+    });
+
+    // E-mail si rejet
+    if (status === "rejected") {
+      transporter.sendMail({
+        from:    FROM_ADDRESS,
+        to:      user.email,
+        subject: "❌ VIT AUTO — Vérification d'identité refusée",
+        html:    identityRejectedTemplate(user.firstName, rejectionReason),
+      }).catch((e) => console.error("Email rejet (non-bloquant):", e.message));
+    }
+
+    res.json({ message: `Identité ${status === "verified" ? "vérifiée" : "refusée"}.`, user: { id: user._id, identityStatus: user.identity.status } });
+  } catch (err) {
+    console.error("adminVerifyIdentity:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Liste des identités en attente (admin) ────────────────────────────────
+export const getPendingIdentities = async (req, res) => {
+  try {
+    const users = await User.find({ "identity.status": "pending" })
+      .select("-password")
+      .sort({ "identity.submittedAt": 1 });
+    res.json({ users });
+  } catch (err) {
+    console.error("getPendingIdentities:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Profil complet de l'utilisateur connecté ──────────────────────────────
+export const getMyProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select("-password -emailVerificationToken");
+    if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
+    res.json({ user });
+  } catch (err) {
+    console.error("getMyProfile:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

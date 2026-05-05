@@ -165,6 +165,8 @@ bookingSchema.index({ driver: 1 });
 bookingSchema.index({ status: 1 });
 bookingSchema.index({ type: 1 });
 bookingSchema.index({ createdAt: -1 });
+// Index pour la vérification de chevauchement de dates
+bookingSchema.index({ vehicle: 1, status: 1, "location.startDate": 1, "location.endDate": 1 });
 
 bookingSchema.pre("save", function (next) {
   this.updatedAt = new Date();

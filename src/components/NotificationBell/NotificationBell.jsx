@@ -12,6 +12,7 @@ const TYPE_ICONS = {
   payment_received:  "💰",
   listing_approved:  "✔️",
   listing_rejected:  "🚫",
+  new_message:       "💬",
   system:            "ℹ️",
 };
 
@@ -27,10 +28,28 @@ const timeAgo = (dateStr) => {
 };
 
 export default function NotificationBell() {
-  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
-  const [open, setOpen] = useState(false);
-  const panelRef = useRef(null);
-  const navigate = useNavigate();
+  const {
+    notifications, unreadCount,
+    soundEnabled, toggleSound,
+    markAsRead, markAllAsRead, deleteNotification,
+  } = useNotifications();
+
+  const [open,     setOpen]     = useState(false);
+  const [ringing,  setRinging]  = useState(false);
+  const panelRef   = useRef(null);
+  const prevCount  = useRef(unreadCount);
+  const navigate   = useNavigate();
+
+  // Animation cloche quand nouvelles notifications
+  useEffect(() => {
+    if (unreadCount > prevCount.current) {
+      setRinging(true);
+      const t = setTimeout(() => setRinging(false), 700);
+      prevCount.current = unreadCount;
+      return () => clearTimeout(t);
+    }
+    prevCount.current = unreadCount;
+  }, [unreadCount]);
 
   // Fermer si clic en dehors
   useEffect(() => {
@@ -48,16 +67,17 @@ export default function NotificationBell() {
     if (notif.lien) navigate(notif.lien);
   };
 
-  const recent = notifications.slice(0, 12);
+  const recent = notifications.slice(0, 15);
 
   return (
     <div className={styles.wrapper} ref={panelRef}>
       <button
-        className={styles.bell}
+        className={`${styles.bell} ${ringing ? styles.bellRinging : ""}`}
         onClick={() => setOpen((o) => !o)}
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} non lues)` : ""}`}
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="22" height="22">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          strokeLinecap="round" strokeLinejoin="round" width="22" height="22">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
@@ -69,12 +89,29 @@ export default function NotificationBell() {
       {open && (
         <div className={styles.panel}>
           <div className={styles.panelHeader}>
-            <span className={styles.panelTitle}>Notifications</span>
-            {unreadCount > 0 && (
-              <button className={styles.markAllBtn} onClick={markAllAsRead}>
-                Tout marquer lu
+            <div className={styles.panelHeaderLeft}>
+              <span className={styles.panelTitle}>Notifications</span>
+              {unreadCount > 0 && (
+                <span style={{ background: "#eff6ff", color: "#2563eb", fontSize: "0.72rem",
+                  fontWeight: 700, borderRadius: "10px", padding: "1px 7px" }}>
+                  {unreadCount}
+                </span>
+              )}
+            </div>
+            <div className={styles.panelHeaderRight}>
+              <button
+                className={`${styles.soundBtn} ${soundEnabled ? styles.soundBtnOn : styles.soundBtnOff}`}
+                onClick={(e) => { e.stopPropagation(); toggleSound(); }}
+                title={soundEnabled ? "Son activé — cliquer pour désactiver" : "Son désactivé — cliquer pour activer"}
+              >
+                {soundEnabled ? "🔔" : "🔕"}
               </button>
-            )}
+              {unreadCount > 0 && (
+                <button className={styles.markAllBtn} onClick={markAllAsRead}>
+                  Tout lu
+                </button>
+              )}
+            </div>
           </div>
 
           {recent.length === 0 ? (
@@ -90,9 +127,7 @@ export default function NotificationBell() {
                   className={`${styles.item} ${!n.lu ? styles.itemUnread : ""}`}
                   onClick={() => handleClick(n)}
                 >
-                  <span className={styles.itemIcon}>
-                    {TYPE_ICONS[n.type] || "🔔"}
-                  </span>
+                  <span className={styles.itemIcon}>{TYPE_ICONS[n.type] || "🔔"}</span>
                   <div className={styles.itemContent}>
                     <p className={styles.itemTitle}>{n.titre}</p>
                     <p className={styles.itemMsg}>{n.message}</p>
