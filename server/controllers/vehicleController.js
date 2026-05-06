@@ -94,9 +94,9 @@ const scoreAnnonce = (data) => {
     e.includes("Modèle")
   );
 
-  // Toutes les annonces passent par la validation admin — status toujours pending
-  // Le score sert uniquement de guide pour l'admin (qualité de l'annonce)
-  const autoRejected = criticalErrors.length >= 2 || score < 30;
+  // Rejet automatique uniquement si plusieurs erreurs critiques simultanées
+  // (téléphone manquant + prix manquant, etc.) — sinon toujours pending pour examen admin
+  const autoRejected = criticalErrors.length >= 3;
 
   return {
     score,

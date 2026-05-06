@@ -313,6 +313,30 @@ export const getPendingIdentities = async (req, res) => {
   }
 };
 
+// ── Mettre à jour son propre profil (utilisateur connecté) ───────────────
+export const updateMyProfile = async (req, res) => {
+  try {
+    const allowed = ["firstName", "lastName", "phone", "address",
+                     "notif_emailReminders", "notif_smsReminders",
+                     "notif_promotionalEmails", "notif_bookingConfirmations",
+                     "licenseNumber", "licenseExpiry", "profilePhoto"];
+    const updates = {};
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) updates[key] = req.body[key];
+    }
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: updates },
+      { new: true }
+    ).select("-password -emailVerificationToken");
+    if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
+    res.json({ user });
+  } catch (err) {
+    console.error("updateMyProfile:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
 // ── Profil complet de l'utilisateur connecté ──────────────────────────────
 export const getMyProfile = async (req, res) => {
   try {

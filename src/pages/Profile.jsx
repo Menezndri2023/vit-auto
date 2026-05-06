@@ -293,14 +293,32 @@ const Profile = () => {
   const handleSave = async (e) => {
     e?.preventDefault();
     setSaving(true);
-    updateUser({
+    const payload = {
       ...profileData,
       notif_emailReminders:       notifications.emailReminders,
       notif_smsReminders:         notifications.smsReminders,
       notif_promotionalEmails:    notifications.promotionalEmails,
       notif_bookingConfirmations: notifications.bookingConfirmations,
-    });
-    await new Promise((r) => setTimeout(r, 400));
+    };
+    try {
+      const res = await fetch("/api/users/me", {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok && data.user) {
+        updateUser(data.user);
+        toastSuccess("Profil mis à jour avec succès.");
+      } else {
+        toastError(data.message || "Erreur lors de la sauvegarde.");
+        return;
+      }
+    } catch {
+      // Backend indisponible — sauvegarder localement quand même
+      updateUser(payload);
+      toastSuccess("Profil mis à jour (hors ligne).");
+    }
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);

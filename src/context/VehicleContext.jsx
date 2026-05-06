@@ -164,7 +164,9 @@ export const VehicleProvider = ({ children }) => {
     } catch { /* backend unavailable */ }
   }, [token]);
 
-  // Commandes du client connecté (synchronise le localStorage avec le backend)
+  // Commandes du client connecté — le backend est la source de vérité
+  // Les commandes locales (id numérique = timestamp) sont conservées seulement si
+  // elles n'ont pas encore été synchronisées (hors ligne)
   const loadMyOrders = useCallback(async () => {
     if (!token) return;
     try {
@@ -174,13 +176,19 @@ export const VehicleProvider = ({ children }) => {
       if (!res.ok) return;
       const { bookings: raw } = await res.json();
       if (Array.isArray(raw)) {
-        const normalized = raw.map(normalizeBackendBooking);
+        const fromBackend = raw.map(normalizeBackendBooking);
         setBookings((prev) => {
-          const ids = new Set(normalized.map((b) => b.id));
-          return [...normalized, ...prev.filter((b) => !ids.has(String(b.id)))];
+          // Garder seulement les commandes locales non encore soumises au backend
+          // (id numérique = timestamp local, pas un ObjectId MongoDB)
+          const localOnly = prev.filter(
+            (b) => !b._fromBackend && typeof b.id === "number"
+          );
+          const merged = [...fromBackend, ...localOnly];
+          saveBookings(merged);
+          return merged;
         });
       }
-    } catch { /* backend unavailable */ }
+    } catch { /* backend unavailable — conserver les données locales */ }
   }, [token]);
 
   useEffect(() => {

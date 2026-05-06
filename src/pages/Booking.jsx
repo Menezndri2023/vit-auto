@@ -228,7 +228,6 @@ const Booking = () => {
       alert("Indiquez votre numéro mobile."); return;
     }
 
-    const bookingId        = `local-${performance.now().toFixed(0)}-${Math.random().toString(36).slice(2, 7)}`;
     const commissionRate   = (isTrial || isLeasing) ? 0.03 : 0.15;
     const leasingData      = vehicle?.leasing || {};
     const leasingApport    = leasingData.apportInitial || 0;
@@ -285,11 +284,68 @@ const Booking = () => {
 
     addBooking(booking);
 
+    // Payload formaté pour le backend (format différent du localStorage local)
     try {
       const headers = { "Content-Type": "application/json" };
       if (token) headers.Authorization = `Bearer ${token}`;
-      await fetch("/api/bookings", { method: "POST", headers, body: JSON.stringify(booking) });
-    } catch { /* offline */ }
+
+      const clientInfo = {
+        firstName: isTrial || isLeasing ? trialForm.firstName : form.firstName,
+        lastName:  isTrial || isLeasing ? trialForm.lastName  : form.lastName,
+        email:     isTrial || isLeasing ? trialForm.email     : form.email,
+        phone:     isTrial || isLeasing ? trialForm.phone     : form.phone,
+      };
+
+      const apiPayload = isLeasing
+        ? {
+            type: "leasing",
+            clientInfo,
+            vehicleId: vehicle._id || vehicle.id,
+            leasing: {
+              apportInitial: leasingApport,
+              mensualite:    leasingMensual,
+              duree:         leasingDuree,
+              totalLeasing:  leasingTotal,
+              tauxInteret:   vehicle?.leasing?.tauxInteret || 8,
+            },
+            clientVerification: verificationForm,
+          }
+        : isTrial
+        ? {
+            type: "essai",
+            clientInfo,
+            vehicleId: vehicle._id || vehicle.id,
+            essai: {
+              preferredDate: trialForm.preferredDate,
+              preferredTime: trialForm.preferredTime,
+              notes:         trialForm.notes || "",
+            },
+            clientVerification: verificationForm,
+          }
+        : {
+            type: "location",
+            clientInfo,
+            vehicleId: vehicle._id || vehicle.id,
+            location: {
+              startDate:      form.startDate,
+              endDate:        form.endDate,
+              days,
+              pickupLocation: finalPickup,
+              pickupPosition,
+              returnLocation: "",
+              options:        selectedOptions,
+            },
+            clientVerification: verificationForm,
+            payment: {
+              method:       paymentForm.paymentMethod,
+              mobileNumber: paymentForm.mobileNumber || undefined,
+              cardNumber:   paymentForm.cardNumber   || undefined,
+              cardHolder:   paymentForm.cardHolder   || undefined,
+            },
+          };
+
+      await fetch("/api/bookings", { method: "POST", headers, body: JSON.stringify(apiPayload) });
+    } catch { /* offline — booking déjà sauvegardé en localStorage */ }
 
     navigate("/booking/success", { state: { booking, trial: isTrial || isLeasing, payment: paymentForm } });
   };

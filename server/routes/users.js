@@ -6,6 +6,7 @@ const router = express.Router();
 
 // ── Utilisateur connecté ───────────────────────────────────────────────────
 router.get("/me",              authenticate, u.getMyProfile);          // profil complet
+router.patch("/me",            authenticate, u.updateMyProfile);       // mettre à jour le profil
 router.post("/me/identity",    authenticate, u.submitIdentity);        // soumettre pièce d'identité
 
 // ── Admin ─────────────────────────────────────────────────────────────────
