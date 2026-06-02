@@ -10,7 +10,11 @@ const VehicleCard = React.memo(({ car }) => {
   return (
     <div className={styles.card}>
       <div className={styles.cover}>
-        <img src={car.image} alt={car.name} loading="lazy" />
+        {car.image ? (
+          <img src={car.image} alt={car.name} loading="lazy" />
+        ) : (
+          <div className={styles.coverPlaceholder}>🚗</div>
+        )}
         <div className={styles.badges}>
           <span className={`${styles.badge} ${car.mode === "Acheter" ? styles.sale : styles.location}`}>
             {car.mode === "Acheter" ? "Vente" : "Location"}
@@ -31,17 +35,21 @@ const VehicleCard = React.memo(({ car }) => {
         <p className={styles.type}>{car.type}</p>
 
         <div className={styles.meta}>
-          {car.rating != null && <span>⭐ {car.rating} ({car.reviews})</span>}
-          {car.seats  != null && <span>🧍 {car.seats} places</span>}
+          {car.rating != null && <span>⭐ {car.rating} ({car.reviews ?? 0})</span>}
+          {car.seats   != null && <span>🧍 {car.seats} places</span>}
           {car.transmission && <span>⚙️ {car.transmission}</span>}
-          {car.fuel        && <span>⛽ {car.fuel}</span>}
+          {car.fuel         && <span>⛽ {car.fuel}</span>}
         </div>
+
+        {car.city && (
+          <p className={styles.ville}>📍 {car.city}</p>
+        )}
 
         <div className={styles.priceBlock}>
           <p className={styles.price}>
             {car.mode === "Acheter"
               ? fmt(car.buyPrice)
-              : `${fmt(car.pricePerDay)} / jour`}
+              : <>{fmt(car.pricePerDay)}<em> / jour</em></>}
           </p>
           {car.mode !== "Acheter" && car.buyPrice && (
             <p className={styles.buyPrice}>Achat : {fmt(car.buyPrice)}</p>

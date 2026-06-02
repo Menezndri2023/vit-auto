@@ -1,5 +1,5 @@
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import { useAuth } from "../context/AuthContext";
 import { useLocation as useGeoLocation } from "../context/LocationContext";
@@ -35,7 +35,7 @@ const Booking = () => {
     ((id) => vehicles.vehicles?.find(v => String(v.id) === String(id) || v._id === String(id)));
   const addBooking  = vehicles.addBooking;
   const { token, user } = useAuth();
-  const { position, address: geoAddress, refreshLocation } = useGeoLocation();
+  const { position, address: geoAddress, refreshLocation, error: geoContextError } = useGeoLocation();
   const vehicle = getVehicleById(id);
 
   // Détecter si leasing demandé via query param ?type=leasing
@@ -44,6 +44,8 @@ const Booking = () => {
   const [error, setError]     = useState(null);
   const [loading, setLoading] = useState(true);
   const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError]     = useState(null);
+  const geoWaiting = useRef(false);
   const [step, setStep]       = useState(1); // 1=Info, 2=Vérification, 3=Paiement
 
   useEffect(() => {
@@ -68,24 +70,44 @@ const Booking = () => {
   const [pickupPosition, setPickupPosition] = useState(null);
   const [deliveryZone, setDeliveryZone]     = useState("z1"); // zone de livraison par défaut
 
-  // Remplir automatiquement avec le GPS disponible
+  // Quand la position change dans le contexte, mettre à jour l'adresse si on attendait le GPS
   useEffect(() => {
     if (position && addressMode === "gps" && pickupMethod === "livraison") {
-      setPickupAddress(geoAddress || `${position.lat.toFixed(5)}, ${position.lng.toFixed(5)}`);
+      const addr = geoAddress || `${position.lat.toFixed(5)}, ${position.lng.toFixed(5)}`;
+      setPickupAddress(addr);
       setPickupPosition(position);
+      if (geoWaiting.current) {
+        geoWaiting.current = false;
+        setGeoLoading(false);
+        setGeoError(null);
+      }
     }
   }, [position, geoAddress, addressMode, pickupMethod]);
 
-  const handleDetectGPS = async () => {
-    setGeoLoading(true);
-    await refreshLocation();
-    setTimeout(() => {
-      if (position) {
-        setPickupAddress(geoAddress || `${position.lat.toFixed(5)}, ${position.lng.toFixed(5)}`);
-        setPickupPosition(position);
-      }
+  // Quand le contexte signale une erreur GPS pendant notre attente
+  useEffect(() => {
+    if (geoContextError && geoWaiting.current) {
+      geoWaiting.current = false;
       setGeoLoading(false);
-    }, 1500);
+      setGeoError("GPS indisponible. Entrez votre adresse manuellement.");
+      setAddressMode("text");
+    }
+  }, [geoContextError]);
+
+  const handleDetectGPS = () => {
+    setGeoLoading(true);
+    setGeoError(null);
+    geoWaiting.current = true;
+    refreshLocation();
+    // Timeout de sécurité : 12 secondes max
+    setTimeout(() => {
+      if (geoWaiting.current) {
+        geoWaiting.current = false;
+        setGeoLoading(false);
+        setGeoError("Délai dépassé. Entrez votre adresse manuellement.");
+        setAddressMode("text");
+      }
+    }, 12000);
   };
 
   // ── Formulaires ───────────────────────────────────────────
@@ -123,6 +145,9 @@ const Booking = () => {
     cvv:           "",
     mobileNumber:  "",
   });
+
+  const [simulating, setSimulating] = useState(false);
+  const [simProgress, setSimProgress] = useState(0);
 
   const [selectedOptions, setSelectedOptions] = useState({
     gps: false, babySeat: false, insurance: false, driver: false,
@@ -201,7 +226,11 @@ const Booking = () => {
       }
       if (days <= 0) { alert("La date de fin doit être postérieure à la date de début."); return; }
       if (pickupMethod === "livraison" && !pickupAddress.trim()) {
-        alert("Renseignez votre adresse de livraison."); return;
+        if (addressMode === "text") {
+          alert("Renseignez votre adresse de livraison."); return;
+        }
+        // GPS sélectionné mais pas d'adresse → utiliser la zone comme référence
+        setPickupAddress(`Livraison — ${selectedZone.label}`);
       }
     }
     setStep(2);
@@ -218,16 +247,25 @@ const Booking = () => {
     setStep(3);
   };
 
-  const handlePaymentSubmit = async (e) => {
-    e.preventDefault();
-    if (paymentForm.paymentMethod === "card") {
-      const req = ["cardNumber", "cardHolder", "expiryDate", "cvv"];
-      if (req.find((f) => !paymentForm[f])) { alert("Renseignez les informations de carte."); return; }
-    }
-    if (["orange", "wave", "mtn", "moov"].includes(paymentForm.paymentMethod) && !paymentForm.mobileNumber) {
-      alert("Indiquez votre numéro mobile."); return;
-    }
+  const runSimulatedPayment = () => {
+    setSimulating(true);
+    setSimProgress(0);
+    const steps = [
+      { p: 20, delay: 400 },
+      { p: 55, delay: 900 },
+      { p: 80, delay: 1400 },
+      { p: 100, delay: 2000 },
+    ];
+    steps.forEach(({ p, delay }) => {
+      setTimeout(() => setSimProgress(p), delay);
+    });
+    setTimeout(() => {
+      setSimulating(false);
+      finishBooking();
+    }, 2400);
+  };
 
+  const finishBooking = () => {
     const commissionRate   = (isTrial || isLeasing) ? 0.03 : 0.15;
     const leasingData      = vehicle?.leasing || {};
     const leasingApport    = leasingData.apportInitial || 0;
@@ -236,118 +274,50 @@ const Booking = () => {
     const leasingTotal     = leasingApport + leasingMensual * leasingDuree;
     const commissionAmount = Math.round((isLeasing ? leasingApport : baseTotal) * commissionRate);
     const partnerPayout    = Math.max((isLeasing ? leasingApport : baseTotal) - commissionAmount - SERVICE_FEE, 0);
-
     const finalPickup = pickupMethod === "retrait"
       ? `Retrait chez le vendeur (${vehicle.pickupAddress || "adresse communiquée par le vendeur"})`
       : pickupAddress;
 
     const booking = isLeasing
-      ? {
-          id: Date.now(), userId: user?.id,
-          vehicleId: vehicle._id || vehicle.id,
-          vehicleName: vehicle.name, vehicleMode: vehicle.mode,
-          ...trialForm, type: "leasing", status: "À confirmer",
-          createdAt: new Date().toISOString(),
-          serviceFeeFCFA: SERVICE_FEE, commissionRate, commissionAmount, partnerPayout,
-          leasingInfo: { apportInitial: leasingApport, mensualite: leasingMensual, duree: leasingDuree, totalLeasing: leasingTotal, tauxInteret: leasingData.tauxInteret || 8 },
-          total: leasingApport,
-          paymentInfo: paymentForm, clientVerification: verificationForm,
-        }
+      ? { id: Date.now(), userId: user?.id, vehicleId: vehicle._id || vehicle.id, vehicleName: vehicle.name, vehicleMode: vehicle.mode, ...trialForm, type: "leasing", status: "À confirmer", createdAt: new Date().toISOString(), serviceFeeFCFA: SERVICE_FEE, commissionRate, commissionAmount, partnerPayout, leasingInfo: { apportInitial: leasingApport, mensualite: leasingMensual, duree: leasingDuree, totalLeasing: leasingTotal, tauxInteret: leasingData.tauxInteret || 8 }, total: leasingApport, paymentInfo: paymentForm, clientVerification: verificationForm }
       : isTrial
-      ? {
-          id: Date.now(), userId: user?.id,
-          vehicleId: vehicle._id || vehicle.id,
-          vehicleName: vehicle.name, vehicleMode: vehicle.mode,
-          ...trialForm, type: "essai", status: "À confirmer",
-          createdAt: new Date().toISOString(),
-          serviceFeeFCFA: SERVICE_FEE, commissionRate, commissionAmount,
-          paymentInfo: paymentForm, clientVerification: verificationForm,
-        }
-      : {
-          id: Date.now(), userId: user?.id,
-          vehicleId: vehicle._id || vehicle.id,
-          vehicleName: vehicle.name, vehicleMode: vehicle.mode, vehicleType: vehicle.type,
-          pricePerDay: vehicle.pricePerDay, ...form,
-          pickupMethod, pickupAddress: finalPickup, pickupPosition,
-          deliveryZone: pickupMethod === "livraison" ? selectedZone.id : null,
-          deliveryZoneLabel: pickupMethod === "livraison" ? selectedZone.label : null,
-          deliveryFee,
-          selectedOptions, days, optionsTotal, baseTotal,
-          serviceFeeFCFA: SERVICE_FEE, total: totalToPay,
-          createdAt: new Date().toISOString(),
-          commissionRate, commissionAmount, partnerPayout,
-          paidWith: paymentForm.paymentMethod,
-          paymentInfo: paymentForm, clientVerification: verificationForm,
-          type: "location",
-          status: "À confirmer",
-        };
+      ? { id: Date.now(), userId: user?.id, vehicleId: vehicle._id || vehicle.id, vehicleName: vehicle.name, vehicleMode: vehicle.mode, ...trialForm, type: "essai", status: "À confirmer", createdAt: new Date().toISOString(), serviceFeeFCFA: SERVICE_FEE, commissionRate, commissionAmount, paymentInfo: paymentForm, clientVerification: verificationForm }
+      : { id: Date.now(), userId: user?.id, vehicleId: vehicle._id || vehicle.id, vehicleName: vehicle.name, vehicleMode: vehicle.mode, vehicleType: vehicle.type, pricePerDay: vehicle.pricePerDay, ...form, pickupMethod, pickupAddress: finalPickup, pickupPosition, deliveryZone: pickupMethod === "livraison" ? selectedZone.id : null, deliveryZoneLabel: pickupMethod === "livraison" ? selectedZone.label : null, deliveryFee, selectedOptions, days, optionsTotal, baseTotal, serviceFeeFCFA: SERVICE_FEE, total: totalToPay, createdAt: new Date().toISOString(), commissionRate, commissionAmount, partnerPayout, paidWith: paymentForm.paymentMethod, paymentInfo: paymentForm, clientVerification: verificationForm, type: "location", status: "À confirmer" };
 
     addBooking(booking);
 
-    // Payload formaté pour le backend (format différent du localStorage local)
     try {
       const headers = { "Content-Type": "application/json" };
       if (token) headers.Authorization = `Bearer ${token}`;
-
-      const clientInfo = {
-        firstName: isTrial || isLeasing ? trialForm.firstName : form.firstName,
-        lastName:  isTrial || isLeasing ? trialForm.lastName  : form.lastName,
-        email:     isTrial || isLeasing ? trialForm.email     : form.email,
-        phone:     isTrial || isLeasing ? trialForm.phone     : form.phone,
-      };
-
+      const clientInfo = { firstName: isTrial || isLeasing ? trialForm.firstName : form.firstName, lastName: isTrial || isLeasing ? trialForm.lastName : form.lastName, email: isTrial || isLeasing ? trialForm.email : form.email, phone: isTrial || isLeasing ? trialForm.phone : form.phone };
       const apiPayload = isLeasing
-        ? {
-            type: "leasing",
-            clientInfo,
-            vehicleId: vehicle._id || vehicle.id,
-            leasing: {
-              apportInitial: leasingApport,
-              mensualite:    leasingMensual,
-              duree:         leasingDuree,
-              totalLeasing:  leasingTotal,
-              tauxInteret:   vehicle?.leasing?.tauxInteret || 8,
-            },
-            clientVerification: verificationForm,
-          }
+        ? { type: "leasing", clientInfo, vehicleId: vehicle._id || vehicle.id, leasing: { apportInitial: leasingApport, mensualite: leasingMensual, duree: leasingDuree, totalLeasing: leasingTotal, tauxInteret: vehicle?.leasing?.tauxInteret || 8 }, clientVerification: verificationForm }
         : isTrial
-        ? {
-            type: "essai",
-            clientInfo,
-            vehicleId: vehicle._id || vehicle.id,
-            essai: {
-              preferredDate: trialForm.preferredDate,
-              preferredTime: trialForm.preferredTime,
-              notes:         trialForm.notes || "",
-            },
-            clientVerification: verificationForm,
-          }
-        : {
-            type: "location",
-            clientInfo,
-            vehicleId: vehicle._id || vehicle.id,
-            location: {
-              startDate:      form.startDate,
-              endDate:        form.endDate,
-              days,
-              pickupLocation: finalPickup,
-              pickupPosition,
-              returnLocation: "",
-              options:        selectedOptions,
-            },
-            clientVerification: verificationForm,
-            payment: {
-              method:       paymentForm.paymentMethod,
-              mobileNumber: paymentForm.mobileNumber || undefined,
-              cardNumber:   paymentForm.cardNumber   || undefined,
-              cardHolder:   paymentForm.cardHolder   || undefined,
-            },
-          };
-
-      await fetch("/api/bookings", { method: "POST", headers, body: JSON.stringify(apiPayload) });
-    } catch { /* offline — booking déjà sauvegardé en localStorage */ }
+        ? { type: "essai", clientInfo, vehicleId: vehicle._id || vehicle.id, essai: { preferredDate: trialForm.preferredDate, preferredTime: trialForm.preferredTime, notes: trialForm.notes || "" }, clientVerification: verificationForm }
+        : { type: "location", clientInfo, vehicleId: vehicle._id || vehicle.id, location: { startDate: form.startDate, endDate: form.endDate, days, pickupLocation: finalPickup, pickupPosition, returnLocation: "", options: selectedOptions }, clientVerification: verificationForm, payment: { method: paymentForm.paymentMethod, mobileNumber: paymentForm.mobileNumber || undefined, cardNumber: paymentForm.cardNumber || undefined, cardHolder: paymentForm.cardHolder || undefined } };
+      fetch("/api/bookings", { method: "POST", headers, body: JSON.stringify(apiPayload) }).catch(() => {});
+    } catch { /* offline */ }
 
     navigate("/booking/success", { state: { booking, trial: isTrial || isLeasing, payment: paymentForm } });
+  };
+
+  const handlePaymentSubmit = async (e) => {
+    e.preventDefault();
+
+    if (paymentForm.paymentMethod === "test") {
+      runSimulatedPayment();
+      return;
+    }
+
+    if (paymentForm.paymentMethod === "card") {
+      const req = ["cardNumber", "cardHolder", "expiryDate", "cvv"];
+      if (req.find((f) => !paymentForm[f])) { alert("Renseignez les informations de carte."); return; }
+    }
+    if (["orange", "wave", "mtn", "moov"].includes(paymentForm.paymentMethod) && !paymentForm.mobileNumber) {
+      alert("Indiquez votre numéro mobile."); return;
+    }
+
+    finishBooking();
   };
 
   const paymentOptions = [
@@ -358,6 +328,7 @@ const Booking = () => {
     { value: "card",   label: "Carte bancaire" },
     { value: "paypal", label: "PayPal" },
     { value: "cash",   label: "💵 Espèces à la livraison" },
+    { value: "test",   label: "🧪 Paiement de test (simulation)" },
   ];
 
   const stepLabels = ["1. Réservation", "2. Vérification", "3. Paiement"];
@@ -482,23 +453,45 @@ const Booking = () => {
 
                       {addressMode === "gps" ? (
                         <div className={styles.gpsBlock}>
-                          {position ? (
+                          {/* Erreur GPS */}
+                          {geoError && (
+                            <div className={styles.gpsError}>
+                              <span>⚠️</span>
+                              <span>{geoError}</span>
+                            </div>
+                          )}
+
+                          {/* Chargement GPS */}
+                          {geoLoading && (
+                            <div className={styles.gpsLoading}>
+                              <span className={styles.gpsSpinner} />
+                              <span>Détection de votre position…</span>
+                            </div>
+                          )}
+
+                          {/* Position détectée */}
+                          {!geoLoading && position && pickupAddress && (
                             <div className={styles.gpsDetected}>
                               <span>📍</span>
                               <div>
                                 <strong>Position détectée</strong>
-                                <p>{pickupAddress || geoAddress}</p>
+                                <p>{pickupAddress}</p>
                               </div>
-                              <button type="button" className={styles.gpsRefreshBtn} onClick={handleDetectGPS} disabled={geoLoading}>
-                                {geoLoading ? "⏳" : "↻ Actualiser"}
+                              <button type="button" className={styles.gpsRefreshBtn} onClick={handleDetectGPS}>
+                                ↻ Actualiser
                               </button>
                             </div>
-                          ) : (
-                            <button type="button" className={styles.gpsDetectBtn} onClick={handleDetectGPS} disabled={geoLoading}>
-                              {geoLoading ? "⏳ Détection en cours..." : "🎯 Détecter ma position GPS"}
+                          )}
+
+                          {/* Bouton détecter (pas encore fait) */}
+                          {!geoLoading && !position && !geoError && (
+                            <button type="button" className={styles.gpsDetectBtn} onClick={handleDetectGPS}>
+                              🎯 Détecter ma position GPS
                             </button>
                           )}
-                          {pickupAddress && (
+
+                          {/* Champ éditable sous la position détectée */}
+                          {!geoLoading && pickupAddress && (
                             <input
                               type="text"
                               className={styles.addressInput}
@@ -515,7 +508,6 @@ const Booking = () => {
                           placeholder="Ex: Cocody, Avenue de la Paix, Abidjan"
                           value={pickupAddress}
                           onChange={(e) => setPickupAddress(e.target.value)}
-                          required
                         />
                       )}
                     </div>
@@ -530,50 +522,28 @@ const Booking = () => {
 
                   {/* ── Frais de livraison selon distance ── */}
                   {pickupMethod === "livraison" && (
-                    <div style={{ marginTop: "1.25rem" }}>
-                      <p style={{ fontWeight: 600, fontSize: "0.9rem", color: "#0f1b3f", marginBottom: "0.6rem" }}>
-                        🚚 Distance de livraison
-                      </p>
-                      <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.75rem" }}>
-                        Sélectionnez la distance approximative entre vous et le vendeur pour calculer les frais de livraison.
-                      </p>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                        {DELIVERY_ZONES.map((zone) => (
-                          <label
-                            key={zone.id}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              padding: "0.65rem 0.9rem",
-                              border: `2px solid ${deliveryZone === zone.id ? "#2563eb" : "#e2e8f0"}`,
-                              borderRadius: "10px",
-                              cursor: "pointer",
-                              background: deliveryZone === zone.id ? "#eff6ff" : "#fff",
-                              transition: "all 0.15s",
-                            }}
-                          >
-                            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-                              <input
-                                type="radio"
-                                name="deliveryZone"
-                                value={zone.id}
-                                checked={deliveryZone === zone.id}
-                                onChange={() => setDeliveryZone(zone.id)}
-                                style={{ accentColor: "#2563eb" }}
-                              />
-                              <span style={{ fontSize: "0.87rem", color: "#0f1b3f" }}>{zone.label}</span>
-                            </div>
-                            <span style={{
-                              fontWeight: 700,
-                              fontSize: "0.87rem",
-                              color: deliveryZone === zone.id ? "#2563eb" : "#64748b",
-                            }}>
-                              {zone.fee.toLocaleString("fr-FR")} FCFA
-                            </span>
-                          </label>
-                        ))}
-                      </div>
+                    <div className={styles.deliveryZones}>
+                      <span className={styles.deliveryZoneLabel}>🚚 Distance de livraison</span>
+                      {DELIVERY_ZONES.map((zone) => (
+                        <label
+                          key={zone.id}
+                          className={`${styles.zoneRow} ${deliveryZone === zone.id ? styles.zoneRowActive : ""}`}
+                        >
+                          <div className={styles.zoneLeft}>
+                            <input
+                              type="radio"
+                              name="deliveryZone"
+                              value={zone.id}
+                              checked={deliveryZone === zone.id}
+                              onChange={() => setDeliveryZone(zone.id)}
+                            />
+                            <span>{zone.label}</span>
+                          </div>
+                          <span className={styles.zoneFee}>
+                            {zone.fee.toLocaleString("fr-FR")} FCFA
+                          </span>
+                        </label>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -584,15 +554,12 @@ const Booking = () => {
 
                   {/* Badge GPS inclus pour la livraison */}
                   {gpsAutoIncluded && (
-                    <div style={{
-                      display: "flex", alignItems: "center", gap: "0.5rem",
-                      background: "#f0fdf4", border: "1px solid #bbf7d0",
-                      borderRadius: "10px", padding: "0.6rem 0.9rem",
-                      marginBottom: "0.75rem", fontSize: "0.87rem", color: "#166534",
-                    }}>
+                    <div className={styles.gpsDetected} style={{ marginBottom: "10px" }}>
                       <span>📍</span>
-                      <strong>GPS de livraison inclus gratuitement</strong>
-                      <span style={{ color: "#16a34a", fontSize: "0.8rem" }}>— associé automatiquement à votre adresse de livraison</span>
+                      <div>
+                        <strong>GPS de livraison inclus gratuitement</strong>
+                        <p>Associé automatiquement à votre adresse de livraison</p>
+                      </div>
                     </div>
                   )}
 
@@ -672,11 +639,63 @@ const Booking = () => {
         {/* ══════════════════════════════════════ */}
         {step === 3 && (
           <form onSubmit={handlePaymentSubmit} className={styles.form}>
+
+            {/* ── Overlay simulation paiement ── */}
+            {simulating && (
+              <div style={{
+                position: "fixed", inset: 0, background: "rgba(15,27,63,0.75)",
+                zIndex: 999, display: "flex", flexDirection: "column",
+                alignItems: "center", justifyContent: "center", gap: "1.5rem",
+              }}>
+                <div style={{
+                  background: "#fff", borderRadius: "20px", padding: "2.5rem 3rem",
+                  textAlign: "center", maxWidth: "360px", width: "90%",
+                  boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+                }}>
+                  <div style={{ fontSize: "3rem", marginBottom: "0.75rem" }}>🧪</div>
+                  <h3 style={{ margin: "0 0 0.5rem", color: "#0f1b3f", fontSize: "1.2rem" }}>Simulation en cours…</h3>
+                  <p style={{ color: "#64748b", fontSize: "0.88rem", margin: "0 0 1.5rem" }}>
+                    Traitement du paiement de test — aucun débit réel
+                  </p>
+                  <div style={{ background: "#f1f5f9", borderRadius: "999px", height: "10px", overflow: "hidden", marginBottom: "0.75rem" }}>
+                    <div style={{
+                      height: "100%", borderRadius: "999px",
+                      background: "linear-gradient(90deg, #ff4d2d, #ff7a00)",
+                      width: `${simProgress}%`,
+                      transition: "width 0.4s ease",
+                    }} />
+                  </div>
+                  <p style={{ color: "#94a3b8", fontSize: "0.78rem", margin: 0 }}>{simProgress}% — {simProgress < 55 ? "Vérification…" : simProgress < 90 ? "Autorisation…" : "Confirmation…"}</p>
+                </div>
+              </div>
+            )}
+
+            {/* ── Bannière mode test ── */}
+            {paymentForm.paymentMethod === "test" && !simulating && (
+              <div style={{
+                background: "linear-gradient(135deg, #fef3c7, #fde68a)",
+                border: "1.5px solid #fbbf24",
+                borderRadius: "14px", padding: "1rem 1.25rem",
+                marginBottom: "0.5rem",
+                display: "flex", alignItems: "flex-start", gap: "0.75rem",
+              }}>
+                <span style={{ fontSize: "1.5rem" }}>🧪</span>
+                <div>
+                  <strong style={{ color: "#92400e", display: "block", marginBottom: "2px" }}>Mode Test activé</strong>
+                  <span style={{ color: "#78350f", fontSize: "0.84rem" }}>
+                    Aucun débit réel. Cette simulation valide le parcours complet de réservation.
+                    Cliquez sur <em>Confirmer et payer</em> pour déclencher la simulation.
+                  </span>
+                </div>
+              </div>
+            )}
+
             <div className={styles.section}>
               <h3>Méthode de paiement</h3>
               <div className={styles.optionsGrid}>
                 {paymentOptions.map((option) => (
-                  <label key={option.value} className={`${styles.optionItem} ${paymentForm.paymentMethod === option.value ? styles.optionActive : ""}`}>
+                  <label key={option.value} className={`${styles.optionItem} ${paymentForm.paymentMethod === option.value ? styles.optionActive : ""}`}
+                    style={option.value === "test" ? { borderColor: "#fbbf24", background: paymentForm.paymentMethod === "test" ? "#fef9ee" : undefined } : {}}>
                     <input type="radio" name="paymentMethod" value={option.value}
                       checked={paymentForm.paymentMethod === option.value} onChange={handleChange} />
                     <span>{option.label}</span>

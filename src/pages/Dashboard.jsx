@@ -30,6 +30,8 @@ const PAYMENT_LABELS = {
   moov:   "Moov Money",
   card:   "Carte bancaire",
   paypal: "PayPal",
+  cash:   "Espèces",
+  test:   "🧪 Paiement de test",
 };
 
 const OPTIONS_LABELS = {
