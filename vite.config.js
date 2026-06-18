@@ -32,9 +32,9 @@ export default defineConfig(({ mode }) => ({
   },
 
   build: {
-    outDir:    'dist',
-    sourcemap: mode === 'development',
-    cssCodeSplit: true,
+    outDir:           'dist',
+    sourcemap:        mode === 'development',
+    cssCodeSplit:     true,
     assetsInlineLimit: 8192,
     rollupOptions: {
       output: {

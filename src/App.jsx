@@ -46,20 +46,11 @@ const ForgotPassword  = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword   = lazy(() => import("./pages/ResetPassword"));
 
 function App() {
-  // Ne montrer le splash qu'une seule fois par session (pas à chaque rechargement)
-  const [splashDone, setSplashDone] = useState(() => {
-    try { return !!sessionStorage.getItem('vit_splash_done'); }
-    catch { return true; }
-  });
-
-  const handleSplashDone = () => {
-    try { sessionStorage.setItem('vit_splash_done', '1'); } catch {}
-    setSplashDone(true);
-  };
+  const [splashDone, setSplashDone] = useState(false);
 
   return (
     <>
-      {!splashDone && <SplashScreen onDone={handleSplashDone} />}
+      {!splashDone && <SplashScreen onDone={() => setSplashDone(true)} />}
     <BrowserRouter>
       <ToastProvider>
         <AuthProvider>

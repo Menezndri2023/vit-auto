@@ -2,6 +2,7 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
+    <!-- user-scalable=no retiré : pénalité Lighthouse accessibilité -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!-- SEO -->
@@ -19,6 +20,7 @@
     <meta property="og:image"       content="https://vit-auto.com/icons/icon-512x512.png" />
     <meta property="og:url"         content="https://vit-auto.com" />
     <meta property="og:site_name"   content="VIT AUTO" />
+    <meta property="og:locale"      content="fr_FR" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card"        content="summary_large_image" />
@@ -40,13 +42,13 @@
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json" />
 
-    <!-- Resource Hints -->
-    <link rel="dns-prefetch" href="https://ideal-learning-production-3c89.up.railway.app" />
-    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <!-- Resource hints : connexions anticipées -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://ideal-learning-production-3c89.up.railway.app" />
 
-    <!-- Preload image LCP (première slide hero) -->
+    <!-- Preload image LCP (première slide hero — format WebP) -->
     <link
       rel="preload"
       as="image"
@@ -54,7 +56,7 @@
       fetchpriority="high"
     />
 
-    <!-- Google Fonts — chargement NON-BLOQUANT -->
+    <!-- Google Fonts — NON-BLOQUANT (technique media=print) -->
     <link
       rel="preload"
       as="style"
@@ -70,33 +72,42 @@
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" />
     </noscript>
 
-    <!-- JSON-LD Structured Data -->
+    <!-- CSS critique inline pour éviter le FOUT avant chargement Poppins -->
+    <style>
+      body { font-family: system-ui, -apple-system, sans-serif; }
+    </style>
+
+    <!-- Structured Data JSON-LD -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "AutoDealer",
       "name": "VIT AUTO",
-      "description": "Plateforme de location et vente de véhicules en Afrique de l'Ouest",
+      "description": "Plateforme de location et vente de véhicules en Afrique de l'Ouest — 14 pays couverts",
       "url": "https://vit-auto.com",
-      "logo": "https://vit-auto.com/favicon.svg",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://vit-auto.com/favicon.svg"
+      },
       "areaServed": [
-        "Côte d'Ivoire", "Sénégal", "Mali", "Maroc",
-        "Niger", "Burkina Faso", "Guinée", "Cameroun"
+        "Côte d'Ivoire","Sénégal","Mali","Maroc",
+        "Niger","Burkina Faso","Guinée","Cameroun",
+        "Togo","Bénin","Ghana","Mauritanie","Tunisie","Algérie"
       ],
-      "serviceType": ["Car Rental", "Car Sales", "Private Driver"],
+      "serviceType": ["Car Rental","Car Sales","Private Driver"],
       "priceRange": "$$",
       "contactPoint": {
         "@type": "ContactPoint",
         "contactType": "customer service",
-        "availableLanguage": ["French", "English", "Arabic"]
-      }
+        "availableLanguage": ["French","English","Arabic"]
+      },
+      "sameAs": ["https://vitauto.vercel.app"]
     }
     </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
-    <!-- Service Worker -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {

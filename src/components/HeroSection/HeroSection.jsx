@@ -12,7 +12,8 @@ const STATS = [
   { icon: "📍", value: "50+",    label: "Villes couvertes" },
 ];
 
-// Slides par défaut si aucun véhicule en base — format WebP pour performance
+// Slides par défaut si aucun véhicule en base
+// Images WebP pour réduire le poids de 30-50%
 const DEFAULT_SLIDES = [
   {
     img:     "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=1200&q=80&auto=format&fit=crop&fm=webp",
@@ -167,7 +168,7 @@ export default function HeroSection() {
       <div className={styles.right}>
         <div className={`${styles.spotCard} ${fading ? styles.spotFading : ""}`}>
 
-          {/* Image — premier slide = LCP, chargement prioritaire */}
+          {/* Image — LCP : priorité haute sur la première slide */}
           <img
             src={slide.img}
             alt={slide.name}

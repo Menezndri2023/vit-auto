@@ -6,7 +6,6 @@ const STATIC_ASSETS = [
   '/favicon.svg',
 ];
 
-// Installation — mise en cache de l'app shell
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
@@ -14,7 +13,6 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activation — nettoyage des anciens caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -24,22 +22,20 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch strategy
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Ne jamais intercepter API ni modules Vite dev
   if (url.pathname.startsWith('/api/')) return;
   if (url.pathname.startsWith('/@')) return;
   if (url.pathname.startsWith('/src/')) return;
   if (url.searchParams.has('v')) return;
   if (url.searchParams.has('t')) return;
 
-  // JS et CSS avec hash → immutable, toujours réseau en premier
+  // JS/CSS avec hash Vite → toujours réseau
   if (request.destination === 'script' || request.destination === 'style') return;
 
-  // Images → Stale-While-Revalidate (cache first + mise à jour en arrière-plan)
+  // Images → Stale-While-Revalidate
   if (request.destination === 'image') {
     event.respondWith(
       caches.open(CACHE_NAME).then((cache) =>
@@ -55,15 +51,13 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Navigation (HTML) → Network First avec fallback sur '/'
+  // Navigation → Network First + mise en cache + fallback SPA
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Mettre en cache la page si OK
           if (response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
           }
           return response;
         })
@@ -72,7 +66,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Autres ressources (fonts, etc.) → Cache First
+  // Fonts et autres ressources tierces → Cache First
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
@@ -86,7 +80,6 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Push notifications
 self.addEventListener('push', (event) => {
   if (!event.data) return;
   const data = event.data.json();
