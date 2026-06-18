@@ -1,60 +1,87 @@
-/* VendorDashboard Professional Styles */
+/* ═══════════════════════════════════════════════════════════
+   VendorDashboard — Premium Redesign
+   Design system : Poppins · navy #0f1b3f · orange #ff4d2d
+   ═══════════════════════════════════════════════════════════ */
+
+/* ─── Page ─────────────────────────────────────────────────── */
 .page {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 0 2rem 4rem;
 }
 
+/* ─── Header — hero navy ────────────────────────────────────── */
 .header {
+  background: linear-gradient(135deg, #0f1b3f 0%, #1e3a6e 65%, #2563eb 100%);
+  margin: 0 -2rem 2.25rem;
+  padding: 2.5rem 2.5rem 2rem;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   flex-wrap: wrap;
-  gap: 1rem;
-  margin-bottom: 2rem;
+  gap: 1.25rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 80% 50%, rgba(255,77,45,0.15) 0%, transparent 55%);
+  pointer-events: none;
 }
 
 .header h1 {
-  font-size: clamp(1.4rem, 3vw, 2rem);
-  color: #1e293b;
-  margin: 0 0 0.25rem;
+  font-size: clamp(1.45rem, 3vw, 2.1rem);
+  color: #ffffff;
+  font-weight: 900;
+  margin: 0 0 0.3rem;
+  letter-spacing: -0.02em;
+  position: relative;
 }
 
 .header p {
-  color: #64748b;
+  color: rgba(255,255,255,0.7);
   margin: 0;
+  font-size: 0.9rem;
+  position: relative;
 }
 
-/* ── Plan banners ──────────────────────────────────────── */
+/* ── Plan banners ───────────────────────────────────────────── */
 .proBanner,
 .freeBanner {
   display: flex;
   align-items: center;
   gap: 1rem;
-  border-radius: 1rem;
-  padding: 1rem 1.5rem;
+  border-radius: 16px;
+  padding: 1.1rem 1.6rem;
   margin-bottom: 1.5rem;
   flex-wrap: wrap;
 }
 
 .proBanner {
-  background: linear-gradient(135deg, #f59e0b20, #fef3c7);
-  border: 1px solid #fcd34d;
+  background: linear-gradient(135deg, rgba(245,158,11,0.10), #fef3c7);
+  border: 1.5px solid #fcd34d;
+  box-shadow: 0 2px 12px rgba(245,158,11,0.12);
 }
 
 .freeBanner {
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  border: 1.5px solid #e2e8f0;
 }
 
 .planBadge {
-  background: #f59e0b;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
   color: #fff;
   font-size: 0.75rem;
   font-weight: 800;
-  padding: 0.3rem 0.9rem;
+  padding: 0.3rem 1rem;
   border-radius: 9999px;
   flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(245,158,11,0.28);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .planBadgeFree {
@@ -62,9 +89,11 @@
   color: #fff;
   font-size: 0.75rem;
   font-weight: 800;
-  padding: 0.3rem 0.9rem;
+  padding: 0.3rem 1rem;
   border-radius: 9999px;
   flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .proBanner strong,
@@ -72,6 +101,7 @@
   display: block;
   font-size: 0.95rem;
   color: #1e293b;
+  font-weight: 800;
 }
 
 .proBanner span,
@@ -82,52 +112,61 @@
 
 .upgradeBtn {
   margin-left: auto;
-  background: #f59e0b;
+  background: linear-gradient(135deg, #ff4d2d, #e03519);
   color: #fff;
-  border-radius: 0.5rem;
-  padding: 0.5rem 1.25rem;
+  border-radius: 10px;
+  padding: 0.55rem 1.35rem;
   font-weight: 700;
   font-size: 0.875rem;
   text-decoration: none;
   white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(255,77,45,0.30);
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: inline-block;
 }
+.upgradeBtn:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(255,77,45,0.40); }
 
-/* ── Commission banner ─────────────────────────────────── */
+/* ── Commission banner ──────────────────────────────────────── */
 .commissionBanner {
   display: flex;
   gap: 1px;
-  background: #e2e8f0;
-  border-radius: 1rem;
+  background: #e5eaf5;
+  border-radius: 16px;
   overflow: hidden;
-  margin-bottom: 2rem;
+  margin-bottom: 2.25rem;
   flex-wrap: wrap;
+  box-shadow: 0 2px 12px rgba(15,27,63,0.06);
 }
 
 .commItem {
   background: #fff;
   flex: 1;
   min-width: 160px;
-  padding: 1rem 1.5rem;
+  padding: 1.1rem 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  border-left: 3px solid #6366f1;
+  gap: 0.3rem;
+  border-left: 3px solid #2563eb;
+  transition: background 0.2s;
 }
 
+.commItem:hover { background: #f5f8ff; }
+
 .commItem span {
-  font-size: 0.75rem;
-  color: #64748b;
+  font-size: 0.73rem;
+  color: #8493b0;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  font-weight: 700;
 }
 
 .commItem strong {
-  font-size: 1rem;
-  color: #1e293b;
+  font-size: 1.05rem;
+  color: #0f1b3f;
   font-weight: 800;
 }
 
-/* ── Section ───────────────────────────────────────────── */
+/* ── Section ────────────────────────────────────────────────── */
 .section {
   margin-top: 2rem;
 }
@@ -143,20 +182,26 @@
 
 .sectionHeader h2 {
   font-size: 1.3rem;
-  color: #1e293b;
+  color: #0f1b3f;
+  font-weight: 800;
   margin: 0;
 }
 
 .filterSelect {
-  border: 1px solid #e2e8f0;
-  border-radius: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  border: 1.5px solid #e5eaf5;
+  border-radius: 10px;
+  padding: 0.5rem 0.9rem;
   font-size: 0.875rem;
   color: #374151;
   cursor: pointer;
+  background: #f8faff;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
 }
+.filterSelect:focus { border-color: #2563eb; }
 
-/* ── Vehicle card extra ─────────────────────────────────── */
+/* ── Vehicle card extra ─────────────────────────────────────── */
 .vehicleCardBoosted {
   border: 2px solid #f59e0b !important;
   box-shadow: 0 8px 24px rgba(245,158,11,0.15) !important;
@@ -180,83 +225,123 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.8rem;
 }
 
 .priceLine span {
-  font-size: 1rem;
-  font-weight: 700;
-  color: #1e293b;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f1b3f;
 }
 
 .priceLine small {
   font-size: 0.78rem;
   color: #10b981;
+  font-weight: 600;
 }
 
-/* ── Boost message ──────────────────────────────────────── */
+/* ── Boost message ───────────────────────────────────────────── */
 .boostMessage {
   background: #d1fae5;
   color: #065f46;
   border: 1px solid #6ee7b7;
-  border-radius: 0.75rem;
+  border-radius: 12px;
   padding: 1rem 1.5rem;
   font-weight: 600;
   margin-bottom: 1.5rem;
   display: flex;
   align-items: center;
+  gap: 0.75rem;
 }
 
-/* ── Boost button ───────────────────────────────────────── */
+/* ── Boost button ────────────────────────────────────────────── */
 .boostBtn {
   background: linear-gradient(135deg, #f59e0b, #d97706);
   color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.2s, transform 0.2s;
 }
+.boostBtn:hover { opacity: 0.88; transform: translateY(-1px); }
 
-.boostBtn:hover {
-  opacity: 0.85;
-}
-
+/* ── Stats grid — dégradés marque ───────────────────────────── */
 .statsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.4rem;
   margin-bottom: 3rem;
 }
 
 .statCard {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #0f1b3f 0%, #1e3a6e 100%);
   color: white;
-  padding: 2rem;
+  padding: 1.75rem 2rem;
   border-radius: 20px;
   text-align: center;
-  box-shadow: 0 20px 25px -5px rgba(102, 126, 234, 0.3);
-  transition: transform 0.3s ease;
+  box-shadow: 0 10px 30px rgba(15,27,63,0.25);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.statCard::before {
+  content: '';
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  width: 100px;
+  height: 100px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 50%;
+}
+
+.statCard:nth-child(2) {
+  background: linear-gradient(135deg, #ff4d2d 0%, #c0290e 100%);
+  box-shadow: 0 10px 30px rgba(255,77,45,0.28);
+}
+
+.statCard:nth-child(3) {
+  background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+  box-shadow: 0 10px 30px rgba(16,185,129,0.25);
+}
+
+.statCard:nth-child(4) {
+  background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+  box-shadow: 0 10px 30px rgba(124,58,237,0.25);
 }
 
 .statCard:hover {
   transform: translateY(-5px);
+  box-shadow: 0 18px 40px rgba(15,27,63,0.30);
 }
 
 .statNumber {
-  font-size: 3rem;
-  font-weight: 800;
+  font-size: 3.2rem;
+  font-weight: 900;
   line-height: 1;
   margin-bottom: 0.5rem;
   display: block;
+  letter-spacing: -0.03em;
 }
 
 .statLabel {
-  font-size: 1rem;
-  opacity: 0.9;
-  font-weight: 500;
+  font-size: 0.9rem;
+  opacity: 0.88;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
+/* ── Badges de statut ───────────────────────────────────────── */
 .statusBadge {
-  padding: 0.5rem 1rem;
+  padding: 0.3rem 0.9rem;
   border-radius: 50px;
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 0.8rem;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -276,46 +361,49 @@
   color: #dc2626;
 }
 
+/* ── Vehicle grid ────────────────────────────────────────────── */
 .vehicleGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-  gap: 2rem;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 1.75rem;
 }
 
 .vehicleCard {
   background: white;
   border-radius: 20px;
-  padding: 2rem;
-  box-shadow: 0 10px 15px -3px rgba(0, 0,0, 0.1), 0 4px 6px -2px rgba(0, 0,0, 0.05);
-  border: 1px solid #f3f4f6;
-  transition: all 0.3s ease;
+  padding: 1.75rem;
+  box-shadow: 0 6px 20px rgba(15,27,63,0.08);
+  border: 1.5px solid #e8eef8;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
   position: relative;
   overflow: hidden;
 }
 
 .vehicleCard:hover {
   transform: translateY(-4px);
-  box-shadow: 0 25px 50px -12px rgba(0, 0,0, 0.25);
+  box-shadow: 0 16px 40px rgba(15,27,63,0.14);
+  border-color: #c8d6f0;
 }
 
 .vehicleHeader {
   display: flex;
   align-items: flex-start;
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.35rem;
 }
 
 .vehicleImage {
-  width: 80px;
-  height: 60px;
-  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
-  border-radius: 12px;
+  width: 90px;
+  height: 70px;
+  background: linear-gradient(135deg, #edf1fb 0%, #e0e8f5 100%);
+  border-radius: 13px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
+  font-size: 1.6rem;
   overflow: hidden;
+  box-shadow: 0 2px 8px rgba(15,27,63,0.09);
 }
 
 .vehicleImage img {
@@ -324,24 +412,39 @@
   object-fit: cover;
 }
 
+.vehicleInfo {
+  flex: 1;
+  min-width: 0;
+}
+
 .vehicleInfo h3 {
-  margin: 0 0 0.25rem 0;
-  font-size: 1.3rem;
-  color: #1f2937;
+  margin: 0 0 0.3rem 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f1b3f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vehicleName {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f1b3f;
 }
 
 .vehicleTags {
   display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  gap: 0.45rem;
+  margin-bottom: 0.875rem;
   flex-wrap: wrap;
 }
 
 .tag {
-  padding: 0.25rem 0.75rem;
+  padding: 0.2rem 0.7rem;
   border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 500;
+  font-size: 0.75rem;
+  font-weight: 700;
 }
 
 .tagMode {
@@ -367,7 +470,7 @@
   flex-wrap: wrap;
 }
 
-/* Score chip affiché à côté du statut */
+/* Score chip */
 .scoreChip {
   font-size: 0.72rem;
   font-weight: 800;
@@ -376,13 +479,13 @@
   letter-spacing: 0.03em;
 }
 
-/* Bloc de feedback validation (pending / rejected) */
+/* Bloc feedback validation */
 .validationBlock {
   margin-bottom: 1rem;
-  padding: 0.85rem 1rem;
-  background: rgba(0,0,0,0.03);
-  border-radius: 10px;
-  border: 1px solid rgba(0,0,0,0.06);
+  padding: 0.875rem 1rem;
+  background: rgba(15,27,63,0.03);
+  border-radius: 12px;
+  border: 1px solid rgba(15,27,63,0.07);
 }
 
 .scoreBarWrap {
@@ -416,140 +519,110 @@
 .validErrItem {
   font-size: 0.78rem;
   color: #ef4444;
+  font-weight: 600;
 }
 
 .validWarnItem {
   font-size: 0.78rem;
   color: #92400e;
+  font-weight: 600;
 }
 
 .vehicleDescription {
   color: #6b7280;
-  line-height: 1.5;
-  margin-bottom: 1.5rem;
+  line-height: 1.55;
+  margin-bottom: 1.35rem;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  font-size: 0.9rem;
 }
 
 .cardActions {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.7rem;
 }
 
 .actionBtn {
   padding: 0.5rem 1rem;
-  border-radius: 8px;
+  border-radius: 9px;
   font-size: 0.85rem;
-  font-weight: 500;
+  font-weight: 600;
   border: none;
   cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
+  transition: all 0.22s ease;
+  display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.3rem;
+  font-family: inherit;
 }
 
 .editBtn {
-  background: #3b82f6;
+  background: #2563eb;
   color: white;
 }
-
-.editBtn:hover {
-  background: #2563eb;
-}
+.editBtn:hover { background: #1d4ed8; transform: translateY(-1px); }
 
 .viewBtn {
   background: #10b981;
   color: white;
 }
-
-.viewBtn:hover {
-  background: #059669;
-}
+.viewBtn:hover { background: #059669; transform: translateY(-1px); }
 
 .deleteBtn {
   background: #ef4444;
   color: white;
 }
-
-.deleteBtn:hover {
-  background: #dc2626;
-}
+.deleteBtn:hover { background: #dc2626; transform: translateY(-1px); }
 
 .emptyStats {
   grid-column: 1 / -1;
   text-align: center;
-  padding: 4rem 2rem;
-  color: #6b7280;
+  padding: 5rem 2rem;
+  color: #8493b0;
 }
 
 .emptyStats svg {
   width: 80px;
   height: 80px;
   margin: 0 auto 2rem;
-  opacity: 0.5;
+  opacity: 0.4;
 }
 
-.revenueChart {
-  background: white;
-  border-radius: 20px;
-  padding: 2rem;
-  margin-bottom: 2rem;
-  box-shadow: 0 10px 15px -3px rgba(0, 0,0, 0.1);
-}
-
-.chartHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.chartTitle {
-  font-size: 1.3rem;
-  font-weight: 600;
-}
-
-.chartPeriod {
-  background: #f3f4f6;
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-/* ── Onglets ─────────────────────────────────────────────── */
+/* ── Onglets ─────────────────────────────────────────────────── */
 .tabs {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.35rem;
   margin: 2rem 0 0;
-  border-bottom: 2px solid #e2e8f0;
+  border-bottom: 2px solid #e5eaf5;
 }
 
 .tab {
   background: transparent;
   border: none;
-  padding: 0.75rem 1.5rem;
-  font-size: 0.95rem;
+  padding: 0.8rem 1.6rem;
+  font-size: 0.92rem;
   font-weight: 600;
-  color: #64748b;
+  color: #8493b0;
   cursor: pointer;
   border-bottom: 3px solid transparent;
   margin-bottom: -2px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   transition: color 0.2s;
+  font-family: inherit;
+  white-space: nowrap;
 }
 
-.tab:hover { color: #1e293b; }
+.tab:hover { color: #0f1b3f; }
 
 .tabActive {
-  color: #1e293b;
-  border-bottom-color: #f59e0b;
+  color: #ff4d2d;
+  border-bottom-color: #ff4d2d;
+  font-weight: 800;
 }
 
 .tabBadge {
@@ -563,36 +636,37 @@
   text-align: center;
 }
 
-/* ── Indicateur nouvelles commandes sur stat card ─────────── */
+/* ── Indicateur nouvelles commandes ─────────────────────────── */
 .newBadge {
   position: absolute;
   top: 8px;
   right: 10px;
-  background: #fbbf24;
-  color: #7c2d12;
+  background: #ff4d2d;
+  color: #fff;
   font-size: 0.68rem;
   font-weight: 800;
   padding: 0.15rem 0.6rem;
   border-radius: 9999px;
+  box-shadow: 0 2px 8px rgba(255,77,45,0.35);
 }
 
-/* ── Hint bouton commandes sur carte annonce ─────────────── */
+/* ── Hint bouton commandes ───────────────────────────────────── */
 .orderHintBtn {
   background: #eff6ff;
   color: #1d4ed8;
   border: 1px solid #bfdbfe;
-  border-radius: 0.5rem;
+  border-radius: 8px;
   padding: 0.35rem 0.9rem;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   margin-bottom: 0.75rem;
   transition: background 0.2s;
+  font-family: inherit;
 }
-
 .orderHintBtn:hover { background: #dbeafe; }
 
-/* ── Liste des commandes ─────────────────────────────────── */
+/* ── Liste des commandes ─────────────────────────────────────── */
 .ordersList {
   display: flex;
   flex-direction: column;
@@ -602,18 +676,24 @@
 
 .orderCard {
   background: #fff;
-  border-radius: 1rem;
-  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  border: 1.5px solid #e5eaf5;
   padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  transition: box-shadow 0.2s;
+  box-shadow: 0 3px 12px rgba(15,27,63,0.06);
+  transition: box-shadow 0.2s, transform 0.2s;
+  border-left: 4px solid #e5eaf5;
 }
 
-.orderCard:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
+.orderCard:hover { box-shadow: 0 8px 24px rgba(15,27,63,0.10); transform: translateX(2px); }
 
+/* Bordure gauche selon statut */
 .orderCardNew {
-  border-left: 4px solid #f59e0b;
+  border-left-color: #ff4d2d;
 }
+
+/* Confirmed = vert, done = gris — classes utilitaires à appliquer via JS */
+.orderCard[data-status="confirmed"] { border-left-color: #10b981; }
+.orderCard[data-status="done"]      { border-left-color: #94a3b8; }
 
 .orderHeader {
   display: flex;
@@ -631,16 +711,17 @@
 }
 
 .orderType {
-  font-size: 0.72rem;
-  font-weight: 700;
+  font-size: 0.7rem;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 1px;
-  color: #94a3b8;
+  color: #8493b0;
 }
 
 .orderTitle strong {
   font-size: 1.05rem;
-  color: #1e293b;
+  color: #0f1b3f;
+  font-weight: 800;
 }
 
 .orderStatus {
@@ -661,19 +742,21 @@
 .orderInfo {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.2rem;
 }
 
 .orderInfo span {
   font-size: 0.7rem;
-  color: #94a3b8;
+  color: #8493b0;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  font-weight: 700;
 }
 
 .orderInfo strong {
   font-size: 0.875rem;
-  color: #1e293b;
+  color: #0f1b3f;
+  font-weight: 700;
 }
 
 .orderActions {
@@ -683,45 +766,45 @@
 }
 
 .btnConfirm {
-  background: #10b981;
+  background: linear-gradient(135deg, #10b981, #059669);
   color: #fff;
   border: none;
-  border-radius: 0.6rem;
+  border-radius: 9px;
   padding: 0.6rem 1.25rem;
   font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s, transform 0.2s;
+  font-family: inherit;
 }
-
-.btnConfirm:hover { opacity: 0.85; }
+.btnConfirm:hover { opacity: 0.88; transform: translateY(-1px); }
 
 .btnComplete {
-  background: #6366f1;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
   color: #fff;
   border: none;
-  border-radius: 0.6rem;
+  border-radius: 9px;
   padding: 0.6rem 1.25rem;
   font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s, transform 0.2s;
+  font-family: inherit;
 }
-
-.btnComplete:hover { opacity: 0.85; }
+.btnComplete:hover { opacity: 0.88; transform: translateY(-1px); }
 
 .btnReject {
   background: transparent;
   color: #ef4444;
-  border: 1px solid #fca5a5;
-  border-radius: 0.6rem;
+  border: 1.5px solid #fca5a5;
+  border-radius: 9px;
   padding: 0.6rem 1.25rem;
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.2s;
+  font-family: inherit;
 }
-
 .btnReject:hover { background: #fef2f2; }
 
 .orderNote {
@@ -729,9 +812,10 @@
   color: #64748b;
   font-style: italic;
   margin-top: 0.75rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem 0.875rem;
   background: #f8fafc;
-  border-radius: 0.4rem;
+  border-radius: 8px;
+  border-left: 3px solid #e5eaf5;
 }
 
 .orderDate {
@@ -741,131 +825,113 @@
   text-align: right;
 }
 
-/* ── Modal refus ─────────────────────────────────────────── */
+/* ── Modal refus ──────────────────────────────────────────────── */
 .modalOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.5);
+  background: rgba(15,27,63,0.55);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
   padding: 1rem;
+  backdrop-filter: blur(2px);
 }
 
 .modal {
   background: #fff;
-  border-radius: 1.25rem;
-  padding: 2rem;
+  border-radius: 20px;
+  padding: 2.25rem;
   max-width: 440px;
   width: 100%;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  box-shadow: 0 24px 64px rgba(15,27,63,0.24);
 }
 
 .modal h3 {
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   font-weight: 800;
-  color: #1e293b;
+  color: #0f1b3f;
   margin: 0 0 0.5rem;
 }
 
 .modal p {
   font-size: 0.875rem;
-  color: #64748b;
+  color: #8493b0;
   margin: 0 0 1rem;
+  line-height: 1.55;
 }
 
 .rejectTextarea {
   width: 100%;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.6rem;
-  padding: 0.75rem;
+  border: 1.5px solid #e5eaf5;
+  border-radius: 10px;
+  padding: 0.8rem;
   font-size: 0.875rem;
-  color: #1e293b;
+  color: #0f1b3f;
   resize: vertical;
   outline: none;
   margin-bottom: 1rem;
   box-sizing: border-box;
+  font-family: inherit;
+  background: #f8faff;
 }
-
-.rejectTextarea:focus { border-color: #f59e0b; }
+.rejectTextarea:focus { border-color: #ff4d2d; box-shadow: 0 0 0 3px rgba(255,77,45,0.09); background: white; }
 
 .modalActions {
   display: flex;
   gap: 0.75rem;
 }
 
-@media (max-width: 768px) {
-  .page {
-    padding: 1rem;
-  }
-
-  .statsGrid {
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-  }
-
-  .vehicleGrid {
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-  }
-
-  .cardActions {
-    flex-wrap: wrap;
-  }
-
-  .orderGrid {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-/* ══════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════
    NOUVELLES FONCTIONNALITÉS — GÉRER + GPS + LIVRAISON
-   ══════════════════════════════════════════════════════ */
+   ═══════════════════════════════════════════════════════════ */
 
-/* ── Bouton Gérer ────────────────────────────────────── */
+/* ── Bouton Gérer ─────────────────────────────────────────────── */
 .btnGerer {
   background: #1e40af;
   color: #fff;
   border: none;
-  border-radius: 0.6rem;
+  border-radius: 9px;
   padding: 0.6rem 1.1rem;
   font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s, transform 0.2s;
+  font-family: inherit;
 }
-.btnGerer:hover { opacity: 0.85; }
+.btnGerer:hover { opacity: 0.88; transform: translateY(-1px); }
 
-/* ── Bouton En cours / En route ──────────────────────── */
+/* ── Bouton En cours / En route ─────────────────────────────── */
 .btnInProgress {
-  background: #7c3aed;
+  background: linear-gradient(135deg, #7c3aed, #5b21b6);
   color: #fff;
   border: none;
-  border-radius: 0.6rem;
+  border-radius: 9px;
   padding: 0.6rem 1.25rem;
   font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s, transform 0.2s;
+  font-family: inherit;
 }
-.btnInProgress:hover { opacity: 0.85; }
+.btnInProgress:hover { opacity: 0.88; transform: translateY(-1px); }
 
-/* ── Badge GPS sur la carte commande ─────────────────── */
+/* ── Badge GPS ────────────────────────────────────────────────── */
 .gpsPill {
   display: inline-block;
   background: #dbeafe;
   color: #1d4ed8;
   font-size: 0.65rem;
-  font-weight: 700;
+  font-weight: 800;
   border-radius: 9999px;
-  padding: 0.1rem 0.45rem;
+  padding: 0.1rem 0.5rem;
   margin-left: 0.35rem;
   vertical-align: middle;
 }
 
 .deliveryAddr {
   color: #1e40af;
+  font-weight: 600;
 }
 
 .phoneLink {
@@ -875,15 +941,15 @@
 }
 .phoneLink:hover { text-decoration: underline; }
 
-/* ── Modal Gérer (grande modale avec carte) ──────────── */
+/* ── Modal Gérer (grande modale) ─────────────────────────────── */
 .gererModal {
   background: #fff;
-  border-radius: 1.5rem;
+  border-radius: 22px;
   width: 100%;
   max-width: 680px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 25px 60px rgba(0,0,0,0.25);
+  box-shadow: 0 28px 64px rgba(15,27,63,0.26);
   display: flex;
   flex-direction: column;
 }
@@ -898,7 +964,7 @@
   top: 0;
   background: #fff;
   z-index: 1;
-  border-radius: 1.5rem 1.5rem 0 0;
+  border-radius: 22px 22px 0 0;
 }
 
 .gererType {
@@ -906,7 +972,7 @@
   background: #eff6ff;
   color: #1d4ed8;
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 800;
   border-radius: 9999px;
   padding: 0.2rem 0.7rem;
   margin-bottom: 0.4rem;
@@ -916,7 +982,7 @@
 
 .gererTitle {
   font-size: 1.3rem;
-  font-weight: 700;
+  font-weight: 800;
   color: #0f172a;
   margin: 0;
 }
@@ -948,9 +1014,9 @@
 }
 
 .gererSectionTitle {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #475569;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #4a5876;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 0 0 0.875rem;
@@ -978,15 +1044,16 @@
   background: #ede9fe;
   color: #5b21b6;
   padding: 0.2rem 0.6rem;
-  border-radius: 0.4rem;
+  border-radius: 6px;
   font-size: 0.85rem;
+  font-weight: 700;
 }
 
-/* ── Bloc GPS / livraison dans la modale ─────────────── */
+/* ── Bloc GPS / livraison dans la modale ─────────────────────── */
 .gpsBlock {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-radius: 0.875rem;
+  border-radius: 14px;
   overflow: hidden;
 }
 
@@ -1029,7 +1096,7 @@
   gap: 0.4rem;
   background: #1d4ed8;
   color: #fff;
-  border-radius: 0.6rem;
+  border-radius: 9px;
   padding: 0.55rem 1rem;
   font-size: 0.85rem;
   font-weight: 600;
@@ -1060,18 +1127,18 @@
   padding: 0.875rem 1.25rem;
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
-  border-radius: 0.875rem;
+  border-radius: 14px;
   margin-top: 0.75rem;
 }
 
 .returnLabel {
   font-size: 0.78rem;
   color: #166534;
-  font-weight: 600;
+  font-weight: 700;
   margin: 0 0 0.2rem;
 }
 
-/* ── Actions dans la modale Gérer ────────────────────── */
+/* ── Actions dans la modale Gérer ────────────────────────────── */
 .gererActions {
   display: flex;
   gap: 0.75rem;
@@ -1079,19 +1146,19 @@
   padding: 1.25rem 1.75rem;
   border-top: 1px solid #f1f5f9;
   background: #fafafa;
-  border-radius: 0 0 1.5rem 1.5rem;
+  border-radius: 0 0 22px 22px;
   position: sticky;
   bottom: 0;
 }
 
-/* ══════════════════════════════════════════════════════════
-   INFOS CLIENT — redesign carte compacte
-   ══════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════
+   INFOS CLIENT — carte compacte
+   ════════════════════════════════════════════════════════════ */
 
 .clientCard {
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.875rem;
+  border: 1.5px solid #e5eaf5;
+  border-radius: 14px;
   padding: 1rem 1.125rem;
   display: flex;
   flex-direction: column;
@@ -1119,7 +1186,7 @@
   background: #ecfdf5;
   color: #059669;
   border: 1px solid #a7f3d0;
-  border-radius: 0.5rem;
+  border-radius: 8px;
   padding: 0.35rem 0.8rem;
   font-size: 0.875rem;
   font-weight: 700;
@@ -1142,7 +1209,7 @@
 }
 .clientEmail:hover { color: #2563eb; text-decoration: underline; }
 
-/* ── Résumé de commande compact ──────────────────────── */
+/* ── Résumé commande compact ──────────────────────────────────── */
 .orderSummary {
   display: flex;
   flex-direction: column;
@@ -1165,9 +1232,9 @@
 .paidOk    { color: #10b981 !important; }
 .paidPending { color: #f59e0b !important; }
 
-/* ══════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════
    DÉCISION — Accepter / Refuser
-   ══════════════════════════════════════════════════════════ */
+   ════════════════════════════════════════════════════════════ */
 
 .decisionBlock {
   display: grid;
@@ -1181,11 +1248,11 @@
   align-items: center;
   gap: 0.875rem;
   padding: 1rem 1.25rem;
-  border-radius: 1rem;
+  border-radius: 14px;
   border: 2px solid transparent;
   cursor: pointer;
   font-family: inherit;
-  transition: all 0.2s;
+  transition: all 0.22s;
   text-align: left;
 }
 
@@ -1233,9 +1300,9 @@
   margin-top: 0.15rem;
 }
 
-/* ══════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════
    CHECKLIST — cases à cocher verticales
-   ══════════════════════════════════════════════════════════ */
+   ════════════════════════════════════════════════════════════ */
 
 .checklist {
   display: flex;
@@ -1256,7 +1323,6 @@
 .checkItemCurrent { opacity: 1; }
 .checkItemFuture  { opacity: 0.45; }
 
-/* Case à cocher */
 .checkbox {
   width: 2rem;
   height: 2rem;
@@ -1282,16 +1348,15 @@
 }
 
 .checkboxCurrent {
-  background: #f59e0b;
-  border-color: #f59e0b;
+  background: #ff4d2d;
+  border-color: #ff4d2d;
   color: #fff;
-  box-shadow: 0 0 0 4px rgba(245,158,11,0.2);
+  box-shadow: 0 0 0 4px rgba(255,77,45,0.20);
 }
 
-/* Ligne de connexion entre étapes */
 .checkLine {
   position: absolute;
-  left: 0.9375rem;       /* (2rem / 2) + 0.875rem gap - (largeur ligne / 2) ≈ centré sur la case */
+  left: 0.9375rem;
   top: calc(2rem + 0.65rem);
   width: 2px;
   height: calc(100% + 0);
@@ -1301,7 +1366,6 @@
 }
 .checkLineDone { background: #10b981; }
 
-/* Contenu texte */
 .checkContent {
   flex: 1;
   padding-top: 0.2rem;
@@ -1322,11 +1386,10 @@
   margin-top: 0.15rem;
 }
 
-/* Bouton "Marquer" flottant à droite de chaque étape */
 .btnStepAdvance {
   flex-shrink: 0;
   padding: 0.4rem 0.875rem;
-  border-radius: 0.5rem;
+  border-radius: 8px;
   font-size: 0.78rem;
   font-weight: 700;
   border: none;
@@ -1334,6 +1397,7 @@
   transition: all 0.2s;
   white-space: nowrap;
   align-self: center;
+  font-family: inherit;
 }
 
 .btnStepPrepare {
@@ -1364,20 +1428,18 @@
 }
 .btnStepDone:hover { background: #16a34a; color: #fff; border-color: #16a34a; }
 
-/* Commande terminée */
 .completedBlock {
   margin-top: 1rem;
   padding: 0.75rem 1rem;
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
-  border-radius: 0.6rem;
+  border-radius: 10px;
   font-size: 0.875rem;
   font-weight: 700;
   color: #166534;
   text-align: center;
 }
 
-/* ── Bouton action principale — EN DEHORS des cases ──────── */
 .btnMainStep {
   display: flex;
   flex-direction: column;
@@ -1386,7 +1448,7 @@
   gap: 0.2rem;
   width: 100%;
   padding: 1rem 1.5rem;
-  border-radius: 0.875rem;
+  border-radius: 14px;
   border: none;
   cursor: pointer;
   font-family: inherit;
@@ -1406,7 +1468,6 @@
   font-weight: 400;
 }
 
-/* Réutilise les mêmes couleurs que btnStepXxx */
 .btnMainStep.btnStepPrepare {
   background: linear-gradient(135deg, #06b6d4, #0891b2);
   color: #fff;
@@ -1435,45 +1496,44 @@
 }
 .btnMainStep.btnStepDone:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(16,185,129,0.4); }
 
-/* ── Case à cocher — étape suivante (cliquable) ──────────── */
+/* ── Case suivante cliquable ─────────────────────────────────── */
 .checkItemNext {
   cursor: pointer;
-  border-radius: 0.6rem;
+  border-radius: 10px;
   padding-left: 0.5rem;
   padding-right: 0.5rem;
-  background: linear-gradient(135deg, #fffbeb, #fef3c7);
-  border: 1.5px dashed #f59e0b;
+  background: linear-gradient(135deg, #fff8f6, #ffede8);
+  border: 1.5px dashed #ff4d2d;
   opacity: 1 !important;
   transition: background 0.2s, border-color 0.2s, transform 0.15s;
 }
 .checkItemNext:hover {
-  background: linear-gradient(135deg, #fef3c7, #fde68a);
-  border-color: #d97706;
+  background: linear-gradient(135deg, #ffe9e3, #ffd6cd);
+  border-color: #e03519;
   transform: translateX(3px);
 }
 
 .checkboxNext {
-  border: 2.5px dashed #f59e0b !important;
-  background: #fffbeb !important;
+  border: 2.5px dashed #ff4d2d !important;
+  background: #fff8f6 !important;
   animation: checkNextPulse 1.8s infinite;
 }
 
 @keyframes checkNextPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); }
-  50%       { box-shadow: 0 0 0 5px rgba(245,158,11,0.2); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,77,45,0); }
+  50%       { box-shadow: 0 0 0 5px rgba(255,77,45,0.18); }
 }
 
 .checkboxNextIcon {
-  color: #f59e0b;
+  color: #ff4d2d;
   font-size: 1.1rem;
   font-weight: 900;
   line-height: 1;
 }
 
-/* Texte indicateur cliquable */
 .checkClickHint {
   font-size: 0.7rem;
-  color: #d97706;
+  color: #e03519;
   font-weight: 700;
   white-space: nowrap;
   flex-shrink: 0;
@@ -1483,12 +1543,12 @@
 }
 .checkItemNext:hover .checkClickHint { opacity: 1; }
 
-/* ── Bandeaux de statut dans le modal SUIVI ─────────────── */
+/* ── Bandeaux de statut suivi ────────────────────────────────── */
 .acceptedBanner,
 .preparingBanner,
 .readyBanner,
 .inProgressBanner {
-  border-radius: 0.6rem;
+  border-radius: 10px;
   padding: 0.75rem 1rem;
   font-size: 0.825rem;
   font-weight: 600;
@@ -1520,7 +1580,6 @@
   color: #1d4ed8;
 }
 
-/* Bouton annuler commande (dans le suivi) */
 .btnContractLink {
   display: block;
   margin-top: 0.75rem;
@@ -1528,7 +1587,7 @@
   background: #f0f4ff;
   color: #4f46e5;
   border: 1px solid #c7d2fe;
-  border-radius: 0.6rem;
+  border-radius: 9px;
   padding: 0.55rem 1rem;
   font-size: 0.82rem;
   font-weight: 600;
@@ -1542,9 +1601,9 @@
   margin-top: 0.5rem;
   width: 100%;
   background: transparent;
-  border: 1px solid #fca5a5;
+  border: 1.5px solid #fca5a5;
   color: #dc2626;
-  border-radius: 0.6rem;
+  border-radius: 9px;
   padding: 0.55rem 1rem;
   font-size: 0.825rem;
   font-weight: 600;
@@ -1554,33 +1613,32 @@
 }
 .btnCancelOrder:hover { background: #fef2f2; }
 
-/* Commande annulée */
 .cancelledBlock {
   margin: 0.5rem 1.75rem 1rem;
   padding: 0.875rem 1rem;
   background: #fef2f2;
   border: 1px solid #fecaca;
-  border-radius: 0.6rem;
+  border-radius: 10px;
   color: #dc2626;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 700;
   text-align: center;
 }
 
-/* Bouton Gérer mis en évidence pour nouvelles commandes */
+/* Bouton Gérer mis en évidence */
 .btnGererNew {
-  background: #f59e0b !important;
+  background: linear-gradient(135deg, #ff4d2d, #e03519) !important;
   animation: gererPulse 2s infinite;
 }
 
 @keyframes gererPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); }
-  50%       { box-shadow: 0 0 0 6px rgba(245,158,11,0.2); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,77,45,0); }
+  50%       { box-shadow: 0 0 0 6px rgba(255,77,45,0.22); }
 }
 
-/* ══════════════════════════════════════════════════════════
-   TRACKING BAR — suivi de commande (partenaire)
-   ══════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════
+   TRACKING BAR
+   ════════════════════════════════════════════════════════════ */
 
 .trackBar {
   display: flex;
@@ -1602,24 +1660,24 @@
   width: 2.2rem;
   height: 2.2rem;
   border-radius: 50%;
-  background: #e2e8f0;
-  color: #94a3b8;
+  background: #e5eaf5;
+  color: #8493b0;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.85rem;
-  font-weight: 700;
+  font-weight: 800;
   z-index: 1;
   transition: all 0.3s;
 }
 
 .trackDotDone    { background: #10b981; color: #fff; }
-.trackDotCurrent { background: #f59e0b; color: #fff; box-shadow: 0 0 0 4px rgba(245,158,11,0.2); }
+.trackDotCurrent { background: #ff4d2d; color: #fff; box-shadow: 0 0 0 4px rgba(255,77,45,0.20); }
 
 .trackLine {
   width: 3rem;
   height: 3px;
-  background: #e2e8f0;
+  background: #e5eaf5;
   position: absolute;
   top: 1.1rem;
   left: calc(100% - 2px);
@@ -1629,13 +1687,13 @@
 
 .trackLabel {
   font-size: 0.65rem;
-  color: #94a3b8;
+  color: #8493b0;
   margin-top: 0.4rem;
   text-align: center;
   white-space: nowrap;
   font-weight: 600;
 }
-.trackLabelCurrent { color: #f59e0b; font-weight: 800; }
+.trackLabelCurrent { color: #ff4d2d; font-weight: 800; }
 
 .trackCancelled {
   display: flex;
@@ -1643,19 +1701,19 @@
   gap: 0.5rem;
   padding: 0.6rem 1rem;
   background: #fef2f2;
-  border-radius: 0.5rem;
+  border-radius: 8px;
   color: #ef4444;
   font-size: 0.85rem;
   font-weight: 700;
   margin: 0.5rem 0;
 }
 
-/* ── Barre d'action principale dans modal ─────────────── */
+/* ── Barre d'action principale dans modal ────────────────────── */
 .mainActionBar {
   padding: 1rem 1.75rem;
-  background: linear-gradient(135deg, #f8faff, #fff);
-  border-top: 1px solid #f0f4ff;
-  border-bottom: 1px solid #f0f4ff;
+  background: linear-gradient(135deg, #f5f8ff, #fff);
+  border-top: 1px solid #eef2ff;
+  border-bottom: 1px solid #eef2ff;
 }
 
 .btnAccept {
@@ -1669,12 +1727,13 @@
   background: linear-gradient(135deg, #10b981, #059669);
   color: #fff;
   border: none;
-  border-radius: 0.875rem;
+  border-radius: 14px;
   font-size: 1rem;
   font-weight: 800;
   cursor: pointer;
   transition: all 0.2s;
   box-shadow: 0 4px 16px rgba(16,185,129,0.3);
+  font-family: inherit;
 }
 .btnAccept:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(16,185,129,0.4); }
 
@@ -1689,12 +1748,13 @@
   background: linear-gradient(135deg, #8b5cf6, #7c3aed);
   color: #fff;
   border: none;
-  border-radius: 0.875rem;
+  border-radius: 14px;
   font-size: 1rem;
   font-weight: 800;
   cursor: pointer;
   transition: all 0.2s;
   box-shadow: 0 4px 16px rgba(139,92,246,0.3);
+  font-family: inherit;
 }
 .btnReady:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(139,92,246,0.4); }
 
@@ -1709,12 +1769,13 @@
   background: linear-gradient(135deg, #06b6d4, #0891b2);
   color: #fff;
   border: none;
-  border-radius: 0.875rem;
+  border-radius: 14px;
   font-size: 1rem;
   font-weight: 800;
   cursor: pointer;
   transition: all 0.2s;
   box-shadow: 0 4px 16px rgba(6,182,212,0.3);
+  font-family: inherit;
 }
 .btnEnRoute:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(6,182,212,0.4); }
 
@@ -1729,12 +1790,13 @@
   background: linear-gradient(135deg, #6366f1, #4f46e5);
   color: #fff;
   border: none;
-  border-radius: 0.875rem;
+  border-radius: 14px;
   font-size: 1rem;
   font-weight: 800;
   cursor: pointer;
   transition: all 0.2s;
   box-shadow: 0 4px 16px rgba(99,102,241,0.3);
+  font-family: inherit;
 }
 .btnDone:hover { transform: translateY(-2px); }
 
@@ -1744,7 +1806,7 @@
   opacity: 0.85;
 }
 
-/* ── Footer de la modale (refus) ─────────────────────── */
+/* ── Footer de la modale ─────────────────────────────────────── */
 .gererFooter {
   padding: 1rem 1.75rem 1.25rem;
   border-top: 1px solid #f1f5f9;
@@ -1752,20 +1814,46 @@
   justify-content: flex-end;
 }
 
-/* ── Bloc terminé / annulé ───────────────────────────── */
+/* ── Bloc terminé / annulé ───────────────────────────────────── */
 .doneBlock {
   background: #f8fafc;
-  border-radius: 0.6rem;
+  border-radius: 10px;
   padding: 0.875rem 1rem;
   font-size: 0.875rem;
-  color: #475569;
+  color: #4a5876;
   font-weight: 600;
   text-align: center;
 }
 
-@media (max-width: 600px) {
-  .gererModal { max-height: 100vh; border-radius: 1.25rem 1.25rem 0 0; }
-  .gererGrid { grid-template-columns: 1fr; }
-  .gpsInfo { flex-direction: column; }
+/* ─── Responsive ────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .page { padding: 0 1rem 3rem; }
+
+  .header { margin: 0 -1rem 2rem; padding: 2rem 1.25rem 1.75rem; }
+
+  .statsGrid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .statNumber { font-size: 2.5rem; }
+
+  .vehicleGrid {
+    grid-template-columns: 1fr;
+    gap: 1.4rem;
+  }
+
+  .cardActions { flex-wrap: wrap; }
+
+  .orderGrid { grid-template-columns: 1fr 1fr; }
+
+  .tabs { overflow-x: auto; }
 }
 
+@media (max-width: 600px) {
+  .gererModal { max-height: 100vh; border-radius: 18px 18px 0 0; }
+  .gererGrid { grid-template-columns: 1fr; }
+  .gpsInfo { flex-direction: column; }
+  .decisionBlock { grid-template-columns: 1fr; }
+  .statsGrid { grid-template-columns: 1fr 1fr; }
+}
