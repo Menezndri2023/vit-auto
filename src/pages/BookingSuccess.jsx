@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import styles from "./BookingSuccess.module.css";
 
 const fmt = (n) => Number(n).toLocaleString("fr-FR") + " FCFA";
@@ -22,6 +22,7 @@ const OPTION_LABELS = {
 
 const BookingSuccess = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const booking  = location.state?.booking;
 
   const contractNumber = `VIT-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999) + 1).padStart(5, "0")}`;
@@ -29,11 +30,22 @@ const BookingSuccess = () => {
 
   if (!booking) {
     return (
-      <div className={styles.page}>
-        <div className={styles.emptyState}>
-          <h1>Confirmation introuvable</h1>
-          <p>Aucune réservation trouvée. Retournez au catalogue.</p>
-          <Link to="/catalogue" className={styles.btnPrimary}>Voir le catalogue</Link>
+      <div style={{
+        minHeight: "60vh", display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", padding: "3rem 1.5rem", textAlign: "center",
+      }}>
+        <div style={{ fontSize: "3rem", marginBottom: 16 }}>📋</div>
+        <h2 style={{ color: "#0f1b3f", margin: "0 0 10px" }}>Aucune réservation trouvée</h2>
+        <p style={{ color: "#5a6a8a", marginBottom: 24 }}>
+          Cette page est accessible uniquement après une réservation.
+        </p>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+          <Link to="/catalogue" style={{ background: "#ff4d2d", color: "#fff", padding: "12px 24px", borderRadius: 10, textDecoration: "none", fontWeight: 700 }}>
+            Explorer le catalogue
+          </Link>
+          <button onClick={() => navigate(-1)} style={{ background: "transparent", border: "1.5px solid #d1d9e8", color: "#0f1b3f", padding: "11px 22px", borderRadius: 10, cursor: "pointer", fontWeight: 600 }}>
+            ← Retour
+          </button>
         </div>
       </div>
     );
@@ -53,7 +65,7 @@ const BookingSuccess = () => {
         <span className={styles.successIcon}>✓</span>
         <div>
           <h1>{isEssai ? "Demande d'essai envoyée !" : "Réservation confirmée !"}</h1>
-          <p>Merci {booking.firstName} {booking.lastName}. Votre contrat numérique est généré ci-dessous.</p>
+          <p>Merci {booking.firstName || booking.clientInfo?.firstName || ""} {booking.lastName || booking.clientInfo?.lastName || ""}. Votre contrat numérique est généré ci-dessous.</p>
         </div>
       </div>
 

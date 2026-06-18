@@ -22,6 +22,34 @@
   box-shadow: var(--sh-lg);
 }
 
+/* Mode compact : même taille que le catalogue */
+.compact .cover img,
+.compact .coverPlaceholder {
+  height: 165px !important;
+}
+
+.compact .info {
+  padding: 11px 13px 8px;
+}
+
+.compact .info h3 {
+  font-size: 0.88rem;
+}
+
+.compact .price {
+  font-size: 1rem;
+}
+
+.compact .actions {
+  padding: 8px 12px 10px;
+}
+
+.compact .actions button {
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  min-height: 36px;
+}
+
 /* ── Image ─────────────────────────────────────────── */
 .cover {
   position: relative;
@@ -34,11 +62,75 @@
   height: 200px;
   object-fit: cover;
   display: block;
-  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.25s ease, transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .card:hover .cover img {
-  transform: scale(1.06);
+  transform: scale(1.04);
+}
+
+/* Fade lors du changement d'image */
+.imgFading {
+  opacity: 0.3 !important;
+}
+
+/* Flèches navigation images */
+.imgArrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  background: rgba(0,0,0,0.42);
+  border: none;
+  color: #fff;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s, background 0.2s;
+  padding: 0;
+}
+
+.cover:hover .imgArrow {
+  opacity: 1;
+}
+
+.imgPrev { left: 6px; }
+.imgNext { right: 6px; }
+
+.imgArrow:hover {
+  background: rgba(255,77,45,0.8);
+}
+
+/* Dots images */
+.imgDots {
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  z-index: 3;
+}
+
+.imgDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.45);
+  transition: all 0.2s;
+}
+
+.imgDotActive {
+  background: #fff;
+  width: 12px;
+  border-radius: 3px;
 }
 
 /* Dégradé bas d'image */
@@ -163,6 +255,74 @@
   border-radius: var(--r-xs, 6px);
   padding: 3px 9px;
   white-space: nowrap;
+}
+
+/* ── Annonceur badge ───────────────────────────────── */
+.publisherRow {
+  margin-top: 2px;
+}
+
+.publisherChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f8faff;
+  border: 1px solid #e0e7ff;
+  border-radius: 999px;
+  padding: 4px 10px 4px 4px;
+  cursor: default;
+  transition: all 0.18s ease;
+  font-family: inherit;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.publisherChipLink {
+  cursor: pointer;
+}
+
+.publisherChipLink:hover {
+  background: #eff0ff;
+  border-color: #6366f1;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.15);
+}
+
+.publisherChipLink:hover .publisherArrow {
+  transform: translateX(2px);
+}
+
+.publisherAvt {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff4d2d, #e03519);
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.publisherName {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #4a5876;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
+
+.publisherArrow {
+  font-size: 0.8rem;
+  color: #6366f1;
+  font-weight: 700;
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+  line-height: 1;
 }
 
 /* ── Prix ──────────────────────────────────────────── */

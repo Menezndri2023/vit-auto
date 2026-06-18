@@ -36,7 +36,11 @@ const Checkout = lazy(() => import("./pages/Checkout"));
 const Services    = lazy(() => import("./pages/Services"));
 const Help        = lazy(() => import("./pages/Help"));
 const ContractPage = lazy(() => import("./pages/ContractPage"));
-const NotFound    = lazy(() => import("./pages/NotFound"));
+const Privacy       = lazy(() => import("./pages/Privacy"));
+const FAQ           = lazy(() => import("./pages/FAQ"));
+const CGU           = lazy(() => import("./pages/CGU"));
+const PartnerProfile = lazy(() => import("./pages/PartnerProfile"));
+const NotFound      = lazy(() => import("./pages/NotFound"));
 const VerifyEmail     = lazy(() => import("./pages/VerifyEmail"));
 const ForgotPassword  = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword   = lazy(() => import("./pages/ResetPassword"));
@@ -78,6 +82,10 @@ function App() {
                         <Route path="/services" element={<Services />} />
                         <Route path="/help"     element={<Help />} />
                         <Route path="/contract/:bookingId" element={<ContractPage />} />
+                        <Route path="/privacy"       element={<Privacy />} />
+                        <Route path="/faq"           element={<FAQ />} />
+                        <Route path="/cgu"           element={<CGU />} />
+                        <Route path="/partner/:id"   element={<PartnerProfile />} />
                         <Route path="/verify-email"    element={<VerifyEmail />} />
                         <Route path="/forgot-password" element={<ForgotPassword />} />
                         <Route path="/reset-password"  element={<ResetPassword />} />

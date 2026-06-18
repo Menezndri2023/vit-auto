@@ -1,19 +1,78 @@
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import styles from "../VehicleCard/VehicleCard.module.css";
+import styles from "./VehicleCard.module.css";
 
 const fmt = (n) => Number(n).toLocaleString("fr-FR") + " FCFA";
 
-const VehicleCard = React.memo(({ car }) => {
-  const navigate = useNavigate();
+const VehicleCard = React.memo(({ car, compact }) => {
+  const navigate  = useNavigate();
+  const imgs = (() => {
+    const arr = [];
+    if (Array.isArray(car.images) && car.images.length > 0) arr.push(...car.images);
+    else if (car.image) arr.push(car.image);
+    return arr.length > 0 ? arr : null;
+  })();
+
+  const [imgIdx, setImgIdx] = useState(0);
+  const [fading, setFading] = useState(false);
+
+  // Rotation automatique des images toutes les 3s (si plusieurs)
+  useEffect(() => {
+    if (!imgs || imgs.length <= 1) return;
+    const t = setInterval(() => {
+      setFading(true);
+      setTimeout(() => {
+        setImgIdx((i) => (i + 1) % imgs.length);
+        setFading(false);
+      }, 250);
+    }, 3000);
+    return () => clearInterval(t);
+  }, [imgs?.length]);
+
+  const goImg = useCallback((e, dir) => {
+    e.stopPropagation();
+    if (!imgs || imgs.length <= 1) return;
+    setFading(true);
+    setTimeout(() => {
+      setImgIdx((i) => (i + dir + imgs.length) % imgs.length);
+      setFading(false);
+    }, 200);
+  }, [imgs]);
 
   return (
-    <div className={styles.card}>
+    <div className={`${styles.card} ${compact ? styles.compact : ""}`}>
       <div className={styles.cover}>
-        <img src={car.image} alt={car.name} loading="lazy" />
+        {imgs ? (
+          <>
+            <img
+              src={imgs[imgIdx]}
+              alt={car.title || car.name}
+              loading="lazy"
+              className={fading ? styles.imgFading : ""}
+            />
+            {/* Navigation images si plusieurs */}
+            {imgs.length > 1 && (
+              <>
+                <button type="button" className={`${styles.imgArrow} ${styles.imgPrev}`} onClick={(e) => goImg(e, -1)}>‹</button>
+                <button type="button" className={`${styles.imgArrow} ${styles.imgNext}`} onClick={(e) => goImg(e, 1)}>›</button>
+                <div className={styles.imgDots}>
+                  {imgs.map((_, i) => (
+                    <span
+                      key={i}
+                      className={`${styles.imgDot} ${i === imgIdx ? styles.imgDotActive : ""}`}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <div className={styles.coverPlaceholder}>🚗</div>
+        )}
+
         <div className={styles.badges}>
-          <span className={`${styles.badge} ${car.mode === "Acheter" ? styles.sale : styles.location}`}>
-            {car.mode === "Acheter" ? "Vente" : "Location"}
+          <span className={`${styles.badge} ${(car.mode === "Acheter" || car.listingType === "vente") ? styles.sale : styles.location}`}>
+            {(car.mode === "Acheter" || car.listingType === "vente") ? "Vente" : "Location"}
           </span>
           <span className={`${styles.badge} ${car.available ? styles.available : styles.reserve}`}>
             {car.available ? "Disponible" : "Réservé"}
@@ -23,28 +82,51 @@ const VehicleCard = React.memo(({ car }) => {
 
       <div className={styles.info}>
         <div className={styles.topRow}>
-          <h3>{car.name}</h3>
+          <h3>{car.title || car.name}</h3>
           {car.distance != null && (
             <span className={styles.km}>{Number(car.distance).toFixed(1)} km</span>
           )}
         </div>
-        <p className={styles.type}>{car.type}</p>
+        <p className={styles.type}>{car.vehicleType || car.type}</p>
+
+        {/* Annonceur — badge cliquable premium */}
+        {(car.ownerName || car.contactNom || car.partnerName) && (
+          <div className={styles.publisherRow}>
+            <button
+              type="button"
+              className={`${styles.publisherChip} ${car.ownerId ? styles.publisherChipLink : ""}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (car.ownerId) navigate(`/partner/${car.ownerId}`);
+              }}
+              title={car.ownerId ? "Voir le profil du partenaire" : "Annonceur"}
+            >
+              <span className={styles.publisherAvt}>
+                {(car.ownerName || car.contactNom || "P").charAt(0).toUpperCase()}
+              </span>
+              <span className={styles.publisherName}>
+                {car.ownerName || car.contactNom || car.partnerName}
+              </span>
+              {car.ownerId && <span className={styles.publisherArrow}>›</span>}
+            </button>
+          </div>
+        )}
 
         <div className={styles.meta}>
-          {car.rating != null && <span>⭐ {car.rating} ({car.reviews})</span>}
-          {car.seats  != null && <span>🧍 {car.seats} places</span>}
-          {car.transmission && <span>⚙️ {car.transmission}</span>}
-          {car.fuel        && <span>⛽ {car.fuel}</span>}
+          {car.rating    != null && <span>⭐ {car.rating} ({car.reviews || 0})</span>}
+          {(car.nombrePlaces || car.seats) != null && <span>🧍 {car.nombrePlaces || car.seats} pl.</span>}
+          {(car.transmission) && <span>⚙️ {car.transmission}</span>}
+          {(car.fuel || car.carburant) && <span>⛽ {car.fuel || car.carburant}</span>}
         </div>
 
         <div className={styles.priceBlock}>
           <p className={styles.price}>
-            {car.mode === "Acheter"
-              ? fmt(car.buyPrice)
-              : `${fmt(car.pricePerDay)} / jour`}
+            {(car.mode === "Acheter" || car.listingType === "vente")
+              ? fmt(car.buyPrice || car.priceForSale || 0)
+              : `${fmt(car.pricePerDay || 0)} / jour`}
           </p>
-          {car.mode !== "Acheter" && car.buyPrice && (
-            <p className={styles.buyPrice}>Achat : {fmt(car.buyPrice)}</p>
+          {(car.ville || car.city) && (
+            <p className={styles.ville}>📍 {car.ville || car.city}</p>
           )}
         </div>
       </div>
@@ -57,7 +139,7 @@ const VehicleCard = React.memo(({ car }) => {
           Détails
         </button>
         <button onClick={() => navigate(`/booking/${car._id || car.id}`)}>
-          {car.mode === "Acheter" ? "Essai gratuit" : "Réserver"}
+          {(car.mode === "Acheter" || car.listingType === "vente") ? "Essai gratuit" : "Réserver"}
         </button>
       </div>
     </div>

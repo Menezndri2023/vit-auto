@@ -344,15 +344,15 @@ function GererModal({ order, onClose, onConfirm, onPrepare, onReady, onInProgres
                 <div className={styles.completedBlock}>🏁 Commande terminée avec succès</div>
               )}
 
-              {/* Lien contrat partenaire */}
-              <a
-                href={`/contract/${order.id}`}
+              {/* Lien contrat partenaire — Link React (pas de rechargement) */}
+              <Link
+                to={`/contract/${order.id}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={styles.btnContractLink}
               >
                 📄 Voir / Générer le contrat
-              </a>
+              </Link>
 
               {order.status !== "completed" && (
                 <button className={styles.btnCancelOrder} onClick={() => onReject(order.id)}>

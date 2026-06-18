@@ -1,47 +1,88 @@
 import React from "react";
 import styles from "./WhySection.module.css";
 
-const cards = [
+const FEATURES = [
   {
-    title: "Géolocalisation précise",
-    description: "Trouvez le véhicule le plus proche de vous en temps réel grâce à notre technologie GPS avancée.",
-    icon: "📍",
+    icon:  "🛰️",
+    color: "#6366f1",
+    bg:    "rgba(99,102,241,0.10)",
+    title: "Livraison GPS précise",
+    desc:  "Votre véhicule livré à domicile grâce au calcul GPS en temps réel. Frais transparents dès la réservation — distance réelle, zéro surprise.",
   },
   {
-    title: "Paiement 100% sécurisé",
-    description: "Toutes vos transactions sont chiffrées et protégées par les dernières normes de sécurité bancaire.",
-    icon: "🛡️",
+    icon:  "🛡️",
+    color: "#10b981",
+    bg:    "rgba(16,185,129,0.10)",
+    title: "Paiement 100 % sécurisé",
+    desc:  "Orange Money, Wave, Carte bancaire, CMI… Toutes les transactions sont chiffrées TLS 1.3. Vos données bancaires ne transitent jamais sur nos serveurs.",
   },
   {
+    icon:  "⚡",
+    color: "#f59e0b",
+    bg:    "rgba(245,158,11,0.10)",
     title: "Réservation en 2 minutes",
-    description: "Notre processus simplifié vous permet de réserver votre véhicule en un temps record, 24h/24.",
-    icon: "⏱️",
+    desc:  "Réservez en ligne 24h/24, 7j/7. Contrat digital signé immédiatement, confirmation par SMS. Aucun paperasse, aucun déplacement nécessaire.",
   },
   {
-    title: "Prime d'assistance",
-    description: "Notre équipe dédiée est disponible 7j/7 pour vous accompagner tout au long de votre location.",
-    icon: "🎧",
+    icon:  "🤝",
+    color: "#ff4d2d",
+    bg:    "rgba(255,77,45,0.10)",
+    title: "Partenaires vérifiés",
+    desc:  "Chaque partenaire est contrôlé — identité, documents du véhicule, assurance. Vous louez et achetez en toute confiance, partout en Afrique et en Europe.",
   },
 ];
 
-const WhySection = () => {
-  return (
-    <section className={styles.section}>
-      <div className={styles.content}>
-        <p className={styles.subtitle}>⭐ POURQUOI VIT AUTO</p>
-        <h2 className={styles.title}>L'expérience automobile réinventée</h2>
-        <div className={styles.cards}>
-          {cards.map((item) => (
-            <article key={item.title} className={styles.card}>
-              <div className={styles.icon}>{item.icon}</div>
-              <h3>{item.title}</h3>
-              <p>{item.description}</p>
-            </article>
-          ))}
-        </div>
+const STEPS = [
+  { num: "01", label: "Recherchez",    desc: "Filtrez par ville, type, état et budget" },
+  { num: "02", label: "Réservez",      desc: "Complétez en 3 étapes, payez sécurisé" },
+  { num: "03", label: "Recevez",       desc: "Livraison GPS à domicile ou retrait agence" },
+  { num: "04", label: "Profitez",      desc: "Contrat digital, support 7j/7" },
+];
+
+const WhySection = () => (
+  <section className={styles.section}>
+    {/* ── Header ── */}
+    <div className={styles.header}>
+      <span className={styles.tag}>⭐ POURQUOI VIT AUTO</span>
+      <h2 className={styles.title}>
+        La mobilité premium,<br />
+        <span className={styles.accent}>accessible partout</span>
+      </h2>
+      <p className={styles.sub}>
+        De Abidjan à Casablanca, de Dakar à Paris — la plateforme référence
+        pour louer, acheter ou faire livrer un véhicule d'exception.
+      </p>
+    </div>
+
+    {/* ── Feature cards ── */}
+    <div className={styles.grid}>
+      {FEATURES.map((f) => (
+        <article key={f.title} className={styles.card}>
+          <div className={styles.iconWrap} style={{ background: f.bg }}>
+            <span style={{ color: f.color }}>{f.icon}</span>
+          </div>
+          <h3 className={styles.cardTitle}>{f.title}</h3>
+          <p className={styles.cardDesc}>{f.desc}</p>
+          <div className={styles.cardAccent} style={{ background: f.color }} />
+        </article>
+      ))}
+    </div>
+
+    {/* ── Comment ça marche ── */}
+    <div className={styles.steps}>
+      <h3 className={styles.stepsTitle}>Comment ça marche ?</h3>
+      <div className={styles.stepsGrid}>
+        {STEPS.map((s, i) => (
+          <div key={s.num} className={styles.step}>
+            <div className={styles.stepNum}>{s.num}</div>
+            {i < STEPS.length - 1 && <div className={styles.stepLine} />}
+            <strong className={styles.stepLabel}>{s.label}</strong>
+            <p className={styles.stepDesc}>{s.desc}</p>
+          </div>
+        ))}
       </div>
-    </section>
-  );
-};
+    </div>
+  </section>
+);
 
 export default WhySection;

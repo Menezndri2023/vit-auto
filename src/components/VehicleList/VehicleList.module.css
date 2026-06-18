@@ -2,42 +2,43 @@
   width: 100%;
   max-width: 1240px;
   margin: 0 auto;
-  padding: 50px 24px 80px;
+  padding: 50px 24px 72px;
 }
 
 .header {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
   gap: 16px;
 }
 
 .tag {
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   font-weight: 700;
   color: #ff4d2d;
-  letter-spacing: 1px;
+  letter-spacing: 1.2px;
   text-transform: uppercase;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   display: inline-block;
 }
 
-h2 {
+.header h2 {
   margin: 0;
   color: #121d3a;
-  font-size: clamp(1.75rem, 2.3vw, 2.4rem);
+  font-size: clamp(1.5rem, 2.3vw, 2rem);
 }
 
 .ctaLink {
   color: #ff4d2d;
   text-decoration: none;
   font-weight: 700;
-  font-size: 0.95rem;
-  border: 1px solid #ff4d2d;
-  padding: 8px 18px;
+  font-size: 0.9rem;
+  border: 1.5px solid #ff4d2d;
+  padding: 7px 16px;
   border-radius: 999px;
-  transition: all 0.25s ease;
+  transition: all 0.22s ease;
+  white-space: nowrap;
 }
 
 .ctaLink:hover {
@@ -45,19 +46,139 @@ h2 {
   color: white;
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 20px;
+/* ─── Carousel wrapper ─── */
+.carouselWrapper {
+  position: relative;
+  overflow: visible;
 }
 
-@media (max-width: 900px) {
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  transition: opacity 0.35s ease;
+}
+
+/* Animations de transition */
+.animLeft {
+  animation: slideLeft 0.35s ease forwards;
+}
+.animRight {
+  animation: slideRight 0.35s ease forwards;
+}
+
+@keyframes slideLeft {
+  from { opacity: 0.6; transform: translateX(16px); }
+  to   { opacity: 1;   transform: translateX(0);    }
+}
+@keyframes slideRight {
+  from { opacity: 0.6; transform: translateX(-16px); }
+  to   { opacity: 1;   transform: translateX(0);    }
+}
+
+/* ─── Boutons navigation carousel ─── */
+.carouselBtn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0f1b3f;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  transition: all 0.2s ease;
+}
+
+.carouselBtn:hover {
+  background: #ff4d2d;
+  border-color: #ff4d2d;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(255,77,45,0.3);
+}
+
+.carouselPrev {
+  left: -20px;
+}
+
+.carouselNext {
+  right: -20px;
+}
+
+/* ─── Dots ─── */
+.dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 24px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  background: #d1d9e8;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.22s ease;
+}
+
+.dotActive {
+  background: #ff4d2d;
+  width: 22px;
+  border-radius: 4px;
+}
+
+.dot:hover {
+  background: #ff4d2d;
+  opacity: 0.7;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Note: le h2 est ciblé via .header h2 pour ne pas affecter les autres sections */
+
+@media (max-width: 768px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .carouselPrev { left: -12px; }
+  .carouselNext { right: -12px; }
+
   .header {
     flex-direction: column;
     align-items: flex-start;
   }
+}
 
-  .ctaLink {
-    font-size: 0.9rem;
+@media (max-width: 480px) {
+  .grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
   }
+
+  .carouselBtn {
+    width: 32px;
+    height: 32px;
+    font-size: 1.1rem;
+  }
+
+  .carouselPrev { left: -8px; }
+  .carouselNext { right: -8px; }
 }

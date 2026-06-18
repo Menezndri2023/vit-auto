@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, Navigate, useLocation } from "react-router-dom";
 import { useVehicles } from "../context/VehicleContext";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -134,6 +134,7 @@ const IDENTITY_STATUS_CFG = {
 
 const Profile = () => {
   const navigate  = useNavigate();
+  const location  = useLocation();
   const { user, isAuthenticated, token, updateUser } = useAuth();
   const { bookings, partnerVehicles } = useVehicles();
   const { success: toastSuccess, error: toastError } = useToast();
@@ -379,18 +380,9 @@ const Profile = () => {
     }
   };
 
-  // ── Guard ──────────────────────────────────────────────────
+  // ── Guard : redirection propre avec retour possible ────────
   if (!isAuthenticated) {
-    return (
-      <div className={styles.page}>
-        <div className={styles.guard}>
-          <div className={styles.guardIcon}>🔒</div>
-          <h2>Connexion requise</h2>
-          <p>Veuillez vous connecter pour accéder à votre profil.</p>
-          <Link to="/login" className={styles.primaryBtn}>Se connecter</Link>
-        </div>
-      </div>
-    );
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   return (

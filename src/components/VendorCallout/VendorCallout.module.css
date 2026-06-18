@@ -1,5 +1,165 @@
-.vendor {background:#fff2ec;border:1px solid #ffd4c4;border-radius:14px;padding:20px 22px;display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;box-shadow:0 10px 16px rgba(238,55,0,0.18);}
-.vendor h2 {margin:0;font-size:1.35rem;color:#d9481d;}
-.vendor p {margin:8px 0 0;color:#5f4632;max-width:640px;}
-.vendor .btn {padding:10px 16px;border:none;border-radius:10px;background:#ff4d2d;color:white;font-weight:700;text-decoration:none;transition:filter .2s ease;}
-.vendor .btn:hover {filter:brightness(1.05);}
+/* ════════════════════════════════════════════════
+   VENDOR CALLOUT — Bannière partenaire premium
+   ════════════════════════════════════════════════ */
+
+.section {
+  width: 100%;
+  padding: 0 24px 72px;
+}
+
+.inner {
+  max-width: 1240px;
+  margin: 0 auto;
+  background: linear-gradient(135deg, #0f1b3f 0%, #1d3461 50%, #0a1429 100%);
+  border-radius: 24px;
+  padding: 52px 48px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Bulles décoratives */
+.bubble1 {
+  position: absolute;
+  top: -60px;
+  right: -60px;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background: rgba(255, 77, 45, 0.10);
+  pointer-events: none;
+}
+
+.bubble2 {
+  position: absolute;
+  bottom: -80px;
+  left: 30%;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: rgba(99, 102, 241, 0.08);
+  pointer-events: none;
+}
+
+.content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 48px;
+  flex-wrap: wrap;
+}
+
+/* ── Côté gauche ── */
+.left {
+  flex: 1;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #ff7a5c;
+  background: rgba(255, 77, 45, 0.15);
+  padding: 5px 14px;
+  border-radius: 999px;
+  width: fit-content;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.5vw, 2.1rem);
+  font-weight: 900;
+  color: #fff;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.desc {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.95rem;
+  line-height: 1.65;
+  max-width: 500px;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  background: linear-gradient(135deg, #ff4d2d, #e03519);
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 13px 28px;
+  border-radius: 12px;
+  width: fit-content;
+  box-shadow: 0 6px 24px rgba(255, 77, 45, 0.4);
+  transition: all 0.22s ease;
+}
+
+.cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 32px rgba(255, 77, 45, 0.55);
+}
+
+/* ── Stats côté droit ── */
+.right {
+  display: flex;
+  gap: 24px;
+  flex-shrink: 0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 20px 24px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 16px;
+  min-width: 100px;
+  gap: 4px;
+}
+
+.statVal {
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: #ff7a5c;
+  line-height: 1;
+}
+
+.statLabel {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.85);
+  line-height: 1.3;
+}
+
+.statSub {
+  font-size: 0.7rem;
+  color: rgba(255,255,255,0.42);
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 900px) {
+  .inner { padding: 40px 28px; }
+  .content { gap: 32px; }
+  .right { gap: 14px; }
+  .stat { padding: 14px 16px; min-width: 80px; }
+  .statVal { font-size: 1.5rem; }
+}
+
+@media (max-width: 640px) {
+  .section { padding: 0 16px 52px; }
+  .inner { padding: 32px 24px; border-radius: 18px; }
+  .content { flex-direction: column; gap: 24px; }
+  .right { width: 100%; justify-content: space-between; }
+  .stat { flex: 1; }
+}

@@ -1040,6 +1040,504 @@ textarea {
   }
 }
 
+/* ═══════════════════════════════════════════════════════
+   LIVRAISON GPS HAVERSINE
+   ═══════════════════════════════════════════════════════ */
+
+.geoDeliveryBox {
+  margin-top: 16px;
+  background: #f0f9ff;
+  border: 1.5px solid #bae6fd;
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.geoDeliveryHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.geoDeliveryIcon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.geoDeliveryHeader > div strong {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #0c4a6e;
+}
+
+.geoDeliveryHeader > div p {
+  margin: 3px 0 0;
+  font-size: 0.78rem;
+  color: #0369a1;
+  line-height: 1.4;
+}
+
+.geoDeliveryAlert {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  color: #92400e;
+  font-weight: 600;
+}
+
+.geoDeliveryLoading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: #0369a1;
+  padding: 8px 0;
+}
+
+.geoSpinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(3, 105, 161, 0.3);
+  border-top-color: #0369a1;
+  border-radius: 50%;
+  animation: spinGeo 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spinGeo {
+  to { transform: rotate(360deg); }
+}
+
+.geoDeliveryResult {
+  background: #fff;
+  border: 1px solid #bae6fd;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.geoResultRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.83rem;
+  padding: 2px 0;
+  border-bottom: 1px solid #f0f8ff;
+}
+
+.geoResultRow span {
+  color: #64748b;
+}
+
+.geoResultRow strong {
+  color: #0f1b3f;
+  font-weight: 700;
+  text-align: right;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.geoResultFee {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 2px solid #bae6fd;
+}
+
+.geoResultFee span {
+  font-weight: 700;
+  color: #0c4a6e;
+}
+
+.geoFeeAmount {
+  font-size: 1.1rem;
+  font-weight: 900;
+  color: #ff4d2d;
+}
+
+.geoFeeNote {
+  font-size: 0.74rem;
+  color: #94a3b8;
+  margin: 2px 0 0;
+  text-align: right;
+}
+
+/* ════════════════════════════════════════════════
+   NOUVEAU SYSTEME DE PRISE EN CHARGE
+   ════════════════════════════════════════════════ */
+
+/* ── Bloc livraison ── */
+.deliveryBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.deliveryTitle {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0f1b3f;
+  margin: 0;
+}
+
+/* ── Bouton GPS principal ── */
+.gpsMainBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 14px 20px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.30);
+}
+
+.gpsMainBtn:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.40);
+}
+
+.gpsMainBtn:disabled {
+  cursor: wait;
+}
+
+.gpsMainBtnLoading {
+  background: #94a3b8;
+  box-shadow: none;
+}
+
+.gpsMainBtnOk {
+  background: linear-gradient(135deg, #10b981, #059669) !important;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.30) !important;
+}
+
+/* Spinner inline dans le bouton */
+.gpsSpinnerInline {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2.5px solid rgba(255,255,255,0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spinGps 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spinGps {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Erreur GPS ── */
+.gpsErrorBox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #fff5f3;
+  border: 1.5px solid #fca5a5;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 0.85rem;
+}
+
+.gpsErrorBox span:first-child {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.gpsErrorBox strong {
+  display: block;
+  color: #b91c1c;
+  font-size: 0.88rem;
+  margin-bottom: 4px;
+}
+
+.gpsErrorBox p {
+  margin: 2px 0 0;
+  color: #991b1b;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+/* ── Champ adresse principal ── */
+.addressInputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.addressMainInput {
+  width: 100%;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 11px 40px 11px 14px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: #0f1b3f;
+  outline: none;
+  transition: border-color 0.18s;
+  box-sizing: border-box;
+}
+
+.addressMainInput:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+}
+
+.addressClearBtn {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 0.8rem;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+
+.addressClearBtn:hover {
+  color: #ff4d2d;
+}
+
+/* ── Carte position GPS ── */
+.gpsPositionCard {
+  background: #ecfdf5;
+  border: 1.5px solid #6ee7b7;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gpsPositionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gpsPositionDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #10b981;
+  flex-shrink: 0;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
+  50%       { box-shadow: 0 0 0 6px rgba(16,185,129,0); }
+}
+
+.gpsPositionHeader strong {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #065f46;
+}
+
+.gpsCoords {
+  font-size: 0.75rem;
+  color: #047857;
+  font-family: monospace;
+  margin: 0;
+}
+
+.gpsMapLink {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #059669;
+  text-decoration: none;
+  width: fit-content;
+  transition: opacity 0.15s;
+}
+
+.gpsMapLink:hover { opacity: 0.8; }
+
+/* ── GPS inclus badge ── */
+.gpsIncluded {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  font-size: 0.86rem;
+  color: #166534;
+}
+
+.gpsIncluded strong {
+  font-weight: 700;
+}
+
+/* ── Carte agence (retrait) ── */
+.agencyCard {
+  margin-top: 12px;
+  background: #fff;
+  border: 1.5px solid #e0e7ff;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.agencyHeader {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 18px 14px;
+  background: linear-gradient(135deg, #0f1b3f 0%, #1e3460 100%);
+  color: #fff;
+}
+
+.agencyAvatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255,77,45,0.25);
+  border: 2px solid rgba(255,77,45,0.6);
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.agencyName {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #fff;
+  display: block;
+  line-height: 1.2;
+}
+
+.agencyLabel {
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.62);
+  display: block;
+  margin-top: 2px;
+}
+
+.agencyFreeTag {
+  margin-left: auto;
+  background: rgba(16,185,129,0.25);
+  border: 1px solid rgba(16,185,129,0.5);
+  color: #6ee7b7;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.agencyDetails {
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.agencyRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.88rem;
+  color: #374151;
+}
+
+.agencyRow > span:first-child {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  width: 22px;
+  text-align: center;
+}
+
+.agencyPhone {
+  color: #10b981;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.agencyPhone:hover { text-decoration: underline; }
+
+.agencyMapBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #0f1b3f;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 8px;
+  text-decoration: none;
+  width: fit-content;
+  transition: all 0.18s;
+  margin-top: 4px;
+}
+
+.agencyMapBtn:hover {
+  background: #1e3460;
+  transform: translateY(-1px);
+}
+
+.agencyNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #fffbeb;
+  border-top: 1px solid #fde68a;
+  padding: 12px 18px;
+  font-size: 0.83rem;
+  color: #92400e;
+  line-height: 1.5;
+}
+
+.agencyNotice span { font-size: 1rem; flex-shrink: 0; }
+.agencyNotice p { margin: 0; }
+
+/* ── Indicateur jours ── */
+.daysLabel {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #6366f1;
+  margin: 4px 0 0;
+  padding: 6px 12px;
+  background: #f0f0ff;
+  border-radius: 8px;
+  width: fit-content;
+}
+
+/* ════════════════════════════════════════════════
+   RESPONSIVE
+   ════════════════════════════════════════════════ */
+
 @media (max-width: 600px) {
   .content {
     padding: 18px 16px 20px;
@@ -1067,5 +1565,321 @@ textarea {
   .stepIndicator {
     gap: 4px;
     padding: 4px;
+  }
+}
+
+/* ════════════════════════════════════════════════
+   VÉRIFICATION D'IDENTITÉ — Step 2
+   ════════════════════════════════════════════════ */
+
+/* ── En-tête hero ── */
+.verifHero {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: linear-gradient(135deg, #0f1b3f 0%, #1e3460 100%);
+  border-radius: 16px;
+  padding: 20px 22px;
+  margin-bottom: 20px;
+  color: #fff;
+}
+
+.verifHeroIcon {
+  font-size: 2.2rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.verifHeroTitle {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.verifHeroSub {
+  margin: 0;
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.65);
+  line-height: 1.5;
+}
+
+/* ── Type de document ── */
+.idTypeGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.idTypeBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #374151;
+  transition: all 0.18s ease;
+  font-family: inherit;
+  text-align: left;
+}
+
+.idTypeBtn:hover {
+  border-color: #6366f1;
+  background: #f5f3ff;
+  color: #4f46e5;
+}
+
+.idTypeBtnActive {
+  border-color: #6366f1 !important;
+  background: #eff0ff !important;
+  color: #4f46e5 !important;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+}
+
+.idTypeIcon { font-size: 1.3rem; flex-shrink: 0; }
+
+/* ── Numéro d'identité ── */
+.idNumberSection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #0f1b3f;
+  margin: 0 0 6px;
+}
+
+.fieldLabelFull {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.idHint {
+  font-size: 0.78rem;
+  color: #5a6a8a;
+  background: #f8faff;
+  border: 1px solid #e0e7ff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Wrapper numéro + icône statut */
+.idNumberWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.idNumberInput {
+  width: 100%;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 44px 12px 14px;
+  font-size: 1rem;
+  font-family: monospace;
+  letter-spacing: 0.08em;
+  color: #0f1b3f;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+  text-transform: uppercase;
+}
+
+.idNumberInput:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+}
+
+.idNumberInput:disabled {
+  background: #f5f7fb;
+  cursor: not-allowed;
+}
+
+/* États de validation */
+.idInputValid   { border-color: #10b981 !important; }
+.idInputWarning { border-color: #f59e0b !important; }
+.idInputError   { border-color: #ef4444 !important; }
+.idInputVerified {
+  border-color: #10b981 !important;
+  background: #f0fdf4 !important;
+  box-shadow: 0 0 0 3px rgba(16,185,129,0.12) !important;
+}
+
+/* Icône statut à droite */
+.idStatusIcon {
+  position: absolute;
+  right: 14px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+
+/* Spinner dans l'icône statut */
+.idSpinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #d1d5db;
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: idSpin 0.7s linear infinite;
+}
+
+@keyframes idSpin { to { transform: rotate(360deg); } }
+
+/* ── Feedback validation ── */
+.idFeedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 8px;
+  line-height: 1.4;
+}
+
+.idFeedbackValid   { background: #f0fdf4; color: #065f46; border: 1px solid #bbf7d0; }
+.idFeedbackWarning { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+.idFeedbackError   { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; }
+
+/* ── Résultat vérification ── */
+.idVerified {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #ecfdf5;
+  border: 1.5px solid #6ee7b7;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.idVerified > span { font-size: 1.4rem; flex-shrink: 0; }
+.idVerified strong { display: block; font-size: 0.9rem; color: #065f46; margin-bottom: 4px; }
+.idVerified p { margin: 0; font-size: 0.8rem; color: #047857; }
+
+.idVerifyFailed {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #fef2f2;
+  border: 1.5px solid #fca5a5;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.idVerifyFailed > span { font-size: 1.4rem; flex-shrink: 0; }
+.idVerifyFailed strong { display: block; font-size: 0.9rem; color: #b91c1c; margin-bottom: 4px; }
+.idVerifyFailed p { margin: 0; font-size: 0.8rem; color: #dc2626; }
+
+/* ── Bouton Vérifier ── */
+.verifyBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 13px 20px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(99,102,241,0.30);
+}
+
+.verifyBtn:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(99,102,241,0.40);
+}
+
+.verifyBtn:disabled {
+  background: #94a3b8;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.verifyBtnLoading {
+  background: #64748b !important;
+  box-shadow: none !important;
+}
+
+/* ── Badges sécurité ── */
+.securityBadges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 4px 0 8px;
+}
+
+.securityBadge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: #f8faff;
+  border: 1px solid #e0e7ff;
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #4f46e5;
+}
+
+/* ── Input texte générique ── */
+.textInput {
+  width: 100%;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: #0f1b3f;
+  outline: none;
+  transition: border-color 0.18s;
+  box-sizing: border-box;
+}
+
+.textInput:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.10);
+}
+
+/* Bouton continuer désactivé */
+.primaryBtnDisabled {
+  background: #94a3b8 !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+/* ── Responsive ── */
+@media (max-width: 560px) {
+  .idTypeGrid {
+    grid-template-columns: 1fr;
+  }
+  .securityBadges {
+    gap: 6px;
   }
 }

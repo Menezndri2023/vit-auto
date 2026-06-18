@@ -60,6 +60,15 @@ const VehicleContext = createContext(null);
 // Normalize a vehicle from the MongoDB backend to match frontend field expectations
 const normalizeVehicle = (v) => {
   if (!v || !v._id) return v; // Local fixture data already in correct format
+  // Extraire l'ID propriétaire quel que soit le format (populate ou ref)
+  const ownerId = v.owner?._id?.toString()
+    || (typeof v.owner === "string" ? v.owner : null)
+    || v.ownerId?.toString()
+    || null;
+  const ownerName = v.owner?.firstName
+    ? `${v.owner.firstName} ${v.owner.lastName || ""}`.trim()
+    : v.contactNom || v.partnerName || null;
+
   return {
     ...v,
     id:           v._id?.toString() || v.id,
@@ -72,10 +81,14 @@ const normalizeVehicle = (v) => {
     buyPrice:     v.priceForSale,
     description:  v.description || "",
     transmission: v.transmission || "",
-    // Champ original préservé pour les filtres internes
     listingType:  v.type,
-    // Leasing
     leasing:      v.leasing || null,
+    // Partenaire — pour affichage et lien profil
+    ownerId,
+    ownerName,
+    ownerPhone:   v.owner?.phone || v.contactTel || null,
+    ownerCity:    v.owner?.city  || v.ville || null,
+    ownerType:    v.owner?.partnerType || null,
   };
 };
 

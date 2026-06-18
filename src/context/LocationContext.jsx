@@ -12,7 +12,7 @@ export const useLocation = () => {
 
 export const LocationProvider = ({ children }) => {
   const [position, setPosition] = useState(null);
-  const [address, setAddress] = useState('Paris, France');
+  const [address, setAddress] = useState("Casablanca, Maroc");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 

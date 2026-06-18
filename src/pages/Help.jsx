@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import styles from "./Help.module.css";
 
 const faqs = [
@@ -44,6 +45,7 @@ const FAQ = ({ q, a }) => {
 
 const Help = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   return (
     <div className={styles.page}>
@@ -61,10 +63,10 @@ const Help = () => {
           <h3>Nos véhicules</h3>
           <p>Parcourir le catalogue</p>
         </div>
-        <div className={styles.qlCard} onClick={() => navigate("/register")}>
+        <div className={styles.qlCard} onClick={() => navigate(isAuthenticated ? "/profile" : "/login")}>
           <span className={styles.qlIcon}>👤</span>
           <h3>Mon compte</h3>
-          <p>Créer ou accéder à mon compte</p>
+          <p>{isAuthenticated ? "Accéder à mon profil" : "Connexion ou inscription"}</p>
         </div>
         <div className={styles.qlCard} onClick={() => navigate("/services")}>
           <span className={styles.qlIcon}>🛡️</span>
@@ -90,18 +92,26 @@ const Help = () => {
       <section className={styles.contact}>
         <div className={styles.contactCard}>
           <div className={styles.contactIcon}>✉️</div>
-          <h3>Contactez-nous</h3>
-          <p>Notre équipe répond sous 24 heures.</p>
-          <a href="mailto:support@vitauto.com" className={styles.contactBtn}>
-            support@vitauto.com
+          <h3>Email — réponse sous 24h</h3>
+          <p>Pour toute question ou réclamation.</p>
+          <a href="mailto:contact@vit-auto.com" className={styles.contactBtn}>
+            contact@vit-auto.com
           </a>
         </div>
         <div className={styles.contactCard}>
           <div className={styles.contactIcon}>📞</div>
           <h3>Assistance téléphonique</h3>
-          <p>Disponible du lundi au vendredi, 8h – 20h.</p>
-          <a href="tel:+261340000000" className={styles.contactBtn}>
-            +261 34 00 000 00
+          <p>Disponible lundi – samedi, 8h – 20h.</p>
+          <a href="tel:+2120607742672" className={styles.contactBtn}>
+            +212 06 07 74 26 72
+          </a>
+        </div>
+        <div className={styles.contactCard}>
+          <div className={styles.contactIcon}>💬</div>
+          <h3>WhatsApp</h3>
+          <p>Réponse rapide via WhatsApp.</p>
+          <a href="https://wa.me/2120607742672" target="_blank" rel="noopener noreferrer" className={styles.contactBtn}>
+            Ouvrir WhatsApp
           </a>
         </div>
       </section>

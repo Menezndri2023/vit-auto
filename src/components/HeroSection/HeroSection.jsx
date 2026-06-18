@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react"; // useCallback pour vehicleToSlide
 import { useNavigate, Link } from "react-router-dom";
 import { useVehicles } from "../../context/VehicleContext";
 import { useCurrency } from "../../context/CurrencyContext";
@@ -6,122 +6,247 @@ import SearchBar from "../SearchBar/SearchBar";
 import styles from "./HeroSection.module.css";
 
 const STATS = [
-  { icon: "🚗", value: "1200+", label: "Véhicules" },
-  { icon: "🚚", value: "48h",   label: "Livraison garantie" },
-  { icon: "⭐", value: "4.9/5", label: "Avis clients" },
-  { icon: "📍", value: "50+",   label: "Villes couvertes" },
+  { icon: "🚗", value: "1 200+", label: "Véhicules disponibles" },
+  { icon: "🚚", value: "48h",    label: "Livraison garantie" },
+  { icon: "⭐", value: "4.9/5",  label: "Note moyenne" },
+  { icon: "📍", value: "50+",    label: "Villes couvertes" },
 ];
 
-const DEFAULT_CAR =
-  "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=1200&q=85&auto=format&fit=crop";
-
-function SpotlightCard({ vehicle, fmt, navigate }) {
-  if (!vehicle) {
-    return (
-      <div className={styles.spotCard}>
-        <img src={DEFAULT_CAR} alt="Véhicule VIT AUTO" className={styles.spotImg} />
-        <span className={styles.spotBadge}>🟢 Sélection du moment</span>
-      </div>
-    );
-  }
-
-  const img     = vehicle.images?.[0] || vehicle.image || DEFAULT_CAR;
-  const name    = vehicle.title || vehicle.name || "Véhicule sélectionné";
-  const isSale  = vehicle.listingType === "vente" || vehicle.mode === "Acheter";
-  const price   = isSale ? vehicle.buyPrice || vehicle.priceForSale : vehicle.pricePerDay;
-  const city    = vehicle.ville || vehicle.city || "";
-  const type    = vehicle.vehicleType || vehicle.type || "";
-  const fuel    = vehicle.fuel || vehicle.carburant || "";
-  const partner = vehicle.partnerName || vehicle.ownerName || "Partenaire VIT AUTO";
-  const vid     = vehicle._id || vehicle.id;
-
-  return (
-    <div className={styles.spotCard}>
-      <img src={img} alt={name} className={styles.spotImg} />
-      <span className={styles.spotBadge}>🟢 Sélection du moment</span>
-
-      {/* Overlay hover */}
-      <div className={styles.spotOverlay}>
-        <p className={styles.spotPublisher}>
-          <span className={styles.spotAvatar}>🏢</span>
-          Publié par <strong>{partner}</strong>
-        </p>
-        <h3 className={styles.spotName}>{name}</h3>
-        <div className={styles.spotTags}>
-          {type && <span>{type}</span>}
-          {city && <span>📍 {city}</span>}
-          {fuel && <span>{fuel}</span>}
-        </div>
-        <div className={styles.spotFooter}>
-          <span className={styles.spotPrice}>
-            {price ? `${fmt(price)}${isSale ? "" : " / jour"}` : "Sur demande"}
-          </span>
-          {vid && (
-            <button
-              type="button"
-              className={styles.spotCta}
-              onClick={() => navigate(`/vehicle/${vid}`)}
-            >
-              Voir l'annonce →
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+// Slides par défaut si aucun véhicule en base
+const DEFAULT_SLIDES = [
+  {
+    img:     "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=1200&q=85&auto=format&fit=crop",
+    name:    "Range Rover Sport 2024",
+    type:    "SUV Premium",
+    city:    "Abidjan",
+    fuel:    "Hybride",
+    partner: "VIT AUTO Premium",
+    price:   "85 000 FCFA / jour",
+  },
+  {
+    img:     "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=1200&q=85&auto=format&fit=crop",
+    name:    "Porsche Cayenne 2023",
+    type:    "SUV Sport",
+    city:    "Casablanca",
+    fuel:    "Essence",
+    partner: "VIT AUTO Maroc",
+    price:   "1 800 MAD / jour",
+  },
+  {
+    img:     "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=1200&q=85&auto=format&fit=crop",
+    name:    "BMW Série 5 2023",
+    type:    "Berline Executive",
+    city:    "Dakar",
+    fuel:    "Diesel",
+    partner: "VIT AUTO Sénégal",
+    price:   "65 000 FCFA / jour",
+  },
+  {
+    img:     "https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=1200&q=85&auto=format&fit=crop",
+    name:    "Mercedes Viano 2023",
+    type:    "Monospace VIP",
+    city:    "Bamako",
+    fuel:    "Diesel",
+    partner: "VIT AUTO Mali",
+    price:   "70 000 FCFA / jour",
+  },
+];
 
 export default function HeroSection() {
   const { vehicles } = useVehicles();
   const { fmt }      = useCurrency();
   const navigate     = useNavigate();
 
-  const spotlight = useMemo(() => {
-    const id = localStorage.getItem("vit_hero_spotlight");
-    if (id && vehicles.length) {
-      const found = vehicles.find((v) => (v._id || v.id)?.toString() === id);
-      if (found) return found;
+  const [current, setCurrent] = useState(0);
+  const [fading, setFading]   = useState(false);
+
+  // Lire les IDs admin depuis localStorage (multi-spotlight)
+  const adminIds = useMemo(() => {
+    try {
+      const raw = localStorage.getItem("vit_hero_spotlights");
+      if (raw) return JSON.parse(raw);
+      const legacy = localStorage.getItem("vit_hero_spotlight");
+      return legacy ? [legacy] : [];
+    } catch { return []; }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const vehicleToSlide = useCallback((v) => {
+    const isSale = v.listingType === "vente" || v.mode === "Acheter";
+    const rawPrice = isSale ? (v.buyPrice || v.priceForSale) : v.pricePerDay;
+    return {
+      img:     v.images?.[0] || v.image || DEFAULT_SLIDES[0].img,
+      name:    v.title  || v.name  || "Véhicule VIT AUTO",
+      type:    v.vehicleType || v.type || "Véhicule",
+      city:    v.ville  || v.city  || "",
+      fuel:    v.fuel   || v.carburant || "",
+      partner: v.ownerName || v.partnerName || v.contactNom || "Partenaire VIT AUTO",
+      price:   rawPrice ? `${fmt(rawPrice)}${isSale ? "" : " / jour"}` : "Sur demande",
+      vid:     v._id    || v.id,
+      ownerId: v.ownerId || null,
+    };
+  }, [fmt]);
+
+  // Construire les slides : admin > featured > all > défauts
+  const slides = useMemo(() => {
+    if (vehicles.length === 0) return DEFAULT_SLIDES;
+
+    // 1. Slides sélectionnées par l'admin (dans l'ordre choisi)
+    if (adminIds.length > 0) {
+      const adminSlides = adminIds
+        .map((id) => vehicles.find((v) => (v._id || v.id)?.toString() === id))
+        .filter(Boolean)
+        .map(vehicleToSlide);
+      if (adminSlides.length > 0) return adminSlides;
     }
-    return vehicles.find((v) => v.featured) || vehicles[0] || null;
-  }, [vehicles]);
+
+    // 2. Fallback : véhicules featured
+    const pool = vehicles.filter((v) => v.available || v.featured).slice(0, 5);
+    if (pool.length > 0) return pool.map(vehicleToSlide);
+
+    // 3. Fallback absolu
+    return DEFAULT_SLIDES;
+  }, [vehicles, adminIds, vehicleToSlide]);
+
+  const total = slides.length;
+
+  const goTo = useCallback((idx) => {
+    setFading(true);
+    setTimeout(() => {
+      setCurrent(idx);
+      setFading(false);
+    }, 350);
+  }, []);
+
+  const goNext = useCallback(() => {
+    goTo((current + 1) % total);
+  }, [current, total, goTo]);
+
+  // Auto-défilement 5 secondes
+  useEffect(() => {
+    if (total <= 1) return;
+    const t = setInterval(goNext, 5000);
+    return () => clearInterval(t);
+  }, [goNext, total]);
+
+  const slide = slides[current];
 
   return (
     <section className={styles.hero}>
-      {/* ─── Gauche ─── */}
+      {/* ─── COLONNE GAUCHE ─── */}
       <div className={styles.left}>
-        <span className={styles.intlBadge}>🌍 Plateforme internationale</span>
+        <span className={styles.intlBadge}>🌍 Plateforme internationale • 14 pays</span>
 
         <h1 className={styles.title}>
-          Conduisez l'extraordinaire,<br />
-          <span className={styles.titleAccent}>où que vous soyez</span>
+          Location & vente de<br />
+          <span className={styles.titleAccent}>véhicules premium</span>
         </h1>
 
         <p className={styles.subtitle}>
-          La plateforme premium pour louer, acheter ou réserver un chauffeur.
-          Des véhicules d'exception, un service irréprochable.
+          Trouvez le véhicule idéal près de chez vous. Livraison GPS à domicile,
+          paiement sécurisé, contrat digital immédiat.
         </p>
 
         <div className={styles.ctas}>
           <Link to="/catalogue" className={styles.ctaPrimary}>
-            Découvrir nos offres
+            Voir les véhicules
           </Link>
-          <Link to="/partner" className={styles.ctaSecondary}>
+          <Link to="/register" className={styles.ctaSecondary}>
             Devenir partenaire →
           </Link>
         </div>
+
+        {/* Mini-stats sous les CTA */}
+        <div className={styles.trustPills}>
+          <span>✅ Identité vérifiée</span>
+          <span>🛡️ Paiement sécurisé</span>
+          <span>📄 Contrat digital</span>
+        </div>
       </div>
 
-      {/* ─── Droite (SpotlightCard) ─── */}
+      {/* ─── COLONNE DROITE (Carousel) ─── */}
       <div className={styles.right}>
-        <SpotlightCard vehicle={spotlight} fmt={fmt} navigate={navigate} />
+        <div className={`${styles.spotCard} ${fading ? styles.spotFading : ""}`}>
+
+          {/* Image */}
+          <img
+            src={slide.img}
+            alt={slide.name}
+            className={styles.spotImg}
+            onError={(e) => { e.target.src = DEFAULT_SLIDES[0].img; }}
+          />
+
+          {/* Gradient overlay permanent */}
+          <div className={styles.spotGradient} />
+
+          {/* Badge */}
+          <span className={styles.spotBadge}>🟢 Sélection du moment</span>
+
+          {/* Infos toujours visibles */}
+          <div className={styles.spotOverlay}>
+            <p className={styles.spotPublisher}>
+              <span>🏢</span> Publié par <strong>{slide.partner}</strong>
+            </p>
+            <h3 className={styles.spotName}>{slide.name}</h3>
+            <div className={styles.spotTags}>
+              {slide.type && <span>{slide.type}</span>}
+              {slide.city && <span>📍 {slide.city}</span>}
+              {slide.fuel && <span>{slide.fuel}</span>}
+            </div>
+            <div className={styles.spotFooter}>
+              <span className={styles.spotPrice}>{slide.price}</span>
+              {slide.vid && (
+                <button
+                  type="button"
+                  className={styles.spotCta}
+                  onClick={() => navigate(`/vehicle/${slide.vid}`)}
+                >
+                  Voir l'annonce →
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Dots */}
+          {total > 1 && (
+            <div className={styles.spotDots}>
+              {slides.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className={`${styles.spotDot} ${i === current ? styles.spotDotActive : ""}`}
+                  onClick={() => goTo(i)}
+                  aria-label={`Slide ${i + 1}`}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Boutons prev/next */}
+          {total > 1 && (
+            <>
+              <button
+                type="button"
+                className={`${styles.carouselArrow} ${styles.carouselPrev}`}
+                onClick={() => goTo((current - 1 + total) % total)}
+                aria-label="Précédent"
+              >‹</button>
+              <button
+                type="button"
+                className={`${styles.carouselArrow} ${styles.carouselNext}`}
+                onClick={goNext}
+                aria-label="Suivant"
+              >›</button>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* ─── Barre de recherche ─── */}
+      {/* ─── SEARCHBAR ─── */}
       <div className={styles.searchRow}>
         <SearchBar />
       </div>
 
-      {/* ─── Stats ─── */}
+      {/* ─── STATS ─── */}
       <div className={styles.statsRow}>
         {STATS.map((s) => (
           <div key={s.label} className={styles.statItem}>

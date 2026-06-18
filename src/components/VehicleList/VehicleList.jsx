@@ -1,12 +1,49 @@
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import VehicleCard from "../VehicleCard/VehicleCard";
 import { useVehicles } from "../../context/VehicleContext";
 import styles from "../VehicleList/VehicleList.module.css";
 
+const VISIBLE = 4; // cartes visibles à la fois sur desktop
+
 const VehicleList = () => {
   const { vehicles } = useVehicles();
-  const featured = vehicles.filter((car) => car.available).slice(0, 3);
+  const featured = vehicles.filter((car) => car.available).slice(0, 8);
+  const total = featured.length;
+
+  const [start, setStart]       = useState(0);
+  const [animDir, setAnimDir]   = useState(""); // "left" | "right"
+
+  const maxStart = Math.max(0, total - VISIBLE);
+
+  const goNext = useCallback(() => {
+    setAnimDir("left");
+    setStart((s) => (s + VISIBLE >= total ? 0 : s + VISIBLE));
+    setTimeout(() => setAnimDir(""), 400);
+  }, [total]);
+
+  const goPrev = useCallback(() => {
+    setAnimDir("right");
+    setStart((s) => (s - VISIBLE < 0 ? maxStart : s - VISIBLE));
+    setTimeout(() => setAnimDir(""), 400);
+  }, [maxStart]);
+
+  // Auto-défilement toutes les 3 secondes
+  useEffect(() => {
+    if (total <= VISIBLE) return;
+    const timer = setInterval(goNext, 3000);
+    return () => clearInterval(timer);
+  }, [goNext, total]);
+
+  const visible = featured.slice(start, start + VISIBLE);
+  // compléter avec wrap-around si nécessaire
+  const extraNeeded = VISIBLE - visible.length;
+  const displayCards = extraNeeded > 0 && total > VISIBLE
+    ? [...visible, ...featured.slice(0, extraNeeded)]
+    : visible;
+
+  const pageCount = Math.ceil(total / VISIBLE);
+  const currentPage = Math.floor(start / VISIBLE);
 
   return (
     <section className={styles.container}>
@@ -20,11 +57,53 @@ const VehicleList = () => {
         </Link>
       </div>
 
-      <div className={styles.grid}>
-        {featured.map((car) => (
-          <VehicleCard key={car.id} car={car} />
-        ))}
+      <div className={styles.carouselWrapper}>
+        {/* Bouton précédent */}
+        {total > VISIBLE && (
+          <button
+            type="button"
+            className={`${styles.carouselBtn} ${styles.carouselPrev}`}
+            onClick={goPrev}
+            aria-label="Précédent"
+          >
+            ‹
+          </button>
+        )}
+
+        {/* Grille de cartes */}
+        <div className={`${styles.grid} ${animDir === "left" ? styles.animLeft : animDir === "right" ? styles.animRight : ""}`}>
+          {displayCards.map((car, i) => (
+            <VehicleCard key={`${car._id || car.id}-${i}`} car={car} compact />
+          ))}
+        </div>
+
+        {/* Bouton suivant */}
+        {total > VISIBLE && (
+          <button
+            type="button"
+            className={`${styles.carouselBtn} ${styles.carouselNext}`}
+            onClick={goNext}
+            aria-label="Suivant"
+          >
+            ›
+          </button>
+        )}
       </div>
+
+      {/* Dots pagination */}
+      {pageCount > 1 && (
+        <div className={styles.dots}>
+          {Array.from({ length: pageCount }).map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              className={`${styles.dot} ${i === currentPage ? styles.dotActive : ""}`}
+              onClick={() => setStart(i * VISIBLE)}
+              aria-label={`Page ${i + 1}`}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 };

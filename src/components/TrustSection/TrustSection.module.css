@@ -1,6 +1,183 @@
-.trust {background:#f7f9ff;padding:40px 20px;border-radius:16px;margin:32px auto;max-width:1100px;}
-.trust h2 {font-size:1.9rem;color:#102a53;margin-bottom:24px;text-align:center;}
-.trust .grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;}
-.trust article {background:white;padding:16px;border:1px solid #d8e6f8;border-radius:12px;box-shadow:0 6px 20px rgba(17,41,83,0.08);}
-.trust article h3 {margin:0 0 8px;color:#1d3b69;}
-.trust article p {margin:0;color:#4a5c7f;line-height:1.4;}
+/* ════════════════════════════════════════════════
+   TRUST SECTION — Sécurité & Confiance
+   ════════════════════════════════════════════════ */
+
+.section {
+  width: 100%;
+  background: #fff;
+  padding: 80px 24px 72px;
+}
+
+.inner {
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+/* ── Header ── */
+.header {
+  text-align: center;
+  margin-bottom: 52px;
+}
+
+.tag {
+  display: inline-block;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.09);
+  padding: 5px 16px;
+  border-radius: 999px;
+  margin-bottom: 18px;
+}
+
+.title {
+  font-size: clamp(1.75rem, 2.8vw, 2.5rem);
+  font-weight: 900;
+  color: #0f1b3f;
+  line-height: 1.2;
+  margin: 0 0 14px;
+  letter-spacing: -0.02em;
+}
+
+.accent { color: #10b981; }
+
+.sub {
+  color: #5a6a8a;
+  font-size: 0.98rem;
+  line-height: 1.65;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+/* ── Grid ── */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  margin-bottom: 44px;
+}
+
+.card {
+  background: #f8faff;
+  border: 1.5px solid #e8edf8;
+  border-radius: 18px;
+  padding: 24px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(15, 27, 63, 0.09);
+  background: #fff;
+}
+
+.cardBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 0 0 2px 2px;
+  opacity: 0.7;
+}
+
+.iconBox {
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.cardBody { flex: 1; }
+
+.cardTitle {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f1b3f;
+}
+
+.cardDesc {
+  margin: 0;
+  font-size: 0.84rem;
+  color: #5a6a8a;
+  line-height: 1.6;
+}
+
+/* ── Certifications ── */
+.certifRow {
+  background: #f5f7fa;
+  border: 1px solid #e8edf8;
+  border-radius: 16px;
+  padding: 20px 28px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.certifLabel {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #8493b0;
+  white-space: nowrap;
+}
+
+.certifs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.certif {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.certifBadge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #0f1b3f;
+  background: #fff;
+  border: 1.5px solid #d1d9e8;
+  padding: 4px 12px;
+  border-radius: 8px;
+  letter-spacing: 0.04em;
+}
+
+.certifDesc {
+  font-size: 0.66rem;
+  color: #94a3b8;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 1100px) {
+  .grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .section { padding: 56px 20px 48px; }
+  .grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .card { padding: 18px 16px 16px; }
+  .certifRow { flex-direction: column; align-items: flex-start; gap: 14px; }
+}
+
+@media (max-width: 400px) {
+  .grid { grid-template-columns: 1fr; }
+}

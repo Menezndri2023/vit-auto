@@ -4,24 +4,31 @@ import { useLocation } from "../../context/LocationContext";
 import ModeToggle from "./ModeToggle";
 import styles from "./SearchBar.module.css";
 
+const MODELES = [
+  "Tous modèles", "SUV", "Berline", "Viano", "Monospace",
+  "Citadine", "4x4", "Sportif", "Pick-up", "Cabriolet",
+  "Utilitaire", "Minibus",
+];
+
 const SearchBar = memo(() => {
   const [mode, setMode]         = useState("Louer");
   const [location, setLocation] = useState("");
-  const [type, setType]         = useState("Tous");
+  const [etat, setEtat]         = useState("Tous");   // Tous | Neuf | Occasion
+  const [modele, setModele]     = useState("Tous modèles");
   const [loading, setLoading]   = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
   const navigate = useNavigate();
 
-  // Contexte géolocalisation global
   const { position, address: detectedAddress, refreshLocation } = useLocation();
 
   const goToCatalogue = useCallback((selectedMode) => {
     const params = new URLSearchParams();
     params.set("mode", selectedMode);
     if (location.trim()) params.set("location", location.trim());
-    if (type !== "Tous") params.set("type", type);
+    if (etat !== "Tous") params.set("etat", etat);
+    if (modele !== "Tous modèles") params.set("type", modele);
     navigate(`/catalogue?${params.toString()}`);
-  }, [location, type, navigate]);
+  }, [location, etat, modele, navigate]);
 
   const handleSearch = useCallback(() => {
     setLoading(true);
@@ -33,17 +40,13 @@ const SearchBar = memo(() => {
     if (e.key === "Enter") handleSearch();
   }, [handleSearch]);
 
-  // Bouton GPS : rempli le champ avec la position détectée
   const handleUseGPS = useCallback(async () => {
     setGeoLoading(true);
     if (position) {
-      // Position déjà disponible
       setLocation(detectedAddress || `${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}`);
       setGeoLoading(false);
     } else {
-      // Déclenche la détection
       await refreshLocation();
-      // Le context se met à jour, on attend un tick
       setTimeout(() => {
         setLocation(detectedAddress || "Position détectée");
         setGeoLoading(false);
@@ -54,13 +57,14 @@ const SearchBar = memo(() => {
   const resetFilters = useCallback(() => {
     setMode("Louer");
     setLocation("");
-    setType("Tous");
+    setEtat("Tous");
+    setModele("Tous modèles");
   }, []);
 
   return (
     <div className={styles.container}>
       <div className={styles.searchBox}>
-        {/* MODE */}
+        {/* MODE TABS */}
         <ModeToggle mode={mode} setMode={setMode} goToCatalogue={goToCatalogue} />
 
         {/* LOCALISATION */}
@@ -70,12 +74,11 @@ const SearchBar = memo(() => {
             <span className={styles.inputIcon}>📍</span>
             <input
               type="text"
-              placeholder="Entrez une ville..."
+              placeholder="Ville, quartier..."
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               onKeyPress={handleKeyPress}
             />
-            {/* Bouton GPS */}
             <button
               type="button"
               className={styles.gpsBtn}
@@ -91,17 +94,30 @@ const SearchBar = memo(() => {
           </div>
         </div>
 
-        {/* TYPE */}
+        {/* ÉTAT : Neuf / Occasion */}
+        <div className={`${styles.field} ${styles.etatField}`}>
+          <label>État</label>
+          <div className={styles.etatToggle}>
+            {["Tous", "Neuf", "Occasion"].map((v) => (
+              <button
+                key={v}
+                type="button"
+                className={`${styles.etatBtn} ${etat === v ? styles.etatActive : ""}`}
+                onClick={() => setEtat(v)}
+              >
+                {v === "Tous" ? "Tous" : v === "Neuf" ? "🆕 Neuf" : "🔄 Occasion"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* MODÈLE */}
         <div className={`${styles.field} ${styles.typeField}`}>
-          <label>Type de véhicule</label>
+          <label>Modèle</label>
           <div className={styles.selectWrapper}>
-            <span className={styles.selectIcon}>🔧</span>
-            <select value={type} onChange={(e) => setType(e.target.value)}>
-              <option>Tous types</option>
-              <option>SUV</option>
-              <option>Berline</option>
-              <option>Sportif</option>
-              <option>Citadine</option>
+            <span className={styles.selectIcon}>🚙</span>
+            <select value={modele} onChange={(e) => setModele(e.target.value)}>
+              {MODELES.map((m) => <option key={m}>{m}</option>)}
             </select>
           </div>
         </div>
@@ -120,7 +136,6 @@ const SearchBar = memo(() => {
         <button className={styles.resetBtn} onClick={resetFilters} type="button" title="Réinitialiser">↻</button>
       </div>
 
-      {/* Indicateur position détectée */}
       {position && (
         <p className={styles.geoHint}>
           📍 Position détectée — <strong>{detectedAddress?.split(",")[0]}</strong>

@@ -6,8 +6,9 @@ import styles from "./Catalogue.module.css";
 import { useToast } from "../context/ToastContext";
 
 const catalogueMode = ["Tout", "Louer", "Acheter", "Chauffeur"];
-const types = ["Tous", "SUV", "Berline", "Sportif", "Citadine", "Viano"];
-const fuels = ["Tous", "Essence", "Diesel", "Hybride", "Électrique"];
+const types = ["Tous", "SUV", "Berline", "Viano", "Monospace", "Citadine", "4x4", "Sportif", "Pick-up", "Cabriolet", "Utilitaire", "Minibus"];
+const etats = ["Tous", "Neuf", "Occasion"];
+const fuels = ["Tous", "Essence", "Diesel", "Hybride", "Électrique", "GPL"];
 const transmissions = ["Tous", "Automatique", "Manuelle"];
 
 const Catalogue = () => {
@@ -17,36 +18,48 @@ const Catalogue = () => {
   const [refreshing, setRefreshing] = useState(false);
 
   const [filterOpen, setFilterOpen] = useState(false);
+  const [page, setPage] = useState(1); // eslint-disable-line no-unused-vars
 
   const [activeMode, setActiveMode] = useState(() => {
-    const mode = searchParams.get("mode") || "Louer";
-    return catalogueMode.includes(mode) ? mode : "Louer";
+    const mode = searchParams.get("mode") || "Tout";
+    return catalogueMode.includes(mode) ? mode : "Tout";
   });
 
-  const [searchTerm, setSearchTerm] = useState(() => searchParams.get("location") || "");
-  const [activeType, setActiveType] = useState(() => searchParams.get("type") || "Tous");
-  const [fuelType, setFuelType] = useState("Tous");
+  const [searchTerm,   setSearchTerm]   = useState(() => searchParams.get("location") || "");
+  const [activeType,   setActiveType]   = useState(() => searchParams.get("type") || "Tous");
+  const [activeEtat,   setActiveEtat]   = useState(() => searchParams.get("etat") || "Tous");
+  const [fuelType,     setFuelType]     = useState("Tous");
   const [transmission, setTransmission] = useState("Tous");
-  const [maxPrice, setMaxPrice] = useState(200000);
+  const [maxPrice,     setMaxPrice]     = useState(200000);
 
   const activeFiltersCount = [
     fuelType !== "Tous",
     transmission !== "Tous",
     maxPrice < 200000,
     activeType !== "Tous",
+    activeEtat !== "Tous",
     searchTerm !== "",
   ].filter(Boolean).length;
 
   const filteredVehicles = vehicles.filter((vehicle) => {
     const modeMatch = activeMode === "Tout" || vehicle.mode === activeMode;
-    const typeMatch = activeType === "Tous" || vehicle.type === activeType;
-    const fuelMatch = fuelType === "Tous" || vehicle.fuel === fuelType;
+    const typeMatch = activeType === "Tous"
+      || (vehicle.vehicleType || vehicle.type) === activeType;
+    const etatMatch = activeEtat === "Tous"
+      || (vehicle.etat || "").toLowerCase().includes(activeEtat.toLowerCase())
+      || (activeEtat === "Neuf" && vehicle.etat === "Neuf")
+      || (activeEtat === "Occasion" && vehicle.etat && vehicle.etat !== "Neuf");
+    const fuelMatch = fuelType === "Tous"
+      || (vehicle.fuel || vehicle.carburant) === fuelType;
     const transmissionMatch = transmission === "Tous" || vehicle.transmission === transmission;
-    const priceMatch = activeMode === "Acheter" || vehicle.pricePerDay <= maxPrice;
-    const textMatch =
-      vehicle.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      vehicle.description.toLowerCase().includes(searchTerm.toLowerCase());
-    return modeMatch && typeMatch && fuelMatch && transmissionMatch && priceMatch && textMatch;
+    const priceMatch = activeMode === "Acheter" || (vehicle.pricePerDay || 0) <= maxPrice;
+    const name = (vehicle.title || vehicle.name || "").toLowerCase();
+    const desc = (vehicle.description || "").toLowerCase();
+    const city = (vehicle.ville || vehicle.city || "").toLowerCase();
+    const textMatch = name.includes(searchTerm.toLowerCase())
+      || desc.includes(searchTerm.toLowerCase())
+      || city.includes(searchTerm.toLowerCase());
+    return modeMatch && typeMatch && etatMatch && fuelMatch && transmissionMatch && priceMatch && textMatch;
   });
 
   const setParam = (key, value) => {
@@ -58,6 +71,7 @@ const Catalogue = () => {
 
   const resetFilters = () => {
     setActiveType("Tous");
+    setActiveEtat("Tous");
     setFuelType("Tous");
     setTransmission("Tous");
     setMaxPrice(200000);
@@ -231,6 +245,22 @@ const Catalogue = () => {
             </div>
 
             <div className={styles.filterSection}>
+              <h4>État</h4>
+              <div className={styles.filterItem}>
+                <div className={styles.checkboxGroup}>
+                  {etats.map((e) => (
+                    <label key={e}>
+                      <input type="radio" name="etat" value={e}
+                        checked={activeEtat === e}
+                        onChange={() => { setActiveEtat(e); setParam("etat", e); }} />
+                      {e}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.filterSection}>
               <h4>Carburants</h4>
               <div className={styles.filterItem}>
                 <div className={styles.checkboxGroup}>
@@ -290,7 +320,7 @@ const Catalogue = () => {
               <span>Essayez de modifier vos filtres ou votre recherche</span>
             </div>
           ) : (
-            filteredVehicles.map((car) => <VehicleCard key={car.id} car={car} />)
+            filteredVehicles.map((car) => <VehicleCard key={car._id || car.id} car={car} />)
           )}
         </main>
       </div>

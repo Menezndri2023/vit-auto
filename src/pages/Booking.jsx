@@ -1,11 +1,147 @@
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import { useAuth } from "../context/AuthContext";
-import { useLocation as useGeoLocation } from "../context/LocationContext";
+import { useCurrency } from "../context/CurrencyContext";
 import styles from "./Booking.module.css";
 
-const SERVICE_FEE = 1000; // FCFA fixe plateforme
+/* ══════════════════════════════════════════════════════════
+   VALIDATION PIÈCE D'IDENTITÉ — Formats par pays & type
+   ══════════════════════════════════════════════════════════ */
+
+const ID_RULES = {
+  cni: {
+    label: "Carte Nationale d'Identité (CNI)",
+    patterns: [
+      // Maroc
+      { regex: /^[A-Z]{1,2}\d{5,7}$/i,   country: "🇲🇦 Maroc",         example: "B123456 ou AB123456" },
+      // France
+      { regex: /^\d{12}$/,                country: "🇫🇷 France",         example: "123456789012 (12 chiffres)" },
+      // Côte d'Ivoire
+      { regex: /^\d{9,12}$/,              country: "🇨🇮 Côte d'Ivoire",  example: "CI-XXXXXXXX ou 9-12 chiffres" },
+      { regex: /^CI[-\s]?\d{8,10}$/i,    country: "🇨🇮 Côte d'Ivoire",  example: "CI-12345678" },
+      // Sénégal
+      { regex: /^\d{10,13}$/,             country: "🇸🇳 Sénégal",        example: "1234567890123" },
+      // Algérie
+      { regex: /^\d{18}$/,                country: "🇩🇿 Algérie",        example: "18 chiffres" },
+      // Tunisie
+      { regex: /^\d{8}$/,                 country: "🇹🇳 Tunisie",        example: "12345678 (8 chiffres)" },
+      // Mali, Burkina, etc.
+      { regex: /^[A-Z0-9]{6,16}$/i,      country: "🌍 Afrique de l'Ouest", example: "6 à 16 caractères" },
+    ],
+    minLength: 5,
+    maxLength: 20,
+    hint: "Exemple Maroc : B123456 ou AB123456 — France : 12 chiffres",
+  },
+  passport: {
+    label: "Passeport",
+    patterns: [
+      // Maroc / International OACI standard
+      { regex: /^[A-Z]{2}\d{7}[A-Z0-9]?$/i, country: "🌍 Standard international", example: "AB1234567" },
+      // Maroc format court
+      { regex: /^[A-Z]\d{7}$/i,              country: "🇲🇦 Maroc",                 example: "A1234567" },
+      // France
+      { regex: /^\d{9}$/,                    country: "🇫🇷 France",                example: "123456789 (9 chiffres)" },
+      // Format OACI relaxé
+      { regex: /^[A-Z0-9]{6,9}$/i,           country: "🌍 International",           example: "6 à 9 caractères" },
+    ],
+    minLength: 6,
+    maxLength: 12,
+    hint: "Maroc : A1234567 ou AB1234567 — France : 9 chiffres",
+  },
+  permis: {
+    label: "Permis de conduire",
+    patterns: [
+      // Maroc
+      { regex: /^[A-Z]{1,2}\d{5,7}$/i,   country: "🇲🇦 Maroc",   example: "AB123456" },
+      // France
+      { regex: /^\d{2}[A-Z0-9]{6,9}$/i,  country: "🇫🇷 France",  example: "75-XXXXXX" },
+      { regex: /^[0-9A-Z\-]{6,15}$/i,    country: "🌍 Général",   example: "6 à 15 caractères" },
+    ],
+    minLength: 5,
+    maxLength: 15,
+    hint: "Maroc : AB123456 — France format région + chiffres",
+  },
+};
+
+// Normaliser : retirer espaces, tirets multiples, mettre en majuscules
+const normalize = (str) => str.replace(/\s+/g, "").replace(/-+/g, "-").toUpperCase().trim();
+
+// Valider la pièce d'identité
+function validateId(type, number) {
+  const n = normalize(number);
+  const rules = ID_RULES[type];
+  if (!rules) return { status: "error", message: "Type de document invalide." };
+  if (!n) return { status: "empty", message: "" };
+  if (n.length < rules.minLength) {
+    return {
+      status: "error",
+      message: `Numéro trop court — minimum ${rules.minLength} caractères requis.`,
+    };
+  }
+  if (n.length > rules.maxLength) {
+    return { status: "error", message: `Numéro trop long — maximum ${rules.maxLength} caractères.` };
+  }
+  // Tester les patterns
+  for (const pattern of rules.patterns) {
+    if (pattern.regex.test(n)) {
+      return {
+        status: "valid",
+        message: `Format reconnu — ${pattern.country}`,
+        country: pattern.country,
+        example: pattern.example,
+      };
+    }
+  }
+  // Format non reconnu mais longueur acceptable
+  return {
+    status: "warning",
+    message: "Format inhabituel — vérifiez que le numéro est correct. Nous l'acceptons si vous êtes sûr(e).",
+  };
+}
+
+// Valider le numéro de téléphone
+function validatePhone(phone) {
+  const p = phone.replace(/\s+/g, "").replace(/-/g, "");
+  if (!p) return { ok: false, message: "Téléphone requis." };
+
+  const intlPrefixes = {
+    "+212": "🇲🇦 Maroc",  "+225": "🇨🇮 Côte d'Ivoire",
+    "+221": "🇸🇳 Sénégal", "+33":  "🇫🇷 France",
+    "+32":  "🇧🇪 Belgique","+34":  "🇪🇸 Espagne",
+    "+41":  "🇨🇭 Suisse",  "+1":   "🇺🇸 USA/Canada",
+    "+44":  "🇬🇧 UK",      "+213": "🇩🇿 Algérie",
+    "+216": "🇹🇳 Tunisie", "+223": "🇲🇱 Mali",
+  };
+
+  // Format international
+  if (p.startsWith("+")) {
+    const digits = p.replace(/\D/g, "");
+    if (digits.length < 8 || digits.length > 15) {
+      return { ok: false, message: "Numéro trop court ou trop long." };
+    }
+    for (const [prefix, country] of Object.entries(intlPrefixes)) {
+      if (p.startsWith(prefix)) {
+        return { ok: true, message: `${country}`, country };
+      }
+    }
+    return { ok: true, message: "Format international reconnu." };
+  }
+  // Format local (commence par 0)
+  if (p.startsWith("0")) {
+    const digits = p.replace(/\D/g, "");
+    if (digits.length < 9 || digits.length > 11) {
+      return { ok: false, message: "Numéro local invalide (9-11 chiffres attendus)." };
+    }
+    return { ok: true, message: "Numéro local — Ajoutez l'indicatif +XXX pour plus de précision." };
+  }
+  return { ok: false, message: "Format invalide. Commencez par + (international) ou 0 (local)." };
+}
+
+/* ── Constantes ───────────────────────────────────────────── */
+const SERVICE_FEE     = 1000;   // FCFA fixe plateforme
+const DELIVERY_BASE   = 1000;   // FCFA base livraison
+const DELIVERY_PER_KM = 200;    // FCFA/km
 
 const optionsData = [
   { id: "babySeat",  label: "Siège bébé",        price: 7000  },
@@ -13,82 +149,189 @@ const optionsData = [
   { id: "driver",    label: "Chauffeur privé",   price: 50000 },
 ];
 
-// GPS disponible en option seulement pour le retrait (livraison = GPS inclus)
 const gpsOption = { id: "gps", label: "GPS intégré", price: 10000 };
 
-// Zones de livraison à domicile avec frais fixes
-const DELIVERY_ZONES = [
-  { id: "z1", label: "Même quartier (< 5 km)",   fee: 3000  },
-  { id: "z2", label: "Même ville (5 – 15 km)",   fee: 5000  },
-  { id: "z3", label: "Banlieue (15 – 30 km)",    fee: 7500  },
-  { id: "z4", label: "Interurbain (> 30 km)",    fee: 10000 },
-];
+/* ── Haversine distance (km) ─────────────────────────────── */
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
-const fmt = (n) => Number(n).toLocaleString("fr-FR") + " FCFA";
+/* ── Géocoder une adresse via Nominatim ─────────────────── */
+async function geocodeAddress(address) {
+  try {
+    const res  = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
+      { headers: { "Accept-Language": "fr" } }
+    );
+    const data = await res.json();
+    if (data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), label: data[0].display_name };
+  } catch {}
+  return null;
+}
 
-const Booking = () => {
-  const { id }      = useParams();
-  const [searchParams] = useSearchParams();
-  const navigate    = useNavigate();
-  const vehicles    = useVehicles();
-  const getVehicleById = vehicles.getItemById ||
-    ((id) => vehicles.vehicles?.find(v => String(v.id) === String(id) || v._id === String(id)));
-  const addBooking  = vehicles.addBooking;
+/* ── Reverse géocode (coordonnées → adresse) ────────────── */
+async function reverseGeocode(lat, lng) {
+  try {
+    const res  = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+      { headers: { "Accept-Language": "fr" } }
+    );
+    const data = await res.json();
+    return data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  } catch {}
+  return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+}
+
+/* ── Obtenir la position GPS (Promise) ──────────────────── */
+function getGPSPosition(timeout = 12000) {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Géolocalisation non supportée par votre navigateur."));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (err) => {
+        if (err.code === 1) reject(new Error("Accès à la position refusé. Vérifiez les permissions de votre navigateur."));
+        else if (err.code === 2) reject(new Error("Position indisponible. Vérifiez votre connexion."));
+        else reject(new Error("Délai dépassé. Réessayez."));
+      },
+      { enableHighAccuracy: true, timeout, maximumAge: 30000 }
+    );
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════ */
+export default function Booking() {
+  const { id }          = useParams();
+  const [searchParams]  = useSearchParams();
+  const navigate        = useNavigate();
+  const { fmt }         = useCurrency();
+  const { vehicles: ctx } = useVehicles();
+  const { vehicles, addBooking, getItemById } = useVehicles();
+  const getVehicleById = getItemById
+    || ((vid) => vehicles?.find((v) => String(v.id) === String(vid) || v._id === String(vid)));
   const { token, user } = useAuth();
-  const { position, address: geoAddress, refreshLocation } = useGeoLocation();
   const vehicle = getVehicleById(id);
 
-  // Détecter si leasing demandé via query param ?type=leasing
   const isLeasingRequest = searchParams.get("type") === "leasing";
+  const isSaleMode       = vehicle?.mode === "Acheter";
+  const isTrial          = isSaleMode && !isLeasingRequest;
+  const isLeasing        = isSaleMode && isLeasingRequest && vehicle?.leasing?.disponible;
 
-  const [error, setError]     = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [geoLoading, setGeoLoading] = useState(false);
-  const [step, setStep]       = useState(1); // 1=Info, 2=Vérification, 3=Paiement
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState(null);
+  const [step,       setStep]       = useState(1);
 
   useEffect(() => {
     setLoading(true);
     if (!id) { setError("ID véhicule manquant."); setLoading(false); return; }
     if (!getVehicleById(id)) setError("Véhicule non trouvé. Retournez au catalogue.");
     setLoading(false);
-  }, [id, getVehicleById]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // isTrial : mode achat/essai (pas location)
-  // isLeasing : mode leasing
-  const isSaleMode = vehicle?.mode === "Acheter";
-  const isTrial    = isSaleMode && !isLeasingRequest;
-  const isLeasing  = isSaleMode && isLeasingRequest && vehicle?.leasing?.disponible;
-
-  // ── Pickup : méthode de prise en charge ───────────────────
-  // pickupMethod: "livraison" (vendor vient) | "retrait" (client passe)
-  // addressMode: "gps" | "text"
-  const [pickupMethod, setPickupMethod]     = useState("livraison");
-  const [addressMode,  setAddressMode]      = useState("gps");
-  const [pickupAddress, setPickupAddress]   = useState("");
+  /* ── Prise en charge ──────────────────────────────────── */
+  const [pickupMethod,   setPickupMethod]   = useState("livraison");
+  const [pickupAddress,  setPickupAddress]  = useState("");
   const [pickupPosition, setPickupPosition] = useState(null);
-  const [deliveryZone, setDeliveryZone]     = useState("z1"); // zone de livraison par défaut
 
-  // Remplir automatiquement avec le GPS disponible
-  useEffect(() => {
-    if (position && addressMode === "gps" && pickupMethod === "livraison") {
-      setPickupAddress(geoAddress || `${position.lat.toFixed(5)}, ${position.lng.toFixed(5)}`);
-      setPickupPosition(position);
-    }
-  }, [position, geoAddress, addressMode, pickupMethod]);
+  // États GPS
+  const [gpsState,  setGpsState]  = useState("idle"); // "idle"|"loading"|"ok"|"error"
+  const [gpsError,  setGpsError]  = useState("");
+  const gpsAbortRef = useRef(null);
 
+  // Calcul frais livraison
+  const [geoDistance,    setGeoDistance]    = useState(null);
+  const [geoFee,         setGeoFee]         = useState(null);
+  const [geoFeeLoading,  setGeoFeeLoading]  = useState(false);
+  const [partnerGeoPos,  setPartnerGeoPos]  = useState(null);
+
+  // Infos agence (retrait)
+  const agencyName    = vehicle?.contactNom  || vehicle?.ownerName  || vehicle?.partnerName || "Partenaire VIT AUTO";
+  const agencyPhone   = vehicle?.contactTel  || vehicle?.ownerPhone || null;
+  const agencyCity    = vehicle?.ville       || vehicle?.ownerCity  || "";
+  const agencyAddress = vehicle?.adresse     || "";
+  const agencyFull    = [agencyAddress, agencyCity].filter(Boolean).join(", ");
+  const mapsUrl       = agencyFull
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(agencyFull)}`
+    : null;
+
+  /* ── Détecter la position GPS ─────────────────────────── */
   const handleDetectGPS = async () => {
-    setGeoLoading(true);
-    await refreshLocation();
-    setTimeout(() => {
-      if (position) {
-        setPickupAddress(geoAddress || `${position.lat.toFixed(5)}, ${position.lng.toFixed(5)}`);
-        setPickupPosition(position);
-      }
-      setGeoLoading(false);
-    }, 1500);
+    setGpsState("loading");
+    setGpsError("");
+    setPickupAddress("");
+    setPickupPosition(null);
+    setGeoDistance(null);
+    setGeoFee(null);
+
+    try {
+      const pos = await getGPSPosition();
+      const addr = await reverseGeocode(pos.lat, pos.lng);
+      setPickupPosition(pos);
+      setPickupAddress(addr);
+      setGpsState("ok");
+    } catch (err) {
+      setGpsState("error");
+      setGpsError(err.message);
+    }
   };
 
-  // ── Formulaires ───────────────────────────────────────────
+  /* ── Calculer frais dès que position client connue ─────── */
+  useEffect(() => {
+    if (!pickupPosition || pickupMethod !== "livraison") {
+      setGeoDistance(null);
+      setGeoFee(null);
+      return;
+    }
+    const partnerAddr = agencyFull;
+
+    const compute = async () => {
+      setGeoFeeLoading(true);
+
+      // 1. Essai via backend
+      try {
+        const res = await fetch(
+          `/api/geo/delivery-fee?clientLat=${pickupPosition.lat}&clientLng=${pickupPosition.lng}&vehicleId=${vehicle?._id || vehicle?.id || ""}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data.fee != null && data.distanceKm != null) {
+            setGeoDistance(data.distanceKm);
+            setGeoFee(data.fee);
+            setGeoFeeLoading(false);
+            return;
+          }
+        }
+      } catch {}
+
+      // 2. Fallback Haversine — géocoder l'adresse partenaire
+      let pPos = partnerGeoPos;
+      if (!pPos && partnerAddr.trim()) {
+        pPos = await geocodeAddress(partnerAddr);
+        if (pPos) setPartnerGeoPos(pPos);
+      }
+      if (pPos) {
+        const km  = haversineKm(pickupPosition.lat, pickupPosition.lng, pPos.lat, pPos.lng);
+        const fee = Math.round(DELIVERY_BASE + DELIVERY_PER_KM * km);
+        setGeoDistance(parseFloat(km.toFixed(1)));
+        setGeoFee(fee);
+      } else {
+        setGeoDistance(null);
+        setGeoFee(3000); // fallback 3 km
+      }
+      setGeoFeeLoading(false);
+    };
+    compute();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickupPosition, pickupMethod]);
+
+  /* ── Formulaires ──────────────────────────────────────── */
   const [form, setForm] = useState({
     firstName: user?.firstName || "",
     lastName:  user?.lastName  || "",
@@ -109,45 +352,28 @@ const Booking = () => {
   });
 
   const [verificationForm, setVerificationForm] = useState({
-    idType:     "cni",
-    idNumber:   "",
-    address:    "",
-    agreeTerms: false,
+    idType: "cni", idNumber: "", address: "", agreeTerms: false,
   });
+
+  // Validation temps réel pièce d'identité
+  const [idValidation,   setIdValidation]   = useState({ status: "empty", message: "" });
+  const [verifying,      setVerifying]      = useState(false);   // animation vérification
+  const [verifyDone,     setVerifyDone]     = useState(false);   // vérification réussie
+  const [verifyFailed,   setVerifyFailed]   = useState(false);
+  const [phoneValidation, setPhoneValidation] = useState({ ok: null, message: "" });
 
   const [paymentForm, setPaymentForm] = useState({
     paymentMethod: "orange",
-    cardNumber:    "",
-    cardHolder:    "",
-    expiryDate:    "",
-    cvv:           "",
-    mobileNumber:  "",
+    cardNumber: "", cardHolder: "", expiryDate: "", cvv: "", mobileNumber: "",
   });
 
   const [selectedOptions, setSelectedOptions] = useState({
     gps: false, babySeat: false, insurance: false, driver: false,
   });
 
-  // GPS automatiquement inclus (sans frais) pour la livraison à domicile
   const gpsAutoIncluded = pickupMethod === "livraison";
 
-  if (loading) return (
-    <div className={styles.page}><div style={{ textAlign: "center", padding: "4rem" }}>Chargement...</div></div>
-  );
-
-  if (error || !vehicle) return (
-    <div className={styles.page}>
-      <div style={{ textAlign: "center", padding: "2rem", maxWidth: "500px", margin: "0 auto" }}>
-        <h2>Erreur</h2>
-        <p>{error || "Véhicule non trouvé"}</p>
-        <button onClick={() => navigate("/catalogue")} style={{ background: "#007bff", color: "#fff", border: "none", padding: "0.75rem 1.5rem", borderRadius: "4px", cursor: "pointer", marginTop: "1rem" }}>
-          Voir le catalogue
-        </button>
-      </div>
-    </div>
-  );
-
-  // ── Calculs financiers ────────────────────────────────────
+  /* ── Calculs financiers ───────────────────────────────── */
   const days = (() => {
     if (!form.startDate || !form.endDate) return 0;
     const s = new Date(form.startDate), e = new Date(form.endDate);
@@ -156,23 +382,19 @@ const Booking = () => {
     return d > 0 ? d : 0;
   })();
 
-  // GPS gratuit en livraison — on exclut son coût si pickupMethod === "livraison"
   const allOptions = gpsAutoIncluded ? optionsData : [gpsOption, ...optionsData];
   const optionsTotal = Object.entries(selectedOptions).reduce((acc, [key, val]) => {
     if (!val) return acc;
-    if (key === "gps" && gpsAutoIncluded) return acc; // GPS offert
+    if (key === "gps" && gpsAutoIncluded) return acc;
     const opt = allOptions.find((o) => o.id === key);
     return acc + (opt?.price || 0) * Math.max(days, 1);
   }, 0);
 
-  // Frais de livraison selon zone (0 si retrait)
-  const selectedZone  = DELIVERY_ZONES.find((z) => z.id === deliveryZone) || DELIVERY_ZONES[0];
-  const deliveryFee   = pickupMethod === "livraison" ? selectedZone.fee : 0;
+  const deliveryFee = pickupMethod === "livraison" ? (geoFee ?? 3000) : 0;
+  const baseTotal   = (vehicle?.pricePerDay || 0) * Math.max(days, 1);
+  const totalToPay  = isTrial ? SERVICE_FEE : baseTotal + optionsTotal + deliveryFee + SERVICE_FEE;
 
-  const baseTotal  = (vehicle.pricePerDay || 0) * Math.max(days, 1);
-  const totalToPay = isTrial ? SERVICE_FEE : baseTotal + optionsTotal + deliveryFee + SERVICE_FEE;
-
-  // ── Handlers ─────────────────────────────────────────────
+  /* ── Handlers ──────────────────────────────────────────── */
   const handleChange = (e) => {
     const { name, value, checked } = e.target;
     if (name in selectedOptions) { setSelectedOptions({ ...selectedOptions, [name]: checked }); return; }
@@ -181,14 +403,59 @@ const Booking = () => {
   };
 
   const handleVerifChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setVerificationForm({ ...verificationForm, [name]: type === "checkbox" ? checked : value });
+    const { name, value, type: inputType, checked } = e.target;
+    const next = { ...verificationForm, [name]: inputType === "checkbox" ? checked : value };
+    setVerificationForm(next);
+    setVerifyDone(false);
+    setVerifyFailed(false);
+
+    // Validation temps réel du numéro
+    if (name === "idNumber" || name === "idType") {
+      const num  = name === "idNumber" ? value : verificationForm.idNumber;
+      const type = name === "idType"   ? value : verificationForm.idType;
+      setIdValidation(validateId(type, num));
+    }
   };
 
-  const handleTrialChange = (e) => {
-    const { name, value } = e.target;
-    setTrialForm({ ...trialForm, [name]: value });
-  };
+  // Vérifier le téléphone en temps réel
+  const handlePhoneChange = useCallback((e) => {
+    const val = e.target.value;
+    const name = e.target.name;
+    if (name === "phone") {
+      setForm((prev) => ({ ...prev, phone: val }));
+      setPhoneValidation(validatePhone(val));
+    } else if (name === "phone" && isTrial) {
+      setTrialForm((prev) => ({ ...prev, phone: val }));
+      setPhoneValidation(validatePhone(val));
+    }
+  }, [isTrial]);
+
+  // Lancer la vérification simulée (animation)
+  const handleVerifyId = useCallback(async () => {
+    const result = validateId(verificationForm.idType, verificationForm.idNumber);
+    if (result.status === "error") {
+      setIdValidation(result);
+      return;
+    }
+    setVerifying(true);
+    setVerifyDone(false);
+    setVerifyFailed(false);
+
+    // Simulation vérification (1.5s — dans un vrai projet : appel API gouvernemental)
+    await new Promise((r) => setTimeout(r, 1600));
+
+    // Accepté si format valid ou warning (on donne le bénéfice du doute sur le format inhabituel)
+    if (result.status === "valid" || result.status === "warning") {
+      setVerifyDone(true);
+      setVerifyFailed(false);
+    } else {
+      setVerifyFailed(true);
+      setVerifyDone(false);
+    }
+    setVerifying(false);
+  }, [verificationForm.idType, verificationForm.idNumber]);
+
+  const handleTrialChange = (e) => setTrialForm({ ...trialForm, [e.target.name]: e.target.value });
 
   const handleStepOneSubmit = (e) => {
     e.preventDefault();
@@ -201,7 +468,7 @@ const Booking = () => {
       }
       if (days <= 0) { alert("La date de fin doit être postérieure à la date de début."); return; }
       if (pickupMethod === "livraison" && !pickupAddress.trim()) {
-        alert("Renseignez votre adresse de livraison."); return;
+        alert("Indiquez votre adresse de livraison (utilisez le bouton GPS ou saisissez l'adresse)."); return;
       }
     }
     setStep(2);
@@ -212,9 +479,27 @@ const Booking = () => {
     if (!verificationForm.idType || !verificationForm.idNumber) {
       alert("Veuillez fournir votre pièce d'identité."); return;
     }
-    if (!verificationForm.agreeTerms) {
-      alert("Vous devez accepter les conditions générales."); return;
+
+    // Bloquer si format invalide
+    const result = validateId(verificationForm.idType, verificationForm.idNumber);
+    if (result.status === "error") {
+      setIdValidation(result);
+      alert("Le numéro de pièce d'identité est invalide. " + result.message);
+      return;
     }
+
+    // Bloquer si vérification non lancée ou échouée
+    if (!verifyDone) {
+      if (!verifying) {
+        alert("Veuillez cliquer sur « Vérifier » pour confirmer votre pièce d'identité avant de continuer.");
+      }
+      return;
+    }
+
+    if (!verificationForm.agreeTerms) {
+      alert("Vous devez accepter les conditions générales d'utilisation."); return;
+    }
+
     setStep(3);
   };
 
@@ -231,21 +516,21 @@ const Booking = () => {
     const commissionRate   = (isTrial || isLeasing) ? 0.03 : 0.15;
     const leasingData      = vehicle?.leasing || {};
     const leasingApport    = leasingData.apportInitial || 0;
-    const leasingMensual   = leasingData.mensualite || 0;
-    const leasingDuree     = leasingData.duree || 36;
+    const leasingMensual   = leasingData.mensualite    || 0;
+    const leasingDuree     = leasingData.duree         || 36;
     const leasingTotal     = leasingApport + leasingMensual * leasingDuree;
     const commissionAmount = Math.round((isLeasing ? leasingApport : baseTotal) * commissionRate);
     const partnerPayout    = Math.max((isLeasing ? leasingApport : baseTotal) - commissionAmount - SERVICE_FEE, 0);
 
     const finalPickup = pickupMethod === "retrait"
-      ? `Retrait chez le vendeur (${vehicle.pickupAddress || "adresse communiquée par le vendeur"})`
+      ? `Retrait en agence — ${agencyFull || "adresse communiquée par le partenaire"}`
       : pickupAddress;
 
     const booking = isLeasing
       ? {
           id: Date.now(), userId: user?.id,
           vehicleId: vehicle._id || vehicle.id,
-          vehicleName: vehicle.name, vehicleMode: vehicle.mode,
+          vehicleName: vehicle.title || vehicle.name, vehicleMode: vehicle.mode,
           ...trialForm, type: "leasing", status: "À confirmer",
           createdAt: new Date().toISOString(),
           serviceFeeFCFA: SERVICE_FEE, commissionRate, commissionAmount, partnerPayout,
@@ -257,7 +542,7 @@ const Booking = () => {
       ? {
           id: Date.now(), userId: user?.id,
           vehicleId: vehicle._id || vehicle.id,
-          vehicleName: vehicle.name, vehicleMode: vehicle.mode,
+          vehicleName: vehicle.title || vehicle.name, vehicleMode: vehicle.mode,
           ...trialForm, type: "essai", status: "À confirmer",
           createdAt: new Date().toISOString(),
           serviceFeeFCFA: SERVICE_FEE, commissionRate, commissionAmount,
@@ -266,25 +551,25 @@ const Booking = () => {
       : {
           id: Date.now(), userId: user?.id,
           vehicleId: vehicle._id || vehicle.id,
-          vehicleName: vehicle.name, vehicleMode: vehicle.mode, vehicleType: vehicle.type,
+          vehicleName: vehicle.title || vehicle.name, vehicleMode: vehicle.mode, vehicleType: vehicle.type,
           pricePerDay: vehicle.pricePerDay, ...form,
-          pickupMethod, pickupAddress: finalPickup, pickupPosition,
-          deliveryZone: pickupMethod === "livraison" ? selectedZone.id : null,
-          deliveryZoneLabel: pickupMethod === "livraison" ? selectedZone.label : null,
+          pickupMethod,
+          pickupAddress: finalPickup,
+          pickupPosition: pickupMethod === "livraison" ? pickupPosition : null,
           deliveryFee,
+          geoDistance,
+          agencyInfo: pickupMethod === "retrait" ? { name: agencyName, phone: agencyPhone, address: agencyFull } : null,
           selectedOptions, days, optionsTotal, baseTotal,
           serviceFeeFCFA: SERVICE_FEE, total: totalToPay,
           createdAt: new Date().toISOString(),
           commissionRate, commissionAmount, partnerPayout,
           paidWith: paymentForm.paymentMethod,
           paymentInfo: paymentForm, clientVerification: verificationForm,
-          type: "location",
-          status: "À confirmer",
+          type: "location", status: "À confirmer",
         };
 
     addBooking(booking);
 
-    // Payload formaté pour le backend (format différent du localStorage local)
     try {
       const headers = { "Content-Type": "application/json" };
       if (token) headers.Authorization = `Bearer ${token}`;
@@ -298,92 +583,92 @@ const Booking = () => {
 
       const apiPayload = isLeasing
         ? {
-            type: "leasing",
-            clientInfo,
+            type: "leasing", clientInfo,
             vehicleId: vehicle._id || vehicle.id,
-            leasing: {
-              apportInitial: leasingApport,
-              mensualite:    leasingMensual,
-              duree:         leasingDuree,
-              totalLeasing:  leasingTotal,
-              tauxInteret:   vehicle?.leasing?.tauxInteret || 8,
-            },
+            leasing: { apportInitial: leasingApport, mensualite: leasingMensual, duree: leasingDuree, totalLeasing: leasingTotal, tauxInteret: vehicle?.leasing?.tauxInteret || 8 },
             clientVerification: verificationForm,
           }
         : isTrial
         ? {
-            type: "essai",
-            clientInfo,
+            type: "essai", clientInfo,
             vehicleId: vehicle._id || vehicle.id,
-            essai: {
-              preferredDate: trialForm.preferredDate,
-              preferredTime: trialForm.preferredTime,
-              notes:         trialForm.notes || "",
-            },
+            essai: { preferredDate: trialForm.preferredDate, preferredTime: trialForm.preferredTime, notes: trialForm.notes || "" },
             clientVerification: verificationForm,
           }
         : {
-            type: "location",
-            clientInfo,
+            type: "location", clientInfo,
             vehicleId: vehicle._id || vehicle.id,
             location: {
               startDate:      form.startDate,
               endDate:        form.endDate,
               days,
+              pickupMethod,
               pickupLocation: finalPickup,
-              pickupPosition,
-              returnLocation: "",
+              pickupPosition: pickupMethod === "livraison" ? pickupPosition : null,
+              deliveryFee,
+              distanceKm:     geoDistance,
               options:        selectedOptions,
             },
             clientVerification: verificationForm,
-            payment: {
-              method:       paymentForm.paymentMethod,
-              mobileNumber: paymentForm.mobileNumber || undefined,
-              cardNumber:   paymentForm.cardNumber   || undefined,
-              cardHolder:   paymentForm.cardHolder   || undefined,
-            },
+            payment: { method: paymentForm.paymentMethod, mobileNumber: paymentForm.mobileNumber || undefined, cardNumber: paymentForm.cardNumber || undefined, cardHolder: paymentForm.cardHolder || undefined },
           };
 
       await fetch("/api/bookings", { method: "POST", headers, body: JSON.stringify(apiPayload) });
-    } catch { /* offline — booking déjà sauvegardé en localStorage */ }
+    } catch { /* offline */ }
 
     navigate("/booking/success", { state: { booking, trial: isTrial || isLeasing, payment: paymentForm } });
   };
 
   const paymentOptions = [
-    { value: "orange", label: "Orange Money" },
-    { value: "wave",   label: "Wave" },
-    { value: "mtn",    label: "MTN Mobile Money" },
-    { value: "moov",   label: "Moov Money" },
-    { value: "card",   label: "Carte bancaire" },
-    { value: "paypal", label: "PayPal" },
+    { value: "orange", label: "🟠 Orange Money" },
+    { value: "wave",   label: "🔵 Wave" },
+    { value: "mtn",    label: "💛 MTN Mobile Money" },
+    { value: "moov",   label: "🟢 Moov Money" },
+    { value: "card",   label: "💳 Carte bancaire" },
+    { value: "paypal", label: "🅿️ PayPal" },
     { value: "cash",   label: "💵 Espèces à la livraison" },
   ];
 
   const stepLabels = ["1. Réservation", "2. Vérification", "3. Paiement"];
+
+  if (loading) return (
+    <div className={styles.page}><div className={styles.loadingBox}><div className={styles.spinner} /><p>Chargement...</p></div></div>
+  );
+
+  if (error || !vehicle) return (
+    <div className={styles.page}>
+      <div style={{ textAlign: "center", padding: "3rem 1.5rem", maxWidth: 480, margin: "0 auto" }}>
+        <div style={{ fontSize: "3rem", marginBottom: 12 }}>🚗</div>
+        <h2 style={{ color: "#0f1b3f", margin: "0 0 10px" }}>Véhicule introuvable</h2>
+        <p style={{ color: "#5a6a8a", marginBottom: 24 }}>{error || "Ce véhicule n'existe plus ou a été retiré."}</p>
+        <button onClick={() => navigate("/catalogue")}
+          style={{ background: "#ff4d2d", color: "#fff", border: "none", padding: "12px 28px", borderRadius: 10, cursor: "pointer", fontWeight: 700, fontSize: "0.95rem" }}>
+          ← Retour au catalogue
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className={styles.page}>
       <div className={styles.content}>
         <h1>{isTrial ? "Demander un essai" : "Réservez votre véhicule"}</h1>
 
-        {/* ── Steps ────────────────────────────── */}
+        {/* Steps */}
         <div className={styles.stepIndicator}>
           {stepLabels.map((label, i) => (
             <button key={i} type="button"
-              className={`${styles.stepBtn} ${step === i + 1 ? styles.stepActive : ""} ${step > i + 1 ? styles.stepDone : ""}`}
-            >
+              className={`${styles.stepBtn} ${step === i + 1 ? styles.stepActive : ""} ${step > i + 1 ? styles.stepDone : ""}`}>
               {label}
             </button>
           ))}
         </div>
 
-        {/* ══════════════════════════════════════ */}
-        {/* ÉTAPE 1 — Infos + prise en charge      */}
-        {/* ══════════════════════════════════════ */}
+        {/* ══════════════ ÉTAPE 1 ══════════════ */}
         {step === 1 && (
           <form onSubmit={handleStepOneSubmit} className={styles.form}>
-            {/* Coordonnées client */}
+
+            {/* Coordonnées */}
             <div className={styles.section}>
               <h3>{isTrial ? "Vos coordonnées" : "Informations client"}</h3>
               <div className={styles.row}>
@@ -398,13 +683,38 @@ const Booking = () => {
                 <input type="email" name="email" placeholder="E-mail *" required
                   value={isTrial ? trialForm.email : form.email}
                   onChange={isTrial ? handleTrialChange : handleChange} />
-                <input type="tel"   name="phone" placeholder="Téléphone *" required
-                  value={isTrial ? trialForm.phone : form.phone}
-                  onChange={isTrial ? handleTrialChange : handleChange} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <input
+                    type="tel"
+                    name="phone"
+                    placeholder="+212 06 00 00 00 00 *"
+                    required
+                    value={isTrial ? trialForm.phone : form.phone}
+                    onChange={(e) => {
+                      if (isTrial) handleTrialChange(e);
+                      else handleChange(e);
+                      setPhoneValidation(validatePhone(e.target.value));
+                    }}
+                    style={{
+                      borderColor: phoneValidation.ok === true  ? "#10b981"
+                               : phoneValidation.ok === false ? "#ef4444"
+                               : undefined,
+                    }}
+                  />
+                  {phoneValidation.message && (
+                    <span style={{
+                      fontSize: "0.72rem",
+                      fontWeight: 600,
+                      color: phoneValidation.ok ? "#059669" : "#dc2626",
+                    }}>
+                      {phoneValidation.ok ? "✓" : "✗"} {phoneValidation.message}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Section spécifique essai */}
+            {/* RDV essai */}
             {isTrial && (
               <div className={styles.section}>
                 <h3>RDV d'essai</h3>
@@ -419,187 +729,263 @@ const Booking = () => {
             {/* Section location */}
             {!isTrial && (
               <>
+                {/* Dates */}
                 <div className={styles.section}>
                   <h3>Dates de location</h3>
                   <div className={styles.row}>
-                    <label>Date de début <input type="date" name="startDate" value={form.startDate} onChange={handleChange} required /></label>
-                    <label>Date de fin   <input type="date" name="endDate"   value={form.endDate}   onChange={handleChange} required /></label>
+                    <label>Date de début
+                      <input type="date" name="startDate" value={form.startDate} onChange={handleChange} required
+                        min={new Date().toISOString().split("T")[0]} />
+                    </label>
+                    <label>Date de fin
+                      <input type="date" name="endDate" value={form.endDate} onChange={handleChange} required
+                        min={form.startDate || new Date().toISOString().split("T")[0]} />
+                    </label>
                   </div>
+                  {days > 0 && (
+                    <p className={styles.daysLabel}>📅 {days} jour{days > 1 ? "s" : ""} de location</p>
+                  )}
                 </div>
 
-                {/* ── Prise en charge ──────────────────── */}
+                {/* ── PRISE EN CHARGE ── */}
                 <div className={styles.section}>
-                  <h3>Prise en charge</h3>
+                  <h3>Mode de prise en charge</h3>
 
-                  {/* Choix livraison / retrait */}
                   <div className={styles.pickupCards}>
+                    {/* Livraison */}
                     <div
                       className={`${styles.pickupCard} ${pickupMethod === "livraison" ? styles.pickupCardActive : ""}`}
                       onClick={() => setPickupMethod("livraison")}
+                      role="button"
                     >
-                      <span className={styles.pickupIcon}>🏠</span>
+                      <span className={styles.pickupIcon}>🚚</span>
                       <div>
                         <strong>Livraison à domicile</strong>
-                        <span>Le vendeur vient vous déposer le véhicule</span>
+                        <span>Le partenaire livre le véhicule à votre adresse</span>
                       </div>
                       <div className={styles.pickupRadio}>{pickupMethod === "livraison" ? "●" : "○"}</div>
                     </div>
+
+                    {/* Retrait */}
                     <div
                       className={`${styles.pickupCard} ${pickupMethod === "retrait" ? styles.pickupCardActive : ""}`}
                       onClick={() => setPickupMethod("retrait")}
+                      role="button"
                     >
                       <span className={styles.pickupIcon}>🏢</span>
                       <div>
                         <strong>Retrait en agence</strong>
-                        <span>Je me déplace récupérer le véhicule</span>
+                        <span>Je viens récupérer le véhicule — gratuit</span>
                       </div>
                       <div className={styles.pickupRadio}>{pickupMethod === "retrait" ? "●" : "○"}</div>
                     </div>
                   </div>
 
-                  {/* Si livraison → saisir adresse */}
+                  {/* ─── LIVRAISON à domicile ─── */}
                   {pickupMethod === "livraison" && (
-                    <div className={styles.addressBlock}>
-                      <p className={styles.addressLabel}>Votre adresse de livraison</p>
+                    <div className={styles.deliveryBlock}>
 
-                      {/* Mode GPS / texte */}
-                      <div className={styles.addressModeTabs}>
-                        <button
-                          type="button"
-                          className={`${styles.addressModeTab} ${addressMode === "gps" ? styles.addressModeTabActive : ""}`}
-                          onClick={() => setAddressMode("gps")}
-                        >
-                          🎯 Par GPS
-                        </button>
-                        <button
-                          type="button"
-                          className={`${styles.addressModeTab} ${addressMode === "text" ? styles.addressModeTabActive : ""}`}
-                          onClick={() => { setAddressMode("text"); setPickupAddress(""); }}
-                        >
-                          ✏️ Par adresse
-                        </button>
-                      </div>
+                      {/* Titre */}
+                      <p className={styles.deliveryTitle}>
+                        📍 Votre adresse de livraison
+                      </p>
 
-                      {addressMode === "gps" ? (
-                        <div className={styles.gpsBlock}>
-                          {position ? (
-                            <div className={styles.gpsDetected}>
-                              <span>📍</span>
-                              <div>
-                                <strong>Position détectée</strong>
-                                <p>{pickupAddress || geoAddress}</p>
-                              </div>
-                              <button type="button" className={styles.gpsRefreshBtn} onClick={handleDetectGPS} disabled={geoLoading}>
-                                {geoLoading ? "⏳" : "↻ Actualiser"}
-                              </button>
-                            </div>
-                          ) : (
-                            <button type="button" className={styles.gpsDetectBtn} onClick={handleDetectGPS} disabled={geoLoading}>
-                              {geoLoading ? "⏳ Détection en cours..." : "🎯 Détecter ma position GPS"}
-                            </button>
-                          )}
-                          {pickupAddress && (
-                            <input
-                              type="text"
-                              className={styles.addressInput}
-                              value={pickupAddress}
-                              onChange={(e) => setPickupAddress(e.target.value)}
-                              placeholder="Vous pouvez préciser l'adresse"
-                            />
-                          )}
+                      {/* Bouton GPS unique */}
+                      <button
+                        type="button"
+                        className={`${styles.gpsMainBtn} ${gpsState === "loading" ? styles.gpsMainBtnLoading : gpsState === "ok" ? styles.gpsMainBtnOk : ""}`}
+                        onClick={handleDetectGPS}
+                        disabled={gpsState === "loading"}
+                      >
+                        {gpsState === "loading" && <span className={styles.gpsSpinnerInline} />}
+                        {gpsState === "ok"      && <span>✓</span>}
+                        {gpsState === "idle"    && <span>🎯</span>}
+                        {gpsState === "error"   && <span>🔄</span>}
+                        {gpsState === "loading" ? "Détection de votre position…"
+                          : gpsState === "ok"  ? "Position détectée — Cliquez pour actualiser"
+                          : gpsState === "error" ? "Réessayer la détection GPS"
+                          : "Détecter ma position par GPS"}
+                      </button>
+
+                      {/* Erreur GPS → explication */}
+                      {gpsState === "error" && (
+                        <div className={styles.gpsErrorBox}>
+                          <span>⚠️</span>
+                          <div>
+                            <strong>GPS indisponible</strong>
+                            <p>{gpsError}</p>
+                            <p>Saisissez votre adresse manuellement ci-dessous.</p>
+                          </div>
                         </div>
-                      ) : (
+                      )}
+
+                      {/* Champ adresse (toujours visible) */}
+                      <div className={styles.addressInputWrap}>
                         <input
                           type="text"
-                          className={styles.addressInput}
-                          placeholder="Ex: Cocody, Avenue de la Paix, Abidjan"
+                          className={styles.addressMainInput}
+                          placeholder="Ex: 15 Rue Hassan II, Casablanca, Maroc"
                           value={pickupAddress}
-                          onChange={(e) => setPickupAddress(e.target.value)}
-                          required
+                          onChange={(e) => {
+                            setPickupAddress(e.target.value);
+                            if (!e.target.value) { setPickupPosition(null); setGeoDistance(null); setGeoFee(null); }
+                          }}
+                          required={pickupMethod === "livraison"}
                         />
+                        {pickupAddress && (
+                          <button
+                            type="button"
+                            className={styles.addressClearBtn}
+                            onClick={() => { setPickupAddress(""); setPickupPosition(null); setGeoDistance(null); setGeoFee(null); setGpsState("idle"); }}
+                          >✕</button>
+                        )}
+                      </div>
+
+                      {/* Résultat position GPS */}
+                      {gpsState === "ok" && pickupPosition && (
+                        <div className={styles.gpsPositionCard}>
+                          <div className={styles.gpsPositionHeader}>
+                            <span className={styles.gpsPositionDot} />
+                            <strong>Position GPS confirmée</strong>
+                          </div>
+                          <p className={styles.gpsCoords}>
+                            {pickupPosition.lat.toFixed(6)}, {pickupPosition.lng.toFixed(6)}
+                          </p>
+                          <a
+                            href={`https://www.google.com/maps?q=${pickupPosition.lat},${pickupPosition.lng}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={styles.gpsMapLink}
+                          >
+                            🗺️ Vérifier sur Google Maps
+                          </a>
+                        </div>
+                      )}
+
+                      {/* Frais de livraison calculés */}
+                      {pickupMethod === "livraison" && (
+                        <div className={styles.geoDeliveryBox}>
+                          <div className={styles.geoDeliveryHeader}>
+                            <span className={styles.geoDeliveryIcon}>🚚</span>
+                            <div>
+                              <strong>Frais de livraison GPS</strong>
+                              <p>Calculés selon la distance réelle partenaire ↔ vous</p>
+                            </div>
+                          </div>
+
+                          {!pickupPosition ? (
+                            <div className={styles.geoDeliveryAlert}>
+                              Activez votre GPS ou saisissez votre adresse pour calculer les frais.
+                            </div>
+                          ) : geoFeeLoading ? (
+                            <div className={styles.geoDeliveryLoading}>
+                              <span className={styles.geoSpinner} />
+                              Calcul de la distance en cours…
+                            </div>
+                          ) : (
+                            <div className={styles.geoDeliveryResult}>
+                              {agencyFull && (
+                                <div className={styles.geoResultRow}>
+                                  <span>🏢 Partenaire</span>
+                                  <strong>{agencyFull.length > 40 ? agencyFull.slice(0, 40) + "…" : agencyFull}</strong>
+                                </div>
+                              )}
+                              <div className={styles.geoResultRow}>
+                                <span>📍 Vous</span>
+                                <strong>{pickupAddress?.split(",")[0] || "Détectée"}</strong>
+                              </div>
+                              {geoDistance != null && (
+                                <div className={styles.geoResultRow}>
+                                  <span>📏 Distance</span>
+                                  <strong>{geoDistance} km</strong>
+                                </div>
+                              )}
+                              <div className={styles.geoResultFee}>
+                                <span>🚚 Frais de livraison</span>
+                                <strong className={styles.geoFeeAmount}>{fmt(deliveryFee)}</strong>
+                              </div>
+                              <p className={styles.geoFeeNote}>
+                                Tarif : {fmt(DELIVERY_BASE)} base + {DELIVERY_PER_KM} FCFA/km
+                              </p>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
 
+                  {/* ─── RETRAIT en agence ─── */}
                   {pickupMethod === "retrait" && (
-                    <div className={styles.retraitInfo}>
-                      <span>📋</span>
-                      <p>L'adresse exacte du point de retrait vous sera communiquée par le vendeur après confirmation de votre réservation.</p>
-                    </div>
-                  )}
+                    <div className={styles.agencyCard}>
+                      <div className={styles.agencyHeader}>
+                        <div className={styles.agencyAvatar}>
+                          {agencyName.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <strong className={styles.agencyName}>{agencyName}</strong>
+                          <span className={styles.agencyLabel}>Point de retrait</span>
+                        </div>
+                        <div className={styles.agencyFreeTag}>Gratuit</div>
+                      </div>
 
-                  {/* ── Frais de livraison selon distance ── */}
-                  {pickupMethod === "livraison" && (
-                    <div style={{ marginTop: "1.25rem" }}>
-                      <p style={{ fontWeight: 600, fontSize: "0.9rem", color: "#0f1b3f", marginBottom: "0.6rem" }}>
-                        🚚 Distance de livraison
-                      </p>
-                      <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.75rem" }}>
-                        Sélectionnez la distance approximative entre vous et le vendeur pour calculer les frais de livraison.
-                      </p>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                        {DELIVERY_ZONES.map((zone) => (
-                          <label
-                            key={zone.id}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              padding: "0.65rem 0.9rem",
-                              border: `2px solid ${deliveryZone === zone.id ? "#2563eb" : "#e2e8f0"}`,
-                              borderRadius: "10px",
-                              cursor: "pointer",
-                              background: deliveryZone === zone.id ? "#eff6ff" : "#fff",
-                              transition: "all 0.15s",
-                            }}
-                          >
-                            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-                              <input
-                                type="radio"
-                                name="deliveryZone"
-                                value={zone.id}
-                                checked={deliveryZone === zone.id}
-                                onChange={() => setDeliveryZone(zone.id)}
-                                style={{ accentColor: "#2563eb" }}
-                              />
-                              <span style={{ fontSize: "0.87rem", color: "#0f1b3f" }}>{zone.label}</span>
-                            </div>
-                            <span style={{
-                              fontWeight: 700,
-                              fontSize: "0.87rem",
-                              color: deliveryZone === zone.id ? "#2563eb" : "#64748b",
-                            }}>
-                              {zone.fee.toLocaleString("fr-FR")} FCFA
+                      <div className={styles.agencyDetails}>
+                        {agencyFull ? (
+                          <div className={styles.agencyRow}>
+                            <span>📍</span>
+                            <span>{agencyFull}</span>
+                          </div>
+                        ) : (
+                          <div className={styles.agencyRow}>
+                            <span>📍</span>
+                            <span style={{ color: "#8493b0", fontStyle: "italic" }}>
+                              Adresse communiquée après confirmation
                             </span>
-                          </label>
-                        ))}
+                          </div>
+                        )}
+
+                        {agencyPhone && (
+                          <div className={styles.agencyRow}>
+                            <span>📞</span>
+                            <a href={`tel:${agencyPhone}`} className={styles.agencyPhone}>
+                              {agencyPhone}
+                            </a>
+                          </div>
+                        )}
+
+                        {mapsUrl && (
+                          <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+                            className={styles.agencyMapBtn}>
+                            🗺️ Ouvrir dans Google Maps
+                          </a>
+                        )}
+                      </div>
+
+                      <div className={styles.agencyNotice}>
+                        <span>ℹ️</span>
+                        <p>
+                          Présentez-vous avec votre pièce d'identité et la confirmation de réservation.
+                          Le partenaire vous contactera pour confirmer l'heure de disponibilité.
+                        </p>
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* Options */}
+                {/* Options supplémentaires */}
                 <div className={styles.section}>
                   <h3>Options supplémentaires</h3>
 
-                  {/* Badge GPS inclus pour la livraison */}
                   {gpsAutoIncluded && (
-                    <div style={{
-                      display: "flex", alignItems: "center", gap: "0.5rem",
-                      background: "#f0fdf4", border: "1px solid #bbf7d0",
-                      borderRadius: "10px", padding: "0.6rem 0.9rem",
-                      marginBottom: "0.75rem", fontSize: "0.87rem", color: "#166534",
-                    }}>
+                    <div className={styles.gpsIncluded}>
                       <span>📍</span>
-                      <strong>GPS de livraison inclus gratuitement</strong>
-                      <span style={{ color: "#16a34a", fontSize: "0.8rem" }}>— associé automatiquement à votre adresse de livraison</span>
+                      <strong>GPS de livraison inclus</strong>
+                      <span>— associé automatiquement à votre adresse</span>
                     </div>
                   )}
 
                   <div className={styles.optionsGrid}>
-                    {/* GPS affiché en option payante seulement pour le retrait */}
                     {!gpsAutoIncluded && (
-                      <label key="gps" className={styles.optionItem}>
+                      <label className={styles.optionItem}>
                         <input type="checkbox" name="gps" checked={selectedOptions.gps} onChange={handleChange} />
                         <span>{gpsOption.label} +{gpsOption.price.toLocaleString("fr-FR")} FCFA/jour</span>
                       </label>
@@ -621,55 +1007,184 @@ const Booking = () => {
           </form>
         )}
 
-        {/* ══════════════════════════════════════ */}
-        {/* ÉTAPE 2 — Vérification identité        */}
-        {/* ══════════════════════════════════════ */}
+        {/* ══════════════ ÉTAPE 2 — VÉRIFICATION ══════════════ */}
         {step === 2 && (
           <form onSubmit={handleVerifSubmit} className={styles.form}>
-            <div className={styles.section}>
-              <h3>Vérification d'identité</h3>
-              <p style={{ color: "#64748b", fontSize: "0.9rem", marginBottom: "1rem" }}>
-                Requise pour la sécurité de toutes les parties. Données chiffrées et confidentielles.
-              </p>
-              <div className={styles.row}>
-                <label>
-                  Type de pièce
-                  <select name="idType" value={verificationForm.idType} onChange={handleVerifChange} required>
-                    <option value="cni">CNI (Carte nationale)</option>
-                    <option value="passport">Passeport</option>
-                    <option value="permis">Permis de conduire</option>
-                  </select>
-                </label>
-                <label>
-                  Numéro de pièce
-                  <input type="text" name="idNumber" placeholder="Ex: CI-0000-000000"
-                    value={verificationForm.idNumber} onChange={handleVerifChange} required />
-                </label>
+
+            {/* En-tête sécurité */}
+            <div className={styles.verifHero}>
+              <div className={styles.verifHeroIcon}>🛡️</div>
+              <div>
+                <h3 className={styles.verifHeroTitle}>Vérification d'identité</h3>
+                <p className={styles.verifHeroSub}>
+                  Votre pièce d'identité doit être valide et authentique.
+                  Données chiffrées TLS 1.3 — jamais revendues.
+                </p>
               </div>
-              <label>
-                Adresse de résidence (facultatif)
-                <input type="text" name="address" placeholder="Ex: Cocody, Abidjan"
-                  value={verificationForm.address} onChange={handleVerifChange} />
+            </div>
+
+            {/* Type de pièce */}
+            <div className={styles.section}>
+              <h4 className={styles.fieldLabel}>Type de document *</h4>
+              <div className={styles.idTypeGrid}>
+                {[
+                  { value: "cni",      icon: "🪪", label: "Carte nationale (CNI)" },
+                  { value: "passport", icon: "📘", label: "Passeport" },
+                  { value: "permis",   icon: "🚗", label: "Permis de conduire" },
+                ].map((doc) => (
+                  <button
+                    key={doc.value}
+                    type="button"
+                    className={`${styles.idTypeBtn} ${verificationForm.idType === doc.value ? styles.idTypeBtnActive : ""}`}
+                    onClick={() => handleVerifChange({ target: { name: "idType", value: doc.value, type: "select" } })}
+                  >
+                    <span className={styles.idTypeIcon}>{doc.icon}</span>
+                    <span>{doc.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Numéro + validation */}
+              <div className={styles.idNumberSection}>
+                <h4 className={styles.fieldLabel}>
+                  Numéro de {ID_RULES[verificationForm.idType]?.label || "document"} *
+                </h4>
+                <p className={styles.idHint}>
+                  💡 {ID_RULES[verificationForm.idType]?.hint}
+                </p>
+
+                <div className={styles.idNumberWrap}>
+                  <input
+                    type="text"
+                    name="idNumber"
+                    placeholder={`Ex: ${ID_RULES[verificationForm.idType]?.patterns[0]?.example || "Numéro du document"}`}
+                    value={verificationForm.idNumber}
+                    onChange={handleVerifChange}
+                    className={`${styles.idNumberInput}
+                      ${idValidation.status === "valid"   ? styles.idInputValid   : ""}
+                      ${idValidation.status === "warning" ? styles.idInputWarning : ""}
+                      ${idValidation.status === "error"   ? styles.idInputError   : ""}
+                      ${verifyDone                         ? styles.idInputVerified : ""}
+                    `}
+                    required
+                    autoComplete="off"
+                    maxLength={25}
+                    disabled={verifying}
+                  />
+                  {/* Icône statut */}
+                  <span className={styles.idStatusIcon}>
+                    {verifying      && <span className={styles.idSpinner} />}
+                    {verifyDone     && !verifying && "✓"}
+                    {verifyFailed   && !verifying && "✗"}
+                    {!verifying && !verifyDone && !verifyFailed && idValidation.status === "valid"   && "✓"}
+                    {!verifying && !verifyDone && !verifyFailed && idValidation.status === "warning" && "⚠"}
+                    {!verifying && !verifyDone && !verifyFailed && idValidation.status === "error"   && "✗"}
+                  </span>
+                </div>
+
+                {/* Message de validation temps réel */}
+                {idValidation.message && !verifyDone && !verifyFailed && (
+                  <div className={`${styles.idFeedback}
+                    ${idValidation.status === "valid"   ? styles.idFeedbackValid   : ""}
+                    ${idValidation.status === "warning" ? styles.idFeedbackWarning : ""}
+                    ${idValidation.status === "error"   ? styles.idFeedbackError   : ""}
+                  `}>
+                    {idValidation.status === "valid"   ? "✓" : idValidation.status === "warning" ? "⚠" : "✗"}
+                    {" "}{idValidation.message}
+                  </div>
+                )}
+
+                {/* Résultat vérification */}
+                {verifyDone && (
+                  <div className={styles.idVerified}>
+                    <span>✅</span>
+                    <div>
+                      <strong>Pièce d'identité vérifiée</strong>
+                      <p>Le numéro a été validé avec succès. Vous pouvez continuer.</p>
+                    </div>
+                  </div>
+                )}
+                {verifyFailed && (
+                  <div className={styles.idVerifyFailed}>
+                    <span>❌</span>
+                    <div>
+                      <strong>Vérification échouée</strong>
+                      <p>Le numéro saisi ne correspond pas à un document valide. Vérifiez et réessayez.</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Bouton Vérifier */}
+                {!verifyDone && (
+                  <button
+                    type="button"
+                    className={`${styles.verifyBtn} ${verifying ? styles.verifyBtnLoading : ""}`}
+                    onClick={handleVerifyId}
+                    disabled={verifying || idValidation.status === "empty" || idValidation.status === "error"}
+                  >
+                    {verifying ? (
+                      <><span className={styles.idSpinner} /> Vérification en cours…</>
+                    ) : (
+                      <><span>🔍</span> Vérifier ma pièce d'identité</>
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {/* Adresse de résidence */}
+              <label className={styles.fieldLabelFull} style={{ marginTop: 16 }}>
+                <span className={styles.fieldLabel}>Adresse de résidence <small style={{ fontWeight: 400, color: "#94a3b8" }}>(facultatif)</small></span>
+                <input
+                  type="text"
+                  name="address"
+                  placeholder="Ex: Hay Riad, Rabat, Maroc"
+                  value={verificationForm.address}
+                  onChange={handleVerifChange}
+                  className={styles.textInput}
+                />
               </label>
             </div>
 
+            {/* Sécurité info */}
+            <div className={styles.securityBadges}>
+              <div className={styles.securityBadge}><span>🔐</span> TLS 1.3</div>
+              <div className={styles.securityBadge}><span>🇲🇦</span> Loi 09-08</div>
+              <div className={styles.securityBadge}><span>🇪🇺</span> RGPD</div>
+              <div className={styles.securityBadge}><span>🚫</span> Non revendues</div>
+            </div>
+
+            {/* CGU */}
             <div className={styles.section}>
               <label className={styles.checkLabel}>
-                <input type="checkbox" name="agreeTerms" checked={verificationForm.agreeTerms} onChange={handleVerifChange} />
-                J'accepte les <a href="/plans" target="_blank" rel="noopener noreferrer">conditions générales</a> de VIT AUTO
+                <input
+                  type="checkbox"
+                  name="agreeTerms"
+                  checked={verificationForm.agreeTerms}
+                  onChange={handleVerifChange}
+                />
+                J'accepte les{" "}
+                <Link to="/cgu" target="_blank" rel="noopener noreferrer">conditions générales d'utilisation</Link>
+                {" "}et la{" "}
+                <Link to="/privacy" target="_blank" rel="noopener noreferrer">politique de confidentialité</Link>
+                {" "}de VIT AUTO.
               </label>
             </div>
 
             <div className={styles.section} style={{ display: "flex", gap: "1rem" }}>
               <button type="button" className={styles.secondaryBtn} onClick={() => setStep(1)}>← Retour</button>
-              <button type="submit" className={styles.primaryBtn}>Continuer →</button>
+              <button
+                type="submit"
+                className={`${styles.primaryBtn} ${!verifyDone ? styles.primaryBtnDisabled : ""}`}
+                disabled={!verifyDone}
+                title={!verifyDone ? "Vérifiez d'abord votre pièce d'identité" : ""}
+              >
+                {verifyDone ? "Continuer →" : "🔒 Vérification requise"}
+              </button>
             </div>
           </form>
         )}
 
-        {/* ══════════════════════════════════════ */}
-        {/* ÉTAPE 3 — Paiement                     */}
-        {/* ══════════════════════════════════════ */}
+        {/* ══════════════ ÉTAPE 3 ══════════════ */}
         {step === 3 && (
           <form onSubmit={handlePaymentSubmit} className={styles.form}>
             <div className={styles.section}>
@@ -701,8 +1216,9 @@ const Booking = () => {
 
             {["orange", "wave", "mtn", "moov"].includes(paymentForm.paymentMethod) && (
               <div className={styles.section}>
-                <h3>Numéro {paymentForm.paymentMethod.toUpperCase()}</h3>
-                <input type="tel" name="mobileNumber" value={paymentForm.mobileNumber} onChange={handleChange} placeholder="+225 07 000 00 00" required />
+                <h3>Numéro {paymentForm.paymentMethod.charAt(0).toUpperCase() + paymentForm.paymentMethod.slice(1)}</h3>
+                <input type="tel" name="mobileNumber" value={paymentForm.mobileNumber} onChange={handleChange}
+                  placeholder="+212 06 00 00 00 00" required />
               </div>
             )}
 
@@ -716,12 +1232,13 @@ const Booking = () => {
         )}
       </div>
 
-      {/* ── Récapitulatif sidebar ─────────────── */}
+      {/* ── Récapitulatif sidebar ── */}
       <aside className={styles.summaryCard}>
         <h3>Récapitulatif</h3>
         <div className={styles.summaryImage}>
-          <img src={vehicle.image} alt={vehicle.name} />
-          <span>{vehicle.name}</span>
+          <img src={vehicle.images?.[0] || vehicle.image} alt={vehicle.title || vehicle.name}
+            onError={(e) => { e.target.style.display = "none"; }} />
+          <span>{vehicle.title || vehicle.name}</span>
         </div>
 
         {isTrial ? (
@@ -736,31 +1253,38 @@ const Booking = () => {
             <div className={styles.summaryItem}><span>Prix / jour</span><strong>{fmt(vehicle.pricePerDay || 0)}</strong></div>
             {days > 0 && <div className={styles.summaryItem}><span>Durée</span><strong>{days} jour{days > 1 ? "s" : ""}</strong></div>}
             <div className={styles.summaryItem}><span>Base</span><strong>{fmt(baseTotal)}</strong></div>
-            <div className={styles.summaryItem}><span>Options</span><strong>{fmt(optionsTotal)}</strong></div>
+            {optionsTotal > 0 && <div className={styles.summaryItem}><span>Options</span><strong>{fmt(optionsTotal)}</strong></div>}
             {pickupMethod === "livraison" && (
               <div className={styles.summaryItem}>
-                <span>🚚 Livraison ({selectedZone.label.split("(")[0].trim()})</span>
-                <strong>{fmt(deliveryFee)}</strong>
+                <span>🚚 Livraison{geoDistance ? ` (${geoDistance} km)` : ""}</span>
+                <strong>{geoFeeLoading ? "Calcul…" : fmt(deliveryFee)}</strong>
+              </div>
+            )}
+            {pickupMethod === "retrait" && (
+              <div className={styles.summaryItem}>
+                <span>🏢 Retrait agence</span>
+                <strong style={{ color: "#10b981" }}>Gratuit</strong>
               </div>
             )}
             <div className={styles.summaryItem}><span>Frais de service</span><strong>{fmt(SERVICE_FEE)}</strong></div>
-            <div className={styles.summaryTotal}><span>Total TTC</span><strong>{fmt(totalToPay)}</strong></div>
-            {/* Prise en charge */}
-            {pickupMethod && (
-              <div className={styles.pickupSummary}>
-                <span>{pickupMethod === "livraison" ? "🏠 Livraison" : "🏢 Retrait agence"}</span>
-                {pickupMethod === "livraison" && pickupAddress && (
-                  <small>{pickupAddress.length > 50 ? pickupAddress.slice(0, 50) + "…" : pickupAddress}</small>
-                )}
-              </div>
-            )}
+            <div className={styles.summaryTotal}><span>Total</span><strong>{fmt(totalToPay)}</strong></div>
           </>
         )}
 
-        <p className={styles.guarantee}>Réservation sécurisée · Contrat digital inclus</p>
+        {/* Mode prise en charge */}
+        {!isTrial && (
+          <div className={styles.pickupSummary}>
+            {pickupMethod === "livraison"
+              ? <><span>🚚</span>{pickupAddress ? <span>{pickupAddress.slice(0, 50)}{pickupAddress.length > 50 ? "…" : ""}</span> : <small>Adresse à renseigner</small>}</>
+              : <><span>🏢</span><span>{agencyFull || "Retrait en agence"}</span></>
+            }
+          </div>
+        )}
+
+        <div className={styles.guarantee}>
+          🛡️ Contrat digital · Paiement sécurisé · Identité vérifiée
+        </div>
       </aside>
     </div>
   );
-};
-
-export default Booking;
+}

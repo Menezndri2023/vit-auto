@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import NotificationBell from "../NotificationBell/NotificationBell";
+import LanguageSelector from "../LanguageSelector/LanguageSelector";
 import styles from "./Navbar.module.css";
 
 const Navbar = () => {
@@ -36,7 +37,7 @@ const Navbar = () => {
 
       {/* Liens principaux */}
       <ul className={`${styles.navLinks} ${menuOpen ? styles.navOpen : ""}`}>
-        <li><NavLink to="/"          className={navLink} onClick={() => setMenuOpen(false)}>Accueil</NavLink></li>
+        <li><NavLink to="/" end className={navLink} onClick={() => setMenuOpen(false)}>Accueil</NavLink></li>
         <li><NavLink to="/catalogue" className={navLink} onClick={() => setMenuOpen(false)}>Catalogue</NavLink></li>
 
         {/* Page Services uniquement pour non connectés */}
@@ -47,9 +48,10 @@ const Navbar = () => {
         {/* Liens visibles uniquement par les partenaires */}
         {isPartner && (
           <>
-            <li><NavLink to="/vendor"           className={navLink} onClick={() => setMenuOpen(false)}>Publier</NavLink></li>
+            {/* end = exact match /vendor seulement, pas /vendor/dashboard */}
+            <li><NavLink to="/vendor" end className={navLink} onClick={() => setMenuOpen(false)}>Publier</NavLink></li>
             <li><NavLink to="/vendor/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>Mon espace</NavLink></li>
-            <li><NavLink to="/plans"            className={navLink} onClick={() => setMenuOpen(false)}>Tarifs</NavLink></li>
+            <li><NavLink to="/plans" end className={navLink} onClick={() => setMenuOpen(false)}>Tarifs</NavLink></li>
           </>
         )}
 
@@ -97,7 +99,7 @@ const Navbar = () => {
               <NavLink to="/help"     className={navLink} onClick={() => setMenuOpen(false)}>Centre d'aide</NavLink>
             </li>
             <li className={`${styles.mobileOnly} ${styles.mobilePartner}`}>
-              <NavLink to="/register" className={navLink} onClick={() => setMenuOpen(false)}>Devenez partenaire</NavLink>
+              <NavLink to="/register?role=partenaire" className={navLink} onClick={() => setMenuOpen(false)}>Devenez partenaire</NavLink>
             </li>
           </>
         )}
@@ -105,6 +107,9 @@ const Navbar = () => {
 
       {/* Partie droite */}
       <div className={styles.navRight}>
+        {/* Sélecteur de langue — toujours visible */}
+        <LanguageSelector />
+
         {isAuthenticated ? (
           <>
             <NotificationBell />
@@ -144,7 +149,7 @@ const Navbar = () => {
                 </button>
                 <button
                   className={styles.partnerItem}
-                  onClick={() => { navigate("/register"); setDropdownOpen(false); }}
+                  onClick={() => { navigate("/register?role=partenaire"); setDropdownOpen(false); }}
                 >
                   <span className={styles.diIcon}>🤝</span> Devenez partenaire
                 </button>

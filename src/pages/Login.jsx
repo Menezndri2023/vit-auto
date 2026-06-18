@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import styles from "./Auth.module.css";
@@ -7,10 +7,16 @@ import styles from "./Auth.module.css";
 const Login = () => {
   const { login } = useAuth();
   const { success, error } = useToast();
-  const navigate = useNavigate();
-  const [form,        setForm]        = useState({ email: "", password: "" });
-  const [loading,     setLoading]     = useState(false);
-  const [notVerified, setNotVerified] = useState(null); // email à reverifier
+  const navigate  = useNavigate();
+  const location  = useLocation();
+
+  // Page depuis laquelle l'utilisateur a été redirigé (ex: /booking/xxx)
+  const fromPage = location.state?.from?.pathname || null;
+  const fromSearch = location.state?.from?.search || "";
+
+  const [form,          setForm]          = useState({ email: "", password: "" });
+  const [loading,       setLoading]       = useState(false);
+  const [notVerified,   setNotVerified]   = useState(null);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendDone,    setResendDone]    = useState(false);
 
@@ -25,10 +31,13 @@ const Login = () => {
       const loggedUser = await login({ email: form.email, password: form.password });
       success("Connexion réussie ! Redirection...");
       const role = loggedUser?.role;
-      const dest = role === "admin"      ? "/admin"
-                 : role === "partenaire" ? "/vendor/dashboard"
-                 : "/dashboard";
-      setTimeout(() => navigate(dest), 1000);
+
+      // Priorité : page d'origine → puis dashboard selon rôle
+      const defaultDest = role === "admin"      ? "/admin"
+                        : role === "partenaire" ? "/vendor/dashboard"
+                        : "/dashboard";
+      const dest = fromPage || defaultDest;
+      setTimeout(() => navigate(dest + fromSearch, { replace: true }), 900);
     } catch (err) {
       if (err.code === "EMAIL_NOT_VERIFIED") {
         setNotVerified(err.email || form.email);
@@ -66,6 +75,19 @@ const Login = () => {
           <h1>VIT AUTO</h1>
           <p>Connectez-vous à votre espace</p>
         </div>
+
+        {/* Bloc redirection depuis page protégée */}
+        {fromPage && !notVerified && (
+          <div style={{ background: "#eff6ff", border: "1.5px solid #bfdbfe", borderRadius: 12, padding: "12px 16px", marginBottom: 16 }}>
+            <p style={{ margin: 0, fontSize: "0.85rem", color: "#1e40af", fontWeight: 600 }}>
+              🔒 Connectez-vous pour accéder à{" "}
+              <strong>{fromPage === "/vendor" || fromPage === "/vendor/dashboard" ? "l'espace partenaire"
+                      : fromPage.startsWith("/booking") ? "votre réservation"
+                      : fromPage === "/profile" ? "votre profil"
+                      : "cette page"}</strong>.
+            </p>
+          </div>
+        )}
 
         {/* Bloc email non vérifié */}
         {notVerified && (

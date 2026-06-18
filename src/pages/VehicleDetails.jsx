@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import { useCurrency } from "../context/CurrencyContext";
 import styles from "./VehicleDetails.module.css";
@@ -113,8 +113,8 @@ export default function VehicleDetails() {
     <div className={styles.page}>
       {/* ── Navigation ── */}
       <div className={styles.nav}>
-        <button className={styles.backBtn} onClick={() => navigate(-1)}>
-          ← Retour
+        <button className={styles.backBtn} onClick={() => navigate(-1) || navigate("/catalogue")}>
+          ← Retour au catalogue
         </button>
         <div className={styles.navRight}>
           <button className={styles.shareBtn} onClick={handleShare}>
@@ -135,7 +135,7 @@ export default function VehicleDetails() {
               ? <span className={styles.badgeAvail}>Disponible</span>
               : <span className={styles.badgeUnavail}>Indisponible</span>}
           </div>
-          <h1 className={styles.heading}>{vehicle.name}</h1>
+          <h1 className={styles.heading}>{vehicle.title || vehicle.name}</h1>
           {(vehicle.ville || vehicle.adresse) && (
             <p className={styles.location}>📍 {[vehicle.ville, vehicle.adresse].filter(Boolean).join(", ")}</p>
           )}
@@ -232,6 +232,52 @@ export default function VehicleDetails() {
             <LeasingCard leasing={vehicle.leasing} priceForSale={vehicle.buyPrice || vehicle.priceForSale} vehicleId={vehicle._id || vehicle.id} navigate={navigate} fmt={fmt} />
           )}
 
+          {/* ── Carte annonceur ── */}
+          {(vehicle.ownerName || vehicle.contactNom || vehicle.partnerName || vehicle.ownerPhone || vehicle.contactTel) && (
+            <div className={styles.card}>
+              <h3 className={styles.cardTitle}>À propos de l'annonceur</h3>
+              <div className={styles.publisherCard}>
+                <div className={styles.publisherAvatar}>
+                  {(vehicle.ownerName || vehicle.contactNom || "P").charAt(0).toUpperCase()}
+                </div>
+                <div className={styles.publisherInfo}>
+                  <strong className={styles.publisherName}>
+                    {vehicle.ownerName || vehicle.contactNom || vehicle.partnerName || "Partenaire VIT AUTO"}
+                  </strong>
+                  {vehicle.ownerCity && (
+                    <span className={styles.publisherMeta}>📍 {vehicle.ownerCity}</span>
+                  )}
+                  {vehicle.ownerType && (
+                    <span className={styles.publisherMeta}>
+                      {vehicle.ownerType === "agency" ? "Agence de location"
+                        : vehicle.ownerType === "dealer" ? "Concessionnaire"
+                        : vehicle.ownerType === "fleet" ? "Gestionnaire de flotte"
+                        : "Partenaire"}
+                    </span>
+                  )}
+                </div>
+                <div className={styles.publisherActions}>
+                  {(vehicle.ownerPhone || vehicle.contactTel) && (
+                    <a
+                      href={`tel:${vehicle.ownerPhone || vehicle.contactTel}`}
+                      className={styles.publisherCall}
+                    >
+                      📞 Appeler
+                    </a>
+                  )}
+                  {vehicle.ownerId && (
+                    <Link
+                      to={`/partner/${vehicle.ownerId}`}
+                      className={styles.publisherProfile}
+                    >
+                      Voir le profil →
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Bouton CTA */}
           <div className={styles.ctaBlock}>
             {vehicle.available !== false ? (
@@ -256,11 +302,6 @@ export default function VehicleDetails() {
                 Ce véhicule n'est pas disponible pour le moment.
                 <Link to="/catalogue" className={styles.altLink}>Voir d'autres véhicules</Link>
               </div>
-            )}
-            {vehicle.contactTel && (
-              <a href={`tel:${vehicle.contactTel}`} className={styles.callBtn}>
-                📞 Appeler le partenaire
-              </a>
             )}
           </div>
         </div>

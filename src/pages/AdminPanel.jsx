@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
+import { Link } from "react-router-dom";
 import styles from "./AdminPanel.module.css";
 
 // ─── Utilitaires ───────────────────────────────────────────────────────────────
@@ -430,11 +431,12 @@ export default function AdminPanel() {
       <nav className={styles.tabs}>
         {[
           { key: "dashboard",   icon: "📊", label: "Dashboard" },
+          { key: "accueil",     icon: "🏠", label: "Accueil" },
           { key: "validations", icon: "✅", label: "Validations" },
           { key: "users",       icon: "👥", label: `Utilisateurs (${users.length})` },
           { key: "vehicles",    icon: "🚗", label: `Annonces (${vehicles.length})` },
           { key: "bookings",    icon: "📋", label: `Commandes (${bookings.length})` },
-          { key: "vedette",     icon: "⭐", label: "Véhicules vedette" },
+          { key: "vedette",     icon: "⭐", label: "Vedette" },
         ].map(({ key, icon, label }) => (
           <button
             key={key}
@@ -465,6 +467,11 @@ export default function AdminPanel() {
       ) : (
 
         <>
+          {/* ══════════════════════ TAB ACCUEIL ══════════════════════ */}
+          {activeTab === "accueil" && (
+            <AccueilSection vehicles={vehicles} token={token} onRefresh={loadAll} />
+          )}
+
           {/* ══════════════════════ TAB VALIDATIONS ══════════════════ */}
           {activeTab === "validations" && (
             <div className={styles.tabContent}>
@@ -1006,8 +1013,8 @@ export default function AdminPanel() {
                           <td>
                             <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
                               {b.contract && (
-                                <a href={`/contract/${b._id}`} target="_blank" rel="noopener noreferrer"
-                                  className={styles.contractLink}>📄</a>
+                                <Link to={`/contract/${b._id}`} target="_blank" rel="noopener noreferrer"
+                                  className={styles.contractLink}>📄</Link>
                               )}
                               {b.status === "pending" && (
                                 <button className={styles.btnApprove} style={{ padding: "0.25rem 0.6rem", fontSize: "0.76rem" }}
@@ -1040,6 +1047,257 @@ export default function AdminPanel() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// ─── AccueilSection — Gestion de la page d'accueil ─────────────────────────────
+const MAX_SPOTLIGHTS = 5;
+
+function AccueilSection({ vehicles, token, onRefresh }) {
+  const approved = vehicles.filter((v) => v.status === "approved" || v.available);
+
+  // Tableau de IDs spotlight (jusqu'à 5) stocké en JSON
+  const [spotlightIds, setSpotlightIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem("vit_hero_spotlights");
+      if (saved) return JSON.parse(saved);
+      // Rétrocompat : ancienne clé unique
+      const legacy = localStorage.getItem("vit_hero_spotlight");
+      return legacy ? [legacy] : [];
+    } catch { return []; }
+  });
+
+  const [saving, setSaving]     = useState(null);
+  const [heroText, setHeroText] = useState(() => localStorage.getItem("vit_hero_title") || "");
+  const [heroSub,  setHeroSub]  = useState(() => localStorage.getItem("vit_hero_sub")   || "");
+  const [savedMsg, setSavedMsg] = useState("");
+
+  const featuredCount = approved.filter((v) => v.featured).length;
+
+  const flash = (msg) => { setSavedMsg(msg); setTimeout(() => setSavedMsg(""), 2800); };
+
+  const saveSpotlights = (ids) => {
+    localStorage.setItem("vit_hero_spotlights", JSON.stringify(ids));
+    localStorage.setItem("vit_hero_spotlight", ids[0] || ""); // rétrocompat
+    setSpotlightIds(ids);
+  };
+
+  const toggleSpotlight = (vid) => {
+    const str = String(vid);
+    if (spotlightIds.includes(str)) {
+      const next = spotlightIds.filter((id) => id !== str);
+      saveSpotlights(next);
+      flash("Retiré du carrousel");
+    } else if (spotlightIds.length >= MAX_SPOTLIGHTS) {
+      flash(`Maximum ${MAX_SPOTLIGHTS} véhicules dans le carrousel`);
+    } else {
+      const next = [...spotlightIds, str];
+      saveSpotlights(next);
+      flash(`Ajouté au carrousel (${next.length}/${MAX_SPOTLIGHTS})`);
+    }
+  };
+
+  const moveSpotlight = (idx, dir) => {
+    const next = [...spotlightIds];
+    const to = idx + dir;
+    if (to < 0 || to >= next.length) return;
+    [next[idx], next[to]] = [next[to], next[idx]];
+    saveSpotlights(next);
+  };
+
+  const saveTexts = () => {
+    localStorage.setItem("vit_hero_title", heroText);
+    localStorage.setItem("vit_hero_sub",   heroSub);
+    flash("Textes sauvegardés !");
+  };
+
+  const toggleFeatured = async (vid, current) => {
+    setSaving(String(vid));
+    try {
+      const res = await fetch(`/api/vehicles/${vid}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ featured: !current }),
+      });
+      if (res.ok) onRefresh();
+    } catch { /* */ }
+    setSaving(null);
+  };
+
+  const s = {
+    block: { background: "#fff", border: "1.5px solid #e8edf8", borderRadius: 16, padding: "20px 24px", marginBottom: 20 },
+    label: { fontSize: "0.8rem", fontWeight: 700, color: "#0f1b3f", display: "block", marginBottom: 6 },
+    input: { width: "100%", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 12px", fontSize: "0.88rem", fontFamily: "inherit", boxSizing: "border-box" },
+    row:   { display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", border: "1.5px solid #e8edf8", borderRadius: 12, marginBottom: 8, background: "#fff" },
+    badge: (color, bg) => ({ background: bg, color, fontSize: "0.68rem", fontWeight: 800, padding: "2px 10px", borderRadius: 999, whiteSpace: "nowrap" }),
+    btn:   (bg, color = "#fff", extra = {}) => ({ background: bg, color, border: "none", borderRadius: 8, padding: "6px 14px", fontSize: "0.78rem", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", ...extra }),
+  };
+
+  return (
+    <div style={{ padding: "1.5rem 0" }}>
+      {/* Titre section */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+        <span style={{ fontSize: "1.4rem" }}>🏠</span>
+        <div>
+          <h2 style={{ margin: "0 0 3px", fontSize: "1.2rem", color: "#0f1b3f", fontWeight: 800 }}>
+            Gestion de la page d'accueil
+          </h2>
+          <p style={{ margin: 0, fontSize: "0.82rem", color: "#8493b0" }}>
+            Carrousel Hero (3-5 slides), textes, vedette «Section du moment».
+          </p>
+        </div>
+      </div>
+
+      {savedMsg && (
+        <div style={{ background: "#ecfdf5", border: "1px solid #6ee7b7", borderRadius: 10, padding: "10px 16px", marginBottom: 16, color: "#065f46", fontWeight: 700, fontSize: "0.88rem" }}>
+          ✅ {savedMsg}
+        </div>
+      )}
+
+      {/* ── Textes bannière ── */}
+      <div style={s.block}>
+        <h3 style={{ margin: "0 0 14px", fontSize: "0.95rem", color: "#0f1b3f", fontWeight: 800 }}>
+          ✍️ Textes de la bannière principale
+        </h3>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div>
+            <label style={s.label}>Titre (laissez vide pour le titre par défaut)</label>
+            <input style={s.input} value={heroText} onChange={(e) => setHeroText(e.target.value)}
+              placeholder="Ex : Location & vente de véhicules premium" />
+          </div>
+          <div>
+            <label style={s.label}>Sous-titre</label>
+            <input style={s.input} value={heroSub} onChange={(e) => setHeroSub(e.target.value)}
+              placeholder="Ex : Livraison GPS à domicile, paiement sécurisé, 14 pays..." />
+          </div>
+          <button style={{ ...s.btn("#0f1b3f"), width: "fit-content", marginTop: 4 }} onClick={saveTexts}>
+            💾 Sauvegarder
+          </button>
+        </div>
+      </div>
+
+      {/* ── Carrousel Hero (3-5 véhicules) ── */}
+      <div style={s.block}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+          <div>
+            <h3 style={{ margin: "0 0 4px", fontSize: "0.95rem", color: "#0f1b3f", fontWeight: 800 }}>
+              🎬 Carrousel Hero — {spotlightIds.length}/{MAX_SPOTLIGHTS} slides sélectionnées
+            </h3>
+            <p style={{ margin: 0, fontSize: "0.78rem", color: "#8493b0" }}>
+              Sélectionnez entre 1 et {MAX_SPOTLIGHTS} véhicules pour le carrousel principal de l'accueil (défilement 5 s).
+            </p>
+          </div>
+          {spotlightIds.length > 0 && (
+            <button style={{ ...s.btn("#ef4444"), fontSize: "0.72rem", padding: "4px 12px" }}
+              onClick={() => { saveSpotlights([]); flash("Carrousel réinitialisé"); }}>
+              Tout retirer
+            </button>
+          )}
+        </div>
+
+        {/* Ordre actuel */}
+        {spotlightIds.length > 0 && (
+          <div style={{ background: "#f8faff", border: "1px solid #e8edf8", borderRadius: 12, padding: "12px 14px", marginBottom: 14 }}>
+            <p style={{ margin: "0 0 10px", fontSize: "0.78rem", fontWeight: 700, color: "#5a6a8a" }}>
+              Ordre d'affichage (glissez avec ↑↓) :
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {spotlightIds.map((sid, idx) => {
+                const v = approved.find((x) => (x._id || x.id)?.toString() === sid);
+                if (!v) return null;
+                return (
+                  <div key={sid} style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid #e0e7ff", borderRadius: 8, padding: "7px 10px" }}>
+                    <span style={{ fontSize: "0.7rem", fontWeight: 800, color: "#6366f1", minWidth: 20 }}>#{idx + 1}</span>
+                    {(v.images?.[0] || v.image) && <img src={v.images?.[0] || v.image} alt="" style={{ width: 36, height: 26, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} />}
+                    <span style={{ flex: 1, fontSize: "0.82rem", fontWeight: 600, color: "#0f1b3f", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {v.title || v.name}
+                    </span>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <button disabled={idx === 0} style={{ ...s.btn("#e8edf8", "#5a6a8a", { padding: "3px 8px", opacity: idx === 0 ? 0.4 : 1 }) }} onClick={() => moveSpotlight(idx, -1)}>↑</button>
+                      <button disabled={idx === spotlightIds.length - 1} style={{ ...s.btn("#e8edf8", "#5a6a8a", { padding: "3px 8px", opacity: idx === spotlightIds.length - 1 ? 0.4 : 1 }) }} onClick={() => moveSpotlight(idx, 1)}>↓</button>
+                      <button style={{ ...s.btn("#fee2e2", "#ef4444", { padding: "3px 8px" }) }} onClick={() => toggleSpotlight(sid)}>✕</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Liste des véhicules disponibles */}
+        <div style={{ maxHeight: 380, overflowY: "auto", display: "flex", flexDirection: "column", gap: 7 }}>
+          {approved.slice(0, 30).map((v) => {
+            const vid = (v._id || v.id)?.toString();
+            const posIdx = spotlightIds.indexOf(vid);
+            const isIn  = posIdx !== -1;
+            const full  = !isIn && spotlightIds.length >= MAX_SPOTLIGHTS;
+            return (
+              <div key={vid} style={{ ...s.row, borderColor: isIn ? "#6366f1" : "#e8edf8", background: isIn ? "#f5f3ff" : "#fff" }}>
+                {(v.images?.[0] || v.image)
+                  ? <img src={v.images?.[0] || v.image} alt="" style={{ width: 52, height: 38, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} />
+                  : <div style={{ width: 52, height: 38, background: "#e8edf8", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>🚗</div>}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ margin: 0, fontWeight: 700, color: "#0f1b3f", fontSize: "0.88rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {v.title || v.name}
+                  </p>
+                  <p style={{ margin: 0, fontSize: "0.72rem", color: "#8493b0" }}>
+                    {v.ville || "—"} · {v.vehicleType || v.type || "—"}
+                  </p>
+                </div>
+                {isIn && <span style={s.badge("#6366f1", "#eff0ff")}>#{posIdx + 1}</span>}
+                {full && !isIn && <span style={s.badge("#94a3b8", "#f1f5f9")}>Complet</span>}
+                <button
+                  style={isIn ? s.btn("#ef4444") : s.btn(full ? "#cbd5e1" : "#6366f1")}
+                  disabled={full && !isIn}
+                  onClick={() => toggleSpotlight(vid)}
+                >
+                  {isIn ? "Retirer" : full ? "—" : "+ Ajouter"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Vedette Section du moment ── */}
+      <div style={s.block}>
+        <h3 style={{ margin: "0 0 4px", fontSize: "0.95rem", color: "#0f1b3f", fontWeight: 800 }}>
+          ⭐ Véhicules en vedette — «Section du moment»
+        </h3>
+        <p style={{ margin: "0 0 14px", fontSize: "0.78rem", color: "#8493b0" }}>
+          {featuredCount} véhicule{featuredCount !== 1 ? "s" : ""} en vedette. Le carousel de l'accueil les affiche en priorité.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 7, maxHeight: 420, overflowY: "auto" }}>
+          {approved.map((v) => {
+            const vid = (v._id || v.id)?.toString();
+            const isSav = saving === vid;
+            return (
+              <div key={vid} style={{ ...s.row, borderColor: v.featured ? "#f59e0b" : "#e8edf8", background: v.featured ? "#fffbeb" : "#fff" }}>
+                {(v.images?.[0] || v.image)
+                  ? <img src={v.images?.[0] || v.image} alt="" style={{ width: 52, height: 38, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} />
+                  : <div style={{ width: 52, height: 38, background: "#e8edf8", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>🚗</div>}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ margin: 0, fontWeight: 700, color: "#0f1b3f", fontSize: "0.88rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {v.title || v.name}
+                  </p>
+                  <p style={{ margin: 0, fontSize: "0.72rem", color: "#8493b0" }}>
+                    {v.ville || "—"} · {v.pricePerDay ? `${Number(v.pricePerDay).toLocaleString("fr-FR")} DH/j` : v.priceForSale ? `${Number(v.priceForSale).toLocaleString("fr-FR")} DH` : "—"}
+                  </p>
+                </div>
+                {v.featured && <span style={s.badge("#f59e0b", "#fffbeb")}>⭐</span>}
+                <button
+                  style={v.featured ? s.btn("#ef4444", "#fff", { opacity: isSav ? 0.6 : 1 }) : s.btn("#059669", "#fff", { opacity: isSav ? 0.6 : 1 })}
+                  disabled={isSav}
+                  onClick={() => toggleFeatured(vid, !!v.featured)}
+                >
+                  {isSav ? "..." : v.featured ? "Retirer" : "⭐ Vedette"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

@@ -209,9 +209,10 @@ const VendorSubmit = () => {
         e.nomEntreprise = "Nom de structure requis";
       if (identity.typePubliant === "particulier" && !identity.prenom.trim())
         e.prenom = "Prénom requis";
-      if (!identity.nom.trim())   e.nom       = "Nom requis";
+      if (!identity.nom.trim())       e.nom       = "Nom requis";
       if (!identity.telephone.trim()) e.telephone = "Téléphone requis";
-      if (!identity.ville.trim()) e.ville     = "Ville requise";
+      if (!identity.ville.trim())     e.ville     = "Ville requise";
+      if (!identity.adresse.trim())   e.adresse   = "Adresse requise (utilisée pour le calcul de livraison)";
     }
     if (step === 2) {
       if (!adType) e.adType = "Choisissez un type d'annonce";
@@ -389,9 +390,13 @@ const VendorSubmit = () => {
                 {errors.ville && <span className={styles.err}>{errors.ville}</span>}
               </div>
               <div className={`${styles.field} ${styles.colSpan2}`}>
-                <label>Adresse (optionnel)</label>
+                <label>Adresse exacte *</label>
                 <input value={identity.adresse} onChange={e => setId("adresse", e.target.value)}
-                  placeholder="Ex : Rue 10, Plateau" />
+                  placeholder="Ex : Rue 10, Plateau, Abidjan — utilisée pour la livraison GPS" />
+                {errors.adresse && <span className={styles.err}>{errors.adresse}</span>}
+                <small style={{ color: "#8493b0", fontSize: "0.78rem", marginTop: "3px" }}>
+                  📍 Cette adresse servira à calculer automatiquement les frais de livraison pour vos clients.
+                </small>
               </div>
             </div>
           </div>

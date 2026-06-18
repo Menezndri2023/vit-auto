@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
 import { useToast } from "../context/ToastContext";
@@ -254,18 +254,11 @@ const Dashboard = () => {
     [myBookings]
   );
 
-  // ── Early returns APRÈS tous les hooks ──────────────────
+  const location = useLocation();
+
+  // ── Guard : non connecté → redirection /login avec state.from ──
   if (!isAuthenticated) {
-    return (
-      <div className={styles.page}>
-        <div className={styles.guardCard}>
-          <div className={styles.guardIcon}>🔒</div>
-          <h2>Connexion requise</h2>
-          <p>Connectez-vous pour accéder à votre tableau de bord.</p>
-          <Link to="/login" className={styles.primaryBtn}>Se connecter</Link>
-        </div>
-      </div>
-    );
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   const isPartner = user?.role === "partenaire" || user?.role === "admin";

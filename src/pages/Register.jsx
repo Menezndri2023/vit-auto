@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import styles from "./Auth.module.css";
@@ -8,6 +8,8 @@ const Register = () => {
   const { register } = useAuth();
   const { success, error } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -15,27 +17,39 @@ const Register = () => {
     phone: "",
     password: "",
     confirmPassword: "",
-    role: "client",
+    role: searchParams.get("role") === "partenaire" ? "partenaire" : "client",
   });
+
+  // Si ?role=partenaire dans l'URL → pré-sélectionner partenaire
+  useEffect(() => {
+    if (searchParams.get("role") === "partenaire") {
+      setForm((prev) => ({ ...prev, role: "partenaire" }));
+    }
+  }, [searchParams]);
 
   const handleChange = (e) => setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
   const onSubmit = async (e) => {
     e.preventDefault();
     if (!form.email || !form.password || !form.firstName || !form.lastName) {
-      error("Veuillez remplir tous les champs obligatoires.");
-      return;
+      error("Veuillez remplir tous les champs obligatoires."); return;
     }
     if (form.password !== form.confirmPassword) {
-      error("Les mots de passe ne correspondent pas.");
-      return;
+      error("Les mots de passe ne correspondent pas."); return;
+    }
+    if (form.password.length < 6) {
+      error("Le mot de passe doit contenir au moins 6 caractères."); return;
     }
     try {
       await register(form);
       success("Inscription réussie ! Redirection...");
-      setTimeout(() => navigate("/dashboard"), 1500);
+      // Rediriger selon le rôle choisi
+      const dest = form.role === "partenaire" ? "/vendor/dashboard"
+                 : form.role === "admin"      ? "/admin"
+                 : "/dashboard";
+      setTimeout(() => navigate(dest), 1500);
     } catch (err) {
-      error(err.message || "Impossible de s'inscrire.");
+      error(err.message || "Impossible de créer votre compte.");
     }
   };
 
