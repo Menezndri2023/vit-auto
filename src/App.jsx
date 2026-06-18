@@ -76,7 +76,7 @@ function App() {
                         <Route path="/vendor" element={<PartnerRoute><VendorSubmit /></PartnerRoute>} />
                         <Route path="/vendor/dashboard" element={<PartnerRoute><VendorDashboard /></PartnerRoute>} />
                         <Route path="/vendor/publish"   element={<PartnerRoute><VendorPublish /></PartnerRoute>} />
-                        <Route path="/plans" element={<PartnerRoute><Plans /></PartnerRoute>} />
+                        <Route path="/plans" element={<Plans />} />
                         <Route path="/admin" element={<AdminRoute><ErrorBoundary><AdminPanel /></ErrorBoundary></AdminRoute>} />
                         <Route path="/stats"    element={<DashboardStats />} />
                         <Route path="/services" element={<Services />} />

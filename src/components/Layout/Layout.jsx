@@ -2,6 +2,7 @@ import { useState } from "react";
 import Navbar from "../Navbar/Navbar";
 import Footer from "../Footer/Footer";
 import BackToTop from "./BackToTop";
+import ScrollToTop from "./ScrollToTop";
 import { useAuth } from "../../context/AuthContext";
 import styles from "./Layout.module.css";
 
@@ -68,6 +69,7 @@ const Layout = ({ children }) => {
 
   return (
     <div className={styles.page}>
+      <ScrollToTop />
       <Navbar />
       {showBanner && <EmailBanner email={user.email} />}
       <main className={styles.main}>{children}</main>

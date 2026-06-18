@@ -25,7 +25,6 @@ const Footer = () => {
           <div className={styles.col}>
             <h3>Services</h3>
             <ul>
-              <li><Link to="/services">Nos services</Link></li>
               <li><Link to="/catalogue?mode=Louer">Location courte durée</Link></li>
               <li><Link to="/catalogue?mode=Louer">Location longue durée</Link></li>
               <li><Link to="/catalogue?mode=Acheter">Vente de véhicules</Link></li>

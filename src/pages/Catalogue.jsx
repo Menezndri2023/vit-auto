@@ -1,66 +1,54 @@
-import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useState, useMemo } from "react";
+import { useSearchParams, Link } from "react-router-dom";
 import VehicleCard from "../components/VehicleCard/VehicleCard";
 import { useVehicles } from "../context/VehicleContext";
+import { useCurrency } from "../context/CurrencyContext";
 import styles from "./Catalogue.module.css";
 import { useToast } from "../context/ToastContext";
 
-const catalogueMode = ["Tout", "Louer", "Acheter", "Chauffeur"];
-const types = ["Tous", "SUV", "Berline", "Viano", "Monospace", "Citadine", "4x4", "Sportif", "Pick-up", "Cabriolet", "Utilitaire", "Minibus"];
-const etats = ["Tous", "Neuf", "Occasion"];
-const fuels = ["Tous", "Essence", "Diesel", "Hybride", "Électrique", "GPL"];
+const MODES = [
+  { key: "Tout",      icon: "⚡", label: "Tout"       },
+  { key: "Louer",     icon: "🔑", label: "Location"   },
+  { key: "Acheter",   icon: "💰", label: "Achat"      },
+  { key: "Chauffeur", icon: "👨‍✈️", label: "Chauffeur" },
+];
+
+const TYPE_ICONS = {
+  "Tous": "🚘", "SUV": "🚙", "Berline": "🚗", "Viano": "🚐",
+  "Monospace": "🚌", "Citadine": "🏎️", "4x4": "🛻", "Sportif": "⚡",
+  "Pick-up": "🛻", "Cabriolet": "🚗", "Utilitaire": "📦", "Minibus": "🚌",
+};
+
+const types         = Object.keys(TYPE_ICONS);
+const etats         = ["Tous", "Neuf", "Occasion"];
+const fuels         = ["Tous", "Essence", "Diesel", "Hybride", "Électrique", "GPL"];
 const transmissions = ["Tous", "Automatique", "Manuelle"];
+const SORT_OPTIONS  = [
+  { key: "default", label: "Par défaut" },
+  { key: "price_asc",  label: "Prix croissant" },
+  { key: "price_desc", label: "Prix décroissant" },
+  { key: "newest",     label: "Plus récent" },
+];
 
 const Catalogue = () => {
   const { vehicles, refreshVehicles } = useVehicles();
+  const { fmt } = useCurrency();
   const { success: toastSuccess } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [refreshing, setRefreshing] = useState(false);
+  const [refreshing,  setRefreshing]  = useState(false);
+  const [filterOpen,  setFilterOpen]  = useState(false);
+  const [sortKey,     setSortKey]     = useState("default");
+  const [page,        setPage]        = useState(1); // eslint-disable-line no-unused-vars
 
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [page, setPage] = useState(1); // eslint-disable-line no-unused-vars
-
-  const [activeMode, setActiveMode] = useState(() => {
-    const mode = searchParams.get("mode") || "Tout";
-    return catalogueMode.includes(mode) ? mode : "Tout";
-  });
-
+  const [activeMode, setActiveMode] = useState(
+    () => { const m = searchParams.get("mode") || "Tout"; return MODES.find(x => x.key === m) ? m : "Tout"; }
+  );
   const [searchTerm,   setSearchTerm]   = useState(() => searchParams.get("location") || "");
-  const [activeType,   setActiveType]   = useState(() => searchParams.get("type") || "Tous");
-  const [activeEtat,   setActiveEtat]   = useState(() => searchParams.get("etat") || "Tous");
+  const [activeType,   setActiveType]   = useState(() => searchParams.get("type")     || "Tous");
+  const [activeEtat,   setActiveEtat]   = useState(() => searchParams.get("etat")     || "Tous");
   const [fuelType,     setFuelType]     = useState("Tous");
   const [transmission, setTransmission] = useState("Tous");
   const [maxPrice,     setMaxPrice]     = useState(200000);
-
-  const activeFiltersCount = [
-    fuelType !== "Tous",
-    transmission !== "Tous",
-    maxPrice < 200000,
-    activeType !== "Tous",
-    activeEtat !== "Tous",
-    searchTerm !== "",
-  ].filter(Boolean).length;
-
-  const filteredVehicles = vehicles.filter((vehicle) => {
-    const modeMatch = activeMode === "Tout" || vehicle.mode === activeMode;
-    const typeMatch = activeType === "Tous"
-      || (vehicle.vehicleType || vehicle.type) === activeType;
-    const etatMatch = activeEtat === "Tous"
-      || (vehicle.etat || "").toLowerCase().includes(activeEtat.toLowerCase())
-      || (activeEtat === "Neuf" && vehicle.etat === "Neuf")
-      || (activeEtat === "Occasion" && vehicle.etat && vehicle.etat !== "Neuf");
-    const fuelMatch = fuelType === "Tous"
-      || (vehicle.fuel || vehicle.carburant) === fuelType;
-    const transmissionMatch = transmission === "Tous" || vehicle.transmission === transmission;
-    const priceMatch = activeMode === "Acheter" || (vehicle.pricePerDay || 0) <= maxPrice;
-    const name = (vehicle.title || vehicle.name || "").toLowerCase();
-    const desc = (vehicle.description || "").toLowerCase();
-    const city = (vehicle.ville || vehicle.city || "").toLowerCase();
-    const textMatch = name.includes(searchTerm.toLowerCase())
-      || desc.includes(searchTerm.toLowerCase())
-      || city.includes(searchTerm.toLowerCase());
-    return modeMatch && typeMatch && etatMatch && fuelMatch && transmissionMatch && priceMatch && textMatch;
-  });
 
   const setParam = (key, value) => {
     const next = new URLSearchParams(searchParams);
@@ -70,14 +58,9 @@ const Catalogue = () => {
   };
 
   const resetFilters = () => {
-    setActiveType("Tous");
-    setActiveEtat("Tous");
-    setFuelType("Tous");
-    setTransmission("Tous");
-    setMaxPrice(200000);
-    setSearchTerm("");
-    setActiveMode("Tout");
-    setSearchParams(new URLSearchParams());
+    setActiveType("Tous"); setActiveEtat("Tous"); setFuelType("Tous");
+    setTransmission("Tous"); setMaxPrice(200000); setSearchTerm("");
+    setActiveMode("Tout"); setSearchParams(new URLSearchParams()); setPage(1);
   };
 
   const handleRefresh = async () => {
@@ -87,245 +70,324 @@ const Catalogue = () => {
     toastSuccess("Catalogue actualisé");
   };
 
+  const filtered = useMemo(() => {
+    let list = vehicles.filter((v) => {
+      const modeOk = activeMode === "Tout" || v.mode === activeMode;
+      const typeOk = activeType === "Tous" || (v.vehicleType || v.type) === activeType;
+      const etatOk = activeEtat === "Tous"
+        || (activeEtat === "Neuf"     && v.etat === "Neuf")
+        || (activeEtat === "Occasion" && v.etat && v.etat !== "Neuf");
+      const fuelOk = fuelType === "Tous" || (v.fuel || v.carburant) === fuelType;
+      const transOk = transmission === "Tous" || v.transmission === transmission;
+      const priceOk = activeMode === "Acheter" || (v.pricePerDay || 0) <= maxPrice;
+      const q = searchTerm.toLowerCase();
+      const textOk = !q
+        || (v.title || v.name || "").toLowerCase().includes(q)
+        || (v.description || "").toLowerCase().includes(q)
+        || (v.ville || v.city || "").toLowerCase().includes(q)
+        || (v.marque || "").toLowerCase().includes(q);
+      return modeOk && typeOk && etatOk && fuelOk && transOk && priceOk && textOk;
+    });
+
+    if (sortKey === "price_asc")  list = [...list].sort((a,b) => (a.pricePerDay||a.priceForSale||0) - (b.pricePerDay||b.priceForSale||0));
+    if (sortKey === "price_desc") list = [...list].sort((a,b) => (b.pricePerDay||b.priceForSale||0) - (a.pricePerDay||a.priceForSale||0));
+    if (sortKey === "newest")     list = [...list].sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
+    return list;
+  }, [vehicles, activeMode, activeType, activeEtat, fuelType, transmission, maxPrice, searchTerm, sortKey]);
+
+  const activeChips = [
+    activeMode !== "Tout"      && { label: activeMode,      clear: () => { setActiveMode("Tout"); setParam("mode",""); } },
+    activeType !== "Tous"      && { label: activeType,      clear: () => { setActiveType("Tous"); setParam("type",""); } },
+    activeEtat !== "Tous"      && { label: activeEtat,      clear: () => { setActiveEtat("Tous"); setParam("etat",""); } },
+    fuelType   !== "Tous"      && { label: fuelType,        clear: () => setFuelType("Tous") },
+    transmission !== "Tous"    && { label: transmission,    clear: () => setTransmission("Tous") },
+    maxPrice < 200000          && { label: `≤ ${fmt(maxPrice)}`, clear: () => setMaxPrice(200000) },
+    searchTerm                 && { label: `"${searchTerm}"`, clear: () => setSearchTerm("") },
+  ].filter(Boolean);
+
   return (
     <div className={styles.page}>
-      <header className={styles.topHeader}>
-        <div>
-          <h1>Catalogue de véhicules</h1>
-          <p>{filteredVehicles.length} véhicules disponibles près de vous</p>
+
+      {/* ══════════════════════════════
+          HEADER
+      ══════════════════════════════ */}
+      <header className={styles.header}>
+        <div className={styles.headerDeco1} />
+        <div className={styles.headerDeco2} />
+
+        <div className={styles.headerInner}>
+
+          {/* Ligne 1 : titre + refresh */}
+          <div className={styles.headerRow}>
+            <div>
+              <span className={styles.headerTag}>🚗 VIT AUTO</span>
+              <h1 className={styles.headerTitle}>Catalogue</h1>
+            </div>
+            <button
+              type="button"
+              className={`${styles.refreshBtn} ${refreshing ? styles.refreshSpinning : ""}`}
+              onClick={handleRefresh}
+              disabled={refreshing}
+              title="Actualiser"
+            >
+              <span>↻</span>
+            </button>
+          </div>
+
+          {/* Ligne 2 : tabs mode */}
+          <nav className={styles.modeTabs}>
+            {MODES.map(({ key, icon, label }) => (
+              <button
+                key={key}
+                type="button"
+                className={`${styles.modeTab} ${activeMode === key ? styles.modeTabActive : ""}`}
+                onClick={() => { setActiveMode(key); setParam("mode", key === "Tout" ? "" : key); setPage(1); }}
+              >
+                <span>{icon}</span>
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
+
+          {/* Ligne 3 : search */}
+          <div className={styles.searchBar}>
+            <span className={styles.searchIcon}>🔍</span>
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Marque, modèle, ville…"
+              className={styles.searchInput}
+            />
+            {searchTerm && (
+              <button type="button" className={styles.searchClear} onClick={() => setSearchTerm("")}>✕</button>
+            )}
+          </div>
+
+          {/* Ligne 4 : type pills avec icônes */}
+          <div className={styles.typePillsRow}>
+            {types.map((t) => (
+              <button
+                key={t}
+                type="button"
+                className={`${styles.typePill} ${activeType === t ? styles.typePillActive : ""}`}
+                onClick={() => { setActiveType(t); setParam("type", t); }}
+              >
+                <span>{TYPE_ICONS[t]}</span>
+                <span>{t === "Tous" ? "Tout" : t}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className={styles.topControls}>
-          <input
-            type="search"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Rechercher un modèle ou une ville"
-          />
-          <select value={activeType} onChange={(e) => setActiveType(e.target.value)}>
-            {types.map((type) => (
-              <option value={type} key={type}>{type}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            style={{
-              background: refreshing ? "#e2e8f0" : "#0f1b3f",
-              color: refreshing ? "#64748b" : "#fff",
-              border: "none",
-              borderRadius: "8px",
-              padding: "0.55rem 1rem",
-              cursor: refreshing ? "not-allowed" : "pointer",
-              fontWeight: 600,
-              fontSize: "0.85rem",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.4rem",
-              transition: "background 0.2s",
-              whiteSpace: "nowrap",
-            }}
-            title="Actualiser le catalogue"
-          >
-            <span style={{ display: "inline-block", animation: refreshing ? "spin 0.8s linear infinite" : "none" }}>↻</span>
-            {refreshing ? "Actualisation…" : "Actualiser"}
-          </button>
+        {/* Wave de transition */}
+        <div className={styles.headerWave}>
+          <svg viewBox="0 0 1440 40" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0,40 C360,0 1080,0 1440,40 L1440,40 L0,40 Z" fill="#f5f7fb"/>
+          </svg>
         </div>
       </header>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      {/* ══════════════════════════════
+          CORPS
+      ══════════════════════════════ */}
+      <div className={styles.body}>
 
-      <nav className={styles.tabs}>
-        {catalogueMode.map((option) => (
-          <button
-            key={option}
-            className={activeMode === option ? styles.activeTab : ""}
-            onClick={() => {
-              setActiveMode(option);
-              setParam("mode", option === "Tout" ? "" : option);
-              setPage(1);
-            }}
-            type="button"
-          >
-            {option}
-          </button>
-        ))}
-      </nav>
+        {/* Barre résultats */}
+        <div className={styles.resultsBar}>
+          <div className={styles.resultsLeft}>
+            <span className={styles.resultCount}>
+              <strong>{filtered.length}</strong> véhicule{filtered.length !== 1 ? "s" : ""}
+            </span>
 
-      {/* Bouton filtres mobile */}
-      <button
-        type="button"
-        className={styles.filterToggleBtn}
-        onClick={() => setFilterOpen(true)}
-      >
-        ⚙️ Filtres
-        {activeFiltersCount > 0 && (
-          <span className={styles.filterBadge}>{activeFiltersCount}</span>
+            {/* Chips filtres actifs */}
+            {activeChips.map((chip, i) => (
+              <button key={i} type="button" className={styles.activeChip} onClick={chip.clear}>
+                {chip.label} <span>✕</span>
+              </button>
+            ))}
+
+            {activeChips.length > 1 && (
+              <button type="button" className={styles.clearAllBtn} onClick={resetFilters}>
+                Tout effacer
+              </button>
+            )}
+          </div>
+
+          <div className={styles.resultsRight}>
+            {/* Bouton filtre mobile */}
+            <button
+              type="button"
+              className={styles.filterToggleBtn}
+              onClick={() => setFilterOpen(true)}
+            >
+              ⚙️ Filtres
+              {activeChips.length > 0 && (
+                <span className={styles.filterBadge}>{activeChips.length}</span>
+              )}
+            </button>
+
+            {/* Sort */}
+            <select
+              className={styles.sortSelect}
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value)}
+            >
+              {SORT_OPTIONS.map(o => (
+                <option key={o.key} value={o.key}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Drawer mobile */}
+        {filterOpen && (
+          <>
+            <div className={styles.overlay} onClick={() => setFilterOpen(false)} />
+            <div className={styles.drawer}>
+              <div className={styles.drawerHandle} />
+              <div className={styles.drawerHead}>
+                <h3>Filtres</h3>
+                <button className={styles.drawerClose} onClick={() => setFilterOpen(false)}>✕</button>
+              </div>
+              <DrawerFilters
+                maxPrice={maxPrice} setMaxPrice={setMaxPrice}
+                activeEtat={activeEtat} setActiveEtat={(v) => { setActiveEtat(v); setParam("etat", v); }}
+                fuelType={fuelType} setFuelType={setFuelType}
+                transmission={transmission} setTransmission={setTransmission}
+                fuels={fuels} etats={etats} transmissions={transmissions}
+                fmt={fmt}
+              />
+              <button className={styles.resetBtn} onClick={() => { resetFilters(); setFilterOpen(false); }}>
+                Réinitialiser
+              </button>
+            </div>
+          </>
         )}
-      </button>
 
-      {/* Overlay + Drawer mobile */}
-      {filterOpen && (
-        <>
-          <div
-            className={`${styles.filterOverlay} ${styles.open ? styles.open : ""}`}
-            style={{ display: "block" }}
-            onClick={() => setFilterOpen(false)}
-          />
-          <div className={styles.filterDrawer}>
-            <div className={styles.drawerHandle} />
-            <div className={styles.drawerHeader}>
-              <h3>Filtres</h3>
-              <button className={styles.drawerCloseBtn} onClick={() => setFilterOpen(false)}>✕</button>
-            </div>
-            <div className={styles.filterSection}>
-              <h4>Prix max / jour</h4>
-              <div className={styles.filterItem}>
-                <label>{Number(maxPrice).toLocaleString("fr-FR")} FCFA</label>
-                <input type="range" min="10000" max="200000" step="5000"
-                  value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} />
-              </div>
-            </div>
-            <div className={styles.filterSection}>
-              <h4>Carburant</h4>
-              <div className={styles.filterItem}>
-                <div className={styles.checkboxGroup}>
-                  {fuels.map((fuel) => (
-                    <label key={fuel}>
-                      <input type="radio" name="fuel-drawer" value={fuel}
-                        checked={fuelType === fuel}
-                        onChange={() => { setFuelType(fuel); setParam("fuel", fuel); }} />
-                      <span>{fuel}</span>
-                    </label>
-                  ))}
+        {/* Layout sidebar + grille */}
+        <div className={styles.layout}>
+
+          {/* ── Sidebar desktop ── */}
+          <aside className={styles.sidebar}>
+            <div className={styles.sidebarInner}>
+
+              <div className={styles.sidebarSection}>
+                <h4 className={styles.sidebarTitle}>💰 Prix max / jour</h4>
+                <div className={styles.priceRange}>
+                  <span className={styles.priceLabel}>{fmt(maxPrice)}</span>
+                  <input type="range" min="10000" max="200000" step="5000"
+                    value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))}
+                    className={styles.rangeInput} />
+                  <div className={styles.rangeLimits}>
+                    <span>{fmt(10000)}</span>
+                    <span>{fmt(200000)}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className={styles.filterSection}>
-              <h4>Transmission</h4>
-              <div className={styles.filterItem}>
-                <div className={styles.checkboxGroup}>
-                  {transmissions.map((t) => (
-                    <label key={t}>
-                      <input type="radio" name="transmission-drawer" value={t}
-                        checked={transmission === t}
-                        onChange={() => { setTransmission(t); setParam("transmission", t); }} />
-                      <span>{t}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <button className={styles.resetBtn} onClick={() => { resetFilters(); setFilterOpen(false); }} type="button">
-              Réinitialiser les filtres
-            </button>
-          </div>
-        </>
-      )}
 
-      <div className={styles.contentGrid}>
-        <aside className={styles.sidebar}>
-          <div className={styles.filterBlock}>
-            <h3>Filtres</h3>
-
-            <div className={styles.filterSection}>
-              <h4>Prix max / jour</h4>
-              <div className={styles.filterItem}>
-                <label>{Number(maxPrice).toLocaleString("fr-FR")} FCFA</label>
-                <input
-                  type="range"
-                  min="10000"
-                  max="200000"
-                  step="5000"
-                  value={maxPrice}
-                  onChange={(e) => setMaxPrice(Number(e.target.value))}
-                />
-              </div>
-            </div>
-
-            <div className={styles.filterSection}>
-              <h4>État</h4>
-              <div className={styles.filterItem}>
-                <div className={styles.checkboxGroup}>
+              <div className={styles.sidebarSection}>
+                <h4 className={styles.sidebarTitle}>✨ État</h4>
+                <div className={styles.pillGroup}>
                   {etats.map((e) => (
-                    <label key={e}>
-                      <input type="radio" name="etat" value={e}
-                        checked={activeEtat === e}
-                        onChange={() => { setActiveEtat(e); setParam("etat", e); }} />
+                    <button key={e} type="button"
+                      className={`${styles.filterPill} ${activeEtat === e ? styles.filterPillActive : ""}`}
+                      onClick={() => { setActiveEtat(e); setParam("etat", e); }}>
                       {e}
-                    </label>
+                    </button>
                   ))}
                 </div>
               </div>
-            </div>
 
-            <div className={styles.filterSection}>
-              <h4>Carburants</h4>
-              <div className={styles.filterItem}>
-                <div className={styles.checkboxGroup}>
-                  {fuels.map((fuel) => (
-                    <label key={fuel}>
-                      <input
-                        type="radio"
-                        name="fuel"
-                        value={fuel}
-                        checked={fuelType === fuel}
-                        onChange={() => {
-                          setFuelType(fuel);
-                          setParam("fuel", fuel);
-                        }}
-                      />
-                      {fuel}
-                    </label>
+              <div className={styles.sidebarSection}>
+                <h4 className={styles.sidebarTitle}>⛽ Carburant</h4>
+                <div className={styles.pillGroup}>
+                  {fuels.map((f) => (
+                    <button key={f} type="button"
+                      className={`${styles.filterPill} ${fuelType === f ? styles.filterPillActive : ""}`}
+                      onClick={() => setFuelType(f)}>
+                      {f}
+                    </button>
                   ))}
                 </div>
               </div>
-            </div>
 
-            <div className={styles.filterSection}>
-              <h4>Transmission</h4>
-              <div className={styles.filterItem}>
-                <div className={styles.checkboxGroup}>
+              <div className={styles.sidebarSection}>
+                <h4 className={styles.sidebarTitle}>⚙️ Transmission</h4>
+                <div className={styles.pillGroup}>
                   {transmissions.map((t) => (
-                    <label key={t}>
-                      <input
-                        type="radio"
-                        name="transmission"
-                        value={t}
-                        checked={transmission === t}
-                        onChange={() => {
-                          setTransmission(t);
-                          setParam("transmission", t);
-                        }}
-                      />
+                    <button key={t} type="button"
+                      className={`${styles.filterPill} ${transmission === t ? styles.filterPillActive : ""}`}
+                      onClick={() => setTransmission(t)}>
                       {t}
-                    </label>
+                    </button>
                   ))}
                 </div>
               </div>
-            </div>
 
-            <button className={styles.resetBtn} onClick={resetFilters} type="button">
-              Réinitialiser les filtres
-            </button>
-          </div>
-        </aside>
-
-        <main className={styles.grid}>
-          {filteredVehicles.length === 0 ? (
-            <div className={styles.empty}>
-              <span className={styles.emptyIcon}>🚗</span>
-              <p>Aucun véhicule trouvé</p>
-              <span>Essayez de modifier vos filtres ou votre recherche</span>
+              {activeChips.length > 0 && (
+                <button className={styles.resetBtn} onClick={resetFilters}>
+                  ↺ Réinitialiser les filtres
+                </button>
+              )}
             </div>
-          ) : (
-            filteredVehicles.map((car) => <VehicleCard key={car._id || car.id} car={car} />)
-          )}
-        </main>
+          </aside>
+
+          {/* ── Grille ── */}
+          <main className={styles.grid}>
+            {filtered.length === 0 ? (
+              <div className={styles.empty}>
+                <div className={styles.emptyIcon}>🔍</div>
+                <h3>Aucun véhicule trouvé</h3>
+                <p>Modifiez vos filtres ou explorez tout le catalogue.</p>
+                <button className={styles.emptyReset} onClick={resetFilters}>
+                  Voir tous les véhicules
+                </button>
+              </div>
+            ) : (
+              filtered.map((car) => (
+                <VehicleCard key={car._id || car.id} car={car} />
+              ))
+            )}
+          </main>
+        </div>
       </div>
     </div>
   );
 };
+
+/* ── Composant filtres drawer mobile ── */
+function DrawerFilters({ maxPrice, setMaxPrice, activeEtat, setActiveEtat, fuelType, setFuelType,
+  transmission, setTransmission, fuels, etats, transmissions, fmt }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 16 }}>
+      <div>
+        <p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: "0.82rem", color: "#0f1b3f" }}>💰 Prix max / jour — {fmt(maxPrice)}</p>
+        <input type="range" min="10000" max="200000" step="5000" value={maxPrice}
+          onChange={(e) => setMaxPrice(Number(e.target.value))}
+          style={{ width: "100%", accentColor: "#ff4d2d" }} />
+      </div>
+      {[
+        { title: "✨ État", opts: etats,         val: activeEtat,   set: setActiveEtat },
+        { title: "⛽ Carburant", opts: fuels,    val: fuelType,     set: setFuelType },
+        { title: "⚙️ Transmission", opts: transmissions, val: transmission, set: setTransmission },
+      ].map(({ title, opts, val, set }) => (
+        <div key={title}>
+          <p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: "0.82rem", color: "#0f1b3f" }}>{title}</p>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {opts.map((o) => (
+              <button key={o} type="button" onClick={() => set(o)}
+                style={{ padding: "6px 14px", borderRadius: 999, border: `1.5px solid ${val === o ? "#ff4d2d" : "#e2e8f0"}`,
+                  background: val === o ? "#ff4d2d" : "#fff", color: val === o ? "#fff" : "#374151",
+                  fontWeight: 600, fontSize: "0.82rem", cursor: "pointer", fontFamily: "inherit" }}>
+                {o}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default Catalogue;
