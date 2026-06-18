@@ -34,6 +34,8 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir:    'dist',
     sourcemap: mode === 'development',
+    cssCodeSplit: true,
+    assetsInlineLimit: 8192,
     rollupOptions: {
       output: {
         manualChunks: (id) => {
@@ -42,6 +44,15 @@ export default defineConfig(({ mode }) => ({
           }
           if (id.includes('node_modules/leaflet') || id.includes('node_modules/react-leaflet')) {
             return 'leaflet';
+          }
+          if (id.includes('/pages/AdminPanel') || id.includes('/pages/DashboardStats')) {
+            return 'admin';
+          }
+          if (id.includes('/pages/Vendor') || id.includes('/pages/Plans')) {
+            return 'vendor';
+          }
+          if (id.includes('/pages/Contract') || id.includes('/pages/Checkout') || id.includes('/pages/Booking')) {
+            return 'booking';
           }
         },
       },

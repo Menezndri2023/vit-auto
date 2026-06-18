@@ -12,10 +12,10 @@ const STATS = [
   { icon: "📍", value: "50+",    label: "Villes couvertes" },
 ];
 
-// Slides par défaut si aucun véhicule en base
+// Slides par défaut si aucun véhicule en base — format WebP pour performance
 const DEFAULT_SLIDES = [
   {
-    img:     "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=1200&q=85&auto=format&fit=crop",
+    img:     "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=1200&q=80&auto=format&fit=crop&fm=webp",
     name:    "Range Rover Sport 2024",
     type:    "SUV Premium",
     city:    "Abidjan",
@@ -24,7 +24,7 @@ const DEFAULT_SLIDES = [
     price:   "85 000 FCFA / jour",
   },
   {
-    img:     "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=1200&q=85&auto=format&fit=crop",
+    img:     "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=1200&q=80&auto=format&fit=crop&fm=webp",
     name:    "Porsche Cayenne 2023",
     type:    "SUV Sport",
     city:    "Casablanca",
@@ -33,7 +33,7 @@ const DEFAULT_SLIDES = [
     price:   "1 800 MAD / jour",
   },
   {
-    img:     "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=1200&q=85&auto=format&fit=crop",
+    img:     "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=1200&q=80&auto=format&fit=crop&fm=webp",
     name:    "BMW Série 5 2023",
     type:    "Berline Executive",
     city:    "Dakar",
@@ -42,7 +42,7 @@ const DEFAULT_SLIDES = [
     price:   "65 000 FCFA / jour",
   },
   {
-    img:     "https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=1200&q=85&auto=format&fit=crop",
+    img:     "https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=1200&q=80&auto=format&fit=crop&fm=webp",
     name:    "Mercedes Viano 2023",
     type:    "Monospace VIP",
     city:    "Bamako",
@@ -167,11 +167,16 @@ export default function HeroSection() {
       <div className={styles.right}>
         <div className={`${styles.spotCard} ${fading ? styles.spotFading : ""}`}>
 
-          {/* Image */}
+          {/* Image — premier slide = LCP, chargement prioritaire */}
           <img
             src={slide.img}
             alt={slide.name}
             className={styles.spotImg}
+            width="600"
+            height="400"
+            loading={current === 0 ? "eager" : "lazy"}
+            fetchPriority={current === 0 ? "high" : "auto"}
+            decoding={current === 0 ? "sync" : "async"}
             onError={(e) => { e.target.src = DEFAULT_SLIDES[0].img; }}
           />
 

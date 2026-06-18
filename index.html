@@ -2,7 +2,7 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!-- SEO -->
     <title>VIT AUTO — Location & Vente de Véhicules en Afrique</title>
@@ -10,13 +10,21 @@
     <meta name="keywords" content="location voiture, vente voiture, chauffeur privé, Dakar, Abidjan, Bamako, VIT AUTO" />
     <meta name="author" content="VIT AUTO" />
     <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://vit-auto.com" />
 
-    <!-- Open Graph (partage réseaux sociaux) -->
+    <!-- Open Graph -->
     <meta property="og:type"        content="website" />
     <meta property="og:title"       content="VIT AUTO — Location & Vente de Véhicules" />
     <meta property="og:description" content="Louez ou achetez votre véhicule en Afrique de l'Ouest" />
-    <meta property="og:image"       content="/icons/icon-512x512.png" />
-    <meta property="og:url"         content="https://vitauto.vercel.app" />
+    <meta property="og:image"       content="https://vit-auto.com/icons/icon-512x512.png" />
+    <meta property="og:url"         content="https://vit-auto.com" />
+    <meta property="og:site_name"   content="VIT AUTO" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card"        content="summary_large_image" />
+    <meta name="twitter:title"       content="VIT AUTO — Location & Vente de Véhicules" />
+    <meta name="twitter:description" content="Louez ou achetez votre véhicule en Afrique de l'Ouest" />
+    <meta name="twitter:image"       content="https://vit-auto.com/icons/icon-512x512.png" />
 
     <!-- Mobile / PWA -->
     <meta name="theme-color" content="#162040" />
@@ -32,21 +40,67 @@
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json" />
 
-    <!-- Fonts -->
+    <!-- Resource Hints -->
+    <link rel="dns-prefetch" href="https://ideal-learning-production-3c89.up.railway.app" />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+    <!-- Preload image LCP (première slide hero) -->
+    <link
+      rel="preload"
+      as="image"
+      href="https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=1200&q=80&auto=format&fit=crop&fm=webp"
+      fetchpriority="high"
+    />
+
+    <!-- Google Fonts — chargement NON-BLOQUANT -->
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all';this.onload=null"
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"
+    />
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" />
+    </noscript>
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "AutoDealer",
+      "name": "VIT AUTO",
+      "description": "Plateforme de location et vente de véhicules en Afrique de l'Ouest",
+      "url": "https://vit-auto.com",
+      "logo": "https://vit-auto.com/favicon.svg",
+      "areaServed": [
+        "Côte d'Ivoire", "Sénégal", "Mali", "Maroc",
+        "Niger", "Burkina Faso", "Guinée", "Cameroun"
+      ],
+      "serviceType": ["Car Rental", "Car Sales", "Private Driver"],
+      "priceRange": "$$",
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "customer service",
+        "availableLanguage": ["French", "English", "Arabic"]
+      }
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
-    <!-- Enregistrement du Service Worker -->
+    <!-- Service Worker -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(() => console.log('SW enregistré'))
-            .catch(() => {}); // silencieux en dev
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
         });
       }
     </script>
