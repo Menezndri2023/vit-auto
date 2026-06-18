@@ -284,7 +284,11 @@ const Catalogue = () => {
 
         <main className={styles.grid}>
           {filteredVehicles.length === 0 ? (
-            <div className={styles.empty}>Aucun véhicule trouvé pour ces critères.</div>
+            <div className={styles.empty}>
+              <span className={styles.emptyIcon}>🚗</span>
+              <p>Aucun véhicule trouvé</p>
+              <span>Essayez de modifier vos filtres ou votre recherche</span>
+            </div>
           ) : (
             filteredVehicles.map((car) => <VehicleCard key={car.id} car={car} />)
           )}
