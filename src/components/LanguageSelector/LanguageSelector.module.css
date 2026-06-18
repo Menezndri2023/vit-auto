@@ -1,0 +1,119 @@
+/* ═══════════════════════════════════════════════════════
+   LANGUAGE SELECTOR — Navbar
+   ═══════════════════════════════════════════════════════ */
+
+.selector {
+  position: relative;
+}
+
+/* ── Bouton déclencheur ─────────────────────────────────── */
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.85);
+  padding: 5px 9px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+  height: 34px;
+}
+
+.trigger:hover,
+.triggerOpen {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.flag {
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.code {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.chevron {
+  font-size: 0.5rem;
+  opacity: 0.7;
+  margin-left: 1px;
+}
+
+/* ── Dropdown ────────────────────────────────────────────── */
+.dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #e5eaf5;
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(15, 27, 63, 0.18), 0 4px 12px rgba(15, 27, 63, 0.08);
+  overflow: hidden;
+  z-index: 999;
+  min-width: 160px;
+  animation: dropIn 0.18s ease;
+}
+
+@keyframes dropIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
+/* ── Items ───────────────────────────────────────────────── */
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 14px;
+  background: transparent;
+  border: none;
+  color: #0f1b3f;
+  font-size: 0.88rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.14s ease;
+  text-align: left;
+}
+
+.item:hover {
+  background: #f5f7fb;
+}
+
+.itemActive {
+  background: #eff6ff !important;
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.itemLabel {
+  flex: 1;
+}
+
+.check {
+  color: #059669;
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+/* ── Mobile : masquer le code, garder le drapeau ────────── */
+@media (max-width: 640px) {
+  .code {
+    display: none;
+  }
+  .trigger {
+    padding: 5px 7px;
+  }
+}

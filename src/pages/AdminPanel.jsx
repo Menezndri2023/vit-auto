@@ -434,6 +434,7 @@ export default function AdminPanel() {
           { key: "users",       icon: "👥", label: `Utilisateurs (${users.length})` },
           { key: "vehicles",    icon: "🚗", label: `Annonces (${vehicles.length})` },
           { key: "bookings",    icon: "📋", label: `Commandes (${bookings.length})` },
+          { key: "vedette",     icon: "⭐", label: "Véhicules vedette" },
         ].map(({ key, icon, label }) => (
           <button
             key={key}
@@ -1032,8 +1033,157 @@ export default function AdminPanel() {
               <Pagination page={bkPage} total={totalPages(filteredBookings)} onChange={setBkPage} />
             </div>
           )}
+
+          {/* ══════════════════════ TAB VEDETTE ══════════════════════ */}
+          {activeTab === "vedette" && (
+            <VetteSection vehicles={vehicles} token={token} onRefresh={loadAll} />
+          )}
         </>
       )}
+    </div>
+  );
+}
+
+// ─── VetteSection ───────────────────────────────────────────────────────────────
+function VetteSection({ vehicles, token, onRefresh }) {
+  const featured = vehicles.filter((v) => v.featured || v.status === "approved");
+  const [saving, setSaving] = useState(null);
+  const [spotlightId, setSpotlightId] = useState(
+    () => localStorage.getItem("vit_hero_spotlight") || null
+  );
+
+  const toggleFeatured = async (vehicleId, currentlyFeatured) => {
+    setSaving(vehicleId);
+    try {
+      const res = await fetch(`/api/vehicles/${vehicleId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ featured: !currentlyFeatured }),
+      });
+      if (res.ok) onRefresh();
+    } catch { /* */ }
+    setSaving(null);
+  };
+
+  const setSpotlight = (vehicleId) => {
+    localStorage.setItem("vit_hero_spotlight", vehicleId);
+    setSpotlightId(vehicleId);
+  };
+
+  const removeSpotlight = () => {
+    localStorage.removeItem("vit_hero_spotlight");
+    setSpotlightId(null);
+  };
+
+  const spotlightVehicle = spotlightId ? vehicles.find((v) => (v._id || v.id)?.toString() === spotlightId) : null;
+
+  return (
+    <div style={{ padding: "1.5rem 0" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
+        <span style={{ fontSize: "1.4rem" }}>⭐</span>
+        <div>
+          <h2 style={{ margin: 0, fontSize: "1.2rem", color: "#0f1b3f" }}>Véhicules en vedette</h2>
+          <p style={{ margin: 0, fontSize: "0.83rem", color: "#8493b0" }}>
+            Gérez la sélection "Spotlight Hero" (panneau droit de l'accueil) et les véhicules en vedette.
+          </p>
+        </div>
+      </div>
+
+      {/* ── Spotlight Hero actuel ── */}
+      <div style={{
+        background: "#0f1b3f", color: "#fff", borderRadius: "14px",
+        padding: "14px 18px", marginBottom: "20px",
+        display: "flex", alignItems: "center", gap: "14px",
+      }}>
+        <span style={{ fontSize: "1.3rem" }}>🎯</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: "0.85rem" }}>Spotlight Hero (page d'accueil)</p>
+          <p style={{ margin: 0, fontSize: "0.78rem", opacity: 0.7 }}>
+            {spotlightVehicle
+              ? (spotlightVehicle.title || spotlightVehicle.name || "Véhicule sélectionné")
+              : "Aucun — affiche le premier véhicule featured"}
+          </p>
+        </div>
+        {spotlightId && (
+          <button
+            onClick={removeSpotlight}
+            style={{ background: "#ef4444", color: "#fff", border: "none", borderRadius: "8px", padding: "6px 14px", fontSize: "0.78rem", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+          >
+            Retirer
+          </button>
+        )}
+      </div>
+
+      {/* ── Liste des véhicules ── */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        {featured.length === 0 && (
+          <p style={{ color: "#8493b0", padding: "2rem", textAlign: "center" }}>
+            Aucun véhicule approuvé disponible.
+          </p>
+        )}
+        {featured.map((v) => (
+          <div key={v._id} style={{
+            display: "flex", alignItems: "center", gap: "14px",
+            background: v.featured ? "#fffbeb" : "#fff",
+            border: `1.5px solid ${(v._id || v.id)?.toString() === spotlightId ? "#6366f1" : v.featured ? "#f59e0b" : "#e8edf8"}`,
+            borderRadius: "14px", padding: "12px 16px",
+          }}>
+            {(v.images?.[0] || v.image) ? (
+              <img src={v.images?.[0] || v.image} alt={v.title || v.name}
+                style={{ width: 60, height: 44, objectFit: "cover", borderRadius: "8px", flexShrink: 0 }} />
+            ) : (
+              <div style={{ width: 60, height: 44, background: "#e8edf8", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.2rem", flexShrink: 0 }}>🚗</div>
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ margin: 0, fontWeight: 700, color: "#0f1b3f", fontSize: "0.9rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {v.title || v.name}
+              </p>
+              <p style={{ margin: 0, fontSize: "0.75rem", color: "#8493b0" }}>
+                {v.ville || v.city || "—"} · {v.type || "—"}
+              </p>
+            </div>
+            {(v._id || v.id)?.toString() === spotlightId && (
+              <span style={{ background: "#6366f1", color: "#fff", fontSize: "0.7rem", fontWeight: 700, padding: "2px 10px", borderRadius: "999px" }}>
+                🎯 Spotlight
+              </span>
+            )}
+            {v.featured && (
+              <span style={{ background: "#f59e0b", color: "#fff", fontSize: "0.7rem", fontWeight: 700, padding: "2px 10px", borderRadius: "999px" }}>
+                ⭐ Vedette
+              </span>
+            )}
+            <div style={{ display: "flex", gap: "6px" }}>
+              <button
+                onClick={() => setSpotlight((v._id || v.id)?.toString())}
+                disabled={(v._id || v.id)?.toString() === spotlightId}
+                style={{
+                  background: (v._id || v.id)?.toString() === spotlightId ? "#6366f1" : "#e0e7ff",
+                  color: (v._id || v.id)?.toString() === spotlightId ? "#fff" : "#6366f1",
+                  border: "none", borderRadius: "8px",
+                  padding: "7px 12px", fontSize: "0.78rem", fontWeight: 700,
+                  cursor: (v._id || v.id)?.toString() === spotlightId ? "default" : "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                🎯
+              </button>
+              <button
+                onClick={() => toggleFeatured(v._id, !!v.featured)}
+                disabled={saving === v._id}
+                style={{
+                  background: v.featured ? "#ef4444" : "#059669",
+                  color: "#fff", border: "none", borderRadius: "8px",
+                  padding: "7px 14px", fontSize: "0.8rem", fontWeight: 700,
+                  cursor: saving === v._id ? "not-allowed" : "pointer",
+                  opacity: saving === v._id ? 0.6 : 1, fontFamily: "inherit",
+                }}
+              >
+                {saving === v._id ? "..." : v.featured ? "Retirer" : "⭐ Vedette"}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

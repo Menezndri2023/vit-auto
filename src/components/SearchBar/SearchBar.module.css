@@ -1,251 +1,258 @@
+/* ═══════════════════════════════════════════════════════
+   SEARCH BAR — tab style, two-row layout
+   ═══════════════════════════════════════════════════════ */
+
 .container {
   width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 12px;
+  align-items: stretch;
+  gap: 0;
 }
 
 .searchBox {
-  background: white;
-  padding: 16px 24px;
-  border-radius: 12px;
-  display: flex;
-  gap: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-  width: 100%;
-  max-width: 1000px;
-  align-items: flex-end;
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.09);
+  display: grid;
+  grid-template-columns: 1fr 1fr auto auto;
+  grid-template-rows: auto auto;
+  border: 1px solid #eef0f6;
+  overflow: hidden;
 }
 
-/** ========== FIELD STYLING ========== */
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+/* ═══════════════════
+   ROW 1 — Tabs
+   ═══════════════════ */
+
+/* Le premier .field est le wrapper de ModeToggle */
+.searchBox > .field:first-child {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  padding: 0 4px;
+  border-bottom: 1px solid #f0f2f8;
 }
 
-.field label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #666;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
+/* Cacher le label "Mode" */
+.searchBox > .field:first-child label {
+  display: none;
 }
 
-.locationField {
-  flex: 1.2;
-  min-width: 150px;
-}
-
-.typeField {
-  flex: 0.9;
-  min-width: 120px;
-}
-
-/** ========== MODE TOGGLE ========== */
 .modeToggle {
   display: flex;
-  gap: 6px;
-  background: #f5f5f5;
-  padding: 3px;
-  border-radius: 10px;
+  gap: 0;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
 }
 
 .toggleBtn {
-  flex: 1;
+  flex: none;
   border: none;
-  padding: 8px 12px;
-  border-radius: 8px;
+  padding: 14px 20px;
+  border-radius: 0;
   background: transparent;
-  color: #666;
+  color: #64748b;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  font-size: 0.88rem;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font-size: 0.85rem;
+  gap: 6px;
+  border-bottom: 2.5px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.18s, border-color 0.18s, background 0.18s;
+  font-family: inherit;
 }
 
 .toggleBtn:hover {
-  background: rgba(255, 77, 45, 0.08);
   color: #ff4d2d;
+  background: rgba(255, 77, 45, 0.04);
 }
 
 .toggleBtn.active {
-  background: #ff4d2d;
-  color: white;
-  box-shadow: 0 2px 8px rgba(255, 77, 45, 0.2);
+  color: #ff4d2d;
+  border-bottom-color: #ff4d2d;
+  background: transparent;
+  box-shadow: none;
 }
 
 .toggleBtn .icon {
   font-size: 1rem;
 }
 
-/** ========== INPUT WRAPPER ========== */
+/* ═══════════════════
+   ROW 2 — Inputs
+   ═══════════════════ */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.locationField {
+  grid-column: 1;
+  grid-row: 2;
+  padding: 12px 16px 14px;
+  border-right: 1px solid #f0f2f8;
+  min-width: 0;
+}
+
+.typeField {
+  grid-column: 2;
+  grid-row: 2;
+  padding: 12px 16px 14px;
+  border-right: 1px solid #f0f2f8;
+  min-width: 0;
+}
+
+/* ─── Input wrapper ─── */
 .inputWrapper {
   position: relative;
   display: flex;
   align-items: center;
-  background: #f8f8f8;
-  border-radius: 8px;
-  border: 2px solid transparent;
-  transition: all 0.2s ease;
-}
-
-.inputWrapper:focus-within {
-  background: white;
-  border-color: #ff4d2d;
+  background: transparent;
+  border: none;
+  gap: 2px;
 }
 
 .inputIcon {
-  position: absolute;
-  left: 10px;
-  font-size: 0.95rem;
-  pointer-events: none;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  color: #94a3b8;
 }
 
 .inputWrapper input {
   flex: 1;
   border: none;
   background: transparent;
-  padding: 10px 10px 10px 36px;
+  padding: 4px 4px 4px 6px;
   font-size: 0.9rem;
   outline: none;
   font-family: inherit;
+  color: #0f1b3f;
+  min-width: 0;
 }
 
 .inputWrapper input::placeholder {
-  color: #aaa;
+  color: #c1ccdb;
+  font-size: 0.88rem;
 }
 
 .clearBtn {
   background: none;
   border: none;
-  font-size: 0.85rem;
-  color: #999;
+  font-size: 0.75rem;
+  color: #94a3b8;
   cursor: pointer;
-  padding: 2px 5px;
-  transition: color 0.2s ease;
+  padding: 2px 4px;
+  transition: color 0.15s;
   flex-shrink: 0;
+  border-radius: 4px;
 }
 
-.clearBtn:hover { color: #ff4d2d; }
+.clearBtn:hover {
+  color: #ff4d2d;
+}
 
-/* Bouton GPS dans le champ localisation */
+/* Bouton GPS */
 .gpsBtn {
   background: none;
   border: none;
-  font-size: 1rem;
+  font-size: 0.9rem;
   cursor: pointer;
-  padding: 2px 6px;
+  padding: 2px 4px;
   flex-shrink: 0;
   transition: transform 0.2s;
+  border-radius: 4px;
 }
 
-.gpsBtn:hover:not(:disabled) { transform: scale(1.2); }
-.gpsBtn:disabled { opacity: 0.5; cursor: wait; }
-
-/* Indicateur position détectée sous la barre */
-.geoHint {
-  font-size: 0.82rem;
-  color: #64748b;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: rgba(255,255,255,0.7);
-  border-radius: 8px;
-  padding: 0.3rem 0.9rem;
+.gpsBtn:hover:not(:disabled) {
+  transform: scale(1.2);
 }
 
-.geoUseBtn {
-  background: #ff4d2d;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 0.2rem 0.7rem;
-  font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity 0.2s;
+.gpsBtn:disabled {
+  opacity: 0.5;
+  cursor: wait;
 }
 
-.geoUseBtn:hover { opacity: 0.85; }
-
-/** ========== SELECT WRAPPER ========== */
+/* ─── Select wrapper ─── */
 .selectWrapper {
   position: relative;
   display: flex;
   align-items: center;
-  background: #f8f8f8;
-  border-radius: 8px;
-  border: 2px solid transparent;
-  transition: all 0.2s ease;
-}
-
-.selectWrapper:focus-within {
-  background: white;
-  border-color: #ff4d2d;
+  background: transparent;
 }
 
 .selectIcon {
-  position: absolute;
-  left: 10px;
-  font-size: 0.95rem;
-  pointer-events: none;
-  z-index: 1;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  color: #94a3b8;
 }
 
 .selectWrapper select {
   flex: 1;
   border: none;
   background: transparent;
-  padding: 10px 32px 10px 36px;
+  padding: 4px 24px 4px 6px;
   font-size: 0.9rem;
   outline: none;
   cursor: pointer;
   font-family: inherit;
   appearance: none;
-  color: #333;
+  color: #0f1b3f;
+  min-width: 0;
 }
 
 .selectWrapper::after {
   content: "▼";
   position: absolute;
-  right: 8px;
+  right: 0;
   color: #ff4d2d;
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   pointer-events: none;
 }
 
-/** ========== BUTTON STYLES ========== */
+/* ═══════════════════
+   BOUTONS
+   ═══════════════════ */
+
 .btn {
+  grid-column: 3;
+  grid-row: 2;
   background: linear-gradient(135deg, #ff4d2d 0%, #e63a1a 100%);
   color: white;
   border: none;
-  padding: 10px 20px;
-  border-radius: 8px;
+  padding: 0 28px;
+  border-radius: 0;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: filter 0.15s;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-size: 0.9rem;
-  box-shadow: 0 4px 12px rgba(255, 77, 45, 0.2);
   white-space: nowrap;
+  font-family: inherit;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  align-self: stretch;
 }
 
 .btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(255, 77, 45, 0.3);
+  filter: brightness(1.08);
 }
 
 .btn:active:not(:disabled) {
-  transform: translateY(0);
+  filter: brightness(0.95);
 }
 
 .btn:disabled {
@@ -257,125 +264,139 @@
   font-size: 1rem;
 }
 
+.resetBtn {
+  grid-column: 4;
+  grid-row: 2;
+  background: #f8fafd;
+  color: #64748b;
+  border: none;
+  border-left: 1px solid #f0f2f8;
+  padding: 0 18px;
+  border-radius: 0 0 16px 0;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, transform 0.25s;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  font-family: inherit;
+}
+
+.resetBtn:hover {
+  background: #fee2da;
+  color: #ff4d2d;
+  transform: rotate(180deg);
+}
+
+/* Spinner dans le btn Rechercher */
 .spinner {
   display: inline-block;
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.35);
   border-radius: 50%;
   border-top-color: white;
-  animation: spin 0.8s linear infinite;
+  animation: spin 0.75s linear infinite;
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
-.resetBtn {
-  background: white;
-  color: #ff4d2d;
-  border: 2px solid #ff4d2d;
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 1rem;
+/* ═══════════════════
+   GEO HINT
+   ═══════════════════ */
+.geoHint {
+  font-size: 0.8rem;
+  color: #64748b;
   display: flex;
   align-items: center;
-  justify-content: center;
-  min-width: 40px;
-  min-height: 40px;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 6px 14px;
+  margin-top: 6px;
 }
 
-.resetBtn:hover {
+.geoUseBtn {
   background: #ff4d2d;
-  color: white;
-  transform: rotate(180deg);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  font-family: inherit;
 }
 
-/** ========== RESPONSIVE DESIGN ========== */
+.geoUseBtn:hover {
+  opacity: 0.88;
+}
+
+/* ═══════════════════
+   RESPONSIVE
+   ═══════════════════ */
 @media (max-width: 800px) {
   .searchBox {
-    padding: 12px 16px;
-    gap: 10px;
-    flex-wrap: wrap;
+    grid-template-columns: 1fr 1fr auto;
+    border-radius: 14px;
   }
 
   .locationField {
-    flex: 1.2;
-    min-width: 140px;
+    padding: 10px 12px 12px;
   }
 
   .typeField {
-    flex: 0.8;
-    min-width: 110px;
+    padding: 10px 12px 12px;
   }
 
   .btn {
-    padding: 8px 16px;
-    font-size: 0.85rem;
+    padding: 0 18px;
+    font-size: 0.82rem;
   }
 
-  .btn span:last-child {
+  /* Cacher le texte "Chercher", garder l'icône */
+  .btn > span:last-child {
     display: none;
   }
 
   .resetBtn {
-    min-width: 36px;
-    min-height: 36px;
-    padding: 6px 12px;
+    display: none;
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 560px) {
   .searchBox {
-    padding: 10px 12px;
-    gap: 8px;
-    flex-wrap: wrap;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto auto auto;
+    border-radius: 12px;
   }
 
-  .field {
-    gap: 4px;
-  }
-
-  .field label {
-    font-size: 0.7rem;
+  .searchBox > .field:first-child {
+    grid-column: 1 / -1;
   }
 
   .locationField {
-    flex: 1 1 100%;
-    min-width: auto;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    border-right: none;
+    border-bottom: 1px solid #f0f2f8;
   }
 
   .typeField {
-    flex: 1;
-    min-width: 100px;
-  }
-
-  .inputWrapper input,
-  .selectWrapper select {
-    padding: 8px 8px 8px 32px;
-    font-size: 0.85rem;
-  }
-
-  .inputIcon,
-  .selectIcon {
-    left: 8px;
-    font-size: 0.9rem;
+    grid-column: 1;
+    grid-row: 3;
+    border-right: none;
   }
 
   .btn {
-    flex: 1;
-    padding: 8px 12px;
-    font-size: 0.8rem;
-  }
-
-  .resetBtn {
-    min-width: 34px;
-    min-height: 34px;
-    font-size: 0.9rem;
+    grid-column: 2;
+    grid-row: 3;
+    padding: 0 14px;
   }
 }

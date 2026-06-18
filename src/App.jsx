@@ -7,6 +7,8 @@ import { VehicleProvider } from "./context/VehicleContext";
 import { AuthProvider } from "./context/AuthContext";
 import { ToastProvider } from "./context/ToastContext";
 import { LocationProvider } from "./context/LocationContext";
+import { CurrencyProvider } from "./context/CurrencyContext";
+import { I18nProvider } from "./context/I18nContext";
 import { NotificationProvider } from "./context/NotificationContext";
 import { ChatProvider } from "./context/ChatContext";
 import Layout from "./components/Layout/Layout";
@@ -46,6 +48,8 @@ function App() {
         <AuthProvider>
           <NotificationProvider>
             <ChatProvider>
+              <I18nProvider>
+              <CurrencyProvider>
               <LocationProvider>
                 <VehicleProvider>
                   <Layout>
@@ -85,6 +89,8 @@ function App() {
                   <Chat />
                 </VehicleProvider>
               </LocationProvider>
+              </CurrencyProvider>
+              </I18nProvider>
             </ChatProvider>
           </NotificationProvider>
         </AuthProvider>

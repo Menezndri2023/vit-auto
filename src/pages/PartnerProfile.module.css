@@ -1,0 +1,181 @@
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 28px 24px 60px;
+}
+
+.backBtn {
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 20px;
+  font-family: inherit;
+}
+
+.backBtn:hover { text-decoration: underline; }
+
+.loading {
+  text-align: center;
+  padding: 4rem;
+  color: #8493b0;
+  font-size: 1rem;
+}
+
+/* ── Header ──────────────────────────────────────────────── */
+.header {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  background: #fff;
+  border: 1.5px solid #e8edf8;
+  border-radius: 20px;
+  padding: 28px;
+  margin-bottom: 32px;
+  box-shadow: 0 4px 20px rgba(15,27,63,0.06);
+}
+
+.avatar {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.avatar img {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #e8edf8;
+}
+
+.avatarIcon {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e8edf8, #d0d8ee);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.2rem;
+}
+
+.founderBadge,
+.certBadge {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.founderBadge {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+}
+
+.certBadge {
+  background: #8b5cf6;
+  color: #fff;
+}
+
+.info h1 {
+  margin: 0 0 4px;
+  font-size: clamp(1.2rem, 2vw, 1.6rem);
+  font-weight: 900;
+  color: #0f1b3f;
+}
+
+.type {
+  font-size: 0.85rem;
+  color: #2563eb;
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+
+.location, .contact {
+  font-size: 0.85rem;
+  color: #4a5876;
+  margin: 2px 0;
+}
+
+.phoneLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.phoneLink:hover { background: #d1fae5; }
+
+/* ── Catalogue ───────────────────────────────────────────── */
+.catalogueSection h2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.2rem;
+  color: #0f1b3f;
+  margin-bottom: 20px;
+}
+
+.count {
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: #f0f4ff;
+  color: #2563eb;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
+  gap: 20px;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 24px;
+  background: #fafbff;
+  border: 2px dashed #d1dcf0;
+  border-radius: 18px;
+  text-align: center;
+}
+
+.empty span { font-size: 2.5rem; }
+.empty p { color: #8493b0; font-size: 0.9rem; margin: 0; }
+
+.empty button {
+  background: #ff4d2d;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+@media (max-width: 640px) {
+  .header { flex-direction: column; align-items: center; text-align: center; }
+  .grid { grid-template-columns: 1fr; }
+}

@@ -130,6 +130,7 @@ const Catalogue = () => {
             onClick={() => {
               setActiveMode(option);
               setParam("mode", option === "Tout" ? "" : option);
+              setPage(1);
             }}
             type="button"
           >

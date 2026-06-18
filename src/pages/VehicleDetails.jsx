@@ -1,12 +1,12 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useState, useMemo } from "react";
 import { useVehicles } from "../context/VehicleContext";
+import { useCurrency } from "../context/CurrencyContext";
 import styles from "./VehicleDetails.module.css";
 
-const fmt = (n) => n != null ? Number(n).toLocaleString("fr-FR") + " FCFA" : "—";
 const fmtN = (n) => n != null ? Number(n).toLocaleString("fr-FR") : "—";
 
-function LeasingCard({ leasing, priceForSale, vehicleId, navigate }) {
+function LeasingCard({ leasing, priceForSale, vehicleId, navigate, fmt }) {
   const totalEstime = (leasing.apportInitial || 0) + (leasing.mensualite || 0) * (leasing.duree || 36);
   return (
     <div className={styles.leasingCard}>
@@ -57,6 +57,7 @@ export default function VehicleDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const vehiclesCtx = useVehicles();
+  const { fmt } = useCurrency();
   const getVehicleById = vehiclesCtx.getItemById || ((vid) =>
     vehiclesCtx.vehicles?.find((v) => String(v.id) === String(vid) || v._id === String(vid))
   );
@@ -228,7 +229,7 @@ export default function VehicleDetails() {
 
           {/* ── Leasing Calculator (vente avec leasing) ── */}
           {isSale && vehicle.leasing?.disponible && (
-            <LeasingCard leasing={vehicle.leasing} priceForSale={vehicle.buyPrice || vehicle.priceForSale} vehicleId={vehicle._id || vehicle.id} navigate={navigate} />
+            <LeasingCard leasing={vehicle.leasing} priceForSale={vehicle.buyPrice || vehicle.priceForSale} vehicleId={vehicle._id || vehicle.id} navigate={navigate} fmt={fmt} />
           )}
 
           {/* Bouton CTA */}

@@ -1,0 +1,202 @@
+/* ═══════════════════════════════════════════════════════
+   CURRENCY SELECTOR — variante sidebar + inline
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Variante SIDEBAR ────────────────────────────────────── */
+.sidebarWrapper {
+  position: relative;
+  width: 100%;
+}
+
+.sidebarLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #8493b0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.sidebarTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 14px;
+  background: #f5f7fb;
+  border: 1.5px solid #e2eaf8;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  font-family: inherit;
+}
+
+.sidebarTrigger:hover,
+.sidebarTrigger.open {
+  background: #eef2ff;
+  border-color: #2563eb;
+}
+
+.sidebarLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sidebarName {
+  display: block;
+  font-size: 0.87rem;
+  font-weight: 700;
+  color: #0f1b3f;
+  text-align: left;
+}
+
+.sidebarSymbol {
+  display: block;
+  font-size: 0.72rem;
+  color: #8493b0;
+  font-weight: 500;
+  text-align: left;
+}
+
+.detectingMsg {
+  font-size: 0.75rem;
+  color: #8493b0;
+  margin-top: 4px;
+  animation: pulse 1.4s ease infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+/* ── Variante INLINE ─────────────────────────────────────── */
+.inlineWrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.inlineTrigger {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: #f0f4ff;
+  border: 1.5px solid #e2eaf8;
+  border-radius: 8px;
+  padding: 0 10px;
+  height: 100%;
+  min-height: 42px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.inlineTrigger:hover,
+.inlineTrigger.open {
+  background: #e0e9ff;
+  border-color: #2563eb;
+}
+
+.symbol {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f1b3f;
+}
+
+.chevron {
+  font-size: 0.5rem;
+  color: #8493b0;
+  margin-left: 2px;
+}
+
+/* ── Dropdown commun ─────────────────────────────────────── */
+.dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: #fff;
+  border: 1px solid #e5eaf5;
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(15, 27, 63, 0.14), 0 4px 12px rgba(15, 27, 63, 0.06);
+  overflow: hidden;
+  z-index: 900;
+  min-width: 220px;
+  animation: dropIn 0.16s ease;
+}
+
+.dropdownRight {
+  left: auto;
+  right: 0;
+}
+
+@keyframes dropIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
+/* ── Item ────────────────────────────────────────────────── */
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 14px;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.13s ease;
+  text-align: left;
+}
+
+.item:hover {
+  background: #f5f7fb;
+}
+
+.item.active {
+  background: #eff6ff;
+}
+
+.flag {
+  font-size: 1.05rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.itemInfo {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.itemName {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0f1b3f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.itemCode {
+  font-size: 0.7rem;
+  color: #8493b0;
+}
+
+.itemSymbol {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #2563eb;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.check {
+  font-size: 0.82rem;
+  color: #059669;
+  font-weight: 800;
+  flex-shrink: 0;
+}
