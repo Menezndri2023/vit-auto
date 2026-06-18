@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import VitAutoLogo from "../Logo/VitAutoLogo";
 import styles from "./Footer.module.css";
 
 const Footer = () => {
@@ -8,7 +9,9 @@ const Footer = () => {
       {/* ── Ligne supérieure : brand + tagline ── */}
       <div className={styles.top}>
         <div className={styles.brand}>
-          <span className={styles.brandLogo}>🚗 VIT AUTO</span>
+          <div className={styles.brandLogo}>
+            <VitAutoLogo iconSize={52} variant="white" showText tagline />
+          </div>
           <p className={styles.brandTagline}>
             La plateforme premium de location, vente et livraison de véhicules
             à travers l'Afrique, le Maghreb et l'Europe.

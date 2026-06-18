@@ -23,21 +23,15 @@
 
 /* ── Logo ──────────────────────────────────────────── */
 .logo {
-  font-size: 1.5rem;
-  font-weight: 900;
-  letter-spacing: -0.02em;
-  color: var(--c-primary, #ff4d2d);
   flex-shrink: 0;
-  text-decoration: none;
   display: flex;
   align-items: center;
-  gap: 8px;
   user-select: none;
+  transition: opacity 0.2s ease;
 }
 
-.logo::before {
-  content: "🚗";
-  font-size: 1.2rem;
+.logo:hover {
+  opacity: 0.85;
 }
 
 /* ── Nav links (desktop) ───────────────────────────── */

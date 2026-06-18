@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import NotificationBell from "../NotificationBell/NotificationBell";
 import LanguageSelector from "../LanguageSelector/LanguageSelector";
+import VitAutoLogo from "../Logo/VitAutoLogo";
 import styles from "./Navbar.module.css";
 
 const Navbar = () => {
@@ -32,7 +33,7 @@ const Navbar = () => {
     <nav className={styles.navbar}>
       {/* Logo */}
       <div className={styles.logo} onClick={() => navigate("/")} style={{ cursor: "pointer" }}>
-        VIT AUTO
+        <VitAutoLogo iconSize={40} variant="white" showText tagline={false} />
       </div>
 
       {/* Liens principaux */}

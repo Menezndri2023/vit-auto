@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
 import PartnerRoute from "./components/PartnerRoute";
 import AdminRoute from "./components/AdminRoute";
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useState } from "react";
 import { VehicleProvider } from "./context/VehicleContext";
 import { AuthProvider } from "./context/AuthContext";
 import { ToastProvider } from "./context/ToastContext";
@@ -13,8 +13,8 @@ import { NotificationProvider } from "./context/NotificationContext";
 import { ChatProvider } from "./context/ChatContext";
 import Layout from "./components/Layout/Layout";
 import ToastContainer from "./components/Toast/Toast";
-import Loading from "./components/Loading/Loading";
 import Chat from "./components/Chat/Chat";
+import SplashScreen from "./components/SplashScreen/SplashScreen";
 
 // Lazy load pages
 const Home = lazy(() => import("./pages/Home"));
@@ -46,7 +46,11 @@ const ForgotPassword  = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword   = lazy(() => import("./pages/ResetPassword"));
 
 function App() {
+  const [splashDone, setSplashDone] = useState(false);
+
   return (
+    <>
+      {!splashDone && <SplashScreen onDone={() => setSplashDone(true)} />}
     <BrowserRouter>
       <ToastProvider>
         <AuthProvider>
@@ -57,7 +61,7 @@ function App() {
               <LocationProvider>
                 <VehicleProvider>
                   <Layout>
-                    <Suspense fallback={<Loading />}>
+                    <Suspense fallback={<SplashScreen persistent />}>
                       <Routes>
                         <Route path="/" element={<Home />} />
                         <Route path="/catalogue" element={<Catalogue />} />
@@ -104,6 +108,7 @@ function App() {
         </AuthProvider>
       </ToastProvider>
     </BrowserRouter>
+    </>
   );
 }
 
