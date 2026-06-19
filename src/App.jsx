@@ -44,6 +44,10 @@ const NotFound      = lazy(() => import("./pages/NotFound"));
 const VerifyEmail     = lazy(() => import("./pages/VerifyEmail"));
 const ForgotPassword  = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword   = lazy(() => import("./pages/ResetPassword"));
+const Partenaires           = lazy(() => import("./pages/Partenaires"));
+const PourquoiVitAuto       = lazy(() => import("./pages/PourquoiVitAuto"));
+const MentionsLegales       = lazy(() => import("./pages/MentionsLegales"));
+const ConditionsPartenaires = lazy(() => import("./pages/ConditionsPartenaires"));
 
 function App() {
   const [splashDone, setSplashDone] = useState(false);
@@ -93,6 +97,10 @@ function App() {
                         <Route path="/verify-email"    element={<VerifyEmail />} />
                         <Route path="/forgot-password" element={<ForgotPassword />} />
                         <Route path="/reset-password"  element={<ResetPassword />} />
+                        <Route path="/partenaires"             element={<Partenaires />} />
+                        <Route path="/pourquoi"                element={<PourquoiVitAuto />} />
+                        <Route path="/mentions-legales"        element={<MentionsLegales />} />
+                        <Route path="/conditions-partenaires"  element={<ConditionsPartenaires />} />
                         <Route path="*" element={<NotFound />} />
                       </Routes>
                     </Suspense>

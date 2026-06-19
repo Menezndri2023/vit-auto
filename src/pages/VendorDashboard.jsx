@@ -5,7 +5,7 @@ import { useToast } from "../context/ToastContext";
 import { Link, useNavigate } from "react-router-dom";
 import styles from "./VendorDashboard.module.css";
 
-const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " FCFA";
+const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " DH";
 
 const COMMISSION_LOCATION = 0.15;
 const COMMISSION_VENTE    = 0.03;
@@ -630,7 +630,7 @@ export default function VendorDashboard() {
       <div className={styles.commissionBanner}>
         <div className={styles.commItem}><span>Commission location</span><strong>15 %</strong></div>
         <div className={styles.commItem}><span>Commission vente</span><strong>3 %</strong></div>
-        <div className={styles.commItem}><span>Frais de service</span><strong>1 000 FCFA / réservation</strong></div>
+        <div className={styles.commItem}><span>Frais de service</span><strong>15 DH / réservation</strong></div>
         <div className={styles.commItem} style={{ borderLeft: "2px solid #10b981" }}>
           <span>Revenus nets estimés / semaine</span>
           <strong style={{ color: "#10b981" }}>{fmt(stats.netRev)}</strong>
@@ -837,8 +837,8 @@ export default function VendorDashboard() {
                         {drv.permisCategorie && <span className={`${styles.tag} ${styles.tagFuel}`}>Permis {drv.permisCategorie}</span>}
                       </div>
                       <div className={styles.priceLine}>
-                        <span>{drv.tarif ? `${Number(drv.tarif).toLocaleString("fr-FR")} FCFA / jour` : "Tarif non renseigné"}</span>
-                        {drv.tarifHeure > 0 && <small>{Number(drv.tarifHeure).toLocaleString("fr-FR")} FCFA / h</small>}
+                        <span>{drv.tarif ? `${Number(drv.tarif).toLocaleString("fr-FR")} DH / jour` : "Tarif non renseigné"}</span>
+                        {drv.tarifHeure > 0 && <small>{Number(drv.tarifHeure).toLocaleString("fr-FR")} DH / h</small>}
                       </div>
                       <div className={styles.cardActions}>
                         <button className={`${styles.actionBtn} ${styles.deleteBtn}`} onClick={() => handleDeleteDriver(drv._id)}>Supprimer</button>

@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import styles from "./Booking.module.css";
 
-const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " FCFA";
+const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " DH";
 
 const METHOD_LABELS = {
   orange_money: "Orange Money",

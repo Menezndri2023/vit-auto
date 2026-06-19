@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import styles from "./Profile.module.css";
 
-const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " FCFA";
+const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " DH";
 
 // ── Statuts des réservations / commandes ───────────────────
 const STATUS_CFG = {
@@ -90,7 +90,7 @@ const PublicationCard = ({ vehicle }) => {
           <span className={styles.bcBadge} style={{ color: st.color, background: st.bg }}>{st.label}</span>
         </div>
         <p className={styles.pubMeta}>
-          {vehicle.type === "location" ? `${vehicle.pricePerDay?.toLocaleString("fr-FR") || "—"} FCFA / jour` : `${vehicle.priceForSale?.toLocaleString("fr-FR") || "—"} FCFA`}
+          {vehicle.type === "location" ? `${vehicle.pricePerDay?.toLocaleString("fr-FR") || "—"} DH / jour` : `${vehicle.priceForSale?.toLocaleString("fr-FR") || "—"} DH`}
           {vehicle.ville ? ` · ${vehicle.ville}` : ""}
         </p>
 

@@ -509,8 +509,8 @@ export default function AdminPanel() {
                               </td>
                               <td><Badge label={v.type === "location" ? "📅 Location" : "💰 Vente"} color="#64748b" bg="#f1f5f9" /></td>
                               <td className={styles.tdPrice}>
-                                {v.pricePerDay ? `${Number(v.pricePerDay).toLocaleString("fr-FR")} FCFA/j` :
-                                 v.priceForSale ? `${Number(v.priceForSale).toLocaleString("fr-FR")} FCFA` : "—"}
+                                {v.pricePerDay ? `${Number(v.pricePerDay).toLocaleString("fr-FR")} DH/j` :
+                                 v.priceForSale ? `${Number(v.priceForSale).toLocaleString("fr-FR")} DH` : "—"}
                               </td>
                               <td>
                                 {score != null && (
@@ -571,7 +571,7 @@ export default function AdminPanel() {
                             </td>
                             <td><Badge label={d.disponibilite || "—"} color="#8b5cf6" bg="#f5f3ff" /></td>
                             <td className={styles.tdPrice}>
-                              {d.tarif ? `${Number(d.tarif).toLocaleString("fr-FR")} FCFA/j` : "—"}
+                              {d.tarif ? `${Number(d.tarif).toLocaleString("fr-FR")} DH/j` : "—"}
                             </td>
                             <td style={{ fontSize: "0.85rem", color: "#64748b" }}>{d.zone || d.ville || "—"}</td>
                             <td className={styles.tdDate}>{fmtDate(d.createdAt)}</td>
@@ -620,7 +620,7 @@ export default function AdminPanel() {
                               <td className={styles.tdVeh}>{vName}</td>
                               <td><Badge label={typeLabels[b.type] || b.type} color="#64748b" bg="#f1f5f9" /></td>
                               <td className={styles.tdPrice}>
-                                {b.montantTotal > 0 ? `${Number(b.montantTotal).toLocaleString("fr-FR")} FCFA` : "—"}
+                                {b.montantTotal > 0 ? `${Number(b.montantTotal).toLocaleString("fr-FR")} DH` : "—"}
                               </td>
                               <td className={styles.tdDate}>{fmtDate(b.createdAt)}</td>
                               <td>
@@ -663,8 +663,8 @@ export default function AdminPanel() {
                 <StatCard icon="✅" label="Commandes terminées" value={stats?.bookings?.completed || 0}
                   sub={`${stats?.bookings?.cancelled || 0} annulées`} color="#64748b" />
                 <StatCard icon="💰" label="Revenus totaux"
-                  value={Number(stats?.revenue?.total || 0).toLocaleString("fr-FR") + " FCFA"}
-                  sub={`Ce mois : ${Number(stats?.revenue?.thisMonth || 0).toLocaleString("fr-FR")} FCFA`}
+                  value={Number(stats?.revenue?.total || 0).toLocaleString("fr-FR") + " DH"}
+                  sub={`Ce mois : ${Number(stats?.revenue?.thisMonth || 0).toLocaleString("fr-FR")} DH`}
                   color="#ef4444" />
               </div>
 
@@ -913,8 +913,8 @@ export default function AdminPanel() {
                           </td>
                           <td><Badge label={v.type === "location" ? "📅 Location" : "💰 Vente"} color="#64748b" bg="#f1f5f9" /></td>
                           <td className={styles.tdPrice}>
-                            {v.pricePerDay ? `${Number(v.pricePerDay).toLocaleString("fr-FR")} FCFA/j` :
-                             v.priceForSale ? `${Number(v.priceForSale).toLocaleString("fr-FR")} FCFA` : "—"}
+                            {v.pricePerDay ? `${Number(v.pricePerDay).toLocaleString("fr-FR")} DH/j` :
+                             v.priceForSale ? `${Number(v.priceForSale).toLocaleString("fr-FR")} DH` : "—"}
                           </td>
                           <td>
                             {score != null && (
@@ -1006,7 +1006,7 @@ export default function AdminPanel() {
                           <td className={styles.tdVeh}>{vName}</td>
                           <td><Badge label={typeLabels[b.type] || b.type} color="#64748b" bg="#f1f5f9" /></td>
                           <td className={styles.tdPrice}>
-                            {b.montantTotal > 0 ? `${Number(b.montantTotal).toLocaleString("fr-FR")} FCFA` : "—"}
+                            {b.montantTotal > 0 ? `${Number(b.montantTotal).toLocaleString("fr-FR")} DH` : "—"}
                           </td>
                           <td><Badge label={bs.label} color={bs.color} bg={bs.bg} /></td>
                           <td className={styles.tdDate}>{fmtDate(b.createdAt)}</td>

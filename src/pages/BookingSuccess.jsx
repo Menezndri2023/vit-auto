@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import styles from "./BookingSuccess.module.css";
 
-const fmt = (n) => Number(n).toLocaleString("fr-FR") + " FCFA";
+const fmt = (n) => Number(n).toLocaleString("fr-FR") + " DH";
 
 const CONDITIONS = [
   "1. Le locataire s'engage à restituer le véhicule dans l'état décrit au moment de la prise en charge.",
@@ -163,10 +163,10 @@ const BookingSuccess = () => {
                   <div className={styles.fRow}><span>Options</span><span>{fmt(booking.optionsTotal || 0)}</span></div>
                 </>
               )}
-              <div className={styles.fRow}><span>Frais de service plateforme</span><span>{fmt(booking.serviceFeeFCFA || 1000)}</span></div>
+              <div className={styles.fRow}><span>Frais de service plateforme</span><span>{fmt(booking.serviceFeeFCFA || 15)}</span></div>
               <div className={`${styles.fRow} ${styles.fRowTotal}`}>
                 <span>Total à payer</span>
-                <span>{fmt(booking.total || booking.serviceFeeFCFA || 1000)}</span>
+                <span>{fmt(booking.total || booking.serviceFeeFCFA || 15)}</span>
               </div>
               {!isEssai && (
                 <div className={`${styles.fRow} ${styles.fRowCaution}`}>

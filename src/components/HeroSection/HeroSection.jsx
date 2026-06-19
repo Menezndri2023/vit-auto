@@ -22,7 +22,7 @@ const DEFAULT_SLIDES = [
     city:    "Abidjan",
     fuel:    "Hybride",
     partner: "VIT AUTO Premium",
-    price:   "85 000 FCFA / jour",
+    price:   "1 400 DH / jour",
   },
   {
     img:     "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=1200&q=80&auto=format&fit=crop&fm=webp",
@@ -40,7 +40,7 @@ const DEFAULT_SLIDES = [
     city:    "Dakar",
     fuel:    "Diesel",
     partner: "VIT AUTO Sénégal",
-    price:   "65 000 FCFA / jour",
+    price:   "1 050 DH / jour",
   },
   {
     img:     "https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=1200&q=80&auto=format&fit=crop&fm=webp",
@@ -49,7 +49,7 @@ const DEFAULT_SLIDES = [
     city:    "Bamako",
     fuel:    "Diesel",
     partner: "VIT AUTO Mali",
-    price:   "70 000 FCFA / jour",
+    price:   "1 150 DH / jour",
   },
 ];
 

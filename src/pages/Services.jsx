@@ -25,7 +25,7 @@ const SERVICES = [
     color: "#f59e0b",
     bg:    "rgba(245,158,11,.10)",
     title: "Livraison GPS à domicile",
-    desc:  "Votre véhicule livré à votre adresse exacte grâce au calcul GPS Haversine. Frais transparents : 1 000 FCFA + 200 FCFA/km.",
+    desc:  "Votre véhicule livré à votre adresse exacte grâce au calcul GPS Haversine. Frais transparents : 15 DH de base + 3 DH/km.",
     cta:   "Réserver avec livraison",
     link:  "/catalogue",
     highlight: true,

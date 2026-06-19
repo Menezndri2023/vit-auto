@@ -6,7 +6,7 @@ const FAQS = [
   },
   {
     keywords: ["prix", "tarif", "coût", "combien", "fcfa"],
-    answer: "Les tarifs varient selon le véhicule et la durée. Consultez le catalogue pour voir le prix par jour. Des frais de service de 1 000 FCFA s'appliquent à chaque réservation.",
+    answer: "Les tarifs varient selon le véhicule et la durée. Consultez le catalogue pour voir le prix par jour. Des frais de service de 15 DH s'appliquent à chaque réservation.",
   },
   {
     keywords: ["livraison", "domicile", "livr", "déposer"],
@@ -30,7 +30,7 @@ const FAQS = [
   },
   {
     keywords: ["essai", "tester", "test", "essayer"],
-    answer: "Pour demander un essai d'un véhicule à vendre, cliquez sur « Essai » dans la fiche véhicule. Vous choisissez une date et heure de rendez-vous. Des frais de service de 1 000 FCFA s'appliquent.",
+    answer: "Pour demander un essai d'un véhicule à vendre, cliquez sur « Essai » dans la fiche véhicule. Vous choisissez une date et heure de rendez-vous. Des frais de service de 15 DH s'appliquent.",
   },
   {
     keywords: ["leasing", "crédit", "mensualité", "financement"],
@@ -46,7 +46,7 @@ const FAQS = [
   },
   {
     keywords: ["assurance", "accident", "garantie"],
-    answer: "VIT AUTO propose une prime d'assurance optionnelle (15 000 FCFA/jour) qui couvre les dommages accidentels. Vous pouvez l'ajouter lors de la réservation.",
+    answer: "VIT AUTO propose une prime d'assurance optionnelle (250 DH/jour) qui couvre les dommages accidentels. Vous pouvez l'ajouter lors de la réservation.",
   },
   {
     keywords: ["contrat", "document", "accord"],

@@ -8,21 +8,21 @@ import styles from "./Plans.module.css";
 const PLANS = [
   {
     id:    "decouverte",
-    name:  "Découverte",
+    name:  "Gratuit",
     price: 0,
     period: null,
     badge: null,
     color: "#64748b",
     icon:  "🚀",
-    desc:  "Idéal pour commencer et tester la plateforme sans engagement.",
+    desc:  "Idéal pour démarrer et tester la plateforme sans engagement.",
     features: [
-      { ok: true,  text: "Jusqu'à 5 annonces actives" },
-      { ok: true,  text: "Commission location : 15 %" },
-      { ok: true,  text: "Commission vente : 3 %" },
+      { ok: true,  text: "Jusqu'à 5 véhicules publiés" },
+      { ok: true,  text: "Profil partenaire complet" },
+      { ok: true,  text: "Réception des demandes clients" },
       { ok: true,  text: "Contrat digital automatique" },
-      { ok: false, text: "Mise en avant des annonces" },
+      { ok: false, text: "Statistiques & performances" },
+      { ok: false, text: "Mise en avant locale" },
       { ok: false, text: "Badge Partenaire Vérifié" },
-      { ok: false, text: "Statistiques détaillées" },
       { ok: false, text: "Support prioritaire" },
     ],
     cta: "Plan actuel",
@@ -37,15 +37,15 @@ const PLANS = [
     badge: null,
     color: "#6366f1",
     icon:  "⚡",
-    desc:  "Pour les partenaires actifs qui veulent plus de visibilité.",
+    desc:  "Pour les partenaires actifs qui veulent plus de visibilité et de clients.",
     features: [
-      { ok: true,  text: "Annonces illimitées" },
-      { ok: true,  text: "Commission location : 12 %" },
-      { ok: true,  text: "Commission vente : 2,5 %" },
+      { ok: true,  text: "Jusqu'à 30 véhicules publiés" },
+      { ok: true,  text: "Profil partenaire complet" },
+      { ok: true,  text: "Réception des demandes clients" },
       { ok: true,  text: "Contrat digital automatique" },
-      { ok: true,  text: "1 mise en avant / mois offerte" },
-      { ok: true,  text: "Badge Partenaire Vérifié ✓" },
-      { ok: true,  text: "Statistiques (vues, clics, taux)" },
+      { ok: true,  text: "Statistiques & performances" },
+      { ok: true,  text: "Mise en avant locale ✓" },
+      { ok: false, text: "Badge Partenaire Vérifié" },
       { ok: false, text: "Support prioritaire 24h" },
     ],
     cta: "Choisir Pro",
@@ -60,15 +60,15 @@ const PLANS = [
     badge: "⭐ Recommandé",
     color: "#f59e0b",
     icon:  "🏆",
-    desc:  "Le choix des meilleurs partenaires. Commissions réduites, support VIP.",
+    desc:  "Le choix des meilleurs partenaires. Visibilité nationale, badge vérifié.",
     features: [
-      { ok: true,  text: "Annonces illimitées" },
-      { ok: true,  text: "Commission location : 10 %" },
-      { ok: true,  text: "Commission vente : 2 %" },
+      { ok: true,  text: "Véhicules illimités" },
+      { ok: true,  text: "Profil partenaire complet" },
+      { ok: true,  text: "Réception des demandes clients" },
       { ok: true,  text: "Contrat digital automatique" },
-      { ok: true,  text: "3 mises en avant / mois offertes" },
-      { ok: true,  text: "Badge Premium ⭐ visible" },
       { ok: true,  text: "Statistiques avancées & export" },
+      { ok: true,  text: "Mise en avant nationale ⭐" },
+      { ok: true,  text: "Badge Partenaire Vérifié ✓" },
       { ok: true,  text: "Support prioritaire 24h" },
     ],
     cta: "Choisir Premium",
@@ -78,21 +78,21 @@ const PLANS = [
   {
     id:    "corporate",
     name:  "Corporate",
-    price: 899,
-    period: "mois",
-    badge: "🏢 Entreprise",
+    price: null,
+    period: null,
+    badge: "🏢 Sur devis",
     color: "#0f1b3f",
     icon:  "🌍",
-    desc:  "Pour les agences et entreprises avec flotte multi-véhicules.",
+    desc:  "Pour les grands concessionnaires, réseaux de location et flottes d'entreprises.",
     features: [
-      { ok: true,  text: "Annonces illimitées (multi-agences)" },
-      { ok: true,  text: "Commission location : 8 %" },
-      { ok: true,  text: "Commission vente : 1,5 %" },
+      { ok: true,  text: "Véhicules illimités (multi-agences)" },
       { ok: true,  text: "Contrat digital automatique" },
-      { ok: true,  text: "Mises en avant illimitées" },
+      { ok: true,  text: "Statistiques avancées & export" },
+      { ok: true,  text: "Mise en avant nationale illimitée" },
       { ok: true,  text: "Badge Corporate 🏢 & page dédiée" },
       { ok: true,  text: "Tableau de bord multi-utilisateurs" },
       { ok: true,  text: "Account manager dédié" },
+      { ok: true,  text: "Tarif : 1 500 – 5 000 DH/mois selon volume" },
     ],
     cta: "Contacter l'équipe",
     ctaDisabled: false,
@@ -110,15 +110,33 @@ const HOW_IT_WORKS = [
 const COMMISSIONS = [
   {
     label: "Location",
-    rates: { decouverte: "15 %", pro: "12 %", premium: "10 %", corporate: "8 %" },
-    exampleKey: "location",
+    rates: { decouverte: "15 %", pro: "15 %", premium: "15 %", corporate: "15 %" },
+    fondateur: "10 %",
     color: "#6366f1",
   },
   {
     label: "Vente",
-    rates: { decouverte: "3 %", pro: "2,5 %", premium: "2 %", corporate: "1,5 %" },
-    exampleKey: "vente",
+    rates: { decouverte: "3 %", pro: "3 %", premium: "3 %", corporate: "3 %" },
+    fondateur: "2 %",
     color: "#10b981",
+  },
+  {
+    label: "Chauffeur",
+    rates: { decouverte: "10 %", pro: "10 %", premium: "10 %", corporate: "10 %" },
+    fondateur: "10 %",
+    color: "#f59e0b",
+  },
+  {
+    label: "Assurance",
+    rates: { decouverte: "Négociée", pro: "Négociée", premium: "Négociée", corporate: "Négociée" },
+    fondateur: "Négociée",
+    color: "#0ea5e9",
+  },
+  {
+    label: "Crédit / Leasing",
+    rates: { decouverte: "Négociée", pro: "Négociée", premium: "Négociée", corporate: "Négociée" },
+    fondateur: "Négociée",
+    color: "#8b5cf6",
   },
 ];
 
@@ -174,6 +192,40 @@ export default function Plans() {
         </div>
       </section>
 
+      {/* ════ OFFRE FONDATEUR BANNER ════ */}
+      <section style={{ padding: "0 24px 24px", maxWidth: 1100, margin: "0 auto" }}>
+        <div style={{
+          background: "linear-gradient(135deg, #fffbf0 0%, #fff7ed 100%)",
+          border: "2px solid #fbbf24", borderRadius: 20, padding: "28px 32px",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          flexWrap: "wrap", gap: 20,
+        }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <span style={{ fontSize: "1.6rem" }}>👑</span>
+              <span style={{
+                background: "#fbbf24", color: "#7c2d12", fontWeight: 900,
+                fontSize: "0.7rem", padding: "3px 12px", borderRadius: 99,
+                letterSpacing: "0.08em", textTransform: "uppercase",
+              }}>OFFRE LIMITÉE — 20 partenaires</span>
+            </div>
+            <h3 style={{ margin: "0 0 4px", fontWeight: 900, color: "#0f1b3f", fontSize: "1.1rem" }}>
+              Offre Partenaire Fondateur — Gratuit 12 mois
+            </h3>
+            <p style={{ margin: 0, color: "#78350f", fontSize: "0.88rem" }}>
+              Commission réduite · Badge Fondateur · Mise en avant permanente · Accès anticipé
+            </p>
+          </div>
+          <Link to="/partenaires#offre-fondateur" style={{
+            background: "#f59e0b", color: "#fff", fontWeight: 800, fontSize: "0.9rem",
+            padding: "12px 24px", borderRadius: 11, textDecoration: "none",
+            boxShadow: "0 4px 16px rgba(245,158,11,.35)", whiteSpace: "nowrap",
+          }}>
+            Réclamer l'offre →
+          </Link>
+        </div>
+      </section>
+
       {/* ════ PLANS GRID ════ */}
       <section className={styles.plansSection}>
         <div className={styles.sectionHeader}>
@@ -207,7 +259,9 @@ export default function Plans() {
                 <p className={styles.planDesc}>{plan.desc}</p>
 
                 <div className={styles.planPriceWrap}>
-                  {plan.price === 0 ? (
+                  {plan.price === null ? (
+                    <span className={styles.planFree} style={{ color: "#0f1b3f" }}>Sur devis</span>
+                  ) : plan.price === 0 ? (
                     <span className={styles.planFree}>Gratuit</span>
                   ) : (
                     <div className={styles.planPrice}>
@@ -253,19 +307,17 @@ export default function Plans() {
       <section className={styles.commSection}>
         <div className={styles.commInner}>
           <div className={styles.sectionHeader}>
-            <h2>Comparatif des commissions par plan</h2>
-            <p>Plus vous montez en plan, moins vous payez de commission — et plus vous gardez.</p>
+            <h2>Grille des commissions VIT AUTO</h2>
+            <p>Les commissions sont identiques pour tous les plans — seule l'Offre Fondateur bénéficie de taux réduits pendant 12 mois.</p>
           </div>
 
           <div className={styles.commTable}>
             {/* Header */}
             <div className={styles.commRow + " " + styles.commHead}>
               <div className={styles.commCell}>Service</div>
-              {PLANS.map((p) => (
-                <div key={p.id} className={`${styles.commCell} ${p.popular ? styles.commCellActive : ""}`}>
-                  {p.icon} {p.name}
-                </div>
-              ))}
+              <div className={`${styles.commCell} ${styles.commCellActive}`}>👑 Fondateur</div>
+              <div className={styles.commCell}>Standard (tous plans)</div>
+              <div className={styles.commCell}>Exemple (standard)</div>
             </div>
             {/* Rows */}
             {COMMISSIONS.map((row) => (
@@ -273,37 +325,50 @@ export default function Plans() {
                 <div className={styles.commCell}>
                   <span style={{ color: row.color, fontWeight: 700 }}>{row.label}</span>
                 </div>
-                {PLANS.map((p) => (
-                  <div key={p.id} className={`${styles.commCell} ${p.popular ? styles.commCellActive : ""}`}>
-                    <span className={styles.commRate} style={{ color: p.popular ? "#f59e0b" : "#0f1b3f" }}>
-                      {row.rates[p.id]}
-                    </span>
-                  </div>
-                ))}
+                <div className={`${styles.commCell} ${styles.commCellActive}`}>
+                  <span className={styles.commRate} style={{ color: "#f59e0b" }}>{row.fondateur}</span>
+                </div>
+                <div className={styles.commCell}>
+                  <span className={styles.commRate}>{row.rates.decouverte}</span>
+                </div>
+                <div className={styles.commCell} style={{ fontSize: "0.8rem", color: "#64748b" }}>
+                  {row.label === "Location" && "500 DH → 75 DH comm."}
+                  {row.label === "Vente" && "100 000 DH → 3 000 DH comm."}
+                  {row.label === "Chauffeur" && "300 DH → 30 DH comm."}
+                  {(row.label === "Assurance" || row.label === "Crédit / Leasing") && "Selon accord partenaire"}
+                </div>
               </div>
             ))}
             {/* Frais service */}
             <div className={styles.commRow}>
               <div className={styles.commCell}>
-                <span style={{ color: "#6366f1", fontWeight: 700 }}>Frais service</span>
+                <span style={{ color: "#6366f1", fontWeight: 700 }}>Frais service client</span>
               </div>
-              {PLANS.map((p) => (
-                <div key={p.id} className={`${styles.commCell} ${p.popular ? styles.commCellActive : ""}`}>
-                  <span className={styles.commRate}>{fmtFromMAD(15)}</span>
-                </div>
-              ))}
+              <div className={`${styles.commCell} ${styles.commCellActive}`}>
+                <span className={styles.commRate} style={{ color: "#f59e0b" }}>15 DH</span>
+              </div>
+              <div className={styles.commCell}>
+                <span className={styles.commRate}>15 DH fixe</span>
+              </div>
+              <div className={styles.commCell} style={{ fontSize: "0.8rem", color: "#64748b" }}>
+                À la charge du client
+              </div>
             </div>
           </div>
 
-          {/* Exemple calcul en devise locale */}
+          {/* Exemples calcul */}
           <div className={styles.commExamples}>
             <div className={styles.commExample}>
               <span style={{ color: "#6366f1" }}>📊</span>
-              <span>Ex. location : {fmtFromMAD(6050)} loué → Pack Premium : {fmtFromMAD(6050 * 0.9 - 15)} nets</span>
+              <span>Ex. location : {fmtFromMAD(500)} loué → vous recevez {fmtFromMAD(500 * 0.85 - 15)} nets (standard 15%)</span>
             </div>
             <div className={styles.commExample}>
               <span style={{ color: "#10b981" }}>📊</span>
-              <span>Ex. vente : {fmtFromMAD(302500)} → Pack Premium : {fmtFromMAD(302500 * 0.98 - 15)} nets</span>
+              <span>Ex. vente : {fmtFromMAD(100000)} → vous recevez {fmtFromMAD(100000 * 0.97 - 15)} nets (standard 3%)</span>
+            </div>
+            <div className={styles.commExample}>
+              <span style={{ color: "#f59e0b" }}>👑</span>
+              <span>Fondateur — location {fmtFromMAD(500)} → {fmtFromMAD(500 * 0.90 - 15)} nets (10% réduit)</span>
             </div>
           </div>
         </div>

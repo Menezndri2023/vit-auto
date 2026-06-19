@@ -49,7 +49,7 @@ const FAQS = [
     items: [
       {
         q: "Comment fonctionne la livraison à domicile ?",
-        a: "Sélectionnez « Livraison à domicile » lors de la réservation. Votre position GPS est détectée automatiquement pour calculer la distance réelle entre le partenaire et vous (algorithme Haversine). Les frais sont : 1 000 FCFA de base + 200 FCFA/km. Le partenaire confirme la livraison et se déplace avec le véhicule.",
+        a: "Sélectionnez « Livraison à domicile » lors de la réservation. Votre position GPS est détectée automatiquement pour calculer la distance réelle entre le partenaire et vous (algorithme Haversine). Les frais sont : 15 DH de base + 3 DH/km. Le partenaire confirme la livraison et se déplace avec le véhicule.",
       },
       {
         q: "Comment le partenaire trouve mon adresse ?",

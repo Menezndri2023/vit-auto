@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import styles from "./ContractPage.module.css";
 
-const fmt = (n) => n != null && n !== 0 ? Number(n).toLocaleString("fr-FR") + " FCFA" : null;
+const fmt = (n) => n != null && n !== 0 ? Number(n).toLocaleString("fr-FR") + " DH" : null;
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" }) : "—";
 
 const TYPE_LABELS = { location: "Location de véhicule", essai: "Essai / Vente", chauffeur: "Service chauffeur", leasing: "Leasing / Achat en mensualités" };

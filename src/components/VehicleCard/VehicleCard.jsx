@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import styles from "./VehicleCard.module.css";
 
-const fmt = (n) => Number(n).toLocaleString("fr-FR") + " FCFA";
+const fmt = (n) => Number(n).toLocaleString("fr-FR") + " DH";
 
 const VehicleCard = React.memo(({ car, compact }) => {
   const navigate  = useNavigate();

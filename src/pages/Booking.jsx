@@ -139,17 +139,17 @@ function validatePhone(phone) {
 }
 
 /* ── Constantes ───────────────────────────────────────────── */
-const SERVICE_FEE     = 1000;   // FCFA fixe plateforme
-const DELIVERY_BASE   = 1000;   // FCFA base livraison
-const DELIVERY_PER_KM = 200;    // FCFA/km
+const SERVICE_FEE     = 15;   // DH fixe plateforme
+const DELIVERY_BASE   = 15;   // DH base livraison
+const DELIVERY_PER_KM = 3;    // DH/km
 
 const optionsData = [
-  { id: "babySeat",  label: "Siège bébé",        price: 7000  },
-  { id: "insurance", label: "Prime d'assurance", price: 15000 },
-  { id: "driver",    label: "Chauffeur privé",   price: 50000 },
+  { id: "babySeat",  label: "Siège bébé",        price: 100 },
+  { id: "insurance", label: "Prime d'assurance", price: 250 },
+  { id: "driver",    label: "Chauffeur privé",   price: 800 },
 ];
 
-const gpsOption = { id: "gps", label: "GPS intégré", price: 10000 };
+const gpsOption = { id: "gps", label: "GPS intégré", price: 150 };
 
 /* ── Haversine distance (km) ─────────────────────────────── */
 function haversineKm(lat1, lng1, lat2, lng2) {
@@ -905,7 +905,7 @@ export default function Booking() {
                                 <strong className={styles.geoFeeAmount}>{fmt(deliveryFee)}</strong>
                               </div>
                               <p className={styles.geoFeeNote}>
-                                Tarif : {fmt(DELIVERY_BASE)} base + {DELIVERY_PER_KM} FCFA/km
+                                Tarif : {fmt(DELIVERY_BASE)} base + {DELIVERY_PER_KM} DH/km
                               </p>
                             </div>
                           )}
@@ -987,13 +987,13 @@ export default function Booking() {
                     {!gpsAutoIncluded && (
                       <label className={styles.optionItem}>
                         <input type="checkbox" name="gps" checked={selectedOptions.gps} onChange={handleChange} />
-                        <span>{gpsOption.label} +{gpsOption.price.toLocaleString("fr-FR")} FCFA/jour</span>
+                        <span>{gpsOption.label} +{gpsOption.price.toLocaleString("fr-FR")} DH/jour</span>
                       </label>
                     )}
                     {optionsData.map((option) => (
                       <label key={option.id} className={styles.optionItem}>
                         <input type="checkbox" name={option.id} checked={selectedOptions[option.id]} onChange={handleChange} />
-                        <span>{option.label} +{option.price.toLocaleString("fr-FR")} FCFA/jour</span>
+                        <span>{option.label} +{option.price.toLocaleString("fr-FR")} DH/jour</span>
                       </label>
                     ))}
                   </div>

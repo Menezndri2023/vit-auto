@@ -5,7 +5,7 @@ import { useVehicles } from "../context/VehicleContext";
 import { useToast } from "../context/ToastContext";
 import styles from "./Dashboard.module.css";
 
-const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " FCFA";
+const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " DH";
 
 const STATUS_CONFIG = {
   "À confirmer": { label: "En attente",     color: "#f59e0b", bg: "#fffbeb" },
@@ -521,11 +521,11 @@ const BookingCard = ({ booking, onCancel, onReview }) => {
         )}
         <div className={styles.finRow}>
           <span>Frais de service VIT AUTO</span>
-          <span>{fmt(booking.serviceFeeFCFA || 1000)}</span>
+          <span>{fmt(booking.serviceFeeFCFA || 15)}</span>
         </div>
         <div className={`${styles.finRow} ${styles.finTotal}`}>
           <span>Total réglé</span>
-          <strong>{fmt(booking.total || booking.serviceFeeFCFA || 1000)}</strong>
+          <strong>{fmt(booking.total || booking.serviceFeeFCFA || 15)}</strong>
         </div>
       </div>
 
