@@ -75,6 +75,16 @@ const SERVICES = [
     cta:   "Mon tableau de bord",
     link:  "/dashboard",
   },
+  {
+    icon:  "🌍",
+    color: "#ff4d2d",
+    bg:    "rgba(255,77,45,.10)",
+    title: "Import / Export International",
+    desc:  "Achetez depuis la Chine, Dubaï, l'Europe ou l'Afrique. VIT AUTO gère la recherche, l'inspection, le transport et le dédouanement.",
+    cta:   "Découvrir le service",
+    link:  "/import-export",
+    highlight: true,
+  },
 ];
 
 const STEPS = [
@@ -85,14 +95,18 @@ const STEPS = [
 ];
 
 const COUNTRIES = [
-  { flag: "🇨🇮", name: "Côte d'Ivoire", city: "Abidjan" },
-  { flag: "🇸🇳", name: "Sénégal",       city: "Dakar"   },
-  { flag: "🇲🇦", name: "Maroc",         city: "Casablanca" },
-  { flag: "🇲🇱", name: "Mali",          city: "Bamako"  },
-  { flag: "🇧🇫", name: "Burkina Faso",  city: "Ouagadougou" },
-  { flag: "🇬🇳", name: "Guinée",        city: "Conakry" },
-  { flag: "🇫🇷", name: "France",        city: "Paris"   },
-  { flag: "🇧🇪", name: "Belgique",      city: "Bruxelles" },
+  { flag: "🇨🇳", name: "Chine",         city: "Shanghai"    },
+  { flag: "🇦🇪", name: "Émirats",       city: "Dubaï"       },
+  { flag: "🇩🇪", name: "Allemagne",     city: "Munich"      },
+  { flag: "🇫🇷", name: "France",        city: "Paris"       },
+  { flag: "🇲🇦", name: "Maroc",         city: "Casablanca"  },
+  { flag: "🇩🇿", name: "Algérie",       city: "Alger"       },
+  { flag: "🇨🇮", name: "Côte d'Ivoire", city: "Abidjan"     },
+  { flag: "🇸🇳", name: "Sénégal",       city: "Dakar"       },
+  { flag: "🇬🇭", name: "Ghana",         city: "Accra"       },
+  { flag: "🇳🇬", name: "Nigeria",       city: "Lagos"       },
+  { flag: "🇧🇯", name: "Bénin",         city: "Cotonou"     },
+  { flag: "🇹🇬", name: "Togo",          city: "Lomé"        },
 ];
 
 const Services = () => (
@@ -103,15 +117,15 @@ const Services = () => (
       <div className={styles.heroBubble1} />
       <div className={styles.heroBubble2} />
       <div className={styles.heroContent}>
-        <span className={styles.heroBadge}>🌍 NOS SERVICES</span>
-        <h1>La mobilité premium,<br />partout en Afrique et Europe</h1>
+        <span className={styles.heroBadge}>🌍 NOS SERVICES — 20+ PAYS</span>
+        <h1>La passerelle automobile<br />entre tous les continents</h1>
         <p>
-          Location, vente, livraison GPS, chauffeur privé — VIT AUTO couvre tous vos besoins
-          de déplacement dans 14 pays avec un service irréprochable.
+          Location, vente, import depuis la Chine ou Dubaï, livraison GPS, chauffeur privé —
+          VIT AUTO couvre l'intégralité de vos besoins automobile à l'échelle mondiale.
         </p>
         <div className={styles.heroBtns}>
           <Link className={styles.primaryBtn} to="/catalogue">Voir le catalogue</Link>
-          <Link className={styles.secondaryBtn} to="/register">Devenir partenaire →</Link>
+          <Link className={styles.secondaryBtn} to="/import-export">Import / Export →</Link>
         </div>
       </div>
     </section>
@@ -119,7 +133,7 @@ const Services = () => (
     {/* ── PAYS COUVERTS ── */}
     <section className={styles.countriesSection}>
       <div className={styles.countriesInner}>
-        <p className={styles.countriesLabel}>Disponible dans 14 pays :</p>
+        <p className={styles.countriesLabel}>Présents dans 20+ pays :</p>
         <div className={styles.countriesGrid}>
           {COUNTRIES.map((c) => (
             <div key={c.name} className={styles.country}>
@@ -136,8 +150,8 @@ const Services = () => (
     <section className={styles.servicesSection}>
       <div className={styles.sectionHeader}>
         <span className={styles.sectionTag}>🚀 NOS OFFRES</span>
-        <h2>Ce que nous proposons</h2>
-        <p>Des solutions de mobilité flexibles, transparentes et sécurisées pour particuliers et professionnels.</p>
+        <h2>Des services mondiaux, une seule plateforme</h2>
+        <p>Location, vente, import depuis l'Asie ou le Moyen-Orient, chauffeur privé — tout en un, partout dans le monde.</p>
       </div>
       <div className={styles.grid}>
         {SERVICES.map((s) => (
@@ -184,12 +198,12 @@ const Services = () => (
     <section className={styles.ctaBanner}>
       <div className={styles.ctaBannerInner}>
         <div className={styles.ctaBubble} />
-        <span className={styles.ctaTag}>🚀 COMMENCEZ MAINTENANT</span>
-        <h2>Votre véhicule idéal vous attend</h2>
-        <p>Rejoignez 50 000+ utilisateurs satisfaits. Réservation gratuite, livraison GPS, contrat digital immédiat.</p>
+        <span className={styles.ctaTag}>🌍 MARCHÉ AUTOMOBILE MONDIAL</span>
+        <h2>Votre véhicule, depuis n'importe où dans le monde</h2>
+        <p>Location locale, achat, import depuis la Chine ou Dubaï — 50 000+ utilisateurs satisfaits sur 5 continents.</p>
         <div className={styles.ctaBtns}>
           <Link className={styles.primaryBtn} to="/catalogue">Explorer le catalogue</Link>
-          <Link className={styles.ghostBtn}   to="/register">S'inscrire gratuitement</Link>
+          <Link className={styles.ghostBtn}   to="/import-export">Import / Export →</Link>
         </div>
       </div>
     </section>

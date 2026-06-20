@@ -81,7 +81,9 @@ function ConfirmModal({ message, onConfirm, onCancel, danger }) {
 export default function AdminPanel() {
   const { user, isAuthenticated, token } = useAuth();
 
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab]   = useState("dashboard");
+  const [ieRequests, setIeRequests] = useState([]);
+  const [ieLoading,  setIeLoading]  = useState(false);
   const [stats,     setStats]     = useState(null);
   const [users,     setUsers]     = useState([]);
   const [vehicles,  setVehicles]  = useState([]);
@@ -159,6 +161,24 @@ export default function AdminPanel() {
   }, [token, headers]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  // ── Demandes Import/Export ──────────────────────────────────────────────────
+  const loadImportExport = useCallback(async () => {
+    if (!token) return;
+    setIeLoading(true);
+    try {
+      const res = await fetch("/api/import-export/requests?limit=100", { headers });
+      if (res.ok) {
+        const d = await res.json();
+        setIeRequests(Array.isArray(d) ? d : d.requests || []);
+      }
+    } catch { /* endpoint optionnel */ }
+    setIeLoading(false);
+  }, [token, headers]);
+
+  useEffect(() => {
+    if (activeTab === "import_export") loadImportExport();
+  }, [activeTab, loadImportExport]);
 
   // ── Actions utilisateurs ────────────────────────────────────────────────────
   const toggleBlock = useCallback(async (uid) => {
@@ -397,6 +417,7 @@ export default function AdminPanel() {
                 <option value="client">Clients uniquement</option>
                 <option value="partenaire">Partenaires uniquement</option>
                 <option value="chauffeur">Chauffeurs uniquement</option>
+                <option value="importateur">Importateurs (Corporate)</option>
               </select>
               <input style={{ borderRadius: 8, border: "1px solid #e2e8f0", padding: "0.55rem 0.75rem", fontSize: "0.9rem" }}
                 placeholder="Lien (ex: /catalogue) — optionnel" value={broadcastForm.lien}
@@ -416,7 +437,7 @@ export default function AdminPanel() {
       <header className={styles.header}>
         <div>
           <h1 className={styles.headerTitle}>⚙️ Dashboard Admin</h1>
-          <p className={styles.headerSub}>VIT AUTO — Gestion interne complète</p>
+          <p className={styles.headerSub}>VIT AUTO — Plateforme automobile internationale · 20+ pays</p>
         </div>
         <div className={styles.headerRight}>
           <span className={styles.adminBadge}>🔐 {user.firstName} · Admin</span>
@@ -436,7 +457,8 @@ export default function AdminPanel() {
           { key: "users",       icon: "👥", label: `Utilisateurs (${users.length})` },
           { key: "vehicles",    icon: "🚗", label: `Annonces (${vehicles.length})` },
           { key: "bookings",    icon: "📋", label: `Commandes (${bookings.length})` },
-          { key: "vedette",     icon: "⭐", label: "Vedette" },
+          { key: "vedette",      icon: "⭐", label: "Vedette" },
+          { key: "import_export", icon: "🌍", label: `Import/Export${ieRequests.length > 0 ? ` (${ieRequests.length})` : ""}` },
         ].map(({ key, icon, label }) => (
           <button
             key={key}
@@ -613,7 +635,7 @@ export default function AdminPanel() {
                           const vName = b.vehicle
                             ? [b.vehicle.title, b.vehicle.marque, b.vehicle.modele].filter(Boolean).join(" ")
                             : "—";
-                          const typeLabels = { location: "📅 Location", essai: "🔑 Essai", chauffeur: "🚘 Chauffeur", leasing: "🏦 Leasing" };
+                          const typeLabels = { location: "📅 Location", essai: "🔑 Essai", chauffeur: "🚘 Chauffeur", leasing: "🏦 Leasing", import_export: "🌍 Import/Export" };
                           return (
                             <tr key={b._id} className={styles.tr}>
                               <td><div><strong>{clientName}</strong><span className={styles.vehMeta}>{b.clientInfo?.email}</span></div></td>
@@ -666,6 +688,10 @@ export default function AdminPanel() {
                   value={Number(stats?.revenue?.total || 0).toLocaleString("fr-FR") + " DH"}
                   sub={`Ce mois : ${Number(stats?.revenue?.thisMonth || 0).toLocaleString("fr-FR")} DH`}
                   color="#ef4444" />
+                <StatCard icon="🌍" label="Import/Export"
+                  value={ieRequests.length || stats?.importExport?.total || "—"}
+                  sub="Demandes reçues"
+                  color="#ff4d2d" />
               </div>
 
               {/* Alertes */}
@@ -711,8 +737,8 @@ export default function AdminPanel() {
                   <h3 className={styles.chartTitle}>📊 Commandes par type</h3>
                   <div className={styles.pieGrid}>
                     {stats.bookings.byType.map(({ _id, count }) => {
-                      const colors = { location: "#3b82f6", essai: "#10b981", chauffeur: "#f59e0b", leasing: "#8b5cf6" };
-                      const labels = { location: "📅 Location", essai: "🔑 Essai", chauffeur: "🚘 Chauffeur", leasing: "🏦 Leasing" };
+                      const colors = { location: "#3b82f6", essai: "#10b981", chauffeur: "#f59e0b", leasing: "#8b5cf6", import_export: "#ff4d2d" };
+                      const labels = { location: "📅 Location", essai: "🔑 Essai", chauffeur: "🚘 Chauffeur", leasing: "🏦 Leasing", import_export: "🌍 Import/Export" };
                       return (
                         <div key={_id} className={styles.pieItem}>
                           <div className={styles.pieDot} style={{ background: colors[_id] || "#94a3b8" }} />
@@ -991,7 +1017,7 @@ export default function AdminPanel() {
                   <tbody>
                     {paginate(filteredBookings, bkPage).map((b) => {
                       const bs = STATUS_BK[b.status] || STATUS_BK.pending;
-                      const typeLabels = { location: "📅 Location", essai: "🔑 Essai", chauffeur: "🚘 Chauffeur", leasing: "🏦 Leasing" };
+                      const typeLabels = { location: "📅 Location", essai: "🔑 Essai", chauffeur: "🚘 Chauffeur", leasing: "🏦 Leasing", import_export: "🌍 Import/Export" };
                       const vName = b.vehicle
                         ? [b.vehicle.title, b.vehicle.marque, b.vehicle.modele].filter(Boolean).join(" ")
                         : "—";
@@ -1038,6 +1064,178 @@ export default function AdminPanel() {
               </div>
 
               <Pagination page={bkPage} total={totalPages(filteredBookings)} onChange={setBkPage} />
+            </div>
+          )}
+
+          {/* ══════════════════════ TAB IMPORT/EXPORT ══════════════════════ */}
+          {activeTab === "import_export" && (
+            <div className={styles.tabContent}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+                <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>
+                  🌍 Demandes Import / Export International
+                </h2>
+                <button className={styles.btnRefresh} onClick={loadImportExport}>↻ Actualiser</button>
+              </div>
+
+              {/* KPIs Import/Export */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))", gap: 14, marginBottom: "1.5rem" }}>
+                {[
+                  { icon: "📥", label: "Total reçues",  value: ieRequests.length, color: "#6366f1" },
+                  { icon: "⏳", label: "En attente",    value: ieRequests.filter((r) => r.status === "pending").length,   color: "#f59e0b" },
+                  { icon: "✅", label: "Traitées",      value: ieRequests.filter((r) => r.status === "approved").length,  color: "#10b981" },
+                  { icon: "❌", label: "Rejetées",      value: ieRequests.filter((r) => r.status === "rejected").length,  color: "#ef4444" },
+                ].map((k) => (
+                  <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />
+                ))}
+              </div>
+
+              {/* Zones couvertes */}
+              <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
+                <h3 className={styles.chartTitle}>🗺️ Zones de couverture actives</h3>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 8 }}>
+                  {[
+                    { flag: "🇨🇳", label: "Chine", color: "#ef4444" },
+                    { flag: "🇦🇪", label: "Dubaï / EAU", color: "#f59e0b" },
+                    { flag: "🇩🇪", label: "Allemagne", color: "#3b82f6" },
+                    { flag: "🇫🇷", label: "France", color: "#3b82f6" },
+                    { flag: "🇧🇪", label: "Belgique", color: "#3b82f6" },
+                    { flag: "🇳🇱", label: "Pays-Bas", color: "#3b82f6" },
+                    { flag: "🇪🇸", label: "Espagne", color: "#3b82f6" },
+                    { flag: "🇮🇹", label: "Italie", color: "#3b82f6" },
+                    { flag: "🇲🇦", label: "Maroc", color: "#10b981" },
+                    { flag: "🇩🇿", label: "Algérie", color: "#10b981" },
+                    { flag: "🇹🇳", label: "Tunisie", color: "#10b981" },
+                    { flag: "🇨🇮", label: "Côte d'Ivoire", color: "#10b981" },
+                    { flag: "🇸🇳", label: "Sénégal", color: "#10b981" },
+                    { flag: "🇬🇭", label: "Ghana", color: "#10b981" },
+                    { flag: "🇳🇬", label: "Nigeria", color: "#10b981" },
+                    { flag: "🇧🇯", label: "Bénin", color: "#10b981" },
+                    { flag: "🇹🇬", label: "Togo", color: "#10b981" },
+                    { flag: "🇲🇱", label: "Mali", color: "#10b981" },
+                    { flag: "🇬🇳", label: "Guinée", color: "#10b981" },
+                    { flag: "🇲🇷", label: "Mauritanie", color: "#10b981" },
+                  ].map((z) => (
+                    <span key={z.label} style={{
+                      display: "inline-flex", alignItems: "center", gap: 5,
+                      padding: "5px 12px", borderRadius: 8, fontSize: "0.82rem", fontWeight: 600,
+                      background: z.color + "14", color: z.color, border: `1px solid ${z.color}30`,
+                    }}>
+                      {z.flag} {z.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Packs actifs */}
+              <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
+                <h3 className={styles.chartTitle}>📦 Packs Import Assist — Tarification</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", gap: 12, marginTop: 12 }}>
+                  {[
+                    { name: "Silver", price: "À partir de 299 €", color: "#94a3b8", features: ["Vérification vendeur", "Assistance achat", "Suivi dossier"] },
+                    { name: "Gold",   price: "À partir de 599 €", color: "#f59e0b", features: ["+ Inspection pro", "Suivi logistique", "Support prioritaire"] },
+                    { name: "Platinum", price: "Sur devis",       color: "#6366f1", features: ["Gestion complète", "Dédouanement", "Livraison porte-à-porte"] },
+                    { name: "Executive", price: "Sur devis",      color: "#ff4d2d", features: ["Conciergerie 24h/7j", "Financement & assurance", "Garantie satisfaction"] },
+                  ].map((p) => (
+                    <div key={p.name} style={{
+                      border: `1.5px solid ${p.color}33`, borderRadius: 12, padding: "16px 14px",
+                      background: `${p.color}08`,
+                    }}>
+                      <div style={{ fontWeight: 900, color: p.color, fontSize: "0.82rem", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 4 }}>{p.name}</div>
+                      <div style={{ fontWeight: 800, color: "#0f1b3f", fontSize: "1rem", marginBottom: 8 }}>{p.price}</div>
+                      {p.features.map((f) => (
+                        <div key={f} style={{ fontSize: "0.78rem", color: "#64748b", marginBottom: 3 }}>
+                          <span style={{ color: p.color, marginRight: 5 }}>✓</span>{f}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Table des demandes */}
+              {ieLoading ? (
+                <div className={styles.loadingBox} style={{ minHeight: 120 }}>
+                  <div className={styles.spinner} /><p>Chargement des demandes...</p>
+                </div>
+              ) : ieRequests.length === 0 ? (
+                <div className={styles.chartCard}>
+                  <div style={{ textAlign: "center", padding: "32px 0", color: "#94a3b8" }}>
+                    <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>🌍</div>
+                    <p style={{ fontWeight: 700, color: "#64748b", margin: "0 0 6px" }}>Aucune demande Import/Export pour l'instant</p>
+                    <p style={{ fontSize: "0.85rem", margin: 0 }}>Les demandes soumises via la page Import/Export apparaîtront ici.</p>
+                    <a href="/import-export" target="_blank" rel="noopener noreferrer"
+                      style={{ display: "inline-block", marginTop: 14, color: "#ff4d2d", fontWeight: 700, fontSize: "0.85rem", textDecoration: "none" }}>
+                      Voir la page Import/Export →
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.tableWrap}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Client</th>
+                        <th>Pack</th>
+                        <th>Pays source</th>
+                        <th>Destination</th>
+                        <th>Budget</th>
+                        <th>Statut</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ieRequests.map((r) => {
+                        const stCfg = {
+                          pending:  { label: "En attente",  color: "#f59e0b", bg: "#fffbeb" },
+                          approved: { label: "Traité",      color: "#10b981", bg: "#ecfdf5" },
+                          rejected: { label: "Rejeté",      color: "#ef4444", bg: "#fef2f2" },
+                        }[r.status] || { label: r.status, color: "#94a3b8", bg: "#f8fafc" };
+                        return (
+                          <tr key={r._id} className={styles.tr}>
+                            <td>
+                              <strong>{r.firstName} {r.lastName}</strong>
+                              <span className={styles.vehMeta}>{r.email}</span>
+                            </td>
+                            <td><Badge label={r.pack || "—"} color="#6366f1" bg="#f0f4ff" /></td>
+                            <td style={{ fontSize: "0.85rem" }}>{r.sourceCountry || "—"}</td>
+                            <td style={{ fontSize: "0.85rem" }}>{r.destCountry || "—"}</td>
+                            <td className={styles.tdPrice}>{r.budget ? `${r.budget} €` : "—"}</td>
+                            <td><Badge label={stCfg.label} color={stCfg.color} bg={stCfg.bg} /></td>
+                            <td className={styles.tdDate}>{fmtDate(r.createdAt)}</td>
+                            <td>
+                              <div className={styles.actionBtns}>
+                                {r.status === "pending" && (
+                                  <>
+                                    <button className={styles.btnApprove}
+                                      onClick={async () => {
+                                        await fetch(`/api/import-export/requests/${r._id}/status`, {
+                                          method: "PATCH", headers,
+                                          body: JSON.stringify({ status: "approved" }),
+                                        });
+                                        loadImportExport();
+                                        showToast("Demande approuvée");
+                                      }}>✅ Valider</button>
+                                    <button className={styles.btnReject}
+                                      onClick={async () => {
+                                        await fetch(`/api/import-export/requests/${r._id}/status`, {
+                                          method: "PATCH", headers,
+                                          body: JSON.stringify({ status: "rejected" }),
+                                        });
+                                        loadImportExport();
+                                        showToast("Demande rejetée", "error");
+                                      }}>✕ Rejeter</button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 

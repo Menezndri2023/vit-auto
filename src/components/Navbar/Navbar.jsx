@@ -46,6 +46,7 @@ const Navbar = () => {
           <li><NavLink to="/services" className={navLink} onClick={() => setMenuOpen(false)}>Services</NavLink></li>
         )}
 
+
         {/* Liens visibles uniquement par les partenaires */}
         {isPartner && (
           <>

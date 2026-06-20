@@ -3,7 +3,7 @@ import { useAuth } from "../../context/AuthContext";
 import styles from "./VendorCallout.module.css";
 
 const STATS = [
-  { value: "20",    label: "Partenaires fondateurs", sub: "avantages exclusifs" },
+  { value: "20+",   label: "Pays couverts",          sub: "Afrique · Europe · Asie" },
   { value: "0 %",   label: "Commission",             sub: "les 30 premiers jours" },
   { value: "24h",   label: "Validation",             sub: "annonce en ligne" },
 ];
@@ -29,12 +29,12 @@ const VendorCallout = () => {
             <h2 className={styles.title}>
               {isPartner
                 ? "Publiez votre prochain véhicule"
-                : "Monétisez votre véhicule dès aujourd'hui"}
+                : "Vendez ou importez à l'international"}
             </h2>
             <p className={styles.desc}>
               {isPartner
-                ? "Ajoutez une annonce en quelques minutes — location, vente ou chauffeur. Gestion complète depuis votre espace partenaire."
-                : "Rejoignez des centaines de partenaires en Côte d'Ivoire, au Maroc, au Sénégal et en France. Publication gratuite, paiements automatisés, clients vérifiés."}
+                ? "Ajoutez une annonce en quelques minutes — location, vente, chauffeur ou import/export. Visibilité dans 20+ pays, paiements automatisés."
+                : "Rejoignez des centaines de partenaires sur 20+ pays — Afrique, Europe, Chine, Dubaï. Publication gratuite, clients vérifiés, revenus automatiques."}
             </p>
 
             <Link

@@ -32,10 +32,10 @@ const Login = () => {
       success("Connexion réussie ! Redirection...");
       const role = loggedUser?.role;
 
-      // Priorité : page d'origine → puis dashboard selon rôle
+      // Priorité : page d'origine → puis destination selon rôle
       const defaultDest = role === "admin"      ? "/admin"
                         : role === "partenaire" ? "/vendor/dashboard"
-                        : "/dashboard";
+                        : "/";
       const dest = fromPage || defaultDest;
       setTimeout(() => navigate(dest + fromSearch, { replace: true }), 900);
     } catch (err) {

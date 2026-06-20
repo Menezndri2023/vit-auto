@@ -6,10 +6,10 @@ import SearchBar from "../SearchBar/SearchBar";
 import styles from "./HeroSection.module.css";
 
 const STATS = [
-  { icon: "🚗", value: "1 200+", label: "Véhicules disponibles" },
-  { icon: "🚚", value: "48h",    label: "Livraison garantie" },
+  { icon: "🚗", value: "3 500+", label: "Véhicules disponibles" },
+  { icon: "🌍", value: "20+",    label: "Pays couverts" },
   { icon: "⭐", value: "4.9/5",  label: "Note moyenne" },
-  { icon: "📍", value: "50+",    label: "Villes couvertes" },
+  { icon: "🚢", value: "Import", label: "Chine · Dubaï · Europe" },
 ];
 
 // Slides par défaut si aucun véhicule en base
@@ -135,24 +135,24 @@ export default function HeroSection() {
     <section className={styles.hero}>
       {/* ─── COLONNE GAUCHE ─── */}
       <div className={styles.left}>
-        <span className={styles.intlBadge}>🌍 Plateforme internationale • 14 pays</span>
+        <span className={styles.intlBadge}>🌍 Plateforme automobile internationale • 20+ pays</span>
 
         <h1 className={styles.title}>
-          Location & vente de<br />
-          <span className={styles.titleAccent}>véhicules premium</span>
+          Achetez, louez, importez<br />
+          <span className={styles.titleAccent}>depuis n'importe où</span>
         </h1>
 
         <p className={styles.subtitle}>
-          Trouvez le véhicule idéal près de chez vous. Livraison GPS à domicile,
-          paiement sécurisé, contrat digital immédiat.
+          Afrique, Europe, Chine, Dubaï — VIT AUTO connecte acheteurs et vendeurs
+          à travers le monde. Livraison GPS, contrat digital, paiement sécurisé.
         </p>
 
         <div className={styles.ctas}>
           <Link to="/catalogue" className={styles.ctaPrimary}>
-            Voir les véhicules
+            Explorer le catalogue
           </Link>
-          <Link to="/register" className={styles.ctaSecondary}>
-            Devenir partenaire →
+          <Link to="/import-export" className={styles.ctaSecondary}>
+            Import / Export →
           </Link>
         </div>
 
@@ -160,7 +160,7 @@ export default function HeroSection() {
         <div className={styles.trustPills}>
           <span>✅ Identité vérifiée</span>
           <span>🛡️ Paiement sécurisé</span>
-          <span>📄 Contrat digital</span>
+          <span>🚢 Import clé en main</span>
         </div>
       </div>
 

@@ -83,15 +83,15 @@ const PLANS = [
     badge: "🏢 Sur devis",
     color: "#0f1b3f",
     icon:  "🌍",
-    desc:  "Pour les grands concessionnaires, réseaux de location et flottes d'entreprises.",
+    desc:  "Pour les importateurs, grands concessionnaires, réseaux multi-pays et flottes internationales.",
     features: [
       { ok: true,  text: "Véhicules illimités (multi-agences)" },
-      { ok: true,  text: "Contrat digital automatique" },
+      { ok: true,  text: "Accès Import / Export international" },
       { ok: true,  text: "Statistiques avancées & export" },
-      { ok: true,  text: "Mise en avant nationale illimitée" },
+      { ok: true,  text: "Mise en avant mondiale illimitée" },
       { ok: true,  text: "Badge Corporate 🏢 & page dédiée" },
       { ok: true,  text: "Tableau de bord multi-utilisateurs" },
-      { ok: true,  text: "Account manager dédié" },
+      { ok: true,  text: "Account manager dédié 24h/7j" },
       { ok: true,  text: "Tarif : 1 500 – 5 000 DH/mois selon volume" },
     ],
     cta: "Contacter l'équipe",
@@ -186,7 +186,7 @@ export default function Plans() {
           </p>
           <div className={styles.heroPills}>
             <span>✅ Sans engagement</span>
-            <span>🌍 14 pays couverts</span>
+            <span>🌍 20+ pays couverts</span>
             <span>💳 Paiement sécurisé</span>
           </div>
         </div>
@@ -397,7 +397,7 @@ export default function Plans() {
           <div className={styles.finalDecoBubble} />
           <span className={styles.finalTag}>🤝 DEVENEZ PARTENAIRE</span>
           <h2>Prêt à publier votre première annonce ?</h2>
-          <p>Rejoignez des centaines de partenaires actifs en Afrique et en Europe. Publication gratuite, paiements automatisés.</p>
+          <p>Rejoignez des milliers de partenaires actifs sur 20+ pays — Afrique, Maghreb, Moyen-Orient, Europe et Asie. Publication gratuite, paiements automatisés.</p>
           <div className={styles.finalBtns}>
             <button className={styles.btnPrimary} onClick={() => navigate("/vendor")}>
               Publier une annonce

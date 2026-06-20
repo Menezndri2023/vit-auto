@@ -61,7 +61,7 @@ const FAQS = [
       },
       {
         q: "Dans quelles villes livrez-vous ?",
-        a: "VIT AUTO opère dans 50+ villes à travers 14 pays : Côte d'Ivoire, Sénégal, Maroc, Mali, Burkina Faso, Guinée, France, Belgique, Espagne, Suisse, et plus. La disponibilité dépend de chaque partenaire.",
+        a: "VIT AUTO opère dans 50+ villes à travers 20+ pays : Côte d'Ivoire, Sénégal, Ghana, Nigeria, Maroc, Algérie, Tunisie, Mali, Burkina Faso, Guinée, France, Belgique, Espagne, Suisse, et plus. La disponibilité dépend de chaque partenaire.",
       },
     ],
   },
@@ -82,7 +82,32 @@ const FAQS = [
       },
       {
         q: "Puis-je publier depuis l'étranger ?",
-        a: "Oui ! VIT AUTO est une plateforme internationale. Vous pouvez publier des véhicules depuis le Maroc, la France, le Sénégal et tout autre pays couvert.",
+        a: "Oui ! VIT AUTO est une plateforme mondiale. Publiez depuis 20+ pays : Maroc, France, Sénégal, Côte d'Ivoire, Dubaï, Allemagne, Chine et tout autre pays couvert.",
+      },
+    ],
+  },
+  {
+    cat: "🌍 Import / Export International",
+    items: [
+      {
+        q: "Qu'est-ce que le service Import/Export ?",
+        a: "VIT AUTO vous permet d'importer des véhicules depuis la Chine, Dubaï ou l'Europe, ou d'en exporter vers 20+ pays en Afrique et au Maghreb. Nous gérons l'inspection, le transport maritime, le dédouanement et la livraison de A à Z.",
+      },
+      {
+        q: "Quels sont les packs disponibles ?",
+        a: "Trois formules : Silver (à partir de 299 €) pour la vérification vendeur et l'assistance achat, Gold (à partir de 599 €) avec inspection et suivi logistique, Platinum sur devis pour une gestion complète incluant dédouanement et livraison porte-à-porte.",
+      },
+      {
+        q: "Combien coûte une inspection avant achat ?",
+        a: "L'inspection Standard démarre à 79 €, l'inspection Premium à 199 €. Le rapport est transmis avant tout engagement d'achat.",
+      },
+      {
+        q: "Qui peut utiliser le service Import/Export ?",
+        a: "Toute personne souhaitant acheter un véhicule à l'international (particuliers et professionnels). Les importateurs et concessionnaires bénéficient de conditions préférentielles via le plan Corporate.",
+      },
+      {
+        q: "Depuis quels pays puis-je importer ?",
+        a: "Principalement depuis la Chine (BYD, Geely, Chery…), les Émirats arabes unis (Dubaï), et l'Europe (Allemagne, France, Belgique, Pays-Bas, Espagne, Italie). La liste s'étend régulièrement.",
       },
     ],
   },

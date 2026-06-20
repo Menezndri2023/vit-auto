@@ -8,7 +8,7 @@ const TESTIMONIALS = [
     role:   "Chef d'entreprise — Abidjan",
     flag:   "🇨🇮",
     rating: 5,
-    text:   "Incroyable rapidité ! J'ai réservé un SUV Toyota Fortuner depuis mon téléphone, livré le soir même à Cocody. Le partenaire était ponctuel et le véhicule impeccable.",
+    text:   "J'ai importé un BYD Han depuis la Chine via VIT AUTO. Inspection sur place, transport maritime, dédouanement géré de A à Z. Livraison à Abidjan en 35 jours. Exceptionnel.",
   },
   {
     id:     2,
@@ -16,23 +16,23 @@ const TESTIMONIALS = [
     role:   "Directrice commerciale — Casablanca",
     flag:   "🇲🇦",
     rating: 5,
-    text:   "Plateforme professionnelle et fiable. J'utilise VIT AUTO pour tous mes déplacements entre Casablanca et Rabat. Contrat digital, caution restituée en 24h. Excellent !",
+    text:   "Plateforme professionnelle et fiable. J'ai acheté un véhicule depuis Dubaï via le service Import Assist Gold. Tout a été géré : inspection, transport, douanes. Parfait.",
   },
   {
     id:     3,
     name:   "Mamadou Diallo",
-    role:   "Entrepreneur — Dakar",
+    role:   "Importateur — Dakar",
     flag:   "🇸🇳",
     rating: 5,
-    text:   "En tant que partenaire, j'ai publié mes 3 véhicules en moins d'une heure. Les réservations arrivent directement, les paiements sont automatiques. Je recommande vivement.",
+    text:   "Partenaire importateur depuis 8 mois. J'importe des véhicules d'Allemagne et de Chine que je revends au Sénégal. VIT AUTO est ma passerelle — simple, rapide, international.",
   },
   {
     id:     4,
-    name:   "Aïssatou Traoré",
-    role:   "Responsable logistique — Bamako",
-    flag:   "🇲🇱",
+    name:   "Ahmed Al-Rashidi",
+    role:   "Négociant automobile — Dubaï",
+    flag:   "🇦🇪",
     rating: 5,
-    text:   "La livraison GPS est bluffante — le partenaire a trouvé mon adresse sans aucun problème. Le calcul des frais était transparent depuis le début. Service 5 étoiles.",
+    text:   "We export premium SUVs and pick-ups to West Africa through VIT AUTO. The platform handles everything — buyers, paperwork, logistics. Revenue doubled in 6 months.",
   },
 ];
 
@@ -50,10 +50,10 @@ const Testimonials = () => (
 
       {/* Header */}
       <div className={styles.header}>
-        <span className={styles.tag}>💬 TÉMOIGNAGES</span>
+        <span className={styles.tag}>💬 TÉMOIGNAGES CLIENTS</span>
         <h2 className={styles.title}>Ils font confiance à VIT AUTO</h2>
         <p className={styles.sub}>
-          Des milliers de clients et partenaires satisfaits à travers 14 pays en Afrique et en Europe.
+          Clients, importateurs et partenaires satisfaits sur 20+ pays — Afrique, Europe, Moyen-Orient et Asie.
         </p>
       </div>
 

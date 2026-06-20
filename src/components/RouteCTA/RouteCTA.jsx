@@ -3,9 +3,9 @@ import { Link } from "react-router-dom";
 import styles from "./RouteCTA.module.css";
 
 const HIGHLIGHTS = [
-  { icon: "🚗", text: "1 200+ véhicules" },
-  { icon: "📍", text: "50+ villes" },
-  { icon: "🌍", text: "14 pays" },
+  { icon: "🚗", text: "3 500+ véhicules" },
+  { icon: "🌍", text: "20+ pays" },
+  { icon: "🚢", text: "Import Chine · Dubaï" },
   { icon: "⚡", text: "Livraison GPS" },
 ];
 
@@ -18,16 +18,16 @@ const RouteCTA = () => (
       <div className={styles.decoCircle2} />
 
       <div className={styles.content}>
-        <span className={styles.badge}>🚀 PRÊT À PARTIR ?</span>
+        <span className={styles.badge}>🌍 MARCHÉ AUTOMOBILE MONDIAL</span>
 
         <h2 className={styles.title}>
-          Le véhicule idéal vous attend,<br />
-          <span className={styles.accent}>livré où vous êtes</span>
+          Votre véhicule, depuis n'importe<br />
+          <span className={styles.accent}>quel pays du monde</span>
         </h2>
 
         <p className={styles.desc}>
-          Rejoignez 50 000+ utilisateurs satisfaits à travers l'Afrique et l'Europe.
-          Réservez en 2 minutes, payez sécurisé, recevez à domicile.
+          Rejoignez 50 000+ utilisateurs satisfaits sur 5 continents. Location, achat,
+          import depuis la Chine ou Dubaï — VIT AUTO gère tout de A à Z.
         </p>
 
         {/* Highlights */}
@@ -44,8 +44,8 @@ const RouteCTA = () => (
           <Link to="/catalogue" className={styles.primaryBtn}>
             Explorer le catalogue
           </Link>
-          <Link to="/register" className={styles.secondaryBtn}>
-            Publier mon véhicule →
+          <Link to="/import-export" className={styles.secondaryBtn}>
+            Import / Export →
           </Link>
         </div>
       </div>

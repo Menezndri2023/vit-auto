@@ -49,9 +49,9 @@ export default function Partenaires() {
           Rejoignez la plateforme automobile<br />
           <span style={{ color: "#ff6b4a" }}>qui propulse vos revenus</span>
         </h1>
-        <p style={{ margin: "0 0 26px", color: "rgba(255,255,255,.75)", fontSize: "0.97rem", maxWidth: 540, lineHeight: 1.65 }}>
+        <p style={{ margin: "0 0 26px", color: "rgba(255,255,255,.92)", fontSize: "0.97rem", maxWidth: 540, lineHeight: 1.65 }}>
           Agences, concessionnaires, particuliers — publiez vos véhicules sur VIT AUTO
-          et touchez des milliers de clients dans 14 pays. Commission transparente, paiements sécurisés.
+          et touchez des milliers de clients dans 20+ pays. Commission transparente, paiements sécurisés.
         </p>
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
           <Link to="/register?role=partenaire" style={{
@@ -162,7 +162,7 @@ export default function Partenaires() {
       </p>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", gap: 20, marginBottom: 56 }}>
-        <BenefitCard icon="🌍" title="Présence internationale" desc="14 pays, 8 devises. Touchez des clients au-delà de vos frontières." />
+        <BenefitCard icon="🌍" title="Présence internationale" desc="20+ pays, 9 devises. Chine, Dubaï, Europe, Afrique, Maghreb — touchez des clients partout." />
         <BenefitCard icon="📄" title="Contrats digitaux" desc="Chaque réservation génère automatiquement un contrat à valeur légale." />
         <BenefitCard icon="🚚" title="Livraison GPS" desc="Calcul automatique des frais de livraison. Plus de négociation." />
         <BenefitCard icon="💳" title="Paiements sécurisés" desc="Orange Money, Wave, MTN, carte bancaire. Virement rapide vers vous." />
@@ -180,7 +180,7 @@ export default function Partenaires() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px,1fr))", gap: 16 }}>
           {[
             { icon: "🏢", title: "Agences de location", desc: "Multipliez vos canaux de réservation et automatisez votre gestion." },
-            { icon: "🏪", title: "Concessionnaires", desc: "Vendez neuf et occasion à une audience qualifiée dans 14 pays." },
+            { icon: "🏪", title: "Concessionnaires & Importateurs", desc: "Vendez neuf et occasion à une audience qualifiée dans 20+ pays. Importez depuis la Chine ou Dubaï via Import/Export." },
             { icon: "👤", title: "Particuliers", desc: "Monétisez votre véhicule quand vous ne l'utilisez pas." },
             { icon: "👨‍✈️", title: "Chauffeurs professionnels", desc: "Proposez vos services avec conducteur à des clients partout." },
           ].map((t) => (
@@ -223,8 +223,8 @@ export default function Partenaires() {
         background: "linear-gradient(135deg, #0f1b3f 0%, #1e3a6e 100%)",
         borderRadius: 20, padding: "40px 36px", marginBottom: 56, color: "#fff",
       }}>
-        <h2 style={{ margin: "0 0 8px", fontWeight: 900, fontSize: "1.3rem" }}>Commissions transparentes</h2>
-        <p style={{ margin: "0 0 28px", color: "rgba(255,255,255,.65)", fontSize: "0.9rem" }}>
+        <h2 style={{ margin: "0 0 8px", fontWeight: 900, fontSize: "1.3rem", color: "#ffffff", textShadow: "0 2px 16px rgba(0,0,0,.4)" }}>Commissions transparentes</h2>
+        <p style={{ margin: "0 0 28px", color: "rgba(255,255,255,.92)", fontSize: "0.9rem" }}>
           Aucun frais caché. Vous savez exactement ce que vous payez.
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px,1fr))", gap: 16 }}>
@@ -242,7 +242,7 @@ export default function Partenaires() {
               <div style={{ fontSize: "1.5rem", marginBottom: 10 }}>{c.icon}</div>
               <div style={{ fontWeight: 800, fontSize: "1rem", marginBottom: 12 }}>{c.label}</div>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                <span style={{ color: "rgba(255,255,255,.6)", fontSize: "0.82rem" }}>Standard</span>
+                <span style={{ color: "rgba(255,255,255,.85)", fontSize: "0.82rem" }}>Standard</span>
                 <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>{c.standard}</span>
               </div>
               <div style={{
@@ -252,7 +252,7 @@ export default function Partenaires() {
                 <span style={{ color: "#ffd700", fontSize: "0.82rem", fontWeight: 700 }}>👑 Fondateur</span>
                 <span style={{ color: "#ffd700", fontWeight: 900, fontSize: "0.9rem" }}>{c.founder}</span>
               </div>
-              {c.note && <div style={{ color: "rgba(255,255,255,.4)", fontSize: "0.76rem", marginTop: 8 }}>{c.note}</div>}
+              {c.note && <div style={{ color: "rgba(255,255,255,.70)", fontSize: "0.76rem", marginTop: 8 }}>{c.note}</div>}
             </div>
           ))}
         </div>
@@ -274,6 +274,41 @@ export default function Partenaires() {
           <Li>Documents en règle : assurance, carte grise, contrôle technique</Li>
           <Li>Disponibilité pour confirmer les réservations dans les 24 heures</Li>
         </ul>
+      </div>
+
+      {/* ── Import / Export ── */}
+      <div style={{
+        background: "linear-gradient(135deg, #0a1429 0%, #0f1b3f 100%)",
+        borderRadius: 20, padding: "36px 36px", marginBottom: 40,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        gap: 28, flexWrap: "wrap", position: "relative", overflow: "hidden",
+      }}>
+        <div style={{
+          position: "absolute", top: -50, right: -50, width: 180, height: 180,
+          background: "rgba(255,77,45,.07)", borderRadius: "50%",
+        }} />
+        <div style={{ flex: 1, minWidth: 240 }}>
+          <span style={{
+            display: "inline-block", background: "rgba(255,77,45,.18)", color: "#ff7a5c",
+            fontSize: "0.70rem", fontWeight: 800, padding: "4px 12px",
+            borderRadius: 999, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12,
+          }}>🌍 SERVICE EXCLUSIF</span>
+          <h3 style={{ margin: "0 0 10px", fontWeight: 900, color: "#fff", fontSize: "clamp(1.1rem,2vw,1.4rem)" }}>
+            Import / Export International
+          </h3>
+          <p style={{ margin: 0, color: "rgba(255,255,255,.92)", fontSize: "0.88rem", lineHeight: 1.65, maxWidth: 460 }}>
+            Importez des véhicules depuis la Chine, Dubaï ou l'Europe et revendez-les sur 20+ marchés.
+            Inspection, transport maritime, dédouanement — VIT AUTO gère tout avec vous.
+          </p>
+        </div>
+        <Link to="/import-export" style={{
+          background: "linear-gradient(135deg, #ff4d2d, #e03519)", color: "#fff",
+          fontWeight: 800, fontSize: "0.90rem", padding: "13px 26px",
+          borderRadius: 11, textDecoration: "none", whiteSpace: "nowrap",
+          boxShadow: "0 4px 18px rgba(255,77,45,.35)", flexShrink: 0,
+        }}>
+          Découvrir Import/Export →
+        </Link>
       </div>
 
       {/* ── CTA final ── */}

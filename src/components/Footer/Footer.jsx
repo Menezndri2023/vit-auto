@@ -13,8 +13,8 @@ const Footer = () => {
             <VitAutoLogo iconSize={52} variant="white" showText tagline />
           </div>
           <p className={styles.brandTagline}>
-            La plateforme premium de location, vente et livraison de véhicules
-            à travers l'Afrique, le Maghreb et l'Europe.
+            La passerelle automobile internationale — location, vente, import et export
+            entre l'Afrique, l'Europe, la Chine et le Moyen-Orient.
           </p>
           <div className={styles.socials}>
             <a href="https://wa.me/2120607742672" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">📱</a>
@@ -32,6 +32,7 @@ const Footer = () => {
               <li><Link to="/catalogue?mode=Louer">Location longue durée</Link></li>
               <li><Link to="/catalogue?mode=Acheter">Vente de véhicules</Link></li>
               <li><Link to="/catalogue?mode=Chauffeur">Service chauffeur</Link></li>
+              <li><Link to="/import-export">Import / Export International</Link></li>
               <li><Link to="/pourquoi">Pourquoi VIT AUTO ?</Link></li>
             </ul>
           </div>
@@ -85,7 +86,7 @@ const Footer = () => {
           <Link to="/conditions-partenaires">Partenaires</Link>
           <Link to="/faq">FAQ</Link>
         </div>
-        <span className={styles.madeWith}>Plateforme internationale 🌍</span>
+        <span className={styles.madeWith}>🌍 Plateforme automobile mondiale</span>
       </div>
     </footer>
   );

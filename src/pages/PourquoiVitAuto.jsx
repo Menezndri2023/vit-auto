@@ -2,11 +2,21 @@ import { Link } from "react-router-dom";
 
 const SERVICE_CARDS = [
   {
+    icon: "🌍",
+    color: "#ff4d2d",
+    bg: "rgba(255,77,45,.08)",
+    title: "Import / Export International",
+    desc: "Chine, Dubaï, Europe → Afrique & Maghreb. Inspection, transport maritime, dédouanement, livraison gérés de A à Z par VIT AUTO.",
+    cta: "Découvrir le service",
+    link: "/import-export",
+    highlight: true,
+  },
+  {
     icon: "🚗",
     color: "#6366f1",
     bg: "rgba(99,102,241,.08)",
     title: "Location",
-    desc: "Courte ou longue durée, à la journée ou au mois. Plus de 500 véhicules disponibles dans 14 pays. Tarifs transparents, pas de surprises.",
+    desc: "Courte ou longue durée, à la journée ou au mois. Plus de 3 500 véhicules disponibles dans 20+ pays. Tarifs transparents, pas de surprises.",
     cta: "Voir les locations",
     link: "/catalogue?mode=Louer",
   },
@@ -68,17 +78,17 @@ const SERVICE_CARDS = [
 ];
 
 const STATS = [
-  { value: "14", label: "pays couverts", icon: "🌍" },
-  { value: "8", label: "devises acceptées", icon: "💱" },
-  { value: "500+", label: "véhicules disponibles", icon: "🚗" },
-  { value: "24h", label: "support client", icon: "💬" },
+  { value: "20+",    label: "pays couverts",        icon: "🌍" },
+  { value: "9",      label: "devises acceptées",    icon: "💱" },
+  { value: "3 500+", label: "véhicules disponibles", icon: "🚗" },
+  { value: "24h",    label: "support client",        icon: "💬" },
 ];
 
 const WHY_ITEMS = [
   { icon: "📄", title: "Contrats digitaux automatiques", desc: "Chaque réservation génère un contrat signable en ligne, à valeur légale, sans paperasse." },
   { icon: "✅", title: "Identités vérifiées", desc: "Partenaires et chauffeurs sont vérifiés avant toute publication. Vous traitez avec des professionnels contrôlés." },
   { icon: "💳", title: "Paiements 100 % sécurisés", desc: "Orange Money, Wave, MTN, Stripe, carte bancaire. Vos transactions sont chiffrées et protégées." },
-  { icon: "🌐", title: "Plateforme multilingue", desc: "Interface en Français, Anglais et Arabe. Support des devises locales pour 14 pays." },
+  { icon: "🌐", title: "Plateforme multilingue", desc: "Interface en Français, Anglais et Arabe. Support de 9 devises locales pour 20+ pays." },
   { icon: "📊", title: "Transparence totale des prix", desc: "Frais de service, commission, livraison — tout est affiché avant la confirmation. Zéro surprise." },
   { icon: "🏅", title: "Garantie satisfaction", desc: "En cas de problème, notre équipe intervient et trouve une solution sous 24 heures." },
 ];
@@ -97,13 +107,13 @@ export default function PourquoiVitAuto() {
           display: "inline-block", background: "rgba(255,77,45,.2)", color: "#ff8060",
           fontSize: "0.72rem", fontWeight: 800, padding: "5px 16px",
           borderRadius: 999, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 20,
-        }}>🏆 PLATEFORME TOUT-EN-UN</span>
+        }}>🌍 PLATEFORME AUTOMOBILE MONDIALE</span>
         <h1 style={{ margin: "0 0 16px", fontSize: "clamp(1.8rem,3.5vw,2.6rem)", fontWeight: 900, lineHeight: 1.25 }}>
           Pourquoi choisir VIT AUTO ?
         </h1>
-        <p style={{ margin: "0 auto 32px", color: "rgba(255,255,255,.75)", fontSize: "1.05rem", maxWidth: 580, lineHeight: 1.7 }}>
-          Location, vente, chauffeur, assurance, crédit, inspection et livraison —
-          <strong style={{ color: "#fff" }}> tout sur une seule plateforme</strong>, dans 14 pays.
+        <p style={{ margin: "0 auto 32px", color: "rgba(255,255,255,.92)", fontSize: "1.05rem", maxWidth: 580, lineHeight: 1.7 }}>
+          Location, vente, import depuis la Chine ou Dubaï, chauffeur, assurance —
+          <strong style={{ color: "#fff" }}> tout sur une seule plateforme</strong>, dans 20+ pays.
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
           <Link to="/catalogue" style={{
@@ -263,7 +273,7 @@ export default function PourquoiVitAuto() {
         <h2 style={{ margin: "0 0 12px", fontWeight: 900, fontSize: "clamp(1.3rem,2.5vw,1.8rem)" }}>
           Prêt à démarrer ?
         </h2>
-        <p style={{ margin: "0 0 28px", color: "rgba(255,255,255,.7)", fontSize: "0.95rem" }}>
+        <p style={{ margin: "0 0 28px", color: "rgba(255,255,255,.92)", fontSize: "0.95rem" }}>
           Rejoignez des milliers d'utilisateurs qui font confiance à VIT AUTO pour leur mobilité.
         </p>
         <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>

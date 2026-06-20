@@ -28,6 +28,14 @@ const faqs = [
     q: "Que faire en cas de panne pendant la location ?",
     a: "Contactez notre assistance 24h/24 via le numéro fourni dans votre confirmation de réservation. Un service de dépannage sera dépêché dans les meilleurs délais.",
   },
+  {
+    q: "Comment importer un véhicule depuis la Chine ou Dubaï ?",
+    a: "Rendez-vous sur la page Import/Export pour découvrir nos packs (Silver, Gold, Platinum). Notre équipe gère l'inspection, le transport international, le dédouanement et la livraison de A à Z.",
+  },
+  {
+    q: "VIT AUTO opère dans combien de pays ?",
+    a: "VIT AUTO est présent dans 20+ pays : Afrique de l'Ouest, Maghreb, Europe, Émirats arabes unis et Chine. Notre service Import/Export couvre l'ensemble de ces marchés.",
+  },
 ];
 
 const FAQ = ({ q, a }) => {
@@ -72,6 +80,11 @@ const Help = () => {
           <span className={styles.qlIcon}>🛡️</span>
           <h3>Nos services</h3>
           <p>Découvrir ce que nous offrons</p>
+        </div>
+        <div className={styles.qlCard} onClick={() => navigate("/import-export")}>
+          <span className={styles.qlIcon}>🌍</span>
+          <h3>Import / Export</h3>
+          <p>Importer depuis Chine, Dubaï, Europe</p>
         </div>
       </section>
 

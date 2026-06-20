@@ -58,11 +58,13 @@
   font-weight: 900;
   line-height: 1.15;
   letter-spacing: -.025em;
+  color: #ffffff;
+  text-shadow: 0 2px 20px rgba(0,0,0,.4);
 }
 
 .hero p {
   margin: 0;
-  color: rgba(255,255,255,.62);
+  color: rgba(255,255,255,.92);
   font-size: .98rem;
   line-height: 1.65;
   max-width: 520px;
@@ -342,7 +344,7 @@
 
 .ctaBannerInner p {
   margin: 0;
-  color: rgba(255,255,255,.6);
+  color: rgba(255,255,255,.92);
   font-size: .9rem;
   line-height: 1.65;
   max-width: 480px;
