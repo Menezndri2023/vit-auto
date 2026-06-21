@@ -70,7 +70,7 @@ const Footer = () => {
               <li>
                 <a href="mailto:contact@vit-auto.com">✉️ contact@vit-auto.com</a>
               </li>
-              <li className={styles.hours}>🕐 Lun–Sam : 8h – 20h</li>
+              <li className={styles.hours}>🕐 Ouvert 7j/7 · 24h/24</li>
             </ul>
           </div>
         </div>
