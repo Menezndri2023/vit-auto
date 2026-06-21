@@ -347,9 +347,47 @@
   .priceBlock { align-items: flex-start; }
 }
 
+@media (max-width: 640px) {
+  .page { padding: 0.75rem 0.875rem 6rem; } /* padding-bottom pour la sticky CTA */
+
+  /* Galerie : scroll horizontal sur mobile */
+  .gallery { grid-template-columns: 1fr; gap: 6px; }
+  .galleryMain { height: 240px; border-radius: 12px; }
+
+  /* Card réservation → devient sticky en bas */
+  .bookingCard {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    border-radius: 20px 20px 0 0;
+    border: none;
+    box-shadow: 0 -4px 24px rgba(0,0,0,.14);
+    padding: 16px 20px calc(16px + env(safe-area-inset-bottom, 0px));
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+
+  /* Réduire les specs */
+  .specsGrid { grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  /* Bouton réserver plus grand */
+  .bookBtn, .leasingBtn {
+    width: 100%;
+    padding: 16px;
+    font-size: 1rem;
+  }
+
+  /* Prix en grand */
+  .priceValue { font-size: 1.8rem; }
+}
+
 @media (max-width: 480px) {
-  .page { padding: 1rem 0.875rem 3rem; }
+  .page { padding: 0.75rem 0.75rem 6rem; }
   .specsGrid { grid-template-columns: 1fr; }
+  .galleryMain { height: 210px; }
+  .publisherCard { flex-direction: column; align-items: flex-start; }
 }
 
 /* ── Leasing Card ───────────────────────────────────────────────────────── */

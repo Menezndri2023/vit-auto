@@ -415,4 +415,27 @@
   .logo { font-size: 1.3rem; }
   .logo::before { display: none; }
   .linkBtn { display: none; }
+
+  .navLinks a {
+    font-size: .88rem;
+    padding: 11px 14px;
+    min-height: 44px;
+  }
+
+  .navbar { padding: 0 12px; }
+}
+
+/* Amélioration du menu mobile ouvert */
+@media (max-width: 900px) {
+  .navLinks {
+    max-height: 80vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Ombre sous le menu ouvert pour mieux le distinguer */
+  .navOpen {
+    box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  }
 }

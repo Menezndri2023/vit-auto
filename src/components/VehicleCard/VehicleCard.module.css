@@ -405,24 +405,20 @@
   box-shadow: none;
 }
 
-/* ── Mobile ────────────────────────────────────────── */
+/* ── Tablette ── */
+@media (max-width: 768px) {
+  .cover img,
+  .coverPlaceholder { height: 185px; }
+}
+
+/* ── Mobile ── */
 @media (max-width: 640px) {
   .cover img,
-  .coverPlaceholder {
-    height: 175px;
-  }
+  .coverPlaceholder { height: 170px; }
 
-  .info {
-    padding: 12px 14px 8px;
-  }
-
-  .info h3 {
-    font-size: 0.95rem;
-  }
-
-  .price {
-    font-size: 1.1rem;
-  }
+  .info { padding: 11px 13px 7px; }
+  .info h3 { font-size: .92rem; }
+  .price { font-size: 1.05rem; }
 
   .actions {
     padding: 8px 12px 12px;
@@ -430,8 +426,20 @@
   }
 
   .actions button {
-    padding: 11px 10px;
-    font-size: 0.82rem;
-    min-height: 44px; /* touch target */
+    padding: 12px 8px;
+    font-size: .8rem;
+    min-height: 44px;
   }
+}
+
+/* ── Très petit ── */
+@media (max-width: 380px) {
+  .cover img,
+  .coverPlaceholder { height: 155px; }
+
+  .info { padding: 9px 11px 6px; }
+  .info h3 { font-size: .85rem; }
+  .price { font-size: 1rem; }
+
+  .actions button { font-size: .76rem; padding: 10px 6px; }
 }

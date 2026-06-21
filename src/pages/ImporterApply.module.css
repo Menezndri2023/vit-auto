@@ -157,11 +157,52 @@
 .successWrap p  { color: #64748b; font-size: 1rem; max-width: 420px; }
 .successBtns { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
 
+@media (max-width: 768px) {
+  .page { padding: 28px 16px 60px; }
+  .formCard { padding: 28px 20px; }
+  .benefitsRow { grid-template-columns: repeat(2, 1fr); }
+}
+
 @media (max-width: 640px) {
-  .formCard { padding: 28px 18px; }
-  .grid2    { grid-template-columns: 1fr; }
-  .stepper  { gap: 4px; }
-  .stepLine { width: 20px; }
-  .navBtns  { flex-direction: column-reverse; }
-  .btnPrimary, .btnGhost { width: 100%; justify-content: center; }
+  .page { padding: 20px 14px 48px; }
+  .formCard { padding: 24px 16px; border-radius: 16px; }
+  .grid2 { grid-template-columns: 1fr; }
+  .checkGrid { grid-template-columns: 1fr 1fr; }
+
+  /* Stepper : labels courts */
+  .stepper { gap: 0; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; }
+  .stepper::-webkit-scrollbar { display: none; }
+  .stepItem { flex-shrink: 0; }
+  .stepLabel { font-size: .7rem; }
+  .stepLine { width: 16px; }
+
+  /* Navigation */
+  .navBtns { flex-direction: column-reverse; gap: 10px; }
+  .btnPrimary, .btnGhost { width: 100%; text-align: center; padding: 14px; }
+
+  /* Succès */
+  .successWrap { padding: 40px 20px; }
+  .successWrap h2 { font-size: 1.5rem; }
+  .successBtns { flex-direction: column; width: 100%; }
+  .btnPrimary { box-sizing: border-box; }
+
+  /* Page header */
+  .pageHeader h1 { font-size: 1.6rem; }
+  .pageHeader p { font-size: .88rem; }
+
+  /* Doc upload */
+  .docRow { flex-direction: column; gap: 8px; }
+}
+
+@media (max-width: 480px) {
+  .benefitsRow { grid-template-columns: 1fr; gap: 10px; }
+  .checkGrid { grid-template-columns: 1fr; }
+  .formCard { padding: 20px 14px; }
+  .tagList { gap: 6px; }
+}
+
+@media (max-width: 380px) {
+  .stepper { gap: 0; }
+  .stepCircle { width: 28px; height: 28px; font-size: .75rem; }
+  .stepLabel { font-size: .65rem; }
 }

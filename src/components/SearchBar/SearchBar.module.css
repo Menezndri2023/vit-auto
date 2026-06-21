@@ -511,25 +511,37 @@
    TRÈS PETIT (≤ 380px)
    ═══════════════════ */
 @media (max-width: 380px) {
-  /* 2×2 grid pour 4 boutons sur très petits écrans */
+  /* 2×2 grid — 2 boutons par ligne */
   .modeToggle {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  /* Séparateur visuel entre les deux lignes */
   .toggleBtn:nth-child(3),
   .toggleBtn:nth-child(4) {
     border-top: 1px solid #f0f2f8;
   }
 
   .toggleBtn {
-    padding: 10px 4px;
-    font-size: 0.72rem;
-    gap: 3px;
+    padding: 9px 2px;
+    font-size: 0;   /* cacher le texte */
+    gap: 0;
   }
 
+  /* Afficher uniquement l'icône */
   .toggleBtn .icon {
-    font-size: 1rem;
+    font-size: 1.15rem;
+    display: block;
+  }
+
+  /* Afficher un label court sous l'icône via attr */
+  .toggleBtn[data-label]::after {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: inherit;
+    line-height: 1;
+    margin-top: 2px;
   }
 
   .etatBtn {

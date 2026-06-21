@@ -444,5 +444,23 @@
 @media (max-width: 480px) {
   .statItem { flex: 1 1 100%; border-right: none; border-bottom: 1px solid #f0f2f8; }
   .statItem:last-child { border-bottom: none; }
-  .right { height: 240px; }
+  .right { height: 220px; }
+
+  .title { font-size: 1.55rem; line-height: 1.25; }
+  .subtitle { font-size: .85rem; }
+
+  .ctas { flex-direction: column; gap: 10px; }
+  .ctaPrimary, .ctaSecondary { width: 100%; text-align: center; padding: 14px 20px; font-size: .9rem; }
+
+  /* Spots compacts */
+  .spotOverlay { padding: 16px 14px 20px; }
+  .spotName { font-size: .9rem; }
+  .spotPrice { font-size: .85rem; }
+  .spotBadge { font-size: .68rem; padding: 3px 8px; }
+}
+
+@media (max-width: 380px) {
+  .title { font-size: 1.35rem; }
+  .left { padding: 18px 16px 12px; }
+  .right { height: 190px; }
 }

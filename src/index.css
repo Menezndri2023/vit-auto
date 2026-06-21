@@ -257,27 +257,47 @@ input, select, textarea {
 /* desktop: > 1024px */
 /* xl:      > 1280px */
 
-/* ── Mobile : améliorations touch ──────────────────────────── */
+/* ── Mobile : améliorations globales ───────────────────────── */
+@media (max-width: 768px) {
+  /* Désactiver les animations coûteuses */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  /* Espacement horizontal cohérent sur toutes les pages */
+  .vit-page { padding: var(--sp-4); }
+}
+
 @media (max-width: 640px) {
-  body {
-    /* Fond légèrement plus blanc sur mobile */
-    background: #f8f9fc;
-  }
+  body { background: #f8f9fc; }
 
-  /* Meilleure lisibilité sur petits écrans */
-  h1 { font-size: clamp(1.5rem, 5vw, 2rem); }
-  h2 { font-size: clamp(1.2rem, 4vw, 1.5rem); }
+  /* Typographie fluide */
+  h1 { font-size: clamp(1.4rem, 6vw, 2rem); }
+  h2 { font-size: clamp(1.15rem, 4.5vw, 1.5rem); }
+  h3 { font-size: clamp(1rem, 4vw, 1.2rem); }
 
-  /* Inputs plus grands sur mobile (UX touch) */
+  /* Inputs : empêche zoom iOS ET assure taille confortable */
   input, select, textarea {
-    min-height: 44px;
-    padding: 10px 14px;
+    font-size: 16px !important; /* empêche zoom iOS */
+    min-height: 48px;
+    padding: 12px 14px;
+    border-radius: 10px;
   }
 
-  /* Boutons tactiles : taille minimale 44px */
-  button:not([class]) {
-    min-height: 44px;
-  }
+  /* Touch targets minimum 48px */
+  button { min-height: 44px; }
+
+  /* Images fluid */
+  img { max-width: 100%; height: auto; }
+
+  /* Scrolling horizontal interdit */
+  .overflow-x-hidden { overflow-x: hidden; }
+}
+
+@media (max-width: 380px) {
+  /* Très petits écrans : réduire les paddings */
+  body { font-size: 14px; }
+  h1 { font-size: clamp(1.2rem, 7vw, 1.5rem); }
 }
 
 /* ── Capacitor / Mobile app ─────────────────────────────────── */

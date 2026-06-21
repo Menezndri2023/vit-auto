@@ -12,8 +12,8 @@ const ModeToggle = memo(({ mode, setMode, goToCatalogue }) => {
         <button
           className={`${styles.toggleBtn} ${mode === "Louer" ? styles.active : ""}`}
           onClick={() => { setMode("Louer"); goToCatalogue("Louer"); }}
-          type="button"
-          title="Louer un véhicule"
+          type="button" title="Louer un véhicule"
+          data-label="Louer"
         >
           <span className={styles.icon}>🚗</span>
           <span>Louer</span>
@@ -22,8 +22,8 @@ const ModeToggle = memo(({ mode, setMode, goToCatalogue }) => {
         <button
           className={`${styles.toggleBtn} ${mode === "Acheter" ? styles.active : ""}`}
           onClick={() => { setMode("Acheter"); goToCatalogue("Acheter"); }}
-          type="button"
-          title="Acheter un véhicule"
+          type="button" title="Acheter un véhicule"
+          data-label="Acheter"
         >
           <span className={styles.icon}>💳</span>
           <span>Acheter</span>
@@ -32,8 +32,8 @@ const ModeToggle = memo(({ mode, setMode, goToCatalogue }) => {
         <button
           className={`${styles.toggleBtn} ${mode === "Chauffeur" ? styles.active : ""}`}
           onClick={() => { setMode("Chauffeur"); goToCatalogue("Chauffeur"); }}
-          type="button"
-          title="Réserver un chauffeur"
+          type="button" title="Réserver un chauffeur"
+          data-label="Chauffeur"
         >
           <span className={styles.icon}>👨‍✈️</span>
           <span>Chauffeur</span>
@@ -42,8 +42,8 @@ const ModeToggle = memo(({ mode, setMode, goToCatalogue }) => {
         <button
           className={`${styles.toggleBtn} ${mode === "Import" ? styles.active : ""}`}
           onClick={() => { setMode("Import"); navigate("/catalogue?mode=Import"); }}
-          type="button"
-          title="Véhicules import/export internationaux"
+          type="button" title="Véhicules import/export internationaux"
+          data-label="Import"
         >
           <span className={styles.icon}>🌍</span>
           <span>Import/Export</span>
