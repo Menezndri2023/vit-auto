@@ -2,7 +2,7 @@
   width: 100%;
   max-width: 1240px;
   margin: 0 auto;
-  padding: 50px 24px 72px;
+  padding: 66px 24px 88px;
 }
 
 .header {
@@ -153,6 +153,8 @@
 /* Note: le h2 est ciblé via .header h2 pour ne pas affecter les autres sections */
 
 @media (max-width: 768px) {
+  .container { padding: 52px 20px 68px; }
+
   .grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;

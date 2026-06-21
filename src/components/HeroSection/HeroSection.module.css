@@ -400,7 +400,33 @@
   .left { padding: 36px 24px 24px 32px; }
 }
 
+/* Tablette & petite tablette — reste en 2 colonnes mais compact */
 @media (max-width: 768px) {
+  .hero {
+    grid-template-columns: 48% 52%;
+    min-height: 340px;
+  }
+
+  .left {
+    padding: 20px 10px 14px 18px;
+    gap: 10px;
+  }
+
+  .title        { font-size: 1.28rem; line-height: 1.2; }
+  .subtitle     { font-size: 0.76rem; line-height: 1.5; max-width: none; }
+  .trustPills   { display: none; }
+
+  .ctas         { gap: 7px; }
+  .ctaPrimary   { font-size: 0.76rem; padding: 9px 12px; }
+  .ctaSecondary { font-size: 0.76rem; padding: 8px 10px; }
+
+  .spotName    { font-size: 0.95rem; }
+  .spotPrice   { font-size: 0.9rem; }
+  .spotOverlay { padding: 18px 12px 34px; }
+}
+
+/* Mobile portrait — empilage vertical */
+@media (max-width: 640px) {
   .hero {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto auto auto;
@@ -410,57 +436,54 @@
   .right {
     grid-column: 1;
     grid-row: 1;
-    height: 280px;
+    height: 240px;
   }
 
   .right::before {
-    width: 0;
-    background: linear-gradient(to top, #f5f7fa 0%, transparent 40%);
+    width: 100%;
     height: 50%;
+    background: linear-gradient(to top, #f5f7fa 0%, transparent 40%);
     top: auto;
     bottom: 0;
-    width: 100%;
   }
 
   .left {
     grid-column: 1;
     grid-row: 2;
-    padding: 24px 20px 16px;
-    gap: 14px;
+    padding: 22px 18px 14px;
+    gap: 12px;
   }
 
-  .spotName { font-size: 1.05rem; }
-  .spotPrice { font-size: 1rem; }
-  .spotOverlay { padding: 24px 16px 36px; }
+  .title        { font-size: 1.65rem; line-height: 1.2; }
+  .subtitle     { font-size: 0.88rem; max-width: 100%; }
+  .trustPills   { display: flex; }
+
+  .ctas { flex-direction: column; align-items: flex-start; }
+  .ctaPrimary, .ctaSecondary { width: 100%; text-align: center; font-size: 0.9rem; padding: 13px 20px; }
 
   .searchRow { grid-row: 3; padding: 0 16px; }
   .statsRow  { grid-row: 4; flex-wrap: wrap; }
-  .statItem  { flex: 1 1 45%; padding: 12px 16px; }
-  .title { font-size: 1.75rem; }
-  .ctas { flex-direction: column; align-items: flex-start; }
-  .ctaPrimary, .ctaSecondary { width: 100%; text-align: center; }
+  .statItem  { flex: 1 1 45%; padding: 12px 14px; }
+
+  .spotName    { font-size: 1rem; }
+  .spotPrice   { font-size: 0.95rem; }
+  .spotOverlay { padding: 22px 14px 36px; }
 }
 
+/* Petit mobile */
 @media (max-width: 480px) {
-  .statItem { flex: 1 1 100%; border-right: none; border-bottom: 1px solid #f0f2f8; }
-  .statItem:last-child { border-bottom: none; }
-  .right { height: 220px; }
+  .right  { height: 210px; }
+  .title  { font-size: 1.5rem; }
+  .subtitle { font-size: 0.84rem; }
 
-  .title { font-size: 1.55rem; line-height: 1.25; }
-  .subtitle { font-size: .85rem; }
-
-  .ctas { flex-direction: column; gap: 10px; }
-  .ctaPrimary, .ctaSecondary { width: 100%; text-align: center; padding: 14px 20px; font-size: .9rem; }
-
-  /* Spots compacts */
-  .spotOverlay { padding: 16px 14px 20px; }
-  .spotName { font-size: .9rem; }
-  .spotPrice { font-size: .85rem; }
-  .spotBadge { font-size: .68rem; padding: 3px 8px; }
+  .spotOverlay { padding: 16px 12px 20px; }
+  .spotName    { font-size: 0.9rem; }
+  .spotPrice   { font-size: 0.85rem; }
+  .spotBadge   { font-size: 0.68rem; padding: 3px 8px; }
 }
 
 @media (max-width: 380px) {
   .title { font-size: 1.35rem; }
-  .left { padding: 18px 16px 12px; }
-  .right { height: 190px; }
+  .left  { padding: 16px 14px 10px; }
+  .right { height: 185px; }
 }
