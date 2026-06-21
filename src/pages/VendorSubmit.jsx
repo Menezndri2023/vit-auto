@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
 import { useToast } from "../context/ToastContext";
@@ -1150,6 +1150,50 @@ const VendorSubmit = () => {
         <h1>Publier une annonce</h1>
         <p>Étape {step} sur {STEPS.length} — {STEPS[step - 1].label}</p>
       </div>
+
+      {/* Bannière Import/Export — visible uniquement à l'étape 1 */}
+      {step === 1 && (
+        <div style={{
+          background: "linear-gradient(135deg, rgba(99,102,241,.07), rgba(255,77,45,.06))",
+          border: "1.5px solid rgba(99,102,241,.20)",
+          borderRadius: 14,
+          padding: "14px 20px",
+          marginBottom: 20,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 14,
+          flexWrap: "wrap",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: "1.7rem" }}>🌍</span>
+            <div>
+              <strong style={{ display: "block", color: "#0f1b3f", fontSize: ".91rem", marginBottom: 2 }}>
+                Vous importez ou exportez des véhicules ?
+              </strong>
+              <span style={{ color: "#64748b", fontSize: ".81rem" }}>
+                Chine, Dubaï, Europe → Afrique · Publiez dans la section dédiée Import/Export.
+              </span>
+            </div>
+          </div>
+          <Link
+            to="/vendor/publish?tab=import-export"
+            style={{
+              display: "inline-block",
+              padding: "8px 18px",
+              background: "#ff4d2d",
+              color: "#fff",
+              borderRadius: 10,
+              fontWeight: 700,
+              textDecoration: "none",
+              fontSize: ".83rem",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Section Import/Export →
+          </Link>
+        </div>
+      )}
 
       {/* Stepper */}
       <div className={styles.stepper}>

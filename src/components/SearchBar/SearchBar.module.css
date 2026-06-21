@@ -423,16 +423,21 @@
 
   .modeToggle {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     width: 100%;
   }
 
   .toggleBtn {
     justify-content: center;
-    padding: 12px 6px;
-    font-size: 0.8rem;
-    gap: 4px;
+    padding: 11px 4px;
+    font-size: 0.75rem;
+    gap: 3px;
     border-radius: 0;
+  }
+
+  /* Import/Export a un label plus long — on réduit l'icône */
+  .toggleBtn .icon {
+    font-size: 0.88rem;
   }
 
   /* ── Ligne 2 : localisation — pleine largeur ── */
@@ -506,13 +511,25 @@
    TRÈS PETIT (≤ 380px)
    ═══════════════════ */
 @media (max-width: 380px) {
+  /* 2×2 grid pour 4 boutons sur très petits écrans */
+  .modeToggle {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Séparateur visuel entre les deux lignes */
+  .toggleBtn:nth-child(3),
+  .toggleBtn:nth-child(4) {
+    border-top: 1px solid #f0f2f8;
+  }
+
   .toggleBtn {
-    padding: 11px 4px;
-    font-size: 0.75rem;
+    padding: 10px 4px;
+    font-size: 0.72rem;
+    gap: 3px;
   }
 
   .toggleBtn .icon {
-    display: none;
+    font-size: 1rem;
   }
 
   .etatBtn {

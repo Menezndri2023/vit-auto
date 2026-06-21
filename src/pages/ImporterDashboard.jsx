@@ -1,0 +1,504 @@
+import { useState, useEffect, useCallback } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import styles from "./ImporterDashboard.module.css";
+import { CAR_MAKES, BODY_TYPES, COUNTRIES_ALL, COUNTRIES_AFRIQUE_OUEST, CURRENCIES } from "../data/autocomplete";
+
+const toBase64 = (file) =>
+  new Promise((res, rej) => { const r = new FileReader(); r.readAsDataURL(file); r.onload = () => res(r.result); r.onerror = rej; });
+
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+const fmtPrice = (p, c = "EUR") => p ? `${Number(p).toLocaleString("fr-FR")} ${c}` : "—";
+
+const STATUS_CFG = {
+  draft:    { label: "Brouillon",  color: "#94a3b8", bg: "#f8fafc" },
+  pending:  { label: "En attente", color: "#f59e0b", bg: "#fffbeb" },
+  approved: { label: "Publiée",    color: "#10b981", bg: "#ecfdf5" },
+  rejected: { label: "Refusée",    color: "#ef4444", bg: "#fef2f2" },
+  sold:     { label: "Vendue",     color: "#6366f1", bg: "#f0f4ff" },
+  archived: { label: "Archivée",   color: "#64748b", bg: "#f8fafc" },
+};
+
+const PROFILE_STATUS = {
+  none:          { label: "Non soumis",    color: "#94a3b8", bg: "#f8fafc",  icon: "⬜" },
+  pending:       { label: "En examen",     color: "#f59e0b", bg: "#fffbeb",  icon: "⏳" },
+  verified:      { label: "Vérifié",       color: "#10b981", bg: "#ecfdf5",  icon: "✅" },
+  rejected:      { label: "Refusé",        color: "#ef4444", bg: "#fef2f2",  icon: "❌" },
+  suspended:     { label: "Suspendu",      color: "#ef4444", bg: "#fef2f2",  icon: "🚫" },
+};
+
+const BADGE_ICONS = { silver: "🥈", gold: "🥇", platinum: "💎", none: "" };
+
+/* ─── Formulaire nouvelle annonce ─────────────────────────────────────────── */
+function ListingForm({ onClose, onSaved, token }) {
+  const [f, setF] = useState({
+    title: "", make: "", model: "", year: new Date().getFullYear(),
+    mileage: 0, fuelType: "essence", transmission: "automatique",
+    bodyType: "", color: "", condition: "occasion", description: "",
+    sourceCountry: "", sourceCity: "", availableIn: [],
+    price: "", currency: "EUR", negotiable: false, stockQty: 1,
+  });
+  const [photos, setPhotos]         = useState([]);
+  const [availText, setAvailText]   = useState("");
+  const [saving, setSaving]         = useState(false);
+  const [err, setErr]               = useState(null);
+
+  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+
+  const addPhoto = useCallback(async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const b64 = await toBase64(file);
+    setPhotos((p) => [...p, b64]);
+  }, []);
+
+  const addAvail = () => {
+    const c = availText.trim();
+    if (c && !f.availableIn.includes(c)) set("availableIn", [...f.availableIn, c]);
+    setAvailText("");
+  };
+
+  const save = useCallback(async () => {
+    if (!f.title || !f.make || !f.model || !f.sourceCountry || !f.price) {
+      setErr("Complétez au minimum : titre, marque, modèle, pays source, prix.");
+      return;
+    }
+    setSaving(true); setErr(null);
+    try {
+      const res = await fetch("/api/import-export/listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...f, photos, mainPhoto: photos[0] || null }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
+      onSaved();
+    } catch (e) { setErr(e.message); }
+    finally { setSaving(false); }
+  }, [f, photos, token, onSaved]);
+
+  return (
+    <div className={styles.overlay} onClick={onClose}>
+      <div className={styles.formModal} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.formModalHeader}>
+          <h3>Nouvelle annonce Import/Export</h3>
+          <button className={styles.closeBtn} onClick={onClose}>✕</button>
+        </div>
+        <div className={styles.formScroll}>
+          {/* Datalists autocomplete */}
+          <datalist id="dl-dash-makes">{CAR_MAKES.map((m) => <option key={m} value={m} />)}</datalist>
+          <datalist id="dl-dash-bodies">{BODY_TYPES.map((b) => <option key={b} value={b} />)}</datalist>
+          <datalist id="dl-dash-countries">{COUNTRIES_ALL.map((c) => <option key={c} value={c} />)}</datalist>
+          <datalist id="dl-dash-avail">{COUNTRIES_AFRIQUE_OUEST.map((c) => <option key={c} value={c} />)}</datalist>
+
+          <div className={styles.fGrid2}>
+            <label><span>Titre de l'annonce *</span><input value={f.title} onChange={(e) => set("title", e.target.value)} placeholder="Toyota Land Cruiser V8 Import Dubaï" /></label>
+            <label><span>Pays d'origine *</span><input list="dl-dash-countries" value={f.sourceCountry} onChange={(e) => set("sourceCountry", e.target.value)} placeholder="Émirats Arabes Unis" /></label>
+          </div>
+          <div className={styles.fGrid3}>
+            <label><span>Marque *</span><input list="dl-dash-makes" value={f.make} onChange={(e) => set("make", e.target.value)} placeholder="Toyota" /></label>
+            <label><span>Modèle *</span><input value={f.model} onChange={(e) => set("model", e.target.value)} placeholder="Land Cruiser" /></label>
+            <label><span>Année *</span><input type="number" min="1990" max={new Date().getFullYear() + 1} value={f.year} onChange={(e) => set("year", e.target.value)} /></label>
+          </div>
+          <div className={styles.fGrid3}>
+            <label><span>Prix *</span><input type="number" min="0" value={f.price} onChange={(e) => set("price", e.target.value)} placeholder="25000" /></label>
+            <label><span>Devise</span>
+              <select value={f.currency} onChange={(e) => set("currency", e.target.value)}>
+                {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
+              </select>
+            </label>
+            <label><span>Kilométrage</span><input type="number" min="0" value={f.mileage} onChange={(e) => set("mileage", e.target.value)} /></label>
+          </div>
+          <div className={styles.fGrid3}>
+            <label><span>Carburant</span>
+              <select value={f.fuelType} onChange={(e) => set("fuelType", e.target.value)}>
+                <option value="essence">Essence</option><option value="diesel">Diesel</option>
+                <option value="hybride">Hybride</option><option value="hybride_rechargeable">Hybride rechargeable</option>
+                <option value="electrique">Électrique</option><option value="gpl">GPL</option>
+              </select>
+            </label>
+            <label><span>Transmission</span>
+              <select value={f.transmission} onChange={(e) => set("transmission", e.target.value)}>
+                <option value="automatique">Automatique</option><option value="manuelle">Manuelle</option>
+                <option value="cvt">CVT</option>
+              </select>
+            </label>
+            <label><span>État</span>
+              <select value={f.condition} onChange={(e) => set("condition", e.target.value)}>
+                <option value="neuf">Neuf</option><option value="occasion">Occasion</option>
+                <option value="reconditionne">Reconditionné</option>
+              </select>
+            </label>
+          </div>
+          <div className={styles.fGrid2}>
+            <label><span>Carrosserie</span><input list="dl-dash-bodies" value={f.bodyType} onChange={(e) => set("bodyType", e.target.value)} placeholder="SUV, berline, pick-up…" /></label>
+            <label><span>Couleur</span><input value={f.color} onChange={(e) => set("color", e.target.value)} placeholder="Blanc perle" /></label>
+          </div>
+
+          {/* Disponibilité dans */}
+          <div className={styles.fieldset}>
+            <label className={styles.fsLegend}>Disponible pour livraison dans</label>
+            <div className={styles.addRow}>
+              <input list="dl-dash-avail" value={availText} onChange={(e) => setAvailText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addAvail())} placeholder="Côte d'Ivoire, Sénégal…" />
+              <button type="button" className={styles.btnAdd} onClick={addAvail}>+</button>
+            </div>
+            <div className={styles.tagList}>
+              {f.availableIn.map((c) => (
+                <span key={c} className={styles.tag}>{c}<button onClick={() => set("availableIn", f.availableIn.filter((x) => x !== c))}>×</button></span>
+              ))}
+            </div>
+          </div>
+
+          <label className={styles.formFull}><span>Description</span><textarea rows={3} value={f.description} onChange={(e) => set("description", e.target.value)} placeholder="Détails, options, historique..." /></label>
+
+          {/* Photos */}
+          <div className={styles.fieldset}>
+            <label className={styles.fsLegend}>Photos ({photos.length}/8)</label>
+            <div className={styles.photosRow}>
+              {photos.map((p, i) => <img key={i} src={p} className={styles.photoThumb} alt={`photo-${i}`} />)}
+              {photos.length < 8 && (
+                <label className={styles.photoAdd}>
+                  <input type="file" accept="image/*" onChange={addPhoto} />
+                  <span>+ Photo</span>
+                </label>
+              )}
+            </div>
+          </div>
+
+          <label className={styles.checkRow}>
+            <input type="checkbox" checked={f.negotiable} onChange={(e) => set("negotiable", e.target.checked)} />
+            <span>Prix négociable</span>
+          </label>
+
+          {err && <p className={styles.formErr}>❌ {err}</p>}
+        </div>
+        <div className={styles.formModalFooter}>
+          <button className={styles.btnGhost} onClick={onClose}>Annuler</button>
+          <button className={styles.btnPrimary} onClick={save} disabled={saving}>
+            {saving ? "Envoi..." : "Soumettre l'annonce →"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+export default function ImporterDashboard() {
+  const { user, isAuthenticated, token } = useAuth();
+  const navigate = useNavigate();
+
+  const [activeTab, setActiveTab]   = useState("overview");
+  const [profile, setProfile]       = useState(null);
+  const [listings, setListings]     = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [showForm, setShowForm]     = useState(false);
+  const [toast, setToast]           = useState(null);
+
+  const headers = { Authorization: `Bearer ${token}` };
+
+  const showMsg = (msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const [pRes, lRes] = await Promise.all([
+        fetch("/api/import-export/importer-profile", { headers }),
+        fetch("/api/import-export/listings/mine",    { headers }),
+      ]);
+      if (pRes.ok) { const d = await pRes.json(); setProfile(d.profile); }
+      if (lRes.ok) { const d = await lRes.json(); setListings(d.listings || []); }
+    } catch {}
+    setLoading(false);
+  }, [token]);
+
+  useEffect(() => { if (isAuthenticated) load(); }, [isAuthenticated, load]);
+
+  const deleteListing = async (id) => {
+    if (!confirm("Supprimer cette annonce ?")) return;
+    await fetch(`/api/import-export/listings/${id}`, { method: "DELETE", headers });
+    showMsg("Annonce supprimée.");
+    load();
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className={styles.guard}>
+        <div className={styles.guardBox}>
+          <span className={styles.guardIcon}>🔐</span>
+          <h2>Connexion requise</h2>
+          <Link to="/login?redirect=/importer-dashboard" className={styles.btnPrimary}>Se connecter</Link>
+        </div>
+      </div>
+    );
+  }
+
+  const pStatus = PROFILE_STATUS[profile?.status || "none"];
+  const badgeIcon = BADGE_ICONS[profile?.badgeLevel || "none"];
+  const isVerified = profile?.status === "verified";
+
+  const stats = [
+    { icon: "📢", label: "Annonces total",   value: listings.length },
+    { icon: "✅", label: "Publiées",          value: listings.filter((l) => l.status === "approved").length, color: "#10b981" },
+    { icon: "⏳", label: "En attente",        value: listings.filter((l) => l.status === "pending").length,  color: "#f59e0b" },
+    { icon: "👁️", label: "Vues totales",      value: listings.reduce((acc, l) => acc + (l.views || 0), 0),   color: "#6366f1" },
+  ];
+
+  return (
+    <div className={styles.page}>
+      {toast && <div className={`${styles.toast} ${toast.type === "error" ? styles.toastErr : ""}`}>{toast.msg}</div>}
+
+      {/* ── Sidebar ── */}
+      <aside className={styles.sidebar}>
+        <div className={styles.sideProfile}>
+          <div className={styles.sideAvatar}>
+            {user?.profilePhoto
+              ? <img src={user.profilePhoto} alt="avatar" />
+              : <span>{user?.firstName?.[0]}{user?.lastName?.[0]}</span>
+            }
+          </div>
+          <strong>{user?.firstName} {user?.lastName}</strong>
+          <span className={styles.sideSub}>{profile?.companyName || "Mon entreprise"}</span>
+          <span className={styles.sideStatus} style={{ color: pStatus.color, background: pStatus.bg }}>
+            {pStatus.icon} {pStatus.label} {badgeIcon}
+          </span>
+        </div>
+
+        <nav className={styles.sideNav}>
+          {[
+            { key: "overview",  icon: "📊", label: "Vue d'ensemble" },
+            { key: "listings",  icon: "📢", label: "Mes annonces" },
+            { key: "profile",   icon: "🏢", label: "Mon profil importateur" },
+          ].map((t) => (
+            <button
+              key={t.key}
+              className={`${styles.navBtn} ${activeTab === t.key ? styles.navActive : ""}`}
+              onClick={() => setActiveTab(t.key)}
+            >
+              <span>{t.icon}</span> {t.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className={styles.sideLinks}>
+          <Link to="/import-export" className={styles.sideLink}>🌍 Page Import/Export</Link>
+          <Link to="/importer-apply" className={styles.sideLink}>📝 Ma candidature</Link>
+          <Link to="/vendor/dashboard" className={styles.sideLink}>← Dashboard partenaire</Link>
+        </div>
+      </aside>
+
+      {/* ── Contenu ── */}
+      <main className={styles.main}>
+        {loading ? (
+          <div className={styles.loadBox}><div className={styles.spinner} /><p>Chargement...</p></div>
+        ) : (
+
+          <>
+            {/* ── VUE D'ENSEMBLE ── */}
+            {activeTab === "overview" && (
+              <div className={styles.tabContent}>
+                <h2 className={styles.tabTitle}>Vue d'ensemble</h2>
+
+                {/* Statut profil */}
+                {!profile || profile.status === "none" ? (
+                  <div className={styles.alertBox} style={{ borderColor: "#f59e0b" }}>
+                    <span>⚠️</span>
+                    <div>
+                      <strong>Profil importateur non soumis</strong>
+                      <p>Soumettez votre candidature pour obtenir le badge importateur vérifié et publier des annonces.</p>
+                      <Link to="/importer-apply" className={styles.btnPrimary}>Soumettre ma candidature →</Link>
+                    </div>
+                  </div>
+                ) : profile.status === "pending" ? (
+                  <div className={styles.alertBox} style={{ borderColor: "#f59e0b" }}>
+                    <span>⏳</span>
+                    <div>
+                      <strong>Candidature en cours d'examen</strong>
+                      <p>Notre équipe examine votre dossier sous 48–72h ouvrables. Vous recevrez une notification.</p>
+                    </div>
+                  </div>
+                ) : profile.status === "rejected" ? (
+                  <div className={styles.alertBox} style={{ borderColor: "#ef4444" }}>
+                    <span>❌</span>
+                    <div>
+                      <strong>Candidature refusée</strong>
+                      {profile.rejectionReason && <p>Motif : {profile.rejectionReason}</p>}
+                      <Link to="/importer-apply" className={styles.btnPrimary}>Resoumettre ma candidature →</Link>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={styles.verifiedBanner}>
+                    <span className={styles.verifiedIcon}>✅</span>
+                    <div>
+                      <strong>Importateur vérifié {badgeIcon} {profile.badgeLevel?.toUpperCase()}</strong>
+                      <p>Votre profil est actif. Publiez vos annonces import/export dès maintenant.</p>
+                    </div>
+                    <button className={styles.btnPrimary} onClick={() => setShowForm(true)}>+ Nouvelle annonce</button>
+                  </div>
+                )}
+
+                {/* KPIs */}
+                <div className={styles.statsGrid}>
+                  {stats.map((s) => (
+                    <div key={s.label} className={styles.statCard} style={{ borderTop: `3px solid ${s.color || "#e2e8f0"}` }}>
+                      <span className={styles.statIcon}>{s.icon}</span>
+                      <span className={styles.statValue}>{s.value}</span>
+                      <span className={styles.statLabel}>{s.label}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Dernières annonces */}
+                {listings.length > 0 && (
+                  <div className={styles.recentCard}>
+                    <div className={styles.recentHeader}>
+                      <h3>Annonces récentes</h3>
+                      <button className={styles.btnLink} onClick={() => setActiveTab("listings")}>Voir tout →</button>
+                    </div>
+                    {listings.slice(0, 3).map((l) => {
+                      const st = STATUS_CFG[l.status] || STATUS_CFG.pending;
+                      return (
+                        <div key={l._id} className={styles.recentRow}>
+                          {l.mainPhoto
+                            ? <img src={l.mainPhoto} className={styles.recentThumb} alt={l.title} />
+                            : <div className={styles.recentThumbEmpty}>🚗</div>
+                          }
+                          <div className={styles.recentInfo}>
+                            <strong>{l.title}</strong>
+                            <span>{l.make} {l.model} {l.year} — {l.sourceCountry}</span>
+                          </div>
+                          <div>
+                            <span className={styles.badge} style={{ color: st.color, background: st.bg }}>{st.label}</span>
+                            <span className={styles.price}>{fmtPrice(l.price, l.currency)}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── ANNONCES ── */}
+            {activeTab === "listings" && (
+              <div className={styles.tabContent}>
+                <div className={styles.tabHeader}>
+                  <h2 className={styles.tabTitle}>Mes annonces Import/Export</h2>
+                  {isVerified && (
+                    <button className={styles.btnPrimary} onClick={() => setShowForm(true)}>+ Nouvelle annonce</button>
+                  )}
+                </div>
+
+                {!isVerified && (
+                  <div className={styles.alertBox} style={{ borderColor: "#f59e0b" }}>
+                    <span>⚠️</span>
+                    <p>Vous devez être <strong>importateur vérifié</strong> pour publier des annonces.</p>
+                  </div>
+                )}
+
+                {listings.length === 0 ? (
+                  <div className={styles.emptyState}>
+                    <span>📢</span>
+                    <p>Aucune annonce publiée pour l'instant.</p>
+                    {isVerified && <button className={styles.btnPrimary} onClick={() => setShowForm(true)}>Créer ma première annonce</button>}
+                  </div>
+                ) : (
+                  <div className={styles.listingsGrid}>
+                    {listings.map((l) => {
+                      const st = STATUS_CFG[l.status] || STATUS_CFG.pending;
+                      return (
+                        <div key={l._id} className={styles.listingCard}>
+                          <div className={styles.listingImg}>
+                            {l.mainPhoto ? <img src={l.mainPhoto} alt={l.title} /> : <span>🚗</span>}
+                            <span className={styles.listingBadge} style={{ color: st.color, background: st.bg }}>{st.label}</span>
+                          </div>
+                          <div className={styles.listingBody}>
+                            <strong className={styles.listingTitle}>{l.title}</strong>
+                            <span className={styles.listingMeta}>{l.make} {l.model} {l.year} · {l.condition}</span>
+                            <span className={styles.listingMeta}>🌍 {l.sourceCountry} · {fmtDate(l.createdAt)}</span>
+                            <span className={styles.listingPrice}>{fmtPrice(l.price, l.currency)}</span>
+                            <div className={styles.listingStats}>
+                              <span>👁️ {l.views || 0} vues</span>
+                              <span>💬 {l.inquiries || 0} demandes</span>
+                            </div>
+                            {l.adminNote && (
+                              <p className={styles.adminNote}>Note admin : {l.adminNote}</p>
+                            )}
+                          </div>
+                          <div className={styles.listingActions}>
+                            <button className={styles.btnDanger} onClick={() => deleteListing(l._id)}>Supprimer</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── PROFIL ── */}
+            {activeTab === "profile" && (
+              <div className={styles.tabContent}>
+                <h2 className={styles.tabTitle}>Mon profil importateur</h2>
+                {!profile ? (
+                  <div className={styles.emptyState}>
+                    <span>🏢</span>
+                    <p>Vous n'avez pas encore soumis de candidature importateur.</p>
+                    <Link to="/importer-apply" className={styles.btnPrimary}>Soumettre ma candidature</Link>
+                  </div>
+                ) : (
+                  <div className={styles.profileCard}>
+                    <div className={styles.profileHeader}>
+                      {profile.documents?.companyLogo && (
+                        <img src={profile.documents.companyLogo} className={styles.companyLogo} alt="logo" />
+                      )}
+                      <div>
+                        <h3>{profile.companyName}</h3>
+                        <span className={styles.badge} style={{ color: pStatus.color, background: pStatus.bg }}>
+                          {pStatus.icon} {pStatus.label} {badgeIcon}
+                        </span>
+                        {profile.submittedAt && <p className={styles.profileDate}>Soumis le {fmtDate(profile.submittedAt)}</p>}
+                        {profile.reviewedAt && <p className={styles.profileDate}>Examiné le {fmtDate(profile.reviewedAt)}</p>}
+                        {profile.rejectionReason && (
+                          <p className={styles.rejectReason}>Motif refus : {profile.rejectionReason}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className={styles.profileGrid}>
+                      <div>
+                        <p><strong>RCCM :</strong> {profile.rccm || "—"}</p>
+                        <p><strong>NIF :</strong> {profile.taxId || "—"}</p>
+                        <p><strong>Agrément :</strong> {profile.operatingLicense || "—"}</p>
+                        <p><strong>Adresse :</strong> {profile.address}, {profile.city}, {profile.country}</p>
+                      </div>
+                      <div>
+                        <p><strong>Activités :</strong> {(profile.activityType || []).join(", ")}</p>
+                        <p><strong>Pays :</strong> {(profile.operatingCountries || []).join(", ") || "—"}</p>
+                        <p><strong>Catégories :</strong> {(profile.vehicleCategories || []).join(", ") || "—"}</p>
+                        <p><strong>Expérience :</strong> {profile.yearsExperience || 0} ans</p>
+                      </div>
+                    </div>
+                    {["rejected", "not_submitted"].includes(profile.status) && (
+                      <Link to="/importer-apply" className={styles.btnPrimary}>Modifier et resoumettre →</Link>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </main>
+
+      {showForm && (
+        <ListingForm
+          token={token}
+          onClose={() => setShowForm(false)}
+          onSaved={() => { setShowForm(false); showMsg("Annonce soumise pour validation !"); load(); }}
+        />
+      )}
+    </div>
+  );
+}

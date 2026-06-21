@@ -1,5 +1,7 @@
+import { useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import styles from "./ImportExport.module.css";
+import { COUNTRIES_ALL, VEHICLE_TYPES } from "../data/autocomplete";
 
 /* ── Zones géographiques ── */
 const ZONES = [
@@ -157,7 +159,178 @@ const PARTNERS = [
   { icon: "🚗", label: "Constructeurs asiatiques" },
 ];
 
-const ImportExport = () => (
+/* ── Formulaire de demande ── */
+const INITIAL_FORM = {
+  firstName: "", lastName: "", email: "", phone: "",
+  serviceType: "import", pack: "Silver",
+  sourceCountry: "", destCountry: "",
+  vehicleType: "", vehicleMake: "", vehicleModel: "",
+  budget: "", message: "",
+};
+
+function RequestModal({ defaultPack, onClose }) {
+  const [form, setForm]     = useState({ ...INITIAL_FORM, pack: defaultPack || "Silver" });
+  const [sending, setSending] = useState(false);
+  const [done, setDone]     = useState(false);
+  const [error, setError]   = useState(null);
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const submit = useCallback(async (e) => {
+    e.preventDefault();
+    if (!form.firstName || !form.lastName || !form.email) return;
+    setSending(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/import-export/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, budget: form.budget ? Number(form.budget) : undefined }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.message || "Erreur serveur");
+      }
+      setDone(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSending(false);
+    }
+  }, [form]);
+
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={styles.modalBox} onClick={(e) => e.stopPropagation()}>
+        <button className={styles.modalClose} onClick={onClose}>✕</button>
+
+        {done ? (
+          <div className={styles.modalSuccess}>
+            <div className={styles.modalSuccessIcon}>✅</div>
+            <h3>Demande envoyée !</h3>
+            <p>Notre équipe vous contactera sous 24h à l'adresse <strong>{form.email}</strong>.</p>
+            <button className={styles.primaryBtn} onClick={onClose}>Fermer</button>
+          </div>
+        ) : (
+          <>
+            <div className={styles.modalHeader}>
+              <span className={styles.modalBadge}>🌍 IMPORT / EXPORT</span>
+              <h2>Demande de devis gratuit</h2>
+              <p>Remplissez ce formulaire, notre équipe vous répond sous 24h.</p>
+            </div>
+            {/* Datalists pour autocomplete */}
+            <datalist id="dl-countries">
+              {COUNTRIES_ALL.map((c) => <option key={c} value={c} />)}
+            </datalist>
+            <datalist id="dl-vehicle-types">
+              {VEHICLE_TYPES.map((t) => <option key={t} value={t} />)}
+            </datalist>
+
+            <form onSubmit={submit} className={styles.requestForm} autoComplete="off">
+              <div className={styles.formRow}>
+                <label>
+                  <span>Prénom *</span>
+                  <input autoComplete="given-name" value={form.firstName} onChange={(e) => set("firstName", e.target.value)} placeholder="Jean" required />
+                </label>
+                <label>
+                  <span>Nom *</span>
+                  <input autoComplete="family-name" value={form.lastName} onChange={(e) => set("lastName", e.target.value)} placeholder="Dupont" required />
+                </label>
+              </div>
+              <div className={styles.formRow}>
+                <label>
+                  <span>Email *</span>
+                  <input type="email" autoComplete="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="vous@exemple.com" required />
+                </label>
+                <label>
+                  <span>Téléphone</span>
+                  <input type="tel" autoComplete="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+225 07 00 00 00" />
+                </label>
+              </div>
+              <div className={styles.formRow}>
+                <label>
+                  <span>Service</span>
+                  <select value={form.serviceType} onChange={(e) => set("serviceType", e.target.value)}>
+                    <option value="import">Importation</option>
+                    <option value="export">Exportation</option>
+                    <option value="transit">Transit</option>
+                    <option value="pieces_detachees">Pièces détachées</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Pack souhaité</span>
+                  <select value={form.pack} onChange={(e) => set("pack", e.target.value)}>
+                    <option value="Silver">Silver — 399 €</option>
+                    <option value="Gold">Gold — 799 €</option>
+                    <option value="Platinum">Platinum — 1 499 €</option>
+                    <option value="Executive">Executive — 2 999 €</option>
+                  </select>
+                </label>
+              </div>
+              <div className={styles.formRow}>
+                <label>
+                  <span>Pays d'origine</span>
+                  <input
+                    list="dl-countries"
+                    value={form.sourceCountry}
+                    onChange={(e) => set("sourceCountry", e.target.value)}
+                    placeholder="Chine, EAU, France…"
+                  />
+                </label>
+                <label>
+                  <span>Pays de destination</span>
+                  <input
+                    list="dl-countries"
+                    value={form.destCountry}
+                    onChange={(e) => set("destCountry", e.target.value)}
+                    placeholder="Côte d'Ivoire, Sénégal…"
+                  />
+                </label>
+              </div>
+              <div className={styles.formRow}>
+                <label>
+                  <span>Type de véhicule</span>
+                  <input
+                    list="dl-vehicle-types"
+                    value={form.vehicleType}
+                    onChange={(e) => set("vehicleType", e.target.value)}
+                    placeholder="SUV, berline, camion…"
+                  />
+                </label>
+                <label>
+                  <span>Budget estimé (€)</span>
+                  <input type="number" min="0" value={form.budget} onChange={(e) => set("budget", e.target.value)} placeholder="15 000" />
+                </label>
+              </div>
+              <label className={styles.formFull}>
+                <span>Marque &amp; modèle recherché</span>
+                <input value={form.vehicleMake} onChange={(e) => set("vehicleMake", e.target.value)} placeholder="Toyota Land Cruiser, BYD Atto 3…" />
+              </label>
+              <label className={styles.formFull}>
+                <span>Message / précisions</span>
+                <textarea rows={3} value={form.message} onChange={(e) => set("message", e.target.value)} placeholder="Décrivez votre besoin en détail…" />
+              </label>
+
+              {error && <p className={styles.formError}>❌ {error}</p>}
+
+              <button type="submit" className={styles.primaryBtn} disabled={sending}>
+                {sending ? "Envoi en cours..." : "Envoyer ma demande →"}
+              </button>
+            </form>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const ImportExport = () => {
+  const [showModal, setShowModal] = useState(false);
+  const [modalPack, setModalPack] = useState("Silver");
+
+  const openModal = (pack = "Silver") => { setModalPack(pack); setShowModal(true); };
+
+  return (
   <div className={styles.page}>
 
     {/* ── HERO ── */}
@@ -173,8 +346,8 @@ const ImportExport = () => (
           VIT AUTO gère tout : recherche, inspection, transport, dédouanement et livraison.
         </p>
         <div className={styles.heroBtns}>
-          <Link className={styles.primaryBtn} to="/help">Demander un devis gratuit</Link>
-          <a className={styles.secondaryBtn} href="#packs">Voir les packs Import Assist →</a>
+          <button className={styles.primaryBtn} onClick={() => openModal()}>Demander un devis gratuit</button>
+          <Link className={styles.secondaryBtn} to="/import-export/listings">Voir les annonces disponibles →</Link>
         </div>
       </div>
     </section>
@@ -274,13 +447,13 @@ const ImportExport = () => (
                   </li>
                 ))}
               </ul>
-              <Link
-                to="/help"
+              <button
                 className={styles.packBtn}
                 style={{ background: p.color, boxShadow: `0 4px 16px ${p.color}33` }}
+                onClick={() => openModal(p.name)}
               >
                 Choisir {p.name} →
-              </Link>
+              </button>
             </div>
           ))}
         </div>
@@ -481,7 +654,7 @@ const ImportExport = () => (
               Importation depuis la Chine, Dubaï et l'Europe. Distribution en Afrique de l'Ouest et au Maghreb.
               Moteurs, carrosserie, pneumatiques, batteries, accessoires.
             </p>
-            <Link to="/help" className={styles.primaryBtn}>Demander un catalogue</Link>
+            <button className={styles.primaryBtn} onClick={() => openModal("Silver")}>Demander un catalogue</button>
           </div>
           <div className={styles.partsCategories}>
             {["⚙️ Moteurs", "🚗 Carrosserie", "🔋 Batteries & VE", "🛞 Pneumatiques", "🔧 Accessoires", "💡 Électronique"].map((c) => (
@@ -522,13 +695,15 @@ const ImportExport = () => (
           livraison en Afrique ou partout ailleurs.
         </p>
         <div className={styles.ctaBtns}>
-          <Link className={styles.primaryBtn} to="/help">Demander un devis gratuit</Link>
-          <Link className={styles.ghostBtn}   to="/register">Devenir partenaire →</Link>
+          <button className={styles.primaryBtn} onClick={() => openModal()}>Demander un devis gratuit</button>
+          <Link className={styles.ghostBtn} to="/importer-apply">Devenir partenaire importateur →</Link>
         </div>
       </div>
     </section>
 
+    {showModal && <RequestModal defaultPack={modalPack} onClose={() => setShowModal(false)} />}
   </div>
-);
+  );
+};
 
 export default ImportExport;

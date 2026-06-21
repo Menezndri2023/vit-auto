@@ -5,11 +5,22 @@
 
 // Taux de conversion vers XOF (FCFA) — base de référence interne
 export const EXCHANGE_RATES = {
-  XOF: 1,          // FCFA (Côte d'Ivoire, Sénégal, Mali, Burkina…)
-  MAD: 60.5,       // Dirham marocain → XOF  (1 MAD ≈ 60.5 FCFA)
-  EUR: 655.957,    // Euro → XOF (taux fixe zone CFA)
-  USD: 600,        // Dollar US → XOF (approx)
-  GBP: 765,        // Livre sterling → XOF (approx)
+  XOF: 1,          // FCFA (CI, SN, ML, BF, TG, BJ…)
+  XAF: 1,          // FCFA zone CEMAC (Cameroun, Gabon…)
+  MAD: 60.5,       // Dirham marocain
+  EUR: 655.957,    // Euro (taux fixe zone CFA)
+  USD: 600,        // Dollar US (approx)
+  GBP: 765,        // Livre sterling
+  AED: 163,        // Dirham EAU (1 AED ≈ 163 FCFA)
+  CNY: 83,         // Yuan chinois (1 CNY ≈ 83 FCFA)
+  GHS: 40,         // Cedi ghanéen
+  NGN: 0.38,       // Naira nigérian
+  MRU: 16,         // Ouguiya mauritanien
+  CHF: 680,        // Franc suisse
+  CAD: 445,        // Dollar canadien
+  DZD: 4.5,        // Dinar algérien
+  TND: 195,        // Dinar tunisien
+  GNF: 0.067,      // Franc guinéen
 };
 
 export const COUNTRIES = [
@@ -83,6 +94,107 @@ export const COUNTRIES = [
     deliveryRatePerKm: 200,
     deliveryBaseRate: 1000,
     deliveryMaxKm: 80,
+  },
+  // ── Afrique de l'Ouest (suite) ────────────────────────────────────────
+  {
+    code: "GH",
+    name: "Ghana",
+    flag: "🇬🇭",
+    currency: "GHS",
+    currencySymbol: "GH₵",
+    locale: "en-GH",
+    phone: "+233",
+    languages: ["en"],
+    paymentMethods: ["mtn", "vodafone_cash", "airteltigo", "card", "cash"],
+    deliveryRatePerKm: 2,
+    deliveryBaseRate: 10,
+    deliveryMaxKm: 150,
+  },
+  {
+    code: "NG",
+    name: "Nigeria",
+    flag: "🇳🇬",
+    currency: "NGN",
+    currencySymbol: "₦",
+    locale: "en-NG",
+    phone: "+234",
+    languages: ["en"],
+    paymentMethods: ["flutterwave", "paystack", "mtn", "airtel", "card", "cash"],
+    deliveryRatePerKm: 150,
+    deliveryBaseRate: 1000,
+    deliveryMaxKm: 200,
+  },
+  {
+    code: "TG",
+    name: "Togo",
+    flag: "🇹🇬",
+    currency: "XOF",
+    currencySymbol: "FCFA",
+    locale: "fr-TG",
+    phone: "+228",
+    languages: ["fr"],
+    paymentMethods: ["tmoney", "flooz", "orange_money", "card", "cash"],
+    deliveryRatePerKm: 180,
+    deliveryBaseRate: 1000,
+    deliveryMaxKm: 100,
+  },
+  {
+    code: "BJ",
+    name: "Bénin",
+    flag: "🇧🇯",
+    currency: "XOF",
+    currencySymbol: "FCFA",
+    locale: "fr-BJ",
+    phone: "+229",
+    languages: ["fr"],
+    paymentMethods: ["mtn", "moov", "card", "cash"],
+    deliveryRatePerKm: 180,
+    deliveryBaseRate: 1000,
+    deliveryMaxKm: 100,
+  },
+  {
+    code: "CM",
+    name: "Cameroun",
+    flag: "🇨🇲",
+    currency: "XAF",
+    currencySymbol: "FCFA",
+    locale: "fr-CM",
+    phone: "+237",
+    languages: ["fr"],
+    paymentMethods: ["orange_money", "mtn", "card", "cash"],
+    deliveryRatePerKm: 200,
+    deliveryBaseRate: 1000,
+    deliveryMaxKm: 150,
+  },
+  // ── Moyen-Orient ───────────────────────────────────────────────────────
+  {
+    code: "AE",
+    name: "Émirats Arabes Unis",
+    flag: "🇦🇪",
+    currency: "AED",
+    currencySymbol: "AED",
+    locale: "ar-AE",
+    phone: "+971",
+    languages: ["ar", "en"],
+    paymentMethods: ["stripe", "paypal", "card", "apple_pay", "google_pay"],
+    deliveryRatePerKm: 1.5,
+    deliveryBaseRate: 10,
+    deliveryMaxKm: 500,
+  },
+  // ── Asie ───────────────────────────────────────────────────────────────
+  {
+    code: "CN",
+    name: "Chine",
+    flag: "🇨🇳",
+    currency: "CNY",
+    currencySymbol: "¥",
+    locale: "zh-CN",
+    phone: "+86",
+    languages: ["zh"],
+    paymentMethods: ["alipay", "wechat_pay", "card", "unionpay"],
+    deliveryRatePerKm: 4,
+    deliveryBaseRate: 20,
+    deliveryMaxKm: 1000,
   },
   // ── Afrique du Nord ────────────────────────────────────────────────────
   {
@@ -243,8 +355,17 @@ export const PAYMENT_METHODS_CATALOG = {
   bizum:           { label: "Bizum",               icon: "📱", regions: ["ES"] },
   twint:           { label: "TWINT",               icon: "🇨🇭", regions: ["CH"] },
   interac:         { label: "Interac",             icon: "🇨🇦", regions: ["CA"] },
-  apple_pay:       { label: "Apple Pay",           icon: "🍎", regions: ["US","CA","FR","BE","ES"] },
-  google_pay:      { label: "Google Pay",          icon: "🟢", regions: ["US","CA","FR","BE","ES"] },
+  apple_pay:       { label: "Apple Pay",           icon: "🍎", regions: ["US","CA","FR","BE","ES","AE"] },
+  google_pay:      { label: "Google Pay",          icon: "🟢", regions: ["US","CA","FR","BE","ES","AE"] },
+  alipay:          { label: "Alipay",              icon: "🔵", regions: ["CN"] },
+  wechat_pay:      { label: "WeChat Pay",          icon: "🟢", regions: ["CN"] },
+  unionpay:        { label: "UnionPay",            icon: "🔴", regions: ["CN"] },
+  flutterwave:     { label: "Flutterwave",         icon: "🟡", regions: ["NG","GH","TG","BJ","CM"] },
+  paystack:        { label: "Paystack",            icon: "🟢", regions: ["NG","GH"] },
+  vodafone_cash:   { label: "Vodafone Cash",       icon: "🔴", regions: ["GH"] },
+  airteltigo:      { label: "AirtelTigo Money",    icon: "🔵", regions: ["GH"] },
+  tmoney:          { label: "T-Money",             icon: "🟠", regions: ["TG"] },
+  flooz:           { label: "Flooz",               icon: "🔵", regions: ["TG"] },
   card:            { label: "Carte bancaire",      icon: "💳", regions: ["*"] },
   cash:            { label: "Espèces",             icon: "💵", regions: ["*"] },
 };

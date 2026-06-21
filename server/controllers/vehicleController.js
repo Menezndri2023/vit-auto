@@ -116,10 +116,27 @@ export const createVehicle = async (req, res) => {
     // ── Validation automatique ──────────────────────────────────────────────
     const validation = scoreAnnonce(req.body);
 
+    // Extraire uniquement les champs légitimes du formulaire (pas de mass assignment sur stats/owner)
+    const {
+      title, marque, modele, annee, couleur, kilometrage, etat,
+      type: vType, vehicleType, carburant, transmission,
+      nombrePlaces, nombrePortes, climatisation, withDriver,
+      pricePerDay, priceForSale, caution, leasing,
+      ageMin, permisRequis, assuranceOptionnelle,
+      contactNom, contactTel, ville, adresse, coordonnees,
+      images, description,
+    } = req.body;
+
     const vehicle = await Vehicle.create({
-      ...req.body,
+      title, marque, modele, annee, couleur, kilometrage, etat,
+      type: vType, vehicleType, carburant, transmission,
+      nombrePlaces, nombrePortes, climatisation, withDriver,
+      pricePerDay, priceForSale, caution, leasing,
+      ageMin, permisRequis, assuranceOptionnelle,
+      contactNom, contactTel, ville, adresse, coordonnees,
+      images: images || [], description,
+      // Champs serveur — jamais depuis req.body
       owner:              req.user._id,
-      userId:             req.user._id.toString(),
       status:             validation.status,
       available:          validation.status === "approved",
       validationScore:    validation.score,
@@ -129,6 +146,9 @@ export const createVehicle = async (req, res) => {
       rejectionReason:    validation.status === "rejected"
         ? validation.errors.join(". ")
         : null,
+      vues:        0,
+      noteMoyenne: 0,
+      nombreAvis:  0,
     });
 
     // ── Notification contextuelle (non bloquante) ────────────────────────────
@@ -285,20 +305,34 @@ export const updateVehicle = async (req, res) => {
       return res.status(403).json({ message: "Accès refusé." });
     }
 
-    // Si un partenaire modifie, re-valider et changer le statut
+    // Whitelist des champs modifiables (évite le mass assignment sur owner, stats, etc.)
+    const EDITABLE = [
+      "title", "marque", "modele", "annee", "couleur", "kilometrage", "etat",
+      "vehicleType", "carburant", "transmission", "nombrePlaces", "nombrePortes",
+      "climatisation", "withDriver", "pricePerDay", "priceForSale", "caution",
+      "leasing", "ageMin", "permisRequis", "assuranceOptionnelle",
+      "contactNom", "contactTel", "ville", "adresse", "coordonnees",
+      "images", "description", "available", "type",
+    ];
+    const safeUpdate = {};
+    for (const key of EDITABLE) {
+      if (req.body[key] !== undefined) safeUpdate[key] = req.body[key];
+    }
+
+    // Si un partenaire modifie, re-valider et recalculer le statut
     if (isOwner && req.user.role !== "admin") {
-      const validation = scoreAnnonce({ ...vehicle.toObject(), ...req.body });
-      req.body.status             = validation.status;
-      req.body.available          = validation.status === "approved";
-      req.body.validationScore    = validation.score;
-      req.body.validationErrors   = validation.errors;
-      req.body.validationWarnings = validation.warnings;
-      req.body.rejectionReason    = validation.status === "rejected"
+      const validation = scoreAnnonce({ ...vehicle.toObject(), ...safeUpdate });
+      safeUpdate.status             = validation.status;
+      safeUpdate.available          = validation.status === "approved";
+      safeUpdate.validationScore    = validation.score;
+      safeUpdate.validationErrors   = validation.errors;
+      safeUpdate.validationWarnings = validation.warnings;
+      safeUpdate.rejectionReason    = validation.status === "rejected"
         ? validation.errors.join(". ")
         : null;
     }
 
-    const updated = await Vehicle.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const updated = await Vehicle.findByIdAndUpdate(req.params.id, safeUpdate, { new: true });
     res.json({ vehicle: updated });
   } catch (err) {
     console.error("updateVehicle:", err);

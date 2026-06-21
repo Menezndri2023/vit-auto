@@ -73,9 +73,29 @@ const userSchema = new mongoose.Schema({
   emailVerificationToken:   { type: String,  default: null },
   emailVerificationExpires: { type: Date,    default: null },
 
+  // ── Vérification téléphone (OTP 6 chiffres) ───────────────
+  phoneVerified:   { type: Boolean, default: false },
+  phoneOtp:        { type: String,  default: null },
+  phoneOtpExpires: { type: Date,    default: null },
+
   // ── Réinitialisation mot de passe ────────────────────────
   passwordResetToken:   { type: String, default: null },
   passwordResetExpires: { type: Date,   default: null },
+
+  // ── Profil importateur (partenaire agréé import/export) ────────
+  importerProfile: {
+    status: {
+      type: String,
+      enum: ["none", "pending", "verified", "rejected", "suspended"],
+      default: "none",
+    },
+    badgeLevel: {
+      type: String,
+      enum: ["none", "silver", "gold", "platinum"],
+      default: "none",
+    },
+    profileId: { type: mongoose.Schema.Types.ObjectId, ref: "ImporterPartnerProfile", default: null },
+  },
 
   // Suivi de vérification & statut
   documentsVerified: { type: Boolean, default: false },

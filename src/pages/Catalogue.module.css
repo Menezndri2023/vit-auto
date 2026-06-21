@@ -643,3 +643,360 @@
   .modeTabs { gap: 4px; }
   .modeTab { padding: 5px 10px; font-size: .78rem; }
 }
+
+/* ════════════════════════════════════════════════
+   SECTION IMPORT / EXPORT
+   ════════════════════════════════════════════════ */
+
+.ieSection {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 20px 60px;
+}
+
+/* Bannière promo IE */
+.ieBanner {
+  background: linear-gradient(135deg, #0f1b3f, #1e3a5f);
+  border-radius: 16px;
+  padding: 20px 28px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.ieBannerText strong {
+  color: #fff;
+  display: block;
+  margin-bottom: 4px;
+  font-size: .95rem;
+}
+
+.ieBannerText p {
+  color: rgba(255,255,255,.7);
+  margin: 0;
+  font-size: .85rem;
+}
+
+.ieBannerActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.ieBannerBtn {
+  padding: 9px 18px;
+  background: #ff4d2d;
+  color: #fff;
+  border-radius: 10px;
+  font-weight: 700;
+  text-decoration: none;
+  font-size: .85rem;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.ieBannerBtnGhost {
+  padding: 9px 18px;
+  border: 1.5px solid rgba(255,255,255,.3);
+  color: #fff;
+  border-radius: 10px;
+  font-weight: 700;
+  text-decoration: none;
+  font-size: .85rem;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+/* Grille cartes IE */
+.ieGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+/* Carte IE */
+.ieCard {
+  background: #fff;
+  border-radius: 18px;
+  border: 1.5px solid #f1f5f9;
+  box-shadow: 0 2px 14px rgba(0,0,0,.06);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: transform .15s, box-shadow .15s;
+}
+
+.ieCard:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0,0,0,.11);
+}
+
+.ieCardImg {
+  position: relative;
+  height: 185px;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.ieCardImg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ieCardImgFallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 2.8rem;
+  color: #cbd5e1;
+}
+
+.ieCardOrigin {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(15,27,63,.72);
+  color: #fff;
+  border-radius: 8px;
+  padding: 3px 10px;
+  font-size: .73rem;
+  font-weight: 700;
+  backdrop-filter: blur(4px);
+}
+
+.ieCardBadge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 3px 10px;
+  font-size: .73rem;
+  font-weight: 800;
+  color: #f59e0b;
+  border: 1.5px solid rgba(245,158,11,.27);
+}
+
+.ieCardBody {
+  padding: 14px 16px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ieCardTitle {
+  font-size: .9rem;
+  font-weight: 800;
+  color: #0f1b3f;
+  line-height: 1.3;
+}
+
+.ieCardMeta {
+  font-size: .78rem;
+  color: #64748b;
+}
+
+.ieCardTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ieCardTag {
+  background: #eff6ff;
+  color: #3b82f6;
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: .7rem;
+  font-weight: 600;
+}
+
+.ieCardCompany {
+  font-size: .75rem;
+  color: #64748b;
+}
+
+.ieCardFooter {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.ieCardPrice {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #ff4d2d;
+}
+
+.ieCardNeg {
+  font-size: .68rem;
+  color: #10b981;
+  font-weight: 600;
+}
+
+.ieCardLink {
+  padding: 7px 14px;
+  background: #ff4d2d;
+  color: #fff;
+  border-radius: 9px;
+  font-weight: 700;
+  font-size: .8rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* Skeleton shimmer */
+.ieSkeleton {
+  height: 360px;
+  border-radius: 18px;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: ieShimmer 1.5s infinite;
+}
+
+@keyframes ieShimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Voir plus */
+.ieMore {
+  text-align: center;
+  margin-top: 32px;
+}
+
+.ieMoreLink {
+  display: inline-block;
+  padding: 12px 28px;
+  background: #ff4d2d;
+  color: #fff;
+  border-radius: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  font-size: .9rem;
+  transition: opacity .18s;
+}
+
+.ieMoreLink:hover { opacity: .88; }
+
+/* ── IE — Vide ── */
+.ieEmpty {
+  text-align: center;
+  padding: 60px 20px;
+  color: #94a3b8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.ieEmpty h3 {
+  margin: 0;
+  color: #475569;
+  font-size: 1rem;
+}
+
+.ieEmpty p {
+  margin: 0;
+  font-size: .88rem;
+}
+
+.ieEmptyBtn {
+  padding: 10px 20px;
+  background: #ff4d2d;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: .88rem;
+}
+
+/* ── RESPONSIVE IE ── */
+@media (max-width: 768px) {
+  .ieSection { padding: 0 14px 48px; }
+
+  .ieBanner {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 18px 20px;
+    gap: 14px;
+    border-radius: 14px;
+  }
+
+  .ieBannerActions {
+    width: 100%;
+  }
+
+  .ieBannerBtn,
+  .ieBannerBtnGhost {
+    flex: 1;
+    text-align: center;
+    padding: 10px 12px;
+    font-size: .82rem;
+  }
+
+  .ieGrid {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ieBanner {
+    padding: 16px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+  }
+
+  .ieBannerText strong { font-size: .88rem; }
+  .ieBannerText p { font-size: .8rem; }
+
+  .ieBannerActions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .ieBannerBtn,
+  .ieBannerBtnGhost {
+    text-align: center;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .ieGrid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .ieCardImg { height: 170px; }
+
+  .ieSkeleton { height: 300px; }
+
+  .ieMoreLink { width: 100%; box-sizing: border-box; text-align: center; }
+}
+
+@media (max-width: 640px) {
+  /* Les mode tabs dans le header doivent scroller si trop nombreux */
+  .modeTabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding-bottom: 2px;
+    gap: 5px;
+  }
+  .modeTabs::-webkit-scrollbar { display: none; }
+  .modeTab { flex-shrink: 0; }
+}

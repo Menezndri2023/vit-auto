@@ -957,3 +957,60 @@
   .stepsGrid { grid-template-columns: 1fr; }
   .heroGlobe { display: none; }
 }
+
+/* ─── Modal de demande ──────────────────────────────────────────────────── */
+.modalOverlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(10,16,40,.72); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.modalBox {
+  background: #fff; border-radius: 20px; padding: 36px 32px;
+  width: 100%; max-width: 640px; max-height: 90vh; overflow-y: auto;
+  position: relative; box-shadow: 0 24px 64px rgba(0,0,0,.22);
+}
+.modalClose {
+  position: absolute; top: 16px; right: 16px;
+  background: #f1f5f9; border: none; border-radius: 50%;
+  width: 36px; height: 36px; font-size: 1rem; cursor: pointer; color: #64748b;
+}
+.modalClose:hover { background: #e2e8f0; }
+.modalHeader { margin-bottom: 24px; }
+.modalBadge {
+  display: inline-block; background: rgba(255,77,45,.1); color: #ff4d2d;
+  border-radius: 20px; padding: 4px 14px; font-size: .75rem;
+  font-weight: 800; letter-spacing: .06em; margin-bottom: 10px;
+}
+.modalHeader h2 { font-size: 1.4rem; font-weight: 900; color: #0f1b3f; margin: 0 0 6px; }
+.modalHeader p  { color: #64748b; font-size: .9rem; margin: 0; }
+
+/* ─── Formulaire ────────────────────────────────────────────────────────── */
+.requestForm { display: flex; flex-direction: column; gap: 14px; }
+.formRow     { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.formFull    { display: flex; flex-direction: column; }
+.requestForm label { display: flex; flex-direction: column; gap: 5px; }
+.requestForm label span { font-size: .8rem; font-weight: 700; color: #334155; }
+.requestForm input,
+.requestForm select,
+.requestForm textarea {
+  border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 10px 14px;
+  font-size: .88rem; color: #0f1b3f; background: #f8fafc;
+  outline: none; transition: border-color .2s;
+  font-family: inherit;
+}
+.requestForm input:focus,
+.requestForm select:focus,
+.requestForm textarea:focus { border-color: #ff4d2d; background: #fff; }
+.requestForm textarea { resize: vertical; }
+.formError { color: #ef4444; font-size: .82rem; font-weight: 600; margin: 0; }
+
+/* ─── Succès ─────────────────────────────────────────────────────────────── */
+.modalSuccess { text-align: center; padding: 32px 0; }
+.modalSuccessIcon { font-size: 3rem; margin-bottom: 16px; }
+.modalSuccess h3 { font-size: 1.4rem; font-weight: 900; color: #0f1b3f; margin: 0 0 8px; }
+.modalSuccess p  { color: #64748b; margin: 0 0 24px; }
+
+@media (max-width: 540px) {
+  .modalBox   { padding: 28px 18px; border-radius: 14px; }
+  .formRow    { grid-template-columns: 1fr; }
+}

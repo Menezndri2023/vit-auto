@@ -82,8 +82,17 @@ export default function AdminPanel() {
   const { user, isAuthenticated, token } = useAuth();
 
   const [activeTab, setActiveTab]   = useState("dashboard");
-  const [ieRequests, setIeRequests] = useState([]);
-  const [ieLoading,  setIeLoading]  = useState(false);
+  const [ieRequests, setIeRequests]       = useState([]);
+  const [ieLoading,  setIeLoading]        = useState(false);
+  const [importerProfiles, setImporterProfiles] = useState([]);
+  const [importerListings, setImporterListings] = useState([]);
+  const [importerLoading,  setImporterLoading]  = useState(false);
+  const [importerFilter,   setImporterFilter]   = useState("pending");
+  const [listingFilter,    setListingFilter]     = useState("pending");
+  const [reviewModal,      setReviewModal]       = useState(null);
+  const [reviewDecision,   setReviewDecision]    = useState({ status: "verified", rejectionReason: "", badgeLevel: "silver" });
+  const [listingRejectModal, setListingRejectModal] = useState(null);
+  const [listingRejectNote,  setListingRejectNote]  = useState("");
   const [stats,     setStats]     = useState(null);
   const [users,     setUsers]     = useState([]);
   const [vehicles,  setVehicles]  = useState([]);
@@ -176,9 +185,25 @@ export default function AdminPanel() {
     setIeLoading(false);
   }, [token, headers]);
 
+  // ── Profils & annonces importateurs ────────────────────────────────────────
+  const loadImporters = useCallback(async () => {
+    if (!token) return;
+    setImporterLoading(true);
+    try {
+      const [pRes, lRes] = await Promise.all([
+        fetch(`/api/import-export/importer-profiles?limit=100&status=${importerFilter}`, { headers }),
+        fetch(`/api/import-export/listings/admin?limit=100&status=${listingFilter}`,     { headers }),
+      ]);
+      if (pRes.ok) { const d = await pRes.json(); setImporterProfiles(d.profiles || []); }
+      if (lRes.ok) { const d = await lRes.json(); setImporterListings(d.listings || []); }
+    } catch {}
+    setImporterLoading(false);
+  }, [token, headers, importerFilter, listingFilter]);
+
   useEffect(() => {
     if (activeTab === "import_export") loadImportExport();
-  }, [activeTab, loadImportExport]);
+    if (activeTab === "importeurs")    loadImporters();
+  }, [activeTab, loadImportExport, loadImporters]);
 
   // ── Actions utilisateurs ────────────────────────────────────────────────────
   const toggleBlock = useCallback(async (uid) => {
@@ -459,6 +484,7 @@ export default function AdminPanel() {
           { key: "bookings",    icon: "📋", label: `Commandes (${bookings.length})` },
           { key: "vedette",      icon: "⭐", label: "Vedette" },
           { key: "import_export", icon: "🌍", label: `Import/Export${ieRequests.length > 0 ? ` (${ieRequests.length})` : ""}` },
+          { key: "importeurs",   icon: "🏅", label: `Importateurs${importerProfiles.filter(p => p.status === "pending").length > 0 ? ` (${importerProfiles.filter(p => p.status === "pending").length})` : ""}` },
         ].map(({ key, icon, label }) => (
           <button
             key={key}
@@ -1205,28 +1231,36 @@ export default function AdminPanel() {
                             <td className={styles.tdDate}>{fmtDate(r.createdAt)}</td>
                             <td>
                               <div className={styles.actionBtns}>
-                                {r.status === "pending" && (
-                                  <>
-                                    <button className={styles.btnApprove}
-                                      onClick={async () => {
-                                        await fetch(`/api/import-export/requests/${r._id}/status`, {
-                                          method: "PATCH", headers,
-                                          body: JSON.stringify({ status: "approved" }),
-                                        });
-                                        loadImportExport();
-                                        showToast("Demande approuvée");
-                                      }}>✅ Valider</button>
-                                    <button className={styles.btnReject}
-                                      onClick={async () => {
-                                        await fetch(`/api/import-export/requests/${r._id}/status`, {
-                                          method: "PATCH", headers,
-                                          body: JSON.stringify({ status: "rejected" }),
-                                        });
-                                        loadImportExport();
-                                        showToast("Demande rejetée", "error");
-                                      }}>✕ Rejeter</button>
-                                  </>
+                                {["pending", "processing", "approved", "contacted"].includes(r.status) && (
+                                  <select
+                                    style={{ padding: "5px 8px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".78rem", cursor: "pointer" }}
+                                    value={r.status}
+                                    onChange={async (e) => {
+                                      await fetch(`/api/import-export/requests/${r._id}/status`, {
+                                        method: "PATCH", headers,
+                                        body: JSON.stringify({ status: e.target.value }),
+                                      });
+                                      loadImportExport();
+                                      showToast(`Statut → ${e.target.value}`);
+                                    }}
+                                  >
+                                    <option value="pending">⏳ En attente</option>
+                                    <option value="processing">🔄 En traitement</option>
+                                    <option value="contacted">📞 Contacté</option>
+                                    <option value="approved">✅ Traité</option>
+                                    <option value="rejected">❌ Rejeté</option>
+                                  </select>
                                 )}
+                                <button
+                                  className={styles.btnDanger}
+                                  style={{ fontSize: ".75rem", padding: "4px 8px" }}
+                                  onClick={async () => {
+                                    if (!confirm("Supprimer cette demande ?")) return;
+                                    await fetch(`/api/import-export/requests/${r._id}`, { method: "DELETE", headers });
+                                    loadImportExport();
+                                    showToast("Demande supprimée");
+                                  }}
+                                >🗑</button>
                               </div>
                             </td>
                           </tr>
@@ -1242,6 +1276,337 @@ export default function AdminPanel() {
           {/* ══════════════════════ TAB VEDETTE ══════════════════════ */}
           {activeTab === "vedette" && (
             <VetteSection vehicles={vehicles} token={token} onRefresh={loadAll} />
+          )}
+
+          {/* ══════════════════════ TAB IMPORTATEURS ══════════════════════ */}
+          {activeTab === "importeurs" && (
+            <div className={styles.tabContent}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+                <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>
+                  🏅 Partenaires Importateurs — Vérification & Annonces
+                </h2>
+                <button className={styles.btnRefresh} onClick={loadImporters}>↻ Actualiser</button>
+              </div>
+
+              {/* KPIs */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 14, marginBottom: "1.5rem" }}>
+                {[
+                  { icon: "📋", label: "Total candidatures", value: importerProfiles.length, color: "#6366f1" },
+                  { icon: "⏳", label: "En attente",          value: importerProfiles.filter(p => p.status === "pending").length,  color: "#f59e0b" },
+                  { icon: "✅", label: "Vérifiés",            value: importerProfiles.filter(p => p.status === "verified").length, color: "#10b981" },
+                  { icon: "❌", label: "Refusés",             value: importerProfiles.filter(p => p.status === "rejected").length, color: "#ef4444" },
+                  { icon: "📢", label: "Annonces en attente", value: importerListings.filter(l => l.status === "pending").length,  color: "#f59e0b" },
+                ].map((k) => (
+                  <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />
+                ))}
+              </div>
+
+              {/* ── SECTION 1 : Candidatures ── */}
+              <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+                  <h3 className={styles.chartTitle} style={{ margin: 0 }}>📋 Candidatures importateurs</h3>
+                  <select
+                    className={styles.filterSelect}
+                    value={importerFilter}
+                    onChange={(e) => setImporterFilter(e.target.value)}
+                    style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}
+                  >
+                    <option value="pending">En attente</option>
+                    <option value="verified">Vérifiés</option>
+                    <option value="rejected">Refusés</option>
+                    <option value="suspended">Suspendus</option>
+                  </select>
+                </div>
+
+                {importerLoading ? (
+                  <div className={styles.loadingBox} style={{ minHeight: 100 }}>
+                    <div className={styles.spinner} /><p>Chargement...</p>
+                  </div>
+                ) : importerProfiles.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "24px 0", color: "#94a3b8" }}>
+                    <div style={{ fontSize: "2rem", marginBottom: 8 }}>🏅</div>
+                    <p style={{ margin: 0 }}>Aucune candidature pour ce filtre.</p>
+                  </div>
+                ) : (
+                  <div className={styles.tableWrap}>
+                    <table className={styles.table}>
+                      <thead>
+                        <tr>
+                          <th>Partenaire</th>
+                          <th>Entreprise</th>
+                          <th>RCCM / NIF</th>
+                          <th>Activités</th>
+                          <th>Statut</th>
+                          <th>Soumis le</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importerProfiles.map((p) => {
+                          const stCfg = {
+                            pending:   { label: "En attente", color: "#f59e0b", bg: "#fffbeb" },
+                            verified:  { label: "Vérifié",    color: "#10b981", bg: "#ecfdf5" },
+                            rejected:  { label: "Refusé",     color: "#ef4444", bg: "#fef2f2" },
+                            suspended: { label: "Suspendu",   color: "#ef4444", bg: "#fef2f2" },
+                          }[p.status] || { label: p.status, color: "#94a3b8", bg: "#f8fafc" };
+                          const u = p.userId;
+                          return (
+                            <tr key={p._id} className={styles.tr}>
+                              <td>
+                                <strong>{u?.firstName} {u?.lastName}</strong>
+                                <span className={styles.vehMeta}>{u?.email}</span>
+                              </td>
+                              <td>
+                                <strong style={{ fontSize: ".85rem" }}>{p.companyName}</strong>
+                                <span className={styles.vehMeta}>{p.city}, {p.country}</span>
+                              </td>
+                              <td style={{ fontSize: ".82rem" }}>
+                                <div>RCCM: {p.rccm || "—"}</div>
+                                <div>NIF: {p.taxId || "—"}</div>
+                              </td>
+                              <td style={{ fontSize: ".8rem", color: "#475569" }}>
+                                {(p.activityType || []).join(", ") || "—"}
+                              </td>
+                              <td>
+                                <Badge label={stCfg.label} color={stCfg.color} bg={stCfg.bg} />
+                                {p.badgeLevel && p.badgeLevel !== "none" && (
+                                  <span style={{ marginLeft: 4, fontSize: ".75rem" }}>
+                                    {p.badgeLevel === "silver" ? "🥈" : p.badgeLevel === "gold" ? "🥇" : "💎"}
+                                  </span>
+                                )}
+                              </td>
+                              <td className={styles.tdDate}>{fmtDate(p.submittedAt)}</td>
+                              <td>
+                                <div className={styles.actionBtns}>
+                                  {/* Voir documents */}
+                                  {p.documents && Object.values(p.documents).some(Boolean) && (
+                                    <button
+                                      className={styles.btnGhost}
+                                      style={{ fontSize: ".75rem", padding: "4px 10px" }}
+                                      onClick={() => {
+                                        const docs = p.documents;
+                                        const keys = { rccmImage: "RCCM", taxIdImage: "NIF", licenseImage: "Agrément", companyLogo: "Logo", bankStatement: "Relevé" };
+                                        const w = window.open("", "_blank");
+                                        w.document.write(`<html><body style="background:#0f1b3f;color:#fff;font-family:sans-serif;padding:24px">`);
+                                        w.document.write(`<h2>Documents — ${p.companyName}</h2>`);
+                                        Object.entries(keys).forEach(([k, l]) => {
+                                          if (docs[k]) w.document.write(`<div style="margin:16px 0"><h3>${l}</h3><img src="${docs[k]}" style="max-width:100%;border-radius:8px"/></div>`);
+                                        });
+                                        w.document.write(`</body></html>`);
+                                      }}
+                                    >📁 Docs</button>
+                                  )}
+                                  {/* Approuver / refuser */}
+                                  {p.status !== "verified" && (
+                                    <button className={styles.btnApprove}
+                                      onClick={() => { setReviewModal(p); setReviewDecision({ status: "verified", rejectionReason: "", badgeLevel: "silver" }); }}>
+                                      ✅ Valider
+                                    </button>
+                                  )}
+                                  {p.status !== "rejected" && (
+                                    <button className={styles.btnReject}
+                                      onClick={() => { setReviewModal(p); setReviewDecision({ status: "rejected", rejectionReason: "", badgeLevel: "none" }); }}>
+                                      ✕ Rejeter
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* ── SECTION 2 : Annonces import/export ── */}
+              <div className={styles.chartCard}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+                  <h3 className={styles.chartTitle} style={{ margin: 0 }}>📢 Annonces Import/Export</h3>
+                  <select
+                    value={listingFilter}
+                    onChange={(e) => setListingFilter(e.target.value)}
+                    style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}
+                  >
+                    <option value="pending">En attente</option>
+                    <option value="approved">Publiées</option>
+                    <option value="rejected">Refusées</option>
+                  </select>
+                </div>
+                {importerLoading ? (
+                  <div className={styles.loadingBox} style={{ minHeight: 80 }}><div className={styles.spinner} /></div>
+                ) : importerListings.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "20px 0", color: "#94a3b8" }}>
+                    <p style={{ margin: 0 }}>Aucune annonce pour ce filtre.</p>
+                  </div>
+                ) : (
+                  <div className={styles.tableWrap}>
+                    <table className={styles.table}>
+                      <thead>
+                        <tr>
+                          <th>Annonce</th>
+                          <th>Partenaire</th>
+                          <th>Source</th>
+                          <th>Prix</th>
+                          <th>Statut</th>
+                          <th>Date</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importerListings.map((l) => {
+                          const stCfg = {
+                            pending:  { label: "En attente", color: "#f59e0b", bg: "#fffbeb" },
+                            approved: { label: "Publiée",    color: "#10b981", bg: "#ecfdf5" },
+                            rejected: { label: "Refusée",    color: "#ef4444", bg: "#fef2f2" },
+                          }[l.status] || { label: l.status, color: "#94a3b8", bg: "#f8fafc" };
+                          return (
+                            <tr key={l._id} className={styles.tr}>
+                              <td>
+                                <strong style={{ fontSize: ".85rem" }}>{l.title}</strong>
+                                <span className={styles.vehMeta}>{l.make} {l.model} {l.year} · {l.condition}</span>
+                              </td>
+                              <td style={{ fontSize: ".82rem" }}>
+                                {l.partner?.firstName} {l.partner?.lastName}
+                                <span className={styles.vehMeta}>{l.importerProfile?.companyName}</span>
+                              </td>
+                              <td style={{ fontSize: ".82rem" }}>{l.sourceCountry}</td>
+                              <td className={styles.tdPrice}>
+                                {l.price ? `${Number(l.price).toLocaleString("fr-FR")} ${l.currency}` : "—"}
+                              </td>
+                              <td><Badge label={stCfg.label} color={stCfg.color} bg={stCfg.bg} /></td>
+                              <td className={styles.tdDate}>{fmtDate(l.createdAt)}</td>
+                              <td>
+                                <div className={styles.actionBtns}>
+                                  {l.status === "pending" && (
+                                    <>
+                                      <button className={styles.btnApprove}
+                                        onClick={async () => {
+                                          await fetch(`/api/import-export/listings/${l._id}/status`, {
+                                            method: "PATCH", headers,
+                                            body: JSON.stringify({ status: "approved" }),
+                                          });
+                                          showToast("Annonce publiée !");
+                                          loadImporters();
+                                        }}>✅ Publier</button>
+                                      <button className={styles.btnReject}
+                                        onClick={() => { setListingRejectModal(l); setListingRejectNote(""); }}>
+                                        ✕ Refuser</button>
+                                    </>
+                                  )}
+                                  {l.status === "approved" && (
+                                    <button className={styles.btnReject}
+                                      onClick={async () => {
+                                        await fetch(`/api/import-export/listings/${l._id}/status`, {
+                                          method: "PATCH", headers,
+                                          body: JSON.stringify({ status: "archived" }),
+                                        });
+                                        showToast("Annonce archivée.");
+                                        loadImporters();
+                                      }}>Archiver</button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Modal review candidature importateur ── */}
+          {reviewModal && (
+            <div className={styles.overlay} onClick={() => setReviewModal(null)}>
+              <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+                <h3 style={{ margin: "0 0 16px", color: "#0f1b3f", fontSize: "1rem" }}>
+                  {reviewDecision.status === "verified" ? "✅ Valider le profil importateur" : "❌ Refuser la candidature"}
+                </h3>
+                <p style={{ fontSize: ".85rem", color: "#475569", margin: "0 0 14px" }}>
+                  <strong>{reviewModal.companyName}</strong> — {reviewModal.userId?.firstName} {reviewModal.userId?.lastName}
+                </p>
+                {reviewDecision.status === "verified" && (
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ fontSize: ".82rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 6 }}>Niveau de badge</label>
+                    <select
+                      value={reviewDecision.badgeLevel}
+                      onChange={(e) => setReviewDecision((d) => ({ ...d, badgeLevel: e.target.value }))}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: ".88rem" }}
+                    >
+                      <option value="silver">🥈 Silver</option>
+                      <option value="gold">🥇 Gold</option>
+                      <option value="platinum">💎 Platinum</option>
+                    </select>
+                  </div>
+                )}
+                {reviewDecision.status === "rejected" && (
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ fontSize: ".82rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 6 }}>Motif du refus *</label>
+                    <textarea
+                      rows={3}
+                      value={reviewDecision.rejectionReason}
+                      onChange={(e) => setReviewDecision((d) => ({ ...d, rejectionReason: e.target.value }))}
+                      placeholder="Documents manquants, informations incorrectes..."
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: ".88rem", fontFamily: "inherit", resize: "vertical" }}
+                    />
+                  </div>
+                )}
+                <div className={styles.confirmActions}>
+                  <button
+                    className={reviewDecision.status === "verified" ? styles.btnApprove : styles.btnDanger}
+                    onClick={async () => {
+                      await fetch(`/api/import-export/importer-profiles/${reviewModal._id}/review`, {
+                        method: "PATCH", headers,
+                        body: JSON.stringify(reviewDecision),
+                      });
+                      showToast(reviewDecision.status === "verified" ? "Profil validé !" : "Profil refusé.", reviewDecision.status === "rejected" ? "error" : "success");
+                      setReviewModal(null);
+                      loadImporters();
+                    }}
+                  >
+                    Confirmer
+                  </button>
+                  <button className={styles.btnGhost} onClick={() => setReviewModal(null)}>Annuler</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Modal refus annonce listing ── */}
+          {listingRejectModal && (
+            <div className={styles.overlay} onClick={() => setListingRejectModal(null)}>
+              <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+                <h3 style={{ margin: "0 0 12px", color: "#0f1b3f", fontSize: "1rem" }}>✕ Refuser l'annonce</h3>
+                <p style={{ fontSize: ".85rem", color: "#475569", margin: "0 0 12px" }}>
+                  <strong>{listingRejectModal.title}</strong>
+                </p>
+                <label style={{ fontSize: ".82rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 6 }}>Motif (optionnel)</label>
+                <textarea
+                  rows={3}
+                  value={listingRejectNote}
+                  onChange={(e) => setListingRejectNote(e.target.value)}
+                  placeholder="Photos insuffisantes, prix incorrect..."
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: ".88rem", fontFamily: "inherit", resize: "vertical", marginBottom: 14 }}
+                />
+                <div className={styles.confirmActions}>
+                  <button className={styles.btnDanger}
+                    onClick={async () => {
+                      await fetch(`/api/import-export/listings/${listingRejectModal._id}/status`, {
+                        method: "PATCH", headers,
+                        body: JSON.stringify({ status: "rejected", adminNote: listingRejectNote }),
+                      });
+                      showToast("Annonce refusée.", "error");
+                      setListingRejectModal(null);
+                      loadImporters();
+                    }}>Confirmer le refus</button>
+                  <button className={styles.btnGhost} onClick={() => setListingRejectModal(null)}>Annuler</button>
+                </div>
+              </div>
+            </div>
           )}
         </>
       )}

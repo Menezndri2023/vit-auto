@@ -1,11 +1,16 @@
-import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
 import { useToast } from "../context/ToastContext";
+import { CAR_MAKES, BODY_TYPES, COUNTRIES_ALL, COUNTRIES_AFRIQUE_OUEST, CURRENCIES } from "../data/autocomplete";
 import styles from "./VendorPublish.module.css";
 
 const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " DH";
+const fmtIE = (p, c = "EUR") => p ? `${Number(p).toLocaleString("fr-FR")} ${c}` : "—";
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+
+// ── Constantes ────────────────────────────────────────────────────────────────
 
 const STATUS_CFG = {
   approved: { label: "Publié",      color: "#10b981", bg: "#ecfdf5", dot: "#10b981" },
@@ -19,6 +24,25 @@ const TYPE_CFG = {
   chauffeur: { label: "Chauffeur", color: "#0ea5e9", bg: "rgba(14,165,233,.10)" },
 };
 
+const IE_STATUS_CFG = {
+  draft:    { label: "Brouillon",  color: "#94a3b8", bg: "#f8fafc" },
+  pending:  { label: "En attente", color: "#f59e0b", bg: "#fffbeb" },
+  approved: { label: "Publiée",    color: "#10b981", bg: "#ecfdf5" },
+  rejected: { label: "Refusée",    color: "#ef4444", bg: "#fef2f2" },
+  sold:     { label: "Vendue",     color: "#6366f1", bg: "#f0f4ff" },
+  archived: { label: "Archivée",   color: "#64748b", bg: "#f8fafc" },
+};
+
+const PROFILE_STATUS = {
+  none:      { label: "Non soumis",  color: "#94a3b8", bg: "#f8fafc", icon: "⬜" },
+  pending:   { label: "En examen",   color: "#f59e0b", bg: "#fffbeb", icon: "⏳" },
+  verified:  { label: "Vérifié",     color: "#10b981", bg: "#ecfdf5", icon: "✅" },
+  rejected:  { label: "Refusé",      color: "#ef4444", bg: "#fef2f2", icon: "❌" },
+  suspended: { label: "Suspendu",    color: "#ef4444", bg: "#fef2f2", icon: "🚫" },
+};
+
+const BADGE_ICONS = { silver: "🥈", gold: "🥇", platinum: "💎", none: "" };
+
 const FILTER_TABS = [
   { key: "all",      label: "Toutes"      },
   { key: "approved", label: "Publiées"    },
@@ -26,7 +50,8 @@ const FILTER_TABS = [
   { key: "rejected", label: "Rejetées"    },
 ];
 
-/* ── Pseudo-stats par véhicule (générées depuis les bookings) ── */
+// ── Utilitaires ───────────────────────────────────────────────────────────────
+
 function vehicleStats(vehicleId, partnerBookings) {
   const bks = partnerBookings.filter((b) => String(b.vehicleId) === String(vehicleId));
   const completed = bks.filter((b) => b.status === "completed");
@@ -34,7 +59,6 @@ function vehicleStats(vehicleId, partnerBookings) {
   return { bookings: bks.length, completed: completed.length, revenue };
 }
 
-/* ── Score bar ── */
 const ScoreBar = ({ score }) => {
   const color = score >= 65 ? "#10b981" : score >= 40 ? "#f59e0b" : "#ef4444";
   return (
@@ -47,7 +71,7 @@ const ScoreBar = ({ score }) => {
   );
 };
 
-/* ── Carte publication ── */
+// ── Carte véhicule standard ───────────────────────────────────────────────────
 const VehicleCard = ({ v, bookings, onDelete, onBoost }) => {
   const st   = STATUS_CFG[v.status]   || STATUS_CFG.pending;
   const tp   = TYPE_CFG[v.type]       || TYPE_CFG.location;
@@ -56,17 +80,13 @@ const VehicleCard = ({ v, bookings, onDelete, onBoost }) => {
 
   return (
     <div className={styles.card}>
-      {/* Thumb */}
       <div className={styles.cardThumb}>
         {v.image
           ? <img src={v.image} alt={v.name} />
           : <span className={styles.cardThumbFallback}>🚗</span>
         }
-        {/* Status dot */}
         <span className={styles.statusDot} style={{ background: st.dot }} title={st.label} />
       </div>
-
-      {/* Body */}
       <div className={styles.cardBody}>
         <div className={styles.cardTop}>
           <div className={styles.cardNameRow}>
@@ -82,11 +102,7 @@ const VehicleCard = ({ v, bookings, onDelete, onBoost }) => {
             {v.year  ? ` · ${v.year}`  : ""}
           </p>
         </div>
-
-        {/* Score si non approuvé */}
         {hasScore && <ScoreBar score={v.validationScore} />}
-
-        {/* Erreurs */}
         {v.validationErrors?.length > 0 && v.status !== "approved" && (
           <div className={styles.errorsBox}>
             {v.validationErrors.slice(0, 3).map((e, i) => (
@@ -94,50 +110,33 @@ const VehicleCard = ({ v, bookings, onDelete, onBoost }) => {
             ))}
           </div>
         )}
-
-        {/* Mini stats */}
         <div className={styles.miniStats}>
-          <div className={styles.miniStat}>
-            <span className={styles.miniVal}>{vst.bookings}</span>
-            <span className={styles.miniLbl}>Réservations</span>
-          </div>
+          <div className={styles.miniStat}><span className={styles.miniVal}>{vst.bookings}</span><span className={styles.miniLbl}>Réservations</span></div>
           <div className={styles.miniStatDivider} />
-          <div className={styles.miniStat}>
-            <span className={styles.miniVal}>{vst.completed}</span>
-            <span className={styles.miniLbl}>Terminées</span>
-          </div>
+          <div className={styles.miniStat}><span className={styles.miniVal}>{vst.completed}</span><span className={styles.miniLbl}>Terminées</span></div>
           <div className={styles.miniStatDivider} />
-          <div className={styles.miniStat}>
-            <span className={styles.miniVal} style={{ color: "#10b981" }}>{fmt(vst.revenue)}</span>
-            <span className={styles.miniLbl}>Revenus</span>
-          </div>
+          <div className={styles.miniStat}><span className={styles.miniVal} style={{ color: "#10b981" }}>{fmt(vst.revenue)}</span><span className={styles.miniLbl}>Revenus</span></div>
         </div>
-
-        {/* Actions */}
         <div className={styles.cardActions}>
           {v.status === "approved" && (
-            <button className={styles.boostBtn} onClick={() => onBoost(v)}>
-              ⚡ Booster
-            </button>
+            <button className={styles.boostBtn} onClick={() => onBoost(v)}>⚡ Booster</button>
           )}
           {v.status === "rejected" && (
             <span className={styles.rejectTip}>Corrigez votre annonce et soumettez à nouveau</span>
           )}
-          <button className={styles.deleteBtn} onClick={() => onDelete(v)}>
-            🗑️ Supprimer
-          </button>
+          <button className={styles.deleteBtn} onClick={() => onDelete(v)}>🗑️ Supprimer</button>
         </div>
       </div>
     </div>
   );
 };
 
-/* ── Modal boost ── */
+// ── Modal boost ───────────────────────────────────────────────────────────────
 const BoostModal = ({ vehicle, onClose }) => {
   const PACKS = [
-    { name: "Starter",  price: "4 900 DH", days: 7,  color: "#6366f1", features: ["Mise en avant 7 jours", "Badge Sponsorisé", "+300% de visibilité"] },
-    { name: "Pro",      price: "9 900 DH", days: 15, color: "#f59e0b", popular: true, features: ["Mise en avant 15 jours", "Badge Top Annonce", "+600% de visibilité", "Notification push aux clients"] },
-    { name: "Premium",  price: "17 900 DH", days: 30, color: "#ff4d2d", features: ["Mise en avant 30 jours", "Badge Premium", "+1000% de visibilité", "Push + email campagne", "Vitrine page d'accueil"] },
+    { name: "Starter", price: "4 900 DH", days: 7,  color: "#6366f1", features: ["Mise en avant 7 jours", "Badge Sponsorisé", "+300% de visibilité"] },
+    { name: "Pro",     price: "9 900 DH", days: 15, color: "#f59e0b", popular: true, features: ["Mise en avant 15 jours", "Badge Top Annonce", "+600% de visibilité", "Notification push clients"] },
+    { name: "Premium", price: "17 900 DH", days: 30, color: "#ff4d2d", features: ["Mise en avant 30 jours", "Badge Premium", "+1000% de visibilité", "Push + email campagne", "Vitrine page d'accueil"] },
   ];
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
@@ -155,9 +154,7 @@ const BoostModal = ({ vehicle, onClose }) => {
               <ul className={styles.boostPackFeatures}>
                 {p.features.map((f) => <li key={f}><span style={{ color: p.color }}>✓</span> {f}</li>)}
               </ul>
-              <button className={styles.boostPackBtn} style={{ background: p.color }}>
-                Choisir {p.name} →
-              </button>
+              <button className={styles.boostPackBtn} style={{ background: p.color }}>Choisir {p.name} →</button>
             </div>
           ))}
         </div>
@@ -166,31 +163,234 @@ const BoostModal = ({ vehicle, onClose }) => {
   );
 };
 
-/* ── Page principale ── */
+// ── Formulaire nouvelle annonce Import/Export ─────────────────────────────────
+function IEListingForm({ onClose, onSaved, token }) {
+  const [f, setF] = useState({
+    title: "", make: "", model: "", year: new Date().getFullYear(),
+    mileage: 0, fuelType: "essence", transmission: "automatique",
+    bodyType: "", color: "", condition: "occasion", description: "",
+    sourceCountry: "", sourceCity: "", availableIn: [],
+    price: "", currency: "EUR", negotiable: false, stockQty: 1,
+  });
+  const [photos, setPhotos]       = useState([]);
+  const [availText, setAvailText] = useState("");
+  const [saving, setSaving]       = useState(false);
+  const [err, setErr]             = useState(null);
+
+  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+
+  const addPhoto = useCallback(async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const r = new FileReader();
+    r.readAsDataURL(file);
+    r.onload = () => setPhotos((p) => [...p, r.result]);
+  }, []);
+
+  const addAvail = () => {
+    const c = availText.trim();
+    if (c && !f.availableIn.includes(c)) set("availableIn", [...f.availableIn, c]);
+    setAvailText("");
+  };
+
+  const save = useCallback(async () => {
+    if (!f.title || !f.make || !f.model || !f.sourceCountry || !f.price) {
+      setErr("Complétez : titre, marque, modèle, pays source, prix."); return;
+    }
+    setSaving(true); setErr(null);
+    try {
+      const res = await fetch("/api/import-export/listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...f, photos, mainPhoto: photos[0] || null }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
+      onSaved();
+    } catch (e) { setErr(e.message); }
+    finally { setSaving(false); }
+  }, [f, photos, token, onSaved]);
+
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={styles.boostModal} style={{ maxWidth: 760, maxHeight: "90vh", overflow: "auto" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <h3 style={{ margin: 0 }}>🌍 Nouvelle annonce Import/Export</h3>
+          <button className={styles.modalClose} style={{ position: "relative", top: "auto", right: "auto" }} onClick={onClose}>✕</button>
+        </div>
+
+        {/* Datalists */}
+        <datalist id="dl-vp-makes">{CAR_MAKES.map((m) => <option key={m} value={m} />)}</datalist>
+        <datalist id="dl-vp-bodies">{BODY_TYPES.map((b) => <option key={b} value={b} />)}</datalist>
+        <datalist id="dl-vp-countries">{COUNTRIES_ALL.map((c) => <option key={c} value={c} />)}</datalist>
+        <datalist id="dl-vp-avail">{COUNTRIES_AFRIQUE_OUEST.map((c) => <option key={c} value={c} />)}</datalist>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: ".85rem" }}>
+            Titre * <input style={iStyle} value={f.title} onChange={(e) => set("title", e.target.value)} placeholder="Toyota Land Cruiser V8 Import Dubaï" />
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: ".85rem" }}>
+            Pays d'origine * <input list="dl-vp-countries" style={iStyle} value={f.sourceCountry} onChange={(e) => set("sourceCountry", e.target.value)} placeholder="Émirats Arabes Unis" />
+          </label>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px", gap: 12, marginBottom: 12 }}>
+          <label style={lStyle}>Marque * <input list="dl-vp-makes" style={iStyle} value={f.make} onChange={(e) => set("make", e.target.value)} placeholder="Toyota" /></label>
+          <label style={lStyle}>Modèle * <input style={iStyle} value={f.model} onChange={(e) => set("model", e.target.value)} placeholder="Land Cruiser" /></label>
+          <label style={lStyle}>Année <input type="number" style={iStyle} min="1990" max={new Date().getFullYear() + 1} value={f.year} onChange={(e) => set("year", e.target.value)} /></label>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 130px 130px", gap: 12, marginBottom: 12 }}>
+          <label style={lStyle}>Prix * <input type="number" style={iStyle} min="0" value={f.price} onChange={(e) => set("price", e.target.value)} placeholder="25 000" /></label>
+          <label style={lStyle}>Devise
+            <select style={iStyle} value={f.currency} onChange={(e) => set("currency", e.target.value)}>
+              {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
+            </select>
+          </label>
+          <label style={lStyle}>Kilométrage <input type="number" style={iStyle} min="0" value={f.mileage} onChange={(e) => set("mileage", e.target.value)} /></label>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
+          <label style={lStyle}>Carburant
+            <select style={iStyle} value={f.fuelType} onChange={(e) => set("fuelType", e.target.value)}>
+              <option value="essence">Essence</option><option value="diesel">Diesel</option>
+              <option value="hybride">Hybride</option><option value="hybride_rechargeable">Hybride rechargeable</option>
+              <option value="electrique">Électrique</option><option value="gpl">GPL</option>
+            </select>
+          </label>
+          <label style={lStyle}>Transmission
+            <select style={iStyle} value={f.transmission} onChange={(e) => set("transmission", e.target.value)}>
+              <option value="automatique">Automatique</option><option value="manuelle">Manuelle</option><option value="cvt">CVT</option>
+            </select>
+          </label>
+          <label style={lStyle}>État
+            <select style={iStyle} value={f.condition} onChange={(e) => set("condition", e.target.value)}>
+              <option value="neuf">Neuf</option><option value="occasion">Occasion</option><option value="reconditionne">Reconditionné</option>
+            </select>
+          </label>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+          <label style={lStyle}>Carrosserie <input list="dl-vp-bodies" style={iStyle} value={f.bodyType} onChange={(e) => set("bodyType", e.target.value)} placeholder="SUV, berline…" /></label>
+          <label style={lStyle}>Couleur <input style={iStyle} value={f.color} onChange={(e) => set("color", e.target.value)} placeholder="Blanc perle" /></label>
+        </div>
+
+        {/* Disponible dans */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: ".82rem", fontWeight: 600, marginBottom: 6 }}>Disponible pour livraison dans</div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+            <input list="dl-vp-avail" style={{ ...iStyle, flex: 1 }} value={availText} onChange={(e) => setAvailText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addAvail())} placeholder="Côte d'Ivoire, Sénégal…" />
+            <button type="button" onClick={addAvail} style={{ padding: "8px 14px", background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700 }}>+</button>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {f.availableIn.map((c) => (
+              <span key={c} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(99,102,241,.1)", color: "#6366f1", borderRadius: 99, padding: "3px 10px", fontSize: ".78rem", fontWeight: 600 }}>
+                {c}<button onClick={() => set("availableIn", f.availableIn.filter((x) => x !== c))} style={{ background: "none", border: "none", cursor: "pointer", color: "#6366f1", padding: 0, lineHeight: 1 }}>×</button>
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <label style={lStyle}>Description
+          <textarea style={{ ...iStyle, minHeight: 70, resize: "vertical" }} rows={3} value={f.description} onChange={(e) => set("description", e.target.value)} placeholder="Détails, options, historique…" />
+        </label>
+
+        {/* Photos */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: ".82rem", fontWeight: 600, marginBottom: 6 }}>Photos ({photos.length}/8)</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {photos.map((p, i) => <img key={i} src={p} style={{ width: 72, height: 56, objectFit: "cover", borderRadius: 8, border: "1.5px solid #e2e8f0" }} alt={`p-${i}`} />)}
+            {photos.length < 8 && (
+              <label style={{ width: 72, height: 56, display: "flex", alignItems: "center", justifyContent: "center", border: "2px dashed #cbd5e1", borderRadius: 8, cursor: "pointer", color: "#94a3b8", fontSize: ".78rem", textAlign: "center" }}>
+                <input type="file" accept="image/*" onChange={addPhoto} style={{ display: "none" }} />+ Photo
+              </label>
+            )}
+          </div>
+        </div>
+
+        <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, fontSize: ".85rem", cursor: "pointer" }}>
+          <input type="checkbox" checked={f.negotiable} onChange={(e) => set("negotiable", e.target.checked)} />
+          Prix négociable
+        </label>
+
+        {err && <p style={{ color: "#ef4444", fontSize: ".85rem", margin: "0 0 12px" }}>❌ {err}</p>}
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "10px 20px", border: "1.5px solid #e2e8f0", borderRadius: 10, background: "#fff", cursor: "pointer", fontWeight: 600 }}>Annuler</button>
+          <button onClick={save} disabled={saving} style={{ padding: "10px 24px", background: "#ff4d2d", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer" }}>
+            {saving ? "Envoi…" : "Soumettre l'annonce →"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const iStyle = { padding: "9px 12px", border: "1.5px solid #e2e8f0", borderRadius: 9, fontSize: ".85rem", width: "100%", boxSizing: "border-box", outline: "none" };
+const lStyle = { display: "flex", flexDirection: "column", gap: 4, fontSize: ".82rem", fontWeight: 600, color: "#374151" };
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PAGE PRINCIPALE
+// ═════════════════════════════════════════════════════════════════════════════
 const VendorPublish = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const { user, token } = useAuth();
   const { partnerVehicles, partnerBookings, loadPartnerVehicles } = useVehicles();
   const { success: toastOk, error: toastErr } = useToast();
 
-  const [filter, setFilter]       = useState("all");
-  const [search, setSearch]       = useState("");
-  const [boostVehicle, setBoost]  = useState(null);
-  const [deleteVehicle, setDelete] = useState(null);
-  const [deleting, setDeleting]   = useState(false);
+  // ── Onglet principal : "vehicles" | "import-export"
+  const [mainTab, setMainTab] = useState(
+    searchParams.get("tab") === "import-export" ? "import-export" : "vehicles"
+  );
 
-  /* ── Stats globales ── */
-  const published  = partnerVehicles.filter((v) => v.status === "approved").length;
-  const pending    = partnerVehicles.filter((v) => v.status === "pending").length;
-  const rejected   = partnerVehicles.filter((v) => v.status === "rejected").length;
-  const totalRevenue = useMemo(() =>
-    (partnerBookings || [])
-      .filter((b) => b.status === "completed")
+  // ── Véhicules classiques
+  const [filter, setFilter]         = useState("all");
+  const [search, setSearch]         = useState("");
+  const [boostVehicle, setBoost]    = useState(null);
+  const [deleteVehicle, setDelete]  = useState(null);
+  const [deleting, setDeleting]     = useState(false);
+
+  // ── Import/Export listings
+  const [ieListings, setIeListings]    = useState([]);
+  const [ieProfile, setIeProfile]      = useState(null);
+  const [ieLoading, setIeLoading]      = useState(false);
+  const [showIeForm, setShowIeForm]    = useState(false);
+  const [ieToast, setIeToast]          = useState(null);
+
+  const showIeMsg = (msg, type = "success") => { setIeToast({ msg, type }); setTimeout(() => setIeToast(null), 3500); };
+
+  const loadIeData = useCallback(async () => {
+    if (!token) return;
+    setIeLoading(true);
+    try {
+      const [pRes, lRes] = await Promise.all([
+        fetch("/api/import-export/importer-profile", { headers: { Authorization: `Bearer ${token}` } }),
+        fetch("/api/import-export/listings/mine",    { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (pRes.ok) { const d = await pRes.json(); setIeProfile(d.profile); }
+      if (lRes.ok) { const d = await lRes.json(); setIeListings(d.listings || []); }
+    } catch {}
+    setIeLoading(false);
+  }, [token]);
+
+  useEffect(() => {
+    if (mainTab === "import-export") loadIeData();
+  }, [mainTab, loadIeData]);
+
+  const deleteIeListing = async (id) => {
+    if (!confirm("Supprimer cette annonce ?")) return;
+    await fetch(`/api/import-export/listings/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    showIeMsg("Annonce supprimée.");
+    loadIeData();
+  };
+
+  // ── Stats véhicules
+  const published     = partnerVehicles.filter((v) => v.status === "approved").length;
+  const pending       = partnerVehicles.filter((v) => v.status === "pending").length;
+  const rejected      = partnerVehicles.filter((v) => v.status === "rejected").length;
+  const totalRevenue  = useMemo(() =>
+    (partnerBookings || []).filter((b) => b.status === "completed")
       .reduce((s, b) => s + (Number(b.partnerPayout) || 0), 0),
     [partnerBookings]
   );
 
-  /* ── Filtrage ── */
   const filtered = useMemo(() => {
     let list = partnerVehicles;
     if (filter !== "all") list = list.filter((v) => v.status === filter);
@@ -201,34 +401,28 @@ const VendorPublish = () => {
         (v.ville || "").toLowerCase().includes(q)
       );
     }
-    return [...list].sort((a, b) =>
-      (b.createdAt || 0) > (a.createdAt || 0) ? 1 : -1
-    );
+    return [...list].sort((a, b) => (b.createdAt || 0) > (a.createdAt || 0) ? 1 : -1);
   }, [partnerVehicles, filter, search]);
 
-  /* ── Suppression ── */
   const confirmDelete = async () => {
     if (!deleteVehicle) return;
     setDeleting(true);
     try {
       const res = await fetch(`/api/vehicles/${deleteVehicle.id || deleteVehicle._id}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${localStorage.getItem("vit_token")}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        toastOk("Annonce supprimée.");
-        loadPartnerVehicles?.();
-      } else {
-        toastErr("Impossible de supprimer cette annonce.");
-      }
-    } catch {
-      toastErr("Erreur réseau — réessayez.");
-    } finally {
-      setDeleting(false);
-      setDelete(null);
-    }
+      if (res.ok) { toastOk("Annonce supprimée."); loadPartnerVehicles?.(); }
+      else { toastErr("Impossible de supprimer cette annonce."); }
+    } catch { toastErr("Erreur réseau — réessayez."); }
+    finally { setDeleting(false); setDelete(null); }
   };
 
+  const pStatus    = PROFILE_STATUS[ieProfile?.status || "none"];
+  const badgeIcon  = BADGE_ICONS[ieProfile?.badgeLevel || "none"];
+  const isVerified = ieProfile?.status === "verified";
+
+  // ═══════════════════════════════════════════════════════════════════════════
   return (
     <div className={styles.page}>
 
@@ -236,131 +430,286 @@ const VendorPublish = () => {
       <div className={styles.header}>
         <div>
           <h1 className={styles.title}>Gestion des publications</h1>
-          <p className={styles.sub}>Gérez, boostez et suivez les performances de vos annonces.</p>
+          <p className={styles.sub}>Gérez, boostez et suivez vos annonces — véhicules & import/export.</p>
         </div>
-        <button className={styles.newBtn} onClick={() => navigate("/vendor")}>
-          + Nouvelle annonce
-        </button>
-      </div>
-
-      {/* ── KPI cards ── */}
-      <div className={styles.kpiRow}>
-        <div className={styles.kpiCard}>
-          <span className={styles.kpiIcon}>📦</span>
-          <span className={styles.kpiValue}>{partnerVehicles.length}</span>
-          <span className={styles.kpiLabel}>Total annonces</span>
-        </div>
-        <div className={styles.kpiCard}>
-          <span className={styles.kpiIcon}>✅</span>
-          <span className={styles.kpiValue} style={{ color: "#10b981" }}>{published}</span>
-          <span className={styles.kpiLabel}>Publiées</span>
-        </div>
-        <div className={styles.kpiCard}>
-          <span className={styles.kpiIcon}>⏳</span>
-          <span className={styles.kpiValue} style={{ color: "#f59e0b" }}>{pending}</span>
-          <span className={styles.kpiLabel}>En attente</span>
-        </div>
-        <div className={styles.kpiCard}>
-          <span className={styles.kpiIcon}>❌</span>
-          <span className={styles.kpiValue} style={{ color: "#ef4444" }}>{rejected}</span>
-          <span className={styles.kpiLabel}>Rejetées</span>
-        </div>
-        <div className={styles.kpiCard}>
-          <span className={styles.kpiIcon}>💰</span>
-          <span className={styles.kpiValue} style={{ color: "#10b981" }}>{fmt(totalRevenue)}</span>
-          <span className={styles.kpiLabel}>Revenus générés</span>
-        </div>
-      </div>
-
-      {/* ── Barre de recherche + filtres ── */}
-      <div className={styles.toolbar}>
-        <div className={styles.filterTabs}>
-          {FILTER_TABS.map((t) => {
-            const count = t.key === "all"
-              ? partnerVehicles.length
-              : partnerVehicles.filter((v) => v.status === t.key).length;
-            return (
-              <button
-                key={t.key}
-                className={`${styles.filterTab} ${filter === t.key ? styles.filterTabActive : ""}`}
-                onClick={() => setFilter(t.key)}
-              >
-                {t.label}
-                {count > 0 && <span className={styles.filterCount}>{count}</span>}
-              </button>
-            );
-          })}
-        </div>
-        <div className={styles.searchWrap}>
-          <span className={styles.searchIcon}>🔍</span>
-          <input
-            className={styles.searchInput}
-            placeholder="Rechercher par nom ou ville..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {search && (
-            <button className={styles.searchClear} onClick={() => setSearch("")}>✕</button>
+        <div style={{ display: "flex", gap: 10 }}>
+          {mainTab === "vehicles" && (
+            <button className={styles.newBtn} onClick={() => navigate("/vendor")}>+ Nouvelle annonce</button>
+          )}
+          {mainTab === "import-export" && isVerified && (
+            <button className={styles.newBtn} onClick={() => setShowIeForm(true)}>🌍 Nouvelle annonce IE</button>
           )}
         </div>
       </div>
 
-      {/* ── Guide si rejetés ── */}
-      {rejected > 0 && (
-        <div className={styles.rejectAlert}>
-          <span>⚠️</span>
-          <span>
-            Vous avez <strong>{rejected} annonce{rejected > 1 ? "s" : ""} rejetée{rejected > 1 ? "s" : ""}</strong>.
-            Corrigez les erreurs indiquées et publiez à nouveau depuis <button className={styles.alertLink} onClick={() => navigate("/vendor")}>Nouvelle annonce</button>.
-          </span>
-        </div>
-      )}
+      {/* ── Onglets principaux ── */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "2px solid #f1f5f9" }}>
+        {[
+          { key: "vehicles",      icon: "🚗", label: "Véhicules" },
+          { key: "import-export", icon: "🌍", label: "Import / Export" },
+        ].map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setMainTab(t.key)}
+            style={{
+              padding: "10px 22px", border: "none", background: "none", cursor: "pointer",
+              fontWeight: 700, fontSize: ".92rem",
+              color: mainTab === t.key ? "#ff4d2d" : "#64748b",
+              borderBottom: mainTab === t.key ? "2.5px solid #ff4d2d" : "2.5px solid transparent",
+              marginBottom: -2, transition: "all .2s",
+            }}
+          >
+            {t.icon} {t.label}
+            {t.key === "import-export" && ieListings.length > 0 && (
+              <span style={{ marginLeft: 6, background: "#ff4d2d", color: "#fff", borderRadius: 99, padding: "1px 7px", fontSize: ".72rem" }}>
+                {ieListings.length}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
 
-      {/* ── Liste ── */}
-      {filtered.length === 0 ? (
-        <div className={styles.emptyState}>
-          <div className={styles.emptyIcon}>🚗</div>
-          <h3>{search ? "Aucun résultat" : "Aucune annonce"}</h3>
-          <p>
-            {search
-              ? `Aucune annonce ne correspond à "${search}".`
-              : "Publiez votre première annonce pour commencer à recevoir des réservations."}
-          </p>
-          {!search && (
-            <button className={styles.newBtnSm} onClick={() => navigate("/vendor")}>
-              Créer une annonce
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className={styles.cardGrid}>
-          {filtered.map((v) => (
-            <VehicleCard
-              key={v.id || v._id}
-              v={v}
-              bookings={partnerBookings || []}
-              onDelete={setDelete}
-              onBoost={setBoost}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* ── Conseil publication ── */}
-      {partnerVehicles.length > 0 && (
-        <div className={styles.tipBox}>
-          <span className={styles.tipIcon}>💡</span>
-          <div>
-            <strong>Conseil :</strong> Les annonces avec 4 photos ou plus et une description détaillée reçoivent
-            en moyenne <strong>3× plus de réservations</strong>. Boostez vos annonces pour multiplier leur visibilité.
+      {/* ══════════════════════════════════════════════════════════════════════
+          ONGLET VÉHICULES
+      ══════════════════════════════════════════════════════════════════════ */}
+      {mainTab === "vehicles" && (
+        <>
+          {/* KPI */}
+          <div className={styles.kpiRow}>
+            <div className={styles.kpiCard}><span className={styles.kpiIcon}>📦</span><span className={styles.kpiValue}>{partnerVehicles.length}</span><span className={styles.kpiLabel}>Total annonces</span></div>
+            <div className={styles.kpiCard}><span className={styles.kpiIcon}>✅</span><span className={styles.kpiValue} style={{ color: "#10b981" }}>{published}</span><span className={styles.kpiLabel}>Publiées</span></div>
+            <div className={styles.kpiCard}><span className={styles.kpiIcon}>⏳</span><span className={styles.kpiValue} style={{ color: "#f59e0b" }}>{pending}</span><span className={styles.kpiLabel}>En attente</span></div>
+            <div className={styles.kpiCard}><span className={styles.kpiIcon}>❌</span><span className={styles.kpiValue} style={{ color: "#ef4444" }}>{rejected}</span><span className={styles.kpiLabel}>Rejetées</span></div>
+            <div className={styles.kpiCard}><span className={styles.kpiIcon}>💰</span><span className={styles.kpiValue} style={{ color: "#10b981" }}>{fmt(totalRevenue)}</span><span className={styles.kpiLabel}>Revenus générés</span></div>
           </div>
+
+          {/* Toolbar */}
+          <div className={styles.toolbar}>
+            <div className={styles.filterTabs}>
+              {FILTER_TABS.map((t) => {
+                const count = t.key === "all" ? partnerVehicles.length : partnerVehicles.filter((v) => v.status === t.key).length;
+                return (
+                  <button
+                    key={t.key}
+                    className={`${styles.filterTab} ${filter === t.key ? styles.filterTabActive : ""}`}
+                    onClick={() => setFilter(t.key)}
+                  >
+                    {t.label}
+                    {count > 0 && <span className={styles.filterCount}>{count}</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <div className={styles.searchWrap}>
+              <span className={styles.searchIcon}>🔍</span>
+              <input className={styles.searchInput} placeholder="Rechercher par nom ou ville..." value={search} onChange={(e) => setSearch(e.target.value)} />
+              {search && <button className={styles.searchClear} onClick={() => setSearch("")}>✕</button>}
+            </div>
+          </div>
+
+          {rejected > 0 && (
+            <div className={styles.rejectAlert}>
+              <span>⚠️</span>
+              <span>Vous avez <strong>{rejected} annonce{rejected > 1 ? "s" : ""} rejetée{rejected > 1 ? "s" : ""}</strong>.{" "}
+                Corrigez les erreurs et publiez depuis{" "}
+                <button className={styles.alertLink} onClick={() => navigate("/vendor")}>Nouvelle annonce</button>.
+              </span>
+            </div>
+          )}
+
+          {filtered.length === 0 ? (
+            <div className={styles.emptyState}>
+              <div className={styles.emptyIcon}>🚗</div>
+              <h3>{search ? "Aucun résultat" : "Aucune annonce"}</h3>
+              <p>{search ? `Aucune annonce ne correspond à "${search}".` : "Publiez votre première annonce pour commencer à recevoir des réservations."}</p>
+              {!search && <button className={styles.newBtnSm} onClick={() => navigate("/vendor")}>Créer une annonce</button>}
+            </div>
+          ) : (
+            <div className={styles.cardGrid}>
+              {filtered.map((v) => (
+                <VehicleCard key={v.id || v._id} v={v} bookings={partnerBookings || []} onDelete={setDelete} onBoost={setBoost} />
+              ))}
+            </div>
+          )}
+
+          {partnerVehicles.length > 0 && (
+            <div className={styles.tipBox}>
+              <span className={styles.tipIcon}>💡</span>
+              <div>
+                <strong>Conseil :</strong> Les annonces avec 4 photos ou plus et une description détaillée reçoivent
+                en moyenne <strong>3× plus de réservations</strong>.
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          ONGLET IMPORT / EXPORT
+      ══════════════════════════════════════════════════════════════════════ */}
+      {mainTab === "import-export" && (
+        <div>
+          {ieToast && (
+            <div style={{ position: "fixed", top: 20, right: 20, zIndex: 9999, padding: "12px 20px", borderRadius: 12, background: ieToast.type === "error" ? "#ef4444" : "#10b981", color: "#fff", fontWeight: 700, boxShadow: "0 4px 20px rgba(0,0,0,.18)" }}>
+              {ieToast.msg}
+            </div>
+          )}
+
+          {/* Statut profil importateur */}
+          {!ieProfile || ieProfile.status === "none" ? (
+            <div style={{ background: "#fffbeb", border: "1.5px solid #f59e0b", borderRadius: 14, padding: "20px 24px", marginBottom: 24, display: "flex", gap: 16, alignItems: "flex-start" }}>
+              <span style={{ fontSize: "1.8rem" }}>⚠️</span>
+              <div>
+                <strong style={{ display: "block", marginBottom: 4 }}>Profil importateur non soumis</strong>
+                <p style={{ margin: "0 0 12px", color: "#92400e", fontSize: ".88rem" }}>
+                  Pour publier des annonces import/export, vous devez d'abord être agréé comme importateur partenaire VIT AUTO.
+                </p>
+                <Link to="/importer-apply" style={{ display: "inline-block", padding: "9px 20px", background: "#f59e0b", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem" }}>
+                  Soumettre ma candidature →
+                </Link>
+              </div>
+            </div>
+          ) : ieProfile.status === "pending" ? (
+            <div style={{ background: "#fffbeb", border: "1.5px solid #f59e0b", borderRadius: 14, padding: "20px 24px", marginBottom: 24, display: "flex", gap: 16, alignItems: "center" }}>
+              <span style={{ fontSize: "2rem" }}>⏳</span>
+              <div>
+                <strong>Candidature en cours d'examen</strong>
+                <p style={{ margin: "4px 0 0", color: "#92400e", fontSize: ".88rem" }}>Notre équipe examine votre dossier sous 48–72h ouvrables. Vous recevrez une notification.</p>
+              </div>
+            </div>
+          ) : ieProfile.status === "rejected" ? (
+            <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 14, padding: "20px 24px", marginBottom: 24, display: "flex", gap: 16, alignItems: "flex-start" }}>
+              <span style={{ fontSize: "1.8rem" }}>❌</span>
+              <div>
+                <strong>Candidature refusée</strong>
+                {ieProfile.rejectionReason && <p style={{ margin: "4px 0 8px", color: "#7f1d1d", fontSize: ".85rem" }}>Motif : {ieProfile.rejectionReason}</p>}
+                <Link to="/importer-apply" style={{ display: "inline-block", padding: "9px 20px", background: "#ef4444", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem" }}>
+                  Resoumettre ma candidature →
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div style={{ background: "#ecfdf5", border: "1.5px solid #6ee7b7", borderRadius: 14, padding: "18px 24px", marginBottom: 24, display: "flex", gap: 16, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+                <span style={{ fontSize: "2rem" }}>✅</span>
+                <div>
+                  <strong style={{ display: "block" }}>Importateur Vérifié {badgeIcon} {ieProfile.badgeLevel?.toUpperCase()}</strong>
+                  <p style={{ margin: "2px 0 0", color: "#065f46", fontSize: ".85rem" }}>
+                    Votre profil est actif. Publiez vos annonces import/export maintenant.
+                  </p>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => setShowIeForm(true)} style={{ padding: "9px 20px", background: "#10b981", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer" }}>
+                  + Nouvelle annonce
+                </button>
+                <Link to="/importer-dashboard" style={{ display: "inline-block", padding: "9px 20px", border: "1.5px solid #10b981", color: "#10b981", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem" }}>
+                  Tableau de bord complet →
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* KPIs Import/Export */}
+          <div className={styles.kpiRow} style={{ marginBottom: 24 }}>
+            <div className={styles.kpiCard}>
+              <span className={styles.kpiIcon}>📢</span>
+              <span className={styles.kpiValue}>{ieListings.length}</span>
+              <span className={styles.kpiLabel}>Total annonces IE</span>
+            </div>
+            <div className={styles.kpiCard}>
+              <span className={styles.kpiIcon}>✅</span>
+              <span className={styles.kpiValue} style={{ color: "#10b981" }}>{ieListings.filter((l) => l.status === "approved").length}</span>
+              <span className={styles.kpiLabel}>Publiées</span>
+            </div>
+            <div className={styles.kpiCard}>
+              <span className={styles.kpiIcon}>⏳</span>
+              <span className={styles.kpiValue} style={{ color: "#f59e0b" }}>{ieListings.filter((l) => l.status === "pending").length}</span>
+              <span className={styles.kpiLabel}>En attente</span>
+            </div>
+            <div className={styles.kpiCard}>
+              <span className={styles.kpiIcon}>👁️</span>
+              <span className={styles.kpiValue} style={{ color: "#6366f1" }}>{ieListings.reduce((acc, l) => acc + (l.views || 0), 0)}</span>
+              <span className={styles.kpiLabel}>Vues totales</span>
+            </div>
+          </div>
+
+          {/* Liste annonces IE */}
+          {ieLoading ? (
+            <div style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}>
+              <div className={styles.kpiIcon} style={{ fontSize: "1.5rem" }}>⏳</div>
+              <p>Chargement…</p>
+            </div>
+          ) : ieListings.length === 0 ? (
+            <div className={styles.emptyState}>
+              <div className={styles.emptyIcon}>🌍</div>
+              <h3>Aucune annonce import/export</h3>
+              <p>{isVerified ? "Publiez votre première annonce import/export." : "Devenez importateur vérifié pour publier des annonces."}</p>
+              {isVerified && (
+                <button className={styles.newBtnSm} onClick={() => setShowIeForm(true)}>Créer une annonce IE</button>
+              )}
+              {!isVerified && ieProfile?.status === "none" && (
+                <Link to="/importer-apply" className={styles.newBtnSm} style={{ textDecoration: "none" }}>Postuler comme importateur</Link>
+              )}
+            </div>
+          ) : (
+            <div className={styles.cardGrid}>
+              {ieListings.map((l) => {
+                const st = IE_STATUS_CFG[l.status] || IE_STATUS_CFG.pending;
+                return (
+                  <div key={l._id} className={styles.card}>
+                    <div className={styles.cardThumb}>
+                      {l.mainPhoto
+                        ? <img src={l.mainPhoto} alt={l.title} />
+                        : <span className={styles.cardThumbFallback}>🚗</span>
+                      }
+                      <span className={styles.statusDot} style={{ background: st.color }} title={st.label} />
+                    </div>
+                    <div className={styles.cardBody}>
+                      <div className={styles.cardTop}>
+                        <div className={styles.cardNameRow}>
+                          <span className={styles.cardName}>{l.title}</span>
+                          <span className={styles.typeBadge} style={{ color: "#ff4d2d", background: "rgba(255,77,45,.10)" }}>IE</span>
+                          <span className={styles.statusBadge} style={{ color: st.color, background: st.bg }}>{st.label}</span>
+                        </div>
+                        <p className={styles.cardMeta}>{l.make} {l.model} {l.year} · {l.sourceCountry} · {fmtDate(l.createdAt)}</p>
+                        <p className={styles.cardMeta} style={{ color: "#10b981", fontWeight: 700 }}>{fmtIE(l.price, l.currency)}</p>
+                      </div>
+                      <div className={styles.miniStats}>
+                        <div className={styles.miniStat}><span className={styles.miniVal}>{l.views || 0}</span><span className={styles.miniLbl}>Vues</span></div>
+                        <div className={styles.miniStatDivider} />
+                        <div className={styles.miniStat}><span className={styles.miniVal}>{l.inquiries || 0}</span><span className={styles.miniLbl}>Demandes</span></div>
+                        <div className={styles.miniStatDivider} />
+                        <div className={styles.miniStat}><span className={styles.miniVal}>{l.stockQty || 1}</span><span className={styles.miniLbl}>Stock</span></div>
+                      </div>
+                      {l.adminNote && (
+                        <p style={{ fontSize: ".78rem", color: "#f59e0b", margin: "4px 0 0", padding: "4px 8px", background: "#fffbeb", borderRadius: 6 }}>
+                          Note admin : {l.adminNote}
+                        </p>
+                      )}
+                      <div className={styles.cardActions}>
+                        <button className={styles.deleteBtn} onClick={() => deleteIeListing(l._id)}>🗑️ Supprimer</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Lien vers le tableau de bord complet */}
+          {ieListings.length > 0 && (
+            <div style={{ textAlign: "center", marginTop: 24 }}>
+              <Link to="/importer-dashboard" style={{ color: "#6366f1", fontWeight: 700, textDecoration: "none" }}>
+                Accéder au tableau de bord importateur complet →
+              </Link>
+            </div>
+          )}
         </div>
       )}
 
       {/* ── Modal boost ── */}
-      {boostVehicle && (
-        <BoostModal vehicle={boostVehicle} onClose={() => setBoost(null)} />
-      )}
+      {boostVehicle && <BoostModal vehicle={boostVehicle} onClose={() => setBoost(null)} />}
 
       {/* ── Modal suppression ── */}
       {deleteVehicle && (
@@ -368,10 +717,7 @@ const VendorPublish = () => {
           <div className={styles.deleteModal} onClick={(e) => e.stopPropagation()}>
             <div className={styles.deleteIcon}>🗑️</div>
             <h3>Supprimer cette annonce ?</h3>
-            <p>
-              <strong>{deleteVehicle.name || deleteVehicle.title}</strong> sera définitivement supprimée.
-              Cette action est irréversible.
-            </p>
+            <p><strong>{deleteVehicle.name || deleteVehicle.title}</strong> sera définitivement supprimée. Cette action est irréversible.</p>
             <div className={styles.deleteActions}>
               <button className={styles.cancelBtn} onClick={() => setDelete(null)}>Annuler</button>
               <button className={styles.confirmDeleteBtn} onClick={confirmDelete} disabled={deleting}>
@@ -380,6 +726,15 @@ const VendorPublish = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Modal nouvelle annonce IE ── */}
+      {showIeForm && (
+        <IEListingForm
+          token={token}
+          onClose={() => setShowIeForm(false)}
+          onSaved={() => { setShowIeForm(false); showIeMsg("Annonce soumise pour validation !"); loadIeData(); }}
+        />
       )}
     </div>
   );

@@ -16,16 +16,26 @@ const notificationSchema = new mongoose.Schema({
   type: {
     type: String,
     enum: [
+      // Réservations
       "booking_confirmed",    // Réservation confirmée
       "booking_cancelled",    // Réservation annulée
-      "booking_completed",    // Réservation terminée → inviter à laisser un avis
+      "booking_completed",    // Réservation terminée
+      // Annonces véhicules
       "listing_approved",     // Annonce approuvée par admin
       "listing_rejected",     // Annonce rejetée
       "new_booking",          // Partenaire : nouvelle réservation reçue
       "new_review",           // Nouveau avis reçu
       "payment_received",     // Paiement confirmé
       "new_message",          // Nouveau message chat
-      "system",               // Message général
+      "system",               // Message général système
+      // Import / Export
+      "info",                 // Information générale
+      "success",              // Succès (profil vérifié, annonce publiée…)
+      "error",                // Erreur / refus
+      "warning",              // Avertissement
+      "ie_request",           // Nouvelle demande client IE
+      "ie_profile",           // Candidature importateur
+      "ie_listing",           // Annonce import/export
     ],
     required: true,
   },

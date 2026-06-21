@@ -22,16 +22,17 @@ function signJWT(user) {
 
 function safeUser(u) {
   return {
-    id:              u._id,
-    firstName:       u.firstName,
-    lastName:        u.lastName,
-    email:           u.email,
-    phone:           u.phone,
-    role:            u.role,
-    emailVerified:   u.emailVerified,
-    identityStatus:  u.identity?.status || "not_submitted",
+    id:               u._id,
+    firstName:        u.firstName,
+    lastName:         u.lastName,
+    email:            u.email,
+    phone:            u.phone,
+    role:             u.role,
+    emailVerified:    u.emailVerified,
+    phoneVerified:    u.phoneVerified,
+    identityStatus:   u.identity?.status || "not_submitted",
     documentsVerified: u.documentsVerified,
-    profilePhoto:    u.profilePhoto,
+    profilePhoto:     u.profilePhoto,
   };
 }
 
@@ -160,6 +161,16 @@ export const login = async (req, res) => {
       user.emailVerified = true;
       user.emailVerificationToken   = null;
       user.emailVerificationExpires = null;
+    }
+
+    // Bloquer si téléphone fourni mais non vérifié (sauf admin)
+    if (user.phone && !user.phoneVerified && user.role !== "admin" && process.env.NODE_ENV === "production") {
+      return res.status(403).json({
+        code: "PHONE_NOT_VERIFIED",
+        message: "Veuillez vérifier votre numéro de téléphone pour vous connecter.",
+        phone: user.phone,
+        userId: user._id,
+      });
     }
 
     // Mettre à jour lastLogin
@@ -312,6 +323,86 @@ export const forgotPassword = async (req, res) => {
     res.json({ message: "Si ce compte existe, un lien a été envoyé." });
   } catch (err) {
     console.error("forgotPassword:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Envoyer OTP téléphone ─────────────────────────────────────────────────
+export const sendPhoneOtp = async (req, res) => {
+  const { phone, userId } = req.body;
+  const target = phone?.trim();
+  if (!target) return res.status(400).json({ message: "Numéro de téléphone requis." });
+
+  try {
+    const filter = userId ? { _id: userId } : { phone: target };
+    const user = await User.findOne(filter);
+    if (!user) return res.status(404).json({ message: "Compte introuvable." });
+    if (user.phoneVerified) return res.json({ message: "Téléphone déjà vérifié.", alreadyVerified: true });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.phoneOtp        = otp;
+    user.phoneOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
+    if (!user.phone && target) user.phone = target;
+    await user.save();
+
+    // En production, envoyer le SMS via le fournisseur configuré
+    // Actuellement : log console (intégrer Twilio / Africa's Talking si disponible)
+    console.log(`\n📱 OTP Téléphone [${user.email}] → ${user.phone} : ${otp}`);
+
+    // Simuler l'envoi SMS si TWILIO_ACCOUNT_SID est configuré
+    if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_FROM) {
+      try {
+        const { default: twilio } = await import("twilio");
+        const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+        await client.messages.create({
+          body: `VIT AUTO — Votre code de vérification : ${otp}. Valable 10 minutes.`,
+          from: process.env.TWILIO_PHONE_FROM,
+          to:   user.phone,
+        });
+      } catch (smsErr) {
+        console.error("SMS send error:", smsErr.message);
+      }
+    }
+
+    res.json({
+      message: process.env.NODE_ENV !== "production"
+        ? `[DEV] Code OTP envoyé (voir console serveur). Code : ${otp}`
+        : "Code de vérification envoyé par SMS.",
+      devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
+    });
+  } catch (err) {
+    console.error("sendPhoneOtp:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Vérifier OTP téléphone ────────────────────────────────────────────────
+export const verifyPhoneOtp = async (req, res) => {
+  const { phone, userId, otp } = req.body;
+  if (!otp) return res.status(400).json({ message: "Code OTP requis." });
+
+  try {
+    const filter = userId ? { _id: userId } : { phone: phone?.trim() };
+    const user = await User.findOne(filter);
+    if (!user) return res.status(404).json({ message: "Compte introuvable." });
+    if (user.phoneVerified) return res.json({ message: "Téléphone déjà vérifié.", success: true });
+
+    if (!user.phoneOtp || user.phoneOtp !== otp) {
+      return res.status(400).json({ message: "Code OTP incorrect." });
+    }
+    if (!user.phoneOtpExpires || user.phoneOtpExpires < new Date()) {
+      return res.status(400).json({ message: "Code OTP expiré. Demandez un nouveau code." });
+    }
+
+    user.phoneVerified   = true;
+    user.phoneOtp        = null;
+    user.phoneOtpExpires = null;
+    await user.save();
+
+    const token = signJWT(user);
+    res.json({ message: "Téléphone vérifié avec succès !", success: true, user: safeUser(user), token });
+  } catch (err) {
+    console.error("verifyPhoneOtp:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

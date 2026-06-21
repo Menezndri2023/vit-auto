@@ -46,14 +46,12 @@ const Navbar = () => {
           <li><NavLink to="/services" className={navLink} onClick={() => setMenuOpen(false)}>Services</NavLink></li>
         )}
 
-
         {/* Liens visibles uniquement par les partenaires */}
         {isPartner && (
           <>
             {/* end = exact match /vendor seulement, pas /vendor/dashboard */}
             <li><NavLink to="/vendor" end className={navLink} onClick={() => setMenuOpen(false)}>Publier</NavLink></li>
             <li><NavLink to="/vendor/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>Mon espace</NavLink></li>
-            <li><NavLink to="/plans" end className={navLink} onClick={() => setMenuOpen(false)}>Tarifs</NavLink></li>
           </>
         )}
 

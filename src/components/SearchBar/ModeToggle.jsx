@@ -1,7 +1,10 @@
 import React, { memo } from "react";
+import { useNavigate } from "react-router-dom";
 import styles from "../SearchBar/SearchBar.module.css";
 
 const ModeToggle = memo(({ mode, setMode, goToCatalogue }) => {
+  const navigate = useNavigate();
+
   return (
     <div className={styles.field}>
       <label>Mode</label>
@@ -25,6 +28,7 @@ const ModeToggle = memo(({ mode, setMode, goToCatalogue }) => {
           <span className={styles.icon}>💳</span>
           <span>Acheter</span>
         </button>
+
         <button
           className={`${styles.toggleBtn} ${mode === "Chauffeur" ? styles.active : ""}`}
           onClick={() => { setMode("Chauffeur"); goToCatalogue("Chauffeur"); }}
@@ -33,6 +37,16 @@ const ModeToggle = memo(({ mode, setMode, goToCatalogue }) => {
         >
           <span className={styles.icon}>👨‍✈️</span>
           <span>Chauffeur</span>
+        </button>
+
+        <button
+          className={`${styles.toggleBtn} ${mode === "Import" ? styles.active : ""}`}
+          onClick={() => { setMode("Import"); navigate("/catalogue?mode=Import"); }}
+          type="button"
+          title="Véhicules import/export internationaux"
+        >
+          <span className={styles.icon}>🌍</span>
+          <span>Import/Export</span>
         </button>
       </div>
     </div>

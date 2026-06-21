@@ -16,6 +16,9 @@ import notificationRoutes  from "./routes/notifications.js";
 import subscriptionRoutes  from "./routes/subscriptions.js";
 import chatRoutes          from "./routes/chats.js";
 import contractRoutes      from "./routes/contracts.js";
+import importExportRoutes  from "./routes/importExport.js";
+import adsRoutes           from "./routes/ads.js";
+import geoRoutes           from "./routes/geo.js";
 
 dotenv.config();
 
@@ -95,6 +98,9 @@ app.use("/api/notifications",  apiLimiter,  notificationRoutes);
 app.use("/api/subscriptions",  apiLimiter,  subscriptionRoutes);
 app.use("/api/chats",          apiLimiter,  chatRoutes);
 app.use("/api/contracts",      apiLimiter,  contractRoutes);
+app.use("/api/import-export",  apiLimiter,  importExportRoutes);
+app.use("/api/ads",            apiLimiter,  adsRoutes);
+app.use("/api/geo",            apiLimiter,  geoRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────────
 app.use((req, res) => {
@@ -126,10 +132,13 @@ const startServer = async () => {
       console.log(`\n🚀 VIT AUTO API — ${env.toUpperCase()}`);
       console.log(`   Port     : ${PORT}`);
       console.log(`   CORS     : ${ALLOWED_ORIGINS.join(", ")}`);
-      console.log(`   Auth     : /api/auth`);
-      console.log(`   Véhicules: /api/vehicles`);
-      console.log(`   Commandes: /api/bookings`);
-      console.log(`   Chats    : /api/chats\n`);
+      console.log(`   Auth         : /api/auth`);
+      console.log(`   Véhicules    : /api/vehicles`);
+      console.log(`   Commandes    : /api/bookings`);
+      console.log(`   Chats        : /api/chats`);
+      console.log(`   Import/Export: /api/import-export`);
+      console.log(`   Publicités   : /api/ads`);
+      console.log(`   Géoloc.      : /api/geo\n`);
     });
 
     // Gestion propre du port déjà occupé

@@ -8,15 +8,36 @@ export const createDriver = async (req, res) => {
       return res.status(403).json({ message: "Réservé aux partenaires." });
     }
 
-    // Mapper telephone → phone (le frontend envoie "telephone", le schéma attend "phone")
-    const { telephone, contactTel, ...rest } = req.body;
-    const phone = telephone || contactTel || req.body.phone;
+    // Whitelist des champs autorisés (évite mass assignment sur owner, stats, status)
+    const {
+      firstName, lastName, telephone, contactTel, phone: phoneRaw,
+      profilePhoto, title, description,
+      tarif, tarifHeure,
+      disponibilite, zone, ville,
+      experience, langues, permisCategorie, vehiculePersonnel, typeVehicule,
+      images,
+    } = req.body;
+
+    const phone = telephone || contactTel || phoneRaw;
 
     const driver = await Driver.create({
-      ...rest,
+      firstName, lastName, title, description,
       ...(phone ? { phone } : {}),
-      owner:  req.user._id,
-      status: "pending", // toujours en attente de validation admin
+      profilePhoto: profilePhoto || null,
+      tarif, tarifHeure,
+      disponibilite, zone, ville,
+      experience,
+      langues: langues || ["Français"],
+      permisCategorie: permisCategorie || "B",
+      vehiculePersonnel: !!vehiculePersonnel,
+      typeVehicule,
+      images: images || [],
+      // Champs serveur — jamais depuis req.body
+      owner:         req.user._id,
+      status:        "pending",
+      noteMoyenne:   0,
+      nombreAvis:    0,
+      missionsTotal: 0,
     });
 
     // Notification non bloquante

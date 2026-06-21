@@ -49,6 +49,9 @@ const PourquoiVitAuto       = lazy(() => import("./pages/PourquoiVitAuto"));
 const MentionsLegales       = lazy(() => import("./pages/MentionsLegales"));
 const ConditionsPartenaires = lazy(() => import("./pages/ConditionsPartenaires"));
 const ImportExport          = lazy(() => import("./pages/ImportExport"));
+const ImporterApply         = lazy(() => import("./pages/ImporterApply"));
+const ImporterDashboard     = lazy(() => import("./pages/ImporterDashboard"));
+const IEListings            = lazy(() => import("./pages/IEListings"));
 
 function App() {
   const [splashDone, setSplashDone] = useState(false);
@@ -103,6 +106,9 @@ function App() {
                         <Route path="/mentions-legales"        element={<MentionsLegales />} />
                         <Route path="/conditions-partenaires"  element={<ConditionsPartenaires />} />
                         <Route path="/import-export"          element={<ImportExport />} />
+                        <Route path="/import-export/listings" element={<IEListings />} />
+                        <Route path="/importer-apply"         element={<ImporterApply />} />
+                        <Route path="/importer-dashboard"     element={<ImporterDashboard />} />
                         <Route path="*" element={<NotFound />} />
                       </Routes>
                     </Suspense>
