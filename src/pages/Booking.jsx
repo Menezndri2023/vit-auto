@@ -1,157 +1,40 @@
-import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useParams, useNavigate, useSearchParams, useLocation, Link } from "react-router-dom";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useVehicles } from "../context/VehicleContext";
-import { useAuth } from "../context/AuthContext";
+import { useAuth }     from "../context/AuthContext";
 import { useCurrency } from "../context/CurrencyContext";
+import { getKycBadge, generateBookingRef } from "../utils/kycEngine.js";
 import styles from "./Booking.module.css";
 
-/* ══════════════════════════════════════════════════════════
-   VALIDATION PIÈCE D'IDENTITÉ — Formats par pays & type
-   ══════════════════════════════════════════════════════════ */
+/* ── Constantes financières (en XOF — converties par fmt() à l'affichage) ── */
+const SERVICE_FEE     = 1000;   // 1 000 FCFA ≈ 16 MAD ≈ 1.52 €
+const DELIVERY_BASE   = 1500;   // 1 500 FCFA base de livraison
+const DELIVERY_PER_KM = 300;    // 300 FCFA / km
 
-const ID_RULES = {
-  cni: {
-    label: "Carte Nationale d'Identité (CNI)",
-    patterns: [
-      // Maroc
-      { regex: /^[A-Z]{1,2}\d{5,7}$/i,   country: "🇲🇦 Maroc",         example: "B123456 ou AB123456" },
-      // France
-      { regex: /^\d{12}$/,                country: "🇫🇷 France",         example: "123456789012 (12 chiffres)" },
-      // Côte d'Ivoire
-      { regex: /^\d{9,12}$/,              country: "🇨🇮 Côte d'Ivoire",  example: "CI-XXXXXXXX ou 9-12 chiffres" },
-      { regex: /^CI[-\s]?\d{8,10}$/i,    country: "🇨🇮 Côte d'Ivoire",  example: "CI-12345678" },
-      // Sénégal
-      { regex: /^\d{10,13}$/,             country: "🇸🇳 Sénégal",        example: "1234567890123" },
-      // Algérie
-      { regex: /^\d{18}$/,                country: "🇩🇿 Algérie",        example: "18 chiffres" },
-      // Tunisie
-      { regex: /^\d{8}$/,                 country: "🇹🇳 Tunisie",        example: "12345678 (8 chiffres)" },
-      // Mali, Burkina, etc.
-      { regex: /^[A-Z0-9]{6,16}$/i,      country: "🌍 Afrique de l'Ouest", example: "6 à 16 caractères" },
-    ],
-    minLength: 5,
-    maxLength: 20,
-    hint: "Exemple Maroc : B123456 ou AB123456 — France : 12 chiffres",
-  },
-  passport: {
-    label: "Passeport",
-    patterns: [
-      // Maroc / International OACI standard
-      { regex: /^[A-Z]{2}\d{7}[A-Z0-9]?$/i, country: "🌍 Standard international", example: "AB1234567" },
-      // Maroc format court
-      { regex: /^[A-Z]\d{7}$/i,              country: "🇲🇦 Maroc",                 example: "A1234567" },
-      // France
-      { regex: /^\d{9}$/,                    country: "🇫🇷 France",                example: "123456789 (9 chiffres)" },
-      // Format OACI relaxé
-      { regex: /^[A-Z0-9]{6,9}$/i,           country: "🌍 International",           example: "6 à 9 caractères" },
-    ],
-    minLength: 6,
-    maxLength: 12,
-    hint: "Maroc : A1234567 ou AB1234567 — France : 9 chiffres",
-  },
-  permis: {
-    label: "Permis de conduire",
-    patterns: [
-      // Maroc
-      { regex: /^[A-Z]{1,2}\d{5,7}$/i,   country: "🇲🇦 Maroc",   example: "AB123456" },
-      // France
-      { regex: /^\d{2}[A-Z0-9]{6,9}$/i,  country: "🇫🇷 France",  example: "75-XXXXXX" },
-      { regex: /^[0-9A-Z\-]{6,15}$/i,    country: "🌍 Général",   example: "6 à 15 caractères" },
-    ],
-    minLength: 5,
-    maxLength: 15,
-    hint: "Maroc : AB123456 — France format région + chiffres",
-  },
-};
-
-// Normaliser : retirer espaces, tirets multiples, mettre en majuscules
-const normalize = (str) => str.replace(/\s+/g, "").replace(/-+/g, "-").toUpperCase().trim();
-
-// Valider la pièce d'identité
-function validateId(type, number) {
-  const n = normalize(number);
-  const rules = ID_RULES[type];
-  if (!rules) return { status: "error", message: "Type de document invalide." };
-  if (!n) return { status: "empty", message: "" };
-  if (n.length < rules.minLength) {
-    return {
-      status: "error",
-      message: `Numéro trop court — minimum ${rules.minLength} caractères requis.`,
-    };
-  }
-  if (n.length > rules.maxLength) {
-    return { status: "error", message: `Numéro trop long — maximum ${rules.maxLength} caractères.` };
-  }
-  // Tester les patterns
-  for (const pattern of rules.patterns) {
-    if (pattern.regex.test(n)) {
-      return {
-        status: "valid",
-        message: `Format reconnu — ${pattern.country}`,
-        country: pattern.country,
-        example: pattern.example,
-      };
-    }
-  }
-  // Format non reconnu mais longueur acceptable
-  return {
-    status: "warning",
-    message: "Format inhabituel — vérifiez que le numéro est correct. Nous l'acceptons si vous êtes sûr(e).",
-  };
-}
-
-// Valider le numéro de téléphone
-function validatePhone(phone) {
-  const p = phone.replace(/\s+/g, "").replace(/-/g, "");
-  if (!p) return { ok: false, message: "Téléphone requis." };
-
-  const intlPrefixes = {
-    "+212": "🇲🇦 Maroc",  "+225": "🇨🇮 Côte d'Ivoire",
-    "+221": "🇸🇳 Sénégal", "+33":  "🇫🇷 France",
-    "+32":  "🇧🇪 Belgique","+34":  "🇪🇸 Espagne",
-    "+41":  "🇨🇭 Suisse",  "+1":   "🇺🇸 USA/Canada",
-    "+44":  "🇬🇧 UK",      "+213": "🇩🇿 Algérie",
-    "+216": "🇹🇳 Tunisie", "+223": "🇲🇱 Mali",
-  };
-
-  // Format international
-  if (p.startsWith("+")) {
-    const digits = p.replace(/\D/g, "");
-    if (digits.length < 8 || digits.length > 15) {
-      return { ok: false, message: "Numéro trop court ou trop long." };
-    }
-    for (const [prefix, country] of Object.entries(intlPrefixes)) {
-      if (p.startsWith(prefix)) {
-        return { ok: true, message: `${country}`, country };
-      }
-    }
-    return { ok: true, message: "Format international reconnu." };
-  }
-  // Format local (commence par 0)
-  if (p.startsWith("0")) {
-    const digits = p.replace(/\D/g, "");
-    if (digits.length < 9 || digits.length > 11) {
-      return { ok: false, message: "Numéro local invalide (9-11 chiffres attendus)." };
-    }
-    return { ok: true, message: "Numéro local — Ajoutez l'indicatif +XXX pour plus de précision." };
-  }
-  return { ok: false, message: "Format invalide. Commencez par + (international) ou 0 (local)." };
-}
-
-/* ── Constantes ───────────────────────────────────────────── */
-const SERVICE_FEE     = 15;   // DH fixe plateforme
-const DELIVERY_BASE   = 15;   // DH base livraison
-const DELIVERY_PER_KM = 3;    // DH/km
-
-const optionsData = [
-  { id: "babySeat",  label: "Siège bébé",        price: 100 },
-  { id: "insurance", label: "Prime d'assurance", price: 250 },
-  { id: "driver",    label: "Chauffeur privé",   price: 800 },
+const OPTIONS_CATALOG = [
+  { id: "babySeat",  label: "Siège bébé",        price: 7000,  icon: "👶" },
+  { id: "insurance", label: "Prime d'assurance", price: 15000, icon: "🛡️" },
+  { id: "driver",    label: "Chauffeur privé",   price: 50000, icon: "🧑‍✈️" },
+  { id: "gps",       label: "GPS intégré",        price: 10000, icon: "🗺️" },
 ];
 
-const gpsOption = { id: "gps", label: "GPS intégré", price: 150 };
+const PAYMENT_METHODS = [
+  { value: "orange_money", label: "Orange Money",    icon: "🟠", mobile: true },
+  { value: "wave",         label: "Wave",             icon: "🔵", mobile: true },
+  { value: "mtn",          label: "MTN Mobile Money", icon: "💛", mobile: true },
+  { value: "moov",         label: "Moov Money",       icon: "🟢", mobile: true },
+  { value: "card",         label: "Carte bancaire",   icon: "💳", mobile: false },
+  { value: "cash",         label: "Espèces",          icon: "💵", mobile: false },
+];
 
-/* ── Haversine distance (km) ─────────────────────────────── */
+const STEPS = [
+  { id: 1, label: "Dates & Prise en charge" },
+  { id: 2, label: "Options" },
+  { id: 3, label: "Paiement" },
+  { id: 4, label: "Confirmation" },
+];
+
+/* ── Haversine ───────────────────────────────────────────────────── */
 function haversineKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -161,62 +44,38 @@ function haversineKm(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/* ── Géocoder une adresse via Nominatim ─────────────────── */
 async function geocodeAddress(address) {
   try {
-    const res  = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
-      { headers: { "Accept-Language": "fr" } }
-    );
+    const res  = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`, { headers: { "Accept-Language": "fr" } });
     const data = await res.json();
-    if (data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), label: data[0].display_name };
+    if (data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
   } catch {}
   return null;
 }
 
-/* ── Reverse géocode (coordonnées → adresse) ────────────── */
 async function reverseGeocode(lat, lng) {
   try {
-    const res  = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
-      { headers: { "Accept-Language": "fr" } }
-    );
+    const res  = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`, { headers: { "Accept-Language": "fr" } });
     const data = await res.json();
     return data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
   } catch {}
   return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }
 
-/* ── Obtenir la position GPS (Promise) ──────────────────── */
-function getGPSPosition(timeout = 12000) {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error("Géolocalisation non supportée par votre navigateur."));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      (err) => {
-        if (err.code === 1) reject(new Error("Accès à la position refusé. Vérifiez les permissions de votre navigateur."));
-        else if (err.code === 2) reject(new Error("Position indisponible. Vérifiez votre connexion."));
-        else reject(new Error("Délai dépassé. Réessayez."));
-      },
-      { enableHighAccuracy: true, timeout, maximumAge: 30000 }
-    );
-  });
-}
-
-/* ═══════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════
+   COMPOSANT PRINCIPAL
+   ════════════════════════════════════════════════════════════════ */
 export default function Booking() {
   const { id }          = useParams();
   const [searchParams]  = useSearchParams();
   const navigate        = useNavigate();
+  const location        = useLocation();
   const { fmt }         = useCurrency();
-  const { vehicles: ctx } = useVehicles();
   const { vehicles, addBooking, getItemById } = useVehicles();
+  const { token, user } = useAuth();
+
   const getVehicleById = getItemById
     || ((vid) => vehicles?.find((v) => String(v.id) === String(vid) || v._id === String(vid)));
-  const { token, user } = useAuth();
   const vehicle = getVehicleById(id);
 
   const isLeasingRequest = searchParams.get("type") === "leasing";
@@ -224,44 +83,117 @@ export default function Booking() {
   const isTrial          = isSaleMode && !isLeasingRequest;
   const isLeasing        = isSaleMode && isLeasingRequest && vehicle?.leasing?.disponible;
 
-  const [loading,    setLoading]    = useState(true);
-  const [error,      setError]      = useState(null);
-  const [step,       setStep]       = useState(1);
+  /* ── KYC Gate ─────────────────────────────────────────────────── */
+  const [liveKycScore,   setLiveKycScore]   = useState(null);
+  const [liveKycStatus,  setLiveKycStatus]  = useState(null);
+  const [liveDriverLic,  setLiveDriverLic]  = useState(null); // permis OCR du user
+  const kycScore  = liveKycScore  ?? user?.kycScore  ?? 0;
+  const kycStatus = liveKycStatus ?? user?.kycStatus ?? "EN_ATTENTE";
+  const kycBadge  = getKycBadge(kycScore);
+  const kycOk     = kycStatus === "VERIFIE" || kycBadge.canBook;
+
+  // Le véhicule exige-t-il un permis ? (vehicle.permisRequis = true par défaut)
+  const vehicleRequiresLicense = vehicle?.permisRequis !== false;
+  // Le client a-t-il un permis vérifié ? (driverLicenseOcr soumis)
+  const hasVerifiedLicense = !!(liveDriverLic?.licenseNumber || liveDriverLic?.rawOcrText);
+  // Blocage permis uniquement si : location + véhicule l'exige + pas de permis vérifié
+  const licenseRequired = vehicleRequiresLicense && isSaleMode === false;
+  // (On ne bloque pas avant la réservation — le partenaire peut vérifier en présentiel)
+
+  // Rafraîchissement du statut KYC à chaque navigation vers cette page (retour de /kyc inclus)
+  const { updateUser } = useAuth();
+  useEffect(() => {
+    if (!token) return;
+    fetch("/api/kyc/status", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => {
+        if (!d) return;
+        setLiveKycScore(d.kycScore ?? 0);
+        setLiveKycStatus(d.kycStatus ?? "EN_ATTENTE");
+        if (d.driverLicenseOcr) setLiveDriverLic(d.driverLicenseOcr);
+        updateUser({ kycScore: d.kycScore ?? 0, kycBadge: d.kycBadge ?? "INSUFFISANT", kycStatus: d.kycStatus ?? "EN_ATTENTE" });
+      })
+      .catch(() => {});
+  // location.key change à chaque navigation (retour de /kyc → nouveau key)
+  }, [token, location.key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Étapes ────────────────────────────────────────────────────── */
+  const [step, setStep] = useState(1);
+
+  /* ── Dates bloquées ────────────────────────────────────────────── */
+  const [blockedDays, setBlockedDays] = useState([]);
+  const blockedSet = useMemo(() => new Set(blockedDays), [blockedDays]);
 
   useEffect(() => {
-    setLoading(true);
-    if (!id) { setError("ID véhicule manquant."); setLoading(false); return; }
-    if (!getVehicleById(id)) setError("Véhicule non trouvé. Retournez au catalogue.");
-    setLoading(false);
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+    const vid = vehicle?._id || vehicle?.id;
+    if (!vid || vehicle?.mode === "Acheter") return;
+    fetch(`/api/bookings/vehicle/${vid}/occupied-dates`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.blockedDays) setBlockedDays(d.blockedDays); })
+      .catch(() => {});
+  }, [vehicle]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── Prise en charge ──────────────────────────────────── */
-  const [pickupMethod,   setPickupMethod]   = useState("livraison");
+  /* ── STEP 1 : Dates + Prise en charge ─────────────────────────── */
+  const [form, setForm] = useState({
+    firstName:     user?.firstName || "",
+    lastName:      user?.lastName  || "",
+    email:         user?.email     || "",
+    phone:         user?.phone     || "",
+    startDate:     "",
+    endDate:       "",
+    preferredDate: "",
+    preferredTime: "",
+    notes:         "",
+  });
+
+  const [pickupMethod,   setPickupMethod]   = useState("retrait");
   const [pickupAddress,  setPickupAddress]  = useState("");
   const [pickupPosition, setPickupPosition] = useState(null);
-
-  // États GPS
-  const [gpsState,  setGpsState]  = useState("idle"); // "idle"|"loading"|"ok"|"error"
-  const [gpsError,  setGpsError]  = useState("");
-  const gpsAbortRef = useRef(null);
-
-  // Calcul frais livraison
+  const [gpsState,       setGpsState]       = useState("idle");
+  const [gpsError,       setGpsError]       = useState("");
   const [geoDistance,    setGeoDistance]    = useState(null);
   const [geoFee,         setGeoFee]         = useState(null);
   const [geoFeeLoading,  setGeoFeeLoading]  = useState(false);
-  const [partnerGeoPos,  setPartnerGeoPos]  = useState(null);
 
-  // Infos agence (retrait)
-  const agencyName    = vehicle?.contactNom  || vehicle?.ownerName  || vehicle?.partnerName || "Partenaire VIT AUTO";
+  /* ── STEP 2 : Options ──────────────────────────────────────────── */
+  const [selectedOptions, setSelectedOptions] = useState({ babySeat: false, insurance: false, driver: false, gps: false });
+
+  /* ── STEP 3 : Paiement ─────────────────────────────────────────── */
+  const [payMethod,      setPayMethod]      = useState("orange_money");
+  const [mobileNumber,   setMobileNumber]   = useState(user?.phone || "");
+  const [cardNumber,     setCardNumber]     = useState("");
+  const [cardHolder,     setCardHolder]     = useState("");
+  const [cardExpiry,     setCardExpiry]     = useState("");
+  const [cardCvv,        setCardCvv]        = useState("");
+
+  /* ── Infos partenaire ──────────────────────────────────────────── */
+  const agencyName    = vehicle?.contactNom  || vehicle?.ownerName  || "Partenaire VIT AUTO";
   const agencyPhone   = vehicle?.contactTel  || vehicle?.ownerPhone || null;
   const agencyCity    = vehicle?.ville       || vehicle?.ownerCity  || "";
   const agencyAddress = vehicle?.adresse     || "";
   const agencyFull    = [agencyAddress, agencyCity].filter(Boolean).join(", ");
-  const mapsUrl       = agencyFull
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(agencyFull)}`
-    : null;
 
-  /* ── Détecter la position GPS ─────────────────────────── */
+  /* ── Calculs financiers ────────────────────────────────────────── */
+  const days = useMemo(() => {
+    if (!form.startDate || !form.endDate) return 0;
+    const s = new Date(form.startDate), e = new Date(form.endDate);
+    if (isNaN(s) || isNaN(e)) return 0;
+    const d = Math.ceil((e - s) / 86400000);
+    return d > 0 ? d : 0;
+  }, [form.startDate, form.endDate]);
+
+  const optionsTotal = useMemo(() => {
+    return OPTIONS_CATALOG.reduce((acc, opt) => {
+      if (!selectedOptions[opt.id]) return acc;
+      return acc + opt.price * Math.max(days, 1);
+    }, 0);
+  }, [selectedOptions, days]);
+
+  const deliveryFee  = pickupMethod === "livraison" ? (geoFee ?? 3000) : 0;
+  const baseTotal    = (vehicle?.pricePerDay || 0) * Math.max(days, 1);
+  const totalToPay   = isTrial ? SERVICE_FEE : baseTotal + optionsTotal + deliveryFee + SERVICE_FEE;
+
+  /* ── GPS ───────────────────────────────────────────────────────── */
   const handleDetectGPS = async () => {
     setGpsState("loading");
     setGpsError("");
@@ -271,7 +203,15 @@ export default function Booking() {
     setGeoFee(null);
 
     try {
-      const pos = await getGPSPosition();
+      const pos = await new Promise((res, rej) =>
+        navigator.geolocation
+          ? navigator.geolocation.getCurrentPosition(
+              (p) => res({ lat: p.coords.latitude, lng: p.coords.longitude }),
+              (e) => rej(new Error(e.code === 1 ? "Accès GPS refusé." : "Position indisponible.")),
+              { enableHighAccuracy: true, timeout: 12000 }
+            )
+          : rej(new Error("Géolocalisation non supportée."))
+      );
       const addr = await reverseGeocode(pos.lat, pos.lng);
       setPickupPosition(pos);
       setPickupAddress(addr);
@@ -282,48 +222,27 @@ export default function Booking() {
     }
   };
 
-  /* ── Calculer frais dès que position client connue ─────── */
+  // Calcul frais livraison GPS
   useEffect(() => {
-    if (!pickupPosition || pickupMethod !== "livraison") {
-      setGeoDistance(null);
-      setGeoFee(null);
-      return;
-    }
-    const partnerAddr = agencyFull;
-
+    if (!pickupPosition || pickupMethod !== "livraison") { setGeoDistance(null); setGeoFee(null); return; }
     const compute = async () => {
       setGeoFeeLoading(true);
-
-      // 1. Essai via backend
       try {
-        const res = await fetch(
-          `/api/geo/delivery-fee?clientLat=${pickupPosition.lat}&clientLng=${pickupPosition.lng}&vehicleId=${vehicle?._id || vehicle?.id || ""}`
-        );
+        const res = await fetch(`/api/geo/delivery-fee?clientLat=${pickupPosition.lat}&clientLng=${pickupPosition.lng}&vehicleId=${vehicle?._id || vehicle?.id || ""}`);
         if (res.ok) {
           const data = await res.json();
-          if (data.fee != null && data.distanceKm != null) {
-            setGeoDistance(data.distanceKm);
-            setGeoFee(data.fee);
-            setGeoFeeLoading(false);
-            return;
-          }
+          if (data.fee != null) { setGeoDistance(data.distanceKm); setGeoFee(data.fee); setGeoFeeLoading(false); return; }
         }
       } catch {}
-
-      // 2. Fallback Haversine — géocoder l'adresse partenaire
-      let pPos = partnerGeoPos;
-      if (!pPos && partnerAddr.trim()) {
-        pPos = await geocodeAddress(partnerAddr);
-        if (pPos) setPartnerGeoPos(pPos);
-      }
-      if (pPos) {
-        const km  = haversineKm(pickupPosition.lat, pickupPosition.lng, pPos.lat, pPos.lng);
-        const fee = Math.round(DELIVERY_BASE + DELIVERY_PER_KM * km);
-        setGeoDistance(parseFloat(km.toFixed(1)));
-        setGeoFee(fee);
-      } else {
-        setGeoDistance(null);
-        setGeoFee(3000); // fallback 3 km
+      // Fallback Haversine
+      if (agencyFull) {
+        const pPos = await geocodeAddress(agencyFull);
+        if (pPos) {
+          const km  = haversineKm(pickupPosition.lat, pickupPosition.lng, pPos.lat, pPos.lng);
+          const fee = Math.round(DELIVERY_BASE + DELIVERY_PER_KM * km);
+          setGeoDistance(parseFloat(km.toFixed(1)));
+          setGeoFee(fee);
+        }
       }
       setGeoFeeLoading(false);
     };
@@ -331,958 +250,652 @@ export default function Booking() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickupPosition, pickupMethod]);
 
-  /* ── Formulaires ──────────────────────────────────────── */
-  const [form, setForm] = useState({
-    firstName: user?.firstName || "",
-    lastName:  user?.lastName  || "",
-    email:     user?.email     || "",
-    phone:     user?.phone     || "",
-    startDate: "",
-    endDate:   "",
-  });
+  /* ── Soumission finale ─────────────────────────────────────────── */
+  const bookingRef = useMemo(() => generateBookingRef(isTrial ? "essai" : isLeasing ? "leasing" : "location"), []);
 
-  const [trialForm, setTrialForm] = useState({
-    firstName:     user?.firstName || "",
-    lastName:      user?.lastName  || "",
-    email:         user?.email     || "",
-    phone:         user?.phone     || "",
-    preferredDate: "",
-    preferredTime: "",
-    notes:         "",
-  });
+  const [submitting, setSubmitting] = useState(false);
 
-  const [verificationForm, setVerificationForm] = useState({
-    idType: "cni", idNumber: "", address: "", agreeTerms: false,
-  });
-
-  // Validation temps réel pièce d'identité
-  const [idValidation,   setIdValidation]   = useState({ status: "empty", message: "" });
-  const [verifying,      setVerifying]      = useState(false);   // animation vérification
-  const [verifyDone,     setVerifyDone]     = useState(false);   // vérification réussie
-  const [verifyFailed,   setVerifyFailed]   = useState(false);
-  const [phoneValidation, setPhoneValidation] = useState({ ok: null, message: "" });
-
-  const [paymentForm, setPaymentForm] = useState({
-    paymentMethod: "orange",
-    cardNumber: "", cardHolder: "", expiryDate: "", cvv: "", mobileNumber: "",
-  });
-
-  const [selectedOptions, setSelectedOptions] = useState({
-    gps: false, babySeat: false, insurance: false, driver: false,
-  });
-
-  const gpsAutoIncluded = pickupMethod === "livraison";
-
-  /* ── Calculs financiers ───────────────────────────────── */
-  const days = (() => {
-    if (!form.startDate || !form.endDate) return 0;
-    const s = new Date(form.startDate), e = new Date(form.endDate);
-    if (isNaN(s) || isNaN(e)) return 0;
-    const d = Math.ceil((e - s) / 86400000);
-    return d > 0 ? d : 0;
-  })();
-
-  const allOptions = gpsAutoIncluded ? optionsData : [gpsOption, ...optionsData];
-  const optionsTotal = Object.entries(selectedOptions).reduce((acc, [key, val]) => {
-    if (!val) return acc;
-    if (key === "gps" && gpsAutoIncluded) return acc;
-    const opt = allOptions.find((o) => o.id === key);
-    return acc + (opt?.price || 0) * Math.max(days, 1);
-  }, 0);
-
-  const deliveryFee = pickupMethod === "livraison" ? (geoFee ?? 3000) : 0;
-  const baseTotal   = (vehicle?.pricePerDay || 0) * Math.max(days, 1);
-  const totalToPay  = isTrial ? SERVICE_FEE : baseTotal + optionsTotal + deliveryFee + SERVICE_FEE;
-
-  /* ── Handlers ──────────────────────────────────────────── */
-  const handleChange = (e) => {
-    const { name, value, checked } = e.target;
-    if (name in selectedOptions) { setSelectedOptions({ ...selectedOptions, [name]: checked }); return; }
-    if (name in form)            { setForm({ ...form, [name]: value }); return; }
-    if (name in paymentForm)     { setPaymentForm({ ...paymentForm, [name]: value }); return; }
-  };
-
-  const handleVerifChange = (e) => {
-    const { name, value, type: inputType, checked } = e.target;
-    const next = { ...verificationForm, [name]: inputType === "checkbox" ? checked : value };
-    setVerificationForm(next);
-    setVerifyDone(false);
-    setVerifyFailed(false);
-
-    // Validation temps réel du numéro
-    if (name === "idNumber" || name === "idType") {
-      const num  = name === "idNumber" ? value : verificationForm.idNumber;
-      const type = name === "idType"   ? value : verificationForm.idType;
-      setIdValidation(validateId(type, num));
-    }
-  };
-
-  // Vérifier le téléphone en temps réel
-  const handlePhoneChange = useCallback((e) => {
-    const val = e.target.value;
-    const name = e.target.name;
-    if (name === "phone") {
-      setForm((prev) => ({ ...prev, phone: val }));
-      setPhoneValidation(validatePhone(val));
-    } else if (name === "phone" && isTrial) {
-      setTrialForm((prev) => ({ ...prev, phone: val }));
-      setPhoneValidation(validatePhone(val));
-    }
-  }, [isTrial]);
-
-  // Lancer la vérification simulée (animation)
-  const handleVerifyId = useCallback(async () => {
-    const result = validateId(verificationForm.idType, verificationForm.idNumber);
-    if (result.status === "error") {
-      setIdValidation(result);
-      return;
-    }
-    setVerifying(true);
-    setVerifyDone(false);
-    setVerifyFailed(false);
-
-    // Simulation vérification (1.5s — dans un vrai projet : appel API gouvernemental)
-    await new Promise((r) => setTimeout(r, 1600));
-
-    // Accepté si format valid ou warning (on donne le bénéfice du doute sur le format inhabituel)
-    if (result.status === "valid" || result.status === "warning") {
-      setVerifyDone(true);
-      setVerifyFailed(false);
-    } else {
-      setVerifyFailed(true);
-      setVerifyDone(false);
-    }
-    setVerifying(false);
-  }, [verificationForm.idType, verificationForm.idNumber]);
-
-  const handleTrialChange = (e) => setTrialForm({ ...trialForm, [e.target.name]: e.target.value });
-
-  const handleStepOneSubmit = (e) => {
-    e.preventDefault();
-    if (isTrial) {
-      const req = ["firstName", "lastName", "email", "phone", "preferredDate", "preferredTime"];
-      if (req.find((f) => !trialForm[f])) { alert("Remplissez tous les champs obligatoires."); return; }
-    } else {
-      if (!form.firstName || !form.lastName || !form.email || !form.phone || !form.startDate || !form.endDate) {
-        alert("Renseignez tous les champs de réservation."); return;
-      }
-      if (days <= 0) { alert("La date de fin doit être postérieure à la date de début."); return; }
-      if (pickupMethod === "livraison" && !pickupAddress.trim()) {
-        alert("Indiquez votre adresse de livraison (utilisez le bouton GPS ou saisissez l'adresse)."); return;
-      }
-    }
-    setStep(2);
-  };
-
-  const handleVerifSubmit = (e) => {
-    e.preventDefault();
-    if (!verificationForm.idType || !verificationForm.idNumber) {
-      alert("Veuillez fournir votre pièce d'identité."); return;
-    }
-
-    // Bloquer si format invalide
-    const result = validateId(verificationForm.idType, verificationForm.idNumber);
-    if (result.status === "error") {
-      setIdValidation(result);
-      alert("Le numéro de pièce d'identité est invalide. " + result.message);
-      return;
-    }
-
-    // Bloquer si vérification non lancée ou échouée
-    if (!verifyDone) {
-      if (!verifying) {
-        alert("Veuillez cliquer sur « Vérifier » pour confirmer votre pièce d'identité avant de continuer.");
-      }
-      return;
-    }
-
-    if (!verificationForm.agreeTerms) {
-      alert("Vous devez accepter les conditions générales d'utilisation."); return;
-    }
-
-    setStep(3);
-  };
-
-  const handlePaymentSubmit = async (e) => {
-    e.preventDefault();
-    if (paymentForm.paymentMethod === "card") {
-      const req = ["cardNumber", "cardHolder", "expiryDate", "cvv"];
-      if (req.find((f) => !paymentForm[f])) { alert("Renseignez les informations de carte."); return; }
-    }
-    if (["orange", "wave", "mtn", "moov"].includes(paymentForm.paymentMethod) && !paymentForm.mobileNumber) {
-      alert("Indiquez votre numéro mobile."); return;
-    }
-
-    const commissionRate   = (isTrial || isLeasing) ? 0.03 : 0.15;
-    const leasingData      = vehicle?.leasing || {};
-    const leasingApport    = leasingData.apportInitial || 0;
-    const leasingMensual   = leasingData.mensualite    || 0;
-    const leasingDuree     = leasingData.duree         || 36;
-    const leasingTotal     = leasingApport + leasingMensual * leasingDuree;
-    const commissionAmount = Math.round((isLeasing ? leasingApport : baseTotal) * commissionRate);
-    const partnerPayout    = Math.max((isLeasing ? leasingApport : baseTotal) - commissionAmount - SERVICE_FEE, 0);
+  const handleSubmit = useCallback(async () => {
+    setSubmitting(true);
 
     const finalPickup = pickupMethod === "retrait"
-      ? `Retrait en agence — ${agencyFull || "adresse communiquée par le partenaire"}`
+      ? `Retrait agence — ${agencyFull || "adresse communiquée"}`
       : pickupAddress;
 
-    const booking = isLeasing
-      ? {
-          id: Date.now(), userId: user?.id,
-          vehicleId: vehicle._id || vehicle.id,
-          vehicleName: vehicle.title || vehicle.name, vehicleMode: vehicle.mode,
-          ...trialForm, type: "leasing", status: "À confirmer",
-          createdAt: new Date().toISOString(),
-          serviceFeeFCFA: SERVICE_FEE, commissionRate, commissionAmount, partnerPayout,
-          leasingInfo: { apportInitial: leasingApport, mensualite: leasingMensual, duree: leasingDuree, totalLeasing: leasingTotal, tauxInteret: leasingData.tauxInteret || 8 },
-          total: leasingApport,
-          paymentInfo: paymentForm, clientVerification: verificationForm,
-        }
-      : isTrial
-      ? {
-          id: Date.now(), userId: user?.id,
-          vehicleId: vehicle._id || vehicle.id,
-          vehicleName: vehicle.title || vehicle.name, vehicleMode: vehicle.mode,
-          ...trialForm, type: "essai", status: "À confirmer",
-          createdAt: new Date().toISOString(),
-          serviceFeeFCFA: SERVICE_FEE, commissionRate, commissionAmount,
-          paymentInfo: paymentForm, clientVerification: verificationForm,
-        }
-      : {
-          id: Date.now(), userId: user?.id,
-          vehicleId: vehicle._id || vehicle.id,
-          vehicleName: vehicle.title || vehicle.name, vehicleMode: vehicle.mode, vehicleType: vehicle.type,
-          pricePerDay: vehicle.pricePerDay, ...form,
-          pickupMethod,
-          pickupAddress: finalPickup,
-          pickupPosition: pickupMethod === "livraison" ? pickupPosition : null,
-          deliveryFee,
-          geoDistance,
-          agencyInfo: pickupMethod === "retrait" ? { name: agencyName, phone: agencyPhone, address: agencyFull } : null,
-          selectedOptions, days, optionsTotal, baseTotal,
-          serviceFeeFCFA: SERVICE_FEE, total: totalToPay,
-          createdAt: new Date().toISOString(),
-          commissionRate, commissionAmount, partnerPayout,
-          paidWith: paymentForm.paymentMethod,
-          paymentInfo: paymentForm, clientVerification: verificationForm,
-          type: "location", status: "À confirmer",
-        };
+    const commissionRate   = (isTrial || isLeasing) ? 0.03 : 0.15;
+    const commissionAmount = Math.round(baseTotal * commissionRate);
+    const partnerPayout    = Math.max(baseTotal - commissionAmount - SERVICE_FEE, 0);
 
-    addBooking(booking);
+    const bookingData = {
+      id:           Date.now(),
+      reference:    bookingRef,
+      userId:       user?.id || user?._id,
+      vehicleId:    vehicle?._id || vehicle?.id,
+      vehicleName:  vehicle?.title || vehicle?.name,
+      vehicleMode:  vehicle?.mode,
+      vehicleType:  vehicle?.type || vehicle?.vehicleType || "Voiture",
+      pricePerDay:  vehicle?.pricePerDay,
+      type:         isTrial ? "essai" : isLeasing ? "leasing" : "location",
+      status:       "pending",
+      createdAt:    new Date().toISOString(),
+      // Champs top-level pour BookingSuccess + normalizeBackendBooking
+      firstName:    form.firstName,
+      lastName:     form.lastName,
+      email:        form.email,
+      phone:        form.phone,
+      clientInfo: {
+        firstName: form.firstName,
+        lastName:  form.lastName,
+        email:     form.email,
+        phone:     form.phone,
+      },
+      kycVerified:    kycOk,
+      kycScore:       kycScore,
+      kycBadge:       kycBadge.badge,
+      // Location specifics
+      ...(!isTrial && !isLeasing ? {
+        startDate:      form.startDate,
+        endDate:        form.endDate,
+        days,
+        pickupMethod,
+        pickupLocation: finalPickup,
+        pickupAddress:  finalPickup,
+        pickupPosition: pickupMethod === "livraison" ? pickupPosition : null,
+        deliveryFee,
+        geoDistance,
+        selectedOptions,           // clé utilisée par BookingSuccess
+        options:        selectedOptions, // clé utilisée par VehicleContext
+        optionsTotal,
+        baseTotal,
+        montantTotal:   totalToPay,
+        total:          totalToPay,
+        serviceFeeFCFA: SERVICE_FEE,
+        commissionRate,
+        commissionAmount,
+        partnerPayout,
+        cautionAmount:  Math.round(totalToPay * 0.5),
+        paidWith:       payMethod,
+        mobileNumber:   ["orange_money","wave","mtn","moov"].includes(payMethod) ? mobileNumber : undefined,
+      } : {}),
+      // Essai specifics
+      ...(isTrial ? {
+        preferredDate:  form.preferredDate,
+        preferredTime:  form.preferredTime,
+        notes:          form.notes || "",
+        serviceFeeFCFA: SERVICE_FEE,
+        montantTotal:   SERVICE_FEE,
+        total:          SERVICE_FEE,
+      } : {}),
+      // Leasing specifics
+      ...(isLeasing ? {
+        serviceFeeFCFA: SERVICE_FEE,
+        montantTotal:   totalToPay,
+        total:          totalToPay,
+      } : {}),
+    };
+
+    addBooking(bookingData);
 
     try {
       const headers = { "Content-Type": "application/json" };
       if (token) headers.Authorization = `Bearer ${token}`;
 
-      const clientInfo = {
-        firstName: isTrial || isLeasing ? trialForm.firstName : form.firstName,
-        lastName:  isTrial || isLeasing ? trialForm.lastName  : form.lastName,
-        email:     isTrial || isLeasing ? trialForm.email     : form.email,
-        phone:     isTrial || isLeasing ? trialForm.phone     : form.phone,
+      const payload = {
+        type:       bookingData.type,
+        reference:  bookingRef,
+        vehicleId:  vehicle?._id || vehicle?.id,
+        clientInfo: {
+          ...bookingData.clientInfo,
+          kycStatus: kycStatus,
+          kycScore:  kycScore,
+          kycBadge:  kycBadge.badge,
+          kycVerified: kycOk,
+        },
+        ...((!isTrial && !isLeasing) ? {
+          location: {
+            startDate:      form.startDate,
+            endDate:        form.endDate,
+            days,
+            pickupMethod,
+            pickupLocation: finalPickup,
+            pickupPosition: pickupMethod === "livraison" ? pickupPosition : null,
+            options:        selectedOptions,
+          },
+          payment: {
+            method:       payMethod,
+            mobileNumber: mobileNumber || undefined,
+            cardNumber:   cardNumber   || undefined,
+            cardHolder:   cardHolder   || undefined,
+          },
+        } : {}),
+        ...(isTrial ? {
+          essai: {
+            preferredDate: form.preferredDate,
+            preferredTime: form.preferredTime,
+            notes:         form.notes || "",
+          },
+        } : {}),
       };
 
-      const apiPayload = isLeasing
-        ? {
-            type: "leasing", clientInfo,
-            vehicleId: vehicle._id || vehicle.id,
-            leasing: { apportInitial: leasingApport, mensualite: leasingMensual, duree: leasingDuree, totalLeasing: leasingTotal, tauxInteret: vehicle?.leasing?.tauxInteret || 8 },
-            clientVerification: verificationForm,
-          }
-        : isTrial
-        ? {
-            type: "essai", clientInfo,
-            vehicleId: vehicle._id || vehicle.id,
-            essai: { preferredDate: trialForm.preferredDate, preferredTime: trialForm.preferredTime, notes: trialForm.notes || "" },
-            clientVerification: verificationForm,
-          }
-        : {
-            type: "location", clientInfo,
-            vehicleId: vehicle._id || vehicle.id,
-            location: {
-              startDate:      form.startDate,
-              endDate:        form.endDate,
-              days,
-              pickupMethod,
-              pickupLocation: finalPickup,
-              pickupPosition: pickupMethod === "livraison" ? pickupPosition : null,
-              deliveryFee,
-              distanceKm:     geoDistance,
-              options:        selectedOptions,
-            },
-            clientVerification: verificationForm,
-            payment: { method: paymentForm.paymentMethod, mobileNumber: paymentForm.mobileNumber || undefined, cardNumber: paymentForm.cardNumber || undefined, cardHolder: paymentForm.cardHolder || undefined },
-          };
+      const apiRes = await fetch("/api/bookings", { method: "POST", headers, body: JSON.stringify(payload) });
+      const apiData = await apiRes.json().catch(() => ({}));
+      // Si la réponse contient un bookingId serveur, le mémoriser
+      if (apiRes.ok && apiData.booking?._id) {
+        bookingData.serverBookingId = apiData.booking._id;
+        bookingData.reference       = apiData.booking.reference || bookingRef;
+        bookingData.status          = apiData.booking.status    || "pending";
+      }
+    } catch { /* mode hors-ligne — réservation locale uniquement */ }
 
-      await fetch("/api/bookings", { method: "POST", headers, body: JSON.stringify(apiPayload) });
-    } catch { /* offline */ }
+    setSubmitting(false);
+    navigate("/booking/success", { state: { booking: bookingData, trial: isTrial, payment: { paymentMethod: payMethod, mobileNumber } } });
+  }, [form, pickupMethod, pickupAddress, pickupPosition, selectedOptions, payMethod, mobileNumber, cardNumber, cardHolder, days, deliveryFee, geoDistance, baseTotal, optionsTotal, totalToPay, kycOk, kycScore, kycBadge, bookingRef, isTrial, isLeasing, vehicle, token, user, addBooking, navigate, agencyFull]);
 
-    navigate("/booking/success", { state: { booking, trial: isTrial || isLeasing, payment: paymentForm } });
-  };
+  /* ════════════════════════════════════════════════════════════════
+     RENDU
+     ════════════════════════════════════════════════════════════════ */
 
-  const paymentOptions = [
-    { value: "orange", label: "🟠 Orange Money" },
-    { value: "wave",   label: "🔵 Wave" },
-    { value: "mtn",    label: "💛 MTN Mobile Money" },
-    { value: "moov",   label: "🟢 Moov Money" },
-    { value: "card",   label: "💳 Carte bancaire" },
-    { value: "paypal", label: "🅿️ PayPal" },
-    { value: "cash",   label: "💵 Espèces à la livraison" },
-  ];
-
-  const stepLabels = ["1. Réservation", "2. Vérification", "3. Paiement"];
-
-  if (loading) return (
-    <div className={styles.page}><div className={styles.loadingBox}><div className={styles.spinner} /><p>Chargement...</p></div></div>
-  );
-
-  if (error || !vehicle) return (
-    <div className={styles.page}>
-      <div style={{ textAlign: "center", padding: "3rem 1.5rem", maxWidth: 480, margin: "0 auto" }}>
-        <div style={{ fontSize: "3rem", marginBottom: 12 }}>🚗</div>
-        <h2 style={{ color: "#0f1b3f", margin: "0 0 10px" }}>Véhicule introuvable</h2>
-        <p style={{ color: "#5a6a8a", marginBottom: 24 }}>{error || "Ce véhicule n'existe plus ou a été retiré."}</p>
-        <button onClick={() => navigate("/catalogue")}
-          style={{ background: "#ff4d2d", color: "#fff", border: "none", padding: "12px 28px", borderRadius: 10, cursor: "pointer", fontWeight: 700, fontSize: "0.95rem" }}>
-          ← Retour au catalogue
-        </button>
+  if (!vehicle) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.emptyState}>
+          <span>🚗</span>
+          <h2>Véhicule introuvable</h2>
+          <p>Ce véhicule n'est plus disponible.</p>
+          <button className={styles.primaryBtn} onClick={() => navigate("/catalogue")}>← Catalogue</button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  /* ── KYC GATE ──────────────────────────────────────────────────── */
+  if (!kycOk) {
+    const isEnAttente = kycStatus === "EN_ATTENTE" && kycScore > 0;
+    const isEnRevision = kycStatus === "A_REVOIR_MANUELLEMENT";
+    const kycSteps = [
+      { icon: "📧", label: "Email vérifié",            desc: "Confirmez votre adresse email" },
+      { icon: "📱", label: "Téléphone confirmé",       desc: "Vérification par SMS" },
+      { icon: "📄", label: "Photo du document",        desc: "CNI, Passeport ou Permis" },
+      { icon: "🤳", label: "Selfie de vérification",   desc: "Comparaison avec le document" },
+    ];
+    return (
+      <div className={styles.page}>
+        <div className={styles.kycGate}>
+          <div className={styles.kycGateHeader}>
+            <div className={styles.kycGateLock}>🔒</div>
+            <div>
+              <h2 className={styles.kycGateTitle}>Vérification d'identité requise</h2>
+              <p className={styles.kycGateVehicle}>
+                Pour réserver <strong>{vehicle.title || vehicle.name}</strong>, votre identité doit être vérifiée.
+              </p>
+            </div>
+          </div>
+
+          {/* Statut en cours */}
+          {(isEnAttente || isEnRevision) && (
+            <div style={{ background: "#fef3c7", border: "1.5px solid #fde68a", borderRadius: 12, padding: "14px 18px", margin: "0 0 16px", fontSize: ".9rem", color: "#78350f" }}>
+              {isEnRevision
+                ? "🔍 Votre dossier KYC est actuellement en cours d'examen par notre équipe. Résultat sous 24h."
+                : "⏳ Votre dossier KYC a été soumis. Notre équipe l'examine et vous notifiera sous 24 à 48h."}
+            </div>
+          )}
+
+          {/* Score circulaire */}
+          <div className={styles.kycGateScoreRing}>
+            <svg viewBox="0 0 100 100" className={styles.kycRingSvg}>
+              <circle cx="50" cy="50" r="42" fill="none" stroke="#e2e8f0" strokeWidth="10" />
+              <circle
+                cx="50" cy="50" r="42" fill="none"
+                stroke={kycBadge.color} strokeWidth="10"
+                strokeDasharray={`${2.64 * kycScore} ${264 - 2.64 * kycScore}`}
+                strokeLinecap="round" transform="rotate(-90 50 50)"
+              />
+            </svg>
+            <div className={styles.kycRingInner}>
+              <span className={styles.kycRingScore}>{kycScore}</span>
+              <span className={styles.kycRingMax}>/100</span>
+            </div>
+          </div>
+
+          <div className={styles.kycGateMissing}>
+            <span className={styles.kycGateMissingBadge} style={{ background: kycBadge.bg, color: kycBadge.color }}>
+              {kycBadge.emoji} {kycBadge.badge}
+            </span>
+            <p>Statut actuel : <strong>{kycStatus.replace(/_/g, " ")}</strong></p>
+          </div>
+
+          {!isEnAttente && !isEnRevision && (
+            <div className={styles.kycGateSteps}>
+              {kycSteps.map((s, i) => (
+                <div key={i} className={styles.kycStep}>
+                  <span className={styles.kycStepIcon}>{s.icon}</span>
+                  <div>
+                    <span className={styles.kycStepLabel}>{s.label}</span>
+                    <span className={styles.kycStepDesc}>{s.desc}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className={styles.kycGateActions}>
+            {!isEnAttente && !isEnRevision && (
+              <button className={styles.kycGateCta}
+                onClick={() => navigate(`/kyc?returnTo=/booking/${id}${searchParams.get("type") ? "&type=" + searchParams.get("type") : ""}`)}>
+                🛡️ Vérifier mon identité
+              </button>
+            )}
+            <button className={styles.secondaryBtn} onClick={() => navigate(-1)}>← Retour</button>
+          </div>
+
+          <p className={styles.kycGateNote}>
+            🔐 Vos données sont chiffrées et ne sont jamais partagées sans votre consentement.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.page}>
+      {/* ── Contenu principal ───────────────────────────── */}
       <div className={styles.content}>
-        <h1>{isTrial ? "Demander un essai" : "Réservez votre véhicule"}</h1>
+        <h1 className={styles.pageTitle}>
+          {isTrial ? "🔑 Demande d'essai" : "📅 Réserver ce véhicule"}
+        </h1>
 
-        {/* Steps */}
+        {/* KYC Badge */}
+        <div className={styles.kycBadgeBar} style={{ background: kycBadge.bg, borderColor: kycBadge.border }}>
+          <span>{kycBadge.emoji}</span>
+          <span style={{ color: kycBadge.color, fontWeight: 700 }}>{kycBadge.badge}</span>
+          <span style={{ color: "#5a6a8a", fontSize: "0.82rem" }}>— Identité vérifiée • {kycScore}/100</span>
+          <span className={styles.kycRef}>Réf. future : <strong>{bookingRef}</strong></span>
+        </div>
+
+        {/* ── Progress steps ──────────────────────────── */}
         <div className={styles.stepIndicator}>
-          {stepLabels.map((label, i) => (
-            <button key={i} type="button"
-              className={`${styles.stepBtn} ${step === i + 1 ? styles.stepActive : ""} ${step > i + 1 ? styles.stepDone : ""}`}>
-              {label}
-            </button>
+          {STEPS.map((s) => (
+            <div
+              key={s.id}
+              className={`${styles.stepBtn} ${step === s.id ? styles.stepActive : ""} ${step > s.id ? styles.stepDone : ""}`}
+            >
+              {step > s.id ? "✓ " : ""}{s.label}
+            </div>
           ))}
         </div>
 
-        {/* ══════════════ ÉTAPE 1 ══════════════ */}
+        {/* ════ ÉTAPE 1 — DATES & PRISE EN CHARGE ════════ */}
         {step === 1 && (
-          <form onSubmit={handleStepOneSubmit} className={styles.form}>
-
-            {/* Coordonnées */}
-            <div className={styles.section}>
-              <h3>{isTrial ? "Vos coordonnées" : "Informations client"}</h3>
-              <div className={styles.row}>
-                <input type="text"  name="firstName" placeholder="Prénom *" required
-                  value={isTrial ? trialForm.firstName : form.firstName}
-                  onChange={isTrial ? handleTrialChange : handleChange} />
-                <input type="text"  name="lastName"  placeholder="Nom *" required
-                  value={isTrial ? trialForm.lastName : form.lastName}
-                  onChange={isTrial ? handleTrialChange : handleChange} />
-              </div>
-              <div className={styles.row}>
-                <input type="email" name="email" placeholder="E-mail *" required
-                  value={isTrial ? trialForm.email : form.email}
-                  onChange={isTrial ? handleTrialChange : handleChange} />
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <input
-                    type="tel"
-                    name="phone"
-                    placeholder="+212 06 00 00 00 00 *"
-                    required
-                    value={isTrial ? trialForm.phone : form.phone}
-                    onChange={(e) => {
-                      if (isTrial) handleTrialChange(e);
-                      else handleChange(e);
-                      setPhoneValidation(validatePhone(e.target.value));
-                    }}
-                    style={{
-                      borderColor: phoneValidation.ok === true  ? "#10b981"
-                               : phoneValidation.ok === false ? "#ef4444"
-                               : undefined,
-                    }}
-                  />
-                  {phoneValidation.message && (
-                    <span style={{
-                      fontSize: "0.72rem",
-                      fontWeight: 600,
-                      color: phoneValidation.ok ? "#059669" : "#dc2626",
-                    }}>
-                      {phoneValidation.ok ? "✓" : "✗"} {phoneValidation.message}
-                    </span>
-                  )}
-                </div>
-              </div>
+          <div className={styles.section}>
+            {/* Infos client */}
+            <h3 className={styles.sectionTitle}>Coordonnées</h3>
+            <div className={styles.row}>
+              <input className={styles.input} type="text"  placeholder="Prénom *" value={form.firstName}
+                onChange={(e) => setForm({ ...form, firstName: e.target.value })} required />
+              <input className={styles.input} type="text"  placeholder="Nom *" value={form.lastName}
+                onChange={(e) => setForm({ ...form, lastName: e.target.value })} required />
+            </div>
+            <div className={styles.row}>
+              <input className={styles.input} type="email" placeholder="E-mail *" value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+              <input className={styles.input} type="tel"   placeholder="Téléphone *" value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })} required />
             </div>
 
-            {/* RDV essai */}
-            {isTrial && (
-              <div className={styles.section}>
-                <h3>RDV d'essai</h3>
-                <div className={styles.row}>
-                  <label>Date <input type="date" name="preferredDate" value={trialForm.preferredDate} onChange={handleTrialChange} required /></label>
-                  <label>Heure <input type="time" name="preferredTime" value={trialForm.preferredTime} onChange={handleTrialChange} required /></label>
-                </div>
-                <textarea name="notes" placeholder="Notes (facultatif)" value={trialForm.notes} onChange={handleTrialChange} />
-              </div>
-            )}
-
-            {/* Section location */}
-            {!isTrial && (
+            {/* Essai / Location */}
+            {isTrial ? (
               <>
-                {/* Dates */}
-                <div className={styles.section}>
-                  <h3>Dates de location</h3>
-                  <div className={styles.row}>
-                    <label>Date de début
-                      <input type="date" name="startDate" value={form.startDate} onChange={handleChange} required
-                        min={new Date().toISOString().split("T")[0]} />
-                    </label>
-                    <label>Date de fin
-                      <input type="date" name="endDate" value={form.endDate} onChange={handleChange} required
-                        min={form.startDate || new Date().toISOString().split("T")[0]} />
-                    </label>
+                <h3 className={styles.sectionTitle}>Date d'essai</h3>
+                <div className={styles.row}>
+                  <label className={styles.label}>
+                    Date préférée
+                    <input className={styles.input} type="date" value={form.preferredDate}
+                      min={new Date().toISOString().split("T")[0]}
+                      onChange={(e) => setForm({ ...form, preferredDate: e.target.value })} required />
+                  </label>
+                  <label className={styles.label}>
+                    Heure préférée
+                    <input className={styles.input} type="time" value={form.preferredTime}
+                      onChange={(e) => setForm({ ...form, preferredTime: e.target.value })} required />
+                  </label>
+                </div>
+                <textarea className={styles.textarea} placeholder="Notes (optionnel)"
+                  value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              </>
+            ) : (
+              <>
+                <h3 className={styles.sectionTitle}>Dates de location</h3>
+                {blockedDays.length > 0 && (
+                  <div className={styles.blockedNotice}>
+                    ⚠️ {blockedDays.length} jour{blockedDays.length > 1 ? "s" : ""} déjà réservé{blockedDays.length > 1 ? "s" : ""} sur ce véhicule.
                   </div>
-                  {days > 0 && (
-                    <p className={styles.daysLabel}>📅 {days} jour{days > 1 ? "s" : ""} de location</p>
-                  )}
+                )}
+                <div className={styles.row}>
+                  <label className={styles.label}>
+                    Début *
+                    <input className={`${styles.input} ${form.startDate && blockedSet.has(form.startDate) ? styles.inputBlocked : ""}`}
+                      type="date" value={form.startDate} min={new Date().toISOString().split("T")[0]}
+                      onChange={(e) => setForm({ ...form, startDate: e.target.value })} required />
+                    {form.startDate && blockedSet.has(form.startDate) && <span className={styles.blockedMsg}>⛔ Date réservée</span>}
+                  </label>
+                  <label className={styles.label}>
+                    Fin *
+                    <input className={`${styles.input} ${form.endDate && blockedSet.has(form.endDate) ? styles.inputBlocked : ""}`}
+                      type="date" value={form.endDate} min={form.startDate || new Date().toISOString().split("T")[0]}
+                      onChange={(e) => setForm({ ...form, endDate: e.target.value })} required />
+                    {form.endDate && blockedSet.has(form.endDate) && <span className={styles.blockedMsg}>⛔ Date réservée</span>}
+                  </label>
+                </div>
+                {days > 0 && <p className={styles.daysLabel}>📅 {days} jour{days > 1 ? "s" : ""} de location</p>}
+
+                {/* Mode prise en charge */}
+                <h3 className={styles.sectionTitle}>Mode de prise en charge</h3>
+                <div className={styles.pickupCards}>
+                  <div
+                    className={`${styles.pickupCard} ${pickupMethod === "retrait" ? styles.pickupCardActive : ""}`}
+                    onClick={() => setPickupMethod("retrait")}
+                  >
+                    <span>🏢</span>
+                    <div>
+                      <strong>Retrait en agence</strong>
+                      <span>Gratuit — {agencyFull || "Adresse communiquée après confirmation"}</span>
+                    </div>
+                    <div className={styles.radioIndicator}>{pickupMethod === "retrait" ? "●" : "○"}</div>
+                  </div>
+                  <div
+                    className={`${styles.pickupCard} ${pickupMethod === "livraison" ? styles.pickupCardActive : ""}`}
+                    onClick={() => setPickupMethod("livraison")}
+                  >
+                    <span>🚚</span>
+                    <div>
+                      <strong>Livraison à domicile</strong>
+                      <span>Le partenaire livre le véhicule chez vous</span>
+                    </div>
+                    <div className={styles.radioIndicator}>{pickupMethod === "livraison" ? "●" : "○"}</div>
+                  </div>
                 </div>
 
-                {/* ── PRISE EN CHARGE ── */}
-                <div className={styles.section}>
-                  <h3>Mode de prise en charge</h3>
-
-                  <div className={styles.pickupCards}>
-                    {/* Livraison */}
-                    <div
-                      className={`${styles.pickupCard} ${pickupMethod === "livraison" ? styles.pickupCardActive : ""}`}
-                      onClick={() => setPickupMethod("livraison")}
-                      role="button"
+                {pickupMethod === "livraison" && (
+                  <div className={styles.deliveryBlock}>
+                    <button
+                      type="button"
+                      className={`${styles.gpsBtn} ${gpsState === "ok" ? styles.gpsBtnOk : ""}`}
+                      onClick={handleDetectGPS}
+                      disabled={gpsState === "loading"}
                     >
-                      <span className={styles.pickupIcon}>🚚</span>
-                      <div>
-                        <strong>Livraison à domicile</strong>
-                        <span>Le partenaire livre le véhicule à votre adresse</span>
-                      </div>
-                      <div className={styles.pickupRadio}>{pickupMethod === "livraison" ? "●" : "○"}</div>
-                    </div>
-
-                    {/* Retrait */}
-                    <div
-                      className={`${styles.pickupCard} ${pickupMethod === "retrait" ? styles.pickupCardActive : ""}`}
-                      onClick={() => setPickupMethod("retrait")}
-                      role="button"
-                    >
-                      <span className={styles.pickupIcon}>🏢</span>
-                      <div>
-                        <strong>Retrait en agence</strong>
-                        <span>Je viens récupérer le véhicule — gratuit</span>
-                      </div>
-                      <div className={styles.pickupRadio}>{pickupMethod === "retrait" ? "●" : "○"}</div>
-                    </div>
-                  </div>
-
-                  {/* ─── LIVRAISON à domicile ─── */}
-                  {pickupMethod === "livraison" && (
-                    <div className={styles.deliveryBlock}>
-
-                      {/* Titre */}
-                      <p className={styles.deliveryTitle}>
-                        📍 Votre adresse de livraison
-                      </p>
-
-                      {/* Bouton GPS unique */}
-                      <button
-                        type="button"
-                        className={`${styles.gpsMainBtn} ${gpsState === "loading" ? styles.gpsMainBtnLoading : gpsState === "ok" ? styles.gpsMainBtnOk : ""}`}
-                        onClick={handleDetectGPS}
-                        disabled={gpsState === "loading"}
-                      >
-                        {gpsState === "loading" && <span className={styles.gpsSpinnerInline} />}
-                        {gpsState === "ok"      && <span>✓</span>}
-                        {gpsState === "idle"    && <span>🎯</span>}
-                        {gpsState === "error"   && <span>🔄</span>}
-                        {gpsState === "loading" ? "Détection de votre position…"
-                          : gpsState === "ok"  ? "Position détectée — Cliquez pour actualiser"
-                          : gpsState === "error" ? "Réessayer la détection GPS"
-                          : "Détecter ma position par GPS"}
-                      </button>
-
-                      {/* Erreur GPS → explication */}
-                      {gpsState === "error" && (
-                        <div className={styles.gpsErrorBox}>
-                          <span>⚠️</span>
-                          <div>
-                            <strong>GPS indisponible</strong>
-                            <p>{gpsError}</p>
-                            <p>Saisissez votre adresse manuellement ci-dessous.</p>
-                          </div>
+                      {gpsState === "loading" ? "⏳ Détection…" : gpsState === "ok" ? "✓ Position détectée" : "🎯 Détecter ma position GPS"}
+                    </button>
+                    {gpsError && <p className={styles.errorMsg}>⚠️ {gpsError}</p>}
+                    <input
+                      type="text"
+                      className={styles.input}
+                      placeholder="Votre adresse de livraison"
+                      value={pickupAddress}
+                      onChange={(e) => { setPickupAddress(e.target.value); if (!e.target.value) { setPickupPosition(null); setGeoDistance(null); setGeoFee(null); } }}
+                    />
+                    {pickupMethod === "livraison" && (
+                      <div className={styles.deliveryFeeBox}>
+                        <div className={styles.deliveryFeeRow}>
+                          <span>🚚 Frais de livraison</span>
+                          {geoFeeLoading ? <span>Calcul…</span>
+                            : geoFee != null ? <strong className={styles.feeAmount}>{fmt(deliveryFee)}</strong>
+                            : <span className={styles.feePending}>Activez le GPS pour calculer</span>}
                         </div>
-                      )}
-
-                      {/* Champ adresse (toujours visible) */}
-                      <div className={styles.addressInputWrap}>
-                        <input
-                          type="text"
-                          className={styles.addressMainInput}
-                          placeholder="Ex: 15 Rue Hassan II, Casablanca, Maroc"
-                          value={pickupAddress}
-                          onChange={(e) => {
-                            setPickupAddress(e.target.value);
-                            if (!e.target.value) { setPickupPosition(null); setGeoDistance(null); setGeoFee(null); }
-                          }}
-                          required={pickupMethod === "livraison"}
-                        />
-                        {pickupAddress && (
-                          <button
-                            type="button"
-                            className={styles.addressClearBtn}
-                            onClick={() => { setPickupAddress(""); setPickupPosition(null); setGeoDistance(null); setGeoFee(null); setGpsState("idle"); }}
-                          >✕</button>
-                        )}
+                        {geoDistance && <p className={styles.distanceLabel}>📏 Distance estimée : {geoDistance} km</p>}
                       </div>
-
-                      {/* Résultat position GPS */}
-                      {gpsState === "ok" && pickupPosition && (
-                        <div className={styles.gpsPositionCard}>
-                          <div className={styles.gpsPositionHeader}>
-                            <span className={styles.gpsPositionDot} />
-                            <strong>Position GPS confirmée</strong>
-                          </div>
-                          <p className={styles.gpsCoords}>
-                            {pickupPosition.lat.toFixed(6)}, {pickupPosition.lng.toFixed(6)}
-                          </p>
-                          <a
-                            href={`https://www.google.com/maps?q=${pickupPosition.lat},${pickupPosition.lng}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={styles.gpsMapLink}
-                          >
-                            🗺️ Vérifier sur Google Maps
-                          </a>
-                        </div>
-                      )}
-
-                      {/* Frais de livraison calculés */}
-                      {pickupMethod === "livraison" && (
-                        <div className={styles.geoDeliveryBox}>
-                          <div className={styles.geoDeliveryHeader}>
-                            <span className={styles.geoDeliveryIcon}>🚚</span>
-                            <div>
-                              <strong>Frais de livraison GPS</strong>
-                              <p>Calculés selon la distance réelle partenaire ↔ vous</p>
-                            </div>
-                          </div>
-
-                          {!pickupPosition ? (
-                            <div className={styles.geoDeliveryAlert}>
-                              Activez votre GPS ou saisissez votre adresse pour calculer les frais.
-                            </div>
-                          ) : geoFeeLoading ? (
-                            <div className={styles.geoDeliveryLoading}>
-                              <span className={styles.geoSpinner} />
-                              Calcul de la distance en cours…
-                            </div>
-                          ) : (
-                            <div className={styles.geoDeliveryResult}>
-                              {agencyFull && (
-                                <div className={styles.geoResultRow}>
-                                  <span>🏢 Partenaire</span>
-                                  <strong>{agencyFull.length > 40 ? agencyFull.slice(0, 40) + "…" : agencyFull}</strong>
-                                </div>
-                              )}
-                              <div className={styles.geoResultRow}>
-                                <span>📍 Vous</span>
-                                <strong>{pickupAddress?.split(",")[0] || "Détectée"}</strong>
-                              </div>
-                              {geoDistance != null && (
-                                <div className={styles.geoResultRow}>
-                                  <span>📏 Distance</span>
-                                  <strong>{geoDistance} km</strong>
-                                </div>
-                              )}
-                              <div className={styles.geoResultFee}>
-                                <span>🚚 Frais de livraison</span>
-                                <strong className={styles.geoFeeAmount}>{fmt(deliveryFee)}</strong>
-                              </div>
-                              <p className={styles.geoFeeNote}>
-                                Tarif : {fmt(DELIVERY_BASE)} base + {DELIVERY_PER_KM} DH/km
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* ─── RETRAIT en agence ─── */}
-                  {pickupMethod === "retrait" && (
-                    <div className={styles.agencyCard}>
-                      <div className={styles.agencyHeader}>
-                        <div className={styles.agencyAvatar}>
-                          {agencyName.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <strong className={styles.agencyName}>{agencyName}</strong>
-                          <span className={styles.agencyLabel}>Point de retrait</span>
-                        </div>
-                        <div className={styles.agencyFreeTag}>Gratuit</div>
-                      </div>
-
-                      <div className={styles.agencyDetails}>
-                        {agencyFull ? (
-                          <div className={styles.agencyRow}>
-                            <span>📍</span>
-                            <span>{agencyFull}</span>
-                          </div>
-                        ) : (
-                          <div className={styles.agencyRow}>
-                            <span>📍</span>
-                            <span style={{ color: "#8493b0", fontStyle: "italic" }}>
-                              Adresse communiquée après confirmation
-                            </span>
-                          </div>
-                        )}
-
-                        {agencyPhone && (
-                          <div className={styles.agencyRow}>
-                            <span>📞</span>
-                            <a href={`tel:${agencyPhone}`} className={styles.agencyPhone}>
-                              {agencyPhone}
-                            </a>
-                          </div>
-                        )}
-
-                        {mapsUrl && (
-                          <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
-                            className={styles.agencyMapBtn}>
-                            🗺️ Ouvrir dans Google Maps
-                          </a>
-                        )}
-                      </div>
-
-                      <div className={styles.agencyNotice}>
-                        <span>ℹ️</span>
-                        <p>
-                          Présentez-vous avec votre pièce d'identité et la confirmation de réservation.
-                          Le partenaire vous contactera pour confirmer l'heure de disponibilité.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Options supplémentaires */}
-                <div className={styles.section}>
-                  <h3>Options supplémentaires</h3>
-
-                  {gpsAutoIncluded && (
-                    <div className={styles.gpsIncluded}>
-                      <span>📍</span>
-                      <strong>GPS de livraison inclus</strong>
-                      <span>— associé automatiquement à votre adresse</span>
-                    </div>
-                  )}
-
-                  <div className={styles.optionsGrid}>
-                    {!gpsAutoIncluded && (
-                      <label className={styles.optionItem}>
-                        <input type="checkbox" name="gps" checked={selectedOptions.gps} onChange={handleChange} />
-                        <span>{gpsOption.label} +{gpsOption.price.toLocaleString("fr-FR")} DH/jour</span>
-                      </label>
                     )}
-                    {optionsData.map((option) => (
-                      <label key={option.id} className={styles.optionItem}>
-                        <input type="checkbox" name={option.id} checked={selectedOptions[option.id]} onChange={handleChange} />
-                        <span>{option.label} +{option.price.toLocaleString("fr-FR")} DH/jour</span>
-                      </label>
-                    ))}
                   </div>
-                </div>
+                )}
+
+                {pickupMethod === "retrait" && agencyFull && (
+                  <div className={styles.agencyCard}>
+                    <span>📍</span>
+                    <div>
+                      <strong>{agencyName}</strong>
+                      <span>{agencyFull}</span>
+                      {agencyPhone && <a href={`tel:${agencyPhone}`} className={styles.agencyPhone}>{agencyPhone}</a>}
+                    </div>
+                    <div className={styles.freeBadge}>Gratuit</div>
+                  </div>
+                )}
               </>
             )}
 
-            <div className={styles.section}>
-              <button type="submit" className={styles.primaryBtn}>Continuer →</button>
-            </div>
-          </form>
-        )}
-
-        {/* ══════════════ ÉTAPE 2 — VÉRIFICATION ══════════════ */}
-        {step === 2 && (
-          <form onSubmit={handleVerifSubmit} className={styles.form}>
-
-            {/* En-tête sécurité */}
-            <div className={styles.verifHero}>
-              <div className={styles.verifHeroIcon}>🛡️</div>
-              <div>
-                <h3 className={styles.verifHeroTitle}>Vérification d'identité</h3>
-                <p className={styles.verifHeroSub}>
-                  Votre pièce d'identité doit être valide et authentique.
-                  Données chiffrées TLS 1.3 — jamais revendues.
-                </p>
-              </div>
-            </div>
-
-            {/* Type de pièce */}
-            <div className={styles.section}>
-              <h4 className={styles.fieldLabel}>Type de document *</h4>
-              <div className={styles.idTypeGrid}>
-                {[
-                  { value: "cni",      icon: "🪪", label: "Carte nationale (CNI)" },
-                  { value: "passport", icon: "📘", label: "Passeport" },
-                  { value: "permis",   icon: "🚗", label: "Permis de conduire" },
-                ].map((doc) => (
-                  <button
-                    key={doc.value}
-                    type="button"
-                    className={`${styles.idTypeBtn} ${verificationForm.idType === doc.value ? styles.idTypeBtnActive : ""}`}
-                    onClick={() => handleVerifChange({ target: { name: "idType", value: doc.value, type: "select" } })}
-                  >
-                    <span className={styles.idTypeIcon}>{doc.icon}</span>
-                    <span>{doc.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Numéro + validation */}
-              <div className={styles.idNumberSection}>
-                <h4 className={styles.fieldLabel}>
-                  Numéro de {ID_RULES[verificationForm.idType]?.label || "document"} *
-                </h4>
-                <p className={styles.idHint}>
-                  💡 {ID_RULES[verificationForm.idType]?.hint}
-                </p>
-
-                <div className={styles.idNumberWrap}>
-                  <input
-                    type="text"
-                    name="idNumber"
-                    placeholder={`Ex: ${ID_RULES[verificationForm.idType]?.patterns[0]?.example || "Numéro du document"}`}
-                    value={verificationForm.idNumber}
-                    onChange={handleVerifChange}
-                    className={`${styles.idNumberInput}
-                      ${idValidation.status === "valid"   ? styles.idInputValid   : ""}
-                      ${idValidation.status === "warning" ? styles.idInputWarning : ""}
-                      ${idValidation.status === "error"   ? styles.idInputError   : ""}
-                      ${verifyDone                         ? styles.idInputVerified : ""}
-                    `}
-                    required
-                    autoComplete="off"
-                    maxLength={25}
-                    disabled={verifying}
-                  />
-                  {/* Icône statut */}
-                  <span className={styles.idStatusIcon}>
-                    {verifying      && <span className={styles.idSpinner} />}
-                    {verifyDone     && !verifying && "✓"}
-                    {verifyFailed   && !verifying && "✗"}
-                    {!verifying && !verifyDone && !verifyFailed && idValidation.status === "valid"   && "✓"}
-                    {!verifying && !verifyDone && !verifyFailed && idValidation.status === "warning" && "⚠"}
-                    {!verifying && !verifyDone && !verifyFailed && idValidation.status === "error"   && "✗"}
-                  </span>
-                </div>
-
-                {/* Message de validation temps réel */}
-                {idValidation.message && !verifyDone && !verifyFailed && (
-                  <div className={`${styles.idFeedback}
-                    ${idValidation.status === "valid"   ? styles.idFeedbackValid   : ""}
-                    ${idValidation.status === "warning" ? styles.idFeedbackWarning : ""}
-                    ${idValidation.status === "error"   ? styles.idFeedbackError   : ""}
-                  `}>
-                    {idValidation.status === "valid"   ? "✓" : idValidation.status === "warning" ? "⚠" : "✗"}
-                    {" "}{idValidation.message}
-                  </div>
-                )}
-
-                {/* Résultat vérification */}
-                {verifyDone && (
-                  <div className={styles.idVerified}>
-                    <span>✅</span>
-                    <div>
-                      <strong>Pièce d'identité vérifiée</strong>
-                      <p>Le numéro a été validé avec succès. Vous pouvez continuer.</p>
-                    </div>
-                  </div>
-                )}
-                {verifyFailed && (
-                  <div className={styles.idVerifyFailed}>
-                    <span>❌</span>
-                    <div>
-                      <strong>Vérification échouée</strong>
-                      <p>Le numéro saisi ne correspond pas à un document valide. Vérifiez et réessayez.</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Bouton Vérifier */}
-                {!verifyDone && (
-                  <button
-                    type="button"
-                    className={`${styles.verifyBtn} ${verifying ? styles.verifyBtnLoading : ""}`}
-                    onClick={handleVerifyId}
-                    disabled={verifying || idValidation.status === "empty" || idValidation.status === "error"}
-                  >
-                    {verifying ? (
-                      <><span className={styles.idSpinner} /> Vérification en cours…</>
-                    ) : (
-                      <><span>🔍</span> Vérifier ma pièce d'identité</>
-                    )}
-                  </button>
-                )}
-              </div>
-
-              {/* Adresse de résidence */}
-              <label className={styles.fieldLabelFull} style={{ marginTop: 16 }}>
-                <span className={styles.fieldLabel}>Adresse de résidence <small style={{ fontWeight: 400, color: "#94a3b8" }}>(facultatif)</small></span>
-                <input
-                  type="text"
-                  name="address"
-                  placeholder="Ex: Hay Riad, Rabat, Maroc"
-                  value={verificationForm.address}
-                  onChange={handleVerifChange}
-                  className={styles.textInput}
-                />
-              </label>
-            </div>
-
-            {/* Sécurité info */}
-            <div className={styles.securityBadges}>
-              <div className={styles.securityBadge}><span>🔐</span> TLS 1.3</div>
-              <div className={styles.securityBadge}><span>🇲🇦</span> Loi 09-08</div>
-              <div className={styles.securityBadge}><span>🇪🇺</span> RGPD</div>
-              <div className={styles.securityBadge}><span>🚫</span> Non revendues</div>
-            </div>
-
-            {/* CGU */}
-            <div className={styles.section}>
-              <label className={styles.checkLabel}>
-                <input
-                  type="checkbox"
-                  name="agreeTerms"
-                  checked={verificationForm.agreeTerms}
-                  onChange={handleVerifChange}
-                />
-                J'accepte les{" "}
-                <Link to="/cgu" target="_blank" rel="noopener noreferrer">conditions générales d'utilisation</Link>
-                {" "}et la{" "}
-                <Link to="/privacy" target="_blank" rel="noopener noreferrer">politique de confidentialité</Link>
-                {" "}de VIT AUTO.
-              </label>
-            </div>
-
-            <div className={styles.section} style={{ display: "flex", gap: "1rem" }}>
-              <button type="button" className={styles.secondaryBtn} onClick={() => setStep(1)}>← Retour</button>
+            <div className={styles.actionRow}>
+              <div />
               <button
-                type="submit"
-                className={`${styles.primaryBtn} ${!verifyDone ? styles.primaryBtnDisabled : ""}`}
-                disabled={!verifyDone}
-                title={!verifyDone ? "Vérifiez d'abord votre pièce d'identité" : ""}
+                className={styles.primaryBtn}
+                onClick={() => setStep(2)}
+                disabled={
+                  !form.firstName || !form.lastName || !form.email || !form.phone ||
+                  (!isTrial && (!form.startDate || !form.endDate || days <= 0)) ||
+                  (isTrial && (!form.preferredDate || !form.preferredTime)) ||
+                  (pickupMethod === "livraison" && !pickupAddress.trim())
+                }
               >
-                {verifyDone ? "Continuer →" : "🔒 Vérification requise"}
+                Suivant →
               </button>
             </div>
-          </form>
-        )}
-
-        {/* ══════════════ ÉTAPE 3 ══════════════ */}
-        {step === 3 && (
-          <form onSubmit={handlePaymentSubmit} className={styles.form}>
-            <div className={styles.section}>
-              <h3>Méthode de paiement</h3>
-              <div className={styles.optionsGrid}>
-                {paymentOptions.map((option) => (
-                  <label key={option.value} className={`${styles.optionItem} ${paymentForm.paymentMethod === option.value ? styles.optionActive : ""}`}>
-                    <input type="radio" name="paymentMethod" value={option.value}
-                      checked={paymentForm.paymentMethod === option.value} onChange={handleChange} />
-                    <span>{option.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {paymentForm.paymentMethod === "card" && (
-              <div className={styles.section}>
-                <h3>Informations de carte</h3>
-                <div className={styles.row}>
-                  <input type="text" name="cardNumber"  value={paymentForm.cardNumber}  onChange={handleChange} placeholder="Numéro de carte" required />
-                  <input type="text" name="cardHolder"  value={paymentForm.cardHolder}  onChange={handleChange} placeholder="Nom sur la carte" required />
-                </div>
-                <div className={styles.row}>
-                  <input type="text" name="expiryDate" value={paymentForm.expiryDate} onChange={handleChange} placeholder="MM/AA" required />
-                  <input type="text" name="cvv"        value={paymentForm.cvv}        onChange={handleChange} placeholder="CVV" required />
-                </div>
-              </div>
-            )}
-
-            {["orange", "wave", "mtn", "moov"].includes(paymentForm.paymentMethod) && (
-              <div className={styles.section}>
-                <h3>Numéro {paymentForm.paymentMethod.charAt(0).toUpperCase() + paymentForm.paymentMethod.slice(1)}</h3>
-                <input type="tel" name="mobileNumber" value={paymentForm.mobileNumber} onChange={handleChange}
-                  placeholder="+212 06 00 00 00 00" required />
-              </div>
-            )}
-
-            <div className={styles.section} style={{ display: "flex", gap: "1rem" }}>
-              <button type="button" className={styles.secondaryBtn} onClick={() => setStep(2)}>← Retour</button>
-              <button type="submit" className={styles.primaryBtn}>
-                Confirmer et payer {fmt(isTrial ? SERVICE_FEE : totalToPay)}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-
-      {/* ── Récapitulatif sidebar ── */}
-      <aside className={styles.summaryCard}>
-        <h3>Récapitulatif</h3>
-        <div className={styles.summaryImage}>
-          <img src={vehicle.images?.[0] || vehicle.image} alt={vehicle.title || vehicle.name}
-            onError={(e) => { e.target.style.display = "none"; }} />
-          <span>{vehicle.title || vehicle.name}</span>
-        </div>
-
-        {isTrial ? (
-          <>
-            <div className={styles.summaryItem}><span>Date essai</span><strong>{trialForm.preferredDate || "—"}</strong></div>
-            <div className={styles.summaryItem}><span>Heure</span><strong>{trialForm.preferredTime || "—"}</strong></div>
-            <div className={styles.summaryItem}><span>Frais de service</span><strong>{fmt(SERVICE_FEE)}</strong></div>
-            <div className={styles.summaryTotal}><span>À payer</span><strong>{fmt(SERVICE_FEE)}</strong></div>
-          </>
-        ) : (
-          <>
-            <div className={styles.summaryItem}><span>Prix / jour</span><strong>{fmt(vehicle.pricePerDay || 0)}</strong></div>
-            {days > 0 && <div className={styles.summaryItem}><span>Durée</span><strong>{days} jour{days > 1 ? "s" : ""}</strong></div>}
-            <div className={styles.summaryItem}><span>Base</span><strong>{fmt(baseTotal)}</strong></div>
-            {optionsTotal > 0 && <div className={styles.summaryItem}><span>Options</span><strong>{fmt(optionsTotal)}</strong></div>}
-            {pickupMethod === "livraison" && (
-              <div className={styles.summaryItem}>
-                <span>🚚 Livraison{geoDistance ? ` (${geoDistance} km)` : ""}</span>
-                <strong>{geoFeeLoading ? "Calcul…" : fmt(deliveryFee)}</strong>
-              </div>
-            )}
-            {pickupMethod === "retrait" && (
-              <div className={styles.summaryItem}>
-                <span>🏢 Retrait agence</span>
-                <strong style={{ color: "#10b981" }}>Gratuit</strong>
-              </div>
-            )}
-            <div className={styles.summaryItem}><span>Frais de service</span><strong>{fmt(SERVICE_FEE)}</strong></div>
-            <div className={styles.summaryTotal}><span>Total</span><strong>{fmt(totalToPay)}</strong></div>
-          </>
-        )}
-
-        {/* Mode prise en charge */}
-        {!isTrial && (
-          <div className={styles.pickupSummary}>
-            {pickupMethod === "livraison"
-              ? <><span>🚚</span>{pickupAddress ? <span>{pickupAddress.slice(0, 50)}{pickupAddress.length > 50 ? "…" : ""}</span> : <small>Adresse à renseigner</small>}</>
-              : <><span>🏢</span><span>{agencyFull || "Retrait en agence"}</span></>
-            }
           </div>
         )}
 
-        <div className={styles.guarantee}>
-          🛡️ Contrat digital · Paiement sécurisé · Identité vérifiée
+        {/* ════ ÉTAPE 2 — OPTIONS ════════════════════════ */}
+        {step === 2 && (
+          <div className={styles.section}>
+            <h3 className={styles.sectionTitle}>Options supplémentaires</h3>
+            <p className={styles.optionsNote}>Tarif par jour × {Math.max(days, 1)} jour{days > 1 ? "s" : ""}</p>
+
+            <div className={styles.optionsGrid}>
+              {OPTIONS_CATALOG.map((opt) => (
+                <label key={opt.id} className={`${styles.optionCard} ${selectedOptions[opt.id] ? styles.optionCardActive : ""}`}>
+                  <input type="checkbox" className={styles.optionCheckbox}
+                    checked={selectedOptions[opt.id]}
+                    onChange={(e) => setSelectedOptions({ ...selectedOptions, [opt.id]: e.target.checked })} />
+                  <span className={styles.optionIcon}>{opt.icon}</span>
+                  <div className={styles.optionInfo}>
+                    <strong>{opt.label}</strong>
+                    <span>+{fmt(opt.price)}/jour</span>
+                  </div>
+                  {selectedOptions[opt.id] && <span className={styles.optionCheck}>✓</span>}
+                </label>
+              ))}
+            </div>
+
+            {optionsTotal > 0 && (
+              <div className={styles.optionsTotalBar}>
+                Options sélectionnées : <strong>{fmt(optionsTotal)}</strong>
+              </div>
+            )}
+
+            <div className={styles.actionRow}>
+              <button className={styles.secondaryBtn} onClick={() => setStep(1)}>← Retour</button>
+              <button className={styles.primaryBtn} onClick={() => setStep(3)}>Suivant →</button>
+            </div>
+          </div>
+        )}
+
+        {/* ════ ÉTAPE 3 — PAIEMENT ═══════════════════════ */}
+        {step === 3 && (
+          <div className={styles.section}>
+            <h3 className={styles.sectionTitle}>Méthode de paiement</h3>
+
+            <div className={styles.payMethodGrid}>
+              {PAYMENT_METHODS.map((pm) => (
+                <label key={pm.value} className={`${styles.payCard} ${payMethod === pm.value ? styles.payCardActive : ""}`}>
+                  <input type="radio" name="payMethod" value={pm.value}
+                    checked={payMethod === pm.value} onChange={() => setPayMethod(pm.value)} />
+                  <span className={styles.payIcon}>{pm.icon}</span>
+                  <span className={styles.payLabel}>{pm.label}</span>
+                </label>
+              ))}
+            </div>
+
+            {["orange", "wave", "mtn", "moov"].includes(payMethod) && (
+              <div className={styles.payDetails}>
+                <label className={styles.label}>
+                  Numéro mobile *
+                  <input className={styles.input} type="tel" placeholder="+225 07 00 00 00 00"
+                    value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)} required />
+                </label>
+              </div>
+            )}
+
+            {payMethod === "card" && (
+              <div className={styles.payDetails}>
+                <div className={styles.row}>
+                  <label className={styles.label}>
+                    Numéro de carte *
+                    <input className={styles.input} type="text" placeholder="0000 0000 0000 0000"
+                      value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} maxLength={19} />
+                  </label>
+                  <label className={styles.label}>
+                    Nom sur la carte *
+                    <input className={styles.input} type="text" placeholder="NOM PRÉNOM"
+                      value={cardHolder} onChange={(e) => setCardHolder(e.target.value.toUpperCase())} />
+                  </label>
+                </div>
+                <div className={styles.row}>
+                  <label className={styles.label}>
+                    Expiration (MM/AA) *
+                    <input className={styles.input} type="text" placeholder="MM/AA"
+                      value={cardExpiry} onChange={(e) => setCardExpiry(e.target.value)} maxLength={5} />
+                  </label>
+                  <label className={styles.label}>
+                    CVV *
+                    <input className={styles.input} type="text" placeholder="123"
+                      value={cardCvv} onChange={(e) => setCardCvv(e.target.value)} maxLength={4} />
+                  </label>
+                </div>
+              </div>
+            )}
+
+            <div className={styles.securityNote}>
+              🔐 Paiement sécurisé TLS 1.3 — Données chiffrées · CVV jamais stocké sur nos serveurs
+            </div>
+            <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "8px 14px", fontSize: "0.8rem", color: "#92400e", marginTop: 8 }}>
+              ⚠️ <strong>Mode simulation actif</strong> — Aucun débit réel. L'intégration Orange Money / Stripe sera activée en production.
+            </div>
+
+            <div className={styles.actionRow}>
+              <button className={styles.secondaryBtn} onClick={() => setStep(2)}>← Retour</button>
+              <button
+                className={styles.primaryBtn}
+                onClick={() => setStep(4)}
+                disabled={
+                  (["orange_money","wave","mtn","moov"].includes(payMethod) && !mobileNumber) ||
+                  (payMethod === "card" && (!cardNumber || !cardHolder || !cardExpiry || !cardCvv))
+                }
+              >
+                Voir le récapitulatif →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ════ ÉTAPE 4 — CONFIRMATION ═══════════════════ */}
+        {step === 4 && (
+          <div className={styles.section}>
+            <h3 className={styles.sectionTitle}>✅ Récapitulatif de la réservation</h3>
+
+            <div className={styles.refBox}>
+              <span>Référence</span>
+              <strong className={styles.refCode}>{bookingRef}</strong>
+            </div>
+
+            <div className={styles.confirmRows}>
+              <div className={styles.confirmRow}><span>Client</span><strong>{form.firstName} {form.lastName}</strong></div>
+              <div className={styles.confirmRow}><span>Email</span><strong>{form.email}</strong></div>
+              <div className={styles.confirmRow}><span>Téléphone</span><strong>{form.phone}</strong></div>
+              <div className={styles.confirmRow}><span>Véhicule</span><strong>{vehicle.title || vehicle.name}</strong></div>
+              {!isTrial && !isLeasing && (
+                <>
+                  <div className={styles.confirmRow}><span>Du</span><strong>{new Date(form.startDate).toLocaleDateString("fr-FR")}</strong></div>
+                  <div className={styles.confirmRow}><span>Au</span><strong>{new Date(form.endDate).toLocaleDateString("fr-FR")}</strong></div>
+                  <div className={styles.confirmRow}><span>Durée</span><strong>{days} jour{days > 1 ? "s" : ""}</strong></div>
+                  <div className={styles.confirmRow}><span>Prise en charge</span><strong>{pickupMethod === "retrait" ? `Retrait — ${agencyFull || "Agence"}` : `Livraison — ${pickupAddress.slice(0, 50)}`}</strong></div>
+                  {baseTotal > 0 && <div className={styles.confirmRow}><span>Base</span><strong>{fmt(baseTotal)}</strong></div>}
+                  {optionsTotal > 0 && <div className={styles.confirmRow}><span>Options</span><strong>{fmt(optionsTotal)}</strong></div>}
+                  {pickupMethod === "livraison" && <div className={styles.confirmRow}><span>Livraison</span><strong>{fmt(deliveryFee)}</strong></div>}
+                </>
+              )}
+              {isTrial && (
+                <>
+                  <div className={styles.confirmRow}><span>Date d'essai</span><strong>{new Date(form.preferredDate).toLocaleDateString("fr-FR")}</strong></div>
+                  <div className={styles.confirmRow}><span>Heure</span><strong>{form.preferredTime}</strong></div>
+                </>
+              )}
+              <div className={styles.confirmRow}><span>Frais de service</span><strong>{fmt(SERVICE_FEE)}</strong></div>
+              <div className={styles.confirmRow}><span>Paiement</span><strong>{PAYMENT_METHODS.find((p) => p.value === payMethod)?.label || payMethod}</strong></div>
+              <div className={`${styles.confirmRow} ${styles.confirmTotal}`}>
+                <span>Total à payer</span>
+                <strong>{fmt(totalToPay)}</strong>
+              </div>
+            </div>
+
+            <div className={styles.kycBadgeBar} style={{ background: kycBadge.bg, borderColor: kycBadge.border }}>
+              {kycBadge.emoji} <span style={{ color: kycBadge.color, fontWeight: 700 }}>{kycBadge.badge}</span>
+              <span style={{ color: "#5a6a8a", fontSize: "0.82rem" }}> — Identité vérifiée</span>
+            </div>
+
+            <div className={styles.legalNote}>
+              En confirmant, vous acceptez les{" "}
+              <Link to="/cgu" target="_blank">conditions générales</Link>{" "}
+              et la{" "}
+              <Link to="/privacy" target="_blank">politique de confidentialité</Link> de VIT AUTO.
+            </div>
+
+            <div className={styles.actionRow}>
+              <button className={styles.secondaryBtn} onClick={() => setStep(3)}>← Modifier</button>
+              <button className={styles.confirmBtn} onClick={handleSubmit} disabled={submitting}>
+                {submitting ? "⏳ Envoi…" : `✅ Confirmer — ${fmt(totalToPay)}`}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Sidebar récapitulatif ──────────────────────── */}
+      <aside className={styles.sidebar}>
+        <div className={styles.sidebarCard}>
+          <div className={styles.vehicleThumb}>
+            <img
+              src={vehicle.images?.[0] || vehicle.image}
+              alt={vehicle.title || vehicle.name}
+              onError={(e) => { e.target.style.display = "none"; }}
+            />
+            <span className={styles.vehicleThumbTitle}>{vehicle.title || vehicle.name}</span>
+          </div>
+
+          <div className={styles.sidebarRows}>
+            {!isTrial && <div className={styles.sidebarRow}><span>Prix / jour</span><strong>{fmt(vehicle.pricePerDay || 0)}</strong></div>}
+            {days > 0 && !isTrial && <div className={styles.sidebarRow}><span>Durée</span><strong>{days} j</strong></div>}
+            {baseTotal > 0 && !isTrial && <div className={styles.sidebarRow}><span>Base</span><strong>{fmt(baseTotal)}</strong></div>}
+            {optionsTotal > 0 && <div className={styles.sidebarRow}><span>Options</span><strong>{fmt(optionsTotal)}</strong></div>}
+            {pickupMethod === "livraison" && !isTrial && (
+              <div className={styles.sidebarRow}>
+                <span>Livraison{geoDistance ? ` (${geoDistance}km)` : ""}</span>
+                <strong>{geoFeeLoading ? "…" : fmt(deliveryFee)}</strong>
+              </div>
+            )}
+            {pickupMethod === "retrait" && !isTrial && (
+              <div className={styles.sidebarRow}><span>Retrait agence</span><strong className={styles.freeLabel}>Gratuit</strong></div>
+            )}
+            <div className={styles.sidebarRow}><span>Frais service</span><strong>{fmt(SERVICE_FEE)}</strong></div>
+            <div className={`${styles.sidebarRow} ${styles.sidebarTotal}`}>
+              <span>Total</span>
+              <strong>{fmt(totalToPay)}</strong>
+            </div>
+          </div>
+
+          <div className={styles.sidebarKyc} style={{ borderColor: kycBadge.border, background: kycBadge.bg }}>
+            {kycBadge.emoji} <span style={{ color: kycBadge.color, fontWeight: 700, fontSize: "0.82rem" }}>
+              {kycBadge.badge} — {kycScore}/100
+            </span>
+          </div>
+
+          <div className={styles.sidebarGuarantee}>
+            🛡️ Identité vérifiée · Paiement sécurisé · Contrat digital
+          </div>
         </div>
       </aside>
     </div>

@@ -9,47 +9,46 @@ const STATS = [
   { icon: "🚗", value: "3 500+", label: "Véhicules disponibles" },
   { icon: "🌍", value: "20+",    label: "Pays couverts" },
   { icon: "⭐", value: "4.9/5",  label: "Note moyenne" },
-  { icon: "🚢", value: "Import", label: "Chine · Dubaï · Europe" },
+  { icon: "🚢", value: "Import", label: "Japon · Europe · Dubaï" },
 ];
 
-// Slides par défaut si aucun véhicule en base
-// Images WebP pour réduire le poids de 30-50%
+// Slides par défaut — données Afrique de l'Ouest, prix en FCFA
 const DEFAULT_SLIDES = [
   {
     img:     "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=1200&q=80&auto=format&fit=crop&fm=webp",
-    name:    "Range Rover Sport 2024",
+    name:    "Toyota Land Cruiser V8 2024",
     type:    "SUV Premium",
     city:    "Abidjan",
-    fuel:    "Hybride",
-    partner: "VIT AUTO Premium",
-    price:   "1 400 DH / jour",
-  },
-  {
-    img:     "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=1200&q=80&auto=format&fit=crop&fm=webp",
-    name:    "Porsche Cayenne 2023",
-    type:    "SUV Sport",
-    city:    "Casablanca",
-    fuel:    "Essence",
-    partner: "VIT AUTO Maroc",
-    price:   "1 800 MAD / jour",
+    fuel:    "Diesel",
+    partner: "VIT AUTO Côte d'Ivoire",
+    price:   "75 000 FCFA / jour",
   },
   {
     img:     "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=1200&q=80&auto=format&fit=crop&fm=webp",
-    name:    "BMW Série 5 2023",
+    name:    "Mercedes-Benz Classe E 2023",
     type:    "Berline Executive",
-    city:    "Dakar",
+    city:    "Abidjan",
     fuel:    "Diesel",
-    partner: "VIT AUTO Sénégal",
-    price:   "1 050 DH / jour",
+    partner: "VIT AUTO Premium",
+    price:   "55 000 FCFA / jour",
   },
   {
     img:     "https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=1200&q=80&auto=format&fit=crop&fm=webp",
-    name:    "Mercedes Viano 2023",
-    type:    "Monospace VIP",
-    city:    "Bamako",
-    fuel:    "Diesel",
-    partner: "VIT AUTO Mali",
-    price:   "1 150 DH / jour",
+    name:    "BMW X5 2022 — Import Allemagne",
+    type:    "SUV Import",
+    city:    "Abidjan · Livraison 45j",
+    fuel:    "Essence",
+    partner: "VIT AUTO Import/Export",
+    price:   "À partir de 18 500 €",
+  },
+  {
+    img:     "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=1200&q=80&auto=format&fit=crop&fm=webp",
+    name:    "Hyundai Tucson 2023",
+    type:    "SUV — Vente / Leasing",
+    city:    "Abidjan",
+    fuel:    "Hybride",
+    partner: "VIT AUTO Vente",
+    price:   "16 900 000 FCFA",
   },
 ];
 

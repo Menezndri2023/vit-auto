@@ -3,14 +3,14 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import styles from "./ContractPage.module.css";
 
-const fmt = (n) => n != null && n !== 0 ? Number(n).toLocaleString("fr-FR") + " DH" : null;
+const fmt = (n) => n != null && n !== 0 ? Number(n).toLocaleString("fr-FR") + " XOF" : null;
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" }) : "—";
 
 const TYPE_LABELS = { location: "Location de véhicule", essai: "Essai / Vente", chauffeur: "Service chauffeur", leasing: "Leasing / Achat en mensualités" };
 
 export default function ContractPage() {
   const { bookingId } = useParams();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
 
   const [contract, setContract] = useState(null);
@@ -27,7 +27,8 @@ export default function ContractPage() {
   // ── Chargement du contrat ──────────────────────────────────────────────
   useEffect(() => {
     if (!bookingId) return;
-    fetch(`/api/contracts/${bookingId}`)
+    const hdrs = token ? { Authorization: `Bearer ${token}` } : {};
+    fetch(`/api/contracts/${bookingId}`, { headers: hdrs })
       .then((r) => r.json())
       .then((d) => {
         if (d.contract) { setContract(d.contract); if (d.contract.isSigned) setSigned(true); }
@@ -35,7 +36,7 @@ export default function ContractPage() {
       })
       .catch(() => setError("Impossible de charger le contrat."))
       .finally(() => setLoading(false));
-  }, [bookingId]);
+  }, [bookingId, token]);
 
   // ── Canvas signature ───────────────────────────────────────────────────
   const getPos = (e, canvas) => {
@@ -86,10 +87,15 @@ export default function ContractPage() {
     const signature = canvas.toDataURL("image/png");
     setSigning(true);
     try {
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
       const res = await fetch(`/api/contracts/${contract._id}/sign`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signature }),
+        headers,
+        body: JSON.stringify({
+          signature,
+          clientEmail: user?.email || contract?.client?.email || null,
+        }),
       });
       const data = await res.json();
       if (res.ok) {

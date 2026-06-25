@@ -67,7 +67,7 @@ const importerPartnerProfileSchema = new mongoose.Schema({
 });
 
 importerPartnerProfileSchema.index({ status: 1 });
-importerPartnerProfileSchema.index({ userId: 1 });
+// userId: unique:true dans le schéma crée déjà l'index — pas de doublon
 
 importerPartnerProfileSchema.pre("save", function (next) {
   this.updatedAt = new Date();

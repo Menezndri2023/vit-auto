@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useCurrency } from "../context/CurrencyContext";
+import { useI18n } from "../context/I18nContext";
 import styles from "./Plans.module.css";
 
 /* ── Constantes ──────────────────────────────────── */
@@ -141,30 +142,28 @@ const COMMISSIONS = [
 ];
 
 export default function Plans() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, token } = useAuth();
   const { fmtFromMAD, currentCurrency } = useCurrency();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [activating, setActivating] = useState(null);
   const [successMsg, setSuccessMsg]  = useState("");
 
-  const fmtPlan = (mad) => mad === 0 ? "Gratuit" : fmtFromMAD(mad);
+  const fmtPlan = (mad) => mad === 0 ? t("plans.free") : fmtFromMAD(mad);
 
   const handleActivate = async (plan) => {
-    if (!isAuthenticated) { navigate("/login"); return; }
+    if (!isAuthenticated) { navigate("/login?returnTo=/plans"); return; }
     if (plan.id === "corporate") { navigate("/help"); return; }
     setActivating(plan.id);
     try {
-      const token = localStorage.getItem("vit_token");
       const res = await fetch("/api/subscriptions/activate", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ plan: plan.id, price: plan.price }),
       });
-      setSuccessMsg(res.ok
-        ? `Plan ${plan.name} activé ! Profitez de tous vos avantages.`
-        : "Erreur lors de l'activation. Réessayez ou contactez le support.");
+      setSuccessMsg(res.ok ? t("plans.success") : t("plans.error"));
     } catch {
-      setSuccessMsg("Erreur réseau. Réessayez.");
+      setSuccessMsg(t("plans.error"));
     } finally {
       setActivating(null);
     }
@@ -178,16 +177,13 @@ export default function Plans() {
         <div className={styles.heroBubble1} />
         <div className={styles.heroBubble2} />
         <div className={styles.heroInner}>
-          <span className={styles.heroTag}>💼 PARTENAIRES VIT AUTO</span>
-          <h1 className={styles.heroTitle}>Tarifs & Abonnements</h1>
-          <p className={styles.heroSub}>
-            Publiez vos véhicules, réduisez vos commissions et développez votre activité.
-            Passez au plan supérieur à tout moment.
-          </p>
+          <span className={styles.heroTag}>{t("plans.hero.tag")}</span>
+          <h1 className={styles.heroTitle}>{t("plans.hero.title")}</h1>
+          <p className={styles.heroSub}>{t("plans.hero.sub")}</p>
           <div className={styles.heroPills}>
-            <span>✅ Sans engagement</span>
-            <span>🌍 20+ pays couverts</span>
-            <span>💳 Paiement sécurisé</span>
+            <span>{t("plans.hero.pill1")}</span>
+            <span>{t("plans.hero.pill2")}</span>
+            <span>{t("plans.hero.pill3")}</span>
           </div>
         </div>
       </section>
@@ -207,13 +203,13 @@ export default function Plans() {
                 background: "#fbbf24", color: "#7c2d12", fontWeight: 900,
                 fontSize: "0.7rem", padding: "3px 12px", borderRadius: 99,
                 letterSpacing: "0.08em", textTransform: "uppercase",
-              }}>OFFRE LIMITÉE — 20 partenaires</span>
+              }}>{t("plans.limited")}</span>
             </div>
             <h3 style={{ margin: "0 0 4px", fontWeight: 900, color: "#0f1b3f", fontSize: "1.1rem" }}>
-              Offre Partenaire Fondateur — Gratuit 12 mois
+              {t("plans.founder.title")}
             </h3>
             <p style={{ margin: 0, color: "#78350f", fontSize: "0.88rem" }}>
-              Commission réduite · Badge Fondateur · Mise en avant permanente · Accès anticipé
+              {t("plans.founder.sub")}
             </p>
           </div>
           <Link to="/partenaires#offre-fondateur" style={{
@@ -221,7 +217,7 @@ export default function Plans() {
             padding: "12px 24px", borderRadius: 11, textDecoration: "none",
             boxShadow: "0 4px 16px rgba(245,158,11,.35)", whiteSpace: "nowrap",
           }}>
-            Réclamer l'offre →
+            {t("plans.founder.cta")}
           </Link>
         </div>
       </section>
@@ -229,8 +225,8 @@ export default function Plans() {
       {/* ════ PLANS GRID ════ */}
       <section className={styles.plansSection}>
         <div className={styles.sectionHeader}>
-          <h2>Choisissez votre plan</h2>
-          <p>Tous les plans incluent le contrat digital, la gestion des réservations et le paiement sécurisé.</p>
+          <h2>{t("plans.choose.title")}</h2>
+          <p>{t("plans.choose.sub")}</p>
         </div>
 
         {successMsg && (
@@ -260,19 +256,19 @@ export default function Plans() {
 
                 <div className={styles.planPriceWrap}>
                   {plan.price === null ? (
-                    <span className={styles.planFree} style={{ color: "#0f1b3f" }}>Sur devis</span>
+                    <span className={styles.planFree} style={{ color: "#0f1b3f" }}>{t("plans.quote")}</span>
                   ) : plan.price === 0 ? (
-                    <span className={styles.planFree}>Gratuit</span>
+                    <span className={styles.planFree}>{t("plans.free")}</span>
                   ) : (
                     <div className={styles.planPrice}>
                       <span className={styles.planAmount}>{fmtPlan(plan.price)}</span>
-                      <span className={styles.planPeriod}>/{plan.period}</span>
+                      <span className={styles.planPeriod}>/{t("plans.perMonth")}</span>
                     </div>
                   )}
                 </div>
                 {plan.price > 0 && (
                   <p style={{ margin: "4px 0 0", fontSize: ".72rem", color: "#94a3b8" }}>
-                    Devise : {currentCurrency?.symbol || "DH"}
+                    {t("plans.currency")} {currentCurrency?.symbol || "DH"}
                   </p>
                 )}
               </div>
@@ -296,7 +292,7 @@ export default function Plans() {
                 disabled={plan.ctaDisabled || activating === plan.id}
                 onClick={() => !plan.ctaDisabled && handleActivate(plan)}
               >
-                {activating === plan.id ? "Activation…" : plan.cta}
+                {activating === plan.id ? t("plans.activating") : plan.id === "corporate" ? t("plans.contact") : plan.cta}
               </button>
             </div>
           ))}
@@ -307,17 +303,17 @@ export default function Plans() {
       <section className={styles.commSection}>
         <div className={styles.commInner}>
           <div className={styles.sectionHeader}>
-            <h2>Grille des commissions VIT AUTO</h2>
-            <p>Les commissions sont identiques pour tous les plans — seule l'Offre Fondateur bénéficie de taux réduits pendant 12 mois.</p>
+            <h2>{t("plans.comm.title")}</h2>
+            <p>{t("plans.comm.sub")}</p>
           </div>
 
           <div className={styles.commTable}>
             {/* Header */}
             <div className={styles.commRow + " " + styles.commHead}>
-              <div className={styles.commCell}>Service</div>
-              <div className={`${styles.commCell} ${styles.commCellActive}`}>👑 Fondateur</div>
-              <div className={styles.commCell}>Standard (tous plans)</div>
-              <div className={styles.commCell}>Exemple (standard)</div>
+              <div className={styles.commCell}>{t("plans.comm.service")}</div>
+              <div className={`${styles.commCell} ${styles.commCellActive}`}>{t("plans.comm.founder")}</div>
+              <div className={styles.commCell}>{t("plans.comm.standard")}</div>
+              <div className={styles.commCell}>{t("plans.comm.example")}</div>
             </div>
             {/* Rows */}
             {COMMISSIONS.map((row) => (
@@ -377,7 +373,7 @@ export default function Plans() {
       {/* ════ COMMENT ÇA MARCHE ════ */}
       <section className={styles.howSection}>
         <div className={styles.sectionHeader}>
-          <h2>Comment ça marche ?</h2>
+          <h2>{t("plans.how.title")}</h2>
         </div>
         <div className={styles.howGrid}>
           {HOW_IT_WORKS.map((step, i) => (
@@ -395,15 +391,15 @@ export default function Plans() {
       <section className={styles.finalCta}>
         <div className={styles.finalInner}>
           <div className={styles.finalDecoBubble} />
-          <span className={styles.finalTag}>🤝 DEVENEZ PARTENAIRE</span>
-          <h2>Prêt à publier votre première annonce ?</h2>
-          <p>Rejoignez des milliers de partenaires actifs sur 20+ pays — Afrique, Maghreb, Moyen-Orient, Europe et Asie. Publication gratuite, paiements automatisés.</p>
+          <span className={styles.finalTag}>{t("plans.cta.tag")}</span>
+          <h2>{t("plans.cta.title")}</h2>
+          <p>{t("plans.cta.sub")}</p>
           <div className={styles.finalBtns}>
             <button className={styles.btnPrimary} onClick={() => navigate("/vendor")}>
-              Publier une annonce
+              {t("plans.cta.publish")}
             </button>
             <Link to="/faq" className={styles.btnSecondary}>
-              Lire la FAQ
+              {t("plans.cta.faq")}
             </Link>
           </div>
         </div>

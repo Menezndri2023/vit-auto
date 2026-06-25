@@ -3,10 +3,13 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import User from "../models/User.js";
 import { transporter, FROM_ADDRESS, emailVerificationTemplate, passwordResetTemplate } from "../config/email.js";
+import { serverValidateIdentity } from "../utils/idValidation.js";
 
-const JWT_SECRET  = () => process.env.JWT_SECRET;           // obligatoire — server.js vérifie au démarrage
-const APP_URL     = () => process.env.APP_URL || process.env.FRONTEND_URL || "http://localhost:5173";
-const VERIFY_TTL  = 24 * 60 * 60 * 1000; // 24h en ms
+const JWT_SECRET         = () => process.env.JWT_SECRET;
+const REFRESH_SECRET     = () => process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET + "_refresh";
+const APP_URL            = () => process.env.APP_URL || process.env.FRONTEND_URL || "http://localhost:5173";
+const VERIFY_TTL         = 24 * 60 * 60 * 1000; // 24h
+const REFRESH_TTL_DAYS   = 30;
 
 function makeToken() {
   return crypto.randomBytes(32).toString("hex");
@@ -17,6 +20,14 @@ function signJWT(user) {
     { id: user._id, email: user.email, role: user.role },
     JWT_SECRET(),
     { expiresIn: "7d" }
+  );
+}
+
+function signRefreshToken(user) {
+  return jwt.sign(
+    { id: user._id },
+    REFRESH_SECRET(),
+    { expiresIn: `${REFRESH_TTL_DAYS}d` }
   );
 }
 
@@ -33,6 +44,12 @@ function safeUser(u) {
     identityStatus:   u.identity?.status || "not_submitted",
     documentsVerified: u.documentsVerified,
     profilePhoto:     u.profilePhoto,
+    kycStatus:        u.kycStatus        || "EN_ATTENTE",
+    kycScore:         u.kycScore         ?? 0,
+    kycBadge:         u.kycBadge         || "INSUFFISANT",
+    createdAt:        u.createdAt,
+    lastLogin:        u.lastLogin,
+    importerProfile:  u.importerProfile  || null,
   };
 }
 
@@ -42,18 +59,38 @@ const smtpConfigured = () =>
 const isDevNoSmtp = () =>
   process.env.NODE_ENV !== "production" && !smtpConfigured();
 
+// ── Sanitisation basique (strip HTML, trim) ───────────────────────────────
+const sanitize = (v) => (typeof v === "string" ? v.replace(/<[^>]*>/g, "").trim() : v);
+
 // ── Inscription ───────────────────────────────────────────────────────────
 export const register = async (req, res) => {
-  const { firstName, lastName, email, password, phone, role } = req.body;
+  const firstName = sanitize(req.body.firstName);
+  const lastName  = sanitize(req.body.lastName);
+  const email     = sanitize(req.body.email)?.toLowerCase();
+  const password  = req.body.password; // Ne pas modifier le mot de passe
+  const phone     = sanitize(req.body.phone);
+  const role      = sanitize(req.body.role);
 
   if (!email || !password || !firstName || !lastName) {
     return res.status(400).json({ message: "Données manquantes." });
   }
-  if (password.length < 6) {
-    return res.status(400).json({ message: "Le mot de passe doit contenir au moins 6 caractères." });
+  if (firstName.length < 2 || firstName.length > 50) {
+    return res.status(400).json({ message: "Le prénom doit contenir entre 2 et 50 caractères." });
+  }
+  if (lastName.length < 2 || lastName.length > 50) {
+    return res.status(400).json({ message: "Le nom doit contenir entre 2 et 50 caractères." });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ message: "Le mot de passe doit contenir au moins 8 caractères." });
+  }
+  if (password.length > 128) {
+    return res.status(400).json({ message: "Mot de passe trop long." });
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ message: "Format d'e-mail invalide." });
+  }
+  if (email.length > 254) {
+    return res.status(400).json({ message: "Adresse e-mail trop longue." });
   }
   if (phone && !/^[+\d\s\-().]{6,20}$/.test(phone)) {
     return res.status(400).json({ message: "Format de téléphone invalide." });
@@ -90,7 +127,7 @@ export const register = async (req, res) => {
 
     const user = await User.create({
       firstName, lastName,
-      email: email.toLowerCase(),
+      email,
       password: hash,
       phone: phone || null,
       role: userRole,
@@ -134,11 +171,13 @@ export const register = async (req, res) => {
 
 // ── Connexion ─────────────────────────────────────────────────────────────
 export const login = async (req, res) => {
-  const { email, password } = req.body;
+  const email    = sanitize(req.body.email)?.toLowerCase();
+  const password = req.body.password;
   if (!email || !password) return res.status(400).json({ message: "Données manquantes." });
+  if (password.length > 128) return res.status(400).json({ message: "Mot de passe trop long." });
 
   try {
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email });
     if (!user) return res.status(401).json({ message: "Identifiants invalides." });
 
     if (!user.isActive) {
@@ -175,6 +214,10 @@ export const login = async (req, res) => {
 
     // Mettre à jour lastLogin
     user.lastLogin = new Date();
+
+    // Générer refresh token et l'enregistrer (max 5 devices)
+    const refreshToken = signRefreshToken(user);
+    user.refreshTokens = [...(user.refreshTokens || []).slice(-4), refreshToken];
     await user.save();
 
     const token = signJWT(user);
@@ -182,6 +225,7 @@ export const login = async (req, res) => {
     res.json({
       user: safeUser(user),
       token,
+      refreshToken,
     });
   } catch (err) {
     console.error("login:", err);
@@ -278,7 +322,10 @@ export const changePassword = async (req, res) => {
 
 // ── DEV UNIQUEMENT : vérifier un compte sans email ───────────────────────
 export const devVerify = async (req, res) => {
-  if (process.env.NODE_ENV === "production") {
+  // Bloqué en production ET si SMTP est configuré (environnement "vrai")
+  const isDevOnly = process.env.NODE_ENV !== "production" &&
+    !(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+  if (!isDevOnly) {
     return res.status(404).json({ message: "Route non disponible." });
   }
   const { email } = req.params;
@@ -327,6 +374,48 @@ export const forgotPassword = async (req, res) => {
   }
 };
 
+// ── Envoi SMS — fonction commune (Africa's Talking → Twilio → console) ───
+async function sendSmsOtp(phoneNumber, otp) {
+  const message = `VIT AUTO — Votre code de vérification : ${otp}. Valable 10 minutes. Ne le partagez jamais.`;
+
+  // ── 1. Africa's Talking (priorité — Afrique de l'Ouest) ──────────────
+  if (process.env.AT_USERNAME && process.env.AT_API_KEY &&
+      process.env.AT_API_KEY !== "atsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx") {
+    try {
+      const AfricasTalking = (await import("africastalking")).default;
+      const at = AfricasTalking({ username: process.env.AT_USERNAME, apiKey: process.env.AT_API_KEY });
+      const result = await at.SMS.send({
+        to:      [phoneNumber],
+        message,
+        from:    process.env.AT_SENDER_ID || "VIT-AUTO",
+      });
+      console.log(`📱 SMS envoyé via Africa's Talking → ${phoneNumber}`);
+      return { sent: true, provider: "africastalking", result };
+    } catch (err) {
+      console.error("Africa's Talking SMS error:", err.message);
+    }
+  }
+
+  // ── 2. Twilio (fallback international) ───────────────────────────────
+  if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_FROM) {
+    try {
+      const { default: twilio } = await import("twilio");
+      const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+      await client.messages.create({ body: message, from: process.env.TWILIO_PHONE_FROM, to: phoneNumber });
+      console.log(`📱 SMS envoyé via Twilio → ${phoneNumber}`);
+      return { sent: true, provider: "twilio" };
+    } catch (err) {
+      console.error("Twilio SMS error:", err.message);
+    }
+  }
+
+  // ── 3. Fallback console (dev uniquement — jamais en production) ──────
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`\n📱 [SMS DEV] → ${phoneNumber.slice(0, -4).replace(/./g, "*")}**** : ${otp}\n`);
+  }
+  return { sent: false, provider: "console" };
+}
+
 // ── Envoyer OTP téléphone ─────────────────────────────────────────────────
 export const sendPhoneOtp = async (req, res) => {
   const { phone, userId } = req.body;
@@ -336,43 +425,36 @@ export const sendPhoneOtp = async (req, res) => {
   try {
     const filter = userId ? { _id: userId } : { phone: target };
     const user = await User.findOne(filter);
-    if (!user) return res.status(404).json({ message: "Compte introuvable." });
-    if (user.phoneVerified) return res.json({ message: "Téléphone déjà vérifié.", alreadyVerified: true });
+    if (!user) return res.status(404).json({ message: "Compte introuvable pour ce numéro." });
+    if (user.phoneVerified && user.phone === target) {
+      return res.json({ message: "Téléphone déjà vérifié.", alreadyVerified: true });
+    }
 
+    // Générer OTP à 6 chiffres
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     user.phoneOtp        = otp;
     user.phoneOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
-    if (!user.phone && target) user.phone = target;
+    if (target) user.phone = target;
+    user.phoneVerified = false;
     await user.save();
 
-    // En production, envoyer le SMS via le fournisseur configuré
-    // Actuellement : log console (intégrer Twilio / Africa's Talking si disponible)
-    console.log(`\n📱 OTP Téléphone [${user.email}] → ${user.phone} : ${otp}`);
+    // Envoyer le vrai SMS
+    const smsResult = await sendSmsOtp(target, otp);
 
-    // Simuler l'envoi SMS si TWILIO_ACCOUNT_SID est configuré
-    if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_FROM) {
-      try {
-        const { default: twilio } = await import("twilio");
-        const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-        await client.messages.create({
-          body: `VIT AUTO — Votre code de vérification : ${otp}. Valable 10 minutes.`,
-          from: process.env.TWILIO_PHONE_FROM,
-          to:   user.phone,
-        });
-      } catch (smsErr) {
-        console.error("SMS send error:", smsErr.message);
-      }
-    }
-
+    const isDev = process.env.NODE_ENV !== "production";
     res.json({
-      message: process.env.NODE_ENV !== "production"
-        ? `[DEV] Code OTP envoyé (voir console serveur). Code : ${otp}`
-        : "Code de vérification envoyé par SMS.",
-      devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
+      message:  smsResult.sent
+        ? `✅ Code envoyé par SMS au ${target}. Vérifiez vos messages.`
+        : isDev
+          ? `[DEV] Aucun provider SMS configuré. Code visible dans le terminal serveur.`
+          : "Code de vérification envoyé par SMS.",
+      provider: smsResult.provider,
+      // En dev : retourner le code en clair pour faciliter les tests
+      devOtp:   isDev ? otp : undefined,
     });
   } catch (err) {
     console.error("sendPhoneOtp:", err);
-    res.status(500).json({ message: "Erreur serveur." });
+    res.status(500).json({ message: "Erreur lors de l'envoi du SMS." });
   }
 };
 
@@ -404,6 +486,76 @@ export const verifyPhoneOtp = async (req, res) => {
   } catch (err) {
     console.error("verifyPhoneOtp:", err);
     res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Validation identité (double-check serveur) ────────────────────────────
+export const validateIdentity = async (req, res) => {
+  const { type, number, expiryDate } = req.body;
+  if (!type || !number) {
+    return res.status(400).json({ valid: false, message: "Type et numéro de document requis." });
+  }
+
+  const result = serverValidateIdentity(type, number, expiryDate || null);
+
+  if (!result.valid) {
+    // Log les tentatives suspectes
+    if (result.fraud) {
+      console.warn(`[SECURITY] Tentative fraude identité — IP: ${req.ip} — type: ${type} — numéro: ${number}`);
+    }
+    return res.status(422).json(result);
+  }
+
+  res.json({ valid: true, country: result.country, message: "Document valide." });
+};
+
+// ── Refresh Token ─────────────────────────────────────────────────────────
+export const refreshToken = async (req, res) => {
+  const { refreshToken: token } = req.body;
+  if (!token) return res.status(401).json({ message: "Refresh token manquant." });
+
+  try {
+    const decoded = jwt.verify(token, REFRESH_SECRET());
+    const user = await User.findById(decoded.id);
+
+    if (!user || !user.isActive) {
+      return res.status(401).json({ message: "Utilisateur invalide." });
+    }
+    if (!user.refreshTokens || !user.refreshTokens.includes(token)) {
+      return res.status(401).json({ message: "Refresh token révoqué ou invalide." });
+    }
+
+    // Rotation : remplacer l'ancien refresh token par un nouveau
+    const newRefreshToken = signRefreshToken(user);
+    user.refreshTokens = user.refreshTokens
+      .filter((t) => t !== token)
+      .concat(newRefreshToken)
+      .slice(-5);  // max 5 devices
+    await user.save();
+
+    const newAccessToken = signJWT(user);
+    res.json({ token: newAccessToken, refreshToken: newRefreshToken });
+  } catch (err) {
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({ message: "Refresh token expiré. Reconnectez-vous." });
+    }
+    return res.status(401).json({ message: "Refresh token invalide." });
+  }
+};
+
+// ── Révoquer refresh token (déconnexion) ─────────────────────────────────
+export const revokeRefreshToken = async (req, res) => {
+  const { refreshToken: token } = req.body;
+  if (!token) return res.status(400).json({ message: "Token requis." });
+
+  try {
+    const decoded = jwt.verify(token, REFRESH_SECRET());
+    await User.findByIdAndUpdate(decoded.id, {
+      $pull: { refreshTokens: token },
+    });
+    res.json({ message: "Token révoqué avec succès." });
+  } catch {
+    res.json({ message: "Token révoqué (ou déjà invalide)." });
   }
 };
 

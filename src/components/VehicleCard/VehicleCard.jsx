@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useCurrency } from "../../context/CurrencyContext";
 import styles from "./VehicleCard.module.css";
-
-const fmt = (n) => Number(n).toLocaleString("fr-FR") + " DH";
 
 const VehicleCard = React.memo(({ car, compact }) => {
   const navigate  = useNavigate();
+  const { fmt }   = useCurrency();
   const imgs = (() => {
     const arr = [];
     if (Array.isArray(car.images) && car.images.length > 0) arr.push(...car.images);

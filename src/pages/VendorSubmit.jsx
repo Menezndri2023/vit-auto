@@ -113,7 +113,7 @@ const VendorSubmit = () => {
           <div className={styles.accessIcon}>🔒</div>
           <h2>Connexion requise</h2>
           <p>Vous devez être connecté pour publier une annonce.</p>
-          <button className={styles.primaryBtn} onClick={() => navigate("/login")}>
+          <button className={styles.primaryBtn} onClick={() => navigate("/login?returnTo=/vendor")}>
             Se connecter
           </button>
         </div>

@@ -268,6 +268,32 @@
   letter-spacing: 0.5px;
 }
 
+.actionRequiredBadge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+  border-radius: 99px;
+  padding: 2px 10px;
+  animation: pulseAction 1.8s ease-in-out infinite;
+}
+
+.enRouteBadge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #1e40af;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+  border-radius: 99px;
+  padding: 2px 10px;
+}
+
+@keyframes pulseAction {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.35); }
+  50%       { box-shadow: 0 0 0 5px rgba(245, 158, 11, 0); }
+}
+
 .vehicleName {
   margin: 0;
   font-size: 1.15rem;
@@ -924,3 +950,111 @@
     justify-content: center;
   }
 }
+
+/* ── Validation transaction client ───────────────────────────────────────── */
+.validationAlert {
+  background: linear-gradient(135deg, #fef3c7, #fefce8);
+  border: 2px solid #f59e0b;
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+  margin: 1rem 0;
+}
+
+.validationAlertHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #92400e;
+  margin-bottom: 0.75rem;
+}
+
+.validationDetails p {
+  font-size: 0.875rem;
+  color: #78350f;
+  margin: 0 0 0.75rem;
+}
+
+.txSummary {
+  background: #fff;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  border: 1px solid #fcd34d;
+  margin-bottom: 1rem;
+}
+
+.txSummaryRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.3rem 0;
+  font-size: 0.875rem;
+  color: #374151;
+  border-bottom: 1px solid #fef3c7;
+}
+.txSummaryRow:last-child { border-bottom: none; }
+.txSummaryRow strong { font-weight: 700; color: #1e293b; }
+
+.validationActions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.btnValidate {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-family: inherit;
+  flex: 1;
+  min-width: 180px;
+  transition: opacity 0.2s, transform 0.2s;
+}
+.btnValidate:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+.btnValidate:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btnDispute {
+  background: #fff;
+  color: #dc2626;
+  border: 2px solid #dc2626;
+  border-radius: 10px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s;
+}
+.btnDispute:hover:not(:disabled) { background: #fef2f2; }
+.btnDispute:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── Litige ── */
+.disputedAlert {
+  background: #fef2f2;
+  border: 2px solid #dc2626;
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #991b1b;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin: 0.75rem 0;
+}
+
+/* ── Chargement ── */
+.loadingBox { text-align: center; padding: 4rem 1.5rem; color: #64748b; }
+.spinner {
+  width: 2.5rem; height: 2.5rem;
+  border: 3px solid #e2e8f0; border-top-color: #2563eb;
+  border-radius: 50%; animation: dashSpin 0.8s linear infinite;
+  margin: 0 auto 1.25rem;
+}
+@keyframes dashSpin { to { transform: rotate(360deg); } }

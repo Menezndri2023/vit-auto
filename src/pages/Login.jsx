@@ -2,15 +2,20 @@ import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useI18n } from "../context/I18nContext";
 import styles from "./Auth.module.css";
 
 const Login = () => {
   const { login } = useAuth();
   const { success, error } = useToast();
+  const { t } = useI18n();
   const navigate  = useNavigate();
   const location  = useLocation();
 
-  const fromPage   = location.state?.from?.pathname || null;
+  // Support both React Router state (from protected routes) and ?returnTo URL param (from KYC/manual links)
+  const urlParams  = new URLSearchParams(location.search);
+  const returnToParam = urlParams.get("returnTo");
+  const fromPage   = location.state?.from?.pathname || (returnToParam ? decodeURIComponent(returnToParam) : null);
   const fromSearch = location.state?.from?.search || "";
 
   const [form,           setForm]           = useState({ email: "", password: "" });
@@ -39,9 +44,10 @@ const Login = () => {
       const loggedUser = await login({ email: form.email, password: form.password });
       success("Connexion réussie ! Redirection...");
       const role = loggedUser?.role;
-      const defaultDest = role === "admin"      ? "/admin"
-                        : role === "partenaire" ? "/vendor/dashboard"
-                        : "/";
+      // Admin → accueil du site (le bouton ⚙️ Admin dans la Navbar permet d'accéder au panel)
+      // Partenaire → tableau de bord partenaire
+      // Client → accueil
+      const defaultDest = role === "partenaire" ? "/vendor/dashboard" : "/";
       const dest = fromPage || defaultDest;
       setTimeout(() => navigate(dest + fromSearch, { replace: true }), 900);
     } catch (err) {
@@ -123,7 +129,7 @@ const Login = () => {
         <div className={styles.logo}>
           <div className={styles.logoIcon}>🚗</div>
           <h1>VIT AUTO</h1>
-          <p>Connectez-vous à votre espace</p>
+          <p>{t("auth.loginSubtitle") || "Connectez-vous à votre espace"}</p>
         </div>
 
         {/* Bloc redirection depuis page protégée */}
@@ -194,7 +200,7 @@ const Login = () => {
               />
               <button type="submit" disabled={otpLoading || otp.length !== 6}
                 style={{ padding: "10px 18px", background: "#10b981", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: "0.9rem" }}>
-                {otpLoading ? "…" : "Valider"}
+                {otpLoading ? "…" : t("auth.validate")}
               </button>
             </form>
 
@@ -220,7 +226,7 @@ const Login = () => {
               autoComplete="email"
               value={form.email}
               onChange={handleChange}
-              placeholder="Adresse e-mail"
+              placeholder={t("auth.email")}
               required
             />
             <input
@@ -229,19 +235,19 @@ const Login = () => {
               autoComplete="current-password"
               value={form.password}
               onChange={handleChange}
-              placeholder="Mot de passe"
+              placeholder={t("auth.password")}
               required
-              minLength="6"
+              minLength="8"
             />
             <button type="submit" className={styles.submitBtn} disabled={loading}>
-              {loading ? "Connexion…" : "Se connecter"}
+              {loading ? `${t("common.loading")}` : t("auth.loginBtn")}
             </button>
             <div className={styles.footerLink}>
-              <Link to="/forgot-password">Mot de passe oublié ?</Link>
+              <Link to="/forgot-password">{t("auth.forgotPwd")}</Link>
             </div>
             <div className={styles.footerLink}>
-              <span>Pas encore de compte ? </span>
-              <Link to="/register">Créer un compte</Link>
+              <span>{t("auth.noAccount") || "Pas encore de compte ? "}</span>
+              <Link to="/register">{t("auth.registerBtn")}</Link>
             </div>
           </form>
         )}
@@ -252,7 +258,7 @@ const Login = () => {
               onClick={() => { setPhoneNotVerif(null); setOtp(""); }}
               style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "0.83rem" }}
             >
-              ← Retour à la connexion
+              ← {t("auth.backToLogin")}
             </button>
           </div>
         )}

@@ -59,24 +59,26 @@ const Navbar = () => {
           <li>
             <NavLink to="/admin" onClick={() => setMenuOpen(false)}
               style={({ isActive }) => ({
-                background: isActive ? "#1e40af" : "#eff6ff",
-                color: isActive ? "#fff" : "#1d4ed8",
-                border: "1.5px solid #bfdbfe",
+                background: isActive ? "#0f1b3f" : "linear-gradient(135deg,#0f1b3f,#1e40af)",
+                color: "#fff",
+                border: "none",
                 borderRadius: "0.5rem",
-                padding: "0.3rem 0.875rem",
-                fontWeight: 700,
-                fontSize: "0.875rem",
+                padding: "0.35rem 1rem",
+                fontWeight: 800,
+                fontSize: "0.82rem",
                 textDecoration: "none",
                 display: "inline-flex",
                 alignItems: "center",
-                gap: "0.3rem",
+                gap: "0.35rem",
+                boxShadow: "0 2px 8px rgba(15,27,63,0.25)",
+                letterSpacing: "0.02em",
               })}>
-              ⚙️ Admin
+              ⚙️ Panel Admin
             </NavLink>
           </li>
         )}
 
-        {/* Tableau de bord : uniquement pour les clients */}
+        {/* Tableau de bord : clients uniquement */}
         {isAuthenticated && !isPartner && (
           <li><NavLink to="/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>Tableau de bord</NavLink></li>
         )}

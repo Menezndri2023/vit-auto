@@ -3,9 +3,9 @@ import { Link, useNavigate, Navigate, useLocation } from "react-router-dom";
 import { useVehicles } from "../context/VehicleContext";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useCurrency } from "../context/CurrencyContext";
+import { useI18n } from "../context/I18nContext";
 import styles from "./Profile.module.css";
-
-const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " DH";
 
 // ── Statuts des réservations / commandes ───────────────────
 const STATUS_CFG = {
@@ -24,42 +24,51 @@ const VEHICLE_STATUS = {
 };
 
 // ── Carte de réservation (clients) ─────────────────────────
-const BookingCard = ({ booking }) => {
+const BookingCard = ({ booking, onCancel, fmt }) => {
   const cfg  = STATUS_CFG[booking.status] || STATUS_CFG["À confirmer"];
   const date = booking.createdAt
     ? new Date(booking.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })
     : "—";
+  const canCancel = ["pending", "À confirmer", "confirmed"].includes(booking.status);
+  const typeLabel = booking.type === "essai" ? "🔑 Essai" : booking.type === "chauffeur" ? "🧑‍✈️ Chauffeur" : booking.type === "leasing" ? "📊 Leasing" : "🚗 Location";
   return (
     <div className={styles.bookingCard}>
       <div className={styles.bcLeft}>
-        <span className={styles.bcType}>{booking.type === "essai" ? "🔑 Essai" : "🚗 Location"}</span>
+        <span className={styles.bcType}>{typeLabel}</span>
         <p className={styles.bcName}>{booking.vehicleName || "Véhicule"}</p>
-        <p className={styles.bcDate}>{date}</p>
+        <p className={styles.bcDate}>{booking.reference ? `Réf. ${booking.reference} · ` : ""}{date}</p>
       </div>
       <div className={styles.bcRight}>
-        {booking.total > 0 && <p className={styles.bcTotal}>{fmt(booking.total)}</p>}
+        {(booking.total || booking.montantTotal) > 0 && (
+          <p className={styles.bcTotal}>{fmt(booking.total || booking.montantTotal)}</p>
+        )}
         <span className={styles.bcBadge} style={{ color: cfg.color, background: cfg.bg }}>{cfg.label}</span>
+        {canCancel && onCancel && (
+          <button className={styles.cancelBtnSmall} onClick={() => onCancel(booking.id, "Annulé par le client")} title="Annuler">
+            ✕ Annuler
+          </button>
+        )}
       </div>
     </div>
   );
 };
 
 // ── Carte de commande reçue (partenaires) ──────────────────
-const OrderCard = ({ order }) => {
+const OrderCard = ({ order, fmt }) => {
   const cfg  = STATUS_CFG[order.status] || STATUS_CFG["À confirmer"];
   const date = order.createdAt
     ? new Date(order.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })
-    : order.id ? new Date(order.id).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+    : "—";
+  const typeLabel = order.type === "essai" ? "🔑 Essai" : order.type === "chauffeur" ? "🧑‍✈️ Chauffeur" : order.type === "leasing" ? "📊 Leasing" : "🚗 Location";
   return (
     <div className={styles.bookingCard}>
       <div className={styles.bcLeft}>
-        <span className={styles.bcType}>
-          {order.type === "essai" ? "🔑 Essai" : order.type === "chauffeur" ? "👤 Chauffeur" : "🚗 Location"}
-        </span>
+        <span className={styles.bcType}>{typeLabel}</span>
         <p className={styles.bcName}>{order.vehicleName || "Véhicule"}</p>
         <p className={styles.bcDate}>
           Client : {order.firstName} {order.lastName} — {date}
         </p>
+        {order.reference && <p className={styles.bcDate} style={{ fontFamily:"monospace" }}>Réf. {order.reference}</p>}
       </div>
       <div className={styles.bcRight}>
         {order.partnerPayout > 0 && <p className={styles.bcTotal} style={{ color: "#10b981" }}>{fmt(order.partnerPayout)}</p>}
@@ -90,7 +99,7 @@ const PublicationCard = ({ vehicle }) => {
           <span className={styles.bcBadge} style={{ color: st.color, background: st.bg }}>{st.label}</span>
         </div>
         <p className={styles.pubMeta}>
-          {vehicle.type === "location" ? `${vehicle.pricePerDay?.toLocaleString("fr-FR") || "—"} DH / jour` : `${vehicle.priceForSale?.toLocaleString("fr-FR") || "—"} DH`}
+          {vehicle.type === "location" ? `${vehicle.pricePerDay?.toLocaleString("fr-FR") || "—"} XOF / jour` : `${(vehicle.priceForSale || vehicle.buyPrice)?.toLocaleString("fr-FR") || "—"} XOF`}
           {vehicle.ville ? ` · ${vehicle.ville}` : ""}
         </p>
 
@@ -126,18 +135,28 @@ const IDENTITY_TYPE_LABELS = {
 };
 
 const IDENTITY_STATUS_CFG = {
-  not_submitted: { label: "Non soumise",   color: "#94a3b8", bg: "#f8fafc"  },
-  pending:       { label: "En vérification", color: "#f59e0b", bg: "#fffbeb" },
-  verified:      { label: "Vérifiée ✓",    color: "#10b981", bg: "#ecfdf5"  },
-  rejected:      { label: "Refusée",        color: "#ef4444", bg: "#fef2f2"  },
+  not_submitted: { label: "Non soumise",     color: "#94a3b8", bg: "#f8fafc"  },
+  pending:       { label: "En vérification", color: "#f59e0b", bg: "#fffbeb"  },
+  verified:      { label: "Vérifiée ✓",      color: "#10b981", bg: "#ecfdf5"  },
+  rejected:      { label: "Refusée",         color: "#ef4444", bg: "#fef2f2"  },
+};
+
+// Statuts KYC avancé (nouveau système OCR + face match)
+const KYC_STATUS_CFG = {
+  EN_ATTENTE:            { label: "KYC en attente",     color: "#f59e0b", bg: "#fffbeb", icon: "⏳" },
+  A_REVOIR_MANUELLEMENT: { label: "KYC en révision",    color: "#2563eb", bg: "#dbeafe", icon: "🔍" },
+  VERIFIE:               { label: "KYC vérifié ✓",      color: "#059669", bg: "#d1fae5", icon: "✅" },
+  REFUSE:                { label: "KYC refusé",          color: "#dc2626", bg: "#fee2e2", icon: "❌" },
 };
 
 const Profile = () => {
   const navigate  = useNavigate();
   const location  = useLocation();
   const { user, isAuthenticated, token, updateUser } = useAuth();
-  const { bookings, partnerVehicles } = useVehicles();
+  const { bookings, partnerVehicles, partnerBookings, removeBooking } = useVehicles();
   const { success: toastSuccess, error: toastError } = useToast();
+  const { fmt } = useCurrency();
+  const { t } = useI18n();
 
   const isPartner = user?.role === "partenaire" || user?.role === "admin";
 
@@ -183,8 +202,10 @@ const Profile = () => {
   );
 
   const partnerOrders = useMemo(() =>
-    bookings.filter((b) => partnerVehicleIds.has(String(b.vehicleId))),
-    [bookings, partnerVehicleIds]
+    partnerBookings.length > 0
+      ? partnerBookings
+      : bookings.filter((b) => partnerVehicleIds.has(String(b.vehicleId))),
+    [partnerBookings, bookings, partnerVehicleIds]
   );
 
   const activePartnerOrders = partnerOrders.filter(
@@ -234,26 +255,26 @@ const Profile = () => {
   // ── Onglets selon le rôle ──────────────────────────────────
   const tabs = isPartner
     ? [
-        { key: "personal",      label: "Informations" },
+        { key: "personal",      label: t("profile.info") },
         {
           key: "publications",
-          label: `Publications${partnerVehicles.length ? ` (${partnerVehicles.length})` : ""}`,
+          label: `${t("profile.publications")}${partnerVehicles.length ? ` (${partnerVehicles.length})` : ""}`,
         },
         {
           key: "commandes",
-          label: `Commandes${partnerOrders.length ? ` (${partnerOrders.length})` : ""}`,
+          label: `${t("dash.myOrders")}${partnerOrders.length ? ` (${partnerOrders.length})` : ""}`,
         },
         { key: "notifications", label: "Notifications" },
-        { key: "security",      label: "Sécurité" },
+        { key: "security",      label: t("profile.security") },
       ]
     : [
-        { key: "personal",      label: "Informations" },
+        { key: "personal",      label: t("profile.info") },
         {
           key: "bookings",
-          label: `Réservations${userBookings.length ? ` (${userBookings.length})` : ""}`,
+          label: `${t("profile.bookings")}${userBookings.length ? ` (${userBookings.length})` : ""}`,
         },
         { key: "notifications", label: "Notifications" },
-        { key: "security",      label: "Sécurité" },
+        { key: "security",      label: t("profile.security") },
       ];
 
   // ── Stats selon le rôle ────────────────────────────────────
@@ -261,27 +282,27 @@ const Profile = () => {
     ? [
         {
           value: partnerVehicles.filter((v) => v.status === "approved").length,
-          label: "Publiées",
+          label: t("vehicle.available") || "Publiées",
         },
         {
           value: partnerVehicles.filter((v) => v.status === "pending").length,
-          label: "En attente",
+          label: t("dash.status.pending") || "En attente",
           warn: true,
         },
         {
           value: activePartnerOrders.length,
-          label: "Commandes en cours",
+          label: t("dash.myOrders") || "Commandes en cours",
         },
         {
           value: fmt(netRevenue),
-          label: "Revenus nets",
+          label: t("profile.revenue") || "Revenus nets",
           accent: true,
         },
       ]
     : [
-        { value: userBookings.length, label: "Réservations" },
-        { value: fmt(totalSpent),     label: "Total dépensé" },
-        { value: activeCount,         label: "En cours" },
+        { value: userBookings.length, label: t("profile.bookings") || "Réservations" },
+        { value: fmt(totalSpent),     label: t("dash.spend")       || "Total dépensé" },
+        { value: activeCount,         label: t("dash.status.active") || "En cours" },
       ];
 
   // ── Handlers ───────────────────────────────────────────────
@@ -406,7 +427,7 @@ const Profile = () => {
           <p className={styles.profileEmail}>{user?.email}</p>
           {memberSince && (
             <p className={styles.profileSince}>
-              {isPartner ? "Partenaire" : "Membre"} depuis {memberSince}
+              {isPartner ? "Partenaire" : t("profile.memberSince")} {memberSince}
             </p>
           )}
           {/* Shortcut vers l'espace partenaire */}
@@ -415,7 +436,7 @@ const Profile = () => {
               className={styles.partnerSpaceBtn}
               onClick={() => navigate("/vendor/dashboard")}
             >
-              Espace partenaire complet →
+              {t("profile.partnerSpace")}
             </button>
           )}
         </div>
@@ -455,40 +476,40 @@ const Profile = () => {
           {/* ── Informations personnelles ──────────────── */}
           {activeTab === "personal" && (
             <section className={styles.section}>
-              <h2>Informations personnelles</h2>
+              <h2>{t("profile.info")}</h2>
               <form className={styles.form} onSubmit={handleSave}>
                 <div className={styles.row}>
                   <div className={styles.field}>
-                    <label>Prénom</label>
-                    <input type="text" placeholder="Votre prénom"
+                    <label>{t("profile.firstName")}</label>
+                    <input type="text" placeholder={t("profile.firstName")}
                       value={profileData.firstName}
                       onChange={(e) => handleProfileChange("firstName", e.target.value)} />
                   </div>
                   <div className={styles.field}>
-                    <label>Nom</label>
-                    <input type="text" placeholder="Votre nom de famille"
+                    <label>{t("profile.lastName")}</label>
+                    <input type="text" placeholder={t("profile.lastName")}
                       value={profileData.lastName}
                       onChange={(e) => handleProfileChange("lastName", e.target.value)} />
                   </div>
                 </div>
 
                 <div className={styles.field}>
-                  <label>Adresse e-mail</label>
+                  <label>{t("profile.email")}</label>
                   <input type="email" placeholder="votre@email.com"
                     value={profileData.email}
                     onChange={(e) => handleProfileChange("email", e.target.value)} />
                 </div>
 
                 <div className={styles.field}>
-                  <label>Téléphone</label>
+                  <label>{t("profile.phone")}</label>
                   <input type="tel" placeholder="+261 34 00 000 00"
                     value={profileData.phone}
                     onChange={(e) => handleProfileChange("phone", e.target.value)} />
                 </div>
 
                 <div className={styles.field}>
-                  <label>Adresse</label>
-                  <input type="text" placeholder="Votre adresse complète"
+                  <label>{t("auth.address") || "Adresse"}</label>
+                  <input type="text" placeholder={t("auth.address") || "Votre adresse complète"}
                     value={profileData.address}
                     onChange={(e) => handleProfileChange("address", e.target.value)} />
                 </div>
@@ -496,16 +517,16 @@ const Profile = () => {
                 {/* Permis (seulement clients) */}
                 {!isPartner && (
                   <>
-                    <div className={styles.sectionDivider}><span>Permis de conduire</span></div>
+                    <div className={styles.sectionDivider}><span>{t("vd.licenseRequired")}</span></div>
                     <div className={styles.row}>
                       <div className={styles.field}>
-                        <label>Numéro de permis</label>
+                        <label>{t("auth.license") || "Numéro de permis"}</label>
                         <input type="text" placeholder="Ex : MG-123456"
                           value={profileData.licenseNumber}
                           onChange={(e) => handleProfileChange("licenseNumber", e.target.value)} />
                       </div>
                       <div className={styles.field}>
-                        <label>Date d'expiration</label>
+                        <label>{t("auth.licenseExpiry") || "Date d'expiration"}</label>
                         <input type="date"
                           value={profileData.licenseExpiry}
                           onChange={(e) => handleProfileChange("licenseExpiry", e.target.value)} />
@@ -516,26 +537,51 @@ const Profile = () => {
 
                 <div className={styles.formFooter}>
                   <button type="submit" className={styles.primaryBtn} disabled={saving}>
-                    {saving ? "Sauvegarde…" : saved ? "✓ Sauvegardé !" : "Sauvegarder les modifications"}
+                    {saving ? `${t("dash.loading")}` : saved ? `✓ ${t("profile.saved")}` : t("profile.save")}
                   </button>
-                  {saved && <span className={styles.savedMsg}>Vos informations ont été mises à jour.</span>}
+                  {saved && <span className={styles.savedMsg}>{t("profile.saved")}</span>}
                 </div>
               </form>
 
               {/* ── Vérification d'identité ──────────────── */}
               <div className={styles.sectionDivider} style={{ marginTop: "2rem" }}><span>Vérification d'identité</span></div>
               {(() => {
-                const idStatus = user?.identityStatus || user?.identity?.status || "not_submitted";
-                const cfg = IDENTITY_STATUS_CFG[idStatus] || IDENTITY_STATUS_CFG.not_submitted;
+                const idStatus  = user?.identityStatus || user?.identity?.status || "not_submitted";
+                const cfg       = IDENTITY_STATUS_CFG[idStatus] || IDENTITY_STATUS_CFG.not_submitted;
+                const kycStatus = user?.kycStatus;
+                const kycCfg    = kycStatus ? KYC_STATUS_CFG[kycStatus] : null;
+                const kycScore  = user?.kycScore ?? 0;
                 return (
                   <div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
                       <div>
                         <p style={{ margin: 0, fontWeight: 600, color: "#374151" }}>Statut de votre pièce d'identité</p>
                         <span style={{ display: "inline-block", marginTop: 4, padding: "3px 10px", borderRadius: 20, fontSize: "0.82rem", fontWeight: 700, color: cfg.color, background: cfg.bg }}>
                           {cfg.label}
                         </span>
                       </div>
+                      {/* Badge KYC avancé (OCR + face match) */}
+                      {kycCfg && (
+                        <div style={{ background: kycCfg.bg, border: `1.5px solid ${kycCfg.color}40`, borderRadius: 12, padding: "10px 16px", textAlign: "right" }}>
+                          <p style={{ margin: 0, fontSize: "0.76rem", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 700 }}>Vérification KYC</p>
+                          <p style={{ margin: "4px 0 0", fontWeight: 800, color: kycCfg.color, fontSize: "0.88rem" }}>
+                            {kycCfg.icon} {kycCfg.label}
+                          </p>
+                          {kycScore > 0 && (
+                            <p style={{ margin: "2px 0 0", fontSize: "0.75rem", color: "#64748b" }}>Score : {kycScore}/100</p>
+                          )}
+                          {kycStatus === "VERIFIE" && (
+                            <p style={{ margin: "4px 0 0", fontSize: "0.75rem", color: "#059669" }}>
+                              Vous pouvez effectuer des réservations en toute confiance.
+                            </p>
+                          )}
+                          {(kycStatus === "REFUSE" || kycStatus === "EN_ATTENTE") && (
+                            <a href="/kyc" style={{ display: "inline-block", marginTop: 6, fontSize: "0.75rem", color: kycCfg.color, fontWeight: 700, textDecoration: "underline" }}>
+                              {kycStatus === "REFUSE" ? "Resoumettre mon dossier →" : "Suivre mon dossier →"}
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {(idStatus === "not_submitted" || idStatus === "rejected") && !identitySubmitted && (
@@ -670,7 +716,7 @@ const Profile = () => {
                   {[...partnerOrders]
                     .sort((a, b) => (b.createdAt || b.id || 0) > (a.createdAt || a.id || 0) ? 1 : -1)
                     .map((o) => (
-                      <OrderCard key={o.id} order={o} />
+                      <OrderCard key={o.id} order={o} fmt={fmt} />
                     ))}
                 </div>
               )}
@@ -680,14 +726,14 @@ const Profile = () => {
           {/* ── Réservations (clients) ─────────────────── */}
           {activeTab === "bookings" && (
             <section className={styles.section}>
-              <h2>Mes réservations</h2>
+              <h2>{t("dash.myBookings")}</h2>
               {userBookings.length === 0 ? (
                 <div className={styles.emptyState}>
                   <div className={styles.emptyIcon}>🚗</div>
-                  <h3>Aucune réservation</h3>
-                  <p>Vous n'avez pas encore effectué de réservation.</p>
+                  <h3>{t("dash.noBookings")}</h3>
+                  <p>{t("dash.noBookings")}</p>
                   <button className={styles.primaryBtn} onClick={() => navigate("/catalogue")}>
-                    Parcourir le catalogue
+                    {t("vehicle.details")}
                   </button>
                 </div>
               ) : (
@@ -695,7 +741,7 @@ const Profile = () => {
                   {[...userBookings]
                     .sort((a, b) => (b.createdAt || 0) > (a.createdAt || 0) ? 1 : -1)
                     .map((b) => (
-                      <BookingCard key={b.id} booking={b} />
+                      <BookingCard key={b.id} booking={b} fmt={fmt} onCancel={removeBooking} />
                     ))}
                 </div>
               )}
@@ -731,7 +777,7 @@ const Profile = () => {
               </div>
               <div className={styles.formFooter} style={{ marginTop: "1.5rem" }}>
                 <button className={styles.primaryBtn} onClick={handleSave} disabled={saving}>
-                  {saving ? "Sauvegarde…" : saved ? "✓ Sauvegardé !" : "Enregistrer les préférences"}
+                  {saving ? t("dash.loading") : saved ? `✓ ${t("profile.saved")}` : t("profile.save")}
                 </button>
               </div>
             </section>
@@ -740,41 +786,41 @@ const Profile = () => {
           {/* ── Sécurité ──────────────────────────────── */}
           {activeTab === "security" && (
             <section className={styles.section}>
-              <h2>Sécurité du compte</h2>
+              <h2>{t("profile.security")}</h2>
               <div className={styles.securityList}>
                 {/* Changement de mot de passe */}
                 <div className={styles.securityItem}>
                   <div>
-                    <p className={styles.secTitle}>Changer le mot de passe</p>
-                    <p className={styles.secDesc}>Mettez à jour votre mot de passe régulièrement.</p>
+                    <p className={styles.secTitle}>{t("profile.changePwd")}</p>
+                    <p className={styles.secDesc}>{t("auth.password")}</p>
                   </div>
                   <button className={styles.secondaryBtn} onClick={() => setShowPwdForm((v) => !v)}>
-                    {showPwdForm ? "Annuler" : "Modifier"}
+                    {showPwdForm ? t("profile.cancel") : t("profile.edit")}
                   </button>
                 </div>
 
                 {showPwdForm && (
                   <form onSubmit={handleChangePassword} className={styles.form} style={{ marginTop: 0, paddingTop: 0 }}>
                     <div className={styles.field}>
-                      <label>Mot de passe actuel</label>
-                      <input type="password" placeholder="Votre mot de passe actuel"
+                      <label>{t("profile.oldPwd")}</label>
+                      <input type="password" placeholder={t("profile.oldPwd")}
                         value={pwdForm.current} onChange={(e) => setPwdForm((p) => ({ ...p, current: e.target.value }))} required />
                     </div>
                     <div className={styles.row}>
                       <div className={styles.field}>
-                        <label>Nouveau mot de passe</label>
-                        <input type="password" placeholder="Min. 6 caractères"
+                        <label>{t("profile.newPwd")}</label>
+                        <input type="password" placeholder={t("profile.newPwd")}
                           value={pwdForm.next} onChange={(e) => setPwdForm((p) => ({ ...p, next: e.target.value }))} required />
                       </div>
                       <div className={styles.field}>
-                        <label>Confirmer</label>
-                        <input type="password" placeholder="Répéter le nouveau"
+                        <label>{t("profile.confirmPwd")}</label>
+                        <input type="password" placeholder={t("profile.confirmPwd")}
                           value={pwdForm.confirm} onChange={(e) => setPwdForm((p) => ({ ...p, confirm: e.target.value }))} required />
                       </div>
                     </div>
                     <div className={styles.formFooter}>
                       <button type="submit" className={styles.primaryBtn} disabled={pwdChanging}>
-                        {pwdChanging ? "Modification…" : "Enregistrer le nouveau mot de passe"}
+                        {pwdChanging ? t("dash.loading") : t("profile.changePwd")}
                       </button>
                     </div>
                   </form>

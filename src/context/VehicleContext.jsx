@@ -7,50 +7,79 @@ const normalizeBackendBooking = (b) => {
   const pos = b.location?.pickupPosition;
   const hasGps = pos && pos.lat != null && pos.lng != null;
   const veh = b.vehicle;
+  const drv = b.driver;
   return {
     id:            b._id?.toString(),
     createdAt:     b.createdAt,
+    updatedAt:     b.updatedAt,
     status:        b.status,
     type:          b.type,
+    reference:     b.reference,
     vehicleName:   veh
       ? [veh.title, veh.marque, veh.modele].filter(Boolean).join(" ")
-      : "Véhicule",
+      : (drv ? `${drv.firstName || ""} ${drv.lastName || ""}`.trim() : "Véhicule"),
     vehicleId:     veh?._id?.toString() || (typeof veh === "string" ? veh : null),
+    vehicleMode:   veh?.type === "vente" ? "Acheter" : (veh?.type || null),
     // Client
     firstName:     b.clientInfo?.firstName,
     lastName:      b.clientInfo?.lastName,
     email:         b.clientInfo?.email,
     phone:         b.clientInfo?.phone,
+    clientInfo:    b.clientInfo,
+    clientVerification: b.clientVerification,
+    clientKycSnapshot: b.clientKycSnapshot,
+    partnerKycVerification: b.partnerKycVerification,
     // Location
+    location:      b.location,
     startDate:     b.location?.startDate,
     endDate:       b.location?.endDate,
     days:          b.location?.days,
     pickupLocation: b.location?.pickupLocation,
-    pickupMethod:  b.location?.pickupLocation ? "livraison" : "retrait",
+    pickupMethod:  b.location?.pickupMethod
+      || (b.location?.pickupPosition?.lat != null ? "livraison"
+          : b.location?.pickupLocation && !b.location.pickupLocation.startsWith("Retrait") ? "livraison"
+          : "retrait"),
     pickupAddress: pos?.address || b.location?.pickupLocation,
     pickupLat:     hasGps ? pos.lat : null,
     pickupLng:     hasGps ? pos.lng : null,
     returnLocation: b.location?.returnLocation,
     selectedOptions: b.location?.options || {},
     // Essai
+    essai:         b.essai,
     preferredDate: b.essai?.preferredDate,
     preferredTime: b.essai?.preferredTime,
     notes:         b.essai?.notes || b.chauffeur?.notes,
+    // Chauffeur
+    chauffeur:     b.chauffeur,
+    // Leasing
+    leasing:       b.leasing,
     // Finances
+    montantTotal:  b.montantTotal,
+    montantBase:   b.montantBase,
+    montantOptions: b.montantOptions,
     total:         b.montantTotal,
     baseTotal:     b.montantBase,
     optionsTotal:  b.montantOptions,
     serviceFeeFCFA: b.serviceFeeFCFA ?? 1000,
-    partnerPayout: b.partnerPayout,
-    pricePerDay:   veh?.pricePerDay,
-    // Vérif & paiement
-    clientVerification: b.clientVerification,
+    commissionRate:    b.commissionRate,
+    commissionAmount:  b.commissionAmount,
+    partnerPayout:     b.partnerPayout,
+    pricePerDay:       veh?.pricePerDay,
+    // Paiement & transaction
     paidWith:      b.payment?.method,
     isPaid:        b.isPaid,
+    paidAt:        b.paidAt,
+    transaction:   b.transaction,
+    clientValidation: b.clientValidation,
+    // Annulation
+    cancelReason:  b.cancelReason,
+    cancelledAt:   b.cancelledAt,
     vendorNote:    b.cancelReason,
+    // Contrat
+    contract:      b.contract?._id || b.contract,
     // Contact partenaire (pour appel depuis le dashboard client)
-    partnerPhone:  veh?.contactTel || b.driver?.phone || null,
-    partnerName:   veh?.contactNom || (b.driver ? `${b.driver.firstName} ${b.driver.lastName}` : null),
+    partnerPhone:  veh?.contactTel || drv?.phone || null,
+    partnerName:   veh?.contactNom || (drv ? `${drv.firstName} ${drv.lastName}` : null),
     _fromBackend:  true,
   };
 };
@@ -190,11 +219,12 @@ export const VehicleProvider = ({ children }) => {
       const { bookings: raw } = await res.json();
       if (Array.isArray(raw)) {
         const fromBackend = raw.map(normalizeBackendBooking);
+        const backendIds  = new Set(fromBackend.map((b) => String(b.id)));
         setBookings((prev) => {
-          // Garder seulement les commandes locales non encore soumises au backend
-          // (id numérique = timestamp local, pas un ObjectId MongoDB)
+          // Garder les commandes locales (id numérique) UNIQUEMENT si elles ne sont pas encore
+          // présentes dans le backend (évite doublons et entrées orphelines)
           const localOnly = prev.filter(
-            (b) => !b._fromBackend && typeof b.id === "number"
+            (b) => !b._fromBackend && typeof b.id === "number" && !backendIds.has(String(b.id))
           );
           const merged = [...fromBackend, ...localOnly];
           saveBookings(merged);
@@ -215,6 +245,14 @@ export const VehicleProvider = ({ children }) => {
       loadPartnerOrders();
     }
   }, [authReady, loadPartnerOrders, user?.role]);
+
+  // Charger les commandes "client" de l'utilisateur connecté — pour TOUS les rôles
+  // (un partenaire peut aussi avoir fait des réservations en tant que client)
+  useEffect(() => {
+    if (authReady && token) {
+      loadMyOrders();
+    }
+  }, [authReady, loadMyOrders, token]);
 
   useEffect(() => {
     const loadDrivers = async () => {
@@ -237,6 +275,7 @@ export const VehicleProvider = ({ children }) => {
     const sid = String(id);
     return (
       vehicles.find((v) => v._id === sid || String(v.id) === sid) ||
+      partnerVehicles.find((v) => v._id === sid || String(v.id) === sid) ||
       drivers.find((d) => d._id === sid || String(d.id) === sid)
     );
   };
@@ -298,26 +337,65 @@ export const VehicleProvider = ({ children }) => {
     }
   };
 
-  const approveDriver = async () => {
-    return null;
-  };
+  const approveDriver = useCallback(async (id, status = "approved") => {
+    try {
+      if (!token) return null;
+      const res = await fetch(`/api/drivers/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      const updated = data.driver || data;
+      setDrivers((prev) => prev.map((d) =>
+        (d._id === updated._id || d._id === id) ? { ...d, status } : d
+      ));
+      return updated;
+    } catch {
+      return null;
+    }
+  }, [token]);
 
   const addBooking = (booking) => {
     const next = [...bookings, booking];
     setBookings(next);
     saveBookings(next);
+    // Resync immédiat avec le backend pour récupérer la vraie réservation (avec id MongoDB, statut, etc.)
+    if (token) setTimeout(() => loadMyOrders(), 1500);
   };
 
-  const removeBooking = (id) => {
-    const next = bookings.filter((b) => b.id !== id);
-    setBookings(next);
-    saveBookings(next);
-  };
+  const removeBooking = useCallback(async (id, reason = "Annulé par le client") => {
+    // Mise à jour locale immédiate pour l'UX
+    const sid = String(id);
+    setBookings((prev) => {
+      const next = prev.map((b) =>
+        String(b.id) === sid || String(b._id) === sid ? { ...b, status: "cancelled" } : b
+      );
+      saveBookings(next);
+      return next;
+    });
+
+    // Synchronisation backend
+    if (token) {
+      fetch(`/api/bookings/${id}/cancel`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reason }),
+      }).catch(() => {});
+    }
+  }, [token]);
 
   // Met à jour le statut d'une commande (localStorage + partnerBookings + backend)
   const updateBookingStatus = useCallback((id, status, note = "") => {
     const sid = String(id);
-    const validStatuses = ["pending", "confirmed", "preparing", "ready", "in_progress", "completed", "cancelled"];
+    const validStatuses = [
+      "pending", "confirmed", "preparing", "ready", "in_progress",
+      "client_arrived", "client_absent",
+      "transaction_concluded", "transaction_not_concluded",
+      "waiting_client_validation",
+      "completed", "cancelled", "disputed",
+    ];
     if (!validStatuses.includes(status)) return;
 
     setBookings((prev) => {

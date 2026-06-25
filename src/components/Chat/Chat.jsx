@@ -1,8 +1,12 @@
 import { useState, useRef, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useChat } from "../../context/ChatContext";
 import { getAssistantResponse } from "./VirtualAssistant";
 import styles from "./Chat.module.css";
+
+// Routes sans chat FAB (admin ERP gère son propre support)
+const HIDE_CHAT_ROUTES = ["/admin", "/stats", "/contract/"];
 
 const timeAgo = (dateStr) => {
   if (!dateStr) return "";
@@ -197,11 +201,18 @@ function ConversationView({ channel }) {
 export default function Chat() {
   const { user, isAuthenticated } = useAuth();
   const { open, setOpen, closeChat, openOrCreateChat, selectChat, unreadTotal, loading } = useChat();
+  const location = useLocation();
 
   const [view, setView]             = useState("list"); // "list" | "convo"
   const [activeChannel, setActiveChannel] = useState(null);
 
   if (!isAuthenticated) return null;
+
+  // Masquer le chat sur les pages ERP / admin
+  const isHidden = HIDE_CHAT_ROUTES.some(
+    (r) => location.pathname === r || location.pathname.startsWith(r)
+  );
+  if (isHidden) return null;
 
   const handleFab = () => {
     if (open) { closeChat(); setView("list"); }

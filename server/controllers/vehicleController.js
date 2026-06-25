@@ -1,5 +1,7 @@
+import mongoose from "mongoose";
 import Vehicle from "../models/Vehicle.js";
 import Notification from "../models/Notification.js";
+import Booking from "../models/Booking.js";
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MOTEUR DE VALIDATION AUTOMATIQUE DES ANNONCES
@@ -113,6 +115,33 @@ export const createVehicle = async (req, res) => {
       return res.status(403).json({ message: "Réservé aux partenaires." });
     }
 
+    // ── Détection doublon (même marque + modèle + année + propriétaire) ────
+    const dupMarque = req.body.marque;
+    const dupModele = req.body.modele;
+    const dupAnnee  = req.body.annee;
+    if (dupMarque && dupModele && dupAnnee) {
+      // Échapper les caractères spéciaux regex pour éviter l'injection
+      const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const existing = await Vehicle.findOne({
+        owner:  req.user._id,
+        marque: new RegExp(`^${escapeRegex(String(dupMarque))}$`, "i"),
+        modele: new RegExp(`^${escapeRegex(String(dupModele))}$`, "i"),
+        annee:  Number(dupAnnee),
+        status: { $ne: "rejected" },
+      });
+      if (existing) {
+        return res.status(409).json({
+          message: `Vous avez déjà une annonce pour ce véhicule (${dupMarque} ${dupModele} ${dupAnnee}). Modifiez l'annonce existante.`,
+          existingId: existing._id,
+        });
+      }
+    }
+
+    // ── Limite photos (max 8 côté backend) ────────────────────────────────
+    if (req.body.images && req.body.images.length > 8) {
+      req.body.images = req.body.images.slice(0, 8);
+    }
+
     // ── Validation automatique ──────────────────────────────────────────────
     const validation = scoreAnnonce(req.body);
 
@@ -195,9 +224,14 @@ export const getVehicles = async (req, res) => {
 
     const isAdmin = req.user?.role === "admin";
 
-    const filter = isAdmin && status
-      ? { status }                              // admin peut voir tous les statuts
-      : { status: "approved", available: true }; // public = approuvés seulement
+    let filter;
+    if (isAdmin && status && status !== "all") {
+      filter = { status };                            // admin filtre par statut précis
+    } else if (isAdmin) {
+      filter = {};                                    // admin sans filtre = tous les statuts
+    } else {
+      filter = { status: "approved", available: true }; // public = approuvés seulement
+    }
 
     if (type)         filter.type = type;
     if (vehicleType)  filter.vehicleType = vehicleType;
@@ -229,6 +263,26 @@ export const getVehicles = async (req, res) => {
   } catch (err) {
     console.error("getVehicles:", err);
     res.status(500).json({ message: "Erreur récupération véhicules." });
+  }
+};
+
+// ── Détail d'un véhicule par ID (public) ─────────────────────────────────────
+export const getVehicleById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(404).json({ message: "Véhicule introuvable." });
+    }
+    const vehicle = await Vehicle.findById(id).populate("owner", "firstName lastName phone ville");
+    if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable." });
+    // Masquer les véhicules non approuvés aux non-admins
+    if (vehicle.status !== "approved" && req.user?.role !== "admin" && vehicle.owner?._id?.toString() !== req.user?._id?.toString()) {
+      return res.status(404).json({ message: "Véhicule introuvable." });
+    }
+    res.json({ vehicle });
+  } catch (err) {
+    console.error("getVehicleById:", err);
+    res.status(500).json({ message: "Erreur serveur." });
   }
 };
 
@@ -314,9 +368,17 @@ export const updateVehicle = async (req, res) => {
       "contactNom", "contactTel", "ville", "adresse", "coordonnees",
       "images", "description", "available", "type",
     ];
+    // Champs réservés admin
+    const ADMIN_ONLY = ["featured", "sponsoredUntil", "boostLevel"];
     const safeUpdate = {};
     for (const key of EDITABLE) {
       if (req.body[key] !== undefined) safeUpdate[key] = req.body[key];
+    }
+    // Admin peut aussi modifier les champs réservés
+    if (req.user.role === "admin") {
+      for (const key of ADMIN_ONLY) {
+        if (req.body[key] !== undefined) safeUpdate[key] = req.body[key];
+      }
     }
 
     // Si un partenaire modifie, re-valider et recalculer le statut
@@ -356,5 +418,111 @@ export const deleteVehicle = async (req, res) => {
   } catch (err) {
     console.error("deleteVehicle:", err);
     res.status(500).json({ message: "Erreur suppression." });
+  }
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DISPONIBILITÉ AUTOMATIQUE — Vérifie si un véhicule est occupé aujourd'hui
+// Appelée par GET /api/vehicles/:id/availability
+// ══════════════════════════════════════════════════════════════════════════════
+export const getVehicleAvailability = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { startDate, endDate } = req.query;
+
+    const vehicle = await Vehicle.findById(id).select("title type available owner");
+    if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable." });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const activeStatuses = [
+      "pending", "confirmed", "preparing", "ready", "in_progress",
+      "client_arrived", "transaction_concluded", "waiting_client_validation",
+    ];
+
+    // Vérifier s'il y a un conflit sur la plage demandée (ou aujourd'hui si pas de dates)
+    const start = startDate ? new Date(startDate) : today;
+    const end   = endDate   ? new Date(endDate)   : new Date(today.getTime() + 86400000);
+
+    const conflict = await Booking.findOne({
+      vehicle: id,
+      status:  { $in: activeStatuses },
+      "location.startDate": { $lt: end },
+      "location.endDate":   { $gt: start },
+    }).select("reference status location.startDate location.endDate -_id");
+
+    const isOccupied = !!conflict;
+
+    // Synchroniser le champ available si nécessaire
+    if (vehicle.type === "location" && vehicle.available === isOccupied) {
+      await Vehicle.findByIdAndUpdate(id, { available: !isOccupied });
+    }
+
+    res.json({
+      vehicleId:   id,
+      available:   !isOccupied,
+      isOccupied,
+      conflict:    conflict ? {
+        reference:  conflict.reference,
+        status:     conflict.status,
+        startDate:  conflict.location?.startDate,
+        endDate:    conflict.location?.endDate,
+      } : null,
+      checkedRange: { start, end },
+    });
+  } catch (err) {
+    console.error("getVehicleAvailability:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SYNCHRONISATION GLOBALE — Met à jour la disponibilité de tous les véhicules
+// Appelée par POST /api/vehicles/sync-availability (admin)
+// ══════════════════════════════════════════════════════════════════════════════
+export const syncAllAvailability = async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today.getTime() + 86400000);
+
+    const activeStatuses = [
+      "pending", "confirmed", "preparing", "ready", "in_progress",
+      "client_arrived", "transaction_concluded", "waiting_client_validation",
+    ];
+
+    // Trouver tous les véhicules location
+    const vehicles = await Vehicle.find({ type: "location" }).select("_id");
+
+    // Pour chaque véhicule, vérifier s'il a un booking actif aujourd'hui
+    const activeBookings = await Booking.find({
+      status:  { $in: activeStatuses },
+      "location.startDate": { $lt: tomorrow },
+      "location.endDate":   { $gt: today },
+    }).select("vehicle -_id");
+
+    const occupiedIds = new Set(activeBookings.map((b) => b.vehicle?.toString()));
+
+    let updated = 0;
+    for (const v of vehicles) {
+      const shouldBeAvailable = !occupiedIds.has(v._id.toString());
+      const result = await Vehicle.findByIdAndUpdate(
+        v._id,
+        { available: shouldBeAvailable },
+        { new: false }
+      );
+      if (result && result.available !== shouldBeAvailable) updated++;
+    }
+
+    res.json({
+      message: `Synchronisation terminée : ${updated} véhicule(s) mis à jour.`,
+      total:   vehicles.length,
+      occupied: occupiedIds.size,
+      updated,
+    });
+  } catch (err) {
+    console.error("syncAllAvailability:", err);
+    res.status(500).json({ message: "Erreur serveur." });
   }
 };

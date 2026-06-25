@@ -1,6 +1,8 @@
+import mongoose from "mongoose";
 import Contract from "../models/Contract.js";
 import Booking from "../models/Booking.js";
-import mongoose from "mongoose";
+import Vehicle from "../models/Vehicle.js";
+import Driver from "../models/Driver.js";
 
 // ── Créer un contrat depuis une réservation ───────────────────────────────
 export const createContract = async (req, res) => {
@@ -116,7 +118,7 @@ export const getContract = async (req, res) => {
 export const signContract = async (req, res) => {
   try {
     const { id } = req.params;
-    const { signature } = req.body; // base64 canvas image
+    const { signature, clientEmail } = req.body; // base64 canvas image
 
     if (!signature) return res.status(400).json({ message: "Signature requise." });
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -129,6 +131,22 @@ export const signContract = async (req, res) => {
     });
     if (!contract) return res.status(404).json({ message: "Contrat introuvable." });
     if (contract.isSigned) return res.status(409).json({ message: "Contrat déjà signé." });
+
+    // Vérification sécurité : seul le client concerné peut signer
+    const booking = contract.booking;
+    if (booking) {
+      const bookingClientId    = booking.client?.toString();
+      const bookingClientEmail = booking.clientInfo?.email?.toLowerCase();
+      const requestUserId      = req.user?._id?.toString();
+      const requestEmail       = (clientEmail || "").toLowerCase();
+
+      const isAuthorizedById    = requestUserId && bookingClientId && requestUserId === bookingClientId;
+      const isAuthorizedByEmail = requestEmail && bookingClientEmail && requestEmail === bookingClientEmail;
+
+      if (!isAuthorizedById && !isAuthorizedByEmail) {
+        return res.status(403).json({ message: "Vous n'êtes pas autorisé à signer ce contrat." });
+      }
+    }
 
     contract.isSigned        = true;
     contract.signedAt        = new Date();
@@ -151,20 +169,24 @@ export const signContract = async (req, res) => {
 // ── Contrats du partenaire connecté ──────────────────────────────────────
 export const getPartnerContracts = async (req, res) => {
   try {
-    const contracts = await Contract.find()
-      .populate({
-        path: "booking",
-        match: {},
-        populate: { path: "vehicle", select: "owner title marque modele" },
-      })
+    const [myVehicles, myDrivers] = await Promise.all([
+      Vehicle.find({ owner: req.user._id }).select("_id"),
+      Driver.find({ owner: req.user._id }).select("_id"),
+    ]);
+    const vehicleIds = myVehicles.map((v) => v._id);
+    const driverIds  = myDrivers.map((d) => d._id);
+
+    const myBookings = await Booking.find({
+      $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }],
+    }).select("_id");
+
+    const bookingIds = myBookings.map((b) => b._id);
+
+    const contracts = await Contract.find({ booking: { $in: bookingIds } })
+      .populate("booking", "reference type status montantTotal")
       .sort({ createdAt: -1 });
 
-    // Filtrer ceux appartenant au partenaire
-    const mine = contracts.filter(
-      (c) => c.booking?.vehicle?.owner?.toString() === req.user._id.toString()
-    );
-
-    res.json({ contracts: mine });
+    res.json({ contracts });
   } catch (err) {
     console.error("getPartnerContracts:", err);
     res.status(500).json({ message: "Erreur serveur." });

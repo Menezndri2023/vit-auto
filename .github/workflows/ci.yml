@@ -1,0 +1,103 @@
+name: VIT AUTO — CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  # ── Lint + Build Frontend ────────────────────────────────────────────────────
+  frontend:
+    name: Frontend — Lint & Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint --if-present || true
+
+      - name: Build production
+        run: npm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL || '/api' }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+          retention-days: 7
+
+  # ── Check Backend ────────────────────────────────────────────────────────────
+  backend:
+    name: Backend — Syntax & Security Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax check — server.js
+        run: node --check server.js
+
+      - name: Syntax check — controllers
+        run: find controllers -name "*.js" -exec node --check {} \;
+
+      - name: Security audit
+        run: npm audit --audit-level=high || true
+
+  # ── Deploy to Railway (main branch only) ─────────────────────────────────────
+  deploy:
+    name: Deploy — Railway
+    needs: [frontend, backend]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download frontend build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy backend to Railway
+        run: railway up --service backend
+        working-directory: server
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        continue-on-error: true
+
+      - name: Notify deployment
+        if: success()
+        run: |
+          echo "✅ Déploiement VIT AUTO réussi — $(date)"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"

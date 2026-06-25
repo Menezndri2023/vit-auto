@@ -1,7 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useCurrency } from "../context/CurrencyContext";
 import styles from "./BookingSuccess.module.css";
-
-const fmt = (n) => Number(n).toLocaleString("fr-FR") + " DH";
 
 const CONDITIONS = [
   "1. Le locataire s'engage à restituer le véhicule dans l'état décrit au moment de la prise en charge.",
@@ -20,9 +19,21 @@ const OPTION_LABELS = {
   driver: "Chauffeur privé",
 };
 
+// Formate une date ISO ou YYYY-MM-DD en "20 décembre 2025"
+const fmtDate = (d) => {
+  if (!d) return "—";
+  try {
+    // Évite le décalage UTC en splitant la chaîne ISO
+    const [year, month, day] = d.toString().split("T")[0].split("-");
+    return new Date(Number(year), Number(month) - 1, Number(day))
+      .toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  } catch { return d; }
+};
+
 const BookingSuccess = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { fmt }  = useCurrency();
   const booking  = location.state?.booking;
 
   const contractNumber = `VIT-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999) + 1).padStart(5, "0")}`;
@@ -133,7 +144,7 @@ const BookingSuccess = () => {
             <div className={styles.contractSection}>
               <h2>Modalités de l'essai</h2>
               <div className={styles.infoGrid}>
-                <div className={styles.infoItem}><span>Date RDV</span><strong>{booking.preferredDate || "—"}</strong></div>
+                <div className={styles.infoItem}><span>Date RDV</span><strong>{fmtDate(booking.preferredDate)}</strong></div>
                 <div className={styles.infoItem}><span>Heure</span><strong>{booking.preferredTime || "—"}</strong></div>
                 <div className={styles.infoItem}><span>Notes</span><strong>{booking.notes || "Aucune"}</strong></div>
               </div>
@@ -142,10 +153,10 @@ const BookingSuccess = () => {
             <div className={styles.contractSection}>
               <h2>Modalités de location</h2>
               <div className={styles.infoGrid}>
-                <div className={styles.infoItem}><span>Date début</span><strong>{booking.startDate}</strong></div>
-                <div className={styles.infoItem}><span>Date fin</span><strong>{booking.endDate}</strong></div>
+                <div className={styles.infoItem}><span>Date début</span><strong>{fmtDate(booking.startDate)}</strong></div>
+                <div className={styles.infoItem}><span>Date fin</span><strong>{fmtDate(booking.endDate)}</strong></div>
                 <div className={styles.infoItem}><span>Durée</span><strong>{booking.days} jour{booking.days > 1 ? "s" : ""}</strong></div>
-                <div className={styles.infoItem}><span>Lieu de prise en charge</span><strong>{booking.pickupLocation}</strong></div>
+                <div className={styles.infoItem}><span>Lieu de prise en charge</span><strong>{booking.pickupLocation || booking.pickupAddress || "—"}</strong></div>
                 {activeOptions.length > 0 && (
                   <div className={styles.infoItem}><span>Options</span><strong>{activeOptions.join(", ")}</strong></div>
                 )}
@@ -163,15 +174,16 @@ const BookingSuccess = () => {
                   <div className={styles.fRow}><span>Options</span><span>{fmt(booking.optionsTotal || 0)}</span></div>
                 </>
               )}
-              <div className={styles.fRow}><span>Frais de service plateforme</span><span>{fmt(booking.serviceFeeFCFA || 15)}</span></div>
+              <div className={styles.fRow}><span>Frais de service plateforme</span><span>{fmt(booking.serviceFeeFCFA || 0)}</span></div>
               <div className={`${styles.fRow} ${styles.fRowTotal}`}>
                 <span>Total à payer</span>
-                <span>{fmt(booking.total || booking.serviceFeeFCFA || 15)}</span>
+                {/* montantTotal = champ backend, total = champ frontend booking */}
+                <span>{fmt(booking.montantTotal || booking.total || 0)}</span>
               </div>
-              {!isEssai && (
+              {!isEssai && (booking.cautionAmount > 0) && (
                 <div className={`${styles.fRow} ${styles.fRowCaution}`}>
                   <span>Caution de garantie (remboursable)</span>
-                  <span>{fmt(booking.cautionAmount || 200000)}</span>
+                  <span>{fmt(booking.cautionAmount)}</span>
                 </div>
               )}
               <div className={styles.fRow} style={{ color: "#64748b", fontSize: "0.82rem" }}>

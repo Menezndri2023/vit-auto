@@ -10,14 +10,13 @@ export const useNotifications = () => {
   return ctx;
 };
 
-// Synthèse d'un son de notification via Web Audio API (aucun fichier externe)
+// Son de notification via Web Audio API
 function playNotifSound() {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
     const now = ctx.currentTime;
-
     const makeNote = (freq, start, duration) => {
       const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -26,30 +25,26 @@ function playNotifSound() {
       osc.type = "sine";
       osc.frequency.setValueAtTime(freq, now + start);
       gain.gain.setValueAtTime(0, now + start);
-      gain.gain.linearRampToValueAtTime(0.25, now + start + 0.02);
+      gain.gain.linearRampToValueAtTime(0.22, now + start + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.001, now + start + duration);
       osc.start(now + start);
       osc.stop(now + start + duration);
     };
-
-    makeNote(880,  0,    0.18);
-    makeNote(1100, 0.12, 0.22);
-    makeNote(1320, 0.27, 0.35);
-  } catch {
-    // Contexte audio non disponible
-  }
+    makeNote(880, 0,    0.12);
+    makeNote(1100, 0.13, 0.18);
+  } catch { /* Audio non disponible */ }
 }
 
 export const NotificationProvider = ({ children }) => {
   const { token, isAuthenticated, authReady } = useAuth();
-  const [notifications, setNotifications]   = useState([]);
-  const [unreadCount,   setUnreadCount]     = useState(0);
-  const [soundEnabled,  setSoundEnabled]    = useState(() => {
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount,   setUnreadCount]   = useState(0);
+  const [soundEnabled,  setSoundEnabled]  = useState(() => {
     try { return localStorage.getItem("vit-notif-sound") !== "false"; } catch { return true; }
   });
-  const prevUnreadRef  = useRef(0);
-  const intervalRef    = useRef(null);
-  const isFirstFetch   = useRef(true);
+  const prevUnreadRef = useRef(0);
+  const intervalRef   = useRef(null);
+  const isFirstFetch  = useRef(true);
 
   const toggleSound = useCallback(() => {
     setSoundEnabled((prev) => {
@@ -66,38 +61,37 @@ export const NotificationProvider = ({ children }) => {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return;
-      const data = await res.json();
+      const data     = await res.json();
       const newList  = data.notifications || [];
       const newCount = data.nonLues || 0;
 
       setNotifications(newList);
       setUnreadCount(newCount);
 
-      // Jouer le son si nouvelles notifications (après le premier chargement)
       if (!isFirstFetch.current && soundEnabled && newCount > prevUnreadRef.current) {
         playNotifSound();
       }
       prevUnreadRef.current = newCount;
       isFirstFetch.current  = false;
-    } catch {
-      return; // backend indisponible
-    }
+    } catch { /* backend indisponible */ }
   }, [token, soundEnabled]);
 
-  // Polling toutes les 15 secondes
+  // Polling simple — pas de dépendance Socket.io pour éviter les crashs
   useEffect(() => {
     if (!authReady || !isAuthenticated || !token) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNotifications([]);
       setUnreadCount(0);
       prevUnreadRef.current = 0;
       isFirstFetch.current  = true;
       return;
     }
+
     fetchNotifications();
-    intervalRef.current = setInterval(fetchNotifications, 15_000);
+    intervalRef.current = setInterval(fetchNotifications, 20_000); // toutes les 20s
+
     return () => clearInterval(intervalRef.current);
-  }, [authReady, isAuthenticated, token, fetchNotifications]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authReady, isAuthenticated, token]);
 
   const markAsRead = useCallback(async (id) => {
     if (!token) return;
@@ -112,7 +106,7 @@ export const NotificationProvider = ({ children }) => {
     } catch { /* ignore */ }
   }, [token]);
 
-  const markAllAsRead = useCallback(async () => {
+  const markAllRead = useCallback(async () => {
     if (!token) return;
     try {
       await fetch("/api/notifications/read-all", {
@@ -125,38 +119,20 @@ export const NotificationProvider = ({ children }) => {
     } catch { /* ignore */ }
   }, [token]);
 
-  const deleteNotification = useCallback(async (id) => {
-    if (!token) return;
-    try {
-      await fetch(`/api/notifications/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setNotifications((prev) => {
-        const notif = prev.find((n) => n._id === id);
-        if (notif && !notif.lu) {
-          setUnreadCount((c) => Math.max(0, c - 1));
-          prevUnreadRef.current = Math.max(0, prevUnreadRef.current - 1);
-        }
-        return prev.filter((n) => n._id !== id);
-      });
-    } catch { /* ignore */ }
-  }, [token]);
-
-  // Permettre un rafraîchissement manuel depuis d'autres composants
   const refresh = useCallback(() => fetchNotifications(), [fetchNotifications]);
 
+  const value = {
+    notifications,
+    unreadCount,
+    soundEnabled,
+    toggleSound,
+    markAsRead,
+    markAllRead,
+    fetchNotifications: refresh,
+  };
+
   return (
-    <NotificationContext.Provider value={{
-      notifications,
-      unreadCount,
-      soundEnabled,
-      toggleSound,
-      fetchNotifications: refresh,
-      markAsRead,
-      markAllAsRead,
-      deleteNotification,
-    }}>
+    <NotificationContext.Provider value={value}>
       {children}
     </NotificationContext.Provider>
   );

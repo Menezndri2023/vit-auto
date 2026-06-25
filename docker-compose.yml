@@ -1,0 +1,59 @@
+version: "3.9"
+
+services:
+  # ── Backend API ─────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: vitauto-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV:      production
+      PORT:          5001
+      MONGO_URI:     ${MONGO_URI}
+      JWT_SECRET:    ${JWT_SECRET}
+      FRONTEND_URL:  ${FRONTEND_URL:-https://vit-auto.com}
+      APP_URL:       ${APP_URL:-https://vit-auto.com}
+      SMTP_HOST:     ${SMTP_HOST:-}
+      SMTP_PORT:     ${SMTP_PORT:-587}
+      SMTP_USER:     ${SMTP_USER:-}
+      SMTP_PASS:     ${SMTP_PASS:-}
+      SMTP_FROM:     ${SMTP_FROM:-VIT AUTO <noreply@vit-auto.com>}
+    volumes:
+      - backend_logs:/app/logs
+    ports:
+      - "5001:5001"
+    networks:
+      - vitauto-net
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5001/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout:  5s
+      retries:  3
+      start_period: 20s
+
+  # ── Frontend Nginx ──────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vitauto-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - vitauto-net
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  backend_logs:
+
+networks:
+  vitauto-net:
+    driver: bridge

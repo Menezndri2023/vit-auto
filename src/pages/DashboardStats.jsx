@@ -2,9 +2,9 @@ import { useMemo, useState } from "react";
 import { Navigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
+import { useCurrency } from "../context/CurrencyContext";
 import styles from "./DashboardStats.module.css";
 
-const fmtDH  = (n) => Number(n || 0).toLocaleString("fr-FR") + " DH";
 const fmtNum = (n) => Number(n || 0).toLocaleString("fr-FR");
 
 const STATUS_CFG = {
@@ -204,6 +204,7 @@ function TopVehicles({ vehicles, bookings, isAdmin }) {
 const DashboardStats = () => {
   const { user, isAuthenticated } = useAuth();
   const { vehicles, bookings, partnerVehicles, partnerBookings } = useVehicles();
+  const { fmt: fmtDH } = useCurrency();
 
   const [period, setPeriod] = useState("30");
 

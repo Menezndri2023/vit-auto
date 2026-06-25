@@ -15,7 +15,7 @@ const paymentSchema = new mongoose.Schema({
   // ── Méthode de paiement ───────────────────────────────────
   method: {
     type: String,
-    enum: ["card", "orange_money", "wave", "mtn", "moov", "paypal", "applepay", "cash"],
+    enum: ["card", "orange_money", "wave", "mtn", "moov", "paypal", "applepay", "cash", "virement", "test"],
     required: true,
   },
 

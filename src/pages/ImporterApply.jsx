@@ -143,33 +143,6 @@ export default function ImporterApply() {
     }
   }, [company, docs, activity, isAuthenticated, token]);
 
-  // ── Guard : pas connecté ───────────────────────────────────────────────────
-  if (!isAuthenticated) {
-    return (
-      <div className={styles.guard}>
-        <div className={styles.guardBox}>
-          <span className={styles.guardIcon}>🔐</span>
-          <h2>Connexion requise</h2>
-          <p>Vous devez être connecté en tant que partenaire pour soumettre une candidature.</p>
-          <Link to="/login?redirect=/importer-apply" className={styles.btnPrimary}>Se connecter</Link>
-          <Link to="/register?role=partenaire" className={styles.btnGhost}>Créer un compte partenaire</Link>
-        </div>
-      </div>
-    );
-  }
-
-  if (!["partenaire", "admin"].includes(user?.role)) {
-    return (
-      <div className={styles.guard}>
-        <div className={styles.guardBox}>
-          <span className={styles.guardIcon}>🚫</span>
-          <h2>Réservé aux partenaires</h2>
-          <p>Seuls les comptes partenaires peuvent postuler comme importateurs agréés.</p>
-          <Link to="/register?role=partenaire" className={styles.btnPrimary}>Devenir partenaire</Link>
-        </div>
-      </div>
-    );
-  }
 
   // ── Succès ─────────────────────────────────────────────────────────────────
   if (submitted) {

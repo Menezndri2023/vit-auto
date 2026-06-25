@@ -1,371 +1,753 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
 import { useToast } from "../context/ToastContext";
+import { useSocket } from "../context/SocketContext";
 import { Link, useNavigate } from "react-router-dom";
 import styles from "./VendorDashboard.module.css";
 
-const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " DH";
+/* ── Utilitaires ────────────────────────────────────────────────────────── */
+const fmtXOF = (n) => `${Number(n || 0).toLocaleString("fr-FR")} XOF`;
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+const fmtDateTime = (d) => d ? new Date(d).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
 
-const COMMISSION_LOCATION = 0.15;
-const COMMISSION_VENTE    = 0.03;
-const SERVICE_FEE         = 1000;
+const COMM_RATE = { location: 0.15, essai: 0.03, chauffeur: 0.10, leasing: 0.05 };
+const SERVICE_FEE = 1000;
 
-const STATUS_CONFIG = {
-  approved: { label: "Approuvé",   cls: styles.statusApproved },
-  pending:  { label: "En attente", cls: styles.statusPending  },
-  rejected: { label: "Rejeté",     cls: styles.statusRejected },
+const MOIS = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
+
+
+/* ── Config statuts de réservation ────────────────────────────────────────── */
+const BS = {
+  "À confirmer":             { label: "Nouvelle",             color: "#d97706", bg: "#fef3c7", dot: "#f59e0b" },
+  pending:                   { label: "Nouvelle",             color: "#d97706", bg: "#fef3c7", dot: "#f59e0b" },
+  confirmed:                 { label: "Acceptée",             color: "#059669", bg: "#d1fae5", dot: "#10b981" },
+  preparing:                 { label: "En préparation",       color: "#0891b2", bg: "#e0f2fe", dot: "#06b6d4" },
+  ready:                     { label: "Prête",                color: "#7c3aed", bg: "#ede9fe", dot: "#8b5cf6" },
+  in_progress:               { label: "En route",             color: "#2563eb", bg: "#dbeafe", dot: "#3b82f6" },
+  client_arrived:            { label: "Client présent",       color: "#0284c7", bg: "#e0f2fe", dot: "#0ea5e9" },
+  client_absent:             { label: "Client absent",        color: "#dc2626", bg: "#fee2e2", dot: "#ef4444" },
+  transaction_concluded:     { label: "Transaction",          color: "#059669", bg: "#dcfce7", dot: "#22c55e" },
+  transaction_not_concluded: { label: "Non conclue",          color: "#9ca3af", bg: "#f3f4f6", dot: "#d1d5db" },
+  waiting_client_validation: { label: "Validation client",   color: "#b45309", bg: "#fef3c7", dot: "#f59e0b" },
+  completed:                 { label: "Terminée",             color: "#475569", bg: "#f1f5f9", dot: "#94a3b8" },
+  cancelled:                 { label: "Annulée",              color: "#dc2626", bg: "#fee2e2", dot: "#ef4444" },
+  disputed:                  { label: "Litige",               color: "#dc2626", bg: "#fee2e2", dot: "#ef4444" },
 };
 
-const BOOKING_STATUS = {
-  "À confirmer": { label: "Nouvelle",      color: "#f59e0b", bg: "#fffbeb" },
-  pending:       { label: "Nouvelle",      color: "#f59e0b", bg: "#fffbeb" },
-  confirmed:     { label: "Acceptée",      color: "#10b981", bg: "#ecfdf5" },
-  preparing:     { label: "En cours",      color: "#06b6d4", bg: "#ecfeff" },
-  ready:         { label: "Prête",         color: "#8b5cf6", bg: "#f5f3ff" },
-  in_progress:   { label: "En route",      color: "#3b82f6", bg: "#eff6ff" },
-  completed:     { label: "Terminée",      color: "#64748b", bg: "#f8fafc" },
-  cancelled:     { label: "Annulée",       color: "#ef4444", bg: "#fef2f2" },
+/* ── Config KYC ────────────────────────────────────────────────────────────── */
+const KYC_CFG = {
+  VERIFIE:               { label: "KYC Vérifié",       color: "#059669", bg: "#d1fae5", icon: "✅" },
+  EN_ATTENTE:            { label: "KYC En attente",    color: "#d97706", bg: "#fef3c7", icon: "⏳" },
+  A_REVOIR_MANUELLEMENT: { label: "KYC En révision",   color: "#2563eb", bg: "#dbeafe", icon: "🔍" },
+  REFUSE:                { label: "KYC Refusé",        color: "#dc2626", bg: "#fee2e2", icon: "❌" },
 };
 
-// Étapes du suivi (cases à cocher) — après acceptation
-// "Acceptée" est gérée par le bloc DÉCISION, pas dans ces cases
-const CHECKLIST_STEPS = [
-  { key: "preparing",   label: "En cours",   icon: "⚙️", hint: "Vous préparez le véhicule"              },
-  { key: "ready",       label: "Prête",      icon: "🚗", hint: "Le véhicule est prêt pour la livraison" },
-  { key: "in_progress", label: "En route",   icon: "🚀", hint: "Vous êtes en route vers le client"      },
-  { key: "completed",   label: "Terminée",   icon: "🏁", hint: "Location terminée"                      },
-];
+const PAY_LABELS = {
+  cash: "Espèces", card: "Carte bancaire", orange_money: "Orange Money",
+  wave: "Wave", mtn: "MTN Money", moov: "Moov Money", paypal: "PayPal", virement: "Virement",
+};
 
-const STEP_ORDER = ["pending", "confirmed", "preparing", "ready", "in_progress", "completed"];
-
-const TYPE_LABELS = { location: "Location", essai: "Essai", chauffeur: "Chauffeur" };
-
-// ── Modal GÉRER — redesign complet avec cases à cocher ─────────────────────────
-function GererModal({ order, onClose, onConfirm, onPrepare, onReady, onInProgress, onComplete, onReject }) {
-  if (!order) return null;
-
-  const bst         = BOOKING_STATUS[order.status] || BOOKING_STATUS.pending;
-  const isNew       = !order.status || order.status === "À confirmer" || order.status === "pending";
-  const isAccepted  = !isNew && order.status !== "cancelled";
-
-  const hasGps      = order.pickupLat != null && order.pickupLng != null;
-  const isLivraison = order.pickupMethod === "livraison" || order.pickupLocation;
-
-  const mapsUrl = hasGps
-    ? `https://www.google.com/maps?q=${order.pickupLat},${order.pickupLng}`
-    : order.pickupAddress
-      ? `https://www.google.com/maps/search/${encodeURIComponent(order.pickupAddress)}`
-      : null;
-
-  const currentStepIdx = STEP_ORDER.indexOf(order.status);
-
-  // Quelle action appeler pour passer à l'étape suivante
-  const NEXT_ACTIONS = {
-    confirmed:   { fn: onPrepare,     label: "Marquer en cours",  btnClass: styles.btnStepPrepare },
-    preparing:   { fn: onReady,       label: "Marquer prête",     btnClass: styles.btnStepReady   },
-    ready:       { fn: onInProgress,  label: "Marquer en route",  btnClass: styles.btnStepRoute   },
-    in_progress: { fn: onComplete,    label: "Marquer terminée",  btnClass: styles.btnStepDone    },
-  };
-
+/* ══════════════════════════════════════════════════════════════════════════════
+   PHOTO THUMB — miniature cliquable pour zoom plein écran
+   ══════════════════════════════════════════════════════════════════════════════ */
+function PhotoThumb({ src, label }) {
+  const [open, setOpen] = useState(false);
+  if (!src) return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", width:80, height:72, borderRadius:8, border:"1.5px dashed #cbd5e1", background:"#f8fafc", color:"#94a3b8", fontSize:".68rem", gap:3, flexShrink:0 }}>
+      <span style={{ fontSize:"1.2rem" }}>📄</span><span>{label}</span>
+    </div>
+  );
   return (
-    <div className={styles.modalOverlay} onClick={onClose}>
-      <div className={styles.gererModal} onClick={(e) => e.stopPropagation()}>
-
-        {/* ══ EN-TÊTE ══ */}
-        <div className={styles.gererHeader}>
-          <div>
-            <span className={styles.gererType}>{TYPE_LABELS[order.type] || order.type}</span>
-            <h2 className={styles.gererTitle}>{order.vehicleName || "Commande"}</h2>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            <span className={styles.orderStatus} style={{ background: bst.bg, color: bst.color, fontSize: "0.82rem", padding: "0.3rem 0.75rem" }}>
-              {bst.label}
-            </span>
-            <button className={styles.closeBtn} onClick={onClose} aria-label="Fermer">✕</button>
+    <>
+      <div onClick={() => setOpen(true)} style={{ position:"relative", width:80, height:72, borderRadius:8, overflow:"hidden", cursor:"zoom-in", border:"1.5px solid #e2e8f0", flexShrink:0 }}>
+        <img src={src} alt={label} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+        <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,.35)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:".65rem", fontWeight:700, opacity:0, transition:"opacity .15s" }}
+          onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0}>🔍 Zoom</div>
+        <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"rgba(0,0,0,.55)", color:"#fff", fontSize:".6rem", padding:"2px 4px", textAlign:"center" }}>{label}</div>
+      </div>
+      {open && (
+        <div onClick={() => setOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.8)", zIndex:99999, display:"flex", alignItems:"center", justifyContent:"center", animation:"fadeIn .15s" }}>
+          <div onClick={e=>e.stopPropagation()} style={{ position:"relative", maxWidth:"92vw", maxHeight:"90vh", background:"#fff", borderRadius:14, overflow:"hidden" }}>
+            <button onClick={() => setOpen(false)} style={{ position:"absolute", top:8, right:8, background:"rgba(0,0,0,.6)", color:"#fff", border:"none", borderRadius:"50%", width:32, height:32, fontSize:"1rem", cursor:"pointer", zIndex:2 }}>✕</button>
+            <img src={src} alt={label} style={{ maxWidth:"88vw", maxHeight:"82vh", objectFit:"contain", display:"block" }} />
+            <div style={{ padding:"8px 16px", textAlign:"center", fontSize:".82rem", fontWeight:700, color:"#64748b" }}>{label}</div>
           </div>
         </div>
+      )}
+    </>
+  );
+}
 
-        <div className={styles.gererBody}>
+/* ══════════════════════════════════════════════════════════════════════════════
+   CONFIGURATION WORKFLOWS PAR TYPE DE COMMANDE VIT-AUTO
+   ══════════════════════════════════════════════════════════════════════════════ */
 
-          {/* ══ INFOS CLIENT ══ */}
-          <section className={styles.gererSection}>
-            <h3 className={styles.gererSectionTitle}>👤 Client</h3>
-            <div className={styles.clientCard}>
-              <div className={styles.clientMain}>
-                <span className={styles.clientName}>{order.firstName} {order.lastName}</span>
-                {order.phone && (
-                  <a href={`tel:${order.phone}`} className={styles.clientPhone}>
-                    📞 {order.phone}
-                  </a>
-                )}
-              </div>
-              <div className={styles.clientSub}>
-                {order.email && (
-                  <a href={`mailto:${order.email}`} className={styles.clientEmail}>{order.email}</a>
-                )}
-                {order.clientVerification?.idType && (
-                  <span className={styles.idBadge}>
-                    {order.clientVerification.idType.toUpperCase()} {order.clientVerification.idNumber}
-                  </span>
-                )}
-              </div>
+const getOrderSubType = (order) => {
+  if (order.vehicleMode === "Import/Export" || order.mode === "Import/Export") return "import_export";
+  if (order.type === "leasing")   return "leasing";
+  if (order.type === "chauffeur") return "chauffeur";
+  if (order.type === "essai")     return "vente";
+  if (order.type === "location") {
+    // Priorité : pickupMethod persisté en DB → GPS présent → absence de "Retrait" dans l'adresse
+    const pm = order.pickupMethod || order.location?.pickupMethod;
+    const isDelivery = pm === "livraison"
+      || (pm == null && order.pickupLat != null)
+      || (pm == null && order.pickupAddress && !order.pickupAddress.startsWith("Retrait")
+          && !!(order.pickupAddress || order.pickupLocation));
+    return isDelivery ? "location_domicile" : "location_agence";
+  }
+  return "location_agence";
+};
+
+const ORDER_WORKFLOWS = {
+  location_agence: {
+    badge: "📅 Location · À l'agence", color: "#6366f1",
+    steps: [
+      { s:"confirmed",    l:"Acceptée",          i:"✓",  c:"#059669", desc:"Réservation confirmée" },
+      { s:"preparing",    l:"Préparation",        i:"⚙️", c:"#0891b2", desc:"Véhicule en cours de préparation" },
+      { s:"ready",        l:"Prêt à l'agence",   i:"🏢", c:"#7c3aed", desc:"Véhicule prêt, client attendu" },
+      { s:"client_arrived",l:"Client présent",   i:"🤝", c:"#0284c7", desc:"Client arrivé à l'agence" },
+      { s:"waiting_client_validation",l:"Transaction",i:"💰",c:"#b45309",desc:"Validation transaction" },
+      { s:"completed",    l:"Terminée",           i:"🏁", c:"#475569", desc:"Location terminée avec succès" },
+    ],
+    nextBtn: {
+      confirmed: { fn:"onPrepare",       label:"Commencer la préparation", icon:"⚙️" },
+      preparing: { fn:"onReady",         label:"Véhicule prêt à l'agence", icon:"🏢" },
+      ready:     { fn:"onClientArrived", label:"Client arrivé à l'agence", icon:"🤝" },
+    },
+    rdvAtStatus: null,
+  },
+  location_domicile: {
+    badge: "📅 Location · Livraison domicile", color: "#2563eb",
+    steps: [
+      { s:"confirmed",    l:"Acceptée",       i:"✓",  c:"#059669", desc:"Réservation confirmée" },
+      { s:"preparing",    l:"Préparation",    i:"⚙️", c:"#0891b2", desc:"Préparation du véhicule" },
+      { s:"ready",        l:"Prêt",           i:"✅", c:"#7c3aed", desc:"Véhicule prêt pour livraison" },
+      { s:"in_progress",  l:"En livraison",   i:"🚚", c:"#2563eb", desc:"En route vers le client" },
+      { s:"client_arrived",l:"Livré",         i:"📍", c:"#0284c7", desc:"Arrivée chez le client" },
+      { s:"waiting_client_validation",l:"Transaction",i:"💰",c:"#b45309",desc:"Remise véhicule + transaction" },
+      { s:"completed",    l:"Terminée",       i:"🏁", c:"#475569", desc:"Location terminée avec succès" },
+    ],
+    nextBtn: {
+      confirmed: { fn:"onPrepare",    label:"Commencer la préparation",   icon:"⚙️" },
+      preparing: { fn:"onReady",      label:"Véhicule prêt à partir",     icon:"✅" },
+      ready:     { fn:"onInProgress", label:"Partir en livraison",        icon:"🚚" },
+    },
+    rdvAtStatus: "in_progress",
+    rdvLabel: "Êtes-vous arrivé chez le client ?",
+    rdvPresentLabel: "Arrivé — Remise du véhicule",
+    rdvAbsentLabel: "Client introuvable",
+  },
+  vente: {
+    badge: "🔑 Essai / Vente", color: "#059669",
+    steps: [
+      { s:"confirmed",    l:"RDV confirmé",     i:"📅", c:"#059669", desc:"Rendez-vous fixé" },
+      { s:"in_progress",  l:"Essai en cours",   i:"🚗", c:"#2563eb", desc:"Le client teste le véhicule" },
+      { s:"client_arrived",l:"Négociation",     i:"🤝", c:"#0284c7", desc:"Discussion sur la vente" },
+      { s:"waiting_client_validation",l:"Conclusion",i:"💰",c:"#b45309",desc:"Finalisation de la transaction" },
+      { s:"completed",    l:"Vente conclue",    i:"🏁", c:"#059669", desc:"Vente finalisée avec succès" },
+    ],
+    nextBtn: {
+      confirmed: { fn:"onInProgress", label:"Démarrer l'essai", icon:"🚗" },
+    },
+    rdvAtStatus: "in_progress",
+    rdvLabel: "L'essai est-il terminé ?",
+    rdvPresentLabel: "Essai terminé — Passer à la négociation",
+    rdvAbsentLabel: "Client ne s'est pas présenté",
+  },
+  chauffeur: {
+    badge: "🧑‍✈️ Service Chauffeur", color: "#7c3aed",
+    steps: [
+      { s:"confirmed",    l:"Mission acceptée",  i:"✓",   c:"#059669", desc:"Mission confirmée" },
+      { s:"preparing",    l:"En route client",   i:"🚀",  c:"#0891b2", desc:"Chauffeur en route vers le client" },
+      { s:"in_progress",  l:"Mission active",    i:"🧑‍✈️", c:"#2563eb", desc:"Transport en cours" },
+      { s:"client_arrived",l:"Destination",      i:"📍",  c:"#0284c7", desc:"Destination atteinte" },
+      { s:"waiting_client_validation",l:"Transaction",i:"💰",c:"#b45309",desc:"Validation de la mission" },
+      { s:"completed",    l:"Mission terminée",  i:"🏁",  c:"#475569", desc:"Mission accomplie" },
+    ],
+    nextBtn: {
+      confirmed: { fn:"onPrepare",    label:"Chauffeur en route vers le client", icon:"🚀" },
+      preparing: { fn:"onInProgress", label:"Prise en charge du client",         icon:"🧑‍✈️" },
+    },
+    rdvAtStatus: "in_progress",
+    rdvLabel: "La destination est-elle atteinte ?",
+    rdvPresentLabel: "Destination atteinte",
+    rdvAbsentLabel: "Mission annulée",
+  },
+  leasing: {
+    badge: "📊 Leasing", color: "#d97706",
+    steps: [
+      { s:"confirmed",    l:"Dossier accepté",      i:"✓",  c:"#059669", desc:"Dossier de leasing accepté" },
+      { s:"preparing",    l:"Étude financière",     i:"📊", c:"#0891b2", desc:"Analyse du dossier financier" },
+      { s:"ready",        l:"Contrat prêt",         i:"📄", c:"#7c3aed", desc:"Contrat prêt à signer" },
+      { s:"client_arrived",l:"Signature client",    i:"✍️", c:"#0284c7", desc:"Client présent pour signer" },
+      { s:"waiting_client_validation",l:"Validation finale",i:"✋",c:"#b45309",desc:"Validation de la transaction de leasing" },
+      { s:"completed",    l:"Leasing actif",        i:"✅", c:"#059669", desc:"Leasing en cours" },
+    ],
+    nextBtn: {
+      confirmed: { fn:"onPrepare",       label:"Démarrer l'étude financière", icon:"📊" },
+      preparing: { fn:"onReady",         label:"Contrat finalisé",           icon:"📄" },
+      ready:     { fn:"onClientArrived", label:"Client présent pour signature",icon:"✍️" },
+    },
+    rdvAtStatus: "client_arrived",
+    rdvLabel: "Le contrat a-t-il été signé ?",
+    rdvPresentLabel: "Signé — Enregistrer la transaction",
+    rdvAbsentLabel: "Client absent — Reporter",
+  },
+  import_export: {
+    badge: "🌍 Import / Export", color: "#dc2626",
+    steps: [
+      { s:"confirmed",    l:"Commande reçue",   i:"✓",  c:"#059669", desc:"Commande d'import/export reçue" },
+      { s:"preparing",    l:"En traitement",    i:"⚙️", c:"#0891b2", desc:"Traitement administratif & logistique" },
+      { s:"in_progress",  l:"En transit",       i:"🚢", c:"#2563eb", desc:"Véhicule en transit international" },
+      { s:"client_arrived",l:"À l'inspection",  i:"🔍", c:"#0284c7", desc:"Inspection à la réception" },
+      { s:"waiting_client_validation",l:"Confirmation",i:"✋",c:"#b45309",desc:"Confirmation client de réception" },
+      { s:"completed",    l:"Livraison OK",     i:"🏁", c:"#475569", desc:"Import/Export finalisé" },
+    ],
+    nextBtn: {
+      confirmed: { fn:"onPrepare",    label:"Lancer le traitement",     icon:"⚙️" },
+      preparing: { fn:"onInProgress", label:"Expédition en cours",      icon:"🚢" },
+    },
+    rdvAtStatus: "in_progress",
+    rdvLabel: "Le véhicule est-il arrivé à destination ?",
+    rdvPresentLabel: "Arrivé — Inspection en cours",
+    rdvAbsentLabel: "Problème de livraison",
+  },
+};
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   MODAL GÉRER — Gestion complète, identité intégrée, workflow par type VIT-AUTO
+   ══════════════════════════════════════════════════════════════════════════════ */
+function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onPrepare, onReady, onInProgress,
+  onClientArrived, onClientAbsent, onRecordTransaction, onPartnerConfirm, onComplete, onReject, onPartnerVerifyKyc }) {
+  // Tous les hooks AVANT tout return conditionnel (règles des hooks React)
+  const [txForm, setTxForm] = useState({
+    finalAmount:   order?.transaction?.finalAmount || order?.montantTotal || order?.total || "",
+    paymentMethod: order?.transaction?.paymentMethod || "cash",
+    comment:       order?.transaction?.comment || "",
+  });
+  const [txSubmitting, setTxSubmitting] = useState(false);
+  const [txError, setTxError]           = useState("");
+  const [fastMode, setFastMode]         = useState(null);
+
+  if (!order) return null;
+
+  // ── Sous-type et workflow ─────────────────────────────────────────────────
+  const subType = getOrderSubType(order);
+  const wf      = ORDER_WORKFLOWS[subType] || ORDER_WORKFLOWS.location_agence;
+
+  // ── Statut ────────────────────────────────────────────────────────────────
+  const bst    = BS[order.status] || BS.pending;
+  const kycCfg = KYC_CFG[order.clientInfo?.kycStatus] || null;
+  const isNew  = !order.status || order.status === "À confirmer" || order.status === "pending";
+  const isActive = !isNew && !["cancelled","disputed","completed"].includes(order.status);
+  const isDone   = ["completed","cancelled","disputed"].includes(order.status);
+
+  // Action unique selon statut + sous-type (AUCUN doublon)
+  const ACTION =
+    isNew                                                      ? "decision"
+    : order.status === "client_absent"                         ? "client_absent"
+    : order.status === "client_arrived"                        ? "transaction"
+    : order.status === "waiting_client_validation"             ? "waiting"
+    : order.status === "completed"                             ? "done"
+    : order.status === "cancelled"                             ? "cancelled"
+    : order.status === "disputed"                              ? "disputed"
+    : wf.rdvAtStatus && order.status === wf.rdvAtStatus        ? "rdv"
+    : (wf.nextBtn && wf.nextBtn[order.status])                 ? "progress"
+    : "info";  // fallback pour statuts non mappés
+
+  // ── Actions progression ───────────────────────────────────────────────────
+  const FN_MAP = { onPrepare, onReady, onInProgress, onClientArrived: (id) => onClientArrived(id) };
+  const nextBtnCfg = wf.nextBtn?.[order.status] || null;
+
+  // Fast-mode uniquement quand le prochain pas est la remise directe au client
+  const showFastMode = nextBtnCfg?.fn === "onClientArrived";
+
+  // ── GPS / Livraison ───────────────────────────────────────────────────────
+  const hasGps  = order.pickupLat != null && order.pickupLng != null;
+  const pickupAddr = order.pickupAddress || order.pickupLocation || order.location?.pickupLocation;
+  const isLiv   = subType === "location_domicile" || !!pickupAddr;
+  const mapsUrl = hasGps
+    ? `https://www.google.com/maps?q=${order.pickupLat},${order.pickupLng}`
+    : pickupAddr ? `https://www.google.com/maps/search/${encodeURIComponent(pickupAddr)}` : null;
+
+  // ── Données identité (toutes sources, par priorité) ───────────────────────
+  const snap       = orderDetail?.clientKycSnapshot || {};
+  const clientUser = orderDetail?.client || {};
+  const frontImg   = snap.frontImage        || clientUser?.identity?.frontImage    || null;
+  const backImg    = snap.backImage         || clientUser?.identity?.backImage     || null;
+  const selfieImg  = snap.selfie            || clientUser?.identity?.selfie        || null;
+  const licFront   = snap.licenseFrontImage || clientUser?.driverLicenseOcr?.frontImage || null;
+  const licBack    = snap.licenseBackImage  || clientUser?.driverLicenseOcr?.backImage  || null;
+  const ocrData    = snap.ocrData           || clientUser?.kycOcrData || null;
+  const idType     = snap.idType    || order.clientVerification?.idType   || clientUser?.identity?.type   || null;
+  const idNumber   = snap.idNumber  || order.clientVerification?.idNumber || clientUser?.identity?.number || null;
+  const idExpiry   = ocrData?.expiryDate || clientUser?.identity?.expiryDate || null;
+  const idExpired  = idExpiry ? new Date(idExpiry) < new Date() : false;
+  const ocrFirst   = ocrData?.firstName || "";
+  const ocrLast    = ocrData?.lastName  || "";
+  const ocrDOB     = ocrData?.birthDate || null;
+  const ocrGender  = ocrData?.gender    || null;
+  const ocrCountry = ocrData?.issuingCountry || null;
+  const ocrConf    = ocrData?.ocrConfidence  || 0;
+  const faceScore  = snap.faceMatchScore || clientUser?.kycFaceMatchScore || null;
+  const kycScore   = snap.kycScore || order.clientInfo?.kycScore || clientUser?.kycScore || 0;
+  const licNumber  = snap.licenseNumber    || clientUser?.driverLicenseOcr?.licenseNumber || null;
+  const licExpiry  = snap.licenseExpiry    || clientUser?.driverLicenseOcr?.expiryDate    || null;
+  const licCats    = snap.licenseCategories || clientUser?.driverLicenseOcr?.categories   || null;
+  const licExpired = licExpiry ? new Date(licExpiry) < new Date() : false;
+
+  // ── Contrat & finances ────────────────────────────────────────────────────
+  const contractId = orderDetail?.contract?._id || order.contract || null;
+  const commRate   = COMM_RATE[order.type] || 0.15;
+  const totalAmt   = order.montantTotal || order.total || 0;
+  const commAmt    = order.commissionAmount || Math.round(totalAmt * commRate);
+  const netAmt     = order.partnerPayout    || Math.max(totalAmt - commAmt - SERVICE_FEE, 0);
+
+  // ── Helpers affichage ────────────────────────────────────────────────────
+  const InfoLine = ({ label, value, color, mono }) => value ? (
+    <div style={{ display:"flex", justifyContent:"space-between", fontSize:".82rem", padding:"4px 0", borderBottom:"1px solid #f1f5f9" }}>
+      <span style={{ color:"#64748b", marginRight:8 }}>{label}</span>
+      <strong style={{ color: color||"#0f172a", fontFamily:mono?"monospace":undefined, textAlign:"right" }}>{value}</strong>
+    </div>
+  ) : null;
+
+  return (
+    <div className={styles.modalBackdrop} onClick={onClose}>
+      <div className={styles.modalSheet} onClick={(e) => e.stopPropagation()}>
+
+        {/* ══ HEADER ══════════════════════════════════════════════════════════ */}
+        <div className={styles.modalHeader}>
+          <div className={styles.modalHeaderLeft}>
+            <div className={styles.modalRef}>{order.reference || `#${String(order.id).slice(-6)}`}</div>
+            <div className={styles.modalVehicle}>{order.vehicleName || "Commande"}</div>
+            <div className={styles.modalMeta}>
+              <span className={styles.typePill} style={{ background: wf.color + "18", color: wf.color }}>{wf.badge}</span>
+              <span className={styles.statusPill} style={{ background: bst.bg, color: bst.color }}>{bst.label}</span>
+              {kycCfg && <span className={styles.kycPill} style={{ background: kycCfg.bg, color: kycCfg.color }}>{kycCfg.icon} {kycCfg.label}</span>}
             </div>
-          </section>
+          </div>
+          <button className={styles.modalClose} onClick={onClose}>✕</button>
+        </div>
 
-          {/* ══ DÉTAILS COMMANDE ══ */}
-          <section className={styles.gererSection}>
-            <h3 className={styles.gererSectionTitle}>📋 Commande</h3>
-            <div className={styles.orderSummary}>
-              {order.type === "location" && (
-                <>
-                  <div className={styles.summaryRow}>
-                    <span>Période</span>
-                    <strong>
-                      {order.startDate ? new Date(order.startDate).toLocaleDateString("fr-FR") : "—"}
-                      {" → "}
-                      {order.endDate ? new Date(order.endDate).toLocaleDateString("fr-FR") : "—"}
-                      {order.days ? ` (${order.days}j)` : ""}
-                    </strong>
-                  </div>
-                  <div className={styles.summaryRow}>
-                    <span>Total client</span>
-                    <strong>{fmt(order.total || 0)}</strong>
-                  </div>
-                  <div className={styles.summaryRow}>
-                    <span>Votre net</span>
-                    <strong className={styles.netAmount}>
-                      {fmt(order.partnerPayout || Math.max((order.baseTotal || 0) * 0.85 - SERVICE_FEE, 0))}
-                    </strong>
-                  </div>
-                </>
-              )}
-              {order.type === "essai" && (
-                <div className={styles.summaryRow}>
-                  <span>Date souhaitée</span>
-                  <strong>
-                    {order.preferredDate ? new Date(order.preferredDate).toLocaleDateString("fr-FR") : "—"}
-                    {order.preferredTime ? ` à ${order.preferredTime}` : ""}
-                  </strong>
-                </div>
-              )}
-              <div className={styles.summaryRow}>
-                <span>Paiement</span>
-                <strong className={order.isPaid ? styles.paidOk : styles.paidPending}>
-                  {order.isPaid ? "✅ Payé" : "⏳ En attente"}
-                </strong>
-              </div>
-              <div className={styles.summaryRow}>
-                <span>Reçue le</span>
-                <strong>
-                  {order.createdAt
-                    ? new Date(order.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "long" })
-                    : "—"}
-                </strong>
-              </div>
-            </div>
-          </section>
+        <div className={styles.modalBody}>
 
-          {/* ══ LIVRAISON GPS ══ */}
-          {isLivraison && (
-            <section className={styles.gererSection}>
-              <h3 className={styles.gererSectionTitle}>📍 Lieu de livraison</h3>
-              <div className={styles.gpsBlock}>
-                <div className={styles.gpsInfo}>
-                  <div className={styles.gpsAddress}>
-                    <span className={styles.gpsIcon}>📌</span>
-                    <div>
-                      <p className={styles.gpsAddressText}>
-                        {order.pickupAddress || order.pickupLocation || "Adresse non précisée"}
-                      </p>
-                      {hasGps && (
-                        <p className={styles.gpsCoords}>
-                          GPS : {Number(order.pickupLat).toFixed(5)}, {Number(order.pickupLng).toFixed(5)}
-                        </p>
-                      )}
+          {/* ══ BLOC 1 : CLIENT + IDENTITÉ | RÉSERVATION ════════════════════ */}
+          <div className={styles.modalCols}>
+
+            {/* ─ COL GAUCHE : Client + Identité complète ───────────────────── */}
+            <div className={styles.modalCol}>
+              <div className={styles.sectionCard}>
+                <div className={styles.sectionCardTitle}>👤 Client & Identité</div>
+
+                {/* Avatar + Nom + KYC */}
+                <div className={styles.clientAvatar}>
+                  {selfieImg
+                    ? <img src={selfieImg} alt="Selfie" className={styles.avatarSelfie} onClick={() => {}} style={{ cursor:"zoom-in" }} />
+                    : <div className={styles.avatarCircle}>{(order.firstName || "?").charAt(0).toUpperCase()}</div>
+                  }
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div className={styles.clientName}>{order.firstName} {order.lastName}</div>
+                    {kycCfg
+                      ? <div className={styles.kycBadgeLarge} style={{ background:kycCfg.bg, color:kycCfg.color }}>{kycCfg.icon} {kycCfg.label} · {kycScore}/100</div>
+                      : <div className={styles.kycBadgeLarge} style={{ background:"#f1f5f9", color:"#94a3b8" }}>KYC non soumis</div>
+                    }
+                    <div className={styles.verifiedRow}>
+                      <span style={{ color:clientUser?.emailVerified?"#059669":"#94a3b8" }}>{clientUser?.emailVerified?"✅":"○"} Email</span>
+                      <span style={{ color:clientUser?.phoneVerified?"#059669":"#94a3b8" }}>{clientUser?.phoneVerified?"✅":"○"} Tél.</span>
                     </div>
                   </div>
-                  {mapsUrl && (
-                    <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className={styles.mapsBtn}>
-                      🗺️ Maps
-                    </a>
+                </div>
+
+                {/* Contacts */}
+                <div className={styles.contactList}>
+                  {order.phone && <a href={`tel:${order.phone}`} className={styles.contactItem}><span className={styles.contactIcon}>📞</span><span>{order.phone}</span><span className={styles.contactAction}>Appeler</span></a>}
+                  {order.email && <a href={`mailto:${order.email}`} className={styles.contactItem}><span className={styles.contactIcon}>✉️</span><span className={styles.ellipsis}>{order.email}</span><span className={styles.contactAction}>Email</span></a>}
+                  {order.phone && <a href={`https://wa.me/${order.phone?.replace(/[\s\+\-]/g,"")}`} target="_blank" rel="noopener noreferrer" className={styles.contactItem}><span className={styles.contactIcon}>💬</span><span>WhatsApp</span><span className={styles.contactAction}>Chat</span></a>}
+                </div>
+
+                {/* ── Pièce d'identité ─────────────────────────────────────── */}
+                <div className={styles.idCardBlock}>
+                  <div className={styles.idCardHeader}>
+                    <span className={styles.idCardBadge}>🪪 {idType ? idType.toUpperCase() : "Pièce d'identité"}</span>
+                    <span className={styles.idCardNum}>{idNumber || "N° non renseigné"}</span>
+                  </div>
+
+                  {detailLoading ? (
+                    <div style={{ fontSize:".8rem", color:"#94a3b8", padding:"8px 0" }}>⏳ Chargement…</div>
+                  ) : (
+                    <>
+                      {/* Photos pièce d'identité */}
+                      <div className={styles.idPhotosRow}>
+                        <PhotoThumb src={frontImg}  label="Recto" />
+                        <PhotoThumb src={backImg}   label="Verso" />
+                        <PhotoThumb src={selfieImg} label="Selfie" />
+                      </div>
+
+                      {/* Données OCR */}
+                      <div style={{ marginTop:8 }}>
+                        <InfoLine label="Nom complet" value={(ocrFirst||ocrLast) ? `${ocrFirst} ${ocrLast}`.trim() : `${order.firstName} ${order.lastName}`} />
+                        <InfoLine label="Date de naissance" value={ocrDOB ? new Date(ocrDOB).toLocaleDateString("fr-FR") : null} />
+                        <InfoLine label="Sexe" value={ocrGender === "M" ? "Masculin" : ocrGender === "F" ? "Féminin" : null} />
+                        <InfoLine label="Pays émetteur" value={ocrCountry} />
+                        <InfoLine label="Expiration" value={idExpiry ? new Date(idExpiry).toLocaleDateString("fr-FR") : null} color={idExpired?"#dc2626":idExpiry?"#059669":undefined} />
+                        {idExpired && <div style={{ fontSize:".75rem", color:"#dc2626", fontWeight:700, marginTop:2 }}>⚠️ Document expiré</div>}
+                        {ocrConf > 0 && <InfoLine label="Confiance OCR" value={`${ocrConf}%`} color={ocrConf>=70?"#059669":ocrConf>=40?"#d97706":"#dc2626"} />}
+                        {faceScore != null && <InfoLine label="Face matching" value={`${faceScore}%`} color={faceScore>=65?"#059669":"#d97706"} />}
+                      </div>
+                    </>
                   )}
                 </div>
-                {hasGps && (
-                  <div className={styles.gpsMapFrame}>
-                    <iframe
-                      title="Carte livraison"
-                      loading="lazy"
-                      src={`https://www.openstreetmap.org/export/embed.html?bbox=${order.pickupLng - 0.01},${order.pickupLat - 0.01},${order.pickupLng + 0.01},${order.pickupLat + 0.01}&layer=mapnik&marker=${order.pickupLat},${order.pickupLng}`}
-                      className={styles.gpsIframe}
-                    />
+
+                {/* ── Permis de conduire (location uniquement) ─────────────── */}
+                {(subType === "location_agence" || subType === "location_domicile") && (
+                  <div className={styles.idCardBlock} style={{ marginTop:10 }}>
+                    <div className={styles.idCardHeader}>
+                      <span className={styles.idCardBadge}>🚘 Permis de conduire</span>
+                      <span className={styles.idCardNum}>{licNumber || "N° non fourni"}</span>
+                    </div>
+                    {detailLoading ? (
+                      <div style={{ fontSize:".8rem", color:"#94a3b8", padding:"4px 0" }}>⏳</div>
+                    ) : (
+                      <>
+                        <div className={styles.idPhotosRow}>
+                          <PhotoThumb src={licFront} label="Permis Recto" />
+                          <PhotoThumb src={licBack}  label="Permis Verso" />
+                        </div>
+                        <div style={{ marginTop:6 }}>
+                          <InfoLine label="Expiration" value={licExpiry ? new Date(licExpiry).toLocaleDateString("fr-FR") : null} color={licExpired?"#dc2626":licExpiry?"#059669":undefined} />
+                          {licExpired && <div style={{ fontSize:".75rem", color:"#dc2626", fontWeight:700, marginTop:2 }}>⚠️ Permis expiré</div>}
+                          <InfoLine label="Catégories" value={licCats} />
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
-              {order.returnLocation && (
-                <div className={styles.returnBlock}>
-                  <span className={styles.gpsIcon}>🔄</span>
-                  <div>
-                    <p className={styles.returnLabel}>Lieu de retour</p>
-                    <p className={styles.gpsAddressText}>{order.returnLocation}</p>
-                  </div>
-                </div>
-              )}
-            </section>
-          )}
+            </div>
 
-          {/* ══ DÉCISION — nouvelle commande ══ */}
-          {isNew && (
-            <section className={styles.gererSection}>
-              <h3 className={styles.gererSectionTitle}>⚡ Décision</h3>
-              <div className={styles.decisionBlock}>
-                <button
-                  className={styles.btnDecisionAccept}
-                  onClick={() => onConfirm(order.id)}
-                >
-                  <span className={styles.decisionIcon}>✅</span>
-                  <div>
-                    <span className={styles.decisionLabel}>Accepter</span>
-                    <span className={styles.decisionHint}>Le client sera notifié</span>
+            {/* ─ COL DROITE : Détails réservation ──────────────────────────── */}
+            <div className={styles.modalCol}>
+              <div className={styles.sectionCard}>
+                <div className={styles.sectionCardTitle}>📋 Détails de la commande</div>
+                <div className={styles.detailGrid}>
+                  <div className={styles.detailItem}><span className={styles.detailLabel}>Référence</span><span className={styles.detailValue} style={{ fontFamily:"monospace", fontWeight:800, color:"#6366f1" }}>{order.reference||"—"}</span></div>
+                  <div className={styles.detailItem}><span className={styles.detailLabel}>Reçue le</span><span className={styles.detailValue}>{fmtDateTime(order.createdAt)}</span></div>
+                  <div className={styles.detailItem}><span className={styles.detailLabel}>Paiement</span><span className={styles.detailValue} style={{ color:order.isPaid?"#059669":"#d97706" }}>{order.isPaid?"✅ Payé":"⏳ En attente"}</span></div>
+                  {order.paidWith && <div className={styles.detailItem}><span className={styles.detailLabel}>Méthode</span><span className={styles.detailValue}>{PAY_LABELS[order.paidWith]||order.paidWith}</span></div>}
+
+                  {/* Champs spécifiques au type */}
+                  {(subType==="location_agence"||subType==="location_domicile") && <>
+                    <div className={styles.detailItem}><span className={styles.detailLabel}>Début</span><span className={styles.detailValue}>{fmtDate(order.startDate||order.location?.startDate)}</span></div>
+                    <div className={styles.detailItem}><span className={styles.detailLabel}>Fin</span><span className={styles.detailValue}>{fmtDate(order.endDate||order.location?.endDate)}</span></div>
+                    <div className={styles.detailItem}><span className={styles.detailLabel}>Durée</span><span className={styles.detailValue}>{order.days||order.location?.days||"—"} jour(s)</span></div>
+                    {order.location?.returnLocation && <div className={styles.detailItem}><span className={styles.detailLabel}>Retour</span><span className={styles.detailValue}>{order.location.returnLocation}</span></div>}
+                  </>}
+                  {subType==="vente" && <>
+                    <div className={styles.detailItem}><span className={styles.detailLabel}>Date RDV</span><span className={styles.detailValue}>{fmtDate(order.preferredDate||order.essai?.preferredDate)}</span></div>
+                    <div className={styles.detailItem}><span className={styles.detailLabel}>Heure</span><span className={styles.detailValue}>{order.preferredTime||order.essai?.preferredTime||"—"}</span></div>
+                    {order.essai?.notes && <div className={styles.detailItem} style={{gridColumn:"span 2"}}><span className={styles.detailLabel}>Notes</span><span className={styles.detailValue}>{order.essai.notes}</span></div>}
+                  </>}
+                  {subType==="chauffeur" && <>
+                    <div className={styles.detailItem}><span className={styles.detailLabel}>Date</span><span className={styles.detailValue}>{fmtDate(order.chauffeur?.date||order.startDate)}</span></div>
+                    <div className={styles.detailItem}><span className={styles.detailLabel}>Durée</span><span className={styles.detailValue}>{order.chauffeur?.heures||"—"} h</span></div>
+                    <div className={styles.detailItem}><span className={styles.detailLabel}>Départ</span><span className={styles.detailValue}>{order.chauffeur?.lieuDepart||"—"}</span></div>
+                    <div className={styles.detailItem}><span className={styles.detailLabel}>Destination</span><span className={styles.detailValue}>{order.chauffeur?.destination||"—"}</span></div>
+                    {order.chauffeur?.notes && <div className={styles.detailItem} style={{gridColumn:"span 2"}}><span className={styles.detailLabel}>Notes</span><span className={styles.detailValue}>{order.chauffeur.notes}</span></div>}
+                  </>}
+                  {subType==="leasing" && <>
+                    <div className={styles.detailItem}><span className={styles.detailLabel}>Apport initial</span><span className={styles.detailValue}>{fmtXOF(order.leasing?.apportInitial||0)}</span></div>
+                    <div className={styles.detailItem}><span className={styles.detailLabel}>Mensualité</span><span className={styles.detailValue}>{fmtXOF(order.leasing?.mensualite||0)}</span></div>
+                    <div className={styles.detailItem}><span className={styles.detailLabel}>Durée</span><span className={styles.detailValue}>{order.leasing?.duree||"—"} mois</span></div>
+                    <div className={styles.detailItem}><span className={styles.detailLabel}>Taux d'intérêt</span><span className={styles.detailValue}>{order.leasing?.tauxInteret||"—"}%</span></div>
+                    <div className={styles.detailItem}><span className={styles.detailLabel}>Total leasing</span><span className={styles.detailValue}>{fmtXOF(order.leasing?.totalLeasing||0)}</span></div>
+                  </>}
+                  {subType==="import_export" && <>
+                    <div className={styles.detailItem}><span className={styles.detailLabel}>Date demande</span><span className={styles.detailValue}>{fmtDate(order.preferredDate||order.createdAt)}</span></div>
+                    {order.essai?.notes && <div className={styles.detailItem} style={{gridColumn:"span 2"}}><span className={styles.detailLabel}>Détails</span><span className={styles.detailValue}>{order.essai.notes}</span></div>}
+                  </>}
+                </div>
+
+                {/* Finances */}
+                <div className={styles.finBreakdown}>
+                  <div className={styles.finTitle}>Décomposition financière</div>
+                  <div className={styles.finRow}><span>Total client</span><strong>{fmtXOF(totalAmt)}</strong></div>
+                  <div className={styles.finRow} style={{color:"#dc2626"}}><span>Commission VIT-AUTO ({Math.round(commRate*100)}%)</span><strong>− {fmtXOF(commAmt)}</strong></div>
+                  <div className={styles.finRow} style={{color:"#dc2626"}}><span>Frais de service</span><strong>− {fmtXOF(SERVICE_FEE)}</strong></div>
+                  <div className={styles.finRowNet}><span>Votre net partenaire</span><strong>{fmtXOF(netAmt)}</strong></div>
+                </div>
+
+                {/* Options location */}
+                {order.location?.options && Object.values(order.location.options).some(Boolean) && (
+                  <div className={styles.optionsList}>
+                    {order.location.options.gps       && <span className={styles.optionTag}>🗺️ GPS</span>}
+                    {order.location.options.babySeat  && <span className={styles.optionTag}>👶 Siège bébé</span>}
+                    {order.location.options.insurance && <span className={styles.optionTag}>🛡️ Assurance</span>}
+                    {order.location.options.driver    && <span className={styles.optionTag}>🧑‍✈️ Chauffeur</span>}
                   </div>
-                </button>
-                <button
-                  className={styles.btnDecisionRefuse}
-                  onClick={() => onReject(order.id)}
-                >
-                  <span className={styles.decisionIcon}>✕</span>
-                  <div>
-                    <span className={styles.decisionLabel}>Refuser</span>
-                    <span className={styles.decisionHint}>Avec raison optionnelle</span>
+                )}
+
+                {/* Contrat digital */}
+                {contractId && (
+                  <div style={{ marginTop:12 }}>
+                    <Link to={`/contract/${order.id}`} target="_blank" rel="noopener noreferrer" className={styles.contractLinkLarge}>
+                      📄 Voir le contrat digital
+                    </Link>
                   </div>
-                </button>
+                )}
               </div>
-            </section>
+            </div>
+          </div>
+
+          {/* ══ BLOC 2 : LIEU DE PRISE EN CHARGE (livraison / domicile) ════════ */}
+          {isLiv && pickupAddr && (
+            <div className={styles.sectionCard}>
+              <div className={styles.sectionCardTitle}>📍 Adresse de {subType === "location_domicile" ? "livraison" : "prise en charge"}</div>
+              <div className={styles.pickupBlock}>
+                <div className={styles.pickupAddr}>
+                  <div className={styles.pickupAddrText}>{pickupAddr}</div>
+                  {hasGps && <div className={styles.pickupGps}>📡 GPS · {Number(order.pickupLat).toFixed(5)}, {Number(order.pickupLng).toFixed(5)}</div>}
+                </div>
+                <div className={styles.pickupActions}>
+                  {mapsUrl && <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className={styles.mapsBtn}>🗺️ Google Maps</a>}
+                  {order.phone && <a href={`https://wa.me/${order.phone?.replace(/[\s\+\-]/g,"")}?text=Bonjour%20${encodeURIComponent(order.firstName||"")}%2C%20je%20confirme%20notre%20rendez-vous%20VIT%20AUTO.`} target="_blank" rel="noopener noreferrer" className={styles.whatsappBtn}>💬 WhatsApp</a>}
+                </div>
+              </div>
+              {hasGps && <iframe title="Carte" loading="lazy" src={`https://www.openstreetmap.org/export/embed.html?bbox=${order.pickupLng-.01},${order.pickupLat-.01},${order.pickupLng+.01},${order.pickupLat+.01}&layer=mapnik&marker=${order.pickupLat},${order.pickupLng}`} className={styles.mapFrame} />}
+              {order.location?.returnLocation && <div className={styles.returnRow}><span>🔄 Lieu de retour :</span><strong>{order.location.returnLocation}</strong></div>}
+            </div>
           )}
 
-          {/* ══ SUIVI — cases à cocher (une fois acceptée) ══ */}
-          {isAccepted && (
-            <section className={styles.gererSection}>
-              <h3 className={styles.gererSectionTitle}>📊 Suivi de commande</h3>
-
-              {/* ── Bandeau statut actuel ── */}
-              {order.status === "confirmed" && (
-                <div className={styles.acceptedBanner}>
-                  ✅ Commande acceptée — le client a été notifié. Cliquez sur "Marquer en cours" quand vous commencez la préparation.
-                </div>
-              )}
-              {order.status === "preparing" && (
-                <div className={styles.preparingBanner}>
-                  ⚙️ En cours de préparation — cliquez "Marquer prête" quand le véhicule est prêt.
-                </div>
-              )}
-              {order.status === "ready" && (
-                <div className={styles.readyBanner}>
-                  🚗 Véhicule prêt — cliquez "Marquer en route" quand vous partez vers le client.
-                </div>
-              )}
-              {order.status === "in_progress" && (
-                <div className={styles.inProgressBanner}>
-                  🚀 En route ! Cliquez "Marquer terminée" une fois la livraison effectuée.
-                </div>
-              )}
-
-              {/* ── Bouton action principale — EN DEHORS des cases ── */}
-              {(() => {
-                const nextAction = NEXT_ACTIONS[order.status];
-                if (!nextAction || order.status === "completed") return null;
-                return (
-                  <button
-                    className={`${styles.btnMainStep} ${nextAction.btnClass}`}
-                    onClick={() => nextAction.fn(order.id)}
-                  >
-                    <span className={styles.btnMainStepLabel}>{nextAction.label}</span>
-                    <span className={styles.btnMainStepHint}>Le client sera notifié automatiquement</span>
-                  </button>
-                );
-              })()}
-
-              {/* ── Cases à cocher cliquables ── */}
-              <div className={styles.checklist}>
-                {CHECKLIST_STEPS.map((step, idx) => {
-                  const stepIdx    = STEP_ORDER.indexOf(step.key);
-                  const isDoneStep = currentStepIdx > stepIdx;
-                  const isCurrent  = currentStepIdx === stepIdx;
-                  const isFuture   = currentStepIdx < stepIdx;
-                  const nextAction = NEXT_ACTIONS[order.status];
-                  const isNextStep = nextAction && STEP_ORDER.indexOf(step.key) === currentStepIdx + 1 && order.status !== "completed";
-
+          {/* ══ BLOC 3 : SUIVI — WORKFLOW PAR TYPE ══════════════════════════ */}
+          {isActive && (
+            <div className={styles.sectionCard}>
+              <div className={styles.sectionCardTitle} style={{ color: wf.color }}>📊 {wf.badge} — Suivi de la commande</div>
+              <div className={styles.timeline}>
+                {wf.steps.map((step, idx) => {
+                  const statusOrder = wf.steps.map(s=>s.s);
+                  const curIdx = statusOrder.indexOf(order.status);
+                  const myIdx  = statusOrder.indexOf(step.s);
+                  const done    = curIdx > myIdx;
+                  const current = curIdx === myIdx;
                   return (
-                    <div
-                      key={step.key}
-                      className={[
-                        styles.checkItem,
-                        isDoneStep ? styles.checkItemDone    : "",
-                        isCurrent  ? styles.checkItemCurrent : "",
-                        isFuture   ? styles.checkItemFuture  : "",
-                        isNextStep ? styles.checkItemNext    : "",
-                      ].join(" ")}
-                      onClick={isNextStep ? () => nextAction.fn(order.id) : undefined}
-                      title={isNextStep ? `Cliquer pour : ${nextAction.label}` : undefined}
-                    >
-                      {/* Case à cocher */}
-                      <div className={[
-                        styles.checkbox,
-                        isDoneStep ? styles.checkboxDone    : "",
-                        isCurrent  ? styles.checkboxCurrent : "",
-                        isNextStep ? styles.checkboxNext    : "",
-                      ].join(" ")}>
-                        {isDoneStep && <span>✓</span>}
-                        {isCurrent  && <span>{step.icon}</span>}
-                        {isNextStep && <span className={styles.checkboxNextIcon}>+</span>}
+                    <div key={step.s} className={[styles.timelineStep, done?styles.timelineDone:current?styles.timelineCurrent:styles.timelineFuture].join(" ")}>
+                      <div className={styles.timelineDot} style={{ background:(done||current)?step.c:"#e2e8f0" }}>
+                        {done ? "✓" : step.i}
                       </div>
-
-                      {/* Ligne verticale de connexion */}
-                      {idx < CHECKLIST_STEPS.length - 1 && (
-                        <div className={`${styles.checkLine} ${isDoneStep ? styles.checkLineDone : ""}`} />
-                      )}
-
-                      {/* Contenu */}
-                      <div className={styles.checkContent}>
-                        <span className={styles.checkLabel}>{step.label}</span>
-                        <span className={styles.checkHint}>{step.hint}</span>
-                      </div>
-
-                      {/* Indicateur cliquable */}
-                      {isNextStep && (
-                        <span className={styles.checkClickHint}>Cliquer ici →</span>
-                      )}
+                      {idx < wf.steps.length-1 && <div className={[styles.timelineLine, done?styles.timelineLineDone:""].join(" ")} />}
+                      <div className={styles.timelineLabel}>{step.l}</div>
                     </div>
                   );
                 })}
               </div>
+              {/* Description de l'étape courante */}
+              {(() => { const cur = wf.steps.find(s=>s.s===order.status); return cur?.desc ? <p style={{ fontSize:".82rem", color:"#64748b", margin:"8px 0 0", textAlign:"center" }}>{cur.desc}</p> : null; })()}
+            </div>
+          )}
+          {order.status === "completed" && <div className={styles.completedBanner}>🏁 Commande terminée avec succès ! Client notifié.</div>}
 
-              {order.status === "completed" && (
-                <div className={styles.completedBlock}>🏁 Commande terminée avec succès</div>
-              )}
+          {/* ══ BLOC 4 : ACTION UNIQUE ════════════════════════════════════════ */}
 
-              {/* Lien contrat partenaire — Link React (pas de rechargement) */}
-              <Link
-                to={`/contract/${order.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={styles.btnContractLink}
-              >
-                📄 Voir / Générer le contrat
-              </Link>
-
-              {order.status !== "completed" && (
-                <button className={styles.btnCancelOrder} onClick={() => onReject(order.id)}>
-                  ✕ Annuler cette commande
+          {/* ── Nouvelle commande — Décision ─────────────────────────────── */}
+          {ACTION === "decision" && (
+            <div className={styles.sectionCard} style={{ border:"2px solid #fde68a", background:"#fffbeb" }}>
+              <div className={styles.sectionCardTitle}>⚡ Décision requise</div>
+              <p className={styles.decisionHelp} style={{ marginBottom:12 }}>
+                Cette commande attend votre réponse. Le client sera notifié immédiatement. <strong>Vérifiez les documents identité ci-dessus avant de confirmer.</strong>
+              </p>
+              <div className={styles.decisionBtns}>
+                <button className={styles.btnAccept} onClick={() => onConfirm(order.id)}>
+                  <span>✅</span><div><strong>Accepter la réservation</strong><span>Un contrat sera généré automatiquement</span></div>
                 </button>
-              )}
-            </section>
+                <button className={styles.btnRefuse} onClick={() => onReject(order.id)}>
+                  <span>✕</span><div><strong>Refuser</strong><span>Avec motif (optionnel)</span></div>
+                </button>
+              </div>
+            </div>
           )}
 
-          {/* Annulée */}
-          {order.status === "cancelled" && (
+          {/* ── Progression — Prochaine étape ────────────────────────────── */}
+          {ACTION === "progress" && nextBtnCfg && (
+            <div className={styles.sectionCard}>
+              <div className={styles.sectionCardTitle} style={{ color: wf.color }}>
+                ⚙️ Étape en cours — {wf.steps.find(s=>s.s===order.status)?.l || "Avancement"}
+              </div>
+              {wf.steps.find(s=>s.s===order.status)?.desc && (
+                <p className={styles.decisionHelp}>{wf.steps.find(s=>s.s===order.status)?.desc}</p>
+              )}
+              <button className={styles.nextStepBtn} onClick={() => FN_MAP[nextBtnCfg.fn]?.(order.id)}>
+                {nextBtnCfg.icon} {nextBtnCfg.label} →
+              </button>
+
+              {/* Fast-mode : UNIQUEMENT si la prochaine étape = remise directe au client */}
+              {showFastMode && (
+                <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid #f1f5f9" }}>
+                  <p style={{ fontSize:".8rem", color:"#059669", fontWeight:600, margin:"0 0 8px" }}>
+                    ⚡ Raccourci — le client est là maintenant, finaliser directement :
+                  </p>
+                  {!fastMode ? (
+                    <div className={styles.decisionBtns}>
+                      <button className={styles.btnAccept} onClick={() => setFastMode("present")}>
+                        <span>🤝</span><div><strong>Client présent — Encaisser</strong><span>Saisir le montant encaissé directement</span></div>
+                      </button>
+                      <button className={styles.btnRefuse} onClick={() => onPartnerConfirm(order.id, {clientPresent:false,finalAmount:0,paymentMethod:"cash"})}>
+                        <span>🚫</span><div><strong>Client absent</strong><span>Signaler l'absence et clore</span></div>
+                      </button>
+                    </div>
+                  ) : (
+                    <TxForm form={txForm} setForm={setTxForm} commRate={commRate}
+                      onSubmit={() => {
+                        if(!txForm.finalAmount||Number(txForm.finalAmount)<=0) return;
+                        onPartnerConfirm(order.id,{clientPresent:true,finalAmount:Number(txForm.finalAmount),paymentMethod:txForm.paymentMethod,comment:txForm.comment});
+                        setFastMode(null);
+                      }}
+                      onCancel={() => setFastMode(null)}
+                    />
+                  )}
+                </div>
+              )}
+
+              <div style={{ marginTop:12, display:"flex", justifyContent:"flex-end" }}>
+                <button className={styles.cancelOrderBtn} onClick={() => onReject(order.id)}>✕ Annuler la commande</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── RDV / Arrivée / Présence ─────────────────────────────────── */}
+          {ACTION === "rdv" && (
+            <div className={styles.sectionCard} style={{ border:"2px solid #93c5fd", background:"#eff6ff" }}>
+              <div className={styles.sectionCardTitle} style={{ color:"#1d4ed8" }}>
+                📍 {wf.rdvLabel || "Le client est-il présent ?"}
+              </div>
+              <p className={styles.decisionHelp} style={{ color:"#1e40af" }}>
+                {wf.steps.find(s=>s.s===order.status)?.desc}. Vérifiez la pièce d'identité dans la section ci-dessus avant de confirmer.
+              </p>
+              <div className={styles.decisionBtns}>
+                <button className={styles.btnAccept} onClick={() => onClientArrived(order.id)}>
+                  <span>📍</span><div><strong>{wf.rdvPresentLabel || "Présent — Enregistrer transaction"}</strong><span>Identité conforme</span></div>
+                </button>
+                <button className={styles.btnRefuse} onClick={() => onClientAbsent(order.id)}>
+                  <span>🚫</span><div><strong>{wf.rdvAbsentLabel || "Absent / Introuvable"}</strong><span>Signaler l'absence</span></div>
+                </button>
+              </div>
+              <div style={{ marginTop:10, display:"flex", justifyContent:"flex-end" }}>
+                <button className={styles.cancelOrderBtn} onClick={() => onReject(order.id)}>✕ Annuler</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Transaction ──────────────────────────────────────────────── */}
+          {ACTION === "transaction" && (
+            <div className={styles.sectionCard}>
+              <div className={styles.sectionCardTitle}>💰 Enregistrement de la transaction</div>
+              <p className={styles.decisionHelp}>Saisissez le montant exact encaissé auprès du client. La transaction sera soumise à validation.</p>
+              {txError && <p className={styles.txError}>{txError}</p>}
+              <TxForm form={txForm} setForm={setTxForm} submitting={txSubmitting} commRate={commRate}
+                onSubmit={async () => {
+                  if(!txForm.finalAmount||Number(txForm.finalAmount)<=0){setTxError("Saisissez un montant valide.");return;}
+                  setTxError(""); setTxSubmitting(true);
+                  await onRecordTransaction(order.id,{finalAmount:Number(txForm.finalAmount),paymentMethod:txForm.paymentMethod,comment:txForm.comment});
+                  setTxSubmitting(false);
+                }}
+                onCancel={() => onReject(order.id)} cancelLabel="Transaction non conclue"
+              />
+            </div>
+          )}
+
+          {/* ── Attente validation client ────────────────────────────────── */}
+          {ACTION === "waiting" && (
+            <div className={styles.sectionCard} style={{ background:"#fffbeb", border:"1.5px solid #fde68a" }}>
+              <div className={styles.sectionCardTitle}>⏳ En attente de validation client</div>
+              <div className={styles.waitingInfo}>
+                <div className={styles.waitingAmount}>{fmtXOF(order.transaction?.finalAmount || totalAmt)}</div>
+                <div className={styles.waitingMode}>{PAY_LABELS[order.transaction?.paymentMethod] || "—"}</div>
+                <p className={styles.waitingNote}>Transaction soumise. Le client valide dans son tableau de bord.<br/>Vous serez notifié automatiquement dès confirmation.</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Terminé / Annulé / Litige ───────────────────────────────── */}
+          {/* ── Client absent ────────────────────────────────────────────── */}
+          {ACTION === "client_absent" && (
+            <div className={styles.sectionCard} style={{ background:"#fff5f5", border:"1.5px solid #fca5a5" }}>
+              <div className={styles.sectionCardTitle} style={{ color:"#dc2626" }}>🚫 Client non présenté au rendez-vous</div>
+              <p className={styles.decisionHelp} style={{ color:"#991b1b" }}>
+                Le client était absent. Recontactez-le pour replanifier ou annulez définitivement la commande.
+              </p>
+              <div className={styles.decisionBtns} style={{ marginBottom:12 }}>
+                {order.phone && (
+                  <a href={`https://wa.me/${order.phone?.replace(/[\s\+\-]/g,"")}?text=Bonjour%20${encodeURIComponent(order.firstName||"")}%2C%20nous%20avons%20constaté%20votre%20absence%20au%20rendez-vous%20VIT%20AUTO%20(réf.%20${order.reference||""}).%20Souhaitez-vous%20replanifier%20%3F`}
+                    target="_blank" rel="noopener noreferrer" className={styles.btnAccept} style={{ textDecoration:"none" }}>
+                    <span>💬</span><div><strong>Recontacter via WhatsApp</strong><span>Proposer un nouveau RDV</span></div>
+                  </a>
+                )}
+                <button className={styles.btnRefuse} onClick={() => onReject(order.id)}>
+                  <span>❌</span><div><strong>Annuler définitivement</strong><span>Clore cette commande</span></div>
+                </button>
+              </div>
+              <div style={{ fontSize:".8rem", color:"#9ca3af", padding:"8px 0 0", borderTop:"1px solid #fee2e2" }}>
+                ℹ️ Cette commande reste dans votre historique. VIT-AUTO sera informé automatiquement.
+              </div>
+            </div>
+          )}
+
+          {/* ── Commande terminée ─────────────────────────────────────────── */}
+          {ACTION === "done" && (
+            <div className={styles.sectionCard} style={{ background:"#f0fdf4", border:"1.5px solid #86efac" }}>
+              <div className={styles.sectionCardTitle} style={{ color:"#059669" }}>🏁 Commande terminée avec succès</div>
+              {order.transaction?.finalAmount && (
+                <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:8 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:".88rem" }}>
+                    <span style={{ color:"#64748b" }}>Montant encaissé</span>
+                    <strong>{fmtXOF(order.transaction.finalAmount)}</strong>
+                  </div>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:".88rem" }}>
+                    <span style={{ color:"#64748b" }}>Mode de paiement</span>
+                    <strong>{PAY_LABELS[order.transaction.paymentMethod] || order.transaction.paymentMethod || "—"}</strong>
+                  </div>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:".88rem", fontWeight:800, color:"#059669", paddingTop:6, borderTop:"1px solid #d1fae5" }}>
+                    <span>Votre net reçu</span>
+                    <strong>{fmtXOF(netAmt)}</strong>
+                  </div>
+                  {order.transaction.comment && (
+                    <div style={{ fontSize:".8rem", color:"#64748b", marginTop:4, fontStyle:"italic" }}>
+                      Note : {order.transaction.comment}
+                    </div>
+                  )}
+                </div>
+              )}
+              {contractId && (
+                <div style={{ marginTop:12 }}>
+                  <Link to={`/contract/${order.id}`} target="_blank" rel="noopener noreferrer" className={styles.contractLink}>
+                    📄 Télécharger le contrat
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Statuts terminaux ─────────────────────────────────────────── */}
+          {ACTION === "cancelled" && (
             <div className={styles.cancelledBlock}>
-              ❌ Commande annulée{order.vendorNote ? ` — ${order.vendorNote}` : ""}
+              ❌ Commande annulée{order.cancelReason ? ` — ${order.cancelReason}` : ""}
+              {order.cancelledAt && <span style={{ display:"block", fontSize:".78rem", marginTop:4, opacity:.7 }}>Le {new Date(order.cancelledAt).toLocaleDateString("fr-FR")}</span>}
+            </div>
+          )}
+          {ACTION === "disputed" && (
+            <div className={styles.disputedBlock}>
+              ⚠️ Litige ouvert — contactez le support VIT AUTO pour résolution.
+              {order.clientValidation?.disputeReason && (
+                <p style={{ margin:"6px 0 0", fontSize:".82rem" }}>Raison : {order.clientValidation.disputeReason}</p>
+              )}
+            </div>
+          )}
+
+          {/* ── Fallback ─────────────────────────────────────────────────── */}
+          {ACTION === "info" && (
+            <div className={styles.sectionCard} style={{ background:"#f8fafc" }}>
+              <div className={styles.sectionCardTitle}>ℹ️ Information</div>
+              <p className={styles.decisionHelp}>Statut actuel : <strong>{bst.label}</strong>. Aucune action requise pour le moment.</p>
             </div>
           )}
         </div>
@@ -374,475 +756,834 @@ function GererModal({ order, onClose, onConfirm, onPrepare, onReady, onInProgres
   );
 }
 
-// ── Composant principal ───────────────────────────────────────────────────────
+/* ── Formulaire de transaction réutilisable ──────────────────────────────── */
+function TxForm({ form, setForm, onSubmit, onCancel, cancelLabel = "Annuler", submitting = false, commRate = 0.15 }) {
+  const amt    = Number(form.finalAmount) || 0;
+  const comm   = Math.round(amt * commRate);
+  const netPay = Math.max(Math.round(amt - comm) - SERVICE_FEE, 0);
+  return (
+    <div className={styles.txForm}>
+      <div className={styles.txRow}>
+        <label className={styles.txLabel}>Montant encaissé (XOF) *</label>
+        <input type="number" min="1" className={styles.txInput} placeholder="Ex : 120 000"
+          value={form.finalAmount} onChange={(e) => setForm((p) => ({ ...p, finalAmount: e.target.value }))} />
+      </div>
+      <div className={styles.txRow}>
+        <label className={styles.txLabel}>Mode de paiement *</label>
+        <select className={styles.txSelect} value={form.paymentMethod} onChange={(e) => setForm((p) => ({ ...p, paymentMethod: e.target.value }))}>
+          <option value="cash">💵 Espèces</option>
+          <option value="orange_money">🟠 Orange Money</option>
+          <option value="wave">🌊 Wave</option>
+          <option value="mtn">🟡 MTN Mobile Money</option>
+          <option value="moov">🔵 Moov Money</option>
+          <option value="card">💳 Carte bancaire</option>
+          <option value="virement">🏦 Virement bancaire</option>
+        </select>
+      </div>
+      <div className={styles.txRow}>
+        <label className={styles.txLabel}>Note (optionnel)</label>
+        <textarea rows={2} className={styles.txTextarea} placeholder="Observations..."
+          value={form.comment} onChange={(e) => setForm((p) => ({ ...p, comment: e.target.value }))} />
+      </div>
+      {amt > 0 && (
+        <div className={styles.txPreview}>
+          <div className={styles.txPreviewRow}><span>Montant encaissé</span><strong>{amt.toLocaleString("fr-FR")} XOF</strong></div>
+          <div className={styles.txPreviewRow} style={{ color: "#dc2626" }}><span>Commission VIT-AUTO ({Math.round(commRate * 100)}%)</span><strong>− {comm.toLocaleString("fr-FR")} XOF</strong></div>
+          <div className={styles.txPreviewRow} style={{ color: "#dc2626" }}><span>Frais de service</span><strong>− {SERVICE_FEE.toLocaleString("fr-FR")} XOF</strong></div>
+          <div className={styles.txPreviewNet}><span>Votre net</span><strong>{netPay.toLocaleString("fr-FR")} XOF</strong></div>
+        </div>
+      )}
+      <div className={styles.txActions}>
+        <button className={styles.btnTxSubmit} onClick={onSubmit} disabled={submitting}>
+          {submitting ? "Envoi…" : "✅ Valider et envoyer au client"}
+        </button>
+        <button className={styles.btnTxCancel} onClick={onCancel}>{cancelLabel}</button>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   COMPOSANT PRINCIPAL — VendorDashboard
+   ══════════════════════════════════════════════════════════════════════════════ */
 export default function VendorDashboard() {
   const { user, isAuthenticated, token } = useAuth();
-  const {
-    partnerVehicles: myVehicles,
-    partnerBookings,
-    bookings,
-    updateBookingStatus,
-    loadPartnerVehicles,
-    loadPartnerOrders,
-  } = useVehicles();
+  const { partnerVehicles: myVehicles, partnerBookings, bookings, updateBookingStatus, loadPartnerVehicles, loadPartnerOrders } = useVehicles();
   const { success: toastSuccess, error: toastError } = useToast();
+  const { on } = useSocket();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab]       = useState("annonces");
-  const [subscription, setSubscription] = useState(null);
-  const [subLoading, setSubLoading]     = useState(true);
-  const [boostTarget, setBoostTarget]   = useState(null);
-  const [boostMsg, setBoostMsg]         = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [orderFilter, setOrderFilter]   = useState("all");
-  const [rejectModal, setRejectModal]   = useState(null); // bookingId
-  const [rejectNote, setRejectNote]     = useState("");
-  const [gererModalId, setGererModalId] = useState(null); // order id
+  const [activeTab,      setActiveTab]      = useState("dashboard");
+  const [invoices,       setInvoices]       = useState([]);
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
+  const [transactions,   setTransactions]   = useState([]);
+  const [txLoading,      setTxLoading]      = useState(false);
+  const [subscription,   setSubscription]   = useState(null);
+  const [subLoading,     setSubLoading]     = useState(true);
+  const [boostTarget,    setBoostTarget]    = useState(null);
+  const [orderFilter,    setOrderFilter]    = useState("all");
+  const [statusFilter,   setStatusFilter]   = useState("all");
+  const [searchQuery,    setSearchQuery]    = useState("");
+  const [rejectModal,    setRejectModal]    = useState(null);
+  const [rejectNote,     setRejectNote]     = useState("");
+  const [gererModalId,   setGererModalId]   = useState(null);
+  const [orderDetail,    setOrderDetail]    = useState(null);
+  const [detailLoading,  setDetailLoading]  = useState(false);
+  const [myDrivers,      setMyDrivers]      = useState([]);
+  const [driverLoading,  setDriverLoading]  = useState(false);
+  const [refreshing,     setRefreshing]     = useState(false);
+
+  // ── Réservations personnelles (en tant que client) ─────────────────────────
+  const [myPersonalBookings,  setMyPersonalBookings]  = useState([]);
+  const [personalLoading,     setPersonalLoading]     = useState(false);
+  const [personalValidating,  setPersonalValidating]  = useState(null);
+  const [personalDispute,     setPersonalDispute]     = useState(null);
+  const [personalDisputeText, setPersonalDisputeText] = useState("");
 
   useEffect(() => {
     if (!isAuthenticated || !token) { setSubLoading(false); return; }
     fetch("/api/subscriptions/me", { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
-      .then((d) => setSubscription(d.subscription))
-      .catch(() => {})
-      .finally(() => setSubLoading(false));
+      .then((r) => r.json()).then((d) => setSubscription(d.subscription)).catch(() => {}).finally(() => setSubLoading(false));
   }, [isAuthenticated, token]);
 
-  // IDs des véhicules du partenaire (pour filtrer les commandes localStorage)
-  const myVehicleIds = useMemo(
-    () => new Set(myVehicles.map((v) => String(v.id || v._id))),
-    [myVehicles]
-  );
+  const myVehicleIds = useMemo(() => new Set(myVehicles.map((v) => String(v.id || v._id))), [myVehicles]);
 
-  // Commandes depuis localStorage filtrées par véhicules du partenaire
   const localOrders = useMemo(
     () => bookings.filter((b) => myVehicleIds.has(String(b.vehicleId))),
     [bookings, myVehicleIds]
   );
 
-  // Fusion localStorage + backend (le backend a priorité — il a les données GPS et le statut réel)
+  // ── Fetch des réservations perso (client) ─────────────────────────────────
+  const fetchPersonalBookings = useCallback(async () => {
+    if (!token) return;
+    setPersonalLoading(true);
+    try {
+      const res = await fetch("/api/bookings/mine", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const { bookings: raw } = await res.json();
+      if (Array.isArray(raw)) {
+        setMyPersonalBookings(raw.map((b) => {
+          const veh = b.vehicle;
+          const drv = b.driver;
+          return {
+            id:          b._id?.toString(),
+            _id:         b._id?.toString(),
+            status:      b.status || "pending",
+            type:        b.type,
+            reference:   b.reference,
+            vehicleName: veh
+              ? [veh.title, veh.marque, veh.modele].filter(Boolean).join(" ")
+              : (drv ? `${drv.firstName || ""} ${drv.lastName || ""}`.trim() : "Véhicule"),
+            startDate:   b.location?.startDate,
+            endDate:     b.location?.endDate,
+            days:        b.location?.days,
+            montantTotal: b.montantTotal,
+            transaction: b.transaction,
+            clientValidation: b.clientValidation,
+            createdAt:   b.createdAt,
+            isPaid:      b.isPaid,
+            devise:      b.devise || "XOF",
+            partnerName: veh?.contactNom || (drv ? `${drv.firstName} ${drv.lastName}` : null),
+          };
+        }));
+      }
+    } catch { /* ignore */ }
+    finally { setPersonalLoading(false); }
+  }, [token]);
+
+  // Valider ou contester une transaction (en tant que client)
+  const handlePersonalValidate = useCallback(async (bookingId, action, reason) => {
+    if (!token || !bookingId) return;
+    setPersonalValidating(bookingId);
+    try {
+      const r = await fetch(`/api/bookings/${bookingId}/validate`, {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ action, disputeReason: reason }),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        toastSuccess(action === "validate" ? "✅ Transaction validée !" : "⚠️ Litige enregistré.");
+        setPersonalDispute(null);
+        setPersonalDisputeText("");
+        await fetchPersonalBookings();
+      } else {
+        toastError(d.message || "Erreur lors de la validation.");
+      }
+    } catch { toastError("Erreur réseau."); }
+    finally { setPersonalValidating(null); }
+  }, [token, fetchPersonalBookings, toastSuccess, toastError]);
+
+  // Charger au montage et quand l'onglet "reservations" est actif
+  useEffect(() => {
+    if (activeTab === "reservations") fetchPersonalBookings();
+  }, [activeTab, fetchPersonalBookings]);
+
   const allOrders = useMemo(() => {
     const map = new Map();
-    localOrders.forEach((b)     => map.set(String(b.id), b));
+    localOrders.forEach((b) => map.set(String(b.id), b));
     partnerBookings.forEach((b) => map.set(String(b.id), { ...map.get(String(b.id)), ...b }));
-    return Array.from(map.values()).sort(
-      (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
-    );
+    return Array.from(map.values()).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }, [localOrders, partnerBookings]);
 
-  // Dérivé de allOrders → se met à jour automatiquement quand le statut change
   const gererModal = useMemo(
     () => (gererModalId != null ? allOrders.find((o) => String(o.id) === String(gererModalId)) ?? null : null),
     [gererModalId, allOrders]
   );
 
   const filteredOrders = useMemo(() => {
-    if (orderFilter === "all") return allOrders;
-    const map = {
-      new:       ["À confirmer", "pending"],
-      confirmed: ["confirmed", "preparing", "ready", "in_progress"],
-      done:      ["completed"],
-      cancelled: ["cancelled"],
-    };
-    return allOrders.filter((b) => (map[orderFilter] || []).includes(b.status));
-  }, [allOrders, orderFilter]);
+    let list = allOrders;
+    if (orderFilter !== "all") {
+      const map = {
+        new:       ["À confirmer", "pending"],
+        active:    ["confirmed", "preparing", "ready", "in_progress", "client_arrived", "client_absent"],
+        validate:  ["waiting_client_validation"],
+        done:      ["completed"],
+        cancelled: ["cancelled", "disputed", "transaction_not_concluded"],
+      };
+      list = list.filter((b) => (map[orderFilter] || []).includes(b.status));
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter((b) => (
+        (b.reference || "").toLowerCase().includes(q) ||
+        (b.firstName || "").toLowerCase().includes(q) ||
+        (b.lastName  || "").toLowerCase().includes(q) ||
+        (b.vehicleName || "").toLowerCase().includes(q) ||
+        (b.clientInfo?.firstName || "").toLowerCase().includes(q)
+      ));
+    }
+    return list;
+  }, [allOrders, orderFilter, searchQuery]);
 
+  const filteredVehicles = useMemo(
+    () => statusFilter === "all" ? myVehicles : myVehicles.filter((v) => (v.status || "pending") === statusFilter),
+    [myVehicles, statusFilter]
+  );
+
+  // Statistiques réelles
   const stats = useMemo(() => {
-    const approved   = myVehicles.filter((v) => v.status === "approved");
-    const locationV  = approved.filter((v) => v.mode === "Louer");
-    const venteV     = approved.filter((v) => v.mode === "Acheter");
-    const grossLoc   = locationV.reduce((s, v) => s + (v.pricePerDay || 0) * 7, 0);
-    const commLoc    = Math.round(grossLoc * COMMISSION_LOCATION);
-    const grossVte   = venteV.reduce((s, v) => s + (v.buyPrice || 0), 0) * 0.1;
-    const commVte    = Math.round(grossVte * COMMISSION_VENTE);
-    const netRev     = Math.max(grossLoc + grossVte - commLoc - commVte - SERVICE_FEE * approved.length, 0);
-    const newOrders  = allOrders.filter((b) => b.status === "À confirmer" || b.status === "pending").length;
-    return {
-      total:    myVehicles.length,
-      approved: approved.length,
-      pending:  myVehicles.filter((v) => (v.status || "pending") === "pending").length,
-      rejected: myVehicles.filter((v) => v.status === "rejected").length,
-      netRev, newOrders,
-    };
-  }, [myVehicles, allOrders]);
+    const completed  = allOrders.filter((b) => b.status === "completed");
+    const pending    = allOrders.filter((b) => ["À confirmer","pending"].includes(b.status));
+    const active     = allOrders.filter((b) => ["confirmed","preparing","ready","in_progress","client_arrived","client_absent"].includes(b.status));
+    const waiting    = allOrders.filter((b) => b.status === "waiting_client_validation");
+    const revenue    = completed.reduce((s, b) => s + (b.transaction?.finalAmount || b.montantTotal || 0), 0);
+    const commission = completed.reduce((s, b) => s + (b.commissionAmount || Math.round((b.montantTotal || 0) * 0.15)), 0);
+    const netRevenue = revenue - commission - completed.length * SERVICE_FEE;
+    return { totalVehicles: myVehicles.length, approved: myVehicles.filter((v) => v.status === "approved").length, totalOrders: allOrders.length, pending: pending.length, active: active.length, waiting: waiting.length, completed: completed.length, revenue, netRevenue: Math.max(netRevenue, 0) };
+  }, [allOrders, myVehicles]);
 
   const isPro  = subscription?.plan === "pro" && subscription?.proDetails?.isActive;
-  const proEnd = subscription?.proDetails?.endDate
-    ? new Date(subscription.proDetails.endDate).toLocaleDateString("fr-FR") : null;
+  const proEnd = subscription?.proDetails?.endDate ? new Date(subscription.proDetails.endDate).toLocaleDateString("fr-FR") : null;
 
+  /* ── Actions ─────────────────────────────────────────────────────────────── */
   const handleBoost = async (vehicleId) => {
-    if (!token) { navigate("/login"); return; }
+    if (!token) { navigate("/login?returnTo=/vendor/dashboard"); return; }
     setBoostTarget(vehicleId);
     try {
-      const r = await fetch("/api/subscriptions/boost", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ vehicleId }),
-      });
+      const r = await fetch("/api/subscriptions/boost", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ vehicleId }) });
       const d = await r.json();
-      setBoostMsg(r.ok ? "Mise en avant activée 30 jours !" : d.message || "Erreur.");
-    } catch { setBoostMsg("Erreur réseau."); }
+      if (r.ok) toastSuccess("Mise en avant activée 30 jours !"); else toastError(d.message || "Erreur.");
+    } catch { toastError("Erreur réseau."); }
     finally { setBoostTarget(null); }
   };
 
   const handleDeleteVehicle = async (id) => {
     if (!confirm("Supprimer définitivement cette annonce ?")) return;
-    try {
-      await fetch(`/api/vehicles/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-    } catch { /* ignore network error */ }
+    try { await fetch(`/api/vehicles/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }); }
+    catch { /* ignore */ }
     loadPartnerVehicles();
   };
 
-  const handleConfirm = useCallback((id) => {
-    updateBookingStatus(id, "confirmed");
-    toastSuccess("✅ Commande acceptée — le client a été notifié.");
+  const doUpdateStatus = useCallback((id, status) => {
+    updateBookingStatus(id, status);
     setTimeout(() => loadPartnerOrders(), 800);
-  }, [updateBookingStatus, toastSuccess, loadPartnerOrders]);
+  }, [updateBookingStatus, loadPartnerOrders]);
 
-  const handlePrepare = useCallback((id) => {
-    updateBookingStatus(id, "preparing");
-    toastSuccess("⚙️ En cours — le client a été informé.");
-    setTimeout(() => loadPartnerOrders(), 800);
-  }, [updateBookingStatus, toastSuccess, loadPartnerOrders]);
+  const handleConfirm     = useCallback((id) => { doUpdateStatus(id, "confirmed");    toastSuccess("✅ Commande acceptée."); }, [doUpdateStatus, toastSuccess]);
+  const handlePrepare     = useCallback((id) => { doUpdateStatus(id, "preparing");   toastSuccess("⚙️ En préparation."); }, [doUpdateStatus, toastSuccess]);
+  const handleReady       = useCallback((id) => { doUpdateStatus(id, "ready");        toastSuccess("🚗 Véhicule prêt."); }, [doUpdateStatus, toastSuccess]);
+  const handleInProgress  = useCallback((id) => { doUpdateStatus(id, "in_progress"); toastSuccess("🚀 En route !"); }, [doUpdateStatus, toastSuccess]);
+  const handleClientArrived = useCallback((id) => { doUpdateStatus(id, "client_arrived"); toastSuccess("📍 Client arrivé."); }, [doUpdateStatus, toastSuccess]);
+  const handleClientAbsent  = useCallback((id) => { doUpdateStatus(id, "client_absent");  toastError("🚫 Absence enregistrée."); }, [doUpdateStatus, toastError]);
+  const handleComplete    = useCallback((id) => { doUpdateStatus(id, "completed");    toastSuccess("🏁 Commande terminée."); }, [doUpdateStatus, toastSuccess]);
 
-  const handleReady = useCallback((id) => {
-    updateBookingStatus(id, "ready");
-    toastSuccess("🚗 Véhicule prêt — le client a été notifié.");
-    setTimeout(() => loadPartnerOrders(), 800);
-  }, [updateBookingStatus, toastSuccess, loadPartnerOrders]);
+  const handleRecordTransaction = useCallback(async (id, txData) => {
+    if (!token) return;
+    try {
+      const r = await fetch(`/api/bookings/${id}/transaction`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(txData) });
+      const d = await r.json();
+      if (r.ok) { toastSuccess("💰 Transaction enregistrée."); setGererModalId(null); setTimeout(() => { loadPartnerOrders(); loadTransactions(); }, 800); }
+      else toastError(d.message || "Erreur.");
+    } catch { toastError("Erreur réseau."); }
+  }, [token, toastSuccess, toastError, loadPartnerOrders]);
 
-  const handleInProgress = useCallback((id) => {
-    updateBookingStatus(id, "in_progress");
-    toastSuccess("🚀 En route ! Le client a été alerté.");
-    setTimeout(() => loadPartnerOrders(), 800);
-  }, [updateBookingStatus, toastSuccess, loadPartnerOrders]);
+  const handlePartnerConfirm = useCallback(async (id, payload) => {
+    if (!token) return;
+    try {
+      const r = await fetch(`/api/bookings/${id}/partner-confirm`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
+      const d = await r.json();
+      if (r.ok) {
+        if (!payload.clientPresent) toastError("🚫 Absence enregistrée.");
+        else toastSuccess(`✅ Transaction enregistrée — ${Number(payload.finalAmount).toLocaleString("fr-FR")} XOF. Attente validation client.`);
+        setGererModalId(null);
+        setTimeout(() => { loadPartnerOrders(); loadTransactions(); }, 800);
+      } else toastError(d.message || "Erreur.");
+    } catch { toastError("Erreur réseau."); }
+  }, [token, toastSuccess, toastError, loadPartnerOrders]);
 
-  const handleComplete = useCallback((id) => {
-    updateBookingStatus(id, "completed");
-    toastSuccess("🏁 Commande terminée avec succès.");
-    setTimeout(() => loadPartnerOrders(), 800);
-  }, [updateBookingStatus, toastSuccess, loadPartnerOrders]);
+  const loadInvoices = useCallback(async () => {
+    if (!token) return;
+    setInvoiceLoading(true);
+    try { const r = await fetch("/api/invoices/mine", { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) { const d = await r.json(); setInvoices(d.invoices || []); } }
+    catch { /* ignore */ }
+    setInvoiceLoading(false);
+  }, [token]);
 
-  const handleReject = useCallback(() => {
-    if (!rejectModal) return;
-    updateBookingStatus(rejectModal, "cancelled", rejectNote);
-    toastError("Commande refusée — le client a été informé.");
-    setRejectModal(null);
-    setRejectNote("");
-    setGererModalId(null);
-    setTimeout(() => loadPartnerOrders(), 800);
-  }, [rejectModal, rejectNote, updateBookingStatus, toastError, loadPartnerOrders]);
-
-  const handleGerer = useCallback((order) => setGererModalId(order.id), []);
-  const [refreshing,  setRefreshing]  = useState(false);
-  const [myDrivers,   setMyDrivers]   = useState([]);
-  const [driverLoading, setDriverLoading] = useState(false);
+  const loadTransactions = useCallback(async () => {
+    if (!token) return;
+    setTxLoading(true);
+    try { const r = await fetch("/api/invoices/transactions", { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) { const d = await r.json(); setTransactions(d.transactions || []); } }
+    catch { /* ignore */ }
+    setTxLoading(false);
+  }, [token]);
 
   const loadMyDrivers = useCallback(async () => {
     if (!token) return;
     setDriverLoading(true);
-    try {
-      const res = await fetch("/api/drivers/mine", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setMyDrivers(data.drivers || []);
-      }
-    } catch { /* ignore */ }
+    try { const r = await fetch("/api/drivers/mine", { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) { const d = await r.json(); setMyDrivers(d.drivers || []); } }
+    catch { /* ignore */ }
     finally { setDriverLoading(false); }
   }, [token]);
 
-  useEffect(() => { loadMyDrivers(); }, [loadMyDrivers]);
+  const handleReject = useCallback(() => {
+    if (!rejectModal) return;
+    updateBookingStatus(rejectModal, "cancelled", rejectNote);
+    toastError("Commande refusée.");
+    setRejectModal(null); setRejectNote(""); setGererModalId(null);
+    setTimeout(() => loadPartnerOrders(), 800);
+  }, [rejectModal, rejectNote, updateBookingStatus, toastError, loadPartnerOrders]);
 
-  const handleDeleteDriver = useCallback(async (id) => {
-    if (!confirm("Supprimer définitivement ce profil chauffeur ?")) return;
+  const handleGerer = useCallback((order) => {
+    setGererModalId(order.id);
+    setOrderDetail(null);
+  }, []);
+
+  // Charger le détail complet (avec snapshot KYC + images) à l'ouverture du modal
+  useEffect(() => {
+    if (!gererModalId || !token) return;
+    setDetailLoading(true);
+    fetch(`/api/bookings/${gererModalId}/detail`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.booking) setOrderDetail(d.booking); })
+      .catch(() => {})
+      .finally(() => setDetailLoading(false));
+  }, [gererModalId, token]);
+
+  const handlePartnerVerifyKyc = useCallback(async (id, decision, note) => {
+    if (!token) return;
     try {
-      await fetch(`/api/drivers/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+      const r = await fetch(`/api/bookings/${id}/partner-kyc-verify`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ decision, note }),
       });
-      setMyDrivers((prev) => prev.filter((d) => d._id !== id));
-      toastSuccess("Profil chauffeur supprimé.");
-    } catch { toastError("Erreur lors de la suppression."); }
-  }, [token, toastSuccess, toastError]);
+      const d = await r.json();
+      if (r.ok) {
+        if (decision === "verifie") toastSuccess("✅ Identité client vérifiée en présentiel.");
+        else toastError("🚫 Document rejeté. Client notifié.");
+        setOrderDetail((prev) => prev ? { ...prev, partnerKycVerification: d.booking?.partnerKycVerification } : prev);
+        setTimeout(() => loadPartnerOrders(), 600);
+      } else {
+        toastError(d.message || "Erreur lors de la vérification.");
+      }
+    } catch { toastError("Erreur réseau."); }
+  }, [token, toastSuccess, toastError, loadPartnerOrders]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadPartnerOrders(), loadPartnerVehicles(), loadMyDrivers()]);
+    await Promise.all([loadPartnerOrders(), loadPartnerVehicles(), loadMyDrivers(), loadInvoices(), loadTransactions()]);
     setRefreshing(false);
-    toastSuccess("Données actualisées");
-  }, [loadPartnerOrders, loadPartnerVehicles, loadMyDrivers, toastSuccess]);
+    toastSuccess("Données actualisées.");
+  }, [loadPartnerOrders, loadPartnerVehicles, loadMyDrivers, loadInvoices, loadTransactions, toastSuccess]);
 
-  const filteredVehicles = statusFilter === "all"
-    ? myVehicles
-    : myVehicles.filter((v) => (v.status || "pending") === statusFilter);
+  useEffect(() => { loadMyDrivers(); }, [loadMyDrivers]);
+  useEffect(() => { loadInvoices(); loadTransactions(); }, [loadInvoices, loadTransactions]);
+
+  // ── Temps réel : Socket.io + polling de secours (60s) ─────────────────────
+  const prevCountRef = useRef(0);
+  useEffect(() => {
+    if (!isAuthenticated || !token) return;
+
+    // Socket.io : mise à jour instantanée
+    const handleBookingUpdate = async (payload) => {
+      await loadPartnerOrders();
+      // Toast selon le nouveau statut
+      const label = payload.status === "cancelled"           ? `❌ Le client a annulé la commande ${payload.reference || ""}`
+                  : payload.status === "waiting_client_validation" ? `⏳ Transaction en attente de validation (${payload.reference || ""})`
+                  : payload.status === "completed"           ? `✅ Commande ${payload.reference || ""} validée par le client !`
+                  : payload.status === "disputed"            ? `⚠️ Litige ouvert sur la commande ${payload.reference || ""}`
+                  : null;
+      if (label) toastSuccess(label);
+    };
+
+    const cleanupSocket = on("booking_updated", handleBookingUpdate);
+
+    // Polling de secours toutes les 60s (en cas de coupure socket)
+    const iv = setInterval(async () => {
+      try {
+        await loadPartnerOrders();
+        const nc = allOrders.filter((b) => ["pending","À confirmer"].includes(b.status)).length;
+        if (nc > prevCountRef.current) toastSuccess(`🔔 ${nc - prevCountRef.current} nouvelle(s) commande(s) !`);
+        prevCountRef.current = nc;
+      } catch { /* ignore */ }
+    }, 60000);
+
+    return () => {
+      cleanupSocket();
+      clearInterval(iv);
+    };
+  }, [isAuthenticated, token, loadPartnerOrders, allOrders, toastSuccess, on]);
 
   if (!isAuthenticated) {
     return (
       <div className={styles.page}>
-        <div className={styles.emptyStats}>
-          <h1>Espace Partenaire</h1>
-          <p>Connectez-vous avec un compte partenaire.</p>
-          <Link to="/login" className={`${styles.actionBtn} ${styles.editBtn}`} style={{ display: "inline-block", marginTop: "1rem", padding: "0.875rem 2rem" }}>
-            Se connecter
-          </Link>
+        <div className={styles.emptyFull}>
+          <div className={styles.emptyIcon}>🏢</div>
+          <h2>Espace Partenaire</h2>
+          <p>Connectez-vous avec un compte partenaire pour gérer vos annonces et commandes.</p>
+          <Link to="/login" className={styles.btnPrimary}>Se connecter</Link>
         </div>
       </div>
     );
   }
 
+  const newOrdersCount   = stats.pending;
+  const waitingCount     = stats.waiting;
+
   return (
     <div className={styles.page}>
 
-      {/* ── Header ── */}
+      {/* ══ HEADER PARTENAIRE ══════════════════════════════════════════════ */}
       <header className={styles.header}>
-        <div>
-          <h1>Espace Partenaire</h1>
-          <p>Bienvenue {user.firstName || user.name} — gérez vos annonces et commandes</p>
+        <div className={styles.headerLeft}>
+          <div className={styles.headerAvatar}>{(user.firstName || "P").charAt(0)}</div>
+          <div>
+            <h1 className={styles.headerTitle}>Espace Partenaire</h1>
+            <p className={styles.headerSub}>Bienvenue, <strong>{user.firstName} {user.lastName}</strong></p>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-          <button className={`${styles.actionBtn} ${styles.viewBtn}`} onClick={handleRefresh} disabled={refreshing} style={{ padding: "0.75rem 1.25rem" }}>
-            <span style={{ display: "inline-block", animation: refreshing ? "spin 0.8s linear infinite" : "none" }}>↻</span>
-            {refreshing ? " …" : " Actualiser"}
+        <div className={styles.headerRight}>
+          {newOrdersCount > 0 && (
+            <button className={styles.alertBadge} onClick={() => { setActiveTab("commandes"); setOrderFilter("new"); }}>
+              🔔 {newOrdersCount} nouvelle{newOrdersCount > 1 ? "s" : ""}
+            </button>
+          )}
+          {waitingCount > 0 && (
+            <button className={styles.warningBadge} onClick={() => { setActiveTab("commandes"); setOrderFilter("validate"); }}>
+              ⏳ {waitingCount} en attente
+            </button>
+          )}
+          <button className={styles.refreshBtn} onClick={handleRefresh} disabled={refreshing}>
+            <span style={{ display: "inline-block", animation: refreshing ? "spin .8s linear infinite" : "none" }}>↻</span>
           </button>
-          <Link to="/plans" className={`${styles.actionBtn} ${styles.viewBtn}`} style={{ padding: "0.75rem 1.25rem" }}>Tarifs</Link>
-          <Link to="/vendor" className={`${styles.actionBtn} ${styles.editBtn}`} style={{ padding: "0.75rem 1.25rem" }}>+ Nouvelle annonce</Link>
+          <Link to="/vendor" className={styles.btnPrimary}>+ Nouvelle annonce</Link>
         </div>
       </header>
 
-      {/* ── Plan banner ── */}
+      {/* ── Plan Banner ── */}
       {!subLoading && (
         <div className={isPro ? styles.proBanner : styles.freeBanner}>
-          <span className={isPro ? styles.planBadge : styles.planBadgeFree}>{isPro ? "Pro" : "Gratuit"}</span>
-          <div>
-            <strong>{isPro ? `Plan Pro actif — expire le ${proEnd}` : "Plan Gratuit"}</strong>
-            <span>{isPro ? "Vos annonces sont mises en avant automatiquement." : "Passez en Pro pour la mise en avant automatique."}</span>
-          </div>
-          {!isPro && <Link to="/plans" className={styles.upgradeBtn}>Passer en Pro →</Link>}
+          <span className={styles.planBadge}>{isPro ? "✨ Pro" : "Gratuit"}</span>
+          <span>{isPro ? `Plan Pro actif jusqu'au ${proEnd}` : "Passez en Pro pour la mise en avant automatique."}</span>
+          {!isPro && <Link to="/plans" className={styles.upgradeLink}>Passer en Pro →</Link>}
         </div>
       )}
 
-      {/* ── Commission info ── */}
-      <div className={styles.commissionBanner}>
-        <div className={styles.commItem}><span>Commission location</span><strong>15 %</strong></div>
-        <div className={styles.commItem}><span>Commission vente</span><strong>3 %</strong></div>
-        <div className={styles.commItem}><span>Frais de service</span><strong>15 DH / réservation</strong></div>
-        <div className={styles.commItem} style={{ borderLeft: "2px solid #10b981" }}>
-          <span>Revenus nets estimés / semaine</span>
-          <strong style={{ color: "#10b981" }}>{fmt(stats.netRev)}</strong>
-        </div>
-      </div>
+      {/* ══ NAVIGATION ════════════════════════════════════════════════════ */}
+      <nav className={styles.nav}>
+        {[
+          { id: "dashboard",    icon: "📊", label: "Dashboard" },
+          { id: "commandes",    icon: "📋", label: "Commandes",       count: stats.totalOrders,    alert: newOrdersCount },
+          { id: "annonces",     icon: "🚗", label: "Annonces",        count: stats.totalVehicles },
+          { id: "finances",     icon: "💰", label: "Finances",        count: invoices.filter((i) => i.status === "pending").length || null },
+          { id: "reservations", icon: "🎫", label: "Mes réservations", alert: myPersonalBookings.filter((b) => b.status === "waiting_client_validation").length || null },
+        ].map(({ id, icon, label, count, alert }) => (
+          <button key={id}
+            className={[styles.navTab, activeTab === id ? styles.navTabActive : ""].join(" ")}
+            onClick={() => setActiveTab(id)}>
+            {icon} {label}
+            {count !== null && count !== undefined && count > 0 && (
+              <span className={alert > 0 ? styles.navBadgeAlert : styles.navBadge}>{alert > 0 ? alert : count}</span>
+            )}
+          </button>
+        ))}
+      </nav>
 
-      {/* ── Stats ── */}
-      <div className={styles.statsGrid}>
-        <div className={styles.statCard} style={{ background: "linear-gradient(135deg,#1e3a5f,#2563eb)" }}>
-          <span className={styles.statNumber}>{stats.total}</span>
-          <span className={styles.statLabel}>Annonces</span>
+      {/* ══ TAB : DASHBOARD ═══════════════════════════════════════════════ */}
+      {activeTab === "dashboard" && (
+        <div className={styles.tabContent}>
+          {/* KPIs */}
+          <div className={styles.kpiGrid}>
+            <div className={styles.kpiCard} style={{ borderTopColor: "#6366f1" }}>
+              <div className={styles.kpiIcon} style={{ background: "#eef2ff", color: "#6366f1" }}>📋</div>
+              <div className={styles.kpiBody}>
+                <div className={styles.kpiValue}>{stats.totalOrders}</div>
+                <div className={styles.kpiLabel}>Total commandes</div>
+              </div>
+            </div>
+            <div className={styles.kpiCard} style={{ borderTopColor: "#f59e0b" }}>
+              <div className={styles.kpiIcon} style={{ background: "#fffbeb", color: "#d97706" }}>⏳</div>
+              <div className={styles.kpiBody}>
+                <div className={styles.kpiValue} style={{ color: "#d97706" }}>{stats.pending}</div>
+                <div className={styles.kpiLabel}>Nouvelles</div>
+              </div>
+            </div>
+            <div className={styles.kpiCard} style={{ borderTopColor: "#2563eb" }}>
+              <div className={styles.kpiIcon} style={{ background: "#dbeafe", color: "#2563eb" }}>🚀</div>
+              <div className={styles.kpiBody}>
+                <div className={styles.kpiValue} style={{ color: "#2563eb" }}>{stats.active}</div>
+                <div className={styles.kpiLabel}>En cours</div>
+              </div>
+            </div>
+            <div className={styles.kpiCard} style={{ borderTopColor: "#059669" }}>
+              <div className={styles.kpiIcon} style={{ background: "#d1fae5", color: "#059669" }}>🏁</div>
+              <div className={styles.kpiBody}>
+                <div className={styles.kpiValue} style={{ color: "#059669" }}>{stats.completed}</div>
+                <div className={styles.kpiLabel}>Terminées</div>
+              </div>
+            </div>
+            <div className={styles.kpiCard} style={{ borderTopColor: "#059669" }}>
+              <div className={styles.kpiIcon} style={{ background: "#d1fae5", color: "#059669" }}>💵</div>
+              <div className={styles.kpiBody}>
+                <div className={styles.kpiValue} style={{ color: "#059669", fontSize: "1.1rem" }}>{fmtXOF(stats.netRevenue)}</div>
+                <div className={styles.kpiLabel}>Revenus nets</div>
+              </div>
+            </div>
+            <div className={styles.kpiCard} style={{ borderTopColor: "#7c3aed" }}>
+              <div className={styles.kpiIcon} style={{ background: "#ede9fe", color: "#7c3aed" }}>🚗</div>
+              <div className={styles.kpiBody}>
+                <div className={styles.kpiValue}>{stats.approved}<span style={{ fontSize: ".8rem", color: "#9ca3af" }}>/{stats.totalVehicles}</span></div>
+                <div className={styles.kpiLabel}>Annonces actives</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Alertes */}
+          {newOrdersCount > 0 && (
+            <div className={styles.alertBox} onClick={() => { setActiveTab("commandes"); setOrderFilter("new"); }}>
+              <span className={styles.alertBoxIcon}>🔔</span>
+              <div>
+                <strong>{newOrdersCount} nouvelle{newOrdersCount > 1 ? "s" : ""} commande{newOrdersCount > 1 ? "s" : ""} en attente de votre réponse</strong>
+                <p>Cliquez pour traiter immédiatement.</p>
+              </div>
+              <span className={styles.alertBoxArrow}>→</span>
+            </div>
+          )}
+          {waitingCount > 0 && (
+            <div className={styles.alertBox} style={{ borderColor: "#fde68a", background: "#fffbeb" }} onClick={() => { setActiveTab("commandes"); setOrderFilter("validate"); }}>
+              <span className={styles.alertBoxIcon}>⏳</span>
+              <div>
+                <strong>{waitingCount} commande{waitingCount > 1 ? "s" : ""} en attente de validation client</strong>
+                <p>Le client doit confirmer la transaction.</p>
+              </div>
+              <span className={styles.alertBoxArrow}>→</span>
+            </div>
+          )}
+
+          {/* Commandes récentes */}
+          <div className={styles.dashSection}>
+            <div className={styles.dashSectionHeader}>
+              <h3>Commandes récentes</h3>
+              <button className={styles.viewAllBtn} onClick={() => setActiveTab("commandes")}>Voir toutes →</button>
+            </div>
+            {allOrders.slice(0, 5).map((order) => {
+              const bst = BS[order.status] || BS.pending;
+              return (
+                <div key={order.id} className={styles.miniOrderRow} onClick={() => { setGererModalId(order.id); }}>
+                  <div className={styles.miniOrderDot} style={{ background: bst.dot }} />
+                  <div className={styles.miniOrderMain}>
+                    <span className={styles.miniOrderRef}>{order.reference || `#${String(order.id).slice(-6)}`}</span>
+                    <span className={styles.miniOrderClient}>{order.firstName} {order.lastName}</span>
+                  </div>
+                  <div className={styles.miniOrderRight}>
+                    <span className={styles.miniOrderStatus} style={{ background: bst.bg, color: bst.color }}>{bst.label}</span>
+                    <span className={styles.miniOrderDate}>{fmtDate(order.createdAt)}</span>
+                  </div>
+                </div>
+              );
+            })}
+            {allOrders.length === 0 && <p className={styles.emptyMsg}>Aucune commande pour le moment.</p>}
+          </div>
         </div>
-        <div className={styles.statCard} style={{ background: "linear-gradient(135deg,#065f46,#10b981)" }}>
-          <span className={styles.statNumber}>{stats.approved}</span>
-          <span className={styles.statLabel}>Publiées</span>
-        </div>
-        <div className={styles.statCard} style={{ background: "linear-gradient(135deg,#78350f,#f59e0b)" }}>
-          <span className={styles.statNumber}>{stats.pending}</span>
-          <span className={styles.statLabel}>En attente</span>
-        </div>
-        <div className={styles.statCard} style={{ background: "linear-gradient(135deg,#312e81,#6366f1)" }}>
-          <span className={styles.statNumber}>{fmt(stats.netRev)}</span>
-          <span className={styles.statLabel}>Revenus nets estimés</span>
-        </div>
-        <div className={styles.statCard} style={{ background: "linear-gradient(135deg,#7f1d1d,#ef4444)", position: "relative" }}>
-          <span className={styles.statNumber}>{allOrders.length}</span>
-          <span className={styles.statLabel}>Commandes reçues</span>
-          {stats.newOrders > 0 && (
-            <span className={styles.newBadge}>{stats.newOrders} nouveau{stats.newOrders > 1 ? "x" : ""}</span>
+      )}
+
+      {/* ══ TAB : COMMANDES ═══════════════════════════════════════════════ */}
+      {activeTab === "commandes" && (
+        <div className={styles.tabContent}>
+          {/* Toolbar */}
+          <div className={styles.ordersToolbar}>
+            <div className={styles.filterTabs}>
+              {[
+                { v: "all",       l: "Toutes",       c: stats.totalOrders },
+                { v: "new",       l: "Nouvelles",    c: stats.pending,  alert: true },
+                { v: "active",    l: "En cours",     c: stats.active },
+                { v: "validate",  l: "À valider",    c: stats.waiting, alert: true },
+                { v: "done",      l: "Terminées",    c: stats.completed },
+                { v: "cancelled", l: "Annulées",     c: null },
+              ].map(({ v, l, c, alert }) => (
+                <button key={v}
+                  className={[styles.filterTab, orderFilter === v ? styles.filterTabActive : "", alert && c > 0 ? styles.filterTabAlert : ""].join(" ")}
+                  onClick={() => setOrderFilter(v)}>
+                  {l} {c !== null && c !== undefined && <span>{c}</span>}
+                </button>
+              ))}
+            </div>
+            <input type="search" className={styles.searchInput} placeholder="Rechercher référence, client, véhicule…"
+              value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+          </div>
+
+          {filteredOrders.length === 0 ? (
+            <div className={styles.emptyFull}>
+              <div className={styles.emptyIcon}>📭</div>
+              <h3>Aucune commande</h3>
+              <p>Les réservations apparaîtront ici.</p>
+            </div>
+          ) : (
+            <div className={styles.orderCards}>
+              {filteredOrders.map((order) => {
+                const bst     = BS[order.status] || BS.pending;
+                const kyc     = KYC_CFG[order.clientInfo?.kycStatus];
+                const isNew   = ["À confirmer","pending"].includes(order.status);
+                const isAbsent = order.status === "client_absent";
+                const subT    = getOrderSubType(order);
+                const wfCard  = ORDER_WORKFLOWS[subT] || ORDER_WORKFLOWS.location_agence;
+                // Étapes du workflow pour mini-progress bar
+                const stepStatuses = wfCard.steps.map(s => s.s);
+                const curStepIdx   = stepStatuses.indexOf(order.status);
+                const progressPct  = curStepIdx >= 0 ? Math.round((curStepIdx / (stepStatuses.length - 1)) * 100) : 0;
+
+                return (
+                  <div key={order.id} className={[
+                    styles.orderCard,
+                    isNew    ? styles.orderCardNew    : "",
+                    isAbsent ? styles.orderCardAbsent : "",
+                  ].filter(Boolean).join(" ")}>
+
+                    {/* ── Header carte ── */}
+                    <div className={styles.orderCardHeader}>
+                      <div className={styles.orderCardRef}>
+                        <span className={styles.orderRefCode}>{order.reference || `#${String(order.id).slice(-6)}`}</span>
+                        <span className={styles.orderTypePill} style={{ background: wfCard.color + "18", color: wfCard.color }}>
+                          {wfCard.badge}
+                        </span>
+                      </div>
+                      <span className={styles.orderStatusBadge} style={{ background: bst.bg, color: bst.color }}>{bst.label}</span>
+                    </div>
+
+                    {/* ── Barre de progression workflow ── */}
+                    {!isNew && !["cancelled","disputed","transaction_not_concluded"].includes(order.status) && (
+                      <div className={styles.orderProgressBar}>
+                        <div className={styles.orderProgressFill} style={{ width: `${progressPct}%`, background: wfCard.color }} />
+                      </div>
+                    )}
+
+                    <div className={styles.orderCardBody}>
+                      <div className={styles.orderCardVehicle}>{order.vehicleName || "Véhicule"}</div>
+
+                      {/* Client + KYC + contacts */}
+                      <div className={styles.orderClientRow}>
+                        <div className={styles.orderClientAvatar}>{(order.firstName || "?").charAt(0)}</div>
+                        <div className={styles.orderClientInfo}>
+                          <strong>{order.firstName} {order.lastName}</strong>
+                          {kyc && <span className={styles.orderKycBadge} style={{ background: kyc.bg, color: kyc.color }}>{kyc.icon} {kyc.label}</span>}
+                          {order.clientVerification?.idNumber && (
+                            <span style={{ fontSize:".72rem", color:"#64748b", fontFamily:"monospace" }}>
+                              🪪 {(order.clientVerification.idType||"").toUpperCase()} {order.clientVerification.idNumber}
+                            </span>
+                          )}
+                        </div>
+                        <div className={styles.orderClientContacts}>
+                          {order.phone && <a href={`tel:${order.phone}`} className={styles.contactBtn} title="Appeler">📞</a>}
+                          {order.phone && <a href={`https://wa.me/${order.phone?.replace(/[\s\+\-]/g,"")}`} target="_blank" rel="noopener noreferrer" className={styles.contactBtn} title="WhatsApp">💬</a>}
+                        </div>
+                      </div>
+
+                      {/* Détails adaptés au sous-type */}
+                      <div className={styles.orderCardDetails}>
+                        {(subT==="location_agence"||subT==="location_domicile") && <>
+                          <div className={styles.orderDetailItem}>
+                            <span>📅</span>
+                            <span>{fmtDate(order.startDate||order.location?.startDate)} → {fmtDate(order.endDate||order.location?.endDate)} · {order.days||order.location?.days||"?"}j</span>
+                          </div>
+                          {subT==="location_domicile" && (order.pickupAddress||order.pickupLocation||order.location?.pickupLocation) && (
+                            <div className={styles.orderDetailItem}><span>📍</span><span>{order.pickupAddress||order.pickupLocation||order.location?.pickupLocation}</span></div>
+                          )}
+                        </>}
+                        {subT==="vente" && (
+                          <div className={styles.orderDetailItem}>
+                            <span>📅</span>
+                            <span>RDV : {fmtDate(order.preferredDate||order.essai?.preferredDate)} {(order.preferredTime||order.essai?.preferredTime) ? `à ${order.preferredTime||order.essai?.preferredTime}` : ""}</span>
+                          </div>
+                        )}
+                        {subT==="chauffeur" && <>
+                          <div className={styles.orderDetailItem}><span>🗓️</span><span>{fmtDate(order.chauffeur?.date||order.startDate)} · {order.chauffeur?.heures||"?"}h</span></div>
+                          {order.chauffeur?.lieuDepart && <div className={styles.orderDetailItem}><span>🚀</span><span>{order.chauffeur.lieuDepart} → {order.chauffeur?.destination||"?"}</span></div>}
+                        </>}
+                        {subT==="leasing" && <>
+                          <div className={styles.orderDetailItem}><span>💰</span><span>Apport : {fmtXOF(order.leasing?.apportInitial||0)} · {order.leasing?.duree||"?"}mois</span></div>
+                        </>}
+                        {subT==="import_export" && (
+                          <div className={styles.orderDetailItem}><span>🌍</span><span>Import/Export · {fmtDate(order.createdAt)}</span></div>
+                        )}
+                        <div className={styles.orderDetailItem}><span>📩</span><span>Reçue {fmtDateTime(order.createdAt)}</span></div>
+                      </div>
+
+                      {/* Montants */}
+                      <div className={styles.orderCardFinance}>
+                        <div className={styles.orderFinItem}>
+                          <span>Total client</span>
+                          <strong>{fmtXOF(order.montantTotal||order.total||0)}</strong>
+                        </div>
+                        <div className={styles.orderFinItem}>
+                          <span>Votre net</span>
+                          <strong style={{ color:"#059669" }}>{fmtXOF(order.partnerPayout||Math.max((order.montantTotal||order.total||0)*(1-(COMM_RATE[order.type]||0.15))-SERVICE_FEE,0))}</strong>
+                        </div>
+                        <div className={styles.orderFinItem}>
+                          <span>Paiement</span>
+                          <strong style={{ color:order.isPaid?"#059669":"#d97706" }}>{order.isPaid?"✅ Payé":"⏳ En attente"}</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions carte */}
+                    <div className={styles.orderCardActions}>
+                      <button className={styles.btnGerer} onClick={() => handleGerer(order)}>⚙️ Gérer</button>
+                      {isNew && <>
+                        <button className={styles.btnAcceptSmall} onClick={() => handleConfirm(order.id)}>✅ Accepter</button>
+                        <button className={styles.btnRefuseSmall} onClick={() => setRejectModal(order.id)}>✕</button>
+                      </>}
+                      {isAbsent && order.phone && (
+                        <a href={`https://wa.me/${order.phone?.replace(/[\s\+\-]/g,"")}`} target="_blank" rel="noopener noreferrer" className={styles.btnWhatsAppSmall}>💬 Recontacter</a>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
-      </div>
-
-      {boostMsg && (
-        <div className={styles.boostMessage}>
-          {boostMsg}
-          <button onClick={() => setBoostMsg("")} style={{ marginLeft: "1rem", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>✕</button>
-        </div>
       )}
 
-      {/* ── Onglets ── */}
-      <div className={styles.tabs}>
-        <button className={`${styles.tab} ${activeTab === "annonces" ? styles.tabActive : ""}`} onClick={() => setActiveTab("annonces")}>
-          Mes annonces ({myVehicles.length})
-        </button>
-        <button className={`${styles.tab} ${activeTab === "commandes" ? styles.tabActive : ""}`} onClick={() => setActiveTab("commandes")}>
-          Commandes ({allOrders.length})
-          {stats.newOrders > 0 && <span className={styles.tabBadge}>{stats.newOrders}</span>}
-        </button>
-      </div>
-
-      {/* ══ TAB ANNONCES ══ */}
+      {/* ══ TAB : ANNONCES ════════════════════════════════════════════════ */}
       {activeTab === "annonces" && (
-        <div className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>Mes véhicules ({filteredVehicles.length})</h2>
-            <select className={styles.filterSelect} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="all">Tous les statuts</option>
-              <option value="approved">Approuvés</option>
-              <option value="pending">En attente</option>
-              <option value="rejected">Rejetés</option>
-            </select>
+        <div className={styles.tabContent}>
+          <div className={styles.sectionToolbar}>
+            <h2 className={styles.sectionTitle}>Mes véhicules ({filteredVehicles.length})</h2>
+            <div style={{ display: "flex", gap: 8 }}>
+              <select className={styles.selectFilter} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                <option value="all">Tous les statuts</option>
+                <option value="approved">Approuvés</option>
+                <option value="pending">En attente</option>
+                <option value="rejected">Rejetés</option>
+              </select>
+              <Link to="/vendor" className={styles.btnPrimary}>+ Nouvelle annonce</Link>
+            </div>
           </div>
 
           {filteredVehicles.length === 0 ? (
-            <div className={styles.emptyStats}>
-              <div style={{ fontSize: "4rem", marginBottom: "1rem" }}>🚗</div>
+            <div className={styles.emptyFull}>
+              <div className={styles.emptyIcon}>🚗</div>
               <h3>Aucune annonce</h3>
               <p>Publiez votre première annonce pour commencer.</p>
-              <Link to="/vendor" className={`${styles.actionBtn} ${styles.editBtn}`} style={{ display: "inline-block", marginTop: "1rem", padding: "0.875rem 2rem" }}>
-                + Publier une annonce
-              </Link>
+              <Link to="/vendor" className={styles.btnPrimary} style={{ display: "inline-flex", marginTop: 12 }}>+ Publier une annonce</Link>
             </div>
           ) : (
             <div className={styles.vehicleGrid}>
               {filteredVehicles.map((vehicle) => {
-                const vid       = vehicle.id || vehicle._id;
-                const status    = STATUS_CONFIG[vehicle.status || "pending"];
+                const vid  = vehicle.id || vehicle._id;
+                const sc   = { approved: { l: "Publié", c: "#059669", bg: "#d1fae5" }, pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, rejected: { l: "Rejeté", c: "#dc2626", bg: "#fee2e2" } }[vehicle.status || "pending"];
                 const isBoosted = subscription?.boosts?.some((b) => b.isActive && String(b.vehicle) === String(vid));
-                const commRate  = vehicle.mode === "Louer" ? COMMISSION_LOCATION : COMMISSION_VENTE;
-                const priceLabel = vehicle.pricePerDay ? `${fmt(vehicle.pricePerDay)} / jour` : vehicle.buyPrice ? fmt(vehicle.buyPrice) : "—";
-                const netLabel   = vehicle.pricePerDay ? `Net : ${fmt(Math.round(vehicle.pricePerDay * (1 - commRate) - SERVICE_FEE / 30))} / jour` : "—";
                 const orderCount = allOrders.filter((b) => String(b.vehicleId) === String(vid)).length;
-
                 return (
-                  <div key={vid} className={`${styles.vehicleCard} ${isBoosted ? styles.vehicleCardBoosted : ""}`}>
-                    {isBoosted && <div className={styles.boostBadge}>En vedette</div>}
-                    <div className={styles.vehicleHeader}>
-                      <div className={styles.vehicleImage}>
-                        {vehicle.image ? <img src={vehicle.image} alt={vehicle.name} /> : <span style={{ fontSize: "1.8rem" }}>🚗</span>}
+                  <div key={vid} className={[styles.vehicleCard, isBoosted ? styles.vehicleCardBoosted : ""].join(" ")}>
+                    {isBoosted && <div className={styles.boostBadge}>⭐ En vedette</div>}
+                    <div className={styles.vehicleImgWrap}>
+                      {vehicle.image ? <img src={vehicle.image} alt={vehicle.name} className={styles.vehicleImg} /> : <div className={styles.vehicleImgPlaceholder}>🚗</div>}
+                    </div>
+                    <div className={styles.vehicleCardBody}>
+                      <div className={styles.vehicleCardTop}>
+                        <h3 className={styles.vehicleName}>{vehicle.name}</h3>
+                        <span className={styles.vehicleStatusBadge} style={{ background: sc.bg, color: sc.c }}>{sc.l}</span>
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <h3>{vehicle.name}</h3>
-                        <div className={styles.vehicleStatus}>
-                          <span className={status.cls}>{status.label}</span>
-                          {vehicle.validationScore != null && (
-                            <span className={styles.scoreChip} style={{
-                              color:      vehicle.validationScore >= 65 ? "#10b981" : vehicle.validationScore >= 40 ? "#f59e0b" : "#ef4444",
-                              background: vehicle.validationScore >= 65 ? "#ecfdf5"  : vehicle.validationScore >= 40 ? "#fffbeb"  : "#fef2f2",
-                            }}>
-                              {vehicle.validationScore}/100
-                            </span>
-                          )}
+                      {vehicle.validationScore != null && (
+                        <div className={styles.scoreBar}>
+                          <div className={styles.scoreBarFill} style={{ width: `${vehicle.validationScore}%`, background: vehicle.validationScore >= 65 ? "#10b981" : vehicle.validationScore >= 40 ? "#f59e0b" : "#ef4444" }} />
+                          <span className={styles.scoreBarLabel}>{vehicle.validationScore}/100</span>
                         </div>
+                      )}
+                      <div className={styles.vehicleTags}>
+                        {vehicle.mode && <span className={styles.vTag}>{vehicle.mode}</span>}
+                        {vehicle.type && <span className={styles.vTag}>{vehicle.type}</span>}
+                        {vehicle.fuel && <span className={styles.vTag}>{vehicle.fuel}</span>}
                       </div>
-                    </div>
-
-                    {vehicle.validationScore != null && (vehicle.status === "pending" || vehicle.status === "rejected") && (
-                      <div className={styles.validationBlock}>
-                        <div className={styles.scoreBarWrap}>
-                          <div className={styles.scoreBarFill} style={{
-                            width: `${vehicle.validationScore}%`,
-                            background: vehicle.validationScore >= 65 ? "#10b981" : vehicle.validationScore >= 40 ? "#f59e0b" : "#ef4444",
-                          }} />
-                        </div>
-                        {vehicle.validationErrors?.length > 0 && (
-                          <ul className={styles.validErrList}>
-                            {vehicle.validationErrors.map((e, i) => <li key={i} className={styles.validErrItem}>❌ {e}</li>)}
-                          </ul>
-                        )}
-                        {vehicle.validationWarnings?.length > 0 && (
-                          <ul className={styles.validWarnList}>
-                            {vehicle.validationWarnings.slice(0, 3).map((w, i) => <li key={i} className={styles.validWarnItem}>⚠️ {w}</li>)}
-                          </ul>
-                        )}
+                      <div className={styles.vehiclePrice}>
+                        {vehicle.pricePerDay ? `${Number(vehicle.pricePerDay).toLocaleString("fr-FR")} XOF / jour` : vehicle.buyPrice ? `${Number(vehicle.buyPrice).toLocaleString("fr-FR")} XOF` : "—"}
                       </div>
-                    )}
-
-                    <div className={styles.vehicleTags}>
-                      <span className={`${styles.tag} ${styles.tagMode}`}>{vehicle.mode}</span>
-                      <span className={`${styles.tag} ${styles.tagType}`}>{vehicle.type}</span>
-                      {vehicle.fuel && <span className={`${styles.tag} ${styles.tagFuel}`}>{vehicle.fuel}</span>}
-                    </div>
-                    <div className={styles.priceLine}>
-                      <span>{priceLabel}</span>
-                      <small>{netLabel}</small>
-                    </div>
-                    {orderCount > 0 && (
-                      <button className={styles.orderHintBtn} onClick={() => { setActiveTab("commandes"); setOrderFilter("all"); }}>
-                        {orderCount} commande{orderCount > 1 ? "s" : ""} →
-                      </button>
-                    )}
-                    <p className={styles.vehicleDescription}>{vehicle.description || "Pas de description disponible"}</p>
-                    <div className={styles.cardActions}>
-                      <Link to={`/vendor?edit=${vid}`} className={`${styles.actionBtn} ${styles.editBtn}`}>Modifier</Link>
-                      <Link to={`/vehicle/${vid}`} className={`${styles.actionBtn} ${styles.viewBtn}`}>Voir</Link>
-                      {!isBoosted && (
-                        <button className={`${styles.actionBtn} ${styles.boostBtn}`} onClick={() => handleBoost(vid)} disabled={boostTarget === vid}>
-                          {boostTarget === vid ? "..." : "Booster"}
+                      {orderCount > 0 && (
+                        <button className={styles.vehicleOrderCount} onClick={() => { setActiveTab("commandes"); setOrderFilter("all"); setSearchQuery(vehicle.name || ""); }}>
+                          📋 {orderCount} commande{orderCount > 1 ? "s" : ""}
                         </button>
                       )}
-                      <button className={`${styles.actionBtn} ${styles.deleteBtn}`} onClick={() => handleDeleteVehicle(vid)}>Supprimer</button>
                     </div>
+                    <div className={styles.vehicleCardActions}>
+                      <Link to={`/vendor?edit=${vid}`} className={styles.btnSecondary}>Modifier</Link>
+                      <Link to={`/vehicle/${vid}`} className={styles.btnSecondary}>Voir</Link>
+                      {!isBoosted && <button className={styles.btnBoost} onClick={() => handleBoost(vid)} disabled={boostTarget === vid}>{boostTarget === vid ? "…" : "⭐ Booster"}</button>}
+                      <button className={styles.btnDanger} onClick={() => handleDeleteVehicle(vid)}>Suppr.</button>
+                    </div>
+                    {(vehicle.validationErrors || []).map((e, i) => <p key={i} className={styles.validErr}>❌ {e}</p>)}
                   </div>
                 );
               })}
             </div>
           )}
 
-          {/* ── Mes profils chauffeurs ── */}
-          <div className={styles.sectionHeader} style={{ marginTop: "2.5rem" }}>
-            <h2>Mes profils chauffeurs ({myDrivers.length})</h2>
-            <Link to="/vendor" className={`${styles.actionBtn} ${styles.editBtn}`} style={{ padding: "0.5rem 1rem", fontSize: "0.85rem" }}>
-              + Ajouter un chauffeur
-            </Link>
+          {/* Chauffeurs */}
+          <div className={styles.sectionToolbar} style={{ marginTop: 32 }}>
+            <h2 className={styles.sectionTitle}>Mes chauffeurs ({myDrivers.length})</h2>
+            <Link to="/vendor" className={styles.btnPrimary}>+ Ajouter</Link>
           </div>
-
-          {driverLoading ? (
-            <p style={{ color: "#64748b", padding: "1rem 0" }}>Chargement…</p>
-          ) : myDrivers.length === 0 ? (
-            <div className={styles.emptyStats} style={{ padding: "2rem", marginTop: 0 }}>
-              <div style={{ fontSize: "3rem", marginBottom: "0.75rem" }}>👨‍✈️</div>
-              <h3>Aucun profil chauffeur</h3>
-              <p>Publiez votre premier profil chauffeur depuis "Nouvelle annonce".</p>
+          {driverLoading ? <p className={styles.loadingMsg}>Chargement…</p> : myDrivers.length === 0 ? (
+            <div className={styles.emptyFull} style={{ padding: "28px 20px" }}>
+              <div className={styles.emptyIcon}>👨‍✈️</div>
+              <h3>Aucun chauffeur</h3>
+              <p>Ajoutez un profil chauffeur depuis "Nouvelle annonce".</p>
             </div>
           ) : (
             <div className={styles.vehicleGrid}>
               {myDrivers.map((drv) => {
-                const drvStatus = STATUS_CONFIG[drv.status || "pending"];
+                const sc = { approved: { l: "Validé", c: "#059669", bg: "#d1fae5" }, pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, rejected: { l: "Rejeté", c: "#dc2626", bg: "#fee2e2" } }[drv.status || "pending"];
                 return (
                   <div key={drv._id} className={styles.vehicleCard}>
-                    <div className={styles.vehicleImage} style={{ background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "3rem" }}>
-                      {drv.profilePhoto
-                        ? <img src={drv.profilePhoto} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        : "👨‍✈️"}
+                    <div className={styles.vehicleImgWrap} style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", fontSize: "3rem", height: 120 }}>
+                      {drv.profilePhoto ? <img src={drv.profilePhoto} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👨‍✈️"}
                     </div>
-                    <div className={styles.vehicleInfo}>
-                      <div className={styles.vehicleHeader}>
-                        <div>
-                          <h3 className={styles.vehicleName}>{drv.firstName} {drv.lastName}</h3>
-                          <p style={{ margin: 0, fontSize: "0.82rem", color: "#64748b" }}>{drv.title || "Service chauffeur"}</p>
-                        </div>
-                        <span className={drvStatus?.cls || ""} style={{
-                          padding: "3px 10px", borderRadius: 20, fontSize: "0.78rem", fontWeight: 700,
-                          color: drv.status === "approved" ? "#10b981" : drv.status === "rejected" ? "#ef4444" : "#f59e0b",
-                          background: drv.status === "approved" ? "#ecfdf5" : drv.status === "rejected" ? "#fef2f2" : "#fffbeb",
-                        }}>
-                          {drvStatus?.label || "En attente"}
-                        </span>
+                    <div className={styles.vehicleCardBody}>
+                      <div className={styles.vehicleCardTop}>
+                        <h3 className={styles.vehicleName}>{drv.firstName} {drv.lastName}</h3>
+                        <span className={styles.vehicleStatusBadge} style={{ background: sc.bg, color: sc.c }}>{sc.l}</span>
                       </div>
-                      <div className={styles.vehicleTags} style={{ marginTop: 8 }}>
-                        {drv.disponibilite && <span className={`${styles.tag} ${styles.tagMode}`}>{drv.disponibilite}</span>}
-                        {drv.zone && <span className={`${styles.tag} ${styles.tagType}`}>{drv.zone}</span>}
-                        {drv.permisCategorie && <span className={`${styles.tag} ${styles.tagFuel}`}>Permis {drv.permisCategorie}</span>}
+                      <div className={styles.vehicleTags}>
+                        {drv.zone && <span className={styles.vTag}>{drv.zone}</span>}
+                        {drv.permisCategorie && <span className={styles.vTag}>Permis {drv.permisCategorie}</span>}
                       </div>
-                      <div className={styles.priceLine}>
-                        <span>{drv.tarif ? `${Number(drv.tarif).toLocaleString("fr-FR")} DH / jour` : "Tarif non renseigné"}</span>
-                        {drv.tarifHeure > 0 && <small>{Number(drv.tarifHeure).toLocaleString("fr-FR")} DH / h</small>}
-                      </div>
-                      <div className={styles.cardActions}>
-                        <button className={`${styles.actionBtn} ${styles.deleteBtn}`} onClick={() => handleDeleteDriver(drv._id)}>Supprimer</button>
-                      </div>
+                      <div className={styles.vehiclePrice}>{drv.tarif ? `${Number(drv.tarif).toLocaleString("fr-FR")} XOF / jour` : "Tarif non renseigné"}</div>
+                    </div>
+                    <div className={styles.vehicleCardActions}>
+                      <button className={styles.btnDanger} onClick={() => { if (confirm("Supprimer ce profil ?")) { fetch(`/api/drivers/${drv._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).then(() => setMyDrivers((p) => p.filter((d) => d._id !== drv._id))).catch(() => {}); } }}>Supprimer</button>
                     </div>
                   </div>
                 );
@@ -852,191 +1593,299 @@ export default function VendorDashboard() {
         </div>
       )}
 
-      {/* ══ TAB COMMANDES ══ */}
-      {activeTab === "commandes" && (
-        <div className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>Commandes reçues ({filteredOrders.length})</h2>
-            <select className={styles.filterSelect} value={orderFilter} onChange={(e) => setOrderFilter(e.target.value)}>
-              <option value="all">Tous les statuts</option>
-              <option value="new">Nouvelles</option>
-              <option value="confirmed">En traitement</option>
-              <option value="done">Terminées</option>
-              <option value="cancelled">Annulées</option>
-            </select>
+      {/* ══ TAB : FINANCES ════════════════════════════════════════════════ */}
+      {activeTab === "finances" && (
+        <div className={styles.tabContent}>
+          {/* Résumé financier */}
+          <div className={styles.finSummary}>
+            <div className={styles.finSummaryCard}>
+              <span className={styles.finSummaryLabel}>Revenus bruts</span>
+              <span className={styles.finSummaryValue}>{fmtXOF(stats.revenue)}</span>
+            </div>
+            <div className={styles.finSummaryCard} style={{ borderColor: "#ef4444" }}>
+              <span className={styles.finSummaryLabel}>Commissions VIT-AUTO</span>
+              <span className={styles.finSummaryValue} style={{ color: "#dc2626" }}>{fmtXOF(stats.revenue - stats.netRevenue)}</span>
+            </div>
+            <div className={styles.finSummaryCard} style={{ borderColor: "#059669" }}>
+              <span className={styles.finSummaryLabel}>Vos revenus nets</span>
+              <span className={styles.finSummaryValue} style={{ color: "#059669" }}>{fmtXOF(stats.netRevenue)}</span>
+            </div>
           </div>
 
-          {filteredOrders.length === 0 ? (
-            <div className={styles.emptyStats}>
-              <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📭</div>
-              <h3>Aucune commande</h3>
-              <p>Les réservations de vos clients apparaîtront ici.</p>
-            </div>
-          ) : (
-            <div className={styles.ordersList}>
-              {filteredOrders.map((order) => {
-                const bst       = BOOKING_STATUS[order.status] || BOOKING_STATUS.pending;
-                const typeLabel = TYPE_LABELS[order.type] || order.type;
-                const isNew     = !order.status || order.status === "À confirmer" || order.status === "pending";
-                const isDone    = order.status === "completed" || order.status === "cancelled";
-                const hasGps    = order.pickupLat != null && order.pickupLng != null;
-                const isLiv     = order.pickupMethod === "livraison" || order.pickupLocation;
-
-                return (
-                  <div key={order.id} className={`${styles.orderCard} ${isNew ? styles.orderCardNew : ""}`}>
-                    {/* En-tête */}
-                    <div className={styles.orderHeader}>
-                      <div className={styles.orderTitle}>
-                        <span className={styles.orderType}>{typeLabel}</span>
-                        <strong>{order.vehicleName}</strong>
-                      </div>
-                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                        <span className={styles.orderStatus} style={{ background: bst.bg, color: bst.color }}>
-                          {bst.label}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Infos client */}
-                    <div className={styles.orderGrid}>
-                      <div className={styles.orderInfo}>
-                        <span>Client</span>
-                        <strong>{order.firstName} {order.lastName}</strong>
-                      </div>
-                      <div className={styles.orderInfo}>
-                        <span>Contact</span>
-                        <strong>
-                          {order.phone
-                            ? <a href={`tel:${order.phone}`} className={styles.phoneLink}>{order.phone}</a>
-                            : order.email}
-                        </strong>
-                      </div>
-                      {order.type === "location" && (
-                        <>
-                          <div className={styles.orderInfo}>
-                            <span>Période</span>
-                            <strong>
-                              {order.startDate ? new Date(order.startDate).toLocaleDateString("fr-FR") : order.startDate}
-                              {" → "}
-                              {order.endDate   ? new Date(order.endDate).toLocaleDateString("fr-FR")   : order.endDate}
-                              {order.days ? ` (${order.days}j)` : ""}
-                            </strong>
-                          </div>
-                          <div className={styles.orderInfo}>
-                            <span>Lieu de prise en charge</span>
-                            <strong className={isLiv ? styles.deliveryAddr : ""}>
-                              {isLiv ? "🚚 " : "📍 "}
-                              {order.pickupAddress || order.pickupLocation || "—"}
-                              {hasGps && <span className={styles.gpsPill}>GPS</span>}
-                            </strong>
-                          </div>
-                          <div className={styles.orderInfo}>
-                            <span>Total client</span>
-                            <strong>{fmt(order.total || 0)}</strong>
-                          </div>
-                          <div className={styles.orderInfo}>
-                            <span>Votre net</span>
-                            <strong style={{ color: "#10b981" }}>
-                              {fmt(order.partnerPayout || Math.max((order.baseTotal || 0) * 0.85 - SERVICE_FEE, 0))}
-                            </strong>
-                          </div>
-                        </>
-                      )}
-                      {order.type === "essai" && (
-                        <>
-                          <div className={styles.orderInfo}>
-                            <span>Date RDV</span>
-                            <strong>
-                              {order.preferredDate ? new Date(order.preferredDate).toLocaleDateString("fr-FR") : order.preferredDate}
-                              {order.preferredTime ? ` à ${order.preferredTime}` : ""}
-                            </strong>
-                          </div>
-                          {order.notes && (
-                            <div className={styles.orderInfo}>
-                              <span>Notes</span>
-                              <strong>{order.notes}</strong>
-                            </div>
-                          )}
-                        </>
-                      )}
-                      {order.clientVerification?.idType && (
-                        <div className={styles.orderInfo}>
-                          <span>Pièce d'identité</span>
-                          <strong style={{ color: "#6366f1" }}>
-                            {order.clientVerification.idType.toUpperCase()} — {order.clientVerification.idNumber}
-                          </strong>
+          {/* Transactions */}
+          <div className={styles.dashSection}>
+            <div className={styles.dashSectionHeader}><h3>Transactions ({transactions.length})</h3></div>
+            {txLoading ? <p className={styles.loadingMsg}>Chargement…</p> : transactions.length === 0 ? (
+              <p className={styles.emptyMsg}>Aucune transaction.</p>
+            ) : (
+              <div className={styles.txList}>
+                {transactions.map((tx) => {
+                  const amt  = tx.transaction?.finalAmount || tx.montantTotal || 0;
+                  const comm = tx.commissionAmount || 0;
+                  const net  = tx.partnerPayout || Math.max(amt - comm - SERVICE_FEE, 0);
+                  const bst  = BS[tx.status] || BS.pending;
+                  return (
+                    <div key={tx._id} className={styles.txCard}>
+                      <div className={styles.txCardHeader}>
+                        <div>
+                          <div className={styles.txRef}>{tx.reference}</div>
+                          <div className={styles.txClient}>{tx.clientInfo?.firstName} {tx.clientInfo?.lastName}</div>
                         </div>
-                      )}
-                      <div className={styles.orderInfo}>
-                        <span>Paiement</span>
-                        <strong>{order.paidWith || "—"}</strong>
+                        <span className={styles.txStatus} style={{ background: bst.bg, color: bst.color }}>{bst.label}</span>
+                      </div>
+                      <div className={styles.txBreakdown}>
+                        <div className={styles.txBRow}><span>Encaissé</span><strong>{fmtXOF(amt)}</strong></div>
+                        <div className={styles.txBRow} style={{ color: "#dc2626" }}><span>Commission ({Math.round((tx.commissionRate || 0.15) * 100)}%)</span><strong>− {fmtXOF(comm)}</strong></div>
+                        <div className={styles.txBRow} style={{ color: "#dc2626" }}><span>Frais service</span><strong>− {fmtXOF(SERVICE_FEE)}</strong></div>
+                        <div className={styles.txBNet}><span>Net partenaire</span><strong>{fmtXOF(net)}</strong></div>
+                      </div>
+                      <div className={styles.txMeta}>
+                        <span>{PAY_LABELS[tx.transaction?.paymentMethod] || "—"}</span>
+                        <span>{fmtDate(tx.paidAt || tx.updatedAt)}</span>
+                        {tx.invoiced && <span style={{ color: "#059669" }}>✅ Facturé</span>}
                       </div>
                     </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
-                    {/* Actions */}
-                    <div className={styles.orderActions}>
-                      <button className={`${styles.btnGerer} ${isNew ? styles.btnGererNew : ""}`} onClick={() => handleGerer(order)}>
-                        {isNew ? "⚡ Traiter" : "⚙️ Gérer"}
-                      </button>
-                      {!isDone && isNew && (
-                        <button className={styles.btnConfirm} onClick={() => handleConfirm(order.id)}>
-                          ✅ Accepter
-                        </button>
+          {/* Factures */}
+          <div className={styles.dashSection} style={{ marginTop: 24 }}>
+            <div className={styles.dashSectionHeader}><h3>Factures mensuelles ({invoices.length})</h3></div>
+            {invoiceLoading ? <p className={styles.loadingMsg}>Chargement…</p> : invoices.length === 0 ? (
+              <p className={styles.emptyMsg}>Aucune facture générée.</p>
+            ) : (
+              <div className={styles.invoiceList}>
+                {invoices.map((inv) => {
+                  const sc = inv.status === "paid" ? { l: "✅ Payée", c: "#059669", bg: "#dcfce7" } : inv.status === "overdue" ? { l: "⚠️ En retard", c: "#dc2626", bg: "#fee2e2" } : { l: "🕐 À payer", c: "#d97706", bg: "#fef3c7" };
+                  return (
+                    <div key={inv._id} className={styles.invoiceCard}>
+                      <div className={styles.invoiceCardHeader}>
+                        <div>
+                          <div className={styles.invoiceRef}>{inv.reference}</div>
+                          <div className={styles.invoicePeriod}>{MOIS[(inv.month || 1) - 1]} {inv.year}</div>
+                        </div>
+                        <span className={styles.invoiceStatusBadge} style={{ background: sc.bg, color: sc.c }}>{sc.l}</span>
+                      </div>
+                      <div className={styles.invoiceTotalRow}>
+                        <span>Total commissions dues</span>
+                        <strong>{fmtXOF(inv.totalCommission || 0)}</strong>
+                      </div>
+                      {(inv.lines || []).map((l, i) => (
+                        <div key={i} className={styles.invoiceLineRow}>
+                          <span>{l.bookingRef} ({l.serviceType})</span>
+                          <span style={{ color: "#dc2626" }}>{fmtXOF(l.commissionAmount || 0)}</span>
+                        </div>
+                      ))}
+                      {inv.dueDate && inv.status !== "paid" && (
+                        <div className={styles.invoiceDue}>Échéance : {fmtDate(inv.dueDate)}</div>
                       )}
-                      {!isDone && isNew && (
-                        <button className={styles.btnReject} onClick={() => setRejectModal(order.id)}>
-                          ✕ Refuser
-                        </button>
-                      )}
+                      <a href={`/api/invoices/${inv._id}/pdf`} target="_blank" rel="noopener noreferrer"
+                        style={{ display:"inline-flex", alignItems:"center", gap:6, marginTop:10, padding:"6px 14px", borderRadius:8, background:"#0f1b3f", color:"#fff", textDecoration:"none", fontSize:".8rem", fontWeight:700 }}>
+                        ⬇️ Télécharger la facture PDF
+                      </a>
                     </div>
-
-                    {order.vendorNote && (
-                      <p className={styles.orderNote}>Note : {order.vendorNote}</p>
-                    )}
-
-                    <div className={styles.orderDate}>
-                      Reçue le {order.createdAt
-                        ? new Date(order.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })
-                        : "—"}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* ── Modal Gérer ── */}
+      {/* ══ MODAL GÉRER ═══════════════════════════════════════════════════ */}
       {gererModal && (
         <GererModal
           order={gererModal}
-          onClose={() => setGererModalId(null)}
+          orderDetail={orderDetail}
+          detailLoading={detailLoading}
+          onClose={() => { setGererModalId(null); setOrderDetail(null); }}
           onConfirm={handleConfirm}
           onPrepare={handlePrepare}
           onReady={handleReady}
           onInProgress={handleInProgress}
+          onClientArrived={handleClientArrived}
+          onClientAbsent={handleClientAbsent}
+          onRecordTransaction={handleRecordTransaction}
+          onPartnerConfirm={handlePartnerConfirm}
           onComplete={handleComplete}
-          onReject={(id) => { setRejectModal(id); setGererModalId(null); }}
+          onReject={(id) => { setRejectModal(id); setGererModalId(null); setOrderDetail(null); }}
+          onPartnerVerifyKyc={handlePartnerVerifyKyc}
         />
       )}
 
-      {/* ── Modal refus ── */}
+      {/* ══ TAB : MES RÉSERVATIONS (client) ══════════════════════════════ */}
+      {activeTab === "reservations" && (
+        <div className={styles.tabContent}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20, flexWrap:"wrap", gap:12 }}>
+            <div>
+              <h2 style={{ margin:"0 0 4px", fontSize:"1.1rem", fontWeight:800, color:"#0f1b3f" }}>🎫 Mes réservations personnelles</h2>
+              <p style={{ margin:0, fontSize:"0.84rem", color:"#64748b" }}>Réservations que vous avez effectuées en tant que client.</p>
+            </div>
+            <button onClick={fetchPersonalBookings}
+              style={{ background:"#f1f5f9", border:"1.5px solid #e2e8f0", borderRadius:8, padding:"7px 14px", fontWeight:700, fontSize:"0.82rem", cursor:"pointer", color:"#0f1b3f" }}>
+              ↻ Actualiser
+            </button>
+          </div>
+
+          {/* Alerte si validation en attente */}
+          {myPersonalBookings.filter((b) => b.status === "waiting_client_validation").length > 0 && (
+            <div style={{ background:"#fffbeb", border:"2px solid #f59e0b", borderRadius:12, padding:"14px 20px", marginBottom:16, display:"flex", alignItems:"center", gap:14 }}>
+              <span style={{ fontSize:"1.6rem" }}>✋</span>
+              <div>
+                <p style={{ margin:"0 0 4px", fontWeight:800, color:"#92400e" }}>Transaction à valider</p>
+                <p style={{ margin:0, fontSize:"0.86rem", color:"#78350f" }}>
+                  Le partenaire a enregistré votre transaction. Validez-la ci-dessous.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {personalLoading ? (
+            <div style={{ textAlign:"center", padding:"3rem", color:"#64748b" }}>
+              <div style={{ width:32, height:32, border:"3px solid #e2e8f0", borderTopColor:"#2563eb", borderRadius:"50%", margin:"0 auto 12px", animation:"spin 0.8s linear infinite" }} />
+              <p>Chargement…</p>
+            </div>
+          ) : myPersonalBookings.length === 0 ? (
+            <div style={{ textAlign:"center", padding:"3rem", color:"#94a3b8" }}>
+              <div style={{ fontSize:"2.5rem", marginBottom:12 }}>🎫</div>
+              <p style={{ fontWeight:700, color:"#64748b" }}>Aucune réservation personnelle.</p>
+              <p style={{ fontSize:"0.85rem" }}>Réservez un véhicule depuis le catalogue pour voir vos réservations ici.</p>
+            </div>
+          ) : (
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              {myPersonalBookings.map((b) => {
+                const STATUS_COLORS = {
+                  pending:                   { label:"En attente",        color:"#f59e0b", bg:"#fffbeb" },
+                  "À confirmer":             { label:"En attente",        color:"#f59e0b", bg:"#fffbeb" },
+                  confirmed:                 { label:"Acceptée",          color:"#10b981", bg:"#ecfdf5" },
+                  preparing:                 { label:"En préparation",    color:"#06b6d4", bg:"#ecfeff" },
+                  ready:                     { label:"Prêt",              color:"#8b5cf6", bg:"#f5f3ff" },
+                  in_progress:               { label:"En route",          color:"#3b82f6", bg:"#eff6ff" },
+                  client_arrived:            { label:"Vous êtes arrivé",  color:"#0ea5e9", bg:"#e0f2fe" },
+                  waiting_client_validation: { label:"✋ Validation",      color:"#d97706", bg:"#fef3c7" },
+                  completed:                 { label:"Terminée",          color:"#64748b", bg:"#f8fafc" },
+                  cancelled:                 { label:"Annulée",           color:"#ef4444", bg:"#fef2f2" },
+                  disputed:                  { label:"Litige",            color:"#dc2626", bg:"#fef2f2" },
+                };
+                const sc = STATUS_COLORS[b.status] || STATUS_COLORS.pending;
+                const fmtDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day:"2-digit", month:"short", year:"numeric" }) : "—";
+                const needsValidation = b.status === "waiting_client_validation";
+                return (
+                  <div key={b.id} style={{
+                    background:"#fff", borderRadius:14, border:`1.5px solid ${needsValidation ? "#f59e0b" : "#e2e8f0"}`,
+                    padding:"16px 20px", boxShadow: needsValidation ? "0 0 0 3px rgba(245,158,11,0.12)" : "none",
+                  }}>
+                    {/* En-tête */}
+                    <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:12 }}>
+                      <div>
+                        <div style={{ fontWeight:800, color:"#0f1b3f", fontSize:"0.95rem" }}>{b.vehicleName}</div>
+                        <div style={{ fontSize:"0.78rem", color:"#94a3b8", marginTop:2 }}>
+                          Réf. {b.reference || "—"} · {fmtDate(b.createdAt)}
+                        </div>
+                        {b.partnerName && (
+                          <div style={{ fontSize:"0.78rem", color:"#64748b", marginTop:2 }}>Partenaire : {b.partnerName}</div>
+                        )}
+                      </div>
+                      <span style={{ padding:"3px 12px", borderRadius:99, fontSize:"0.76rem", fontWeight:700, color:sc.color, background:sc.bg }}>
+                        {sc.label}
+                      </span>
+                    </div>
+
+                    {/* Dates & montant */}
+                    <div style={{ display:"flex", gap:16, flexWrap:"wrap", fontSize:"0.84rem", color:"#475569", marginBottom:12 }}>
+                      {b.startDate && <span>📅 {fmtDate(b.startDate)} → {fmtDate(b.endDate)}</span>}
+                      {b.days > 0   && <span>⏱ {b.days} jour{b.days > 1 ? "s" : ""}</span>}
+                      {b.montantTotal > 0 && <span style={{ fontWeight:700, color:"#0f1b3f" }}>💰 {Number(b.montantTotal).toLocaleString("fr-FR")} {b.devise}</span>}
+                    </div>
+
+                    {/* Bloc validation si en attente */}
+                    {needsValidation && b.transaction && (
+                      <div style={{ background:"#fef3c7", border:"1.5px solid #f59e0b", borderRadius:10, padding:"14px 16px", marginBottom:12 }}>
+                        <p style={{ margin:"0 0 8px", fontWeight:800, color:"#92400e" }}>✋ Validation de transaction requise</p>
+                        <div style={{ display:"flex", gap:20, flexWrap:"wrap", fontSize:"0.86rem", color:"#78350f", marginBottom:12 }}>
+                          <span>Montant : <strong>{Number(b.transaction.finalAmount).toLocaleString("fr-FR")} {b.devise}</strong></span>
+                          <span>Mode : <strong>{b.transaction.paymentMethod === "cash" ? "💵 Espèces" : b.transaction.paymentMethod}</strong></span>
+                          {b.transaction.comment && <span>Note : <em>{b.transaction.comment}</em></span>}
+                        </div>
+                        <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+                          <button
+                            disabled={personalValidating === b.id}
+                            onClick={() => handlePersonalValidate(b.id, "validate")}
+                            style={{ background:"#10b981", color:"#fff", border:"none", borderRadius:8, padding:"9px 20px", fontWeight:700, fontSize:"0.88rem", cursor:"pointer", opacity: personalValidating === b.id ? 0.6 : 1 }}>
+                            {personalValidating === b.id ? "⏳ En cours…" : "✅ Valider — Service effectué"}
+                          </button>
+                          <button
+                            disabled={personalValidating === b.id}
+                            onClick={() => setPersonalDispute(b.id)}
+                            style={{ background:"#fef2f2", color:"#dc2626", border:"1.5px solid #fca5a5", borderRadius:8, padding:"9px 18px", fontWeight:700, fontSize:"0.88rem", cursor:"pointer" }}>
+                            ⚠️ Signaler un problème
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {b.status === "disputed" && (
+                      <div style={{ background:"#fef2f2", border:"1px solid #fca5a5", borderRadius:8, padding:"10px 14px", fontSize:"0.85rem", color:"#991b1b" }}>
+                        ⚠️ Litige signalé — Notre équipe vous contactera sous 48h.
+                      </div>
+                    )}
+
+                    {b.status === "completed" && (
+                      <div style={{ background:"#ecfdf5", border:"1px solid #a7f3d0", borderRadius:8, padding:"10px 14px", fontSize:"0.85rem", color:"#065f46", fontWeight:600 }}>
+                        🏁 Réservation terminée avec succès.
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Modal litige */}
+          {personalDispute && (
+            <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9000, padding:"1rem" }}
+              onClick={() => setPersonalDispute(null)}>
+              <div style={{ background:"#fff", borderRadius:16, padding:"2rem", maxWidth:440, width:"100%", boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }}
+                onClick={(e) => e.stopPropagation()}>
+                <h3 style={{ margin:"0 0 12px", color:"#0f1b3f" }}>⚠️ Signaler un problème</h3>
+                <p style={{ fontSize:"0.9rem", color:"#64748b", marginBottom:12 }}>Décrivez le problème rencontré. Notre équipe vous contactera sous 48h.</p>
+                <textarea rows={4}
+                  placeholder="Ex : Montant incorrect, service non effectué…"
+                  value={personalDisputeText}
+                  onChange={(e) => setPersonalDisputeText(e.target.value)}
+                  style={{ width:"100%", borderRadius:8, border:"1.5px solid #e2e8f0", padding:"10px 12px", fontSize:"0.88rem", fontFamily:"inherit", resize:"vertical", boxSizing:"border-box", marginBottom:14 }} />
+                <div style={{ display:"flex", gap:10 }}>
+                  <button
+                    disabled={!personalDisputeText.trim() || personalValidating}
+                    onClick={() => handlePersonalValidate(personalDispute, "dispute", personalDisputeText)}
+                    style={{ flex:1, background:"#dc2626", color:"#fff", border:"none", borderRadius:8, padding:"10px", fontWeight:700, cursor:"pointer" }}>
+                    {personalValidating ? "Envoi…" : "Confirmer le litige"}
+                  </button>
+                  <button onClick={() => { setPersonalDispute(null); setPersonalDisputeText(""); }}
+                    style={{ background:"transparent", border:"1.5px solid #e2e8f0", borderRadius:8, padding:"10px 16px", cursor:"pointer", color:"#64748b" }}>
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ MODAL REFUS ═══════════════════════════════════════════════════ */}
       {rejectModal && (
-        <div className={styles.modalOverlay} onClick={() => setRejectModal(null)}>
-          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <h3>Refuser / Annuler la commande</h3>
-            <p>Expliquez au client la raison du refus (facultatif) :</p>
-            <textarea
-              rows={3}
-              placeholder="Ex : Véhicule indisponible à ces dates..."
-              value={rejectNote}
-              onChange={(e) => setRejectNote(e.target.value)}
-              className={styles.rejectTextarea}
-            />
-            <div className={styles.modalActions}>
-              <button className={styles.btnConfirm} onClick={handleReject}>Confirmer le refus</button>
-              <button className={styles.btnComplete} onClick={() => setRejectModal(null)}>Annuler</button>
+        <div className={styles.modalBackdrop} onClick={() => setRejectModal(null)}>
+          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()}>
+            <h3>Refuser la commande</h3>
+            <p>Expliquez la raison du refus (optionnel — le client sera notifié) :</p>
+            <textarea rows={3} className={styles.rejectTextarea} placeholder="Ex : Véhicule indisponible à ces dates…"
+              value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} />
+            <div className={styles.rejectActions}>
+              <button className={styles.btnRefuseModal} onClick={handleReject}>Confirmer le refus</button>
+              <button className={styles.btnSecondary} onClick={() => setRejectModal(null)}>Annuler</button>
             </div>
           </div>
         </div>

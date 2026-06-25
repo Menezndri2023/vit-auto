@@ -224,17 +224,6 @@ export default function ImporterDashboard() {
     load();
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className={styles.guard}>
-        <div className={styles.guardBox}>
-          <span className={styles.guardIcon}>🔐</span>
-          <h2>Connexion requise</h2>
-          <Link to="/login?redirect=/importer-dashboard" className={styles.btnPrimary}>Se connecter</Link>
-        </div>
-      </div>
-    );
-  }
 
   const pStatus = PROFILE_STATUS[profile?.status || "none"];
   const badgeIcon = BADGE_ICONS[profile?.badgeLevel || "none"];

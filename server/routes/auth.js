@@ -1,21 +1,42 @@
 import express from "express";
+import { rateLimit } from "express-rate-limit";
 import * as auth from "../controllers/authController.js";
 import { authenticate } from "../middleware/auth.js";
 
 const router = express.Router();
 
-router.post("/register",             auth.register);               // inscription
-router.post("/login",                auth.login);                  // connexion
-router.get("/verify-email/:token",   auth.verifyEmail);            // confirmation e-mail
-router.post("/resend-verification",  auth.resendVerification);     // renvoyer lien email
-router.post("/send-phone-otp",       auth.sendPhoneOtp);           // envoyer OTP téléphone
-router.post("/verify-phone-otp",     auth.verifyPhoneOtp);         // vérifier OTP téléphone
-router.get("/me",         authenticate, auth.getMe);               // profil connecté
-router.post("/forgot-password",      auth.forgotPassword);         // demande réinitialisation mdp
-router.post("/reset-password",       auth.resetPassword);          // nouveau mot de passe (lien email)
-router.patch("/change-password",     authenticate, auth.changePassword); // changement mot de passe (connecté)
+// Limiteur strict pour les actions sensibles OTP / reset (5/h)
+const strictLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, max: 5,
+  message: { message: "Trop de tentatives. Réessayez dans 1 heure." },
+  standardHeaders: true, legacyHeaders: false,
+});
 
-// ⚠️ DEV UNIQUEMENT — vérifier un compte sans email
-router.get("/dev-verify/:email",     auth.devVerify);
+// Limiteur modéré pour la validation de document (60/h — pas un endpoint sensible)
+const identityLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, max: 60,
+  message: { message: "Trop de vérifications. Réessayez dans 1 heure." },
+  standardHeaders: true, legacyHeaders: false,
+  skipSuccessfulRequests: true,
+});
+
+router.post("/register",             auth.register);
+router.post("/login",                auth.login);
+router.get("/verify-email/:token",   auth.verifyEmail);
+router.post("/resend-verification",  strictLimiter, auth.resendVerification);
+router.post("/send-phone-otp",       strictLimiter, auth.sendPhoneOtp);
+router.post("/verify-phone-otp",     strictLimiter, auth.verifyPhoneOtp);
+router.get("/me",                    authenticate, auth.getMe);
+router.post("/forgot-password",      strictLimiter, auth.forgotPassword);
+router.post("/reset-password",       strictLimiter, auth.resetPassword);
+router.patch("/change-password",     authenticate, auth.changePassword);
+router.post("/validate-identity",    identityLimiter, auth.validateIdentity);
+router.post("/refresh-token",        auth.refreshToken);
+router.post("/revoke-token",         authenticate, auth.revokeRefreshToken);
+
+// ⚠️ DEV UNIQUEMENT — bloqué en production
+if (process.env.NODE_ENV !== "production") {
+  router.get("/dev-verify/:email", authenticate, auth.devVerify);
+}
 
 export default router;

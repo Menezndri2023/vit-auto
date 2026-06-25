@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import Navbar from "../Navbar/Navbar";
 import Footer from "../Footer/Footer";
 import BackToTop from "./BackToTop";
@@ -6,10 +7,17 @@ import ScrollToTop from "./ScrollToTop";
 import { useAuth } from "../../context/AuthContext";
 import styles from "./Layout.module.css";
 
+// Routes qui gèrent leur propre layout (pas de Navbar/Footer global)
+const BARE_ROUTES = ["/admin", "/stats", "/contract/"];
+
+const isBareRoute = (pathname) =>
+  BARE_ROUTES.some((r) => pathname === r || pathname.startsWith(r));
+
+// ── Bannière email non vérifié ────────────────────────────────────────────────
 const EmailBanner = ({ email }) => {
-  const [sending,  setSending]  = useState(false);
-  const [sent,     setSent]     = useState(false);
-  const [visible,  setVisible]  = useState(true);
+  const [sending, setSending] = useState(false);
+  const [sent,    setSent]    = useState(false);
+  const [visible, setVisible] = useState(true);
 
   if (!visible) return null;
 
@@ -41,8 +49,8 @@ const EmailBanner = ({ email }) => {
       position: "relative",
     }}>
       <span style={{ color: "#78350f" }}>
-        📧 <strong>Vérifiez votre e-mail</strong> — Un lien de confirmation a été envoyé à <strong>{email}</strong>.
-        Votre accès est limité jusqu'à la vérification.
+        📧 <strong>Vérifiez votre e-mail</strong> — Un lien de confirmation a été envoyé à{" "}
+        <strong>{email}</strong>. Votre accès est limité jusqu'à la vérification.
       </span>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         {sent ? (
@@ -55,7 +63,8 @@ const EmailBanner = ({ email }) => {
           </button>
         )}
         <button onClick={() => setVisible(false)}
-          style={{ background: "none", border: "none", cursor: "pointer", color: "#92400e", fontSize: "1rem", lineHeight: 1 }}>
+          style={{ background: "none", border: "none", cursor: "pointer",
+            color: "#92400e", fontSize: "1rem", lineHeight: 1 }}>
           ✕
         </button>
       </div>
@@ -63,9 +72,25 @@ const EmailBanner = ({ email }) => {
   );
 };
 
+// ── Layout principal ──────────────────────────────────────────────────────────
 const Layout = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
+  const location = useLocation();
+  const bare = isBareRoute(location.pathname);
+
   const showBanner = isAuthenticated && user && user.emailVerified === false;
+
+  // Pages ERP (admin, stats, contrat) : pas de Navbar ni Footer global
+  if (bare) {
+    return (
+      <>
+        <ScrollToTop />
+        {/* La bannière email s'affiche aussi en admin (important pour les admins non vérifiés) */}
+        {showBanner && <EmailBanner email={user.email} />}
+        {children}
+      </>
+    );
+  }
 
   return (
     <div className={styles.page}>
