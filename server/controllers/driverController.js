@@ -1,6 +1,8 @@
 import Driver from "../models/Driver.js";
 import Notification from "../models/Notification.js";
 
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // ── Créer un profil chauffeur (partenaire) ────────────────────────────────
 export const createDriver = async (req, res) => {
   try {
@@ -65,7 +67,7 @@ export const getDrivers = async (req, res) => {
   try {
     const { zone, disponibilite } = req.query;
     const filter = { status: "approved" };
-    if (zone)         filter.zone = new RegExp(zone, "i");
+    if (zone)         filter.zone = new RegExp(escapeRegex(String(zone).slice(0, 100)), "i");
     if (disponibilite) filter.disponibilite = disponibilite;
 
     const drivers = await Driver.find(filter)

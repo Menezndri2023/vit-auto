@@ -317,19 +317,20 @@ export const getKycList = async (req, res) => {
     }
 
     const { status, page = 1, limit = 20 } = req.query;
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
     const filter = {};
     if (status) filter.kycStatus = status;
     else filter.kycStatus = { $in: ["EN_ATTENTE", "A_REVOIR_MANUELLEMENT"] };
 
-    const skip  = (Number(page) - 1) * Number(limit);
+    const skip  = (Math.max(Number(page), 1) - 1) * safeLimit;
     const total = await User.countDocuments(filter);
     const users = await User.find(filter)
       .select("firstName lastName email phone role kycStatus kycScore kycBadge kycSubmittedAt kycOcrData kycFaceMatchScore kycAuditLog identity")
       .sort({ kycSubmittedAt: -1 })
       .skip(skip)
-      .limit(Number(limit));
+      .limit(safeLimit);
 
-    res.json({ users, total, page: Number(page), limit: Number(limit) });
+    res.json({ users, total, page: Number(page), limit: safeLimit });
   } catch (err) {
     console.error("getKycList:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -444,9 +445,21 @@ export const adminReviewKyc = async (req, res) => {
   }
 };
 
-// ── DELETE /api/kyc/reset (dev/admin uniquement) ──────────────────────────────
+// ── DELETE /api/kyc/reset ─────────────────────────────────────────────────────
 export const resetKyc = async (req, res) => {
   try {
+    const current = await User.findById(req.user.id).select("kycStatus kycSubmittedAt").lean();
+    if (!current) return res.status(404).json({ message: "Utilisateur introuvable." });
+    if (current.kycStatus === "VERIFIE") {
+      return res.status(403).json({ message: "Impossible de réinitialiser un KYC déjà approuvé." });
+    }
+    // Anti-spam : 1 reset toutes les 24h
+    if (current.kycSubmittedAt) {
+      const hoursSince = (Date.now() - new Date(current.kycSubmittedAt).getTime()) / 3_600_000;
+      if (hoursSince < 24) {
+        return res.status(429).json({ message: "Vous devez attendre 24h avant de pouvoir réinitialiser à nouveau." });
+      }
+    }
     await User.findByIdAndUpdate(req.user.id, {
       $set: {
         kycStatus:          "EN_ATTENTE",

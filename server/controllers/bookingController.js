@@ -350,6 +350,11 @@ export const getAllBookings = async (req, res) => {
       sortBy = "createdAt", sortDir = "desc",
     } = req.query;
 
+    const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 200);
+    const ALLOWED_SORT = ["createdAt", "updatedAt", "montantTotal", "status", "reference"];
+    const safeSortBy  = ALLOWED_SORT.includes(sortBy) ? sortBy : "createdAt";
+    const safeSortDir = sortDir === "asc" ? 1 : -1;
+
     const filter = {};
     if (status)  filter.status = status;
     if (type)    filter.type   = type;
@@ -369,12 +374,12 @@ export const getAllBookings = async (req, res) => {
       ];
     }
 
-    const sort = { [sortBy]: sortDir === "asc" ? 1 : -1 };
+    const sort = { [safeSortBy]: safeSortDir };
     const [bookings, total] = await Promise.all([
       Booking.find(filter)
         .sort(sort)
-        .skip((Number(page) - 1) * Number(limit))
-        .limit(Number(limit))
+        .skip((Math.max(Number(page), 1) - 1) * safeLimit)
+        .limit(safeLimit)
         .populate("client",  "firstName lastName email phone kycStatus kycScore")
         .populate("vehicle", "title marque modele owner ville")
         .populate("driver",  "firstName lastName owner"),
@@ -387,7 +392,7 @@ export const getAllBookings = async (req, res) => {
     ]);
     const byStatus = Object.fromEntries(counts.map(c => [c._id, c.count]));
 
-    res.json({ bookings, total, pages: Math.ceil(total / Number(limit)), page: Number(page), byStatus });
+    res.json({ bookings, total, pages: Math.ceil(total / safeLimit), page: Number(page), byStatus });
   } catch (err) {
     console.error("getAllBookings:", err);
     res.status(500).json({ message: "Erreur serveur." });

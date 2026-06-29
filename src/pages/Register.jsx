@@ -54,8 +54,8 @@ const Register = () => {
     if (form.password !== form.confirmPassword) {
       error("Les mots de passe ne correspondent pas."); return;
     }
-    if (form.password.length < 6) {
-      error("Le mot de passe doit contenir au moins 6 caractères."); return;
+    if (form.password.length < 8) {
+      error("Le mot de passe doit contenir au moins 8 caractères."); return;
     }
     try {
       const result = await register(form);

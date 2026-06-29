@@ -36,7 +36,7 @@ const ResetPassword = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrMsg("");
-    if (password.length < 6) { setErrMsg("Le mot de passe doit contenir au moins 6 caractères."); return; }
+    if (password.length < 8) { setErrMsg("Le mot de passe doit contenir au moins 8 caractères."); return; }
     if (password !== confirm) { setErrMsg("Les mots de passe ne correspondent pas."); return; }
 
     setLoading(true);
@@ -74,7 +74,7 @@ const ResetPassword = () => {
           <>
             <h1 style={{ textAlign: "center", color: "#0f1b3f", margin: "0 0 8px" }}>Nouveau mot de passe</h1>
             <p style={{ textAlign: "center", color: "#64748b", marginBottom: 24 }}>
-              Choisissez un mot de passe sécurisé d'au moins 6 caractères.
+              Choisissez un mot de passe sécurisé d'au moins 8 caractères.
             </p>
 
             {errMsg && (
@@ -87,7 +87,7 @@ const ResetPassword = () => {
               <div className={styles.inputGroup}>
                 <label>Nouveau mot de passe</label>
                 <div style={{ position: "relative" }}>
-                  <input type={showPass ? "text" : "password"} placeholder="Minimum 6 caractères"
+                  <input type={showPass ? "text" : "password"} placeholder="Minimum 8 caractères"
                     value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus
                     style={{ paddingRight: 44 }} />
                   <button type="button" onClick={() => setShowPass((p) => !p)}

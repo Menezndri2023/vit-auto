@@ -3,19 +3,23 @@ import Booking from "../models/Booking.js";
 import Vehicle from "../models/Vehicle.js";
 import Driver from "../models/Driver.js";
 import Notification from "../models/Notification.js";
+
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 import { transporter, FROM_ADDRESS, identityRejectedTemplate } from "../config/email.js";
 
 // ── Liste de tous les utilisateurs (admin) ────────────────────────────────
 export const getUsers = async (req, res) => {
   try {
     const { role, page = 1, limit = 20, search } = req.query;
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 200);
     const filter = {};
     if (role) filter.role = role;
     if (search) {
+      const s = escapeRegex(String(search).slice(0, 100));
       filter.$or = [
-        { firstName: new RegExp(search, "i") },
-        { lastName:  new RegExp(search, "i") },
-        { email:     new RegExp(search, "i") },
+        { firstName: new RegExp(s, "i") },
+        { lastName:  new RegExp(s, "i") },
+        { email:     new RegExp(s, "i") },
       ];
     }
 
@@ -23,12 +27,12 @@ export const getUsers = async (req, res) => {
       User.find(filter)
         .select("-password")
         .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(Number(limit)),
+        .skip((Math.max(Number(page), 1) - 1) * safeLimit)
+        .limit(safeLimit),
       User.countDocuments(filter),
     ]);
 
-    res.json({ users, total, pages: Math.ceil(total / limit) });
+    res.json({ users, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {
     console.error("getUsers:", err);
     res.status(500).json({ message: "Erreur serveur." });

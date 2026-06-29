@@ -3,6 +3,8 @@ import Vehicle from "../models/Vehicle.js";
 import Notification from "../models/Notification.js";
 import Booking from "../models/Booking.js";
 
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // ══════════════════════════════════════════════════════════════════════════════
 // MOTEUR DE VALIDATION AUTOMATIQUE DES ANNONCES
 // Score sur 100 — décision : approved / pending / rejected
@@ -120,8 +122,6 @@ export const createVehicle = async (req, res) => {
     const dupModele = req.body.modele;
     const dupAnnee  = req.body.annee;
     if (dupMarque && dupModele && dupAnnee) {
-      // Échapper les caractères spéciaux regex pour éviter l'injection
-      const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const existing = await Vehicle.findOne({
         owner:  req.user._id,
         marque: new RegExp(`^${escapeRegex(String(dupMarque))}$`, "i"),
@@ -235,31 +235,36 @@ export const getVehicles = async (req, res) => {
 
     if (type)         filter.type = type;
     if (vehicleType)  filter.vehicleType = vehicleType;
-    if (ville)        filter.ville = new RegExp(ville, "i");
+    if (ville)        filter.ville = new RegExp(escapeRegex(String(ville).slice(0, 100)), "i");
     if (carburant)    filter.carburant = carburant;
     if (transmission) filter.transmission = transmission;
-    if (search)       filter.$or = [
-      { title:  new RegExp(search, "i") },
-      { marque: new RegExp(search, "i") },
-      { modele: new RegExp(search, "i") },
-    ];
+    if (search) {
+      const s = escapeRegex(String(search).slice(0, 100));
+      filter.$or = [
+        { title:  new RegExp(s, "i") },
+        { marque: new RegExp(s, "i") },
+        { modele: new RegExp(s, "i") },
+      ];
+    }
     if (minPrice || maxPrice) {
       filter.pricePerDay = {};
       if (minPrice) filter.pricePerDay.$gte = Number(minPrice);
       if (maxPrice) filter.pricePerDay.$lte = Number(maxPrice);
     }
 
-    const skip  = (Math.max(Number(page), 1) - 1) * Number(limit);
+    const maxLimit  = isAdmin ? 500 : 100;
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), maxLimit);
+    const skip  = (Math.max(Number(page), 1) - 1) * safeLimit;
     const [vehicles, total] = await Promise.all([
       Vehicle.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(Number(limit))
+        .limit(safeLimit)
         .populate("owner", "firstName phone ville certificationBadge"),
       Vehicle.countDocuments(filter),
     ]);
 
-    res.json({ vehicles, total, page: Number(page), pages: Math.ceil(total / Number(limit)) });
+    res.json({ vehicles, total, page: Number(page), pages: Math.ceil(total / safeLimit) });
   } catch (err) {
     console.error("getVehicles:", err);
     res.status(500).json({ message: "Erreur récupération véhicules." });
@@ -273,7 +278,10 @@ export const getVehicleById = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(404).json({ message: "Véhicule introuvable." });
     }
-    const vehicle = await Vehicle.findById(id).populate("owner", "firstName lastName phone ville certificationBadge");
+    const ownerFields = req.user?.role === "admin"
+      ? "firstName lastName email phone profilePhoto role isActive kycStatus certificationBadge createdAt ville"
+      : "firstName lastName phone ville certificationBadge";
+    const vehicle = await Vehicle.findById(id).populate("owner", ownerFields);
     if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable." });
     // Masquer les véhicules non approuvés aux non-admins
     if (vehicle.status !== "approved" && req.user?.role !== "admin" && vehicle.owner?._id?.toString() !== req.user?._id?.toString()) {

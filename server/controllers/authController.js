@@ -303,8 +303,8 @@ export const changePassword = async (req, res) => {
   if (!currentPassword || !newPassword) {
     return res.status(400).json({ message: "Mot de passe actuel et nouveau requis." });
   }
-  if (newPassword.length < 6) {
-    return res.status(400).json({ message: "Le nouveau mot de passe doit contenir au moins 6 caractères." });
+  if (newPassword.length < 8) {
+    return res.status(400).json({ message: "Le nouveau mot de passe doit contenir au moins 8 caractères." });
   }
   try {
     const user = await User.findById(req.user._id);
@@ -430,9 +430,10 @@ export const sendPhoneOtp = async (req, res) => {
       return res.json({ message: "Téléphone déjà vérifié.", alreadyVerified: true });
     }
 
-    // Générer OTP à 6 chiffres
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.phoneOtp        = otp;
+    // Générer OTP à 6 chiffres et le stocker hashé
+    const otp     = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpHash = await bcrypt.hash(otp, 10);
+    user.phoneOtp        = otpHash;
     user.phoneOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
     if (target) user.phone = target;
     user.phoneVerified = false;
@@ -469,7 +470,8 @@ export const verifyPhoneOtp = async (req, res) => {
     if (!user) return res.status(404).json({ message: "Compte introuvable." });
     if (user.phoneVerified) return res.json({ message: "Téléphone déjà vérifié.", success: true });
 
-    if (!user.phoneOtp || user.phoneOtp !== otp) {
+    const otpValid = user.phoneOtp && await bcrypt.compare(otp, user.phoneOtp);
+    if (!otpValid) {
       return res.status(400).json({ message: "Code OTP incorrect." });
     }
     if (!user.phoneOtpExpires || user.phoneOtpExpires < new Date()) {
@@ -563,7 +565,7 @@ export const revokeRefreshToken = async (req, res) => {
 export const resetPassword = async (req, res) => {
   const { token, password } = req.body;
   if (!token || !password) return res.status(400).json({ message: "Token et nouveau mot de passe requis." });
-  if (password.length < 6) return res.status(400).json({ message: "Le mot de passe doit contenir au moins 6 caractères." });
+  if (password.length < 8) return res.status(400).json({ message: "Le mot de passe doit contenir au moins 8 caractères." });
 
   try {
     const user = await User.findOne({

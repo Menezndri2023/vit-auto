@@ -6,6 +6,20 @@ import styles from "./AdminPanel.module.css";
 // ─── Utilitaires ───────────────────────────────────────────────────────────────
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 const MOIS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
+// Sanitise une URL avant de l'utiliser dans href (bloque javascript: et autres schémas dangereux)
+const safeHref = (url) => {
+  if (!url) return "#";
+  const s = String(url).trim();
+  if (/^(https?|mailto):/i.test(s)) return s;
+  return "#";
+};
+// Version pour les images : autorise aussi les data:image/... (KYC documents stockés en base64)
+const safeImgHref = (url) => {
+  if (!url) return "#";
+  const s = String(url).trim();
+  if (/^(https?|data:image\/)/.test(s)) return s;
+  return "#";
+};
 
 const ROLE_CONFIG = {
   client:     { label: "Client",     color: "#3b82f6", bg: "#eff6ff" },
@@ -140,6 +154,17 @@ export default function AdminPanel() {
   const [certBadgeForm,     setCertBadgeForm]      = useState({ badge: "verifie", publicStatement: "", note: "" });
   const [certReviewLoading, setCertReviewLoading]  = useState(false);
   const [certReviewMsg,     setCertReviewMsg]      = useState("");
+
+  // Partner Verification System
+  const [pvList,            setPvList]            = useState([]);
+  const [pvStats,           setPvStats]           = useState(null);
+  const [pvLoading,         setPvLoading]         = useState(false);
+  const [pvFilter,          setPvFilter]          = useState({ status: "", trustLevel: "", companyType: "", search: "" });
+  const [pvDetail,          setPvDetail]          = useState(null);
+  const [pvCreateModal,     setPvCreateModal]     = useState(false);
+  const [pvCreateForm,      setPvCreateForm]      = useState({ userId: "", companyName: "", companyType: "importateur", country: "", city: "", website: "", phone: "", email: "", description: "", exportCountries: [], importCountries: [], vehicleCategories: [], yearsExperience: 0, annualVolume: "", adminNote: "" });
+  const [pvSaving,          setPvSaving]          = useState(false);
+  const [pvCriterionLoading,setPvCriterionLoading]= useState("");
 
   const [stats,     setStats]     = useState(null);
   const [users,     setUsers]     = useState([]);
@@ -370,14 +395,54 @@ export default function AdminPanel() {
     setKycReviewLoading(false);
   };
 
+  // ── Partner Verification ───────────────────────────────────────────────────
+  const loadPartnerVerif = useCallback(async () => {
+    if (!token) return;
+    setPvLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (pvFilter.status)      params.set("status",      pvFilter.status);
+      if (pvFilter.trustLevel)  params.set("trustLevel",  pvFilter.trustLevel);
+      if (pvFilter.companyType) params.set("companyType", pvFilter.companyType);
+      if (pvFilter.search)      params.set("search",      pvFilter.search);
+      params.set("limit", "100");
+      const [listRes, statsRes] = await Promise.all([
+        fetch(`/api/partner-verif/admin/list?${params}`, { headers }),
+        fetch("/api/partner-verif/admin/stats",          { headers }),
+      ]);
+      if (listRes.ok)  setPvList((await listRes.json()).verifications || []);
+      if (statsRes.ok) setPvStats(await statsRes.json());
+    } catch { /* ignore */ }
+    setPvLoading(false);
+  }, [token, headers, pvFilter]);
+
   useEffect(() => {
-    if (activeTab === "import_export") loadImportExport();
-    if (activeTab === "importeurs")    loadImporters();
-    if (activeTab === "commissions")   loadCommissions();
-    if (activeTab === "factures")      loadInvoices();
-    if (activeTab === "kyc")           loadKycList(kycFilter);
-    if (activeTab === "certification") loadCertList();
-  }, [activeTab, loadImportExport, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList]);
+    if (activeTab === "import_export")  loadImportExport();
+    if (activeTab === "exportateurs")   loadImporters();
+    if (activeTab === "commissions")    loadCommissions();
+    if (activeTab === "factures")       loadInvoices();
+    if (activeTab === "kyc")            loadKycList(kycFilter);
+    if (activeTab === "certification")  loadCertList();
+    if (activeTab === "partner_verif")  loadPartnerVerif();
+  }, [activeTab, loadImportExport, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif]);
+
+  // Ferme tous les modals au changement d'onglet pour éviter les états résiduels
+  useEffect(() => {
+    setConfirm(null);
+    setRejectModal(null);
+    setRejectReason("");
+    setDriverRejectModal(null);
+    setDriverRejectReason("");
+    setBkActionModal(null);
+    setBkCancelReason("");
+    setDisputeModal(null);
+    setForceModal(null);
+    setReviewModal(null);
+    setListingRejectModal(null);
+    setKycDetailUser(null);
+    setPvDetail(null);
+    setPvCreateModal(false);
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Actions utilisateurs ────────────────────────────────────────────────────
   const toggleBlock = useCallback(async (uid) => {
@@ -494,7 +559,7 @@ export default function AdminPanel() {
     if (bkStatus !== "all") params.set("status", bkStatus);
     if (bkSearch.trim()) params.set("search", bkSearch.trim());
     window.open(`/api/bookings/admin/export?${params}&_t=${token}`, "_blank");
-  }, [bkStatus, token]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bkStatus, bkSearch, token]);
 
   // ── Broadcast notification ─────────────────────────────────────────────────
   const sendBroadcast = useCallback(async () => {
@@ -571,6 +636,7 @@ export default function AdminPanel() {
   const pendingImp = importerProfiles.filter((p) => p.status === "pending").length;
   const pendingInv = invoices.filter((i) => i.status === "pending").length;
   const pendingIe  = ieRequests.filter((r) => r.status === "pending").length;
+  const pendingPv  = pvList.filter((p) => p.status === "en_attente" || p.status === "en_cours").length;
 
   const NAV_GROUPS = [
     {
@@ -581,68 +647,67 @@ export default function AdminPanel() {
       ],
     },
     {
-      label: "UTILISATEURS",
+      label: "UTILISATEURS & CONFORMITÉ",
       items: [
-        { key: "users",      icon: "👥", label: `Comptes (${users.length})` },
-        { key: "kyc",        icon: "🛡️", label: "KYC / Identités", badge: pendingKyc },
+        { key: "users",         icon: "👥", label: `Comptes (${users.length})` },
+        { key: "kyc",           icon: "🛡️", label: "KYC / Identités",         badge: pendingKyc },
+        { key: "certification", icon: "🏆", label: "Certifications",           badge: pendingCert },
       ],
     },
     {
       label: "CATALOGUE",
       items: [
-        { key: "vehicles",    icon: "🚗", label: "Annonces", badge: pendingVeh },
-        { key: "validations", icon: "✅", label: "Validations", badge: pendingVeh + drivers.length + pendingBk },
+        { key: "catalogue", icon: "🚗", label: "Annonces & Validations", badge: pendingVeh + drivers.length },
       ],
     },
     {
-      label: "CONTENU",
+      label: "MARKETING & CMS",
       items: [
-        { key: "accueil", icon: "🏠", label: "Accueil & CMS" },
-        { key: "vedette", icon: "⭐", label: "Vedette" },
+        { key: "marketing", icon: "🎨", label: "Contenu & Mise en avant" },
       ],
     },
     {
       label: "SERVICES",
       items: [
-        { key: "bookings",     icon: "📋", label: "Réservations", badge: pendingBk },
-        { key: "litiges",      icon: "⚖️", label: "Litiges", badge: disputedBk },
-        { key: "chauffeurs",   icon: "👨‍✈️", label: "Chauffeurs", badge: drivers.length },
-        { key: "import_export",icon: "🌍", label: "Import / Export", badge: pendingIe },
-        { key: "importeurs",   icon: "🏅", label: "Importateurs", badge: pendingImp },
-        { key: "transport",    icon: "🚢", label: "Transport Intl.", wip: true },
-        { key: "financement",  icon: "🏦", label: "Financement", wip: true },
-        { key: "assurance",    icon: "🔒", label: "Assurance", wip: true },
+        { key: "bookings",      icon: "📋", label: "Réservations",          badge: pendingBk },
+        { key: "litiges",       icon: "⚖️",  label: "Litiges",              badge: disputedBk },
+        { key: "chauffeurs",    icon: "👨‍✈️", label: "Chauffeurs",           badge: drivers.length },
+        { key: "import_export", icon: "🌍", label: "Transactions I/E",      badge: pendingIe },
+        { key: "exportateurs",  icon: "📦", label: "Partenaires Export",    badge: pendingImp },
+        { key: "transport",     icon: "🚢", label: "Transport Intl.",        wip: true },
+        { key: "financement",   icon: "🏦", label: "Financement",           wip: true },
+        { key: "assurance",     icon: "🔒", label: "Assurance",             wip: true },
+      ],
+    },
+    {
+      label: "PARTENAIRES",
+      items: [
+        { key: "partner_verif", icon: "🔍", label: "Vérification Partenaires", badge: pendingPv },
+        { key: "partenaires",   icon: "🤝", label: "Gestion Partenariats",     wip: true },
       ],
     },
     {
       label: "FINANCE",
       items: [
         { key: "commissions", icon: "💰", label: "Commissions" },
-        { key: "factures",    icon: "📄", label: "Factures", badge: pendingInv },
-        { key: "paiements",   icon: "💳", label: "Paiements", wip: true },
+        { key: "factures",    icon: "📄", label: "Factures",          badge: pendingInv },
+        { key: "paiements",   icon: "💳", label: "Paiements",         wip: true },
         { key: "escrow",      icon: "🔐", label: "Escrow / Séquestre", wip: true },
-      ],
-    },
-    {
-      label: "PARTENARIATS",
-      items: [
-        { key: "certification", icon: "🏆", label: "Certifications", badge: pendingCert },
-        { key: "partenaires",   icon: "🤝", label: "Partenaires", wip: true },
-        { key: "ads",           icon: "📢", label: "Publicités", wip: true },
       ],
     },
     {
       label: "COMMUNICATION",
       items: [
-        { key: "notifications", icon: "🔔", label: "Notifications" },
-        { key: "support",       icon: "🎧", label: "Support Client", wip: true },
+        { key: "notifications", icon: "🔔", label: "Notifications & Broadcast" },
+        { key: "ads",           icon: "📢", label: "Publicités & Campagnes",   wip: true },
+        { key: "support",       icon: "🎧", label: "Support Client",           wip: true },
       ],
     },
     {
       label: "SYSTÈME",
       items: [
-        { key: "roles", icon: "🔑", label: "Rôles Admin", wip: true },
-        { key: "audit", icon: "📜", label: "Audit Logs",  wip: true },
+        { key: "roles", icon: "🔑", label: "Rôles & Permissions", wip: true },
+        { key: "audit", icon: "📜", label: "Audit Logs",           wip: true },
       ],
     },
   ];
@@ -668,48 +733,6 @@ export default function AdminPanel() {
           onConfirm={() => { confirm.action(); setConfirm(null); }}
           onCancel={() => setConfirm(null)}
         />
-      )}
-
-      {/* ── Reject driver modal ── */}
-      {driverRejectModal && (
-        <div className={styles.overlay} onClick={() => setDriverRejectModal(null)}>
-          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
-            <p className={styles.confirmMsg}>Raison du rejet pour « {driverRejectModal.name} » (facultatif)</p>
-            <textarea
-              style={{ width: "100%", borderRadius: 8, border: "1px solid #e2e8f0", padding: "0.6rem", fontSize: "0.9rem", marginBottom: "0.75rem", resize: "vertical" }}
-              rows={3} placeholder="Ex: Documents insuffisants, informations incomplètes..."
-              value={driverRejectReason} onChange={(e) => setDriverRejectReason(e.target.value)}
-            />
-            <div className={styles.confirmActions}>
-              <button className={styles.btnDanger} onClick={() => {
-                updateDriverStatus(driverRejectModal.did, "rejected", driverRejectReason);
-                setDriverRejectModal(null); setDriverRejectReason("");
-              }}>Confirmer le rejet</button>
-              <button className={styles.btnGhost} onClick={() => { setDriverRejectModal(null); setDriverRejectReason(""); }}>Annuler</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Reject vehicle modal ── */}
-      {rejectModal && (
-        <div className={styles.overlay} onClick={() => setRejectModal(null)}>
-          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
-            <p className={styles.confirmMsg}>Raison du rejet pour « {rejectModal.name} » (facultatif)</p>
-            <textarea
-              style={{ width: "100%", borderRadius: 8, border: "1px solid #e2e8f0", padding: "0.6rem", fontSize: "0.9rem", marginBottom: "0.75rem", resize: "vertical" }}
-              rows={3} placeholder="Ex: Images insuffisantes, informations incomplètes..."
-              value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}
-            />
-            <div className={styles.confirmActions}>
-              <button className={styles.btnDanger} onClick={() => {
-                updateVehicleStatus(rejectModal.vid, "rejected", rejectReason);
-                setRejectModal(null); setRejectReason("");
-              }}>Confirmer le rejet</button>
-              <button className={styles.btnGhost} onClick={() => { setRejectModal(null); setRejectReason(""); }}>Annuler</button>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* ── Booking action modal ── */}
@@ -938,184 +961,28 @@ export default function AdminPanel() {
       ) : (
 
         <>
-          {/* ══════════════════════ TAB ACCUEIL ══════════════════════ */}
-          {activeTab === "accueil" && (
-            <AccueilSection vehicles={vehicles} token={token} onRefresh={loadAll} />
+          {/* ══════════════════════ TAB MARKETING & CMS ══════════════ */}
+          {activeTab === "marketing" && (
+            <MarketingSection vehicles={vehicles} token={token} onRefresh={loadAll} />
           )}
 
-          {/* ══════════════════════ TAB VALIDATIONS ══════════════════ */}
-          {activeTab === "validations" && (
-            <div className={styles.tabContent}>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", marginBottom: "1.25rem" }}>
-                ✅ File de validation
-              </h2>
-
-              {/* Annonces en attente */}
-              <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
-                <h3 className={styles.chartTitle}>🚗 Annonces en attente ({vehicles.filter((v) => v.status === "pending").length})</h3>
-                {vehicles.filter((v) => v.status === "pending").length === 0 ? (
-                  <p style={{ color: "#64748b", fontSize: "0.9rem", padding: "0.5rem 0" }}>Aucune annonce en attente.</p>
-                ) : (
-                  <div className={styles.tableWrap}>
-                    <table className={styles.table}>
-                      <thead>
-                        <tr><th>Véhicule</th><th>Type</th><th>Prix</th><th>Score</th><th>Soumis le</th><th>Actions</th></tr>
-                      </thead>
-                      <tbody>
-                        {vehicles.filter((v) => v.status === "pending").map((v) => {
-                          const vid = v._id || v.id;
-                          const score = v.validationScore;
-                          return (
-                            <tr key={vid} className={styles.tr}>
-                              <td>
-                                <div className={styles.vehicleCell}>
-                                  {(v.images?.[0] || v.image)
-                                    ? <img src={v.images?.[0] || v.image} alt="" className={styles.vehThumb} />
-                                    : <div className={styles.vehThumbPlaceholder}>🚗</div>}
-                                  <div>
-                                    <strong>{v.title || v.name}</strong>
-                                    <span className={styles.vehMeta}>{v.marque} {v.modele} {v.annee}</span>
-                                  </div>
-                                </div>
-                              </td>
-                              <td><Badge label={v.type === "location" ? "📅 Location" : "💰 Vente"} color="#64748b" bg="#f1f5f9" /></td>
-                              <td className={styles.tdPrice}>
-                                {v.pricePerDay ? `${Number(v.pricePerDay).toLocaleString("fr-FR")} DH/j` :
-                                 v.priceForSale ? `${Number(v.priceForSale).toLocaleString("fr-FR")} DH` : "—"}
-                              </td>
-                              <td>
-                                {score != null && (
-                                  <span className={styles.scoreChip}
-                                    style={{ color: score >= 65 ? "#10b981" : score >= 40 ? "#f59e0b" : "#ef4444" }}>
-                                    {score}/100
-                                  </span>
-                                )}
-                              </td>
-                              <td className={styles.tdDate}>{fmtDate(v.createdAt)}</td>
-                              <td>
-                                <div className={styles.actionBtns}>
-                                  <button className={styles.btnApprove}
-                                    onClick={() => setConfirm({
-                                      message: `Approuver l'annonce "${v.title || v.name}" ?`,
-                                      action: () => updateVehicleStatus(vid, "approved"),
-                                    })}>✅ Valider</button>
-                                  <button className={styles.btnReject}
-                                    onClick={() => { setRejectModal({ vid, name: v.title || v.name }); setRejectReason(""); }}>
-                                    ✕ Rejeter
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-
-              {/* Chauffeurs en attente */}
-              <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
-                <h3 className={styles.chartTitle}>👨‍✈️ Chauffeurs en attente ({drivers.length})</h3>
-                {drivers.length === 0 ? (
-                  <p style={{ color: "#64748b", fontSize: "0.9rem", padding: "0.5rem 0" }}>Aucun profil chauffeur en attente.</p>
-                ) : (
-                  <div className={styles.tableWrap}>
-                    <table className={styles.table}>
-                      <thead>
-                        <tr><th>Chauffeur</th><th>Disponibilité</th><th>Tarif</th><th>Zone</th><th>Soumis le</th><th>Actions</th></tr>
-                      </thead>
-                      <tbody>
-                        {drivers.map((d) => (
-                          <tr key={d._id} className={styles.tr}>
-                            <td>
-                              <div className={styles.vehicleCell}>
-                                {d.profilePhoto
-                                  ? <img src={d.profilePhoto} alt="" className={styles.vehThumb} style={{ borderRadius: "50%" }} />
-                                  : <div className={styles.vehThumbPlaceholder}>👤</div>}
-                                <div>
-                                  <strong>{d.firstName} {d.lastName}</strong>
-                                  <span className={styles.vehMeta}>{d.title}</span>
-                                  {d.owner && <span className={styles.vehMeta} style={{ color: "#64748b" }}>par {d.owner.firstName} {d.owner.lastName}</span>}
-                                </div>
-                              </div>
-                            </td>
-                            <td><Badge label={d.disponibilite || "—"} color="#8b5cf6" bg="#f5f3ff" /></td>
-                            <td className={styles.tdPrice}>
-                              {d.tarif ? `${Number(d.tarif).toLocaleString("fr-FR")} DH/j` : "—"}
-                            </td>
-                            <td style={{ fontSize: "0.85rem", color: "#64748b" }}>{d.zone || d.ville || "—"}</td>
-                            <td className={styles.tdDate}>{fmtDate(d.createdAt)}</td>
-                            <td>
-                              <div className={styles.actionBtns}>
-                                <button className={styles.btnApprove}
-                                  onClick={() => setConfirm({
-                                    message: `Approuver le profil de ${d.firstName} ${d.lastName} ?`,
-                                    action: () => updateDriverStatus(d._id, "approved"),
-                                  })}>✅ Valider</button>
-                                <button className={styles.btnReject}
-                                  onClick={() => { setDriverRejectModal({ did: d._id, name: `${d.firstName} ${d.lastName}` }); setDriverRejectReason(""); }}>
-                                  ✕ Rejeter
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-
-              {/* Commandes en attente */}
-              <div className={styles.chartCard}>
-                <h3 className={styles.chartTitle}>📋 Commandes en attente ({bookings.filter((b) => b.status === "pending").length})</h3>
-                {bookings.filter((b) => b.status === "pending").length === 0 ? (
-                  <p style={{ color: "#64748b", fontSize: "0.9rem", padding: "0.5rem 0" }}>Aucune commande en attente.</p>
-                ) : (
-                  <div className={styles.tableWrap}>
-                    <table className={styles.table}>
-                      <thead>
-                        <tr><th>Client</th><th>Véhicule</th><th>Type</th><th>Montant</th><th>Date</th><th>Actions</th></tr>
-                      </thead>
-                      <tbody>
-                        {bookings.filter((b) => b.status === "pending").map((b) => {
-                          const clientName = `${b.clientInfo?.firstName || ""} ${b.clientInfo?.lastName || ""}`.trim() || "—";
-                          const vName = b.vehicle
-                            ? [b.vehicle.title, b.vehicle.marque, b.vehicle.modele].filter(Boolean).join(" ")
-                            : "—";
-                          const typeLabels = { location: "📅 Location", essai: "🔑 Essai", chauffeur: "🚘 Chauffeur", leasing: "🏦 Leasing", import_export: "🌍 Import/Export" };
-                          return (
-                            <tr key={b._id} className={styles.tr}>
-                              <td><div><strong>{clientName}</strong><span className={styles.vehMeta}>{b.clientInfo?.email}</span></div></td>
-                              <td className={styles.tdVeh}>{vName}</td>
-                              <td><Badge label={typeLabels[b.type] || b.type} color="#64748b" bg="#f1f5f9" /></td>
-                              <td className={styles.tdPrice}>
-                                {b.montantTotal > 0 ? `${Number(b.montantTotal).toLocaleString("fr-FR")} DH` : "—"}
-                              </td>
-                              <td className={styles.tdDate}>{fmtDate(b.createdAt)}</td>
-                              <td>
-                                <div className={styles.actionBtns}>
-                                  <button className={styles.btnApprove}
-                                    onClick={() => setBkActionModal({ id: b._id, name: clientName, action: "confirmed" })}>
-                                    ✅ Confirmer
-                                  </button>
-                                  <button className={styles.btnReject}
-                                    onClick={() => { setBkActionModal({ id: b._id, name: clientName, action: "cancelled" }); setBkCancelReason(""); }}>
-                                    ✕ Annuler
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
+          {/* ══════════════════════ TAB CATALOGUE ════════════════════ */}
+          {activeTab === "catalogue" && (
+            <CatalogueSection
+              vehicles={vehicles} drivers={drivers} bookings={bookings}
+              headers={headers} token={token}
+              onRefresh={loadAll}
+              showToast={showToast}
+              setConfirm={setConfirm}
+              rejectModal={rejectModal} setRejectModal={setRejectModal}
+              rejectReason={rejectReason} setRejectReason={setRejectReason}
+              driverRejectModal={driverRejectModal} setDriverRejectModal={setDriverRejectModal}
+              driverRejectReason={driverRejectReason} setDriverRejectReason={setDriverRejectReason}
+              updateVehicleStatus={updateVehicleStatus}
+              deleteVehicle={deleteVehicle}
+            />
           )}
+
 
           {/* ══════════════════════ TAB DASHBOARD ══════════════════════ */}
           {activeTab === "dashboard" && (
@@ -1134,8 +1001,8 @@ export default function AdminPanel() {
                 <StatCard icon="✅" label="Commandes terminées" value={stats?.bookings?.completed || 0}
                   sub={`${stats?.bookings?.cancelled || 0} annulées`} color="#64748b" />
                 <StatCard icon="💰" label="Revenus totaux"
-                  value={Number(stats?.revenue?.total || 0).toLocaleString("fr-FR") + " DH"}
-                  sub={`Ce mois : ${Number(stats?.revenue?.thisMonth || 0).toLocaleString("fr-FR")} DH`}
+                  value={Number(stats?.revenue?.total || 0).toLocaleString("fr-FR") + " XOF"}
+                  sub={`Ce mois : ${Number(stats?.revenue?.thisMonth || 0).toLocaleString("fr-FR")} XOF`}
                   color="#ef4444" />
                 <StatCard icon="🌍" label="Import/Export"
                   value={ieRequests.length || stats?.importExport?.total || "—"}
@@ -1148,13 +1015,13 @@ export default function AdminPanel() {
                 <div className={styles.alertBanner}>
                   <span>⚠️</span>
                   <span>{stats.vehicles.pending} annonce{stats.vehicles.pending > 1 ? "s" : ""} en attente de validation</span>
-                  <button className={styles.alertBtn} onClick={() => setActiveTab("vehicles")}>Voir →</button>
+                  <button className={styles.alertBtn} onClick={() => setActiveTab("catalogue")}>Voir →</button>
                 </div>
               )}
               {(stats?.bookings?.pending || 0) > 0 && (
                 <div className={styles.alertBanner} style={{ borderColor: "#6366f1", background: "#f0f4ff" }}>
                   <span>📋</span>
-                  <span>{stats.bookings.pending} commande{stats.bookings.pending > 1 ? "s" : ""} en attente de confirmation partenaire</span>
+                  <span>{stats.bookings.pending} commande{stats.bookings.pending > 1 ? "s" : ""} en attente de confirmation</span>
                   <button className={styles.alertBtn} onClick={() => setActiveTab("bookings")}>Voir →</button>
                 </div>
               )}
@@ -1168,10 +1035,7 @@ export default function AdminPanel() {
                       <div key={`${m._id.year}-${m._id.month}`} className={styles.chartCol}>
                         <span className={styles.chartVal}>{Math.round(m.total / 1000)}k</span>
                         <div className={styles.chartBarWrap}>
-                          <div
-                            className={styles.chartBar}
-                            style={{ height: `${Math.round((m.total / maxRev) * 100)}%` }}
-                          />
+                          <div className={styles.chartBar} style={{ height: `${Math.round((m.total / maxRev) * 100)}%` }} />
                         </div>
                         <span className={styles.chartLabel}>{MOIS[(m._id.month - 1)]}</span>
                       </div>
@@ -1201,7 +1065,7 @@ export default function AdminPanel() {
                 </div>
               )}
 
-              {/* Résumé utilisateurs */}
+              {/* Répartition utilisateurs */}
               <div className={styles.chartCard}>
                 <h3 className={styles.chartTitle}>👥 Répartition des comptes</h3>
                 <div className={styles.pieGrid}>
@@ -1226,14 +1090,9 @@ export default function AdminPanel() {
           {/* ══════════════════════ TAB UTILISATEURS ══════════════════════ */}
           {activeTab === "users" && (
             <div className={styles.tabContent}>
-              {/* Filtres */}
               <div className={styles.filterBar}>
-                <input
-                  className={styles.searchInput}
-                  placeholder="🔍 Rechercher un utilisateur..."
-                  value={userSearch}
-                  onChange={(e) => { setUserSearch(e.target.value); setUserPage(1); }}
-                />
+                <input className={styles.searchInput} placeholder="🔍 Rechercher un utilisateur..."
+                  value={userSearch} onChange={(e) => { setUserSearch(e.target.value); setUserPage(1); }} />
                 <select className={styles.filterSelect} value={userRole}
                   onChange={(e) => { setUserRole(e.target.value); setUserPage(1); }}>
                   <option value="all">Tous les rôles</option>
@@ -1244,19 +1103,10 @@ export default function AdminPanel() {
                 </select>
                 <span className={styles.filterCount}>{filteredUsers.length} résultat{filteredUsers.length !== 1 ? "s" : ""}</span>
               </div>
-
-              {/* Table */}
               <div className={styles.tableWrap}>
                 <table className={styles.table}>
                   <thead>
-                    <tr>
-                      <th>Utilisateur</th>
-                      <th>Email</th>
-                      <th>Rôle</th>
-                      <th>Statut</th>
-                      <th>Inscrit le</th>
-                      <th>Actions</th>
-                    </tr>
+                    <tr><th>Utilisateur</th><th>Email</th><th>Rôle</th><th>Statut</th><th>Inscrit le</th><th>Actions</th></tr>
                   </thead>
                   <tbody>
                     {paginate(filteredUsers, userPage).map((u) => {
@@ -1267,9 +1117,7 @@ export default function AdminPanel() {
                           <td>
                             <div className={styles.userCell}>
                               <div className={styles.avatar}>
-                                {u.profilePhoto
-                                  ? <img src={u.profilePhoto} alt="" />
-                                  : <span>{(u.firstName?.[0] || "?").toUpperCase()}</span>}
+                                {u.profilePhoto ? <img src={u.profilePhoto} alt="" /> : <span>{(u.firstName?.[0] || "?").toUpperCase()}</span>}
                               </div>
                               <div>
                                 <strong>{u.firstName} {u.lastName}</strong>
@@ -1279,54 +1127,30 @@ export default function AdminPanel() {
                           </td>
                           <td className={styles.tdEmail}>{u.email}</td>
                           <td>
-                            <select
-                              className={styles.roleSelect}
-                              value={u.role}
-                              disabled={isSelf}
-                              onChange={(e) => setConfirm({
-                                message: `Changer le rôle de ${u.firstName} en "${e.target.value}" ?`,
-                                action: () => changeRole(u._id, e.target.value),
-                              })}
-                              style={{ color: rc.color, background: rc.bg, borderColor: rc.color + "60" }}
-                            >
+                            <select className={styles.roleSelect} value={u.role} disabled={isSelf}
+                              onChange={(e) => setConfirm({ message: `Changer le rôle de ${u.firstName} en "${e.target.value}" ?`, action: () => changeRole(u._id, e.target.value) })}
+                              style={{ color: rc.color, background: rc.bg, borderColor: rc.color + "60" }}>
                               <option value="client">Client</option>
                               <option value="partenaire">Partenaire</option>
                               <option value="admin">Admin</option>
                               <option value="chauffeur">Chauffeur</option>
                             </select>
                           </td>
-                          <td>
-                            {u.isActive
-                              ? <Badge label="Actif" color="#10b981" bg="#ecfdf5" />
-                              : <Badge label="Bloqué" color="#ef4444" bg="#fef2f2" />}
-                          </td>
+                          <td>{u.isActive ? <Badge label="Actif" color="#10b981" bg="#ecfdf5" /> : <Badge label="Bloqué" color="#ef4444" bg="#fef2f2" />}</td>
                           <td className={styles.tdDate}>{fmtDate(u.createdAt)}</td>
                           <td>
                             <div className={styles.actionBtns}>
                               {!isSelf && (
-                                <button
-                                  className={u.isActive ? styles.btnBlock : styles.btnUnblock}
-                                  onClick={() => setConfirm({
-                                    message: `${u.isActive ? "Bloquer" : "Débloquer"} le compte de ${u.firstName} ${u.lastName} ?`,
-                                    action: () => toggleBlock(u._id),
-                                  })}
-                                  title={u.isActive ? "Bloquer" : "Débloquer"}
-                                >
+                                <button className={u.isActive ? styles.btnBlock : styles.btnUnblock}
+                                  onClick={() => setConfirm({ message: `${u.isActive ? "Bloquer" : "Débloquer"} le compte de ${u.firstName} ${u.lastName} ?`, action: () => toggleBlock(u._id) })}
+                                  title={u.isActive ? "Bloquer" : "Débloquer"}>
                                   {u.isActive ? "🚫 Bloquer" : "✅ Débloquer"}
                                 </button>
                               )}
                               {!isSelf && (
-                                <button
-                                  className={styles.btnDeleteSm}
-                                  onClick={() => setConfirm({
-                                    message: `Supprimer définitivement ${u.firstName} ${u.lastName} ? Cette action est irréversible.`,
-                                    danger: true,
-                                    action: () => deleteUser(u._id),
-                                  })}
-                                  title="Supprimer"
-                                >
-                                  🗑️
-                                </button>
+                                <button className={styles.btnDeleteSm}
+                                  onClick={() => setConfirm({ message: `Supprimer définitivement ${u.firstName} ${u.lastName} ? Cette action est irréversible.`, danger: true, action: () => deleteUser(u._id) })}
+                                  title="Supprimer">🗑️</button>
                               )}
                             </div>
                           </td>
@@ -1336,174 +1160,61 @@ export default function AdminPanel() {
                   </tbody>
                 </table>
               </div>
-
               <Pagination page={userPage} total={totalPages(filteredUsers)} onChange={setUserPage} />
-            </div>
-          )}
-
-          {/* ══════════════════════ TAB VÉHICULES ══════════════════════ */}
-          {activeTab === "vehicles" && (
-            <div className={styles.tabContent}>
-              <div className={styles.filterBar}>
-                <select className={styles.filterSelect} value={vehStatus}
-                  onChange={(e) => { setVehStatus(e.target.value); setVehPage(1); }}>
-                  <option value="all">Tous les statuts</option>
-                  <option value="approved">Publiées</option>
-                  <option value="pending">En attente</option>
-                  <option value="rejected">Rejetées</option>
-                </select>
-                <span className={styles.filterCount}>{filteredVehicles.length} annonce{filteredVehicles.length !== 1 ? "s" : ""}</span>
-              </div>
-
-              <div className={styles.tableWrap}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr>
-                      <th>Véhicule</th>
-                      <th>Type</th>
-                      <th>Prix</th>
-                      <th>Score</th>
-                      <th>Statut</th>
-                      <th>Publié le</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginate(filteredVehicles, vehPage).map((v) => {
-                      const vid = v._id || v.id;
-                      const sc  = STATUS_VEH[v.status] || STATUS_VEH.pending;
-                      const score = v.validationScore;
-                      return (
-                        <tr key={vid} className={styles.tr}>
-                          <td>
-                            <div className={styles.vehicleCell}>
-                              {(v.images?.[0] || v.image)
-                                ? <img src={v.images?.[0] || v.image} alt="" className={styles.vehThumb} />
-                                : <div className={styles.vehThumbPlaceholder}>🚗</div>}
-                              <div>
-                                <strong>{v.title || v.name}</strong>
-                                <span className={styles.vehMeta}>{v.marque} {v.modele} {v.annee}</span>
-                              </div>
-                            </div>
-                          </td>
-                          <td><Badge label={v.type === "location" ? "📅 Location" : "💰 Vente"} color="#64748b" bg="#f1f5f9" /></td>
-                          <td className={styles.tdPrice}>
-                            {v.pricePerDay ? `${Number(v.pricePerDay).toLocaleString("fr-FR")} DH/j` :
-                             v.priceForSale ? `${Number(v.priceForSale).toLocaleString("fr-FR")} DH` : "—"}
-                          </td>
-                          <td>
-                            {score != null && (
-                              <span className={styles.scoreChip}
-                                style={{ color: score >= 65 ? "#10b981" : score >= 40 ? "#f59e0b" : "#ef4444" }}>
-                                {score}/100
-                              </span>
-                            )}
-                          </td>
-                          <td><Badge label={sc.label} color={sc.color} bg={sc.bg} /></td>
-                          <td className={styles.tdDate}>{fmtDate(v.createdAt)}</td>
-                          <td>
-                            <div className={styles.actionBtns}>
-                              {v.status !== "approved" && (
-                                <button className={styles.btnApprove}
-                                  onClick={() => setConfirm({
-                                    message: `Approuver l'annonce "${v.title || v.name}" ?`,
-                                    action: () => updateVehicleStatus(vid, "approved"),
-                                  })}>✅ Valider</button>
-                              )}
-                              {v.status !== "rejected" && (
-                                <button className={styles.btnReject}
-                                  onClick={() => { setRejectModal({ vid, name: v.title || v.name }); setRejectReason(""); }}>
-                                  ✕ Rejeter
-                                </button>
-                              )}
-                              <button className={styles.btnDeleteSm}
-                                onClick={() => setConfirm({
-                                  message: `Supprimer définitivement cette annonce ?`,
-                                  danger: true,
-                                  action: () => deleteVehicle(vid),
-                                })}>🗑️</button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              <Pagination page={vehPage} total={totalPages(filteredVehicles)} onChange={setVehPage} />
             </div>
           )}
 
           {/* ══════════════════════ TAB COMMANDES ══════════════════════ */}
           {activeTab === "bookings" && (
             <div className={styles.tabContent}>
-
-              {/* ── KPIs commandes ── */}
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(130px,1fr))", gap:10, marginBottom:16 }}>
                 {[
-                  { l:"Toutes",        v: bookings.length,                                                    c:"#6366f1", s:"all"  },
-                  { l:"Nouvelles",     v: bookings.filter(b=>b.status==="pending").length,                    c:"#f59e0b", s:"pending" },
-                  { l:"En cours",      v: bookings.filter(b=>["confirmed","preparing","ready","in_progress","client_arrived"].includes(b.status)).length, c:"#2563eb", s:"confirmed" },
-                  { l:"À valider",     v: bookings.filter(b=>b.status==="waiting_client_validation").length,  c:"#d97706", s:"waiting_client_validation" },
-                  { l:"Terminées",     v: bookings.filter(b=>b.status==="completed").length,                  c:"#059669", s:"completed" },
-                  { l:"Litiges",       v: bookings.filter(b=>b.status==="disputed").length,                   c:"#dc2626", s:"disputed" },
-                  { l:"Annulées",      v: bookings.filter(b=>b.status==="cancelled").length,                  c:"#94a3b8", s:"cancelled" },
+                  { l:"Toutes",    v: bookings.length,                                                                              c:"#6366f1", s:"all" },
+                  { l:"Nouvelles", v: bookings.filter(b=>b.status==="pending").length,                                              c:"#f59e0b", s:"pending" },
+                  { l:"En cours",  v: bookings.filter(b=>["confirmed","preparing","ready","in_progress","client_arrived"].includes(b.status)).length, c:"#2563eb", s:"confirmed" },
+                  { l:"À valider", v: bookings.filter(b=>b.status==="waiting_client_validation").length,                            c:"#d97706", s:"waiting_client_validation" },
+                  { l:"Terminées", v: bookings.filter(b=>b.status==="completed").length,                                            c:"#059669", s:"completed" },
+                  { l:"Litiges",   v: bookings.filter(b=>b.status==="disputed").length,                                             c:"#dc2626", s:"disputed" },
+                  { l:"Annulées",  v: bookings.filter(b=>b.status==="cancelled").length,                                            c:"#94a3b8", s:"cancelled" },
                 ].map(k => (
                   <button key={k.s} onClick={() => { setBkStatus(k.s); setBkPage(1); }}
-                    style={{ background: bkStatus === k.s ? k.c : "#f8fafc", color: bkStatus===k.s?"#fff":k.c, border:`2px solid ${k.c}`, borderRadius:10, padding:"8px 6px", cursor:"pointer", fontWeight:700, fontSize:"0.8rem" }}>
+                    style={{ background: bkStatus===k.s?k.c:"#f8fafc", color: bkStatus===k.s?"#fff":k.c, border:`2px solid ${k.c}`, borderRadius:10, padding:"8px 6px", cursor:"pointer", fontWeight:700, fontSize:"0.8rem" }}>
                     <div style={{ fontSize:"1.3rem", lineHeight:1.2 }}>{k.v}</div>
                     <div style={{ fontSize:"0.7rem", opacity:.85 }}>{k.l}</div>
                   </button>
                 ))}
               </div>
 
-              {/* ── Barre filtres + recherche + export ── */}
               <div className={styles.filterBar} style={{ flexWrap:"wrap", gap:8 }}>
                 <input type="search" placeholder="Ref., client, email, tel…" value={bkSearch}
                   onChange={e => { setBkSearch(e.target.value); setBkPage(1); }}
                   style={{ flex:1, minWidth:160, padding:"0.4rem 0.75rem", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:"0.85rem" }} />
-                <select className={styles.filterSelect} value={bkType}
-                  onChange={e => { setBkType(e.target.value); setBkPage(1); }}>
+                <select className={styles.filterSelect} value={bkType} onChange={e => { setBkType(e.target.value); setBkPage(1); }}>
                   <option value="all">Tous types</option>
                   <option value="location">📅 Location</option>
                   <option value="essai">🔑 Essai/Vente</option>
                   <option value="chauffeur">🚘 Chauffeur</option>
                   <option value="leasing">🏦 Leasing</option>
                 </select>
-                <select className={styles.filterSelect} value={bkStatus}
-                  onChange={e => { setBkStatus(e.target.value); setBkPage(1); }}>
+                <select className={styles.filterSelect} value={bkStatus} onChange={e => { setBkStatus(e.target.value); setBkPage(1); }}>
                   <option value="all">Tous statuts</option>
                   <option value="pending">Nouvelles</option>
                   <option value="confirmed">Acceptées</option>
-                  <option value="preparing">En préparation</option>
-                  <option value="ready">Prêtes</option>
-                  <option value="in_progress">En route</option>
-                  <option value="client_arrived">Client présent</option>
+                  <option value="in_progress">En cours</option>
                   <option value="waiting_client_validation">À valider</option>
                   <option value="completed">Terminées</option>
                   <option value="disputed">⚠️ Litiges</option>
                   <option value="cancelled">Annulées</option>
                 </select>
                 <span className={styles.filterCount}>{filteredBookings.length} résultat{filteredBookings.length!==1?"s":""}</span>
-                <button onClick={() => exportBookings("csv")} style={{ padding:"0.4rem 0.9rem", background:"#0f1b3f", color:"#fff", border:"none", borderRadius:8, cursor:"pointer", fontSize:"0.8rem", fontWeight:700 }}>
-                  ⬇️ CSV
-                </button>
+                <button onClick={() => exportBookings("csv")} style={{ padding:"0.4rem 0.9rem", background:"#0f1b3f", color:"#fff", border:"none", borderRadius:8, cursor:"pointer", fontSize:"0.8rem", fontWeight:700 }}>⬇️ CSV</button>
                 <button onClick={loadAll} className={styles.btnRefresh}>↻</button>
               </div>
 
               <div className={styles.tableWrap}>
                 <table className={styles.table}>
                   <thead>
-                    <tr>
-                      <th>Référence</th>
-                      <th>Client / KYC</th>
-                      <th>Véhicule / Type</th>
-                      <th>Montant</th>
-                      <th>Statut</th>
-                      <th>Date</th>
-                      <th>Actions</th>
-                    </tr>
+                    <tr><th>Référence</th><th>Client / KYC</th><th>Véhicule / Type</th><th>Montant</th><th>Statut</th><th>Date</th><th>Actions</th></tr>
                   </thead>
                   <tbody>
                     {paginate(filteredBookings, bkPage).map((b) => {
@@ -1514,15 +1225,12 @@ export default function AdminPanel() {
                       const kycColors = { VERIFIE:"#059669", EN_ATTENTE:"#d97706", REFUSE:"#dc2626", A_REVOIR_MANUELLEMENT:"#2563eb" };
                       const kycStatus = b.clientInfo?.kycStatus || b.client?.kycStatus;
                       const isDisputed = b.status === "disputed";
-                      const isActive   = !["completed","cancelled","disputed"].includes(b.status);
-
+                      const isActive = !["completed","cancelled","disputed"].includes(b.status);
                       return (
                         <tr key={b._id} className={styles.tr} style={isDisputed ? { background:"#fff5f5" } : {}}>
                           <td>
                             <div>
-                              <strong style={{ fontSize:"0.8rem", fontFamily:"monospace", color:"#6366f1" }}>
-                                {b.reference || b._id?.slice(-6)}
-                              </strong>
+                              <strong style={{ fontSize:"0.8rem", fontFamily:"monospace", color:"#6366f1" }}>{b.reference || b._id?.slice(-6)}</strong>
                               {isDisputed && <span style={{ display:"block", fontSize:"0.7rem", color:"#dc2626", fontWeight:700 }}>⚠️ LITIGE</span>}
                             </div>
                           </td>
@@ -1551,46 +1259,30 @@ export default function AdminPanel() {
                           <td className={styles.tdDate}>{fmtDate(b.createdAt)}</td>
                           <td>
                             <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-                              {/* Contrat */}
-                              {b.contract && (
-                                <Link to={`/contract/${b._id}`} target="_blank" rel="noopener noreferrer"
-                                  className={styles.contractLink} title="Voir contrat">📄</Link>
-                              )}
-                              {/* Reçu PDF */}
                               <a href={`/api/bookings/${b._id}/receipt`} target="_blank" rel="noopener noreferrer"
                                 style={{ fontSize:"0.7rem", padding:"2px 6px", background:"#f1f5f9", color:"#0f1b3f", borderRadius:6, textDecoration:"none" }} title="Reçu PDF">🧾</a>
-
-                              {/* Confirmer si pending */}
                               {b.status === "pending" && (
                                 <button className={styles.btnApprove} style={{ padding:"0.2rem 0.5rem", fontSize:"0.72rem" }}
                                   onClick={() => setBkActionModal({ id:b._id, name:clientName, action:"confirmed" })} title="Confirmer">✅</button>
                               )}
-
-                              {/* Forcer complétion si commande bloquée */}
                               {isActive && b.status !== "pending" && (
                                 <button style={{ padding:"0.2rem 0.5rem", fontSize:"0.72rem", background:"#e0f2fe", color:"#0369a1", border:"none", borderRadius:6, cursor:"pointer", fontWeight:700 }}
                                   onClick={() => { setForceModal({ booking:b }); setForceAmount(b.montantTotal||""); setForceNote(""); }}
                                   title="Forcer complétion">⚡</button>
                               )}
-
-                              {/* Résoudre litige */}
                               {isDisputed && (
                                 <button style={{ padding:"0.2rem 0.5rem", fontSize:"0.72rem", background:"#fee2e2", color:"#dc2626", border:"1px solid #fca5a5", borderRadius:6, cursor:"pointer", fontWeight:700 }}
                                   onClick={() => { setDisputeModal({ booking:b }); setDisputeNote(""); setDisputeResol("completed"); }}
                                   title="Résoudre litige">⚖️</button>
                               )}
-
-                              {/* Annuler */}
                               {!["cancelled","completed"].includes(b.status) && (
                                 <button className={styles.btnReject} style={{ padding:"0.2rem 0.5rem", fontSize:"0.72rem" }}
                                   onClick={() => { setBkActionModal({ id:b._id, name:clientName, action:"cancelled" }); setBkCancelReason(""); }}
                                   title="Annuler">✕</button>
                               )}
-
-                              {/* Supprimer (cancelled uniquement) */}
                               {b.status === "cancelled" && (
                                 <button className={styles.btnReject} style={{ padding:"0.2rem 0.5rem", fontSize:"0.72rem", opacity:.7 }}
-                                  onClick={() => setConfirm({ message:`Supprimer définitivement la commande ${b.reference||""}?`, onConfirm:()=>adminDeleteBooking(b._id), danger:true })}
+                                  onClick={() => setConfirm({ message:`Supprimer définitivement la commande ${b.reference||""}?`, danger:true, action:()=>adminDeleteBooking(b._id) })}
                                   title="Supprimer">🗑️</button>
                               )}
                             </div>
@@ -1601,202 +1293,16 @@ export default function AdminPanel() {
                   </tbody>
                 </table>
               </div>
-
               <Pagination page={bkPage} total={totalPages(filteredBookings)} onChange={setBkPage} />
             </div>
           )}
 
-          {/* ══════════════════════ TAB IMPORT/EXPORT ══════════════════════ */}
-          {activeTab === "import_export" && (
+          {/* ══════════════════════ TAB EXPORTATEURS ══════════════════════ */}
+          {activeTab === "exportateurs" && (
             <div className={styles.tabContent}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
                 <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>
-                  🌍 Demandes Import / Export International
-                </h2>
-                <button className={styles.btnRefresh} onClick={loadImportExport}>↻ Actualiser</button>
-              </div>
-
-              {/* KPIs Import/Export */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))", gap: 14, marginBottom: "1.5rem" }}>
-                {[
-                  { icon: "📥", label: "Total reçues",  value: ieRequests.length, color: "#6366f1" },
-                  { icon: "⏳", label: "En attente",    value: ieRequests.filter((r) => r.status === "pending").length,   color: "#f59e0b" },
-                  { icon: "✅", label: "Traitées",      value: ieRequests.filter((r) => r.status === "approved").length,  color: "#10b981" },
-                  { icon: "❌", label: "Rejetées",      value: ieRequests.filter((r) => r.status === "rejected").length,  color: "#ef4444" },
-                ].map((k) => (
-                  <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />
-                ))}
-              </div>
-
-              {/* Zones couvertes */}
-              <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
-                <h3 className={styles.chartTitle}>🗺️ Zones de couverture actives</h3>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 8 }}>
-                  {[
-                    { flag: "🇨🇳", label: "Chine", color: "#ef4444" },
-                    { flag: "🇦🇪", label: "Dubaï / EAU", color: "#f59e0b" },
-                    { flag: "🇩🇪", label: "Allemagne", color: "#3b82f6" },
-                    { flag: "🇫🇷", label: "France", color: "#3b82f6" },
-                    { flag: "🇧🇪", label: "Belgique", color: "#3b82f6" },
-                    { flag: "🇳🇱", label: "Pays-Bas", color: "#3b82f6" },
-                    { flag: "🇪🇸", label: "Espagne", color: "#3b82f6" },
-                    { flag: "🇮🇹", label: "Italie", color: "#3b82f6" },
-                    { flag: "🇲🇦", label: "Maroc", color: "#10b981" },
-                    { flag: "🇩🇿", label: "Algérie", color: "#10b981" },
-                    { flag: "🇹🇳", label: "Tunisie", color: "#10b981" },
-                    { flag: "🇨🇮", label: "Côte d'Ivoire", color: "#10b981" },
-                    { flag: "🇸🇳", label: "Sénégal", color: "#10b981" },
-                    { flag: "🇬🇭", label: "Ghana", color: "#10b981" },
-                    { flag: "🇳🇬", label: "Nigeria", color: "#10b981" },
-                    { flag: "🇧🇯", label: "Bénin", color: "#10b981" },
-                    { flag: "🇹🇬", label: "Togo", color: "#10b981" },
-                    { flag: "🇲🇱", label: "Mali", color: "#10b981" },
-                    { flag: "🇬🇳", label: "Guinée", color: "#10b981" },
-                    { flag: "🇲🇷", label: "Mauritanie", color: "#10b981" },
-                  ].map((z) => (
-                    <span key={z.label} style={{
-                      display: "inline-flex", alignItems: "center", gap: 5,
-                      padding: "5px 12px", borderRadius: 8, fontSize: "0.82rem", fontWeight: 600,
-                      background: z.color + "14", color: z.color, border: `1px solid ${z.color}30`,
-                    }}>
-                      {z.flag} {z.label}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Packs actifs */}
-              <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
-                <h3 className={styles.chartTitle}>📦 Packs Import Assist — Tarification</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", gap: 12, marginTop: 12 }}>
-                  {[
-                    { name: "Silver", price: "À partir de 299 €", color: "#94a3b8", features: ["Vérification vendeur", "Assistance achat", "Suivi dossier"] },
-                    { name: "Gold",   price: "À partir de 599 €", color: "#f59e0b", features: ["+ Inspection pro", "Suivi logistique", "Support prioritaire"] },
-                    { name: "Platinum", price: "Sur devis",       color: "#6366f1", features: ["Gestion complète", "Dédouanement", "Livraison porte-à-porte"] },
-                    { name: "Executive", price: "Sur devis",      color: "#ff4d2d", features: ["Conciergerie 24h/7j", "Financement & assurance", "Garantie satisfaction"] },
-                  ].map((p) => (
-                    <div key={p.name} style={{
-                      border: `1.5px solid ${p.color}33`, borderRadius: 12, padding: "16px 14px",
-                      background: `${p.color}08`,
-                    }}>
-                      <div style={{ fontWeight: 900, color: p.color, fontSize: "0.82rem", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 4 }}>{p.name}</div>
-                      <div style={{ fontWeight: 800, color: "#0f1b3f", fontSize: "1rem", marginBottom: 8 }}>{p.price}</div>
-                      {p.features.map((f) => (
-                        <div key={f} style={{ fontSize: "0.78rem", color: "#64748b", marginBottom: 3 }}>
-                          <span style={{ color: p.color, marginRight: 5 }}>✓</span>{f}
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Table des demandes */}
-              {ieLoading ? (
-                <div className={styles.loadingBox} style={{ minHeight: 120 }}>
-                  <div className={styles.spinner} /><p>Chargement des demandes...</p>
-                </div>
-              ) : ieRequests.length === 0 ? (
-                <div className={styles.chartCard}>
-                  <div style={{ textAlign: "center", padding: "32px 0", color: "#94a3b8" }}>
-                    <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>🌍</div>
-                    <p style={{ fontWeight: 700, color: "#64748b", margin: "0 0 6px" }}>Aucune demande Import/Export pour l'instant</p>
-                    <p style={{ fontSize: "0.85rem", margin: 0 }}>Les demandes soumises via la page Import/Export apparaîtront ici.</p>
-                    <a href="/import-export" target="_blank" rel="noopener noreferrer"
-                      style={{ display: "inline-block", marginTop: 14, color: "#ff4d2d", fontWeight: 700, fontSize: "0.85rem", textDecoration: "none" }}>
-                      Voir la page Import/Export →
-                    </a>
-                  </div>
-                </div>
-              ) : (
-                <div className={styles.tableWrap}>
-                  <table className={styles.table}>
-                    <thead>
-                      <tr>
-                        <th>Client</th>
-                        <th>Pack</th>
-                        <th>Pays source</th>
-                        <th>Destination</th>
-                        <th>Budget</th>
-                        <th>Statut</th>
-                        <th>Date</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ieRequests.map((r) => {
-                        const stCfg = {
-                          pending:  { label: "En attente",  color: "#f59e0b", bg: "#fffbeb" },
-                          approved: { label: "Traité",      color: "#10b981", bg: "#ecfdf5" },
-                          rejected: { label: "Rejeté",      color: "#ef4444", bg: "#fef2f2" },
-                        }[r.status] || { label: r.status, color: "#94a3b8", bg: "#f8fafc" };
-                        return (
-                          <tr key={r._id} className={styles.tr}>
-                            <td>
-                              <strong>{r.firstName} {r.lastName}</strong>
-                              <span className={styles.vehMeta}>{r.email}</span>
-                            </td>
-                            <td><Badge label={r.pack || "—"} color="#6366f1" bg="#f0f4ff" /></td>
-                            <td style={{ fontSize: "0.85rem" }}>{r.sourceCountry || "—"}</td>
-                            <td style={{ fontSize: "0.85rem" }}>{r.destCountry || "—"}</td>
-                            <td className={styles.tdPrice}>{r.budget ? `${r.budget} €` : "—"}</td>
-                            <td><Badge label={stCfg.label} color={stCfg.color} bg={stCfg.bg} /></td>
-                            <td className={styles.tdDate}>{fmtDate(r.createdAt)}</td>
-                            <td>
-                              <div className={styles.actionBtns}>
-                                {["pending", "processing", "approved", "contacted"].includes(r.status) && (
-                                  <select
-                                    style={{ padding: "5px 8px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".78rem", cursor: "pointer" }}
-                                    value={r.status}
-                                    onChange={async (e) => {
-                                      await fetch(`/api/import-export/requests/${r._id}/status`, {
-                                        method: "PATCH", headers,
-                                        body: JSON.stringify({ status: e.target.value }),
-                                      });
-                                      loadImportExport();
-                                      showToast(`Statut → ${e.target.value}`);
-                                    }}
-                                  >
-                                    <option value="pending">⏳ En attente</option>
-                                    <option value="processing">🔄 En traitement</option>
-                                    <option value="contacted">📞 Contacté</option>
-                                    <option value="approved">✅ Traité</option>
-                                    <option value="rejected">❌ Rejeté</option>
-                                  </select>
-                                )}
-                                <button
-                                  className={styles.btnDanger}
-                                  style={{ fontSize: ".75rem", padding: "4px 8px" }}
-                                  onClick={async () => {
-                                    if (!confirm("Supprimer cette demande ?")) return;
-                                    await fetch(`/api/import-export/requests/${r._id}`, { method: "DELETE", headers });
-                                    loadImportExport();
-                                    showToast("Demande supprimée");
-                                  }}
-                                >🗑</button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ══════════════════════ TAB VEDETTE ══════════════════════ */}
-          {activeTab === "vedette" && (
-            <VetteSection vehicles={vehicles} token={token} onRefresh={loadAll} />
-          )}
-
-          {/* ══════════════════════ TAB IMPORTATEURS ══════════════════════ */}
-          {activeTab === "importeurs" && (
-            <div className={styles.tabContent}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-                <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>
-                  🏅 Partenaires Importateurs — Vérification & Annonces
+                  📦 Partenaires Exportateurs — Dossiers & Annonces d'Export
                 </h2>
                 <button className={styles.btnRefresh} onClick={loadImporters}>↻ Actualiser</button>
               </div>
@@ -1804,11 +1310,11 @@ export default function AdminPanel() {
               {/* KPIs */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 14, marginBottom: "1.5rem" }}>
                 {[
-                  { icon: "📋", label: "Total candidatures", value: importerProfiles.length, color: "#6366f1" },
+                  { icon: "📦", label: "Total exportateurs",  value: importerProfiles.length, color: "#6366f1" },
                   { icon: "⏳", label: "En attente",          value: importerProfiles.filter(p => p.status === "pending").length,  color: "#f59e0b" },
                   { icon: "✅", label: "Vérifiés",            value: importerProfiles.filter(p => p.status === "verified").length, color: "#10b981" },
                   { icon: "❌", label: "Refusés",             value: importerProfiles.filter(p => p.status === "rejected").length, color: "#ef4444" },
-                  { icon: "📢", label: "Annonces en attente", value: importerListings.filter(l => l.status === "pending").length,  color: "#f59e0b" },
+                  { icon: "🌍", label: "Annonces export att.", value: importerListings.filter(l => l.status === "pending").length, color: "#f59e0b" },
                 ].map((k) => (
                   <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />
                 ))}
@@ -1817,7 +1323,7 @@ export default function AdminPanel() {
               {/* ── SECTION 1 : Candidatures ── */}
               <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
-                  <h3 className={styles.chartTitle} style={{ margin: 0 }}>📋 Candidatures importateurs</h3>
+                  <h3 className={styles.chartTitle} style={{ margin: 0 }}>📦 Dossiers partenaires exportateurs</h3>
                   <select
                     className={styles.filterSelect}
                     value={importerFilter}
@@ -2473,31 +1979,41 @@ export default function AdminPanel() {
           {/* Modal détail + décision KYC */}
           {kycDetailUser && (
             <div className={styles.overlay} onClick={() => setKycDetailUser(null)}>
-              <div style={{ background: "#fff", borderRadius: 20, padding: "0", maxWidth: 580, width: "96%", maxHeight: "92vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.18)" }}
+              <div style={{ background: "#fff", borderRadius: 20, padding: "0", maxWidth: 740, width: "98%", maxHeight: "94dvh", overflowY: "auto", boxShadow: "0 24px 70px rgba(0,0,0,.22)" }}
                 onClick={(e) => e.stopPropagation()}>
 
-                {/* Header modal */}
-                <div style={{ background: "linear-gradient(135deg,#6366f1,#4f46e5)", borderRadius: "20px 20px 0 0", padding: "20px 24px", color: "#fff" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div>
-                      <div style={{ fontSize: "1.1rem", fontWeight: 800 }}>🛡️ Dossier KYC</div>
-                      <div style={{ fontSize: ".95rem", opacity: .85, marginTop: 2 }}>{kycDetailUser.firstName} {kycDetailUser.lastName}</div>
+                {/* Header modal KYC */}
+                <div style={{ background: "linear-gradient(135deg,#1e3a8a,#4f46e5)", borderRadius: "20px 20px 0 0", padding: "20px 24px", color: "#fff" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                      {kycDetailUser.profilePhoto
+                        ? <img src={kycDetailUser.profilePhoto} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "3px solid rgba(255,255,255,.4)" }} />
+                        : <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(255,255,255,.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem" }}>👤</div>
+                      }
+                      <div>
+                        <div style={{ fontSize: "1.1rem", fontWeight: 900 }}>{kycDetailUser.firstName} {kycDetailUser.lastName}</div>
+                        <div style={{ fontSize: ".82rem", opacity: .8, marginTop: 2 }}>{kycDetailUser.email} · {kycDetailUser.phone || "—"}</div>
+                        <div style={{ fontSize: ".75rem", opacity: .65, marginTop: 2 }}>
+                          Rôle : <strong>{kycDetailUser.role}</strong> · Inscrit le {kycDetailUser.createdAt ? new Date(kycDetailUser.createdAt).toLocaleDateString("fr-FR") : "—"}
+                        </div>
+                      </div>
                     </div>
-                    <button onClick={() => setKycDetailUser(null)} style={{ background: "rgba(255,255,255,.2)", border: "none", borderRadius: "50%", width: 32, height: 32, color: "#fff", fontSize: 1.1 + "rem", cursor: "pointer" }}>✕</button>
+                    <button onClick={() => setKycDetailUser(null)} style={{ background: "rgba(255,255,255,.2)", border: "none", borderRadius: "50%", width: 34, height: 34, color: "#fff", fontSize: "1.1rem", cursor: "pointer", flexShrink: 0 }}>✕</button>
                   </div>
                 </div>
 
                 <div style={{ padding: "20px 24px" }}>
                   {/* Indicateurs rapides */}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 16 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 16 }}>
                     {[
-                      { l: "Score KYC", v: `${kycDetailUser.kycScore ?? 0}/100` },
-                      { l: "OCR Confiance", v: `${kycDetailUser.kycOcrData?.ocrConfidence ?? 0}%` },
-                      { l: "Face match", v: kycDetailUser.kycFaceMatchScore !== null ? `${kycDetailUser.kycFaceMatchScore}%` : "—" },
-                    ].map(({ l, v }) => (
-                      <div key={l} style={{ background: "#f8fafc", borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
-                        <div style={{ fontSize: ".7rem", color: "#94a3b8", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em" }}>{l}</div>
-                        <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "#0f1b3f", marginTop: 2 }}>{v}</div>
+                      { l: "Score KYC",      v: `${kycDetailUser.kycScore ?? 0}/100`,      color: (kycDetailUser.kycScore ?? 0) >= 70 ? "#16a34a" : "#ef4444" },
+                      { l: "OCR Confiance",  v: `${kycDetailUser.kycOcrData?.ocrConfidence ?? 0}%`, color: "#6366f1" },
+                      { l: "Face match",     v: kycDetailUser.kycFaceMatchScore !== null ? `${kycDetailUser.kycFaceMatchScore}%` : "—", color: "#f59e0b" },
+                      { l: "Badge KYC",      v: kycDetailUser.kycBadge || "—",              color: "#0f1b3f" },
+                    ].map(({ l, v, color }) => (
+                      <div key={l} style={{ background: "#f8fafc", borderRadius: 10, padding: "10px 12px", textAlign: "center", border: "1.5px solid #e2e8f0" }}>
+                        <div style={{ fontSize: ".68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em" }}>{l}</div>
+                        <div style={{ fontSize: "1rem", fontWeight: 900, color, marginTop: 3 }}>{v}</div>
                       </div>
                     ))}
                   </div>
@@ -2522,6 +2038,83 @@ export default function AdminPanel() {
                         {kycDetailUser.kycOcrData.expiryDate     && <div><span style={{ opacity: .7 }}>Expire </span><strong>{new Date(kycDetailUser.kycOcrData.expiryDate).toLocaleDateString("fr-FR")}</strong></div>}
                         {kycDetailUser.kycOcrData.gender         && <div><span style={{ opacity: .7 }}>Sexe </span><strong>{kycDetailUser.kycOcrData.gender === "M" ? "Masculin" : "Féminin"}</strong></div>}
                       </div>
+                    </div>
+                  )}
+
+                  {/* ── Documents réels (recto, verso, selfie) ── */}
+                  {(kycDetailUser.identity?.frontImage || kycDetailUser.identity?.backImage || kycDetailUser.identity?.selfie) && (
+                    <div style={{ marginBottom: 16 }}>
+                      <strong style={{ fontSize: ".82rem", color: "#0f1b3f", display: "block", marginBottom: 10 }}>
+                        📄 Documents soumis — {kycDetailUser.identity?.type?.toUpperCase() || "PIÈCE D'IDENTITÉ"}
+                      </strong>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+                        {[
+                          { label: "Recto", img: kycDetailUser.identity?.frontImage },
+                          { label: "Verso", img: kycDetailUser.identity?.backImage },
+                          { label: "Selfie", img: kycDetailUser.identity?.selfie },
+                        ].map(({ label, img }) => (
+                          <div key={label} style={{ border: "1.5px solid #e2e8f0", borderRadius: 10, overflow: "hidden", background: "#f8fafc" }}>
+                            <div style={{ fontSize: ".72rem", fontWeight: 700, color: "#64748b", padding: "6px 10px", background: "#f1f5f9", textTransform: "uppercase", letterSpacing: ".04em" }}>{label}</div>
+                            {img ? (
+                              <a href={safeImgHref(img)} target="_blank" rel="noreferrer noopener">
+                                <img src={img} alt={label} style={{ width: "100%", maxHeight: 120, objectFit: "cover", display: "block" }}
+                                  onError={(e) => { e.target.style.display = "none"; }} />
+                              </a>
+                            ) : (
+                              <div style={{ height: 80, display: "flex", alignItems: "center", justifyContent: "center", color: "#cbd5e1", fontSize: ".8rem" }}>Non fourni</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Permis de conduire (si disponible) ── */}
+                  {(kycDetailUser.driverLicenseOcr?.frontImage || kycDetailUser.driverLicenseOcr?.backImage) && (
+                    <div style={{ marginBottom: 16 }}>
+                      <strong style={{ fontSize: ".82rem", color: "#0f1b3f", display: "block", marginBottom: 10 }}>🚗 Permis de conduire</strong>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                        {[
+                          { label: "Recto permis", img: kycDetailUser.driverLicenseOcr?.frontImage },
+                          { label: "Verso permis",  img: kycDetailUser.driverLicenseOcr?.backImage },
+                        ].map(({ label, img }) => img && (
+                          <div key={label} style={{ border: "1.5px solid #e2e8f0", borderRadius: 10, overflow: "hidden" }}>
+                            <div style={{ fontSize: ".72rem", fontWeight: 700, color: "#64748b", padding: "6px 10px", background: "#f1f5f9" }}>{label}</div>
+                            <a href={img} target="_blank" rel="noreferrer">
+                              <img src={img} alt={label} style={{ width: "100%", maxHeight: 100, objectFit: "cover", display: "block" }} />
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: ".78rem", color: "#475569", background: "#f8fafc", borderRadius: 8, padding: "8px 12px", marginTop: 8 }}>
+                        N° : {kycDetailUser.driverLicenseOcr?.licenseNumber || "—"} · Catégories : {kycDetailUser.driverLicenseOcr?.categories || "—"} · Expire : {kycDetailUser.driverLicenseOcr?.expiryDate ? new Date(kycDetailUser.driverLicenseOcr.expiryDate).toLocaleDateString("fr-FR") : "—"}
+                        {kycDetailUser.driverLicenseOcr?.isExpired && <span style={{ color: "#ef4444", fontWeight: 700 }}> ⚠️ EXPIRÉ</span>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Infos entreprise (si partenaire) ── */}
+                  {kycDetailUser.business?.companyName && (
+                    <div style={{ background: "#eff6ff", border: "1.5px solid #bfdbfe", borderRadius: 10, padding: "12px 16px", marginBottom: 14 }}>
+                      <strong style={{ fontSize: ".82rem", color: "#1e40af", display: "block", marginBottom: 6 }}>🏢 Entreprise partenaire</strong>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px 16px", fontSize: ".82rem", color: "#1e3a8a" }}>
+                        <div><span style={{ opacity: .7 }}>Société </span><strong>{kycDetailUser.business.companyName}</strong></div>
+                        <div><span style={{ opacity: .7 }}>RCCM </span>{kycDetailUser.business.rccm || "—"}</div>
+                        <div><span style={{ opacity: .7 }}>NIF </span>{kycDetailUser.business.taxId || "—"}</div>
+                        <div><span style={{ opacity: .7 }}>Adresse </span>{kycDetailUser.business.address || "—"}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Raison du rejet précédent */}
+                  {kycDetailUser.kycRejectionReason && (
+                    <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: ".82rem", color: "#dc2626" }}>
+                      <strong>⚠️ Dernier motif de refus :</strong> {kycDetailUser.kycRejectionReason}
+                    </div>
+                  )}
+                  {kycDetailUser.kycReviewNote && (
+                    <div style={{ background: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: ".82rem", color: "#92400e" }}>
+                      <strong>📝 Note de révision :</strong> {kycDetailUser.kycReviewNote}
                     </div>
                   )}
 
@@ -2822,6 +2415,67 @@ export default function AdminPanel() {
         </div>
       )}
 
+      {/* ══════════════════════ TAB IMPORT/EXPORT ══════════════════════ */}
+      {activeTab === "import_export" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🌍 Transactions Import / Export</h2>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Suivi de toutes les demandes et transactions internationales.</p>
+            </div>
+            <button className={styles.btnRefresh} onClick={loadImportExport}>↻ Actualiser</button>
+          </div>
+
+          {/* KPIs */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: "1.5rem" }}>
+            {[
+              { icon: "🌍", label: "Total demandes",       value: ieRequests.length,                                             color: "#6366f1" },
+              { icon: "⏳", label: "En attente",           value: ieRequests.filter(r => r.status === "pending").length,          color: "#f59e0b" },
+              { icon: "✅", label: "Approuvées",           value: ieRequests.filter(r => r.status === "approved").length,         color: "#10b981" },
+              { icon: "❌", label: "Rejetées",             value: ieRequests.filter(r => r.status === "rejected").length,         color: "#ef4444" },
+            ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
+          </div>
+
+          {ieLoading ? (
+            <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>
+          ) : ieRequests.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
+              <div style={{ fontSize: "3rem", marginBottom: 12 }}>🌍</div>
+              <p style={{ fontWeight: 600 }}>Aucune transaction import/export pour le moment.</p>
+            </div>
+          ) : (
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr><th>Référence</th><th>Type</th><th>Client</th><th>Montant</th><th>Statut</th><th>Date</th></tr>
+                </thead>
+                <tbody>
+                  {ieRequests.map((r) => {
+                    const ST = { pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, approved: { l: "Approuvée", c: "#16a34a", bg: "#dcfce7" }, rejected: { l: "Rejetée", c: "#dc2626", bg: "#fee2e2" }, in_progress: { l: "En cours", c: "#3b82f6", bg: "#eff6ff" }, completed: { l: "Terminée", c: "#6366f1", bg: "#eef2ff" } };
+                    const st = ST[r.status] || ST.pending;
+                    return (
+                      <tr key={r._id} className={styles.tr}>
+                        <td style={{ fontWeight: 700, fontSize: ".85rem", fontFamily: "monospace" }}>{r.reference || r._id?.slice(-8)}</td>
+                        <td><Badge label={r.type === "import" ? "📥 Import" : r.type === "export" ? "📤 Export" : r.type || "—"} color="#6366f1" bg="#eef2ff" /></td>
+                        <td>
+                          <div>
+                            <strong style={{ fontSize: ".87rem" }}>{r.clientInfo?.firstName || r.buyer?.firstName || ""} {r.clientInfo?.lastName || r.buyer?.lastName || ""}</strong>
+                            <div style={{ fontSize: ".74rem", color: "#94a3b8" }}>{r.clientInfo?.email || r.buyer?.email || "—"}</div>
+                          </div>
+                        </td>
+                        <td className={styles.tdPrice}>{r.totalAmount ? `${Number(r.totalAmount).toLocaleString("fr-FR")} ${r.currency || "XOF"}` : "—"}</td>
+                        <td><Badge label={st.l} color={st.c} bg={st.bg} /></td>
+                        <td className={styles.tdDate}>{fmtDate(r.createdAt)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ══════════════════════ TAB LITIGES ══════════════════════ */}
       {activeTab === "litiges" && (
         <div className={styles.tabContent}>
@@ -3042,6 +2696,30 @@ export default function AdminPanel() {
       {activeTab === "assurance"   && <WipSection icon="🔒" title="Assurance Automobile" subtitle="Gestion des demandes d'assurance auto, location et import/export." features={["Demandes assurance : auto / location / import","Gestion des sinistres et indemnisations","Partenaires assureurs intégrés","Renouvellement automatique"]} />}
       {activeTab === "paiements"   && <WipSection icon="💳" title="Tableau de Bord Paiements" subtitle="Transactions en temps réel, détection de fraude et intégration des passerelles de paiement." features={["Transactions en temps réel (Stripe, Orange Money, Wave)","Détection automatique de fraude","Blocage / validation / remboursement","Rapports financiers par devise et par pays"]} />}
       {activeTab === "escrow"      && <WipSection icon="🔐" title="Compte Séquestre (Escrow)" subtitle="Sécurisez les transactions : fonds bloqués à la commande, libérés après confirmation du service." features={["Blocage des fonds à la commande","Libération conditionnelle après service effectué","Remboursement immédiat en cas de litige","Traçabilité complète des flux financiers"]} />}
+      {activeTab === "partner_verif" && (
+        <PartnerVerifSection
+          token={token}
+          headers={headers}
+          pvList={pvList}
+          pvStats={pvStats}
+          pvLoading={pvLoading}
+          pvFilter={pvFilter}
+          setPvFilter={setPvFilter}
+          pvDetail={pvDetail}
+          setPvDetail={setPvDetail}
+          pvCreateModal={pvCreateModal}
+          setPvCreateModal={setPvCreateModal}
+          pvCreateForm={pvCreateForm}
+          setPvCreateForm={setPvCreateForm}
+          pvSaving={pvSaving}
+          setPvSaving={setPvSaving}
+          pvCriterionLoading={pvCriterionLoading}
+          setPvCriterionLoading={setPvCriterionLoading}
+          users={users}
+          onRefresh={loadPartnerVerif}
+          showToast={showToast}
+        />
+      )}
       {activeTab === "partenaires" && <WipSection icon="🤝" title="Gestion des Partenariats" subtitle="Contrats partenaires, commissions, et tableau de bord dédié par partenaire stratégique." features={["Concessionnaires, loueurs, assureurs, banques","Contrats : date, commission, statut","Tableau de bord commissions par partenaire","Catégories : BYD, Hyundai, Total, NSIA..."]} />}
       {activeTab === "ads"         && <WipSection icon="📢" title="Publicités & Sponsoring" subtitle="Bannières publicitaires, annonces sponsorisées et gestion des campagnes marketing." features={["Bannières homepage et catégories","Véhicules sponsorisés : mise en avant","Gestion des budgets de campagne","Statistiques de clics et de conversions"]} />}
       {activeTab === "support"     && <WipSection icon="🎧" title="Support Client" subtitle="Système de tickets multi-canal avec priorités et messagerie interne." features={["Tickets : technique / paiement / import / location","Priorités : Faible / Moyenne / Urgente","Messagerie admin ↔ client","SLA et temps de réponse moyen"]} />}
@@ -3054,397 +2732,1285 @@ export default function AdminPanel() {
   );
 }
 
-// ─── AccueilSection — Gestion de la page d'accueil ─────────────────────────────
-const MAX_SPOTLIGHTS = 5;
 
-function AccueilSection({ vehicles, token, onRefresh }) {
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PARTNER VERIFICATION SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const CRITERIA_CONFIG = [
+  { key: "businessLicense",   label: "Licence commerciale vérifiée", icon: "📋", weight: 20, desc: "RCCM, Kbis, Business License ou équivalent" },
+  { key: "repIdentified",     label: "Représentant identifié",        icon: "👤", weight: 18, desc: "Identité du représentant légal confirmée" },
+  { key: "exportCapacity",    label: "Capacité d'export confirmée",   icon: "🚢", weight: 18, desc: "Volume, pays, ports et modes de transport" },
+  { key: "documentsReceived", label: "Documents reçus",               icon: "📁", weight: 15, desc: "Tous les documents demandés ont été fournis" },
+  { key: "addressVerified",   label: "Adresse vérifiée",              icon: "📍", weight: 12, desc: "Adresse physique de l'entreprise confirmée" },
+  { key: "websiteVerified",   label: "Site web vérifié",              icon: "🌐", weight: 10, desc: "Site web actif et cohérent avec le profil" },
+  { key: "verificationDone",  label: "Vérification terminée",         icon: "✅", weight:  7, desc: "Dossier complet, revue finale effectuée" },
+];
+
+const TRUST_LEVEL_CONFIG = {
+  non_verifie: { label: "Non vérifié", color: "#94a3b8", bg: "#f8fafc" },
+  bronze:      { label: "Bronze",      color: "#92400e", bg: "#fef3c7" },
+  argent:      { label: "Argent",      color: "#475569", bg: "#f1f5f9" },
+  or:          { label: "Or",          color: "#b45309", bg: "#fffbeb" },
+  platine:     { label: "Platine",     color: "#6d28d9", bg: "#f5f3ff" },
+};
+
+const STATUS_PV_CONFIG = {
+  en_cours:   { label: "En cours",    color: "#0284c7", bg: "#e0f2fe" },
+  en_attente: { label: "En attente",  color: "#d97706", bg: "#fef3c7" },
+  verifie:    { label: "Vérifié",     color: "#16a34a", bg: "#dcfce7" },
+  suspendu:   { label: "Suspendu",    color: "#dc2626", bg: "#fef2f2" },
+  rejete:     { label: "Rejeté",      color: "#64748b", bg: "#f8fafc" },
+};
+
+const COMPANY_TYPES = [
+  { value: "importateur",    label: "Importateur" },
+  { value: "exportateur",    label: "Exportateur" },
+  { value: "import_export",  label: "Import / Export" },
+  { value: "transitaire",    label: "Transitaire" },
+  { value: "concessionnaire",label: "Concessionnaire" },
+  { value: "loueur",         label: "Loueur" },
+  { value: "assureur",       label: "Assureur" },
+  { value: "banque",         label: "Banque / Finance" },
+  { value: "autre",          label: "Autre" },
+];
+
+function TrustScoreRing({ score }) {
+  const r = 28; const circ = 2 * Math.PI * r;
+  const offset = circ - (score / 100) * circ;
+  const level = score >= 95 ? "platine" : score >= 75 ? "or" : score >= 50 ? "argent" : score >= 25 ? "bronze" : "non_verifie";
+  const colors = { non_verifie: "#cbd5e1", bronze: "#d97706", argent: "#64748b", or: "#f59e0b", platine: "#8b5cf6" };
+  return (
+    <div style={{ position: "relative", width: 72, height: 72, flexShrink: 0 }}>
+      <svg width={72} height={72} style={{ transform: "rotate(-90deg)" }}>
+        <circle cx={36} cy={36} r={r} fill="none" stroke="#e2e8f0" strokeWidth={6} />
+        <circle cx={36} cy={36} r={r} fill="none" stroke={colors[level]} strokeWidth={6}
+          strokeDasharray={circ} strokeDashoffset={offset}
+          style={{ transition: "stroke-dashoffset 0.6s ease" }} />
+      </svg>
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ fontSize: "0.95rem", fontWeight: 900, color: colors[level], lineHeight: 1 }}>{score}</span>
+        <span style={{ fontSize: "0.55rem", color: "#94a3b8", fontWeight: 700 }}>/ 100</span>
+      </div>
+    </div>
+  );
+}
+
+function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFilter, setPvFilter, pvDetail, setPvDetail, pvCreateModal, setPvCreateModal, pvCreateForm, setPvCreateForm, pvSaving, setPvSaving, pvCriterionLoading, setPvCriterionLoading, users, onRefresh, showToast }) {
+  const [detailTab, setDetailTab] = useState("dossier");
+  const [editInfoMode, setEditInfoMode] = useState(false);
+  const [editInfoForm, setEditInfoForm] = useState({});
+  const [statusModal, setStatusModal] = useState(null);
+  const [newStatus, setNewStatus] = useState("");
+  const [criterionNote, setCriterionNote] = useState({});
+
+  const openDetail = async (userId) => {
+    try {
+      const res = await fetch(`/api/partner-verif/admin/${userId}`, { headers });
+      const d = await res.json();
+      setPvDetail(d.verification || { userId: d.user, criteria: {} });
+      setDetailTab("dossier");
+      setEditInfoMode(false);
+    } catch { showToast("Erreur chargement dossier", "error"); }
+  };
+
+  const handleCreate = async () => {
+    if (!pvCreateForm.userId || !pvCreateForm.companyName) { showToast("userId et nom entreprise requis", "error"); return; }
+    setPvSaving(true);
+    try {
+      const res = await fetch("/api/partner-verif/admin", {
+        method: "POST", headers,
+        body: JSON.stringify(pvCreateForm),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        showToast("Dossier créé avec succès");
+        setPvCreateModal(false);
+        setPvCreateForm({ userId: "", companyName: "", companyType: "importateur", country: "", city: "", website: "", phone: "", email: "", description: "", exportCountries: [], importCountries: [], vehicleCategories: [], yearsExperience: 0, annualVolume: "", adminNote: "" });
+        onRefresh();
+        openDetail(pvCreateForm.userId);
+      } else showToast(d.message || "Erreur création", "error");
+    } catch { showToast("Connexion impossible", "error"); }
+    setPvSaving(false);
+  };
+
+  const handleToggleCriterion = async (criterion, currentVal) => {
+    if (!pvDetail) return;
+    const userId = pvDetail.userId?._id || pvDetail.userId;
+    setPvCriterionLoading(criterion);
+    try {
+      const res = await fetch(`/api/partner-verif/admin/${userId}/criterion`, {
+        method: "PATCH", headers,
+        body: JSON.stringify({ criterion, verified: !currentVal, note: criterionNote[criterion] || "" }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setPvDetail((prev) => ({ ...prev, criteria: d.verification.criteria, trustScore: d.trustScore, trustLevel: d.trustLevel, status: d.verification.status }));
+        onRefresh();
+        showToast(!currentVal ? "Critère validé" : "Critère retiré");
+      } else showToast(d.message || "Erreur", "error");
+    } catch { showToast("Connexion impossible", "error"); }
+    setPvCriterionLoading("");
+  };
+
+  const handleUpdateInfo = async () => {
+    if (!pvDetail) return;
+    const userId = pvDetail.userId?._id || pvDetail.userId;
+    setPvSaving(true);
+    try {
+      const res = await fetch(`/api/partner-verif/admin/${userId}/info`, {
+        method: "PATCH", headers,
+        body: JSON.stringify(editInfoForm),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setPvDetail((prev) => ({ ...prev, ...d.verification }));
+        setEditInfoMode(false);
+        onRefresh();
+        showToast("Informations mises à jour");
+      } else showToast(d.message || "Erreur", "error");
+    } catch { showToast("Connexion impossible", "error"); }
+    setPvSaving(false);
+  };
+
+  const handleUpdateStatus = async () => {
+    if (!pvDetail || !newStatus) return;
+    const userId = pvDetail.userId?._id || pvDetail.userId;
+    try {
+      const res = await fetch(`/api/partner-verif/admin/${userId}/status`, {
+        method: "PATCH", headers,
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setPvDetail((prev) => ({ ...prev, status: newStatus }));
+        setStatusModal(null);
+        onRefresh();
+        showToast("Statut mis à jour");
+      } else showToast(d.message || "Erreur", "error");
+    } catch { showToast("Connexion impossible", "error"); }
+  };
+
+  const totalPv = pvStats?.total || 0;
+  const verifPv = pvStats?.byStatus?.verifie || 0;
+  const avgScore = pvStats?.avgScore || 0;
+
+  return (
+    <div className={styles.scrollZone}>
+      {/* ── En-tête stats ── */}
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 20 }}>
+        <div className={styles.pvStatCard} style={{ borderLeftColor: "#6d28d9" }}>
+          <div className={styles.pvStatVal}>{totalPv}</div>
+          <div className={styles.pvStatLbl}>Dossiers total</div>
+        </div>
+        <div className={styles.pvStatCard} style={{ borderLeftColor: "#16a34a" }}>
+          <div className={styles.pvStatVal}>{verifPv}</div>
+          <div className={styles.pvStatLbl}>Partenaires vérifiés</div>
+        </div>
+        <div className={styles.pvStatCard} style={{ borderLeftColor: "#f59e0b" }}>
+          <div className={styles.pvStatVal}>{avgScore}</div>
+          <div className={styles.pvStatLbl}>Score moyen / 100</div>
+        </div>
+        {Object.entries(pvStats?.byLevel || {}).map(([lv, cnt]) => (
+          <div key={lv} className={styles.pvStatCard} style={{ borderLeftColor: TRUST_LEVEL_CONFIG[lv]?.color || "#94a3b8" }}>
+            <div className={styles.pvStatVal}>{cnt}</div>
+            <div className={styles.pvStatLbl}>{TRUST_LEVEL_CONFIG[lv]?.label || lv}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Filtres + bouton créer ── */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 18 }}>
+        <input className={styles.searchInput} placeholder="Rechercher entreprise, email, pays…"
+          value={pvFilter.search} onChange={(e) => setPvFilter((f) => ({ ...f, search: e.target.value }))}
+          onKeyDown={(e) => e.key === "Enter" && onRefresh()}
+          style={{ minWidth: 220, flex: 1 }} />
+        <select className={styles.filterSelect} value={pvFilter.status} onChange={(e) => setPvFilter((f) => ({ ...f, status: e.target.value }))}>
+          <option value="">Tous statuts</option>
+          {Object.entries(STATUS_PV_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+        <select className={styles.filterSelect} value={pvFilter.trustLevel} onChange={(e) => setPvFilter((f) => ({ ...f, trustLevel: e.target.value }))}>
+          <option value="">Tous niveaux</option>
+          {Object.entries(TRUST_LEVEL_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+        <select className={styles.filterSelect} value={pvFilter.companyType} onChange={(e) => setPvFilter((f) => ({ ...f, companyType: e.target.value }))}>
+          <option value="">Tous types</option>
+          {COMPANY_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+        <button className={styles.btnPrimary} onClick={onRefresh} disabled={pvLoading}>
+          {pvLoading ? "…" : "🔍 Filtrer"}
+        </button>
+        <button className={styles.btnPrimary} style={{ background: "#6d28d9" }} onClick={() => setPvCreateModal(true)}>
+          + Nouveau dossier
+        </button>
+      </div>
+
+      {/* ── Table partenaires ── */}
+      <div className={styles.tableWrap}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th>Entreprise</th>
+              <th>Type</th>
+              <th>Pays</th>
+              <th>Trust Score</th>
+              <th>Niveau</th>
+              <th>Critères</th>
+              <th>Statut</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {pvLoading && (
+              <tr><td colSpan={8} style={{ textAlign: "center", padding: "2rem", color: "#94a3b8" }}>Chargement…</td></tr>
+            )}
+            {!pvLoading && pvList.length === 0 && (
+              <tr><td colSpan={8} style={{ textAlign: "center", padding: "2.5rem", color: "#94a3b8" }}>
+                Aucun dossier. Cliquez sur « + Nouveau dossier » pour commencer.
+              </td></tr>
+            )}
+            {pvList.map((pv) => {
+              const verified = CRITERIA_CONFIG.filter((c) => pv.criteria?.[c.key]?.verified).length;
+              const sl = STATUS_PV_CONFIG[pv.status] || STATUS_PV_CONFIG.en_cours;
+              const tl = TRUST_LEVEL_CONFIG[pv.trustLevel] || TRUST_LEVEL_CONFIG.non_verifie;
+              return (
+                <tr key={pv._id} style={{ cursor: "pointer" }} onClick={() => openDetail(pv.userId?._id || pv.userId)}>
+                  <td>
+                    <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                      {pv.logoUrl
+                        ? <img src={pv.logoUrl} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover" }} />
+                        : <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 800, color: "#64748b" }}>{pv.companyName?.[0]?.toUpperCase()}</div>
+                      }
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "#0f1b3f" }}>{pv.companyName}</div>
+                        <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>{pv.email || pv.userId?.email || "—"}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span style={{ fontSize: "0.78rem", color: "#475569" }}>{COMPANY_TYPES.find((t) => t.value === pv.companyType)?.label || pv.companyType}</span></td>
+                  <td><span style={{ fontSize: "0.82rem" }}>{pv.country || "—"}</span></td>
+                  <td>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ flex: 1, height: 6, background: "#e2e8f0", borderRadius: 4, overflow: "hidden", minWidth: 60 }}>
+                        <div style={{ height: "100%", width: `${pv.trustScore}%`, background: pv.trustScore >= 75 ? "#16a34a" : pv.trustScore >= 50 ? "#f59e0b" : "#ef4444", borderRadius: 4, transition: "width 0.4s" }} />
+                      </div>
+                      <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "#0f1b3f", minWidth: 28 }}>{pv.trustScore}</span>
+                    </div>
+                  </td>
+                  <td><span className={styles.badge} style={{ color: tl.color, background: tl.bg }}>{tl.label}</span></td>
+                  <td>
+                    <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+                      {CRITERIA_CONFIG.map((c) => (
+                        <span key={c.key} title={c.label}
+                          style={{ fontSize: "0.85rem", opacity: pv.criteria?.[c.key]?.verified ? 1 : 0.2 }}>
+                          {c.icon}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td><span className={styles.badge} style={{ color: sl.color, background: sl.bg }}>{sl.label}</span></td>
+                  <td>
+                    <button className={styles.btnSmall} onClick={(e) => { e.stopPropagation(); openDetail(pv.userId?._id || pv.userId); }}>
+                      Ouvrir →
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ══ Modal : Nouveau dossier ══ */}
+      {pvCreateModal && (
+        <div className={styles.overlay} onClick={() => setPvCreateModal(false)}>
+          <div className={styles.pvModal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.pvModalHeader}>
+              <h3 style={{ margin: 0, fontWeight: 900, fontSize: "1rem", color: "#0f1b3f" }}>Nouveau dossier partenaire</h3>
+              <button className={styles.btnGhost} onClick={() => setPvCreateModal(false)}>✕</button>
+            </div>
+            <div style={{ padding: "0 20px 20px", display: "flex", flexDirection: "column", gap: 14, maxHeight: "65vh", overflowY: "auto" }}>
+              <div className={styles.pvFormRow}>
+                <label className={styles.pvLabel}>Compte utilisateur (ID ou email)</label>
+                <input className={styles.pvInput} placeholder="ID MongoDB du partenaire"
+                  value={pvCreateForm.userId} onChange={(e) => setPvCreateForm((f) => ({ ...f, userId: e.target.value }))} />
+                <div style={{ marginTop: 4 }}>
+                  <select className={styles.pvInput} onChange={(e) => setPvCreateForm((f) => ({ ...f, userId: e.target.value, companyName: f.companyName || "" }))}>
+                    <option value="">— Sélectionner dans la liste —</option>
+                    {users.filter((u) => u.role === "partenaire").map((u) => (
+                      <option key={u._id} value={u._id}>{u.firstName} {u.lastName} — {u.email}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className={styles.pvFormRow}>
+                <label className={styles.pvLabel}>Nom de l'entreprise *</label>
+                <input className={styles.pvInput} placeholder="Ex : DAKAR AUTO EXPORT SARL"
+                  value={pvCreateForm.companyName} onChange={(e) => setPvCreateForm((f) => ({ ...f, companyName: e.target.value }))} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div className={styles.pvFormRow}>
+                  <label className={styles.pvLabel}>Type d'entreprise</label>
+                  <select className={styles.pvInput} value={pvCreateForm.companyType} onChange={(e) => setPvCreateForm((f) => ({ ...f, companyType: e.target.value }))}>
+                    {COMPANY_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </div>
+                <div className={styles.pvFormRow}>
+                  <label className={styles.pvLabel}>Pays</label>
+                  <input className={styles.pvInput} placeholder="Côte d'Ivoire"
+                    value={pvCreateForm.country} onChange={(e) => setPvCreateForm((f) => ({ ...f, country: e.target.value }))} />
+                </div>
+                <div className={styles.pvFormRow}>
+                  <label className={styles.pvLabel}>Ville</label>
+                  <input className={styles.pvInput} placeholder="Abidjan"
+                    value={pvCreateForm.city} onChange={(e) => setPvCreateForm((f) => ({ ...f, city: e.target.value }))} />
+                </div>
+                <div className={styles.pvFormRow}>
+                  <label className={styles.pvLabel}>Site web</label>
+                  <input className={styles.pvInput} placeholder="https://"
+                    value={pvCreateForm.website} onChange={(e) => setPvCreateForm((f) => ({ ...f, website: e.target.value }))} />
+                </div>
+                <div className={styles.pvFormRow}>
+                  <label className={styles.pvLabel}>Email pro</label>
+                  <input className={styles.pvInput} placeholder="contact@..."
+                    value={pvCreateForm.email} onChange={(e) => setPvCreateForm((f) => ({ ...f, email: e.target.value }))} />
+                </div>
+                <div className={styles.pvFormRow}>
+                  <label className={styles.pvLabel}>Téléphone</label>
+                  <input className={styles.pvInput} placeholder="+225..."
+                    value={pvCreateForm.phone} onChange={(e) => setPvCreateForm((f) => ({ ...f, phone: e.target.value }))} />
+                </div>
+              </div>
+              <div className={styles.pvFormRow}>
+                <label className={styles.pvLabel}>Description</label>
+                <textarea className={styles.pvInput} rows={2} placeholder="Présentation courte de l'entreprise…"
+                  value={pvCreateForm.description} onChange={(e) => setPvCreateForm((f) => ({ ...f, description: e.target.value }))} />
+              </div>
+              <div className={styles.pvFormRow}>
+                <label className={styles.pvLabel}>Note admin interne</label>
+                <textarea className={styles.pvInput} rows={2} placeholder="Notes internes (non visibles par le partenaire)…"
+                  value={pvCreateForm.adminNote} onChange={(e) => setPvCreateForm((f) => ({ ...f, adminNote: e.target.value }))} />
+              </div>
+              <button className={styles.btnPrimary} style={{ marginTop: 4 }} onClick={handleCreate} disabled={pvSaving}>
+                {pvSaving ? "Création…" : "Créer le dossier"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ Drawer : Détail dossier ══ */}
+      {pvDetail && (
+        <div className={styles.overlay} onClick={() => setPvDetail(null)}>
+          <div className={styles.pvDrawer} onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className={styles.pvDrawerHeader}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <TrustScoreRing score={pvDetail.trustScore || 0} />
+                <div>
+                  <div style={{ fontWeight: 900, fontSize: "1.05rem", color: "#0f1b3f" }}>{pvDetail.companyName}</div>
+                  <div style={{ fontSize: "0.78rem", color: "#64748b" }}>{COMPANY_TYPES.find((t) => t.value === pvDetail.companyType)?.label} · {pvDetail.country || "—"}</div>
+                  <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+                    {(() => { const sl = STATUS_PV_CONFIG[pvDetail.status] || STATUS_PV_CONFIG.en_cours; const tl = TRUST_LEVEL_CONFIG[pvDetail.trustLevel] || TRUST_LEVEL_CONFIG.non_verifie; return (<><span className={styles.badge} style={{ color: sl.color, background: sl.bg }}>{sl.label}</span><span className={styles.badge} style={{ color: tl.color, background: tl.bg }}>⭐ {tl.label}</span></>); })()}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className={styles.btnSmall} onClick={() => { setNewStatus(pvDetail.status); setStatusModal(true); }}>Changer statut</button>
+                <button className={styles.btnGhost} onClick={() => setPvDetail(null)}>✕</button>
+              </div>
+            </div>
+
+            {/* Onglets internes */}
+            <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #e2e8f0", padding: "0 20px" }}>
+              {[["dossier","📋 Dossier"],["criteres","✅ Critères"],["docs","📁 Documents"],["audit","📜 Audit"]].map(([k, lbl]) => (
+                <button key={k} onClick={() => setDetailTab(k)}
+                  style={{ padding: "10px 16px", fontSize: "0.82rem", fontWeight: 700, border: "none", cursor: "pointer", background: "none", borderBottom: detailTab === k ? "3px solid #6d28d9" : "3px solid transparent", color: detailTab === k ? "#6d28d9" : "#64748b" }}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px 24px" }}>
+
+              {/* ── Onglet Dossier ── */}
+              {detailTab === "dossier" && (
+                <div>
+                  {!editInfoMode ? (
+                    <>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 20px", marginBottom: 16 }}>
+                        {[
+                          ["Nom entreprise", pvDetail.companyName],
+                          ["Type", COMPANY_TYPES.find((t) => t.value === pvDetail.companyType)?.label],
+                          ["Pays", pvDetail.country],
+                          ["Ville", pvDetail.city],
+                          ["Site web", pvDetail.website ? <a href={safeHref(pvDetail.website)} target="_blank" rel="noreferrer noopener" style={{ color: "#6d28d9" }}>{pvDetail.website}</a> : "—"],
+                          ["Email pro", pvDetail.email],
+                          ["Téléphone", pvDetail.phone],
+                          ["Exp. (années)", pvDetail.yearsExperience],
+                          ["Volume annuel", pvDetail.annualVolume],
+                          ["Partenaire (User)", `${pvDetail.userId?.firstName || ""} ${pvDetail.userId?.lastName || ""} — ${pvDetail.userId?.email || ""}`],
+                        ].map(([k, v]) => (
+                          <div key={k}>
+                            <div style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>{k}</div>
+                            <div style={{ fontSize: "0.88rem", color: "#0f1b3f", fontWeight: 600, marginTop: 2 }}>{v || "—"}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {pvDetail.description && <div style={{ fontSize: "0.85rem", color: "#475569", marginBottom: 12, padding: "10px 14px", background: "#f8fafc", borderRadius: 8 }}>{pvDetail.description}</div>}
+                      {pvDetail.exportCountries?.length > 0 && (
+                        <div style={{ marginBottom: 10 }}>
+                          <div style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Pays d'export</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                            {pvDetail.exportCountries.map((c) => <span key={c} style={{ background: "#ede9fe", color: "#6d28d9", padding: "2px 10px", borderRadius: 12, fontSize: "0.78rem", fontWeight: 600 }}>{c}</span>)}
+                          </div>
+                        </div>
+                      )}
+                      {pvDetail.adminNote && (
+                        <div style={{ padding: "10px 14px", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, fontSize: "0.85rem", color: "#92400e", marginBottom: 10 }}>
+                          <strong>Note admin :</strong> {pvDetail.adminNote}
+                        </div>
+                      )}
+                      <button className={styles.btnSmall} onClick={() => { setEditInfoMode(true); setEditInfoForm({ companyName: pvDetail.companyName, companyType: pvDetail.companyType, country: pvDetail.country, city: pvDetail.city, website: pvDetail.website, phone: pvDetail.phone, email: pvDetail.email, description: pvDetail.description, yearsExperience: pvDetail.yearsExperience, annualVolume: pvDetail.annualVolume, adminNote: pvDetail.adminNote, internalRating: pvDetail.internalRating, exportCountries: pvDetail.exportCountries?.join(", ") || "" }); }}>
+                        Modifier les infos
+                      </button>
+                    </>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                        <div><label className={styles.pvLabel}>Nom entreprise</label><input className={styles.pvInput} value={editInfoForm.companyName || ""} onChange={(e) => setEditInfoForm((f) => ({ ...f, companyName: e.target.value }))} /></div>
+                        <div><label className={styles.pvLabel}>Type</label>
+                          <select className={styles.pvInput} value={editInfoForm.companyType || ""} onChange={(e) => setEditInfoForm((f) => ({ ...f, companyType: e.target.value }))}>
+                            {COMPANY_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                          </select>
+                        </div>
+                        <div><label className={styles.pvLabel}>Pays</label><input className={styles.pvInput} value={editInfoForm.country || ""} onChange={(e) => setEditInfoForm((f) => ({ ...f, country: e.target.value }))} /></div>
+                        <div><label className={styles.pvLabel}>Ville</label><input className={styles.pvInput} value={editInfoForm.city || ""} onChange={(e) => setEditInfoForm((f) => ({ ...f, city: e.target.value }))} /></div>
+                        <div><label className={styles.pvLabel}>Site web</label><input className={styles.pvInput} value={editInfoForm.website || ""} onChange={(e) => setEditInfoForm((f) => ({ ...f, website: e.target.value }))} /></div>
+                        <div><label className={styles.pvLabel}>Email pro</label><input className={styles.pvInput} value={editInfoForm.email || ""} onChange={(e) => setEditInfoForm((f) => ({ ...f, email: e.target.value }))} /></div>
+                        <div><label className={styles.pvLabel}>Téléphone</label><input className={styles.pvInput} value={editInfoForm.phone || ""} onChange={(e) => setEditInfoForm((f) => ({ ...f, phone: e.target.value }))} /></div>
+                        <div><label className={styles.pvLabel}>Exp. (années)</label><input className={styles.pvInput} type="number" value={editInfoForm.yearsExperience || 0} onChange={(e) => setEditInfoForm((f) => ({ ...f, yearsExperience: Number(e.target.value) }))} /></div>
+                      </div>
+                      <div><label className={styles.pvLabel}>Volume annuel</label><input className={styles.pvInput} value={editInfoForm.annualVolume || ""} onChange={(e) => setEditInfoForm((f) => ({ ...f, annualVolume: e.target.value }))} /></div>
+                      <div><label className={styles.pvLabel}>Pays d'export (séparés par virgule)</label><input className={styles.pvInput} value={editInfoForm.exportCountries || ""} onChange={(e) => setEditInfoForm((f) => ({ ...f, exportCountries: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) }))} /></div>
+                      <div><label className={styles.pvLabel}>Description</label><textarea className={styles.pvInput} rows={2} value={editInfoForm.description || ""} onChange={(e) => setEditInfoForm((f) => ({ ...f, description: e.target.value }))} /></div>
+                      <div><label className={styles.pvLabel}>Note admin</label><textarea className={styles.pvInput} rows={2} value={editInfoForm.adminNote || ""} onChange={(e) => setEditInfoForm((f) => ({ ...f, adminNote: e.target.value }))} /></div>
+                      <div style={{ display: "flex", gap: 10 }}>
+                        <button className={styles.btnPrimary} onClick={handleUpdateInfo} disabled={pvSaving}>{pvSaving ? "Sauvegarde…" : "Enregistrer"}</button>
+                        <button className={styles.btnGhost} onClick={() => setEditInfoMode(false)}>Annuler</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Onglet Critères ── */}
+              {detailTab === "criteres" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {/* Jauge globale */}
+                  <div style={{ background: "linear-gradient(135deg, #0f1b3f, #1e3a8a)", borderRadius: 14, padding: "18px 20px", display: "flex", alignItems: "center", gap: 20, marginBottom: 8 }}>
+                    <TrustScoreRing score={pvDetail.trustScore || 0} />
+                    <div>
+                      <div style={{ color: "#fff", fontWeight: 900, fontSize: "1rem" }}>Trust Score Global</div>
+                      <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.8rem" }}>
+                        {CRITERIA_CONFIG.filter((c) => pvDetail.criteria?.[c.key]?.verified).length} / {CRITERIA_CONFIG.length} critères validés
+                      </div>
+                      <div style={{ color: "rgba(255,255,255,0.9)", fontSize: "0.82rem", marginTop: 4 }}>
+                        Niveau : <strong>{TRUST_LEVEL_CONFIG[pvDetail.trustLevel]?.label || "Non vérifié"}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {CRITERIA_CONFIG.map((c) => {
+                    const isVerified = pvDetail.criteria?.[c.key]?.verified || false;
+                    const verif = pvDetail.criteria?.[c.key];
+                    const isLoading = pvCriterionLoading === c.key;
+                    return (
+                      <div key={c.key} className={styles.pvCriterionCard} style={{ borderLeft: `4px solid ${isVerified ? "#16a34a" : "#e2e8f0"}` }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                          <div style={{ fontSize: "1.5rem", lineHeight: 1, marginTop: 2 }}>{c.icon}</div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                              <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#0f1b3f" }}>{c.label}</span>
+                              <span style={{ fontSize: "0.72rem", color: "#6d28d9", fontWeight: 700, background: "#ede9fe", padding: "1px 8px", borderRadius: 12 }}>+{c.weight} pts</span>
+                              {isVerified && verif?.verifiedAt && (
+                                <span style={{ fontSize: "0.72rem", color: "#16a34a" }}>Validé le {new Date(verif.verifiedAt).toLocaleDateString("fr-FR")}</span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: 2 }}>{c.desc}</div>
+                            {verif?.note && <div style={{ fontSize: "0.8rem", color: "#475569", marginTop: 4, fontStyle: "italic" }}>"{verif.note}"</div>}
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
+                            <button
+                              onClick={() => handleToggleCriterion(c.key, isVerified)}
+                              disabled={isLoading}
+                              className={isVerified ? styles.btnDanger : styles.btnPrimary}
+                              style={{ fontSize: "0.78rem", padding: "5px 14px", minWidth: 100 }}>
+                              {isLoading ? "…" : isVerified ? "✕ Retirer" : "✓ Valider"}
+                            </button>
+                          </div>
+                        </div>
+                        <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+                          <input className={styles.pvInput} placeholder="Note (optionnel)…"
+                            style={{ flex: 1, fontSize: "0.78rem", padding: "4px 10px" }}
+                            value={criterionNote[c.key] || verif?.note || ""}
+                            onChange={(e) => setCriterionNote((n) => ({ ...n, [c.key]: e.target.value }))} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ── Onglet Documents ── */}
+              {detailTab === "docs" && (
+                <div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    {[
+                      ["Licence commerciale", "businessLicenseDoc"],
+                      ["RCCM",               "rccmDoc"],
+                      ["NIF / Taxe",         "taxIdDoc"],
+                      ["Relevé bancaire",    "bankStatementDoc"],
+                      ["Pièce d'identité rep.", "repIdDoc"],
+                      ["Autre document",     "otherDoc"],
+                    ].map(([label, key]) => (
+                      <div key={key} style={{ border: "1px dashed #e2e8f0", borderRadius: 10, padding: "14px", display: "flex", flexDirection: "column", gap: 8, background: "#fafbfc" }}>
+                        <div style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 700 }}>{label}</div>
+                        {pvDetail.documents?.[key] ? (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            <img src={pvDetail.documents[key]} alt={label} style={{ width: "100%", maxHeight: 100, objectFit: "cover", borderRadius: 6, border: "1px solid #e2e8f0" }} onError={(e) => { e.target.style.display = "none"; }} />
+                            <a href={safeHref(pvDetail.documents[key])} target="_blank" rel="noreferrer noopener"
+                              style={{ fontSize: "0.78rem", color: "#6d28d9", textDecoration: "underline" }}>Voir le document</a>
+                          </div>
+                        ) : (
+                          <div style={{ color: "#cbd5e1", fontSize: "0.8rem", textAlign: "center", padding: "10px 0" }}>Aucun document</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Onglet Audit ── */}
+              {detailTab === "audit" && (
+                <div>
+                  {(!pvDetail.auditLog || pvDetail.auditLog.length === 0) && (
+                    <div style={{ textAlign: "center", color: "#94a3b8", padding: "2rem" }}>Aucune entrée d'audit</div>
+                  )}
+                  {pvDetail.auditLog?.slice().reverse().map((log, i) => (
+                    <div key={i} style={{ display: "flex", gap: 12, paddingBottom: 12, borderBottom: "1px solid #f1f5f9", marginBottom: 12 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#6d28d9", marginTop: 6, flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                          <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "#0f1b3f" }}>{log.action}</span>
+                          <span style={{ fontSize: "0.72rem", color: "#94a3b8" }}>{new Date(log.timestamp).toLocaleString("fr-FR")}</span>
+                        </div>
+                        {log.criterion && <div style={{ fontSize: "0.75rem", color: "#6d28d9", marginTop: 1 }}>Critère : {log.criterion}</div>}
+                        {log.note && <div style={{ fontSize: "0.78rem", color: "#475569", marginTop: 2 }}>{log.note}</div>}
+                        {log.performedBy && <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: 1 }}>Par : {log.performedBy?.firstName} {log.performedBy?.lastName}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ Modal : Changer statut ══ */}
+      {statusModal && pvDetail && (
+        <div className={styles.overlay} onClick={() => setStatusModal(null)}>
+          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
+            <p className={styles.confirmMsg} style={{ marginBottom: 14 }}>Changer le statut du dossier <strong>{pvDetail.companyName}</strong></p>
+            <select className={styles.pvInput} style={{ marginBottom: 16 }} value={newStatus} onChange={(e) => setNewStatus(e.target.value)}>
+              {Object.entries(STATUS_PV_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+            <div className={styles.confirmActions}>
+              <button className={styles.btnPrimary} onClick={handleUpdateStatus}>Confirmer</button>
+              <button className={styles.btnGhost} onClick={() => setStatusModal(null)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CATALOGUE SECTION — Annonces & Validations (combiné)
+// ═══════════════════════════════════════════════════════════════════════════════
+function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefresh, showToast, setConfirm, rejectModal, setRejectModal, rejectReason, setRejectReason, driverRejectModal, setDriverRejectModal, driverRejectReason, setDriverRejectReason, updateVehicleStatus, deleteVehicle }) {
+  const [subTab,         setSubTab]         = useState("pending");
+  const [vehSearch,      setVehSearch]      = useState("");
+  const [vehPage,        setVehPage]        = useState(1);
+  const [previewVehicle, setPreviewVehicle] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewImgIdx,  setPreviewImgIdx]  = useState(0);
+  const PAGE = 12;
+
+  const openPreview = async (vid) => {
+    setPreviewLoading(true);
+    setPreviewVehicle(null);
+    setPreviewImgIdx(0);
+    try {
+      const r = await fetch(`/api/vehicles/${vid}`, { headers });
+      const d = await r.json();
+      if (r.ok) setPreviewVehicle(d.vehicle);
+      else showToast("Impossible de charger l'annonce", "error");
+    } catch { showToast("Erreur réseau", "error"); }
+    setPreviewLoading(false);
+  };
+
+  const filtered = vehicles.filter((v) => {
+    if (subTab === "pending")   return v.status === "pending";
+    if (subTab === "approved")  return v.status === "approved";
+    if (subTab === "rejected")  return v.status === "rejected";
+    return true;
+  }).filter((v) => {
+    if (!vehSearch) return true;
+    const q = vehSearch.toLowerCase();
+    return [v.title, v.name, v.marque, v.modele].some((f) => f?.toLowerCase().includes(q));
+  });
+
+  const paginated = filtered.slice((vehPage - 1) * PAGE, vehPage * PAGE);
+  const totalPages = Math.ceil(filtered.length / PAGE);
+
+  const SUB_TABS = [
+    { k: "pending",  l: "En attente",  icon: "⏳", count: vehicles.filter(v => v.status === "pending").length, color: "#f59e0b" },
+    { k: "approved", l: "Publiées",    icon: "✅", count: vehicles.filter(v => v.status === "approved").length, color: "#16a34a" },
+    { k: "rejected", l: "Rejetées",    icon: "❌", count: vehicles.filter(v => v.status === "rejected").length, color: "#ef4444" },
+    { k: "drivers",  l: "Chauffeurs",  icon: "👨‍✈️", count: drivers.length, color: "#8b5cf6" },
+    { k: "all",      l: "Toutes",      icon: "📋", count: vehicles.length, color: "#64748b" },
+  ];
+
+  const handleApproveDriver = async (id) => {
+    const r = await fetch(`/api/drivers/${id}/status`, { method: "PATCH", headers, body: JSON.stringify({ status: "approved" }) });
+    if (r.ok) { showToast("Chauffeur approuvé"); onRefresh(); }
+    else showToast("Erreur approbation", "error");
+  };
+  const handleRejectDriver = async (id, reason) => {
+    const r = await fetch(`/api/drivers/${id}/status`, { method: "PATCH", headers, body: JSON.stringify({ status: "rejected", rejectionReason: reason }) });
+    if (r.ok) { showToast("Chauffeur refusé"); setDriverRejectModal(null); setDriverRejectReason(""); onRefresh(); }
+    else showToast("Erreur refus", "error");
+  };
+  const handleRejectVehicle = async () => {
+    const r = await fetch(`/api/vehicles/${rejectModal.vid}/status`, { method: "PATCH", headers, body: JSON.stringify({ status: "rejected", reason: rejectReason }) });
+    if (r.ok) { showToast("Annonce rejetée"); setRejectModal(null); setRejectReason(""); onRefresh(); }
+    else showToast("Erreur", "error");
+  };
+
+  return (
+    <div className={styles.scrollZone}>
+      {/* Stats rapides */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+        {SUB_TABS.slice(0, 4).map((t) => (
+          <div key={t.k} className={styles.pvStatCard} style={{ borderLeftColor: t.color, cursor: "pointer" }} onClick={() => setSubTab(t.k)}>
+            <div className={styles.pvStatVal} style={{ color: t.color }}>{t.count}</div>
+            <div className={styles.pvStatLbl}>{t.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Sous-onglets */}
+      <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #e2e8f0", marginBottom: 20 }}>
+        {SUB_TABS.map((t) => (
+          <button key={t.k} onClick={() => { setSubTab(t.k); setVehPage(1); }}
+            style={{ padding: "10px 18px", border: "none", background: "none", cursor: "pointer", fontWeight: 700, fontSize: "0.82rem", borderBottom: subTab === t.k ? `3px solid ${t.color}` : "3px solid transparent", color: subTab === t.k ? t.color : "#64748b", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}>
+            {t.icon} {t.l}
+            <span style={{ fontSize: ".72rem", background: subTab === t.k ? t.color : "#e2e8f0", color: subTab === t.k ? "#fff" : "#64748b", borderRadius: 12, padding: "1px 7px", minWidth: 20, textAlign: "center" }}>{t.count}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Contenu Annonces */}
+      {subTab !== "drivers" && (
+        <>
+          <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+            <input className={styles.searchInput} placeholder="Rechercher une annonce…" value={vehSearch}
+              onChange={(e) => { setVehSearch(e.target.value); setVehPage(1); }}
+              style={{ flex: 1, minWidth: 200 }} />
+            <button className={styles.btnSmall} onClick={onRefresh}>↻ Actualiser</button>
+          </div>
+
+          {filtered.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
+              <div style={{ fontSize: "3rem", marginBottom: 12 }}>🚗</div>
+              <p style={{ fontWeight: 600 }}>Aucune annonce dans cette catégorie</p>
+            </div>
+          ) : (
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Véhicule</th><th>Propriétaire</th><th>Type</th><th>Prix</th><th>Score</th><th>Statut</th><th>Date</th><th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginated.map((v) => {
+                    const vid = v._id || v.id;
+                    const score = v.validationScore;
+                    const SC = { approved: { l: "Publiée", c: "#16a34a", bg: "#dcfce7" }, pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, rejected: { l: "Rejetée", c: "#dc2626", bg: "#fee2e2" } };
+                    const sc = SC[v.status] || SC.pending;
+                    const owner = v.owner || v.userId;
+                    return (
+                      <tr key={vid} className={styles.tr}>
+                        <td>
+                          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                            {(v.images?.[0] || v.image)
+                              ? <img src={v.images?.[0] || v.image} alt="" style={{ width: 46, height: 36, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
+                              : <div style={{ width: 46, height: 36, borderRadius: 6, background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem" }}>🚗</div>
+                            }
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: ".87rem", color: "#0f1b3f" }}>{v.title || v.name}</div>
+                              <div style={{ fontSize: ".74rem", color: "#94a3b8" }}>{v.marque} {v.modele} {v.annee}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ fontSize: ".82rem" }}>
+                          {owner?.firstName || owner?.name || "—"}
+                          <div style={{ fontSize: ".73rem", color: "#94a3b8" }}>{owner?.email || "—"}</div>
+                        </td>
+                        <td><span className={styles.badge} style={{ color: "#64748b", background: "#f1f5f9" }}>{v.type === "location" ? "📅 Location" : "💰 Vente"}</span></td>
+                        <td style={{ fontSize: ".85rem", fontWeight: 700 }}>
+                          {v.pricePerDay ? `${Number(v.pricePerDay).toLocaleString()} /j` : v.priceForSale ? `${Number(v.priceForSale).toLocaleString()}` : "—"}
+                        </td>
+                        <td>
+                          {score != null && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <div style={{ width: 40, height: 4, background: "#e2e8f0", borderRadius: 4, overflow: "hidden" }}>
+                                <div style={{ height: "100%", width: `${score}%`, background: score >= 65 ? "#16a34a" : score >= 40 ? "#f59e0b" : "#ef4444", borderRadius: 4 }} />
+                              </div>
+                              <span style={{ fontSize: ".78rem", fontWeight: 700 }}>{score}</span>
+                            </div>
+                          )}
+                        </td>
+                        <td><span className={styles.badge} style={{ color: sc.c, background: sc.bg }}>{sc.l}</span></td>
+                        <td style={{ fontSize: ".78rem", color: "#94a3b8" }}>{v.createdAt ? new Date(v.createdAt).toLocaleDateString("fr-FR") : "—"}</td>
+                        <td>
+                          <div style={{ display: "flex", gap: 5 }}>
+                            <button title="Visualiser l'annonce complète"
+                              onClick={() => openPreview(vid)}
+                              style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#eff6ff", color: "#2563eb", border: "1.5px solid #bfdbfe", borderRadius: 6, cursor: "pointer" }}>
+                              👁
+                            </button>
+                            {v.status !== "approved" && (
+                              <button className={styles.btnApprove} style={{ fontSize: ".75rem", padding: "4px 10px" }}
+                                onClick={() => setConfirm({ message: `Approuver "${v.title || v.name}" ?`, action: () => updateVehicleStatus(vid, "approved") })}>
+                                ✅
+                              </button>
+                            )}
+                            {v.status !== "rejected" && (
+                              <button className={styles.btnReject} style={{ fontSize: ".75rem", padding: "4px 10px" }}
+                                onClick={() => { setRejectModal({ vid, name: v.title || v.name }); setRejectReason(""); }}>
+                                ✕
+                              </button>
+                            )}
+                            <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }}
+                              onClick={() => setConfirm({ message: "Supprimer cette annonce ?", danger: true, action: () => deleteVehicle(vid) })}>
+                              🗑️
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {totalPages > 1 && (
+            <div className={styles.pagination}>
+              <button className={styles.pageBtn} onClick={() => setVehPage(p => Math.max(1, p-1))} disabled={vehPage === 1}>‹</button>
+              {Array.from({ length: Math.min(totalPages, 10) }, (_, i) => i+1).map(p => (
+                <button key={p} className={`${styles.pageBtn} ${p === vehPage ? styles.pageBtnActive : ""}`} onClick={() => setVehPage(p)}>{p}</button>
+              ))}
+              <button className={styles.pageBtn} onClick={() => setVehPage(p => Math.min(totalPages, p+1))} disabled={vehPage === totalPages}>›</button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Contenu Chauffeurs */}
+      {subTab === "drivers" && (
+        <div>
+          {drivers.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
+              <div style={{ fontSize: "3rem", marginBottom: 12 }}>👨‍✈️</div>
+              <p style={{ fontWeight: 600 }}>Aucun profil chauffeur en attente</p>
+            </div>
+          ) : (
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr><th>Chauffeur</th><th>Permis</th><th>Expérience</th><th>Langues</th><th>Soumis le</th><th>Actions</th></tr>
+                </thead>
+                <tbody>
+                  {drivers.map((d) => {
+                    const u = d.userId || {};
+                    return (
+                      <tr key={d._id} className={styles.tr}>
+                        <td>
+                          <div style={{ display: "flex", gap: 9, alignItems: "center" }}>
+                            {u.profilePhoto ? <img src={u.profilePhoto} alt="" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} /> : <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center" }}>👤</div>}
+                            <div>
+                              <strong style={{ fontSize: ".87rem" }}>{u.firstName} {u.lastName}</strong>
+                              <div style={{ fontSize: ".74rem", color: "#94a3b8" }}>{u.email}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ fontSize: ".82rem" }}>{d.licenseNumber || "—"} <span style={{ color: "#94a3b8" }}>({d.licenseCategory || "—"})</span></td>
+                        <td style={{ fontSize: ".82rem" }}>{d.yearsExperience ?? 0} an(s)</td>
+                        <td style={{ fontSize: ".78rem" }}>{d.languages?.join(", ") || "—"}</td>
+                        <td style={{ fontSize: ".78rem", color: "#94a3b8" }}>{d.createdAt ? new Date(d.createdAt).toLocaleDateString("fr-FR") : "—"}</td>
+                        <td>
+                          <div style={{ display: "flex", gap: 5 }}>
+                            <button className={styles.btnApprove} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => handleApproveDriver(d._id)}>✅ Valider</button>
+                            <button className={styles.btnReject} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => { setDriverRejectModal({ id: d._id, name: `${u.firstName} ${u.lastName}` }); setDriverRejectReason(""); }}>✕ Refuser</button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal rejet annonce */}
+      {rejectModal && (
+        <div className={styles.overlay} onClick={() => setRejectModal(null)}>
+          <div className={styles.confirmBox} onClick={e => e.stopPropagation()}>
+            <p className={styles.confirmMsg}>Raison du rejet pour « {rejectModal.name} »</p>
+            <textarea style={{ width: "100%", borderRadius: 8, border: "1px solid #e2e8f0", padding: ".6rem", fontSize: ".9rem", marginBottom: ".75rem", resize: "vertical" }}
+              rows={3} placeholder="Ex: Photos insuffisantes, description incomplète…"
+              value={rejectReason} onChange={e => setRejectReason(e.target.value)} />
+            <div className={styles.confirmActions}>
+              <button className={styles.btnDanger} onClick={handleRejectVehicle}>Rejeter</button>
+              <button className={styles.btnGhost} onClick={() => setRejectModal(null)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal rejet chauffeur */}
+      {driverRejectModal && (
+        <div className={styles.overlay} onClick={() => setDriverRejectModal(null)}>
+          <div className={styles.confirmBox} onClick={e => e.stopPropagation()}>
+            <p className={styles.confirmMsg}>Raison du refus pour « {driverRejectModal.name} »</p>
+            <textarea style={{ width: "100%", borderRadius: 8, border: "1px solid #e2e8f0", padding: ".6rem", fontSize: ".9rem", marginBottom: ".75rem", resize: "vertical" }}
+              rows={3} placeholder="Ex: Documents insuffisants…"
+              value={driverRejectReason} onChange={e => setDriverRejectReason(e.target.value)} />
+            <div className={styles.confirmActions}>
+              <button className={styles.btnDanger} onClick={() => handleRejectDriver(driverRejectModal.id, driverRejectReason)}>Refuser</button>
+              <button className={styles.btnGhost} onClick={() => setDriverRejectModal(null)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ MODAL PRÉVISUALISATION ANNONCE ══ */}
+      {(previewLoading || previewVehicle) && (
+        <div className={styles.overlay} onClick={() => { setPreviewVehicle(null); setPreviewLoading(false); }}
+          style={{ alignItems: "flex-start", paddingTop: "2vh", overflowY: "auto" }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: "#fff", borderRadius: 16, width: "min(900px, 96vw)", maxHeight: "95dvh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 24px 60px rgba(0,0,0,.22)" }}>
+
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px 14px", borderBottom: "1.5px solid #e2e8f0", flexShrink: 0 }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 900, color: "#0f1b3f" }}>
+                  👁 Prévisualisation de l'annonce
+                </h2>
+                {previewVehicle && <p style={{ margin: "2px 0 0", fontSize: ".78rem", color: "#94a3b8" }}>ID : {previewVehicle._id}</p>}
+              </div>
+              <button onClick={() => { setPreviewVehicle(null); setPreviewLoading(false); }}
+                style={{ background: "#f1f5f9", border: "none", borderRadius: 8, width: 34, height: 34, fontSize: "1.1rem", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+            </div>
+
+            {/* Body */}
+            <div style={{ overflowY: "auto", padding: "20px 24px 24px", flex: 1 }}>
+              {previewLoading && !previewVehicle ? (
+                <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
+                  <div style={{ fontSize: "2rem", marginBottom: 10 }}>⏳</div>
+                  <p>Chargement de l'annonce…</p>
+                </div>
+              ) : previewVehicle ? (() => {
+                const v = previewVehicle;
+                const imgs = v.images?.length ? v.images : v.image ? [v.image] : [];
+                const o = v.owner || {};
+                const KYC_COLORS = { VERIFIE: "#059669", EN_ATTENTE: "#d97706", REFUSE: "#dc2626", A_REVOIR_MANUELLEMENT: "#2563eb" };
+                const kycC = KYC_COLORS[o.kycStatus] || "#94a3b8";
+                const STATUS_CFG = { pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, approved: { l: "Publiée", c: "#059669", bg: "#dcfce7" }, rejected: { l: "Rejetée", c: "#dc2626", bg: "#fee2e2" } };
+                const sc = STATUS_CFG[v.status] || STATUS_CFG.pending;
+
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+                    {/* Statut + actions rapides */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <span style={{ background: sc.bg, color: sc.c, padding: "4px 14px", borderRadius: 99, fontWeight: 800, fontSize: ".82rem" }}>{sc.l}</span>
+                      {v.autoValidated && <span style={{ background: "#ede9fe", color: "#7c3aed", padding: "4px 12px", borderRadius: 99, fontWeight: 700, fontSize: ".78rem" }}>✨ Validé automatiquement</span>}
+                      {v.validationScore != null && (
+                        <span style={{ background: v.validationScore >= 65 ? "#dcfce7" : v.validationScore >= 40 ? "#fef3c7" : "#fee2e2", color: v.validationScore >= 65 ? "#059669" : v.validationScore >= 40 ? "#d97706" : "#dc2626", padding: "4px 12px", borderRadius: 99, fontWeight: 700, fontSize: ".78rem" }}>
+                          Score {v.validationScore}/100
+                        </span>
+                      )}
+                      <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                        {v.status !== "approved" && (
+                          <button className={styles.btnApprove} style={{ fontSize: ".8rem" }}
+                            onClick={() => { updateVehicleStatus(v._id, "approved"); setPreviewVehicle(null); }}>✅ Valider</button>
+                        )}
+                        {v.status !== "rejected" && (
+                          <button className={styles.btnReject} style={{ fontSize: ".8rem" }}
+                            onClick={() => { setRejectModal({ vid: v._id, name: v.title }); setRejectReason(""); setPreviewVehicle(null); }}>✕ Rejeter</button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Galerie photos */}
+                    {imgs.length > 0 ? (
+                      <div>
+                        <div style={{ position: "relative", borderRadius: 12, overflow: "hidden", background: "#0f1b3f", height: 280 }}>
+                          <img src={imgs[previewImgIdx]} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                          {imgs.length > 1 && (
+                            <>
+                              <button onClick={() => setPreviewImgIdx(i => (i - 1 + imgs.length) % imgs.length)}
+                                style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", background: "rgba(0,0,0,.5)", color: "#fff", border: "none", borderRadius: "50%", width: 36, height: 36, fontSize: "1.1rem", cursor: "pointer" }}>‹</button>
+                              <button onClick={() => setPreviewImgIdx(i => (i + 1) % imgs.length)}
+                                style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "rgba(0,0,0,.5)", color: "#fff", border: "none", borderRadius: "50%", width: 36, height: 36, fontSize: "1.1rem", cursor: "pointer" }}>›</button>
+                              <span style={{ position: "absolute", bottom: 10, right: 14, background: "rgba(0,0,0,.55)", color: "#fff", fontSize: ".75rem", padding: "2px 10px", borderRadius: 99 }}>{previewImgIdx + 1} / {imgs.length}</span>
+                            </>
+                          )}
+                        </div>
+                        {imgs.length > 1 && (
+                          <div style={{ display: "flex", gap: 6, marginTop: 8, overflowX: "auto", paddingBottom: 4 }}>
+                            {imgs.map((img, i) => (
+                              <img key={i} src={img} alt="" onClick={() => setPreviewImgIdx(i)}
+                                style={{ width: 64, height: 48, objectFit: "cover", borderRadius: 6, cursor: "pointer", border: i === previewImgIdx ? "2.5px solid #2563eb" : "2px solid #e2e8f0", flexShrink: 0 }} />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ height: 160, borderRadius: 12, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "3rem", color: "#cbd5e1" }}>🚗</div>
+                    )}
+
+                    {/* Deux colonnes : détails annonce + annonceur */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+
+                      {/* ── Détails de l'annonce ── */}
+                      <div style={{ background: "#f8fafc", borderRadius: 12, padding: "16px 18px" }}>
+                        <h3 style={{ margin: "0 0 14px", fontSize: ".9rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}>🚗 Détails de l'annonce</h3>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                          <h4 style={{ margin: "0 0 4px", fontSize: "1rem", fontWeight: 900, color: "#0f1b3f" }}>{v.title}</h4>
+                          {[
+                            ["Type", v.type === "location" ? "📅 Location" : "💰 Vente"],
+                            ["Catégorie", v.vehicleType],
+                            ["Marque / Modèle", [v.marque, v.modele].filter(Boolean).join(" ") || "—"],
+                            ["Année", v.annee],
+                            ["Couleur", v.couleur],
+                            ["Kilométrage", v.kilometrage != null ? `${Number(v.kilometrage).toLocaleString("fr-FR")} km` : "—"],
+                            ["État", v.etat],
+                            ["Carburant", v.carburant],
+                            ["Transmission", v.transmission],
+                            ["Places", v.nombrePlaces],
+                            ["Portes", v.nombrePortes],
+                            ["Climatisation", v.climatisation ? "✅ Oui" : "❌ Non"],
+                            ["Avec chauffeur", v.withDriver ? "✅ Oui" : "Non"],
+                            v.type === "location" ? ["Prix / jour", v.pricePerDay ? `${Number(v.pricePerDay).toLocaleString("fr-FR")} XOF` : "—"] : ["Prix vente", v.priceForSale ? `${Number(v.priceForSale).toLocaleString("fr-FR")} XOF` : "—"],
+                            v.type === "location" && v.caution ? ["Caution", `${Number(v.caution).toLocaleString("fr-FR")} XOF`] : null,
+                            ["Ville", v.ville || "—"],
+                            ["Adresse", v.adresse || "—"],
+                            ["Âge min", v.ageMin ? `${v.ageMin} ans` : "—"],
+                            ["Vues", v.vues || 0],
+                            ["Note moy.", v.noteMoyenne ? `${v.noteMoyenne}/5 (${v.nombreAvis} avis)` : "—"],
+                            ["Publié le", v.createdAt ? new Date(v.createdAt).toLocaleDateString("fr-FR") : "—"],
+                          ].filter(Boolean).map(([k, val]) => val != null && val !== "—" && (
+                            <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: ".82rem", gap: 8 }}>
+                              <span style={{ color: "#64748b", flexShrink: 0 }}>{k}</span>
+                              <span style={{ fontWeight: 600, color: "#0f1b3f", textAlign: "right" }}>{val}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {v.leasing?.disponible && (
+                          <div style={{ marginTop: 10, padding: "8px 12px", background: "#ede9fe", borderRadius: 8 }}>
+                            <div style={{ fontSize: ".78rem", fontWeight: 800, color: "#6d28d9", marginBottom: 4 }}>🏦 Leasing disponible</div>
+                            <div style={{ fontSize: ".78rem", color: "#4c1d95" }}>Apport : {Number(v.leasing.apportInitial).toLocaleString("fr-FR")} XOF • {v.leasing.mensualite && `${Number(v.leasing.mensualite).toLocaleString("fr-FR")} XOF/mois`} • {v.leasing.duree} mois • {v.leasing.tauxInteret}%</div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* ── Détails de l'annonceur ── */}
+                      <div style={{ background: "#f8fafc", borderRadius: 12, padding: "16px 18px" }}>
+                        <h3 style={{ margin: "0 0 14px", fontSize: ".9rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}>👤 Annonceur</h3>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                          {o.profilePhoto
+                            ? <img src={o.profilePhoto} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "3px solid #e2e8f0" }} />
+                            : <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem" }}>👤</div>}
+                          <div>
+                            <div style={{ fontWeight: 800, fontSize: ".95rem", color: "#0f1b3f" }}>{o.firstName} {o.lastName}</div>
+                            <div style={{ fontSize: ".78rem", color: "#64748b" }}>{o.role || "partenaire"}</div>
+                            {o.certificationBadge && <span style={{ fontSize: ".72rem", background: "#fef3c7", color: "#d97706", padding: "1px 8px", borderRadius: 99, fontWeight: 700 }}>🏆 {o.certificationBadge}</span>}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                          {[
+                            ["Email", o.email],
+                            ["Téléphone", o.phone],
+                            ["Ville", o.ville],
+                            ["Statut compte", o.isActive === false ? "🚫 Bloqué" : "✅ Actif"],
+                            ["Membre depuis", o.createdAt ? new Date(o.createdAt).toLocaleDateString("fr-FR") : "—"],
+                          ].filter(([, val]) => val).map(([k, val]) => (
+                            <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: ".82rem", gap: 8 }}>
+                              <span style={{ color: "#64748b", flexShrink: 0 }}>{k}</span>
+                              <span style={{ fontWeight: 600, color: "#0f1b3f", textAlign: "right" }}>{val}</span>
+                            </div>
+                          ))}
+                          {o.kycStatus && (
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: ".82rem" }}>
+                              <span style={{ color: "#64748b" }}>KYC</span>
+                              <span style={{ fontWeight: 700, color: kycC }}>{o.kycStatus === "VERIFIE" ? "✅ Vérifié" : o.kycStatus === "REFUSE" ? "❌ Refusé" : o.kycStatus === "EN_ATTENTE" ? "⏳ En attente" : "🔄 En révision"}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Description */}
+                    {v.description && (
+                      <div style={{ background: "#f8fafc", borderRadius: 12, padding: "14px 18px" }}>
+                        <h3 style={{ margin: "0 0 8px", fontSize: ".85rem", fontWeight: 800, color: "#0f1b3f" }}>📝 Description</h3>
+                        <p style={{ margin: 0, fontSize: ".85rem", color: "#475569", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{v.description}</p>
+                      </div>
+                    )}
+
+                    {/* Erreurs / avertissements de validation */}
+                    {(v.validationErrors?.length > 0 || v.validationWarnings?.length > 0) && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {v.validationErrors?.length > 0 && (
+                          <div style={{ background: "#fff1f2", border: "1.5px solid #fca5a5", borderRadius: 10, padding: "12px 16px" }}>
+                            <div style={{ fontWeight: 800, fontSize: ".82rem", color: "#dc2626", marginBottom: 6 }}>❌ Erreurs de validation</div>
+                            {v.validationErrors.map((e, i) => <div key={i} style={{ fontSize: ".8rem", color: "#b91c1c" }}>• {e}</div>)}
+                          </div>
+                        )}
+                        {v.validationWarnings?.length > 0 && (
+                          <div style={{ background: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: 10, padding: "12px 16px" }}>
+                            <div style={{ fontWeight: 800, fontSize: ".82rem", color: "#d97706", marginBottom: 6 }}>⚠️ Avertissements</div>
+                            {v.validationWarnings.map((w, i) => <div key={i} style={{ fontSize: ".8rem", color: "#92400e" }}>• {w}</div>)}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Raison de rejet */}
+                    {v.rejectionReason && (
+                      <div style={{ background: "#fff1f2", border: "1.5px solid #fca5a5", borderRadius: 10, padding: "12px 16px" }}>
+                        <div style={{ fontWeight: 800, fontSize: ".82rem", color: "#dc2626", marginBottom: 4 }}>💬 Raison du rejet</div>
+                        <p style={{ margin: 0, fontSize: ".85rem", color: "#b91c1c" }}>{v.rejectionReason}</p>
+                      </div>
+                    )}
+
+                  </div>
+                );
+              })() : null}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MARKETING SECTION — CMS, Accueil, Vedette & Campagnes (combiné)
+// ═══════════════════════════════════════════════════════════════════════════════
+const MAX_SPOTLIGHTS_M = 5;
+
+function MarketingSection({ vehicles, token, onRefresh }) {
   const approved = vehicles.filter((v) => v.status === "approved" || v.available);
+  const [subTab, setSubTab] = useState("accueil");
 
-  // Tableau de IDs spotlight (jusqu'à 5) stocké en JSON
+  // ── Accueil / Hero ──────────────────────────────────────────────────────────
   const [spotlightIds, setSpotlightIds] = useState(() => {
     try {
       const saved = localStorage.getItem("vit_hero_spotlights");
       if (saved) return JSON.parse(saved);
-      // Rétrocompat : ancienne clé unique
       const legacy = localStorage.getItem("vit_hero_spotlight");
       return legacy ? [legacy] : [];
     } catch { return []; }
   });
-
-  const [saving, setSaving]     = useState(null);
   const [heroText, setHeroText] = useState(() => localStorage.getItem("vit_hero_title") || "");
   const [heroSub,  setHeroSub]  = useState(() => localStorage.getItem("vit_hero_sub")   || "");
   const [savedMsg, setSavedMsg] = useState("");
-
-  const featuredCount = approved.filter((v) => v.featured).length;
 
   const flash = (msg) => { setSavedMsg(msg); setTimeout(() => setSavedMsg(""), 2800); };
 
   const saveSpotlights = (ids) => {
     localStorage.setItem("vit_hero_spotlights", JSON.stringify(ids));
-    localStorage.setItem("vit_hero_spotlight", ids[0] || ""); // rétrocompat
+    localStorage.setItem("vit_hero_spotlight", ids[0] || "");
     setSpotlightIds(ids);
   };
 
   const toggleSpotlight = (vid) => {
     const str = String(vid);
     if (spotlightIds.includes(str)) {
-      const next = spotlightIds.filter((id) => id !== str);
-      saveSpotlights(next);
-      flash("Retiré du carrousel");
-    } else if (spotlightIds.length >= MAX_SPOTLIGHTS) {
-      flash(`Maximum ${MAX_SPOTLIGHTS} véhicules dans le carrousel`);
+      saveSpotlights(spotlightIds.filter((id) => id !== str));
+      flash("Retiré du carrousel hero");
+    } else if (spotlightIds.length >= MAX_SPOTLIGHTS_M) {
+      flash(`Maximum ${MAX_SPOTLIGHTS_M} véhicules dans le carrousel`);
     } else {
-      const next = [...spotlightIds, str];
-      saveSpotlights(next);
-      flash(`Ajouté au carrousel (${next.length}/${MAX_SPOTLIGHTS})`);
+      saveSpotlights([...spotlightIds, str]);
+      flash("Ajouté au carrousel hero ✅");
     }
   };
 
-  const moveSpotlight = (idx, dir) => {
-    const next = [...spotlightIds];
-    const to = idx + dir;
-    if (to < 0 || to >= next.length) return;
-    [next[idx], next[to]] = [next[to], next[idx]];
-    saveSpotlights(next);
-  };
-
-  const saveTexts = () => {
+  const saveHero = () => {
     localStorage.setItem("vit_hero_title", heroText);
-    localStorage.setItem("vit_hero_sub",   heroSub);
-    flash("Textes sauvegardés !");
+    localStorage.setItem("vit_hero_sub", heroSub);
+    flash("Texte héro sauvegardé ✅");
   };
 
-  const toggleFeatured = async (vid, current) => {
-    setSaving(String(vid));
+  // ── Vedette ─────────────────────────────────────────────────────────────────
+  const [featuredLoading, setFeaturedLoading] = useState(null);
+
+  const toggleFeatured = async (vid, isFeatured) => {
+    setFeaturedLoading(vid);
     try {
-      const res = await fetch(`/api/vehicles/${vid}`, {
+      const r = await fetch(`/api/vehicles/${vid}/feature`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ featured: !current }),
+        body: JSON.stringify({ featured: !isFeatured }),
       });
-      if (res.ok) onRefresh();
-    } catch { /* */ }
-    setSaving(null);
+      if (r.ok) { onRefresh(); flash(!isFeatured ? "Véhicule en vedette ⭐" : "Retiré de la vedette"); }
+    } catch { flash("Erreur"); }
+    setFeaturedLoading(null);
   };
 
-  const s = {
-    block: { background: "#fff", border: "1.5px solid #e8edf8", borderRadius: 16, padding: "20px 24px", marginBottom: 20 },
-    label: { fontSize: "0.8rem", fontWeight: 700, color: "#0f1b3f", display: "block", marginBottom: 6 },
-    input: { width: "100%", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 12px", fontSize: "0.88rem", fontFamily: "inherit", boxSizing: "border-box" },
-    row:   { display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", border: "1.5px solid #e8edf8", borderRadius: 12, marginBottom: 8, background: "#fff" },
-    badge: (color, bg) => ({ background: bg, color, fontSize: "0.68rem", fontWeight: 800, padding: "2px 10px", borderRadius: 999, whiteSpace: "nowrap" }),
-    btn:   (bg, color = "#fff", extra = {}) => ({ background: bg, color, border: "none", borderRadius: 8, padding: "6px 14px", fontSize: "0.78rem", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", ...extra }),
-  };
+  const featuredCount = approved.filter((v) => v.featured).length;
+
+  const SUB_TABS_M = [
+    { k: "accueil",  l: "🏠 Page d'accueil",       desc: "Texte hero & carrousel" },
+    { k: "vedette",  l: "⭐ Véhicules en vedette",  desc: "Mise en avant catalogue" },
+    { k: "campagnes",l: "📢 Campagnes",             desc: "Bannières & promotions (bientôt)" },
+  ];
 
   return (
-    <div style={{ padding: "1.5rem 0" }}>
-      {/* Titre section */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-        <span style={{ fontSize: "1.4rem" }}>🏠</span>
-        <div>
-          <h2 style={{ margin: "0 0 3px", fontSize: "1.2rem", color: "#0f1b3f", fontWeight: 800 }}>
-            Gestion de la page d'accueil
-          </h2>
-          <p style={{ margin: 0, fontSize: "0.82rem", color: "#8493b0" }}>
-            Carrousel Hero (3-5 slides), textes, vedette «Section du moment».
-          </p>
-        </div>
+    <div className={styles.scrollZone}>
+      {/* Stats */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+        {[
+          { l: "Annonces publiées", v: approved.length, c: "#16a34a" },
+          { l: "En vedette",        v: featuredCount,   c: "#f59e0b" },
+          { l: "Dans le carrousel", v: spotlightIds.length, c: "#6366f1" },
+        ].map(({ l, v, c }) => (
+          <div key={l} className={styles.pvStatCard} style={{ borderLeftColor: c }}>
+            <div className={styles.pvStatVal} style={{ color: c }}>{v}</div>
+            <div className={styles.pvStatLbl}>{l}</div>
+          </div>
+        ))}
       </div>
 
-      {savedMsg && (
-        <div style={{ background: "#ecfdf5", border: "1px solid #6ee7b7", borderRadius: 10, padding: "10px 16px", marginBottom: 16, color: "#065f46", fontWeight: 700, fontSize: "0.88rem" }}>
-          ✅ {savedMsg}
-        </div>
-      )}
-
-      {/* ── Textes bannière ── */}
-      <div style={s.block}>
-        <h3 style={{ margin: "0 0 14px", fontSize: "0.95rem", color: "#0f1b3f", fontWeight: 800 }}>
-          ✍️ Textes de la bannière principale
-        </h3>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div>
-            <label style={s.label}>Titre (laissez vide pour le titre par défaut)</label>
-            <input style={s.input} value={heroText} onChange={(e) => setHeroText(e.target.value)}
-              placeholder="Ex : Location & vente de véhicules premium" />
-          </div>
-          <div>
-            <label style={s.label}>Sous-titre</label>
-            <input style={s.input} value={heroSub} onChange={(e) => setHeroSub(e.target.value)}
-              placeholder="Ex : Livraison GPS à domicile, paiement sécurisé, 14 pays..." />
-          </div>
-          <button style={{ ...s.btn("#0f1b3f"), width: "fit-content", marginTop: 4 }} onClick={saveTexts}>
-            💾 Sauvegarder
+      {/* Sous-onglets */}
+      <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #e2e8f0", marginBottom: 24 }}>
+        {SUB_TABS_M.map((t) => (
+          <button key={t.k} onClick={() => setSubTab(t.k)}
+            style={{ padding: "10px 20px", border: "none", background: "none", cursor: "pointer", fontWeight: 700, fontSize: ".82rem", borderBottom: subTab === t.k ? "3px solid #6366f1" : "3px solid transparent", color: subTab === t.k ? "#6366f1" : "#64748b", fontFamily: "inherit" }}>
+            {t.l}
           </button>
-        </div>
+        ))}
       </div>
 
-      {/* ── Carrousel Hero (3-5 véhicules) ── */}
-      <div style={s.block}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
-          <div>
-            <h3 style={{ margin: "0 0 4px", fontSize: "0.95rem", color: "#0f1b3f", fontWeight: 800 }}>
-              🎬 Carrousel Hero — {spotlightIds.length}/{MAX_SPOTLIGHTS} slides sélectionnées
-            </h3>
-            <p style={{ margin: 0, fontSize: "0.78rem", color: "#8493b0" }}>
-              Sélectionnez entre 1 et {MAX_SPOTLIGHTS} véhicules pour le carrousel principal de l'accueil (défilement 5 s).
-            </p>
-          </div>
-          {spotlightIds.length > 0 && (
-            <button style={{ ...s.btn("#ef4444"), fontSize: "0.72rem", padding: "4px 12px" }}
-              onClick={() => { saveSpotlights([]); flash("Carrousel réinitialisé"); }}>
-              Tout retirer
-            </button>
-          )}
-        </div>
+      {savedMsg && <div style={{ background: "#dcfce7", color: "#16a34a", borderRadius: 8, padding: "10px 16px", marginBottom: 16, fontWeight: 700 }}>{savedMsg}</div>}
 
-        {/* Ordre actuel */}
-        {spotlightIds.length > 0 && (
-          <div style={{ background: "#f8faff", border: "1px solid #e8edf8", borderRadius: 12, padding: "12px 14px", marginBottom: 14 }}>
-            <p style={{ margin: "0 0 10px", fontSize: "0.78rem", fontWeight: 700, color: "#5a6a8a" }}>
-              Ordre d'affichage (glissez avec ↑↓) :
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {spotlightIds.map((sid, idx) => {
-                const v = approved.find((x) => (x._id || x.id)?.toString() === sid);
-                if (!v) return null;
+      {/* ── Accueil ── */}
+      {subTab === "accueil" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          {/* Texte hero */}
+          <div className={styles.chartCard}>
+            <h3 className={styles.chartTitle}>✏️ Texte de la bannière principale</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div><label className={styles.pvLabel}>Titre principal</label>
+                <input className={styles.pvInput} value={heroText} onChange={e => setHeroText(e.target.value)} placeholder="Ex : Trouvez votre véhicule idéal en Afrique" />
+              </div>
+              <div><label className={styles.pvLabel}>Sous-titre</label>
+                <input className={styles.pvInput} value={heroSub} onChange={e => setHeroSub(e.target.value)} placeholder="Ex : Location, vente et import/export dans 14 pays" />
+              </div>
+              <button className={styles.btnPrimary} style={{ alignSelf: "flex-start" }} onClick={saveHero}>Sauvegarder</button>
+            </div>
+          </div>
+
+          {/* Carrousel hero */}
+          <div className={styles.chartCard}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h3 className={styles.chartTitle} style={{ margin: 0 }}>🎠 Carrousel Hero ({spotlightIds.length}/{MAX_SPOTLIGHTS_M})</h3>
+              <button className={styles.btnSmall} onClick={() => saveSpotlights([])}>Vider</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
+              {approved.map((v) => {
+                const vid = String(v._id || v.id);
+                const inSpotlight = spotlightIds.includes(vid);
                 return (
-                  <div key={sid} style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid #e0e7ff", borderRadius: 8, padding: "7px 10px" }}>
-                    <span style={{ fontSize: "0.7rem", fontWeight: 800, color: "#6366f1", minWidth: 20 }}>#{idx + 1}</span>
-                    {(v.images?.[0] || v.image) && <img src={v.images?.[0] || v.image} alt="" style={{ width: 36, height: 26, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} />}
-                    <span style={{ flex: 1, fontSize: "0.82rem", fontWeight: 600, color: "#0f1b3f", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {v.title || v.name}
-                    </span>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <button disabled={idx === 0} style={{ ...s.btn("#e8edf8", "#5a6a8a", { padding: "3px 8px", opacity: idx === 0 ? 0.4 : 1 }) }} onClick={() => moveSpotlight(idx, -1)}>↑</button>
-                      <button disabled={idx === spotlightIds.length - 1} style={{ ...s.btn("#e8edf8", "#5a6a8a", { padding: "3px 8px", opacity: idx === spotlightIds.length - 1 ? 0.4 : 1 }) }} onClick={() => moveSpotlight(idx, 1)}>↓</button>
-                      <button style={{ ...s.btn("#fee2e2", "#ef4444", { padding: "3px 8px" }) }} onClick={() => toggleSpotlight(sid)}>✕</button>
+                  <div key={vid} style={{ border: `2px solid ${inSpotlight ? "#6366f1" : "#e2e8f0"}`, borderRadius: 10, overflow: "hidden", transition: "border-color .2s" }}>
+                    {(v.images?.[0] || v.image)
+                      ? <img src={v.images?.[0] || v.image} alt="" style={{ width: "100%", height: 90, objectFit: "cover" }} />
+                      : <div style={{ height: 90, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.8rem" }}>🚗</div>
+                    }
+                    <div style={{ padding: "8px 10px" }}>
+                      <div style={{ fontSize: ".78rem", fontWeight: 700, color: "#0f1b3f", marginBottom: 6 }}>{v.title || `${v.marque} ${v.modele}`}</div>
+                      <button onClick={() => toggleSpotlight(vid)}
+                        style={{ width: "100%", padding: "4px 0", borderRadius: 6, border: "none", cursor: "pointer", fontWeight: 700, fontSize: ".74rem",
+                          background: inSpotlight ? "#6366f1" : "#f1f5f9", color: inSpotlight ? "#fff" : "#475569" }}>
+                        {inSpotlight ? "✓ Dans le carrousel" : "+ Ajouter"}
+                      </button>
                     </div>
                   </div>
                 );
               })}
             </div>
           </div>
-        )}
-
-        {/* Liste des véhicules disponibles */}
-        <div style={{ maxHeight: 380, overflowY: "auto", display: "flex", flexDirection: "column", gap: 7 }}>
-          {approved.slice(0, 30).map((v) => {
-            const vid = (v._id || v.id)?.toString();
-            const posIdx = spotlightIds.indexOf(vid);
-            const isIn  = posIdx !== -1;
-            const full  = !isIn && spotlightIds.length >= MAX_SPOTLIGHTS;
-            return (
-              <div key={vid} style={{ ...s.row, borderColor: isIn ? "#6366f1" : "#e8edf8", background: isIn ? "#f5f3ff" : "#fff" }}>
-                {(v.images?.[0] || v.image)
-                  ? <img src={v.images?.[0] || v.image} alt="" style={{ width: 52, height: 38, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} />
-                  : <div style={{ width: 52, height: 38, background: "#e8edf8", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>🚗</div>}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ margin: 0, fontWeight: 700, color: "#0f1b3f", fontSize: "0.88rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {v.title || v.name}
-                  </p>
-                  <p style={{ margin: 0, fontSize: "0.72rem", color: "#8493b0" }}>
-                    {v.ville || "—"} · {v.vehicleType || v.type || "—"}
-                  </p>
-                </div>
-                {isIn && <span style={s.badge("#6366f1", "#eff0ff")}>#{posIdx + 1}</span>}
-                {full && !isIn && <span style={s.badge("#94a3b8", "#f1f5f9")}>Complet</span>}
-                <button
-                  style={isIn ? s.btn("#ef4444") : s.btn(full ? "#cbd5e1" : "#6366f1")}
-                  disabled={full && !isIn}
-                  onClick={() => toggleSpotlight(vid)}
-                >
-                  {isIn ? "Retirer" : full ? "—" : "+ Ajouter"}
-                </button>
-              </div>
-            );
-          })}
         </div>
-      </div>
+      )}
 
-      {/* ── Vedette Section du moment ── */}
-      <div style={s.block}>
-        <h3 style={{ margin: "0 0 4px", fontSize: "0.95rem", color: "#0f1b3f", fontWeight: 800 }}>
-          ⭐ Véhicules en vedette — «Section du moment»
-        </h3>
-        <p style={{ margin: "0 0 14px", fontSize: "0.78rem", color: "#8493b0" }}>
-          {featuredCount} véhicule{featuredCount !== 1 ? "s" : ""} en vedette. Le carousel de l'accueil les affiche en priorité.
-        </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 7, maxHeight: 420, overflowY: "auto" }}>
-          {approved.map((v) => {
-            const vid = (v._id || v.id)?.toString();
-            const isSav = saving === vid;
-            return (
-              <div key={vid} style={{ ...s.row, borderColor: v.featured ? "#f59e0b" : "#e8edf8", background: v.featured ? "#fffbeb" : "#fff" }}>
-                {(v.images?.[0] || v.image)
-                  ? <img src={v.images?.[0] || v.image} alt="" style={{ width: 52, height: 38, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} />
-                  : <div style={{ width: 52, height: 38, background: "#e8edf8", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>🚗</div>}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ margin: 0, fontWeight: 700, color: "#0f1b3f", fontSize: "0.88rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {v.title || v.name}
-                  </p>
-                  <p style={{ margin: 0, fontSize: "0.72rem", color: "#8493b0" }}>
-                    {v.ville || "—"} · {v.pricePerDay ? `${Number(v.pricePerDay).toLocaleString("fr-FR")} DH/j` : v.priceForSale ? `${Number(v.priceForSale).toLocaleString("fr-FR")} DH` : "—"}
-                  </p>
-                </div>
-                {v.featured && <span style={s.badge("#f59e0b", "#fffbeb")}>⭐</span>}
-                <button
-                  style={v.featured ? s.btn("#ef4444", "#fff", { opacity: isSav ? 0.6 : 1 }) : s.btn("#059669", "#fff", { opacity: isSav ? 0.6 : 1 })}
-                  disabled={isSav}
-                  onClick={() => toggleFeatured(vid, !!v.featured)}
-                >
-                  {isSav ? "..." : v.featured ? "Retirer" : "⭐ Vedette"}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── VetteSection ───────────────────────────────────────────────────────────────
-function VetteSection({ vehicles, token, onRefresh }) {
-  const featured = vehicles.filter((v) => v.featured || v.status === "approved");
-  const [saving, setSaving] = useState(null);
-  const [spotlightId, setSpotlightId] = useState(
-    () => localStorage.getItem("vit_hero_spotlight") || null
-  );
-
-  const toggleFeatured = async (vehicleId, currentlyFeatured) => {
-    setSaving(vehicleId);
-    try {
-      const res = await fetch(`/api/vehicles/${vehicleId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ featured: !currentlyFeatured }),
-      });
-      if (res.ok) onRefresh();
-    } catch { /* */ }
-    setSaving(null);
-  };
-
-  const setSpotlight = (vehicleId) => {
-    localStorage.setItem("vit_hero_spotlight", vehicleId);
-    setSpotlightId(vehicleId);
-  };
-
-  const removeSpotlight = () => {
-    localStorage.removeItem("vit_hero_spotlight");
-    setSpotlightId(null);
-  };
-
-  const spotlightVehicle = spotlightId ? vehicles.find((v) => (v._id || v.id)?.toString() === spotlightId) : null;
-
-  return (
-    <div style={{ padding: "1.5rem 0" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
-        <span style={{ fontSize: "1.4rem" }}>⭐</span>
-        <div>
-          <h2 style={{ margin: 0, fontSize: "1.2rem", color: "#0f1b3f" }}>Véhicules en vedette</h2>
-          <p style={{ margin: 0, fontSize: "0.83rem", color: "#8493b0" }}>
-            Gérez la sélection "Spotlight Hero" (panneau droit de l'accueil) et les véhicules en vedette.
-          </p>
-        </div>
-      </div>
-
-      {/* ── Spotlight Hero actuel ── */}
-      <div style={{
-        background: "#0f1b3f", color: "#fff", borderRadius: "14px",
-        padding: "14px 18px", marginBottom: "20px",
-        display: "flex", alignItems: "center", gap: "14px",
-      }}>
-        <span style={{ fontSize: "1.3rem" }}>🎯</span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ margin: 0, fontWeight: 700, fontSize: "0.85rem" }}>Spotlight Hero (page d'accueil)</p>
-          <p style={{ margin: 0, fontSize: "0.78rem", opacity: 0.7 }}>
-            {spotlightVehicle
-              ? (spotlightVehicle.title || spotlightVehicle.name || "Véhicule sélectionné")
-              : "Aucun — affiche le premier véhicule featured"}
-          </p>
-        </div>
-        {spotlightId && (
-          <button
-            onClick={removeSpotlight}
-            style={{ background: "#ef4444", color: "#fff", border: "none", borderRadius: "8px", padding: "6px 14px", fontSize: "0.78rem", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
-          >
-            Retirer
-          </button>
-        )}
-      </div>
-
-      {/* ── Liste des véhicules ── */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        {featured.length === 0 && (
-          <p style={{ color: "#8493b0", padding: "2rem", textAlign: "center" }}>
-            Aucun véhicule approuvé disponible.
-          </p>
-        )}
-        {featured.map((v) => (
-          <div key={v._id} style={{
-            display: "flex", alignItems: "center", gap: "14px",
-            background: v.featured ? "#fffbeb" : "#fff",
-            border: `1.5px solid ${(v._id || v.id)?.toString() === spotlightId ? "#6366f1" : v.featured ? "#f59e0b" : "#e8edf8"}`,
-            borderRadius: "14px", padding: "12px 16px",
-          }}>
-            {(v.images?.[0] || v.image) ? (
-              <img src={v.images?.[0] || v.image} alt={v.title || v.name}
-                style={{ width: 60, height: 44, objectFit: "cover", borderRadius: "8px", flexShrink: 0 }} />
-            ) : (
-              <div style={{ width: 60, height: 44, background: "#e8edf8", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.2rem", flexShrink: 0 }}>🚗</div>
-            )}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ margin: 0, fontWeight: 700, color: "#0f1b3f", fontSize: "0.9rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {v.title || v.name}
-              </p>
-              <p style={{ margin: 0, fontSize: "0.75rem", color: "#8493b0" }}>
-                {v.ville || v.city || "—"} · {v.type || "—"}
-              </p>
-            </div>
-            {(v._id || v.id)?.toString() === spotlightId && (
-              <span style={{ background: "#6366f1", color: "#fff", fontSize: "0.7rem", fontWeight: 700, padding: "2px 10px", borderRadius: "999px" }}>
-                🎯 Spotlight
-              </span>
-            )}
-            {v.featured && (
-              <span style={{ background: "#f59e0b", color: "#fff", fontSize: "0.7rem", fontWeight: 700, padding: "2px 10px", borderRadius: "999px" }}>
-                ⭐ Vedette
-              </span>
-            )}
-            <div style={{ display: "flex", gap: "6px" }}>
-              <button
-                onClick={() => setSpotlight((v._id || v.id)?.toString())}
-                disabled={(v._id || v.id)?.toString() === spotlightId}
-                style={{
-                  background: (v._id || v.id)?.toString() === spotlightId ? "#6366f1" : "#e0e7ff",
-                  color: (v._id || v.id)?.toString() === spotlightId ? "#fff" : "#6366f1",
-                  border: "none", borderRadius: "8px",
-                  padding: "7px 12px", fontSize: "0.78rem", fontWeight: 700,
-                  cursor: (v._id || v.id)?.toString() === spotlightId ? "default" : "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                🎯
-              </button>
-              <button
-                onClick={() => toggleFeatured(v._id, !!v.featured)}
-                disabled={saving === v._id}
-                style={{
-                  background: v.featured ? "#ef4444" : "#059669",
-                  color: "#fff", border: "none", borderRadius: "8px",
-                  padding: "7px 14px", fontSize: "0.8rem", fontWeight: 700,
-                  cursor: saving === v._id ? "not-allowed" : "pointer",
-                  opacity: saving === v._id ? 0.6 : 1, fontFamily: "inherit",
-                }}
-              >
-                {saving === v._id ? "..." : v.featured ? "Retirer" : "⭐ Vedette"}
-              </button>
-            </div>
+      {/* ── Vedette ── */}
+      {subTab === "vedette" && (
+        <div className={styles.chartCard}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <h3 className={styles.chartTitle} style={{ margin: 0 }}>⭐ Véhicules en vedette ({featuredCount} actifs)</h3>
+            <span style={{ fontSize: ".78rem", color: "#94a3b8" }}>Véhicules mis en avant sur la page catalogue</span>
           </div>
-        ))}
-      </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
+            {approved.map((v) => {
+              const vid = v._id || v.id;
+              return (
+                <div key={vid} style={{ border: `2px solid ${v.featured ? "#f59e0b" : "#e2e8f0"}`, borderRadius: 12, overflow: "hidden", transition: "border-color .2s" }}>
+                  {(v.images?.[0] || v.image)
+                    ? <img src={v.images?.[0] || v.image} alt="" style={{ width: "100%", height: 100, objectFit: "cover" }} />
+                    : <div style={{ height: 100, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem" }}>🚗</div>
+                  }
+                  <div style={{ padding: "10px 12px" }}>
+                    <div style={{ fontSize: ".82rem", fontWeight: 700, color: "#0f1b3f", marginBottom: 8 }}>{v.title || `${v.marque} ${v.modele} ${v.annee}`}</div>
+                    <button onClick={() => toggleFeatured(vid, v.featured)} disabled={featuredLoading === vid}
+                      style={{ width: "100%", padding: "5px 0", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: ".78rem",
+                        background: v.featured ? "#fef3c7" : "#f1f5f9", color: v.featured ? "#b45309" : "#475569" }}>
+                      {featuredLoading === vid ? "…" : v.featured ? "⭐ Retirer vedette" : "+ Mettre en vedette"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Campagnes ── */}
+      {subTab === "campagnes" && (
+        <WipSection icon="📢" title="Campagnes & Publicités" subtitle="Gérez vos bannières promotionnelles, annonces sponsorisées et campagnes marketing sur le site." features={["Bannières homepage personnalisées","Véhicules sponsorisés avec budget","Statistiques de clics et conversions","Envoi de newsletter ciblée","Codes promo et réductions"]} />
+      )}
     </div>
   );
 }
