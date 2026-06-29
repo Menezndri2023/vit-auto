@@ -58,6 +58,8 @@ export const createRequest = async (req, res) => {
 export const getRequests = async (req, res) => {
   try {
     const { status, limit = 100, page = 1 } = req.query;
+    const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
+    const safePage  = Math.max(Number(page), 1);
     const filter = {};
     if (status) filter.status = status;
 
@@ -65,12 +67,12 @@ export const getRequests = async (req, res) => {
       ImportExportRequest.find(filter)
         .populate("userId", "firstName lastName email profilePhoto")
         .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(Number(limit)),
+        .skip((safePage - 1) * safeLimit)
+        .limit(safeLimit),
       ImportExportRequest.countDocuments(filter),
     ]);
 
-    res.json({ requests, total, pages: Math.ceil(total / limit) });
+    res.json({ requests, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {
     console.error("getRequests:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -235,6 +237,8 @@ export const submitImporterProfile = async (req, res) => {
 export const getImporterProfiles = async (req, res) => {
   try {
     const { status, page = 1, limit = 50 } = req.query;
+    const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 500);
+    const safePage  = Math.max(Number(page), 1);
     const filter = {};
     if (status) filter.status = status;
 
@@ -243,12 +247,12 @@ export const getImporterProfiles = async (req, res) => {
         .populate("userId", "firstName lastName email phone profilePhoto role business")
         .populate("reviewedBy", "firstName lastName")
         .sort({ submittedAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(Number(limit)),
+        .skip((safePage - 1) * safeLimit)
+        .limit(safeLimit),
       ImporterPartnerProfile.countDocuments(filter),
     ]);
 
-    res.json({ profiles, total, pages: Math.ceil(total / limit) });
+    res.json({ profiles, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {
     console.error("getImporterProfiles:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -324,10 +328,12 @@ export const getImporterProfileById = async (req, res) => {
 export const getListings = async (req, res) => {
   try {
     const { sourceCountry, status = "approved", page = 1, limit = 20, partner } = req.query;
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
+    const safePage  = Math.max(Number(page), 1);
     const filter = { status };
     if (sourceCountry) {
       const escaped = sourceCountry.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      filter.sourceCountry = new RegExp(escaped, "i");
+      filter.sourceCountry = new RegExp(escaped.slice(0, 100), "i");
     }
     if (partner)       filter.partner = partner;
 
@@ -336,12 +342,12 @@ export const getListings = async (req, res) => {
         .populate("partner", "firstName lastName profilePhoto business")
         .populate("importerProfile", "companyName badgeLevel")
         .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(Number(limit)),
+        .skip((safePage - 1) * safeLimit)
+        .limit(safeLimit),
       ImportExportListing.countDocuments(filter),
     ]);
 
-    res.json({ listings, total, pages: Math.ceil(total / limit) });
+    res.json({ listings, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {
     console.error("getListings:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -542,6 +548,8 @@ export const deleteListing = async (req, res) => {
 export const getAdminListings = async (req, res) => {
   try {
     const { status, page = 1, limit = 50 } = req.query;
+    const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 500);
+    const safePage  = Math.max(Number(page), 1);
     const filter = {};
     if (status) filter.status = status;
 
@@ -550,12 +558,12 @@ export const getAdminListings = async (req, res) => {
         .populate("partner", "firstName lastName email profilePhoto")
         .populate("importerProfile", "companyName badgeLevel")
         .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(Number(limit)),
+        .skip((safePage - 1) * safeLimit)
+        .limit(safeLimit),
       ImportExportListing.countDocuments(filter),
     ]);
 
-    res.json({ listings, total, pages: Math.ceil(total / limit) });
+    res.json({ listings, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {
     console.error("getAdminListings:", err);
     res.status(500).json({ message: "Erreur serveur." });

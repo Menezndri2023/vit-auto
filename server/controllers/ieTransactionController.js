@@ -686,6 +686,8 @@ export const getTransactionById = async (req, res) => {
 export const getClientTransactions = async (req, res) => {
   try {
     const { status, page = 1, limit = 20 } = req.query;
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const safePage  = Math.max(Number(page), 1);
     const filter = { client: req.user._id };
     if (status) filter.status = status;
 
@@ -694,12 +696,12 @@ export const getClientTransactions = async (req, res) => {
         .populate("listing", "title make model year mainPhoto price currency sourceCountry")
         .populate("partner", "firstName lastName profilePhoto business")
         .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(Number(limit)),
+        .skip((safePage - 1) * safeLimit)
+        .limit(safeLimit),
       IETransaction.countDocuments(filter),
     ]);
 
-    res.json({ transactions, total, pages: Math.ceil(total / limit) });
+    res.json({ transactions, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {
     console.error("getClientTransactions:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -710,6 +712,8 @@ export const getClientTransactions = async (req, res) => {
 export const getPartnerTransactions = async (req, res) => {
   try {
     const { status, page = 1, limit = 20 } = req.query;
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const safePage  = Math.max(Number(page), 1);
     const filter = { partner: req.user._id };
     if (status) filter.status = status;
 
@@ -718,12 +722,12 @@ export const getPartnerTransactions = async (req, res) => {
         .populate("listing", "title make model year mainPhoto price currency sourceCountry")
         .populate("client",  "firstName lastName profilePhoto email phone")
         .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(Number(limit)),
+        .skip((safePage - 1) * safeLimit)
+        .limit(safeLimit),
       IETransaction.countDocuments(filter),
     ]);
 
-    res.json({ transactions, total, pages: Math.ceil(total / limit) });
+    res.json({ transactions, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {
     console.error("getPartnerTransactions:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -734,6 +738,8 @@ export const getPartnerTransactions = async (req, res) => {
 export const getAllTransactions = async (req, res) => {
   try {
     const { status, page = 1, limit = 50 } = req.query;
+    const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 500);
+    const safePage  = Math.max(Number(page), 1);
     const filter = {};
     if (status) filter.status = status;
 
@@ -743,12 +749,12 @@ export const getAllTransactions = async (req, res) => {
         .populate("client",  "firstName lastName email")
         .populate("partner", "firstName lastName email business")
         .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(Number(limit)),
+        .skip((safePage - 1) * safeLimit)
+        .limit(safeLimit),
       IETransaction.countDocuments(filter),
     ]);
 
-    res.json({ transactions, total, pages: Math.ceil(total / limit) });
+    res.json({ transactions, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {
     console.error("getAllTransactions:", err);
     res.status(500).json({ message: "Erreur serveur." });

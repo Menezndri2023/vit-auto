@@ -136,6 +136,7 @@ export default function AdminPanel() {
   const [reviewDecision,   setReviewDecision]    = useState({ status: "verified", rejectionReason: "", badgeLevel: "silver" });
   const [listingRejectModal, setListingRejectModal] = useState(null);
   const [listingRejectNote,  setListingRejectNote]  = useState("");
+  const [exporterDetail,     setExporterDetail]     = useState(null);
   // KYC Admin
   const [kycList,       setKycList]       = useState([]);
   const [kycLoading,    setKycLoading]    = useState(false);
@@ -439,6 +440,7 @@ export default function AdminPanel() {
     setForceModal(null);
     setReviewModal(null);
     setListingRejectModal(null);
+    setExporterDetail(null);
     setKycDetailUser(null);
     setPvDetail(null);
     setPvCreateModal(false);
@@ -1397,24 +1399,13 @@ export default function AdminPanel() {
                               <td className={styles.tdDate}>{fmtDate(p.submittedAt)}</td>
                               <td>
                                 <div className={styles.actionBtns}>
-                                  {/* Voir documents */}
-                                  {p.documents && Object.values(p.documents).some(Boolean) && (
-                                    <button
-                                      className={styles.btnGhost}
-                                      style={{ fontSize: ".75rem", padding: "4px 10px" }}
-                                      onClick={() => {
-                                        const docs = p.documents;
-                                        const keys = { rccmImage: "RCCM", taxIdImage: "NIF", licenseImage: "Agrément", companyLogo: "Logo", bankStatement: "Relevé" };
-                                        const w = window.open("", "_blank");
-                                        w.document.write(`<html><body style="background:#0f1b3f;color:#fff;font-family:sans-serif;padding:24px">`);
-                                        w.document.write(`<h2>Documents — ${p.companyName}</h2>`);
-                                        Object.entries(keys).forEach(([k, l]) => {
-                                          if (docs[k]) w.document.write(`<div style="margin:16px 0"><h3>${l}</h3><img src="${docs[k]}" style="max-width:100%;border-radius:8px"/></div>`);
-                                        });
-                                        w.document.write(`</body></html>`);
-                                      }}
-                                    >📁 Docs</button>
-                                  )}
+                                  {/* Visualiser le dossier complet */}
+                                  <button
+                                    title="Voir le dossier complet"
+                                    onClick={() => setExporterDetail(p)}
+                                    style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#eff6ff", color: "#2563eb", border: "1.5px solid #bfdbfe", borderRadius: 6, cursor: "pointer" }}>
+                                    👁 Visualiser
+                                  </button>
                                   {/* Approuver / refuser */}
                                   {p.status !== "verified" && (
                                     <button className={styles.btnApprove}
@@ -1502,12 +1493,12 @@ export default function AdminPanel() {
                                     <>
                                       <button className={styles.btnApprove}
                                         onClick={async () => {
-                                          await fetch(`/api/import-export/listings/${l._id}/status`, {
+                                          const r = await fetch(`/api/import-export/listings/${l._id}/status`, {
                                             method: "PATCH", headers,
                                             body: JSON.stringify({ status: "approved" }),
                                           });
-                                          showToast("Annonce publiée !");
-                                          loadImporters();
+                                          if (r.ok) { showToast("Annonce publiée !"); loadImporters(); }
+                                          else showToast("Erreur lors de la publication.", "error");
                                         }}>✅ Publier</button>
                                       <button className={styles.btnReject}
                                         onClick={() => { setListingRejectModal(l); setListingRejectNote(""); }}>
@@ -1517,12 +1508,12 @@ export default function AdminPanel() {
                                   {l.status === "approved" && (
                                     <button className={styles.btnReject}
                                       onClick={async () => {
-                                        await fetch(`/api/import-export/listings/${l._id}/status`, {
+                                        const r = await fetch(`/api/import-export/listings/${l._id}/status`, {
                                           method: "PATCH", headers,
                                           body: JSON.stringify({ status: "archived" }),
                                         });
-                                        showToast("Annonce archivée.");
-                                        loadImporters();
+                                        if (r.ok) { showToast("Annonce archivée."); loadImporters(); }
+                                        else showToast("Erreur lors de l'archivage.", "error");
                                       }}>Archiver</button>
                                   )}
                                 </div>
@@ -1578,13 +1569,18 @@ export default function AdminPanel() {
                   <button
                     className={reviewDecision.status === "verified" ? styles.btnApprove : styles.btnDanger}
                     onClick={async () => {
-                      await fetch(`/api/import-export/importer-profiles/${reviewModal._id}/review`, {
+                      const r = await fetch(`/api/import-export/importer-profiles/${reviewModal._id}/review`, {
                         method: "PATCH", headers,
                         body: JSON.stringify(reviewDecision),
                       });
-                      showToast(reviewDecision.status === "verified" ? "Profil validé !" : "Profil refusé.", reviewDecision.status === "rejected" ? "error" : "success");
-                      setReviewModal(null);
-                      loadImporters();
+                      if (r.ok) {
+                        showToast(reviewDecision.status === "verified" ? "Profil validé !" : "Profil refusé.", reviewDecision.status === "rejected" ? "error" : "success");
+                        setReviewModal(null);
+                        loadImporters();
+                      } else {
+                        const d = await r.json().catch(() => ({}));
+                        showToast(d.message || "Erreur lors de la mise à jour.", "error");
+                      }
                     }}
                   >
                     Confirmer
@@ -1614,19 +1610,276 @@ export default function AdminPanel() {
                 <div className={styles.confirmActions}>
                   <button className={styles.btnDanger}
                     onClick={async () => {
-                      await fetch(`/api/import-export/listings/${listingRejectModal._id}/status`, {
+                      const r = await fetch(`/api/import-export/listings/${listingRejectModal._id}/status`, {
                         method: "PATCH", headers,
                         body: JSON.stringify({ status: "rejected", adminNote: listingRejectNote }),
                       });
-                      showToast("Annonce refusée.", "error");
-                      setListingRejectModal(null);
-                      loadImporters();
+                      if (r.ok) {
+                        showToast("Annonce refusée.", "error");
+                        setListingRejectModal(null);
+                        loadImporters();
+                      } else {
+                        const d = await r.json().catch(() => ({}));
+                        showToast(d.message || "Erreur lors du refus.", "error");
+                      }
                     }}>Confirmer le refus</button>
                   <button className={styles.btnGhost} onClick={() => setListingRejectModal(null)}>Annuler</button>
                 </div>
               </div>
             </div>
           )}
+
+          {/* ══ MODAL DOSSIER EXPORTATEUR ══ */}
+          {exporterDetail && (() => {
+            const p = exporterDetail;
+            const u = p.userId || {};
+            const BADGE_CFG = {
+              none:     null,
+              silver:   { icon: "🥈", label: "Silver",   color: "#64748b", bg: "#f1f5f9" },
+              gold:     { icon: "🥇", label: "Gold",     color: "#d97706", bg: "#fffbeb" },
+              platinum: { icon: "💎", label: "Platinum", color: "#6d28d9", bg: "#ede9fe" },
+            };
+            const STATUS_CFG = {
+              pending:       { label: "En attente",    color: "#d97706", bg: "#fef3c7" },
+              verified:      { label: "Vérifié",       color: "#059669", bg: "#dcfce7" },
+              rejected:      { label: "Refusé",        color: "#dc2626", bg: "#fee2e2" },
+              suspended:     { label: "Suspendu",      color: "#dc2626", bg: "#fee2e2" },
+              not_submitted: { label: "Non soumis",    color: "#94a3b8", bg: "#f8fafc" },
+            };
+            const stCfg   = STATUS_CFG[p.status]      || STATUS_CFG.not_submitted;
+            const badgeCfg = BADGE_CFG[p.badgeLevel]  || null;
+            const ACTIVITY_LABELS = { import: "Import", export: "Export", transit: "Transit", courtage: "Courtage", pieces_detachees: "Pièces détachées" };
+            const DOC_KEYS = [
+              { key: "rccmImage",    label: "Registre du Commerce (RCCM)" },
+              { key: "taxIdImage",   label: "Identifiant Fiscal (NIF)" },
+              { key: "licenseImage", label: "Agrément importateur/exportateur" },
+              { key: "companyLogo",  label: "Logo de l'entreprise" },
+              { key: "bankStatement",label: "Relevé bancaire" },
+              { key: "otherDoc",     label: "Autre document" },
+            ];
+            const hasDoc = DOC_KEYS.some(({ key }) => !!p.documents?.[key]);
+
+            const Row = ({ label, value }) => (
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <span style={{ fontSize: ".71rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: ".05em" }}>{label}</span>
+                <span style={{ fontSize: ".88rem", color: "#0f1b3f", fontWeight: 600 }}>{value || "—"}</span>
+              </div>
+            );
+
+            return (
+              <div className={styles.overlay} onClick={() => setExporterDetail(null)}
+                style={{ alignItems: "flex-start", paddingTop: "2vh", overflowY: "auto" }}>
+                <div onClick={(e) => e.stopPropagation()}
+                  style={{ background: "#fff", borderRadius: 16, width: "min(960px, 96vw)", maxHeight: "95dvh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 24px 60px rgba(0,0,0,.22)" }}>
+
+                  {/* ── Header ── */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px 14px", borderBottom: "1.5px solid #e2e8f0", flexShrink: 0, background: "#f8fafc" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                      {p.documents?.companyLogo ? (
+                        <img src={p.documents.companyLogo} alt="logo"
+                          style={{ width: 52, height: 52, borderRadius: 10, objectFit: "contain", border: "1.5px solid #e2e8f0", background: "#fff", padding: 4 }}
+                          onError={(e) => { e.target.style.display = "none"; }} />
+                      ) : (
+                        <div style={{ width: 52, height: 52, borderRadius: 10, background: "#e0e7ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.6rem" }}>📦</div>
+                      )}
+                      <div>
+                        <h2 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 900, color: "#0f1b3f" }}>{p.companyName}</h2>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+                          <span style={{ background: stCfg.bg, color: stCfg.color, padding: "2px 12px", borderRadius: 99, fontWeight: 800, fontSize: ".76rem" }}>{stCfg.label}</span>
+                          {badgeCfg && <span style={{ background: badgeCfg.bg, color: badgeCfg.color, padding: "2px 12px", borderRadius: 99, fontWeight: 700, fontSize: ".76rem" }}>{badgeCfg.icon} {badgeCfg.label}</span>}
+                          <span style={{ fontSize: ".75rem", color: "#94a3b8" }}>ID : {p._id}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <button onClick={() => setExporterDetail(null)}
+                      style={{ background: "#f1f5f9", border: "none", borderRadius: 8, width: 34, height: 34, fontSize: "1.1rem", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
+                  </div>
+
+                  {/* ── Body scrollable ── */}
+                  <div style={{ overflowY: "auto", padding: "20px 24px 28px", flex: 1, display: "flex", flexDirection: "column", gap: 20 }}>
+
+                    {/* Actions rapides */}
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      {p.status !== "verified" && (
+                        <button className={styles.btnApprove}
+                          onClick={() => { setExporterDetail(null); setReviewModal(p); setReviewDecision({ status: "verified", rejectionReason: "", badgeLevel: "silver" }); }}>
+                          ✅ Valider le dossier
+                        </button>
+                      )}
+                      {p.status !== "rejected" && (
+                        <button className={styles.btnReject}
+                          onClick={() => { setExporterDetail(null); setReviewModal(p); setReviewDecision({ status: "rejected", rejectionReason: "", badgeLevel: "none" }); }}>
+                          ✕ Refuser le dossier
+                        </button>
+                      )}
+                      {p.status === "verified" && p.status !== "suspended" && (
+                        <button
+                          onClick={async () => {
+                            const r = await fetch(`/api/import-export/importer-profiles/${p._id}/review`, { method: "PATCH", headers, body: JSON.stringify({ status: "suspended" }) });
+                            if (r.ok) { showToast("Dossier suspendu.", "error"); setExporterDetail(null); loadImporters(); }
+                            else showToast("Erreur lors de la suspension.", "error");
+                          }}
+                          style={{ padding: "7px 16px", borderRadius: 8, border: "1.5px solid #fca5a5", background: "#fef2f2", color: "#dc2626", fontWeight: 700, fontSize: ".82rem", cursor: "pointer" }}>
+                          ⏸ Suspendre
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Grille principale : partenaire + entreprise */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+
+                      {/* Infos partenaire (utilisateur) */}
+                      <div style={{ background: "#f8fafc", borderRadius: 12, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
+                        <h3 style={{ margin: 0, fontSize: ".88rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}>👤 Informations partenaire</h3>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          {u.profilePhoto ? (
+                            <img src={u.profilePhoto} alt="" style={{ width: 54, height: 54, borderRadius: "50%", objectFit: "cover", border: "2px solid #e2e8f0" }} onError={(e) => { e.target.style.display = "none"; }} />
+                          ) : (
+                            <div style={{ width: 54, height: 54, borderRadius: "50%", background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem", flexShrink: 0 }}>
+                              {(u.firstName?.[0] || "?").toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            <div style={{ fontWeight: 800, color: "#0f1b3f" }}>{u.firstName} {u.lastName}</div>
+                            <div style={{ fontSize: ".78rem", color: "#64748b", marginTop: 2 }}>{u.role || "partenaire"}</div>
+                          </div>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                          <Row label="Email" value={u.email} />
+                          <Row label="Téléphone" value={u.phone} />
+                          <Row label="Statut compte" value={u.isActive === false ? "🚫 Bloqué" : "✅ Actif"} />
+                          <Row label="Dossier soumis le" value={fmtDate(p.submittedAt)} />
+                        </div>
+                      </div>
+
+                      {/* Infos entreprise */}
+                      <div style={{ background: "#f8fafc", borderRadius: 12, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+                        <h3 style={{ margin: 0, fontSize: ".88rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}>🏢 Informations entreprise</h3>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                          <Row label="Raison sociale" value={p.companyName} />
+                          <Row label="RCCM" value={p.rccm} />
+                          <Row label="NIF / Identifiant fiscal" value={p.taxId} />
+                          <Row label="Agrément" value={p.operatingLicense} />
+                          <Row label="Adresse" value={p.address} />
+                          <Row label="Ville" value={p.city} />
+                          <Row label="Pays" value={p.country} />
+                          <Row label="Site web" value={p.website ? <a href={safeHref(p.website)} target="_blank" rel="noreferrer noopener" style={{ color: "#2563eb" }}>{p.website}</a> : "—"} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Activités & portée */}
+                    <div style={{ background: "#f8fafc", borderRadius: 12, padding: "16px 18px" }}>
+                      <h3 style={{ margin: "0 0 14px", fontSize: ".88rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}>🌍 Activités & portée</h3>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", gap: 14 }}>
+                        <div>
+                          <div style={{ fontSize: ".72rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", marginBottom: 6 }}>Types d'activité</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                            {(p.activityType || []).length > 0
+                              ? (p.activityType).map((a) => (
+                                <span key={a} style={{ background: "#e0e7ff", color: "#3730a3", padding: "3px 10px", borderRadius: 99, fontSize: ".78rem", fontWeight: 700 }}>
+                                  {ACTIVITY_LABELS[a] || a}
+                                </span>
+                              ))
+                              : <span style={{ color: "#94a3b8", fontSize: ".82rem" }}>—</span>
+                            }
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: ".72rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", marginBottom: 6 }}>Pays d'opération</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                            {(p.operatingCountries || []).length > 0
+                              ? p.operatingCountries.map((c) => (
+                                <span key={c} style={{ background: "#dcfce7", color: "#166534", padding: "3px 10px", borderRadius: 99, fontSize: ".78rem", fontWeight: 700 }}>{c}</span>
+                              ))
+                              : <span style={{ color: "#94a3b8", fontSize: ".82rem" }}>—</span>
+                            }
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: ".72rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", marginBottom: 6 }}>Catégories de véhicules</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                            {(p.vehicleCategories || []).length > 0
+                              ? p.vehicleCategories.map((c) => (
+                                <span key={c} style={{ background: "#fef3c7", color: "#92400e", padding: "3px 10px", borderRadius: 99, fontSize: ".78rem", fontWeight: 700 }}>{c}</span>
+                              ))
+                              : <span style={{ color: "#94a3b8", fontSize: ".82rem" }}>—</span>
+                            }
+                          </div>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                          <Row label="Volume annuel" value={p.annualVolume} />
+                          <Row label="Années d'expérience" value={p.yearsExperience != null ? `${p.yearsExperience} an${p.yearsExperience > 1 ? "s" : ""}` : "—"} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Références & description */}
+                    {(p.references || p.description) && (
+                      <div style={{ background: "#f8fafc", borderRadius: 12, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
+                        <h3 style={{ margin: 0, fontSize: ".88rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}>📝 Présentation & références</h3>
+                        {p.description && (
+                          <div>
+                            <div style={{ fontSize: ".72rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", marginBottom: 4 }}>Description</div>
+                            <p style={{ margin: 0, fontSize: ".88rem", color: "#334155", lineHeight: 1.6 }}>{p.description}</p>
+                          </div>
+                        )}
+                        {p.references && (
+                          <div>
+                            <div style={{ fontSize: ".72rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", marginBottom: 4 }}>Références / Clients notables</div>
+                            <p style={{ margin: 0, fontSize: ".88rem", color: "#334155", lineHeight: 1.6 }}>{p.references}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Documents */}
+                    {hasDoc && (
+                      <div style={{ background: "#f8fafc", borderRadius: 12, padding: "16px 18px" }}>
+                        <h3 style={{ margin: "0 0 14px", fontSize: ".88rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}>📁 Documents fournis</h3>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px,1fr))", gap: 12 }}>
+                          {DOC_KEYS.map(({ key, label }) => p.documents?.[key] ? (
+                            <div key={key} style={{ border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
+                              <div style={{ fontSize: ".7rem", fontWeight: 700, color: "#64748b", padding: "5px 10px", background: "#f1f5f9", textTransform: "uppercase", letterSpacing: ".04em" }}>{label}</div>
+                              <a href={safeImgHref(p.documents[key])} target="_blank" rel="noreferrer noopener">
+                                <img src={p.documents[key]} alt={label}
+                                  style={{ width: "100%", height: 110, objectFit: "cover", display: "block" }}
+                                  onError={(e) => { e.target.parentElement.innerHTML = `<div style="height:110px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:.8rem;padding:8px;text-align:center">Aperçu indisponible</div>`; }} />
+                              </a>
+                              <div style={{ padding: "6px 10px" }}>
+                                <a href={safeImgHref(p.documents[key])} target="_blank" rel="noreferrer noopener" style={{ fontSize: ".75rem", color: "#2563eb", textDecoration: "underline" }}>
+                                  Voir en plein écran ↗
+                                </a>
+                              </div>
+                            </div>
+                          ) : null)}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Statut de vérification */}
+                    <div style={{ background: "#f8fafc", borderRadius: 12, padding: "16px 18px" }}>
+                      <h3 style={{ margin: "0 0 14px", fontSize: ".88rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}>🔍 Statut de vérification</h3>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 12 }}>
+                        <Row label="Statut actuel" value={<span style={{ color: stCfg.color, fontWeight: 800 }}>{stCfg.label}</span>} />
+                        <Row label="Badge attribué" value={badgeCfg ? `${badgeCfg.icon} ${badgeCfg.label}` : "Aucun"} />
+                        <Row label="Soumis le" value={fmtDate(p.submittedAt)} />
+                        <Row label="Examiné le" value={fmtDate(p.reviewedAt)} />
+                        {p.reviewedBy && <Row label="Examiné par" value={`${p.reviewedBy.firstName || ""} ${p.reviewedBy.lastName || ""}`} />}
+                      </div>
+                      {p.rejectionReason && (
+                        <div style={{ marginTop: 14, background: "#fef2f2", border: "1.5px solid #fecaca", borderRadius: 8, padding: "10px 14px" }}>
+                          <div style={{ fontSize: ".72rem", fontWeight: 700, color: "#dc2626", textTransform: "uppercase", marginBottom: 4 }}>Motif du refus</div>
+                          <p style={{ margin: 0, fontSize: ".88rem", color: "#991b1b" }}>{p.rejectionReason}</p>
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </>
       )}
 
@@ -3396,7 +3649,7 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
     else showToast("Erreur refus", "error");
   };
   const handleRejectVehicle = async () => {
-    const r = await fetch(`/api/vehicles/${rejectModal.vid}/status`, { method: "PATCH", headers, body: JSON.stringify({ status: "rejected", reason: rejectReason }) });
+    const r = await fetch(`/api/vehicles/${rejectModal.vid}/status`, { method: "PATCH", headers, body: JSON.stringify({ status: "rejected", rejectionReason: rejectReason }) });
     if (r.ok) { showToast("Annonce rejetée"); setRejectModal(null); setRejectReason(""); onRefresh(); }
     else showToast("Erreur", "error");
   };

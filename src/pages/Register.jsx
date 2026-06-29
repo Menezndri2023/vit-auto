@@ -272,7 +272,7 @@ const Register = () => {
               onChange={handleChange}
               placeholder="Mot de passe *"
               required
-              minLength="6"
+              minLength="8"
             />
             <input
               type="password"
