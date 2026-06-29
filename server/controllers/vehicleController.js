@@ -255,7 +255,7 @@ export const getVehicles = async (req, res) => {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(Number(limit))
-        .populate("owner", "firstName phone ville"),
+        .populate("owner", "firstName phone ville certificationBadge"),
       Vehicle.countDocuments(filter),
     ]);
 
@@ -273,7 +273,7 @@ export const getVehicleById = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(404).json({ message: "Véhicule introuvable." });
     }
-    const vehicle = await Vehicle.findById(id).populate("owner", "firstName lastName phone ville");
+    const vehicle = await Vehicle.findById(id).populate("owner", "firstName lastName phone ville certificationBadge");
     if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable." });
     // Masquer les véhicules non approuvés aux non-admins
     if (vehicle.status !== "approved" && req.user?.role !== "admin" && vehicle.owner?._id?.toString() !== req.user?._id?.toString()) {

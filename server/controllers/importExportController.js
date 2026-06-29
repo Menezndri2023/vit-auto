@@ -325,7 +325,10 @@ export const getListings = async (req, res) => {
   try {
     const { sourceCountry, status = "approved", page = 1, limit = 20, partner } = req.query;
     const filter = { status };
-    if (sourceCountry) filter.sourceCountry = new RegExp(sourceCountry, "i");
+    if (sourceCountry) {
+      const escaped = sourceCountry.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      filter.sourceCountry = new RegExp(escaped, "i");
+    }
     if (partner)       filter.partner = partner;
 
     const [listings, total] = await Promise.all([

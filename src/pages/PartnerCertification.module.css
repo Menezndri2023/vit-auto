@@ -1,0 +1,594 @@
+/* ══════════════════════════════════════════════════════════
+   VIT AUTO — Certification Partenaire — Design Premium
+   ══════════════════════════════════════════════════════════ */
+
+:root {
+  --cert-navy:    #0f1b3f;
+  --cert-blue:    #1e3a6e;
+  --cert-gold:    #f59e0b;
+  --cert-green:   #059669;
+  --cert-purple:  #6366f1;
+  --cert-red:     #dc2626;
+  --cert-text:    #0f172a;
+  --cert-sub:     #64748b;
+  --cert-border:  #e2e8f0;
+  --cert-bg:      #f1f5f9;
+  --cert-card:    #ffffff;
+  --cert-radius:  16px;
+  --cert-shadow:  0 4px 24px rgba(15,23,42,.09);
+}
+
+/* ── Page ──────────────────────────────────────────────────── */
+.page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px 16px 80px;
+  box-sizing: border-box;
+}
+
+/* ── Loading ───────────────────────────────────────────────── */
+.loadingWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  gap: 16px;
+  color: var(--cert-sub);
+}
+.spinner {
+  width: 40px; height: 40px;
+  border: 4px solid #e2e8f0;
+  border-top-color: var(--cert-gold);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Toast ─────────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  top: 80px; right: 20px;
+  z-index: 9999;
+  padding: 14px 20px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  max-width: 360px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.18);
+  animation: slideIn .3s ease;
+}
+.toastSuccess { background: #0f1b3f; color: #f59e0b; }
+.toastError   { background: #dc2626; color: #fff; }
+@keyframes slideIn { from { transform: translateX(120px); opacity:0; } to { transform: none; opacity:1; } }
+
+/* ── Hero ──────────────────────────────────────────────────── */
+.hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+  background: linear-gradient(135deg, var(--cert-navy) 0%, var(--cert-blue) 100%);
+  border-radius: var(--cert-radius);
+  padding: 32px 36px;
+}
+.heroLeft { flex: 1; min-width: 260px; }
+.heroRight {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-shrink: 0;
+}
+
+.backBtn {
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.2);
+  color: rgba(255,255,255,.8);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  margin-bottom: 14px;
+  transition: background .2s;
+}
+.backBtn:hover { background: rgba(255,255,255,.2); }
+
+.heroTitle {
+  font-size: clamp(1.5rem, 3.5vw, 2.1rem);
+  font-weight: 900;
+  color: #fff;
+  margin: 0 0 8px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.heroAccent { color: var(--cert-gold); }
+.heroSub {
+  font-size: 0.9rem;
+  color: rgba(255,255,255,.65);
+  margin: 0;
+  max-width: 500px;
+  line-height: 1.55;
+}
+
+/* ── Badge actuel ──────────────────────────────────────────── */
+.currentBadge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-radius: 12px;
+  backdrop-filter: blur(4px);
+  min-width: 190px;
+}
+.badgeIcon  { font-size: 2rem; }
+.badgeLabel {
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+.badgeScore {
+  font-size: 0.75rem;
+  margin: 2px 0 0;
+}
+
+/* ── Ring SVG ──────────────────────────────────────────────── */
+.ring { flex-shrink: 0; }
+
+/* ── Layout 2 colonnes ─────────────────────────────────────── */
+.layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 800px) {
+  .layout { grid-template-columns: 1fr; }
+}
+
+/* ── Sidebar niveaux ───────────────────────────────────────── */
+.levelSidebar {
+  background: var(--cert-card);
+  border-radius: var(--cert-radius);
+  box-shadow: var(--cert-shadow);
+  overflow: hidden;
+  position: sticky;
+  top: 80px;
+}
+.sidebarTitle {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--cert-sub);
+  padding: 16px 16px 8px;
+  margin: 0;
+  border-bottom: 1px solid var(--cert-border);
+}
+
+.levelBtn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-bottom: 1px solid var(--cert-border);
+  text-align: left;
+  transition: background .15s;
+  position: relative;
+}
+.levelBtn:last-child { border-bottom: none; }
+.levelBtn:hover { background: #f8fafc; }
+
+.levelBtnActive {
+  background: linear-gradient(90deg, rgba(99,102,241,.08) 0%, transparent 100%) !important;
+  border-left: 3px solid var(--lv-color, #6366f1);
+}
+.levelBtnApproved .lvIcon { opacity: 1; }
+
+.lvIcon {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.lvInfo { flex: 1; min-width: 0; }
+.lvTitle {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--cert-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lvSub {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--cert-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lvStatus {
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+/* ── Zone formulaire ───────────────────────────────────────── */
+.formArea {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Bandeau statut ────────────────────────────────────────── */
+.statusBanner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.status_approved    { background: #d1fae5; color: #059669; }
+.status_submitted   { background: #fef3c7; color: #d97706; }
+.status_rejected    { background: #fee2e2; color: #dc2626; }
+.status_in_progress { background: #dbeafe; color: #2563eb; }
+
+/* ── Formulaire ────────────────────────────────────────────── */
+.form {
+  background: var(--cert-card);
+  border-radius: var(--cert-radius);
+  box-shadow: var(--cert-shadow);
+  padding: 32px;
+}
+.formTitle {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--cert-text);
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  letter-spacing: -0.01em;
+}
+.fIcon {
+  width: 40px; height: 40px;
+  background: var(--cert-bg);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  flex-shrink: 0;
+}
+.formDesc {
+  font-size: 0.88rem;
+  color: var(--cert-sub);
+  margin: 0 0 24px;
+  line-height: 1.55;
+}
+
+/* ── Champs ────────────────────────────────────────────────── */
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+@media (max-width: 600px) { .row { grid-template-columns: 1fr; } }
+
+.field { margin-bottom: 16px; }
+.fieldLabel {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--cert-sub);
+  margin-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border: 2px solid var(--cert-border);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  color: var(--cert-text);
+  background: #fafbfc;
+  transition: border-color .2s, box-shadow .2s;
+  appearance: none;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--cert-purple);
+  box-shadow: 0 0 0 3px rgba(99,102,241,.12);
+  background: #fff;
+}
+
+/* ── Section documents ─────────────────────────────────────── */
+.docSection {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--cert-border);
+}
+.docTitle {
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--cert-sub);
+  margin: 0 0 16px;
+}
+.docGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+/* ── File uploader ─────────────────────────────────────────── */
+.fileBox { display: flex; flex-direction: column; gap: 5px; }
+.fileLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--cert-sub);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.fileHint  { font-size: 0.72rem; color: #94a3b8; margin: 0; }
+.fileBtn {
+  padding: 10px 14px;
+  border: 2px dashed var(--cert-border);
+  border-radius: 10px;
+  background: #fafbfc;
+  color: var(--cert-sub);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+  text-align: left;
+}
+.fileBtn:hover { border-color: var(--cert-purple); background: #f5f3ff; }
+
+/* ── Multi-checkbox chips ──────────────────────────────────── */
+.multiCheck { margin-bottom: 18px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.chip {
+  padding: 6px 14px;
+  border: 2px solid var(--cert-border);
+  border-radius: 20px;
+  font-size: 0.8rem;
+  background: #fff;
+  cursor: pointer;
+  transition: all .15s;
+  color: var(--cert-sub);
+}
+.chipActive {
+  border-color: var(--cert-purple);
+  background: #ede9fe;
+  color: var(--cert-purple);
+  font-weight: 600;
+}
+
+/* ── Checkboxes ────────────────────────────────────────────── */
+.checkGroup { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--cert-text);
+}
+.checkbox {
+  width: 18px; height: 18px;
+  accent-color: var(--cert-purple);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ── InfoBox ───────────────────────────────────────────────── */
+.infoBox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin-bottom: 18px;
+}
+.infoBox_info    { background: #eff6ff; color: #2563eb; }
+.infoBox_warning { background: #fffbeb; color: #d97706; border-left: 4px solid #f59e0b; }
+
+/* ── Bouton soumission ─────────────────────────────────────── */
+.submitBtn {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, var(--cert-navy), var(--cert-blue));
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  margin-top: 24px;
+  transition: opacity .2s, transform .15s;
+  letter-spacing: 0.01em;
+}
+.submitBtn:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); }
+.submitBtn:disabled { opacity: .55; cursor: not-allowed; transform: none; background: #94a3b8; }
+
+/* ── Export documents (niveau 6) ───────────────────────────── */
+.exportDocGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.exportDocCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 2px solid var(--cert-border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all .15s;
+  background: #fafbfc;
+}
+.exportDocCard:hover { border-color: var(--cert-purple); background: #f5f3ff; }
+.exportDocActive {
+  border-color: var(--cert-green) !important;
+  background: #d1fae5 !important;
+}
+.exportDocCheck { font-size: 1.1rem; flex-shrink: 0; }
+.exportDocLabel { font-size: 0.83rem; font-weight: 600; color: var(--cert-text); }
+
+.exportScore {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--cert-sub);
+}
+.exportScoreBar {
+  flex: 1;
+  height: 8px;
+  background: var(--cert-border);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.exportScoreBar > div {
+  height: 100%;
+  border-radius: 99px;
+  transition: width .5s ease;
+}
+
+/* ── Contrat (niveau 7) ────────────────────────────────────── */
+.contractList { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+.contractItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  border: 2px solid var(--cert-border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all .15s;
+  background: #fafbfc;
+}
+.contractItemChecked { border-color: var(--cert-green); background: #d1fae5; }
+.contractCheckbox {
+  width: 20px; height: 20px;
+  accent-color: var(--cert-green);
+  flex-shrink: 0;
+  cursor: pointer;
+  margin-top: 1px;
+}
+.contractLabel { font-size: 0.87rem; color: var(--cert-text); line-height: 1.4; }
+
+.signatureBox {
+  background: linear-gradient(135deg, #0f1b3f, #1e3a6e);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 8px;
+}
+.signatureTitle { font-size: 1rem; font-weight: 800; color: var(--cert-gold); margin: 0 0 8px; }
+.signatureSub   { font-size: 0.82rem; color: rgba(255,255,255,.7); margin: 0; line-height: 1.5; }
+
+/* ── Niveau 8 — Panel badge ────────────────────────────────── */
+.level8Panel {
+  margin-top: 40px;
+  background: var(--cert-card);
+  border-radius: var(--cert-radius);
+  box-shadow: var(--cert-shadow);
+  overflow: hidden;
+}
+.l8Header {
+  background: linear-gradient(135deg, var(--cert-navy), var(--cert-blue));
+  padding: 28px 32px;
+}
+.l8Title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 6px;
+}
+.l8Sub { font-size: 0.87rem; color: rgba(255,255,255,.65); margin: 0; }
+
+.badgeGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  padding: 28px 32px;
+}
+@media (max-width: 700px) { .badgeGrid { grid-template-columns: 1fr; } }
+
+.badgeCard {
+  position: relative;
+  padding: 24px;
+  border: 2px solid var(--cert-border);
+  border-radius: 16px;
+  text-align: center;
+  transition: all .2s;
+  background: #fafbfc;
+}
+.badgeCard:hover { border-color: var(--badge-color, #6366f1); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.09); }
+.badgeCardActive {
+  border-color: var(--badge-color, #6366f1) !important;
+  background: var(--cert-card) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--badge-color, #6366f1) 18%, transparent) !important;
+}
+.badgeCardIcon  { display: block; font-size: 2.5rem; margin-bottom: 10px; }
+.badgeCardLabel { font-size: 0.95rem; font-weight: 800; color: var(--cert-text); margin: 0 0 6px; }
+.badgeCardReq   { font-size: 0.78rem; color: var(--cert-sub); margin: 0; }
+.badgeCardOwned {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--badge-color, #6366f1);
+  background: color-mix(in srgb, var(--badge-color, #6366f1) 12%, white);
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+.publicStatement {
+  margin: 0;
+  padding: 20px 32px;
+  border-top: 1px solid var(--cert-border);
+  font-style: italic;
+  color: var(--cert-sub);
+  font-size: 0.9rem;
+}
+.publicStatement cite {
+  display: block;
+  margin-top: 6px;
+  font-style: normal;
+  font-weight: 700;
+  color: var(--cert-gold);
+  font-size: 0.78rem;
+}
+
+/* ── Responsive mobile ─────────────────────────────────────── */
+@media (max-width: 600px) {
+  .hero      { padding: 20px; }
+  .form      { padding: 20px; }
+  .docGrid   { grid-template-columns: 1fr; }
+  .badgeGrid { grid-template-columns: 1fr; }
+}

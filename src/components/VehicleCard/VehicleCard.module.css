@@ -325,6 +325,22 @@
   line-height: 1;
 }
 
+/* ── Badge certification VIT AUTO ─────────────────── */
+.certBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #fff;
+  margin-left: 4px;
+  vertical-align: middle;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
 /* ── Prix ──────────────────────────────────────────── */
 .priceBlock {
   margin-top: 2px;

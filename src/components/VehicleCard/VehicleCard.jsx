@@ -109,6 +109,21 @@ const VehicleCard = React.memo(({ car, compact }) => {
               </span>
               {car.ownerId && <span className={styles.publisherArrow}>›</span>}
             </button>
+            {/* Badge certification VIT AUTO */}
+            {car.certificationBadge && car.certificationBadge !== "none" && (
+              <span
+                className={styles.certBadge}
+                style={{
+                  background:
+                    car.certificationBadge === "premium"   ? "linear-gradient(135deg,#7c3aed,#a855f7)" :
+                    car.certificationBadge === "fondateur" ? "linear-gradient(135deg,#d97706,#f59e0b)" :
+                    "linear-gradient(135deg,#059669,#10b981)",
+                }}
+                title="Partenaire certifié par VIT AUTO"
+              >
+                {car.certificationBadge === "premium" ? "⭐" : car.certificationBadge === "fondateur" ? "🏆" : "🟢"} Vérifié
+              </span>
+            )}
           </div>
         )}
 

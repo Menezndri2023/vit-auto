@@ -51,9 +51,13 @@ const MentionsLegales       = lazy(() => import("./pages/MentionsLegales"));
 const ConditionsPartenaires = lazy(() => import("./pages/ConditionsPartenaires"));
 const ImportExport          = lazy(() => import("./pages/ImportExport"));
 const IEListings            = lazy(() => import("./pages/IEListings"));
+const IEListingDetail       = lazy(() => import("./pages/IEListingDetail"));
+const IETransactionTracking = lazy(() => import("./pages/IETransactionTracking"));
+const IEClientDashboard     = lazy(() => import("./pages/IEClientDashboard"));
 const ImporterApply         = lazy(() => import("./pages/ImporterApply"));
 const ImporterDashboard     = lazy(() => import("./pages/ImporterDashboard"));
 const KYC                   = lazy(() => import("./pages/KYC"));
+const PartnerCertification  = lazy(() => import("./pages/PartnerCertification"));
 
 // ── Routes internes — accès à authReady pour éviter le flash ──────────────
 function AppRoutes() {
@@ -83,8 +87,11 @@ function AppRoutes() {
           <Route path="/partenaires"            element={<Partenaires />} />
           <Route path="/pourquoi"               element={<PourquoiVitAuto />} />
           <Route path="/partner/:id"            element={<PartnerProfile />} />
-          <Route path="/import-export"          element={<ImportExport />} />
-          <Route path="/import-export/listings" element={<IEListings />} />
+          <Route path="/import-export"                    element={<ImportExport />} />
+          <Route path="/import-export/listings"          element={<IEListings />} />
+          <Route path="/import-export/listings/:id"      element={<IEListingDetail />} />
+          <Route path="/import-export/transaction/:id"   element={<IETransactionTracking />} />
+          <Route path="/import-export/dashboard"         element={<IEClientDashboard />} />
 
           {/* ── Pages légales ──────────────────────────────── */}
           <Route path="/privacy"                element={<Privacy />} />
@@ -112,6 +119,7 @@ function AppRoutes() {
           <Route path="/vendor/publish"   element={<PartnerRoute><VendorPublish /></PartnerRoute>} />
           <Route path="/importer-apply"   element={<PartnerRoute><ImporterApply /></PartnerRoute>} />
           <Route path="/importer-dashboard" element={<PartnerRoute><ImporterDashboard /></PartnerRoute>} />
+          <Route path="/partner-certification" element={<PartnerRoute><PartnerCertification /></PartnerRoute>} />
 
           {/* ── Espace admin ────────────────────────────────── */}
           <Route path="/admin"  element={<AdminRoute><ErrorBoundary><AdminPanel /></ErrorBoundary></AdminRoute>} />

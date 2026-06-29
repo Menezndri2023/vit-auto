@@ -116,22 +116,29 @@ function ListingCard({ l, onContact }) {
   const badge = BADGE_CFG[l.importerProfile?.badgeLevel || "none"];
   return (
     <div className={styles.card}>
-      <div className={styles.cardImg}>
-        {l.mainPhoto
-          ? <img src={l.mainPhoto} alt={l.title} />
-          : <div className={styles.cardImgFallback}>🚗</div>
-        }
-        <div className={styles.cardOrigin}>🌍 {l.sourceCountry}</div>
-        {badge.icon && (
-          <div className={styles.cardBadge}>{badge.icon} {badge.label}</div>
-        )}
-        {l.photos?.length > 1 && (
-          <div className={styles.cardPhotoCount}>📷 {l.photos.length}</div>
-        )}
-      </div>
+      <Link to={`/import-export/listings/${l._id}`} className={styles.cardImgLink}>
+        <div className={styles.cardImg}>
+          {l.mainPhoto
+            ? <img src={l.mainPhoto} alt={l.title} />
+            : <div className={styles.cardImgFallback}>🚗</div>
+          }
+          <div className={styles.cardOrigin}>🌍 {l.sourceCountry}</div>
+          {badge.icon && (
+            <div className={styles.cardBadge}>{badge.icon} {badge.label}</div>
+          )}
+          {l.photos?.length > 1 && (
+            <div className={styles.cardPhotoCount}>📷 {l.photos.length}</div>
+          )}
+          {l.inspectionReport && (
+            <div className={styles.cardInspected}>🔍 Inspecté</div>
+          )}
+        </div>
+      </Link>
 
       <div className={styles.cardBody}>
-        <p className={styles.cardTitle}>{l.title}</p>
+        <Link to={`/import-export/listings/${l._id}`} className={styles.cardTitleLink}>
+          <p className={styles.cardTitle}>{l.title}</p>
+        </Link>
         <span className={styles.cardMeta}>
           {l.make} {l.model} {l.year} · {FUEL_LABELS[l.fuelType] || l.fuelType} · {l.condition === "neuf" ? "Neuf" : l.condition === "occasion" ? "Occasion" : "Reconditionné"}
         </span>
@@ -151,16 +158,20 @@ function ListingCard({ l, onContact }) {
           <div className={styles.cardCompany}>🏢 {l.importerProfile.companyName}</div>
         )}
 
+        {l.estimatedDelay && (
+          <div className={styles.cardDelay}>⏱️ {l.estimatedDelay}</div>
+        )}
+
         <div className={styles.cardFooter}>
           <div>
             <span className={styles.cardPrice}>{fmtPrice(l.price, l.currency)}</span>
-            {l.negotiable && <span className={styles.cardNeg}>Prix négociable</span>}
+            {l.negotiable && <span className={styles.cardNeg}>Négociable</span>}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span className={styles.cardViews}>👁️ {l.views || 0}</span>
-            <button className={styles.cardCta} onClick={() => onContact(l)}>
-              Contacter →
-            </button>
+            <Link to={`/import-export/listings/${l._id}`} className={styles.cardCta}>
+              Voir →
+            </Link>
           </div>
         </div>
       </div>

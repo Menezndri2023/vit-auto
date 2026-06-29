@@ -116,8 +116,9 @@ const normalizeVehicle = (v) => {
     ownerId,
     ownerName,
     ownerPhone:   v.owner?.phone || v.contactTel || null,
-    ownerCity:    v.owner?.city  || v.ville || null,
-    ownerType:    v.owner?.partnerType || null,
+    ownerCity:            v.owner?.city  || v.ville || null,
+    ownerType:            v.owner?.partnerType || null,
+    certificationBadge:  v.owner?.certificationBadge || null,
   };
 };
 

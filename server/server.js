@@ -23,6 +23,7 @@ import invoiceRoutes       from "./routes/invoices.js";
 import adsRoutes           from "./routes/ads.js";
 import geoRoutes           from "./routes/geo.js";
 import kycRoutes           from "./routes/kyc.js";
+import certificationRoutes from "./routes/partnerCertification.js";
 
 dotenv.config();
 
@@ -180,6 +181,7 @@ app.use("/api/invoices",       apiLimiter,       invoiceRoutes);
 app.use("/api/ads",            catalogueLimiter, adsRoutes);
 app.use("/api/geo",            apiLimiter,       geoRoutes);
 app.use("/api/kyc",            uploadLimiter,    kycRoutes);        // KYC = ressource intensive
+app.use("/api/certification",  uploadLimiter,    certificationRoutes); // Certification partenaire
 
 // ── 404 ───────────────────────────────────────────────────────────────────
 app.use((req, res) => {

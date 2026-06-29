@@ -157,6 +157,18 @@ const userSchema = new mongoose.Schema({
     profileId: { type: mongoose.Schema.Types.ObjectId, ref: "ImporterPartnerProfile", default: null },
   },
 
+  // ── Certification Partenaire Vérifié Vit-Auto ──────────────────────────────
+  certificationBadge: {
+    type: String,
+    enum: ["none", "verifie", "fondateur", "premium"],
+    default: "none",
+  },
+  certificationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "PartnerCertification",
+    default: null,
+  },
+
   documentsVerified: { type: Boolean, default: false },
   isActive:          { type: Boolean, default: true },
   lastLogin:         { type: Date,    default: null },

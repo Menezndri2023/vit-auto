@@ -182,6 +182,26 @@ function ListingForm({ onClose, onSaved, token }) {
   );
 }
 
+const TX_STATUS_CFG = {
+  reserved:             { label: "Réservé",            color: "#2563eb", bg: "#eff6ff" },
+  confirmed:            { label: "Confirmé",            color: "#059669", bg: "#ecfdf5" },
+  in_discussion:        { label: "En discussion",       color: "#6366f1", bg: "#f0f4ff" },
+  inspection_requested: { label: "Inspection demandée", color: "#d97706", bg: "#fffbeb" },
+  inspection_done:      { label: "Inspection terminée", color: "#059669", bg: "#ecfdf5" },
+  offer_sent:           { label: "Offre envoyée",       color: "#9333ea", bg: "#fdf4ff" },
+  offer_accepted:       { label: "Offre acceptée",      color: "#9333ea", bg: "#fdf4ff" },
+  payment_pending:      { label: "Paiement en attente", color: "#ea580c", bg: "#fff7ed" },
+  in_escrow:            { label: "Fonds sécurisés",     color: "#059669", bg: "#ecfdf5" },
+  preparing:            { label: "Préparation export",  color: "#6366f1", bg: "#f0f4ff" },
+  shipped:              { label: "Expédié",             color: "#2563eb", bg: "#eff6ff" },
+  in_transit:           { label: "En transit",          color: "#2563eb", bg: "#eff6ff" },
+  delivered:            { label: "Livré",               color: "#059669", bg: "#ecfdf5" },
+  funds_released:       { label: "Fonds libérés",       color: "#059669", bg: "#ecfdf5" },
+  completed:            { label: "Terminé",             color: "#d97706", bg: "#fffbeb" },
+  disputed:             { label: "Litige",              color: "#dc2626", bg: "#fef2f2" },
+  cancelled:            { label: "Annulé",              color: "#94a3b8", bg: "#f1f5f9" },
+};
+
 /* ═══════════════════════════════════════════════════════════════════════════ */
 export default function ImporterDashboard() {
   const { user, isAuthenticated, token } = useAuth();
@@ -190,6 +210,7 @@ export default function ImporterDashboard() {
   const [activeTab, setActiveTab]   = useState("overview");
   const [profile, setProfile]       = useState(null);
   const [listings, setListings]     = useState([]);
+  const [transactions, setTransactions] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [showForm, setShowForm]     = useState(false);
   const [toast, setToast]           = useState(null);
@@ -205,12 +226,14 @@ export default function ImporterDashboard() {
     if (!token) return;
     setLoading(true);
     try {
-      const [pRes, lRes] = await Promise.all([
+      const [pRes, lRes, txRes] = await Promise.all([
         fetch("/api/import-export/importer-profile", { headers }),
         fetch("/api/import-export/listings/mine",    { headers }),
+        fetch("/api/import-export/transactions/partner?limit=50", { headers }),
       ]);
-      if (pRes.ok) { const d = await pRes.json(); setProfile(d.profile); }
-      if (lRes.ok) { const d = await lRes.json(); setListings(d.listings || []); }
+      if (pRes.ok)  { const d = await pRes.json();  setProfile(d.profile); }
+      if (lRes.ok)  { const d = await lRes.json();  setListings(d.listings || []); }
+      if (txRes.ok) { const d = await txRes.json(); setTransactions(d.transactions || []); }
     } catch {}
     setLoading(false);
   }, [token]);
@@ -230,10 +253,10 @@ export default function ImporterDashboard() {
   const isVerified = profile?.status === "verified";
 
   const stats = [
-    { icon: "📢", label: "Annonces total",   value: listings.length },
+    { icon: "📢", label: "Annonces",          value: listings.length },
     { icon: "✅", label: "Publiées",          value: listings.filter((l) => l.status === "approved").length, color: "#10b981" },
-    { icon: "⏳", label: "En attente",        value: listings.filter((l) => l.status === "pending").length,  color: "#f59e0b" },
-    { icon: "👁️", label: "Vues totales",      value: listings.reduce((acc, l) => acc + (l.views || 0), 0),   color: "#6366f1" },
+    { icon: "📋", label: "Transactions",      value: transactions.length, color: "#6366f1" },
+    { icon: "🔴", label: "À traiter",         value: transactions.filter((t) => ["reserved", "in_escrow", "preparing"].includes(t.status)).length, color: "#ef4444" },
   ];
 
   return (
@@ -258,9 +281,10 @@ export default function ImporterDashboard() {
 
         <nav className={styles.sideNav}>
           {[
-            { key: "overview",  icon: "📊", label: "Vue d'ensemble" },
-            { key: "listings",  icon: "📢", label: "Mes annonces" },
-            { key: "profile",   icon: "🏢", label: "Mon profil importateur" },
+            { key: "overview",      icon: "📊", label: "Vue d'ensemble" },
+            { key: "transactions",  icon: "📋", label: "Transactions", badge: transactions.filter((t) => ["reserved", "in_escrow", "preparing"].includes(t.status)).length },
+            { key: "listings",      icon: "📢", label: "Mes annonces" },
+            { key: "profile",       icon: "🏢", label: "Mon profil importateur" },
           ].map((t) => (
             <button
               key={t.key}
@@ -268,6 +292,7 @@ export default function ImporterDashboard() {
               onClick={() => setActiveTab(t.key)}
             >
               <span>{t.icon}</span> {t.label}
+              {t.badge > 0 && <span className={styles.navBadge}>{t.badge}</span>}
             </button>
           ))}
         </nav>
@@ -364,6 +389,56 @@ export default function ImporterDashboard() {
                             <span className={styles.price}>{fmtPrice(l.price, l.currency)}</span>
                           </div>
                         </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── TRANSACTIONS ── */}
+            {activeTab === "transactions" && (
+              <div className={styles.tabContent}>
+                <h2 className={styles.tabTitle}>Mes transactions</h2>
+                <p className={styles.tabSub}>Gérez les réservations et commandes de vos clients.</p>
+
+                {transactions.length === 0 ? (
+                  <div className={styles.emptyState}>
+                    <span>📋</span>
+                    <p>Aucune transaction pour l'instant. Lorsque des clients réservent vos véhicules, elles apparaissent ici.</p>
+                  </div>
+                ) : (
+                  <div className={styles.txList}>
+                    {transactions.map((tx) => {
+                      const cfg = TX_STATUS_CFG[tx.status] || { label: tx.status, color: "#64748b", bg: "#f8fafc" };
+                      const isUrgent = ["reserved", "in_escrow"].includes(tx.status);
+                      return (
+                        <Link
+                          key={tx._id}
+                          to={`/import-export/transaction/${tx._id}`}
+                          className={`${styles.txRow} ${isUrgent ? styles.txRowUrgent : ""}`}
+                        >
+                          <div className={styles.txRowImg}>
+                            {tx.listing?.mainPhoto
+                              ? <img src={tx.listing.mainPhoto} alt="" />
+                              : <span>🚗</span>
+                            }
+                          </div>
+                          <div className={styles.txRowInfo}>
+                            <strong>{tx.listing?.title || "Véhicule"}</strong>
+                            <span>{tx.listing?.make} {tx.listing?.model} {tx.listing?.year}</span>
+                            <span>Client : {tx.client?.firstName} {tx.client?.lastName}</span>
+                            {tx.destCountry && <span>→ {tx.destCountry}</span>}
+                          </div>
+                          <div className={styles.txRowRight}>
+                            <span className={styles.badge} style={{ color: cfg.color, background: cfg.bg }}>{cfg.label}</span>
+                            {tx.finalOffer?.totalAmount && (
+                              <span className={styles.price}>{fmtPrice(tx.finalOffer.totalAmount, tx.finalOffer.currency)}</span>
+                            )}
+                            <span className={styles.txDate}>{fmtDate(tx.createdAt)}</span>
+                            {isUrgent && <span className={styles.urgentTag}>Action requise →</span>}
+                          </div>
+                        </Link>
                       );
                     })}
                   </div>

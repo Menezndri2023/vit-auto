@@ -4,24 +4,34 @@ import { useVehicles } from "../context/VehicleContext";
 import VehicleCard from "../components/VehicleCard/VehicleCard";
 import styles from "./PartnerProfile.module.css";
 
+const CERT_BADGE = {
+  premium:   { icon: "⭐", label: "Partenaire Premium",   bg: "linear-gradient(135deg,#7c3aed,#a855f7)", color: "#fff" },
+  fondateur: { icon: "🏆", label: "Partenaire Fondateur", bg: "linear-gradient(135deg,#d97706,#f59e0b)", color: "#fff" },
+  verifie:   { icon: "🟢", label: "Partenaire Vérifié",   bg: "linear-gradient(135deg,#059669,#10b981)", color: "#fff" },
+};
+
 export default function PartnerProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { vehicles } = useVehicles();
   const [partner, setPartner] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [certBadge, setCertBadge] = useState(null);
 
-  // Récupérer les infos du partenaire depuis l'API
   useEffect(() => {
     if (!id) { setLoading(false); return; }
-    fetch(`/api/users/${id}/public`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => setPartner(data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    // Profil partenaire + certification en parallèle
+    Promise.all([
+      fetch(`/api/users/${id}/public`).then((r) => r.ok ? r.json() : null).catch(() => null),
+      fetch(`/api/certification/public/${id}`).then((r) => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([partnerData, certData]) => {
+      setPartner(partnerData);
+      if (certData?.certificationBadge && certData.certificationBadge !== "none") {
+        setCertBadge({ ...CERT_BADGE[certData.certificationBadge], score: certData.certificationScore, statement: certData.publicStatement });
+      }
+    }).finally(() => setLoading(false));
   }, [id]);
 
-  // Véhicules du partenaire (depuis le contexte local)
   const partnerVehicles = vehicles.filter((v) => {
     const vid = v.ownerId || v.owner?._id || v.owner?.id || v.owner;
     return String(vid) === String(id) && v.available !== false;
@@ -68,7 +78,19 @@ export default function PartnerProfile() {
         </div>
 
         <div className={styles.info}>
-          <h1>{displayName}</h1>
+          <div className={styles.nameRow}>
+            <h1>{displayName}</h1>
+            {/* ── Badge de certification VIT AUTO ── */}
+            {certBadge && (
+              <span
+                className={styles.certificationBadge}
+                style={{ background: certBadge.bg, color: certBadge.color }}
+                title={`Certifié par VIT AUTO — Score ${certBadge.score}/100`}
+              >
+                {certBadge.icon} {certBadge.label}
+              </span>
+            )}
+          </div>
           <p className={styles.type}>{partnerType}</p>
           {partner?.defaultLocation?.city && (
             <p className={styles.location}>📍 {partner.defaultLocation.city}</p>
@@ -80,6 +102,44 @@ export default function PartnerProfile() {
             <a href={`tel:${partner.phone}`} className={styles.phoneLink}>
               📞 {partner.phone}
             </a>
+          )}
+
+          {/* ── Explication badge VIT AUTO ── */}
+          {certBadge && (
+            <div className={styles.certExplainer}>
+              <div className={styles.certExplainerInner}>
+                <span className={styles.certExplainerIcon}>🛡️</span>
+                <div>
+                  <p className={styles.certExplainerTitle}>Vérifié par VIT AUTO</p>
+                  <p className={styles.certExplainerSub}>
+                    Ce partenaire a été soumis à un processus de certification rigoureux :
+                    vérification de l'entreprise, identité du représentant, activité commerciale,
+                    compte bancaire professionnel et documents d'export.
+                  </p>
+                  {certBadge.statement && (
+                    <p className={styles.certStatement}>"{certBadge.statement}"</p>
+                  )}
+                </div>
+              </div>
+              <div className={styles.certScore}>
+                <svg width="48" height="48" viewBox="0 0 48 48">
+                  <circle cx="24" cy="24" r="19" fill="none" stroke="#e2e8f0" strokeWidth="4" />
+                  <circle
+                    cx="24" cy="24" r="19"
+                    fill="none"
+                    stroke="#f59e0b"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    strokeDasharray={`${2 * Math.PI * 19}`}
+                    strokeDashoffset={`${2 * Math.PI * 19 * (1 - (certBadge.score || 0) / 100)}`}
+                    transform="rotate(-90 24 24)"
+                  />
+                  <text x="24" y="28" textAnchor="middle" fontSize="10" fontWeight="800" fill="#0f172a">
+                    {certBadge.score}%
+                  </text>
+                </svg>
+              </div>
+            </div>
           )}
         </div>
       </div>

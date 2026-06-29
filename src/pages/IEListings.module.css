@@ -626,3 +626,10 @@
   .cardTitle { font-size: .88rem; }
   .cardPrice { font-size: 1rem; }
 }
+
+/* ── Nouveaux styles (lien détail + inspection badge) ── */
+.cardImgLink { display: block; text-decoration: none; }
+.cardTitleLink { text-decoration: none; color: inherit; }
+.cardTitleLink:hover .cardTitle { color: #6366f1; }
+.cardInspected { position: absolute; top: 8px; left: 8px; background: rgba(16,185,129,.9); color: #fff; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px; backdrop-filter: blur(4px); }
+.cardDelay { font-size: 11px; color: #6366f1; margin: 4px 0 0; }

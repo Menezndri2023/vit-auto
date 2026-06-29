@@ -38,9 +38,32 @@ const importExportListingSchema = new mongoose.Schema({
   negotiable:    { type: Boolean, default: false },
   stockQty:      { type: Number, default: 1 },
 
+  // ── Identifiants véhicule ──────────────────────────────────────
+  vin:          { type: String, trim: true, default: null },  // Vehicle Identification Number
+  vehicleHistory:{ type: String, trim: true, default: null }, // Historique (accidents, entretien, propriétaires)
+
+  // ── Logistique & coûts estimatifs ─────────────────────────────
+  estimatedShippingCost: { type: Number, default: null },      // en EUR
+  shippingCostCurrency:  { type: String, default: "EUR" },
+  estimatedDelay:        { type: String, trim: true, default: null }, // ex: "30-45 jours"
+  shippingType:          {
+    type: String,
+    enum: ["maritime", "terrestre", "aerien", "multiple", null],
+    default: null,
+  },
+  exportDocumentsAvailable: { type: [String], default: [] }, // ["facture", "connaissement", "certificat_origine"...]
+
+  // ── Rapport d'inspection (ref) ─────────────────────────────────
+  inspectionReport: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "InspectionReport",
+    default: null,
+  },
+
   // ── Médias ─────────────────────────────────────────────────────
-  photos: { type: [String], default: [] },         // base64 ou URLs
-  mainPhoto: { type: String, default: null },
+  photos:   { type: [String], default: [] },       // base64 ou URLs
+  mainPhoto:{ type: String,   default: null },
+  videoUrl: { type: String,   trim: true, default: null }, // lien vidéo (YouTube, MP4...)
 
   // ── Statut publication ─────────────────────────────────────────
   status: {

@@ -1,0 +1,369 @@
+import PartnerCertification from "../models/PartnerCertification.js";
+import User from "../models/User.js";
+import Notification from "../models/Notification.js";
+import { sendEmail } from "../config/email.js";
+
+// ── Champs autorisés par niveau (whitelist anti mass-assignment) ──────────────
+const LEVEL_ALLOWED_FIELDS = {
+  1: ["companyName","legalForm","country","registrationType","registrationNumber",
+      "taxId","officialAddress","city","website","businessEmail",
+      "registrationDoc","taxDoc","addressProofDoc"],
+  2: ["repFirstName","repLastName","repFunction","repIdType","repIdNumber",
+      "hasProfCard","videoCallDone","videoCallDate",
+      "idFrontDoc","idBackDoc","selfieDoc","profCardDoc"],
+  3: ["yearsExperience","exportCountries","monthlyVolume","portsUsed",
+      "paymentMethods","averageDelay","activityTypes","vehicleCategories"],
+  4: ["bankName","accountHolder","iban","swift","bankCountry","bankDoc"],
+  5: ["make","model","year","vin","mileage","hasVideo","hasInspection","hasHistory",
+      "grayCardDoc","photoDoc","invoiceDoc"],
+  6: ["canProvideProforma","canProvideCommercialInvoice","canProvidePackingList",
+      "canProvideBillOfLading","canProvideOriginCert","canProvideInspectionCert",
+      "canProvideCustomsDocs","sampleDoc"],
+  7: ["agreedToGCU","agreedToCharte","agreedToAntifraud",
+      "agreedToDelays","agreedToDataProt","agreedToRefund"],
+};
+
+// ── Extraire uniquement les champs autorisés d'un payload ────────────────────
+function pickAllowed(payload, lvlNum) {
+  const allowed = LEVEL_ALLOWED_FIELDS[lvlNum] || [];
+  const safe = {};
+  for (const key of allowed) {
+    if (key in payload) safe[key] = payload[key];
+  }
+  return safe;
+}
+
+// ── Calcul du score global ───────────────────────────────────────────────────
+function computeScore(cert) {
+  let score = 0;
+  ["level1","level2","level3","level4","level5","level6","level7"].forEach((l) => {
+    if (cert[l]?.status === "approved") score += Math.floor(100 / 8);
+  });
+  if (cert.level8?.badgeAwarded && cert.level8.badgeAwarded !== "none") score += Math.floor(100 / 8);
+  return Math.min(score, 100);
+}
+
+// ── Calcul du badge automatique ─────────────────────────────────────────────
+function computeBadge(cert) {
+  const approved = (l) => cert[l]?.status === "approved";
+  if (cert.level8?.badgeAwarded && cert.level8.badgeAwarded !== "none") return cert.level8.badgeAwarded;
+  if (["level1","level2","level3","level4","level5","level6","level7"].every(approved)) return "fondateur";
+  if (["level1","level2","level3"].every(approved)) return "verifie";
+  return "none";
+}
+
+// ── Sync badge sur le modèle User ────────────────────────────────────────────
+async function syncUserBadge(userId, certBadge) {
+  const badgeLevelMap = { premium: "platinum", fondateur: "gold", verifie: "silver", none: "none" };
+  await User.findByIdAndUpdate(userId, {
+    $set: {
+      certificationBadge: certBadge,
+      "importerProfile.badgeLevel": badgeLevelMap[certBadge] || "none",
+    },
+  });
+}
+
+// ── Audit helper ─────────────────────────────────────────────────────────────
+async function addAudit(certId, action, level, performedBy, note) {
+  await PartnerCertification.findByIdAndUpdate(certId, {
+    $push: { auditLog: { action, level, performedBy: performedBy || null, note, timestamp: new Date() } },
+  }).catch(() => {});
+}
+
+// ── GET /api/certification/status ────────────────────────────────────────────
+export const getStatus = async (req, res) => {
+  try {
+    // Upsert atomique : élimine la race condition findOne + create
+    const cert = await PartnerCertification.findOneAndUpdate(
+      { userId: req.user.id },
+      { $setOnInsert: { userId: req.user.id } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    res.json({ certification: cert });
+  } catch (err) {
+    console.error("certification getStatus:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── POST /api/certification/level/:level ─────────────────────────────────────
+export const submitLevel = async (req, res) => {
+  try {
+    // Seuls les partenaires peuvent certifier (pas les clients, chauffeurs, etc.)
+    if (!["partenaire", "admin"].includes(req.user.role)) {
+      return res.status(403).json({
+        message: "La certification est réservée aux partenaires VIT AUTO.",
+        code: "PARTNER_ONLY",
+      });
+    }
+
+    const lvlNum = parseInt(req.params.level, 10);
+    if (isNaN(lvlNum) || lvlNum < 1 || lvlNum > 7) {
+      return res.status(400).json({ message: "Niveau invalide (1-7)." });
+    }
+
+    let cert = await PartnerCertification.findOne({ userId: req.user.id });
+    if (!cert) cert = new PartnerCertification({ userId: req.user.id });
+
+    // Niveau 7 : tous les niveaux 1-6 doivent être approuvés
+    if (lvlNum === 7) {
+      const allApproved = ["level1","level2","level3","level4","level5","level6"]
+        .every((l) => cert[l]?.status === "approved");
+      if (!allApproved) {
+        return res.status(403).json({
+          message: "Vous devez faire approuver les niveaux 1 à 6 avant de signer le contrat.",
+        });
+      }
+    }
+
+    // Whitelist : seuls les champs autorisés pour ce niveau sont acceptés
+    const safePayload = pickAllowed(req.body, lvlNum);
+
+    const levelKey = `level${lvlNum}`;
+    cert[levelKey] = {
+      ...cert[levelKey],
+      ...safePayload,
+      status:      "submitted",
+      submittedAt: new Date(),
+    };
+
+    // Niveau 7 : horodatage + IP de la signature
+    if (lvlNum === 7) {
+      cert.level7.signedAt = new Date();
+      cert.level7.signerIp = req.ip || null;
+    }
+
+    cert.overallStatus      = "in_progress";
+    cert.certificationScore = computeScore(cert);
+    cert.certificationBadge = computeBadge(cert);
+
+    await cert.save();
+    await addAudit(cert._id, "LEVEL_SUBMITTED", lvlNum, req.user.id, `Niveau ${lvlNum} soumis`);
+
+    if (global._io) {
+      global._io.to("admins").emit("certification:submitted", {
+        userId: req.user.id, level: lvlNum, certificationId: cert._id,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Niveau ${lvlNum} soumis. Notre équipe l'examinera sous 24-48h.`,
+      certification: cert,
+    });
+  } catch (err) {
+    console.error("certification submitLevel:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── GET /api/certification/admin/list ────────────────────────────────────────
+export const adminList = async (req, res) => {
+  try {
+    const { status, badge, page = 1, limit = 20 } = req.query;
+    const filter = {};
+    if (status) filter.overallStatus = status;
+    if (badge)  filter.certificationBadge = badge;
+
+    const skip  = (Number(page) - 1) * Number(limit);
+    const [certs, total] = await Promise.all([
+      PartnerCertification.find(filter)
+        .populate("userId", "firstName lastName email phone role profilePhoto")
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(Number(limit))
+        .lean(),
+      PartnerCertification.countDocuments(filter),
+    ]);
+
+    res.json({ certifications: certs, total, page: Number(page), limit: Number(limit) });
+  } catch (err) {
+    console.error("certification adminList:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── GET /api/certification/admin/:userId ─────────────────────────────────────
+export const adminDetail = async (req, res) => {
+  try {
+    const cert = await PartnerCertification.findOne({ userId: req.params.userId })
+      .populate("userId", "firstName lastName email phone role profilePhoto business")
+      .lean();
+    if (!cert) return res.status(404).json({ message: "Certification introuvable." });
+    res.json({ certification: cert });
+  } catch (err) {
+    console.error("certification adminDetail:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── PATCH /api/certification/admin/:userId/level/:level/review ───────────────
+export const adminReviewLevel = async (req, res) => {
+  try {
+    const lvlNum = parseInt(req.params.level, 10);
+    if (isNaN(lvlNum) || lvlNum < 1 || lvlNum > 7) {
+      return res.status(400).json({ message: "Niveau invalide (1-7)." });
+    }
+
+    const { decision, note } = req.body;
+    if (!["approved", "rejected"].includes(decision)) {
+      return res.status(400).json({ message: "Décision : 'approved' ou 'rejected'." });
+    }
+
+    const cert = await PartnerCertification.findOne({ userId: req.params.userId });
+    if (!cert) return res.status(404).json({ message: "Certification introuvable." });
+
+    const levelKey = `level${lvlNum}`;
+    cert[levelKey].status          = decision;
+    cert[levelKey].reviewedAt      = new Date();
+    cert[levelKey].adminNote       = note || null;
+    cert[levelKey].rejectionReason = decision === "rejected" ? (note || "Dossier insuffisant.") : null;
+
+    cert.certificationScore = computeScore(cert);
+    cert.certificationBadge = computeBadge(cert);
+
+    const anyPending = ["level1","level2","level3","level4","level5","level6","level7"]
+      .some((l) => cert[l]?.status === "submitted");
+    if (anyPending) cert.overallStatus = "in_progress";
+    else if (["level1","level2","level3"].every((l) => cert[l]?.status === "approved")) {
+      cert.overallStatus = "approved";
+    }
+
+    await cert.save();
+
+    // Sync certificationBadge + importerProfile.badgeLevel sur le User
+    await syncUserBadge(req.params.userId, cert.certificationBadge);
+
+    await addAudit(
+      cert._id,
+      decision === "approved" ? "LEVEL_APPROVED" : "LEVEL_REJECTED",
+      lvlNum,
+      req.user.id,
+      note || `Décision : ${decision}`,
+    );
+
+    const user = await User.findById(req.params.userId).select("email firstName").lean();
+    const notifMsg = decision === "approved"
+      ? `✅ Niveau ${lvlNum} de certification approuvé. Continuez vers le niveau suivant !`
+      : `❌ Niveau ${lvlNum} refusé. Motif : ${note || "Documents insuffisants."}`;
+
+    await Notification.create({
+      user:    req.params.userId,
+      titre:   decision === "approved" ? `✅ Certification niveau ${lvlNum} approuvée` : `❌ Certification niveau ${lvlNum} refusée`,
+      message: notifMsg,
+      type:    "certification",
+      lu:      false,
+    }).catch(() => {});
+
+    sendEmail({
+      to:      user?.email,
+      subject: `VIT AUTO — Certification Partenaire — Niveau ${lvlNum}`,
+      html: `<div style="font-family:Arial,sans-serif;padding:24px;max-width:560px;margin:0 auto">
+        <h2 style="color:#0f1b3f">🏆 VIT AUTO — Certification Partenaire</h2>
+        <p>Bonjour <strong>${user?.firstName || "Partenaire"}</strong>,</p>
+        <p>${notifMsg}</p>
+        ${decision === "rejected" ? `<p>Veuillez corriger votre dossier et resoumettre : <a href="${process.env.APP_URL || "http://localhost:5173"}/partner-certification">Tableau de certification</a></p>` : ""}
+        ${cert.certificationBadge !== "none" ? `<p>🎉 Badge obtenu : <strong>${cert.certificationBadge.toUpperCase()}</strong></p>` : ""}
+        <p style="color:#64748b;font-size:0.85rem">L'équipe VIT AUTO</p>
+      </div>`,
+    }).catch(() => {});
+
+    res.json({
+      success:             true,
+      certificationBadge:  cert.certificationBadge,
+      message:             `Niveau ${lvlNum} : ${decision}`,
+    });
+  } catch (err) {
+    console.error("certification adminReviewLevel:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── PATCH /api/certification/admin/:userId/badge ─────────────────────────────
+export const adminAssignBadge = async (req, res) => {
+  try {
+    const { badge, publicStatement, note } = req.body;
+    const validBadges = ["none", "verifie", "fondateur", "premium"];
+    if (!validBadges.includes(badge)) {
+      return res.status(400).json({ message: `Badge invalide. Valeurs : ${validBadges.join(", ")}` });
+    }
+
+    const cert = await PartnerCertification.findOne({ userId: req.params.userId });
+    if (!cert) return res.status(404).json({ message: "Certification introuvable." });
+
+    cert.level8.status          = badge === "none" ? "rejected" : "approved";
+    cert.level8.badgeAwarded    = badge;
+    cert.level8.awardedBy       = req.user.id;
+    cert.level8.awardedAt       = new Date();
+    cert.level8.publicStatement = publicStatement || null;
+    cert.level8.adminNote       = note || null;
+    cert.level8.reviewedAt      = new Date();
+
+    cert.certificationBadge = badge;
+    cert.certificationScore = computeScore(cert);
+    cert.overallStatus      = badge !== "none" ? "approved" : cert.overallStatus;
+
+    await cert.save();
+
+    // Sync certificationBadge + importerProfile.badgeLevel sur le User
+    await syncUserBadge(req.params.userId, badge);
+
+    await addAudit(cert._id, "BADGE_ASSIGNED", 8, req.user.id, `Badge : ${badge} — ${note || ""}`);
+
+    const user = await User.findById(req.params.userId).select("email firstName").lean();
+    const badgeLabels = {
+      premium:   "⭐ Partenaire Premium",
+      fondateur: "🏆 Partenaire Fondateur",
+      verifie:   "🟢 Partenaire Vérifié",
+      none:      "Badge retiré",
+    };
+
+    await Notification.create({
+      user:    req.params.userId,
+      titre:   `🏆 Badge VIT AUTO : ${badgeLabels[badge]}`,
+      message: `Félicitations ! Vous avez obtenu le badge "${badgeLabels[badge]}" sur VIT AUTO. ${publicStatement || ""}`,
+      type:    "certification",
+      lu:      false,
+    }).catch(() => {});
+
+    sendEmail({
+      to:      user?.email,
+      subject: `VIT AUTO — Vous êtes maintenant ${badgeLabels[badge]} !`,
+      html: `<div style="font-family:Arial,sans-serif;padding:32px;max-width:560px;margin:0 auto;background:#f8fafc;border-radius:16px">
+        <div style="background:linear-gradient(135deg,#0f1b3f,#1e3a6e);padding:24px;border-radius:12px;text-align:center;margin-bottom:24px">
+          <h1 style="color:#f59e0b;margin:0;font-size:2rem">${badge === "premium" ? "⭐" : badge === "fondateur" ? "🏆" : "🟢"}</h1>
+          <h2 style="color:#fff;margin:8px 0 0">${badgeLabels[badge]}</h2>
+        </div>
+        <p>Bonjour <strong>${user?.firstName || "Partenaire"}</strong>,</p>
+        <p>Félicitations ! Votre dossier de certification VIT AUTO a été intégralement validé.</p>
+        ${publicStatement ? `<p style="background:#fffbeb;border-left:4px solid #f59e0b;padding:12px;border-radius:4px">"${publicStatement}"</p>` : ""}
+        <p>Votre badge est désormais visible sur votre profil et vos annonces.</p>
+        <p style="color:#64748b;font-size:0.85rem">L'équipe VIT AUTO — certification@vit-auto.com</p>
+      </div>`,
+    }).catch(() => {});
+
+    res.json({ success: true, badge, message: `Badge ${badgeLabels[badge]} attribué.` });
+  } catch (err) {
+    console.error("certification adminAssignBadge:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── GET /api/certification/public/:userId ────────────────────────────────────
+export const publicProfile = async (req, res) => {
+  try {
+    const cert = await PartnerCertification.findOne({ userId: req.params.userId })
+      .select("certificationBadge certificationScore level8 overallStatus")
+      .lean();
+    if (!cert) return res.json({ certificationBadge: "none", certificationScore: 0 });
+    res.json({
+      certificationBadge: cert.certificationBadge,
+      certificationScore: cert.certificationScore,
+      publicStatement:    cert.level8?.publicStatement || null,
+      overallStatus:      cert.overallStatus,
+    });
+  } catch (err) {
+    console.error("certification publicProfile:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
