@@ -216,7 +216,7 @@ export const getVehicles = async (req, res) => {
   try {
     const {
       type, ville, carburant, transmission, minPrice, maxPrice,
-      vehicleType, search,
+      vehicleType, search, owner,
       page  = 1,
       limit = 20,
       status,    // admin uniquement
@@ -251,6 +251,8 @@ export const getVehicles = async (req, res) => {
       if (minPrice) filter.pricePerDay.$gte = Number(minPrice);
       if (maxPrice) filter.pricePerDay.$lte = Number(maxPrice);
     }
+    // Filtre par propriétaire (showroom public partenaire) — validé ObjectId uniquement
+    if (owner && /^[0-9a-f]{24}$/i.test(String(owner))) filter.owner = owner;
 
     const maxLimit  = isAdmin ? 500 : 100;
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), maxLimit);

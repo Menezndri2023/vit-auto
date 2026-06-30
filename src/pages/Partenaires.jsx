@@ -61,10 +61,17 @@ export default function Partenaires() {
           }}>
             Devenir partenaire →
           </Link>
-          <a href="#offre-fondateur" style={{
-            background: "rgba(255,255,255,.12)", color: "#fff", fontWeight: 700, fontSize: "0.92rem",
+          <Link to="/partner-pms" style={{
+            background: "rgba(255,255,255,.15)", color: "#fff", fontWeight: 700, fontSize: "0.92rem",
             padding: "14px 28px", borderRadius: 12, textDecoration: "none",
-            border: "1px solid rgba(255,255,255,.25)", display: "inline-block",
+            border: "1px solid rgba(255,255,255,.3)", display: "inline-block",
+          }}>
+            🤝 Espace Partner Hub
+          </Link>
+          <a href="#offre-fondateur" style={{
+            background: "rgba(255,255,255,.08)", color: "rgba(255,255,255,.85)", fontWeight: 700, fontSize: "0.88rem",
+            padding: "14px 24px", borderRadius: 12, textDecoration: "none",
+            border: "1px solid rgba(255,255,255,.15)", display: "inline-block",
           }}>
             Voir l'Offre Fondateur ⭐
           </a>
@@ -274,6 +281,50 @@ export default function Partenaires() {
           <Li>Documents en règle : assurance, carte grise, contrôle technique</Li>
           <Li>Disponibilité pour confirmer les réservations dans les 24 heures</Li>
         </ul>
+      </div>
+
+      {/* ── Partner Hub PMS ── */}
+      <div style={{
+        background: "linear-gradient(135deg, #1e293b 0%, #0f1b3f 100%)",
+        borderRadius: 20, padding: "36px 36px", marginBottom: 40,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        gap: 28, flexWrap: "wrap", position: "relative", overflow: "hidden",
+      }}>
+        <div style={{
+          position: "absolute", top: -40, left: -40, width: 180, height: 180,
+          background: "rgba(59,130,246,.07)", borderRadius: "50%",
+        }} />
+        <div style={{ flex: 1, minWidth: 240 }}>
+          <span style={{
+            display: "inline-block", background: "rgba(59,130,246,.18)", color: "#60a5fa",
+            fontSize: "0.70rem", fontWeight: 800, padding: "4px 12px",
+            borderRadius: 999, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12,
+          }}>🤝 PARTNER HUB</span>
+          <h3 style={{ margin: "0 0 10px", fontWeight: 900, color: "#fff", fontSize: "clamp(1.1rem,2vw,1.4rem)" }}>
+            Tableau de bord partenaire professionnel
+          </h3>
+          <p style={{ margin: 0, color: "rgba(255,255,255,.85)", fontSize: "0.88rem", lineHeight: 1.65, maxWidth: 500 }}>
+            Gérez vos leads, créez des devis professionnels, construisez votre showroom en ligne
+            et suivez vos performances avec le Partner Management System (PMS) de VIT AUTO.
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 16 }}>
+            {["🎯 Lead Management","📄 Quotation Builder","🏪 Showroom","📊 Analytics","⭐ Trust Score"].map((f) => (
+              <span key={f} style={{
+                background: "rgba(255,255,255,.08)", color: "rgba(255,255,255,.8)",
+                fontSize: "0.75rem", fontWeight: 600, padding: "4px 10px",
+                borderRadius: 8, border: "1px solid rgba(255,255,255,.12)",
+              }}>{f}</span>
+            ))}
+          </div>
+        </div>
+        <Link to="/partner-pms" style={{
+          background: "linear-gradient(135deg, #3b82f6, #1d4ed8)", color: "#fff",
+          fontWeight: 800, fontSize: "0.90rem", padding: "13px 26px",
+          borderRadius: 11, textDecoration: "none", whiteSpace: "nowrap",
+          boxShadow: "0 4px 18px rgba(59,130,246,.35)", flexShrink: 0,
+        }}>
+          Accéder au Partner Hub →
+        </Link>
       </div>
 
       {/* ── Import / Export ── */}

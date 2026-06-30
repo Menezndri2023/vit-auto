@@ -25,6 +25,7 @@ import geoRoutes           from "./routes/geo.js";
 import kycRoutes           from "./routes/kyc.js";
 import certificationRoutes    from "./routes/partnerCertification.js";
 import partnerVerifRoutes     from "./routes/partnerVerification.js";
+import pmsRoutes              from "./routes/pms.js";
 
 dotenv.config();
 
@@ -184,6 +185,7 @@ app.use("/api/geo",            apiLimiter,       geoRoutes);
 app.use("/api/kyc",            uploadLimiter,    kycRoutes);        // KYC = ressource intensive
 app.use("/api/certification",  uploadLimiter,    certificationRoutes); // Certification partenaire
 app.use("/api/partner-verif", apiLimiter,       partnerVerifRoutes);  // Dossiers vérification partenaires
+app.use("/api/pms",           apiLimiter,       pmsRoutes);           // Partner Management System
 
 // ── 404 ───────────────────────────────────────────────────────────────────
 app.use((req, res) => {

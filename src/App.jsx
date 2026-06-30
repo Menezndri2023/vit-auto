@@ -58,6 +58,8 @@ const ImporterApply         = lazy(() => import("./pages/ImporterApply"));
 const ImporterDashboard     = lazy(() => import("./pages/ImporterDashboard"));
 const KYC                   = lazy(() => import("./pages/KYC"));
 const PartnerCertification  = lazy(() => import("./pages/PartnerCertification"));
+const PartnerPMSDashboard   = lazy(() => import("./pages/PartnerPMSDashboard"));
+const PartnerShowroomPublic = lazy(() => import("./pages/PartnerShowroomPublic"));
 
 // ── Routes internes — accès à authReady pour éviter le flash ──────────────
 function AppRoutes() {
@@ -120,6 +122,10 @@ function AppRoutes() {
           <Route path="/importer-apply"   element={<PartnerRoute><ImporterApply /></PartnerRoute>} />
           <Route path="/importer-dashboard" element={<PartnerRoute><ImporterDashboard /></PartnerRoute>} />
           <Route path="/partner-certification" element={<PartnerRoute><PartnerCertification /></PartnerRoute>} />
+          <Route path="/partner-pms"      element={<PartnerRoute><ErrorBoundary><PartnerPMSDashboard /></ErrorBoundary></PartnerRoute>} />
+
+          {/* ── Showroom public (accessible sans compte) ─────────── */}
+          <Route path="/showroom/:id"     element={<PartnerShowroomPublic />} />
 
           {/* ── Espace admin ────────────────────────────────── */}
           <Route path="/admin"  element={<AdminRoute><ErrorBoundary><AdminPanel /></ErrorBoundary></AdminRoute>} />
