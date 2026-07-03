@@ -167,7 +167,6 @@ const partnerCertificationSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now },
 });
 
-partnerCertificationSchema.index({ userId: 1 });
 partnerCertificationSchema.index({ overallStatus: 1 });
 partnerCertificationSchema.index({ certificationBadge: 1 });
 

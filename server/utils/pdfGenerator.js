@@ -256,7 +256,60 @@ export function generateContractPDF(contract, res) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 3. REÇU DE PAIEMENT
+// HELPER — retourne un Buffer (pour email attachment ou réponse HTTP)
+// ══════════════════════════════════════════════════════════════════════════════
+function buildPDFBuffer(builderFn) {
+  return new Promise((resolve, reject) => {
+    const pdfDoc = new PDFDocument({ margin: 40, size: "A4", autoFirstPage: true });
+    const chunks = [];
+    pdfDoc.on("data",  (c) => chunks.push(c));
+    pdfDoc.on("end",   ()  => resolve(Buffer.concat(chunks)));
+    pdfDoc.on("error", reject);
+    builderFn(pdfDoc);
+    pdfDoc.end();
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 3. DOCUMENT ONBOARDING (LOI / ACCORD) — Buffer pour email ou téléchargement
+// ══════════════════════════════════════════════════════════════════════════════
+export function buildOnboardingPDFBuffer(content, docTitle, ref, signatureBlock = null) {
+  return buildPDFBuffer((pdfDoc) => {
+    header(pdfDoc, docTitle, ref);
+
+    // Corps du document en monospace (préserve le formatage ASCII)
+    pdfDoc
+      .font("Courier")
+      .fontSize(7.5)
+      .fillColor("#1e293b")
+      .text(content || "", 40, pdfDoc.y, {
+        width: pdfDoc.page.width - 80,
+        lineGap: 1.5,
+        paragraphGap: 0,
+      });
+
+    // Bloc signature électronique (si le document a déjà été signé)
+    if (signatureBlock) {
+      pdfDoc.moveDown(2);
+      const sy = pdfDoc.y;
+      pdfDoc.rect(40, sy, pdfDoc.page.width - 80, 70).fill("#f0fdf4").stroke("#bbf7d0");
+      pdfDoc.fillColor(NAVY).font("Helvetica-Bold").fontSize(9)
+        .text("✅ SIGNATURE ÉLECTRONIQUE ENREGISTRÉE", 50, sy + 8);
+      pdfDoc.font("Helvetica").fontSize(8).fillColor(GRAY);
+      pdfDoc.text(`Signataire : ${signatureBlock.signerName || "—"}`, 50, sy + 22);
+      if (signatureBlock.signerPosition) pdfDoc.text(`Poste : ${signatureBlock.signerPosition}`, 50, sy + 33);
+      pdfDoc.text(`Date : ${signatureBlock.signedAt ? new Date(signatureBlock.signedAt).toLocaleString("fr-FR") : "—"}`, 50, sy + 44);
+      if (signatureBlock.documentHash) {
+        pdfDoc.text(`Hash SHA-256 : ${signatureBlock.documentHash.slice(0, 32)}…`, 50, sy + 55);
+      }
+    }
+
+    footer(pdfDoc);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 4. REÇU DE PAIEMENT
 // ══════════════════════════════════════════════════════════════════════════════
 export function generateReceiptPDF(booking, res) {
   const doc = new PDFDocument({ margin: 40, size: "A4" });

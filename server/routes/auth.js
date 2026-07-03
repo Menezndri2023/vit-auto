@@ -34,6 +34,12 @@ router.post("/validate-identity",    identityLimiter, auth.validateIdentity);
 router.post("/refresh-token",        auth.refreshToken);
 router.post("/revoke-token",         authenticate, auth.revokeRefreshToken);
 
+// ── 2FA — Authentification à deux facteurs ────────────────────────────────
+router.post("/2fa/setup",    authenticate, auth.setup2FA);
+router.post("/2fa/enable",   authenticate, auth.enable2FA);
+router.post("/2fa/verify",   strictLimiter, auth.verify2FA);   // complète le login
+router.post("/2fa/disable",  authenticate, auth.disable2FA);
+
 // ⚠️ DEV UNIQUEMENT — bloqué en production
 if (process.env.NODE_ENV !== "production") {
   router.get("/dev-verify/:email", authenticate, auth.devVerify);

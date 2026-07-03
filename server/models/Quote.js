@@ -101,7 +101,6 @@ const quoteSchema = new mongoose.Schema({
 
 quoteSchema.index({ partnerId: 1, status: 1 });
 quoteSchema.index({ partnerId: 1, createdAt: -1 });
-quoteSchema.index({ quoteNumber: 1 });
 
 // Auto-génération numéro de devis
 quoteSchema.pre("save", function (next) {

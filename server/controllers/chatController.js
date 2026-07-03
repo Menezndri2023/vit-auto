@@ -1,3 +1,4 @@
+import logger from "../utils/logger.js";
 import Chat from "../models/Chat.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
@@ -27,7 +28,7 @@ export const getMyChats = async (req, res) => {
 
     res.json({ chats: result });
   } catch (err) {
-    console.error("getMyChats:", err);
+    logger.error("getMyChats:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -70,7 +71,7 @@ export const getOrCreateChat = async (req, res) => {
 
     res.json({ chat });
   } catch (err) {
-    console.error("getOrCreateChat:", err);
+    logger.error("getOrCreateChat:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -92,7 +93,7 @@ export const getMessages = async (req, res) => {
 
     res.json({ messages: chat.messages });
   } catch (err) {
-    console.error("getMessages:", err);
+    logger.error("getMessages:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -148,7 +149,7 @@ export const sendMessage = async (req, res) => {
     const savedMsg = chat.messages[chat.messages.length - 1];
     res.json({ message: savedMsg });
   } catch (err) {
-    console.error("sendMessage:", err);
+    logger.error("sendMessage:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

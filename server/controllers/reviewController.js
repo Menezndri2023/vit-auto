@@ -1,3 +1,4 @@
+import logger from "../utils/logger.js";
 import Review from "../models/Review.js";
 import Booking from "../models/Booking.js";
 import Notification from "../models/Notification.js";
@@ -72,7 +73,7 @@ export const createReview = async (req, res) => {
     if (err.code === 11000) {
       return res.status(409).json({ message: "Vous avez déjà laissé un avis pour cette commande." });
     }
-    console.error("createReview:", err);
+    logger.error("createReview:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -95,7 +96,7 @@ export const getReviews = async (req, res) => {
 
     res.json({ reviews, noteMoyenne: avg, total: reviews.length });
   } catch (err) {
-    console.error("getReviews:", err);
+    logger.error("getReviews:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -107,7 +108,7 @@ export const hideReview = async (req, res) => {
     if (!review) return res.status(404).json({ message: "Avis introuvable." });
     res.json({ review });
   } catch (err) {
-    console.error("hideReview:", err);
+    logger.error("hideReview:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

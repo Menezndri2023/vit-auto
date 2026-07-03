@@ -6,6 +6,11 @@ import { rateLimit } from "express-rate-limit";
 import mongoSanitize from "express-mongo-sanitize";
 import connectDB from "./config/db.js";
 import logger from "./utils/logger.js";
+import { initSentry, sentryRequestHandler, sentryTracingHandler, sentryErrorHandler } from "./config/sentry.js";
+import { initQueues } from "./jobs/queues.js";
+import { startEmailWorker } from "./jobs/emailWorker.js";
+import { startPdfWorker } from "./jobs/pdfWorker.js";
+import { startNotificationWorker } from "./jobs/notificationWorker.js";
 
 import authRoutes          from "./routes/auth.js";
 import vehicleRoutes       from "./routes/vehicles.js";
@@ -26,8 +31,10 @@ import kycRoutes           from "./routes/kyc.js";
 import certificationRoutes    from "./routes/partnerCertification.js";
 import partnerVerifRoutes     from "./routes/partnerVerification.js";
 import pmsRoutes              from "./routes/pms.js";
+import partnerOnboardingRoutes from "./routes/partnerOnboarding.js";
 
 dotenv.config();
+initSentry();
 
 // ── Validation des variables d'environnement critiques ────────────────────
 const REQUIRED_ENV = ["JWT_SECRET", "MONGO_URI"];
@@ -46,6 +53,10 @@ if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 64) {
 
 const app = express();
 
+// ── Sentry request handler (doit être le PREMIER middleware) ─────────────
+app.use(sentryRequestHandler());
+app.use(sentryTracingHandler());
+
 // ── Origines autorisées ───────────────────────────────────────────────────
 const ALLOWED_ORIGINS = (process.env.FRONTEND_URL || "http://localhost:5173")
   .split(",")
@@ -53,8 +64,20 @@ const ALLOWED_ORIGINS = (process.env.FRONTEND_URL || "http://localhost:5173")
 
 // ── Sécurité headers (Helmet) ─────────────────────────────────────────────
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }, // autorise les images
-  contentSecurityPolicy: false, // désactivé car géré par le frontend React
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: {
+    // L'API ne sert pas de HTML : CSP bloque les réponses non-JSON accidentelles
+    directives: {
+      defaultSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
 }));
 
 // ── CORS restreint ────────────────────────────────────────────────────────
@@ -86,7 +109,7 @@ app.use(mongoSanitize({
   replaceWith: "_",      // remplace $ et . plutôt que supprimer
   allowDots: false,
   onSanitize: ({ key }) => {
-    console.warn(`[SECURITY] Tentative injection NoSQL bloquée — champ : ${key}`);
+    logger.warn("[SECURITY] Tentative injection NoSQL bloquée", { field: key });
   },
 }));
 
@@ -150,15 +173,27 @@ app.get("/api/ping", (_req, res) => res.json({ status: "ok", timestamp: new Date
 
 // ── Health check détaillé (pour load balancers / monitoring) ─────────────
 app.get("/api/health", async (_req, res) => {
-  const { connection } = await import("mongoose");
-  const dbState = ["disconnected", "connected", "connecting", "disconnecting"][connection.readyState] || "unknown";
+  const mongoose = await import("mongoose");
+  const { isRedisAvailable } = await import("./config/redis.js");
+  const { areQueuesReady } = await import("./jobs/queues.js");
+  const dbState = ["disconnected", "connected", "connecting", "disconnecting"][mongoose.default.connection.readyState] || "unknown";
   const healthy = dbState === "connected";
   res.status(healthy ? 200 : 503).json({
     status:    healthy ? "healthy" : "degraded",
     timestamp: new Date().toISOString(),
     version:   process.env.npm_package_version || "1.0.0",
     uptime:    Math.floor(process.uptime()),
-    services:  { database: dbState, socketio: !!global._io },
+    services:  {
+      database: dbState,
+      redis:    isRedisAvailable() ? "connected" : "unavailable",
+      queues:   areQueuesReady() ? "ready" : "sync-mode",
+      socketio: !!global._io,
+      email:    process.env.RESEND_API_KEY ? "resend" : (process.env.SMTP_HOST ? "smtp" : "console"),
+      imagekit: process.env.IMAGEKIT_PUBLIC_KEY ? "configured" : "disabled",
+      whatsapp: process.env.WHATSAPP_TOKEN ? "configured" : "disabled",
+      push:     process.env.FCM_SERVER_KEY ? "configured" : "disabled",
+      sentry:   process.env.SENTRY_DSN ? "configured" : "disabled",
+    },
     memory:    {
       used:  Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + "MB",
       total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + "MB",
@@ -186,11 +221,76 @@ app.use("/api/kyc",            uploadLimiter,    kycRoutes);        // KYC = res
 app.use("/api/certification",  uploadLimiter,    certificationRoutes); // Certification partenaire
 app.use("/api/partner-verif", apiLimiter,       partnerVerifRoutes);  // Dossiers vérification partenaires
 app.use("/api/pms",           apiLimiter,       pmsRoutes);           // Partner Management System
+app.use("/api/partner-onboarding", uploadLimiter, partnerOnboardingRoutes); // Founding Partner Onboarding
+
+// ── Communication tracking (pixel ouverture + clic email) ────────────────────
+const TRANSPARENT_GIF = Buffer.from(
+  "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64"
+);
+app.get("/api/comm/track/open/:trackingId", async (req, res) => {
+  res.set({ "Content-Type": "image/gif", "Cache-Control": "no-store, no-cache" });
+  res.end(TRANSPARENT_GIF);
+  const { trackOpen } = await import("./services/communication/analytics/CommunicationAnalytics.js");
+  trackOpen(req.params.trackingId).catch(() => {});
+});
+
+app.get("/api/comm/track/click/:trackingId", async (req, res) => {
+  const { url } = req.query;
+  const { trackClick } = await import("./services/communication/analytics/CommunicationAnalytics.js");
+  trackClick(req.params.trackingId, url).catch(() => {});
+
+  // Sécurité open-redirect : n'autoriser que les URLs du domaine VIT AUTO
+  const SAFE_ORIGINS = [
+    process.env.APP_URL        || "https://vit-auto.com",
+    process.env.FRONTEND_URL   || "http://localhost:5173",
+    "https://vit-auto.com",
+    "https://www.vit-auto.com",
+  ];
+  const isSafe = url &&
+    typeof url === "string" &&
+    /^https?:\/\//.test(url) &&
+    SAFE_ORIGINS.some((o) => url === o || url.startsWith(o + "/"));
+
+  res.redirect(302, isSafe ? url : (process.env.APP_URL || "https://vit-auto.com"));
+});
+
+// ── Analytics communication (admin uniquement — JWT + rôle vérifié) ──────────
+app.get("/api/comm/stats", async (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ message: "Non autorisé." });
+  try {
+    const jwt = await import("jsonwebtoken");
+    const decoded = jwt.default.verify(token, process.env.JWT_SECRET);
+    const mongoose = await import("mongoose");
+    const User = (await import("./models/User.js")).default;
+    const user = await User.findById(decoded.id).select("role isActive");
+    if (!user || !user.isActive || user.role !== "admin") {
+      return res.status(403).json({ message: "Accès réservé aux administrateurs." });
+    }
+    const { getStats } = await import("./services/communication/analytics/CommunicationAnalytics.js");
+    const stats = await getStats(req.query);
+    res.json({ stats });
+  } catch {
+    res.status(401).json({ message: "Token invalide ou expiré." });
+  }
+});
+
+// ── ImageKit auth token (frontend upload direct) ──────────────────────────────
+app.get("/api/imagekit/auth", (req, res) => {
+  import("./config/imagekit.js").then(({ getAuthToken }) => {
+    const token = getAuthToken();
+    if (!token) return res.status(503).json({ message: "ImageKit non configuré." });
+    res.json(token);
+  }).catch(() => res.status(500).json({ message: "Erreur." }));
+});
 
 // ── 404 ───────────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({ message: `Route ${req.method} ${req.path} non trouvée.` });
 });
+
+// ── Sentry error handler (doit être AVANT le handler d'erreur global) ────
+app.use(sentryErrorHandler());
 
 // ── Gestionnaire d'erreurs global ─────────────────────────────────────────
 // eslint-disable-next-line no-unused-vars
@@ -215,6 +315,12 @@ app.use((err, req, res, _next) => {
 const startServer = async () => {
   try {
     await connectDB();
+
+    // ── BullMQ : queues + workers (si Redis configuré) ───────────────────
+    initQueues();
+    startEmailWorker();
+    startPdfWorker();
+    startNotificationWorker();
     const PORT = process.env.PORT || 5001;
 
     const http    = await import("http");

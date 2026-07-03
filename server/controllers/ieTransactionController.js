@@ -1,3 +1,4 @@
+import logger from "../utils/logger.js";
 import IETransaction       from "../models/IETransaction.js";
 import ImportExportListing  from "../models/ImportExportListing.js";
 import InspectionReport     from "../models/InspectionReport.js";
@@ -108,7 +109,7 @@ export const createReservation = async (req, res) => {
       transaction: tx,
     });
   } catch (err) {
-    console.error("createReservation:", err);
+    logger.error("createReservation:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -141,7 +142,7 @@ export const confirmReservation = async (req, res) => {
 
     res.json({ message: "Réservation confirmée.", transaction: tx });
   } catch (err) {
-    console.error("confirmReservation:", err);
+    logger.error("confirmReservation:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -178,7 +179,7 @@ export const requestIndependentInspection = async (req, res) => {
 
     res.json({ message: "Demande d'inspection envoyée à VIT AUTO.", transaction: tx });
   } catch (err) {
-    console.error("requestIndependentInspection:", err);
+    logger.error("requestIndependentInspection:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -202,7 +203,7 @@ export const completeIndependentInspection = async (req, res) => {
 
     res.json({ message: "Inspection complétée.", transaction: tx });
   } catch (err) {
-    console.error("completeIndependentInspection:", err);
+    logger.error("completeIndependentInspection:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -253,7 +254,7 @@ export const sendFinalOffer = async (req, res) => {
 
     res.json({ message: "Offre finale envoyée.", transaction: tx });
   } catch (err) {
-    console.error("sendFinalOffer:", err);
+    logger.error("sendFinalOffer:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -281,7 +282,7 @@ export const acceptOffer = async (req, res) => {
 
     res.json({ message: "Offre acceptée. Procédez au paiement.", transaction: tx });
   } catch (err) {
-    console.error("acceptOffer:", err);
+    logger.error("acceptOffer:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -320,7 +321,7 @@ export const payEscrow = async (req, res) => {
 
     res.json({ message: "Paiement sécurisé en entiercement.", escrowRef: tx.payment.escrowRef, transaction: tx });
   } catch (err) {
-    console.error("payEscrow:", err);
+    logger.error("payEscrow:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -363,7 +364,7 @@ export const updateDocuments = async (req, res) => {
 
     res.json({ message: "Documents mis à jour.", transaction: tx });
   } catch (err) {
-    console.error("updateDocuments:", err);
+    logger.error("updateDocuments:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -401,7 +402,7 @@ export const markShipped = async (req, res) => {
 
     res.json({ message: "Expédition enregistrée.", transaction: tx });
   } catch (err) {
-    console.error("markShipped:", err);
+    logger.error("markShipped:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -427,7 +428,7 @@ export const updateTracking = async (req, res) => {
 
     res.json({ message: "Tracking mis à jour.", transaction: tx });
   } catch (err) {
-    console.error("updateTracking:", err);
+    logger.error("updateTracking:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -460,7 +461,7 @@ export const confirmDelivery = async (req, res) => {
 
     res.json({ message: "Livraison confirmée. Les fonds vont être libérés.", transaction: tx });
   } catch (err) {
-    console.error("confirmDelivery:", err);
+    logger.error("confirmDelivery:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -495,7 +496,7 @@ export const releaseFunds = async (req, res) => {
 
     res.json({ message: "Fonds libérés avec succès.", transaction: tx });
   } catch (err) {
-    console.error("releaseFunds:", err);
+    logger.error("releaseFunds:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -550,7 +551,7 @@ export const addReview = async (req, res) => {
     await tx.save();
     res.json({ message: "Évaluation enregistrée.", transaction: tx });
   } catch (err) {
-    console.error("addReview:", err);
+    logger.error("addReview:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -585,7 +586,7 @@ export const openDispute = async (req, res) => {
 
     res.json({ message: "Litige ouvert. VIT AUTO va examiner la situation.", transaction: tx });
   } catch (err) {
-    console.error("openDispute:", err);
+    logger.error("openDispute:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -618,7 +619,7 @@ export const resolveDispute = async (req, res) => {
 
     res.json({ message: "Litige résolu.", transaction: tx });
   } catch (err) {
-    console.error("resolveDispute:", err);
+    logger.error("resolveDispute:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -651,7 +652,7 @@ export const cancelTransaction = async (req, res) => {
 
     res.json({ message: "Transaction annulée.", transaction: tx });
   } catch (err) {
-    console.error("cancelTransaction:", err);
+    logger.error("cancelTransaction:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -677,7 +678,7 @@ export const getTransactionById = async (req, res) => {
 
     res.json({ transaction: tx });
   } catch (err) {
-    console.error("getTransactionById:", err);
+    logger.error("getTransactionById:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -703,7 +704,7 @@ export const getClientTransactions = async (req, res) => {
 
     res.json({ transactions, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {
-    console.error("getClientTransactions:", err);
+    logger.error("getClientTransactions:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -729,7 +730,7 @@ export const getPartnerTransactions = async (req, res) => {
 
     res.json({ transactions, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {
-    console.error("getPartnerTransactions:", err);
+    logger.error("getPartnerTransactions:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -756,7 +757,7 @@ export const getAllTransactions = async (req, res) => {
 
     res.json({ transactions, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {
-    console.error("getAllTransactions:", err);
+    logger.error("getAllTransactions:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -798,7 +799,7 @@ export const createInspectionReport = async (req, res) => {
 
     res.status(201).json({ message: "Rapport d'inspection publié.", report });
   } catch (err) {
-    console.error("createInspectionReport:", err);
+    logger.error("createInspectionReport:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -810,7 +811,7 @@ export const getInspectionReport = async (req, res) => {
       .populate("partner", "firstName lastName profilePhoto business");
     res.json({ report: report || null });
   } catch (err) {
-    console.error("getInspectionReport:", err);
+    logger.error("getInspectionReport:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

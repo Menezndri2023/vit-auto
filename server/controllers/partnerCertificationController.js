@@ -1,3 +1,4 @@
+import logger from "../utils/logger.js";
 import PartnerCertification from "../models/PartnerCertification.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
@@ -81,7 +82,7 @@ export const getStatus = async (req, res) => {
     );
     res.json({ certification: cert });
   } catch (err) {
-    console.error("certification getStatus:", err);
+    logger.error("certification getStatus:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -152,7 +153,7 @@ export const submitLevel = async (req, res) => {
       certification: cert,
     });
   } catch (err) {
-    console.error("certification submitLevel:", err);
+    logger.error("certification submitLevel:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -178,7 +179,7 @@ export const adminList = async (req, res) => {
 
     res.json({ certifications: certs, total, page: Number(page), limit: Number(limit) });
   } catch (err) {
-    console.error("certification adminList:", err);
+    logger.error("certification adminList:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -192,7 +193,7 @@ export const adminDetail = async (req, res) => {
     if (!cert) return res.status(404).json({ message: "Certification introuvable." });
     res.json({ certification: cert });
   } catch (err) {
-    console.error("certification adminDetail:", err);
+    logger.error("certification adminDetail:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -274,7 +275,7 @@ export const adminReviewLevel = async (req, res) => {
       message:             `Niveau ${lvlNum} : ${decision}`,
     });
   } catch (err) {
-    console.error("certification adminReviewLevel:", err);
+    logger.error("certification adminReviewLevel:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -344,7 +345,7 @@ export const adminAssignBadge = async (req, res) => {
 
     res.json({ success: true, badge, message: `Badge ${badgeLabels[badge]} attribué.` });
   } catch (err) {
-    console.error("certification adminAssignBadge:", err);
+    logger.error("certification adminAssignBadge:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -363,7 +364,7 @@ export const publicProfile = async (req, res) => {
       overallStatus:      cert.overallStatus,
     });
   } catch (err) {
-    console.error("certification publicProfile:", err);
+    logger.error("certification publicProfile:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

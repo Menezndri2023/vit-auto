@@ -57,9 +57,11 @@ const IEClientDashboard     = lazy(() => import("./pages/IEClientDashboard"));
 const ImporterApply         = lazy(() => import("./pages/ImporterApply"));
 const ImporterDashboard     = lazy(() => import("./pages/ImporterDashboard"));
 const KYC                   = lazy(() => import("./pages/KYC"));
-const PartnerCertification  = lazy(() => import("./pages/PartnerCertification"));
-const PartnerPMSDashboard   = lazy(() => import("./pages/PartnerPMSDashboard"));
-const PartnerShowroomPublic = lazy(() => import("./pages/PartnerShowroomPublic"));
+const PartnerCertification    = lazy(() => import("./pages/PartnerCertification"));
+const PartnerPMSDashboard     = lazy(() => import("./pages/PartnerPMSDashboard"));
+const PartnerShowroomPublic   = lazy(() => import("./pages/PartnerShowroomPublic"));
+const PartnerOnboardingPortal = lazy(() => import("./pages/PartnerOnboardingPortal"));
+const PartnerSignByToken      = lazy(() => import("./pages/PartnerSignByToken"));
 
 // ── Routes internes — accès à authReady pour éviter le flash ──────────────
 function AppRoutes() {
@@ -126,6 +128,12 @@ function AppRoutes() {
 
           {/* ── Showroom public (accessible sans compte) ─────────── */}
           <Route path="/showroom/:id"     element={<PartnerShowroomPublic />} />
+
+          {/* ── Onboarding Founding Partner (public + auth-aware) ── */}
+          <Route path="/partner-onboarding" element={<PartnerOnboardingPortal />} />
+
+          {/* ── Signature par lien sécurisé (email link — sans connexion) ── */}
+          <Route path="/sign/:token" element={<PartnerSignByToken />} />
 
           {/* ── Espace admin ────────────────────────────────── */}
           <Route path="/admin"  element={<AdminRoute><ErrorBoundary><AdminPanel /></ErrorBoundary></AdminRoute>} />

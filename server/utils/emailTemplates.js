@@ -261,3 +261,52 @@ export function invoiceAvailableTemplate(partnerName, invoice) {
     </div>
   `, "Facture mensuelle — VIT AUTO Partenaires");
 }
+
+// ── Template LOI prête à signer ──────────────────────────────────────────────
+export function loiReadyTemplate(firstName, referenceNumber, signLink, expiresInDays = 7) {
+  return baseLayout(`
+    <div class="hero" style="background:linear-gradient(135deg,#0d2137,#1a7a8a);">
+      <h1>📄 Votre LOI est prête !</h1>
+      <p>Lettre d'Intention — Programme Founding Partner VIT-AUTO</p>
+    </div>
+    <h2>Félicitations ${firstName || ""} !</h2>
+    <p>Votre candidature au <strong>Programme Founding Partner VIT-AUTO</strong> a été approuvée.
+    Votre Lettre d'Intention est maintenant disponible pour signature électronique.</p>
+    <div class="info-box">
+      <div class="info-row"><span>Référence</span><span><strong>${referenceNumber}</strong></span></div>
+      <div class="info-row"><span>Document</span><span>VA-LOI-${referenceNumber}</span></div>
+      <div class="info-row"><span>Lien valable</span><span>${expiresInDays} jours</span></div>
+    </div>
+    <p>Cliquez sur le bouton ci-dessous pour lire et signer votre LOI. Votre signature est enregistrée avec la date, l'heure et votre adresse IP pour valeur légale.</p>
+    <div style="text-align:center;margin:24px 0;">
+      <a href="${signLink}" class="btn" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);font-size:16px;padding:16px 36px;">✍️ Signer ma LOI</a>
+    </div>
+    <p style="font-size:12px;color:#94a3b8;text-align:center;">Le document LOI est joint en pièce jointe à cet email pour consultation.
+    Ce lien expire dans ${expiresInDays} jours. Si vous avez des questions, contactez-nous à <a href="mailto:contact@vit-auto.com">contact@vit-auto.com</a>.</p>
+  `, "LOI Founding Partner — VIT-AUTO");
+}
+
+// ── Template Accord prêt à signer ────────────────────────────────────────────
+export function agreementReadyTemplate(firstName, referenceNumber, signLink, expiresInDays = 7) {
+  return baseLayout(`
+    <div class="hero" style="background:linear-gradient(135deg,#0d2137,#059669);">
+      <h1>📜 Votre Accord est prêt !</h1>
+      <p>Founding Partner Agreement — VIT-AUTO</p>
+    </div>
+    <h2>Dernière étape, ${firstName || ""} !</h2>
+    <p>Votre Lettre d'Intention a bien été signée. Il ne reste plus qu'à signer votre <strong>Accord de Partenariat Fondateur</strong> pour activer votre statut et débloquer tous vos avantages exclusifs.</p>
+    <div class="info-box">
+      <div class="info-row"><span>Référence</span><span><strong>${referenceNumber}</strong></span></div>
+      <div class="info-row"><span>Document</span><span>VA-FPA-${referenceNumber}</span></div>
+      <div class="info-row" style="background:#f0fdf4;"><span>Commission Location</span><span><strong style="color:#059669;">10% (standard 15%)</strong></span></div>
+      <div class="info-row" style="background:#f0fdf4;"><span>Commission Vente</span><span><strong style="color:#059669;">2% (standard 3%)</strong></span></div>
+      <div class="info-row" style="background:#f0fdf4;"><span>Abonnement Premium</span><span><strong style="color:#059669;">12 mois OFFERT</strong></span></div>
+      <div class="info-row"><span>Lien valable</span><span>${expiresInDays} jours</span></div>
+    </div>
+    <div style="text-align:center;margin:24px 0;">
+      <a href="${signLink}" class="btn" style="background:linear-gradient(135deg,#059669,#047857);font-size:16px;padding:16px 36px;">✍️ Signer l'Accord</a>
+    </div>
+    <p style="font-size:12px;color:#94a3b8;text-align:center;">L'accord est joint en pièce jointe pour consultation.
+    Ce lien expire dans ${expiresInDays} jours. Questions ? <a href="mailto:contact@vit-auto.com">contact@vit-auto.com</a></p>
+  `, "Accord Founding Partner — VIT-AUTO");
+}

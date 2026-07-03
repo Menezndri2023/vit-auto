@@ -1,3 +1,4 @@
+import logger from "../utils/logger.js";
 import ImportExportRequest     from "../models/ImportExportRequest.js";
 import ImporterPartnerProfile  from "../models/ImporterPartnerProfile.js";
 import ImportExportListing     from "../models/ImportExportListing.js";
@@ -49,7 +50,7 @@ export const createRequest = async (req, res) => {
 
     res.status(201).json({ message: "Demande envoyée avec succès.", request });
   } catch (err) {
-    console.error("createRequest:", err);
+    logger.error("createRequest:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -74,7 +75,7 @@ export const getRequests = async (req, res) => {
 
     res.json({ requests, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {
-    console.error("getRequests:", err);
+    logger.error("getRequests:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -116,7 +117,7 @@ export const updateRequestStatus = async (req, res) => {
 
     res.json({ request });
   } catch (err) {
-    console.error("updateRequestStatus:", err);
+    logger.error("updateRequestStatus:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -127,7 +128,7 @@ export const deleteRequest = async (req, res) => {
     await ImportExportRequest.findByIdAndDelete(req.params.id);
     res.json({ message: "Demande supprimée." });
   } catch (err) {
-    console.error("deleteRequest:", err);
+    logger.error("deleteRequest:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -142,7 +143,7 @@ export const getMyImporterProfile = async (req, res) => {
     const profile = await ImporterPartnerProfile.findOne({ userId: req.user._id });
     res.json({ profile: profile || null });
   } catch (err) {
-    console.error("getMyImporterProfile:", err);
+    logger.error("getMyImporterProfile:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -228,7 +229,7 @@ export const submitImporterProfile = async (req, res) => {
 
     res.status(201).json({ message: "Candidature soumise avec succès.", profile });
   } catch (err) {
-    console.error("submitImporterProfile:", err);
+    logger.error("submitImporterProfile:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -254,7 +255,7 @@ export const getImporterProfiles = async (req, res) => {
 
     res.json({ profiles, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {
-    console.error("getImporterProfiles:", err);
+    logger.error("getImporterProfiles:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -302,7 +303,7 @@ export const reviewImporterProfile = async (req, res) => {
 
     res.json({ profile });
   } catch (err) {
-    console.error("reviewImporterProfile:", err);
+    logger.error("reviewImporterProfile:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -315,7 +316,7 @@ export const getImporterProfileById = async (req, res) => {
     if (!profile) return res.status(404).json({ message: "Profil introuvable." });
     res.json({ profile });
   } catch (err) {
-    console.error("getImporterProfileById:", err);
+    logger.error("getImporterProfileById:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -349,7 +350,7 @@ export const getListings = async (req, res) => {
 
     res.json({ listings, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {
-    console.error("getListings:", err);
+    logger.error("getListings:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -362,7 +363,7 @@ export const getMyListings = async (req, res) => {
       .sort({ createdAt: -1 });
     res.json({ listings });
   } catch (err) {
-    console.error("getMyListings:", err);
+    logger.error("getMyListings:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -380,7 +381,7 @@ export const getListingById = async (req, res) => {
     if (!listing) return res.status(404).json({ message: "Annonce introuvable." });
     res.json({ listing });
   } catch (err) {
-    console.error("getListingById:", err);
+    logger.error("getListingById:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -438,7 +439,7 @@ export const createListing = async (req, res) => {
 
     res.status(201).json({ message: "Annonce soumise pour validation.", listing });
   } catch (err) {
-    console.error("createListing:", err);
+    logger.error("createListing:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -483,7 +484,7 @@ export const updateListing = async (req, res) => {
     await listing.save();
     res.json({ listing });
   } catch (err) {
-    console.error("updateListing:", err);
+    logger.error("updateListing:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -523,7 +524,7 @@ export const updateListingStatus = async (req, res) => {
 
     res.json({ listing });
   } catch (err) {
-    console.error("updateListingStatus:", err);
+    logger.error("updateListingStatus:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -539,7 +540,7 @@ export const deleteListing = async (req, res) => {
     if (!listing) return res.status(404).json({ message: "Annonce introuvable." });
     res.json({ message: "Annonce supprimée." });
   } catch (err) {
-    console.error("deleteListing:", err);
+    logger.error("deleteListing:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -565,7 +566,7 @@ export const getAdminListings = async (req, res) => {
 
     res.json({ listings, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {
-    console.error("getAdminListings:", err);
+    logger.error("getAdminListings:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -599,7 +600,7 @@ export const getStats = async (req, res) => {
       listings: { total: totalListings, pending: pendingListings, approved: approvedListings },
     });
   } catch (err) {
-    console.error("getStats:", err);
+    logger.error("getStats:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

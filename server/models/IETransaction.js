@@ -26,6 +26,7 @@ const ieTransactionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "ImportExportListing",
     required: true,
+    index: true,
   },
   client: {
     type: mongoose.Schema.Types.ObjectId,
@@ -171,7 +172,6 @@ const ieTransactionSchema = new mongoose.Schema({
 
 ieTransactionSchema.index({ client: 1, createdAt: -1 });
 ieTransactionSchema.index({ partner: 1, createdAt: -1 });
-ieTransactionSchema.index({ listing: 1 });
 ieTransactionSchema.index({ status: 1 });
 
 ieTransactionSchema.pre("save", function (next) {

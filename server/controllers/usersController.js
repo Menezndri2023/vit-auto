@@ -1,11 +1,12 @@
+import logger from "../utils/logger.js";
 import User from "../models/User.js";
 import Booking from "../models/Booking.js";
 import Vehicle from "../models/Vehicle.js";
 import Driver from "../models/Driver.js";
 import Notification from "../models/Notification.js";
+import { sendEmail, identityRejectedTemplate } from "../config/email.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-import { transporter, FROM_ADDRESS, identityRejectedTemplate } from "../config/email.js";
 
 // ── Liste de tous les utilisateurs (admin) ────────────────────────────────
 export const getUsers = async (req, res) => {
@@ -34,7 +35,7 @@ export const getUsers = async (req, res) => {
 
     res.json({ users, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {
-    console.error("getUsers:", err);
+    logger.error("getUsers:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -46,7 +47,7 @@ export const getUser = async (req, res) => {
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
     res.json({ user });
   } catch (err) {
-    console.error("getUser:", err);
+    logger.error("getUser:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -62,7 +63,7 @@ export const updateUserRole = async (req, res) => {
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
     res.json({ user });
   } catch (err) {
-    console.error("updateUserRole:", err);
+    logger.error("updateUserRole:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -76,7 +77,7 @@ export const toggleUserActive = async (req, res) => {
     await user.save();
     res.json({ user: { id: user._id, isActive: user.isActive } });
   } catch (err) {
-    console.error("toggleUserActive:", err);
+    logger.error("toggleUserActive:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -90,7 +91,7 @@ export const deleteUser = async (req, res) => {
     await User.findByIdAndDelete(req.params.id);
     res.json({ message: "Utilisateur supprimé." });
   } catch (err) {
-    console.error("deleteUser:", err);
+    logger.error("deleteUser:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -197,7 +198,7 @@ export const getAdminStats = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("getAdminStats:", err);
+    logger.error("getAdminStats:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -247,7 +248,7 @@ export const submitIdentity = async (req, res) => {
 
     res.json({ message: "Pièce d'identité soumise. En attente de vérification.", status: "pending" });
   } catch (err) {
-    console.error("submitIdentity:", err);
+    logger.error("submitIdentity:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -287,19 +288,19 @@ export const adminVerifyIdentity = async (req, res) => {
       lien: "/profile",
     });
 
-    // E-mail si rejet
     if (status === "rejected") {
-      transporter.sendMail({
-        from:    FROM_ADDRESS,
-        to:      user.email,
-        subject: "❌ VIT AUTO — Vérification d'identité refusée",
-        html:    identityRejectedTemplate(user.firstName, rejectionReason),
-      }).catch((e) => console.error("Email rejet (non-bloquant):", e.message));
+      sendEmail({
+        to:       user.email,
+        subject:  "VIT AUTO — Vérification d'identité refusée",
+        html:     identityRejectedTemplate(user.firstName, rejectionReason),
+        template: "identity_rejected",
+        userId:   user._id,
+      }).catch((e) => logger.error("sendEmail identityRejected:", { error: e.message }));
     }
 
     res.json({ message: `Identité ${status === "verified" ? "vérifiée" : "refusée"}.`, user: { id: user._id, identityStatus: user.identity.status } });
   } catch (err) {
-    console.error("adminVerifyIdentity:", err);
+    logger.error("adminVerifyIdentity:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -312,7 +313,7 @@ export const getPendingIdentities = async (req, res) => {
       .sort({ "identity.submittedAt": 1 });
     res.json({ users });
   } catch (err) {
-    console.error("getPendingIdentities:", err);
+    logger.error("getPendingIdentities:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -336,7 +337,7 @@ export const updateMyProfile = async (req, res) => {
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
     res.json({ user });
   } catch (err) {
-    console.error("updateMyProfile:", err);
+    logger.error("updateMyProfile:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -348,7 +349,7 @@ export const getMyProfile = async (req, res) => {
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
     res.json({ user });
   } catch (err) {
-    console.error("getMyProfile:", err);
+    logger.error("getMyProfile:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

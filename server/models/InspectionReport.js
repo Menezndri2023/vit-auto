@@ -67,7 +67,6 @@ const inspectionReportSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now },
 });
 
-inspectionReportSchema.index({ listing: 1 });
 inspectionReportSchema.index({ partner: 1 });
 
 inspectionReportSchema.pre("save", function (next) {

@@ -1,3 +1,4 @@
+import logger from "../utils/logger.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { sendEmail } from "../config/email.js";
@@ -38,7 +39,7 @@ export const getKycStatus = async (req, res) => {
       driverLicenseOcr:  user.driverLicenseOcr ?? null,
     });
   } catch (err) {
-    console.error("getKycStatus:", err);
+    logger.error("getKycStatus:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -216,9 +217,6 @@ export const submitKyc = async (req, res) => {
         ...(frontImageData ? { "identity.frontImage": frontImageData } : {}),
         ...(backImageData  ? { "identity.backImage":  backImageData  } : {}),
         ...(selfieData     ? { "identity.selfie":     selfieData     } : {}),
-        // Sync prénom/nom si extraits par OCR
-        ...(safeOcrData.firstName ? { firstName: safeOcrData.firstName } : {}),
-        ...(safeOcrData.lastName  ? { lastName:  safeOcrData.lastName  } : {}),
       },
     });
 
@@ -241,7 +239,7 @@ export const submitKyc = async (req, res) => {
         : "Dossier soumis. En attente de vérification. Vous serez notifié une fois validé.",
     });
   } catch (err) {
-    console.error("submitKyc:", err);
+    logger.error("submitKyc:", err);
     res.status(500).json({ message: "Erreur lors de l'enregistrement KYC." });
   }
 };
@@ -303,7 +301,7 @@ export const submitDriverLicense = async (req, res) => {
       message:   "Permis de conduire enregistré. Vous pouvez effectuer des réservations de location.",
     });
   } catch (err) {
-    console.error("submitDriverLicense:", err);
+    logger.error("submitDriverLicense:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -332,7 +330,7 @@ export const getKycList = async (req, res) => {
 
     res.json({ users, total, page: Number(page), limit: safeLimit });
   } catch (err) {
-    console.error("getKycList:", err);
+    logger.error("getKycList:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -352,7 +350,7 @@ export const getKycDetail = async (req, res) => {
 
     res.json({ user });
   } catch (err) {
-    console.error("getKycDetail:", err);
+    logger.error("getKycDetail:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -440,7 +438,7 @@ export const adminReviewKyc = async (req, res) => {
       message:   `Dossier KYC mis à jour : ${decision}`,
     });
   } catch (err) {
-    console.error("adminReviewKyc:", err);
+    logger.error("adminReviewKyc:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -485,7 +483,7 @@ export const resetKyc = async (req, res) => {
     });
     res.json({ success: true, message: "KYC réinitialisé." });
   } catch (err) {
-    console.error("resetKyc:", err);
+    logger.error("resetKyc:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

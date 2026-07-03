@@ -150,7 +150,6 @@ partnerVerificationSchema.pre("save", function (next) {
   next();
 });
 
-partnerVerificationSchema.index({ userId: 1 });
 partnerVerificationSchema.index({ status: 1 });
 partnerVerificationSchema.index({ trustScore: -1 });
 partnerVerificationSchema.index({ companyType: 1 });

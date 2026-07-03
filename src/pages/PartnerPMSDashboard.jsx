@@ -1205,10 +1205,224 @@ function AnalyticsSection({ token }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// SECTION: FOUNDING PARTNER ONBOARDING
+// ══════════════════════════════════════════════════════════════════════════════
+function OnboardingSection({ token }) {
+  const navigate = useNavigate();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/partner-onboarding/my", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) setData(d.onboarding); })
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  const STATUS_INFO = {
+    brouillon:     { label: "Brouillon",               color: "#64748b", bg: "#f8fafc", icon: "📝" },
+    soumis:        { label: "Soumis — En attente",     color: "#3b82f6", bg: "#eff6ff", icon: "⏳" },
+    en_review:     { label: "En cours de revue",       color: "#f59e0b", bg: "#fffbeb", icon: "🔍" },
+    info_demandee: { label: "Infos requises",           color: "#f97316", bg: "#fff7ed", icon: "⚠️" },
+    loi_envoyee:   { label: "LOI à signer",            color: "#8b5cf6", bg: "#f5f3ff", icon: "✍️" },
+    loi_signee:    { label: "LOI signée",              color: "#0891b2", bg: "#ecfeff", icon: "✅" },
+    accord_envoye: { label: "Accord à signer",         color: "#8b5cf6", bg: "#f5f3ff", icon: "📜" },
+    accord_signe:  { label: "Accord signé — Actif",   color: "#059669", bg: "#ecfdf5", icon: "👑" },
+    actif:         { label: "Partenaire Fondateur",    color: "#059669", bg: "#ecfdf5", icon: "👑" },
+    rejete:        { label: "Rejeté",                  color: "#dc2626", bg: "#fef2f2", icon: "❌" },
+  };
+
+  const STEPS = [
+    { label: "Type & Infos",   done: (d) => !!d?.companyInfo?.legalName },
+    { label: "Documents",      done: (d) => !!(d?.legalDocs?.businessRegistration || d?.legalDocs?.businessLicense) },
+    { label: "Vérification",   done: (d) => d?.businessVerification?.brands?.length > 0 },
+    { label: "Soumis",         done: (d) => !["brouillon", "info_demandee"].includes(d?.status) },
+    { label: "LOI signée",     done: (d) => ["loi_signee", "accord_envoye", "accord_signe", "actif"].includes(d?.status) },
+    { label: "Accord signé",   done: (d) => ["accord_signe", "actif"].includes(d?.status) },
+  ];
+
+  const status = data?.status || "brouillon";
+  const si = STATUS_INFO[status] || STATUS_INFO.brouillon;
+  const completion = data?.completionPercent || 0;
+  const needsAction = ["loi_envoyee", "accord_envoye", "info_demandee"].includes(status);
+
+  if (loading) return <div className={styles.loader}>Chargement…</div>;
+
+  return (
+    <div className={styles.section}>
+      {/* ── Header ── */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1.5rem", flexWrap:"wrap", gap:"1rem" }}>
+        <div>
+          <h2 style={{ fontSize:"1.3rem", fontWeight:700, margin:"0 0 .25rem", color:"#1e293b" }}>
+            👑 Programme Founding Partner
+          </h2>
+          <p style={{ color:"#64748b", fontSize:".88rem", margin:0 }}>
+            Gérez votre candidature et suivez l'avancement de votre onboarding fondateur.
+          </p>
+        </div>
+        <button
+          onClick={() => navigate("/partner-onboarding")}
+          style={{
+            padding:".65rem 1.25rem", background: needsAction ? "#7c3aed" : "#1a7a8a",
+            color:"white", border:"none", borderRadius:"10px", fontSize:".88rem",
+            fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:".5rem",
+          }}
+        >
+          {needsAction ? "⚡ Action requise" : "Gérer mon dossier"} →
+        </button>
+      </div>
+
+      {/* ── Status + Progress ── */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1rem", marginBottom:"1.5rem" }}>
+        {/* Status card */}
+        <div style={{ background: si.bg, border:`1.5px solid ${si.color}20`, borderRadius:14, padding:"1.25rem" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:".75rem", marginBottom:".75rem" }}>
+            <span style={{ fontSize:"1.8rem" }}>{si.icon}</span>
+            <div>
+              <div style={{ fontSize:".72rem", fontWeight:700, textTransform:"uppercase", letterSpacing:".08em", color:si.color }}>
+                STATUT DOSSIER
+              </div>
+              <div style={{ fontSize:"1rem", fontWeight:700, color:"#1e293b" }}>{si.label}</div>
+            </div>
+          </div>
+          {data?.referenceNumber && (
+            <div style={{ fontSize:".75rem", color:"#64748b", fontFamily:"monospace" }}>
+              Réf. {data.referenceNumber}
+            </div>
+          )}
+          {status === "info_demandee" && data?.adminReview?.infoRequested && (
+            <div style={{ marginTop:".75rem", fontSize:".78rem", color:"#92400e", background:"#fef3c7", padding:".5rem .75rem", borderRadius:8 }}>
+              <strong>Info requise :</strong> {data.adminReview.infoRequested}
+            </div>
+          )}
+        </div>
+
+        {/* Progress card */}
+        <div style={{ background:"white", border:"1px solid #e2e8f0", borderRadius:14, padding:"1.25rem" }}>
+          <div style={{ fontSize:".72rem", fontWeight:700, textTransform:"uppercase", letterSpacing:".08em", color:"#64748b", marginBottom:".75rem" }}>
+            COMPLÉTION DU DOSSIER
+          </div>
+          <div style={{ fontSize:"2.2rem", fontWeight:800, color:"#1a7a8a", marginBottom:".5rem" }}>
+            {completion}%
+          </div>
+          <div style={{ height:10, background:"#e2e8f0", borderRadius:999, overflow:"hidden" }}>
+            <div style={{ height:"100%", width:`${completion}%`, background:"linear-gradient(90deg, #f5a623, #fcd34d)", borderRadius:999, transition:"width .5s ease" }} />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Steps progression ── */}
+      <div style={{ background:"white", border:"1px solid #e2e8f0", borderRadius:14, padding:"1.25rem", marginBottom:"1.5rem" }}>
+        <div style={{ fontSize:".72rem", fontWeight:700, textTransform:"uppercase", letterSpacing:".08em", color:"#64748b", marginBottom:"1rem" }}>
+          ÉTAPES D'ONBOARDING
+        </div>
+        <div style={{ display:"flex", gap:0, position:"relative" }}>
+          {STEPS.map((step, i) => {
+            const done = step.done(data);
+            return (
+              <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:".4rem", position:"relative" }}>
+                {i < STEPS.length - 1 && (
+                  <div style={{ position:"absolute", top:14, left:"50%", width:"100%", height:2, background: done ? "#1a7a8a" : "#e2e8f0", zIndex:0 }} />
+                )}
+                <div style={{
+                  width:28, height:28, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
+                  background: done ? "#1a7a8a" : "#f1f5f9", color: done ? "white" : "#94a3b8",
+                  fontSize:".75rem", fontWeight:700, zIndex:1, border: done ? "none" : "2px solid #e2e8f0",
+                  position:"relative",
+                }}>
+                  {done ? "✓" : i + 1}
+                </div>
+                <span style={{ fontSize:".65rem", color: done ? "#1a7a8a" : "#94a3b8", textAlign:"center", fontWeight: done ? 600 : 400 }}>
+                  {step.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Commissions fondateur ── */}
+      {["accord_signe", "actif"].includes(status) ? (
+        <div style={{ background:"linear-gradient(135deg, #0d2137, #0f3460)", color:"white", borderRadius:14, padding:"1.5rem" }}>
+          <div style={{ fontSize:".72rem", fontWeight:700, textTransform:"uppercase", letterSpacing:".08em", color:"#f5a623", marginBottom:".75rem" }}>
+            VOS CONDITIONS FOUNDING PARTNER — VERROUILLÉES
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:"1rem" }}>
+            {[
+              { label: "Abonnement", val: "GRATUIT", sub: "12 mois" },
+              { label: "Commission Location", val: `${data?.commissions?.location || 10}%`, sub: "standard 15%" },
+              { label: "Commission Vente", val: `${data?.commissions?.vente || 2}%`, sub: "standard 3%" },
+              { label: "Badge", val: "👑 Fondateur", sub: "Exclusif" },
+            ].map((item, i) => (
+              <div key={i} style={{ textAlign:"center" }}>
+                <div style={{ fontSize:"1.2rem", fontWeight:800, color: i === 0 ? "#4ade80" : i === 3 ? "#f5a623" : "#67e8f9" }}>
+                  {item.val}
+                </div>
+                <div style={{ fontSize:".7rem", color:"rgba(255,255,255,.6)", marginTop:".15rem" }}>{item.label}</div>
+                <div style={{ fontSize:".65rem", color:"rgba(255,255,255,.4)" }}>{item.sub}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{ background:"#f0f9ff", border:"1.5px solid #bae6fd", borderRadius:14, padding:"1.25rem" }}>
+          <div style={{ fontSize:".72rem", fontWeight:700, textTransform:"uppercase", letterSpacing:".08em", color:"#0369a1", marginBottom:".75rem" }}>
+            CONDITIONS FOUNDING PARTNER (APRÈS SIGNATURE)
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:"1rem" }}>
+            {[
+              { label: "Abonnement", val: "12 mois", sub: "GRATUIT" },
+              { label: "Location", val: "10%", sub: "vs 15% standard" },
+              { label: "Vente", val: "2%", sub: "vs 3% standard" },
+              { label: "Badge", val: "👑", sub: "Founding Partner" },
+            ].map((item, i) => (
+              <div key={i} style={{ textAlign:"center" }}>
+                <div style={{ fontSize:"1.4rem", fontWeight:800, color:"#0369a1" }}>{item.val}</div>
+                <div style={{ fontSize:".7rem", color:"#0369a1", fontWeight:600 }}>{item.label}</div>
+                <div style={{ fontSize:".65rem", color:"#64748b" }}>{item.sub}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── CTA Documents à signer ── */}
+      {["loi_envoyee", "accord_envoye"].includes(status) && (
+        <div style={{
+          marginTop:"1.5rem", padding:"1.25rem", borderRadius:14,
+          background: "linear-gradient(135deg, #7c3aed, #6d28d9)", color:"white",
+          display:"flex", alignItems:"center", justifyContent:"space-between", gap:"1rem", flexWrap:"wrap",
+        }}>
+          <div>
+            <strong style={{ fontSize:"1rem" }}>
+              {status === "loi_envoyee" ? "📄 Votre LOI est prête à signer !" : "📜 L'Accord de Partenariat est prêt !"}
+            </strong>
+            <p style={{ fontSize:".85rem", opacity:.85, margin:".25rem 0 0" }}>
+              {status === "loi_envoyee"
+                ? "Signez votre Lettre d'Intention pour avancer vers l'accord de partenariat fondateur."
+                : "Signez votre Accord de Partenariat pour activer votre statut Founding Partner et vos avantages."}
+            </p>
+          </div>
+          <button
+            onClick={() => navigate("/partner-onboarding")}
+            style={{ padding:".7rem 1.4rem", background:"white", color:"#7c3aed", border:"none", borderRadius:10, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap", fontSize:".88rem" }}
+          >
+            ✍️ Signer maintenant →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // COMPOSANT PRINCIPAL PMS DASHBOARD
 // ══════════════════════════════════════════════════════════════════════════════
 const NAV_ITEMS = [
   { id:"home",        icon:"🏠", label:"Accueil"           },
+  { id:"onboarding",  icon:"👑", label:"Founding Partner"  },
   { id:"company",     icon:"🏢", label:"Mon Entreprise"    },
   { id:"showroom",    icon:"🏪", label:"Mon Showroom"      },
   { id:"fleet",       icon:"🚗", label:"Flotte"            },
@@ -1248,6 +1462,7 @@ export default function PartnerPMSDashboard() {
   const renderSection = () => {
     switch (activeSection) {
       case "home":        return <HomeSection token={token} user={user} onNav={onNav} />;
+      case "onboarding":  return <OnboardingSection token={token} />;
       case "company":     return <CompanySection user={user} />;
       case "showroom":    return <ShowroomSection token={token} showToast={showToast} />;
       case "fleet":       return <FleetSection />;

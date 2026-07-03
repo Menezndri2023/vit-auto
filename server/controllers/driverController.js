@@ -1,3 +1,4 @@
+import logger from "../utils/logger.js";
 import Driver from "../models/Driver.js";
 import Notification from "../models/Notification.js";
 
@@ -52,12 +53,12 @@ export const createDriver = async (req, res) => {
         lien: "/vendor/dashboard",
       });
     } catch (notifErr) {
-      console.error("Notification (non bloquant) :", notifErr.message);
+      logger.error("Notification (non bloquant) :", notifErr.message);
     }
 
     res.status(201).json({ driver });
   } catch (err) {
-    console.error("createDriver:", err);
+    logger.error("createDriver:", err);
     res.status(400).json({ message: err.message || "Erreur création chauffeur." });
   }
 };
@@ -76,7 +77,7 @@ export const getDrivers = async (req, res) => {
 
     res.json(drivers);
   } catch (err) {
-    console.error("getDrivers:", err);
+    logger.error("getDrivers:", err);
     res.status(500).json({ message: "Erreur récupération chauffeurs." });
   }
 };
@@ -87,7 +88,7 @@ export const getMyDrivers = async (req, res) => {
     const drivers = await Driver.find({ owner: req.user._id }).sort({ createdAt: -1 });
     res.json({ drivers });
   } catch (err) {
-    console.error("getMyDrivers:", err);
+    logger.error("getMyDrivers:", err);
     res.status(500).json({ message: "Erreur récupération." });
   }
 };
@@ -100,7 +101,7 @@ export const getPendingDrivers = async (req, res) => {
       .populate("owner", "firstName lastName email");
     res.json({ drivers });
   } catch (err) {
-    console.error("getPendingDrivers:", err);
+    logger.error("getPendingDrivers:", err);
     res.status(500).json({ message: "Erreur récupération." });
   }
 };
@@ -134,7 +135,7 @@ export const updateDriverStatus = async (req, res) => {
 
     res.json({ driver });
   } catch (err) {
-    console.error("updateDriverStatus:", err);
+    logger.error("updateDriverStatus:", err);
     res.status(500).json({ message: "Erreur mise à jour statut." });
   }
 };
@@ -153,7 +154,7 @@ export const deleteDriver = async (req, res) => {
     await driver.deleteOne();
     res.json({ message: "Profil supprimé." });
   } catch (err) {
-    console.error("deleteDriver:", err);
+    logger.error("deleteDriver:", err);
     res.status(500).json({ message: "Erreur suppression." });
   }
 };

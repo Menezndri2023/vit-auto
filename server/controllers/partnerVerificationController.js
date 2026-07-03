@@ -1,3 +1,4 @@
+import logger from "../utils/logger.js";
 import PartnerVerification, { CRITERIA_WEIGHTS } from "../models/PartnerVerification.js";
 import PartnerCertification from "../models/PartnerCertification.js";
 import User from "../models/User.js";
@@ -17,8 +18,8 @@ async function addAudit(docId, action, criterion, performedBy, note) {
 // ── Notifier le partenaire ────────────────────────────────────────────────────
 async function notifyPartner(userId, title, message) {
   try {
-    await Notification.create({ userId, title, message, type: "system" });
-    if (global._io) global._io.to(`user_${userId}`).emit("notification", { title, message });
+    await Notification.create({ user: userId, titre: title, message, type: "system" });
+    if (global._io) global._io.to(`user_${userId}`).emit("notification", { titre: title, message });
   } catch { /* non-bloquant */ }
 }
 
@@ -53,7 +54,7 @@ export const adminList = async (req, res) => {
 
     res.json({ verifications: docs, total, page: Number(page), limit: Number(limit) });
   } catch (err) {
-    console.error("partnerVerif adminList:", err);
+    logger.error("partnerVerif adminList:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -80,7 +81,7 @@ export const adminStats = async (req, res) => {
       avgScore:   Math.round(avgScore[0]?.avg || 0),
     });
   } catch (err) {
-    console.error("partnerVerif adminStats:", err);
+    logger.error("partnerVerif adminStats:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -103,7 +104,7 @@ export const adminDetail = async (req, res) => {
 
     res.json({ verification: doc });
   } catch (err) {
-    console.error("partnerVerif adminDetail:", err);
+    logger.error("partnerVerif adminDetail:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -141,7 +142,7 @@ export const adminCreate = async (req, res) => {
 
     res.status(201).json({ success: true, verification: doc });
   } catch (err) {
-    console.error("partnerVerif adminCreate:", err);
+    logger.error("partnerVerif adminCreate:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -166,7 +167,7 @@ export const adminUpdateInfo = async (req, res) => {
     await addAudit(doc._id, "INFO_MISE_A_JOUR", null, req.user.id, "Informations générales mises à jour");
     res.json({ success: true, verification: doc });
   } catch (err) {
-    console.error("partnerVerif adminUpdateInfo:", err);
+    logger.error("partnerVerif adminUpdateInfo:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -205,7 +206,7 @@ export const adminToggleCriterion = async (req, res) => {
 
     res.json({ success: true, verification: doc.toObject(), trustScore: doc.trustScore, trustLevel: doc.trustLevel });
   } catch (err) {
-    console.error("partnerVerif adminToggleCriterion:", err);
+    logger.error("partnerVerif adminToggleCriterion:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -237,7 +238,7 @@ export const adminUpdateStatus = async (req, res) => {
 
     res.json({ success: true, verification: doc });
   } catch (err) {
-    console.error("partnerVerif adminUpdateStatus:", err);
+    logger.error("partnerVerif adminUpdateStatus:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -249,7 +250,7 @@ export const adminDelete = async (req, res) => {
     if (!doc) return res.status(404).json({ message: "Dossier introuvable." });
     res.json({ success: true, message: "Dossier supprimé." });
   } catch (err) {
-    console.error("partnerVerif adminDelete:", err);
+    logger.error("partnerVerif adminDelete:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -263,7 +264,7 @@ export const publicProfile = async (req, res) => {
     if (!doc) return res.status(404).json({ message: "Profil non trouvé ou non vérifié." });
     res.json({ verification: doc });
   } catch (err) {
-    console.error("partnerVerif publicProfile:", err);
+    logger.error("partnerVerif publicProfile:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

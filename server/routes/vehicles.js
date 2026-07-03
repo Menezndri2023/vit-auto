@@ -1,8 +1,10 @@
 import express from "express";
 import * as v from "../controllers/vehicleController.js";
 import { authenticate, authorizeAdmin, optionalAuth } from "../middleware/auth.js";
+import { validateObjectId } from "../middleware/validateObjectId.js";
 
 const router = express.Router();
+const vid = validateObjectId();
 
 // ── IMPORTANT : routes statiques AVANT les routes paramétrées ────────────────
 
@@ -18,11 +20,11 @@ router.get("/pending", authenticate, authorizeAdmin, v.getPendingVehicles);  // 
 router.post("/sync-availability", authenticate, authorizeAdmin, v.syncAllAvailability);
 
 // ── Routes paramétrées (viennent APRÈS les routes statiques) ─────────────────
-router.get("/:id/availability", optionalAuth, v.getVehicleAvailability);    // disponibilité dates
-router.patch("/:id/status",   authenticate, authorizeAdmin, v.updateVehicleStatus); // approuver/rejeter
-router.patch("/:id",          authenticate, v.updateVehicle);                        // mise à jour partielle (featured, etc.)
-router.put("/:id",            authenticate, v.updateVehicle);                        // modifier annonce (compat)
-router.delete("/:id", authenticate, v.deleteVehicle);                        // supprimer annonce
-router.get("/:id",    optionalAuth,  v.getVehicleById);                      // détail véhicule (public)
+router.get("/:id/availability", vid, optionalAuth, v.getVehicleAvailability);    // disponibilité dates
+router.patch("/:id/status",   vid, authenticate, authorizeAdmin, v.updateVehicleStatus); // approuver/rejeter
+router.patch("/:id",          vid, authenticate, v.updateVehicle);                        // mise à jour partielle (featured, etc.)
+router.put("/:id",            vid, authenticate, v.updateVehicle);                        // modifier annonce (compat)
+router.delete("/:id", vid, authenticate, v.deleteVehicle);                        // supprimer annonce
+router.get("/:id",    vid, optionalAuth,  v.getVehicleById);                      // détail véhicule (public)
 
 export default router;

@@ -1,14 +1,15 @@
 import express from "express";
 import * as n from "../controllers/notificationController.js";
 import { authenticate, authorizeAdmin } from "../middleware/auth.js";
+import { validateObjectId } from "../middleware/validateObjectId.js";
 
 const router = express.Router();
+const vid = validateObjectId();
 
-// Toutes les routes nécessitent une authentification
-router.get("/", authenticate, n.getMyNotifications);                                   // mes notifications
-router.patch("/read-all", authenticate, n.markAllAsRead);                              // tout marquer lu
-router.patch("/:id/read", authenticate, n.markAsRead);                                // marquer une lu
-router.delete("/:id", authenticate, n.deleteNotification);                             // supprimer
-router.post("/admin/broadcast", authenticate, authorizeAdmin, n.sendAdminNotification); // admin broadcast
+router.get("/", authenticate, n.getMyNotifications);
+router.patch("/read-all", authenticate, n.markAllAsRead);
+router.patch("/:id/read", vid, authenticate, n.markAsRead);
+router.delete("/:id",     vid, authenticate, n.deleteNotification);
+router.post("/admin/broadcast", authenticate, authorizeAdmin, n.sendAdminNotification);
 
 export default router;

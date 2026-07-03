@@ -1,3 +1,4 @@
+import logger from "../utils/logger.js";
 import Notification from "../models/Notification.js";
 import User from "../models/User.js";
 
@@ -12,7 +13,7 @@ export const getMyNotifications = async (req, res) => {
 
     res.json({ notifications, nonLues });
   } catch (err) {
-    console.error("getMyNotifications:", err);
+    logger.error("getMyNotifications:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -28,7 +29,7 @@ export const markAsRead = async (req, res) => {
     if (!notif) return res.status(404).json({ message: "Notification introuvable." });
     res.json({ notification: notif });
   } catch (err) {
-    console.error("markAsRead:", err);
+    logger.error("markAsRead:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -42,7 +43,7 @@ export const markAllAsRead = async (req, res) => {
     );
     res.json({ message: "Toutes les notifications marquées comme lues." });
   } catch (err) {
-    console.error("markAllAsRead:", err);
+    logger.error("markAllAsRead:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -53,7 +54,7 @@ export const deleteNotification = async (req, res) => {
     await Notification.findOneAndDelete({ _id: req.params.id, user: req.user._id });
     res.json({ message: "Notification supprimée." });
   } catch (err) {
-    console.error("deleteNotification:", err);
+    logger.error("deleteNotification:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -83,7 +84,7 @@ export const sendAdminNotification = async (req, res) => {
     await Notification.insertMany(docs);
     res.json({ sent: docs.length, message: `Notification envoyée à ${docs.length} utilisateur(s).` });
   } catch (err) {
-    console.error("sendAdminNotification:", err);
+    logger.error("sendAdminNotification:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

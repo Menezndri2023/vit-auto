@@ -1,3 +1,4 @@
+import logger from "../utils/logger.js";
 import mongoose from "mongoose";
 import Booking from "../models/Booking.js";
 import Vehicle from "../models/Vehicle.js";
@@ -263,7 +264,7 @@ export const createBooking = async (req, res) => {
         booking.status  = "confirmed";
         await booking.save();
       } catch (payErr) {
-        console.error("createBooking — payment creation failed (non-bloquant):", payErr.message);
+        logger.error("createBooking — payment creation failed (non-bloquant):", payErr.message);
         // Le booking reste en "pending" — le partenaire devra confirmer manuellement
       }
     }
@@ -280,7 +281,7 @@ export const createBooking = async (req, res) => {
 
     res.status(201).json({ booking });
   } catch (err) {
-    console.error("createBooking:", err);
+    logger.error("createBooking:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -303,7 +304,7 @@ export const getMyBookings = async (req, res) => {
       .populate("payment", "method status amount devise");
     res.json({ bookings });
   } catch (err) {
-    console.error("getMyBookings:", err);
+    logger.error("getMyBookings:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -333,7 +334,7 @@ export const getPartnerBookings = async (req, res) => {
 
     res.json({ bookings });
   } catch (err) {
-    console.error("getPartnerBookings:", err);
+    logger.error("getPartnerBookings:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -394,7 +395,7 @@ export const getAllBookings = async (req, res) => {
 
     res.json({ bookings, total, pages: Math.ceil(total / safeLimit), page: Number(page), byStatus });
   } catch (err) {
-    console.error("getAllBookings:", err);
+    logger.error("getAllBookings:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -532,7 +533,7 @@ export const updateBookingStatus = async (req, res) => {
         booking.contract = contract._id;
         await booking.save();
       } catch (contractErr) {
-        console.error("Auto-contrat échoué (non bloquant) :", contractErr.message);
+        logger.error("Auto-contrat échoué (non bloquant) :", contractErr.message);
       }
     }
 
@@ -559,7 +560,7 @@ export const updateBookingStatus = async (req, res) => {
 
     res.json({ booking });
   } catch (err) {
-    console.error("updateBookingStatus:", err);
+    logger.error("updateBookingStatus:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -662,7 +663,7 @@ export const recordTransaction = async (req, res) => {
 
     res.json({ booking, message: "Transaction enregistrée. En attente de validation client." });
   } catch (err) {
-    console.error("recordTransaction:", err);
+    logger.error("recordTransaction:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -750,7 +751,7 @@ export const validateTransaction = async (req, res) => {
 
     res.json({ booking, message: action === "validate" ? "Transaction validée avec succès." : "Litige enregistré. Notre équipe vous contactera." });
   } catch (err) {
-    console.error("validateTransaction:", err);
+    logger.error("validateTransaction:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -802,7 +803,7 @@ export const getVehicleOccupiedDates = async (req, res) => {
       blockedDays: Array.from(blockedDays).sort(),
     });
   } catch (err) {
-    console.error("getVehicleOccupiedDates:", err);
+    logger.error("getVehicleOccupiedDates:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -854,7 +855,7 @@ export const getPartnerStats = async (req, res) => {
       totalPayout,
     });
   } catch (err) {
-    console.error("getPartnerStats:", err);
+    logger.error("getPartnerStats:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -984,7 +985,7 @@ export const partnerConfirm = async (req, res) => {
       message: "Présence et transaction enregistrées. En attente de validation client.",
     });
   } catch (err) {
-    console.error("partnerConfirm:", err);
+    logger.error("partnerConfirm:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -1040,7 +1041,7 @@ export const getBookingDetail = async (req, res) => {
 
     res.json({ booking });
   } catch (err) {
-    console.error("getBookingDetail:", err);
+    logger.error("getBookingDetail:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -1099,7 +1100,7 @@ export const partnerVerifyKyc = async (req, res) => {
         : "Identité client rejetée — client notifié.",
     });
   } catch (err) {
-    console.error("partnerVerifyKyc:", err);
+    logger.error("partnerVerifyKyc:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -1156,7 +1157,7 @@ export const cancelBookingByClient = async (req, res) => {
 
     res.json({ success: true, message: "Réservation annulée.", status: "cancelled" });
   } catch (err) {
-    console.error("cancelBookingByClient:", err);
+    logger.error("cancelBookingByClient:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -1211,7 +1212,7 @@ export const resolveDispute = async (req, res) => {
 
     res.json({ booking, message: "Litige résolu.", resolution });
   } catch (err) {
-    console.error("resolveDispute:", err);
+    logger.error("resolveDispute:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -1261,7 +1262,7 @@ export const adminForceComplete = async (req, res) => {
 
     res.json({ booking, message: "Commande finalisée avec succès." });
   } catch (err) {
-    console.error("adminForceComplete:", err);
+    logger.error("adminForceComplete:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -1287,7 +1288,7 @@ export const adminDeleteBooking = async (req, res) => {
 
     res.json({ success: true, message: "Commande supprimée." });
   } catch (err) {
-    console.error("adminDeleteBooking:", err);
+    logger.error("adminDeleteBooking:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -1340,7 +1341,7 @@ export const exportBookings = async (req, res) => {
 
     res.json({ bookings, total: bookings.length, exportedAt: new Date() });
   } catch (err) {
-    console.error("exportBookings:", err);
+    logger.error("exportBookings:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -1388,7 +1389,7 @@ export const getAdminBookingStats = async (req, res) => {
       pending:  statusMap.pending  || 0,
     });
   } catch (err) {
-    console.error("getAdminBookingStats:", err);
+    logger.error("getAdminBookingStats:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -1436,7 +1437,7 @@ export const getAllBookingsEnhanced = async (req, res) => {
 
     res.json({ bookings, total, pages: Math.ceil(total / limit), page: Number(page) });
   } catch (err) {
-    console.error("getAllBookingsEnhanced:", err);
+    logger.error("getAllBookingsEnhanced:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

@@ -1,3 +1,4 @@
+import logger from "../utils/logger.js";
 import mongoose from "mongoose";
 import Contract from "../models/Contract.js";
 import Booking from "../models/Booking.js";
@@ -86,7 +87,7 @@ export const createContract = async (req, res) => {
 
     res.status(201).json({ contract });
   } catch (err) {
-    console.error("createContract:", err);
+    logger.error("createContract:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -109,7 +110,7 @@ export const getContract = async (req, res) => {
 
     res.json({ contract });
   } catch (err) {
-    console.error("getContract:", err);
+    logger.error("getContract:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -161,7 +162,7 @@ export const signContract = async (req, res) => {
 
     res.json({ contract });
   } catch (err) {
-    console.error("signContract:", err);
+    logger.error("signContract:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -188,7 +189,7 @@ export const getPartnerContracts = async (req, res) => {
 
     res.json({ contracts });
   } catch (err) {
-    console.error("getPartnerContracts:", err);
+    logger.error("getPartnerContracts:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

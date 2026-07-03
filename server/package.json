@@ -13,20 +13,28 @@
     "health": "curl -f http://localhost:${PORT:-5001}/api/ping || exit 1"
   },
   "dependencies": {
+    "@sentry/node": "^10.63.0",
     "africastalking": "^0.8.0",
     "bcryptjs": "^2.4.3",
+    "bullmq": "^5.79.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-mongo-sanitize": "^2.2.0",
     "express-rate-limit": "^7.5.1",
     "helmet": "^8.1.0",
+    "imagekit": "^6.0.0",
+    "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.23.1",
     "nodemailer": "^8.0.7",
+    "otpauth": "^9.5.1",
     "pdfkit": "^0.15.2",
+    "qrcode": "^1.5.4",
+    "resend": "^6.16.0",
     "socket.io": "^4.8.3",
-    "winston": "^3.17.0"
+    "winston": "^3.17.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

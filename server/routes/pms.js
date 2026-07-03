@@ -1,5 +1,6 @@
 import express from "express";
 import { authenticate as protect } from "../middleware/auth.js";
+import { validateObjectId } from "../middleware/validateObjectId.js";
 import {
   getPMSOverview,
   getLeads, createLead, getLead, updateLead, deleteLead, addLeadFollowUp, addLeadMessage,
@@ -30,22 +31,24 @@ const isPartner = [protect, requirePartner];
 // Vue d'ensemble dashboard PMS
 router.get("/overview", isPartner, getPMSOverview);
 
+const vid = validateObjectId();
+
 // Leads
 router.get   ("/leads",               isPartner, getLeads);
 router.post  ("/leads",               isPartner, createLead);
-router.get   ("/leads/:id",           isPartner, getLead);
-router.put   ("/leads/:id",           isPartner, updateLead);
-router.delete("/leads/:id",           isPartner, deleteLead);
-router.post  ("/leads/:id/followup",  isPartner, addLeadFollowUp);
-router.post  ("/leads/:id/message",   isPartner, addLeadMessage);
+router.get   ("/leads/:id",           vid, isPartner, getLead);
+router.put   ("/leads/:id",           vid, isPartner, updateLead);
+router.delete("/leads/:id",           vid, isPartner, deleteLead);
+router.post  ("/leads/:id/followup",  vid, isPartner, addLeadFollowUp);
+router.post  ("/leads/:id/message",   vid, isPartner, addLeadMessage);
 
 // Devis
 router.get   ("/quotes",              isPartner, getQuotes);
 router.post  ("/quotes",              isPartner, createQuote);
-router.get   ("/quotes/:id",          isPartner, getQuote);
-router.put   ("/quotes/:id",          isPartner, updateQuote);
-router.post  ("/quotes/:id/send",     isPartner, sendQuote);
-router.delete("/quotes/:id",          isPartner, deleteQuote);
+router.get   ("/quotes/:id",          vid, isPartner, getQuote);
+router.put   ("/quotes/:id",          vid, isPartner, updateQuote);
+router.post  ("/quotes/:id/send",     vid, isPartner, sendQuote);
+router.delete("/quotes/:id",          vid, isPartner, deleteQuote);
 
 // Showroom
 router.get   ("/showroom/me",         isPartner, getMyShowroom);
@@ -65,6 +68,6 @@ const isAdmin = [protect, requireAdmin];
 
 router.get  ("/admin/stats",              isAdmin, getAdminPMSStats);
 router.get  ("/admin/showrooms",          isAdmin, getAdminShowrooms);
-router.patch("/admin/showrooms/:id/toggle", isAdmin, adminToggleShowroom);
+router.patch("/admin/showrooms/:id/toggle", vid, isAdmin, adminToggleShowroom);
 
 export default router;

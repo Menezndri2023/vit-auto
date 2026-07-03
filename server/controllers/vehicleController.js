@@ -1,3 +1,4 @@
+import logger from "../utils/logger.js";
 import mongoose from "mongoose";
 import Vehicle from "../models/Vehicle.js";
 import Notification from "../models/Notification.js";
@@ -201,12 +202,12 @@ export const createVehicle = async (req, res) => {
       };
       await Notification.create({ user: req.user._id, lien: "/vendor/dashboard", ...notifMap[validation.status] });
     } catch (notifErr) {
-      console.error("Notification (non bloquant) :", notifErr.message);
+      logger.error("Notification (non bloquant) :", notifErr.message);
     }
 
     res.status(201).json({ vehicle, validation });
   } catch (err) {
-    console.error("createVehicle:", err);
+    logger.error("createVehicle:", err);
     res.status(400).json({ message: "Erreur création véhicule." });
   }
 };
@@ -268,7 +269,7 @@ export const getVehicles = async (req, res) => {
 
     res.json({ vehicles, total, page: Number(page), pages: Math.ceil(total / safeLimit) });
   } catch (err) {
-    console.error("getVehicles:", err);
+    logger.error("getVehicles:", err);
     res.status(500).json({ message: "Erreur récupération véhicules." });
   }
 };
@@ -291,7 +292,7 @@ export const getVehicleById = async (req, res) => {
     }
     res.json({ vehicle });
   } catch (err) {
-    console.error("getVehicleById:", err);
+    logger.error("getVehicleById:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -302,7 +303,7 @@ export const getMyVehicles = async (req, res) => {
     const vehicles = await Vehicle.find({ owner: req.user._id }).sort({ createdAt: -1 });
     res.json({ vehicles });
   } catch (err) {
-    console.error("getMyVehicles:", err);
+    logger.error("getMyVehicles:", err);
     res.status(500).json({ message: "Erreur récupération." });
   }
 };
@@ -315,7 +316,7 @@ export const getPendingVehicles = async (req, res) => {
       .populate("owner", "firstName lastName email phone");
     res.json({ vehicles });
   } catch (err) {
-    console.error("getPendingVehicles:", err);
+    logger.error("getPendingVehicles:", err);
     res.status(500).json({ message: "Erreur récupération." });
   }
 };
@@ -353,7 +354,7 @@ export const updateVehicleStatus = async (req, res) => {
 
     res.json({ vehicle });
   } catch (err) {
-    console.error("updateVehicleStatus:", err);
+    logger.error("updateVehicleStatus:", err);
     res.status(500).json({ message: "Erreur mise à jour statut." });
   }
 };
@@ -407,7 +408,7 @@ export const updateVehicle = async (req, res) => {
     const updated = await Vehicle.findByIdAndUpdate(req.params.id, safeUpdate, { new: true });
     res.json({ vehicle: updated });
   } catch (err) {
-    console.error("updateVehicle:", err);
+    logger.error("updateVehicle:", err);
     res.status(500).json({ message: "Erreur mise à jour." });
   }
 };
@@ -426,7 +427,7 @@ export const deleteVehicle = async (req, res) => {
     await vehicle.deleteOne();
     res.json({ message: "Annonce supprimée." });
   } catch (err) {
-    console.error("deleteVehicle:", err);
+    logger.error("deleteVehicle:", err);
     res.status(500).json({ message: "Erreur suppression." });
   }
 };
@@ -482,7 +483,7 @@ export const getVehicleAvailability = async (req, res) => {
       checkedRange: { start, end },
     });
   } catch (err) {
-    console.error("getVehicleAvailability:", err);
+    logger.error("getVehicleAvailability:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -532,7 +533,7 @@ export const syncAllAvailability = async (req, res) => {
       updated,
     });
   } catch (err) {
-    console.error("syncAllAvailability:", err);
+    logger.error("syncAllAvailability:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

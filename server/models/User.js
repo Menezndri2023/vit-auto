@@ -157,6 +157,9 @@ const userSchema = new mongoose.Schema({
     profileId: { type: mongoose.Schema.Types.ObjectId, ref: "ImporterPartnerProfile", default: null },
   },
 
+  // ── Statut Founding Partner ─────────────────────────────────────────────────
+  isFounder: { type: Boolean, default: false },
+
   // ── Certification Partenaire Vérifié Vit-Auto ──────────────────────────────
   certificationBadge: {
     type: String,
@@ -172,6 +175,25 @@ const userSchema = new mongoose.Schema({
   documentsVerified: { type: Boolean, default: false },
   isActive:          { type: Boolean, default: true },
   lastLogin:         { type: Date,    default: null },
+
+  // ── Authentification à deux facteurs (TOTP) ──────────────────
+  twoFactor: {
+    enabled:     { type: Boolean, default: false },
+    secret:      { type: String,  default: null },   // stocké chiffré en production
+    backupCodes: [{
+      code: String,   // hashé bcrypt avant stockage
+      used: { type: Boolean, default: false },
+    }],
+    enabledAt: { type: Date, default: null },
+  },
+
+  // ── Abonnement ────────────────────────────────────────────────
+  subscription: {
+    planId:    { type: String, default: null },
+    status:    { type: String, enum: ["active", "inactive", "trial"], default: "inactive" },
+    expiresAt: { type: Date, default: null },
+    isFounder: { type: Boolean, default: false },
+  },
 
   createdAt: { type: Date, default: Date.now },
 });

@@ -124,7 +124,6 @@ const partnerShowroomSchema = new mongoose.Schema({
 });
 
 partnerShowroomSchema.index({ isPublished: 1 });
-partnerShowroomSchema.index({ slug: 1 });
 partnerShowroomSchema.index({ "trustScore.overall": -1 });
 
 partnerShowroomSchema.pre("save", function (next) {

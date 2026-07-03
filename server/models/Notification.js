@@ -1,9 +1,5 @@
 import mongoose from "mongoose";
 
-/**
- * Notifications in-app envoyées à un utilisateur.
- * Créées automatiquement lors d'événements clés.
- */
 const notificationSchema = new mongoose.Schema({
   // ── Destinataire ──────────────────────────────────────────
   user: {
@@ -12,49 +8,82 @@ const notificationSchema = new mongoose.Schema({
     required: true,
   },
 
-  // ── Type d'événement ──────────────────────────────────────
+  // ── Type d'événement ─────────────────────────────────────
   type: {
     type: String,
     enum: [
       // Réservations
-      "booking_confirmed",    // Réservation confirmée
-      "booking_cancelled",    // Réservation annulée
-      "booking_completed",    // Réservation terminée
-      // Annonces véhicules
-      "listing_approved",     // Annonce approuvée par admin
-      "listing_rejected",     // Annonce rejetée
-      "new_booking",          // Partenaire : nouvelle réservation reçue
-      "new_review",           // Nouveau avis reçu
-      "payment_received",     // Paiement confirmé
-      "new_message",          // Nouveau message chat
-      "system",               // Message général système
-      // Import / Export
-      "info",                 // Information générale
-      "success",              // Succès (profil vérifié, annonce publiée…)
-      "error",                // Erreur / refus
-      "warning",              // Avertissement
-      "ie_request",           // Nouvelle demande client IE
-      "ie_profile",           // Candidature importateur
-      "ie_listing",           // Annonce import/export
+      "booking_confirmed",
+      "booking_cancelled",
+      "booking_completed",
+      "new_booking",
+      // Annonces
+      "listing_approved",
+      "listing_rejected",
+      // Paiements
+      "payment_received",
+      "payment_failed",
+      "invoice_available",
+      "refund_processed",
+      // KYC
+      "kyc_submitted",
+      "kyc_approved",
+      "kyc_rejected",
+      // Partners
+      "partner_approved",
+      "partner_suspended",
+      "loi_ready",
+      "agreement_ready",
+      "onboarding_step",
+      // Import/Export
+      "ie_request",
+      "ie_profile",
+      "ie_listing",
+      "ie_step_update",
+      "ie_escrow_released",
+      // Chat
+      "new_message",
+      // Drivers
+      "driver_assigned",
+      "driver_completed",
+      // Système
+      "system",
+      "info",
+      "success",
+      "error",
+      "warning",
     ],
     required: true,
+  },
+
+  // ── Canal de diffusion ────────────────────────────────────
+  // "internal" = notification in-app uniquement (défaut)
+  // Les autres canaux sont envoyés EN PLUS de l'in-app
+  channel: {
+    type: String,
+    enum: ["internal", "email", "sms", "whatsapp", "push"],
+    default: "internal",
   },
 
   // ── Contenu ───────────────────────────────────────────────
   titre:   { type: String, required: true },
   message: { type: String, required: true },
+  lien:    { type: String, default: null },
 
-  // ── Lien vers la page concernée (route frontend) ──────────
-  lien: { type: String, default: null },
+  // ── Métadonnées de livraison ──────────────────────────────
+  delivered: { type: Boolean, default: false },
+  deliveredAt: { type: Date, default: null },
+  deliveryError: { type: String, default: null },
 
-  // ── État ──────────────────────────────────────────────────
-  lu: { type: Boolean, default: false },
-  luAt: { type: Date, default: null },
+  // ── État lecture ──────────────────────────────────────────
+  lu:    { type: Boolean, default: false },
+  luAt:  { type: Date, default: null },
 
   createdAt: { type: Date, default: Date.now },
 });
 
 notificationSchema.index({ user: 1, lu: 1 });
+notificationSchema.index({ user: 1, createdAt: -1 });
 notificationSchema.index({ createdAt: -1 });
 
 const Notification = mongoose.models.Notification || mongoose.model("Notification", notificationSchema);

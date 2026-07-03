@@ -1,8 +1,11 @@
+import logger from "../utils/logger.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import * as OTPAuth from "otpauth";
+import QRCode from "qrcode";
 import User from "../models/User.js";
-import { transporter, FROM_ADDRESS, emailVerificationTemplate, passwordResetTemplate } from "../config/email.js";
+import { sendEmail, emailVerificationTemplate, passwordResetTemplate } from "../config/email.js";
 import { serverValidateIdentity } from "../utils/idValidation.js";
 
 const JWT_SECRET         = () => process.env.JWT_SECRET;
@@ -139,7 +142,7 @@ export const register = async (req, res) => {
     const jwtToken = signJWT(user);
 
     if (autoVerify) {
-      console.log(`\n✅ [DEV] Compte créé et auto-vérifié : ${user.email}`);
+      logger.info("[DEV] Compte auto-vérifié", { email: user.email });
       return res.status(201).json({
         user: safeUser(user),
         token: jwtToken,
@@ -150,12 +153,13 @@ export const register = async (req, res) => {
 
     // Production : envoyer l'email de vérification
     const verifyUrl = `${APP_URL()}/verify-email?token=${token}`;
-    transporter.sendMail({
-      from:    FROM_ADDRESS,
-      to:      user.email,
-      subject: "✅ VIT AUTO — Confirmez votre adresse e-mail",
-      html:    emailVerificationTemplate(user.firstName, verifyUrl),
-    }).catch((err) => console.error("Email send error (non-bloquant):", err.message));
+    sendEmail({
+      to:       user.email,
+      subject:  "VIT AUTO — Confirmez votre adresse e-mail",
+      html:     emailVerificationTemplate(user.firstName, verifyUrl),
+      template: "email_verification",
+      userId:   user._id,
+    });
 
     res.status(201).json({
       user: safeUser(user),
@@ -164,7 +168,7 @@ export const register = async (req, res) => {
       message: "Compte créé ! Vérifiez votre boîte mail pour activer votre compte.",
     });
   } catch (err) {
-    console.error("register:", err);
+    logger.error("register:", err);
     res.status(500).json({ message: "Erreur serveur lors de l'inscription." });
   }
 };
@@ -212,6 +216,15 @@ export const login = async (req, res) => {
       });
     }
 
+    // 2FA — si activé, retourner un challenge au lieu des tokens
+    if (user.twoFactor?.enabled) {
+      return res.json({
+        requiresTwoFactor: true,
+        userId: user._id,
+        message: "Code d'authentification requis.",
+      });
+    }
+
     // Mettre à jour lastLogin
     user.lastLogin = new Date();
 
@@ -228,7 +241,7 @@ export const login = async (req, res) => {
       refreshToken,
     });
   } catch (err) {
-    console.error("login:", err);
+    logger.error("login:", err);
     res.status(500).json({ message: "Erreur serveur lors de la connexion." });
   }
 };
@@ -257,7 +270,7 @@ export const verifyEmail = async (req, res) => {
 
     res.json({ message: "E-mail vérifié avec succès ! Vous pouvez vous connecter.", success: true });
   } catch (err) {
-    console.error("verifyEmail:", err);
+    logger.error("verifyEmail:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -278,16 +291,17 @@ export const resendVerification = async (req, res) => {
     await user.save();
 
     const verifyUrl = `${APP_URL()}/verify-email?token=${token}`;
-    await transporter.sendMail({
-      from:    FROM_ADDRESS,
-      to:      user.email,
-      subject: "✅ VIT AUTO — Nouveau lien de vérification",
-      html:    emailVerificationTemplate(user.firstName, verifyUrl),
+    await sendEmail({
+      to:       user.email,
+      subject:  "VIT AUTO — Nouveau lien de vérification",
+      html:     emailVerificationTemplate(user.firstName, verifyUrl),
+      template: "email_verification",
+      userId:   user._id,
     });
 
     res.json({ message: "Nouveau lien envoyé ! Vérifiez votre boîte mail." });
   } catch (err) {
-    console.error("resendVerification:", err);
+    logger.error("resendVerification:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -312,10 +326,11 @@ export const changePassword = async (req, res) => {
     if (!isValid) return res.status(401).json({ message: "Mot de passe actuel incorrect." });
 
     user.password = await bcrypt.hash(newPassword, 12);
+    user.refreshTokens = [];
     await user.save();
     res.json({ message: "Mot de passe modifié avec succès." });
   } catch (err) {
-    console.error("changePassword:", err);
+    logger.error("changePassword:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -337,7 +352,7 @@ export const devVerify = async (req, res) => {
     );
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
     const token = signJWT(user);
-    console.log(`\n✅ [DEV] Email vérifié manuellement : ${user.email}`);
+    logger.info("[DEV] Email vérifié manuellement", { email: user.email });
     res.json({ message: `Email vérifié pour ${user.email}. Vous pouvez vous connecter.`, token, user: safeUser(user) });
   } catch (err) {
     res.status(500).json({ message: "Erreur serveur." });
@@ -360,16 +375,17 @@ export const forgotPassword = async (req, res) => {
     await user.save();
 
     const resetUrl = `${APP_URL()}/reset-password?token=${token}`;
-    transporter.sendMail({
-      from:    FROM_ADDRESS,
-      to:      user.email,
-      subject: "🔑 VIT AUTO — Réinitialisation de votre mot de passe",
-      html:    passwordResetTemplate(user.firstName, resetUrl),
-    }).catch((err) => console.error("Email reset error (non-bloquant):", err.message));
+    sendEmail({
+      to:       user.email,
+      subject:  "VIT AUTO — Réinitialisation de votre mot de passe",
+      html:     passwordResetTemplate(user.firstName, resetUrl),
+      template: "password_reset",
+      userId:   user._id,
+    });
 
     res.json({ message: "Si ce compte existe, un lien a été envoyé." });
   } catch (err) {
-    console.error("forgotPassword:", err);
+    logger.error("forgotPassword:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -389,10 +405,10 @@ async function sendSmsOtp(phoneNumber, otp) {
         message,
         from:    process.env.AT_SENDER_ID || "VIT-AUTO",
       });
-      console.log(`📱 SMS envoyé via Africa's Talking → ${phoneNumber}`);
+      logger.info("SMS envoyé via Africa's Talking", { phoneNumber });
       return { sent: true, provider: "africastalking", result };
     } catch (err) {
-      console.error("Africa's Talking SMS error:", err.message);
+      logger.error("Africa's Talking SMS error:", err.message);
     }
   }
 
@@ -402,16 +418,16 @@ async function sendSmsOtp(phoneNumber, otp) {
       const { default: twilio } = await import("twilio");
       const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
       await client.messages.create({ body: message, from: process.env.TWILIO_PHONE_FROM, to: phoneNumber });
-      console.log(`📱 SMS envoyé via Twilio → ${phoneNumber}`);
+      logger.info("SMS envoyé via Twilio", { phoneNumber });
       return { sent: true, provider: "twilio" };
     } catch (err) {
-      console.error("Twilio SMS error:", err.message);
+      logger.error("Twilio SMS error:", err.message);
     }
   }
 
   // ── 3. Fallback console (dev uniquement — jamais en production) ──────
   if (process.env.NODE_ENV !== "production") {
-    console.log(`\n📱 [SMS DEV] → ${phoneNumber.slice(0, -4).replace(/./g, "*")}**** : ${otp}\n`);
+    logger.info(`[SMS DEV] code OTP simulé`, { maskedPhone: phoneNumber.slice(0, -4).replace(/./g, "*") + "****" });
   }
   return { sent: false, provider: "console" };
 }
@@ -454,7 +470,7 @@ export const sendPhoneOtp = async (req, res) => {
       devOtp:   isDev ? otp : undefined,
     });
   } catch (err) {
-    console.error("sendPhoneOtp:", err);
+    logger.error("sendPhoneOtp:", err);
     res.status(500).json({ message: "Erreur lors de l'envoi du SMS." });
   }
 };
@@ -486,7 +502,7 @@ export const verifyPhoneOtp = async (req, res) => {
     const token = signJWT(user);
     res.json({ message: "Téléphone vérifié avec succès !", success: true, user: safeUser(user), token });
   } catch (err) {
-    console.error("verifyPhoneOtp:", err);
+    logger.error("verifyPhoneOtp:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -503,7 +519,7 @@ export const validateIdentity = async (req, res) => {
   if (!result.valid) {
     // Log les tentatives suspectes
     if (result.fraud) {
-      console.warn(`[SECURITY] Tentative fraude identité — IP: ${req.ip} — type: ${type} — numéro: ${number}`);
+      logger.warn("[SECURITY] Tentative fraude identité", { ip: req.ip, type, number });
     }
     return res.status(422).json(result);
   }
@@ -580,11 +596,156 @@ export const resetPassword = async (req, res) => {
     user.password             = await bcrypt.hash(password, 12);
     user.passwordResetToken   = null;
     user.passwordResetExpires = null;
+    user.refreshTokens        = [];
     await user.save();
 
     res.json({ message: "Mot de passe réinitialisé avec succès. Vous pouvez vous connecter.", success: true });
   } catch (err) {
-    console.error("resetPassword:", err);
+    logger.error("resetPassword:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 2FA — Authentification à deux facteurs (TOTP — Google Authenticator)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function buildTotp(secret, email) {
+  return new OTPAuth.TOTP({
+    issuer:    "VIT AUTO",
+    label:     email,
+    algorithm: "SHA1",
+    digits:    6,
+    period:    30,
+    secret:    OTPAuth.Secret.fromBase32(secret),
+  });
+}
+
+// POST /api/auth/2fa/setup — Génère secret + QR code (sans activer)
+export const setup2FA = async (req, res) => {
+  try {
+    const user = req.user;
+    if (user.twoFactor?.enabled) {
+      return res.status(400).json({ message: "2FA déjà activé." });
+    }
+
+    // Générer un nouveau secret
+    const secret = new OTPAuth.Secret({ size: 20 }).base32;
+    const totp   = buildTotp(secret, user.email);
+    const qrUrl  = await QRCode.toDataURL(totp.toString());
+
+    // Stocker temporairement (non encore activé)
+    user.twoFactor = { ...user.twoFactor, secret, enabled: false };
+    await user.save();
+
+    res.json({
+      secret,
+      qrCode:  qrUrl,
+      message: "Scannez le QR code avec Google Authenticator puis activez le 2FA.",
+    });
+  } catch (err) {
+    logger.error("setup2FA:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// POST /api/auth/2fa/enable — Active le 2FA après vérification du premier code
+export const enable2FA = async (req, res) => {
+  try {
+    const { token } = req.body;
+    const user = req.user;
+
+    if (!user.twoFactor?.secret) {
+      return res.status(400).json({ message: "Lancez d'abord /2fa/setup." });
+    }
+    if (user.twoFactor.enabled) {
+      return res.status(400).json({ message: "2FA déjà activé." });
+    }
+
+    const totp  = buildTotp(user.twoFactor.secret, user.email);
+    const delta = totp.validate({ token, window: 1 });
+    if (delta === null) {
+      return res.status(400).json({ message: "Code invalide. Réessayez." });
+    }
+
+    // Générer 10 codes de secours (hashés)
+    const rawCodes     = Array.from({ length: 10 }, () => crypto.randomBytes(4).toString("hex").toUpperCase());
+    const hashedCodes  = await Promise.all(rawCodes.map((c) => bcrypt.hash(c, 10)));
+
+    user.twoFactor.enabled    = true;
+    user.twoFactor.enabledAt  = new Date();
+    user.twoFactor.backupCodes = hashedCodes.map((h) => ({ code: h, used: false }));
+    await user.save();
+
+    res.json({
+      message:     "2FA activé avec succès.",
+      backupCodes: rawCodes,  // affichés UNE SEULE fois
+    });
+  } catch (err) {
+    logger.error("enable2FA:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// POST /api/auth/2fa/verify — Complète la connexion après challenge 2FA
+export const verify2FA = async (req, res) => {
+  try {
+    const { userId, token } = req.body;
+    if (!userId || !token) return res.status(400).json({ message: "userId et token requis." });
+
+    const user = await User.findById(userId);
+    if (!user || !user.isActive) return res.status(401).json({ message: "Utilisateur introuvable." });
+    if (!user.twoFactor?.enabled) return res.status(400).json({ message: "2FA non activé." });
+
+    const totp  = buildTotp(user.twoFactor.secret, user.email);
+    const delta = totp.validate({ token, window: 1 });
+
+    // Tenter les codes de secours si TOTP échoue
+    if (delta === null) {
+      const codeIdx = user.twoFactor.backupCodes?.findIndex(
+        async (b) => !b.used && (await bcrypt.compare(token, b.code))
+      );
+      if (codeIdx === undefined || codeIdx < 0) {
+        return res.status(401).json({ message: "Code invalide." });
+      }
+      user.twoFactor.backupCodes[codeIdx].used = true;
+    }
+
+    user.lastLogin = new Date();
+    const refreshToken = signRefreshToken(user);
+    user.refreshTokens = [...(user.refreshTokens || []).slice(-4), refreshToken];
+    await user.save();
+
+    res.json({
+      user: safeUser(user),
+      token: signJWT(user),
+      refreshToken,
+    });
+  } catch (err) {
+    logger.error("verify2FA:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// POST /api/auth/2fa/disable — Désactive le 2FA (mot de passe requis)
+export const disable2FA = async (req, res) => {
+  try {
+    const { password } = req.body;
+    const user = req.user;
+
+    if (!user.twoFactor?.enabled) {
+      return res.status(400).json({ message: "2FA non activé." });
+    }
+
+    const isValid = await bcrypt.compare(password, user.password);
+    if (!isValid) return res.status(401).json({ message: "Mot de passe incorrect." });
+
+    user.twoFactor = { enabled: false, secret: null, backupCodes: [], enabledAt: null };
+    await user.save();
+
+    res.json({ message: "2FA désactivé." });
+  } catch (err) {
+    logger.error("disable2FA:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

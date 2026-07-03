@@ -194,6 +194,15 @@ export default function AdminPanel() {
   const [pmsLoading,  setPmsLoading]  = useState(false);
   const [pmsFilter,   setPmsFilter]   = useState("all");
 
+  // Founding Partner Onboarding Admin
+  const [foundingList,     setFoundingList]     = useState([]);
+  const [foundingStats,    setFoundingStats]     = useState(null);
+  const [foundingLoading,  setFoundingLoading]   = useState(false);
+  const [foundingDetail,   setFoundingDetail]    = useState(null);
+  const [foundingSignLink, setFoundingSignLink]  = useState(null); // { id, link, type, companyName }
+  const [foundingNote,     setFoundingNote]      = useState("");
+  const [foundingAction,   setFoundingAction]    = useState(null); // { id, type: 'approve'|'reject'|'agreement' }
+
   // Filtres
   const [userSearch,  setUserSearch]  = useState("");
   const [userRole,    setUserRole]    = useState("all");
@@ -431,6 +440,66 @@ export default function AdminPanel() {
     setPmsLoading(false);
   }, [token, headers, pmsFilter]);
 
+  const loadFoundingPartners = useCallback(async () => {
+    if (!token) return;
+    setFoundingLoading(true);
+    try {
+      const [listRes, statsRes] = await Promise.all([
+        fetch("/api/partner-onboarding/admin/list?limit=50", { headers }),
+        fetch("/api/partner-onboarding/admin/stats",         { headers }),
+      ]);
+      if (listRes.ok)  setFoundingList((await listRes.json()).onboardings || []);
+      if (statsRes.ok) setFoundingStats(await statsRes.json());
+    } catch { /* ignore */ }
+    setFoundingLoading(false);
+  }, [token, headers]);
+
+  const foundingApprove = async (id, note) => {
+    try {
+      const r = await fetch(`/api/partner-onboarding/admin/${id}/approve`, {
+        method: "POST", headers,
+        body: JSON.stringify({ note: note || "" }),
+      });
+      const data = await r.json();
+      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
+      const company = foundingList.find(o => o._id === id)?.companyInfo?.legalName || "Partenaire";
+      setFoundingSignLink({ id, link: data.signLink, type: "loi", companyName: company });
+      showToast("Candidature approuvée — LOI envoyée par email", "success");
+      setFoundingAction(null);
+      setFoundingNote("");
+      loadFoundingPartners();
+    } catch { showToast("Erreur réseau", "error"); }
+  };
+
+  const foundingSendAgreement = async (id) => {
+    try {
+      const r = await fetch(`/api/partner-onboarding/admin/${id}/send-agreement`, {
+        method: "POST", headers,
+      });
+      const data = await r.json();
+      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
+      const company = foundingList.find(o => o._id === id)?.companyInfo?.legalName || "Partenaire";
+      setFoundingSignLink({ id, link: data.signLink, type: "agreement", companyName: company });
+      showToast("Accord envoyé par email", "success");
+      loadFoundingPartners();
+    } catch { showToast("Erreur réseau", "error"); }
+  };
+
+  const foundingReject = async (id, note) => {
+    if (!note?.trim()) { showToast("Note de rejet requise", "error"); return; }
+    try {
+      const r = await fetch(`/api/partner-onboarding/admin/${id}/reject`, {
+        method: "POST", headers,
+        body: JSON.stringify({ note }),
+      });
+      if (!r.ok) { showToast("Erreur", "error"); return; }
+      showToast("Dossier rejeté", "success");
+      setFoundingAction(null);
+      setFoundingNote("");
+      loadFoundingPartners();
+    } catch { showToast("Erreur réseau", "error"); }
+  };
+
   const adminToggleShowroom = async (id) => {
     try {
       const r = await fetch(`/api/pms/admin/showrooms/${id}/toggle`, { method: "PATCH", headers });
@@ -470,9 +539,10 @@ export default function AdminPanel() {
     if (activeTab === "factures")       loadInvoices();
     if (activeTab === "kyc")            loadKycList(kycFilter);
     if (activeTab === "certification")  loadCertList();
-    if (activeTab === "partner_verif")  loadPartnerVerif();
-    if (activeTab === "pms_partners")   loadPMSAdmin();
-  }, [activeTab, loadImportExport, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin]);
+    if (activeTab === "partner_verif")     loadPartnerVerif();
+    if (activeTab === "pms_partners")      loadPMSAdmin();
+    if (activeTab === "founding_partners") loadFoundingPartners();
+  }, [activeTab, loadImportExport, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners]);
 
   // Ferme tous les modals au changement d'onglet pour éviter les états résiduels
   useEffect(() => {
@@ -685,7 +755,8 @@ export default function AdminPanel() {
   const pendingImp = importerProfiles.filter((p) => p.status === "pending").length;
   const pendingInv = invoices.filter((i) => i.status === "pending").length;
   const pendingIe  = ieRequests.filter((r) => r.status === "pending").length;
-  const pendingPv  = pvList.filter((p) => p.status === "en_attente" || p.status === "en_cours").length;
+  const pendingPv       = pvList.filter((p) => p.status === "en_attente" || p.status === "en_cours").length;
+  const foundingPending = foundingList.filter((o) => ["soumis", "en_review"].includes(o.status)).length;
 
   const NAV_GROUPS = [
     {
@@ -731,8 +802,9 @@ export default function AdminPanel() {
     {
       label: "PARTENAIRES",
       items: [
-        { key: "partner_verif",  icon: "🔍", label: "Vérification Partenaires", badge: pendingPv },
-        { key: "pms_partners",   icon: "🏪", label: "Partner Hub PMS",          badge: pmsShowrooms.filter(s => !s.isPublished).length || undefined },
+        { key: "partner_verif",    icon: "🔍", label: "Vérification Partenaires", badge: pendingPv },
+        { key: "pms_partners",     icon: "🏪", label: "Partner Hub PMS",          badge: pmsShowrooms.filter(s => !s.isPublished).length || undefined },
+        { key: "founding_partners",icon: "🌟", label: "Founding Partners",        badge: foundingPending || undefined },
       ],
     },
     {
@@ -3159,6 +3231,323 @@ export default function AdminPanel() {
           )}
         </div>
       )}
+
+      {activeTab === "founding_partners" && (() => {
+        const ST = {
+          brouillon:    { l: "Brouillon",      c: "#94a3b8", bg: "#f8fafc" },
+          soumis:       { l: "Soumis ⏳",      c: "#d97706", bg: "#fef3c7" },
+          en_review:    { l: "En Review",      c: "#3b82f6", bg: "#eff6ff" },
+          loi_envoyee:  { l: "LOI Envoyée",    c: "#7c3aed", bg: "#f5f3ff" },
+          loi_signee:   { l: "LOI Signée ✓",  c: "#059669", bg: "#d1fae5" },
+          accord_envoye:{ l: "Accord Envoyé",  c: "#f59e0b", bg: "#fff7ed" },
+          accord_signe: { l: "Accord Signé ✓", c: "#059669", bg: "#d1fae5" },
+          actif:        { l: "Actif 🌟",       c: "#16a34a", bg: "#dcfce7" },
+          rejete:       { l: "Rejeté",         c: "#dc2626", bg: "#fee2e2" },
+          info_demandee:{ l: "Info Requise",   c: "#d97706", bg: "#fef3c7" },
+        };
+        return (
+          <div className={styles.tabContent}>
+            {/* Header */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1.2rem", flexWrap:"wrap", gap:12 }}>
+              <div>
+                <h2 style={{ fontSize:"1.1rem", fontWeight:800, color:"#0f1b3f", margin:"0 0 3px" }}>🌟 Founding Partners</h2>
+                <p style={{ margin:0, fontSize:".83rem", color:"#64748b" }}>Programme exclusif — 20 partenaires fondateurs maximum.</p>
+              </div>
+              <button className={styles.btnRefresh} onClick={loadFoundingPartners}>↻ Actualiser</button>
+            </div>
+
+            {/* KPIs */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:12, marginBottom:"1.5rem" }}>
+              {[
+                { icon:"📋", label:"Total dossiers",    value: foundingStats?.total        || 0, color:"#0f1b3f" },
+                { icon:"⏳", label:"En attente",         value: foundingPending              || 0, color:"#d97706" },
+                { icon:"✍️", label:"LOI envoyées",       value: foundingStats?.byStatus?.loi_envoyee || 0, color:"#7c3aed" },
+                { icon:"📜", label:"Accords envoyés",    value: foundingStats?.byStatus?.accord_envoye || 0, color:"#f59e0b" },
+                { icon:"🌟", label:"Fondateurs actifs",  value: foundingStats?.activeFounders || 0, color:"#16a34a" },
+                { icon:"❌", label:"Rejetés",             value: foundingStats?.byStatus?.rejete || 0, color:"#dc2626" },
+              ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
+            </div>
+
+            {/* ── Lien d'invitation universel ─────────────────────────────────── */}
+            {(() => {
+              const inviteLink = `${window.location.origin}/partner-onboarding`;
+              const waMsg = encodeURIComponent(
+                `Bonjour ! 👋\n\nVIT-AUTO vous invite à rejoindre notre *Programme Partenaire Fondateur* — places limitées à 20 partenaires.\n\n✅ *Avantages exclusifs Founding Partner :*\n• Commission Location : *10%* (standard 15%)\n• Commission Vente : *2%* (standard 3%)\n• Abonnement Premium *OFFERT 12 mois* (valeur 300€+)\n• Badge exclusif *"Founding Partner"* sur toutes vos annonces\n• Placement prioritaire dans le catalogue international\n• Accès anticipé à toutes les nouvelles fonctionnalités\n\n🔗 *Inscrivez-vous et déposez votre dossier directement ici :*\n${inviteLink}\n\nDes questions ? Contactez-nous : contact@vit-auto.com\n\n_VIT-AUTO — Plateforme Automobile Internationale_`
+              );
+              const mailSubject = encodeURIComponent("Rejoignez le Programme Founding Partner VIT-AUTO");
+              const mailBody = encodeURIComponent(
+                `Bonjour,\n\nVIT-AUTO vous invite à rejoindre son Programme Partenaire Fondateur — places limitées à 20 partenaires.\n\nAvantages exclusifs Founding Partner :\n• Commission Location : 10% (standard 15%)\n• Commission Vente : 2% (standard 3%)\n• Abonnement Premium OFFERT 12 mois (valeur 300€+)\n• Badge exclusif "Founding Partner" sur toutes vos annonces\n• Placement prioritaire dans le catalogue international\n\nInscrivez-vous et déposez votre dossier directement ici :\n${inviteLink}\n\nCordialement,\nManassé N'DRI N'GUESSAN — Founder & CEO\nVIT-AUTO | contact@vit-auto.com`
+              );
+              return (
+                <div style={{ background:"#fff", border:"2px solid #e2e8f0", borderRadius:14, padding:"18px 20px", marginBottom:"1.5rem" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+                    <span style={{ fontSize:"1.3rem" }}>🔗</span>
+                    <div>
+                      <div style={{ fontWeight:800, fontSize:".9rem", color:"#0f1b3f" }}>Lien d'invitation universel</div>
+                      <div style={{ fontSize:".76rem", color:"#64748b" }}>À envoyer à n'importe quel partenaire potentiel — fonctionne pour tout le monde</div>
+                    </div>
+                  </div>
+                  {/* Lien */}
+                  <div style={{ display:"flex", alignItems:"center", gap:10, background:"#f8fafc", border:"1.5px solid #e2e8f0", borderRadius:10, padding:"10px 14px", marginBottom:12, flexWrap:"wrap" }}>
+                    <code style={{ flex:1, fontSize:".82rem", color:"#0f1b3f", fontFamily:"monospace", wordBreak:"break-all" }}>{inviteLink}</code>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(inviteLink); showToast("Lien copié !", "success"); }}
+                      style={{ padding:"6px 14px", borderRadius:8, border:"none", background:"#0f1b3f", color:"#fff", fontWeight:700, fontSize:".78rem", cursor:"pointer", whiteSpace:"nowrap" }}>
+                      📋 Copier
+                    </button>
+                  </div>
+                  {/* Boutons de partage */}
+                  <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+                    <a href={`https://wa.me/?text=${waMsg}`} target="_blank" rel="noopener noreferrer"
+                      style={{ display:"inline-flex", alignItems:"center", gap:7, background:"#25D366", color:"#fff", textDecoration:"none", padding:"9px 16px", borderRadius:10, fontWeight:800, fontSize:".82rem" }}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                      WhatsApp
+                    </a>
+                    <a href={`mailto:?subject=${mailSubject}&body=${mailBody}`}
+                      style={{ display:"inline-flex", alignItems:"center", gap:7, background:"#3b82f6", color:"#fff", textDecoration:"none", padding:"9px 16px", borderRadius:10, fontWeight:800, fontSize:".82rem" }}>
+                      ✉️ Email
+                    </a>
+                    <a href={inviteLink} target="_blank" rel="noopener noreferrer"
+                      style={{ display:"inline-flex", alignItems:"center", gap:7, background:"#f8fafc", color:"#0f1b3f", textDecoration:"none", padding:"9px 16px", borderRadius:10, fontWeight:700, fontSize:".82rem", border:"1.5px solid #e2e8f0" }}>
+                      👁 Aperçu
+                    </a>
+                  </div>
+                  <p style={{ margin:"10px 0 0", fontSize:".73rem", color:"#94a3b8" }}>
+                    Ce lien fonctionne pour tout partenaire : s'il n'a pas de compte → il s'inscrit puis accède au portail. S'il a déjà un compte partenaire → il arrive directement sur son dossier.
+                  </p>
+                </div>
+              );
+            })()}
+
+            {/* Lien sécurisé généré (à envoyer par WhatsApp) */}
+            {foundingSignLink && (
+              <div style={{ background:"linear-gradient(135deg,#0f1b3f,#1a3a6e)", borderRadius:14, padding:"20px 24px", marginBottom:"1.5rem", color:"#fff" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+                  <span style={{ fontSize:"1.5rem" }}>🔐</span>
+                  <div>
+                    <div style={{ fontWeight:800, fontSize:"1rem" }}>
+                      Lien sécurisé généré — {foundingSignLink.type === "loi" ? "LOI" : "Accord de Partenariat"}
+                    </div>
+                    <div style={{ fontSize:".8rem", opacity:.75 }}>{foundingSignLink.companyName} · Valable 7 jours · Usage unique</div>
+                  </div>
+                  <button onClick={() => setFoundingSignLink(null)}
+                    style={{ marginLeft:"auto", background:"rgba(255,255,255,.15)", border:"none", color:"#fff", borderRadius:8, padding:"4px 10px", cursor:"pointer", fontSize:".8rem" }}>
+                    ✕ Fermer
+                  </button>
+                </div>
+                {/* Lien affiché */}
+                <div style={{ background:"rgba(0,0,0,.3)", borderRadius:10, padding:"12px 16px", marginBottom:14, display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                  <code style={{ flex:1, fontSize:".78rem", color:"#93c5fd", wordBreak:"break-all", fontFamily:"monospace" }}>
+                    {foundingSignLink.link}
+                  </code>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(foundingSignLink.link); showToast("Lien copié !", "success"); }}
+                    style={{ background:"#ff4d2d", border:"none", color:"#fff", borderRadius:8, padding:"8px 16px", fontWeight:700, cursor:"pointer", fontSize:".82rem", whiteSpace:"nowrap" }}>
+                    📋 Copier
+                  </button>
+                </div>
+                {/* Boutons de partage */}
+                <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+                  <a
+                    href={`https://wa.me/?text=${encodeURIComponent(
+                      foundingSignLink.type === "loi"
+                        ? `Bonjour ! Votre Lettre d'Intention VIT-AUTO (${foundingSignLink.companyName}) est prête pour signature. Cliquez ici pour lire et signer votre LOI : ${foundingSignLink.link}\n\nCe lien est sécurisé, valable 7 jours et à usage unique.\n\nVIT-AUTO — contact@vit-auto.com`
+                        : `Bonjour ! Votre Accord de Partenariat Fondateur VIT-AUTO (${foundingSignLink.companyName}) est prêt. Cliquez ici pour signer et activer votre statut Founding Partner : ${foundingSignLink.link}\n\nCe lien expire dans 7 jours.\n\nVIT-AUTO — contact@vit-auto.com`
+                    )}`}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{ display:"inline-flex", alignItems:"center", gap:8, background:"#25D366", color:"#fff", textDecoration:"none", padding:"10px 18px", borderRadius:10, fontWeight:800, fontSize:".88rem" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                    Envoyer via WhatsApp
+                  </a>
+                  <a
+                    href={`mailto:?subject=VIT-AUTO%20—%20${encodeURIComponent(foundingSignLink.type === "loi" ? "Votre LOI est prête" : "Votre Accord est prêt")}&body=${encodeURIComponent(
+                      foundingSignLink.type === "loi"
+                        ? `Bonjour,\n\nVotre Lettre d'Intention VIT-AUTO est prête pour signature.\n\nCliquez ici pour signer : ${foundingSignLink.link}\n\nCe lien expire dans 7 jours.\n\nCordialement,\nVIT-AUTO — contact@vit-auto.com`
+                        : `Bonjour,\n\nVotre Accord de Partenariat Fondateur VIT-AUTO est prêt.\n\nCliquez ici pour signer et activer votre statut : ${foundingSignLink.link}\n\nCe lien expire dans 7 jours.\n\nCordialement,\nVIT-AUTO — contact@vit-auto.com`
+                    )}`}
+                    style={{ display:"inline-flex", alignItems:"center", gap:8, background:"#3b82f6", color:"#fff", textDecoration:"none", padding:"10px 18px", borderRadius:10, fontWeight:800, fontSize:".88rem" }}>
+                    ✉️ Email manuel
+                  </a>
+                  <a href={foundingSignLink.link} target="_blank" rel="noopener noreferrer"
+                    style={{ display:"inline-flex", alignItems:"center", gap:8, background:"rgba(255,255,255,.15)", color:"#fff", textDecoration:"none", padding:"10px 18px", borderRadius:10, fontWeight:700, fontSize:".88rem", border:"1.5px solid rgba(255,255,255,.25)" }}>
+                    🔗 Ouvrir le lien
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Approbation / Rejet */}
+            {foundingAction && (
+              <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.5)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+                <div style={{ background:"#fff", borderRadius:16, padding:24, maxWidth:440, width:"100%", boxShadow:"0 20px 60px rgba(0,0,0,.25)" }}>
+                  <h3 style={{ margin:"0 0 12px", color:"#0f1b3f", fontSize:"1rem", fontWeight:800 }}>
+                    {foundingAction.type === "approve" ? "✅ Approuver la candidature" : "❌ Rejeter le dossier"}
+                  </h3>
+                  <p style={{ fontSize:".85rem", color:"#64748b", marginBottom:16 }}>
+                    {foundingAction.type === "approve"
+                      ? "La LOI sera générée et envoyée par email. Un lien sécurisé sera affiché ici pour partage WhatsApp."
+                      : "Cette action est définitive. Le partenaire recevra une notification."}
+                  </p>
+                  <textarea
+                    value={foundingNote}
+                    onChange={e => setFoundingNote(e.target.value)}
+                    placeholder={foundingAction.type === "approve" ? "Note interne (optionnelle)…" : "Motif du rejet (obligatoire)…"}
+                    style={{ width:"100%", minHeight:90, padding:12, border:"1.5px solid #e2e8f0", borderRadius:10, fontSize:".85rem", resize:"vertical", boxSizing:"border-box", fontFamily:"inherit" }}
+                  />
+                  <div style={{ display:"flex", gap:10, marginTop:14 }}>
+                    <button onClick={() => { setFoundingAction(null); setFoundingNote(""); }}
+                      style={{ flex:1, padding:"10px", border:"1.5px solid #e2e8f0", borderRadius:10, background:"#f8fafc", cursor:"pointer", fontWeight:700, fontSize:".85rem" }}>
+                      Annuler
+                    </button>
+                    <button
+                      onClick={() => foundingAction.type === "approve"
+                        ? foundingApprove(foundingAction.id, foundingNote)
+                        : foundingReject(foundingAction.id, foundingNote)}
+                      style={{ flex:2, padding:"10px", border:"none", borderRadius:10, cursor:"pointer", fontWeight:800, fontSize:".85rem",
+                        background: foundingAction.type === "approve" ? "#16a34a" : "#dc2626", color:"#fff" }}>
+                      {foundingAction.type === "approve" ? "Approuver & Envoyer LOI" : "Confirmer le rejet"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Liste des dossiers */}
+            {foundingLoading ? (
+              <div style={{ textAlign:"center", padding:"3rem", color:"#94a3b8" }}>Chargement…</div>
+            ) : foundingList.length === 0 ? (
+              <div style={{ textAlign:"center", padding:"3rem", color:"#94a3b8" }}>
+                <div style={{ fontSize:"3rem", marginBottom:12 }}>🌟</div>
+                <p style={{ fontWeight:600 }}>Aucune candidature Founding Partner pour le moment.</p>
+              </div>
+            ) : (
+              <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                {foundingList.map((o) => {
+                  const st = ST[o.status] || { l: o.status, c: "#64748b", bg: "#f8fafc" };
+                  const user = o.userId || {};
+                  const isDetail = foundingDetail === o._id;
+                  return (
+                    <div key={o._id} style={{ background:"#fff", border:"1.5px solid #e2e8f0", borderRadius:14, overflow:"hidden", boxShadow:"0 1px 4px rgba(0,0,0,.05)" }}>
+                      {/* Ligne principale */}
+                      <div style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 18px", cursor:"pointer" }}
+                        onClick={() => setFoundingDetail(isDetail ? null : o._id)}>
+                        <div style={{ width:40, height:40, borderRadius:"50%", background:"linear-gradient(135deg,#0f1b3f,#1a3a6e)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:".9rem", flexShrink:0 }}>
+                          {(o.companyInfo?.legalName || "?")[0].toUpperCase()}
+                        </div>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontWeight:800, fontSize:".9rem", color:"#0f1b3f", display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                            {o.companyInfo?.legalName || "Société non renseignée"}
+                            <span style={{ fontSize:".7rem", background:st.bg, color:st.c, padding:"2px 8px", borderRadius:20, fontWeight:700 }}>{st.l}</span>
+                            {o.isFoundingPartner && <span style={{ fontSize:".7rem", background:"#fef3c7", color:"#b45309", padding:"2px 8px", borderRadius:20, fontWeight:700 }}>🌟 FP</span>}
+                          </div>
+                          <div style={{ fontSize:".76rem", color:"#64748b", marginTop:2 }}>
+                            {user.firstName} {user.lastName} · {user.email}
+                            <span style={{ marginLeft:8, color:"#94a3b8" }}>Réf: {o.referenceNumber || "—"}</span>
+                          </div>
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+                          {/* Actions rapides selon le statut */}
+                          {["soumis","en_review"].includes(o.status) && (
+                            <>
+                              <button onClick={e => { e.stopPropagation(); setFoundingAction({ id: o._id, type:"approve" }); setFoundingNote(""); }}
+                                style={{ padding:"6px 12px", borderRadius:8, border:"none", background:"#16a34a", color:"#fff", fontWeight:700, fontSize:".76rem", cursor:"pointer" }}>
+                                ✅ Approuver
+                              </button>
+                              <button onClick={e => { e.stopPropagation(); setFoundingAction({ id: o._id, type:"reject" }); setFoundingNote(""); }}
+                                style={{ padding:"6px 12px", borderRadius:8, border:"none", background:"#dc2626", color:"#fff", fontWeight:700, fontSize:".76rem", cursor:"pointer" }}>
+                                ❌ Rejeter
+                              </button>
+                            </>
+                          )}
+                          {o.status === "loi_signee" && (
+                            <button onClick={e => { e.stopPropagation(); foundingSendAgreement(o._id); }}
+                              style={{ padding:"6px 14px", borderRadius:8, border:"none", background:"#7c3aed", color:"#fff", fontWeight:700, fontSize:".76rem", cursor:"pointer" }}>
+                              📜 Envoyer Accord
+                            </button>
+                          )}
+                          {["loi_envoyee","accord_envoye"].includes(o.status) && (
+                            <span style={{ fontSize:".75rem", color:"#7c3aed", fontWeight:600 }}>⏳ En attente signature</span>
+                          )}
+                          {["accord_signe","actif"].includes(o.status) && (
+                            <span style={{ fontSize:".75rem", color:"#16a34a", fontWeight:700 }}>🌟 Actif</span>
+                          )}
+                          <span style={{ color:"#94a3b8", fontSize:".9rem" }}>{isDetail ? "▲" : "▼"}</span>
+                        </div>
+                      </div>
+
+                      {/* Détail expandable */}
+                      {isDetail && (
+                        <div style={{ borderTop:"1px solid #f1f5f9", padding:"16px 18px", background:"#fafbfd" }}>
+                          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:12, marginBottom:14 }}>
+                            <div>
+                              <div style={{ fontSize:".72rem", color:"#94a3b8", fontWeight:700, textTransform:"uppercase", marginBottom:4 }}>Entreprise</div>
+                              <div style={{ fontSize:".84rem", color:"#0f1b3f", fontWeight:700 }}>{o.companyInfo?.legalName || "—"}</div>
+                              <div style={{ fontSize:".77rem", color:"#64748b" }}>{o.companyInfo?.registrationCountry || "—"} · {o.companyInfo?.email || "—"}</div>
+                              <div style={{ fontSize:".77rem", color:"#64748b" }}>{o.companyInfo?.phone || "—"} · {o.companyInfo?.whatsapp || "—"}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize:".72rem", color:"#94a3b8", fontWeight:700, textTransform:"uppercase", marginBottom:4 }}>Contact</div>
+                              <div style={{ fontSize:".84rem", color:"#0f1b3f", fontWeight:700 }}>{o.companyInfo?.mainContact || `${user.firstName} ${user.lastName}`}</div>
+                              <div style={{ fontSize:".77rem", color:"#64748b" }}>{o.companyInfo?.mainContactPosition || "—"}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize:".72rem", color:"#94a3b8", fontWeight:700, textTransform:"uppercase", marginBottom:4 }}>Commissions</div>
+                              <div style={{ fontSize:".82rem", color:"#0f1b3f" }}>Location: <strong>{o.commissions?.location || 10}%</strong></div>
+                              <div style={{ fontSize:".82rem", color:"#0f1b3f" }}>Vente: <strong>{o.commissions?.vente || 2}%</strong></div>
+                              <div style={{ fontSize:".82rem", color:"#0f1b3f" }}>Chauffeur: <strong>{o.commissions?.chauffeur || 10}%</strong></div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize:".72rem", color:"#94a3b8", fontWeight:700, textTransform:"uppercase", marginBottom:4 }}>Documents LOI/Accord</div>
+                              <div style={{ fontSize:".8rem" }}>
+                                LOI: {o.loi?.signedAt ? <span style={{ color:"#16a34a", fontWeight:700 }}>✓ Signée {new Date(o.loi.signedAt).toLocaleDateString("fr-FR")}</span> : o.loi?.sentAt ? <span style={{ color:"#7c3aed" }}>Envoyée</span> : <span style={{ color:"#94a3b8" }}>—</span>}
+                              </div>
+                              <div style={{ fontSize:".8rem" }}>
+                                Accord: {o.agreement?.signedAt ? <span style={{ color:"#16a34a", fontWeight:700 }}>✓ Signé {new Date(o.agreement.signedAt).toLocaleDateString("fr-FR")}</span> : o.agreement?.sentAt ? <span style={{ color:"#f59e0b" }}>Envoyé</span> : <span style={{ color:"#94a3b8" }}>—</span>}
+                              </div>
+                              {o.loi?.signerName && <div style={{ fontSize:".76rem", color:"#64748b", marginTop:4 }}>Signataire: {o.loi.signerName}</div>}
+                            </div>
+                          </div>
+                          {/* Regénérer le lien sécurisé */}
+                          {o.status === "loi_envoyee" && (
+                            <div style={{ background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:10, padding:"10px 14px", marginTop:8 }}>
+                              <p style={{ margin:"0 0 8px", fontSize:".8rem", color:"#4c1d95", fontWeight:700 }}>🔐 Partenaire n'a pas encore signé la LOI</p>
+                              <p style={{ margin:"0 0 10px", fontSize:".77rem", color:"#6d28d9" }}>Vous pouvez re-générer et re-partager un nouveau lien en approuvant à nouveau si nécessaire.</p>
+                            </div>
+                          )}
+                          {o.status === "accord_envoye" && (
+                            <div style={{ background:"#fff7ed", border:"1px solid #fed7aa", borderRadius:10, padding:"10px 14px", marginTop:8 }}>
+                              <p style={{ margin:"0 0 8px", fontSize:".8rem", color:"#92400e", fontWeight:700 }}>⏳ En attente de signature de l'accord</p>
+                              <button
+                                onClick={() => { foundingSendAgreement(o._id); }}
+                                style={{ padding:"6px 14px", borderRadius:8, border:"none", background:"#f59e0b", color:"#fff", fontWeight:700, fontSize:".78rem", cursor:"pointer" }}>
+                                🔄 Renvoyer l'accord
+                              </button>
+                            </div>
+                          )}
+                          {o.auditLog?.length > 0 && (
+                            <div style={{ marginTop:12 }}>
+                              <div style={{ fontSize:".72rem", color:"#94a3b8", fontWeight:700, textTransform:"uppercase", marginBottom:6 }}>Historique</div>
+                              <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                                {o.auditLog.slice(-5).reverse().map((a, i) => (
+                                  <div key={i} style={{ fontSize:".74rem", color:"#64748b", display:"flex", gap:8 }}>
+                                    <span style={{ color:"#94a3b8" }}>{new Date(a.timestamp).toLocaleDateString("fr-FR")}</span>
+                                    <span style={{ fontWeight:700, color:"#0f1b3f" }}>{a.action}</span>
+                                    {a.note && <span>— {a.note}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {activeTab === "partenaires" && <WipSection icon="🤝" title="Gestion des Partenariats" subtitle="Contrats partenaires, commissions, et tableau de bord dédié par partenaire stratégique." features={["Concessionnaires, loueurs, assureurs, banques","Contrats : date, commission, statut","Tableau de bord commissions par partenaire","Catégories : BYD, Hyundai, Total, NSIA..."]} />}
       {activeTab === "ads"         && <WipSection icon="📢" title="Publicités & Sponsoring" subtitle="Bannières publicitaires, annonces sponsorisées et gestion des campagnes marketing." features={["Bannières homepage et catégories","Véhicules sponsorisés : mise en avant","Gestion des budgets de campagne","Statistiques de clics et de conversions"]} />}

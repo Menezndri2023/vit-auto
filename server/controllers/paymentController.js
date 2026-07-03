@@ -1,3 +1,4 @@
+import logger from "../utils/logger.js";
 import Payment from "../models/Payment.js";
 import Booking from "../models/Booking.js";
 
@@ -67,7 +68,7 @@ export const createPayment = async (req, res) => {
 
     res.json({ payment, booking: { _id: booking._id, status: booking.status, isPaid: true } });
   } catch (err) {
-    console.error("createPayment:", err);
+    logger.error("createPayment:", err);
     res.status(500).json({ message: "Erreur serveur lors du paiement." });
   }
 };

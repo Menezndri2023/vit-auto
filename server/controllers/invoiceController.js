@@ -1,3 +1,4 @@
+import logger from "../utils/logger.js";
 import mongoose from "mongoose";
 import Invoice from "../models/Invoice.js";
 import Booking from "../models/Booking.js";
@@ -111,7 +112,7 @@ export const generatePartnerInvoice = async (req, res) => {
 
     res.status(201).json({ invoice, message: `Facture ${reference} générée avec ${lines.length} transaction(s).` });
   } catch (err) {
-    console.error("generatePartnerInvoice:", err);
+    logger.error("generatePartnerInvoice:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -195,7 +196,7 @@ export const generateAllMonthlyInvoices = async (req, res) => {
 
     res.json({ generated: results.filter((r) => r.status === "created").length, results });
   } catch (err) {
-    console.error("generateAllMonthlyInvoices:", err);
+    logger.error("generateAllMonthlyInvoices:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -210,7 +211,7 @@ export const getMyInvoices = async (req, res) => {
       .lean();
     res.json({ invoices });
   } catch (err) {
-    console.error("getMyInvoices:", err);
+    logger.error("getMyInvoices:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -243,7 +244,7 @@ export const getAllInvoices = async (req, res) => {
 
     res.json({ invoices, total, pages: Math.ceil(total / limit), totalPaid, totalPending });
   } catch (err) {
-    console.error("getAllInvoices:", err);
+    logger.error("getAllInvoices:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -281,7 +282,7 @@ export const markInvoicePaid = async (req, res) => {
 
     res.json({ invoice, message: "Facture marquée comme payée." });
   } catch (err) {
-    console.error("markInvoicePaid:", err);
+    logger.error("markInvoicePaid:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -308,7 +309,7 @@ export const getPartnerTransactions = async (req, res) => {
 
     res.json({ transactions: bookings });
   } catch (err) {
-    console.error("getPartnerTransactions:", err);
+    logger.error("getPartnerTransactions:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -340,7 +341,7 @@ export const getAdminCommissions = async (req, res) => {
 
     res.json({ bookings, totalCommissions, totalTransactions, count: bookings.length });
   } catch (err) {
-    console.error("getAdminCommissions:", err);
+    logger.error("getAdminCommissions:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
