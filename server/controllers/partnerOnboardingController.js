@@ -4,7 +4,7 @@ import PartnerOnboarding from "../models/PartnerOnboarding.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { buildOnboardingPDFBuffer } from "../utils/pdfGenerator.js";
-import { sendEmail, loiReadyTemplate, agreementReadyTemplate } from "../config/email.js";
+import { dispatch } from "../queue/index.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
 
@@ -388,23 +388,16 @@ export const adminApprove = async (req, res) => {
       `Félicitations ${user.firstName} ! Votre candidature a été approuvée. Vous avez reçu un email avec votre LOI et un lien sécurisé pour la signer.`
     );
 
-    // Email avec PDF en pièce jointe + lien sécurisé
+    // Email avec PDF via queue (non-bloquant)
     const signLink = `${APP_URL}/sign/${loiToken}`;
-    try {
-      const pdfBuffer = await buildOnboardingPDFBuffer(loiContent, "LETTRE D'INTENTION", `VA-LOI-${doc.referenceNumber}`);
-      await sendEmail({
-        to:      user.email,
-        subject: `VIT-AUTO — Votre LOI est prête à signer (${doc.referenceNumber})`,
-        html:    loiReadyTemplate(user.firstName, doc.referenceNumber, signLink),
-        attachments: [{
-          filename:    `LOI-${doc.referenceNumber}.pdf`,
-          content:     pdfBuffer,
-          contentType: "application/pdf",
-        }],
-      });
-    } catch (emailErr) {
-      logger.error("adminApprove email:", emailErr.message);
-    }
+    dispatch.loiReady(
+      String(user._id || doc.userId),
+      user.email,
+      user.firstName || doc.companyInfo?.legalName,
+      loiContent,
+      doc.referenceNumber,
+      signLink,
+    ).catch((e) => logger.error("dispatch.loiReady:", e.message));
 
     res.json({ success: true, status: "loi_envoyee", referenceNumber: doc.referenceNumber, signLink });
   } catch (err) {
@@ -444,23 +437,16 @@ export const adminSendAgreement = async (req, res) => {
       "Votre Accord est prêt. Vous avez reçu un email avec le document PDF et un lien sécurisé pour signer et activer votre statut Founding Partner."
     );
 
-    // Email avec PDF + lien sécurisé
+    // Email avec PDF via queue (non-bloquant)
     const signLink = `${APP_URL}/sign/${agrToken}`;
-    try {
-      const pdfBuffer = await buildOnboardingPDFBuffer(agreementContent, "ACCORD DE PARTENARIAT FONDATEUR", `VA-FPA-${doc.referenceNumber}`);
-      await sendEmail({
-        to:      user.email,
-        subject: `VIT-AUTO — Votre Accord Founding Partner est prêt (${doc.referenceNumber})`,
-        html:    agreementReadyTemplate(user.firstName, doc.referenceNumber, signLink),
-        attachments: [{
-          filename:    `Accord-${doc.referenceNumber}.pdf`,
-          content:     pdfBuffer,
-          contentType: "application/pdf",
-        }],
-      });
-    } catch (emailErr) {
-      logger.error("adminSendAgreement email:", emailErr.message);
-    }
+    dispatch.agreementReady(
+      String(user._id || doc.userId),
+      user.email,
+      user.firstName || doc.companyInfo?.legalName,
+      agreementContent,
+      doc.referenceNumber,
+      signLink,
+    ).catch((e) => logger.error("dispatch.agreementReady:", e.message));
 
     res.json({ success: true, status: "accord_envoye", signLink });
   } catch (err) {

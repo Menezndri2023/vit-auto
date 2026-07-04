@@ -7,10 +7,7 @@ import mongoSanitize from "express-mongo-sanitize";
 import connectDB from "./config/db.js";
 import logger from "./utils/logger.js";
 import { initSentry, sentryRequestHandler, sentryTracingHandler, sentryErrorHandler } from "./config/sentry.js";
-import { initQueues } from "./jobs/queues.js";
-import { startEmailWorker } from "./jobs/emailWorker.js";
-import { startPdfWorker } from "./jobs/pdfWorker.js";
-import { startNotificationWorker } from "./jobs/notificationWorker.js";
+import { initQueues, isReady as isQueuesReady, getQueueStats } from "./queue/index.js";
 
 import authRoutes          from "./routes/auth.js";
 import vehicleRoutes       from "./routes/vehicles.js";
@@ -175,7 +172,6 @@ app.get("/api/ping", (_req, res) => res.json({ status: "ok", timestamp: new Date
 app.get("/api/health", async (_req, res) => {
   const mongoose = await import("mongoose");
   const { isRedisAvailable } = await import("./config/redis.js");
-  const { areQueuesReady } = await import("./jobs/queues.js");
   const dbState = ["disconnected", "connected", "connecting", "disconnecting"][mongoose.default.connection.readyState] || "unknown";
   const healthy = dbState === "connected";
   res.status(healthy ? 200 : 503).json({
@@ -186,7 +182,7 @@ app.get("/api/health", async (_req, res) => {
     services:  {
       database: dbState,
       redis:    isRedisAvailable() ? "connected" : "unavailable",
-      queues:   areQueuesReady() ? "ready" : "sync-mode",
+      queues:   isQueuesReady() ? "ready" : "sync-mode",
       socketio: !!global._io,
       email:    process.env.RESEND_API_KEY ? "resend" : (process.env.SMTP_HOST ? "smtp" : "console"),
       imagekit: process.env.IMAGEKIT_PUBLIC_KEY ? "configured" : "disabled",
@@ -284,6 +280,25 @@ app.get("/api/imagekit/auth", (req, res) => {
   }).catch(() => res.status(500).json({ message: "Erreur." }));
 });
 
+// ── Queue stats (admin) ────────────────────────────────────────────────────────
+app.get("/api/queue/stats", async (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ message: "Non autorisé." });
+  try {
+    const jwt = await import("jsonwebtoken");
+    const decoded = jwt.default.verify(token, process.env.JWT_SECRET);
+    const User = (await import("./models/User.js")).default;
+    const user = await User.findById(decoded.id).select("role isActive");
+    if (!user || !user.isActive || user.role !== "admin") {
+      return res.status(403).json({ message: "Accès réservé aux administrateurs." });
+    }
+    const stats = await getQueueStats();
+    res.json({ ready: isQueuesReady(), queues: stats });
+  } catch {
+    res.status(401).json({ message: "Token invalide." });
+  }
+});
+
 // ── 404 ───────────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({ message: `Route ${req.method} ${req.path} non trouvée.` });
@@ -317,10 +332,7 @@ const startServer = async () => {
     await connectDB();
 
     // ── BullMQ : queues + workers (si Redis configuré) ───────────────────
-    initQueues();
-    startEmailWorker();
-    startPdfWorker();
-    startNotificationWorker();
+    await initQueues();
     const PORT = process.env.PORT || 5001;
 
     const http    = await import("http");
@@ -386,13 +398,17 @@ const startServer = async () => {
     });
 
     // Shutdown gracieux SIGTERM (Kubernetes, Docker, Railway)
-    const gracefulShutdown = (signal) => {
+    const gracefulShutdown = async (signal) => {
       logger.info(`Signal ${signal} reçu — arrêt gracieux`);
-      server.close(() => {
-        logger.info("Serveur HTTP fermé");
+      server.close(async () => {
+        logger.info("Serveur HTTP fermé — fermeture des queues BullMQ");
+        try {
+          const { closeQueues } = await import("./queue/index.js");
+          await closeQueues();
+        } catch (_) {}
         process.exit(0);
       });
-      setTimeout(() => { logger.error("Timeout shutdown — force exit"); process.exit(1); }, 10000);
+      setTimeout(() => { logger.error("Timeout shutdown — force exit"); process.exit(1); }, 30000);
     };
     process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
     process.on("SIGINT",  () => gracefulShutdown("SIGINT"));

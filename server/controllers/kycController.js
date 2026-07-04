@@ -2,6 +2,7 @@ import logger from "../utils/logger.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { sendEmail } from "../config/email.js";
+import { dispatch } from "../queue/index.js";
 
 // ── Taux de confiance minimum pour validation automatique ─────────────────────
 const AUTO_VERIFY_OCR_MIN    = 70;  // score OCR minimum
@@ -225,6 +226,11 @@ export const submitKyc = async (req, res) => {
       ? `Validation automatique — OCR: ${ocrConf}%, Face: ${faceConf}%`
       : `Soumission KYC — Score: ${newKycScore}/100 — Statut: ${newKycStatus}`;
     await addAuditLog(req.user.id, autoValidated ? "AUTO_VERIFIED" : "SUBMITTED", null, auditMsg);
+
+    // Dispatch queue : validation serveur + email confirmation
+    const userForDispatch = await User.findById(req.user.id).select("email firstName").lean();
+    dispatch.kycSubmitted(req.user.id, userForDispatch?.email, userForDispatch?.firstName)
+      .catch((e) => logger.error("dispatch.kycSubmitted:", { error: e.message }));
 
     res.json({
       success:      true,

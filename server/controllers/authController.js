@@ -5,8 +5,8 @@ import crypto from "crypto";
 import * as OTPAuth from "otpauth";
 import QRCode from "qrcode";
 import User from "../models/User.js";
-import { sendEmail, emailVerificationTemplate, passwordResetTemplate } from "../config/email.js";
 import { serverValidateIdentity } from "../utils/idValidation.js";
+import { dispatch } from "../queue/index.js";
 
 const JWT_SECRET         = () => process.env.JWT_SECRET;
 const REFRESH_SECRET     = () => process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET + "_refresh";
@@ -151,15 +151,9 @@ export const register = async (req, res) => {
       });
     }
 
-    // Production : envoyer l'email de vérification
+    // Production : envoyer l'email de vérification via queue
     const verifyUrl = `${APP_URL()}/verify-email?token=${token}`;
-    sendEmail({
-      to:       user.email,
-      subject:  "VIT AUTO — Confirmez votre adresse e-mail",
-      html:     emailVerificationTemplate(user.firstName, verifyUrl),
-      template: "email_verification",
-      userId:   user._id,
-    });
+    dispatch.emailVerification(user.email, user._id.toString(), verifyUrl).catch(() => {});
 
     res.status(201).json({
       user: safeUser(user),
@@ -291,13 +285,7 @@ export const resendVerification = async (req, res) => {
     await user.save();
 
     const verifyUrl = `${APP_URL()}/verify-email?token=${token}`;
-    await sendEmail({
-      to:       user.email,
-      subject:  "VIT AUTO — Nouveau lien de vérification",
-      html:     emailVerificationTemplate(user.firstName, verifyUrl),
-      template: "email_verification",
-      userId:   user._id,
-    });
+    await dispatch.emailVerification(user.email, user._id.toString(), verifyUrl).catch(() => {});
 
     res.json({ message: "Nouveau lien envoyé ! Vérifiez votre boîte mail." });
   } catch (err) {
@@ -375,13 +363,7 @@ export const forgotPassword = async (req, res) => {
     await user.save();
 
     const resetUrl = `${APP_URL()}/reset-password?token=${token}`;
-    sendEmail({
-      to:       user.email,
-      subject:  "VIT AUTO — Réinitialisation de votre mot de passe",
-      html:     passwordResetTemplate(user.firstName, resetUrl),
-      template: "password_reset",
-      userId:   user._id,
-    });
+    dispatch.passwordReset(user.email, user._id.toString(), resetUrl, user.firstName).catch(() => {});
 
     res.json({ message: "Si ce compte existe, un lien a été envoyé." });
   } catch (err) {

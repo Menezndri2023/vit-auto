@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import Vehicle from "../models/Vehicle.js";
 import Notification from "../models/Notification.js";
 import Booking from "../models/Booking.js";
+import { dispatch } from "../queue/index.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -204,6 +205,9 @@ export const createVehicle = async (req, res) => {
     } catch (notifErr) {
       logger.error("Notification (non bloquant) :", notifErr.message);
     }
+
+    // Calcul du score AI en arrière-plan
+    dispatch.vehicleCreated(vehicle._id.toString()).catch(() => {});
 
     res.status(201).json({ vehicle, validation });
   } catch (err) {

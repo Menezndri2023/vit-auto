@@ -5,6 +5,7 @@ import InspectionReport     from "../models/InspectionReport.js";
 import User                 from "../models/User.js";
 import Notification         from "../models/Notification.js";
 import Chat                 from "../models/Chat.js";
+import { dispatch } from "../queue/index.js";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -459,6 +460,10 @@ export const confirmDelivery = async (req, res) => {
     await notify(tx.partner, "success", "Livraison confirmée !", "Le client a confirmé la réception du véhicule. Libération des fonds en cours.", `/importer-dashboard`);
     await notifyAdmins("ie_delivery", "Livraison confirmée", `Transaction ${tx._id} — Libération des fonds à valider.`, `/admin`);
 
+    // Étape 13 : vérification escrow automatique en arrière-plan
+    dispatch.ieStepTransition(tx._id.toString(), 13, req.user._id.toString(), "Livraison confirmée par le client")
+      .catch(() => {});
+
     res.json({ message: "Livraison confirmée. Les fonds vont être libérés.", transaction: tx });
   } catch (err) {
     logger.error("confirmDelivery:", err);
@@ -493,6 +498,10 @@ export const releaseFunds = async (req, res) => {
 
     await notify(tx.partner, "success", "Fonds libérés !", `Les fonds de ${tx.payment.amount?.toLocaleString("fr-FR")} ${tx.payment.currency} ont été libérés sur votre compte.`, `/importer-dashboard`);
     await notify(tx.client,  "info",    "Fonds libérés", "Les fonds ont été versés au fournisseur. N'oubliez pas de laisser votre évaluation.", `/import-export/transaction/${tx._id}`);
+
+    // Étape 14 : invitation évaluation planifiée à 24h
+    dispatch.ieStepTransition(tx._id.toString(), 14, req.user._id.toString(), "Fonds libérés — transaction finalisée")
+      .catch(() => {});
 
     res.json({ message: "Fonds libérés avec succès.", transaction: tx });
   } catch (err) {

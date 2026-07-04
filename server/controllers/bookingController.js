@@ -7,6 +7,7 @@ import Payment from "../models/Payment.js";
 import Notification from "../models/Notification.js";
 import Contract from "../models/Contract.js";
 import User from "../models/User.js";
+import { dispatch } from "../queue/index.js";
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -269,14 +270,18 @@ export const createBooking = async (req, res) => {
       }
     }
 
-    // ── Notifications ──────────────────────────────────────────────────────────
-    const typeLabels = { location: "Location", essai: "Essai", chauffeur: "Chauffeur", leasing: "Leasing" };
-    if (req.user?._id) {
-      await notify(req.user._id, "booking_confirmed", `${typeLabels[type]} confirmé`, `Votre réservation ${reference} a bien été enregistrée.`);
-    }
+    // ── Notifications + Email + SMS → Queue BullMQ (non-bloquant) ───────────────
+    dispatch.bookingCreated(
+      { _id: booking._id, reference, type, montantTotal, location, status: booking.status },
+      req.user ? { _id: req.user._id, email: req.user.email, phone: req.user.phone, firstName: req.user.firstName } : null,
+      vehicle ? { _id: vehicle._id, title: vehicle.title, owner: { _id: ownerId } } : null
+    ).catch((e) => logger.error("dispatch.bookingCreated:", { error: e.message }));
+
+    // Notification temps réel Socket.io immédiate (partenaire propriétaire)
     if (ownerId) {
-      await notify(ownerId, "new_booking", "Nouvelle commande reçue",
-        `${clientInfo.firstName} ${clientInfo.lastName} a effectué une réservation (${reference}).`, "/vendor/dashboard");
+      notify(ownerId, "new_booking", "📋 Nouvelle commande reçue",
+        `${clientInfo.firstName} ${clientInfo.lastName} — Réservation ${reference}`, "/vendor/dashboard"
+      ).catch(() => {});
     }
 
     res.status(201).json({ booking });
