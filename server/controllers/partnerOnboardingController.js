@@ -27,14 +27,14 @@ async function addAudit(docId, action, performedBy, note = "") {
 
 // ── Section update factory ────────────────────────────────────────────────────
 const SECTION_FIELDS = {
-  "company-info": ["legalName", "registrationNumber", "incorporationDate", "registrationCountry", "address", "website", "email", "phone", "whatsapp", "mainContact", "mainContactPosition"],
+  "company-info": ["legalName", "registrationNumber", "incorporationDate", "registrationCountry", "address", "website", "email", "phone", "whatsapp", "wechat", "mainContact", "mainContactPosition"],
   "legal-docs":   ["businessRegistration", "businessLicense", "exportLicense", "taxCertificate", "proofOfAddress"],
-  "business-verification": ["companyPresentation", "brands", "mainActivities", "exportMarkets", "annualExportCapacity", "yearsExperience", "oemAuthorization"],
+  "business-verification": ["companyPresentation", "brands", "mainActivities", "exportMarkets", "annualExportCapacity", "yearsExperience", "oemAuthorization", "entityTypes"],
   "platform-media": ["logo", "companyPhotos", "officePhotos", "showroomPhotos", "warehousePhotos", "teamPhotos", "promotionalVideo"],
   "vehicle-inventory": ["newVehicles", "usedVehicles", "electricVehicles", "hybridVehicles", "luxuryVehicles", "commercialVehicles"],
   "export-capabilities": ["shippingPorts", "shippingMethods", "shippingPartners", "incoterms"],
   "payment-info": ["acceptedMethods", "bankName", "preferredCurrency"],
-  "commercial-terms": ["minimumOrderQuantity", "depositPolicy", "balanceTerms", "deliveryTime", "warrantyPolicy", "inspectionProcess"],
+  "commercial-terms": ["minimumOrderQuantity", "depositPercentage", "depositTiming", "deliveryDays", "warrantyAvailable", "warrantyMonths", "inspectionType", "inspectionAgency", "paymentModes"],
 };
 
 const SECTION_KEYS = {
@@ -286,10 +286,14 @@ export const signAgreement = async (req, res) => {
 // ── GET /api/partner-onboarding/admin/list ───────────────────────────────────
 export const adminList = async (req, res) => {
   try {
-    const { status, partnerType, search, page = 1, limit = 20 } = req.query;
+    const { status, partnerType, crmStatus, search, page = 1, limit = 20 } = req.query;
+    const VALID_STATUS      = ["brouillon","soumis","en_review","loi_envoyee","loi_signee","accord_envoye","accord_signe","actif","rejete","info_demandee"];
+    const VALID_PARTNER_TYPE = ["founding","standard"];
+    const VALID_CRM_STATUS  = ["interested","reserved","verified","active","inactive"];
     const filter = {};
-    if (status)      filter.status = status;
-    if (partnerType) filter.partnerType = partnerType;
+    if (status      && VALID_STATUS.includes(status))           filter.status = status;
+    if (partnerType && VALID_PARTNER_TYPE.includes(partnerType)) filter.partnerType = partnerType;
+    if (crmStatus   && VALID_CRM_STATUS.includes(crmStatus))    filter["adminCRM.crmStatus"] = crmStatus;
     if (search) {
       const safe = escapeRegex(String(search).slice(0, 100));
       filter["companyInfo.legalName"] = { $regex: safe, $options: "i" };
@@ -529,6 +533,51 @@ export const adminUpdateStatus = async (req, res) => {
     await addAudit(doc._id, "STATUT_MODIFIE", req.user.id, `Statut → ${status}${note ? ` (${note})` : ""}`);
     res.json({ success: true, status });
   } catch (err) {
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── PATCH /api/partner-onboarding/admin/:id/crm ──────────────────────────────
+export const adminUpdateCRM = async (req, res) => {
+  try {
+    const VALID_CRM_STATUS   = ["interested", "reserved", "verified", "active", "inactive"];
+    const VALID_CHANNELS     = ["whatsapp", "wechat", "email", "phone", "meeting", "other", ""];
+    const VALID_PRIORITY     = ["high", "medium", "low"];
+
+    const {
+      crmStatus, lastContactDate, lastContactChannel,
+      nextFollowUpDate, internalNotes, priority,
+    } = req.body;
+
+    const parseSafeDate = (val) => {
+      if (!val || typeof val !== "string" || val.length > 50) return null;
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    };
+
+    const update = {};
+    if (crmStatus         !== undefined && VALID_CRM_STATUS.includes(crmStatus))   update["adminCRM.crmStatus"]          = crmStatus;
+    if (lastContactDate   !== undefined) update["adminCRM.lastContactDate"]   = parseSafeDate(lastContactDate);
+    if (lastContactChannel !== undefined && VALID_CHANNELS.includes(lastContactChannel)) update["adminCRM.lastContactChannel"] = lastContactChannel;
+    if (nextFollowUpDate  !== undefined) update["adminCRM.nextFollowUpDate"]  = parseSafeDate(nextFollowUpDate);
+    if (internalNotes     !== undefined) update["adminCRM.internalNotes"]     = String(internalNotes).slice(0, 2000);
+    if (priority          !== undefined && VALID_PRIORITY.includes(priority)) update["adminCRM.priority"] = priority;
+    if (Object.keys(update).length === 0)
+      return res.status(400).json({ message: "Aucune donnée CRM valide fournie." });
+
+    update.updatedAt = new Date();
+
+    const doc = await PartnerOnboarding.findByIdAndUpdate(
+      req.params.id,
+      { $set: update },
+      { new: true, select: "adminCRM companyInfo.legalName" }
+    );
+    if (!doc) return res.status(404).json({ message: "Dossier introuvable." });
+
+    await addAudit(doc._id, "CRM_UPDATED", req.user.id, `crmStatus=${doc.adminCRM.crmStatus}`);
+    res.json({ success: true, adminCRM: doc.adminCRM });
+  } catch (err) {
+    logger.error("adminUpdateCRM:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

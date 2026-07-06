@@ -75,6 +75,7 @@ const partnerOnboardingSchema = new mongoose.Schema({
     email:               { type: String, trim: true, default: "" },
     phone:               { type: String, trim: true, default: "" },
     whatsapp:            { type: String, trim: true, default: "" },
+    wechat:              { type: String, trim: true, default: "" },
     mainContact:         { type: String, trim: true, default: "" },
     mainContactPosition: { type: String, trim: true, default: "" },
   },
@@ -97,6 +98,8 @@ const partnerOnboardingSchema = new mongoose.Schema({
     annualExportCapacity: { type: String, default: "" },
     yearsExperience:      { type: Number, default: 0 },
     oemAuthorization:     { type: String, default: null },
+    // Types d'entité (peuvent en cumuler plusieurs : usine + exportateur, etc.)
+    entityTypes:          { type: [String], enum: ["factory", "dealer", "exporter", "importer", "agent"], default: [] },
   },
 
   // ── SECTION 4 : Médias pour intégration plateforme ────────────────────────
@@ -129,6 +132,7 @@ const partnerOnboardingSchema = new mongoose.Schema({
       exw: { type: Boolean, default: false },
       fob: { type: Boolean, default: false },
       cif: { type: Boolean, default: false },
+      dap: { type: Boolean, default: false },
       ddp: { type: Boolean, default: false },
     },
   },
@@ -140,14 +144,33 @@ const partnerOnboardingSchema = new mongoose.Schema({
     preferredCurrency: { type: String, default: "" },
   },
 
-  // ── SECTION 8 : Conditions commerciales ────────────────────────────────────
+  // ── SECTION 8 : Conditions commerciales (structurées) ─────────────────────
   commercialTerms: {
     minimumOrderQuantity: { type: String, default: "" },
-    depositPolicy:        { type: String, default: "" },
-    balanceTerms:         { type: String, default: "" },
-    deliveryTime:         { type: String, default: "" },
-    warrantyPolicy:       { type: String, default: "" },
-    inspectionProcess:    { type: String, default: "" },
+    // Acompte
+    depositPercentage:    { type: Number, default: null },   // 10 / 20 / 30 / 40 / 50
+    depositTiming:        { type: String, default: "" },     // before_shipment / after_inspection / at_boarding / at_reception
+    // Délai de livraison
+    deliveryDays:         { type: Number, default: null },   // 15 / 30 / 45 / 60
+    // Garantie
+    warrantyAvailable:    { type: Boolean, default: null },
+    warrantyMonths:       { type: Number, default: null },
+    // Inspection
+    inspectionType:       { type: String, default: "" },     // mandatory / optional / none
+    inspectionAgency:     { type: String, default: "" },     // sgs / bureau_veritas / tuv / other
+    // Paiement (multi-sélection)
+    paymentModes:         { type: [String], default: [] },   // wire_transfer / lc / tt / cash / escrow
+  },
+
+  // ── CRM Admin (Founding Partners Directory) ───────────────────────────────
+  adminCRM: {
+    crmStatus:          { type: String, enum: ["interested", "reserved", "verified", "active", "inactive"], default: "interested" },
+    lastContactDate:    { type: Date, default: null },
+    lastContactChannel: { type: String, enum: ["whatsapp", "wechat", "email", "phone", "meeting", "other", ""], default: "" },
+    nextFollowUpDate:   { type: Date, default: null },
+    internalNotes:      { type: String, default: "" },
+    priority:           { type: String, enum: ["high", "medium", "low"], default: "medium" },
+    assignedTo:         { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   },
 
   // ── LOI (Letter of Intent) ────────────────────────────────────────────────
@@ -227,8 +250,8 @@ partnerOnboardingSchema.virtual("completionPercent").get(function () {
     !!(this.platformMedia?.logo),
     !!(Object.values(this.vehicleInventory?.toObject?.() || {}).some(Boolean)),
     !!(this.exportCapabilities?.shippingPorts?.length > 0),
-    !!(this.paymentInfo?.acceptedMethods?.length > 0),
-    !!(this.commercialTerms?.deliveryTime),
+    !!(this.commercialTerms?.paymentModes?.length > 0),
+    !!(this.commercialTerms?.deliveryDays),
   ];
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
 });

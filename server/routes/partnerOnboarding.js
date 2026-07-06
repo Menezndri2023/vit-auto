@@ -20,6 +20,7 @@ import {
   adminReject,
   adminRequestInfo,
   adminUpdateStatus,
+  adminUpdateCRM,
 } from "../controllers/partnerOnboardingController.js";
 
 const router = Router();
@@ -58,5 +59,6 @@ router.post ("/admin/:id/send-agreement",     isAdmin, validateObjectId(), admin
 router.post ("/admin/:id/reject",             isAdmin, validateObjectId(), adminReject);
 router.post ("/admin/:id/request-info",       isAdmin, validateObjectId(), adminRequestInfo);
 router.patch("/admin/:id/status",             isAdmin, validateObjectId(), adminUpdateStatus);
+router.patch("/admin/:id/crm",               isAdmin, validateObjectId(), adminUpdateCRM);
 
 export default router;

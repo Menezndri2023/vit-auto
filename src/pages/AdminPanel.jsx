@@ -195,13 +195,17 @@ export default function AdminPanel() {
   const [pmsFilter,   setPmsFilter]   = useState("all");
 
   // Founding Partner Onboarding Admin
-  const [foundingList,     setFoundingList]     = useState([]);
-  const [foundingStats,    setFoundingStats]     = useState(null);
-  const [foundingLoading,  setFoundingLoading]   = useState(false);
-  const [foundingDetail,   setFoundingDetail]    = useState(null);
-  const [foundingSignLink, setFoundingSignLink]  = useState(null); // { id, link, type, companyName }
-  const [foundingNote,     setFoundingNote]      = useState("");
-  const [foundingAction,   setFoundingAction]    = useState(null); // { id, type: 'approve'|'reject'|'agreement' }
+  const [foundingList,      setFoundingList]     = useState([]);
+  const [foundingStats,     setFoundingStats]    = useState(null);
+  const [foundingLoading,   setFoundingLoading]  = useState(false);
+  const [foundingDetail,    setFoundingDetail]   = useState(null);
+  const [foundingSignLink,  setFoundingSignLink] = useState(null); // { id, link, type, companyName }
+  const [foundingNote,      setFoundingNote]     = useState("");
+  const [foundingAction,    setFoundingAction]   = useState(null); // { id, type: 'approve'|'reject'|'agreement' }
+  // CRM Directory
+  const [foundingView,      setFoundingView]     = useState("onboarding"); // "onboarding" | "crm"
+  const [foundingCRMFilter, setFoundingCRMFilter]= useState("");           // crmStatus filter
+  const [foundingCRMEdit,   setFoundingCRMEdit]  = useState(null);         // { id, data: {...} }
 
   // Filtres
   const [userSearch,  setUserSearch]  = useState("");
@@ -445,8 +449,8 @@ export default function AdminPanel() {
     setFoundingLoading(true);
     try {
       const [listRes, statsRes] = await Promise.all([
-        fetch("/api/partner-onboarding/admin/list?limit=50", { headers }),
-        fetch("/api/partner-onboarding/admin/stats",         { headers }),
+        fetch("/api/partner-onboarding/admin/list?limit=100", { headers }),
+        fetch("/api/partner-onboarding/admin/stats",          { headers }),
       ]);
       if (listRes.ok)  setFoundingList((await listRes.json()).onboardings || []);
       if (statsRes.ok) setFoundingStats(await statsRes.json());
@@ -497,6 +501,22 @@ export default function AdminPanel() {
       setFoundingAction(null);
       setFoundingNote("");
       loadFoundingPartners();
+    } catch { showToast("Erreur réseau", "error"); }
+  };
+
+  const foundingUpdateCRM = async (id, data) => {
+    try {
+      const r = await fetch(`/api/partner-onboarding/admin/${id}/crm`, {
+        method: "PATCH", headers,
+        body: JSON.stringify(data),
+      });
+      const json = await r.json();
+      if (!r.ok) { showToast(json.message || "Erreur CRM", "error"); return; }
+      showToast("CRM mis à jour", "success");
+      setFoundingCRMEdit(null);
+      setFoundingList((prev) => prev.map((o) =>
+        o._id === id ? { ...o, adminCRM: json.adminCRM } : o
+      ));
     } catch { showToast("Erreur réseau", "error"); }
   };
 
@@ -3247,17 +3267,29 @@ export default function AdminPanel() {
         };
         return (
           <div className={styles.tabContent}>
-            {/* Header */}
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1.2rem", flexWrap:"wrap", gap:12 }}>
+            {/* Header + vue toggle */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1rem", flexWrap:"wrap", gap:12 }}>
               <div>
                 <h2 style={{ fontSize:"1.1rem", fontWeight:800, color:"#0f1b3f", margin:"0 0 3px" }}>🌟 Founding Partners</h2>
                 <p style={{ margin:0, fontSize:".83rem", color:"#64748b" }}>Programme exclusif — 20 partenaires fondateurs maximum.</p>
               </div>
-              <button className={styles.btnRefresh} onClick={loadFoundingPartners}>↻ Actualiser</button>
+              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                <div style={{ display:"flex", background:"#f1f5f9", borderRadius:10, padding:3, gap:2 }}>
+                  {[{v:"onboarding",l:"📋 Onboarding"},{v:"crm",l:"🗂️ CRM Directory"}].map(({v,l})=>(
+                    <button key={v} onClick={()=>setFoundingView(v)}
+                      style={{ padding:"6px 14px", borderRadius:8, border:"none", fontWeight:700, fontSize:".8rem", cursor:"pointer",
+                        background: foundingView===v ? "#0f1b3f" : "transparent",
+                        color: foundingView===v ? "#fff" : "#64748b" }}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+                <button className={styles.btnRefresh} onClick={loadFoundingPartners}>↻</button>
+              </div>
             </div>
 
             {/* KPIs */}
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:12, marginBottom:"1.5rem" }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:12, marginBottom:"1.2rem" }}>
               {[
                 { icon:"📋", label:"Total dossiers",    value: foundingStats?.total        || 0, color:"#0f1b3f" },
                 { icon:"⏳", label:"En attente",         value: foundingPending              || 0, color:"#d97706" },
@@ -3268,8 +3300,239 @@ export default function AdminPanel() {
               ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
             </div>
 
+            {/* ── VUE CRM DIRECTORY ──────────────────────────────────────────── */}
+            {foundingView === "crm" && (() => {
+              const CRM_STATUS = {
+                interested: { l:"Intéressé",  c:"#d97706", bg:"#fef3c7" },
+                reserved:   { l:"Réservé",    c:"#7c3aed", bg:"#f5f3ff" },
+                verified:   { l:"Vérifié ✓",  c:"#0284c7", bg:"#e0f2fe" },
+                active:     { l:"Actif 🌟",   c:"#16a34a", bg:"#dcfce7" },
+                inactive:   { l:"Inactif",    c:"#94a3b8", bg:"#f8fafc" },
+              };
+              const PRIORITY_ST = {
+                high:   { l:"🔴 Haute",   c:"#dc2626" },
+                medium: { l:"🟡 Moyenne", c:"#d97706" },
+                low:    { l:"🟢 Basse",   c:"#16a34a" },
+              };
+              const CHANNELS = { whatsapp:"WhatsApp", wechat:"WeChat", email:"Email", phone:"Téléphone", meeting:"RDV", other:"Autre", "":"—" };
+              const today = new Date();
+              const overdue = (d) => d && new Date(d) < today;
+
+              const filtered = foundingCRMFilter
+                ? foundingList.filter(o => (o.adminCRM?.crmStatus || "interested") === foundingCRMFilter)
+                : foundingList;
+
+              return (
+                <div>
+                  {/* Barre de filtres CRM */}
+                  <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:14, alignItems:"center" }}>
+                    <span style={{ fontSize:".8rem", fontWeight:700, color:"#64748b" }}>Filtrer :</span>
+                    {[{v:"",l:"Tous"},
+                      {v:"interested",l:"Intéressé"},
+                      {v:"reserved",l:"Réservé"},
+                      {v:"verified",l:"Vérifié"},
+                      {v:"active",l:"Actif"},
+                      {v:"inactive",l:"Inactif"},
+                    ].map(({v,l})=>(
+                      <button key={v} onClick={()=>setFoundingCRMFilter(v)}
+                        style={{ padding:"5px 12px", borderRadius:20, border:"1.5px solid", fontWeight:700, fontSize:".76rem", cursor:"pointer",
+                          borderColor: foundingCRMFilter===v ? "#0f1b3f" : "#e2e8f0",
+                          background: foundingCRMFilter===v ? "#0f1b3f" : "#fff",
+                          color: foundingCRMFilter===v ? "#fff" : "#64748b" }}>
+                        {l}
+                      </button>
+                    ))}
+                    <span style={{ marginLeft:"auto", fontSize:".76rem", color:"#94a3b8" }}>{filtered.length} entrée(s)</span>
+                  </div>
+
+                  {/* Table CRM */}
+                  {foundingLoading ? (
+                    <div style={{ textAlign:"center", padding:"2rem", color:"#94a3b8" }}>Chargement…</div>
+                  ) : filtered.length === 0 ? (
+                    <div style={{ textAlign:"center", padding:"2rem", color:"#94a3b8" }}>
+                      <div style={{ fontSize:"2rem", marginBottom:8 }}>🗂️</div>
+                      <p style={{ fontWeight:600 }}>Aucun partenaire dans ce filtre.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                      {filtered.map((o) => {
+                        const crm   = o.adminCRM || {};
+                        const ci    = o.companyInfo || {};
+                        const bv    = o.businessVerification || {};
+                        const crmSt = CRM_STATUS[crm.crmStatus || "interested"] || CRM_STATUS.interested;
+                        const pri   = PRIORITY_ST[crm.priority || "medium"] || PRIORITY_ST.medium;
+                        const isEdit = foundingCRMEdit?.id === o._id;
+                        const editData = foundingCRMEdit?.data || {};
+
+                        return (
+                          <div key={o._id} style={{ background:"#fff", border:"1.5px solid #e2e8f0", borderRadius:12, overflow:"hidden", boxShadow:"0 1px 3px rgba(0,0,0,.04)" }}>
+                            {/* Ligne principale CRM */}
+                            <div style={{ display:"grid", gridTemplateColumns:"2fr 1.5fr 1.5fr 1fr 1fr auto", gap:12, padding:"12px 16px", alignItems:"center" }}>
+                              {/* Entreprise */}
+                              <div>
+                                <div style={{ fontWeight:800, fontSize:".88rem", color:"#0f1b3f" }}>{ci.legalName || "—"}</div>
+                                <div style={{ fontSize:".74rem", color:"#64748b", marginTop:2 }}>
+                                  {ci.registrationCountry || "—"} · {bv.entityTypes?.join(", ") || "—"}
+                                </div>
+                                <div style={{ fontSize:".73rem", color:"#94a3b8", marginTop:1 }}>
+                                  {bv.brands?.slice(0,3).join(", ") || "—"}
+                                  {bv.brands?.length > 3 ? ` +${bv.brands.length - 3}` : ""}
+                                </div>
+                              </div>
+                              {/* Contact */}
+                              <div style={{ fontSize:".8rem" }}>
+                                <div style={{ fontWeight:600, color:"#0f1b3f" }}>{ci.mainContact || `${(o.userId?.firstName||"")} ${(o.userId?.lastName||"")}`}</div>
+                                {ci.whatsapp && <div style={{ color:"#16a34a", marginTop:1 }}>📱 {ci.whatsapp}</div>}
+                                {ci.wechat   && <div style={{ color:"#07c160", marginTop:1 }}>💬 {ci.wechat}</div>}
+                                {ci.email    && <div style={{ color:"#3b82f6", marginTop:1 }}>✉️ {ci.email}</div>}
+                              </div>
+                              {/* Dernière contact / Next follow-up */}
+                              <div style={{ fontSize:".78rem" }}>
+                                <div style={{ color:"#64748b" }}>
+                                  Dernier contact : <strong style={{ color:"#0f1b3f" }}>
+                                    {crm.lastContactDate ? new Date(crm.lastContactDate).toLocaleDateString("fr-FR") : "—"}
+                                  </strong>
+                                  {crm.lastContactChannel && <span style={{ color:"#94a3b8" }}> via {CHANNELS[crm.lastContactChannel]}</span>}
+                                </div>
+                                <div style={{ marginTop:4, color: overdue(crm.nextFollowUpDate) ? "#dc2626" : "#64748b" }}>
+                                  Prochain suivi : <strong style={{ color: overdue(crm.nextFollowUpDate) ? "#dc2626" : "#0f1b3f" }}>
+                                    {crm.nextFollowUpDate ? new Date(crm.nextFollowUpDate).toLocaleDateString("fr-FR") : "—"}
+                                  </strong>
+                                  {overdue(crm.nextFollowUpDate) && <span style={{ color:"#dc2626", fontWeight:700 }}> ⚠️ En retard</span>}
+                                </div>
+                                {crm.internalNotes && (
+                                  <div style={{ marginTop:4, color:"#64748b", fontSize:".72rem", fontStyle:"italic",
+                                    overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:200 }}
+                                    title={crm.internalNotes}>
+                                    📝 {crm.internalNotes}
+                                  </div>
+                                )}
+                              </div>
+                              {/* CRM Status */}
+                              <div style={{ textAlign:"center" }}>
+                                <span style={{ display:"inline-block", fontSize:".72rem", fontWeight:700, padding:"4px 10px", borderRadius:20,
+                                  background:crmSt.bg, color:crmSt.c }}>
+                                  {crmSt.l}
+                                </span>
+                              </div>
+                              {/* Priorité */}
+                              <div style={{ textAlign:"center", fontSize:".76rem", fontWeight:700, color:pri.c }}>{pri.l}</div>
+                              {/* Actions */}
+                              <div style={{ display:"flex", gap:6 }}>
+                                <button onClick={() => setFoundingCRMEdit(isEdit ? null : { id: o._id, data: {
+                                  crmStatus:          crm.crmStatus || "interested",
+                                  lastContactDate:    crm.lastContactDate ? new Date(crm.lastContactDate).toISOString().slice(0,10) : "",
+                                  lastContactChannel: crm.lastContactChannel || "",
+                                  nextFollowUpDate:   crm.nextFollowUpDate  ? new Date(crm.nextFollowUpDate).toISOString().slice(0,10) : "",
+                                  internalNotes:      crm.internalNotes || "",
+                                  priority:           crm.priority || "medium",
+                                }})}
+                                  style={{ padding:"5px 10px", border:"1.5px solid #e2e8f0", borderRadius:8, background: isEdit ? "#0f1b3f" : "#fff",
+                                    color: isEdit ? "#fff" : "#64748b", fontWeight:700, fontSize:".75rem", cursor:"pointer" }}>
+                                  {isEdit ? "✕" : "✏️"}
+                                </button>
+                                {ci.whatsapp && (
+                                  <a href={`https://wa.me/${ci.whatsapp.replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer"
+                                    style={{ display:"flex", alignItems:"center", padding:"5px 10px", border:"1.5px solid #dcfce7",
+                                      borderRadius:8, background:"#f0fdf4", color:"#16a34a", fontWeight:700, fontSize:".75rem", textDecoration:"none" }}>
+                                    WA
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Formulaire d'édition CRM inline */}
+                            {isEdit && (
+                              <div style={{ borderTop:"1px solid #f1f5f9", padding:"14px 16px", background:"#f8fafc" }}>
+                                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:12, marginBottom:12 }}>
+                                  {/* CRM Status */}
+                                  <div>
+                                    <label style={{ fontSize:".73rem", fontWeight:700, color:"#64748b", display:"block", marginBottom:4 }}>Statut CRM</label>
+                                    <select value={editData.crmStatus}
+                                      onChange={e => setFoundingCRMEdit(prev => ({ ...prev, data: { ...prev.data, crmStatus: e.target.value } }))}
+                                      style={{ width:"100%", padding:"6px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem" }}>
+                                      <option value="interested">Intéressé</option>
+                                      <option value="reserved">Réservé</option>
+                                      <option value="verified">Vérifié</option>
+                                      <option value="active">Actif</option>
+                                      <option value="inactive">Inactif</option>
+                                    </select>
+                                  </div>
+                                  {/* Priorité */}
+                                  <div>
+                                    <label style={{ fontSize:".73rem", fontWeight:700, color:"#64748b", display:"block", marginBottom:4 }}>Priorité</label>
+                                    <select value={editData.priority}
+                                      onChange={e => setFoundingCRMEdit(prev => ({ ...prev, data: { ...prev.data, priority: e.target.value } }))}
+                                      style={{ width:"100%", padding:"6px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem" }}>
+                                      <option value="high">🔴 Haute</option>
+                                      <option value="medium">🟡 Moyenne</option>
+                                      <option value="low">🟢 Basse</option>
+                                    </select>
+                                  </div>
+                                  {/* Dernier contact */}
+                                  <div>
+                                    <label style={{ fontSize:".73rem", fontWeight:700, color:"#64748b", display:"block", marginBottom:4 }}>Dernier contact</label>
+                                    <input type="date" value={editData.lastContactDate}
+                                      onChange={e => setFoundingCRMEdit(prev => ({ ...prev, data: { ...prev.data, lastContactDate: e.target.value } }))}
+                                      style={{ width:"100%", padding:"6px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem", boxSizing:"border-box" }} />
+                                  </div>
+                                  {/* Canal */}
+                                  <div>
+                                    <label style={{ fontSize:".73rem", fontWeight:700, color:"#64748b", display:"block", marginBottom:4 }}>Canal</label>
+                                    <select value={editData.lastContactChannel}
+                                      onChange={e => setFoundingCRMEdit(prev => ({ ...prev, data: { ...prev.data, lastContactChannel: e.target.value } }))}
+                                      style={{ width:"100%", padding:"6px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem" }}>
+                                      <option value="">— Sélectionner</option>
+                                      <option value="whatsapp">WhatsApp</option>
+                                      <option value="wechat">WeChat</option>
+                                      <option value="email">Email</option>
+                                      <option value="phone">Téléphone</option>
+                                      <option value="meeting">RDV physique</option>
+                                      <option value="other">Autre</option>
+                                    </select>
+                                  </div>
+                                  {/* Prochain suivi */}
+                                  <div>
+                                    <label style={{ fontSize:".73rem", fontWeight:700, color:"#64748b", display:"block", marginBottom:4 }}>Prochain suivi</label>
+                                    <input type="date" value={editData.nextFollowUpDate}
+                                      onChange={e => setFoundingCRMEdit(prev => ({ ...prev, data: { ...prev.data, nextFollowUpDate: e.target.value } }))}
+                                      style={{ width:"100%", padding:"6px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem", boxSizing:"border-box" }} />
+                                  </div>
+                                </div>
+                                {/* Notes internes */}
+                                <div style={{ marginBottom:12 }}>
+                                  <label style={{ fontSize:".73rem", fontWeight:700, color:"#64748b", display:"block", marginBottom:4 }}>Notes internes</label>
+                                  <textarea value={editData.internalNotes}
+                                    onChange={e => setFoundingCRMEdit(prev => ({ ...prev, data: { ...prev.data, internalNotes: e.target.value } }))}
+                                    rows={2}
+                                    placeholder="Observations, historique, points clés de la négociation…"
+                                    style={{ width:"100%", padding:"8px 10px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem", resize:"vertical", fontFamily:"inherit", boxSizing:"border-box" }} />
+                                </div>
+                                <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+                                  <button onClick={() => setFoundingCRMEdit(null)}
+                                    style={{ padding:"7px 16px", border:"1.5px solid #e2e8f0", borderRadius:8, background:"#fff", color:"#64748b", fontWeight:700, fontSize:".82rem", cursor:"pointer" }}>
+                                    Annuler
+                                  </button>
+                                  <button onClick={() => foundingUpdateCRM(o._id, editData)}
+                                    style={{ padding:"7px 18px", border:"none", borderRadius:8, background:"#0f1b3f", color:"#fff", fontWeight:800, fontSize:".82rem", cursor:"pointer" }}>
+                                    💾 Sauvegarder
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* ── VUE ONBOARDING ─────────────────────────────────────────────── */}
             {/* ── Lien d'invitation universel ─────────────────────────────────── */}
             {(() => {
+              if (foundingView !== "onboarding") return null;
               const inviteLink = `${window.location.origin}/partner-onboarding`;
               const waMsg = encodeURIComponent(
                 `Bonjour ! 👋\n\nVIT-AUTO vous invite à rejoindre notre *Programme Partenaire Fondateur* — places limitées à 20 partenaires.\n\n✅ *Avantages exclusifs Founding Partner :*\n• Commission Location : *10%* (standard 15%)\n• Commission Vente : *2%* (standard 3%)\n• Abonnement Premium *OFFERT 12 mois* (valeur 300€+)\n• Badge exclusif *"Founding Partner"* sur toutes vos annonces\n• Placement prioritaire dans le catalogue international\n• Accès anticipé à toutes les nouvelles fonctionnalités\n\n🔗 *Inscrivez-vous et déposez votre dossier directement ici :*\n${inviteLink}\n\nDes questions ? Contactez-nous : contact@vit-auto.com\n\n_VIT-AUTO — Plateforme Automobile Internationale_`
@@ -3320,7 +3583,7 @@ export default function AdminPanel() {
             })()}
 
             {/* Lien sécurisé généré (à envoyer par WhatsApp) */}
-            {foundingSignLink && (
+            {foundingView === "onboarding" && foundingSignLink && (
               <div style={{ background:"linear-gradient(135deg,#0f1b3f,#1a3a6e)", borderRadius:14, padding:"20px 24px", marginBottom:"1.5rem", color:"#fff" }}>
                 <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
                   <span style={{ fontSize:"1.5rem" }}>🔐</span>
@@ -3377,7 +3640,7 @@ export default function AdminPanel() {
             )}
 
             {/* Modal Approbation / Rejet */}
-            {foundingAction && (
+            {foundingView === "onboarding" && foundingAction && (
               <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.5)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
                 <div style={{ background:"#fff", borderRadius:16, padding:24, maxWidth:440, width:"100%", boxShadow:"0 20px 60px rgba(0,0,0,.25)" }}>
                   <h3 style={{ margin:"0 0 12px", color:"#0f1b3f", fontSize:"1rem", fontWeight:800 }}>
@@ -3413,14 +3676,16 @@ export default function AdminPanel() {
             )}
 
             {/* Liste des dossiers */}
-            {foundingLoading ? (
+            {foundingView === "onboarding" && foundingLoading && (
               <div style={{ textAlign:"center", padding:"3rem", color:"#94a3b8" }}>Chargement…</div>
-            ) : foundingList.length === 0 ? (
+            )}
+            {foundingView === "onboarding" && !foundingLoading && foundingList.length === 0 && (
               <div style={{ textAlign:"center", padding:"3rem", color:"#94a3b8" }}>
                 <div style={{ fontSize:"3rem", marginBottom:12 }}>🌟</div>
                 <p style={{ fontWeight:600 }}>Aucune candidature Founding Partner pour le moment.</p>
               </div>
-            ) : (
+            )}
+            {foundingView === "onboarding" && !foundingLoading && foundingList.length !== 0 && (
               <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
                 {foundingList.map((o) => {
                   const st = ST[o.status] || { l: o.status, c: "#64748b", bg: "#f8fafc" };

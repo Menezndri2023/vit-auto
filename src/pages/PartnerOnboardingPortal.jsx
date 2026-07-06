@@ -50,6 +50,38 @@ const STEPS = [
   { id: 4, label: "LOI / Sign",   icon: "5" },
 ];
 
+// ── Constantes StepBusiness (module-level pour éviter les réallocations) ─────
+const VEHICLE_TYPES = [
+  { key: "newVehicles",        label: "Véhicules neufs" },
+  { key: "usedVehicles",       label: "Véhicules d'occasion" },
+  { key: "electricVehicles",   label: "Véhicules électriques" },
+  { key: "hybridVehicles",     label: "Hybrides" },
+  { key: "luxuryVehicles",     label: "Luxe & Premium" },
+  { key: "commercialVehicles", label: "Utilitaires / Commerciaux" },
+];
+
+const ENTITY_TYPES = [
+  { key: "factory",  label: "🏭 Usine / Fabricant" },
+  { key: "dealer",   label: "🏪 Concessionnaire" },
+  { key: "exporter", label: "🚢 Exportateur" },
+  { key: "importer", label: "📦 Importateur" },
+  { key: "agent",    label: "🤝 Agent / Courtier" },
+];
+
+const PAYMENT_MODES = [
+  { key: "wire_transfer", label: "Virement bancaire" },
+  { key: "lc",            label: "L/C (Lettre de crédit)" },
+  { key: "tt",            label: "TT (Télégraphic Transfer)" },
+  { key: "cash",          label: "Cash" },
+  { key: "escrow",        label: "Escrow" },
+];
+
+const radioSt = { display: "flex", alignItems: "center", gap: 7, cursor: "pointer", fontSize: ".85rem", color: "#374151" };
+const inlineRow = { display: "flex", flexWrap: "wrap", gap: 10, marginTop: 6 };
+
+const toggleArr = (arr, setArr, val) =>
+  setArr(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val]);
+
 // ── Helper: field change ──────────────────────────────────────────────────────
 function useFormState(initial = {}) {
   const [form, setForm] = useState(initial);
@@ -367,6 +399,7 @@ function StepTypeInfo({ onboarding, saving, onSaveSection, onSetType, onNext }) 
     email: ci.email || "",
     phone: ci.phone || "",
     whatsapp: ci.whatsapp || "",
+    wechat: ci.wechat || "",
     mainContact: ci.mainContact || "",
     mainContactPosition: ci.mainContactPosition || "",
     incorporationDate: ci.incorporationDate ? ci.incorporationDate.slice(0, 10) : "",
@@ -383,6 +416,7 @@ function StepTypeInfo({ onboarding, saving, onSaveSection, onSetType, onNext }) 
       email: ci.email || "",
       phone: ci.phone || "",
       whatsapp: ci.whatsapp || "",
+      wechat: ci.wechat || "",
       mainContact: ci.mainContact || "",
       mainContactPosition: ci.mainContactPosition || "",
       incorporationDate: ci.incorporationDate ? ci.incorporationDate.slice(0, 10) : "",
@@ -435,6 +469,7 @@ function StepTypeInfo({ onboarding, saving, onSaveSection, onSetType, onNext }) 
           <Field label="Email entreprise" value={form.email} onChange={set("email")} type="email" placeholder="contact@entreprise.com" />
           <Field label="Téléphone" value={form.phone} onChange={set("phone")} placeholder="+225 07 00 00 00 00" />
           <Field label="WhatsApp" value={form.whatsapp} onChange={set("whatsapp")} placeholder="+225 07 00 00 00 00" />
+          <Field label="WeChat ID" value={form.wechat} onChange={set("wechat")} placeholder="ID WeChat (pour partenaires chinois)" />
           <Field label="Personne de contact principal" value={form.mainContact} onChange={set("mainContact")} placeholder="Prénom Nom" />
           <Field label="Poste / Fonction" value={form.mainContactPosition} onChange={set("mainContactPosition")} placeholder="Ex. Directeur Commercial" />
         </div>
@@ -565,16 +600,52 @@ function StepBusiness({ onboarding, saving, onSaveSection, onNext, onBack }) {
   const [activities, setActivities] = useState((bv.mainActivities || []).join(", "));
   const [years, setYears] = useState(bv.yearsExperience || 0);
   const [annualCap, setAnnualCap] = useState(bv.annualExportCapacity || "");
+  const [entityTypes, setEntityTypes] = useState(bv.entityTypes || []);
 
   const [vInv, setVInv] = useState({ ...vi });
   const [ports, setPorts] = useState((ec.shippingPorts || []).join(", "));
-  const [incoterms, setIncoterms] = useState(ec.incoterms || { exw: false, fob: false, cif: false, ddp: false });
-  const [methods, setMethods] = useState((pi.acceptedMethods || []).join(", "));
+  const [incoterms, setIncoterms] = useState(ec.incoterms || { exw: false, fob: false, cif: false, dap: false, ddp: false });
   const [currency, setCurrency] = useState(pi.preferredCurrency || "");
-  const [deliveryTime, setDeliveryTime] = useState(ct.deliveryTime || "");
   const [minQty, setMinQty] = useState(ct.minimumOrderQuantity || "");
 
+  // Conditions commerciales structurées
+  const [paymentModes, setPaymentModes]   = useState(ct.paymentModes || []);
+  const [depositPct, setDepositPct]       = useState(ct.depositPercentage ?? null);
+  const [depositTiming, setDepositTiming] = useState(ct.depositTiming || "");
+  const [deliveryDays, setDeliveryDays]   = useState(ct.deliveryDays ?? null);
+  const [warrantyAvail, setWarrantyAvail] = useState(ct.warrantyAvailable ?? null);
+  const [warrantyMonths, setWarrantyMonths] = useState(ct.warrantyMonths ?? "");
+  const [inspType, setInspType]           = useState(ct.inspectionType || "");
+  const [inspAgency, setInspAgency]       = useState(ct.inspectionAgency || "");
+
   const split = (val) => val.split(",").map((s) => s.trim()).filter(Boolean);
+
+  useEffect(() => {
+    const bv2 = onboarding?.businessVerification || {};
+    const vi2 = onboarding?.vehicleInventory || {};
+    const ec2 = onboarding?.exportCapabilities || {};
+    const pi2 = onboarding?.paymentInfo || {};
+    const ct2 = onboarding?.commercialTerms || {};
+    setBrands((bv2.brands || []).join(", "));
+    setExportMarkets((bv2.exportMarkets || []).join(", "));
+    setActivities((bv2.mainActivities || []).join(", "));
+    setYears(bv2.yearsExperience || 0);
+    setAnnualCap(bv2.annualExportCapacity || "");
+    setEntityTypes(bv2.entityTypes || []);
+    setVInv({ ...vi2 });
+    setPorts((ec2.shippingPorts || []).join(", "));
+    setIncoterms(ec2.incoterms || { exw: false, fob: false, cif: false, dap: false, ddp: false });
+    setCurrency(pi2.preferredCurrency || "");
+    setMinQty(ct2.minimumOrderQuantity || "");
+    setPaymentModes(ct2.paymentModes || []);
+    setDepositPct(ct2.depositPercentage ?? null);
+    setDepositTiming(ct2.depositTiming || "");
+    setDeliveryDays(ct2.deliveryDays ?? null);
+    setWarrantyAvail(ct2.warrantyAvailable ?? null);
+    setWarrantyMonths(ct2.warrantyMonths ?? "");
+    setInspType(ct2.inspectionType || "");
+    setInspAgency(ct2.inspectionAgency || "");
+  }, [onboarding]);
 
   const handleSave = async () => {
     const bvData = {
@@ -583,28 +654,34 @@ function StepBusiness({ onboarding, saving, onSaveSection, onNext, onBack }) {
       mainActivities: split(activities),
       yearsExperience: Number(years),
       annualExportCapacity: annualCap,
+      entityTypes,
     };
     const viData = { ...vInv };
     const ecData = { shippingPorts: split(ports), incoterms };
-    const piData = { acceptedMethods: split(methods), preferredCurrency: currency };
-    const ctData = { deliveryTime, minimumOrderQuantity: minQty };
+    const piData = { preferredCurrency: currency };
+    const ctData = {
+      minimumOrderQuantity: minQty,
+      paymentModes,
+      depositPercentage: depositPct !== null ? Number(depositPct) : null,
+      depositTiming,
+      deliveryDays: deliveryDays !== null ? Number(deliveryDays) : null,
+      warrantyAvailable: warrantyAvail,
+      warrantyMonths: warrantyMonths !== "" ? Number(warrantyMonths) : null,
+      inspectionType: inspType,
+      inspectionAgency: inspAgency,
+    };
 
-    await onSaveSection("business-verification", bvData);
-    await onSaveSection("vehicle-inventory", viData);
-    await onSaveSection("export-capabilities", ecData);
-    await onSaveSection("payment-info", piData);
-    const ok = await onSaveSection("commercial-terms", ctData);
+    const results = await Promise.all([
+      onSaveSection("business-verification", bvData),
+      onSaveSection("vehicle-inventory", viData),
+      onSaveSection("export-capabilities", ecData),
+      onSaveSection("payment-info", piData),
+      onSaveSection("commercial-terms", ctData),
+    ]);
+    const ok = results.every(Boolean);
     if (ok) onNext();
   };
 
-  const VEHICLE_TYPES = [
-    { key: "newVehicles",        label: "Véhicules neufs" },
-    { key: "usedVehicles",       label: "Véhicules d'occasion" },
-    { key: "electricVehicles",   label: "Véhicules électriques" },
-    { key: "hybridVehicles",     label: "Hybrides" },
-    { key: "luxuryVehicles",     label: "Luxe & Premium" },
-    { key: "commercialVehicles", label: "Utilitaires / Commerciaux" },
-  ];
 
   return (
     <div className={styles.stepCard}>
@@ -624,7 +701,22 @@ function StepBusiness({ onboarding, saving, onSaveSection, onNext, onBack }) {
           <FieldFull label="Marchés d'export (pays, séparés par virgule)" value={exportMarkets} onChange={(e) => setExportMarkets(e.target.value)} placeholder="Côte d'Ivoire, Sénégal, Mali…" />
           <FieldFull label="Activités principales" value={activities} onChange={(e) => setActivities(e.target.value)} placeholder="Import, Export, Transit, Courtage…" />
           <Field label="Années d'expérience" value={years} onChange={(e) => setYears(e.target.value)} type="number" min="0" />
-          <Field label="Capacité annuelle d'export (optionnel)" value={annualCap} onChange={(e) => setAnnualCap(e.target.value)} placeholder="Ex. 500 véhicules/an" />
+          <Field label="Capacité annuelle d'export" value={annualCap} onChange={(e) => setAnnualCap(e.target.value)} placeholder="Ex. 500 véhicules/an" />
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <div className={styles.sectionSubtitle}>Type d'entité (cochez tout ce qui s'applique)</div>
+          <div className={styles.checkGrid}>
+            {ENTITY_TYPES.map(({ key, label }) => (
+              <label key={key} className={styles.checkItem}>
+                <input
+                  type="checkbox"
+                  checked={entityTypes.includes(key)}
+                  onChange={() => toggleArr(entityTypes, setEntityTypes, key)}
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -649,11 +741,11 @@ function StepBusiness({ onboarding, saving, onSaveSection, onNext, onBack }) {
       <div className={styles.sectionBlock}>
         <h3 className={styles.sectionTitle}>Capacités d'export</h3>
         <div className={styles.formGrid}>
-          <FieldFull label="Ports d'expédition disponibles" value={ports} onChange={(e) => setPorts(e.target.value)} placeholder="Abidjan, Dakar, Lomé…" />
+          <FieldFull label="Ports d'expédition disponibles" value={ports} onChange={(e) => setPorts(e.target.value)} placeholder="Abidjan, Dakar, Lomé, Shanghai…" />
         </div>
         <div className={styles.incotermGrid}>
-          <span className={styles.incotermLabel}>Incoterms disponibles :</span>
-          {["exw", "fob", "cif", "ddp"].map((inc) => (
+          <span className={styles.incotermLabel}>Incoterms proposés :</span>
+          {["exw", "fob", "cif", "dap", "ddp"].map((inc) => (
             <label key={inc} className={styles.incotermItem}>
               <input
                 type="checkbox"
@@ -666,14 +758,161 @@ function StepBusiness({ onboarding, saving, onSaveSection, onNext, onBack }) {
         </div>
       </div>
 
-      {/* Payment & Commercial */}
+      {/* Conditions commerciales structurées */}
       <div className={styles.sectionBlock}>
-        <h3 className={styles.sectionTitle}>Paiement & Conditions commerciales</h3>
-        <div className={styles.formGrid}>
-          <FieldFull label="Méthodes de paiement acceptées" value={methods} onChange={(e) => setMethods(e.target.value)} placeholder="Virement bancaire, L/C, Western Union…" />
-          <Field label="Devise préférée" value={currency} onChange={(e) => setCurrency(e.target.value)} placeholder="USD, EUR, XOF…" />
-          <Field label="Délai de livraison" value={deliveryTime} onChange={(e) => setDeliveryTime(e.target.value)} placeholder="Ex. 30-45 jours" />
+        <h3 className={styles.sectionTitle}>Conditions commerciales</h3>
+        <p style={{ fontSize: ".8rem", color: "#64748b", margin: "0 0 14px" }}>
+          Ces informations seront affichées sur votre profil — comme Alibaba. Les acheteurs voient exactement vos conditions avant de vous contacter.
+        </p>
+
+        {/* Modes de paiement */}
+        <div style={{ marginBottom: 18 }}>
+          <div className={styles.sectionSubtitle}>Modes de paiement acceptés</div>
+          <div className={styles.checkGrid}>
+            {PAYMENT_MODES.map(({ key, label }) => (
+              <label key={key} className={styles.checkItem}>
+                <input
+                  type="checkbox"
+                  checked={paymentModes.includes(key)}
+                  onChange={() => toggleArr(paymentModes, setPaymentModes, key)}
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Acompte */}
+        <div style={{ marginBottom: 18 }}>
+          <div className={styles.sectionSubtitle}>Acompte requis</div>
+          <div style={inlineRow}>
+            {[10, 20, 30, 40, 50].map((pct) => (
+              <label key={pct} style={radioSt}>
+                <input type="radio" name="depositPct" value={pct} checked={depositPct === pct}
+                  onChange={() => setDepositPct(pct)} />
+                {pct}%
+              </label>
+            ))}
+            <label style={radioSt}>
+              <input type="radio" name="depositPct" value="" checked={depositPct === null}
+                onChange={() => setDepositPct(null)} />
+              Non spécifié
+            </label>
+          </div>
+          {depositPct !== null && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: ".8rem", color: "#64748b", marginBottom: 6 }}>Solde versé :</div>
+              <div style={inlineRow}>
+                {[
+                  { v: "before_shipment", l: "Avant expédition" },
+                  { v: "after_inspection", l: "Après inspection" },
+                  { v: "at_boarding", l: "À l'embarquement" },
+                  { v: "at_reception", l: "À réception" },
+                ].map(({ v, l }) => (
+                  <label key={v} style={radioSt}>
+                    <input type="radio" name="depositTiming" value={v} checked={depositTiming === v}
+                      onChange={() => setDepositTiming(v)} />
+                    {l}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Délai de livraison */}
+        <div style={{ marginBottom: 18 }}>
+          <div className={styles.sectionSubtitle}>Délai de livraison</div>
+          <div style={inlineRow}>
+            {[15, 30, 45, 60].map((d) => (
+              <label key={d} style={radioSt}>
+                <input type="radio" name="deliveryDays" value={d} checked={deliveryDays === d}
+                  onChange={() => setDeliveryDays(d)} />
+                {d} jours
+              </label>
+            ))}
+            <label style={radioSt}>
+              <input type="radio" name="deliveryDays" value="" checked={deliveryDays === null}
+                onChange={() => setDeliveryDays(null)} />
+              À définir
+            </label>
+          </div>
+        </div>
+
+        {/* Inspection */}
+        <div style={{ marginBottom: 18 }}>
+          <div className={styles.sectionSubtitle}>Inspection véhicule</div>
+          <div style={inlineRow}>
+            {[
+              { v: "mandatory", l: "Obligatoire" },
+              { v: "optional",  l: "Optionnelle" },
+              { v: "none",      l: "Aucune" },
+            ].map(({ v, l }) => (
+              <label key={v} style={radioSt}>
+                <input type="radio" name="inspType" value={v} checked={inspType === v}
+                  onChange={() => { setInspType(v); if (v === "none") setInspAgency(""); }} />
+                {l}
+              </label>
+            ))}
+          </div>
+          {inspType && inspType !== "none" && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: ".8rem", color: "#64748b", marginBottom: 6 }}>Organisme d'inspection :</div>
+              <div style={inlineRow}>
+                {[
+                  { v: "sgs",            l: "SGS" },
+                  { v: "bureau_veritas", l: "Bureau Veritas" },
+                  { v: "tuv",            l: "TÜV" },
+                  { v: "other",          l: "Autre" },
+                ].map(({ v, l }) => (
+                  <label key={v} style={radioSt}>
+                    <input type="radio" name="inspAgency" value={v} checked={inspAgency === v}
+                      onChange={() => setInspAgency(v)} />
+                    {l}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Garantie */}
+        <div style={{ marginBottom: 18 }}>
+          <div className={styles.sectionSubtitle}>Garantie proposée</div>
+          <div style={inlineRow}>
+            <label style={radioSt}>
+              <input type="radio" name="warranty" checked={warrantyAvail === true}
+                onChange={() => setWarrantyAvail(true)} />
+              Oui
+            </label>
+            <label style={radioSt}>
+              <input type="radio" name="warranty" checked={warrantyAvail === false}
+                onChange={() => { setWarrantyAvail(false); setWarrantyMonths(""); }} />
+              Non
+            </label>
+            <label style={radioSt}>
+              <input type="radio" name="warranty" checked={warrantyAvail === null}
+                onChange={() => setWarrantyAvail(null)} />
+              À discuter
+            </label>
+          </div>
+          {warrantyAvail === true && (
+            <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: ".84rem", color: "#374151" }}>Durée :</span>
+              <input type="number" min="1" max="60" value={warrantyMonths}
+                onChange={(e) => setWarrantyMonths(e.target.value)}
+                style={{ width: 70, padding: "6px 10px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }}
+                placeholder="mois"
+              />
+              <span style={{ fontSize: ".84rem", color: "#64748b" }}>mois</span>
+            </div>
+          )}
+        </div>
+
+        {/* MOQ & Devise */}
+        <div className={styles.formGrid} style={{ marginTop: 4 }}>
           <Field label="Quantité minimum (MOQ)" value={minQty} onChange={(e) => setMinQty(e.target.value)} placeholder="Ex. 1 véhicule" />
+          <Field label="Devise préférée" value={currency} onChange={(e) => setCurrency(e.target.value)} placeholder="USD, EUR, XOF…" />
         </div>
       </div>
 
