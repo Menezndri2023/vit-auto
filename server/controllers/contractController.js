@@ -92,6 +92,29 @@ export const createContract = async (req, res) => {
   }
 };
 
+// ── Vérifie que req.user a le droit de consulter ce contrat ──────────────
+// (client de la réservation, propriétaire du véhicule/chauffeur, ou admin)
+export const canAccessContract = async (contract, user) => {
+  if (!contract?.booking) return false;
+  if (user.role === "admin") return true;
+
+  const booking = contract.booking;
+  const userId  = user._id.toString();
+
+  if (booking.client?.toString() === userId) return true;
+
+  const vehicleId = booking.vehicle?._id || booking.vehicle;
+  const driverId  = booking.driver?._id || booking.driver;
+  const [vehicle, driver] = await Promise.all([
+    vehicleId ? Vehicle.findById(vehicleId).select("owner") : null,
+    driverId  ? Driver.findById(driverId).select("owner")   : null,
+  ]);
+  if (vehicle?.owner?.toString() === userId) return true;
+  if (driver?.owner?.toString() === userId) return true;
+
+  return false;
+};
+
 // ── Récupérer un contrat (par bookingId ou contractId) ───────────────────
 export const getContract = async (req, res) => {
   try {
@@ -107,6 +130,10 @@ export const getContract = async (req, res) => {
       contract = await Contract.findOne({ booking: id }).populate("booking");
     }
     if (!contract) return res.status(404).json({ message: "Contrat introuvable." });
+
+    if (!req.user || !(await canAccessContract(contract, req.user))) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
 
     res.json({ contract });
   } catch (err) {

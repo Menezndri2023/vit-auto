@@ -178,7 +178,13 @@ export const VehicleProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    loadVehicles();
+    // Différé après le premier rendu (requestIdleCallback) pour ne pas faire concurrence
+    // aux ressources critiques du premier affichage (JS/CSS/police/image LCP) sur TOUTES
+    // les routes, y compris celles qui n'affichent aucun véhicule (login, profil, kyc...).
+    const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 200));
+    const cancelIdle = window.cancelIdleCallback || clearTimeout;
+    const id = idle(() => loadVehicles());
+    return () => cancelIdle(id);
   }, [loadVehicles]);
 
   // Load the partner's own vehicles (pending + approved + rejected)
@@ -269,7 +275,10 @@ export const VehicleProvider = ({ children }) => {
         setDrivers([]);
       }
     };
-    loadDrivers();
+    const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 200));
+    const cancelIdle = window.cancelIdleCallback || clearTimeout;
+    const id = idle(loadDrivers);
+    return () => cancelIdle(id);
   }, []);
 
   const getItemById = (id) => {

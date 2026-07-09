@@ -1,4 +1,5 @@
 import express from "express";
+import compression from "compression";
 import cors from "cors";
 import dotenv from "dotenv";
 import helmet from "helmet";
@@ -11,6 +12,7 @@ import { initQueues, isReady as isQueuesReady, getQueueStats } from "./queue/ind
 
 import authRoutes          from "./routes/auth.js";
 import vehicleRoutes       from "./routes/vehicles.js";
+import vehicleImportRoutes from "./routes/vehicleImport.js";
 import bookingRoutes       from "./routes/bookings.js";
 import paymentRoutes       from "./routes/payments.js";
 import userRoutes          from "./routes/users.js";
@@ -29,12 +31,13 @@ import certificationRoutes    from "./routes/partnerCertification.js";
 import partnerVerifRoutes     from "./routes/partnerVerification.js";
 import pmsRoutes              from "./routes/pms.js";
 import partnerOnboardingRoutes from "./routes/partnerOnboarding.js";
+import { authenticate } from "./middleware/auth.js";
 
 dotenv.config();
 initSentry();
 
 // ── Validation des variables d'environnement critiques ────────────────────
-const REQUIRED_ENV = ["JWT_SECRET", "MONGO_URI"];
+const REQUIRED_ENV = ["JWT_SECRET", "REFRESH_TOKEN_SECRET", "MONGO_URI"];
 const missingEnv = REQUIRED_ENV.filter((k) => !process.env[k]);
 if (missingEnv.length > 0) {
   console.error("❌ Variables d'environnement manquantes :", missingEnv.join(", "));
@@ -48,11 +51,25 @@ if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 64) {
   else console.warn("⚠️  Mode développement — clé acceptée temporairement.");
 }
 
+if (process.env.REFRESH_TOKEN_SECRET && process.env.REFRESH_TOKEN_SECRET.length < 64) {
+  console.error("❌ REFRESH_TOKEN_SECRET trop court (minimum 64 caractères / 512 bits requis)");
+  if (process.env.NODE_ENV === "production") process.exit(1);
+  else console.warn("⚠️  Mode développement — clé acceptée temporairement.");
+}
+
+if (process.env.REFRESH_TOKEN_SECRET === process.env.JWT_SECRET) {
+  console.error("❌ REFRESH_TOKEN_SECRET doit être DIFFÉRENT de JWT_SECRET (deux clés distinctes requises).");
+  if (process.env.NODE_ENV === "production") process.exit(1);
+}
+
 const app = express();
 
 // ── Sentry request handler (doit être le PREMIER middleware) ─────────────
 app.use(sentryRequestHandler());
 app.use(sentryTracingHandler());
+
+// ── Compression gzip/brotli des réponses JSON — aucune réponse n'était compressée ──
+app.use(compression());
 
 // ── Origines autorisées ───────────────────────────────────────────────────
 const ALLOWED_ORIGINS = (process.env.FRONTEND_URL || "http://localhost:5173")
@@ -199,6 +216,7 @@ app.get("/api/health", async (_req, res) => {
 
 // ── Routes API ────────────────────────────────────────────────────────────
 app.use("/api/auth",           authLimiter,      authRoutes);
+app.use("/api/vehicles/import", apiLimiter,      vehicleImportRoutes); // AVANT /api/vehicles (routes statiques d'abord)
 app.use("/api/vehicles",       catalogueLimiter, vehicleRoutes);   // Anti-scraping catalogue
 app.use("/api/bookings",       apiLimiter,       bookingRoutes);
 app.use("/api/payments",       apiLimiter,       paymentRoutes);
@@ -223,14 +241,14 @@ app.use("/api/partner-onboarding", uploadLimiter, partnerOnboardingRoutes); // F
 const TRANSPARENT_GIF = Buffer.from(
   "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64"
 );
-app.get("/api/comm/track/open/:trackingId", async (req, res) => {
+app.get("/api/comm/track/open/:trackingId", apiLimiter, async (req, res) => {
   res.set({ "Content-Type": "image/gif", "Cache-Control": "no-store, no-cache" });
   res.end(TRANSPARENT_GIF);
   const { trackOpen } = await import("./services/communication/analytics/CommunicationAnalytics.js");
   trackOpen(req.params.trackingId).catch(() => {});
 });
 
-app.get("/api/comm/track/click/:trackingId", async (req, res) => {
+app.get("/api/comm/track/click/:trackingId", apiLimiter, async (req, res) => {
   const { url } = req.query;
   const { trackClick } = await import("./services/communication/analytics/CommunicationAnalytics.js");
   trackClick(req.params.trackingId, url).catch(() => {});
@@ -251,7 +269,7 @@ app.get("/api/comm/track/click/:trackingId", async (req, res) => {
 });
 
 // ── Analytics communication (admin uniquement — JWT + rôle vérifié) ──────────
-app.get("/api/comm/stats", async (req, res) => {
+app.get("/api/comm/stats", apiLimiter, async (req, res) => {
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) return res.status(401).json({ message: "Non autorisé." });
   try {
@@ -272,7 +290,9 @@ app.get("/api/comm/stats", async (req, res) => {
 });
 
 // ── ImageKit auth token (frontend upload direct) ──────────────────────────────
-app.get("/api/imagekit/auth", (req, res) => {
+// Authentifié + rate-limité : sans cela, n'importe quel visiteur anonyme pouvait
+// obtenir en boucle des jetons d'upload direct vers ImageKit (abus de quota/stockage).
+app.get("/api/imagekit/auth", apiLimiter, authenticate, (req, res) => {
   import("./config/imagekit.js").then(({ getAuthToken }) => {
     const token = getAuthToken();
     if (!token) return res.status(503).json({ message: "ImageKit non configuré." });
@@ -281,7 +301,7 @@ app.get("/api/imagekit/auth", (req, res) => {
 });
 
 // ── Queue stats (admin) ────────────────────────────────────────────────────────
-app.get("/api/queue/stats", async (req, res) => {
+app.get("/api/queue/stats", apiLimiter, async (req, res) => {
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) return res.status(401).json({ message: "Non autorisé." });
   try {

@@ -113,7 +113,7 @@ export default function IEClientDashboard() {
   }, [filter, page, token]);
 
   useEffect(() => {
-    if (!token) { navigate("/login"); return; }
+    if (!token) { navigate("/login", { state: { from: { pathname: "/import-export/dashboard" } } }); return; }
     load();
   }, [load, token, navigate]);
 

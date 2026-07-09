@@ -1,6 +1,3 @@
-/* Leaflet CSS — doit être en premier (règle PostCSS @import) */
-@import '../public/leaflet.css';
-
 /* ════════════════════════════════════════════════════════════
    VIT AUTO — Design System Global
    Toutes les pages héritent de ces variables.

@@ -730,7 +730,7 @@ export default function Booking() {
               ))}
             </div>
 
-            {["orange", "wave", "mtn", "moov"].includes(payMethod) && (
+            {["orange_money", "wave", "mtn", "moov"].includes(payMethod) && (
               <div className={styles.payDetails}>
                 <label className={styles.label}>
                   Numéro mobile *

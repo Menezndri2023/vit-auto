@@ -109,10 +109,13 @@ const vehicleSchema = new mongoose.Schema({
 });
 
 vehicleSchema.index({ owner: 1 });
-vehicleSchema.index({ status: 1 });
 vehicleSchema.index({ type: 1 });
 vehicleSchema.index({ ville: 1 });
 vehicleSchema.index({ pricePerDay: 1 });
+// Couvre le filtre + tri exact du catalogue public (status:"approved", available:true,
+// trié par createdAt desc) — remplace l'ancien index simple sur status seul, qui ne
+// couvrait ni "available" ni le tri (fait en mémoire sur chaque requête).
+vehicleSchema.index({ status: 1, available: 1, createdAt: -1 });
 
 // Mettre à jour updatedAt automatiquement
 vehicleSchema.pre("save", function (next) {

@@ -14,6 +14,7 @@ export const QUEUE_NAMES = {
   OCR:          "vit_ocr",
   IMPORT:       "vit_import",
   AI:           "vit_ai",
+  PARTNER_FEED: "vit_partner_feed",
 };
 
 // Options par défaut communes
@@ -68,6 +69,13 @@ export const QUEUE_OPTIONS = {
     // Les tâches AI peuvent prendre du temps
     backoff:   { type: "fixed", delay: 15000 },
   },
+  [QUEUE_NAMES.PARTNER_FEED]: {
+    ...DEFAULT_JOB_OPTIONS,
+    attempts:  2,
+    removeOnComplete: { count: 100 },
+    // Import de flotte : peut prendre du temps (téléchargement d'images)
+    backoff:   { type: "fixed", delay: 10000 },
+  },
 };
 
 // Priorités
@@ -83,4 +91,5 @@ export const WORKER_CONCURRENCY = {
   [QUEUE_NAMES.OCR]:           2,
   [QUEUE_NAMES.IMPORT]:        5,
   [QUEUE_NAMES.AI]:            2,
+  [QUEUE_NAMES.PARTNER_FEED]:  2,
 };

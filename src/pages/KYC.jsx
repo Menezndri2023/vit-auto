@@ -111,7 +111,8 @@ export default function KYC() {
 
   // Guard APRÈS tous les hooks — redirige vers login si non connecté
   if (!token) {
-    return <Navigate to={`/login?returnTo=/kyc${returnTo !== "/dashboard" ? `&next=${encodeURIComponent(returnTo)}` : ""}`} replace />;
+    const kycSearch = returnTo !== "/dashboard" ? `?returnTo=${encodeURIComponent(returnTo)}` : "";
+    return <Navigate to="/login" state={{ from: { pathname: "/kyc", search: kycSearch } }} replace />;
   }
 
   /* ════════ STEP 1 ════════════════════════════════════════════════════════ */

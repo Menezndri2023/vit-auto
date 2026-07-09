@@ -1094,7 +1094,7 @@ function FleetSection() {
           { icon:"➕", title:"Ajouter un véhicule",        desc:"Publier une nouvelle annonce",                        to:"/vendor/publish"       },
           { icon:"📋", title:"Mes annonces",               desc:"Gérer l'inventaire de mes véhicules",                 to:"/vendor/dashboard"     },
           { icon:"📊", title:"Import/Export Listings",     desc:"Mes annonces pour l'export international",           to:"/importer-dashboard"   },
-          { icon:"📤", title:"Importer depuis Excel",      desc:"Importer un inventaire en masse (à venir)",           soon:true                  },
+          { icon:"📤", title:"Importer ma flotte",         desc:"Fichier Excel/CSV ou Google Sheet — import en masse", to:"/partner-fleet-import" },
           { icon:"🔗", title:"Synchronisation API",        desc:"Connecter votre système externe (à venir)",           soon:true                  },
         ].map((c) => (
           c.soon ? (

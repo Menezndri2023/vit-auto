@@ -50,7 +50,7 @@ function IECard({ l }) {
     <div className={styles.ieCard}>
       <div className={styles.ieCardImg}>
         {l.mainPhoto
-          ? <img src={l.mainPhoto} alt={l.title} />
+          ? <img src={l.mainPhoto} alt={l.title} loading="lazy" width="320" height="200" />
           : <div className={styles.ieCardImgFallback}>🚗</div>
         }
         <div className={styles.ieCardOrigin}>🌍 {l.sourceCountry}</div>

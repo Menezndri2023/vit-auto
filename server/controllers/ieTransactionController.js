@@ -798,10 +798,13 @@ export const createInspectionReport = async (req, res) => {
       return res.json({ message: "Rapport d'inspection mis à jour.", report: existing });
     }
 
+    // req.body EN PREMIER : listing/partner doivent toujours venir de l'URL/l'utilisateur
+    // authentifié, jamais du client, sinon un partenaire pourrait rattacher son rapport
+    // à l'annonce d'un concurrent (spoofing d'ownership).
     const report = await InspectionReport.create({
+      ...req.body,
       listing: req.params.id,
       partner: req.user._id,
-      ...req.body,
     });
 
     await ImportExportListing.findByIdAndUpdate(req.params.id, { inspectionReport: report._id });

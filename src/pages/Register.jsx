@@ -29,6 +29,16 @@ const Register = () => {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [devOtp, setDevOtp]             = useState(null);
+  const [submitting, setSubmitting]     = useState(false);
+
+  // Destination post-inscription : ?redirect= explicite, sinon offre Fondateur, sinon selon le rôle
+  const redirectParam = searchParams.get("redirect");
+  const planParam      = searchParams.get("plan");
+  const getDest = () => {
+    if (redirectParam) return decodeURIComponent(redirectParam);
+    if (planParam === "fondateur") return "/partner-onboarding";
+    return form.role === "partenaire" ? "/vendor/dashboard" : "/dashboard";
+  };
 
   useEffect(() => {
     if (searchParams.get("role") === "partenaire") {
@@ -57,6 +67,7 @@ const Register = () => {
     if (form.password.length < 8) {
       error("Le mot de passe doit contenir au moins 8 caractères."); return;
     }
+    setSubmitting(true);
     try {
       const result = await register(form);
       setCreatedUser(result || null);
@@ -66,11 +77,12 @@ const Register = () => {
         await sendOtp(result?._id || result?.id, form.phone, true);
       } else {
         success("Inscription réussie ! Redirection...");
-        const dest = form.role === "partenaire" ? "/vendor/dashboard" : "/dashboard";
-        setTimeout(() => navigate(dest), 1500);
+        setTimeout(() => navigate(getDest()), 1500);
       }
     } catch (err) {
       error(err.message || "Impossible de créer votre compte.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -114,8 +126,7 @@ const Register = () => {
       const data = await res.json();
       if (!res.ok) { error(data.message || "Code incorrect."); return; }
       success("Téléphone vérifié ! Bienvenue sur VIT AUTO.");
-      const dest = form.role === "partenaire" ? "/vendor/dashboard" : "/dashboard";
-      setTimeout(() => navigate(dest), 1200);
+      setTimeout(() => navigate(getDest()), 1200);
     } catch {
       error("Erreur réseau. Réessayez.");
     } finally {
@@ -126,8 +137,7 @@ const Register = () => {
   // ── Ignorer la vérification téléphone (passer) ────────────────
   const skipPhoneVerif = () => {
     success("Inscription réussie ! Vous pourrez vérifier votre téléphone plus tard.");
-    const dest = form.role === "partenaire" ? "/vendor/dashboard" : "/dashboard";
-    navigate(dest);
+    navigate(getDest());
   };
 
   // ════════════════════════════════════════════════════════════════
@@ -307,8 +317,8 @@ const Register = () => {
             </div>
           )}
 
-          <button type="submit" className={styles.submitBtn}>
-            Créer mon compte
+          <button type="submit" className={styles.submitBtn} disabled={submitting}>
+            {submitting ? "Création…" : "Créer mon compte"}
           </button>
 
           <div className={styles.footerLink}>

@@ -235,11 +235,11 @@ const VendorSubmit = () => {
     }
     if (step === 5) {
       if (adType === "location" && (!vehicle.pricePerDay || vehicle.pricePerDay < 1000))
-        e.pricePerDay = "Prix/jour requis (min 15 DH)";
+        e.pricePerDay = "Prix/jour requis (min 1000 DH)";
       if (adType === "vente" && (!vehicle.priceForSale || vehicle.priceForSale < 1000))
-        e.priceForSale = "Prix de vente requis (min 15 DH)";
+        e.priceForSale = "Prix de vente requis (min 1000 DH)";
       if (adType === "chauffeur" && (!driver.tarif || driver.tarif < 1000))
-        e.tarif = "Tarif requis (min 15 DH)";
+        e.tarif = "Tarif requis (min 1000 DH)";
     }
     if (step === 6) {
       const desc = adType === "chauffeur" ? driver.description : vehicle.description;
@@ -660,7 +660,7 @@ const VendorSubmit = () => {
                 <div className={styles.inputAffix}>
                   <input type="number" name="tarif" value={driver.tarif} onChange={handleDrvChange}
                     placeholder="Ex : 50000" min="1000" />
-                  <span>) DH)/ jour</span>
+                  <span>DH / jour</span>
                 </div>
                 {errors.tarif && <span className={styles.err}>{errors.tarif}</span>}
               </div>
@@ -669,7 +669,7 @@ const VendorSubmit = () => {
                 <div className={styles.inputAffix}>
                   <input type="number" name="tarifHeure" value={driver.tarifHeure} onChange={handleDrvChange}
                     placeholder="Ex : 8000" />
-                  <span>) DH)/ h</span>
+                  <span>DH / h</span>
                 </div>
               </div>
             </div>
@@ -692,7 +692,7 @@ const VendorSubmit = () => {
                   <div className={styles.inputAffix}>
                     <input type="number" name="pricePerDay" value={vehicle.pricePerDay}
                       onChange={handleVehChange} placeholder="Ex : 50000" min="1000" />
-                    <span>) DH)/ jour</span>
+                    <span>DH / jour</span>
                   </div>
                   {errors.pricePerDay && <span className={styles.err}>{errors.pricePerDay}</span>}
                 </div>
@@ -798,7 +798,7 @@ const VendorSubmit = () => {
                       {leasing.mensualite > 0 && (
                         <div className={`${styles.pricePreview} ${styles.colSpan2}`} style={{ marginTop: 0 }}>
                           <div className={styles.priceItem}><span>Apport initial</span><strong>{fmt(leasing.apportInitial || 0)} DH</strong></div>
-                          <div className={styles.priceItem}><span>Mensualité</span><strong>{fmt(leasing.mensualite)} ) DH)/ mois</strong></div>
+                          <div className={styles.priceItem}><span>Mensualité</span><strong>{fmt(leasing.mensualite)} DH / mois</strong></div>
                           <div className={styles.priceItem}><span>Durée</span><strong>{leasing.duree} mois</strong></div>
                           <div className={styles.priceItem}><span>Total estimé</span>
                             <strong style={{ color: "#6366f1" }}>

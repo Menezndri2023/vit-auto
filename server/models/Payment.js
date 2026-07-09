@@ -49,6 +49,12 @@ const paymentSchema = new mongoose.Schema({
 
 paymentSchema.index({ booking: 1 });
 paymentSchema.index({ status: 1 });
+// Un seul paiement actif (pending/completed) par réservation — empêche les doublons
+// en cas de double-clic/retry concurrent, contrainte appliquée au niveau base.
+paymentSchema.index(
+  { booking: 1 },
+  { unique: true, partialFilterExpression: { status: { $in: ["pending", "completed"] } }, name: "unique_active_payment_per_booking" }
+);
 
 const Payment = mongoose.models.Payment || mongoose.model("Payment", paymentSchema);
 export default Payment;

@@ -24,15 +24,23 @@ export default function ContractPage() {
   const isDrawing   = useRef(false);
   const lastPos     = useRef({ x: 0, y: 0 });
 
-  // ── Chargement du contrat ──────────────────────────────────────────────
+  // ── Chargement du contrat (authentification requise) ───────────────────
   useEffect(() => {
     if (!bookingId) return;
-    const hdrs = token ? { Authorization: `Bearer ${token}` } : {};
-    fetch(`/api/contracts/${bookingId}`, { headers: hdrs })
-      .then((r) => r.json())
+    if (!token) {
+      navigate("/login", { state: { from: { pathname: `/contract/${bookingId}` }, reason: "auth" }, replace: true });
+      return;
+    }
+    fetch(`/api/contracts/${bookingId}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (r) => {
+        if (r.status === 401 || r.status === 403) {
+          return { deniedMessage: "Vous n'êtes pas autorisé à consulter ce contrat." };
+        }
+        return r.json();
+      })
       .then((d) => {
         if (d.contract) { setContract(d.contract); if (d.contract.isSigned) setSigned(true); }
-        else setError("Contrat introuvable. Il sera disponible après acceptation par le partenaire.");
+        else setError(d.deniedMessage || "Contrat introuvable. Il sera disponible après acceptation par le partenaire.");
       })
       .catch(() => setError("Impossible de charger le contrat."))
       .finally(() => setLoading(false));

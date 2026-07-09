@@ -59,6 +59,7 @@ const ImporterDashboard     = lazy(() => import("./pages/ImporterDashboard"));
 const KYC                   = lazy(() => import("./pages/KYC"));
 const PartnerCertification    = lazy(() => import("./pages/PartnerCertification"));
 const PartnerPMSDashboard     = lazy(() => import("./pages/PartnerPMSDashboard"));
+const PartnerFleetImport      = lazy(() => import("./pages/PartnerFleetImport"));
 const PartnerShowroomPublic   = lazy(() => import("./pages/PartnerShowroomPublic"));
 const PartnerOnboardingPortal = lazy(() => import("./pages/PartnerOnboardingPortal"));
 const PartnerSignByToken      = lazy(() => import("./pages/PartnerSignByToken"));
@@ -125,6 +126,7 @@ function AppRoutes() {
           <Route path="/importer-dashboard" element={<PartnerRoute><ImporterDashboard /></PartnerRoute>} />
           <Route path="/partner-certification" element={<PartnerRoute><PartnerCertification /></PartnerRoute>} />
           <Route path="/partner-pms"      element={<PartnerRoute><ErrorBoundary><PartnerPMSDashboard /></ErrorBoundary></PartnerRoute>} />
+          <Route path="/partner-fleet-import" element={<PartnerRoute><ErrorBoundary><PartnerFleetImport /></ErrorBoundary></PartnerRoute>} />
 
           {/* ── Showroom public (accessible sans compte) ─────────── */}
           <Route path="/showroom/:id"     element={<PartnerShowroomPublic />} />

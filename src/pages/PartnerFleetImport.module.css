@@ -1,0 +1,205 @@
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 32px 20px 80px;
+}
+
+.header { margin-bottom: 28px; }
+.title { font-size: 1.6rem; font-weight: 900; color: #0f1b3f; margin: 0 0 6px; }
+.subtitle { font-size: 0.95rem; color: #64748b; margin: 0; }
+
+/* ── Étape 1 : choix de méthode ─────────────────────────────────────────── */
+.methodGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.methodCard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 20px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+  font-family: inherit;
+}
+.methodCard:hover:not(:disabled) { border-color: #0f1b3f; transform: translateY(-2px); }
+.methodCard:disabled { cursor: default; }
+
+.methodCardSoon { opacity: 0.6; }
+
+.methodIcon { font-size: 1.8rem; }
+.methodCard strong { font-size: 1rem; font-weight: 800; color: #0f1b3f; }
+.methodCard p { margin: 0; font-size: 0.85rem; color: #64748b; }
+
+.soonBadge {
+  display: inline-block;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-left: 6px;
+}
+
+/* ── Carte générique (étapes 2 et 3) ─────────────────────────────────────── */
+.card {
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 28px;
+}
+
+.cardTitle { font-size: 1.2rem; font-weight: 800; color: #0f1b3f; margin: 0 0 16px; }
+
+.backBtn {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 16px;
+}
+.backBtn:hover { color: #0f1b3f; }
+
+.hint { font-size: 0.85rem; color: #64748b; margin: 0 0 16px; line-height: 1.5; }
+
+.linkBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #ff4d2d;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.templateBtn {
+  display: inline-block;
+  background: #f1f5f9;
+  border: 1.5px solid #e2e8f0;
+  color: #0f1b3f;
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 10px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+.templateBtn:hover { border-color: #0f1b3f; }
+
+.textInput {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 0.9rem;
+  margin-bottom: 18px;
+}
+.textInput:focus { outline: none; border-color: #0f1b3f; }
+
+/* ── Drop zone (upload fichier) ──────────────────────────────────────────── */
+.dropZone {
+  border: 2px dashed #cbd5e1;
+  border-radius: 14px;
+  padding: 36px 20px;
+  text-align: center;
+  cursor: pointer;
+  margin-bottom: 20px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.dropZone:hover { border-color: #0f1b3f; }
+.dropZoneActive { border-color: #ff4d2d; background: #fff7ed; }
+
+.dropIcon { font-size: 2rem; margin-bottom: 8px; }
+.dropTitle { font-weight: 700; color: #0f1b3f; margin: 0 0 4px; }
+.dropSub { font-size: 0.82rem; color: #94a3b8; margin: 0; }
+
+/* ── Boutons ──────────────────────────────────────────────────────────────── */
+.primaryBtn {
+  background: #0f1b3f;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 22px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.primaryBtn:disabled { opacity: 0.5; cursor: default; }
+.primaryBtn:hover:not(:disabled) { background: #16234f; }
+
+.secondaryBtn {
+  background: #fff;
+  color: #0f1b3f;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 22px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.secondaryBtn:hover { border-color: #0f1b3f; }
+
+/* ── Progression ──────────────────────────────────────────────────────────── */
+.progressWrap { margin-top: 8px; }
+.progressBar {
+  background: #e2e8f0;
+  border-radius: 999px;
+  height: 10px;
+  overflow: hidden;
+}
+.progressFill {
+  height: 100%;
+  background: #ff4d2d;
+  transition: width 0.4s ease;
+}
+.progressLabel { font-size: 0.85rem; color: #64748b; margin-top: 10px; }
+
+/* ── Résumé + résultats par ligne ─────────────────────────────────────────── */
+.summaryRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.summaryRow span {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 999px;
+}
+.summaryCreated { background: #ecfdf5; color: #059669; }
+.summarySkipped { background: #fffbeb; color: #92400e; }
+.summaryError   { background: #fef2f2; color: #dc2626; }
+
+.resultList {
+  list-style: none;
+  margin: 0 0 24px;
+  padding: 0;
+  border-top: 1px solid #e2e8f0;
+}
+.resultRow {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+.resultIcon { font-size: 1.1rem; }
+.resultInfo strong { display: block; color: #0f1b3f; font-size: 0.9rem; margin-bottom: 2px; }
+.resultErrorText { margin: 2px 0; font-size: 0.8rem; color: #dc2626; }
+.resultWarningText { margin: 2px 0; font-size: 0.8rem; color: #92400e; }
+
+.resultActions { display: flex; gap: 12px; flex-wrap: wrap; }

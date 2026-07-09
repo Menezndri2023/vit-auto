@@ -8,6 +8,7 @@ import Notification from "../models/Notification.js";
 import Contract from "../models/Contract.js";
 import User from "../models/User.js";
 import { dispatch } from "../queue/index.js";
+import { resolveDeliveryFee, detectCountryFromCoords } from "../services/deliveryFee.js";
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -110,6 +111,26 @@ export const createBooking = async (req, res) => {
       return res.status(400).json({ message: "Type et informations client requis." });
     }
 
+    // ── Validation des quantités (évite montants négatifs/NaN en aval) ─────────
+    if (type === "location" && location?.days !== undefined) {
+      const days = Number(location.days);
+      if (!Number.isFinite(days) || days <= 0) {
+        return res.status(400).json({ message: "Nombre de jours de location invalide." });
+      }
+    }
+    if (type === "chauffeur" && chauffeur?.heures !== undefined) {
+      const heures = Number(chauffeur.heures);
+      if (!Number.isFinite(heures) || heures <= 0) {
+        return res.status(400).json({ message: "Nombre d'heures invalide." });
+      }
+    }
+    if (type === "leasing" && leasingData?.apportInitial !== undefined) {
+      const apport = Number(leasingData.apportInitial);
+      if (!Number.isFinite(apport) || apport < 0) {
+        return res.status(400).json({ message: "Apport initial invalide." });
+      }
+    }
+
     let montantBase = 0;
     let vehicle = null;
     let driver  = null;
@@ -171,7 +192,23 @@ export const createBooking = async (req, res) => {
       }
     }
 
-    const montantTotal    = montantBase + montantOptions;
+    // ── Frais de livraison — recalculé côté serveur, jamais accepté depuis le client ──
+    let deliveryFee = 0;
+    if (type === "location" && location?.pickupMethod === "livraison") {
+      const cLat = location?.pickupPosition?.lat;
+      const cLng = location?.pickupPosition?.lng;
+      if (cLat != null && cLng != null && vehicle?.coordonnees?.lat != null && vehicle?.coordonnees?.lng != null) {
+        const countryCode = detectCountryFromCoords(cLat, cLng);
+        const fee = resolveDeliveryFee({
+          clientLat: cLat, clientLng: cLng,
+          vehicleLat: vehicle.coordonnees.lat, vehicleLng: vehicle.coordonnees.lng,
+          countryCode,
+        });
+        if (fee?.fee != null) deliveryFee = fee.fee;
+      }
+    }
+
+    const montantTotal    = montantBase + montantOptions + deliveryFee;
     const commissionRate  = getCommissionRate(type);
     const commissionAmount = Math.round(montantTotal * commissionRate);
     const serviceFeeFCFA  = 1000;
@@ -210,7 +247,7 @@ export const createBooking = async (req, res) => {
       }
     }
 
-    const booking = await Booking.create({
+    const bookingData = {
       type,
       reference,
       clientInfo: {
@@ -221,7 +258,8 @@ export const createBooking = async (req, res) => {
       client:   req.user?._id || null,
       vehicle:  vehicle?._id  || null,
       driver:   driver?._id   || null,
-      location: type === "location" ? location : undefined,
+      // deliveryFee toujours écrasé par la valeur calculée serveur ci-dessus, jamais celle du client
+      location: type === "location" && location ? { ...location, deliveryFee } : (type === "location" ? location : undefined),
       essai:    type === "essai"    ? essai    : undefined,
       chauffeur: type === "chauffeur" ? chauffeur : undefined,
       leasing:  type === "leasing"  ? leasingData : undefined,
@@ -240,9 +278,50 @@ export const createBooking = async (req, res) => {
         verifiedAt: clientKycStatus === "VERIFIE" ? new Date() : null,
       },
       clientKycSnapshot: clientKycSnapshot || undefined,
-    });
+    };
+
+    // ── Création (atomique si location avec dates, pour empêcher un double
+    // booking en cas de deux requêtes concurrentes sur le même véhicule/dates —
+    // le contrôle plus haut est un simple "fail fast", pas une garantie) ───────
+    let booking;
+    const activeStatuses = ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "transaction_concluded", "waiting_client_validation"];
+    if (type === "location" && vehicle && location?.startDate && location?.endDate) {
+      const startDate = new Date(location.startDate);
+      const endDate   = new Date(location.endDate);
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          const conflict = await Booking.findOne({
+            vehicle: vehicleId,
+            status:  { $in: activeStatuses },
+            "location.startDate": { $lt: endDate },
+            "location.endDate":   { $gt: startDate },
+          }).session(session);
+          if (conflict) {
+            throw Object.assign(new Error("VEHICLE_CONFLICT"), { conflict });
+          }
+          const [created] = await Booking.create([bookingData], { session });
+          booking = created;
+        });
+      } catch (txErr) {
+        if (txErr.conflict) {
+          return res.status(409).json({
+            message: "Ce véhicule est déjà réservé sur ces dates.",
+            conflict: { startDate: txErr.conflict.location.startDate, endDate: txErr.conflict.location.endDate },
+          });
+        }
+        throw txErr;
+      } finally {
+        await session.endSession();
+      }
+    } else {
+      booking = await Booking.create(bookingData);
+    }
 
     // ── Paiement en ligne optionnel ────────────────────────────────────────────
+    // Aucun prestataire de paiement réel n'est branché (pas de vérification de
+    // webhook signé) : on enregistre la demande en "pending" au lieu de confirmer
+    // automatiquement — même traitement que paymentController.createPayment.
     const VALID_PAY_METHODS = ["card", "orange_money", "wave", "mtn", "moov", "paypal", "applepay", "virement", "test"];
     const payMethod = paymentData?.method;
     if (payMethod && payMethod !== "cash" && VALID_PAY_METHODS.includes(payMethod)) {
@@ -251,7 +330,7 @@ export const createBooking = async (req, res) => {
           booking: booking._id,
           amount:  montantTotal,
           method:  payMethod,
-          status:  "completed",
+          status:  "pending",
           paymentDetails: {
             cardLast4:    paymentData.cardNumber?.slice(-4) || null,
             cardHolder:   paymentData.cardHolder || null,
@@ -260,9 +339,6 @@ export const createBooking = async (req, res) => {
           },
         });
         booking.payment = paiement._id;
-        booking.isPaid  = true;
-        booking.paidAt  = new Date();
-        booking.status  = "confirmed";
         await booking.save();
       } catch (payErr) {
         logger.error("createBooking — payment creation failed (non-bloquant):", payErr.message);
@@ -296,18 +372,30 @@ export const createBooking = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 export const getMyBookings = async (req, res) => {
   try {
-    // Inclut les réservations liées par ID OU par email (fallback anciennes commandes sans client lié)
-    const bookings = await Booking.find({
+    const { page = 1, limit = 30 } = req.query;
+    const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 200);
+    const safePage  = Math.max(Number(page) || 1, 1);
+
+    const filter = {
       $or: [
         { client: req.user._id },
         { client: null, "clientInfo.email": req.user.email },
-      ]
-    })
-      .sort({ createdAt: -1 })
-      .populate("vehicle", "title marque modele images pricePerDay ville contactTel contactNom owner")
-      .populate("driver",  "firstName lastName profilePhoto tarif zone phone owner")
-      .populate("payment", "method status amount devise");
-    res.json({ bookings });
+      ],
+    };
+
+    const [bookings, total] = await Promise.all([
+      Booking.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((safePage - 1) * safeLimit)
+        .limit(safeLimit)
+        .populate("vehicle", "title marque modele images pricePerDay ville contactTel contactNom owner")
+        .populate("driver",  "firstName lastName profilePhoto tarif zone phone owner")
+        .populate("payment", "method status amount devise")
+        .lean(),
+      Booking.countDocuments(filter),
+    ]);
+
+    res.json({ bookings, total, pages: Math.ceil(total / safeLimit), page: safePage });
   } catch (err) {
     logger.error("getMyBookings:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -319,25 +407,34 @@ export const getMyBookings = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 export const getPartnerBookings = async (req, res) => {
   try {
+    const { page = 1, limit = 30 } = req.query;
+    const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 200);
+    const safePage  = Math.max(Number(page) || 1, 1);
+
     const [myVehicles, myDrivers] = await Promise.all([
       Vehicle.find({ owner: req.user._id }).select("_id"),
       Driver.find({ owner: req.user._id }).select("_id"),
     ]);
     const vehicleIds = myVehicles.map((v) => v._id);
     const driverIds  = myDrivers.map((d) => d._id);
+    const filter = { $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }] };
 
-    const bookings = await Booking.find({
-      $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }],
-    })
-      .sort({ createdAt: -1 })
-      .populate("vehicle", "title marque modele owner images pricePerDay contactNom contactTel")
-      .populate("driver",  "firstName lastName owner tarif phone")
-      .populate("payment", "method status amount")
-      // Données KYC limitées : le partenaire voit le statut et le score, pas les données biométriques brutes
-      .populate("client",  "firstName lastName email phone kycStatus kycScore kycBadge emailVerified phoneVerified")
-      .populate("contract", "reference status createdAt");
+    const [bookings, total] = await Promise.all([
+      Booking.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((safePage - 1) * safeLimit)
+        .limit(safeLimit)
+        .populate("vehicle", "title marque modele owner images pricePerDay contactNom contactTel")
+        .populate("driver",  "firstName lastName owner tarif phone")
+        .populate("payment", "method status amount")
+        // Données KYC limitées : le partenaire voit le statut et le score, pas les données biométriques brutes
+        .populate("client",  "firstName lastName email phone kycStatus kycScore kycBadge emailVerified phoneVerified")
+        .populate("contract", "reference status createdAt")
+        .lean(),
+      Booking.countDocuments(filter),
+    ]);
 
-    res.json({ bookings });
+    res.json({ bookings, total, pages: Math.ceil(total / safeLimit), page: safePage });
   } catch (err) {
     logger.error("getPartnerBookings:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -388,12 +485,18 @@ export const getAllBookings = async (req, res) => {
         .limit(safeLimit)
         .populate("client",  "firstName lastName email phone kycStatus kycScore")
         .populate("vehicle", "title marque modele owner ville")
-        .populate("driver",  "firstName lastName owner"),
+        .populate("driver",  "firstName lastName owner")
+        .lean(),
       Booking.countDocuments(filter),
     ]);
 
-    // Compteurs par statut pour affichage rapide
+    // Compteurs par statut pour affichage rapide — respecte le filtre de dates s'il est
+    // posé (évite un $group sans $match, qui scanne toute la collection à chaque appel),
+    // mais ignore volontairement le filtre "status" pour garder tous les compteurs visibles.
+    const countsFilter = {};
+    if (filter.createdAt) countsFilter.createdAt = filter.createdAt;
     const counts = await Booking.aggregate([
+      ...(Object.keys(countsFilter).length ? [{ $match: countsFilter }] : []),
       { $group: { _id: "$status", count: { $sum: 1 } } },
     ]);
     const byStatus = Object.fromEntries(counts.map(c => [c._id, c.count]));
@@ -836,28 +939,44 @@ export const getPartnerStats = async (req, res) => {
         : { $gte: new Date(y, 0, 1),     $lt: new Date(y + 1, 0, 1) };
     }
 
-    const allBookings = await Booking.find({
-      $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }],
-      ...dateFilter,
-    }).select("status type montantTotal commissionAmount partnerPayout createdAt transaction");
+    // Une seule agrégation groupée par statut, calculée en base plutôt que de rapatrier
+    // tous les bookings du partenaire (potentiellement des milliers) pour les réduire en JS.
+    const statsAgg = await Booking.aggregate([
+      {
+        $match: {
+          $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }],
+          ...dateFilter,
+        },
+      },
+      {
+        $group: {
+          _id: "$status",
+          count:      { $sum: 1 },
+          revenue:    { $sum: { $ifNull: ["$transaction.finalAmount", { $ifNull: ["$montantTotal", 0] }] } },
+          commission: { $sum: { $ifNull: ["$commissionAmount", 0] } },
+          payout:     { $sum: { $ifNull: ["$partnerPayout", 0] } },
+        },
+      },
+    ]);
 
-    const completed = allBookings.filter((b) => b.status === "completed");
-    const totalRevenue    = completed.reduce((s, b) => s + (b.transaction?.finalAmount || b.montantTotal || 0), 0);
-    const totalCommission = completed.reduce((s, b) => s + (b.commissionAmount || 0), 0);
-    const totalPayout     = completed.reduce((s, b) => s + (b.partnerPayout || 0), 0);
+    const byStatus = Object.fromEntries(statsAgg.map((g) => [g._id, g.count]));
+    const completedGroup = statsAgg.find((g) => g._id === "completed");
+    const total = statsAgg.reduce((s, g) => s + g.count, 0);
+    const inProgress = ["preparing", "ready", "in_progress", "client_arrived"]
+      .reduce((s, st) => s + (byStatus[st] || 0), 0);
 
     res.json({
-      total:         allBookings.length,
-      pending:       allBookings.filter((b) => b.status === "pending").length,
-      confirmed:     allBookings.filter((b) => b.status === "confirmed").length,
-      inProgress:    allBookings.filter((b) => ["preparing", "ready", "in_progress", "client_arrived"].includes(b.status)).length,
-      waitingValidation: allBookings.filter((b) => b.status === "waiting_client_validation").length,
-      completed:     completed.length,
-      cancelled:     allBookings.filter((b) => b.status === "cancelled").length,
-      disputed:      allBookings.filter((b) => b.status === "disputed").length,
-      totalRevenue,
-      totalCommission,
-      totalPayout,
+      total,
+      pending:       byStatus.pending || 0,
+      confirmed:     byStatus.confirmed || 0,
+      inProgress,
+      waitingValidation: byStatus.waiting_client_validation || 0,
+      completed:     byStatus.completed || 0,
+      cancelled:     byStatus.cancelled || 0,
+      disputed:      byStatus.disputed || 0,
+      totalRevenue:    completedGroup?.revenue || 0,
+      totalCommission: completedGroup?.commission || 0,
+      totalPayout:     completedGroup?.payout || 0,
     });
   } catch (err) {
     logger.error("getPartnerStats:", err);
@@ -1243,7 +1362,18 @@ export const adminForceComplete = async (req, res) => {
       return res.status(409).json({ message: "Commande déjà terminée ou annulée." });
     }
 
-    const amount = Number(finalAmount) || booking.montantTotal || 0;
+    // finalAmount est optionnel (défaut = montant déjà estimé), mais s'il est fourni
+    // il doit être un nombre fini strictement positif — sinon `Number(finalAmount) || x`
+    // laisse passer NaN/valeurs négatives et produirait une commande "completed" avec
+    // un montant incohérent.
+    let amount = booking.montantTotal || 0;
+    if (finalAmount !== undefined && finalAmount !== null && finalAmount !== "") {
+      const parsed = Number(finalAmount);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        return res.status(400).json({ message: "Montant final invalide — doit être un nombre positif." });
+      }
+      amount = parsed;
+    }
     const commRate = getCommissionRate(booking.type);
 
     booking.status           = "completed";
@@ -1429,18 +1559,21 @@ export const getAllBookingsEnhanced = async (req, res) => {
     }
 
     const sort = { [sortBy]: sortDir === "asc" ? 1 : -1 };
+    const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 200);
+    const safePage  = Math.max(Number(page) || 1, 1);
     const [bookings, total] = await Promise.all([
       Booking.find(filter)
         .sort(sort)
-        .skip((page - 1) * limit)
-        .limit(Number(limit))
+        .skip((safePage - 1) * safeLimit)
+        .limit(safeLimit)
         .populate("client",  "firstName lastName email phone kycStatus kycScore")
         .populate("vehicle", "title marque modele owner ville")
-        .populate("driver",  "firstName lastName owner"),
+        .populate("driver",  "firstName lastName owner")
+        .lean(),
       Booking.countDocuments(filter),
     ]);
 
-    res.json({ bookings, total, pages: Math.ceil(total / limit), page: Number(page) });
+    res.json({ bookings, total, pages: Math.ceil(total / safeLimit), page: safePage });
   } catch (err) {
     logger.error("getAllBookingsEnhanced:", err);
     res.status(500).json({ message: "Erreur serveur." });

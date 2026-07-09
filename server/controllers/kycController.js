@@ -4,11 +4,6 @@ import Notification from "../models/Notification.js";
 import { sendEmail } from "../config/email.js";
 import { dispatch } from "../queue/index.js";
 
-// ── Taux de confiance minimum pour validation automatique ─────────────────────
-const AUTO_VERIFY_OCR_MIN    = 70;  // score OCR minimum
-const AUTO_VERIFY_FACE_MIN   = 80;  // score face match minimum
-const MANUAL_REVIEW_THRESHOLD = 50; // en dessous → REFUSE direct
-
 // ── Ajouter une entrée dans le journal d'audit ────────────────────────────────
 async function addAuditLog(userId, action, performedBy = null, note = null) {
   await User.findByIdAndUpdate(userId, {
@@ -171,12 +166,18 @@ export const submitKyc = async (req, res) => {
     if (newKycScore >= 80) newKycBadge = "CERTIFIÉ";
     else if (newKycScore >= 60) newKycBadge = "VÉRIFIÉ";
 
-    // Validation auto : OCR haute confiance + face match + contacts vérifiés
-    if (ocrConf >= AUTO_VERIFY_OCR_MIN && faceConf >= AUTO_VERIFY_FACE_MIN && hasEmail && hasPhone && !isExpired && hasUsableOcr) {
-      newKycStatus  = "VERIFIE";
-      autoValidated = true;
-    } else if (!hasUsableOcr || ocrConf < 30 || !selfieUploaded) {
-      // OCR illisible ou selfie absent → révision manuelle obligatoire
+    // ── IMPORTANT ─────────────────────────────────────────────────────────────
+    // ocrConfidence et faceMatchScore sont calculés CÔTÉ CLIENT (Tesseract.js dans
+    // le navigateur) et transmis tels quels dans req.body : le serveur n'a aucun
+    // moyen de vérifier indépendamment ces valeurs. Un utilisateur malveillant peut
+    // les falsifier (ex: {ocrConfidence:100, faceMatchScore:100}) pour obtenir un
+    // statut "VERIFIE" sans jamais avoir fourni de vrai document. Tant qu'un OCR/
+    // face-match serveur (ou un prestataire tiers) n'est pas branché, AUCUNE
+    // soumission n'est auto-validée — un admin doit toujours confirmer via
+    // reviewKyc(). Le score ci-dessus reste utile pour prioriser la file de
+    // révision manuelle (badge affiché à l'admin), pas pour décider seul.
+    if (!hasUsableOcr || ocrConf < 30 || !selfieUploaded) {
+      // OCR illisible ou selfie absent → révision manuelle prioritaire
       newKycStatus = "A_REVOIR_MANUELLEMENT";
     } else {
       newKycStatus = "EN_ATTENTE";
@@ -238,9 +239,7 @@ export const submitKyc = async (req, res) => {
       kycScore:     newKycScore,
       kycBadge:     newKycBadge,
       autoValidated,
-      message: newKycStatus === "VERIFIE"
-        ? "Identité vérifiée automatiquement. Vous pouvez effectuer des réservations."
-        : newKycStatus === "A_REVOIR_MANUELLEMENT"
+      message: newKycStatus === "A_REVOIR_MANUELLEMENT"
         ? "Votre dossier est en cours d'examen par notre équipe. Vous serez notifié sous 24h."
         : "Dossier soumis. En attente de vérification. Vous serez notifié une fois validé.",
     });
@@ -328,11 +327,14 @@ export const getKycList = async (req, res) => {
 
     const skip  = (Math.max(Number(page), 1) - 1) * safeLimit;
     const total = await User.countDocuments(filter);
+    // Exclut les photos base64 (identity.frontImage/backImage/selfie, plusieurs Mo chacune)
+    // de la LISTE — l'admin les consulte via getKycDetail en cliquant sur un dossier précis.
     const users = await User.find(filter)
-      .select("firstName lastName email phone role kycStatus kycScore kycBadge kycSubmittedAt kycOcrData kycFaceMatchScore kycAuditLog identity")
+      .select("firstName lastName email phone role kycStatus kycScore kycBadge kycSubmittedAt kycOcrData kycFaceMatchScore kycAuditLog identity.type identity.number identity.expiryDate identity.status")
       .sort({ kycSubmittedAt: -1 })
       .skip(skip)
-      .limit(safeLimit);
+      .limit(safeLimit)
+      .lean();
 
     res.json({ users, total, page: Number(page), limit: safeLimit });
   } catch (err) {

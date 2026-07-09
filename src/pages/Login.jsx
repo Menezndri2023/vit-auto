@@ -12,11 +12,13 @@ const Login = () => {
   const navigate  = useNavigate();
   const location  = useLocation();
 
-  // Support both React Router state (from protected routes) and ?returnTo URL param (from KYC/manual links)
+  // Support React Router state (from protected routes) et les ?returnTo/?redirect URL params (KYC/liens manuels)
   const urlParams  = new URLSearchParams(location.search);
-  const returnToParam = urlParams.get("returnTo");
-  const fromPage   = location.state?.from?.pathname || (returnToParam ? decodeURIComponent(returnToParam) : null);
-  const fromSearch = location.state?.from?.search || "";
+  const returnToParam = urlParams.get("returnTo") || urlParams.get("redirect");
+  const stateFrom  = location.state?.from;
+  const fromPage   = (typeof stateFrom === "string" ? stateFrom : stateFrom?.pathname)
+                      || (returnToParam ? decodeURIComponent(returnToParam) : null);
+  const fromSearch = (typeof stateFrom === "object" && stateFrom?.search) || "";
 
   const [form,           setForm]           = useState({ email: "", password: "" });
   const [loading,        setLoading]        = useState(false);

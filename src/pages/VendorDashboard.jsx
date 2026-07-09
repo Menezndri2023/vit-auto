@@ -1114,6 +1114,9 @@ export default function VendorDashboard() {
 
   // ── Temps réel : Socket.io + polling de secours (60s) ─────────────────────
   const prevCountRef = useRef(0);
+  const allOrdersRef = useRef(allOrders);
+  useEffect(() => { allOrdersRef.current = allOrders; }, [allOrders]);
+
   useEffect(() => {
     if (!isAuthenticated || !token) return;
 
@@ -1135,7 +1138,7 @@ export default function VendorDashboard() {
     const iv = setInterval(async () => {
       try {
         await loadPartnerOrders();
-        const nc = allOrders.filter((b) => ["pending","À confirmer"].includes(b.status)).length;
+        const nc = allOrdersRef.current.filter((b) => ["pending","À confirmer"].includes(b.status)).length;
         if (nc > prevCountRef.current) toastSuccess(`🔔 ${nc - prevCountRef.current} nouvelle(s) commande(s) !`);
         prevCountRef.current = nc;
       } catch { /* ignore */ }
@@ -1145,7 +1148,7 @@ export default function VendorDashboard() {
       cleanupSocket();
       clearInterval(iv);
     };
-  }, [isAuthenticated, token, loadPartnerOrders, allOrders, toastSuccess, on]);
+  }, [isAuthenticated, token, loadPartnerOrders, toastSuccess, on]);
 
   if (!isAuthenticated) {
     return (

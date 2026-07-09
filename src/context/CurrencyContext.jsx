@@ -87,7 +87,6 @@ export function CurrencyProvider({ children }) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
 
-    // Essai 1 : ipapi.co
     fetch("https://ipapi.co/json/", { signal: controller.signal })
       .then((r) => r.ok ? r.json() : Promise.reject())
       .then((data) => {
@@ -97,19 +96,10 @@ export function CurrencyProvider({ children }) {
         setCurrencyState(cur);
       })
       .catch(() => {
-        // Essai 2 : ip-api.com (fallback)
-        fetch("http://ip-api.com/json/?fields=countryCode", { signal: controller.signal })
-          .then((r) => r.ok ? r.json() : Promise.reject())
-          .then((data) => {
-            const cc = data.countryCode || "MA";
-            const cur = COUNTRY_TO_CURRENCY[cc] || "MAD";
-            setDetectedCountry(cc);
-            setCurrencyState(cur);
-          })
-          .catch(() => {
-            // Fallback final : MAD (Maroc)
-            setDetectedCountry("MA");
-          });
+        // Fallback : MAD (Maroc). L'ancien second essai visait ip-api.com en http:// —
+        // bloqué en mixed-content sur un site servi en HTTPS, donc mort de toute façon,
+        // et son échec n'était jamais attendu par le .finally() ci-dessous.
+        setDetectedCountry("MA");
       })
       .finally(() => { clearTimeout(timer); setDetecting(false); });
 

@@ -1,5 +1,6 @@
 import Subscription from "../models/Subscription.js";
 import User from "../models/User.js";
+import Vehicle from "../models/Vehicle.js";
 
 // ── Constantes tarifaires ─────────────────────────────────────
 const PLAN_PRICE_XOF   = 25000; // Abonnement Pro : 25 000 FCFA/mois
@@ -30,7 +31,10 @@ export const getMySubscription = async (req, res) => {
   }
 };
 
-// Active / renouvelle le plan Pro
+// Demande d'activation du plan Pro — aucun prestataire de paiement réel n'étant
+// branché à ce jour, on n'active PAS le plan automatiquement : la demande est
+// enregistrée "pending" et un admin doit confirmer la réception réelle du paiement
+// (cf. décision produit du 2026-07 — même traitement que createPayment/booking).
 export const activatePro = async (req, res) => {
   try {
     let sub = await Subscription.findOne({ vendor: req.user.id });
@@ -38,58 +42,143 @@ export const activatePro = async (req, res) => {
 
     const startDate = new Date();
     const endDate   = new Date();
-    endDate.setMonth(endDate.getMonth() + 1); // +1 mois
-
-    sub.plan = "pro";
-    sub.proDetails = {
-      startDate,
-      endDate,
-      isActive: true,
-      priceXOF: PLAN_PRICE_XOF,
-    };
+    endDate.setMonth(endDate.getMonth() + 1); // +1 mois, appliqué seulement à la confirmation admin
 
     const period = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}`;
     sub.paymentHistory.push({
       amount: PLAN_PRICE_XOF,
       method: req.body.paymentMethod || "card",
       paidAt: new Date(),
-      status: "completed",
+      status: "pending",
       period,
     });
 
     await sub.save();
-    res.json({ message: "Plan Pro activé avec succès.", subscription: sub });
+    res.status(202).json({
+      message: "Demande d'activation Pro enregistrée, en attente de confirmation du paiement par un administrateur.",
+      subscription: sub,
+    });
   } catch (err) {
     res.status(500).json({ message: "Erreur activation Pro.", error: err.message });
   }
 };
 
-// Achète un boost pour une annonce
+// Achète un boost pour une annonce — même logique : enregistré "pending", pas d'activation
+// immédiate tant qu'aucune vérification réelle de paiement n'est branchée.
 export const purchaseBoost = async (req, res) => {
   try {
     const { vehicleId } = req.body;
     if (!vehicleId) return res.status(400).json({ message: "vehicleId requis." });
+
+    // Le véhicule doit appartenir au vendeur qui demande le boost.
+    const vehicle = await Vehicle.findOne({ _id: vehicleId, owner: req.user.id });
+    if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable ou ne vous appartenant pas." });
 
     let sub = await Subscription.findOne({ vendor: req.user.id });
     if (!sub) sub = new Subscription({ vendor: req.user.id });
 
     const startDate = new Date();
     const endDate   = new Date();
-    endDate.setDate(endDate.getDate() + 30); // 30 jours de mise en avant
+    endDate.setDate(endDate.getDate() + 30); // 30 jours, appliqué seulement à la confirmation admin
 
     sub.boosts.push({
       vehicle:  vehicleId,
       startDate,
       endDate,
-      isActive: true,
+      isActive: false, // activé par un admin après confirmation du paiement
       priceXOF: BOOST_PRICE_XOF,
-      paidAt:   new Date(),
+      paidAt:   null,
     });
 
     await sub.save();
-    res.json({ message: "Mise en avant activée pour 30 jours.", subscription: sub });
+    res.status(202).json({
+      message: "Demande de mise en avant enregistrée, en attente de confirmation du paiement.",
+      subscription: sub,
+    });
   } catch (err) {
     res.status(500).json({ message: "Erreur boost.", error: err.message });
+  }
+};
+
+// ── ADMIN : demandes Pro/Boost en attente de confirmation de paiement ────────
+export const getPendingSubscriptionRequests = async (_req, res) => {
+  try {
+    const subs = await Subscription.find({
+      $or: [
+        { "paymentHistory.status": "pending" },
+        { "boosts.isActive": false },
+      ],
+    }).populate("vendor", "firstName lastName email");
+    res.json({ subscriptions: subs });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur récupération des demandes.", error: err.message });
+  }
+};
+
+// ── ADMIN : confirme la réception réelle du paiement Pro → active le plan ───
+export const adminApproveProPayment = async (req, res) => {
+  try {
+    const { subscriptionId, paymentId } = req.params;
+    const sub = await Subscription.findById(subscriptionId);
+    if (!sub) return res.status(404).json({ message: "Abonnement introuvable." });
+
+    const entry = sub.paymentHistory.id(paymentId);
+    if (!entry) return res.status(404).json({ message: "Paiement introuvable." });
+    if (entry.status !== "pending") return res.status(409).json({ message: "Ce paiement n'est plus en attente." });
+
+    entry.status = "completed";
+
+    const startDate = new Date();
+    const endDate   = new Date();
+    endDate.setMonth(endDate.getMonth() + 1);
+    sub.plan = "pro";
+    sub.proDetails = { startDate, endDate, isActive: true, priceXOF: PLAN_PRICE_XOF };
+
+    await sub.save();
+    res.json({ message: "Plan Pro activé.", subscription: sub });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur confirmation Pro.", error: err.message });
+  }
+};
+
+// ── ADMIN : rejette une demande Pro en attente (paiement non reçu) ───────────
+export const adminRejectProPayment = async (req, res) => {
+  try {
+    const { subscriptionId, paymentId } = req.params;
+    const sub = await Subscription.findById(subscriptionId);
+    if (!sub) return res.status(404).json({ message: "Abonnement introuvable." });
+    const entry = sub.paymentHistory.id(paymentId);
+    if (!entry) return res.status(404).json({ message: "Paiement introuvable." });
+    entry.status = "failed";
+    await sub.save();
+    res.json({ message: "Demande rejetée.", subscription: sub });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur rejet.", error: err.message });
+  }
+};
+
+// ── ADMIN : confirme la réception réelle du paiement boost → active 30 jours ─
+export const adminApproveBoost = async (req, res) => {
+  try {
+    const { subscriptionId, boostId } = req.params;
+    const sub = await Subscription.findById(subscriptionId);
+    if (!sub) return res.status(404).json({ message: "Abonnement introuvable." });
+    const boost = sub.boosts.id(boostId);
+    if (!boost) return res.status(404).json({ message: "Boost introuvable." });
+    if (boost.isActive) return res.status(409).json({ message: "Ce boost est déjà actif." });
+
+    const startDate = new Date();
+    const endDate   = new Date();
+    endDate.setDate(endDate.getDate() + 30);
+    boost.startDate = startDate;
+    boost.endDate   = endDate;
+    boost.isActive  = true;
+    boost.paidAt    = new Date();
+
+    await sub.save();
+    res.json({ message: "Mise en avant activée.", subscription: sub });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur confirmation boost.", error: err.message });
   }
 };
 

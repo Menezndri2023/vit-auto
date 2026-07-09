@@ -51,6 +51,7 @@ async function startAllWorkers(conn) {
     { startOcrWorker },
     { startImportWorker },
     { startAiWorker },
+    { startPartnerFeedWorker },
   ] = await Promise.all([
     import("./workers/email.worker.js"),
     import("./workers/sms.worker.js"),
@@ -60,6 +61,7 @@ async function startAllWorkers(conn) {
     import("./workers/ocr.worker.js"),
     import("./workers/import.worker.js"),
     import("./workers/ai.worker.js"),
+    import("./workers/partnerFeed.worker.js"),
   ]);
 
   _workers = [
@@ -71,6 +73,7 @@ async function startAllWorkers(conn) {
     startOcrWorker(conn),
     startImportWorker(conn),
     startAiWorker(conn),
+    startPartnerFeedWorker(conn),
   ].filter(Boolean);
 
   logger.info("[Queue] Workers démarrés", { count: _workers.length });
@@ -326,6 +329,14 @@ export const dispatch = {
       type: "score_vehicle",
       data: { vehicleId },
     }, { priority: PRIORITY.LOW });
+  },
+
+  // ── Import de flotte partenaire ───────────────────────────────────────────
+  async vehicleImportBatchQueued(batchId) {
+    return enqueue(QUEUE_NAMES.PARTNER_FEED, "process_import_batch", {
+      type: "process_import_batch",
+      batchId,
+    });
   },
 
   // ── Authentification ─────────────────────────────────────────────────────

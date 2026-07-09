@@ -9,7 +9,10 @@ import { serverValidateIdentity } from "../utils/idValidation.js";
 import { dispatch } from "../queue/index.js";
 
 const JWT_SECRET         = () => process.env.JWT_SECRET;
-const REFRESH_SECRET     = () => process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET + "_refresh";
+// REFRESH_TOKEN_SECRET est obligatoire et vérifié au démarrage (server.js) — jamais
+// dérivé de JWT_SECRET (une fuite partielle de JWT_SECRET permettrait sinon de
+// forger des refresh tokens valides).
+const REFRESH_SECRET     = () => process.env.REFRESH_TOKEN_SECRET;
 const APP_URL            = () => process.env.APP_URL || process.env.FRONTEND_URL || "http://localhost:5173";
 const VERIFY_TTL         = 24 * 60 * 60 * 1000; // 24h
 const REFRESH_TTL_DAYS   = 30;

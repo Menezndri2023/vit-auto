@@ -299,7 +299,7 @@ export default function IEListingDetail() {
   };
 
   const handleReserveClick = () => {
-    if (!user) { navigate("/login", { state: { from: `/import-export/listings/${id}` } }); return; }
+    if (!user) { navigate("/login", { state: { from: { pathname: `/import-export/listings/${id}` } } }); return; }
     setShowReserve(true);
   };
 

@@ -38,21 +38,13 @@ export default defineConfig(({ mode }) => ({
     assetsInlineLimit: 8192,
     rollupOptions: {
       output: {
+        // Ne grouper QUE les libs vraiment partagées par toutes les pages (React).
+        // Grouper des pages lazy() sans rapport (admin/vendor/booking) sous un même nom
+        // les transforme en "chunks partagés entre plusieurs entrées async" — Rollup les
+        // preload alors sur TOUTE route au lieu de les charger à la demande par page.
         manualChunks: (id) => {
           if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/react-router-dom')) {
             return 'react';
-          }
-          if (id.includes('node_modules/leaflet') || id.includes('node_modules/react-leaflet')) {
-            return 'leaflet';
-          }
-          if (id.includes('/pages/AdminPanel') || id.includes('/pages/DashboardStats')) {
-            return 'admin';
-          }
-          if (id.includes('/pages/Vendor') || id.includes('/pages/Plans')) {
-            return 'vendor';
-          }
-          if (id.includes('/pages/Contract') || id.includes('/pages/Checkout') || id.includes('/pages/Booking')) {
-            return 'booking';
           }
         },
       },

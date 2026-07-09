@@ -7,11 +7,12 @@ const ALLOWED_METHODS = ["card", "orange_money", "wave", "mtn", "moov", "paypal"
 // ── Créer un enregistrement de paiement ─────────────────────────────────────
 export const createPayment = async (req, res) => {
   try {
-    const { booking: bookingId, amount, method, mobileNumber, cardNumber, cardHolder, provider } = req.body;
+    const { booking: bookingId, amount: rawAmount, method, mobileNumber, cardNumber, cardHolder, provider } = req.body;
+    const amount = Number(rawAmount);
 
     // Validation stricte des champs requis
     if (!bookingId)          return res.status(400).json({ message: "bookingId requis." });
-    if (!amount || amount <= 0) return res.status(400).json({ message: "Montant invalide." });
+    if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ message: "Montant invalide." });
     if (!method || !ALLOWED_METHODS.includes(method))
       return res.status(400).json({ message: `Méthode de paiement invalide. Acceptées : ${ALLOWED_METHODS.join(", ")}` });
 
@@ -50,24 +51,38 @@ export const createPayment = async (req, res) => {
       paymentDetails.provider = provider || "card";
     }
 
+    // Empêche la création de plusieurs paiements en attente pour la même réservation
+    // (double-clic/retry) — condition unique appliquée aussi en base (index ci-dessous).
+    const existingPending = await Payment.findOne({ booking: bookingId, status: { $in: ["pending", "completed"] } });
+    if (existingPending) {
+      return res.status(409).json({ message: "Un paiement est déjà enregistré pour cette réservation." });
+    }
+
+    // Aucun prestataire de paiement réel n'est branché à ce jour (pas de vérification
+    // cryptographique de webhook) : on enregistre la demande en "pending" plutôt que de
+    // confirmer automatiquement la réservation. Un partenaire/admin doit valider la
+    // réception réelle des fonds via recordTransaction/partnerConfirm avant confirmation.
     const payment = await Payment.create({
       booking: bookingId,
       amount,
       devise:  "XOF",
       method,
-      status:  "completed",     // Statut réel à brancher sur webhook du provider
+      status:  "pending",
       paymentDetails,
     });
 
-    // Mettre à jour la réservation
     booking.payment = payment._id;
-    booking.isPaid  = true;
-    booking.paidAt  = new Date();
-    if (booking.status === "pending") booking.status = "confirmed";
     await booking.save();
 
-    res.json({ payment, booking: { _id: booking._id, status: booking.status, isPaid: true } });
+    res.status(202).json({
+      payment,
+      booking: { _id: booking._id, status: booking.status, isPaid: false },
+      message: "Paiement enregistré, en attente de confirmation par le partenaire.",
+    });
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ message: "Un paiement est déjà enregistré pour cette réservation." });
+    }
     logger.error("createPayment:", err);
     res.status(500).json({ message: "Erreur serveur lors du paiement." });
   }

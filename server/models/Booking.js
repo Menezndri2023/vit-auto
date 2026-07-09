@@ -84,6 +84,9 @@ const bookingSchema = new mongoose.Schema({
       address: { type: String, default: null },
     },
 
+    // Frais de livraison — calculé côté serveur (Haversine), jamais fourni par le client
+    deliveryFee:    { type: Number, default: 0 },
+
     // Point de retour / relais (texte + coordonnées GPS)
     returnLocation: { type: String },
     returnPosition: {

@@ -24,12 +24,16 @@ export const getUsers = async (req, res) => {
       ];
     }
 
+    // Exclut les photos KYC en base64 (identity/driverLicenseOcr) de la LISTE — ces champs
+    // peuvent peser plusieurs Mo par utilisateur et ne servent qu'à la vue détail d'un
+    // utilisateur précis (getUser), jamais à un listing de jusqu'à 200 lignes.
     const [users, total] = await Promise.all([
       User.find(filter)
-        .select("-password")
+        .select("-password -identity.frontImage -identity.backImage -identity.selfie -driverLicenseOcr.frontImage -driverLicenseOcr.backImage")
         .sort({ createdAt: -1 })
         .skip((Math.max(Number(page), 1) - 1) * safeLimit)
-        .limit(safeLimit),
+        .limit(safeLimit)
+        .lean(),
       User.countDocuments(filter),
     ]);
 
