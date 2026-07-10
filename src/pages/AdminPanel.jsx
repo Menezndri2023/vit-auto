@@ -3547,7 +3547,7 @@ export default function AdminPanel() {
                     <span style={{ fontSize:"1.3rem" }}>🔗</span>
                     <div>
                       <div style={{ fontWeight:800, fontSize:".9rem", color:"#0f1b3f" }}>Lien d'invitation universel</div>
-                      <div style={{ fontSize:".76rem", color:"#64748b" }}>À envoyer à n'importe quel partenaire potentiel — fonctionne pour tout le monde</div>
+                      <div style={{ fontSize:".76rem", color:"#64748b" }}>À envoyer à n'importe quel partenaire potentiel — fonctionne pour tout le monde, tant qu'il reste des places</div>
                     </div>
                   </div>
                   {/* Lien */}
@@ -3576,7 +3576,7 @@ export default function AdminPanel() {
                     </a>
                   </div>
                   <p style={{ margin:"10px 0 0", fontSize:".73rem", color:"#94a3b8" }}>
-                    Ce lien fonctionne pour tout partenaire : s'il n'a pas de compte → il s'inscrit puis accède au portail. S'il a déjà un compte partenaire → il arrive directement sur son dossier.
+                    Ce lien fonctionne pour tout partenaire : s'il n'a pas de compte → il s'inscrit puis accède au portail. S'il a déjà un compte partenaire → il arrive directement sur son dossier. Les 20 places du programme restent la seule limite — au-delà, l'inscription affiche automatiquement "programme complet".
                   </p>
                 </div>
               );

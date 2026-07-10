@@ -72,9 +72,26 @@ app.use(sentryTracingHandler());
 app.use(compression());
 
 // ── Origines autorisées ───────────────────────────────────────────────────
-const ALLOWED_ORIGINS = (process.env.FRONTEND_URL || "http://localhost:5173")
+// Ajoute automatiquement la variante www./non-www de chaque origine configurée : une
+// seule valeur de FRONTEND_URL (ex: "https://vit-auto.com") ne correspondait pas à
+// l'origine réellement envoyée par le navigateur si le site est visité via
+// "https://www.vit-auto.com" (ou l'inverse) — comparaison stricte, bloquant tout le
+// monde en production avec "CORS bloqué : origine ... non autorisée".
+const configuredOrigins = (process.env.FRONTEND_URL || "http://localhost:5173")
   .split(",")
-  .map((o) => o.trim());
+  .map((o) => o.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
+
+const ALLOWED_ORIGINS = Array.from(new Set(configuredOrigins.flatMap((origin) => {
+  try {
+    const u = new URL(origin);
+    const altHost = u.hostname.startsWith("www.") ? u.hostname.slice(4) : `www.${u.hostname}`;
+    const altOrigin = `${u.protocol}//${altHost}${u.port ? `:${u.port}` : ""}`;
+    return [origin, altOrigin];
+  } catch {
+    return [origin]; // valeur invalide (pas une URL) — conservée telle quelle, ignorée par le check plus bas
+  }
+})));
 
 // ── Sécurité headers (Helmet) ─────────────────────────────────────────────
 app.use(helmet({
@@ -235,7 +252,10 @@ app.use("/api/kyc",            uploadLimiter,    kycRoutes);        // KYC = res
 app.use("/api/certification",  uploadLimiter,    certificationRoutes); // Certification partenaire
 app.use("/api/partner-verif", apiLimiter,       partnerVerifRoutes);  // Dossiers vérification partenaires
 app.use("/api/pms",           apiLimiter,       pmsRoutes);           // Partner Management System
-app.use("/api/partner-onboarding", uploadLimiter, partnerOnboardingRoutes); // Founding Partner Onboarding
+// apiLimiter ici (pas uploadLimiter) — "/my" et "/availability" sont pollés/rechargés
+// fréquemment ; seule PATCH /section/:sectionName (documents/photos) reste sous uploadLimiter,
+// appliqué directement dans routes/partnerOnboarding.js.
+app.use("/api/partner-onboarding", apiLimiter, partnerOnboardingRoutes); // Founding Partner Onboarding
 
 // ── Communication tracking (pixel ouverture + clic email) ────────────────────
 const TRANSPARENT_GIF = Buffer.from(
@@ -331,6 +351,7 @@ app.use(sentryErrorHandler());
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, _next) => {
   if (err.message?.startsWith("CORS bloqué")) {
+    logger.warn("[CORS] Origine rejetée", { origin: req.headers.origin, allowed: ALLOWED_ORIGINS });
     return res.status(403).json({ message: err.message });
   }
   const isProd = process.env.NODE_ENV === "production";

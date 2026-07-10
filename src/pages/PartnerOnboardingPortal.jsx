@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import styles from "./PartnerOnboardingPortal.module.css";
@@ -103,10 +103,17 @@ export default function PartnerOnboardingPortal() {
   const [saving, setSaving] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [signModal, setSignModal] = useState(null); // "loi" | "agreement" | null
+  // Message "programme complet" — renvoyé par le backend quand un compte connecté sans
+  // dossier existant tente d'en créer un alors que les 20 places sont déjà prises.
+  const [onboardingError, setOnboardingError] = useState(null);
+  // Disponibilité vérifiée AVANT de proposer l'inscription aux visiteurs non connectés
+  // (évite de laisser quelqu'un remplir tout le wizard pour se le voir refuser à la fin).
+  const [availability, setAvailability] = useState(null);
 
   const load = useCallback(async () => {
     if (!token) return;
     setLoading(true);
+    setOnboardingError(null);
     try {
       const r = await apiFetch("/my", token);
       if (r.ok) {
@@ -115,15 +122,28 @@ export default function PartnerOnboardingPortal() {
         // Position step selon statut
         const s = STATUS_CONFIG[data.onboarding.status];
         if (s) setActiveStep(Math.max(0, s.step));
+      } else {
+        const data = await r.json().catch(() => ({}));
+        setOnboardingError(data.message || "Impossible de charger votre dossier. Réessayez ou contactez contact@vit-auto.com.");
       }
     } catch (err) {
       console.error(err);
+      setOnboardingError("Erreur réseau. Réessayez ou contactez contact@vit-auto.com.");
     } finally {
       setLoading(false);
     }
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Visiteur non connecté : vérifier qu'il reste des places avant de proposer l'inscription
+  useEffect(() => {
+    if (token) return;
+    fetch("/api/partner-onboarding/availability")
+      .then((r) => r.json())
+      .then((d) => setAvailability(d))
+      .catch(() => setAvailability({ available: true, message: null })); // en cas d'erreur réseau, ne pas bloquer l'inscription — le backend revalidera de toute façon à la création du dossier
+  }, [token]);
 
   const saveSection = async (sectionName, data) => {
     setSaving(true);
@@ -161,6 +181,20 @@ export default function PartnerOnboardingPortal() {
       else addToast(json.message || "Erreur", "error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const acceptLegal = async () => {
+    try {
+      const r = await apiFetch("/accept-legal", token, {
+        method: "PATCH",
+        body: JSON.stringify({ accepted: true }),
+      });
+      const json = await r.json();
+      if (r.ok) setOnboarding(json.onboarding);
+      else addToast(json.message || "Erreur", "error");
+    } catch {
+      addToast("Erreur réseau", "error");
     }
   };
 
@@ -203,8 +237,15 @@ export default function PartnerOnboardingPortal() {
 
   if (loading) return <LoadingScreen />;
 
-  // Écran spécial si non connecté
-  if (!token) return <PublicHero />;
+  // Écran spécial si non connecté — attend d'abord de savoir s'il reste des places
+  if (!token) {
+    if (availability === null) return <LoadingScreen />;
+    if (!availability.available) return <OnboardingErrorScreen message={availability.message} />;
+    return <PublicHero />;
+  }
+
+  // Connecté mais sans dossier existant, et programme déjà complet
+  if (onboardingError) return <OnboardingErrorScreen message={onboardingError} />;
 
   const status = onboarding?.status || "brouillon";
   const statusCfg = STATUS_CONFIG[status] || STATUS_CONFIG.brouillon;
@@ -358,6 +399,7 @@ export default function PartnerOnboardingPortal() {
               onSubmit={submitApplication}
               onBack={() => setActiveStep(2)}
               onEditStep={setActiveStep}
+              onAcceptLegal={acceptLegal}
             />
           )}
           {activeStep === 4 && (
@@ -929,11 +971,18 @@ function StepBusiness({ onboarding, saving, onSaveSection, onNext, onBack }) {
 // ════════════════════════════════════════════════════════════════════════════════
 // ÉTAPE 3 : Récapitulatif & Soumission
 // ════════════════════════════════════════════════════════════════════════════════
-function StepReview({ onboarding, saving, status, onSubmit, onBack, onEditStep }) {
+function StepReview({ onboarding, saving, status, onSubmit, onBack, onEditStep, onAcceptLegal }) {
   const ci = onboarding?.companyInfo || {};
   const bv = onboarding?.businessVerification || {};
   const canSubmit = ["brouillon", "info_demandee"].includes(status);
   const isSubmitted = !canSubmit && status !== "rejete";
+  const [legalChecked, setLegalChecked] = useState(!!onboarding?.legalAcceptance?.accepted);
+
+  const handleLegalCheck = (e) => {
+    const checked = e.target.checked;
+    setLegalChecked(checked);
+    if (checked) onAcceptLegal();
+  };
 
   return (
     <div className={styles.stepCard}>
@@ -991,13 +1040,32 @@ function StepReview({ onboarding, saving, status, onSubmit, onBack, onEditStep }
         </div>
       )}
 
+      {canSubmit && (
+        <label style={{
+          display: "flex", alignItems: "flex-start", gap: 10, margin: "18px 0",
+          padding: "14px 16px", background: "#f8fafc", border: "1.5px solid #e2e8f0",
+          borderRadius: 10, fontSize: "0.85rem", color: "#374151", cursor: "pointer",
+        }}>
+          <input type="checkbox" checked={legalChecked} onChange={handleLegalCheck} style={{ marginTop: 3 }} />
+          <span>
+            I have read and accept the Founding Partner{" "}
+            <Link to="/founding-partner-legal" target="_blank" rel="noopener noreferrer" style={{ color: "#ff4d2d", fontWeight: 700 }}>Letter of Intent</Link>,{" "}
+            the{" "}
+            <Link to="/founding-partner-legal" target="_blank" rel="noopener noreferrer" style={{ color: "#ff4d2d", fontWeight: 700 }}>Founding Partner Agreement</Link>,{" "}
+            and the{" "}
+            <Link to="/founding-partner-legal" target="_blank" rel="noopener noreferrer" style={{ color: "#ff4d2d", fontWeight: 700 }}>Partner Verification Policy</Link>{" "}
+            of VIT-AUTO.
+          </span>
+        </label>
+      )}
+
       <div className={styles.stepActions}>
         <button className={styles.btnSecondary} onClick={onBack}>← Retour</button>
         {canSubmit && (
           <button
             className={styles.btnSuccess}
             onClick={onSubmit}
-            disabled={saving || !ci.legalName}
+            disabled={saving || !ci.legalName || !legalChecked}
           >
             {saving ? "Soumission…" : "🚀 Soumettre ma candidature"}
           </button>
@@ -1257,29 +1325,118 @@ function SuccessScreen({ onboarding, onNavigate }) {
 // ════════════════════════════════════════════════════════════════════════════════
 // HERO PUBLIC (si non connecté)
 // ════════════════════════════════════════════════════════════════════════════════
+const WHY_JOIN = [
+  { icon: "🌍", title: "International Visibility",   text: "Your inventory shown to buyers, dealerships, rental companies and fleet operators across 20+ countries." },
+  { icon: "🛡️", title: "Verified Founding Partner Badge", text: "A recognizable badge on every listing, backed by VIT-AUTO's Partner Verification Policy." },
+  { icon: "💰", title: "Preferential Commissions",    text: "10% on rentals and 2% on sales (vs. 15%/3% standard), locked for 12 months from activation." },
+  { icon: "🔌", title: "Inventory Integration",       text: "API, XML feeds, CSV imports or DMS synchronization — bring your existing catalog in, not one car at a time." },
+  { icon: "🎁", title: "12 Months Free Premium",      text: "No registration fee, no mandatory subscription during the Founding Partner phase." },
+  { icon: "🤝", title: "Dedicated Partner Success",   text: "Direct line to VIT-AUTO's team for onboarding, integration and early feature access." },
+];
+
+const HOW_IT_WORKS = [
+  { n: "1", title: "Register",                text: "Create your partner account in a few minutes." },
+  { n: "2", title: "Verification",             text: "Submit your company documents for review by our Partner Verification Team." },
+  { n: "3", title: "Inventory Integration",    text: "Connect your catalog via API, CSV, XML or manual entry." },
+  { n: "4", title: "Founding Partner Approval",text: "Sign your LOI and Agreement electronically — you're live." },
+];
+
 function PublicHero() {
   const navigate = useNavigate();
+  return (
+    <div className={styles.publicPage}>
+      {/* ── Hero ── */}
+      <div className={styles.publicHero}>
+        <div className={styles.publicHeroContent}>
+          <div className={styles.heroLabel}>VIT-AUTO · FOUNDING PARTNER PROGRAM</div>
+          <h1>Join the VIT-AUTO International<br /><span className={styles.heroAccent}>Founding Partner Program</span></h1>
+          <p>Reduced commissions, 12 months free Premium subscription, exclusive "Founding Partner" badge — limited to the first 20 partners.</p>
+          <div className={styles.heroStats}>
+            <div className={styles.heroStat}><span>12 mo.</span><small>Free Premium</small></div>
+            <div className={styles.heroStatDivider} />
+            <div className={styles.heroStat}><span>-33%</span><small>On commissions</small></div>
+            <div className={styles.heroStatDivider} />
+            <div className={styles.heroStat}><span>20+</span><small>Countries</small></div>
+          </div>
+          <div className={styles.publicActions}>
+            <button className={styles.btnPrimary} onClick={() => navigate("/register?role=partenaire&redirect=/partner-onboarding")}>
+              Apply Now →
+            </button>
+            <button className={styles.btnSecondary} onClick={() => navigate("/login?redirect=/partner-onboarding")}>
+              Se connecter
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Why Join ── */}
+      <section className={styles.publicSection}>
+        <h2 className={styles.publicSectionTitle}>Why Join?</h2>
+        <div className={styles.whyGrid}>
+          {WHY_JOIN.map((w) => (
+            <div key={w.title} className={styles.whyCard}>
+              <div className={styles.whyIcon}>{w.icon}</div>
+              <h3>{w.title}</h3>
+              <p>{w.text}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── How It Works ── */}
+      <section className={`${styles.publicSection} ${styles.publicSectionAlt}`}>
+        <h2 className={styles.publicSectionTitle}>How It Works</h2>
+        <div className={styles.stepsRow}>
+          {HOW_IT_WORKS.map((s, i) => (
+            <div key={s.n} className={styles.stepItemPublic}>
+              <div className={styles.stepNum}>{s.n}</div>
+              <h3>{s.title}</h3>
+              <p>{s.text}</p>
+              {i < HOW_IT_WORKS.length - 1 && <div className={styles.stepArrow}>→</div>}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Legal Documents ── */}
+      <section className={styles.publicSection}>
+        <h2 className={styles.publicSectionTitle}>Legal Documents</h2>
+        <p className={styles.publicSectionSubtitle}>
+          VIT-AUTO operates under a structured legal framework — read the documents that
+          govern the Founding Partner relationship before applying.
+        </p>
+        <div className={styles.legalLinks}>
+          <Link to="/founding-partner-legal" className={styles.legalLinkCard}>📄 Letter of Intent</Link>
+          <Link to="/founding-partner-legal" className={styles.legalLinkCard}>🤝 Founding Partner Agreement</Link>
+          <Link to="/founding-partner-legal" className={styles.legalLinkCard}>🛡️ Partner Verification Policy</Link>
+        </div>
+      </section>
+
+      {/* ── Apply Now ── */}
+      <section className={`${styles.publicSection} ${styles.applySection}`}>
+        <h2 className={styles.publicSectionTitle}>Ready to Apply?</h2>
+        <p className={styles.publicSectionSubtitle}>Only 20 Founding Partner spots — first come, first served.</p>
+        <div className={styles.publicActions}>
+          <button className={styles.btnPrimary} onClick={() => navigate("/register?role=partenaire&redirect=/partner-onboarding")}>
+            Apply Now →
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+// ── Écran affiché quand le programme est complet, ou en cas d'erreur de chargement ──
+function OnboardingErrorScreen({ message }) {
   return (
     <div className={styles.publicHero}>
       <div className={styles.publicHeroContent}>
         <div className={styles.heroLabel}>VIT-AUTO · FOUNDING PARTNER PROGRAM</div>
-        <h1>Rejoignez les 20 premiers<br /><span className={styles.heroAccent}>Partenaires Fondateurs</span></h1>
-        <p>Commission réduite, abonnement Premium offert 12 mois, badge exclusif "Founding Partner" sur toutes vos annonces.</p>
-        <div className={styles.heroStats}>
-          <div className={styles.heroStat}><span>12 mois</span><small>Abonnement offert</small></div>
-          <div className={styles.heroStatDivider} />
-          <div className={styles.heroStat}><span>-33%</span><small>Sur les commissions</small></div>
-          <div className={styles.heroStatDivider} />
-          <div className={styles.heroStat}><span>20+</span><small>Pays couverts</small></div>
-        </div>
-        <div className={styles.publicActions}>
-          <button className={styles.btnPrimary} onClick={() => navigate("/register?role=partenaire&redirect=/partner-onboarding")}>
-            Créer mon compte partenaire →
-          </button>
-          <button className={styles.btnSecondary} onClick={() => navigate("/login?redirect=/partner-onboarding")}>
-            Se connecter
-          </button>
-        </div>
+        <h1>{message ? "⚠️ Un problème est survenu" : "🎉 Programme complet"}</h1>
+        <p>{message || "Le programme Founding Partner est complet."}</p>
+        <p style={{ marginTop: "1rem", fontSize: ".9rem", opacity: .8 }}>
+          Contactez VIT AUTO à <strong>contact@vit-auto.com</strong> si le problème persiste.
+        </p>
       </div>
     </div>
   );

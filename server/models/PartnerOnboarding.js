@@ -56,6 +56,13 @@ const partnerOnboardingSchema = new mongoose.Schema({
 
   isFoundingPartner: { type: Boolean, default: true },
 
+  // ── Acceptation électronique des documents légaux (LOI, Agreement, Verification Policy) ──
+  legalAcceptance: {
+    accepted:   { type: Boolean, default: false },
+    acceptedAt: { type: Date, default: null },
+    ip:         { type: String, default: null },
+  },
+
   // ── Commissions (verrouillées à la signature) ─────────────────────────────
   commissions: {
     location:  { type: Number, default: 10 },   // 10% fondateur (standard 15%)

@@ -717,13 +717,14 @@
 .successRef strong { color: var(--po-text); }
 
 /* ── Public hero ─────────────────────────────────────────────────── */
+.publicPage { background: var(--po-white); }
 .publicHero {
-  min-height: 80vh;
+  min-height: 70vh;
   display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, var(--po-dark) 0%, #0f3460 60%, var(--po-teal) 100%);
-  padding: 2rem;
+  padding: 3rem 2rem;
 }
 .publicHeroContent {
   max-width: 640px;
@@ -733,6 +734,83 @@
 .publicHeroContent h1 { font-size: 3rem; font-weight: 800; line-height: 1.15; margin-bottom: 1rem; }
 .publicHeroContent p { font-size: 1.1rem; color: rgba(255,255,255,.8); margin-bottom: 2rem; line-height: 1.6; }
 .publicActions { display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap; }
+
+/* ── Public sections (Why Join / How It Works / Legal Docs / Apply) ──── */
+.publicSection { padding: 4rem 2rem; max-width: 1080px; margin: 0 auto; text-align: center; }
+.publicSectionAlt { background: var(--po-light); max-width: none; }
+.publicSectionAlt > * { max-width: 1080px; margin-left: auto; margin-right: auto; }
+.publicSectionTitle { font-size: 2rem; font-weight: 800; color: var(--po-dark); margin: 0 0 0.75rem; }
+.publicSectionSubtitle { color: var(--po-muted); font-size: 1rem; margin: 0 0 2.5rem; }
+
+.whyGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2.5rem;
+  text-align: left;
+}
+.whyCard {
+  background: var(--po-white);
+  border: 1.5px solid var(--po-border);
+  border-radius: 16px;
+  padding: 1.75rem;
+}
+.whyIcon { font-size: 2rem; margin-bottom: 0.75rem; }
+.whyCard h3 { font-size: 1.05rem; font-weight: 700; color: var(--po-dark); margin: 0 0 0.5rem; }
+.whyCard p { font-size: 0.9rem; color: var(--po-muted); line-height: 1.6; margin: 0; }
+
+.stepsRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 2.5rem;
+}
+.stepItemPublic {
+  position: relative;
+  flex: 1 1 200px;
+  max-width: 240px;
+  background: var(--po-white);
+  border: 1.5px solid var(--po-border);
+  border-radius: 16px;
+  padding: 1.75rem 1.25rem;
+}
+.stepItemPublic .stepNum {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--po-orange); color: var(--po-dark);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; margin: 0 auto 0.75rem;
+}
+.stepItemPublic h3 { font-size: 0.95rem; font-weight: 700; color: var(--po-dark); margin: 0 0 0.4rem; }
+.stepItemPublic p { font-size: 0.85rem; color: var(--po-muted); line-height: 1.55; margin: 0; }
+.stepArrow {
+  display: none;
+}
+@media (min-width: 900px) {
+  .stepItemPublic:not(:last-child) .stepArrow {
+    display: block;
+    position: absolute; top: 50%; right: -1.9rem; transform: translateY(-50%);
+    color: var(--po-border); font-size: 1.3rem;
+  }
+}
+
+.legalLinks { display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem; margin-top: 1.5rem; }
+.legalLinkCard {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  background: var(--po-light); color: var(--po-dark);
+  border: 1.5px solid var(--po-border);
+  border-radius: 12px; padding: 0.9rem 1.5rem;
+  font-weight: 700; font-size: 0.9rem; text-decoration: none;
+  transition: border-color .15s, transform .15s;
+}
+.legalLinkCard:hover { border-color: var(--po-teal); transform: translateY(-2px); }
+
+.applySection {
+  background: linear-gradient(135deg, var(--po-dark) 0%, #0f3460 60%, var(--po-teal) 100%);
+}
+.applySection .publicSectionTitle,
+.applySection .publicSectionSubtitle { color: var(--po-white); }
+.applySection .publicSectionSubtitle { opacity: .8; }
 
 /* ── Loader ──────────────────────────────────────────────────────── */
 .loader {

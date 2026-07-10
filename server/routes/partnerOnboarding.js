@@ -1,10 +1,12 @@
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
 import { authenticate as protect, authorizeAdmin } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 import {
   getMyOnboarding,
   updateSection,
   updatePartnerType,
+  acceptLegalDocuments,
   submitApplication,
   signLOI,
   signAgreement,
@@ -12,6 +14,7 @@ import {
   signByToken,
   downloadLOIPDF,
   downloadAgreementPDF,
+  getAvailability,
   adminList,
   adminStats,
   adminGetOne,
@@ -36,16 +39,32 @@ const requirePartner = (req, res, next) => {
 const isPartner = [protect, requirePartner];
 const isAdmin   = [protect, authorizeAdmin];
 
+// PATCH /section/:sectionName transporte des documents/photos en base64 (ressource
+// intensive) — seule cette route reste sous un limiteur strict, contrairement à /my et
+// /availability qui sont pollées/rechargées fréquemment par le portail.
+const sectionUploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  message: { message: "Trop de soumissions. Réessayez dans 1 heure." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // ── Routes publiques (lien sécurisé — token = authentification) ───────────────
 router.get  ("/sign-token/:token",            verifySigningToken);
 router.post ("/sign-by-token/:token",         signByToken);
+router.get  ("/availability",                 getAvailability);
 
 // ── Routes partenaire (self-service) ─────────────────────────────────────────
-router.get  ("/my",                           isPartner, getMyOnboarding);
+// GET /my est accessible à TOUT compte connecté (pas seulement "partenaire"/"admin") :
+// candidater au programme Founding Partner promeut automatiquement le compte au rôle
+// "partenaire" (voir getMyOnboarding) — sinon un client existant resterait bloqué.
+router.get  ("/my",                           protect, getMyOnboarding);
 router.get  ("/my/loi/pdf",                   isPartner, downloadLOIPDF);
 router.get  ("/my/agreement/pdf",             isPartner, downloadAgreementPDF);
 router.patch("/partner-type",                 isPartner, updatePartnerType);
-router.patch("/section/:sectionName",         isPartner, updateSection);
+router.patch("/accept-legal",                 isPartner, acceptLegalDocuments);
+router.patch("/section/:sectionName",         isPartner, sectionUploadLimiter, updateSection);
 router.post ("/submit",                       isPartner, submitApplication);
 router.post ("/sign-loi",                     isPartner, signLOI);
 router.post ("/sign-agreement",               isPartner, signAgreement);

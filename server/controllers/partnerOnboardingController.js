@@ -7,8 +7,22 @@ import { buildOnboardingPDFBuffer } from "../utils/pdfGenerator.js";
 import { dispatch } from "../queue/index.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
+const FOUNDING_LIMIT = 20;
+const ACTIVE_FOUNDING_STATUSES = ["soumis", "en_review", "loi_envoyee", "loi_signee", "accord_envoye", "accord_signe", "actif"];
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// ── Le programme est ouvert à tous (site public, lien partagé, etc.) — le seul
+// garde-fou est la limite de 20 partenaires fondateurs, vérifiée dès la création
+// du dossier (pas seulement à la soumission finale, pour éviter qu'un candidat
+// remplisse tout le wizard avant de découvrir que le programme est complet).
+async function checkFoundingCapacity() {
+  const activeCount = await PartnerOnboarding.countDocuments({ status: { $in: ACTIVE_FOUNDING_STATUSES } });
+  if (activeCount >= FOUNDING_LIMIT) {
+    return { ok: false, message: `Le programme Founding Partner est complet (${FOUNDING_LIMIT}/${FOUNDING_LIMIT} partenaires). Contactez-nous à contact@vit-auto.com pour rejoindre la liste d'attente.` };
+  }
+  return { ok: true };
+}
 
 // ── Notification helper ───────────────────────────────────────────────────────
 async function notify(userId, title, message) {
@@ -53,10 +67,20 @@ const SECTION_KEYS = {
 // ════════════════════════════════════════════════════════════════════════════════
 
 // ── GET /api/partner-onboarding/my ───────────────────────────────────────────
+// Accessible à tout compte connecté (pas seulement "partenaire"/"admin") — un client
+// existant qui candidate au programme Founding Partner doit pouvoir le faire sans
+// devoir d'abord changer de rôle manuellement ; candidater LE rend partenaire.
 export const getMyOnboarding = async (req, res) => {
   try {
     let doc = await PartnerOnboarding.findOne({ userId: req.user.id });
     if (!doc) {
+      const check = await checkFoundingCapacity();
+      if (!check.ok) {
+        return res.status(403).json({ message: check.message, programFull: true });
+      }
+      if (!["partenaire", "admin"].includes(req.user.role)) {
+        await User.findByIdAndUpdate(req.user.id, { role: "partenaire" });
+      }
       doc = await PartnerOnboarding.create({ userId: req.user.id });
     }
     res.json({ onboarding: doc.toObject({ virtuals: true }) });
@@ -64,6 +88,14 @@ export const getMyOnboarding = async (req, res) => {
     logger.error("getMyOnboarding:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
+};
+
+// ── GET /api/partner-onboarding/availability (public) ─────────────────────────
+// Permet d'afficher "programme complet" avant même l'inscription, plutôt que de
+// laisser un candidat remplir tout le dossier pour se le voir refuser à la fin.
+export const getAvailability = async (req, res) => {
+  const check = await checkFoundingCapacity();
+  res.json({ available: check.ok, message: check.ok ? null : check.message });
 };
 
 // ── PATCH /api/partner-onboarding/section/:sectionName ──────────────────────
@@ -135,6 +167,32 @@ export const updatePartnerType = async (req, res) => {
   }
 };
 
+// ── PATCH /api/partner-onboarding/accept-legal ───────────────────────────────
+// Enregistre l'acceptation électronique de la LOI, du Founding Partner Agreement et
+// de la Partner Verification Policy — requis avant de pouvoir soumettre le dossier.
+export const acceptLegalDocuments = async (req, res) => {
+  try {
+    if (!req.body.accepted) {
+      return res.status(400).json({ message: "L'acceptation des documents légaux est requise." });
+    }
+    let doc = await PartnerOnboarding.findOne({ userId: req.user.id });
+    if (!doc) doc = await PartnerOnboarding.create({ userId: req.user.id });
+
+    doc.legalAcceptance = {
+      accepted: true,
+      acceptedAt: new Date(),
+      ip: req.ip || null,
+    };
+    await doc.save();
+    await addAudit(doc._id, "DOCUMENTS_LEGAUX_ACCEPTES", req.user.id, "LOI + Founding Partner Agreement + Verification Policy acceptés électroniquement");
+
+    res.json({ success: true, onboarding: doc.toObject({ virtuals: true }) });
+  } catch (err) {
+    logger.error("acceptLegalDocuments:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
 // ── POST /api/partner-onboarding/submit ─────────────────────────────────────
 export const submitApplication = async (req, res) => {
   try {
@@ -147,11 +205,13 @@ export const submitApplication = async (req, res) => {
     if (!doc.companyInfo?.legalName) {
       return res.status(400).json({ message: "Le nom légal de l'entreprise est requis avant de soumettre." });
     }
+    if (!doc.legalAcceptance?.accepted) {
+      return res.status(400).json({ message: "Vous devez accepter la Letter of Intent, le Founding Partner Agreement et la Verification Policy avant de soumettre." });
+    }
 
     // Vérifier la limite du programme (20 partenaires fondateurs max)
-    const FOUNDING_LIMIT = 20;
     const activeCount = await PartnerOnboarding.countDocuments({
-      status: { $in: ["soumis", "en_review", "loi_envoyee", "loi_signee", "accord_envoye", "accord_signe", "actif"] },
+      status: { $in: ACTIVE_FOUNDING_STATUSES },
       _id: { $ne: doc._id },
     });
     if (activeCount >= FOUNDING_LIMIT) {

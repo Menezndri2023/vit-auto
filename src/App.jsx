@@ -63,6 +63,7 @@ const PartnerFleetImport      = lazy(() => import("./pages/PartnerFleetImport"))
 const PartnerShowroomPublic   = lazy(() => import("./pages/PartnerShowroomPublic"));
 const PartnerOnboardingPortal = lazy(() => import("./pages/PartnerOnboardingPortal"));
 const PartnerSignByToken      = lazy(() => import("./pages/PartnerSignByToken"));
+const FoundingPartnerLegal    = lazy(() => import("./pages/FoundingPartnerLegal"));
 
 // ── Routes internes — accès à authReady pour éviter le flash ──────────────
 function AppRoutes() {
@@ -133,6 +134,7 @@ function AppRoutes() {
 
           {/* ── Onboarding Founding Partner (public + auth-aware) ── */}
           <Route path="/partner-onboarding" element={<PartnerOnboardingPortal />} />
+          <Route path="/founding-partner-legal" element={<FoundingPartnerLegal />} />
 
           {/* ── Signature par lien sécurisé (email link — sans connexion) ── */}
           <Route path="/sign/:token" element={<PartnerSignByToken />} />
