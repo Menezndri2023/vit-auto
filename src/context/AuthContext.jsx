@@ -207,6 +207,14 @@ export const AuthProvider = ({ children }) => {
     return data.user;
   };
 
+  // Hydrate la session à partir d'une réponse déjà authentifiée (ex: vérification
+  // email réussie) sans repasser par /api/auth/login.
+  const setSession = (sessionUser, jwtToken, refreshToken) => {
+    setUser(sessionUser);
+    if (jwtToken)     setToken(jwtToken);
+    if (refreshToken) saveRefreshToken(refreshToken);
+  };
+
   const logout = async () => {
     const rt = loadRefreshToken();
     if (rt) {
@@ -227,7 +235,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const value = useMemo(
-    () => ({ user, token, isAuthenticated: !!user, authReady, authFetch, register, login, logout, updateUser }),
+    () => ({ user, token, isAuthenticated: !!user, authReady, authFetch, register, login, logout, updateUser, setSession }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [user, token, authReady]
   );

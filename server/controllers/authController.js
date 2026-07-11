@@ -262,10 +262,22 @@ export const verifyEmail = async (req, res) => {
   if (!token) return res.status(400).json({ message: "Token manquant." });
 
   try {
-    const user = await User.findOne({
+    let user = await User.findOne({
       emailVerificationToken:   token,
       emailVerificationExpires: { $gt: new Date() },
     });
+
+    if (!user) {
+      // Beaucoup de clients mail (Gmail, Outlook Safe Links, filtres anti-spam
+      // d'entreprise) préchargent automatiquement les liens d'un email dès sa
+      // réception, AVANT que l'utilisateur ne clique lui-même. Si on invalide le
+      // token dès le premier hit, le clic réel de l'utilisateur tombe toujours en
+      // échec juste après. On ne le supprime donc plus (voir plus bas) — et ici,
+      // si le token ne matche plus une demande active mais correspond à un compte
+      // déjà vérifié, on traite quand même le clic comme un succès (idempotent).
+      const alreadyVerified = await User.findOne({ emailVerificationToken: token, emailVerified: true });
+      if (alreadyVerified) user = alreadyVerified;
+    }
 
     if (!user) {
       return res.status(400).json({
@@ -273,12 +285,16 @@ export const verifyEmail = async (req, res) => {
       });
     }
 
-    user.emailVerified            = true;
-    user.emailVerificationToken   = null;
-    user.emailVerificationExpires = null;
+    user.emailVerified = true;
     await user.save();
 
-    res.json({ message: "E-mail vérifié avec succès ! Vous pouvez vous connecter.", success: true });
+    const jwtToken = signJWT(user);
+    res.json({
+      message: "E-mail vérifié avec succès !",
+      success: true,
+      user:    safeUser(user),
+      token:   jwtToken,
+    });
   } catch (err) {
     logger.error("verifyEmail:", err);
     res.status(500).json({ message: "Erreur serveur." });

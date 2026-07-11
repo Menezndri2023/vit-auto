@@ -1,13 +1,20 @@
-import { useEffect, useState } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useEffect, useState, useRef } from "react";
+import { useSearchParams, useNavigate, Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import styles from "./Auth.module.css";
 
 const VerifyEmail = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { setSession } = useAuth();
   const [status, setStatus] = useState("loading"); // loading | success | error | missing
   const [message, setMessage] = useState("");
+  const ranOnce = useRef(false);
 
   useEffect(() => {
+    if (ranOnce.current) return;
+    ranOnce.current = true;
+
     const token = searchParams.get("token");
     if (!token) {
       setStatus("missing");
@@ -19,6 +26,12 @@ const VerifyEmail = () => {
       .then((data) => {
         if (data.success) {
           setStatus("success");
+          // Connexion automatique : l'utilisateur arrive directement sur son espace,
+          // vérifié, sans avoir à ressaisir ses identifiants.
+          if (data.user && data.token) {
+            setSession(data.user, data.token);
+          }
+          setTimeout(() => navigate("/dashboard"), 1800);
         } else {
           setStatus("error");
           setMessage(data.message || "Lien invalide ou expiré.");
@@ -28,7 +41,7 @@ const VerifyEmail = () => {
         setStatus("error");
         setMessage("Impossible de contacter le serveur. Réessayez plus tard.");
       });
-  }, [searchParams]);
+  }, [searchParams, navigate, setSession]);
 
   return (
     <div className={styles.page}>
@@ -46,13 +59,12 @@ const VerifyEmail = () => {
         {status === "success" && (
           <>
             <div style={{ fontSize: "3rem", marginBottom: "12px", textAlign: "center" }}>✅</div>
-            <h1 style={{ textAlign: "center", color: "#0f1b3f", margin: "0 0 12px" }}>E-mail vérifié !</h1>
+            <h1 style={{ textAlign: "center", color: "#0f1b3f", margin: "0 0 12px" }}>Vérification réussie !</h1>
             <p style={{ textAlign: "center", color: "#64748b", margin: 0 }}>
-              Votre adresse e-mail a été confirmée avec succès. Vous pouvez maintenant
-              vous connecter et profiter de tous les services VIT AUTO.
+              Votre adresse e-mail a été confirmée. Redirection vers votre espace…
             </p>
-            <Link to="/login" className={styles.submitBtn} style={{ display: "block", textAlign: "center", marginTop: "24px", textDecoration: "none" }}>
-              Se connecter
+            <Link to="/dashboard" className={styles.submitBtn} style={{ display: "block", textAlign: "center", marginTop: "24px", textDecoration: "none" }}>
+              Accéder à mon espace →
             </Link>
           </>
         )}
