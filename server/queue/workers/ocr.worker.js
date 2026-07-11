@@ -12,6 +12,7 @@
 import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
+import { smsConfigured } from "../../utils/smsConfigured.js";
 
 // Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
 // Redis/BullMQ est indisponible.
@@ -41,7 +42,11 @@ export async function processOcrJob(job) {
       score = Math.min(score, 100);
 
       const badge = score >= 80 ? "CERTIFIÉ" : score >= 60 ? "VÉRIFIÉ" : "INSUFFISANT";
-      const autoApprove = ocrConf >= 70 && faceConf >= 80 && hasEmail && hasPhone && hasDoc;
+      // Sans provider SMS configuré, hasPhone reste éternellement false (voir
+      // smsConfigured()) : ne pas en dépendre pour l'auto-approbation, sinon
+      // AUCUN utilisateur ne serait jamais auto-approuvé tant que l'équipe n'a
+      // pas de provider SMS réel — tout finirait en revue manuelle admin.
+      const autoApprove = ocrConf >= 70 && faceConf >= 80 && hasEmail && (hasPhone || !smsConfigured()) && hasDoc;
       const newStatus = autoApprove ? "VERIFIE" : user.kycStatus;
 
       await User.findByIdAndUpdate(userId, {

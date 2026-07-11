@@ -51,6 +51,11 @@ export default function KYC() {
   const [devOtp,          setDevOtp]          = useState("");
   const [emailResent,     setEmailResent]     = useState(false);
   const [emailError,      setEmailError]      = useState("");
+  // Tant qu'aucun provider SMS réel n'est configuré côté serveur, la vérification
+  // téléphone ne doit pas bloquer la suite du KYC (voir smsAvailable dans la réponse
+  // de /api/kyc/status). Défaut à true pour ne pas relâcher la contrainte avant
+  // d'avoir la confirmation du serveur (évite un flash "autorisé" → "bloqué").
+  const [smsAvailable,    setSmsAvailable]    = useState(true);
 
   /* ── STEP 2 — Document + OCR ─────────────────────────────────────────── */
   const [docType,         setDocType]         = useState("cni");
@@ -98,6 +103,7 @@ export default function KYC() {
         if (!d) return;
         setEmailVerified(d.emailVerified);
         setPhoneVerified(d.phoneVerified);
+        if (typeof d.smsAvailable === "boolean") setSmsAvailable(d.smsAvailable);
         if (d.kycStatus && d.kycStatus !== "EN_ATTENTE" && d.kycSubmittedAt) {
           setKycResult(d); setSubmitted(true); setStep(4);
         }
@@ -416,9 +422,17 @@ export default function KYC() {
               </div>
               {phoneVerified
                 ? <span className={styles.badgeOk}>✓ Vérifié</span>
-                : <span className={styles.badgePending}>Non vérifié</span>}
+                : smsAvailable
+                  ? <span className={styles.badgePending}>Non vérifié</span>
+                  : <span className={styles.badgePending}>Facultatif pour l'instant</span>}
             </div>
-            {!phoneVerified && (
+            {!phoneVerified && !smsAvailable && (
+              <div className={styles.infoBox}>
+                <strong>Vérification SMS momentanément indisponible.</strong>
+                <p>Vous pouvez continuer votre dossier sans confirmer votre téléphone pour l'instant ; cette étape ne vous bloquera pas.</p>
+              </div>
+            )}
+            {!phoneVerified && smsAvailable && (
               <div className={styles.verifyAction}>
                 <div className={styles.phoneRow}>
                   <input type="tel" className={styles.textInput} placeholder="+225 07 00 00 00 00"
@@ -456,11 +470,11 @@ export default function KYC() {
 
           <div className={styles.cardFooter}>
             <div />
-            <button className={styles.primaryBtn} onClick={() => setStep(2)} disabled={!emailVerified || !phoneVerified}>
-              {(!emailVerified || !phoneVerified) ? "Complétez les vérifications" : "Continuer →"}
+            <button className={styles.primaryBtn} onClick={() => setStep(2)} disabled={!emailVerified || (smsAvailable && !phoneVerified)}>
+              {(!emailVerified || (smsAvailable && !phoneVerified)) ? "Complétez les vérifications" : "Continuer →"}
             </button>
           </div>
-          {(!emailVerified || !phoneVerified) && (
+          {(!emailVerified || (smsAvailable && !phoneVerified)) && (
             <p className={styles.gateMsg}>Email et téléphone doivent tous deux être vérifiés pour continuer.</p>
           )}
         </div>

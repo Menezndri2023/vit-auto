@@ -6,6 +6,7 @@ import * as OTPAuth from "otpauth";
 import QRCode from "qrcode";
 import User from "../models/User.js";
 import { serverValidateIdentity } from "../utils/idValidation.js";
+import { smsConfigured } from "../utils/smsConfigured.js";
 import { dispatch } from "../queue/index.js";
 
 const JWT_SECRET         = () => process.env.JWT_SECRET;
@@ -72,15 +73,6 @@ const smtpConfigured = () =>
   !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 const isDevNoSmtp = () =>
   process.env.NODE_ENV !== "production" && !smtpConfigured();
-
-// true si un provider SMS réel (Africa's Talking ou Twilio) est configuré. Exiger la
-// vérification du téléphone n'a de sens QUE si un code peut réellement être envoyé —
-// sinon un utilisateur qui a renseigné (ou skip) son numéro reste bloqué à vie, sans
-// aucun moyen de recevoir le code (voir sendSmsOtp : "sent:false" en prod = piège).
-const smsConfigured = () =>
-  !!(process.env.AT_USERNAME && process.env.AT_API_KEY &&
-     process.env.AT_API_KEY !== "atsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx") ||
-  !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_FROM);
 
 // ── Sanitisation basique (strip HTML, trim) ───────────────────────────────
 const sanitize = (v) => (typeof v === "string" ? v.replace(/<[^>]*>/g, "").trim() : v);

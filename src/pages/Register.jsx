@@ -73,9 +73,17 @@ const Register = () => {
       const result = await register(form);
       setCreatedUser(result || null);
 
-      // Si le téléphone est fourni → étape vérification OTP
+      // Si le téléphone est fourni → étape vérification OTP.
+      // Le compte est déjà créé à ce stade : si l'envoi du SMS échoue (ex. aucun
+      // provider SMS configuré en production), on ne doit surtout pas laisser
+      // l'utilisateur bloqué sur le formulaire à croire que l'inscription a échoué
+      // (il ne pourrait alors plus recréer le compte : "adresse déjà utilisée").
       if (form.phone?.trim()) {
-        await sendOtp(result?._id || result?.id, form.phone, true);
+        const otpSent = await sendOtp(result?._id || result?.id, form.phone, true);
+        if (!otpSent) {
+          success("Compte créé ! Vérification du téléphone indisponible pour l'instant — vous pourrez la refaire plus tard.");
+          setTimeout(() => navigate(getDest()), 1500);
+        }
       } else {
         success("Inscription réussie ! Redirection...");
         setTimeout(() => navigate(getDest()), 1500);
@@ -88,6 +96,8 @@ const Register = () => {
   };
 
   // ── Envoyer/renvoyer OTP ───────────────────────────────────────
+  // Retourne true si le code a bien été envoyé, false sinon (voir onSubmit : un
+  // échec ne doit jamais annuler l'inscription, déjà actée en base à ce stade).
   const sendOtp = async (userId, phone, initial = false) => {
     if (!initial) setResendLoading(true);
     try {
@@ -97,7 +107,10 @@ const Register = () => {
         body: JSON.stringify({ phone: phone || form.phone, userId }),
       });
       const data = await res.json();
-      if (!res.ok) { error(data.message || "Erreur lors de l'envoi du code."); return; }
+      if (!res.ok) {
+        error(data.message || "Erreur lors de l'envoi du code.");
+        return false;
+      }
       if (data.devOtp) setDevOtp(data.devOtp);
       if (initial) {
         setStep("otp");
@@ -106,8 +119,10 @@ const Register = () => {
         success("Nouveau code envoyé !");
         setResendCooldown(60);
       }
+      return true;
     } catch {
       error("Erreur réseau. Réessayez.");
+      return false;
     } finally {
       if (!initial) setResendLoading(false);
     }
