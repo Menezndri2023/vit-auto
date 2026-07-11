@@ -10,9 +10,6 @@ const Register = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // ── Étapes : "form" → "otp" → "done" ─────────────────────────
-  const [step, setStep] = useState("form");
-
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -23,12 +20,6 @@ const Register = () => {
     role: searchParams.get("role") === "partenaire" ? "partenaire" : "client",
   });
 
-  const [createdUser, setCreatedUser]   = useState(null);
-  const [otp, setOtp]                   = useState("");
-  const [otpLoading, setOtpLoading]     = useState(false);
-  const [resendLoading, setResendLoading] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
-  const [devOtp, setDevOtp]             = useState(null);
   const [submitting, setSubmitting]     = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -47,16 +38,13 @@ const Register = () => {
     }
   }, [searchParams]);
 
-  // Compte à rebours renvoyer code
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [resendCooldown]);
-
   const handleChange = (e) => setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
-  // ── Étape 1 : inscription ──────────────────────────────────────
+  // ── Inscription ──────────────────────────────────────────────────
+  // Pas de vérification téléphone à l'inscription : aucun provider SMS réel
+  // n'est configuré pour l'instant (voir server/utils/smsConfigured.js), le
+  // téléphone est simplement enregistré et pourra être vérifié plus tard
+  // (profil / KYC) une fois un provider branché.
   const onSubmit = async (e) => {
     e.preventDefault();
     if (!form.email || !form.password || !form.firstName || !form.lastName) {
@@ -70,24 +58,9 @@ const Register = () => {
     }
     setSubmitting(true);
     try {
-      const result = await register(form);
-      setCreatedUser(result || null);
-
-      // Si le téléphone est fourni → étape vérification OTP.
-      // Le compte est déjà créé à ce stade : si l'envoi du SMS échoue (ex. aucun
-      // provider SMS configuré en production), on ne doit surtout pas laisser
-      // l'utilisateur bloqué sur le formulaire à croire que l'inscription a échoué
-      // (il ne pourrait alors plus recréer le compte : "adresse déjà utilisée").
-      if (form.phone?.trim()) {
-        const otpSent = await sendOtp(result?._id || result?.id, form.phone, true);
-        if (!otpSent) {
-          success("Compte créé ! Vérification du téléphone indisponible pour l'instant — vous pourrez la refaire plus tard.");
-          setTimeout(() => navigate(getDest()), 1500);
-        }
-      } else {
-        success("Inscription réussie ! Redirection...");
-        setTimeout(() => navigate(getDest()), 1500);
-      }
+      await register(form);
+      success("Inscription réussie ! Redirection...");
+      setTimeout(() => navigate(getDest()), 1500);
     } catch (err) {
       error(err.message || "Impossible de créer votre compte.");
     } finally {
@@ -95,138 +68,6 @@ const Register = () => {
     }
   };
 
-  // ── Envoyer/renvoyer OTP ───────────────────────────────────────
-  // Retourne true si le code a bien été envoyé, false sinon (voir onSubmit : un
-  // échec ne doit jamais annuler l'inscription, déjà actée en base à ce stade).
-  const sendOtp = async (userId, phone, initial = false) => {
-    if (!initial) setResendLoading(true);
-    try {
-      const res = await fetch("/api/auth/send-phone-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: phone || form.phone, userId }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        error(data.message || "Erreur lors de l'envoi du code.");
-        return false;
-      }
-      if (data.devOtp) setDevOtp(data.devOtp);
-      if (initial) {
-        setStep("otp");
-        success("Code de vérification envoyé sur votre téléphone.");
-      } else {
-        success("Nouveau code envoyé !");
-        setResendCooldown(60);
-      }
-      return true;
-    } catch {
-      error("Erreur réseau. Réessayez.");
-      return false;
-    } finally {
-      if (!initial) setResendLoading(false);
-    }
-  };
-
-  // ── Étape 2 : vérification OTP ────────────────────────────────
-  const onVerifyOtp = async (e) => {
-    e.preventDefault();
-    if (!otp || otp.length !== 6) { error("Entrez le code à 6 chiffres."); return; }
-    setOtpLoading(true);
-    try {
-      const res = await fetch("/api/auth/verify-phone-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: form.phone, userId: createdUser?._id || createdUser?.id, otp }),
-      });
-      const data = await res.json();
-      if (!res.ok) { error(data.message || "Code incorrect."); return; }
-      success("Téléphone vérifié ! Bienvenue sur VIT AUTO.");
-      setTimeout(() => navigate(getDest()), 1200);
-    } catch {
-      error("Erreur réseau. Réessayez.");
-    } finally {
-      setOtpLoading(false);
-    }
-  };
-
-  // ── Ignorer la vérification téléphone (passer) ────────────────
-  const skipPhoneVerif = () => {
-    success("Inscription réussie ! Vous pourrez vérifier votre téléphone plus tard.");
-    navigate(getDest());
-  };
-
-  // ════════════════════════════════════════════════════════════════
-  // RENDU — Étape OTP téléphone
-  // ════════════════════════════════════════════════════════════════
-  if (step === "otp") {
-    return (
-      <div className={styles.page}>
-        <div className={styles.card}>
-          <div className={styles.logo}>
-            <div className={styles.logoIcon}>📱</div>
-            <h1>Vérification</h1>
-            <p>Confirmez votre numéro de téléphone</p>
-          </div>
-
-          <div style={{ background: "#eff6ff", border: "1.5px solid #bfdbfe", borderRadius: 12, padding: "14px 16px", marginBottom: 18, fontSize: "0.88rem", color: "#1e40af" }}>
-            <strong>Code envoyé au :</strong> <span style={{ fontWeight: 700 }}>{form.phone}</span><br />
-            <span style={{ opacity: .8 }}>Vérifiez vos SMS. Le code est valable 10 minutes.</span>
-            {devOtp && (
-              <div style={{ marginTop: 8, padding: "6px 10px", background: "#fef3c7", borderRadius: 8, color: "#92400e", fontWeight: 700 }}>
-                🛠 [DEV] Code : {devOtp}
-              </div>
-            )}
-          </div>
-
-          <form className={styles.form} onSubmit={onVerifyOtp}>
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]{6}"
-              maxLength={6}
-              placeholder="Code à 6 chiffres"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              style={{ letterSpacing: "0.35em", fontSize: "1.4rem", textAlign: "center", fontWeight: 700 }}
-              required
-            />
-
-            <button type="submit" className={styles.submitBtn} disabled={otpLoading || otp.length !== 6}>
-              {otpLoading ? "Vérification…" : "Confirmer le code →"}
-            </button>
-          </form>
-
-          <div className={styles.footerLink} style={{ marginTop: 12 }}>
-            {resendCooldown > 0 ? (
-              <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}>Renvoyer dans {resendCooldown}s</span>
-            ) : (
-              <button
-                onClick={() => sendOtp(createdUser?._id || createdUser?.id, form.phone)}
-                disabled={resendLoading}
-                style={{ background: "none", border: "none", color: "#6366f1", cursor: "pointer", fontSize: "0.88rem", fontWeight: 600 }}
-              >
-                {resendLoading ? "Envoi…" : "📤 Renvoyer le code"}
-              </button>
-            )}
-          </div>
-
-          <div className={styles.footerLink} style={{ marginTop: 6 }}>
-            <button
-              onClick={skipPhoneVerif}
-              style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "0.83rem" }}
-            >
-              Ignorer pour l'instant →
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ════════════════════════════════════════════════════════════════
-  // RENDU — Formulaire d'inscription
-  // ════════════════════════════════════════════════════════════════
   return (
     <div className={styles.page}>
       <div className={styles.card}>
@@ -266,23 +107,15 @@ const Register = () => {
             required
           />
 
-          <div style={{ position: "relative" }}>
-            <input
-              type="tel"
-              name="phone"
-              autoComplete="tel"
-              value={form.phone}
-              onChange={handleChange}
-              placeholder="Téléphone (ex : +225 07 00 00 00) *"
-              style={{ width: "100%", boxSizing: "border-box" }}
-            />
-            <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: ".75rem", color: "#10b981", fontWeight: 600, pointerEvents: "none" }}>
-              {form.phone ? "📱 OTP" : ""}
-            </span>
-          </div>
-          <p style={{ margin: "-8px 0 4px", fontSize: "0.78rem", color: "#64748b" }}>
-            📲 Un code de vérification sera envoyé par SMS si vous renseignez votre téléphone.
-          </p>
+          <input
+            type="tel"
+            name="phone"
+            autoComplete="tel"
+            value={form.phone}
+            onChange={handleChange}
+            placeholder="Téléphone (ex : +225 07 00 00 00)"
+            style={{ width: "100%", boxSizing: "border-box" }}
+          />
 
           <select name="role" value={form.role} onChange={handleChange} autoComplete="off">
             <option value="client">🧑 Client — Louer des véhicules</option>
