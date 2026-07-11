@@ -56,6 +56,10 @@ export default function KYC() {
   // de /api/kyc/status). Défaut à true pour ne pas relâcher la contrainte avant
   // d'avoir la confirmation du serveur (évite un flash "autorisé" → "bloqué").
   const [smsAvailable,    setSmsAvailable]    = useState(true);
+  // Idem pour l'email : tant que la délivrabilité en production n'est pas fiable,
+  // la vérification email ne doit pas non plus bloquer le KYC (voir
+  // emailVerificationRequired dans la réponse de /api/kyc/status).
+  const [emailVerifRequired, setEmailVerifRequired] = useState(true);
 
   /* ── STEP 2 — Document + OCR ─────────────────────────────────────────── */
   const [docType,         setDocType]         = useState("cni");
@@ -104,6 +108,7 @@ export default function KYC() {
         setEmailVerified(d.emailVerified);
         setPhoneVerified(d.phoneVerified);
         if (typeof d.smsAvailable === "boolean") setSmsAvailable(d.smsAvailable);
+        if (typeof d.emailVerificationRequired === "boolean") setEmailVerifRequired(d.emailVerificationRequired);
         if (d.kycStatus && d.kycStatus !== "EN_ATTENTE" && d.kycSubmittedAt) {
           setKycResult(d); setSubmitted(true); setStep(4);
         }
@@ -399,7 +404,9 @@ export default function KYC() {
               </div>
               {emailVerified
                 ? <span className={styles.badgeOk}>✓ Vérifié</span>
-                : <span className={styles.badgePending}>Non confirmé</span>}
+                : emailVerifRequired
+                  ? <span className={styles.badgePending}>Non confirmé</span>
+                  : <span className={styles.badgePending}>Facultatif pour l'instant</span>}
             </div>
             {!emailVerified && (
               <div className={styles.verifyAction}>
@@ -408,6 +415,11 @@ export default function KYC() {
                   : <div className={styles.infoBox}><strong>Email envoyé !</strong><p>Cliquez sur le lien reçu à <em>{user.email}</em>, puis revenez et actualisez la page.</p></div>
                 }
                 {emailError && <p className={styles.errorMsg}>{emailError}</p>}
+                {!emailVerifRequired && (
+                  <p style={{ marginTop: 8, fontSize: "0.82rem", color: "#94a3b8" }}>
+                    La confirmation par email est momentanément facultative — vous pouvez continuer votre dossier sans attendre le lien.
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -470,11 +482,12 @@ export default function KYC() {
 
           <div className={styles.cardFooter}>
             <div />
-            <button className={styles.primaryBtn} onClick={() => setStep(2)} disabled={!emailVerified || (smsAvailable && !phoneVerified)}>
-              {(!emailVerified || (smsAvailable && !phoneVerified)) ? "Complétez les vérifications" : "Continuer →"}
+            <button className={styles.primaryBtn} onClick={() => setStep(2)}
+              disabled={(emailVerifRequired && !emailVerified) || (smsAvailable && !phoneVerified)}>
+              {((emailVerifRequired && !emailVerified) || (smsAvailable && !phoneVerified)) ? "Complétez les vérifications" : "Continuer →"}
             </button>
           </div>
-          {(!emailVerified || (smsAvailable && !phoneVerified)) && (
+          {((emailVerifRequired && !emailVerified) || (smsAvailable && !phoneVerified)) && (
             <p className={styles.gateMsg}>Email et téléphone doivent tous deux être vérifiés pour continuer.</p>
           )}
         </div>

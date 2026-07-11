@@ -7,6 +7,7 @@ import QRCode from "qrcode";
 import User from "../models/User.js";
 import { serverValidateIdentity } from "../utils/idValidation.js";
 import { smsConfigured } from "../utils/smsConfigured.js";
+import { emailVerificationRequired } from "../utils/emailVerificationRequired.js";
 import { dispatch } from "../queue/index.js";
 
 const JWT_SECRET         = () => process.env.JWT_SECRET;
@@ -197,8 +198,9 @@ export const login = async (req, res) => {
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) return res.status(401).json({ message: "Identifiants invalides." });
 
-    // Bloquer si email non vérifié (sauf admin et mode dev sans SMTP)
-    if (!user.emailVerified && user.role !== "admin" && !isDevNoSmtp()) {
+    // Bloquer si email non vérifié (sauf admin, mode dev sans SMTP, ou tant que la
+    // vérification email n'est pas exigée — voir emailVerificationRequired()).
+    if (!user.emailVerified && user.role !== "admin" && !isDevNoSmtp() && emailVerificationRequired()) {
       return res.status(403).json({
         code: "EMAIL_NOT_VERIFIED",
         message: "Veuillez vérifier votre adresse e-mail avant de vous connecter. Vérifiez votre boîte mail ou demandez un nouveau lien.",

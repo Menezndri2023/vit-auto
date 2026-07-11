@@ -13,6 +13,7 @@ import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
 import { smsConfigured } from "../../utils/smsConfigured.js";
+import { emailVerificationRequired } from "../../utils/emailVerificationRequired.js";
 
 // Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
 // Redis/BullMQ est indisponible.
@@ -45,8 +46,12 @@ export async function processOcrJob(job) {
       // Sans provider SMS configuré, hasPhone reste éternellement false (voir
       // smsConfigured()) : ne pas en dépendre pour l'auto-approbation, sinon
       // AUCUN utilisateur ne serait jamais auto-approuvé tant que l'équipe n'a
-      // pas de provider SMS réel — tout finirait en revue manuelle admin.
-      const autoApprove = ocrConf >= 70 && faceConf >= 80 && hasEmail && (hasPhone || !smsConfigured()) && hasDoc;
+      // pas de provider SMS réel — tout finirait en revue manuelle admin. Même
+      // logique pour hasEmail tant que emailVerificationRequired() est désactivé.
+      const autoApprove = ocrConf >= 70 && faceConf >= 80
+        && (hasEmail || !emailVerificationRequired())
+        && (hasPhone || !smsConfigured())
+        && hasDoc;
       const newStatus = autoApprove ? "VERIFIE" : user.kycStatus;
 
       await User.findByIdAndUpdate(userId, {

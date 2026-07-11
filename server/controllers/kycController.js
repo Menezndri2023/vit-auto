@@ -6,6 +6,7 @@ import { dispatch } from "../queue/index.js";
 import { logAction } from "../middleware/auditLog.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
 import { smsConfigured } from "../utils/smsConfigured.js";
+import { emailVerificationRequired } from "../utils/emailVerificationRequired.js";
 
 const MAX_KYC_IMAGE_BYTES = 6 * 1024 * 1024; // 6 Mo — cohérent avec usersController/partnerOnboarding
 
@@ -42,6 +43,7 @@ export const getKycStatus = async (req, res) => {
       // ne doit jamais bloquer le parcours KYC (voir smsConfigured() dans
       // authController.js — sinon aucun utilisateur ne pourrait jamais recevoir de code).
       smsAvailable:      smsConfigured(),
+      emailVerificationRequired: emailVerificationRequired(),
     });
   } catch (err) {
     logger.error("getKycStatus:", err);
