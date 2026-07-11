@@ -3,6 +3,10 @@ import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { sendEmail } from "../config/email.js";
 import { dispatch } from "../queue/index.js";
+import { logAction } from "../middleware/auditLog.js";
+import { validateImageDataUri } from "../utils/imageValidation.js";
+
+const MAX_KYC_IMAGE_BYTES = 6 * 1024 * 1024; // 6 Mo — cohérent avec usersController/partnerOnboarding
 
 // ── Ajouter une entrée dans le journal d'audit ────────────────────────────────
 async function addAuditLog(userId, action, performedBy = null, note = null) {
@@ -68,6 +72,14 @@ export const submitKyc = async (req, res) => {
         message: "La photo du document est obligatoire.",
         code: "DOCUMENT_IMAGE_REQUIRED",
       });
+    }
+
+    // ── Validation taille/type réel des images (avant tout traitement coûteux) ─
+    for (const [label, img] of [["recto", frontImageData], ["verso", backImageData], ["selfie", selfieData]]) {
+      const check = validateImageDataUri(img, MAX_KYC_IMAGE_BYTES);
+      if (!check.ok) {
+        return res.status(400).json({ message: `Photo (${label}) : ${check.message}`, code: "INVALID_IMAGE" });
+      }
     }
 
     // ── Anti-spam : cooldown 60s entre soumissions ────────────────────────────
@@ -269,6 +281,14 @@ export const submitDriverLicense = async (req, res) => {
       });
     }
 
+    // ── Validation taille/type réel des images (avant tout traitement coûteux) ─
+    for (const [label, img] of [["recto", frontImageData], ["verso", backImageData]]) {
+      const check = validateImageDataUri(img, MAX_KYC_IMAGE_BYTES);
+      if (!check.ok) {
+        return res.status(400).json({ message: `Photo (${label}) : ${check.message}`, code: "INVALID_IMAGE" });
+      }
+    }
+
     const isExpired = licenseOcrData.expiryDate
       ? new Date(licenseOcrData.expiryDate) < new Date()
       : false;
@@ -407,6 +427,10 @@ export const adminReviewKyc = async (req, res) => {
       req.user.id,
       note || `Décision admin : ${decision}`
     );
+    // Journal d'audit global (traçabilité admin — voir models/AuditLog.js)
+    await logAction(req, `kyc.${decision.toLowerCase()}`, "User", req.params.userId, {
+      after: { kycStatus: decision, note: note || null },
+    });
 
     // ── Notification in-app ────────────────────────────────────────────────
     const notifMap = {

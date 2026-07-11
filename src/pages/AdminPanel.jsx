@@ -202,6 +202,7 @@ export default function AdminPanel() {
   const [foundingSignLink,  setFoundingSignLink] = useState(null); // { id, link, type, companyName }
   const [foundingNote,      setFoundingNote]     = useState("");
   const [foundingAction,    setFoundingAction]   = useState(null); // { id, type: 'approve'|'reject'|'agreement' }
+  const [foundingSubmitting, setFoundingSubmitting] = useState(false); // évite le double-clic (envoi LOI/accord/rejet en double)
   // CRM Directory
   const [foundingView,      setFoundingView]     = useState("onboarding"); // "onboarding" | "crm"
   const [foundingCRMFilter, setFoundingCRMFilter]= useState("");           // crmStatus filter
@@ -459,6 +460,8 @@ export default function AdminPanel() {
   }, [token, headers]);
 
   const foundingApprove = async (id, note) => {
+    if (foundingSubmitting) return; // évite le double-clic (double envoi de LOI)
+    setFoundingSubmitting(true);
     try {
       const r = await fetch(`/api/partner-onboarding/admin/${id}/approve`, {
         method: "POST", headers,
@@ -473,9 +476,12 @@ export default function AdminPanel() {
       setFoundingNote("");
       loadFoundingPartners();
     } catch { showToast("Erreur réseau", "error"); }
+    finally { setFoundingSubmitting(false); }
   };
 
   const foundingSendAgreement = async (id) => {
+    if (foundingSubmitting) return; // évite le double-clic (double envoi de l'accord)
+    setFoundingSubmitting(true);
     try {
       const r = await fetch(`/api/partner-onboarding/admin/${id}/send-agreement`, {
         method: "POST", headers,
@@ -487,10 +493,13 @@ export default function AdminPanel() {
       showToast("Accord envoyé par email", "success");
       loadFoundingPartners();
     } catch { showToast("Erreur réseau", "error"); }
+    finally { setFoundingSubmitting(false); }
   };
 
   const foundingReject = async (id, note) => {
     if (!note?.trim()) { showToast("Note de rejet requise", "error"); return; }
+    if (foundingSubmitting) return; // évite le double-clic (double rejet)
+    setFoundingSubmitting(true);
     try {
       const r = await fetch(`/api/partner-onboarding/admin/${id}/reject`, {
         method: "POST", headers,
@@ -502,6 +511,7 @@ export default function AdminPanel() {
       setFoundingNote("");
       loadFoundingPartners();
     } catch { showToast("Erreur réseau", "error"); }
+    finally { setFoundingSubmitting(false); }
   };
 
   const foundingUpdateCRM = async (id, data) => {
@@ -3673,9 +3683,10 @@ export default function AdminPanel() {
                       onClick={() => foundingAction.type === "approve"
                         ? foundingApprove(foundingAction.id, foundingNote)
                         : foundingReject(foundingAction.id, foundingNote)}
-                      style={{ flex:2, padding:"10px", border:"none", borderRadius:10, cursor:"pointer", fontWeight:800, fontSize:".85rem",
+                      disabled={foundingSubmitting}
+                      style={{ flex:2, padding:"10px", border:"none", borderRadius:10, cursor: foundingSubmitting ? "not-allowed" : "pointer", fontWeight:800, fontSize:".85rem", opacity: foundingSubmitting ? 0.6 : 1,
                         background: foundingAction.type === "approve" ? "#16a34a" : "#dc2626", color:"#fff" }}>
-                      {foundingAction.type === "approve" ? "Approuver & Envoyer LOI" : "Confirmer le rejet"}
+                      {foundingSubmitting ? "Envoi…" : foundingAction.type === "approve" ? "Approuver & Envoyer LOI" : "Confirmer le rejet"}
                     </button>
                   </div>
                 </div>
@@ -3733,7 +3744,8 @@ export default function AdminPanel() {
                           )}
                           {o.status === "loi_signee" && (
                             <button onClick={e => { e.stopPropagation(); foundingSendAgreement(o._id); }}
-                              style={{ padding:"6px 14px", borderRadius:8, border:"none", background:"#7c3aed", color:"#fff", fontWeight:700, fontSize:".76rem", cursor:"pointer" }}>
+                              disabled={foundingSubmitting}
+                              style={{ padding:"6px 14px", borderRadius:8, border:"none", background:"#7c3aed", color:"#fff", fontWeight:700, fontSize:".76rem", cursor: foundingSubmitting ? "not-allowed" : "pointer", opacity: foundingSubmitting ? 0.6 : 1 }}>
                               📜 Envoyer Accord
                             </button>
                           )}
@@ -3791,7 +3803,8 @@ export default function AdminPanel() {
                               <p style={{ margin:"0 0 8px", fontSize:".8rem", color:"#92400e", fontWeight:700 }}>⏳ En attente de signature de l'accord</p>
                               <button
                                 onClick={() => { foundingSendAgreement(o._id); }}
-                                style={{ padding:"6px 14px", borderRadius:8, border:"none", background:"#f59e0b", color:"#fff", fontWeight:700, fontSize:".78rem", cursor:"pointer" }}>
+                                disabled={foundingSubmitting}
+                                style={{ padding:"6px 14px", borderRadius:8, border:"none", background:"#f59e0b", color:"#fff", fontWeight:700, fontSize:".78rem", cursor: foundingSubmitting ? "not-allowed" : "pointer", opacity: foundingSubmitting ? 0.6 : 1 }}>
                                 🔄 Renvoyer l'accord
                               </button>
                             </div>
@@ -3976,8 +3989,9 @@ function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFil
   };
 
   const handleUpdateStatus = async () => {
-    if (!pvDetail || !newStatus) return;
+    if (!pvDetail || !newStatus || pvSaving) return;
     const userId = pvDetail.userId?._id || pvDetail.userId;
+    setPvSaving(true);
     try {
       const res = await fetch(`/api/partner-verif/admin/${userId}/status`, {
         method: "PATCH", headers,
@@ -3991,6 +4005,7 @@ function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFil
         showToast("Statut mis à jour");
       } else showToast(d.message || "Erreur", "error");
     } catch { showToast("Connexion impossible", "error"); }
+    setPvSaving(false);
   };
 
   const totalPv = pvStats?.total || 0;
@@ -4429,7 +4444,7 @@ function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFil
               {Object.entries(STATUS_PV_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
             </select>
             <div className={styles.confirmActions}>
-              <button className={styles.btnPrimary} onClick={handleUpdateStatus}>Confirmer</button>
+              <button className={styles.btnPrimary} onClick={handleUpdateStatus} disabled={pvSaving}>{pvSaving ? "…" : "Confirmer"}</button>
               <button className={styles.btnGhost} onClick={() => setStatusModal(null)}>Annuler</button>
             </div>
           </div>

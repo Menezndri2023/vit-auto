@@ -65,7 +65,9 @@ const Checkout = () => {
         amount,
         method:         selectedMethod,
         mobileNumber:   isMobile ? mobileNumber : undefined,
-        cardNumber:     isCard   ? cardNumber    : undefined,
+        // Seuls les 4 derniers chiffres quittent le navigateur (voir Booking.jsx) —
+        // le numéro complet n'a besoin d'exister que côté client.
+        cardLast4:      isCard   ? cardNumber.replace(/\s/g, "").slice(-4) : undefined,
         cardHolder:     isCard   ? cardHolder    : undefined,
       };
 

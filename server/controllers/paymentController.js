@@ -7,7 +7,7 @@ const ALLOWED_METHODS = ["card", "orange_money", "wave", "mtn", "moov", "paypal"
 // ── Créer un enregistrement de paiement ─────────────────────────────────────
 export const createPayment = async (req, res) => {
   try {
-    const { booking: bookingId, amount: rawAmount, method, mobileNumber, cardNumber, cardHolder, provider } = req.body;
+    const { booking: bookingId, amount: rawAmount, method, mobileNumber, cardLast4, cardHolder, provider } = req.body;
     const amount = Number(rawAmount);
 
     // Validation stricte des champs requis
@@ -45,8 +45,11 @@ export const createPayment = async (req, res) => {
       paymentDetails.provider = method;
     }
     if (method === "card") {
-      // Ne stocker QUE les 4 derniers chiffres
-      paymentDetails.cardLast4 = cardNumber ? String(cardNumber).replace(/\s/g, "").slice(-4) : null;
+      // Le client ne transmet déjà plus que les 4 derniers chiffres (troncature
+      // faite dans le navigateur) — le numéro complet ne doit jamais atteindre
+      // le serveur, sans quoi la plateforme entrerait inutilement dans le
+      // périmètre PCI-DSS.
+      paymentDetails.cardLast4 = cardLast4 ? String(cardLast4).slice(-4) : null;
       paymentDetails.cardHolder = cardHolder || null;
       paymentDetails.provider = provider || "card";
     }

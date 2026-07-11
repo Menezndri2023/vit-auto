@@ -5,6 +5,7 @@ import Notification from "../models/Notification.js";
 import Booking from "../models/Booking.js";
 import { dispatch } from "../queue/index.js";
 import { scoreAnnonce, buildVehicleWhitelist } from "../services/vehicleScoring.js";
+import { logAction } from "../middleware/auditLog.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -313,6 +314,13 @@ export const deleteVehicle = async (req, res) => {
     }
 
     await vehicle.deleteOne();
+    // Journal d'audit global — uniquement quand un admin supprime l'annonce d'un
+    // autre utilisateur (suppression par le propriétaire lui-même = action normale)
+    if (req.user.role === "admin" && !isOwner) {
+      await logAction(req, "vehicle.admin_delete", "Vehicle", req.params.id, {
+        before: { title: vehicle.title, owner: vehicle.owner },
+      });
+    }
     res.json({ message: "Annonce supprimée." });
   } catch (err) {
     logger.error("deleteVehicle:", err);

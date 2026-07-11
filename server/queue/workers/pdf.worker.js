@@ -15,7 +15,9 @@ import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
 
-async function processPdfJob(job) {
+// Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
+// Redis/BullMQ est indisponible.
+export async function processPdfJob(job) {
   const { type, data, uploadToImageKit = false, sendEmail = false } = job.data;
 
   const { buildOnboardingPDFBuffer } = await import("../../utils/pdfGenerator.js");

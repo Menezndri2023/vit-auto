@@ -30,7 +30,9 @@ const IE_STEP_LABELS = {
   14: "Transaction clôturée",
 };
 
-async function processImportJob(job) {
+// Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
+// Redis/BullMQ est indisponible.
+export async function processImportJob(job) {
   const { type, transactionId, data = {} } = job.data;
 
   switch (type) {

@@ -160,6 +160,8 @@ const PartnerFleetImport = () => {
         timer = setTimeout(tick, 2000);
       } else if (b.status === "completed") {
         success("Import terminé avec succès !");
+      } else if (b.status === "failed") {
+        error(b.errorMessage || "L'import a échoué avant d'avoir pu traiter le fichier.");
       }
     };
     tick();
@@ -303,7 +305,21 @@ const PartnerFleetImport = () => {
             </>
           )}
 
-          {batch && batch.status !== "processing" && (
+          {batch && batch.status === "failed" && (
+            <>
+              <h2 className={styles.cardTitle}>❌ L'import a échoué</h2>
+              <p className={styles.resultErrorText} style={{ marginTop: 8 }}>
+                {batch.errorMessage || "Une erreur inattendue est survenue pendant le traitement du fichier."}
+              </p>
+              <div className={styles.resultActions}>
+                <button type="button" className={styles.secondaryBtn} onClick={resetAll}>
+                  Réessayer
+                </button>
+              </div>
+            </>
+          )}
+
+          {batch && !["processing", "failed"].includes(batch.status) && (
             <>
               <h2 className={styles.cardTitle}>
                 {batch.status === "completed" ? "✅ Import terminé" : "⚠️ Import terminé avec des erreurs"}

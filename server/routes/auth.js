@@ -2,6 +2,16 @@ import express from "express";
 import { rateLimit } from "express-rate-limit";
 import * as auth from "../controllers/authController.js";
 import { authenticate } from "../middleware/auth.js";
+import { validate } from "../middleware/validate.js";
+import {
+  registerSchema,
+  loginSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  changePasswordSchema,
+  twoFAEnableSchema,
+  twoFADisableSchema,
+} from "../validators/auth.validators.js";
 
 const router = express.Router();
 
@@ -20,25 +30,29 @@ const identityLimiter = rateLimit({
   skipSuccessfulRequests: true,
 });
 
-router.post("/register",             auth.register);
-router.post("/login",                auth.login);
+router.post("/register",             validate(registerSchema), auth.register);
+router.post("/login",                validate(loginSchema), auth.login);
 router.get("/verify-email/:token",   auth.verifyEmail);
 router.post("/resend-verification",  strictLimiter, auth.resendVerification);
 router.post("/send-phone-otp",       strictLimiter, auth.sendPhoneOtp);
 router.post("/verify-phone-otp",     strictLimiter, auth.verifyPhoneOtp);
 router.get("/me",                    authenticate, auth.getMe);
-router.post("/forgot-password",      strictLimiter, auth.forgotPassword);
-router.post("/reset-password",       strictLimiter, auth.resetPassword);
-router.patch("/change-password",     authenticate, auth.changePassword);
+router.post("/forgot-password",      strictLimiter, validate(forgotPasswordSchema), auth.forgotPassword);
+router.post("/reset-password",       strictLimiter, validate(resetPasswordSchema), auth.resetPassword);
+router.patch("/change-password",     authenticate, validate(changePasswordSchema), auth.changePassword);
 router.post("/validate-identity",    identityLimiter, auth.validateIdentity);
 router.post("/refresh-token",        auth.refreshToken);
 router.post("/revoke-token",         authenticate, auth.revokeRefreshToken);
 
 // ── 2FA — Authentification à deux facteurs ────────────────────────────────
+// NB: /2fa/verify n'est PAS branché sur twoFAVerifySchema — ce schéma impose
+// `token` à exactement 6 caractères, or verify2FA accepte aussi les codes de
+// secours à 8 caractères hexadécimaux (voir authController.js) : le brancher
+// bloquerait la connexion via code de secours avant même d'atteindre le contrôleur.
 router.post("/2fa/setup",    authenticate, auth.setup2FA);
-router.post("/2fa/enable",   authenticate, auth.enable2FA);
+router.post("/2fa/enable",   authenticate, validate(twoFAEnableSchema), auth.enable2FA);
 router.post("/2fa/verify",   strictLimiter, auth.verify2FA);   // complète le login
-router.post("/2fa/disable",  authenticate, auth.disable2FA);
+router.post("/2fa/disable",  authenticate, validate(twoFADisableSchema), auth.disable2FA);
 
 // ⚠️ DEV UNIQUEMENT — bloqué en production
 if (process.env.NODE_ENV !== "production") {

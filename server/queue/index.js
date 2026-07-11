@@ -100,20 +100,73 @@ export async function closeQueues() {
   logger.info("[Queue] Fermeture propre effectuée");
 }
 
+// ── Fallback synchrone (Redis/BullMQ indisponible) ────────────────────────────
+// Chaque entrée charge (dynamiquement, comme startAllWorkers) la fonction de
+// traitement exportée par le worker correspondant, pour exécuter le job en
+// synchrone quand la queue n'est pas prête — au lieu de le perdre silencieusement.
+const SYNC_FALLBACK_LOADERS = {
+  [QUEUE_NAMES.EMAIL]:        async () => (await import("./workers/email.worker.js")).processEmail,
+  [QUEUE_NAMES.SMS]:          async () => (await import("./workers/sms.worker.js")).processSmsJob,
+  [QUEUE_NAMES.WHATSAPP]:     async () => (await import("./workers/whatsapp.worker.js")).processWhatsAppJob,
+  [QUEUE_NAMES.NOTIFICATION]: async () => (await import("./workers/notification.worker.js")).processNotificationJob,
+  [QUEUE_NAMES.PDF]:          async () => (await import("./workers/pdf.worker.js")).processPdfJob,
+  [QUEUE_NAMES.OCR]:          async () => (await import("./workers/ocr.worker.js")).processOcrJob,
+  [QUEUE_NAMES.IMPORT]:       async () => (await import("./workers/import.worker.js")).processImportJob,
+  [QUEUE_NAMES.AI]:           async () => (await import("./workers/ai.worker.js")).processAiJob,
+  [QUEUE_NAMES.PARTNER_FEED]: async () => (await import("./workers/partnerFeed.worker.js")).processPartnerFeedJob,
+};
+
+// Queues dont le traitement peut être long (téléchargement d'images, écritures DB
+// en volume) : on les exécute après la réponse HTTP en cours (setImmediate) pour
+// éviter un timeout de la requête. Le comportement observable reste identique
+// (le job est bien traité), seule la latence change — comme en mode BullMQ normal.
+const DEFERRED_SYNC_QUEUES = new Set([QUEUE_NAMES.PARTNER_FEED]);
+
+async function runSyncFallback(queueName, jobName, data) {
+  const loadProcessor = SYNC_FALLBACK_LOADERS[queueName];
+  if (!loadProcessor) {
+    logger.error("[Queue] Aucun fallback synchrone connu pour cette queue — job perdu", { queue: queueName, job: jobName });
+    return null;
+  }
+
+  const fakeJob = { id: `sync-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: jobName, data };
+
+  const execute = async () => {
+    try {
+      const processFn = await loadProcessor();
+      await processFn(fakeJob);
+      logger.info("[Queue] Fallback synchrone exécuté avec succès", { queue: queueName, job: jobName, jobId: fakeJob.id });
+    } catch (err) {
+      logger.error("[Queue] Échec du fallback synchrone — job perdu", { queue: queueName, job: jobName, jobId: fakeJob.id, error: err.message });
+    }
+  };
+
+  if (DEFERRED_SYNC_QUEUES.has(queueName)) {
+    // Ne bloque pas la requête HTTP en cours : traitement différé après la réponse.
+    setImmediate(execute);
+    return fakeJob.id;
+  }
+
+  await execute();
+  return fakeJob.id;
+}
+
 // ── Fonction d'enqueue bas niveau ─────────────────────────────────────────────
 export async function enqueue(queueName, jobName, data, opts = {}) {
   const q = _queues[queueName];
   if (!q) {
-    // Fallback inline si Redis non disponible
-    logger.warn("[Queue] Fallback inline (Redis indisponible)", { queue: queueName, job: jobName });
-    return null;
+    // Redis indisponible (REDIS_URL manquant ou jamais connecté) — fallback synchrone.
+    logger.warn("[Queue] Queue indisponible — fallback synchrone", { queue: queueName, job: jobName });
+    return runSyncFallback(queueName, jobName, data);
   }
   try {
     const job = await q.add(jobName, data, opts);
     return job.id;
   } catch (err) {
-    logger.error("[Queue] Erreur enqueue", { queue: queueName, job: jobName, error: err.message });
-    return null;
+    // Redis était connecté mais l'ajout échoue (ex : quota Upstash dépassé) — même filet
+    // de sécurité que ci-dessus pour ne jamais perdre le job silencieusement.
+    logger.error("[Queue] Erreur enqueue — bascule en fallback synchrone", { queue: queueName, job: jobName, error: err.message });
+    return runSyncFallback(queueName, jobName, data);
   }
 }
 

@@ -10,7 +10,9 @@ import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
 
-async function processPartnerFeedJob(job) {
+// Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
+// Redis/BullMQ est indisponible.
+export async function processPartnerFeedJob(job) {
   const { type, batchId } = job.data;
 
   switch (type) {

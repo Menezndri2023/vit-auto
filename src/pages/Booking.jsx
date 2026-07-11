@@ -364,8 +364,12 @@ export default function Booking() {
           payment: {
             method:       payMethod,
             mobileNumber: mobileNumber || undefined,
-            cardNumber:   cardNumber   || undefined,
-            cardHolder:   cardHolder   || undefined,
+            // Seuls les 4 derniers chiffres quittent le navigateur — le numéro complet
+            // n'a besoin d'exister que côté client (aucune passerelle réelle ne le
+            // consomme ici) ; le transmettre au serveur mettrait inutilement la
+            // plateforme dans le périmètre PCI-DSS.
+            cardLast4:    cardNumber ? cardNumber.replace(/\s/g, "").slice(-4) : undefined,
+            cardHolder:   cardHolder || undefined,
           },
         } : {}),
         ...(isTrial ? {

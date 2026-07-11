@@ -14,7 +14,9 @@ import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
 
-async function processAiJob(job) {
+// Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
+// Redis/BullMQ est indisponible.
+export async function processAiJob(job) {
   const { type, data = {} } = job.data;
 
   switch (type) {

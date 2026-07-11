@@ -7,18 +7,22 @@ import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
 
+// Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
+// Redis/BullMQ est indisponible.
+export async function processWhatsAppJob(job) {
+  const { to, template, components, text, language, userId, data } = job.data;
+  logger.debug("[WAWorker] Traitement", { template, to, jobId: job.id });
+
+  const { sendViaWhatsApp } = await import("../../services/communication/CommunicationService.js");
+  return sendViaWhatsApp({ to, template, components, text, language, userId, context: { jobId: job.id, data } });
+}
+
 export function startWhatsAppWorker(connection) {
   if (!connection) return null;
 
   const worker = new Worker(
     QUEUE_NAMES.WHATSAPP,
-    async (job) => {
-      const { to, template, components, text, language, userId, data } = job.data;
-      logger.debug("[WAWorker] Traitement", { template, to, jobId: job.id });
-
-      const { sendViaWhatsApp } = await import("../../services/communication/CommunicationService.js");
-      return sendViaWhatsApp({ to, template, components, text, language, userId, context: { jobId: job.id, data } });
-    },
+    processWhatsAppJob,
     {
       connection,
       concurrency: WORKER_CONCURRENCY[QUEUE_NAMES.WHATSAPP],

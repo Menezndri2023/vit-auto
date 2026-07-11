@@ -18,7 +18,9 @@ import logger from "../../utils/logger.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
 
 // ── Dispatche vers le bon template selon le type de job ──────────────────────
-async function processEmail(job) {
+// Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
+// Redis/BullMQ est indisponible.
+export async function processEmail(job) {
   const { type, to, userId, data = {}, subject, html } = job.data;
 
   const { sendViaEmail } = await import("../../services/communication/CommunicationService.js");

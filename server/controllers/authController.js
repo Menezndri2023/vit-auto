@@ -37,6 +37,14 @@ function signRefreshToken(user) {
   );
 }
 
+// Les refresh tokens ne sont jamais stockés en clair en base (compromission DB
+// = vol direct de sessions actives sinon) : on ne persiste que leur hash SHA-256.
+// Le token étant déjà un secret haute-entropie (JWT signé), un hash simple suffit
+// (pas besoin de bcrypt/salt comme pour un mot de passe humain).
+function hashRefreshToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
 function safeUser(u) {
   return {
     id:               u._id,
@@ -238,7 +246,7 @@ export const login = async (req, res) => {
 
     // Générer refresh token et l'enregistrer (max 5 devices)
     const refreshToken = signRefreshToken(user);
-    user.refreshTokens = [...(user.refreshTokens || []).slice(-4), refreshToken];
+    user.refreshTokens = [...(user.refreshTokens || []).slice(-4), hashRefreshToken(refreshToken)];
     await user.save();
 
     const token = signJWT(user);
@@ -554,15 +562,16 @@ export const refreshToken = async (req, res) => {
     if (!user || !user.isActive) {
       return res.status(401).json({ message: "Utilisateur invalide." });
     }
-    if (!user.refreshTokens || !user.refreshTokens.includes(token)) {
+    const tokenHash = hashRefreshToken(token);
+    if (!user.refreshTokens || !user.refreshTokens.includes(tokenHash)) {
       return res.status(401).json({ message: "Refresh token révoqué ou invalide." });
     }
 
     // Rotation : remplacer l'ancien refresh token par un nouveau
     const newRefreshToken = signRefreshToken(user);
     user.refreshTokens = user.refreshTokens
-      .filter((t) => t !== token)
-      .concat(newRefreshToken)
+      .filter((t) => t !== tokenHash)
+      .concat(hashRefreshToken(newRefreshToken))
       .slice(-5);  // max 5 devices
     await user.save();
 
@@ -584,7 +593,7 @@ export const revokeRefreshToken = async (req, res) => {
   try {
     const decoded = jwt.verify(token, REFRESH_SECRET());
     await User.findByIdAndUpdate(decoded.id, {
-      $pull: { refreshTokens: token },
+      $pull: { refreshTokens: hashRefreshToken(token) },
     });
     res.json({ message: "Token révoqué avec succès." });
   } catch {
@@ -735,7 +744,7 @@ export const verify2FA = async (req, res) => {
 
     user.lastLogin = new Date();
     const refreshToken = signRefreshToken(user);
-    user.refreshTokens = [...(user.refreshTokens || []).slice(-4), refreshToken];
+    user.refreshTokens = [...(user.refreshTokens || []).slice(-4), hashRefreshToken(refreshToken)];
     await user.save();
 
     res.json({

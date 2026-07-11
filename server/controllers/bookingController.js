@@ -332,7 +332,9 @@ export const createBooking = async (req, res) => {
           method:  payMethod,
           status:  "pending",
           paymentDetails: {
-            cardLast4:    paymentData.cardNumber?.slice(-4) || null,
+            // Le client ne transmet que les 4 derniers chiffres (troncature faite
+            // dans le navigateur) — voir Booking.jsx.
+            cardLast4:    paymentData.cardLast4?.slice(-4) || null,
             cardHolder:   paymentData.cardHolder || null,
             mobileNumber: paymentData.mobileNumber
               ? paymentData.mobileNumber.replace(/\d(?=\d{2})/g, "*") // masquer sauf 2 derniers chiffres

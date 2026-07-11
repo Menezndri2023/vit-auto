@@ -5,25 +5,10 @@ import Vehicle from "../models/Vehicle.js";
 import Driver from "../models/Driver.js";
 import Notification from "../models/Notification.js";
 import { sendEmail, identityRejectedTemplate } from "../config/email.js";
+import { logAction } from "../middleware/auditLog.js";
+import { validateImageDataUri } from "../utils/imageValidation.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-// ── Validation des images fournies en base64 (data URI) ──────────────────────
-// N'accepte que des images raster classiques (jamais de SVG, scriptable — risque XSS
-// si un jour affiché autrement qu'en <img>/background-image) et plafonne la taille
-// réellement décodée — aucun champ image (profilePhoto, pièce d'identité) n'avait de
-// limite serveur avant ceci, seulement des vérifications côté client contournables.
-const IMAGE_DATA_URI_RE = /^data:image\/(png|jpe?g|webp|gif);base64,([A-Za-z0-9+/=]+)$/i;
-function validateImageDataUri(value, maxBytes) {
-  if (!value) return { ok: true }; // champ optionnel, rien à valider
-  const match = IMAGE_DATA_URI_RE.exec(value);
-  if (!match) return { ok: false, message: "Format d'image invalide (PNG/JPEG/WEBP/GIF uniquement)." };
-  const approxBytes = (match[2].length * 3) / 4;
-  if (approxBytes > maxBytes) {
-    return { ok: false, message: `Image trop volumineuse (max ${Math.round(maxBytes / (1024 * 1024))} Mo).` };
-  }
-  return { ok: true };
-}
 
 // ── Liste de tous les utilisateurs (admin) ────────────────────────────────
 export const getUsers = async (req, res) => {
@@ -99,8 +84,14 @@ export const updateUserRole = async (req, res) => {
     if (!["client", "partenaire", "admin"].includes(role)) {
       return res.status(400).json({ message: "Rôle invalide." });
     }
+    const previousRole = await User.findById(req.params.id).select("role").lean();
     const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true }).select("-password");
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
+    // Journal d'audit global (changement de rôle — action sensible)
+    await logAction(req, "user.role_change", "User", req.params.id, {
+      before: { role: previousRole?.role ?? null },
+      after:  { role },
+    });
     res.json({ user });
   } catch (err) {
     logger.error("updateUserRole:", err);
@@ -113,8 +104,14 @@ export const toggleUserActive = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
+    const wasActive = user.isActive;
     user.isActive = !user.isActive;
     await user.save();
+    // Journal d'audit global (activation/désactivation de compte — action sensible)
+    await logAction(req, user.isActive ? "user.activate" : "user.deactivate", "User", req.params.id, {
+      before: { isActive: wasActive },
+      after:  { isActive: user.isActive },
+    });
     res.json({ user: { id: user._id, isActive: user.isActive } });
   } catch (err) {
     logger.error("toggleUserActive:", err);
@@ -129,6 +126,10 @@ export const deleteUser = async (req, res) => {
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
     if (user.role === "admin") return res.status(403).json({ message: "Impossible de supprimer un admin." });
     await User.findByIdAndDelete(req.params.id);
+    // Journal d'audit global (suppression de compte — action sensible et irréversible)
+    await logAction(req, "user.delete", "User", req.params.id, {
+      before: { email: user.email, role: user.role },
+    });
     res.json({ message: "Utilisateur supprimé." });
   } catch (err) {
     logger.error("deleteUser:", err);
@@ -312,6 +313,7 @@ export const adminVerifyIdentity = async (req, res) => {
       return res.status(400).json({ message: "Aucune pièce soumise pour cet utilisateur." });
     }
 
+    const previousStatus = user.identity.status;
     user.identity.status = status;
     if (status === "verified") {
       user.identity.verifiedAt  = new Date();
@@ -321,6 +323,12 @@ export const adminVerifyIdentity = async (req, res) => {
       user.documentsVerified        = false;
     }
     await user.save();
+
+    // Journal d'audit global (décision de vérification d'identité — action sensible)
+    await logAction(req, `identity.${status}`, "User", req.params.id, {
+      before: { identityStatus: previousStatus },
+      after:  { identityStatus: status, rejectionReason: status === "rejected" ? (rejectionReason || null) : null },
+    });
 
     // Notifier l'utilisateur
     await Notification.create({

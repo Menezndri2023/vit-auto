@@ -68,36 +68,12 @@ jobs:
         run: find controllers -name "*.js" -exec node --check {} \;
 
       - name: Security audit
-        run: npm audit --audit-level=high || true
+        run: npm audit --audit-level=high
 
-  # ── Deploy to Railway (main branch only) ─────────────────────────────────────
-  deploy:
-    name: Deploy — Railway
-    needs: [frontend, backend]
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download frontend build
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-dist
-          path: dist/
-
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-
-      - name: Deploy backend to Railway
-        run: railway up --service backend
-        working-directory: server
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        continue-on-error: true
-
-      - name: Notify deployment
-        if: success()
-        run: |
-          echo "✅ Déploiement VIT AUTO réussi — $(date)"
-          echo "Branch: ${{ github.ref_name }}"
-          echo "Commit: ${{ github.sha }}"
+  # Le déploiement backend est géré nativement par Railway (auto-deploy connecté au
+  # repo GitHub sur push vers main, configuré le 2026-07-11 — voir Settings → Source
+  # du service "ideal-learning" sur le dashboard Railway). L'ancien job CI ici ciblait
+  # un service "backend" inexistant (le vrai nom est "ideal-learning") et masquait son
+  # propre échec via `continue-on-error: true` — un second chemin de déploiement, en
+  # plus d'être cassé, aurait aussi risqué de créer des déploiements concurrents à
+  # chaque push.

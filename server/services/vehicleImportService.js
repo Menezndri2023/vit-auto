@@ -1,6 +1,8 @@
 import ExcelJS from "exceljs";
 import dns from "node:dns/promises";
 import net from "node:net";
+import http from "node:http";
+import https from "node:https";
 import { parse as parseCsvSync } from "csv-parse/sync";
 import logger from "../utils/logger.js";
 import Vehicle from "../models/Vehicle.js";
@@ -204,8 +206,8 @@ const isPrivateOrReservedIp = (ip) => {
 };
 
 // Ne fetch que des URLs http/https dont le nom d'hôte résout vers une IP publique.
-// Note : vérification faite au moment du fetch (pas de pinning de l'IP résolue),
-// donc une protection complète contre le DNS rebinding nécessiterait une lib dédiée.
+// Sert de filtre rapide avant d'entrer dans la boucle de redirections — la validation
+// qui compte réellement (et qui est "pinée") est celle faite dans fetchPinned() ci-dessous.
 const isFetchableUrl = async (url) => {
   let u;
   try { u = new URL(url); } catch { return false; }
@@ -222,8 +224,73 @@ const isFetchableUrl = async (url) => {
   }
 };
 
-// Suit les redirections manuellement en revalidant chaque URL intermédiaire via
-// isFetchableUrl — fetch() en mode "follow" suivrait un 3xx vers une IP privée
+// Résout le DNS une seule fois, valide l'IP obtenue, puis se connecte DIRECTEMENT à
+// cette IP (le Host HTTP et le SNI/servername restent sur le nom d'hôte réel, pour le
+// virtual hosting et la validation normale du certificat TLS).
+//
+// Corrige le TOCTOU DNS-rebinding : avec fetch() natif, la vérification DNS/IP et la
+// requête HTTP réelle font chacune leur propre résolution — un attaquant contrôlant le
+// serveur DNS de l'hôte peut répondre avec une IP publique à la 1ère résolution (celle
+// vérifiée) puis avec une IP privée à la 2de (celle utilisée par fetch() en interne pour
+// se connecter). Ici il n'y a plus qu'une seule résolution, et la connexion TCP se fait
+// explicitement sur l'IP déjà validée — fetch()/le client HTTP ne peut plus re-résoudre.
+async function fetchPinned(url, timeoutMs) {
+  let u;
+  try { u = new URL(url); } catch { throw new Error("URL invalide."); }
+  if (u.protocol !== "http:" && u.protocol !== "https:") {
+    throw new Error("URL non autorisée (protocole non supporté).");
+  }
+
+  const hostname = u.hostname;
+  let ip;
+  try {
+    ip = net.isIP(hostname) ? hostname : (await dns.lookup(hostname)).address;
+  } catch {
+    throw new Error("URL non autorisée (IP privée/réservée ou hôte non résolvable).");
+  }
+  if (isPrivateOrReservedIp(ip)) {
+    throw new Error("URL non autorisée (IP privée/réservée ou hôte non résolvable).");
+  }
+
+  const isHttps = u.protocol === "https:";
+  const client = isHttps ? https : http;
+
+  return new Promise((resolve, reject) => {
+    const req = client.request({
+      hostname: ip,                                // connexion TCP pinée sur l'IP déjà validée
+      port: u.port ? Number(u.port) : (isHttps ? 443 : 80),
+      path: `${u.pathname}${u.search}`,
+      method: "GET",
+      headers: { Host: hostname },                  // Host HTTP correct malgré la connexion directe par IP
+      servername: isHttps ? hostname : undefined,   // SNI + validation du certificat sur le nom d'hôte réel
+    }, (res) => {
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => {
+        clearTimeout(timer);
+        const buf = Buffer.concat(chunks);
+        const status = res.statusCode || 0;
+        resolve({
+          ok: status >= 200 && status < 300,
+          status,
+          headers: { get: (name) => res.headers[String(name).toLowerCase()] ?? null },
+          text: async () => buf.toString("utf8"),
+          arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength),
+        });
+      });
+      res.on("error", (err) => { clearTimeout(timer); reject(err); });
+    });
+
+    // Délai d'attente strict (identique à l'ancien AbortController + setTimeout) —
+    // req.destroy(err) déclenche l'évènement "error" ci-dessous avec ce message.
+    const timer = setTimeout(() => req.destroy(new Error("Délai d'attente dépassé.")), timeoutMs);
+    req.on("error", (err) => { clearTimeout(timer); reject(err); });
+    req.end();
+  });
+}
+
+// Suit les redirections manuellement en revalidant/re-pinant chaque URL intermédiaire —
+// fetch() en mode "follow" suivrait un 3xx vers une IP privée (ou re-résolue entre-temps)
 // sans jamais repasser par la vérification DNS/IP (bypass du filtre SSRF ci-dessus).
 async function fetchWithTimeout(url, timeoutMs, maxRedirects = 5) {
   let currentUrl = url;
@@ -231,14 +298,7 @@ async function fetchWithTimeout(url, timeoutMs, maxRedirects = 5) {
     if (!(await isFetchableUrl(currentUrl))) {
       throw new Error("URL non autorisée (IP privée/réservée ou hôte non résolvable).");
     }
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    let res;
-    try {
-      res = await fetch(currentUrl, { signal: controller.signal, redirect: "manual" });
-    } finally {
-      clearTimeout(timer);
-    }
+    const res = await fetchPinned(currentUrl, timeoutMs);
     const location = res.headers.get("location");
     if (res.status >= 300 && res.status < 400 && location) {
       currentUrl = new URL(location, currentUrl).toString();

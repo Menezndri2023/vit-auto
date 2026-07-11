@@ -148,6 +148,7 @@ const userSchema = new mongoose.Schema({
   passwordResetToken:   { type: String, default: null },
   passwordResetExpires: { type: Date,   default: null },
 
+  // Hash SHA-256 des refresh tokens actifs (jamais la valeur en clair — voir authController.js hashRefreshToken)
   refreshTokens: { type: [String], default: [] },
 
   importerProfile: {
@@ -208,6 +209,30 @@ const userSchema = new mongoose.Schema({
 
 userSchema.index({ role: 1 });
 userSchema.index({ kycStatus: 1 });
+
+// ── Filtre de sérialisation ────────────────────────────────────────────────
+// Plusieurs routes n'excluaient que `-password` via `.select()` (pattern liste
+// noire, dispersé sur ~8 endroits) sans exclure `refreshTokens`, `twoFactor.secret`
+// (secret TOTP en clair), `phoneOtp`, `passwordResetToken`, `emailVerificationToken`
+// — confirmé en fuite réelle sur `PATCH /api/users/me`. Un transform au niveau du
+// schéma protège TOUTES les routes d'un coup (y compris celles pas encore écrites),
+// plutôt que de compter sur chaque appelant pour se souvenir de la bonne liste.
+// Ne s'applique pas aux requêtes `.lean()` (objets bruts sans méthodes Mongoose) —
+// ces routes doivent continuer à exclure explicitement via `.select()`.
+const stripSensitive = (_doc, ret) => {
+  delete ret.password;
+  delete ret.refreshTokens;
+  delete ret.phoneOtp;
+  delete ret.passwordResetToken;
+  delete ret.emailVerificationToken;
+  if (ret.twoFactor) {
+    delete ret.twoFactor.secret;
+    delete ret.twoFactor.backupCodes;
+  }
+  return ret;
+};
+userSchema.set("toJSON",   { transform: stripSensitive });
+userSchema.set("toObject", { transform: stripSensitive });
 
 const User = mongoose.models.User || mongoose.model("User", userSchema);
 export default User;

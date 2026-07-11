@@ -3,6 +3,7 @@ import PartnerVerification, { CRITERIA_WEIGHTS } from "../models/PartnerVerifica
 import PartnerCertification from "../models/PartnerCertification.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
+import { logAction } from "../middleware/auditLog.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -220,6 +221,7 @@ export const adminUpdateStatus = async (req, res) => {
     const VALID_STATUSES = ["en_cours", "en_attente", "verifie", "suspendu", "rejete"];
     if (!VALID_STATUSES.includes(status)) return res.status(400).json({ message: "Statut invalide." });
 
+    const previous = await PartnerVerification.findOne({ userId: req.params.userId }).select("status").lean();
     const doc = await PartnerVerification.findOneAndUpdate(
       { userId: req.params.userId },
       { $set: { status, ...(adminNote !== undefined ? { adminNote } : {}) } },
@@ -228,6 +230,11 @@ export const adminUpdateStatus = async (req, res) => {
     if (!doc) return res.status(404).json({ message: "Dossier introuvable." });
 
     await addAudit(doc._id, "STATUT_CHANGE", null, req.user.id, `Statut → ${status}`);
+    // Journal d'audit global (décision de vérification partenaire — action sensible)
+    await logAction(req, "partner.verification_status_change", "PartnerVerification", doc._id, {
+      before: { status: previous?.status ?? null },
+      after:  { status },
+    });
 
     const statusMessages = {
       verifie:   "Votre dossier partenaire a été vérifié et approuvé.",
@@ -250,6 +257,10 @@ export const adminDelete = async (req, res) => {
   try {
     const doc = await PartnerVerification.findOneAndDelete({ userId: req.params.userId });
     if (!doc) return res.status(404).json({ message: "Dossier introuvable." });
+    // Journal d'audit global (suppression de dossier partenaire — action sensible et irréversible)
+    await logAction(req, "partner.verification_delete", "PartnerVerification", doc._id, {
+      before: { userId: doc.userId, status: doc.status },
+    });
     res.json({ success: true, message: "Dossier supprimé." });
   } catch (err) {
     logger.error("partnerVerif adminDelete:", err);

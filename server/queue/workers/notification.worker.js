@@ -10,29 +10,33 @@ import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
 
+// Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
+// Redis/BullMQ est indisponible.
+export async function processNotificationJob(job) {
+  const { channel = "internal", ...payload } = job.data;
+  logger.debug("[NotifWorker] Traitement", { channel, jobId: job.id });
+
+  const comm = await import("../../services/communication/CommunicationService.js");
+
+  switch (channel) {
+    case "push":
+      return comm.sendViaPush(payload);
+
+    case "broadcast":
+      return comm.broadcast(payload);
+
+    case "internal":
+    default:
+      return comm.sendViaInternal(payload);
+  }
+}
+
 export function startNotificationWorker(connection) {
   if (!connection) return null;
 
   const worker = new Worker(
     QUEUE_NAMES.NOTIFICATION,
-    async (job) => {
-      const { channel = "internal", ...payload } = job.data;
-      logger.debug("[NotifWorker] Traitement", { channel, jobId: job.id });
-
-      const comm = await import("../../services/communication/CommunicationService.js");
-
-      switch (channel) {
-        case "push":
-          return comm.sendViaPush(payload);
-
-        case "broadcast":
-          return comm.broadcast(payload);
-
-        case "internal":
-        default:
-          return comm.sendViaInternal(payload);
-      }
-    },
+    processNotificationJob,
     {
       connection,
       concurrency: WORKER_CONCURRENCY[QUEUE_NAMES.NOTIFICATION],

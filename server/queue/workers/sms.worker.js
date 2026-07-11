@@ -9,25 +9,29 @@ import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
 
+// Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
+// Redis/BullMQ est indisponible.
+export async function processSmsJob(job) {
+  const { type, to, data = {}, message } = job.data;
+  logger.debug("[SmsWorker] Traitement", { type, to, jobId: job.id });
+
+  const { sendViaSms } = await import("../../services/communication/CommunicationService.js");
+  return sendViaSms({
+    to,
+    template: type,
+    data,
+    message,
+    userId: data.userId,
+    context: { jobId: job.id },
+  });
+}
+
 export function startSmsWorker(connection) {
   if (!connection) return null;
 
   const worker = new Worker(
     QUEUE_NAMES.SMS,
-    async (job) => {
-      const { type, to, data = {}, message } = job.data;
-      logger.debug("[SmsWorker] Traitement", { type, to, jobId: job.id });
-
-      const { sendViaSms } = await import("../../services/communication/CommunicationService.js");
-      return sendViaSms({
-        to,
-        template: type,
-        data,
-        message,
-        userId: data.userId,
-        context: { jobId: job.id },
-      });
-    },
+    processSmsJob,
     {
       connection,
       concurrency: WORKER_CONCURRENCY[QUEUE_NAMES.SMS],

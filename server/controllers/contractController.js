@@ -4,6 +4,7 @@ import Contract from "../models/Contract.js";
 import Booking from "../models/Booking.js";
 import Vehicle from "../models/Vehicle.js";
 import Driver from "../models/Driver.js";
+import { validateImageDataUri } from "../utils/imageValidation.js";
 
 // ── Créer un contrat depuis une réservation ───────────────────────────────
 export const createContract = async (req, res) => {
@@ -149,6 +150,12 @@ export const signContract = async (req, res) => {
     const { signature, clientEmail } = req.body; // base64 canvas image
 
     if (!signature) return res.status(400).json({ message: "Signature requise." });
+    // Une signature manuscrite (canvas) ne dépasse jamais quelques dizaines de Ko —
+    // 2 Mo est déjà large, et bloque tout payload énorme déguisé en "signature".
+    const signatureCheck = validateImageDataUri(signature, 2 * 1024 * 1024);
+    if (!signatureCheck.ok) {
+      return res.status(400).json({ message: `Signature invalide : ${signatureCheck.message}` });
+    }
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(404).json({ message: "Contrat introuvable." });
     }
