@@ -65,6 +65,15 @@ const smtpConfigured = () =>
 const isDevNoSmtp = () =>
   process.env.NODE_ENV !== "production" && !smtpConfigured();
 
+// true si un provider SMS réel (Africa's Talking ou Twilio) est configuré. Exiger la
+// vérification du téléphone n'a de sens QUE si un code peut réellement être envoyé —
+// sinon un utilisateur qui a renseigné (ou skip) son numéro reste bloqué à vie, sans
+// aucun moyen de recevoir le code (voir sendSmsOtp : "sent:false" en prod = piège).
+const smsConfigured = () =>
+  !!(process.env.AT_USERNAME && process.env.AT_API_KEY &&
+     process.env.AT_API_KEY !== "atsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx") ||
+  !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_FROM);
+
 // ── Sanitisation basique (strip HTML, trim) ───────────────────────────────
 const sanitize = (v) => (typeof v === "string" ? v.replace(/<[^>]*>/g, "").trim() : v);
 
@@ -203,8 +212,10 @@ export const login = async (req, res) => {
       user.emailVerificationExpires = null;
     }
 
-    // Bloquer si téléphone fourni mais non vérifié (sauf admin)
-    if (user.phone && !user.phoneVerified && user.role !== "admin" && process.env.NODE_ENV === "production") {
+    // Bloquer si téléphone fourni mais non vérifié (sauf admin) — uniquement si un
+    // provider SMS est réellement configuré (sinon personne ne pourrait jamais se
+    // débloquer, faute de pouvoir recevoir le code : voir smsConfigured() ci-dessus).
+    if (user.phone && !user.phoneVerified && user.role !== "admin" && smsConfigured()) {
       return res.status(403).json({
         code: "PHONE_NOT_VERIFIED",
         message: "Veuillez vérifier votre numéro de téléphone pour vous connecter.",
@@ -444,12 +455,21 @@ export const sendPhoneOtp = async (req, res) => {
     const smsResult = await sendSmsOtp(target, otp);
 
     const isDev = process.env.NODE_ENV !== "production";
+
+    // Ne JAMAIS répondre "code envoyé" si ce n'est pas vrai — l'utilisateur resterait
+    // sinon bloqué à attendre indéfiniment un SMS qui n'arrivera jamais, sans recours.
+    if (!smsResult.sent && !isDev) {
+      logger.error("sendPhoneOtp: aucun provider SMS fonctionnel en production", { phone: target });
+      return res.status(503).json({
+        message: "Le service d'envoi de SMS est momentanément indisponible. Contactez le support VIT AUTO (contact@vit-auto.com) pour vérifier votre compte.",
+        smsUnavailable: true,
+      });
+    }
+
     res.json({
       message:  smsResult.sent
         ? `✅ Code envoyé par SMS au ${target}. Vérifiez vos messages.`
-        : isDev
-          ? `[DEV] Aucun provider SMS configuré. Code visible dans le terminal serveur.`
-          : "Code de vérification envoyé par SMS.",
+        : `[DEV] Aucun provider SMS configuré. Code visible dans le terminal serveur.`,
       provider: smsResult.provider,
       // En dev : retourner le code en clair pour faciliter les tests
       devOtp:   isDev ? otp : undefined,
