@@ -398,12 +398,12 @@ export const dispatch = {
   },
 
   // ── Authentification ─────────────────────────────────────────────────────
-  async emailVerification(to, userId, verifyUrl) {
+  async emailVerification(to, userId, verifyUrl, firstName) {
     await enqueue(QUEUE_NAMES.EMAIL, "email_verification", {
       type:   "email_verification",
       to,
       userId,
-      data:   { verifyUrl },
+      data:   { verifyUrl, firstName },
     }, { priority: PRIORITY.HIGH });
   },
 

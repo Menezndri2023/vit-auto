@@ -166,7 +166,7 @@ export const register = async (req, res) => {
 
     // Production : envoyer l'email de vérification via queue
     const verifyUrl = `${APP_URL()}/verify-email?token=${token}`;
-    dispatch.emailVerification(user.email, user._id.toString(), verifyUrl).catch(() => {});
+    dispatch.emailVerification(user.email, user._id.toString(), verifyUrl, user.firstName).catch(() => {});
 
     res.status(201).json({
       user: safeUser(user),
@@ -301,7 +301,7 @@ export const resendVerification = async (req, res) => {
     await user.save();
 
     const verifyUrl = `${APP_URL()}/verify-email?token=${token}`;
-    await dispatch.emailVerification(user.email, user._id.toString(), verifyUrl).catch(() => {});
+    await dispatch.emailVerification(user.email, user._id.toString(), verifyUrl, user.firstName).catch(() => {});
 
     res.json({ message: "Nouveau lien envoyé ! Vérifiez votre boîte mail." });
   } catch (err) {

@@ -1,7 +1,7 @@
 import { baseEmail, BRAND } from "../shared/base.js";
 import { btn, heroSection, greeting, signature, infoBox } from "../shared/components.js";
 
-export function emailVerificationTemplate(firstName, verifyUrl, trackingPixel = "") {
+export function emailVerificationTemplate({ firstName, verifyUrl }, trackingPixel = "") {
   const body = `
     ${heroSection("Vérifiez votre adresse e-mail", "Une étape rapide pour activer votre compte", "✉️")}
     ${greeting(firstName)}
@@ -24,7 +24,7 @@ export function emailVerificationTemplate(firstName, verifyUrl, trackingPixel = 
   return baseEmail({ title: "Vérification e-mail", preheader: "Activez votre compte VIT AUTO en un clic", body });
 }
 
-export function passwordResetTemplate(firstName, resetUrl, trackingPixel = "") {
+export function passwordResetTemplate({ firstName, resetUrl }, trackingPixel = "") {
   const body = `
     ${heroSection("Réinitialisez votre mot de passe", "Vous avez demandé une réinitialisation", "🔒")}
     ${greeting(firstName)}
