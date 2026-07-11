@@ -148,14 +148,14 @@ app.use(helmet({
 // ── CORS restreint ────────────────────────────────────────────────────────
 app.use(cors({
   origin: (origin, callback) => {
-    // En production : bloquer toute requête sans origin
-    // En dev : autoriser Postman/curl (sans origin)
-    if (!origin) {
-      if (process.env.NODE_ENV === "production") {
-        return callback(new Error("Requêtes sans origin interdites en production."));
-      }
-      return callback(null, true);
-    }
+    // Aucune origine (healthchecks Railway, curl/Postman, apps mobiles, et — cas
+    // découvert en prod — certaines requêtes fetch() same-origin du navigateur qui
+    // n'envoient pas systématiquement d'en-tête Origin sur un simple GET) : on ne
+    // bloque pas, car l'en-tête Origin est de toute façon trivialement falsifiable
+    // et n'apporte donc aucune protection réelle contre un client malveillant — la
+    // vraie protection vient de l'authentification (JWT) ou du token applicatif de
+    // chaque route, pas de la présence d'un Origin.
+    if (!origin) return callback(null, true);
     if (isOriginAllowed(origin)) return callback(null, true);
     callback(new Error(`CORS bloqué : origine ${origin} non autorisée`));
   },
