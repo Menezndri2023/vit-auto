@@ -215,7 +215,7 @@ export const dispatch = {
       client?._id && enqueue(QUEUE_NAMES.NOTIFICATION, "booking_created_notif", {
         channel: "internal",
         userId:  client._id?.toString(),
-        type:    "booking",
+        type:    "new_booking",   // "booking" n'existe pas dans l'enum Notification.type — échec silencieux sinon
         titre:   "🚗 Réservation créée",
         message: `Votre réservation ${ref} a été enregistrée. En attente de confirmation du partenaire.`,
         lien:    `/bookings/${bId}`,
@@ -225,7 +225,7 @@ export const dispatch = {
       vehicle?.owner?._id && enqueue(QUEUE_NAMES.NOTIFICATION, "booking_partner_notif", {
         channel: "internal",
         userId:  vehicle.owner._id?.toString(),
-        type:    "booking",
+        type:    "new_booking",
         titre:   "📋 Nouvelle réservation",
         message: `Nouvelle réservation ${ref} — ${client?.firstName || "Client"} — À confirmer.`,
         lien:    `/partner/bookings`,
@@ -247,11 +247,16 @@ export const dispatch = {
     const bId = booking._id?.toString() || booking.id;
     const ref = booking.reference;
 
+    // `type` doit être une valeur existante de l'enum Notification.type — "booking"
+    // n'en fait pas partie (échouait silencieusement pour TOUS les changements de
+    // statut). booking_confirmed/completed/cancelled existent déjà spécifiquement ;
+    // in_progress n'a pas d'équivalent dédié, "system" est le fallback générique
+    // déjà utilisé ailleurs (ex: vehicleController) pour ce cas.
     const STATUS_MESSAGES = {
-      confirmed:    { titre: "✅ Réservation confirmée", message: `Votre réservation ${ref} est confirmée.` },
-      in_progress:  { titre: "🚗 Location en cours", message: `Votre réservation ${ref} est maintenant en cours.` },
-      completed:    { titre: "✅ Location terminée", message: `Votre réservation ${ref} est terminée. Merci !` },
-      cancelled:    { titre: "❌ Réservation annulée", message: `Votre réservation ${ref} a été annulée.` },
+      confirmed:    { type: "booking_confirmed", titre: "✅ Réservation confirmée", message: `Votre réservation ${ref} est confirmée.` },
+      in_progress:  { type: "system",            titre: "🚗 Location en cours", message: `Votre réservation ${ref} est maintenant en cours.` },
+      completed:    { type: "booking_completed", titre: "✅ Location terminée", message: `Votre réservation ${ref} est terminée. Merci !` },
+      cancelled:    { type: "booking_cancelled", titre: "❌ Réservation annulée", message: `Votre réservation ${ref} a été annulée.` },
     };
 
     const notif = STATUS_MESSAGES[newStatus];
@@ -259,7 +264,7 @@ export const dispatch = {
       await enqueue(QUEUE_NAMES.NOTIFICATION, `booking_${newStatus}`, {
         channel: "internal",
         userId:  client._id?.toString(),
-        type:    "booking",
+        type:    notif.type,
         titre:   notif.titre,
         message: notif.message,
         lien:    `/bookings/${bId}`,

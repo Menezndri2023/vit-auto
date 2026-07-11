@@ -29,9 +29,13 @@ export const getUsers = async (req, res) => {
     // Exclut les photos KYC en base64 (identity/driverLicenseOcr) de la LISTE — ces champs
     // peuvent peser plusieurs Mo par utilisateur et ne servent qu'à la vue détail d'un
     // utilisateur précis (getUser), jamais à un listing de jusqu'à 200 lignes.
+    // Exclusion explicite des champs sensibles ici : le transform toJSON du schéma
+    // User (voir models/User.js) ne s'applique qu'aux documents Mongoose, pas aux
+    // objets bruts retournés par .lean() — confirmé en simulation (refreshTokens
+    // fuitait sur cette route précise malgré le transform).
     const [users, total] = await Promise.all([
       User.find(filter)
-        .select("-password -identity.frontImage -identity.backImage -identity.selfie -driverLicenseOcr.frontImage -driverLicenseOcr.backImage")
+        .select("-password -identity.frontImage -identity.backImage -identity.selfie -driverLicenseOcr.frontImage -driverLicenseOcr.backImage -refreshTokens -twoFactor.secret -twoFactor.backupCodes -phoneOtp -passwordResetToken -emailVerificationToken")
         .sort({ createdAt: -1 })
         .skip((Math.max(Number(page), 1) - 1) * safeLimit)
         .limit(safeLimit)

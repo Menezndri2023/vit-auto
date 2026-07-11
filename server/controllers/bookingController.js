@@ -178,7 +178,10 @@ export const createBooking = async (req, res) => {
       if (!driverId) return res.status(400).json({ message: "driverId requis." });
       driver = await Driver.findById(driverId);
       if (!driver) return res.status(404).json({ message: "Chauffeur introuvable." });
-      montantBase = (driver.tarif || 0) * (chauffeur?.heures || 1);
+      // `tarif` est le tarif JOURNÉE (voir VendorSubmit.jsx), `tarifHeure` le tarif
+      // HORAIRE — utiliser le second pour une facturation à l'heure, sinon on
+      // surfacture massivement (ex: tarif journée × nombre d'heures).
+      montantBase = (driver.tarifHeure || driver.tarif || 0) * (chauffeur?.heures || 1);
       ownerId = driver.owner;
     }
 

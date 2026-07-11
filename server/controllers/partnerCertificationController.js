@@ -252,7 +252,7 @@ export const adminReviewLevel = async (req, res) => {
       user:    req.params.userId,
       titre:   decision === "approved" ? `✅ Certification niveau ${lvlNum} approuvée` : `❌ Certification niveau ${lvlNum} refusée`,
       message: notifMsg,
-      type:    "certification",
+      type:    "system", // "certification" n'existe pas dans l'enum Notification.type
       lu:      false,
     }).catch(() => {});
 
@@ -323,7 +323,7 @@ export const adminAssignBadge = async (req, res) => {
       user:    req.params.userId,
       titre:   `🏆 Badge VIT AUTO : ${badgeLabels[badge]}`,
       message: `Félicitations ! Vous avez obtenu le badge "${badgeLabels[badge]}" sur VIT AUTO. ${publicStatement || ""}`,
-      type:    "certification",
+      type:    "system", // "certification" n'existe pas dans l'enum Notification.type
       lu:      false,
     }).catch(() => {});
 

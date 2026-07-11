@@ -433,11 +433,14 @@ export const adminReviewKyc = async (req, res) => {
     });
 
     // ── Notification in-app ────────────────────────────────────────────────
+    // `type` doit être une valeur existante de l'enum Notification.type — "kyc"
+    // n'en fait pas partie et échouait silencieusement (avalé par le .catch ci-
+    // dessous) pour CHAQUE décision admin, quel que soit son résultat.
     const notifMap = {
-      VERIFIE:               { titre: "✅ Identité vérifiée",       message: "Votre dossier KYC a été approuvé. Vous pouvez effectuer des réservations en toute confiance." },
-      REFUSE:                { titre: "❌ Dossier KYC refusé",      message: `Votre dossier KYC a été refusé. Motif : ${note || "Documents insuffisants."}` },
-      A_REVOIR_MANUELLEMENT: { titre: "🔍 Dossier en révision",     message: "Votre dossier KYC est en cours d'examen approfondi par notre équipe. Vous serez notifié sous 48h." },
-      EN_ATTENTE:            { titre: "⏳ Dossier remis en attente", message: "Votre dossier KYC a été remis en file d'attente pour examen." },
+      VERIFIE:               { type: "kyc_approved", titre: "✅ Identité vérifiée",       message: "Votre dossier KYC a été approuvé. Vous pouvez effectuer des réservations en toute confiance." },
+      REFUSE:                { type: "kyc_rejected", titre: "❌ Dossier KYC refusé",      message: `Votre dossier KYC a été refusé. Motif : ${note || "Documents insuffisants."}` },
+      A_REVOIR_MANUELLEMENT: { type: "system",       titre: "🔍 Dossier en révision",     message: "Votre dossier KYC est en cours d'examen approfondi par notre équipe. Vous serez notifié sous 48h." },
+      EN_ATTENTE:            { type: "system",       titre: "⏳ Dossier remis en attente", message: "Votre dossier KYC a été remis en file d'attente pour examen." },
     };
     const notif = notifMap[decision];
     if (notif) {
@@ -445,7 +448,7 @@ export const adminReviewKyc = async (req, res) => {
         user:    user._id,
         titre:   notif.titre,
         message: notif.message,
-        type:    "kyc",
+        type:    notif.type,
         lu:      false,
       }).catch(() => {}); // non-bloquant
 

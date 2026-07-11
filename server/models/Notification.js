@@ -41,6 +41,15 @@ const notificationSchema = new mongoose.Schema({
       "ie_listing",
       "ie_step_update",
       "ie_escrow_released",
+      // Import/Export — cycle de vie transaction (ieTransactionController.js)
+      "ie_reservation",
+      "ie_offer",
+      "ie_inspection",
+      "ie_payment",
+      "ie_delivery",
+      "ie_dispute",
+      // Avis
+      "new_review",
       // Chat
       "new_message",
       // Drivers
