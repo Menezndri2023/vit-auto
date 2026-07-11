@@ -76,6 +76,13 @@ process.on("uncaughtException", (err) => {
 
 const app = express();
 
+// ── Healthcheck (avant tout middleware) ───────────────────────────────────
+// Doit répondre avant Helmet/CORS : les sondes Railway (et autres load balancers)
+// n'envoient pas de header Origin, or la vérif CORS rejette toute requête sans
+// origin en production — placé après ces middlewares, /api/ping échouait
+// systématiquement, empêchant tout déploiement de passer le healthcheck.
+app.get("/api/ping", (_req, res) => res.json({ status: "ok", timestamp: new Date() }));
+
 // ── Sentry request handler (doit être le PREMIER middleware) ─────────────
 app.use(sentryRequestHandler());
 app.use(sentryTracingHandler());
@@ -225,9 +232,6 @@ app.use((req, _res, next) => {
   }
   next();
 });
-
-// ── Healthcheck (sans rate limiting) ─────────────────────────────────────
-app.get("/api/ping", (_req, res) => res.json({ status: "ok", timestamp: new Date() }));
 
 // ── Health check détaillé (pour load balancers / monitoring) ─────────────
 app.get("/api/health", async (_req, res) => {
