@@ -227,9 +227,7 @@ const uploadLimiter = rateLimit({
 
 // ── Request logging middleware ────────────────────────────────────────────
 app.use((req, _res, next) => {
-  if (!req.path.startsWith("/api/ping")) {
-    logger.debug(`${req.method} ${req.path}`, { ip: req.ip });
-  }
+  logger.debug(`${req.method} ${req.path}`, { ip: req.ip });
   next();
 });
 
