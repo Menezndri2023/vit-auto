@@ -22,6 +22,7 @@ const Home                  = lazy(() => import("./pages/Home"));
 const Catalogue             = lazy(() => import("./pages/Catalogue"));
 const VehicleDetails        = lazy(() => import("./pages/VehicleDetails"));
 const Booking               = lazy(() => import("./pages/Booking"));
+const DriverBooking         = lazy(() => import("./pages/DriverBooking"));
 const BookingSuccess        = lazy(() => import("./pages/BookingSuccess"));
 const Dashboard             = lazy(() => import("./pages/Dashboard"));
 const Profile               = lazy(() => import("./pages/Profile"));
@@ -110,6 +111,9 @@ function AppRoutes() {
           <Route path="/booking/success"        element={<BookingSuccess />} />
           <Route path="/booking/:id"            element={
             <ErrorBoundary><Booking /></ErrorBoundary>
+          } />
+          <Route path="/driver-booking/:id"     element={
+            <ErrorBoundary><DriverBooking /></ErrorBoundary>
           } />
           <Route path="/checkout"               element={<Checkout />} />
 

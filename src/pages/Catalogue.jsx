@@ -92,6 +92,37 @@ function IECard({ l }) {
   );
 }
 
+/* ── Carte Chauffeur ── */
+function DriverCard({ d, fmt }) {
+  const tarifHeure = d.tarifHeure || d.tarif || 0;
+  return (
+    <div className={styles.ieCard}>
+      <div className={styles.ieCardImg}>
+        {d.profilePhoto
+          ? <img src={d.profilePhoto} alt={`${d.firstName} ${d.lastName}`} loading="lazy" width="320" height="200" />
+          : <div className={styles.ieCardImgFallback}>🧑‍✈️</div>
+        }
+      </div>
+      <div className={styles.ieCardBody}>
+        <strong className={styles.ieCardTitle}>{d.firstName} {d.lastName}</strong>
+        <span className={styles.ieCardMeta}>
+          {d.title || "Chauffeur professionnel"} · {d.experience || 0} ans d'expérience
+        </span>
+        <span className={styles.ieCardMeta}>
+          📍 {d.zone || d.ville || "—"}
+          {d.noteMoyenne > 0 && <> · ⭐ {d.noteMoyenne.toFixed(1)} ({d.nombreAvis || 0})</>}
+        </span>
+        <div className={styles.ieCardFooter}>
+          <div>
+            <div className={styles.ieCardPrice}>{fmt(tarifHeure)}/h</div>
+          </div>
+          <Link to={`/driver-booking/${d._id}`} className={styles.ieCardLink}>Réserver →</Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const types         = Object.keys(TYPE_ICONS);
 const etats         = ["Tous", "Neuf", "Occasion"];
 const fuels         = ["Tous", "Essence", "Diesel", "Hybride", "Électrique", "GPL"];
@@ -104,7 +135,7 @@ const SORT_OPTIONS  = [
 ];
 
 const Catalogue = () => {
-  const { vehicles, refreshVehicles } = useVehicles();
+  const { vehicles, drivers, refreshVehicles } = useVehicles();
   const { fmt } = useCurrency();
   const { success: toastSuccess } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -131,7 +162,8 @@ const Catalogue = () => {
   const [ieSource,    setIeSource]    = useState("");
   const [ieSortKey,   setIeSortKey]   = useState("newest");
 
-  const isImportMode = activeMode === "Import";
+  const isImportMode    = activeMode === "Import";
+  const isChauffeurMode = activeMode === "Chauffeur";
 
   const loadIEListings = useCallback(async () => {
     setIeLoading(true);
@@ -188,8 +220,21 @@ const Catalogue = () => {
     toastSuccess(isImportMode ? "Annonces Import/Export actualisées" : "Catalogue actualisé");
   };
 
+  const chauffeursFiltered = useMemo(() => {
+    if (!isChauffeurMode) return [];
+    const q = searchTerm.toLowerCase();
+    let list = drivers.filter((d) => !q
+      || `${d.firstName} ${d.lastName}`.toLowerCase().includes(q)
+      || (d.zone || d.ville || "").toLowerCase().includes(q)
+      || (d.title || "").toLowerCase().includes(q));
+    if (sortKey === "price_asc")  list = [...list].sort((a,b) => (a.tarifHeure||a.tarif||0) - (b.tarifHeure||b.tarif||0));
+    if (sortKey === "price_desc") list = [...list].sort((a,b) => (b.tarifHeure||b.tarif||0) - (a.tarifHeure||a.tarif||0));
+    if (sortKey === "newest")     list = [...list].sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
+    return list;
+  }, [drivers, isChauffeurMode, searchTerm, sortKey]);
+
   const filtered = useMemo(() => {
-    if (isImportMode) return [];
+    if (isImportMode || isChauffeurMode) return [];
     let list = vehicles.filter((v) => {
       const modeOk = activeMode === "Tout" || v.mode === activeMode;
       const typeOk = activeType === "Tous" || (v.vehicleType || v.type) === activeType;
@@ -212,9 +257,9 @@ const Catalogue = () => {
     if (sortKey === "price_desc") list = [...list].sort((a,b) => (b.pricePerDay||b.priceForSale||0) - (a.pricePerDay||a.priceForSale||0));
     if (sortKey === "newest")     list = [...list].sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
     return list;
-  }, [vehicles, activeMode, activeType, activeEtat, fuelType, transmission, maxPrice, searchTerm, sortKey, isImportMode]);
+  }, [vehicles, activeMode, activeType, activeEtat, fuelType, transmission, maxPrice, searchTerm, sortKey, isImportMode, isChauffeurMode]);
 
-  const activeChips = !isImportMode ? [
+  const activeChips = (!isImportMode && !isChauffeurMode) ? [
     activeMode !== "Tout"   && { label: activeMode,         clear: () => { setActiveMode("Tout"); setParam("mode",""); } },
     activeType !== "Tous"   && { label: activeType,         clear: () => { setActiveType("Tous"); setParam("type",""); } },
     activeEtat !== "Tous"   && { label: activeEtat,         clear: () => { setActiveEtat("Tous"); setParam("etat",""); } },
@@ -238,8 +283,8 @@ const Catalogue = () => {
 
           <div className={styles.headerRow}>
             <div>
-              <span className={styles.headerTag}>{isImportMode ? "🌍 VIT AUTO" : "🚗 VIT AUTO"}</span>
-              <h1 className={styles.headerTitle}>{isImportMode ? "Import / Export" : "Catalogue"}</h1>
+              <span className={styles.headerTag}>{isImportMode ? "🌍 VIT AUTO" : isChauffeurMode ? "🧑‍✈️ VIT AUTO" : "🚗 VIT AUTO"}</span>
+              <h1 className={styles.headerTitle}>{isImportMode ? "Import / Export" : isChauffeurMode ? "Chauffeurs" : "Catalogue"}</h1>
             </div>
             <button
               type="button"
@@ -278,7 +323,7 @@ const Catalogue = () => {
               type="search"
               value={isImportMode ? ieSearch : searchTerm}
               onChange={(e) => isImportMode ? setIeSearch(e.target.value) : setSearchTerm(e.target.value)}
-              placeholder={isImportMode ? "Marque, modèle, pays d'origine…" : "Marque, modèle, ville…"}
+              placeholder={isImportMode ? "Marque, modèle, pays d'origine…" : isChauffeurMode ? "Nom, zone…" : "Marque, modèle, ville…"}
               className={styles.searchInput}
             />
             {(isImportMode ? ieSearch : searchTerm) && (
@@ -287,8 +332,18 @@ const Catalogue = () => {
             )}
           </div>
 
-          {/* Pills type véhicule (mode standard) ou pays source (mode IE) */}
-          {!isImportMode ? (
+          {/* Pills type véhicule (mode standard) ou pays source (mode IE) — masquées en mode Chauffeur */}
+          {isImportMode ? (
+            <div className={styles.typePillsRow}>
+              {IE_SOURCE_ZONES.map((z) => (
+                <button key={z.key} type="button"
+                  className={`${styles.typePill} ${ieSource === z.key ? styles.typePillActive : ""}`}
+                  onClick={() => setIeSource(z.key)}>
+                  <span>{z.label}</span>
+                </button>
+              ))}
+            </div>
+          ) : !isChauffeurMode ? (
             <div className={styles.typePillsRow}>
               {types.map((t) => (
                 <button key={t} type="button"
@@ -299,17 +354,7 @@ const Catalogue = () => {
                 </button>
               ))}
             </div>
-          ) : (
-            <div className={styles.typePillsRow}>
-              {IE_SOURCE_ZONES.map((z) => (
-                <button key={z.key} type="button"
-                  className={`${styles.typePill} ${ieSource === z.key ? styles.typePillActive : ""}`}
-                  onClick={() => setIeSource(z.key)}>
-                  <span>{z.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          ) : null}
         </div>
 
         <div className={styles.headerWave}>
@@ -330,11 +375,13 @@ const Catalogue = () => {
             <span className={styles.resultCount}>
               {isImportMode
                 ? <><strong>{ieListings.length}</strong> annonce{ieListings.length !== 1 ? "s" : ""} internationale{ieListings.length !== 1 ? "s" : ""}</>
+                : isChauffeurMode
+                ? <><strong>{chauffeursFiltered.length}</strong> chauffeur{chauffeursFiltered.length !== 1 ? "s" : ""}</>
                 : <><strong>{filtered.length}</strong> véhicule{filtered.length !== 1 ? "s" : ""}</>
               }
             </span>
 
-            {!isImportMode && activeChips.map((chip, i) => (
+            {!isImportMode && !isChauffeurMode && activeChips.map((chip, i) => (
               <button key={i} type="button" className={styles.activeChip} onClick={chip.clear}>
                 {chip.label} <span>✕</span>
               </button>
@@ -346,27 +393,29 @@ const Catalogue = () => {
           </div>
 
           <div className={styles.resultsRight}>
-            {!isImportMode && (
+            {!isImportMode && !isChauffeurMode && (
               <button type="button" className={styles.filterToggleBtn} onClick={() => setFilterOpen(true)}>
                 ⚙️ Filtres
                 {activeChips.length > 0 && <span className={styles.filterBadge}>{activeChips.length}</span>}
               </button>
             )}
 
-            <select
-              className={styles.sortSelect}
-              value={isImportMode ? ieSortKey : sortKey}
-              onChange={(e) => isImportMode ? setIeSortKey(e.target.value) : setSortKey(e.target.value)}
-            >
-              {(isImportMode ? IE_SORT : SORT_OPTIONS).map(o => (
-                <option key={o.key} value={o.key}>{o.label}</option>
-              ))}
-            </select>
+            {!isChauffeurMode && (
+              <select
+                className={styles.sortSelect}
+                value={isImportMode ? ieSortKey : sortKey}
+                onChange={(e) => isImportMode ? setIeSortKey(e.target.value) : setSortKey(e.target.value)}
+              >
+                {(isImportMode ? IE_SORT : SORT_OPTIONS).map(o => (
+                  <option key={o.key} value={o.key}>{o.label}</option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 
         {/* Drawer mobile (mode standard uniquement) */}
-        {!isImportMode && filterOpen && (
+        {!isImportMode && !isChauffeurMode && filterOpen && (
           <>
             <div className={styles.overlay} onClick={() => setFilterOpen(false)} />
             <div className={styles.drawer}>
@@ -391,7 +440,7 @@ const Catalogue = () => {
         )}
 
         {/* ── MODE STANDARD ── */}
-        {!isImportMode && (
+        {!isImportMode && !isChauffeurMode && (
           <div className={styles.layout}>
             <aside className={styles.sidebar}>
               <div className={styles.sidebarInner}>
@@ -456,6 +505,26 @@ const Catalogue = () => {
                 filtered.map((car) => <VehicleCard key={car._id || car.id} car={car} />)
               )}
             </main>
+          </div>
+        )}
+
+        {/* ── MODE CHAUFFEUR ── */}
+        {isChauffeurMode && (
+          <div className={styles.ieSection}>
+            {chauffeursFiltered.length === 0 ? (
+              <div className={styles.ieEmpty}>
+                <span style={{ fontSize: "3rem" }}>🧑‍✈️</span>
+                <h3>{searchTerm ? "Aucun résultat pour cette recherche" : "Aucun chauffeur disponible"}</h3>
+                <p>{searchTerm ? "Essayez un autre terme." : "Nos partenaires proposeront bientôt des chauffeurs dans votre zone."}</p>
+                {searchTerm && (
+                  <button className={styles.ieEmptyBtn} onClick={() => setSearchTerm("")}>Effacer la recherche</button>
+                )}
+              </div>
+            ) : (
+              <div className={styles.ieGrid}>
+                {chauffeursFiltered.map((d) => <DriverCard key={d._id} d={d} fmt={fmt} />)}
+              </div>
+            )}
           </div>
         )}
 
