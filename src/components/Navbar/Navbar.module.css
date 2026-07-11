@@ -93,6 +93,7 @@
   padding: 5px 12px;
   background: linear-gradient(135deg, #f59e0b, #d97706);
   color: #fff;
+  border: none;
   border-radius: var(--r-full, 9999px);
   white-space: nowrap;
   box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35);
@@ -379,10 +380,14 @@
     display: flex;
   }
 
-  /* Cacher les badges encombrants */
+  /* Badge profil : seul accès au profil, on le garde visible mais compact */
   .badgePartner,
   .userBadge {
-    display: none;
+    padding: 5px 9px;
+    font-size: 0.76rem;
+    max-width: 32vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   /* Réduire les boutons */
@@ -390,6 +395,9 @@
     padding: 8px 12px;
     font-size: 0.82rem;
   }
+
+  /* Sur très petits écrans, masquer le texte de déconnexion pour laisser
+     la place au badge profil (seul accès restant au profil) */
 
   /* Afficher items mobiles */
   .mobileOnly {

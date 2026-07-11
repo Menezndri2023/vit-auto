@@ -1052,7 +1052,14 @@ export default function AdminPanel() {
             {activeLabel}
           </span>
           <div className={styles.topbarRight}>
-            <span className={styles.adminBadge}>🔐 {user.firstName} · Admin</span>
+            <button
+              className={styles.adminBadge}
+              onClick={() => navigate("/profile")}
+              title="Modifier mon profil / mot de passe"
+              style={{ border: "none", cursor: "pointer", fontFamily: "inherit" }}
+            >
+              🔐 {user.firstName} · Admin
+            </button>
 
             {/* Bouton "Voir le site" — retour au site public */}
             <button

@@ -124,7 +124,7 @@ export default function PartnerShowroomPublic() {
 
         {/* Badges sur la bannière */}
         <div style={{ position:"absolute", top:16, right:16, display:"flex", gap:8 }}>
-          {showroom.partnerInfo?.subscription?.isFounder && (
+          {showroom.partnerInfo?.isFounder && (
             <span style={{ background:"linear-gradient(135deg,#d97706,#f59e0b)", color:"#fff", padding:"5px 12px", borderRadius:999, fontSize:".75rem", fontWeight:800 }}>
               👑 FOUNDING PARTNER
             </span>

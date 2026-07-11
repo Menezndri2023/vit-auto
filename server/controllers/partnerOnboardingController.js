@@ -1,5 +1,6 @@
 import logger from "../utils/logger.js";
 import crypto from "crypto";
+import mongoose from "mongoose";
 import PartnerOnboarding from "../models/PartnerOnboarding.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
@@ -67,25 +68,42 @@ const SECTION_KEYS = {
 // ════════════════════════════════════════════════════════════════════════════════
 
 // ── GET /api/partner-onboarding/my ───────────────────────────────────────────
-// Accessible à tout compte connecté (pas seulement "partenaire"/"admin") — un client
-// existant qui candidate au programme Founding Partner doit pouvoir le faire sans
-// devoir d'abord changer de rôle manuellement ; candidater LE rend partenaire.
+// Lecture seule : ne crée plus rien. Un simple GET (déclenché par une navigation,
+// un retour arrière, un bot, un pré-chargement de lien) ne doit jamais avoir d'effet
+// de bord — la création du dossier (et la promotion de rôle qui va avec) exige
+// désormais un clic explicite sur "Commencer ma candidature" (voir applyToProgram).
 export const getMyOnboarding = async (req, res) => {
   try {
-    let doc = await PartnerOnboarding.findOne({ userId: req.user.id });
-    if (!doc) {
-      const check = await checkFoundingCapacity();
-      if (!check.ok) {
-        return res.status(403).json({ message: check.message, programFull: true });
-      }
-      if (!["partenaire", "admin"].includes(req.user.role)) {
-        await User.findByIdAndUpdate(req.user.id, { role: "partenaire" });
-      }
-      doc = await PartnerOnboarding.create({ userId: req.user.id });
-    }
+    const doc = await PartnerOnboarding.findOne({ userId: req.user.id });
+    if (!doc) return res.status(404).json({ message: "Aucun dossier existant.", notStarted: true });
     res.json({ onboarding: doc.toObject({ virtuals: true }) });
   } catch (err) {
     logger.error("getMyOnboarding:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── POST /api/partner-onboarding/apply ───────────────────────────────────────
+// Action explicite (bouton "Commencer ma candidature") : crée le dossier et, si besoin,
+// promeut le compte au rôle "partenaire". C'est la SEULE façon de créer un dossier —
+// contrairement à l'ancien comportement où un simple GET le faisait déjà.
+export const applyToProgram = async (req, res) => {
+  try {
+    const existing = await PartnerOnboarding.findOne({ userId: req.user.id });
+    if (existing) return res.json({ onboarding: existing.toObject({ virtuals: true }) });
+
+    const check = await checkFoundingCapacity();
+    if (!check.ok) {
+      return res.status(403).json({ message: check.message, programFull: true });
+    }
+    if (!["partenaire", "admin"].includes(req.user.role)) {
+      await User.findByIdAndUpdate(req.user.id, { role: "partenaire" });
+      await notify(req.user.id, "🤝 Compte partenaire activé", "Votre compte est maintenant un compte partenaire suite à votre candidature au programme Founding Partner.");
+    }
+    const doc = await PartnerOnboarding.create({ userId: req.user.id });
+    res.status(201).json({ onboarding: doc.toObject({ virtuals: true }) });
+  } catch (err) {
+    logger.error("applyToProgram:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -94,8 +112,13 @@ export const getMyOnboarding = async (req, res) => {
 // Permet d'afficher "programme complet" avant même l'inscription, plutôt que de
 // laisser un candidat remplir tout le dossier pour se le voir refuser à la fin.
 export const getAvailability = async (req, res) => {
-  const check = await checkFoundingCapacity();
-  res.json({ available: check.ok, message: check.ok ? null : check.message });
+  try {
+    const check = await checkFoundingCapacity();
+    res.json({ available: check.ok, message: check.ok ? null : check.message });
+  } catch (err) {
+    logger.error("getAvailability:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
 };
 
 // ── PATCH /api/partner-onboarding/section/:sectionName ──────────────────────
@@ -209,20 +232,34 @@ export const submitApplication = async (req, res) => {
       return res.status(400).json({ message: "Vous devez accepter la Letter of Intent, le Founding Partner Agreement et la Verification Policy avant de soumettre." });
     }
 
-    // Vérifier la limite du programme (20 partenaires fondateurs max)
-    const activeCount = await PartnerOnboarding.countDocuments({
-      status: { $in: ACTIVE_FOUNDING_STATUSES },
-      _id: { $ne: doc._id },
-    });
-    if (activeCount >= FOUNDING_LIMIT) {
-      return res.status(400).json({
-        message: `Le programme Founding Partner est complet (${FOUNDING_LIMIT}/${FOUNDING_LIMIT} partenaires). Contactez-nous à contact@vit-auto.com pour rejoindre la liste d'attente.`,
-        programFull: true,
+    // Vérifier la limite du programme (20 partenaires fondateurs max) et faire la
+    // transition de statut dans la MÊME transaction — sinon deux soumissions
+    // concurrentes pourraient toutes les deux lire un compte sous la limite avant
+    // qu'aucune n'ait écrit son nouveau statut, dépassant les 20 places autorisées.
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const activeCount = await PartnerOnboarding.countDocuments({
+          status: { $in: ACTIVE_FOUNDING_STATUSES },
+          _id: { $ne: doc._id },
+        }).session(session);
+        if (activeCount >= FOUNDING_LIMIT) {
+          throw Object.assign(new Error("PROGRAM_FULL"), { programFull: true });
+        }
+        doc.status = "soumis";
+        await doc.save({ session });
       });
+    } catch (txErr) {
+      if (txErr.programFull) {
+        return res.status(400).json({
+          message: `Le programme Founding Partner est complet (${FOUNDING_LIMIT}/${FOUNDING_LIMIT} partenaires). Contactez-nous à contact@vit-auto.com pour rejoindre la liste d'attente.`,
+          programFull: true,
+        });
+      }
+      throw txErr;
+    } finally {
+      await session.endSession();
     }
-
-    doc.status = "soumis";
-    await doc.save();
     await addAudit(doc._id, "DOSSIER_SOUMIS", req.user.id, "Candidature soumise par le partenaire");
 
     const admins = await User.find({ role: "admin" }).select("_id").lean();
@@ -307,6 +344,7 @@ export const signAgreement = async (req, res) => {
     doc.agreement.signingTokenExpires = null;
     doc.commissions.lockedAt = now;
     doc.status = "accord_signe";
+    doc.isFoundingPartner = true;
     await doc.save();
 
     // Activer le partenaire comme Founding Partner
@@ -766,6 +804,7 @@ export const signByToken = async (req, res) => {
       doc.agreement.signingTokenExpires = null;
       doc.commissions.lockedAt          = now;
       doc.status = "accord_signe";
+      doc.isFoundingPartner = true;
       await doc.save();
 
       await User.findByIdAndUpdate(doc.userId, {

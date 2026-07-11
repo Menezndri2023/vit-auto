@@ -4,6 +4,7 @@ import { authenticate as protect, authorizeAdmin } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 import {
   getMyOnboarding,
+  applyToProgram,
   updateSection,
   updatePartnerType,
   acceptLegalDocuments,
@@ -56,10 +57,10 @@ router.post ("/sign-by-token/:token",         signByToken);
 router.get  ("/availability",                 getAvailability);
 
 // ── Routes partenaire (self-service) ─────────────────────────────────────────
-// GET /my est accessible à TOUT compte connecté (pas seulement "partenaire"/"admin") :
-// candidater au programme Founding Partner promeut automatiquement le compte au rôle
-// "partenaire" (voir getMyOnboarding) — sinon un client existant resterait bloqué.
+// GET /my est en lecture seule (404 si aucun dossier) — la création (et la promotion
+// de rôle qui va avec) exige l'action explicite POST /apply, jamais un simple GET.
 router.get  ("/my",                           protect, getMyOnboarding);
+router.post ("/apply",                        protect, applyToProgram);
 router.get  ("/my/loi/pdf",                   isPartner, downloadLOIPDF);
 router.get  ("/my/agreement/pdf",             isPartner, downloadAgreementPDF);
 router.patch("/partner-type",                 isPartner, updatePartnerType);

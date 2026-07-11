@@ -54,7 +54,10 @@ const partnerOnboardingSchema = new mongoose.Schema({
     default: "concessionnaire",
   },
 
-  isFoundingPartner: { type: Boolean, default: true },
+  // Vrai uniquement une fois l'Accord signé (voir signAgreement) — pas dès la création
+  // du dossier, sinon le badge "🌟 FP" affiché dans l'admin (AdminPanel.jsx) apparaît
+  // même sur des brouillons jamais soumis ni examinés.
+  isFoundingPartner: { type: Boolean, default: false },
 
   // ── Acceptation électronique des documents légaux (LOI, Agreement, Verification Policy) ──
   legalAcceptance: {

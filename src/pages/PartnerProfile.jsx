@@ -69,11 +69,8 @@ export default function PartnerProfile() {
           ) : (
             <span className={styles.avatarIcon}>🤝</span>
           )}
-          {partner?.subscription?.isFounder && (
+          {partner?.isFounder && (
             <span className={styles.founderBadge}>🏆 Fondateur</span>
-          )}
-          {partner?.subscription?.pack === "premium" && (
-            <span className={styles.certBadge}>✓ Certifié</span>
           )}
         </div>
 

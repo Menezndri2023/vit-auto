@@ -8,6 +8,23 @@ import { sendEmail, identityRejectedTemplate } from "../config/email.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+// ── Validation des images fournies en base64 (data URI) ──────────────────────
+// N'accepte que des images raster classiques (jamais de SVG, scriptable — risque XSS
+// si un jour affiché autrement qu'en <img>/background-image) et plafonne la taille
+// réellement décodée — aucun champ image (profilePhoto, pièce d'identité) n'avait de
+// limite serveur avant ceci, seulement des vérifications côté client contournables.
+const IMAGE_DATA_URI_RE = /^data:image\/(png|jpe?g|webp|gif);base64,([A-Za-z0-9+/=]+)$/i;
+function validateImageDataUri(value, maxBytes) {
+  if (!value) return { ok: true }; // champ optionnel, rien à valider
+  const match = IMAGE_DATA_URI_RE.exec(value);
+  if (!match) return { ok: false, message: "Format d'image invalide (PNG/JPEG/WEBP/GIF uniquement)." };
+  const approxBytes = (match[2].length * 3) / 4;
+  if (approxBytes > maxBytes) {
+    return { ok: false, message: `Image trop volumineuse (max ${Math.round(maxBytes / (1024 * 1024))} Mo).` };
+  }
+  return { ok: true };
+}
+
 // ── Liste de tous les utilisateurs (admin) ────────────────────────────────
 export const getUsers = async (req, res) => {
   try {
@@ -40,6 +57,25 @@ export const getUsers = async (req, res) => {
     res.json({ users, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {
     logger.error("getUsers:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Profil partenaire public (aucune authentification requise) ────────────
+// Champ whitelist strict : jamais l'email, le téléphone n'est volontairement affiché
+// que côté frontend s'il existe (contact commercial), jamais de données KYC brutes.
+export const getPublicProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id)
+      .select("firstName lastName phone profilePhoto business partnerType defaultLocation isFounder certificationBadge role isActive")
+      .lean();
+    if (!user || !user.isActive || !["partenaire", "admin"].includes(user.role)) {
+      return res.status(404).json({ message: "Partenaire introuvable." });
+    }
+    const { isActive: _isActive, role: _role, ...publicFields } = user;
+    res.json(publicFields);
+  } catch (err) {
+    logger.error("getPublicProfile:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -224,6 +260,11 @@ export const submitIdentity = async (req, res) => {
       return res.status(400).json({ message: "Numéro de pièce trop court." });
     }
 
+    for (const [label, img] of [["recto", frontImage], ["verso", backImage], ["selfie", selfie]]) {
+      const check = validateImageDataUri(img, 6 * 1024 * 1024);
+      if (!check.ok) return res.status(400).json({ message: `Photo (${label}) : ${check.message}` });
+    }
+
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
 
@@ -333,6 +374,12 @@ export const updateMyProfile = async (req, res) => {
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
     }
+
+    if (updates.profilePhoto) {
+      const check = validateImageDataUri(updates.profilePhoto, 4 * 1024 * 1024);
+      if (!check.ok) return res.status(400).json({ message: check.message });
+    }
+
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { $set: updates },

@@ -106,6 +106,10 @@ export default function PartnerOnboardingPortal() {
   // Message "programme complet" — renvoyé par le backend quand un compte connecté sans
   // dossier existant tente d'en créer un alors que les 20 places sont déjà prises.
   const [onboardingError, setOnboardingError] = useState(null);
+  // true si le compte connecté n'a pas encore de dossier — GET /my est en lecture seule
+  // (aucune création automatique) ; il faut un clic explicite sur "Commencer ma candidature".
+  const [notStarted, setNotStarted] = useState(false);
+  const [applying, setApplying] = useState(false);
   // Disponibilité vérifiée AVANT de proposer l'inscription aux visiteurs non connectés
   // (évite de laisser quelqu'un remplir tout le wizard pour se le voir refuser à la fin).
   const [availability, setAvailability] = useState(null);
@@ -114,6 +118,7 @@ export default function PartnerOnboardingPortal() {
     if (!token) return;
     setLoading(true);
     setOnboardingError(null);
+    setNotStarted(false);
     try {
       const r = await apiFetch("/my", token);
       if (r.ok) {
@@ -124,7 +129,8 @@ export default function PartnerOnboardingPortal() {
         if (s) setActiveStep(Math.max(0, s.step));
       } else {
         const data = await r.json().catch(() => ({}));
-        setOnboardingError(data.message || "Impossible de charger votre dossier. Réessayez ou contactez contact@vit-auto.com.");
+        if (data.notStarted) setNotStarted(true);
+        else setOnboardingError(data.message || "Impossible de charger votre dossier. Réessayez ou contactez contact@vit-auto.com.");
       }
     } catch (err) {
       console.error(err);
@@ -135,6 +141,29 @@ export default function PartnerOnboardingPortal() {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Action explicite : crée le dossier (et promeut le rôle si besoin) — jamais déclenché
+  // par un simple chargement de page.
+  const applyToProgram = async () => {
+    setApplying(true);
+    try {
+      const r = await apiFetch("/apply", token, { method: "POST" });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok) {
+        setOnboarding(data.onboarding);
+        setNotStarted(false);
+        addToast("Candidature démarrée — complétez votre dossier ci-dessous.", "success");
+      } else if (data.programFull) {
+        setOnboardingError(data.message);
+      } else {
+        addToast(data.message || "Erreur lors du démarrage de la candidature.", "error");
+      }
+    } catch {
+      addToast("Erreur réseau.", "error");
+    } finally {
+      setApplying(false);
+    }
+  };
 
   // Visiteur non connecté : vérifier qu'il reste des places avant de proposer l'inscription
   useEffect(() => {
@@ -246,6 +275,11 @@ export default function PartnerOnboardingPortal() {
 
   // Connecté mais sans dossier existant, et programme déjà complet
   if (onboardingError) return <OnboardingErrorScreen message={onboardingError} />;
+
+  // Connecté sans dossier existant : ne rien créer tant que l'utilisateur n'a pas
+  // cliqué explicitement — visiter cette page ne doit jamais, à elle seule, créer un
+  // dossier ni changer le rôle du compte.
+  if (notStarted) return <StartApplicationScreen onStart={applyToProgram} starting={applying} />;
 
   const status = onboarding?.status || "brouillon";
   const statusCfg = STATUS_CONFIG[status] || STATUS_CONFIG.brouillon;
@@ -1340,6 +1374,28 @@ const HOW_IT_WORKS = [
   { n: "3", title: "Inventory Integration",    text: "Connect your catalog via API, CSV, XML or manual entry." },
   { n: "4", title: "Founding Partner Approval",text: "Sign your LOI and Agreement electronically — you're live." },
 ];
+
+// ── Écran affiché à un compte connecté qui n'a pas encore de dossier — la création
+// exige ce clic explicite (jamais un simple chargement de page, voir applyToProgram).
+function StartApplicationScreen({ onStart, starting }) {
+  return (
+    <div className={styles.publicHero}>
+      <div className={styles.publicHeroContent}>
+        <div className={styles.heroLabel}>VIT-AUTO · FOUNDING PARTNER PROGRAM</div>
+        <h1>Prêt à rejoindre le<br /><span className={styles.heroAccent}>programme Founding Partner ?</span></h1>
+        <p>
+          En continuant, votre compte devient un compte partenaire et un dossier de candidature est créé.
+          Aucune obligation à ce stade — vous pourrez compléter votre dossier à votre rythme.
+        </p>
+        <div className={styles.publicActions}>
+          <button className={styles.btnPrimary} onClick={onStart} disabled={starting}>
+            {starting ? "Démarrage…" : "Commencer ma candidature →"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function PublicHero() {
   const navigate = useNavigate();

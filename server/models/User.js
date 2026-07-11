@@ -14,6 +14,13 @@ const userSchema = new mongoose.Schema({
   },
 
   profilePhoto: { type: String, default: null },
+  address:      { type: String, default: null },
+
+  // ── Préférences de notifications (Profile.jsx → onglet Notifications) ──
+  notif_emailReminders:       { type: Boolean, default: true },
+  notif_smsReminders:         { type: Boolean, default: false },
+  notif_promotionalEmails:    { type: Boolean, default: true },
+  notif_bookingConfirmations: { type: Boolean, default: true },
 
   // ── Pièce d'identité ───────────────────────────────────────────
   identity: {
@@ -188,11 +195,12 @@ const userSchema = new mongoose.Schema({
   },
 
   // ── Abonnement ────────────────────────────────────────────────
+  // (le statut Founding Partner vit dans le champ `isFounder` racine ci-dessus —
+  // seul celui-ci est jamais écrit par partnerOnboardingController.js)
   subscription: {
     planId:    { type: String, default: null },
     status:    { type: String, enum: ["active", "inactive", "trial"], default: "inactive" },
     expiresAt: { type: Date, default: null },
-    isFounder: { type: Boolean, default: false },
   },
 
   createdAt: { type: Date, default: Date.now },

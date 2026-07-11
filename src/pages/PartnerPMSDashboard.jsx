@@ -60,9 +60,13 @@ const StatusBadge = ({ cfg, val }) => {
 function HomeSection({ token, user, onNav }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    API("/overview", token).then((r) => r.ok ? r.json() : null).then(setData).finally(() => setLoading(false));
+    setError(false);
+    API("/overview", token).then((r) => r.ok ? r.json() : null).then(setData)
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
   }, [token]);
 
   const kpiCards = data ? [
@@ -73,6 +77,7 @@ function HomeSection({ token, user, onNav }) {
   ] : [];
 
   if (loading) return <div className={styles.loader}>Chargement…</div>;
+  if (error) return <div className={styles.emptyHint}>Impossible de charger le tableau de bord. Vérifiez votre connexion et réessayez.</div>;
 
   return (
     <div className={styles.section}>
@@ -1211,13 +1216,16 @@ function OnboardingSection({ token }) {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
+    setError(false);
     fetch("/api/partner-onboarding/my", {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d) setData(d.onboarding); })
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [token]);
 
@@ -1249,6 +1257,7 @@ function OnboardingSection({ token }) {
   const needsAction = ["loi_envoyee", "accord_envoye", "info_demandee"].includes(status);
 
   if (loading) return <div className={styles.loader}>Chargement…</div>;
+  if (error) return <div className={styles.emptyHint}>Impossible de charger votre dossier Founding Partner. Vérifiez votre connexion et réessayez.</div>;
 
   return (
     <div className={styles.section}>

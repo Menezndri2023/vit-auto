@@ -53,8 +53,8 @@ const VehicleCard = React.memo(({ car, compact }) => {
             {/* Navigation images si plusieurs */}
             {imgs.length > 1 && (
               <>
-                <button type="button" className={`${styles.imgArrow} ${styles.imgPrev}`} onClick={(e) => goImg(e, -1)}>‹</button>
-                <button type="button" className={`${styles.imgArrow} ${styles.imgNext}`} onClick={(e) => goImg(e, 1)}>›</button>
+                <button type="button" aria-label="Photo précédente" className={`${styles.imgArrow} ${styles.imgPrev}`} onClick={(e) => goImg(e, -1)}>‹</button>
+                <button type="button" aria-label="Photo suivante" className={`${styles.imgArrow} ${styles.imgNext}`} onClick={(e) => goImg(e, 1)}>›</button>
                 <div className={styles.imgDots}>
                   {imgs.map((_, i) => (
                     <span

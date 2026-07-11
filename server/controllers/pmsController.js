@@ -377,7 +377,7 @@ export async function getPublicShowroom(req, res) {
     PartnerShowroom.findByIdAndUpdate(showroom._id, { $inc: { viewCount: 1 } }).exec();
 
     const partner = await User.findById(showroom.partnerId)
-      .select("firstName lastName subscription kycStatus")
+      .select("firstName lastName subscription kycStatus isFounder")
       .lean();
 
     res.json({ ...showroom, partnerInfo: partner });

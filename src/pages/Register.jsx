@@ -30,6 +30,7 @@ const Register = () => {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [devOtp, setDevOtp]             = useState(null);
   const [submitting, setSubmitting]     = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Destination post-inscription : ?redirect= explicite, sinon offre Fondateur, sinon selon le rôle
   const redirectParam = searchParams.get("redirect");
@@ -274,25 +275,41 @@ const Register = () => {
           </select>
 
           <div className={styles.row}>
-            <input
-              type="password"
-              name="password"
-              autoComplete="new-password"
-              value={form.password}
-              onChange={handleChange}
-              placeholder="Mot de passe *"
-              required
-              minLength="8"
-            />
-            <input
-              type="password"
-              name="confirmPassword"
-              autoComplete="new-password"
-              value={form.confirmPassword}
-              onChange={handleChange}
-              placeholder="Confirmer *"
-              required
-            />
+            <div style={{ position: "relative" }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                name="password"
+                autoComplete="new-password"
+                value={form.password}
+                onChange={handleChange}
+                placeholder="Mot de passe *"
+                required
+                minLength="8"
+                style={{ width: "100%", boxSizing: "border-box", paddingRight: 40 }}
+              />
+              <button type="button" onClick={() => setShowPassword((p) => !p)}
+                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: "1rem" }}>
+                {showPassword ? "🙈" : "👁️"}
+              </button>
+            </div>
+            <div style={{ position: "relative" }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                name="confirmPassword"
+                autoComplete="new-password"
+                value={form.confirmPassword}
+                onChange={handleChange}
+                placeholder="Confirmer *"
+                required
+                style={{ width: "100%", boxSizing: "border-box", paddingRight: 40 }}
+              />
+              <button type="button" onClick={() => setShowPassword((p) => !p)}
+                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: "1rem" }}>
+                {showPassword ? "🙈" : "👁️"}
+              </button>
+            </div>
           </div>
 
           {/* Indicateur force mot de passe */}

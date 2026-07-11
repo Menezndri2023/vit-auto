@@ -310,7 +310,12 @@ export const resendVerification = async (req, res) => {
 
 // ── Profil connecté ───────────────────────────────────────────────────────
 export const getMe = async (req, res) => {
-  res.json({ user: safeUser(req.user) });
+  try {
+    res.json({ user: safeUser(req.user) });
+  } catch (err) {
+    logger.error("getMe:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
 };
 
 // ── Changer le mot de passe (connecté) ───────────────────────────────────
@@ -514,22 +519,27 @@ export const verifyPhoneOtp = async (req, res) => {
 
 // ── Validation identité (double-check serveur) ────────────────────────────
 export const validateIdentity = async (req, res) => {
-  const { type, number, expiryDate } = req.body;
-  if (!type || !number) {
-    return res.status(400).json({ valid: false, message: "Type et numéro de document requis." });
-  }
-
-  const result = serverValidateIdentity(type, number, expiryDate || null);
-
-  if (!result.valid) {
-    // Log les tentatives suspectes
-    if (result.fraud) {
-      logger.warn("[SECURITY] Tentative fraude identité", { ip: req.ip, type, number });
+  try {
+    const { type, number, expiryDate } = req.body;
+    if (!type || !number) {
+      return res.status(400).json({ valid: false, message: "Type et numéro de document requis." });
     }
-    return res.status(422).json(result);
-  }
 
-  res.json({ valid: true, country: result.country, message: "Document valide." });
+    const result = serverValidateIdentity(type, number, expiryDate || null);
+
+    if (!result.valid) {
+      // Log les tentatives suspectes
+      if (result.fraud) {
+        logger.warn("[SECURITY] Tentative fraude identité", { ip: req.ip, type, number });
+      }
+      return res.status(422).json(result);
+    }
+
+    res.json({ valid: true, country: result.country, message: "Document valide." });
+  } catch (err) {
+    logger.error("validateIdentity:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
 };
 
 // ── Refresh Token ─────────────────────────────────────────────────────────
@@ -705,12 +715,19 @@ export const verify2FA = async (req, res) => {
     const totp  = buildTotp(user.twoFactor.secret, user.email);
     const delta = totp.validate({ token, window: 1 });
 
-    // Tenter les codes de secours si TOTP échoue
+    // Tenter les codes de secours si TOTP échoue — Array.prototype.findIndex n'attend
+    // jamais un prédicat async (il retourne toujours une Promise, donc toujours "truthy"),
+    // ce qui validait N'IMPORTE QUEL code : boucle explicite avec await à la place.
     if (delta === null) {
-      const codeIdx = user.twoFactor.backupCodes?.findIndex(
-        async (b) => !b.used && (await bcrypt.compare(token, b.code))
-      );
-      if (codeIdx === undefined || codeIdx < 0) {
+      const backupCodes = user.twoFactor.backupCodes || [];
+      let codeIdx = -1;
+      for (let i = 0; i < backupCodes.length; i++) {
+        if (!backupCodes[i].used && await bcrypt.compare(token, backupCodes[i].code)) {
+          codeIdx = i;
+          break;
+        }
+      }
+      if (codeIdx < 0) {
         return res.status(401).json({ message: "Code invalide." });
       }
       user.twoFactor.backupCodes[codeIdx].used = true;

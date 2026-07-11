@@ -21,6 +21,7 @@ const Login = () => {
   const fromSearch = (typeof stateFrom === "object" && stateFrom?.search) || "";
 
   const [form,           setForm]           = useState({ email: "", password: "" });
+  const [showPassword,   setShowPassword]   = useState(false);
   const [loading,        setLoading]        = useState(false);
   const [notVerified,    setNotVerified]    = useState(null);      // email non vérifié
   const [phoneNotVerif,  setPhoneNotVerif]  = useState(null);      // { phone, userId }
@@ -231,16 +232,24 @@ const Login = () => {
               placeholder={t("auth.email")}
               required
             />
-            <input
-              type="password"
-              name="password"
-              autoComplete="current-password"
-              value={form.password}
-              onChange={handleChange}
-              placeholder={t("auth.password")}
-              required
-              minLength="8"
-            />
+            <div style={{ position: "relative" }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                name="password"
+                autoComplete="current-password"
+                value={form.password}
+                onChange={handleChange}
+                placeholder={t("auth.password")}
+                required
+                minLength="8"
+                style={{ width: "100%", boxSizing: "border-box", paddingRight: 44 }}
+              />
+              <button type="button" onClick={() => setShowPassword((p) => !p)}
+                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem" }}>
+                {showPassword ? "🙈" : "👁️"}
+              </button>
+            </div>
             <button type="submit" className={styles.submitBtn} disabled={loading}>
               {loading ? `${t("common.loading")}` : t("auth.loginBtn")}
             </button>

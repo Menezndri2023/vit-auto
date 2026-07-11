@@ -31,7 +31,7 @@ import certificationRoutes    from "./routes/partnerCertification.js";
 import partnerVerifRoutes     from "./routes/partnerVerification.js";
 import pmsRoutes              from "./routes/pms.js";
 import partnerOnboardingRoutes from "./routes/partnerOnboarding.js";
-import { authenticate } from "./middleware/auth.js";
+import { authenticate, authorizeAdmin } from "./middleware/auth.js";
 
 dotenv.config();
 initSentry();
@@ -62,6 +62,18 @@ if (process.env.REFRESH_TOKEN_SECRET === process.env.JWT_SECRET) {
   if (process.env.NODE_ENV === "production") process.exit(1);
 }
 
+// ── Filet de sécurité process : une exception/rejet non catché ne doit pas
+// faire crasher le process en silence (ex: coupure Mongo pendant un await
+// dans un handler async sans try/catch) — on logue puis on sort proprement
+// pour que Railway relance le service au lieu de rester dans un état zombie.
+process.on("unhandledRejection", (reason) => {
+  logger.error("Unhandled promise rejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  logger.error("Uncaught exception:", err);
+  process.exit(1);
+});
+
 const app = express();
 
 // ── Sentry request handler (doit être le PREMIER middleware) ─────────────
@@ -72,26 +84,41 @@ app.use(sentryTracingHandler());
 app.use(compression());
 
 // ── Origines autorisées ───────────────────────────────────────────────────
-// Ajoute automatiquement la variante www./non-www de chaque origine configurée : une
-// seule valeur de FRONTEND_URL (ex: "https://vit-auto.com") ne correspondait pas à
-// l'origine réellement envoyée par le navigateur si le site est visité via
-// "https://www.vit-auto.com" (ou l'inverse) — comparaison stricte, bloquant tout le
-// monde en production avec "CORS bloqué : origine ... non autorisée".
+// Comparaison par NOM DE DOMAINE (sans "www.", indépendamment du protocole/port/slash
+// final), pas par égalité stricte de chaîne — la précédente version comparait des
+// chaînes exactes et restait fragile à la moindre différence entre FRONTEND_URL et
+// l'origine réellement envoyée par le navigateur (www vs non-www, valeur sans
+// protocole, etc.), reproduisant "CORS bloqué : origine ... non autorisée" en
+// production malgré un premier correctif. Log de démarrage pour diagnostic immédiat
+// dans les logs Railway si un domaine est rejeté à tort.
 const configuredOrigins = (process.env.FRONTEND_URL || "http://localhost:5173")
   .split(",")
-  .map((o) => o.trim().replace(/\/+$/, ""))
+  .map((o) => o.trim())
   .filter(Boolean);
 
-const ALLOWED_ORIGINS = Array.from(new Set(configuredOrigins.flatMap((origin) => {
+const normalizeHost = (raw) => {
   try {
-    const u = new URL(origin);
-    const altHost = u.hostname.startsWith("www.") ? u.hostname.slice(4) : `www.${u.hostname}`;
-    const altOrigin = `${u.protocol}//${altHost}${u.port ? `:${u.port}` : ""}`;
-    return [origin, altOrigin];
+    const withProto = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    return new URL(withProto).hostname.replace(/^www\./i, "").toLowerCase();
   } catch {
-    return [origin]; // valeur invalide (pas une URL) — conservée telle quelle, ignorée par le check plus bas
+    return null;
   }
-})));
+};
+
+const ALLOWED_HOSTS = [...new Set(configuredOrigins.map(normalizeHost).filter(Boolean))];
+logger.info("[CORS] Domaines autorisés (www/non-www acceptés automatiquement)", {
+  fromEnv: configuredOrigins, resolvedHosts: ALLOWED_HOSTS,
+});
+
+const isOriginAllowed = (origin) => {
+  if (!origin) return false;
+  try {
+    const host = new URL(origin).hostname.replace(/^www\./i, "").toLowerCase();
+    return ALLOWED_HOSTS.includes(host);
+  } catch {
+    return false;
+  }
+};
 
 // ── Sécurité headers (Helmet) ─────────────────────────────────────────────
 app.use(helmet({
@@ -122,7 +149,7 @@ app.use(cors({
       }
       return callback(null, true);
     }
-    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    if (isOriginAllowed(origin)) return callback(null, true);
     callback(new Error(`CORS bloqué : origine ${origin} non autorisée`));
   },
   credentials: true,
@@ -289,23 +316,14 @@ app.get("/api/comm/track/click/:trackingId", apiLimiter, async (req, res) => {
 });
 
 // ── Analytics communication (admin uniquement — JWT + rôle vérifié) ──────────
-app.get("/api/comm/stats", apiLimiter, async (req, res) => {
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) return res.status(401).json({ message: "Non autorisé." });
+app.get("/api/comm/stats", apiLimiter, authenticate, authorizeAdmin, async (req, res) => {
   try {
-    const jwt = await import("jsonwebtoken");
-    const decoded = jwt.default.verify(token, process.env.JWT_SECRET);
-    const mongoose = await import("mongoose");
-    const User = (await import("./models/User.js")).default;
-    const user = await User.findById(decoded.id).select("role isActive");
-    if (!user || !user.isActive || user.role !== "admin") {
-      return res.status(403).json({ message: "Accès réservé aux administrateurs." });
-    }
     const { getStats } = await import("./services/communication/analytics/CommunicationAnalytics.js");
     const stats = await getStats(req.query);
     res.json({ stats });
-  } catch {
-    res.status(401).json({ message: "Token invalide ou expiré." });
+  } catch (err) {
+    logger.error("comm/stats error:", err);
+    res.status(500).json({ message: "Erreur serveur." });
   }
 });
 
@@ -321,21 +339,13 @@ app.get("/api/imagekit/auth", apiLimiter, authenticate, (req, res) => {
 });
 
 // ── Queue stats (admin) ────────────────────────────────────────────────────────
-app.get("/api/queue/stats", apiLimiter, async (req, res) => {
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) return res.status(401).json({ message: "Non autorisé." });
+app.get("/api/queue/stats", apiLimiter, authenticate, authorizeAdmin, async (req, res) => {
   try {
-    const jwt = await import("jsonwebtoken");
-    const decoded = jwt.default.verify(token, process.env.JWT_SECRET);
-    const User = (await import("./models/User.js")).default;
-    const user = await User.findById(decoded.id).select("role isActive");
-    if (!user || !user.isActive || user.role !== "admin") {
-      return res.status(403).json({ message: "Accès réservé aux administrateurs." });
-    }
     const stats = await getQueueStats();
     res.json({ ready: isQueuesReady(), queues: stats });
-  } catch {
-    res.status(401).json({ message: "Token invalide." });
+  } catch (err) {
+    logger.error("queue/stats error:", err);
+    res.status(500).json({ message: "Erreur serveur." });
   }
 });
 
@@ -351,7 +361,7 @@ app.use(sentryErrorHandler());
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, _next) => {
   if (err.message?.startsWith("CORS bloqué")) {
-    logger.warn("[CORS] Origine rejetée", { origin: req.headers.origin, allowed: ALLOWED_ORIGINS });
+    logger.warn("[CORS] Origine rejetée", { origin: req.headers.origin, allowedHosts: ALLOWED_HOSTS, fromEnv: process.env.FRONTEND_URL });
     return res.status(403).json({ message: err.message });
   }
   const isProd = process.env.NODE_ENV === "production";
@@ -383,7 +393,10 @@ const startServer = async () => {
     // ── Socket.io — Temps réel partenaire & admin ────────────────────────────
     const io = new Server(server, {
       cors: {
-        origin:      ALLOWED_ORIGINS,
+        origin: (origin, callback) => {
+          if (!origin || isOriginAllowed(origin)) return callback(null, true);
+          callback(new Error(`CORS bloqué (socket.io) : origine ${origin} non autorisée`));
+        },
         methods:     ["GET", "POST"],
         credentials: true,
       },
@@ -423,7 +436,7 @@ const startServer = async () => {
     server.listen({ port: PORT, exclusive: false }, () => {
       const env = process.env.NODE_ENV || "development";
       logger.info(`VIT AUTO API démarré — ${env.toUpperCase()}`, {
-        port: PORT, cors: ALLOWED_ORIGINS.join(", "),
+        port: PORT, corsHosts: ALLOWED_HOSTS.join(", "),
       });
     });
 
@@ -446,6 +459,10 @@ const startServer = async () => {
         try {
           const { closeQueues } = await import("./queue/index.js");
           await closeQueues();
+        } catch (_) {}
+        try {
+          const mongoose = (await import("mongoose")).default;
+          await mongoose.connection.close();
         } catch (_) {}
         process.exit(0);
       });

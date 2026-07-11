@@ -83,10 +83,6 @@ const Navbar = () => {
           <li><NavLink to="/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>Tableau de bord</NavLink></li>
         )}
 
-        {isAuthenticated && (
-          <li><NavLink to="/profile" className={navLink} onClick={() => setMenuOpen(false)}>Profil</NavLink></li>
-        )}
-
         {/* ── Éléments additionnels dans le menu mobile (non connectés) ── */}
         {!isAuthenticated && (
           <>
@@ -115,10 +111,15 @@ const Navbar = () => {
         {isAuthenticated ? (
           <>
             <NotificationBell />
-            <span className={isPartner ? styles.badgePartner : styles.userBadge}>
+            <button
+              className={isPartner ? styles.badgePartner : styles.userBadge}
+              onClick={() => navigate("/profile")}
+              title="Voir mon profil"
+              style={{ cursor: "pointer", fontFamily: "inherit" }}
+            >
               {isPartner ? "🤝 " : "👤 "}
               {user?.firstName || user?.email}
-            </span>
+            </button>
             <button className={styles.linkBtn} onClick={logout}>Déconnexion</button>
           </>
         ) : (

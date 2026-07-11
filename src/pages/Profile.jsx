@@ -177,6 +177,9 @@ const Profile = () => {
   const [pwdForm,     setPwdForm]     = useState({ current: "", next: "", confirm: "" });
   const [pwdChanging, setPwdChanging] = useState(false);
   const [showPwdForm, setShowPwdForm] = useState(false);
+  const [showOldPwd,     setShowOldPwd]     = useState(false);
+  const [showNewPwd,     setShowNewPwd]     = useState(false);
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
 
   const [profileData, setProfileData] = useState({
     firstName:     user?.firstName     || "",
@@ -186,6 +189,7 @@ const Profile = () => {
     address:       user?.address       || "",
     licenseNumber: user?.licenseNumber || "",
     licenseExpiry: user?.licenseExpiry || "",
+    profilePhoto:  user?.profilePhoto  || "",
   });
 
   const [notifications, setNotifications] = useState({
@@ -309,14 +313,35 @@ const Profile = () => {
   const handleProfileChange = (field, value) =>
     setProfileData((p) => ({ ...p, [field]: value }));
 
+  const handlePhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/") || file.type === "image/svg+xml") {
+      toastError("Format d'image invalide (SVG non accepté).");
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) { toastError("Image trop lourde (max 3 Mo)."); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const photo = reader.result;
+      setProfileData((p) => ({ ...p, profilePhoto: photo }));
+      // Passé explicitement : setProfileData ne met à jour l'état que de façon asynchrone,
+      // donc handleSave() lirait encore l'ancienne valeur (sans la photo) s'il fallait
+      // compter sur la fermeture de `profileData` au lieu de cette valeur fraîche.
+      handleSave(null, { profilePhoto: photo });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleNotifChange = (field, value) =>
     setNotifications((p) => ({ ...p, [field]: value }));
 
-  const handleSave = async (e) => {
+  const handleSave = async (e, overrides = {}) => {
     e?.preventDefault();
     setSaving(true);
     const payload = {
       ...profileData,
+      ...overrides,
       notif_emailReminders:       notifications.emailReminders,
       notif_smsReminders:         notifications.smsReminders,
       notif_promotionalEmails:    notifications.promotionalEmails,
@@ -328,22 +353,23 @@ const Profile = () => {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body:    JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (res.ok && data.user) {
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.user) {
         updateUser(data.user);
         toastSuccess("Profil mis à jour avec succès.");
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
       } else {
-        toastError(data.message || "Erreur lors de la sauvegarde.");
-        return;
+        // Ne jamais prétendre que c'est sauvegardé si le serveur a répondu une erreur —
+        // sinon la photo/les préférences donnent l'illusion d'être enregistrées alors
+        // qu'elles ne le sont pas (bug observé précédemment).
+        toastError(data?.message || "Erreur lors de la sauvegarde. Réessayez.");
       }
     } catch {
-      // Backend indisponible — sauvegarder localement quand même
-      updateUser(payload);
-      toastSuccess("Profil mis à jour (hors ligne).");
+      toastError("Erreur réseau — impossible de contacter le serveur. Réessayez.");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
   };
 
   // ── Handler identité ───────────────────────────────────────
@@ -411,10 +437,38 @@ const Profile = () => {
 
       {/* ── En-tête ─────────────────────────────────────── */}
       <div className={styles.profileHeader}>
-        <div className={styles.avatarWrap}>
-          <div className={`${styles.avatar} ${isPartner ? styles.avatarPartner : ""}`}>
-            {initials}
-          </div>
+        <div className={styles.avatarWrap} style={{ position: "relative" }}>
+          <label
+            htmlFor="profilePhotoInput"
+            title="Changer la photo de profil"
+            style={{ cursor: "pointer", display: "block" }}
+          >
+            <div
+              className={`${styles.avatar} ${isPartner ? styles.avatarPartner : ""}`}
+              style={profileData.profilePhoto ? {
+                backgroundImage: `url(${profileData.profilePhoto})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              } : undefined}
+            >
+              {!profileData.profilePhoto && initials}
+            </div>
+            <span style={{
+              position: "absolute", bottom: 0, right: 0,
+              background: "#0f1b3f", color: "#fff", borderRadius: "50%",
+              width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: "0.85rem", border: "2px solid #fff",
+            }}>
+              📷
+            </span>
+          </label>
+          <input
+            id="profilePhotoInput"
+            type="file"
+            accept="image/*"
+            onChange={handlePhotoChange}
+            style={{ display: "none" }}
+          />
         </div>
         <div className={styles.profileMeta}>
           <div className={styles.profileNameRow}>
@@ -803,19 +857,43 @@ const Profile = () => {
                   <form onSubmit={handleChangePassword} className={styles.form} style={{ marginTop: 0, paddingTop: 0 }}>
                     <div className={styles.field}>
                       <label>{t("profile.oldPwd")}</label>
-                      <input type="password" placeholder={t("profile.oldPwd")}
-                        value={pwdForm.current} onChange={(e) => setPwdForm((p) => ({ ...p, current: e.target.value }))} required />
+                      <div style={{ position: "relative" }}>
+                        <input type={showOldPwd ? "text" : "password"} placeholder={t("profile.oldPwd")}
+                          value={pwdForm.current} onChange={(e) => setPwdForm((p) => ({ ...p, current: e.target.value }))} required
+                          style={{ width: "100%", boxSizing: "border-box", paddingRight: 40 }} />
+                        <button type="button" onClick={() => setShowOldPwd((v) => !v)}
+                          aria-label={showOldPwd ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                          style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: "1rem" }}>
+                          {showOldPwd ? "🙈" : "👁️"}
+                        </button>
+                      </div>
                     </div>
                     <div className={styles.row}>
                       <div className={styles.field}>
                         <label>{t("profile.newPwd")}</label>
-                        <input type="password" placeholder={t("profile.newPwd")}
-                          value={pwdForm.next} onChange={(e) => setPwdForm((p) => ({ ...p, next: e.target.value }))} required />
+                        <div style={{ position: "relative" }}>
+                          <input type={showNewPwd ? "text" : "password"} placeholder={t("profile.newPwd")}
+                            value={pwdForm.next} onChange={(e) => setPwdForm((p) => ({ ...p, next: e.target.value }))} required
+                            style={{ width: "100%", boxSizing: "border-box", paddingRight: 40 }} />
+                          <button type="button" onClick={() => setShowNewPwd((v) => !v)}
+                            aria-label={showNewPwd ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                            style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: "1rem" }}>
+                            {showNewPwd ? "🙈" : "👁️"}
+                          </button>
+                        </div>
                       </div>
                       <div className={styles.field}>
                         <label>{t("profile.confirmPwd")}</label>
-                        <input type="password" placeholder={t("profile.confirmPwd")}
-                          value={pwdForm.confirm} onChange={(e) => setPwdForm((p) => ({ ...p, confirm: e.target.value }))} required />
+                        <div style={{ position: "relative" }}>
+                          <input type={showConfirmPwd ? "text" : "password"} placeholder={t("profile.confirmPwd")}
+                            value={pwdForm.confirm} onChange={(e) => setPwdForm((p) => ({ ...p, confirm: e.target.value }))} required
+                            style={{ width: "100%", boxSizing: "border-box", paddingRight: 40 }} />
+                          <button type="button" onClick={() => setShowConfirmPwd((v) => !v)}
+                            aria-label={showConfirmPwd ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                            style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: "1rem" }}>
+                            {showConfirmPwd ? "🙈" : "👁️"}
+                          </button>
+                        </div>
                       </div>
                     </div>
                     <div className={styles.formFooter}>

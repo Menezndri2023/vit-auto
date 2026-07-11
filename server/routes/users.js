@@ -10,6 +10,9 @@ router.get("/me",              authenticate, u.getMyProfile);
 router.patch("/me",            authenticate, u.updateMyProfile);
 router.post("/me/identity",    authenticate, u.submitIdentity);
 
+// ── Profil partenaire public (page PartnerProfile.jsx) ─────────────────────
+router.get("/:id/public",      validateObjectId(), u.getPublicProfile);
+
 // ── Admin ─────────────────────────────────────────────────────────────────
 router.get("/",                authenticate, authorizeAdmin, u.getUsers);
 router.get("/stats",           authenticate, authorizeAdmin, u.getAdminStats);

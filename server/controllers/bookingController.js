@@ -334,7 +334,9 @@ export const createBooking = async (req, res) => {
           paymentDetails: {
             cardLast4:    paymentData.cardNumber?.slice(-4) || null,
             cardHolder:   paymentData.cardHolder || null,
-            mobileNumber: paymentData.mobileNumber || null,
+            mobileNumber: paymentData.mobileNumber
+              ? paymentData.mobileNumber.replace(/\d(?=\d{2})/g, "*") // masquer sauf 2 derniers chiffres
+              : null,
             provider:     payMethod,
           },
         });

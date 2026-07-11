@@ -103,6 +103,8 @@ export default function VehicleDetails() {
   const [imgIdx, setImgIdx] = useState(0);
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => { setImgIdx(0); }, [id]);
+
   // États de chargement
   if (apiLoading || (vehiclesCtx.vehiclesLoading && !vehicle)) {
     return (

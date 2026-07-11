@@ -97,7 +97,9 @@ export const adminDetail = async (req, res) => {
       .lean();
 
     if (!doc) {
-      const user = await User.findById(req.params.userId).lean();
+      const user = await User.findById(req.params.userId)
+        .select("-password -refreshTokens -phoneOtp -phoneOtpExpires -twoFactor.secret -passwordResetToken -emailVerificationToken")
+        .lean();
       if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
       return res.json({ verification: null, user });
     }
