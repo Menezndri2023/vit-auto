@@ -392,14 +392,31 @@ export const updateMyProfile = async (req, res) => {
       if (!check.ok) return res.status(400).json({ message: check.message });
     }
 
+    // Changer de numéro ici doit repasser par une vérification OTP (send/verify-phone-otp) :
+    // sans ce reset, le nouveau numéro héritait du statut "vérifié" de l'ancien,
+    // permettant de renseigner n'importe quel numéro tout en gardant phoneVerified=true
+    // et donc de contourner le blocage login/KYC sur téléphone non vérifié.
+    if (updates.phone !== undefined && updates.phone !== req.user.phone) {
+      updates.phoneVerified = false;
+    }
+    // Un compte inscrit par téléphone (pas d'email) ne doit pas pouvoir se retrouver
+    // sans aucun moyen de connexion en vidant son seul numéro (findByIdAndUpdate ne
+    // déclenche pas le hook pre("validate") du schéma — vérifié explicitement ici).
+    if (!req.user.email && (updates.phone === "" || updates.phone === null)) {
+      return res.status(400).json({ message: "Vous devez conserver un email ou un numéro de téléphone sur votre compte." });
+    }
+
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { $set: updates },
-      { new: true }
+      { new: true, runValidators: true }
     ).select("-password -emailVerificationToken");
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
     res.json({ user });
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ message: "Ce numéro de téléphone est déjà utilisé par un autre compte." });
+    }
     logger.error("updateMyProfile:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }

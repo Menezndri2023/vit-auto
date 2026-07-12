@@ -2406,7 +2406,7 @@ export default function AdminPanel() {
                       }
                       <div>
                         <div style={{ fontSize: "1.1rem", fontWeight: 900 }}>{kycDetailUser.firstName} {kycDetailUser.lastName}</div>
-                        <div style={{ fontSize: ".82rem", opacity: .8, marginTop: 2 }}>{kycDetailUser.email} · {kycDetailUser.phone || "—"}</div>
+                        <div style={{ fontSize: ".82rem", opacity: .8, marginTop: 2 }}>{kycDetailUser.email || "—"} · {kycDetailUser.phone || "—"}</div>
                         <div style={{ fontSize: ".75rem", opacity: .65, marginTop: 2 }}>
                           Rôle : <strong>{kycDetailUser.role}</strong> · Inscrit le {kycDetailUser.createdAt ? new Date(kycDetailUser.createdAt).toLocaleDateString("fr-FR") : "—"}
                         </div>
@@ -2434,8 +2434,8 @@ export default function AdminPanel() {
 
                   {/* Infos contact */}
                   <div style={{ background: "#f8fafc", borderRadius: 10, padding: "12px 16px", marginBottom: 14, fontSize: ".86rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 20px", color: "#334155" }}>
-                    <div><span style={{ color: "#94a3b8" }}>Email </span>{kycDetailUser.email} {kycDetailUser.emailVerified ? "✅" : "❌"}</div>
-                    <div><span style={{ color: "#94a3b8" }}>Tél. </span>{kycDetailUser.phone || "—"} {kycDetailUser.phoneVerified ? "✅" : "❌"}</div>
+                    <div><span style={{ color: "#94a3b8" }}>Email </span>{kycDetailUser.email ? <>{kycDetailUser.email} {kycDetailUser.emailVerified ? "✅" : "❌"}</> : "—"}</div>
+                    <div><span style={{ color: "#94a3b8" }}>Tél. </span>{kycDetailUser.phone ? <>{kycDetailUser.phone} {kycDetailUser.phoneVerified ? "✅" : "❌"}</> : "—"}</div>
                     <div><span style={{ color: "#94a3b8" }}>Rôle </span>{kycDetailUser.role}</div>
                     <div><span style={{ color: "#94a3b8" }}>Soumis </span>{kycDetailUser.kycSubmittedAt ? new Date(kycDetailUser.kycSubmittedAt).toLocaleDateString("fr-FR") : "—"}</div>
                   </div>
