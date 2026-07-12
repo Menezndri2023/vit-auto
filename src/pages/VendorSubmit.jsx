@@ -314,8 +314,13 @@ const VendorSubmit = () => {
         if (res.ok) {
           success("Votre profil chauffeur est soumis pour vérification !");
         } else {
-          const data = await res.json();
-          error(data.message || "Erreur lors de la publication.");
+          const data = await res.json().catch(() => null);
+          if (data?.code === "CERTIFICATION_REQUIRED") {
+            error("Terminez votre vérification partenaire pour publier une annonce. Redirection…");
+            setTimeout(() => navigate("/partner-onboarding"), 1500);
+          } else {
+            error(data?.message || "Erreur lors de la publication.");
+          }
           return;
         }
       } else {
