@@ -26,8 +26,8 @@ router.patch ("/importer-profiles/:id/review",  authenticate, authorizeAdmin, vi
 // ── Annonces import/export ────────────────────────────────────────────────────
 router.get   ("/listings/admin",   authenticate, authorizeAdmin,                ie.getAdminListings);
 router.get   ("/listings/mine",    authenticate,                                ie.getMyListings);
-router.get   ("/listings",                                                       ie.getListings);
-router.get   ("/listings/:id",                                         vid,     ie.getListingById);
+router.get   ("/listings",         optionalAuth,                                ie.getListings);
+router.get   ("/listings/:id",     optionalAuth,                       vid,     ie.getListingById);
 router.post  ("/listings",         authenticate,                                ie.createListing);
 router.put   ("/listings/:id",     authenticate,                       vid,     ie.updateListing);
 router.patch ("/listings/:id/status", authenticate, authorizeAdmin,    vid,     ie.updateListingStatus);

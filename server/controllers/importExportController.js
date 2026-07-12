@@ -328,15 +328,21 @@ export const getImporterProfileById = async (req, res) => {
 // GET /api/import-export/listings  — public
 export const getListings = async (req, res) => {
   try {
-    const { sourceCountry, status = "approved", page = 1, limit = 20, partner } = req.query;
+    const { sourceCountry, status, page = 1, limit = 20, partner } = req.query;
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
     const safePage  = Math.max(Number(page), 1);
-    const filter = { status };
+
+    // Seul un admin peut consulter les annonces non approuvées (pending/rejected) —
+    // sinon n'importe quel visiteur pourrait lister les annonces en attente de
+    // validation d'un partenaire via ?status=pending (fuite d'information).
+    const isAdmin = req.user?.role === "admin";
+    const filter = isAdmin && status ? { status } : { status: "approved" };
+
     if (sourceCountry) {
       const escaped = sourceCountry.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       filter.sourceCountry = new RegExp(escaped.slice(0, 100), "i");
     }
-    if (partner)       filter.partner = partner;
+    if (partner && /^[0-9a-f]{24}$/i.test(String(partner))) filter.partner = partner;
 
     const [listings, total] = await Promise.all([
       ImportExportListing.find(filter)
@@ -371,14 +377,24 @@ export const getMyListings = async (req, res) => {
 // GET /api/import-export/listings/:id  — détail
 export const getListingById = async (req, res) => {
   try {
-    const listing = await ImportExportListing.findByIdAndUpdate(
-      req.params.id,
-      { $inc: { views: 1 } },
-      { new: true }
-    ).populate("partner", "firstName lastName profilePhoto business phone")
-     .populate("importerProfile", "companyName badgeLevel operatingCountries");
+    const listing = await ImportExportListing.findById(req.params.id)
+      .populate("partner", "firstName lastName profilePhoto business phone")
+      .populate("importerProfile", "companyName badgeLevel operatingCountries");
 
     if (!listing) return res.status(404).json({ message: "Annonce introuvable." });
+
+    // Masquer les annonces non approuvées à tout le monde sauf leur propriétaire et l'admin
+    // (sinon une annonce encore en attente/rejetée serait consultable par ID deviné).
+    const isOwner = listing.partner?._id?.toString() === req.user?._id?.toString();
+    if (listing.status !== "approved" && req.user?.role !== "admin" && !isOwner) {
+      return res.status(404).json({ message: "Annonce introuvable." });
+    }
+
+    // Vue comptabilisée uniquement pour les annonces publiques déjà approuvées
+    if (listing.status === "approved") {
+      await ImportExportListing.updateOne({ _id: listing._id }, { $inc: { views: 1 } });
+    }
+
     res.json({ listing });
   } catch (err) {
     logger.error("getListingById:", err);
