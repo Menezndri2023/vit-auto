@@ -173,12 +173,37 @@ const VendorSubmit = () => {
   };
 
   // ── Gestion photos réelles ───────────────────────────────────────────────
+  // Recompresse côté client (redimensionnement + JPEG qualité 0.78) avant conversion
+  // en base64 : une photo de téléphone (3 à 8 Mo) dépasse vite, à plusieurs, la
+  // limite de taille de requête du serveur (413) une fois envoyée en base64 —
+  // ce qui se manifestait comme une erreur "impossible de joindre le serveur"
+  // totalement opaque pour l'utilisateur.
+  const MAX_DIMENSION = 1600;
+  const compressImage = (dataUrl) =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, MAX_DIMENSION / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width  = Math.round(img.width  * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.78));
+      };
+      img.onerror = () => resolve(dataUrl); // recompression impossible → garder l'original
+      img.src = dataUrl;
+    });
+
   const readFile = (file) =>
     new Promise((resolve) => {
       if (!file.type.startsWith("image/")) return resolve(null);
       if (file.size > 5 * 1024 * 1024) return resolve(null); // max 5 Mo
       const reader = new FileReader();
-      reader.onload = (e) => resolve({ id: `${file.name}-${Date.now()}`, preview: e.target.result, name: file.name, size: file.size });
+      reader.onload = async (e) => {
+        const compressed = await compressImage(e.target.result);
+        resolve({ id: `${file.name}-${Date.now()}`, preview: compressed, name: file.name, size: file.size });
+      };
       reader.readAsDataURL(file);
     });
 
@@ -321,8 +346,13 @@ const VendorSubmit = () => {
         return; // ne pas naviguer ici, on affiche l'écran résultat
       }
       setTimeout(() => navigate("/vendor/dashboard"), 2000);
-    } catch {
-      error("Impossible de joindre le serveur. Réessayez.");
+    } catch (err) {
+      if (err.code === "CERTIFICATION_REQUIRED") {
+        error("Terminez votre vérification partenaire pour publier une annonce. Redirection…");
+        setTimeout(() => navigate("/partner-onboarding"), 1500);
+      } else {
+        error(err.message || "Erreur lors de la publication. Réessayez.");
+      }
     } finally {
       setSubmitting(false);
     }

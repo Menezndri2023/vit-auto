@@ -16,6 +16,18 @@ export const createVehicle = async (req, res) => {
       return res.status(403).json({ message: "Réservé aux partenaires." });
     }
 
+    // ── Certification requise avant publication ───────────────────────────
+    // Un partenaire doit avoir complété sa vérification (Founding Partner ou
+    // certification "Partenaire Vérifié") avant de pouvoir publier une annonce —
+    // sinon redirection côté frontend vers le programme Founding Partner
+    // (voir VendorSubmit.jsx : code CERTIFICATION_REQUIRED).
+    if (req.user.role === "partenaire" && !req.user.isFounder && req.user.certificationBadge === "none") {
+      return res.status(403).json({
+        code:    "CERTIFICATION_REQUIRED",
+        message: "Complétez votre vérification partenaire avant de publier une annonce.",
+      });
+    }
+
     // ── Détection doublon (même marque + modèle + année + propriétaire) ────
     const dupMarque = req.body.marque;
     const dupModele = req.body.modele;

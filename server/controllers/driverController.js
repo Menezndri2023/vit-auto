@@ -11,6 +11,14 @@ export const createDriver = async (req, res) => {
       return res.status(403).json({ message: "Réservé aux partenaires." });
     }
 
+    // Même exigence de certification que pour les véhicules (voir vehicleController.js).
+    if (req.user.role === "partenaire" && !req.user.isFounder && req.user.certificationBadge === "none") {
+      return res.status(403).json({
+        code:    "CERTIFICATION_REQUIRED",
+        message: "Complétez votre vérification partenaire avant de publier une annonce.",
+      });
+    }
+
     // Whitelist des champs autorisés (évite mass assignment sur owner, stats, status)
     const {
       firstName, lastName, telephone, contactTel, phone: phoneRaw,

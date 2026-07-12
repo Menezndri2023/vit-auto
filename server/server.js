@@ -164,9 +164,10 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
-// ── Body parsing — 10 MB pour les photos base64 KYC (recto + verso + selfie) ─
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+// ── Body parsing — 20 MB pour couvrir jusqu'à 6 photos véhicule (VendorSubmit.jsx,
+// recompressées côté client mais avec marge) en plus des photos base64 KYC ──
+app.use(express.json({ limit: "20mb" }));
+app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
 // ── Protection injection NoSQL (MongoDB) ──────────────────────────────────
 // Supprime les opérateurs $... des inputs utilisateur (ex: { "$gt": "" })

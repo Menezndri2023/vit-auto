@@ -298,7 +298,15 @@ export const VehicleProvider = ({ children }) => {
       headers,
       body: JSON.stringify(newVehicle),
     });
-    if (!response.ok) throw new Error("Unable to add vehicle");
+    if (!response.ok) {
+      // Remonter le vrai message/code backend (ex: CERTIFICATION_REQUIRED) plutôt
+      // qu'une erreur générique — le 413 (photos trop volumineuses) ne renvoie pas
+      // de JSON, d'où le fallback.
+      const data = await response.json().catch(() => null);
+      const err = new Error(data?.message || `Erreur serveur (${response.status}).`);
+      if (data?.code) err.code = data.code;
+      throw err;
+    }
     const data = await response.json();
     const saved = normalizeVehicle(data.vehicle || data);
     // Always add to partner's own listing
