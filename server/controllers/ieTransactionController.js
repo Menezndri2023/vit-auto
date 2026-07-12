@@ -334,10 +334,14 @@ export const payEscrow = async (req, res) => {
 
 export const updateDocuments = async (req, res) => {
   try {
+    // "in_escrow" (avant le tout premier document renseigné) ET "preparing" (les
+    // suivants) doivent être acceptés — sinon seule la toute première mise à jour
+    // de document réussit : elle fait déjà basculer le statut vers "preparing",
+    // ce qui bloquerait ensuite tous les documents restants avec un 404.
     const tx = await IETransaction.findOne({
       _id: req.params.id,
       partner: req.user._id,
-      status: "in_escrow",
+      status: { $in: ["in_escrow", "preparing"] },
     });
     if (!tx) return res.status(404).json({ message: "Transaction introuvable ou statut incompatible." });
 

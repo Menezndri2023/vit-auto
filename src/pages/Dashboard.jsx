@@ -48,6 +48,15 @@ const normalizeBooking = (b) => {
     preferredDate: b.essai?.preferredDate,
     preferredTime: b.essai?.preferredTime,
     notes:         b.essai?.notes || b.chauffeur?.notes,
+    // Chauffeur
+    chauffeurDate:        b.chauffeur?.date,
+    chauffeurHeures:      b.chauffeur?.heures,
+    chauffeurLieuDepart:  b.chauffeur?.lieuDepart,
+    chauffeurDestination: b.chauffeur?.destination,
+    // Leasing
+    leasingApportInitial: b.leasing?.apportInitial,
+    leasingMensualite:    b.leasing?.mensualite,
+    leasingDuree:         b.leasing?.duree,
     // Finances
     total:         b.montantTotal,
     montantTotal:  b.montantTotal,
@@ -703,10 +712,13 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, valid
   const { fmt } = useCurrency();
 
   const status         = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending;
-  const canCancel      = booking.status === "À confirmer" || booking.status === "pending" || !booking.status;
+  const canCancel      = ["À confirmer", "pending", "confirmed"].includes(booking.status) || !booking.status;
   const isCompleted    = booking.status === "completed";
   const isActive       = ["confirmed", "preparing", "ready", "in_progress", "client_arrived"].includes(booking.status);
   const isTrial        = booking.type === "essai";
+  const isChauffeur    = booking.type === "chauffeur";
+  const isLeasing      = booking.type === "leasing";
+  const TYPE_TAG = { essai: "🔑 Essai", chauffeur: "🧑‍✈️ Chauffeur", leasing: "📊 Leasing", location: "🚗 Location" };
   const needsValidation = booking.status === "waiting_client_validation" || booking.status === "transaction_concluded";
   const isEnRoute      = booking.status === "in_progress";
 
@@ -734,7 +746,7 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, valid
         <div className={styles.cardTitle}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
             <span className={styles.bookingTypeTag}>
-              {isTrial ? "🔑 Essai" : "🚗 Location"}
+              {TYPE_TAG[booking.type] || TYPE_TAG.location}
             </span>
             {needsValidation && (
               <span className={styles.actionRequiredBadge}>✋ Validation requise</span>
@@ -751,8 +763,8 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, valid
         </span>
       </div>
 
-      {/* ── Timeline suivi (location uniquement) ── */}
-      {!isTrial && <DeliveryTimeline booking={booking} onValidate={onValidate} onDispute={onDispute} validating={validating} />}
+      {/* ── Timeline suivi (tous types — indispensable pour valider/contester la transaction) ── */}
+      <DeliveryTimeline booking={booking} onValidate={onValidate} onDispute={onDispute} validating={validating} />
 
       {/* ── Bloc livraison GPS ── */}
       {!isTrial && isLivraison && (
@@ -792,6 +804,22 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, valid
             <DetailRow icon="📅" label="Date du RDV" value={`${booking.preferredDate} à ${booking.preferredTime}`} />
             {booking.notes && <DetailRow icon="💬" label="Message" value={booking.notes} />}
           </>
+        ) : isChauffeur ? (
+          <>
+            {booking.chauffeurDate && (
+              <DetailRow icon="📅" label="Date" value={new Date(booking.chauffeurDate).toLocaleDateString("fr-FR")} />
+            )}
+            {booking.chauffeurHeures && <DetailRow icon="⏱️" label="Durée" value={`${booking.chauffeurHeures} h`} />}
+            {booking.chauffeurLieuDepart && <DetailRow icon="📍" label="Départ" value={booking.chauffeurLieuDepart} />}
+            {booking.chauffeurDestination && <DetailRow icon="🏁" label="Destination" value={booking.chauffeurDestination} />}
+            {booking.notes && <DetailRow icon="💬" label="Message" value={booking.notes} />}
+          </>
+        ) : isLeasing ? (
+          <>
+            {booking.leasingApportInitial != null && <DetailRow icon="💰" label="Apport initial" value={fmt(booking.leasingApportInitial)} />}
+            {booking.leasingMensualite != null && <DetailRow icon="📆" label="Mensualité" value={fmt(booking.leasingMensualite)} />}
+            {booking.leasingDuree && <DetailRow icon="🗓️" label="Durée" value={`${booking.leasingDuree} mois`} />}
+          </>
         ) : (
           <>
             {startDate && endDate && (
@@ -820,13 +848,19 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, valid
 
       {/* ── Récapitulatif financier ── */}
       <div className={styles.cardFinance}>
-        {!isTrial && booking.baseTotal > 0 && (
+        {booking.type === "location" && booking.baseTotal > 0 && (
           <div className={styles.finRow}>
             <span>Location ({booking.days}j × {fmt(booking.pricePerDay)})</span>
             <span>{fmt(booking.baseTotal)}</span>
           </div>
         )}
-        {!isTrial && booking.optionsTotal > 0 && (
+        {isChauffeur && booking.baseTotal > 0 && (
+          <div className={styles.finRow}>
+            <span>Prestation chauffeur ({booking.chauffeurHeures || 0} h)</span>
+            <span>{fmt(booking.baseTotal)}</span>
+          </div>
+        )}
+        {booking.type === "location" && booking.optionsTotal > 0 && (
           <div className={styles.finRow}>
             <span>Options</span>
             <span>{fmt(booking.optionsTotal)}</span>

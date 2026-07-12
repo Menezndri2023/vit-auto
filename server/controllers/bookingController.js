@@ -534,11 +534,20 @@ export const updateBookingStatus = async (req, res) => {
     }
 
     // ── Machine à états : transitions autorisées ──────────────────────────────
+    // Le parcours "preparing" → "ready" → "in_progress" n'est pas suivi à l'identique
+    // par tous les services (VendorDashboard.jsx a un workflow dédié par sous-type) :
+    //   - location à l'agence   : ready → client_arrived        (pas d'étape "en route")
+    //   - essai / vente         : confirmed → in_progress        (pas de préparation)
+    //   - chauffeur             : preparing → in_progress        (pas d'étape "ready")
+    //   - leasing               : ready → client_arrived         (signature directe)
+    // Chaque étape intermédiaire du pipeline générique est donc acceptée comme
+    // saut en avant légitime, tant qu'on ne saute pas les étapes qui déclenchent
+    // une action métier dédiée (transaction, validation, résolution de litige).
     const VALID_TRANSITIONS = {
       pending:                    ["confirmed", "cancelled"],
-      confirmed:                  ["preparing", "cancelled"],
-      preparing:                  ["ready", "cancelled"],
-      ready:                      ["in_progress", "cancelled"],
+      confirmed:                  ["preparing", "in_progress", "cancelled"],
+      preparing:                  ["ready", "in_progress", "cancelled"],
+      ready:                      ["in_progress", "client_arrived", "cancelled"],
       in_progress:                ["client_arrived", "client_absent", "cancelled"],
       client_arrived:             ["transaction_concluded", "transaction_not_concluded", "client_absent"],
       client_absent:              ["in_progress", "cancelled"],
@@ -1248,7 +1257,9 @@ export const cancelBookingByClient = async (req, res) => {
       return res.status(400).json({ message: "Identifiant de réservation invalide." });
     }
 
-    const booking = await Booking.findById(id).populate("vehicle", "title owner");
+    const booking = await Booking.findById(id)
+      .populate("vehicle", "title owner")
+      .populate("driver",  "firstName lastName owner");
     if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
 
     // Vérifie que c'est bien le client de cette réservation
@@ -1275,10 +1286,11 @@ export const cancelBookingByClient = async (req, res) => {
     emitBookingUpdate(booking); // ← temps réel partenaire
     await syncVehicleAvailability(booking.vehicle?._id || booking.vehicle);
 
-    // Notifier le partenaire
-    if (booking.vehicle?.owner) {
+    // Notifier le partenaire (propriétaire véhicule OU chauffeur selon le type de commande)
+    const cancelOwnerId = booking.vehicle?.owner || booking.driver?.owner;
+    if (cancelOwnerId) {
       await notify(
-        booking.vehicle.owner,
+        cancelOwnerId,
         "warning",
         "Réservation annulée",
         `Le client a annulé la réservation ${booking.reference || id}. Raison : ${reason}`,
@@ -1312,7 +1324,8 @@ export const resolveDispute = async (req, res) => {
 
     const booking = await Booking.findById(id)
       .populate("client",  "firstName lastName email")
-      .populate("vehicle", "title owner");
+      .populate("vehicle", "title owner")
+      .populate("driver",  "firstName lastName owner");
 
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
     if (booking.status !== "disputed") {
@@ -1337,8 +1350,9 @@ export const resolveDispute = async (req, res) => {
       compensated:  "✅ Le litige a été résolu — une compensation vous sera versée.",
     }[resolution];
 
+    const disputeOwnerId = booking.vehicle?.owner || booking.driver?.owner;
     if (booking.client?._id) await notify(booking.client._id, "system", "Litige résolu", clientMsg, "/dashboard");
-    if (booking.vehicle?.owner) await notify(booking.vehicle.owner, "system", "Litige résolu",
+    if (disputeOwnerId) await notify(disputeOwnerId, "system", "Litige résolu",
       `Le litige sur la commande ${booking.reference} a été résolu par l'administration.`, "/vendor/dashboard");
 
     res.json({ booking, message: "Litige résolu.", resolution });
@@ -1362,7 +1376,8 @@ export const adminForceComplete = async (req, res) => {
 
     const booking = await Booking.findById(id)
       .populate("client",  "firstName lastName")
-      .populate("vehicle", "owner title");
+      .populate("vehicle", "owner title")
+      .populate("driver",  "firstName lastName owner");
 
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
     if (["completed", "cancelled"].includes(booking.status)) {
@@ -1399,8 +1414,9 @@ export const adminForceComplete = async (req, res) => {
     emitBookingUpdate(booking); // ← temps réel client + partenaire
     syncVehicleAvailability(booking.vehicle?._id);
 
+    const forceCompleteOwnerId = booking.vehicle?.owner || booking.driver?.owner;
     if (booking.client?._id) await notify(booking.client._id, "system", "✅ Commande finalisée", `Votre commande ${booking.reference} a été finalisée par l'administration.`, "/dashboard");
-    if (booking.vehicle?.owner) await notify(booking.vehicle.owner, "system", "✅ Commande finalisée", `La commande ${booking.reference} a été finalisée.`, "/vendor/dashboard");
+    if (forceCompleteOwnerId) await notify(forceCompleteOwnerId, "system", "✅ Commande finalisée", `La commande ${booking.reference} a été finalisée.`, "/vendor/dashboard");
 
     res.json({ booking, message: "Commande finalisée avec succès." });
   } catch (err) {
