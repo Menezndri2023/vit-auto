@@ -20,7 +20,7 @@ const Login = () => {
                       || (returnToParam ? decodeURIComponent(returnToParam) : null);
   const fromSearch = (typeof stateFrom === "object" && stateFrom?.search) || "";
 
-  const [form,           setForm]           = useState({ email: "", password: "" });
+  const [form,           setForm]           = useState({ identifier: "", password: "" });
   const [showPassword,   setShowPassword]   = useState(false);
   const [loading,        setLoading]        = useState(false);
   const [notVerified,    setNotVerified]    = useState(null);      // email non vérifié
@@ -39,12 +39,12 @@ const Login = () => {
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    if (!form.email || !form.password) { error("Veuillez remplir tous les champs."); return; }
+    if (!form.identifier || !form.password) { error("Veuillez remplir tous les champs."); return; }
     setLoading(true);
     setNotVerified(null);
     setPhoneNotVerif(null);
     try {
-      const loggedUser = await login({ email: form.email, password: form.password });
+      const loggedUser = await login({ identifier: form.identifier, password: form.password });
       success("Connexion réussie ! Redirection...");
       const role = loggedUser?.role;
       // Admin → accueil du site (le bouton ⚙️ Admin dans la Navbar permet d'accéder au panel)
@@ -55,7 +55,7 @@ const Login = () => {
       setTimeout(() => navigate(dest + fromSearch, { replace: true }), 900);
     } catch (err) {
       if (err.code === "EMAIL_NOT_VERIFIED") {
-        setNotVerified(err.email || form.email);
+        setNotVerified(err.email || form.identifier);
       } else if (err.code === "PHONE_NOT_VERIFIED") {
         setPhoneNotVerif({ phone: err.phone, userId: err.userId });
         // Envoyer automatiquement le code OTP
@@ -224,12 +224,12 @@ const Login = () => {
         {!phoneNotVerif && (
           <form className={styles.form} onSubmit={onSubmit} autoComplete="on">
             <input
-              type="email"
-              name="email"
-              autoComplete="email"
-              value={form.email}
+              type="text"
+              name="identifier"
+              autoComplete="username"
+              value={form.identifier}
               onChange={handleChange}
-              placeholder={t("auth.email")}
+              placeholder="Email ou téléphone"
               required
             />
             <div style={{ position: "relative" }}>

@@ -21,11 +21,13 @@ async function addAuditLog(userId, action, performedBy = null, note = null) {
 export const getKycStatus = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select(
-      "emailVerified phoneVerified identity kycStatus kycScore kycBadge kycSubmittedAt kycDocumentHash kycOcrData kycFaceMatchScore kycReviewNote kycRejectionReason driverLicenseOcr"
+      "email phone emailVerified phoneVerified identity kycStatus kycScore kycBadge kycSubmittedAt kycDocumentHash kycOcrData kycFaceMatchScore kycReviewNote kycRejectionReason driverLicenseOcr"
     );
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
 
     res.json({
+      hasEmail:          !!user.email,
+      hasPhone:          !!user.phone,
       emailVerified:     user.emailVerified || false,
       phoneVerified:     user.phoneVerified || false,
       identityStatus:    user.identity?.status || "not_submitted",

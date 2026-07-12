@@ -185,14 +185,18 @@ export const AuthProvider = ({ children }) => {
     setUser(backendUser);
     if (data.token)        setToken(data.token);
     if (data.refreshToken) saveRefreshToken(data.refreshToken);
-    return { ...backendUser, emailVerificationSent: data.emailVerificationSent };
+    return {
+      ...backendUser,
+      emailVerificationSent: data.emailVerificationSent,
+      phoneVerificationSent: data.phoneVerificationSent,
+    };
   };
 
-  const login = async ({ email, password }) => {
+  const login = async ({ identifier, email, password }) => {
     const res  = await fetch("/api/auth/login", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ email, password }),
+      body:    JSON.stringify({ identifier: identifier || email, password }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {

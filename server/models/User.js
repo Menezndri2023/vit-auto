@@ -3,9 +3,14 @@ import mongoose from "mongoose";
 const userSchema = new mongoose.Schema({
   firstName:  { type: String, required: true, trim: true },
   lastName:   { type: String, required: true, trim: true },
-  email:      { type: String, required: true, unique: true, lowercase: true, trim: true },
+  // Email et téléphone sont mutuellement optionnels (l'un ou l'autre suffit à
+  // l'inscription — voir authController.js/register), mais l'unicité de chacun
+  // reste appliquée dès qu'une valeur réelle est renseignée (index partiels
+  // ci-dessous, qui ignorent les valeurs vides/absentes contrairement à un
+  // simple `sparse`, qui indexerait quand même les `null` explicites).
+  email:      { type: String, lowercase: true, trim: true, default: null },
   password:   { type: String, required: true },
-  phone:      { type: String, trim: true },
+  phone:      { type: String, trim: true, default: null },
 
   role: {
     type: String,
@@ -209,6 +214,23 @@ const userSchema = new mongoose.Schema({
 
 userSchema.index({ role: 1 });
 userSchema.index({ kycStatus: 1 });
+userSchema.index(
+  { email: 1 },
+  { unique: true, partialFilterExpression: { email: { $type: "string" } } }
+);
+userSchema.index(
+  { phone: 1 },
+  { unique: true, partialFilterExpression: { phone: { $type: "string" } } }
+);
+
+// Garde-fou modèle (en plus de la validation dans authController.js) : un compte
+// doit toujours avoir au moins un moyen de contact/connexion.
+userSchema.pre("validate", function (next) {
+  if (!this.email && !this.phone) {
+    return next(new Error("Un compte doit avoir au moins un email ou un numéro de téléphone."));
+  }
+  next();
+});
 
 // ── Filtre de sérialisation ────────────────────────────────────────────────
 // Plusieurs routes n'excluaient que `-password` via `.select()` (pattern liste

@@ -24,18 +24,21 @@ export async function processOcrJob(job) {
     case "validate_kyc_data": {
       // Re-calcul du score KYC côté serveur pour validation
       const User = (await import("../../models/User.js")).default;
-      const user = await User.findById(userId).select("kycOcrData kycFaceMatchScore emailVerified phoneVerified kycStatus").lean();
+      const user = await User.findById(userId).select("email phone kycOcrData kycFaceMatchScore emailVerified phoneVerified kycStatus").lean();
       if (!user) throw new Error(`Utilisateur ${userId} introuvable`);
 
       const ocrConf  = user.kycOcrData?.ocrConfidence || 0;
       const faceConf = user.kycFaceMatchScore || 0;
-      const hasEmail = user.emailVerified || false;
-      const hasPhone = user.phoneVerified || false;
       const hasDoc   = !!user.kycOcrData?.documentNumber;
+      // Un compte n'a qu'un seul canal (email OU téléphone — voir Register.jsx) :
+      // le canal absent n'est jamais un motif de blocage/pénalité, seul celui
+      // effectivement associé au compte doit être vérifié.
+      const emailChannelOk = !user.email || user.emailVerified;
+      const phoneChannelOk = !user.phone || user.phoneVerified;
 
       let score = 0;
-      if (hasEmail)       score += 15;
-      if (hasPhone)       score += 15;
+      if (user.emailVerified) score += 15;
+      if (user.phoneVerified) score += 15;
       if (user.kycOcrData?.documentNumber) score += 20;
       if (ocrConf >= 60)  score += 25;
       if (faceConf >= 80) score += 15;
@@ -43,14 +46,15 @@ export async function processOcrJob(job) {
       score = Math.min(score, 100);
 
       const badge = score >= 80 ? "CERTIFIÉ" : score >= 60 ? "VÉRIFIÉ" : "INSUFFISANT";
-      // Sans provider SMS configuré, hasPhone reste éternellement false (voir
-      // smsConfigured()) : ne pas en dépendre pour l'auto-approbation, sinon
-      // AUCUN utilisateur ne serait jamais auto-approuvé tant que l'équipe n'a
-      // pas de provider SMS réel — tout finirait en revue manuelle admin. Même
-      // logique pour hasEmail tant que emailVerificationRequired() est désactivé.
+      // Sans provider SMS configuré, phoneChannelOk resterait éternellement faux
+      // pour un compte téléphone (voir smsConfigured()) : ne pas en dépendre pour
+      // l'auto-approbation, sinon AUCUN utilisateur ne serait jamais auto-approuvé
+      // tant que l'équipe n'a pas de provider SMS réel — tout finirait en revue
+      // manuelle admin. Même logique pour l'email tant que
+      // emailVerificationRequired() est désactivé.
       const autoApprove = ocrConf >= 70 && faceConf >= 80
-        && (hasEmail || !emailVerificationRequired())
-        && (hasPhone || !smsConfigured())
+        && (emailChannelOk || !emailVerificationRequired())
+        && (phoneChannelOk || !smsConfigured())
         && hasDoc;
       const newStatus = autoApprove ? "VERIFIE" : user.kycStatus;
 

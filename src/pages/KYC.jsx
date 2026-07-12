@@ -60,6 +60,10 @@ export default function KYC() {
   // la vérification email ne doit pas non plus bloquer le KYC (voir
   // emailVerificationRequired dans la réponse de /api/kyc/status).
   const [emailVerifRequired, setEmailVerifRequired] = useState(true);
+  // Un compte n'a qu'un seul moyen de contact (email OU téléphone — voir Register.jsx) :
+  // on ne doit exiger/afficher que la vérification du canal réellement associé au compte.
+  const [hasEmail, setHasEmail] = useState(!!user?.email);
+  const [hasPhone, setHasPhone] = useState(!!user?.phone);
 
   /* ── STEP 2 — Document + OCR ─────────────────────────────────────────── */
   const [docType,         setDocType]         = useState("cni");
@@ -109,6 +113,8 @@ export default function KYC() {
         setPhoneVerified(d.phoneVerified);
         if (typeof d.smsAvailable === "boolean") setSmsAvailable(d.smsAvailable);
         if (typeof d.emailVerificationRequired === "boolean") setEmailVerifRequired(d.emailVerificationRequired);
+        if (typeof d.hasEmail === "boolean") setHasEmail(d.hasEmail);
+        if (typeof d.hasPhone === "boolean") setHasPhone(d.hasPhone);
         if (d.kycStatus && d.kycStatus !== "EN_ATTENTE" && d.kycSubmittedAt) {
           setKycResult(d); setSubmitted(true); setStep(4);
         }
@@ -394,101 +400,107 @@ export default function KYC() {
             </div>
           </div>
 
-          {/* Email */}
-          <div className={styles.verifySection}>
-            <div className={styles.verifyRow}>
-              <div className={[styles.verifyDot, emailVerified ? styles.verifyDotOk : styles.verifyDotPending].join(" ")} />
-              <div className={styles.verifyInfo}>
-                <span className={styles.verifyLabel}>Adresse email</span>
-                <span className={styles.verifyValue}>{user.email}</span>
-              </div>
-              {emailVerified
-                ? <span className={styles.badgeOk}>✓ Vérifié</span>
-                : emailVerifRequired
-                  ? <span className={styles.badgePending}>Non confirmé</span>
-                  : <span className={styles.badgePending}>Facultatif pour l'instant</span>}
-            </div>
-            {!emailVerified && (
-              <div className={styles.verifyAction}>
-                {!emailResent
-                  ? <button className={styles.actionBtn} onClick={handleResendEmail}>📨 Renvoyer le lien</button>
-                  : <div className={styles.infoBox}><strong>Email envoyé !</strong><p>Cliquez sur le lien reçu à <em>{user.email}</em>, puis revenez et actualisez la page.</p></div>
-                }
-                {emailError && <p className={styles.errorMsg}>{emailError}</p>}
-                {!emailVerifRequired && (
-                  <p style={{ marginTop: 8, fontSize: "0.82rem", color: "#94a3b8" }}>
-                    La confirmation par email est momentanément facultative — vous pouvez continuer votre dossier sans attendre le lien.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Téléphone */}
-          <div className={styles.verifySection}>
-            <div className={styles.verifyRow}>
-              <div className={[styles.verifyDot, phoneVerified ? styles.verifyDotOk : styles.verifyDotPending].join(" ")} />
-              <div className={styles.verifyInfo}>
-                <span className={styles.verifyLabel}>Téléphone</span>
-                <span className={styles.verifyValue}>{phoneVerified ? (phoneNumber || user.phone || "Vérifié") : "Non vérifié"}</span>
-              </div>
-              {phoneVerified
-                ? <span className={styles.badgeOk}>✓ Vérifié</span>
-                : smsAvailable
-                  ? <span className={styles.badgePending}>Non vérifié</span>
-                  : <span className={styles.badgePending}>Facultatif pour l'instant</span>}
-            </div>
-            {!phoneVerified && !smsAvailable && (
-              <div className={styles.infoBox}>
-                <strong>Vérification SMS momentanément indisponible.</strong>
-                <p>Vous pouvez continuer votre dossier sans confirmer votre téléphone pour l'instant ; cette étape ne vous bloquera pas.</p>
-              </div>
-            )}
-            {!phoneVerified && smsAvailable && (
-              <div className={styles.verifyAction}>
-                <div className={styles.phoneRow}>
-                  <input type="tel" className={styles.textInput} placeholder="+225 07 00 00 00 00"
-                    value={phoneNumber} onChange={(e) => { setPhoneNumber(e.target.value); setOtpSent(false); setOtpError(""); setOtpSuccess(""); }} />
-                  <button className={styles.actionBtn} onClick={handleSendPhoneOtp} disabled={otpBtnLoading || !phoneNumber.trim()}>
-                    {otpBtnLoading ? "Envoi…" : otpSent ? "Renvoyer" : "Envoyer le code"}
-                  </button>
+          {/* Email — uniquement pour les comptes inscrits par email */}
+          {hasEmail && (
+            <div className={styles.verifySection}>
+              <div className={styles.verifyRow}>
+                <div className={[styles.verifyDot, emailVerified ? styles.verifyDotOk : styles.verifyDotPending].join(" ")} />
+                <div className={styles.verifyInfo}>
+                  <span className={styles.verifyLabel}>Adresse email</span>
+                  <span className={styles.verifyValue}>{user.email}</span>
                 </div>
-                {otpSent && (
-                  <div className={styles.otpBlock}>
-                    <p className={styles.otpHint}>Code à 6 chiffres envoyé au <strong>{phoneNumber}</strong></p>
-                    {devOtp && (
-                      <div className={styles.devOtpBox}>
-                        <span>Développement — Code :</span>
-                        <strong onClick={() => setOtpCode(devOtp)} title="Cliquez pour remplir">{devOtp}</strong>
-                      </div>
-                    )}
-                    <div className={styles.otpRow}>
-                      <input type="text" inputMode="numeric"
-                        className={[styles.otpInput, otpError ? styles.inputError : ""].join(" ")}
-                        placeholder="• • • • • •" value={otpCode} maxLength={6}
-                        onChange={(e) => { setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setOtpError(""); }} />
-                      <button className={styles.primaryBtn} onClick={handleVerifyPhoneOtp}
-                        disabled={otpVerifLoading || otpCode.length !== 6}>
-                        {otpVerifLoading ? "…" : "Vérifier"}
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {otpError   && <p className={styles.errorMsg}>{otpError}</p>}
-                {otpSuccess && !otpError && <p className={styles.successMsg}>{otpSuccess}</p>}
+                {emailVerified
+                  ? <span className={styles.badgeOk}>✓ Vérifié</span>
+                  : emailVerifRequired
+                    ? <span className={styles.badgePending}>Non confirmé</span>
+                    : <span className={styles.badgePending}>Facultatif pour l'instant</span>}
               </div>
-            )}
-          </div>
+              {!emailVerified && (
+                <div className={styles.verifyAction}>
+                  {!emailResent
+                    ? <button className={styles.actionBtn} onClick={handleResendEmail}>📨 Renvoyer le lien</button>
+                    : <div className={styles.infoBox}><strong>Email envoyé !</strong><p>Cliquez sur le lien reçu à <em>{user.email}</em>, puis revenez et actualisez la page.</p></div>
+                  }
+                  {emailError && <p className={styles.errorMsg}>{emailError}</p>}
+                  {!emailVerifRequired && (
+                    <p style={{ marginTop: 8, fontSize: "0.82rem", color: "#94a3b8" }}>
+                      La confirmation par email est momentanément facultative — vous pouvez continuer votre dossier sans attendre le lien.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Téléphone — uniquement pour les comptes inscrits par téléphone */}
+          {hasPhone && (
+            <div className={styles.verifySection}>
+              <div className={styles.verifyRow}>
+                <div className={[styles.verifyDot, phoneVerified ? styles.verifyDotOk : styles.verifyDotPending].join(" ")} />
+                <div className={styles.verifyInfo}>
+                  <span className={styles.verifyLabel}>Téléphone</span>
+                  <span className={styles.verifyValue}>{phoneVerified ? (phoneNumber || user.phone || "Vérifié") : "Non vérifié"}</span>
+                </div>
+                {phoneVerified
+                  ? <span className={styles.badgeOk}>✓ Vérifié</span>
+                  : smsAvailable
+                    ? <span className={styles.badgePending}>Non vérifié</span>
+                    : <span className={styles.badgePending}>Facultatif pour l'instant</span>}
+              </div>
+              {!phoneVerified && !smsAvailable && (
+                <div className={styles.infoBox}>
+                  <strong>Vérification SMS momentanément indisponible.</strong>
+                  <p>Vous pouvez continuer votre dossier sans confirmer votre téléphone pour l'instant ; cette étape ne vous bloquera pas.</p>
+                </div>
+              )}
+              {!phoneVerified && smsAvailable && (
+                <div className={styles.verifyAction}>
+                  <div className={styles.phoneRow}>
+                    <input type="tel" className={styles.textInput} placeholder="+225 07 00 00 00 00"
+                      value={phoneNumber} onChange={(e) => { setPhoneNumber(e.target.value); setOtpSent(false); setOtpError(""); setOtpSuccess(""); }} />
+                    <button className={styles.actionBtn} onClick={handleSendPhoneOtp} disabled={otpBtnLoading || !phoneNumber.trim()}>
+                      {otpBtnLoading ? "Envoi…" : otpSent ? "Renvoyer" : "Envoyer le code"}
+                    </button>
+                  </div>
+                  {otpSent && (
+                    <div className={styles.otpBlock}>
+                      <p className={styles.otpHint}>Code à 6 chiffres envoyé au <strong>{phoneNumber}</strong></p>
+                      {devOtp && (
+                        <div className={styles.devOtpBox}>
+                          <span>Développement — Code :</span>
+                          <strong onClick={() => setOtpCode(devOtp)} title="Cliquez pour remplir">{devOtp}</strong>
+                        </div>
+                      )}
+                      <div className={styles.otpRow}>
+                        <input type="text" inputMode="numeric"
+                          className={[styles.otpInput, otpError ? styles.inputError : ""].join(" ")}
+                          placeholder="• • • • • •" value={otpCode} maxLength={6}
+                          onChange={(e) => { setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setOtpError(""); }} />
+                        <button className={styles.primaryBtn} onClick={handleVerifyPhoneOtp}
+                          disabled={otpVerifLoading || otpCode.length !== 6}>
+                          {otpVerifLoading ? "…" : "Vérifier"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {otpError   && <p className={styles.errorMsg}>{otpError}</p>}
+                  {otpSuccess && !otpError && <p className={styles.successMsg}>{otpSuccess}</p>}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className={styles.cardFooter}>
             <div />
             <button className={styles.primaryBtn} onClick={() => setStep(2)}
-              disabled={(emailVerifRequired && !emailVerified) || (smsAvailable && !phoneVerified)}>
-              {((emailVerifRequired && !emailVerified) || (smsAvailable && !phoneVerified)) ? "Complétez les vérifications" : "Continuer →"}
+              disabled={(hasEmail && emailVerifRequired && !emailVerified) || (hasPhone && smsAvailable && !phoneVerified)}>
+              {((hasEmail && emailVerifRequired && !emailVerified) || (hasPhone && smsAvailable && !phoneVerified)) ? "Complétez la vérification" : "Continuer →"}
             </button>
           </div>
-          {((emailVerifRequired && !emailVerified) || (smsAvailable && !phoneVerified)) && (
-            <p className={styles.gateMsg}>Email et téléphone doivent tous deux être vérifiés pour continuer.</p>
+          {((hasEmail && emailVerifRequired && !emailVerified) || (hasPhone && smsAvailable && !phoneVerified)) && (
+            <p className={styles.gateMsg}>
+              {hasEmail ? "Votre email doit être vérifié pour continuer." : "Votre téléphone doit être vérifié pour continuer."}
+            </p>
           )}
         </div>
       )}

@@ -6,9 +6,10 @@ import * as OTPAuth from "otpauth";
 import QRCode from "qrcode";
 import User from "../models/User.js";
 import { serverValidateIdentity } from "../utils/idValidation.js";
-import { smsConfigured } from "../utils/smsConfigured.js";
+import { smsConfigured, twilioVerifyConfigured } from "../utils/smsConfigured.js";
 import { emailVerificationRequired } from "../utils/emailVerificationRequired.js";
 import { dispatch } from "../queue/index.js";
+import { sendVerification, checkVerification } from "../services/twilioVerify.js";
 
 const JWT_SECRET         = () => process.env.JWT_SECRET;
 // REFRESH_TOKEN_SECRET est obligatoire et vérifié au démarrage (server.js) — jamais
@@ -79,16 +80,27 @@ const isDevNoSmtp = () =>
 const sanitize = (v) => (typeof v === "string" ? v.replace(/<[^>]*>/g, "").trim() : v);
 
 // ── Inscription ───────────────────────────────────────────────────────────
+// Email et téléphone sont mutuellement exclusifs : le formulaire (Register.jsx)
+// n'envoie qu'un seul des deux selon le mode choisi par l'utilisateur — la
+// vérification se fait alors par lien email OU par OTP SMS (Twilio Verify),
+// jamais les deux.
 export const register = async (req, res) => {
   const firstName = sanitize(req.body.firstName);
   const lastName  = sanitize(req.body.lastName);
-  const email     = sanitize(req.body.email)?.toLowerCase();
   const password  = req.body.password; // Ne pas modifier le mot de passe
-  const phone     = sanitize(req.body.phone);
   const role      = sanitize(req.body.role);
 
-  if (!email || !password || !firstName || !lastName) {
+  let email = sanitize(req.body.email)?.toLowerCase() || null;
+  let phone = sanitize(req.body.phone) || null;
+  // Si les deux arrivent quand même (client non standard), on privilégie l'email —
+  // canal de récupération de compte plus fiable qu'un numéro.
+  if (email && phone) phone = null;
+
+  if (!password || !firstName || !lastName) {
     return res.status(400).json({ message: "Données manquantes." });
+  }
+  if (!email && !phone) {
+    return res.status(400).json({ message: "Un email ou un numéro de téléphone est requis." });
   }
   if (firstName.length < 2 || firstName.length > 50) {
     return res.status(400).json({ message: "Le prénom doit contenir entre 2 et 50 caractères." });
@@ -102,21 +114,23 @@ export const register = async (req, res) => {
   if (password.length > 128) {
     return res.status(400).json({ message: "Mot de passe trop long." });
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ message: "Format d'e-mail invalide." });
-  }
-  if (email.length > 254) {
-    return res.status(400).json({ message: "Adresse e-mail trop longue." });
+  if (email) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ message: "Format d'e-mail invalide." });
+    }
+    if (email.length > 254) {
+      return res.status(400).json({ message: "Adresse e-mail trop longue." });
+    }
   }
   if (phone && !/^[+\d\s\-().]{6,20}$/.test(phone)) {
     return res.status(400).json({ message: "Format de téléphone invalide." });
   }
 
   try {
-    const existing = await User.findOne({ email: email.toLowerCase() });
+    const existing = await User.findOne(email ? { email } : { phone });
     if (existing) {
       // En dev sans SMTP : si le compte existe mais n'est pas vérifié, on le vérifie automatiquement
-      if (isDevNoSmtp() && !existing.emailVerified) {
+      if (email && isDevNoSmtp() && !existing.emailVerified) {
         existing.emailVerified = true;
         existing.emailVerificationToken   = null;
         existing.emailVerificationExpires = null;
@@ -129,50 +143,78 @@ export const register = async (req, res) => {
           message: "[DEV] Compte existant auto-vérifié. Vous pouvez vous connecter.",
         });
       }
-      return res.status(409).json({ message: "Adresse e-mail déjà utilisée." });
+      return res.status(409).json({
+        message: email ? "Adresse e-mail déjà utilisée." : "Numéro de téléphone déjà utilisé.",
+      });
     }
 
     const allowedRoles = ["client", "partenaire"];
     const userRole = allowedRoles.includes(role) ? role : "client";
+    const hash = await bcrypt.hash(password, 12);
 
-    const hash  = await bcrypt.hash(password, 12);
-    const token = makeToken();
+    // ── Inscription par email ────────────────────────────────────────────
+    if (email) {
+      const token = makeToken();
+      const autoVerify = isDevNoSmtp(); // En développement sans SMTP : auto-vérifier l'email
 
-    // En développement sans SMTP : auto-vérifier l'email
-    const autoVerify = isDevNoSmtp();
+      const user = await User.create({
+        firstName, lastName,
+        email,
+        password: hash,
+        role: userRole,
+        emailVerificationToken:   autoVerify ? null : token,
+        emailVerificationExpires: autoVerify ? null : new Date(Date.now() + VERIFY_TTL),
+        emailVerified:            autoVerify,
+      });
 
+      const jwtToken = signJWT(user);
+
+      if (autoVerify) {
+        logger.info("[DEV] Compte auto-vérifié", { email: user.email });
+        return res.status(201).json({
+          user: safeUser(user),
+          token: jwtToken,
+          emailVerificationSent: false,
+          message: "Compte créé et activé automatiquement (mode développement).",
+        });
+      }
+
+      const verifyUrl = `${APP_URL()}/verify-email?token=${token}`;
+      dispatch.emailVerification(user.email, user._id.toString(), verifyUrl, user.firstName).catch(() => {});
+
+      return res.status(201).json({
+        user: safeUser(user),
+        token: jwtToken,
+        emailVerificationSent: true,
+        message: "Compte créé ! Vérifiez votre boîte mail pour activer votre compte.",
+      });
+    }
+
+    // ── Inscription par téléphone ────────────────────────────────────────
     const user = await User.create({
       firstName, lastName,
-      email,
+      phone,
       password: hash,
-      phone: phone || null,
       role: userRole,
-      emailVerificationToken:   autoVerify ? null  : token,
-      emailVerificationExpires: autoVerify ? null  : new Date(Date.now() + VERIFY_TTL),
-      emailVerified:            autoVerify,
+      phoneVerified: false,
     });
 
     const jwtToken = signJWT(user);
 
-    if (autoVerify) {
-      logger.info("[DEV] Compte auto-vérifié", { email: user.email });
-      return res.status(201).json({
-        user: safeUser(user),
-        token: jwtToken,
-        emailVerificationSent: false,
-        message: "Compte créé et activé automatiquement (mode développement).",
-      });
+    let otpSent = false;
+    if (twilioVerifyConfigured()) {
+      const result = await sendVerification(phone);
+      otpSent = result.sent;
+      if (!result.sent) logger.error("register: échec envoi OTP Twilio Verify", { phone, error: result.error });
     }
-
-    // Production : envoyer l'email de vérification via queue
-    const verifyUrl = `${APP_URL()}/verify-email?token=${token}`;
-    dispatch.emailVerification(user.email, user._id.toString(), verifyUrl, user.firstName).catch(() => {});
 
     res.status(201).json({
       user: safeUser(user),
       token: jwtToken,
-      emailVerificationSent: true,
-      message: "Compte créé ! Vérifiez votre boîte mail pour activer votre compte.",
+      phoneVerificationSent: otpSent,
+      message: otpSent
+        ? "Compte créé ! Un code de vérification a été envoyé par SMS."
+        : "Compte créé !",
     });
   } catch (err) {
     logger.error("register:", err);
@@ -181,14 +223,20 @@ export const register = async (req, res) => {
 };
 
 // ── Connexion ─────────────────────────────────────────────────────────────
+// Identifiant unique : email OU téléphone (voir Login.jsx — un seul champ,
+// détection automatique du type saisi).
 export const login = async (req, res) => {
-  const email    = sanitize(req.body.email)?.toLowerCase();
-  const password = req.body.password;
-  if (!email || !password) return res.status(400).json({ message: "Données manquantes." });
+  const rawIdentifier = sanitize(req.body.identifier ?? req.body.email ?? req.body.phone);
+  const password       = req.body.password;
+  if (!rawIdentifier || !password) return res.status(400).json({ message: "Données manquantes." });
   if (password.length > 128) return res.status(400).json({ message: "Mot de passe trop long." });
 
+  const isEmailLike = rawIdentifier.includes("@");
+  const email = isEmailLike ? rawIdentifier.toLowerCase() : null;
+  const phone = isEmailLike ? null : rawIdentifier;
+
   try {
-    const user = await User.findOne({ email });
+    const user = await User.findOne(email ? { email } : { phone });
     if (!user) return res.status(401).json({ message: "Identifiants invalides." });
 
     if (!user.isActive) {
@@ -199,8 +247,10 @@ export const login = async (req, res) => {
     if (!isValid) return res.status(401).json({ message: "Identifiants invalides." });
 
     // Bloquer si email non vérifié (sauf admin, mode dev sans SMTP, ou tant que la
-    // vérification email n'est pas exigée — voir emailVerificationRequired()).
-    if (!user.emailVerified && user.role !== "admin" && !isDevNoSmtp() && emailVerificationRequired()) {
+    // vérification email n'est pas exigée — voir emailVerificationRequired()). Ne
+    // s'applique que si le compte a effectivement un email (comptes inscrits par
+    // téléphone uniquement : user.email est null, rien à vérifier de ce côté).
+    if (user.email && !user.emailVerified && user.role !== "admin" && !isDevNoSmtp() && emailVerificationRequired()) {
       return res.status(403).json({
         code: "EMAIL_NOT_VERIFIED",
         message: "Veuillez vérifier votre adresse e-mail avant de vous connecter. Vérifiez votre boîte mail ou demandez un nouveau lien.",
@@ -385,24 +435,33 @@ export const devVerify = async (req, res) => {
 };
 
 // ── Mot de passe oublié ───────────────────────────────────────────────────
+// Par email (lien) ou par téléphone (OTP Twilio Verify), selon le canal du compte —
+// identifier unique en entrée (voir ForgotPassword.jsx).
 export const forgotPassword = async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ message: "E-mail requis." });
+  const identifier = sanitize(req.body.identifier)?.trim();
+  if (!identifier) return res.status(400).json({ message: "Email ou téléphone requis." });
+
+  const isEmailLike = identifier.includes("@");
+  const generic = { message: "Si ce compte existe, un code ou un lien a été envoyé." };
 
   try {
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne(isEmailLike ? { email: identifier.toLowerCase() } : { phone: identifier });
     // Toujours répondre OK pour ne pas révéler l'existence d'un compte
-    if (!user) return res.json({ message: "Si ce compte existe, un lien a été envoyé." });
+    if (!user) return res.json(generic);
 
-    const token = makeToken();
-    user.passwordResetToken   = token;
-    user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1h
-    await user.save();
+    if (isEmailLike) {
+      const token = makeToken();
+      user.passwordResetToken   = token;
+      user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1h
+      await user.save();
 
-    const resetUrl = `${APP_URL()}/reset-password?token=${token}`;
-    dispatch.passwordReset(user.email, user._id.toString(), resetUrl, user.firstName).catch(() => {});
+      const resetUrl = `${APP_URL()}/reset-password?token=${token}`;
+      dispatch.passwordReset(user.email, user._id.toString(), resetUrl, user.firstName).catch(() => {});
+    } else if (twilioVerifyConfigured()) {
+      await sendVerification(user.phone).catch((err) => logger.error("forgotPassword (Twilio Verify):", err.message));
+    }
 
-    res.json({ message: "Si ce compte existe, un lien a été envoyé." });
+    res.json(generic);
   } catch (err) {
     logger.error("forgotPassword:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -452,6 +511,9 @@ async function sendSmsOtp(phoneNumber, otp) {
 }
 
 // ── Envoyer OTP téléphone ─────────────────────────────────────────────────
+// Twilio Verify (prioritaire s'il est configuré) génère et gère lui-même le code
+// — on ne stocke plus rien localement pour ce provider. Le flux OTP maison
+// (génération + hash bcrypt) n'est conservé que pour Africa's Talking / dev.
 export const sendPhoneOtp = async (req, res) => {
   const { phone, userId } = req.body;
   const target = phone?.trim();
@@ -465,18 +527,33 @@ export const sendPhoneOtp = async (req, res) => {
       return res.json({ message: "Téléphone déjà vérifié.", alreadyVerified: true });
     }
 
-    // Générer OTP à 6 chiffres et le stocker hashé
+    if (target) user.phone = target;
+    user.phoneVerified = false;
+
+    if (twilioVerifyConfigured()) {
+      await user.save();
+      const result = await sendVerification(target);
+      if (!result.sent) {
+        logger.error("sendPhoneOtp (Twilio Verify): échec envoi", { phone: target, error: result.error });
+        return res.status(503).json({
+          message: "Le service d'envoi de SMS est momentanément indisponible. Contactez le support VIT AUTO (contact@vit-auto.com) pour vérifier votre compte.",
+          smsUnavailable: true,
+        });
+      }
+      return res.json({
+        message:  `✅ Code envoyé par SMS au ${target}. Vérifiez vos messages.`,
+        provider: "twilio_verify",
+      });
+    }
+
+    // ── Flux OTP maison (Africa's Talking / dev console) ─────────────────
     const otp     = Math.floor(100000 + Math.random() * 900000).toString();
     const otpHash = await bcrypt.hash(otp, 10);
     user.phoneOtp        = otpHash;
     user.phoneOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
-    if (target) user.phone = target;
-    user.phoneVerified = false;
     await user.save();
 
-    // Envoyer le vrai SMS
     const smsResult = await sendSmsOtp(target, otp);
-
     const isDev = process.env.NODE_ENV !== "production";
 
     // Ne JAMAIS répondre "code envoyé" si ce n'est pas vrai — l'utilisateur resterait
@@ -514,12 +591,20 @@ export const verifyPhoneOtp = async (req, res) => {
     if (!user) return res.status(404).json({ message: "Compte introuvable." });
     if (user.phoneVerified) return res.json({ message: "Téléphone déjà vérifié.", success: true });
 
-    const otpValid = user.phoneOtp && await bcrypt.compare(otp, user.phoneOtp);
-    if (!otpValid) {
-      return res.status(400).json({ message: "Code OTP incorrect." });
-    }
-    if (!user.phoneOtpExpires || user.phoneOtpExpires < new Date()) {
-      return res.status(400).json({ message: "Code OTP expiré. Demandez un nouveau code." });
+    let otpValid;
+    if (twilioVerifyConfigured()) {
+      const target = phone?.trim() || user.phone;
+      const check = await checkVerification(target, otp);
+      otpValid = check.valid;
+      if (!otpValid) return res.status(400).json({ message: "Code OTP incorrect ou expiré." });
+    } else {
+      otpValid = user.phoneOtp && await bcrypt.compare(otp, user.phoneOtp);
+      if (!otpValid) {
+        return res.status(400).json({ message: "Code OTP incorrect." });
+      }
+      if (!user.phoneOtpExpires || user.phoneOtpExpires < new Date()) {
+        return res.status(400).json({ message: "Code OTP expiré. Demandez un nouveau code." });
+      }
     }
 
     user.phoneVerified   = true;
@@ -612,19 +697,40 @@ export const revokeRefreshToken = async (req, res) => {
 };
 
 // ── Réinitialisation du mot de passe ──────────────────────────────────────
+// Deux chemins : { token, password } (lien email) ou { phone, otp, password }
+// (OTP Twilio Verify) — voir forgotPassword() ci-dessus.
 export const resetPassword = async (req, res) => {
-  const { token, password } = req.body;
-  if (!token || !password) return res.status(400).json({ message: "Token et nouveau mot de passe requis." });
-  if (password.length < 8) return res.status(400).json({ message: "Le mot de passe doit contenir au moins 8 caractères." });
+  const { token, phone, otp, password } = req.body;
+  if (!password || password.length < 8) {
+    return res.status(400).json({ message: "Le mot de passe doit contenir au moins 8 caractères." });
+  }
+  if (!token && !(phone && otp)) {
+    return res.status(400).json({ message: "Token ou (téléphone + code) requis." });
+  }
 
   try {
-    const user = await User.findOne({
-      passwordResetToken:   token,
-      passwordResetExpires: { $gt: new Date() },
-    });
+    let user;
 
-    if (!user) {
-      return res.status(400).json({ message: "Lien invalide ou expiré. Recommencez la procédure." });
+    if (token) {
+      user = await User.findOne({
+        passwordResetToken:   token,
+        passwordResetExpires: { $gt: new Date() },
+      });
+      if (!user) {
+        return res.status(400).json({ message: "Lien invalide ou expiré. Recommencez la procédure." });
+      }
+    } else {
+      const target = phone.trim();
+      user = await User.findOne({ phone: target });
+      if (!user) {
+        return res.status(400).json({ message: "Code invalide ou expiré. Recommencez la procédure." });
+      }
+      const check = twilioVerifyConfigured()
+        ? await checkVerification(target, otp)
+        : { valid: false };
+      if (!check.valid) {
+        return res.status(400).json({ message: "Code invalide ou expiré. Recommencez la procédure." });
+      }
     }
 
     user.password             = await bcrypt.hash(password, 12);

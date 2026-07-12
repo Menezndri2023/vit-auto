@@ -1,4 +1,4 @@
-// true si un provider SMS réel (Africa's Talking ou Twilio) est configuré.
+// true si un provider SMS réel (Africa's Talking ou Twilio Verify) est configuré.
 // Centralisé ici (plutôt que dupliqué) car consommé à la fois par authController.js
 // (gate login/OTP) et par le worker OCR (score/auto-approbation KYC) — sans provider
 // réel, aucune vérification téléphone n'est possible et ne doit donc jamais bloquer
@@ -6,4 +6,9 @@
 export const smsConfigured = () =>
   !!(process.env.AT_USERNAME && process.env.AT_API_KEY &&
      process.env.AT_API_KEY !== "atsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx") ||
-  !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_FROM);
+  !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_VERIFY_SERVICE_SID);
+
+// true si Twilio Verify spécifiquement est configuré (utilisé pour choisir entre
+// le flux OTP géré par Twilio Verify et l'ancien flux OTP maison Africa's Talking).
+export const twilioVerifyConfigured = () =>
+  !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_VERIFY_SERVICE_SID);
