@@ -153,8 +153,9 @@ export default function AdminPanel() {
   // KYC Admin
   const [kycList,       setKycList]       = useState([]);
   const [kycLoading,    setKycLoading]    = useState(false);
-  const [kycFilter,     setKycFilter]     = useState("");
+  const [kycFilter,     setKycFilter]     = useState("EN_ATTENTE");
   const [kycDetailUser, setKycDetailUser] = useState(null);
+  const [kycDetailLoading, setKycDetailLoading] = useState(false);
   const [kycReviewForm, setKycReviewForm] = useState({ decision: "VERIFIE", note: "" });
   const [kycReviewLoading, setKycReviewLoading] = useState(false);
   const [kycReviewMsg,  setKycReviewMsg]  = useState("");
@@ -408,6 +409,24 @@ export default function AdminPanel() {
     } catch { setCertReviewMsg("❌ Connexion impossible."); }
     setCertReviewLoading(false);
   }, [headers, certBadgeForm, certDetail, loadCertList]);
+
+  // Ouvre le dossier KYC — charge le détail complet (photos recto/verso/selfie,
+  // permis de conduire...) depuis /api/kyc/admin/:userId, car la LISTE exclut
+  // volontairement ces images base64 (trop lourdes pour un listing de 50 dossiers).
+  const openKycDetail = useCallback(async (u) => {
+    setKycDetailUser(u);
+    setKycReviewForm({ decision: u.kycStatus === "VERIFIE" ? "EN_ATTENTE" : "VERIFIE", note: "" });
+    setKycReviewMsg("");
+    setKycDetailLoading(true);
+    try {
+      const r = await fetch(`/api/kyc/admin/${u._id}`, { headers });
+      if (r.ok) {
+        const d = await r.json();
+        setKycDetailUser(d.user);
+      }
+    } catch { /* garde les données de la liste en cas d'échec réseau */ }
+    setKycDetailLoading(false);
+  }, [headers]);
 
   const handleKycReview = async (userId) => {
     setKycReviewLoading(true); setKycReviewMsg("");
@@ -2308,7 +2327,6 @@ export default function AdminPanel() {
           {/* Filtres par statut */}
           <div style={{ display: "flex", gap: 8, marginBottom: "1.25rem", flexWrap: "wrap" }}>
             {[
-              { v: "",                      l: "En attente", ic: "📋" },
               { v: "EN_ATTENTE",            l: "En attente", ic: "⏳" },
               { v: "A_REVOIR_MANUELLEMENT", l: "En révision", ic: "🔍" },
               { v: "VERIFIE",               l: "Vérifiés",   ic: "✅" },
@@ -2380,7 +2398,7 @@ export default function AdminPanel() {
                     {/* Bouton examen */}
                     <button
                       style={{ padding: "8px 18px", borderRadius: 10, background: "#6366f1", color: "#fff", border: "none", fontWeight: 700, fontSize: ".85rem", cursor: "pointer", whiteSpace: "nowrap" }}
-                      onClick={() => { setKycDetailUser(u); setKycReviewForm({ decision: u.kycStatus === "VERIFIE" ? "EN_ATTENTE" : "VERIFIE", note: "" }); setKycReviewMsg(""); }}
+                      onClick={() => openKycDetail(u)}
                     >
                       Examiner →
                     </button>
@@ -2440,6 +2458,14 @@ export default function AdminPanel() {
                     <div><span style={{ color: "#94a3b8" }}>Soumis </span>{kycDetailUser.kycSubmittedAt ? new Date(kycDetailUser.kycSubmittedAt).toLocaleDateString("fr-FR") : "—"}</div>
                   </div>
 
+                  {/* Chargement des documents complets (photos recto/verso/selfie/permis) */}
+                  {kycDetailLoading && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 10, padding: "14px 16px", marginBottom: 14, color: "#64748b", fontSize: ".85rem" }}>
+                      <div className={styles.spinner} style={{ width: 18, height: 18 }} />
+                      Chargement des documents soumis…
+                    </div>
+                  )}
+
                   {/* Données OCR */}
                   {kycDetailUser.kycOcrData && (
                     <div style={{ background: "#f5f3ff", border: "1.5px solid #c4b5fd", borderRadius: 10, padding: "12px 16px", marginBottom: 14, fontSize: ".86rem", color: "#3730a3" }}>
@@ -2480,6 +2506,11 @@ export default function AdminPanel() {
                           </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+                  {!kycDetailLoading && !(kycDetailUser.identity?.frontImage || kycDetailUser.identity?.backImage || kycDetailUser.identity?.selfie) && (
+                    <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: ".82rem", color: "#dc2626" }}>
+                      ⚠️ Aucune pièce d'identité soumise par cet utilisateur.
                     </div>
                   )}
 
