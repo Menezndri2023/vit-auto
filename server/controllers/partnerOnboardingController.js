@@ -307,6 +307,12 @@ export const signLOI = async (req, res) => {
       "Votre Lettre d'Intention a été signée avec succès. Notre équipe prépare votre Accord de Partenariat Fondateur."
     );
 
+    dispatch.loiSigned(req.user.email, req.user.id, {
+      firstName:   req.user.firstName,
+      companyName: doc.companyInfo?.legalName,
+      loiRef:      doc.referenceNumber,
+    }).catch((e) => logger.error("dispatch.loiSigned:", e.message));
+
     const admins = await User.find({ role: "admin" }).select("_id").lean();
     for (const admin of admins) {
       await notify(admin._id, "LOI signée",
@@ -361,6 +367,14 @@ export const signAgreement = async (req, res) => {
       "🎉 Bienvenue dans le programme Founding Partner VIT-AUTO !",
       `Félicitations ! Votre accord de partenariat fondateur a été signé. Votre badge exclusif "Founding Partner" est maintenant actif. Commissions : Location ${doc.commissions.location}% / Vente ${doc.commissions.vente}%.`
     );
+
+    dispatch.agreementSigned(req.user.email, req.user.id, {
+      firstName:      req.user.firstName,
+      companyName:    doc.companyInfo?.legalName,
+      commissionRate: doc.commissions.location,
+      networkRate:    doc.commissions.vente,
+      dashboardUrl:   `${APP_URL}/partner-pms`,
+    }).catch((e) => logger.error("dispatch.agreementSigned:", e.message));
 
     res.json({
       success: true,
@@ -774,6 +788,15 @@ export const signByToken = async (req, res) => {
       await notify(doc.userId, "✅ LOI signée — Accord en préparation",
         "Votre Lettre d'Intention a été signée via le lien sécurisé. Notre équipe prépare votre Accord de Partenariat Fondateur.");
 
+      const loiSigner = await User.findById(doc.userId).select("email firstName").lean();
+      if (loiSigner) {
+        dispatch.loiSigned(loiSigner.email, doc.userId, {
+          firstName:   loiSigner.firstName,
+          companyName: doc.companyInfo?.legalName,
+          loiRef:      doc.referenceNumber,
+        }).catch((e) => logger.error("dispatch.loiSigned:", e.message));
+      }
+
       const admins = await User.find({ role: "admin" }).select("_id").lean();
       for (const admin of admins) {
         await notify(admin._id, "LOI signée (lien sécurisé)",
@@ -815,6 +838,17 @@ export const signByToken = async (req, res) => {
 
       await notify(doc.userId, "🎉 Bienvenue dans le programme Founding Partner VIT-AUTO !",
         `Votre accord a été signé. Badge "Founding Partner" activé ! Commissions : Location ${doc.commissions.location}% / Vente ${doc.commissions.vente}%.`);
+
+      const agreementSigner = await User.findById(doc.userId).select("email firstName").lean();
+      if (agreementSigner) {
+        dispatch.agreementSigned(agreementSigner.email, doc.userId, {
+          firstName:      agreementSigner.firstName,
+          companyName:    doc.companyInfo?.legalName,
+          commissionRate: doc.commissions.location,
+          networkRate:    doc.commissions.vente,
+          dashboardUrl:   `${APP_URL}/partner-pms`,
+        }).catch((e) => logger.error("dispatch.agreementSigned:", e.message));
+      }
 
       const admins = await User.find({ role: "admin" }).select("_id").lean();
       for (const admin of admins) {

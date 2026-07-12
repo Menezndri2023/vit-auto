@@ -354,6 +354,27 @@ export const dispatch = {
     });
   },
 
+  // Confirmation email — LOI signée par le partenaire (pas de PDF à regénérer ici,
+  // juste la confirmation ; le PDF signé reste consultable depuis le dossier).
+  async loiSigned(to, userId, data) {
+    await enqueue(QUEUE_NAMES.EMAIL, "loi_signed", {
+      type: "loi_signed",
+      to,
+      userId,
+      data,
+    }, { priority: PRIORITY.HIGH });
+  },
+
+  // Confirmation email — Accord signé = badge Founding Partner activé.
+  async agreementSigned(to, userId, data) {
+    await enqueue(QUEUE_NAMES.EMAIL, "agreement_signed", {
+      type: "agreement_signed",
+      to,
+      userId,
+      data,
+    }, { priority: PRIORITY.HIGH });
+  },
+
   // ── Import/Export ─────────────────────────────────────────────────────────
   async ieStepTransition(transactionId, newStep, triggerUserId, note) {
     await enqueue(QUEUE_NAMES.IMPORT, `ie_step_${newStep}`, {
