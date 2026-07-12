@@ -146,8 +146,20 @@ export default function PartnerOnboardingPortal() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Action explicite : crée le dossier (et promeut le rôle si besoin) — jamais déclenché
-  // par un simple chargement de page.
+  // Un utilisateur connecté qui atterrit sur cette page (lien direct, redirection
+  // CERTIFICATION_REQUIRED depuis VendorSubmit.jsx, etc.) veut voir le vrai
+  // programme (types, infos, documents, soumission, LOI, signature) tout de suite —
+  // pas un écran intermédiaire "Commencer ma candidature ?" qui donnait l'impression
+  // de tomber sur un autre programme. Le dossier créé ici reste un simple brouillon
+  // (aucun engagement, aucune donnée publique) ; applyToProgram() gère déjà la
+  // promotion de rôle et la vérification de capacité côté serveur.
+  useEffect(() => {
+    if (token && notStarted && !applying) applyToProgram();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, notStarted]);
+
+  // Crée le dossier (et promeut le rôle si besoin) — déclenché automatiquement
+  // ci-dessus dès qu'un compte connecté n'a pas encore de dossier.
   const applyToProgram = async () => {
     setApplying(true);
     try {
@@ -280,10 +292,13 @@ export default function PartnerOnboardingPortal() {
   // Connecté mais sans dossier existant, et programme déjà complet
   if (onboardingError) return <OnboardingErrorScreen message={onboardingError} />;
 
-  // Connecté sans dossier existant : ne rien créer tant que l'utilisateur n'a pas
-  // cliqué explicitement — visiter cette page ne doit jamais, à elle seule, créer un
-  // dossier ni changer le rôle du compte.
-  if (notStarted) return <StartApplicationScreen onStart={applyToProgram} starting={applying} />;
+  // Connecté sans dossier existant : le démarrage automatique ci-dessus (useEffect)
+  // est déjà en cours — écran de chargement le temps de la création. Le bouton
+  // manuel ne réapparaît que si cette tentative automatique a échoué (retry).
+  if (notStarted) {
+    if (applying) return <LoadingScreen />;
+    return <StartApplicationScreen onStart={applyToProgram} starting={applying} />;
+  }
 
   const status = onboarding?.status || "brouillon";
   const statusCfg = STATUS_CONFIG[status] || STATUS_CONFIG.brouillon;
