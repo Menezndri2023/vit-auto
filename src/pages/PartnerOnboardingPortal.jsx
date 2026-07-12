@@ -115,7 +115,11 @@ export default function PartnerOnboardingPortal() {
   const [availability, setAvailability] = useState(null);
 
   const load = useCallback(async () => {
-    if (!token) return;
+    // Aucun dossier à charger pour un visiteur non connecté — sans ce retour anticipé,
+    // `loading` (initialisé à true) ne repassait jamais à false et bloquait la page sur
+    // l'écran de chargement indéfiniment (voir la vérification `!token` plus bas, jamais
+    // atteinte). L'écran anonyme dépend ensuite uniquement de `availability`.
+    if (!token) { setLoading(false); return; }
     setLoading(true);
     setOnboardingError(null);
     setNotStarted(false);
