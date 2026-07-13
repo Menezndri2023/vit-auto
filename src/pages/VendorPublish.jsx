@@ -555,21 +555,23 @@ const VendorPublish = () => {
             </div>
           )}
 
-          {/* Statut profil importateur */}
-          {!ieProfile || ieProfile.status === "none" ? (
+          {/* Statut de vérification — le Founding Partner Program est l'unique
+              vérification requise pour publier en export (plus de candidature
+              "Importateur" séparée : voir ensureImporterProfile côté serveur). */}
+          {!user?.isFounder && (!ieProfile || ieProfile.status === "none") ? (
             <div style={{ background: "#fffbeb", border: "1.5px solid #f59e0b", borderRadius: 14, padding: "20px 24px", marginBottom: 24, display: "flex", gap: 16, alignItems: "flex-start" }}>
               <span style={{ fontSize: "1.8rem" }}>⚠️</span>
               <div>
-                <strong style={{ display: "block", marginBottom: 4 }}>Profil importateur non soumis</strong>
+                <strong style={{ display: "block", marginBottom: 4 }}>Devenez Founding Partner pour publier en export</strong>
                 <p style={{ margin: "0 0 12px", color: "#92400e", fontSize: ".88rem" }}>
-                  Pour publier des annonces import/export, vous devez d'abord être agréé comme importateur partenaire VIT AUTO.
+                  La publication d'annonces Import/Export est réservée aux partenaires ayant signé l'Accord Founding Partner VIT AUTO — la vérification la plus complète du programme.
                 </p>
-                <Link to="/importer-apply" style={{ display: "inline-block", padding: "9px 20px", background: "#f59e0b", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem" }}>
-                  Soumettre ma candidature →
+                <Link to="/partner-onboarding" style={{ display: "inline-block", padding: "9px 20px", background: "#f59e0b", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem" }}>
+                  Devenir Founding Partner →
                 </Link>
               </div>
             </div>
-          ) : ieProfile.status === "pending" ? (
+          ) : ieProfile?.status === "pending" ? (
             <div style={{ background: "#fffbeb", border: "1.5px solid #f59e0b", borderRadius: 14, padding: "20px 24px", marginBottom: 24, display: "flex", gap: 16, alignItems: "center" }}>
               <span style={{ fontSize: "2rem" }}>⏳</span>
               <div>
@@ -577,37 +579,42 @@ const VendorPublish = () => {
                 <p style={{ margin: "4px 0 0", color: "#92400e", fontSize: ".88rem" }}>Notre équipe examine votre dossier sous 48–72h ouvrables. Vous recevrez une notification.</p>
               </div>
             </div>
-          ) : ieProfile.status === "rejected" ? (
+          ) : ieProfile?.status === "rejected" ? (
             <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 14, padding: "20px 24px", marginBottom: 24, display: "flex", gap: 16, alignItems: "flex-start" }}>
               <span style={{ fontSize: "1.8rem" }}>❌</span>
               <div>
                 <strong>Candidature refusée</strong>
                 {ieProfile.rejectionReason && <p style={{ margin: "4px 0 8px", color: "#7f1d1d", fontSize: ".85rem" }}>Motif : {ieProfile.rejectionReason}</p>}
-                <Link to="/importer-apply" style={{ display: "inline-block", padding: "9px 20px", background: "#ef4444", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem" }}>
-                  Resoumettre ma candidature →
+                <Link to="/partner-onboarding" style={{ display: "inline-block", padding: "9px 20px", background: "#ef4444", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem" }}>
+                  Devenir Founding Partner →
                 </Link>
               </div>
             </div>
-          ) : (
+          ) : ieProfile ? (
             <div style={{ background: "#ecfdf5", border: "1.5px solid #6ee7b7", borderRadius: 14, padding: "18px 24px", marginBottom: 24, display: "flex", gap: 16, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
               <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
                 <span style={{ fontSize: "2rem" }}>✅</span>
                 <div>
-                  <strong style={{ display: "block" }}>Importateur Vérifié {badgeIcon} {ieProfile.badgeLevel?.toUpperCase()}</strong>
+                  <strong style={{ display: "block" }}>Founding Partner {badgeIcon} {ieProfile.badgeLevel?.toUpperCase()}</strong>
                   <p style={{ margin: "2px 0 0", color: "#065f46", fontSize: ".85rem" }}>
-                    Votre profil est actif. Publiez vos annonces import/export maintenant.
+                    Publiez vos véhicules à exporter — manuellement ou en masse (fichier/Google Sheet).
                   </p>
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <button onClick={() => setShowIeForm(true)} style={{ padding: "9px 20px", background: "#10b981", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer" }}>
                   + Nouvelle annonce
                 </button>
+                <Link to="/partner-fleet-import?type=export" style={{ display: "inline-block", padding: "9px 20px", background: "#6366f1", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem" }}>
+                  📦 Importer en masse
+                </Link>
                 <Link to="/importer-dashboard" style={{ display: "inline-block", padding: "9px 20px", border: "1.5px solid #10b981", color: "#10b981", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem" }}>
                   Tableau de bord complet →
                 </Link>
               </div>
             </div>
+          ) : (
+            <div style={{ textAlign: "center", padding: 24, color: "#94a3b8" }}>Chargement…</div>
           )}
 
           {/* KPIs Import/Export */}
@@ -648,8 +655,8 @@ const VendorPublish = () => {
               {isVerified && (
                 <button className={styles.newBtnSm} onClick={() => setShowIeForm(true)}>Créer une annonce IE</button>
               )}
-              {!isVerified && ieProfile?.status === "none" && (
-                <Link to="/importer-apply" className={styles.newBtnSm} style={{ textDecoration: "none" }}>Postuler comme importateur</Link>
+              {!user?.isFounder && (!ieProfile || ieProfile.status === "none") && (
+                <Link to="/partner-onboarding" className={styles.newBtnSm} style={{ textDecoration: "none" }}>Devenir Founding Partner</Link>
               )}
             </div>
           ) : (

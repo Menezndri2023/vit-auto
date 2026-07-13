@@ -18,11 +18,13 @@ const requirePartnerRole = (req, res) => {
 };
 
 // ── Télécharger le template Excel ────────────────────────────────────────────
+// ?type=export → template Import/Export (Founding Partners) ; sinon véhicules classiques.
 export const downloadTemplate = async (req, res) => {
   try {
-    const workbook = await generateTemplateWorkbook();
+    const isExport = req.query.type === "export";
+    const workbook = await generateTemplateWorkbook(isExport ? "export" : "vehicle");
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.setHeader("Content-Disposition", "attachment; filename=vitauto_import_vehicules.xlsx");
+    res.setHeader("Content-Disposition", `attachment; filename=${isExport ? "vitauto_import_export.xlsx" : "vitauto_import_vehicules.xlsx"}`);
     await workbook.xlsx.write(res);
     res.end();
   } catch (err) {
@@ -32,11 +34,19 @@ export const downloadTemplate = async (req, res) => {
 };
 
 // ── Créer un batch d'import (fichier ou Google Sheet) ────────────────────────
+// targetType "export" = annonces Import/Export, réservé aux Founding Partners.
 export const createImportBatch = async (req, res) => {
   try {
     if (!requirePartnerRole(req, res)) return;
 
-    const { source, fileBase64, fileName, googleSheetUrl } = req.body;
+    const { source, fileBase64, fileName, googleSheetUrl, targetType } = req.body;
+    const isExport = targetType === "export";
+    if (isExport && !req.user.isFounder) {
+      return res.status(403).json({
+        code:    "FOUNDING_PARTNER_REQUIRED",
+        message: "Devenez Founding Partner pour importer des annonces d'export.",
+      });
+    }
     if (!["csv", "excel", "google_sheet"].includes(source)) {
       return res.status(400).json({ message: "Méthode d'import invalide." });
     }
@@ -57,16 +67,17 @@ export const createImportBatch = async (req, res) => {
     }
 
     if (!rawRows.length) {
-      return res.status(400).json({ message: "Aucune ligne de véhicule trouvée dans le fichier." });
+      return res.status(400).json({ message: isExport ? "Aucune ligne d'annonce trouvée dans le fichier." : "Aucune ligne de véhicule trouvée dans le fichier." });
     }
     if (rawRows.length > MAX_IMPORT_ROWS) {
       return res.status(400).json({
-        message: `Ce fichier contient ${rawRows.length} lignes — maximum ${MAX_IMPORT_ROWS} véhicules par import. Divisez votre fichier en plusieurs imports.`,
+        message: `Ce fichier contient ${rawRows.length} lignes — maximum ${MAX_IMPORT_ROWS} par import. Divisez votre fichier en plusieurs imports.`,
       });
     }
 
     const batch = await VehicleImportBatch.create({
       owner: req.user._id,
+      targetType: isExport ? "export" : "vehicle",
       source,
       originalFileName: fileName || "",
       googleSheetUrl: googleSheetUrl || "",

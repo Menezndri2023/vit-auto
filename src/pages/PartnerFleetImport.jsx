@@ -1,15 +1,18 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { api } from "../utils/apiClient";
 import styles from "./PartnerFleetImport.module.css";
 
-const METHODS = [
+const METHODS = (isExport) => [
   {
     id: "file",
     icon: "📤",
     title: "Fichier Excel / CSV",
-    desc: "Téléchargez notre template, remplissez votre inventaire et importez-le.",
+    desc: isExport
+      ? "Téléchargez notre template, remplissez vos véhicules à exporter et importez-le."
+      : "Téléchargez notre template, remplissez votre inventaire et importez-le.",
   },
   {
     id: "google_sheet",
@@ -42,6 +45,9 @@ const readFileAsBase64 = (file) =>
 
 const PartnerFleetImport = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isExport = searchParams.get("type") === "export";
+  const { user } = useAuth();
   const { success, error } = useToast();
 
   const [step, setStep] = useState(1); // 1: méthode, 2: saisie, 3: progression/résultats
@@ -95,12 +101,12 @@ const PartnerFleetImport = () => {
 
   const handleDownloadTemplate = async () => {
     try {
-      const res = await api.get("/api/vehicles/import/template");
+      const res = await api.get(`/api/vehicles/import/template${isExport ? "?type=export" : ""}`);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "vitauto_import_vehicules.xlsx";
+      a.download = isExport ? "vitauto_import_export.xlsx" : "vitauto_import_vehicules.xlsx";
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -113,7 +119,7 @@ const PartnerFleetImport = () => {
   const startImport = async (body) => {
     setSubmitting(true);
     try {
-      const res = await api.post("/api/vehicles/import", body);
+      const res = await api.post("/api/vehicles/import", { ...body, targetType: isExport ? "export" : "vehicle" });
       setBatchId(res.batchId);
       setBatch(null);
       setStep(3);
@@ -182,16 +188,38 @@ const PartnerFleetImport = () => {
   const skipped = batch?.results?.filter((r) => r.status === "skipped_duplicate").length || 0;
   const errored = batch?.results?.filter((r) => r.status === "error").length || 0;
 
+  // L'import en masse d'annonces export est réservé aux Founding Partners
+  // (même vérification que la publication manuelle — voir VendorPublish.jsx).
+  if (isExport && !user?.isFounder) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.card} style={{ textAlign: "center" }}>
+          <h2 className={styles.cardTitle}>🔒 Réservé aux Founding Partners</h2>
+          <p className={styles.hint}>
+            La publication d'annonces Import/Export (manuelle ou en masse) est réservée aux partenaires ayant signé l'Accord Founding Partner.
+          </p>
+          <Link to="/partner-onboarding" className={styles.primaryBtn} style={{ display: "inline-block", textDecoration: "none", marginTop: 12 }}>
+            Devenir Founding Partner →
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.title}>📦 Importer ma flotte</h1>
-        <p className={styles.subtitle}>Ajoutez plusieurs véhicules d'un coup, sans les saisir un par un.</p>
+        <h1 className={styles.title}>{isExport ? "📦 Publier mes véhicules à exporter" : "📦 Importer ma flotte"}</h1>
+        <p className={styles.subtitle}>
+          {isExport
+            ? "Ajoutez plusieurs véhicules à exporter d'un coup, sans les saisir un par un."
+            : "Ajoutez plusieurs véhicules d'un coup, sans les saisir un par un."}
+        </p>
       </div>
 
       {step === 1 && (
         <div className={styles.methodGrid}>
-          {METHODS.map((m) => (
+          {METHODS(isExport).map((m) => (
             <button
               key={m.id}
               type="button"
@@ -347,7 +375,7 @@ const PartnerFleetImport = () => {
               </ul>
 
               <div className={styles.resultActions}>
-                <button type="button" className={styles.primaryBtn} onClick={() => navigate("/vendor/dashboard")}>
+                <button type="button" className={styles.primaryBtn} onClick={() => navigate(isExport ? "/vendor/publish?tab=import-export" : "/vendor/dashboard")}>
                   Voir mes annonces →
                 </button>
                 <button type="button" className={styles.secondaryBtn} onClick={resetAll}>

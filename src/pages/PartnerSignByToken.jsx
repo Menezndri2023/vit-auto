@@ -19,6 +19,7 @@ export default function PartnerSignByToken() {
   const [accepted,    setAccepted]    = useState(false);
   const [result,      setResult]      = useState(null);
   const [errMsg,      setErrMsg]      = useState("");
+  const [justChained, setJustChained] = useState(false); // LOI→Accord enchaînés sur le même lien
 
   // ── Vérification du token au chargement ──────────────────────────────────
   useEffect(() => {
@@ -52,6 +53,21 @@ export default function PartnerSignByToken() {
       });
       const data = await r.json();
       if (r.ok && data.success) {
+        // Un seul lien couvre LOI + Accord : si la LOI vient d'être signée et que
+        // l'Accord a été généré automatiquement sur ce même token, on l'enchaîne
+        // tout de suite plutôt que d'obliger le partenaire à attendre un 2e lien.
+        if (data.type === "loi" && data.chained) {
+          const next = await fetch(`${API}/sign-token/${token}`).then((rr) => rr.json()).catch(() => null);
+          if (next?.valid && next.type === "agreement" && !next.alreadySigned) {
+            setDocInfo(next);
+            setShowDoc(false);
+            setSignerPos("");
+            setAccepted(false);
+            setJustChained(true);
+            setState("valid");
+            return;
+          }
+        }
         setResult(data);
         setState("done");
       } else {
@@ -101,10 +117,16 @@ export default function PartnerSignByToken() {
           {/* Document valide */}
           {state === "valid" && docInfo && (
             <>
+              {justChained && (
+                <div style={styles.chainedBanner}>
+                  ✅ LOI signée avec succès — plus qu'une étape : signez votre Accord ci-dessous (même lien, aucun autre email nécessaire).
+                </div>
+              )}
+
               {/* Info document */}
               <div style={styles.docMeta}>
                 <div style={styles.docTypeTag}>
-                  {docInfo.type === "loi" ? "📄 Lettre d'Intention" : "📜 Accord de Partenariat Fondateur"}
+                  {docInfo.type === "loi" ? "📄 Étape 1/2 — Lettre d'Intention" : "📜 Étape 2/2 — Accord de Partenariat Fondateur"}
                 </div>
                 <div style={styles.metaGrid}>
                   <MetaRow label="Référence" value={docInfo.referenceNumber} />
@@ -231,6 +253,10 @@ export default function PartnerSignByToken() {
                 </div>
               )}
 
+              {result?.type === "loi" && !result.chained && (
+                <p style={styles.muted}>Votre Accord de Partenariat Fondateur est en préparation — vous recevrez un email dès qu'il sera prêt à signer.</p>
+              )}
+
               {!result && (
                 <p style={styles.muted}>Ce document a déjà été signé. Retrouvez-le dans votre espace partenaire.</p>
               )}
@@ -335,6 +361,17 @@ const styles = {
     flexWrap: "wrap",
   },
   center: { textAlign: "center", padding: "1rem 0" },
+  chainedBanner: {
+    background: "#ecfdf5",
+    border: "1.5px solid #6ee7b7",
+    color: "#065f46",
+    borderRadius: 10,
+    padding: ".85rem 1rem",
+    fontSize: ".85rem",
+    fontWeight: 600,
+    marginBottom: "1.25rem",
+    lineHeight: 1.5,
+  },
   h2: { fontSize: "1.4rem", fontWeight: 700, color: "#0d2137", marginBottom: ".5rem" },
   h3: { fontSize: "1rem", fontWeight: 700, color: "#0d2137", marginBottom: ".5rem" },
   muted: { color: "#64748b", fontSize: ".88rem", lineHeight: 1.6, marginBottom: ".5rem" },

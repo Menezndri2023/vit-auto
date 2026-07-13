@@ -6,6 +6,7 @@ import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import PartnerCertification from "../models/PartnerCertification.js";
 import PartnerVerification, { CRITERIA_WEIGHTS } from "../models/PartnerVerification.js";
+import ImporterPartnerProfile from "../models/ImporterPartnerProfile.js";
 import { buildOnboardingPDFBuffer } from "../utils/pdfGenerator.js";
 import { dispatch } from "../queue/index.js";
 import { validateDocumentDataUri } from "../utils/imageValidation.js";
@@ -117,12 +118,44 @@ async function cascadeFoundingPartnerApproval(doc) {
     pv.status = "verifie";
     await pv.save();
 
-    logger.info("cascadeFoundingPartnerApproval : KYC/Certification/Vérification synchronisés", { userId: userId.toString() });
+    // 4. Profil Importateur (Import/Export) — si un dossier existe déjà (ancien
+    //    parcours /importer-apply, en attente ou refusé), le faire basculer
+    //    "vérifié" lui aussi : le Founding Partner Program prime désormais sur
+    //    cette candidature séparée pour l'accès à la publication export (voir
+    //    ensureImporterProfile.js, appelé par importExportController).
+    await ImporterPartnerProfile.findOneAndUpdate(
+      { userId },
+      { $set: { status: "verified", badgeLevel: "gold", reviewedAt: now, rejectionReason: null } }
+    );
+
+    logger.info("cascadeFoundingPartnerApproval : KYC/Certification/Vérification/Importateur synchronisés", { userId: userId.toString() });
   } catch (err) {
     // Non bloquant : l'Accord Founding Partner reste valide même si la
     // synchronisation d'un des systèmes annexes échoue (à examiner via ce log).
     logger.error("cascadeFoundingPartnerApproval:", err);
   }
+}
+
+// ── Auto-génération de l'Accord juste après signature de la LOI ──────────────
+// Avant ceci, l'Accord de Partenariat n'était généré qu'après une action admin
+// manuelle séparée (adminSendAgreement), obligeant à envoyer un second lien/email
+// au partenaire après la signature de la LOI — deux liens pour un seul parcours.
+// Désormais un seul lien (ou une seule visite du tableau de bord partenaire)
+// suffit pour signer les deux documents à la suite : voir signLOI et la branche
+// LOI de signByToken. Non bloquant : si la génération échoue, le dossier reste
+// en "loi_signee" et l'admin peut toujours déclencher l'envoi manuel via
+// adminSendAgreement (filet de sécurité conservé).
+async function autoGenerateAgreement(doc, reuseToken = null) {
+  const user = await User.findById(doc.userId).lean();
+  const refDate = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+  doc.agreement.content = generateAgreement(doc, user, refDate);
+  doc.agreement.sentAt  = new Date();
+  if (reuseToken) {
+    doc.agreement.signingToken        = reuseToken;
+    doc.agreement.signingTokenExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  }
+  doc.status = "accord_envoye";
+  await doc.save();
 }
 
 // ── Section update factory ────────────────────────────────────────────────────
@@ -390,9 +423,22 @@ export const signLOI = async (req, res) => {
 
     await addAudit(doc._id, "LOI_SIGNEE", req.user.id, `Signé par: ${signerName}`);
 
+    // Enchaîne immédiatement sur l'Accord — un seul lien/une seule visite du
+    // tableau de bord suffit pour signer les deux documents à la suite.
+    let chained = false;
+    try {
+      await autoGenerateAgreement(doc);
+      chained = true;
+      await addAudit(doc._id, "ACCORD_ENVOYE", null, "Généré automatiquement après signature de la LOI");
+    } catch (agrErr) {
+      logger.error("autoGenerateAgreement (signLOI):", agrErr.message);
+    }
+
     await notify(doc.userId,
-      "✅ LOI signée — Accord de partenariat en cours",
-      "Votre Lettre d'Intention a été signée avec succès. Notre équipe prépare votre Accord de Partenariat Fondateur."
+      chained ? "✅ LOI signée — Signez maintenant l'Accord" : "✅ LOI signée — Accord de partenariat en cours",
+      chained
+        ? "Votre Lettre d'Intention a été signée avec succès. Votre Accord de Partenariat Fondateur est prêt : signez-le dès maintenant depuis votre tableau de bord."
+        : "Votre Lettre d'Intention a été signée avec succès. Notre équipe prépare votre Accord de Partenariat Fondateur."
     );
 
     dispatch.loiSigned(req.user.email, req.user.id, {
@@ -404,11 +450,13 @@ export const signLOI = async (req, res) => {
     const admins = await User.find({ role: "admin" }).select("_id").lean();
     for (const admin of admins) {
       await notify(admin._id, "LOI signée",
-        `${doc.companyInfo.legalName} (${doc.referenceNumber}) a signé la LOI. Veuillez envoyer l'Accord de Partenariat.`
+        chained
+          ? `${doc.companyInfo.legalName} (${doc.referenceNumber}) a signé la LOI. Accord généré automatiquement et en attente de signature.`
+          : `${doc.companyInfo.legalName} (${doc.referenceNumber}) a signé la LOI. Veuillez envoyer l'Accord de Partenariat.`
       );
     }
 
-    res.json({ success: true, status: "loi_signee" });
+    res.json({ success: true, status: doc.status });
   } catch (err) {
     logger.error("signLOI:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -870,8 +918,24 @@ export const signByToken = async (req, res) => {
 
       await addAudit(doc._id, "LOI_SIGNEE_PAR_LIEN", null, `Via lien sécurisé — IP: ${ip}`);
 
-      await notify(doc.userId, "✅ LOI signée — Accord en préparation",
-        "Votre Lettre d'Intention a été signée via le lien sécurisé. Notre équipe prépare votre Accord de Partenariat Fondateur.");
+      // Enchaîne immédiatement sur l'Accord en réutilisant EXACTEMENT le même
+      // token/lien — le partenaire n'a besoin que d'un seul lien envoyé par email
+      // pour signer la LOI puis, dans la foulée, l'Accord de Partenariat.
+      let chained = false;
+      try {
+        await autoGenerateAgreement(doc, token);
+        chained = true;
+        await addAudit(doc._id, "ACCORD_ENVOYE", null, "Généré automatiquement après signature de la LOI (lien combiné)");
+      } catch (agrErr) {
+        logger.error("autoGenerateAgreement (signByToken):", agrErr.message);
+      }
+
+      await notify(doc.userId,
+        chained ? "✅ LOI signée — Signez maintenant l'Accord" : "✅ LOI signée — Accord en préparation",
+        chained
+          ? "Votre Lettre d'Intention a été signée via le lien sécurisé. Le même lien vous permet maintenant de signer votre Accord de Partenariat Fondateur."
+          : "Votre Lettre d'Intention a été signée via le lien sécurisé. Notre équipe prépare votre Accord de Partenariat Fondateur."
+      );
 
       const loiSigner = await User.findById(doc.userId).select("email firstName").lean();
       if (loiSigner) {
@@ -885,9 +949,11 @@ export const signByToken = async (req, res) => {
       const admins = await User.find({ role: "admin" }).select("_id").lean();
       for (const admin of admins) {
         await notify(admin._id, "LOI signée (lien sécurisé)",
-          `${doc.companyInfo?.legalName} (${doc.referenceNumber}) a signé la LOI via le lien email.`);
+          chained
+            ? `${doc.companyInfo?.legalName} (${doc.referenceNumber}) a signé la LOI via le lien email. Accord généré automatiquement sur le même lien.`
+            : `${doc.companyInfo?.legalName} (${doc.referenceNumber}) a signé la LOI via le lien email.`);
       }
-      return res.json({ success: true, type: "loi", status: "loi_signee", documentHash: hash });
+      return res.json({ success: true, type: "loi", status: doc.status, chained, documentHash: hash });
     }
 
     // ── Essayer Accord ───────────────────────────────────────────────────────

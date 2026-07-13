@@ -4,6 +4,7 @@ import ImporterPartnerProfile  from "../models/ImporterPartnerProfile.js";
 import ImportExportListing     from "../models/ImportExportListing.js";
 import User                    from "../models/User.js";
 import Notification            from "../models/Notification.js";
+import { ensureImporterProfile } from "../utils/ensureImporterProfile.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DEMANDES CLIENT (import/export requests)
@@ -138,9 +139,13 @@ export const deleteRequest = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // GET /api/import-export/importer-profile  — partenaire connecté (son propre profil)
+// Auto-provisionne un profil "vérifié" à partir du dossier Founding Partner signé
+// (voir ensureImporterProfile) — un Founding Partner n'a plus besoin de soumettre
+// une candidature "Importateur" séparée.
 export const getMyImporterProfile = async (req, res) => {
   try {
-    const profile = await ImporterPartnerProfile.findOne({ userId: req.user._id });
+    const profile = await ImporterPartnerProfile.findOne({ userId: req.user._id })
+      || await ensureImporterProfile(req.user);
     res.json({ profile: profile || null });
   } catch (err) {
     logger.error("getMyImporterProfile:", err);
@@ -402,15 +407,16 @@ export const getListingById = async (req, res) => {
   }
 };
 
-// POST /api/import-export/listings  — partenaire importateur vérifié
+// POST /api/import-export/listings  — Founding Partner uniquement
 export const createListing = async (req, res) => {
   try {
-    const importerProfile = await ImporterPartnerProfile.findOne({ userId: req.user._id });
-    if (!importerProfile || importerProfile.status !== "verified") {
+    if (!req.user.isFounder) {
       return res.status(403).json({
-        message: "Seuls les importateurs vérifiés peuvent publier des annonces.",
+        code:    "FOUNDING_PARTNER_REQUIRED",
+        message: "Devenez Founding Partner pour publier des annonces d'export.",
       });
     }
+    const importerProfile = await ensureImporterProfile(req.user);
 
     const {
       title, make, model, year, mileage, fuelType, transmission,

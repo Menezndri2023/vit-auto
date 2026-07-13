@@ -6,11 +6,14 @@ import https from "node:https";
 import { parse as parseCsvSync } from "csv-parse/sync";
 import logger from "../utils/logger.js";
 import Vehicle from "../models/Vehicle.js";
+import ImportExportListing from "../models/ImportExportListing.js";
+import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import VehicleImportBatch from "../models/VehicleImportBatch.js";
 import { scoreAnnonce, buildVehicleWhitelist } from "./vehicleScoring.js";
 import { dispatch } from "../queue/index.js";
 import { uploadImage, isAvailable as imageKitAvailable } from "../config/imagekit.js";
+import { ensureImporterProfile } from "../utils/ensureImporterProfile.js";
 
 export const MAX_IMPORT_ROWS = 300;
 
@@ -60,6 +63,43 @@ const ENUM_FIELDS = {
   transmission: ["Automatique", "Manuelle"],
 };
 
+// ── Colonnes du template — Import/Export (Founding Partners) ────────────────
+// Champs et en-têtes distincts du template véhicules classique : destinés à
+// ImportExportListing (pays source, disponibilité livraison, devise...) plutôt
+// qu'au catalogue location/vente (Vehicle).
+export const IE_IMPORT_COLUMNS = [
+  { key: "title",         header: "Titre",              example: "Toyota Land Cruiser V8 Import Dubaï" },
+  { key: "make",          header: "Marque",              example: "Toyota" },
+  { key: "model",         header: "Modele",              example: "Land Cruiser" },
+  { key: "year",          header: "Annee",               example: 2021 },
+  { key: "mileage",       header: "Kilometrage",         example: 30000 },
+  { key: "condition",     header: "Etat",                example: "occasion" },
+  { key: "fuelType",      header: "Carburant",           example: "essence" },
+  { key: "transmission",  header: "Transmission",        example: "automatique" },
+  { key: "bodyType",      header: "Carrosserie",         example: "SUV" },
+  { key: "color",         header: "Couleur",             example: "Blanc perle" },
+  { key: "sourceCountry", header: "PaysOrigine",         example: "Émirats Arabes Unis" },
+  { key: "sourceCity",    header: "VilleOrigine",        example: "Dubaï" },
+  { key: "availableIn",   header: "DisponiblePourLivraison", example: "Côte d'Ivoire,Sénégal" },
+  { key: "price",         header: "Prix",                example: 25000 },
+  { key: "currency",      header: "Devise",              example: "EUR" },
+  { key: "negotiable",    header: "PrixNegociable",      example: "non" },
+  { key: "stockQty",      header: "Stock",               example: 1 },
+  { key: "description",   header: "Description",         example: "Véhicule bien entretenu, révisions à jour, prêt à l'export." },
+  { key: "imageUrls",     header: "PhotosURLs",          example: "https://exemple.com/photo1.jpg,https://exemple.com/photo2.jpg" },
+];
+
+const IE_BOOLEAN_KEYS = ["negotiable"];
+const IE_NUMBER_KEYS  = ["year", "mileage", "price", "stockQty"];
+const IE_LIST_KEYS    = ["availableIn"];
+
+// Valeurs acceptées par les enums du modèle ImportExportListing.
+const IE_ENUM_FIELDS = {
+  fuelType:     ["essence", "diesel", "hybride", "hybride_rechargeable", "electrique", "gpl", "gaz", "autre"],
+  transmission: ["manuelle", "automatique", "cvt", "semi_automatique"],
+  condition:    ["neuf", "occasion", "reconditionne"],
+};
+
 const normalizeEnumValue = (value, allowed) => {
   if (value === undefined) return undefined;
   return allowed.find((a) => a.toLowerCase() === String(value).trim().toLowerCase());
@@ -77,11 +117,13 @@ const parseNumber = (v) => {
 };
 
 // ── Génère le classeur template téléchargeable ──────────────────────────────
-export async function generateTemplateWorkbook() {
+export async function generateTemplateWorkbook(targetType = "vehicle") {
+  const columns   = targetType === "export" ? IE_IMPORT_COLUMNS : IMPORT_COLUMNS;
+  const sheetName = targetType === "export" ? "Annonces Export" : "Véhicules";
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet("Véhicules");
-  sheet.columns = IMPORT_COLUMNS.map((c) => ({ header: c.header, key: c.key, width: 22 }));
-  sheet.addRow(Object.fromEntries(IMPORT_COLUMNS.map((c) => [c.key, c.example])));
+  const sheet = workbook.addWorksheet(sheetName);
+  sheet.columns = columns.map((c) => ({ header: c.header, key: c.key, width: 22 }));
+  sheet.addRow(Object.fromEntries(columns.map((c) => [c.key, c.example])));
   sheet.getRow(1).font = { bold: true };
   return workbook;
 }
@@ -162,6 +204,51 @@ export function mapRowToVehicleInput(rawRow) {
     }
 
     if (value !== undefined && value !== "") data[key] = value;
+  }
+
+  const imageUrls = String(byHeader.imageUrls || "")
+    .split(/[,;]/)
+    .map((u) => u.trim())
+    .filter(Boolean);
+
+  return { data, imageUrls, rowWarnings };
+}
+
+// ── Mappe une ligne brute vers les champs ImportExportListing ───────────────
+export function mapRowToIEListingInput(rawRow) {
+  const byHeader = {};
+  for (const col of IE_IMPORT_COLUMNS) {
+    byHeader[col.key] = rawRow[col.header] ?? rawRow[col.key];
+  }
+
+  const data = {};
+  const rowWarnings = [];
+  for (const col of IE_IMPORT_COLUMNS) {
+    const key = col.key;
+    if (key === "imageUrls" || IE_LIST_KEYS.includes(key)) continue;
+    let value = byHeader[key];
+    if (IE_BOOLEAN_KEYS.includes(key)) value = parseBool(value);
+    else if (IE_NUMBER_KEYS.includes(key)) value = parseNumber(value);
+    else if (typeof value === "string") value = value.trim();
+
+    if (IE_ENUM_FIELDS[key] && value !== undefined && value !== "") {
+      const normalized = normalizeEnumValue(value, IE_ENUM_FIELDS[key]);
+      if (!normalized) {
+        rowWarnings.push(`Valeur "${value}" non reconnue pour "${col.header}" — ignorée (valeurs acceptées : ${IE_ENUM_FIELDS[key].join(", ")})`);
+        value = undefined;
+      } else {
+        value = normalized;
+      }
+    }
+
+    if (value !== undefined && value !== "") data[key] = value;
+  }
+
+  for (const key of IE_LIST_KEYS) {
+    const raw = byHeader[key];
+    if (raw) {
+      data[key] = String(raw).split(/[,;]/).map((v) => v.trim()).filter(Boolean);
+    }
   }
 
   const imageUrls = String(byHeader.imageUrls || "")
@@ -314,8 +401,44 @@ async function fetchWithTimeout(url, timeoutMs, maxRedirects = 5) {
 // HTTP synchrone en fallback sans Redis) pendant des heures.
 const IMAGE_FETCH_BUDGET_MS = 5 * 60 * 1000;
 
-// ── Traite une ligne du batch et retourne l'entrée de résultat à enregistrer ─
-async function processImportRow(batch, rawRow, rowIndex, budgetDeadline) {
+// ── Télécharge (SSRF-safe, budgétisé) les photos fournies par URL dans une ligne
+// d'import et les upload sur ImageKit — partagé entre l'import véhicules et l'import
+// annonces export, seul le préfixe du nom de fichier diffère.
+async function downloadImagesForRow(imageUrls, budgetDeadline, rowWarnings, filePrefix) {
+  const images = [];
+  if (imageUrls.length && imageKitAvailable() && Date.now() < budgetDeadline) {
+    for (const url of imageUrls.slice(0, 8)) {
+      if (Date.now() >= budgetDeadline) {
+        rowWarnings.push("Budget de temps d'import dépassé — photos restantes ignorées pour cette ligne.");
+        break;
+      }
+      if (!(await isFetchableUrl(url))) continue;
+      try {
+        const imgRes = await fetchWithTimeout(url, IMAGE_FETCH_TIMEOUT_MS);
+        if (!imgRes.ok) continue;
+        // Ne traiter que du contenu réellement identifié comme image par le serveur
+        // distant (évite d'exfiltrer/uploader une réponse texte/JSON interne comme
+        // si c'était une photo).
+        const contentType = (imgRes.headers.get("content-type") || "").split(";")[0].trim();
+        if (!contentType.startsWith("image/")) continue;
+        const arrayBuf = await imgRes.arrayBuffer();
+        if (arrayBuf.byteLength > 8 * 1024 * 1024) continue; // 8 Mo max par image
+        const base64 = Buffer.from(arrayBuf).toString("base64");
+        const ext = contentType.split("/")[1]?.replace(/[^a-z0-9]/gi, "") || "jpg";
+        const uploaded = await uploadImage(`data:${contentType};base64,${base64}`, {
+          fileName: `${filePrefix}-${Date.now()}-${images.length}.${ext}`,
+        });
+        if (uploaded?.url) images.push(uploaded.url);
+      } catch (imgErr) {
+        logger.warn("Import — échec téléchargement image", { url, error: imgErr.message });
+      }
+    }
+  }
+  return images;
+}
+
+// ── Traite une ligne du batch (véhicule catalogue) et retourne le résultat ───
+async function processVehicleImportRow(batch, rawRow, rowIndex, budgetDeadline) {
   let vehicleLabel = "";
   try {
     const { data, imageUrls, rowWarnings } = mapRowToVehicleInput(rawRow);
@@ -345,37 +468,7 @@ async function processImportRow(batch, rawRow, rowIndex, budgetDeadline) {
       }
     }
 
-    // ── Images : upload ImageKit depuis les URLs fournies ────────────────
-    const images = [];
-    if (imageUrls.length && imageKitAvailable() && Date.now() < budgetDeadline) {
-      for (const url of imageUrls.slice(0, 8)) {
-        if (Date.now() >= budgetDeadline) {
-          rowWarnings.push("Budget de temps d'import dépassé — photos restantes ignorées pour cette ligne.");
-          break;
-        }
-        if (!(await isFetchableUrl(url))) continue;
-        try {
-          const imgRes = await fetchWithTimeout(url, IMAGE_FETCH_TIMEOUT_MS);
-          if (!imgRes.ok) continue;
-          // Ne traiter que du contenu réellement identifié comme image par le serveur
-          // distant (évite d'exfiltrer/uploader une réponse texte/JSON interne comme
-          // si c'était une photo).
-          const contentType = (imgRes.headers.get("content-type") || "").split(";")[0].trim();
-          if (!contentType.startsWith("image/")) continue;
-          const arrayBuf = await imgRes.arrayBuffer();
-          if (arrayBuf.byteLength > 8 * 1024 * 1024) continue; // 8 Mo max par image
-          const base64 = Buffer.from(arrayBuf).toString("base64");
-          const ext = contentType.split("/")[1]?.replace(/[^a-z0-9]/gi, "") || "jpg";
-          const uploaded = await uploadImage(`data:${contentType};base64,${base64}`, {
-            fileName: `partner-import-${Date.now()}-${images.length}.${ext}`,
-          });
-          if (uploaded?.url) images.push(uploaded.url);
-        } catch (imgErr) {
-          logger.warn("Import véhicule — échec téléchargement image", { url, error: imgErr.message });
-        }
-      }
-    }
-    data.images = images;
+    data.images = await downloadImagesForRow(imageUrls, budgetDeadline, rowWarnings, "partner-import");
 
     const validation = scoreAnnonce(data);
     validation.warnings = [...rowWarnings, ...validation.warnings];
@@ -410,6 +503,85 @@ async function processImportRow(batch, rawRow, rowIndex, budgetDeadline) {
   }
 }
 
+// ── Traite une ligne du batch (annonce Import/Export) et retourne le résultat ─
+// Réservé aux Founding Partners — importerProfile auto-provisionné si besoin
+// (voir ensureImporterProfile), pas de candidature "Importateur" séparée.
+async function processIEImportRow(batch, rawRow, rowIndex, budgetDeadline, ownerUser, importerProfile) {
+  let vehicleLabel = "";
+  try {
+    const { data, imageUrls, rowWarnings } = mapRowToIEListingInput(rawRow);
+    vehicleLabel = [data.make, data.model, data.year].filter(Boolean).join(" ") || `Ligne ${rowIndex}`;
+
+    if (!data.title || !data.make || !data.model || !data.year || !data.sourceCountry || !data.price) {
+      return {
+        rowIndex, status: "error", vehicleLabel,
+        errors: ["Champs obligatoires manquants (titre, marque, modèle, année, pays d'origine, prix)"],
+        warnings: rowWarnings,
+      };
+    }
+
+    // ── Doublon (même règle que createListing) ───────────────────────────
+    const existing = await ImportExportListing.findOne({
+      partner: batch.owner,
+      make:    new RegExp(`^${escapeRegex(String(data.make))}$`, "i"),
+      model:   new RegExp(`^${escapeRegex(String(data.model))}$`, "i"),
+      year:    Number(data.year),
+      status:  { $ne: "rejected" },
+    });
+    if (existing) {
+      return { rowIndex, status: "skipped_duplicate", vehicleLabel, errors: [], warnings: [`Annonce déjà existante (${existing._id})`] };
+    }
+
+    const images = await downloadImagesForRow(imageUrls, budgetDeadline, rowWarnings, "ie-import");
+
+    const listing = await ImportExportListing.create({
+      partner:         batch.owner,
+      importerProfile: importerProfile._id,
+      title:           data.title,
+      make:            data.make,
+      model:           data.model,
+      year:            Number(data.year),
+      mileage:         Number(data.mileage) || 0,
+      fuelType:        data.fuelType,
+      transmission:    data.transmission,
+      bodyType:        data.bodyType,
+      color:           data.color,
+      condition:       data.condition || "occasion",
+      description:     data.description,
+      sourceCountry:   data.sourceCountry,
+      sourceCity:      data.sourceCity,
+      availableIn:     data.availableIn || [],
+      price:           Number(data.price),
+      currency:        data.currency || "EUR",
+      negotiable:      !!data.negotiable,
+      stockQty:        Number(data.stockQty) || 1,
+      photos:          images,
+      mainPhoto:       images[0] || null,
+      status:          "pending",
+    });
+
+    return {
+      rowIndex,
+      status: "created",
+      listingId: listing._id,
+      vehicleLabel,
+      errors: [],
+      warnings: rowWarnings,
+    };
+  } catch (rowErr) {
+    logger.error("Import export — erreur ligne", { rowIndex, error: rowErr.message });
+    return { rowIndex, status: "error", vehicleLabel, errors: [rowErr.message || "Erreur inconnue"], warnings: [] };
+  }
+}
+
+// ── Traite une ligne du batch et retourne l'entrée de résultat à enregistrer ─
+async function processImportRow(batch, rawRow, rowIndex, budgetDeadline, ctx) {
+  if (batch.targetType === "export") {
+    return processIEImportRow(batch, rawRow, rowIndex, budgetDeadline, ctx.ownerUser, ctx.importerProfile);
+  }
+  return processVehicleImportRow(batch, rawRow, rowIndex, budgetDeadline);
+}
+
 // ── Traite un batch d'import — appelé par le worker ET en fallback synchrone ─
 // Idempotent vis-à-vis des retries BullMQ : pendingRows est réduit ligne par ligne,
 // donc une reprise après échec ne retraite jamais une ligne déjà enregistrée.
@@ -418,13 +590,26 @@ export async function processImportBatch(batchId) {
   if (!batch) return;
 
   const budgetDeadline = Date.now() + IMAGE_FETCH_BUDGET_MS;
+  const isExport = batch.targetType === "export";
 
   try {
+    // ── Contexte export : propriétaire + profil importateur auto-provisionné ─
+    // une seule fois pour tout le batch (pas à chaque ligne).
+    let ctx = {};
+    if (isExport) {
+      const ownerUser = await User.findById(batch.owner);
+      if (!ownerUser?.isFounder) {
+        throw new Error("Ce compte n'est plus Founding Partner — import export annulé.");
+      }
+      const importerProfile = await ensureImporterProfile(ownerUser);
+      ctx = { ownerUser, importerProfile };
+    }
+
     while (batch.pendingRows.length > 0) {
       const rawRow = batch.pendingRows[0];
       const rowIndex = batch.processedRows + 1;
 
-      const result = await processImportRow(batch, rawRow, rowIndex, budgetDeadline);
+      const result = await processImportRow(batch, rawRow, rowIndex, budgetDeadline, ctx);
 
       batch.results.push(result);
       batch.processedRows += 1;
@@ -440,12 +625,13 @@ export async function processImportBatch(batchId) {
       const created = batch.results.filter((r) => r.status === "created").length;
       const skipped = batch.results.filter((r) => r.status === "skipped_duplicate").length;
       const errored = batch.results.filter((r) => r.status === "error").length;
+      const noun = isExport ? "annonce(s) export" : "véhicule(s)";
       await Notification.create({
         user: batch.owner,
         type: "system",
-        titre: "📦 Import de flotte terminé",
-        message: `${created} véhicule(s) créé(s), ${skipped} doublon(s) ignoré(s), ${errored} erreur(s).`,
-        lien: "/vendor/dashboard",
+        titre: isExport ? "📦 Import d'annonces export terminé" : "📦 Import de flotte terminé",
+        message: `${created} ${noun} créé(s), ${skipped} doublon(s) ignoré(s), ${errored} erreur(s).`,
+        lien: isExport ? "/vendor/publish?tab=import-export" : "/vendor/dashboard",
       });
     } catch (notifErr) {
       logger.error("Notification import (non bloquant) :", notifErr.message);

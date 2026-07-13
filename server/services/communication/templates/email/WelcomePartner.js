@@ -76,6 +76,9 @@ export function loiReadyTemplate({ firstName, companyName, loiUrl, expiresAt }, 
       En signant cette LOI, vous confirmez votre intention de rejoindre le programme Founding Partner VIT AUTO
       et acceptez les termes commerciaux préliminaires.
     </p>
+    <p style="font-size:13px;color:${BRAND.muted};margin:8px 0 0">
+      💡 Ce même lien vous permettra, juste après, de signer directement votre Accord de Partenariat Fondateur — aucun autre email n'est nécessaire.
+    </p>
     ${signature("L'équipe VIT AUTO Partenaires")}
     ${trackingPixel}
   `;

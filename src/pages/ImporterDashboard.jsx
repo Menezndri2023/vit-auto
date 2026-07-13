@@ -299,7 +299,7 @@ export default function ImporterDashboard() {
 
         <div className={styles.sideLinks}>
           <Link to="/import-export" className={styles.sideLink}>🌍 Page Import/Export</Link>
-          <Link to="/importer-apply" className={styles.sideLink}>📝 Ma candidature</Link>
+          <Link to="/partner-onboarding" className={styles.sideLink}>🚀 Founding Partner Program</Link>
           <Link to="/vendor/dashboard" className={styles.sideLink}>← Dashboard partenaire</Link>
         </div>
       </aside>
@@ -316,17 +316,17 @@ export default function ImporterDashboard() {
               <div className={styles.tabContent}>
                 <h2 className={styles.tabTitle}>Vue d'ensemble</h2>
 
-                {/* Statut profil */}
-                {!profile || profile.status === "none" ? (
+                {/* Statut de vérification — Founding Partner Program uniquement */}
+                {!user?.isFounder && (!profile || profile.status === "none") ? (
                   <div className={styles.alertBox} style={{ borderColor: "#f59e0b" }}>
                     <span>⚠️</span>
                     <div>
-                      <strong>Profil importateur non soumis</strong>
-                      <p>Soumettez votre candidature pour obtenir le badge importateur vérifié et publier des annonces.</p>
-                      <Link to="/importer-apply" className={styles.btnPrimary}>Soumettre ma candidature →</Link>
+                      <strong>Devenez Founding Partner pour publier en export</strong>
+                      <p>La publication d'annonces Import/Export est réservée aux partenaires ayant signé l'Accord Founding Partner VIT AUTO.</p>
+                      <Link to="/partner-onboarding" className={styles.btnPrimary}>Devenir Founding Partner →</Link>
                     </div>
                   </div>
-                ) : profile.status === "pending" ? (
+                ) : !user?.isFounder && profile?.status === "pending" ? (
                   <div className={styles.alertBox} style={{ borderColor: "#f59e0b" }}>
                     <span>⏳</span>
                     <div>
@@ -334,24 +334,29 @@ export default function ImporterDashboard() {
                       <p>Notre équipe examine votre dossier sous 48–72h ouvrables. Vous recevrez une notification.</p>
                     </div>
                   </div>
-                ) : profile.status === "rejected" ? (
+                ) : !user?.isFounder && profile?.status === "rejected" ? (
                   <div className={styles.alertBox} style={{ borderColor: "#ef4444" }}>
                     <span>❌</span>
                     <div>
                       <strong>Candidature refusée</strong>
                       {profile.rejectionReason && <p>Motif : {profile.rejectionReason}</p>}
-                      <Link to="/importer-apply" className={styles.btnPrimary}>Resoumettre ma candidature →</Link>
+                      <Link to="/partner-onboarding" className={styles.btnPrimary}>Devenir Founding Partner →</Link>
                     </div>
                   </div>
-                ) : (
+                ) : profile ? (
                   <div className={styles.verifiedBanner}>
                     <span className={styles.verifiedIcon}>✅</span>
                     <div>
-                      <strong>Importateur vérifié {badgeIcon} {profile.badgeLevel?.toUpperCase()}</strong>
-                      <p>Votre profil est actif. Publiez vos annonces import/export dès maintenant.</p>
+                      <strong>Founding Partner {badgeIcon} {profile.badgeLevel?.toUpperCase()}</strong>
+                      <p>Publiez vos annonces import/export — manuellement ou en masse.</p>
                     </div>
-                    <button className={styles.btnPrimary} onClick={() => setShowForm(true)}>+ Nouvelle annonce</button>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button className={styles.btnPrimary} onClick={() => setShowForm(true)}>+ Nouvelle annonce</button>
+                      <Link to="/partner-fleet-import?type=export" className={styles.btnPrimary}>📦 Importer en masse</Link>
+                    </div>
                   </div>
+                ) : (
+                  <div className={styles.loadBox}><div className={styles.spinner} /><p>Chargement...</p></div>
                 )}
 
                 {/* KPIs */}
@@ -510,8 +515,8 @@ export default function ImporterDashboard() {
                 {!profile ? (
                   <div className={styles.emptyState}>
                     <span>🏢</span>
-                    <p>Vous n'avez pas encore soumis de candidature importateur.</p>
-                    <Link to="/importer-apply" className={styles.btnPrimary}>Soumettre ma candidature</Link>
+                    <p>Devenez Founding Partner pour activer votre profil Import/Export.</p>
+                    <Link to="/partner-onboarding" className={styles.btnPrimary}>Devenir Founding Partner</Link>
                   </div>
                 ) : (
                   <div className={styles.profileCard}>
@@ -545,8 +550,8 @@ export default function ImporterDashboard() {
                         <p><strong>Expérience :</strong> {profile.yearsExperience || 0} ans</p>
                       </div>
                     </div>
-                    {["rejected", "not_submitted"].includes(profile.status) && (
-                      <Link to="/importer-apply" className={styles.btnPrimary}>Modifier et resoumettre →</Link>
+                    {!user?.isFounder && ["rejected", "not_submitted"].includes(profile.status) && (
+                      <Link to="/partner-onboarding" className={styles.btnPrimary}>Devenir Founding Partner →</Link>
                     )}
                   </div>
                 )}

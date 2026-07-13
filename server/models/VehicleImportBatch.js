@@ -8,6 +8,8 @@ const resultSchema = new mongoose.Schema({
     required: true,
   },
   vehicleId: { type: mongoose.Schema.Types.ObjectId, ref: "Vehicle", default: null },
+  // Renseigné à la place de vehicleId quand targetType === "export".
+  listingId: { type: mongoose.Schema.Types.ObjectId, ref: "ImportExportListing", default: null },
   vehicleLabel: { type: String, default: "" }, // ex: "Toyota Corolla 2020" — utile en cas d'erreur
   errors:   { type: [String], default: [] },
   warnings: { type: [String], default: [] },
@@ -19,6 +21,16 @@ const vehicleImportBatchSchema = new mongoose.Schema({
     ref: "User",
     required: true,
     index: true,
+  },
+
+  // "vehicle" = catalogue location/vente classique (Vehicle) ; "export" =
+  // annonces Import/Export (ImportExportListing), réservées aux Founding
+  // Partners — même pipeline d'import (fichier/Google Sheet), colonnes et
+  // modèle de destination différents (voir vehicleImportService.js).
+  targetType: {
+    type: String,
+    enum: ["vehicle", "export"],
+    default: "vehicle",
   },
 
   source: {
