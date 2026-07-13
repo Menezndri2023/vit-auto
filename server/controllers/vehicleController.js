@@ -306,10 +306,13 @@ export const updateVehicle = async (req, res) => {
         : null;
     }
 
-    const updated = await Vehicle.findByIdAndUpdate(req.params.id, safeUpdate, { new: true });
+    const updated = await Vehicle.findByIdAndUpdate(req.params.id, safeUpdate, { new: true, runValidators: true });
     res.json({ vehicle: updated });
   } catch (err) {
     logger.error("updateVehicle:", err);
+    if (err.name === "ValidationError") {
+      return res.status(400).json({ message: "Données invalides : " + err.message });
+    }
     res.status(500).json({ message: "Erreur mise à jour." });
   }
 };

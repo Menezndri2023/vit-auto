@@ -13,7 +13,14 @@ const resultSchema = new mongoose.Schema({
   vehicleLabel: { type: String, default: "" }, // ex: "Toyota Corolla 2020" — utile en cas d'erreur
   errors:   { type: [String], default: [] },
   warnings: { type: [String], default: [] },
-}, { _id: false });
+}, {
+  _id: false,
+  // "errors" est un nom de chemin réservé par Mongoose (utilisé en interne pour
+  // les erreurs de validation) — sans risque ici (sous-document simple, jamais
+  // validé individuellement), mais on supprime l'avertissement au démarrage
+  // plutôt que de le laisser polluer les logs à chaque déploiement.
+  suppressReservedKeysWarning: true,
+});
 
 const vehicleImportBatchSchema = new mongoose.Schema({
   owner: {

@@ -151,6 +151,16 @@ async function runSyncFallback(queueName, jobName, data) {
   return fakeJob.id;
 }
 
+// ── Circuit-breaker Redis ──────────────────────────────────────────────────
+// Si un quota Redis (ex: Upstash) est dépassé, CHAQUE q.add() échoue de toute
+// façon — les retenter à chaque requête HTTP ne fait qu'ajouter de la latence
+// et du bruit dans les logs pour rien. Après un échec, on saute directement le
+// fallback synchrone pendant un court délai plutôt que de re-solliciter Redis
+// à chaque appel ; un succès referme aussitôt le circuit (reprise automatique
+// dès que le quota/la connexion redevient disponible).
+const REDIS_BREAKER_COOLDOWN_MS = 60_000;
+let _redisBrokenUntil = 0;
+
 // ── Fonction d'enqueue bas niveau ─────────────────────────────────────────────
 export async function enqueue(queueName, jobName, data, opts = {}) {
   const q = _queues[queueName];
@@ -159,13 +169,19 @@ export async function enqueue(queueName, jobName, data, opts = {}) {
     logger.warn("[Queue] Queue indisponible — fallback synchrone", { queue: queueName, job: jobName });
     return runSyncFallback(queueName, jobName, data);
   }
+  if (Date.now() < _redisBrokenUntil) {
+    logger.warn("[Queue] Circuit Redis ouvert (échec récent) — fallback synchrone direct", { queue: queueName, job: jobName });
+    return runSyncFallback(queueName, jobName, data);
+  }
   try {
     const job = await q.add(jobName, data, opts);
+    _redisBrokenUntil = 0;
     return job.id;
   } catch (err) {
     // Redis était connecté mais l'ajout échoue (ex : quota Upstash dépassé) — même filet
     // de sécurité que ci-dessus pour ne jamais perdre le job silencieusement.
-    logger.error("[Queue] Erreur enqueue — bascule en fallback synchrone", { queue: queueName, job: jobName, error: err.message });
+    _redisBrokenUntil = Date.now() + REDIS_BREAKER_COOLDOWN_MS;
+    logger.error("[Queue] Erreur enqueue — bascule en fallback synchrone (circuit ouvert 60s)", { queue: queueName, job: jobName, error: err.message });
     return runSyncFallback(queueName, jobName, data);
   }
 }
