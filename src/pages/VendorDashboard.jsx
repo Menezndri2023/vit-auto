@@ -6,6 +6,7 @@ import { useSocket } from "../context/SocketContext";
 import { useChat } from "../context/ChatContext";
 import { Link, useNavigate } from "react-router-dom";
 import { SUBSCRIPTIONS_ENABLED } from "../config/featureFlags";
+import PartnerCalendar from "../components/PartnerCalendar/PartnerCalendar";
 import styles from "./VendorDashboard.module.css";
 
 /* ── Utilitaires ────────────────────────────────────────────────────────── */
@@ -1223,6 +1224,7 @@ export default function VendorDashboard() {
           { id: "dashboard",    icon: "📊", label: "Dashboard" },
           { id: "commandes",    icon: "📋", label: "Commandes",       count: stats.totalOrders,    alert: newOrdersCount },
           { id: "annonces",     icon: "🚗", label: "Annonces",        count: stats.totalVehicles },
+          { id: "calendrier",   icon: "📅", label: "Calendrier" },
           { id: "finances",     icon: "💰", label: "Finances",        count: invoices.filter((i) => i.status === "pending").length || null },
           { id: "reservations", icon: "🎫", label: "Mes réservations", alert: myPersonalBookings.filter((b) => b.status === "waiting_client_validation").length || null },
         ].map(({ id, icon, label, count, alert }) => (
@@ -1606,6 +1608,19 @@ export default function VendorDashboard() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ══ TAB : CALENDRIER ══════════════════════════════════════════════ */}
+      {activeTab === "calendrier" && (
+        <div className={styles.tabContent}>
+          <div style={{ marginBottom: 16 }}>
+            <h2 style={{ margin: "0 0 4px", fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f" }}>📅 Calendrier de disponibilité</h2>
+            <p style={{ margin: 0, fontSize: "0.84rem", color: "#64748b" }}>
+              Vue d'ensemble de vos véhicules et chauffeurs déjà réservés — cliquez sur un jour pour voir le détail.
+            </p>
+          </div>
+          <PartnerCalendar bookings={allOrders} />
         </div>
       )}
 
