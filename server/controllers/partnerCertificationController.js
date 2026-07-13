@@ -158,6 +158,19 @@ export const submitLevel = async (req, res) => {
   }
 };
 
+// La liste ne doit JAMAIS charger les documents en base64 (jusqu'à 12 par dossier,
+// potentiellement plusieurs Mo chacun) : avec `limit=20`, ça multiplierait vite la
+// réponse à des dizaines de Mo. Seul adminDetail() les renvoie, à l'ouverture d'un
+// dossier précis — même principe que kycController.js (voir commit "documents
+// jamais affichés").
+const CERT_LIST_EXCLUDE_DOCS = [
+  "-level1.registrationDoc.data", "-level1.taxDoc.data", "-level1.addressProofDoc.data",
+  "-level2.idFrontDoc.data", "-level2.idBackDoc.data", "-level2.selfieDoc.data", "-level2.profCardDoc.data",
+  "-level4.bankDoc.data",
+  "-level5.grayCardDoc.data", "-level5.photoDoc.data", "-level5.invoiceDoc.data",
+  "-level6.sampleDoc.data",
+].join(" ");
+
 // ── GET /api/certification/admin/list ────────────────────────────────────────
 export const adminList = async (req, res) => {
   try {
@@ -169,6 +182,7 @@ export const adminList = async (req, res) => {
     const skip  = (Number(page) - 1) * Number(limit);
     const [certs, total] = await Promise.all([
       PartnerCertification.find(filter)
+        .select(CERT_LIST_EXCLUDE_DOCS)
         .populate("userId", "firstName lastName email phone role profilePhoto")
         .sort({ updatedAt: -1 })
         .skip(skip)
