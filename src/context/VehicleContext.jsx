@@ -112,6 +112,8 @@ const normalizeVehicle = (v) => {
     transmission: v.transmission || "",
     listingType:  v.type,
     leasing:      v.leasing || null,
+    credit:       v.credit  || null,
+    promotion:    v.promotion || null,
     // Partenaire — pour affichage et lien profil
     ownerId,
     ownerName,

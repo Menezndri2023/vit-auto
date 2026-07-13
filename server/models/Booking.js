@@ -103,10 +103,15 @@ const bookingSchema = new mongoose.Schema({
     },
   },
 
-  // ── Champs spécifiques : ESSAI ────────────────────────────
+  // ── Champs spécifiques : ESSAI (rendez-vous d'essai avant achat) ──────────
   essai: {
     preferredDate: { type: Date },
     preferredTime: { type: String },
+    // Calculée côté serveur (preferredDate + preferredTime + durée fixe),
+    // jamais depuis le client — même principe que chauffeur.dateFin : permet
+    // de détecter qu'un véhicule en vente est déjà réservé pour un essai sur
+    // le même créneau (aucun contrôle n'existait auparavant).
+    dateFin:       { type: Date },
     notes:         { type: String },
   },
 
@@ -190,6 +195,11 @@ const bookingSchema = new mongoose.Schema({
 
   // ── Leasing ───────────────────────────────────────────────
   leasing: {
+    // Le type "leasing" de Booking couvre à la fois une demande de Leasing
+    // (LOA) et de Crédit classique (Vehicle.leasing / Vehicle.credit) — même
+    // machine à états et mêmes champs financiers, seul le produit choisi par
+    // le client diffère (voir Vehicle.credit, ajouté en parallèle du leasing).
+    financingType: { type: String, enum: ["leasing", "credit"], default: "leasing" },
     apportInitial: { type: Number, default: 0 },
     mensualite:    { type: Number, default: 0 },
     duree:         { type: Number, default: 36 },
@@ -204,6 +214,18 @@ const bookingSchema = new mongoose.Schema({
     comment:        { type: String, default: null },
     recordedAt:     { type: Date,   default: null },
     recordedBy:     { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    // ── Mode de financement réellement conclu (essai/vente uniquement) ──────
+    // Distinct de paymentMethod (le rail de paiement de l'apport initial) :
+    // décrit COMMENT l'achat a été financé, négocié sur place lors de la
+    // conclusion de la transaction — peut différer des conditions leasing/
+    // crédit publiées sur l'annonce (voir Vehicle.leasing / Vehicle.credit).
+    financing: {
+      type:          { type: String, enum: ["comptant", "leasing", "credit"], default: "comptant" },
+      apportInitial: { type: Number, default: 0 },
+      mensualite:    { type: Number, default: 0 },
+      duree:         { type: Number, default: 0 },
+      tauxInteret:   { type: Number, default: 0 },
+    },
   },
 
   // ── Validation client ──────────────────────────────────────
@@ -251,6 +273,7 @@ bookingSchema.index({ createdAt: -1 });
 // Index pour la vérification de chevauchement de dates
 bookingSchema.index({ vehicle: 1, status: 1, "location.startDate": 1, "location.endDate": 1 });
 bookingSchema.index({ driver: 1, status: 1, "chauffeur.date": 1, "chauffeur.dateFin": 1 });
+bookingSchema.index({ vehicle: 1, status: 1, "essai.preferredDate": 1, "essai.dateFin": 1 });
 
 bookingSchema.pre("save", function (next) {
   this.updatedAt = new Date();

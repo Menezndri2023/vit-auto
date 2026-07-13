@@ -44,6 +44,46 @@ function LeasingCard({ leasing, priceForSale, vehicleId, navigate, fmt, t }) {
   );
 }
 
+// Mirroir de LeasingCard pour le Crédit classique — mêmes champs financiers
+// (Vehicle.credit), textes en dur (pas d'entrées i18n dédiées pour l'instant,
+// cohérent avec le reste des ajouts de cette session).
+function CreditCard({ credit, fmt }) {
+  const totalEstime = (credit.apportInitial || 0) + (credit.mensualite || 0) * (credit.duree || 36);
+  return (
+    <div className={styles.leasingCard}>
+      <div className={styles.leasingHeader}>
+        <span className={styles.leasingBadge}>Crédit classique</span>
+        <span className={styles.leasingTitle}>Financement bancaire — propriété immédiate</span>
+      </div>
+      <div className={styles.leasingGrid}>
+        <div className={styles.leasingItem}>
+          <span>Apport initial</span>
+          <strong>{fmt(credit.apportInitial || 0)}</strong>
+        </div>
+        <div className={styles.leasingItem}>
+          <span>Mensualité</span>
+          <strong className={styles.leasingHighlight}>{fmt(credit.mensualite)} / mois</strong>
+        </div>
+        <div className={styles.leasingItem}>
+          <span>Durée</span>
+          <strong>{credit.duree} mois</strong>
+        </div>
+        <div className={styles.leasingItem}>
+          <span>Taux</span>
+          <strong>{credit.tauxInteret || 0} % / an</strong>
+        </div>
+      </div>
+      {credit.description && (
+        <p className={styles.leasingDesc}>{credit.description}</p>
+      )}
+      <div className={styles.leasingTotal}>
+        <span>Total sur {credit.duree} mois</span>
+        <strong>{fmt(totalEstime)}</strong>
+      </div>
+    </div>
+  );
+}
+
 const SPEC_ICONS = {
   carburant:    "⛽",
   transmission: "⚙️",
@@ -284,6 +324,11 @@ export default function VehicleDetails() {
             <LeasingCard leasing={vehicle.leasing} priceForSale={vehicle.buyPrice || vehicle.priceForSale} vehicleId={vehicle._id || vehicle.id} navigate={navigate} fmt={fmt} t={t} />
           )}
 
+          {/* ── Crédit classique (vente avec crédit) ── */}
+          {isSale && vehicle.credit?.disponible && (
+            <CreditCard credit={vehicle.credit} fmt={fmt} />
+          )}
+
           {/* ── Carte annonceur ── */}
           {(vehicle.ownerName || vehicle.contactNom || vehicle.partnerName || vehicle.ownerPhone || vehicle.contactTel) && (
             <div className={styles.card}>
@@ -346,6 +391,14 @@ export default function VehicleDetails() {
                     onClick={() => navigate(`/booking/${vehicle._id || vehicle.id}?type=leasing`)}
                   >
                     {t("vd.leasing.request")}
+                  </button>
+                )}
+                {isSale && vehicle.credit?.disponible && (
+                  <button
+                    className={styles.leasingBtn}
+                    onClick={() => navigate(`/booking/${vehicle._id || vehicle.id}?type=credit`)}
+                  >
+                    💳 Demander ce crédit
                   </button>
                 )}
               </>

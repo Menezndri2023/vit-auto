@@ -44,8 +44,19 @@ const vehicleSchema = new mongoose.Schema({
   priceForSale: { type: Number }, // vente
   caution:      { type: Number }, // caution location (FCFA)
 
-  // ── Leasing (pour type "vente" uniquement) ─────────────────
+  // ── Leasing (LOA — location avec option d'achat, pour type "vente" uniquement) ──
   leasing: {
+    disponible:    { type: Boolean, default: false },
+    apportInitial: { type: Number, default: 0 },     // FCFA
+    mensualite:    { type: Number, default: 0 },     // FCFA/mois
+    duree:         { type: Number, default: 36 },    // mois
+    tauxInteret:   { type: Number, default: 8 },     // % annuel
+    description:   { type: String, default: "" },
+  },
+
+  // ── Crédit classique (financement bancaire, propriété transférée dès
+  // l'achat contrairement au leasing/LOA — pour type "vente" uniquement) ────
+  credit: {
     disponible:    { type: Boolean, default: false },
     apportInitial: { type: Number, default: 0 },     // FCFA
     mensualite:    { type: Number, default: 0 },     // FCFA/mois
@@ -96,6 +107,18 @@ const vehicleSchema = new mongoose.Schema({
 
   // ── Disponibilité ─────────────────────────────────────────
   available: { type: Boolean, default: true },
+
+  // ── Promotion partenaire (ex: "-15% aujourd'hui") ──────────
+  // Gérée exclusivement via son propre endpoint (PATCH /:id/promotion) —
+  // jamais mêlée à la création/modification générale de l'annonce, pour
+  // garder la logique d'activation/expiration à un seul endroit.
+  promotion: {
+    active:          { type: Boolean, default: false },
+    discountPercent: { type: Number,  default: 0, min: 0, max: 90 },
+    label:           { type: String,  default: "" },
+    startDate:       { type: Date,    default: null },
+    endDate:         { type: Date,    default: null },
+  },
 
   // ── Statistiques ──────────────────────────────────────────
   vues:          { type: Number, default: 0 },

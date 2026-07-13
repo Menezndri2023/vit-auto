@@ -229,6 +229,15 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
     finalAmount:   order?.transaction?.finalAmount || order?.montantTotal || order?.total || "",
     paymentMethod: order?.transaction?.paymentMethod || "cash",
     comment:       order?.transaction?.comment || "",
+    // Mode de financement réellement conclu (véhicules en vente uniquement) —
+    // négocié sur place, peut différer des conditions publiées sur l'annonce.
+    financing: {
+      type:          order?.transaction?.financing?.type || "comptant",
+      apportInitial: order?.transaction?.financing?.apportInitial || "",
+      mensualite:    order?.transaction?.financing?.mensualite    || "",
+      duree:         order?.transaction?.financing?.duree         || 36,
+      tauxInteret:   order?.transaction?.financing?.tauxInteret   || 8,
+    },
   });
   const [txSubmitting, setTxSubmitting] = useState(false);
   const [txError, setTxError]           = useState("");
@@ -599,10 +608,20 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
                       </button>
                     </div>
                   ) : (
-                    <TxForm form={txForm} setForm={setTxForm} commRate={commRate}
+                    <TxForm form={txForm} setForm={setTxForm} commRate={commRate} isVente={subType === "vente"}
                       onSubmit={() => {
                         if(!txForm.finalAmount||Number(txForm.finalAmount)<=0) return;
-                        onPartnerConfirm(order.id,{clientPresent:true,finalAmount:Number(txForm.finalAmount),paymentMethod:txForm.paymentMethod,comment:txForm.comment});
+                        if(txForm.financing?.type!=="comptant" && (!txForm.financing?.mensualite||Number(txForm.financing.mensualite)<=0)) return;
+                        onPartnerConfirm(order.id,{
+                          clientPresent:true,finalAmount:Number(txForm.finalAmount),paymentMethod:txForm.paymentMethod,comment:txForm.comment,
+                          financing: subType==="vente" ? {
+                            type: txForm.financing?.type||"comptant",
+                            apportInitial: Number(txForm.financing?.apportInitial)||0,
+                            mensualite: Number(txForm.financing?.mensualite)||0,
+                            duree: Number(txForm.financing?.duree)||0,
+                            tauxInteret: Number(txForm.financing?.tauxInteret)||0,
+                          } : undefined,
+                        });
                         setFastMode(null);
                       }}
                       onCancel={() => setFastMode(null)}
@@ -646,11 +665,21 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
               <div className={styles.sectionCardTitle}>💰 Enregistrement de la transaction</div>
               <p className={styles.decisionHelp}>Saisissez le montant exact encaissé auprès du client. La transaction sera soumise à validation.</p>
               {txError && <p className={styles.txError}>{txError}</p>}
-              <TxForm form={txForm} setForm={setTxForm} submitting={txSubmitting} commRate={commRate}
+              <TxForm form={txForm} setForm={setTxForm} submitting={txSubmitting} commRate={commRate} isVente={subType === "vente"}
                 onSubmit={async () => {
                   if(!txForm.finalAmount||Number(txForm.finalAmount)<=0){setTxError("Saisissez un montant valide.");return;}
+                  if(txForm.financing?.type!=="comptant" && (!txForm.financing?.mensualite||Number(txForm.financing.mensualite)<=0)){setTxError("Saisissez une mensualité valide pour ce financement.");return;}
                   setTxError(""); setTxSubmitting(true);
-                  await onRecordTransaction(order.id,{finalAmount:Number(txForm.finalAmount),paymentMethod:txForm.paymentMethod,comment:txForm.comment});
+                  await onRecordTransaction(order.id,{
+                    finalAmount:Number(txForm.finalAmount),paymentMethod:txForm.paymentMethod,comment:txForm.comment,
+                    financing: subType==="vente" ? {
+                      type: txForm.financing?.type||"comptant",
+                      apportInitial: Number(txForm.financing?.apportInitial)||0,
+                      mensualite: Number(txForm.financing?.mensualite)||0,
+                      duree: Number(txForm.financing?.duree)||0,
+                      tauxInteret: Number(txForm.financing?.tauxInteret)||0,
+                    } : undefined,
+                  });
                   setTxSubmitting(false);
                 }}
                 onCancel={() => onReject(order.id)} cancelLabel="Transaction non conclue"
@@ -760,10 +789,12 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
 }
 
 /* ── Formulaire de transaction réutilisable ──────────────────────────────── */
-function TxForm({ form, setForm, onSubmit, onCancel, cancelLabel = "Annuler", submitting = false, commRate = 0.15 }) {
+function TxForm({ form, setForm, onSubmit, onCancel, cancelLabel = "Annuler", submitting = false, commRate = 0.15, isVente = false }) {
   const amt    = Number(form.finalAmount) || 0;
   const comm   = Math.round(amt * commRate);
   const netPay = Math.max(Math.round(amt - comm) - SERVICE_FEE, 0);
+  const financing = form.financing || { type: "comptant" };
+  const setFinancing = (patch) => setForm((p) => ({ ...p, financing: { ...(p.financing || {}), ...patch } }));
   return (
     <div className={styles.txForm}>
       <div className={styles.txRow}>
@@ -783,6 +814,43 @@ function TxForm({ form, setForm, onSubmit, onCancel, cancelLabel = "Annuler", su
           <option value="virement">🏦 Virement bancaire</option>
         </select>
       </div>
+
+      {isVente && (
+        <>
+          <div className={styles.txRow}>
+            <label className={styles.txLabel}>Mode de financement conclu *</label>
+            <select className={styles.txSelect} value={financing.type} onChange={(e) => setFinancing({ type: e.target.value })}>
+              <option value="comptant">💵 Comptant (paiement intégral)</option>
+              <option value="leasing">🏦 Leasing (LOA)</option>
+              <option value="credit">💳 Crédit classique</option>
+            </select>
+          </div>
+          {financing.type !== "comptant" && (
+            <>
+              <p style={{ fontSize: ".78rem", color: "#64748b", margin: "-4px 0 8px" }}>
+                Conditions négociées sur place — le montant encaissé ci-dessus correspond à l'apport initial.
+              </p>
+              <div className={styles.txRow}>
+                <label className={styles.txLabel}>Mensualité (XOF) *</label>
+                <input type="number" min="1" className={styles.txInput} placeholder="Ex : 350 000"
+                  value={financing.mensualite} onChange={(e) => setFinancing({ mensualite: e.target.value })} />
+              </div>
+              <div className={styles.txRow}>
+                <label className={styles.txLabel}>Durée (mois)</label>
+                <select className={styles.txSelect} value={financing.duree} onChange={(e) => setFinancing({ duree: Number(e.target.value) })}>
+                  {[12, 24, 36, 48, 60].map((m) => <option key={m} value={m}>{m} mois</option>)}
+                </select>
+              </div>
+              <div className={styles.txRow}>
+                <label className={styles.txLabel}>Taux d'intérêt annuel (%)</label>
+                <input type="number" min="0" max="30" step="0.5" className={styles.txInput}
+                  value={financing.tauxInteret} onChange={(e) => setFinancing({ tauxInteret: e.target.value })} />
+              </div>
+            </>
+          )}
+        </>
+      )}
+
       <div className={styles.txRow}>
         <label className={styles.txLabel}>Note (optionnel)</label>
         <textarea rows={2} className={styles.txTextarea} placeholder="Observations..."
@@ -831,6 +899,9 @@ export default function VendorDashboard() {
   const [searchQuery,    setSearchQuery]    = useState("");
   const [rejectModal,    setRejectModal]    = useState(null);
   const [rejectNote,     setRejectNote]     = useState("");
+  const [promoModal,     setPromoModal]     = useState(null); // véhicule en cours d'édition promo
+  const [promoForm,      setPromoForm]      = useState({ active: false, discountPercent: 15, label: "", startDate: "", endDate: "" });
+  const [promoSaving,    setPromoSaving]    = useState(false);
   const [gererModalId,   setGererModalId]   = useState(null);
   const [orderDetail,    setOrderDetail]    = useState(null);
   const [detailLoading,  setDetailLoading]  = useState(false);
@@ -993,6 +1064,38 @@ export default function VendorDashboard() {
       if (r.ok) toastSuccess(d.message || "Demande de mise en avant envoyée — en attente de confirmation du paiement."); else toastError(d.message || "Erreur.");
     } catch { toastError("Erreur réseau."); }
     finally { setBoostTarget(null); }
+  };
+
+  const handleOpenPromo = (vehicle) => {
+    const p = vehicle.promotion || {};
+    setPromoForm({
+      active:          !!p.active,
+      discountPercent: p.discountPercent || 15,
+      label:           p.label || "",
+      startDate:       p.startDate ? new Date(p.startDate).toISOString().split("T")[0] : "",
+      endDate:         p.endDate   ? new Date(p.endDate).toISOString().split("T")[0]   : "",
+    });
+    setPromoModal(vehicle);
+  };
+
+  const handleSavePromo = async () => {
+    if (!promoModal || !token) return;
+    const vid = promoModal.id || promoModal._id;
+    setPromoSaving(true);
+    try {
+      const r = await fetch(`/api/vehicles/${vid}/promotion`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(promoForm),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        toastSuccess(promoForm.active ? "🏷️ Promotion activée." : "Promotion désactivée.");
+        setPromoModal(null);
+        loadPartnerVehicles();
+      } else toastError(d.message || "Erreur.");
+    } catch { toastError("Erreur réseau."); }
+    finally { setPromoSaving(false); }
   };
 
   const handleContactClient = async (bookingId) => {
@@ -1549,6 +1652,11 @@ export default function VendorDashboard() {
                       </div>
                       <div className={styles.vehiclePrice}>
                         {vehicle.pricePerDay ? `${Number(vehicle.pricePerDay).toLocaleString("fr-FR")} XOF / jour` : vehicle.buyPrice ? `${Number(vehicle.buyPrice).toLocaleString("fr-FR")} XOF` : "—"}
+                        {vehicle.promotion?.active && (
+                          <span style={{ marginLeft: 8, background: "#fee2e2", color: "#dc2626", fontSize: "0.72rem", fontWeight: 800, padding: "2px 8px", borderRadius: 999 }}>
+                            -{vehicle.promotion.discountPercent}%
+                          </span>
+                        )}
                       </div>
                       {orderCount > 0 && (
                         <button className={styles.vehicleOrderCount} onClick={() => { setActiveTab("commandes"); setOrderFilter("all"); setSearchQuery(vehicle.name || ""); }}>
@@ -1559,6 +1667,9 @@ export default function VendorDashboard() {
                     <div className={styles.vehicleCardActions}>
                       <Link to={`/vendor?edit=${vid}`} className={styles.btnSecondary}>Modifier</Link>
                       <Link to={`/vehicle/${vid}`} className={styles.btnSecondary}>Voir</Link>
+                      <button className={styles.btnSecondary} onClick={() => handleOpenPromo(vehicle)}>
+                        {vehicle.promotion?.active ? "🏷️ Promo active" : "🏷️ Promo"}
+                      </button>
                       {SUBSCRIPTIONS_ENABLED && !isBoosted && <button className={styles.btnBoost} onClick={() => handleBoost(vid)} disabled={boostTarget === vid}>{boostTarget === vid ? "…" : "⭐ Booster"}</button>}
                       <button className={styles.btnDanger} onClick={() => handleDeleteVehicle(vid)}>Suppr.</button>
                     </div>
@@ -1917,6 +2028,61 @@ export default function VendorDashboard() {
             <div className={styles.rejectActions}>
               <button className={styles.btnRefuseModal} onClick={handleReject}>Confirmer le refus</button>
               <button className={styles.btnSecondary} onClick={() => setRejectModal(null)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {promoModal && (
+        <div className={styles.modalBackdrop} onClick={() => setPromoModal(null)}>
+          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()}>
+            <h3>🏷️ Promotion — {promoModal.name}</h3>
+            <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "#64748b" }}>
+              Affiche un badge de remise sur l'annonce (catalogue public) et applique automatiquement la réduction au prix de location.
+            </p>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, marginBottom: 14, cursor: "pointer" }}>
+              <input type="checkbox" checked={promoForm.active}
+                onChange={(e) => setPromoForm((p) => ({ ...p, active: e.target.checked }))} />
+              Activer la promotion
+            </label>
+            {promoForm.active && (
+              <>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Pourcentage de remise (%)</label>
+                  <input type="number" min="1" max="90" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                    value={promoForm.discountPercent}
+                    onChange={(e) => setPromoForm((p) => ({ ...p, discountPercent: Number(e.target.value) }))} />
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Libellé (optionnel)</label>
+                  <input type="text" placeholder="Ex : Offre du jour" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                    value={promoForm.label}
+                    onChange={(e) => setPromoForm((p) => ({ ...p, label: e.target.value }))} />
+                </div>
+                <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Début (optionnel)</label>
+                    <input type="date" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px", width: "100%" }}
+                      value={promoForm.startDate}
+                      onChange={(e) => setPromoForm((p) => ({ ...p, startDate: e.target.value }))} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Fin (optionnel)</label>
+                    <input type="date" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px", width: "100%" }}
+                      value={promoForm.endDate}
+                      onChange={(e) => setPromoForm((p) => ({ ...p, endDate: e.target.value }))} />
+                  </div>
+                </div>
+                <p style={{ fontSize: "0.78rem", color: "#94a3b8", margin: "0 0 14px" }}>
+                  Sans dates, la promotion reste active jusqu'à sa désactivation manuelle.
+                </p>
+              </>
+            )}
+            <div className={styles.rejectActions}>
+              <button className={styles.btnAccept} onClick={handleSavePromo} disabled={promoSaving}>
+                {promoSaving ? "Envoi…" : "✅ Enregistrer"}
+              </button>
+              <button className={styles.btnSecondary} onClick={() => setPromoModal(null)}>Annuler</button>
             </div>
           </div>
         </div>

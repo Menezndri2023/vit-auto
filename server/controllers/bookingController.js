@@ -9,6 +9,7 @@ import Contract from "../models/Contract.js";
 import User from "../models/User.js";
 import { dispatch } from "../queue/index.js";
 import { resolveDeliveryFee, detectCountryFromCoords } from "../services/deliveryFee.js";
+import { applyPromotion } from "../utils/promotion.js";
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -61,6 +62,12 @@ async function syncVehicleAvailability(vehicleId) {
 
 // ── Tarifs options (XOF) ───────────────────────────────────────────────────────
 const PRIX_OPTIONS = { gps: 10000, babySeat: 7000, insurance: 15000, driver: 50000 };
+
+// ── Durée fixe d'un rendez-vous d'essai (véhicule en vente) ────────────────────
+// Sert uniquement à détecter les chevauchements de créneaux sur le même
+// véhicule (voir essai.dateFin) — pas une contrainte métier configurable pour
+// l'instant, un essai type dure environ une heure.
+const ESSAI_DURATION_MS = 60 * 60 * 1000;
 
 // ── Taux de commission par type ────────────────────────────────────────────────
 const COMMISSION_RATES = {
@@ -129,12 +136,19 @@ export const createBooking = async (req, res) => {
       if (!Number.isFinite(apport) || apport < 0) {
         return res.status(400).json({ message: "Apport initial invalide." });
       }
+      // "leasing" (LOA) et "credit" (crédit classique) partagent le même type
+      // de réservation — voir Booking.leasing.financingType.
+      if (leasingData.financingType && !["leasing", "credit"].includes(leasingData.financingType)) {
+        return res.status(400).json({ message: "Type de financement invalide." });
+      }
     }
 
     let montantBase = 0;
     let vehicle = null;
     let driver  = null;
     let ownerId = null;
+    let essaiPreferredDate   = null;
+    let essaiDateFinComputed = null;
 
     // ── Véhicule ───────────────────────────────────────────────────────────────
     if (["location", "essai", "leasing"].includes(type)) {
@@ -166,10 +180,50 @@ export const createBooking = async (req, res) => {
             });
           }
         }
-        montantBase = (vehicle.pricePerDay || 0) * (location?.days || 1);
+        // Prix/jour toujours recalculé côté serveur (jamais confiance dans un
+        // prix déjà remisé envoyé par le client) — applique la promotion
+        // active du véhicule si présente (voir Vehicle.promotion).
+        const effectivePricePerDay = applyPromotion(vehicle.pricePerDay || 0, vehicle.promotion);
+        montantBase = effectivePricePerDay * (location?.days || 1);
       }
       if (type === "leasing") {
         montantBase = leasingData?.apportInitial || 0;
+      }
+      if (type === "essai") {
+        // Un véhicule en vente pouvait auparavant recevoir plusieurs demandes
+        // d'essai sur le même créneau sans aucune détection — même principe
+        // que le planning chauffeur (chauffeur.date/dateFin) : la date de fin
+        // est calculée côté serveur (durée fixe d'un essai), jamais fournie
+        // par le client.
+        const preferredDate = essai?.preferredDate ? new Date(essai.preferredDate) : null;
+        if (!preferredDate || isNaN(preferredDate.getTime())) {
+          return res.status(400).json({ message: "Date et heure souhaitées pour l'essai requises." });
+        }
+        if (essai?.preferredTime) {
+          const dateStr = preferredDate.toISOString().split("T")[0];
+          const combined = new Date(`${dateStr}T${essai.preferredTime}:00`);
+          if (!isNaN(combined.getTime())) preferredDate.setTime(combined.getTime());
+        }
+        if (preferredDate < new Date()) {
+          return res.status(400).json({ message: "La date de l'essai ne peut pas être dans le passé." });
+        }
+        const essaiDateFin = new Date(preferredDate.getTime() + ESSAI_DURATION_MS);
+
+        const conflict = await Booking.findOne({
+          vehicle: vehicleId,
+          status:  { $in: ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "transaction_concluded", "waiting_client_validation"] },
+          "essai.preferredDate": { $lt: essaiDateFin },
+          "essai.dateFin":       { $gt: preferredDate },
+        });
+        if (conflict) {
+          return res.status(409).json({
+            message: "Un essai est déjà prévu sur ce véhicule à ce créneau.",
+            conflict: { preferredDate: conflict.essai.preferredDate, dateFin: conflict.essai.dateFin },
+          });
+        }
+
+        essaiPreferredDate = preferredDate;
+        essaiDateFinComputed = essaiDateFin;
       }
     }
 
@@ -290,7 +344,10 @@ export const createBooking = async (req, res) => {
       driver:   driver?._id   || null,
       // deliveryFee toujours écrasé par la valeur calculée serveur ci-dessus, jamais celle du client
       location: type === "location" && location ? { ...location, deliveryFee } : (type === "location" ? location : undefined),
-      essai:    type === "essai"    ? essai    : undefined,
+      // preferredDate/dateFin toujours écrasés par les valeurs calculées serveur
+      // ci-dessus (combinaison date+heure normalisée, dateFin de conflit),
+      // jamais celles envoyées brutes par le client.
+      essai:    type === "essai"    ? { ...essai, preferredDate: essaiPreferredDate, dateFin: essaiDateFinComputed } : undefined,
       // dateFin toujours écrasé par la valeur calculée serveur ci-dessus, jamais celle du client
       chauffeur: type === "chauffeur" ? { ...chauffeur, dateFin: chauffeurDateFin } : undefined,
       leasing:  type === "leasing"  ? leasingData : undefined,
@@ -723,7 +780,7 @@ export const updateBookingStatus = async (req, res) => {
 export const recordTransaction = async (req, res) => {
   try {
     const { id } = req.params;
-    const { finalAmount, paymentMethod, comment } = req.body;
+    const { finalAmount, paymentMethod, comment, financing } = req.body;
 
     if (!finalAmount || finalAmount <= 0) {
       return res.status(400).json({ message: "Montant final requis et doit être positif." });
@@ -734,6 +791,13 @@ export const recordTransaction = async (req, res) => {
     const allowedMethods = ["cash", "card", "orange_money", "wave", "mtn", "moov", "paypal", "virement"];
     if (!paymentMethod || !allowedMethods.includes(paymentMethod)) {
       return res.status(400).json({ message: `Mode de paiement invalide. Acceptés : ${allowedMethods.join(", ")}` });
+    }
+    // Mode de financement réellement conclu (essai/vente uniquement) — optionnel,
+    // "comptant" par défaut pour tous les autres services (location, chauffeur...).
+    const allowedFinancingTypes = ["comptant", "leasing", "credit"];
+    const financingType = financing?.type && allowedFinancingTypes.includes(financing.type) ? financing.type : "comptant";
+    if (financingType !== "comptant" && (!financing?.mensualite || financing.mensualite <= 0)) {
+      return res.status(400).json({ message: "Mensualité requise pour un financement leasing/crédit." });
     }
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(404).json({ message: "Commande introuvable." });
@@ -774,6 +838,13 @@ export const recordTransaction = async (req, res) => {
       comment:     comment || null,
       recordedAt:  new Date(),
       recordedBy:  req.user._id,
+      financing: {
+        type:          financingType,
+        apportInitial: financingType !== "comptant" ? Number(financing?.apportInitial) || 0 : 0,
+        mensualite:    financingType !== "comptant" ? Number(financing?.mensualite)    || 0 : 0,
+        duree:         financingType !== "comptant" ? Number(financing?.duree)         || 0 : 0,
+        tauxInteret:   financingType !== "comptant" ? Number(financing?.tauxInteret)   || 0 : 0,
+      },
     };
     booking.commissionAmount = commissionAmount;
     booking.partnerPayout    = partnerPayout;
@@ -997,6 +1068,43 @@ export const getDriverOccupiedSlots = async (req, res) => {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// 8d. CRÉNEAUX OCCUPÉS D'ESSAI (véhicule en vente — évite deux essais sur le même créneau)
+// ═══════════════════════════════════════════════════════════════════════════════
+export const getEssaiOccupiedSlots = async (req, res) => {
+  try {
+    const { vehicleId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(vehicleId)) {
+      return res.status(400).json({ message: "vehicleId invalide." });
+    }
+
+    const activeStatuses = [
+      "pending", "confirmed", "preparing", "ready", "in_progress",
+      "client_arrived", "transaction_concluded", "waiting_client_validation",
+    ];
+
+    const bookings = await Booking.find({
+      vehicle: vehicleId,
+      type:    "essai",
+      status:  { $in: activeStatuses },
+      "essai.preferredDate": { $exists: true },
+      "essai.dateFin":       { $exists: true },
+    }).select("essai.preferredDate essai.dateFin status reference -_id");
+
+    const occupied = bookings.map((b) => ({
+      date:      b.essai.preferredDate,
+      dateFin:   b.essai.dateFin,
+      status:    b.status,
+      reference: b.reference || "",
+    }));
+
+    res.json({ vehicleId, occupied });
+  } catch (err) {
+    logger.error("getEssaiOccupiedSlots:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // 8. STATISTIQUES PARTENAIRE (pour dashboard)
 // ═══════════════════════════════════════════════════════════════════════════════
 export const getPartnerStats = async (req, res) => {
@@ -1076,6 +1184,7 @@ export const partnerConfirm = async (req, res) => {
       finalAmount,     // number
       paymentMethod,   // string
       comment,         // string optionnel
+      financing,       // objet optionnel { type, apportInitial, mensualite, duree, tauxInteret }
     } = req.body;
 
     if (typeof clientPresent !== "boolean") {
@@ -1124,6 +1233,11 @@ export const partnerConfirm = async (req, res) => {
     if (!paymentMethod || !allowedMethods.includes(paymentMethod)) {
       return res.status(400).json({ message: `Mode de paiement invalide. Acceptés : ${allowedMethods.join(", ")}` });
     }
+    const allowedFinancingTypes = ["comptant", "leasing", "credit"];
+    const financingType = financing?.type && allowedFinancingTypes.includes(financing.type) ? financing.type : "comptant";
+    if (financingType !== "comptant" && (!financing?.mensualite || financing.mensualite <= 0)) {
+      return res.status(400).json({ message: "Mensualité requise pour un financement leasing/crédit." });
+    }
 
     const commissionRate   = getCommissionRate(booking.type);
     const commissionAmount = Math.round(finalAmount * commissionRate);
@@ -1136,6 +1250,13 @@ export const partnerConfirm = async (req, res) => {
       comment:    comment || null,
       recordedAt: new Date(),
       recordedBy: req.user._id,
+      financing: {
+        type:          financingType,
+        apportInitial: financingType !== "comptant" ? Number(financing?.apportInitial) || 0 : 0,
+        mensualite:    financingType !== "comptant" ? Number(financing?.mensualite)    || 0 : 0,
+        duree:         financingType !== "comptant" ? Number(financing?.duree)         || 0 : 0,
+        tauxInteret:   financingType !== "comptant" ? Number(financing?.tauxInteret)   || 0 : 0,
+      },
     };
     booking.commissionAmount = commissionAmount;
     booking.partnerPayout    = partnerPayout;

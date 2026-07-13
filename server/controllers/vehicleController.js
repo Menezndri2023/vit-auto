@@ -348,7 +348,7 @@ export const updateVehicle = async (req, res) => {
       "title", "marque", "modele", "annee", "couleur", "kilometrage", "etat",
       "vehicleType", "carburant", "transmission", "nombrePlaces", "nombrePortes",
       "climatisation", "withDriver", "pricePerDay", "priceForSale", "caution",
-      "leasing", "ageMin", "permisRequis", "assuranceOptionnelle",
+      "leasing", "credit", "ageMin", "permisRequis", "assuranceOptionnelle",
       "contactNom", "contactTel", "ville", "adresse", "coordonnees",
       "images", "description", "available", "type",
     ];
@@ -386,6 +386,45 @@ export const updateVehicle = async (req, res) => {
       return res.status(400).json({ message: "Données invalides : " + err.message });
     }
     res.status(500).json({ message: "Erreur mise à jour." });
+  }
+};
+
+// ── Promotion partenaire (ex: "-15% aujourd'hui") ─────────────────────────────
+// Endpoint dédié, séparé de updateVehicle : une promotion ne doit jamais
+// déclencher une re-validation/re-modération de l'annonce.
+export const updatePromotion = async (req, res) => {
+  try {
+    const vehicle = await Vehicle.findById(req.params.id);
+    if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable." });
+
+    const isOwner = vehicle.owner.toString() === req.user._id.toString();
+    if (req.user.role !== "admin" && !isOwner) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+
+    const { active, discountPercent, label, startDate, endDate } = req.body;
+
+    const pct = Number(discountPercent);
+    if (active && (!Number.isFinite(pct) || pct <= 0 || pct > 90)) {
+      return res.status(400).json({ message: "Le pourcentage de remise doit être compris entre 1 et 90." });
+    }
+    if (startDate && endDate && new Date(endDate) <= new Date(startDate)) {
+      return res.status(400).json({ message: "La date de fin doit être postérieure à la date de début." });
+    }
+
+    vehicle.promotion = {
+      active:          !!active,
+      discountPercent: active ? pct : 0,
+      label:           (label || "").slice(0, 60),
+      startDate:       startDate || null,
+      endDate:         endDate   || null,
+    };
+    await vehicle.save();
+
+    res.json({ vehicle });
+  } catch (err) {
+    logger.error("updatePromotion:", err);
+    res.status(500).json({ message: "Erreur mise à jour de la promotion." });
   }
 };
 

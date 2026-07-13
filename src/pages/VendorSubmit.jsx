@@ -57,8 +57,18 @@ const VendorSubmit = () => {
   // ── Étape 2 : Type d'annonce
   const [adType, setAdType] = useState(""); // "location" | "vente" | "chauffeur"
 
-  // ── Leasing (pour vente uniquement)
+  // ── Leasing (LOA — pour vente uniquement)
   const [leasing, setLeasing] = useState({
+    disponible:    false,
+    apportInitial: "",
+    mensualite:    "",
+    duree:         36,
+    tauxInteret:   8,
+    description:   "",
+  });
+
+  // ── Crédit classique (financement bancaire — pour vente uniquement)
+  const [credit, setCredit] = useState({
     disponible:    false,
     apportInitial: "",
     mensualite:    "",
@@ -337,6 +347,14 @@ const VendorSubmit = () => {
             duree:         Number(leasing.duree) || 36,
             tauxInteret:   Number(leasing.tauxInteret) || 8,
             description:   leasing.description,
+          } : undefined,
+          credit: adType === "vente" ? {
+            disponible:    credit.disponible,
+            apportInitial: Number(credit.apportInitial) || 0,
+            mensualite:    Number(credit.mensualite) || 0,
+            duree:         Number(credit.duree) || 36,
+            tauxInteret:   Number(credit.tauxInteret) || 8,
+            description:   credit.description,
           } : undefined,
         });
 
@@ -838,6 +856,78 @@ const VendorSubmit = () => {
                           <div className={styles.priceItem}><span>Total estimé</span>
                             <strong style={{ color: "#6366f1" }}>
                               {fmt(Number(leasing.apportInitial || 0) + Number(leasing.mensualite) * Number(leasing.duree))} DH
+                            </strong>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* ── CRÉDIT CLASSIQUE OPTION ── */}
+                  <div className={`${styles.field} ${styles.colSpan2}`}>
+                    <label className={`${styles.checkItem} ${credit.disponible ? styles.checkActive : ""}`}
+                      style={{ fontSize: "0.95rem", fontWeight: 700, padding: "0.75rem 1rem", borderRadius: "0.75rem" }}>
+                      <input type="checkbox" checked={credit.disponible}
+                        onChange={(e) => setCredit(p => ({ ...p, disponible: e.target.checked }))} />
+                      💳 Proposer l'option Crédit classique (financement bancaire, propriété immédiate)
+                    </label>
+                  </div>
+
+                  {credit.disponible && (
+                    <>
+                      <div className={styles.field}>
+                        <label>Apport initial (DH)</label>
+                        <div className={styles.inputAffix}>
+                          <input type="number" value={credit.apportInitial} min="0"
+                            onChange={(e) => setCredit(p => ({ ...p, apportInitial: e.target.value }))}
+                            placeholder="Ex : 2000000" />
+                          <span>DH</span>
+                        </div>
+                      </div>
+                      <div className={styles.field}>
+                        <label>Mensualité (DH/mois)</label>
+                        <div className={styles.inputAffix}>
+                          <input type="number" value={credit.mensualite} min="0"
+                            onChange={(e) => setCredit(p => ({ ...p, mensualite: e.target.value }))}
+                            placeholder="Ex : 350000" />
+                          <span>DH/mois</span>
+                        </div>
+                      </div>
+                      <div className={styles.field}>
+                        <label>Durée du crédit</label>
+                        <div className={styles.inputAffix}>
+                          <select value={credit.duree}
+                            onChange={(e) => setCredit(p => ({ ...p, duree: Number(e.target.value) }))}
+                            style={{ flex: 1, padding: "0.65rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0" }}>
+                            {[12, 24, 36, 48, 60].map(m => (
+                              <option key={m} value={m}>{m} mois ({Math.round(m / 12)} an{m > 12 ? "s" : ""})</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className={styles.field}>
+                        <label>Taux d'intérêt annuel (%)</label>
+                        <div className={styles.inputAffix}>
+                          <input type="number" value={credit.tauxInteret} min="0" max="30" step="0.5"
+                            onChange={(e) => setCredit(p => ({ ...p, tauxInteret: e.target.value }))}
+                            placeholder="Ex : 8" />
+                          <span>%/an</span>
+                        </div>
+                      </div>
+                      <div className={`${styles.field} ${styles.colSpan2}`}>
+                        <label>Conditions du crédit (optionnel)</label>
+                        <textarea rows={2} value={credit.description} placeholder="Ex : Financement via partenaire bancaire agréé..."
+                          onChange={(e) => setCredit(p => ({ ...p, description: e.target.value }))}
+                          style={{ width: "100%", padding: "0.65rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", resize: "vertical", fontFamily: "inherit" }} />
+                      </div>
+                      {credit.mensualite > 0 && (
+                        <div className={`${styles.pricePreview} ${styles.colSpan2}`} style={{ marginTop: 0 }}>
+                          <div className={styles.priceItem}><span>Apport initial</span><strong>{fmt(credit.apportInitial || 0)} DH</strong></div>
+                          <div className={styles.priceItem}><span>Mensualité</span><strong>{fmt(credit.mensualite)} DH / mois</strong></div>
+                          <div className={styles.priceItem}><span>Durée</span><strong>{credit.duree} mois</strong></div>
+                          <div className={styles.priceItem}><span>Total estimé</span>
+                            <strong style={{ color: "#6366f1" }}>
+                              {fmt(Number(credit.apportInitial || 0) + Number(credit.mensualite) * Number(credit.duree))} DH
                             </strong>
                           </div>
                         </div>

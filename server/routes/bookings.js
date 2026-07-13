@@ -8,9 +8,10 @@ import Booking from "../models/Booking.js";
 const router = express.Router();
 const vid = validateObjectId();
 
-// ── Public : dates bloquées d'un véhicule ─────────────────
+// ── Public : dates/créneaux déjà occupés ──────────────────
 router.get("/vehicle/:vehicleId/occupied-dates", b.getVehicleOccupiedDates);
 router.get("/driver/:driverId/occupied-slots",   b.getDriverOccupiedSlots);
+router.get("/vehicle/:vehicleId/essai-slots",    b.getEssaiOccupiedSlots);
 
 // ── Création réservation (auth optionnelle — liaison user si connecté) ─
 router.post("/", optionalAuth, b.createBooking);

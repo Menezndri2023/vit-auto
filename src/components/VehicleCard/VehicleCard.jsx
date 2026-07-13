@@ -16,6 +16,22 @@ const VehicleCard = React.memo(({ car, compact }) => {
   const [imgIdx, setImgIdx] = useState(0);
   const [fading, setFading] = useState(false);
 
+  // Une promotion active nécessite un pourcentage renseigné + être dans la
+  // fenêtre de dates éventuelle (voir server/utils/promotion.js — même
+  // logique, dupliquée ici pour l'affichage uniquement ; le serveur reste
+  // seul autoritaire pour le calcul du prix réellement facturé).
+  const promo = car.promotion;
+  const now = Date.now();
+  const promoActive = !!(
+    promo?.active && promo.discountPercent > 0 &&
+    (!promo.startDate || new Date(promo.startDate).getTime() <= now) &&
+    (!promo.endDate   || new Date(promo.endDate).getTime()   >= now)
+  );
+  const basePrice = (car.mode === "Acheter" || car.listingType === "vente")
+    ? (car.buyPrice || car.priceForSale || 0)
+    : (car.pricePerDay || 0);
+  const discountedPrice = promoActive ? Math.round(basePrice * (1 - promo.discountPercent / 100)) : basePrice;
+
   // Rotation automatique des images toutes les 3s (si plusieurs)
   useEffect(() => {
     if (!imgs || imgs.length <= 1) return;
@@ -77,6 +93,11 @@ const VehicleCard = React.memo(({ car, compact }) => {
           <span className={`${styles.badge} ${car.available ? styles.available : styles.reserve}`}>
             {car.available ? "Disponible" : "Réservé"}
           </span>
+          {promoActive && (
+            <span className={styles.badge} style={{ background: "#dc2626", color: "#fff" }}>
+              🏷️ -{promo.discountPercent}% {promo.label || ""}
+            </span>
+          )}
         </div>
       </div>
 
@@ -135,11 +156,20 @@ const VehicleCard = React.memo(({ car, compact }) => {
         </div>
 
         <div className={styles.priceBlock}>
-          <p className={styles.price}>
-            {(car.mode === "Acheter" || car.listingType === "vente")
-              ? fmt(car.buyPrice || car.priceForSale || 0)
-              : `${fmt(car.pricePerDay || 0)} / jour`}
-          </p>
+          {promoActive ? (
+            <p className={styles.price}>
+              <span style={{ textDecoration: "line-through", color: "#94a3b8", fontSize: "0.8em", marginRight: 8 }}>{fmt(basePrice)}</span>
+              <span style={{ color: "#dc2626" }}>
+                {fmt(discountedPrice)}{!(car.mode === "Acheter" || car.listingType === "vente") ? " / jour" : ""}
+              </span>
+            </p>
+          ) : (
+            <p className={styles.price}>
+              {(car.mode === "Acheter" || car.listingType === "vente")
+                ? fmt(car.buyPrice || car.priceForSale || 0)
+                : `${fmt(car.pricePerDay || 0)} / jour`}
+            </p>
+          )}
           {(car.ville || car.city) && (
             <p className={styles.ville}>📍 {car.ville || car.city}</p>
           )}

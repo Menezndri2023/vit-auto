@@ -69,10 +69,16 @@ export default function Booking() {
     || ((vid) => vehicles?.find((v) => String(v.id) === String(vid) || v._id === String(vid)));
   const vehicle = getVehicleById(id);
 
-  const isLeasingRequest = searchParams.get("type") === "leasing";
+  // "leasing" (LOA) et "credit" (crédit classique) partagent exactement le
+  // même parcours de réservation — seule la source des conditions financières
+  // change (Vehicle.leasing vs Vehicle.credit), voir Booking.leasing.financingType
+  // côté serveur.
+  const financingType    = searchParams.get("type") === "credit" ? "credit" : "leasing";
+  const isLeasingRequest = ["leasing", "credit"].includes(searchParams.get("type"));
   const isSaleMode       = vehicle?.mode === "Acheter";
   const isTrial          = isSaleMode && !isLeasingRequest;
-  const isLeasing        = isSaleMode && isLeasingRequest && vehicle?.leasing?.disponible;
+  const financingTerms   = financingType === "credit" ? vehicle?.credit : vehicle?.leasing;
+  const isLeasing        = isSaleMode && isLeasingRequest && financingTerms?.disponible;
 
   /* ── KYC Gate ─────────────────────────────────────────────────── */
   const [liveKycScore,   setLiveKycScore]   = useState(null);
@@ -123,6 +129,18 @@ export default function Booking() {
       .then((d) => { if (d?.blockedDays) setBlockedDays(d.blockedDays); })
       .catch(() => {});
   }, [vehicle]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Créneaux d'essai déjà pris (véhicule en vente) ───────────────── */
+  const [essaiOccupiedSlots, setEssaiOccupiedSlots] = useState([]);
+
+  useEffect(() => {
+    const vid = vehicle?._id || vehicle?.id;
+    if (!vid || vehicle?.mode !== "Acheter") return;
+    fetch(`/api/bookings/vehicle/${vid}/essai-slots`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.occupied) setEssaiOccupiedSlots(d.occupied); })
+      .catch(() => {});
+  }, [vehicle]);
 
   /* ── STEP 1 : Dates + Prise en charge ─────────────────────────── */
   const [form, setForm] = useState({
@@ -181,13 +199,33 @@ export default function Booking() {
     }, 0);
   }, [selectedOptions, days]);
 
+  /* ── Créneau d'essai souhaité + détection de conflit (même durée fixe 1h
+     que server/controllers/bookingController.js ESSAI_DURATION_MS — le
+     serveur reste seul autoritaire, cette vérification n'est qu'un avertissement
+     immédiat côté client) ─────────────────────────────────────────────── */
+  const essaiStart = useMemo(() => {
+    if (!form.preferredDate || !form.preferredTime) return null;
+    const d = new Date(`${form.preferredDate}T${form.preferredTime}:00`);
+    return isNaN(d.getTime()) ? null : d;
+  }, [form.preferredDate, form.preferredTime]);
+
+  const essaiEnd = useMemo(() => essaiStart ? new Date(essaiStart.getTime() + 60 * 60 * 1000) : null, [essaiStart]);
+
+  const essaiConflict = useMemo(() => {
+    if (!essaiStart || !essaiEnd) return null;
+    return essaiOccupiedSlots.find((slot) => {
+      const s = new Date(slot.date), e = new Date(slot.dateFin);
+      return essaiStart < e && essaiEnd > s;
+    }) || null;
+  }, [essaiStart, essaiEnd, essaiOccupiedSlots]);
+
   const deliveryFee  = (pickupMethod === "livraison" && !isLeasing) ? (geoFee ?? 3000) : 0;
   // Leasing = achat à mensualités : le seul montant exigé à la réservation est
-  // l'apport initial fixé par le partenaire (vehicle.leasing), jamais un prix/jour
+  // l'apport initial fixé par le partenaire (financingTerms), jamais un prix/jour
   // (qui n'existe pas pour un véhicule en mode "Acheter") — voir bookingController.js
   // createBooking, qui calcule montantBase de la même façon côté serveur.
   const baseTotal    = isLeasing
-    ? (vehicle?.leasing?.apportInitial || 0)
+    ? (financingTerms?.apportInitial || 0)
     : (vehicle?.pricePerDay || 0) * Math.max(days, 1);
   const totalToPay   = isTrial ? SERVICE_FEE
     : isLeasing ? baseTotal + SERVICE_FEE
@@ -326,14 +364,15 @@ export default function Booking() {
         montantTotal:   SERVICE_FEE,
         total:          SERVICE_FEE,
       } : {}),
-      // Leasing specifics
+      // Leasing/Crédit specifics
       ...(isLeasing ? {
         leasing: {
-          apportInitial: vehicle?.leasing?.apportInitial || 0,
-          mensualite:    vehicle?.leasing?.mensualite    || 0,
-          duree:         vehicle?.leasing?.duree         || 36,
-          tauxInteret:   vehicle?.leasing?.tauxInteret   || 8,
-          totalLeasing:  (vehicle?.leasing?.apportInitial || 0) + (vehicle?.leasing?.mensualite || 0) * (vehicle?.leasing?.duree || 36),
+          financingType,
+          apportInitial: financingTerms?.apportInitial || 0,
+          mensualite:    financingTerms?.mensualite    || 0,
+          duree:         financingTerms?.duree         || 36,
+          tauxInteret:   financingTerms?.tauxInteret   || 8,
+          totalLeasing:  (financingTerms?.apportInitial || 0) + (financingTerms?.mensualite || 0) * (financingTerms?.duree || 36),
         },
         serviceFeeFCFA: SERVICE_FEE,
         montantTotal:   totalToPay,
@@ -392,11 +431,12 @@ export default function Booking() {
         // jamais le serveur et la réservation était enregistrée à 0 FCFA.
         ...(isLeasing ? {
           leasing: {
-            apportInitial: vehicle?.leasing?.apportInitial || 0,
-            mensualite:    vehicle?.leasing?.mensualite    || 0,
-            duree:         vehicle?.leasing?.duree         || 36,
-            tauxInteret:   vehicle?.leasing?.tauxInteret   || 8,
-            totalLeasing:  (vehicle?.leasing?.apportInitial || 0) + (vehicle?.leasing?.mensualite || 0) * (vehicle?.leasing?.duree || 36),
+            financingType,
+            apportInitial: financingTerms?.apportInitial || 0,
+            mensualite:    financingTerms?.mensualite    || 0,
+            duree:         financingTerms?.duree         || 36,
+            tauxInteret:   financingTerms?.tauxInteret   || 8,
+            totalLeasing:  (financingTerms?.apportInitial || 0) + (financingTerms?.mensualite || 0) * (financingTerms?.duree || 36),
           },
           payment: {
             method:       payMethod,
@@ -438,7 +478,7 @@ export default function Booking() {
 
     setSubmitting(false);
     navigate("/booking/success", { state: { booking: bookingData, trial: isTrial, payment: { paymentMethod: payMethod, mobileNumber } } });
-  }, [form, pickupMethod, pickupAddress, pickupPosition, selectedOptions, payMethod, mobileNumber, cardNumber, cardHolder, days, deliveryFee, geoDistance, baseTotal, optionsTotal, totalToPay, kycOk, kycScore, kycBadge, bookingRef, isTrial, isLeasing, vehicle, token, user, addBooking, navigate, agencyFull]);
+  }, [form, pickupMethod, pickupAddress, pickupPosition, selectedOptions, payMethod, mobileNumber, cardNumber, cardHolder, days, deliveryFee, geoDistance, baseTotal, optionsTotal, totalToPay, kycOk, kycScore, kycBadge, bookingRef, isTrial, isLeasing, financingType, financingTerms, vehicle, token, user, addBooking, navigate, agencyFull]);
 
   /* ════════════════════════════════════════════════════════════════
      RENDU
@@ -550,7 +590,7 @@ export default function Booking() {
       {/* ── Contenu principal ───────────────────────────── */}
       <div className={styles.content}>
         <h1 className={styles.pageTitle}>
-          {isTrial ? "🔑 Demande d'essai" : isLeasing ? "💳 Réserver ce leasing" : "📅 Réserver ce véhicule"}
+          {isTrial ? "🔑 Demande d'essai" : isLeasing ? (financingType === "credit" ? "💳 Réserver ce crédit" : "💳 Réserver ce leasing") : "📅 Réserver ce véhicule"}
         </h1>
 
         {/* KYC Badge */}
@@ -599,12 +639,12 @@ export default function Booking() {
                   Ce véhicule est proposé par le partenaire avec les conditions de financement suivantes — non modifiables à cette étape.
                 </p>
                 <div className={styles.confirmRows}>
-                  <div className={styles.confirmRow}><span>Apport initial</span><strong>{fmt(vehicle?.leasing?.apportInitial || 0)}</strong></div>
-                  <div className={styles.confirmRow}><span>Mensualité</span><strong>{fmt(vehicle?.leasing?.mensualite || 0)} / mois</strong></div>
-                  <div className={styles.confirmRow}><span>Durée</span><strong>{vehicle?.leasing?.duree || 36} mois</strong></div>
-                  <div className={styles.confirmRow}><span>Taux d'intérêt</span><strong>{vehicle?.leasing?.tauxInteret || 8}% / an</strong></div>
-                  {vehicle?.leasing?.description && (
-                    <div className={styles.confirmRow}><span>Conditions</span><strong>{vehicle.leasing.description}</strong></div>
+                  <div className={styles.confirmRow}><span>Apport initial</span><strong>{fmt(financingTerms?.apportInitial || 0)}</strong></div>
+                  <div className={styles.confirmRow}><span>Mensualité</span><strong>{fmt(financingTerms?.mensualite || 0)} / mois</strong></div>
+                  <div className={styles.confirmRow}><span>Durée</span><strong>{financingTerms?.duree || 36} mois</strong></div>
+                  <div className={styles.confirmRow}><span>Taux d'intérêt</span><strong>{financingTerms?.tauxInteret || 8}% / an</strong></div>
+                  {financingTerms?.description && (
+                    <div className={styles.confirmRow}><span>Conditions</span><strong>{financingTerms.description}</strong></div>
                   )}
                 </div>
                 <label className={styles.optionCard} style={{ marginTop: 16, cursor: "pointer" }}>
@@ -617,6 +657,9 @@ export default function Booking() {
             ) : isTrial ? (
               <>
                 <h3 className={styles.sectionTitle}>Date d'essai</h3>
+                <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "#64748b" }}>
+                  Choisissez un créneau pour venir essayer le véhicule (environ 1h). Le partenaire confirmera le rendez-vous.
+                </p>
                 <div className={styles.row}>
                   <label className={styles.label}>
                     Date préférée
@@ -630,6 +673,11 @@ export default function Booking() {
                       onChange={(e) => setForm({ ...form, preferredTime: e.target.value })} required />
                   </label>
                 </div>
+                {essaiConflict && (
+                  <div className={styles.blockedNotice}>
+                    ⛔ Un autre essai est déjà prévu sur ce créneau ({new Date(essaiConflict.date).toLocaleString("fr-FR")}). Choisissez une autre heure.
+                  </div>
+                )}
                 <textarea className={styles.textarea} placeholder="Notes (optionnel)"
                   value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
               </>
@@ -741,7 +789,7 @@ export default function Booking() {
                   !form.firstName || !form.lastName || !form.email || !form.phone ||
                   (isLeasing && !leasingAccepted) ||
                   (!isTrial && !isLeasing && (!form.startDate || !form.endDate || days <= 0)) ||
-                  (isTrial && (!form.preferredDate || !form.preferredTime)) ||
+                  (isTrial && (!form.preferredDate || !form.preferredTime || !!essaiConflict)) ||
                   (!isLeasing && pickupMethod === "livraison" && !pickupAddress.trim())
                 }
               >
@@ -899,8 +947,8 @@ export default function Booking() {
               {isLeasing && (
                 <>
                   <div className={styles.confirmRow}><span>Apport initial</span><strong>{fmt(baseTotal)}</strong></div>
-                  <div className={styles.confirmRow}><span>Mensualité</span><strong>{fmt(vehicle?.leasing?.mensualite || 0)} / mois</strong></div>
-                  <div className={styles.confirmRow}><span>Durée</span><strong>{vehicle?.leasing?.duree || 36} mois</strong></div>
+                  <div className={styles.confirmRow}><span>Mensualité</span><strong>{fmt(financingTerms?.mensualite || 0)} / mois</strong></div>
+                  <div className={styles.confirmRow}><span>Durée</span><strong>{financingTerms?.duree || 36} mois</strong></div>
                 </>
               )}
               <div className={styles.confirmRow}><span>Frais de service</span><strong>{fmt(SERVICE_FEE)}</strong></div>
@@ -949,8 +997,8 @@ export default function Booking() {
             {isLeasing ? (
               <>
                 <div className={styles.sidebarRow}><span>Apport initial</span><strong>{fmt(baseTotal)}</strong></div>
-                <div className={styles.sidebarRow}><span>Mensualité</span><strong>{fmt(vehicle?.leasing?.mensualite || 0)}/mois</strong></div>
-                <div className={styles.sidebarRow}><span>Durée</span><strong>{vehicle?.leasing?.duree || 36} mois</strong></div>
+                <div className={styles.sidebarRow}><span>Mensualité</span><strong>{fmt(financingTerms?.mensualite || 0)}/mois</strong></div>
+                <div className={styles.sidebarRow}><span>Durée</span><strong>{financingTerms?.duree || 36} mois</strong></div>
               </>
             ) : (
               <>
