@@ -114,8 +114,8 @@ const DriverBooking = () => {
 
       {/* Résumé chauffeur */}
       <div style={{ display: "flex", gap: 16, alignItems: "center", margin: "16px 0 24px", padding: 16, background: "#f8fafc", borderRadius: 14, border: "1.5px solid #e5e9f4" }}>
-        {driver.profilePhoto
-          ? <img src={driver.profilePhoto} alt={`${driver.firstName} ${driver.lastName}`} style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover" }} />
+        {driver.profilePhoto || driver.images?.[0]
+          ? <img src={driver.profilePhoto || driver.images[0]} alt={`${driver.firstName} ${driver.lastName}`} style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover" }} />
           : <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#e5e9f4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.8rem" }}>🧑‍✈️</div>
         }
         <div>

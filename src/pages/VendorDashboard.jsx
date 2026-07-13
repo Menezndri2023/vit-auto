@@ -3,6 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
 import { useToast } from "../context/ToastContext";
 import { useSocket } from "../context/SocketContext";
+import { useChat } from "../context/ChatContext";
 import { Link, useNavigate } from "react-router-dom";
 import styles from "./VendorDashboard.module.css";
 
@@ -811,9 +812,11 @@ export default function VendorDashboard() {
   const { partnerVehicles: myVehicles, partnerBookings, bookings, updateBookingStatus, loadPartnerVehicles, loadPartnerOrders } = useVehicles();
   const { success: toastSuccess, error: toastError } = useToast();
   const { on } = useSocket();
+  const { openOrCreateChat } = useChat();
   const navigate = useNavigate();
 
   const [activeTab,      setActiveTab]      = useState("dashboard");
+  const [contactingOrder, setContactingOrder] = useState(null);
   const [invoices,       setInvoices]       = useState([]);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [transactions,   setTransactions]   = useState([]);
@@ -985,9 +988,17 @@ export default function VendorDashboard() {
     try {
       const r = await fetch("/api/subscriptions/boost", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ vehicleId }) });
       const d = await r.json();
-      if (r.ok) toastSuccess("Mise en avant activée 30 jours !"); else toastError(d.message || "Erreur.");
+      if (r.ok) toastSuccess(d.message || "Demande de mise en avant envoyée — en attente de confirmation du paiement."); else toastError(d.message || "Erreur.");
     } catch { toastError("Erreur réseau."); }
     finally { setBoostTarget(null); }
+  };
+
+  const handleContactClient = async (bookingId) => {
+    if (contactingOrder || !bookingId) return;
+    setContactingOrder(bookingId);
+    const res = await openOrCreateChat("client_partner", null, bookingId);
+    if (!res.ok) toastError(res.message || "Impossible d'ouvrir la conversation.");
+    setContactingOrder(null);
   };
 
   const handleDeleteVehicle = async (id) => {
@@ -1411,6 +1422,7 @@ export default function VendorDashboard() {
                         <div className={styles.orderClientContacts}>
                           {order.phone && <a href={`tel:${order.phone}`} className={styles.contactBtn} title="Appeler">📞</a>}
                           {order.phone && <a href={`https://wa.me/${order.phone?.replace(/[\s\+\-]/g,"")}`} target="_blank" rel="noopener noreferrer" className={styles.contactBtn} title="WhatsApp">💬</a>}
+                          <button type="button" className={styles.contactBtn} title="Message via VIT AUTO" onClick={() => handleContactClient(order.id)} disabled={contactingOrder === order.id}>🗨️</button>
                         </div>
                       </div>
 

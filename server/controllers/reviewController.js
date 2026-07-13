@@ -101,14 +101,65 @@ export const getReviews = async (req, res) => {
   }
 };
 
-// ── Masquer un avis (admin) ───────────────────────────────────────────────
-export const hideReview = async (req, res) => {
+// ── Liste des avis (admin) — pour modération ──────────────────────────────
+export const adminListReviews = async (req, res) => {
   try {
-    const review = await Review.findByIdAndUpdate(req.params.id, { visible: false }, { new: true });
-    if (!review) return res.status(404).json({ message: "Avis introuvable." });
-    res.json({ review });
+    const { visible, targetType, page = 1, limit = 30 } = req.query;
+    const filter = {};
+    if (visible === "true" || visible === "false") filter.visible = visible === "true";
+    if (targetType) filter.targetType = targetType;
+
+    const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    const skip = (Math.max(Number(page), 1) - 1) * safeLimit;
+
+    const [reviews, total] = await Promise.all([
+      Review.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(safeLimit)
+        .populate("reviewer", "firstName lastName email")
+        .lean(),
+      Review.countDocuments(filter),
+    ]);
+
+    // Annoter le nom de la cible (véhicule ou chauffeur) pour l'affichage admin
+    const Vehicle = (await import("../models/Vehicle.js")).default;
+    const Driver  = (await import("../models/Driver.js")).default;
+    const vehicleIds = reviews.filter((r) => r.targetType === "vehicle").map((r) => r.targetId);
+    const driverIds  = reviews.filter((r) => r.targetType === "driver").map((r) => r.targetId);
+    const [vehicles, drivers] = await Promise.all([
+      vehicleIds.length ? Vehicle.find({ _id: { $in: vehicleIds } }).select("title").lean() : [],
+      driverIds.length  ? Driver.find({ _id: { $in: driverIds } }).select("firstName lastName").lean() : [],
+    ]);
+    const vehicleMap = Object.fromEntries(vehicles.map((v) => [String(v._id), v.title]));
+    const driverMap  = Object.fromEntries(drivers.map((d) => [String(d._id), `${d.firstName} ${d.lastName}`]));
+    const annotated = reviews.map((r) => ({
+      ...r,
+      targetLabel: r.targetType === "vehicle" ? vehicleMap[String(r.targetId)] : driverMap[String(r.targetId)],
+    }));
+
+    res.json({ reviews: annotated, total, page: Number(page), pages: Math.ceil(total / safeLimit) });
   } catch (err) {
-    logger.error("hideReview:", err);
+    logger.error("adminListReviews:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
+
+// ── Masquer / réafficher un avis (admin) ──────────────────────────────────
+// findByIdAndUpdate ne déclenche pas le hook post("save") du modèle — la
+// moyenne/nombre d'avis du véhicule/chauffeur doit être recalculée ici
+// explicitement, sinon un avis masqué continue de fausser la note affichée.
+export const setReviewVisibility = async (req, res, visible) => {
+  try {
+    const review = await Review.findByIdAndUpdate(req.params.id, { visible }, { new: true });
+    if (!review) return res.status(404).json({ message: "Avis introuvable." });
+    await Review.recalcTargetStats(review.targetType, review.targetId);
+    res.json({ review });
+  } catch (err) {
+    logger.error("setReviewVisibility:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+export const hideReview   = (req, res) => setReviewVisibility(req, res, false);
+export const unhideReview = (req, res) => setReviewVisibility(req, res, true);

@@ -393,6 +393,23 @@ export default function AdminPanel() {
   const [invoiceLoading,   setInvoiceLoading]   = useState(false);
   const [invoiceYear,      setInvoiceYear]      = useState(new Date().getFullYear());
   const [invoiceMonth,     setInvoiceMonth]     = useState("");
+
+  // Abonnements Pro / Boosts en attente de confirmation manuelle de paiement
+  const [subRequests,      setSubRequests]      = useState([]);
+  const [subLoading,       setSubLoading]       = useState(false);
+  const [subActioning,     setSubActioning]     = useState(null);
+
+  // Modération des avis clients
+  const [reviewsList,      setReviewsList]      = useState([]);
+  const [reviewsLoading,   setReviewsLoading]   = useState(false);
+  const [reviewsFilter,    setReviewsFilter]    = useState(""); // "" | "true" | "false"
+  const [reviewActioning,  setReviewActioning]  = useState(null);
+
+  // Journal d'audit
+  const [auditEntries,     setAuditEntries]     = useState([]);
+  const [auditLoading,     setAuditLoading]     = useState(false);
+  const [auditFacets,      setAuditFacets]      = useState({ actions: [], resources: [] });
+  const [auditFilter,      setAuditFilter]      = useState({ action: "", resource: "", success: "" });
   const [generateForm,     setGenerateForm]     = useState({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
   const [generating,       setGenerating]       = useState(false);
   const [importerProfiles, setImporterProfiles] = useState([]);
@@ -612,6 +629,73 @@ export default function AdminPanel() {
     } catch { /* ignore */ }
     setInvoiceLoading(false);
   }, [token, headers]);
+
+  // ── Abonnements Pro / Boosts (paiements en attente de confirmation) ─────────
+  const loadSubRequests = useCallback(async () => {
+    if (!token) return;
+    setSubLoading(true);
+    try {
+      const r = await fetch("/api/subscriptions/admin/pending", { headers });
+      if (r.ok) setSubRequests((await r.json()).subscriptions || []);
+    } catch { /* ignore */ }
+    setSubLoading(false);
+  }, [token, headers]);
+
+  const subAction = async (path, subId, itemId) => {
+    const key = `${subId}:${itemId}`;
+    if (subActioning) return;
+    setSubActioning(key);
+    try {
+      const r = await fetch(`/api/subscriptions/admin/${subId}/${path}`, { method: "PATCH", headers });
+      const d = await r.json().catch(() => null);
+      if (r.ok) { showToast(d?.message || "Effectué."); loadSubRequests(); }
+      else showToast(d?.message || "Erreur", "error");
+    } catch { showToast("Erreur réseau", "error"); }
+    finally { setSubActioning(null); }
+  };
+
+  // ── Modération des avis ──────────────────────────────────────────────────────
+  const loadReviews = useCallback(async () => {
+    if (!token) return;
+    setReviewsLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: "50" });
+      if (reviewsFilter) params.set("visible", reviewsFilter);
+      const r = await fetch(`/api/reviews/admin/list?${params}`, { headers });
+      if (r.ok) setReviewsList((await r.json()).reviews || []);
+    } catch { /* ignore */ }
+    setReviewsLoading(false);
+  }, [token, headers, reviewsFilter]);
+
+  const toggleReviewVisibility = async (review) => {
+    if (reviewActioning) return;
+    setReviewActioning(review._id);
+    try {
+      const r = await fetch(`/api/reviews/${review._id}/${review.visible ? "hide" : "unhide"}`, { method: "PATCH", headers });
+      if (r.ok) { showToast(review.visible ? "Avis masqué." : "Avis réaffiché."); loadReviews(); }
+      else showToast("Erreur", "error");
+    } catch { showToast("Erreur réseau", "error"); }
+    finally { setReviewActioning(null); }
+  };
+
+  // ── Journal d'audit ──────────────────────────────────────────────────────────
+  const loadAuditLog = useCallback(async () => {
+    if (!token) return;
+    setAuditLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: "50" });
+      if (auditFilter.action)   params.set("action",   auditFilter.action);
+      if (auditFilter.resource) params.set("resource", auditFilter.resource);
+      if (auditFilter.success)  params.set("success",  auditFilter.success);
+      const [listRes, facetsRes] = await Promise.all([
+        fetch(`/api/audit-log/admin/list?${params}`,   { headers }),
+        fetch("/api/audit-log/admin/actions",           { headers }),
+      ]);
+      if (listRes.ok)   setAuditEntries((await listRes.json()).entries || []);
+      if (facetsRes.ok) setAuditFacets(await facetsRes.json());
+    } catch { /* ignore */ }
+    setAuditLoading(false);
+  }, [token, headers, auditFilter]);
 
   // ── Support Client ──────────────────────────────────────────────────────────
   const loadSupportChats = useCallback(async () => {
@@ -924,7 +1008,10 @@ export default function AdminPanel() {
     if (activeTab === "pms_partners")      loadPMSAdmin();
     if (activeTab === "founding_partners") loadFoundingPartners();
     if (activeTab === "support")           loadSupportChats();
-  }, [activeTab, loadImportExport, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats]);
+    if (activeTab === "paiements")         loadSubRequests();
+    if (activeTab === "reviews")           loadReviews();
+    if (activeTab === "audit")             loadAuditLog();
+  }, [activeTab, loadImportExport, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog]);
 
   // Rafraîchissement périodique de la liste support (nouvelles demandes) tant que
   // l'onglet est affiché — même logique de polling que le widget chat public.
@@ -1148,9 +1235,16 @@ export default function AdminPanel() {
   const pendingCert = certList.filter((c) => ["level1","level2","level3","level4","level5","level6","level7"].some((l) => c[l]?.status === "submitted")).length;
   const pendingImp = importerProfiles.filter((p) => p.status === "pending").length;
   const pendingInv = invoices.filter((i) => i.status === "pending").length;
+  const pendingSub = subRequests.reduce((sum, s) =>
+    sum + (s.paymentHistory || []).filter((p) => p.status === "pending").length
+        + (s.boosts || []).filter((b) => !b.isActive).length, 0);
   const pendingIe  = ieRequests.filter((r) => r.status === "pending").length;
   const pendingSupport = supportChats.filter((c) => c.needsReply).length;
-  const pendingPv       = pvList.filter((p) => p.status === "en_attente" || p.status === "en_cours").length;
+  // Basé sur pvStats (non filtré) plutôt que pvList — pvList reflète les filtres
+  // actifs de l'onglet (statut/niveau/type/recherche), donc son décompte
+  // s'effondrait faussement dès qu'un admin appliquait un filtre (même bug que
+  // l'ancien badge KYC, corrigé séparément).
+  const pendingPv       = (pvStats?.byStatus?.en_attente || 0) + (pvStats?.byStatus?.en_cours || 0);
   const foundingPending = foundingList.filter((o) => ["soumis", "en_review"].includes(o.status)).length;
 
   const NAV_GROUPS = [
@@ -1207,7 +1301,7 @@ export default function AdminPanel() {
       items: [
         { key: "commissions", icon: "💰", label: "Commissions" },
         { key: "factures",    icon: "📄", label: "Factures",          badge: pendingInv },
-        { key: "paiements",   icon: "💳", label: "Paiements",         wip: true },
+        { key: "paiements",   icon: "💳", label: "Paiements",         badge: pendingSub || undefined },
         { key: "escrow",      icon: "🔐", label: "Escrow / Séquestre", wip: true },
       ],
     },
@@ -1215,6 +1309,7 @@ export default function AdminPanel() {
       label: "COMMUNICATION",
       items: [
         { key: "notifications", icon: "🔔", label: "Notifications & Broadcast" },
+        { key: "reviews",       icon: "⭐", label: "Avis clients" },
         { key: "ads",           icon: "📢", label: "Publicités & Campagnes",   wip: true },
         { key: "support",       icon: "🎧", label: "Support Client",           badge: pendingSupport || undefined },
       ],
@@ -1223,7 +1318,7 @@ export default function AdminPanel() {
       label: "SYSTÈME",
       items: [
         { key: "roles", icon: "🔑", label: "Rôles & Permissions", wip: true },
-        { key: "audit", icon: "📜", label: "Audit Logs",           wip: true },
+        { key: "audit", icon: "📜", label: "Audit Logs" },
       ],
     },
   ];
@@ -3392,7 +3487,7 @@ export default function AdminPanel() {
                       <tr key={d._id} className={styles.tr}>
                         <td>
                           <div className={styles.vehicleCell}>
-                            {d.profilePhoto ? <img src={d.profilePhoto} alt="" className={styles.vehThumb} style={{ borderRadius:"50%" }} /> : <div className={styles.vehThumbPlaceholder}>👤</div>}
+                            {d.profilePhoto || d.images?.[0] ? <img src={d.profilePhoto || d.images[0]} alt="" className={styles.vehThumb} style={{ borderRadius:"50%" }} /> : <div className={styles.vehThumbPlaceholder}>👤</div>}
                             <div>
                               <strong>{d.firstName} {d.lastName}</strong>
                               <span className={styles.vehMeta}>{d.title}</span>
@@ -3514,7 +3609,125 @@ export default function AdminPanel() {
       {activeTab === "transport"   && <WipSection icon="🚢" title="Transport International" subtitle="Suivi des cargaisons, gestion des compagnies de transport et documents douaniers." features={["Gestion compagnies maritimes / routières / aériennes","Suivi GPS des cargaisons en temps réel","Documents de transport : BL, CMR, Factures","Coordination douane & transit international"]} />}
       {activeTab === "financement" && <WipSection icon="🏦" title="Financement Automobile" subtitle="Crédit auto, simulation de mensualités et intégration des partenaires financiers." features={["Demandes de crédit automobile en ligne","Simulation de mensualités et taux","Intégration banques & sociétés de leasing","Décision rapide : Accepté / Refusé / En étude"]} />}
       {activeTab === "assurance"   && <WipSection icon="🔒" title="Assurance Automobile" subtitle="Gestion des demandes d'assurance auto, location et import/export." features={["Demandes assurance : auto / location / import","Gestion des sinistres et indemnisations","Partenaires assureurs intégrés","Renouvellement automatique"]} />}
-      {activeTab === "paiements"   && <WipSection icon="💳" title="Tableau de Bord Paiements" subtitle="Transactions en temps réel, détection de fraude et intégration des passerelles de paiement." features={["Transactions en temps réel (Stripe, Orange Money, Wave)","Détection automatique de fraude","Blocage / validation / remboursement","Rapports financiers par devise et par pays"]} />}
+      {/* ══════════════════════════════════════════════════
+          TAB PAIEMENTS — Abonnements Pro / Boosts en attente
+          Aucune passerelle de paiement réelle n'étant branchée (Stripe/Orange
+          Money/Wave), chaque activation Pro/Boost reste "pending" jusqu'à
+          confirmation manuelle ici, une fois le paiement réellement reçu
+          hors-plateforme (virement, dépôt, etc.).
+      ══════════════════════════════════════════════════ */}
+      {activeTab === "paiements" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>
+              💳 Abonnements Pro & Mises en avant — confirmation de paiement
+            </h2>
+            <button className={styles.btnRefresh} onClick={loadSubRequests}>↻ Actualiser</button>
+          </div>
+
+          {subLoading ? (
+            <p style={{ color: "#64748b" }}>Chargement…</p>
+          ) : subRequests.length === 0 ? (
+            <p style={{ color: "#64748b" }}>Aucune demande en attente de confirmation.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {subRequests.map((sub) => {
+                const pendingPayments = (sub.paymentHistory || []).filter((p) => p.status === "pending");
+                const pendingBoosts   = (sub.boosts || []).filter((b) => !b.isActive);
+                if (!pendingPayments.length && !pendingBoosts.length) return null;
+                return (
+                  <div key={sub._id} className={styles.chartCard}>
+                    <h3 className={styles.chartTitle}>
+                      {sub.vendor?.firstName} {sub.vendor?.lastName} — {sub.vendor?.email}
+                    </h3>
+                    {pendingPayments.map((p) => (
+                      <div key={p._id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 0", borderTop: "1px solid #f1f5f9", flexWrap: "wrap" }}>
+                        <div style={{ fontSize: ".88rem" }}>
+                          <strong>Plan Pro</strong> — {p.amount?.toLocaleString("fr-FR")} FCFA · {p.method} · période {p.period}
+                        </div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button
+                            className={styles.btnPrimary}
+                            disabled={subActioning === `${sub._id}:${p._id}`}
+                            onClick={() => subAction(`pro/${p._id}/approve`, sub._id, p._id)}
+                          >✅ Confirmer le paiement</button>
+                          <button
+                            className={styles.btnDanger}
+                            disabled={subActioning === `${sub._id}:${p._id}`}
+                            onClick={() => subAction(`pro/${p._id}/reject`, sub._id, p._id)}
+                          >❌ Rejeter</button>
+                        </div>
+                      </div>
+                    ))}
+                    {pendingBoosts.map((b) => (
+                      <div key={b._id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 0", borderTop: "1px solid #f1f5f9", flexWrap: "wrap" }}>
+                        <div style={{ fontSize: ".88rem" }}>
+                          <strong>Mise en avant</strong> — véhicule #{String(b.vehicle).slice(-6)} · {b.priceXOF?.toLocaleString("fr-FR")} FCFA
+                        </div>
+                        <button
+                          className={styles.btnPrimary}
+                          disabled={subActioning === `${sub._id}:${b._id}`}
+                          onClick={() => subAction(`boost/${b._id}/approve`, sub._id, b._id)}
+                        >✅ Confirmer le paiement</button>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════
+          TAB AVIS CLIENTS — modération
+      ══════════════════════════════════════════════════ */}
+      {activeTab === "reviews" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>⭐ Avis clients — modération</h2>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <select value={reviewsFilter} onChange={(e) => setReviewsFilter(e.target.value)} style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 12px", fontSize: ".85rem" }}>
+                <option value="">Tous les avis</option>
+                <option value="true">Visibles</option>
+                <option value="false">Masqués</option>
+              </select>
+              <button className={styles.btnRefresh} onClick={loadReviews}>↻ Actualiser</button>
+            </div>
+          </div>
+
+          {reviewsLoading ? (
+            <p style={{ color: "#64748b" }}>Chargement…</p>
+          ) : reviewsList.length === 0 ? (
+            <p style={{ color: "#64748b" }}>Aucun avis.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {reviewsList.map((r) => (
+                <div key={r._id} className={styles.chartCard} style={{ opacity: r.visible ? 1 : 0.6 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+                    <div>
+                      <strong>{"⭐".repeat(r.note)}</strong>{" "}
+                      <span style={{ color: "#64748b", fontSize: ".85rem" }}>
+                        — {r.targetLabel || (r.targetType === "vehicle" ? "Véhicule" : "Chauffeur")} · par {r.reviewer?.firstName} {r.reviewer?.lastName}
+                      </span>
+                      {!r.visible && <span style={{ marginLeft: 8, fontSize: ".72rem", color: "#ef4444", fontWeight: 700 }}>MASQUÉ</span>}
+                      {r.commentaire && <p style={{ margin: "6px 0 0", fontSize: ".88rem", color: "#374151" }}>{r.commentaire}</p>}
+                    </div>
+                    <button
+                      className={r.visible ? styles.btnDanger : styles.btnPrimary}
+                      disabled={reviewActioning === r._id}
+                      onClick={() => toggleReviewVisibility(r)}
+                    >
+                      {r.visible ? "🚫 Masquer" : "↺ Réafficher"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {activeTab === "escrow"      && <WipSection icon="🔐" title="Compte Séquestre (Escrow)" subtitle="Sécurisez les transactions : fonds bloqués à la commande, libérés après confirmation du service." features={["Blocage des fonds à la commande","Libération conditionnelle après service effectué","Remboursement immédiat en cas de litige","Traçabilité complète des flux financiers"]} />}
       {activeTab === "partner_verif" && (
         <PartnerVerifSection
@@ -4367,7 +4580,68 @@ export default function AdminPanel() {
         </div>
       )}
       {activeTab === "roles"       && <WipSection icon="🔑" title="Rôles Admin" subtitle="Gestion fine des permissions par rôle : Super Admin, Finance, KYC, Import, Support, Modérateur." features={["Super Admin — accès total","Admin Finance — paiements et commissions","Admin KYC — identités et documents","Admin Import/Export — dossiers internationaux","Admin Support — tickets clients","Modérateur — annonces et contenu"]} />}
-      {activeTab === "audit"       && <WipSection icon="📜" title="Audit Logs" subtitle="Journal complet et inviolable de toutes les actions effectuées par les administrateurs." features={["Historique complet de chaque action admin","Filtres par date, admin, type d'action","Export CSV / PDF pour conformité réglementaire","Alertes automatiques sur les actions sensibles"]} />}
+      {/* ══════════════════════════════════════════════════
+          TAB AUDIT LOGS
+      ══════════════════════════════════════════════════ */}
+      {activeTab === "audit" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>📜 Journal d'audit</h2>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <select value={auditFilter.action} onChange={(e) => setAuditFilter((f) => ({ ...f, action: e.target.value }))} style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 12px", fontSize: ".85rem" }}>
+                <option value="">Toutes les actions</option>
+                {auditFacets.actions.map((a) => <option key={a} value={a}>{a}</option>)}
+              </select>
+              <select value={auditFilter.resource} onChange={(e) => setAuditFilter((f) => ({ ...f, resource: e.target.value }))} style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 12px", fontSize: ".85rem" }}>
+                <option value="">Toutes les ressources</option>
+                {auditFacets.resources.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <select value={auditFilter.success} onChange={(e) => setAuditFilter((f) => ({ ...f, success: e.target.value }))} style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 12px", fontSize: ".85rem" }}>
+                <option value="">Tous résultats</option>
+                <option value="true">Succès</option>
+                <option value="false">Échec</option>
+              </select>
+              <button className={styles.btnRefresh} onClick={loadAuditLog}>↻ Actualiser</button>
+            </div>
+          </div>
+
+          {auditLoading ? (
+            <p style={{ color: "#64748b" }}>Chargement…</p>
+          ) : auditEntries.length === 0 ? (
+            <p style={{ color: "#64748b" }}>Aucune entrée trouvée.</p>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Admin</th>
+                    <th>Action</th>
+                    <th>Ressource</th>
+                    <th>Résultat</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditEntries.map((e) => (
+                    <tr key={e._id} className={styles.tr}>
+                      <td style={{ fontSize: ".8rem", whiteSpace: "nowrap" }}>{new Date(e.createdAt).toLocaleString("fr-FR")}</td>
+                      <td style={{ fontSize: ".8rem" }}>{e.userEmail || "—"} <span style={{ color: "#94a3b8" }}>({e.userRole})</span></td>
+                      <td style={{ fontSize: ".8rem", fontWeight: 600 }}>{e.action}</td>
+                      <td style={{ fontSize: ".8rem" }}>{e.resource}{e.resourceId ? ` #${String(e.resourceId).slice(-6)}` : ""}</td>
+                      <td>
+                        {e.success
+                          ? <span style={{ color: "#10b981", fontSize: ".8rem", fontWeight: 700 }}>✅</span>
+                          : <span style={{ color: "#ef4444", fontSize: ".8rem", fontWeight: 700 }} title={e.errorMessage || ""}>❌</span>
+                        }
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
         </div>
       </div>

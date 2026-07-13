@@ -119,6 +119,22 @@ export const NotificationProvider = ({ children }) => {
     } catch { /* ignore */ }
   }, [token]);
 
+  const deleteNotification = useCallback(async (id) => {
+    if (!token) return;
+    const wasUnread = notifications.find((n) => n._id === id && !n.lu);
+    try {
+      await fetch(`/api/notifications/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setNotifications((prev) => prev.filter((n) => n._id !== id));
+      if (wasUnread) {
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+        prevUnreadRef.current = Math.max(0, prevUnreadRef.current - 1);
+      }
+    } catch { /* ignore */ }
+  }, [token, notifications]);
+
   const refresh = useCallback(() => fetchNotifications(), [fetchNotifications]);
 
   const value = {
@@ -128,6 +144,8 @@ export const NotificationProvider = ({ children }) => {
     toggleSound,
     markAsRead,
     markAllRead,
+    markAllAsRead: markAllRead,
+    deleteNotification,
     fetchNotifications: refresh,
   };
 

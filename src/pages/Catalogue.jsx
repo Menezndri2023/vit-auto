@@ -98,8 +98,8 @@ function DriverCard({ d, fmt }) {
   return (
     <div className={styles.ieCard}>
       <div className={styles.ieCardImg}>
-        {d.profilePhoto
-          ? <img src={d.profilePhoto} alt={`${d.firstName} ${d.lastName}`} loading="lazy" width="320" height="200" />
+        {d.profilePhoto || d.images?.[0]
+          ? <img src={d.profilePhoto || d.images[0]} alt={`${d.firstName} ${d.lastName}`} loading="lazy" width="320" height="200" />
           : <div className={styles.ieCardImgFallback}>🧑‍✈️</div>
         }
       </div>

@@ -45,24 +45,29 @@ const reviewSchema = new mongoose.Schema({
 reviewSchema.index({ booking: 1, reviewer: 1 }, { unique: true });
 reviewSchema.index({ targetType: 1, targetId: 1 });
 
-// Après création d'un avis, mettre à jour noteMoyenne + nombreAvis
-reviewSchema.post("save", async function () {
-  const { targetType, targetId } = this;
+// Recalcule noteMoyenne/nombreAvis d'un véhicule ou chauffeur à partir des avis
+// visibles — factorisé pour être appelé à la fois à la création d'un avis
+// (hook ci-dessous) et lors d'une modération admin (hideReview), qui ne
+// déclenche pas ce hook puisqu'elle passe par findByIdAndUpdate.
+reviewSchema.statics.recalcTargetStats = async function (targetType, targetId) {
   const Model = targetType === "vehicle"
     ? mongoose.model("Vehicle")
     : mongoose.model("Driver");
 
-  const aggs = await mongoose.model("Review").aggregate([
+  const aggs = await this.aggregate([
     { $match: { targetType, targetId, visible: true } },
     { $group: { _id: null, avg: { $avg: "$note" }, count: { $sum: 1 } } },
   ]);
 
-  if (aggs.length > 0) {
-    await Model.findByIdAndUpdate(targetId, {
-      noteMoyenne: Math.round(aggs[0].avg * 10) / 10,
-      nombreAvis: aggs[0].count,
-    });
-  }
+  await Model.findByIdAndUpdate(targetId, {
+    noteMoyenne: aggs.length ? Math.round(aggs[0].avg * 10) / 10 : 0,
+    nombreAvis:  aggs.length ? aggs[0].count : 0,
+  });
+};
+
+// Après création d'un avis, mettre à jour noteMoyenne + nombreAvis
+reviewSchema.post("save", async function () {
+  await this.constructor.recalcTargetStats(this.targetType, this.targetId);
 });
 
 const Review = mongoose.models.Review || mongoose.model("Review", reviewSchema);

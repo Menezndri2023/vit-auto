@@ -132,12 +132,37 @@ const VehicleCard = ({ v, bookings, onDelete, onBoost }) => {
 };
 
 // ── Modal boost ───────────────────────────────────────────────────────────────
-const BoostModal = ({ vehicle, onClose }) => {
-  const PACKS = [
-    { name: "Starter", price: "4 900 DH", days: 7,  color: "#6366f1", features: ["Mise en avant 7 jours", "Badge Sponsorisé", "+300% de visibilité"] },
-    { name: "Pro",     price: "9 900 DH", days: 15, color: "#f59e0b", popular: true, features: ["Mise en avant 15 jours", "Badge Top Annonce", "+600% de visibilité", "Notification push clients"] },
-    { name: "Premium", price: "17 900 DH", days: 30, color: "#ff4d2d", features: ["Mise en avant 30 jours", "Badge Premium", "+1000% de visibilité", "Push + email campagne", "Vitrine page d'accueil"] },
-  ];
+// Un seul produit de mise en avant existe réellement côté serveur (30 jours,
+// 5 000 XOF, POST /api/subscriptions/boost, activé après confirmation admin
+// du paiement — voir subscriptionController.js). Les anciens "packs"
+// Starter/Pro/Premium affichés ici n'ont jamais existé côté backend et leur
+// bouton n'appelait aucune API : purement décoratif.
+const BoostModal = ({ vehicle, token, onClose, onBoosted }) => {
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const handleBoost = async () => {
+    const vehicleId = vehicle?.id || vehicle?._id;
+    if (!vehicleId) return;
+    setSubmitting(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/subscriptions/boost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ vehicleId }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) { setErr(data?.message || "Erreur lors de la demande de mise en avant."); return; }
+      onBoosted?.(data.message);
+      onClose();
+    } catch {
+      setErr("Erreur réseau — réessayez.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.boostModal} onClick={(e) => e.stopPropagation()}>
@@ -145,18 +170,27 @@ const BoostModal = ({ vehicle, onClose }) => {
         <h2 className={styles.boostTitle}>⚡ Booster mon annonce</h2>
         <p className={styles.boostSub}>Multipliez la visibilité de <strong>{vehicle?.name}</strong> et recevez plus de réservations.</p>
         <div className={styles.boostPacksGrid}>
-          {PACKS.map((p) => (
-            <div key={p.name} className={`${styles.boostPack} ${p.popular ? styles.boostPackPopular : ""}`} style={{ borderColor: p.color + "44" }}>
-              {p.popular && <div className={styles.boostPopularBadge} style={{ background: p.color }}>⭐ Plus populaire</div>}
-              <div className={styles.boostPackName} style={{ color: p.color }}>{p.name}</div>
-              <div className={styles.boostPackPrice}>{p.price}</div>
-              <div className={styles.boostPackDays}>{p.days} jours</div>
-              <ul className={styles.boostPackFeatures}>
-                {p.features.map((f) => <li key={f}><span style={{ color: p.color }}>✓</span> {f}</li>)}
-              </ul>
-              <button className={styles.boostPackBtn} style={{ background: p.color }}>Choisir {p.name} →</button>
-            </div>
-          ))}
+          <div className={styles.boostPack} style={{ borderColor: "#ff4d2d44" }}>
+            <div className={styles.boostPackName} style={{ color: "#ff4d2d" }}>Mise en avant</div>
+            <div className={styles.boostPackPrice}>5 000 FCFA</div>
+            <div className={styles.boostPackDays}>30 jours</div>
+            <ul className={styles.boostPackFeatures}>
+              <li><span style={{ color: "#ff4d2d" }}>✓</span> Badge Sponsorisé</li>
+              <li><span style={{ color: "#ff4d2d" }}>✓</span> Priorité dans le catalogue</li>
+            </ul>
+            {err && <p style={{ color: "#ef4444", fontSize: ".85rem", margin: "8px 0 0" }}>{err}</p>}
+            <button
+              className={styles.boostPackBtn}
+              style={{ background: "#ff4d2d", opacity: submitting ? 0.7 : 1, cursor: submitting ? "not-allowed" : "pointer" }}
+              onClick={handleBoost}
+              disabled={submitting}
+            >
+              {submitting ? "Envoi…" : "Demander la mise en avant →"}
+            </button>
+            <p style={{ fontSize: ".72rem", color: "#94a3b8", margin: "8px 0 0" }}>
+              Activée après confirmation du paiement par notre équipe.
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -716,7 +750,14 @@ const VendorPublish = () => {
       )}
 
       {/* ── Modal boost ── */}
-      {boostVehicle && <BoostModal vehicle={boostVehicle} onClose={() => setBoost(null)} />}
+      {boostVehicle && (
+        <BoostModal
+          vehicle={boostVehicle}
+          token={token}
+          onClose={() => setBoost(null)}
+          onBoosted={(msg) => toastOk(msg || "Demande de mise en avant envoyée.")}
+        />
+      )}
 
       {/* ── Modal suppression ── */}
       {deleteVehicle && (

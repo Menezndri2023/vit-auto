@@ -156,7 +156,7 @@ export default function Plans() {
     if (plan.id === "corporate") { navigate("/help"); return; }
     setActivating(plan.id);
     try {
-      const res = await fetch("/api/subscriptions/activate", {
+      const res = await fetch("/api/subscriptions/activate-pro", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ plan: plan.id, price: plan.price }),

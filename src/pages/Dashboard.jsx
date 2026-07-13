@@ -6,6 +6,7 @@ import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useSocket } from "../context/SocketContext";
 import { useI18n } from "../context/I18nContext";
+import { useChat } from "../context/ChatContext";
 import styles from "./Dashboard.module.css";
 
 // Transforme une réservation brute du backend en objet plat utilisable par les composants
@@ -710,6 +711,17 @@ const Dashboard = () => {
 const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, validating }) => {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const { fmt } = useCurrency();
+  const { openOrCreateChat } = useChat();
+  const { error: toastErr } = useToast();
+  const [contacting, setContacting] = useState(false);
+
+  const handleContactPartner = async () => {
+    if (contacting) return;
+    setContacting(true);
+    const res = await openOrCreateChat("client_partner", null, booking.id);
+    if (!res.ok) toastErr(res.message || "Impossible d'ouvrir la conversation.");
+    setContacting(false);
+  };
 
   const status         = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending;
   const canCancel      = ["À confirmer", "pending", "confirmed"].includes(booking.status) || !booking.status;
@@ -903,6 +915,11 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, valid
           <a href={`tel:${booking.partnerPhone}`} className={styles.btnContact}>
             📞 Appeler le partenaire
           </a>
+        )}
+        {isActive && booking.id && (
+          <button className={styles.btnContact} onClick={handleContactPartner} disabled={contacting}>
+            💬 {contacting ? "Ouverture…" : "Message au partenaire"}
+          </button>
         )}
         {isCompleted && booking.vehicleId && (
           <button className={styles.btnReview} onClick={() => onReview(booking)}>
