@@ -4447,6 +4447,7 @@ function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFil
   const [statusModal, setStatusModal] = useState(null);
   const [newStatus, setNewStatus] = useState("");
   const [criterionNote, setCriterionNote] = useState({});
+  const [criterionDocUrl, setCriterionDocUrl] = useState({});
 
   const openDetail = async (userId) => {
     try {
@@ -4483,9 +4484,19 @@ function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFil
     const userId = pvDetail.userId?._id || pvDetail.userId;
     setPvCriterionLoading(criterion);
     try {
+      // note/docUrl ne sont envoyés que si l'admin les a effectivement modifiés dans
+      // cette session — sinon, comme le backend applique `valeur ?? existant`,
+      // envoyer systématiquement une chaîne vide écraserait silencieusement une
+      // note ou un lien déjà enregistrés dès que l'admin clique "Valider" sans
+      // avoir retouché ces champs.
       const res = await fetch(`/api/partner-verif/admin/${userId}/criterion`, {
         method: "PATCH", headers,
-        body: JSON.stringify({ criterion, verified: !currentVal, note: criterionNote[criterion] || "" }),
+        body: JSON.stringify({
+          criterion,
+          verified: !currentVal,
+          ...(criterion in criterionNote   ? { note: criterionNote[criterion] } : {}),
+          ...(criterion in criterionDocUrl ? { docUrl: criterionDocUrl[criterion] } : {}),
+        }),
       });
       const d = await res.json();
       if (res.ok) {
@@ -4899,8 +4910,24 @@ function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFil
                         <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
                           <input className={styles.pvInput} placeholder="Note (optionnel)…"
                             style={{ flex: 1, fontSize: "0.78rem", padding: "4px 10px" }}
-                            value={criterionNote[c.key] || verif?.note || ""}
+                            value={criterionNote[c.key] ?? verif?.note ?? ""}
                             onChange={(e) => setCriterionNote((n) => ({ ...n, [c.key]: e.target.value }))} />
+                        </div>
+                        {/* Lien vers la pièce justificative de ce critère (criteria.<clé>.docUrl côté
+                            modèle) — géré par le backend depuis l'origine (adminToggleCriterion) mais
+                            jamais exposé ici : l'admin ne pouvait ni le voir, ni le renseigner. */}
+                        <div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center" }}>
+                          <input className={styles.pvInput} placeholder="Lien du justificatif (optionnel)…"
+                            style={{ flex: 1, fontSize: "0.78rem", padding: "4px 10px" }}
+                            value={criterionDocUrl[c.key] ?? verif?.docUrl ?? ""}
+                            onChange={(e) => setCriterionDocUrl((n) => ({ ...n, [c.key]: e.target.value }))} />
+                          {verif?.docUrl && (
+                            <a href={safeImgHref(verif.docUrl) !== "#" ? safeImgHref(verif.docUrl) : safeHref(verif.docUrl)}
+                              target="_blank" rel="noreferrer noopener"
+                              style={{ fontSize: "0.78rem", color: "#6d28d9", textDecoration: "underline", whiteSpace: "nowrap" }}>
+                              Voir →
+                            </a>
+                          )}
                         </div>
                       </div>
                     );
@@ -4925,7 +4952,11 @@ function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFil
                         {pvDetail.documents?.[key] ? (
                           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                             <img src={pvDetail.documents[key]} alt={label} style={{ width: "100%", maxHeight: 100, objectFit: "cover", borderRadius: 6, border: "1px solid #e2e8f0" }} onError={(e) => { e.target.style.display = "none"; }} />
-                            <a href={safeHref(pvDetail.documents[key])} target="_blank" rel="noreferrer noopener"
+                            {/* safeHref (pas safeImgHref) laissait ce lien toujours pointer vers "#" pour un
+                                document stocké en base64 (data:image/...) — l'aperçu s'affichait mais le
+                                clic "Voir le document" ne faisait jamais rien, contrairement à tous les
+                                autres blocs documents du fichier (KYC, Certification, Founding Partner). */}
+                            <a href={safeImgHref(pvDetail.documents[key])} target="_blank" rel="noreferrer noopener"
                               style={{ fontSize: "0.78rem", color: "#6d28d9", textDecoration: "underline" }}>Voir le document</a>
                           </div>
                         ) : (
