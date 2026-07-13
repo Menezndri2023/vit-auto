@@ -15,6 +15,7 @@ import vehicleRoutes       from "./routes/vehicles.js";
 import vehicleImportRoutes from "./routes/vehicleImport.js";
 import bookingRoutes       from "./routes/bookings.js";
 import paymentRoutes       from "./routes/payments.js";
+import * as paymentController from "./controllers/paymentController.js";
 import userRoutes          from "./routes/users.js";
 import driverRoutes        from "./routes/drivers.js";
 import reviewRoutes        from "./routes/reviews.js";
@@ -180,6 +181,13 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
+
+// ── Webhooks Stripe/Wave — corps BRUT requis pour vérifier leur signature
+// cryptographique (stripe-signature / Wave-Signature), donc montés ICI, avant
+// express.json() qui parserait sinon le corps et empêcherait toute vérification
+// fiable de la signature (voir services/payment/providers/*Provider.js).
+app.post("/api/payments/webhook/stripe", express.raw({ type: "application/json" }), paymentController.stripeWebhook);
+app.post("/api/payments/webhook/wave",   express.raw({ type: "application/json" }), paymentController.waveWebhook);
 
 // ── Body parsing — 20 MB pour couvrir jusqu'à 6 photos véhicule (VendorSubmit.jsx,
 // recompressées côté client mais avec marge) en plus des photos base64 KYC ──

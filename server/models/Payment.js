@@ -26,7 +26,7 @@ const paymentSchema = new mongoose.Schema({
     default: "pending",
   },
 
-  // ── Référence externe (ID transaction opérateur) ──────────
+  // ── Référence externe (ID transaction/session opérateur) ──
   transactionId: { type: String, default: null },
 
   // ── Détails selon méthode (données masquées) ──────────────
@@ -39,6 +39,18 @@ const paymentSchema = new mongoose.Schema({
     // Commun
     provider:    { type: String },
   },
+
+  // ── Passerelle réelle (Stripe/Orange Money/Wave) ──────────
+  // URL de paiement à laquelle rediriger le client (checkout hébergé par le
+  // fournisseur) — null tant que le paiement n'est pas initié.
+  checkoutUrl: { type: String, default: null },
+  // true si aucun identifiant fournisseur n'était configuré au moment du
+  // paiement (voir server/services/payment/) : le paiement a été traité par
+  // le mode sandbox interne, pas par un vrai fournisseur — jamais à confondre
+  // avec un paiement réellement encaissé, distinction utile pour l'admin.
+  simulated: { type: Boolean, default: false },
+  // Horodatage de la dernière notification webhook reçue (audit).
+  webhookReceivedAt: { type: Date, default: null },
 
   // ── Remboursement ─────────────────────────────────────────
   refundedAt:    { type: Date, default: null },

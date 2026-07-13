@@ -65,6 +65,8 @@ const PartnerShowroomPublic   = lazy(() => import("./pages/PartnerShowroomPublic
 const PartnerOnboardingPortal = lazy(() => import("./pages/PartnerOnboardingPortal"));
 const PartnerSignByToken      = lazy(() => import("./pages/PartnerSignByToken"));
 const FoundingPartnerLegal    = lazy(() => import("./pages/FoundingPartnerLegal"));
+const PaymentSimulate         = lazy(() => import("./pages/PaymentSimulate"));
+const PaymentResult           = lazy(() => import("./pages/PaymentResult"));
 
 // ── Routes internes — accès à authReady pour éviter le flash ──────────────
 function AppRoutes() {
@@ -116,6 +118,11 @@ function AppRoutes() {
             <ErrorBoundary><DriverBooking /></ErrorBoundary>
           } />
           <Route path="/checkout"               element={<Checkout />} />
+
+          {/* ── Paiement (redirection fournisseur ou mode sandbox) ─── */}
+          <Route path="/payment/simulate/:paymentId" element={<PaymentSimulate />} />
+          <Route path="/payment/success"        element={<PaymentResult />} />
+          <Route path="/payment/cancel"         element={<PaymentResult />} />
 
           {/* ── Espace client connecté ─────────────────────── */}
           <Route path="/dashboard"              element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />

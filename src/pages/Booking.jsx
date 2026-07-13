@@ -414,6 +414,25 @@ export default function Booking() {
         bookingData.serverBookingId = apiData.booking._id;
         bookingData.reference       = apiData.booking.reference || bookingRef;
         bookingData.status          = apiData.booking.status    || "pending";
+
+        // Paiement en ligne (carte/Orange Money/Wave) : redirection vers la
+        // page de paiement hébergée par le fournisseur (ou le mode simulé si
+        // aucun compte marchand n'est configuré — voir server/services/payment/).
+        // Les autres méthodes (cash, virement...) gardent le parcours existant
+        // : confirmation immédiate, règlement géré manuellement par la suite.
+        if (["card", "orange_money", "wave"].includes(payMethod)) {
+          try {
+            const initRes = await fetch("/api/payments/initiate", {
+              method: "POST", headers,
+              body: JSON.stringify({ bookingId: apiData.booking._id, method: payMethod }),
+            });
+            const initData = await initRes.json().catch(() => ({}));
+            if (initRes.ok && initData.checkoutUrl) {
+              window.location.href = initData.checkoutUrl;
+              return;
+            }
+          } catch { /* passerelle indisponible — on retombe sur la confirmation classique */ }
+        }
       }
     } catch { /* mode hors-ligne — réservation locale uniquement */ }
 

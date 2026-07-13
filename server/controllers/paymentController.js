@@ -1,8 +1,196 @@
 import logger from "../utils/logger.js";
 import Payment from "../models/Payment.js";
 import Booking from "../models/Booking.js";
+import Notification from "../models/Notification.js";
+import { initiateCheckout, stripeProvider, waveProvider, orangeMoneyProvider } from "../services/payment/gateway.js";
 
 const ALLOWED_METHODS = ["card", "orange_money", "wave", "mtn", "moov", "paypal", "cash"];
+const ONLINE_METHODS  = ["card", "orange_money", "wave"];
+
+// ── Helpers partagés (webhooks + simulation) ────────────────────────────────
+async function completePayment(payment, { providerRef } = {}) {
+  if (payment.status === "completed") return payment; // idempotent — un webhook peut être renvoyé plusieurs fois
+  payment.status = "completed";
+  if (providerRef) payment.transactionId = providerRef;
+  payment.webhookReceivedAt = new Date();
+  await payment.save();
+
+  const booking = await Booking.findById(payment.booking);
+  if (booking && !booking.isPaid) {
+    booking.isPaid = true;
+    booking.paidAt = new Date();
+    await booking.save();
+    if (booking.client) {
+      await Notification.create({
+        user: booking.client,
+        type: "payment_received",
+        titre: "💳 Paiement confirmé",
+        message: `Votre paiement pour la réservation ${booking.reference || ""} a été confirmé.`,
+        lien: `/bookings/${booking._id}`,
+      }).catch(() => {});
+    }
+  }
+  return payment;
+}
+
+async function failPayment(payment, reason) {
+  if (payment.status === "completed") return payment; // ne jamais rétrograder un paiement déjà confirmé
+  payment.status = "failed";
+  payment.webhookReceivedAt = new Date();
+  await payment.save();
+
+  const booking = await Booking.findById(payment.booking);
+  if (booking?.client) {
+    await Notification.create({
+      user: booking.client,
+      type: "payment_failed",
+      titre: "❌ Paiement échoué",
+      message: `Le paiement pour la réservation ${booking.reference || ""} a échoué${reason ? ` (${reason})` : ""}. Vous pouvez réessayer.`,
+      lien: `/bookings/${booking._id}`,
+    }).catch(() => {});
+  }
+  return payment;
+}
+
+// ── Initier un paiement en ligne (carte/Orange Money/Wave) ──────────────────
+export const initiatePayment = async (req, res) => {
+  try {
+    const { bookingId, method } = req.body;
+    if (!bookingId) return res.status(400).json({ message: "bookingId requis." });
+    if (!ONLINE_METHODS.includes(method)) {
+      return res.status(400).json({ message: `Méthode non prise en charge par le paiement en ligne. Acceptées : ${ONLINE_METHODS.join(", ")}` });
+    }
+
+    const booking = await Booking.findById(bookingId);
+    if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
+    if (booking.isPaid) return res.status(409).json({ message: "Cette réservation est déjà payée." });
+
+    if (booking.client && req.user && req.user.role !== "admin" && booking.client.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Accès refusé. Vous ne pouvez payer que vos propres réservations." });
+    }
+
+    let payment = await Payment.findOne({ booking: bookingId, status: { $in: ["pending", "completed"] } });
+    if (payment?.status === "completed") {
+      return res.status(409).json({ message: "Cette réservation est déjà payée." });
+    }
+    if (!payment) {
+      payment = await Payment.create({
+        booking: bookingId,
+        amount:  booking.montantTotal,
+        devise:  booking.devise || "XOF",
+        method,
+        status:  "pending",
+      });
+      booking.payment = payment._id;
+      await booking.save();
+    }
+
+    const { checkoutUrl, providerRef, simulated } = await initiateCheckout({ payment, booking });
+    payment.checkoutUrl   = checkoutUrl;
+    payment.transactionId = providerRef;
+    payment.simulated     = simulated;
+    await payment.save();
+
+    res.json({ checkoutUrl, paymentId: payment._id, simulated });
+  } catch (err) {
+    logger.error("initiatePayment:", err);
+    res.status(500).json({ message: "Erreur lors de l'initialisation du paiement." });
+  }
+};
+
+// ── Statut d'un paiement (page de retour après redirection) ────────────────
+export const getPaymentStatus = async (req, res) => {
+  try {
+    const payment = await Payment.findById(req.params.id).select("status simulated amount devise method booking");
+    if (!payment) return res.status(404).json({ message: "Paiement introuvable." });
+    res.json({ payment });
+  } catch (err) {
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Simuler l'issue d'un paiement (mode sandbox uniquement) ────────────────
+export const simulatePayment = async (req, res) => {
+  try {
+    const { outcome } = req.body; // "success" | "fail"
+    const payment = await Payment.findById(req.params.id);
+    if (!payment) return res.status(404).json({ message: "Paiement introuvable." });
+    if (!payment.simulated) {
+      return res.status(403).json({ message: "Ce paiement utilise un vrai fournisseur — impossible de le simuler." });
+    }
+    if (payment.status !== "pending") {
+      return res.status(409).json({ message: "Ce paiement n'est plus en attente." });
+    }
+
+    if (outcome === "success") await completePayment(payment, { providerRef: `sim_${payment._id}` });
+    else await failPayment(payment, "simulated_failure");
+
+    res.json({ status: payment.status });
+  } catch (err) {
+    logger.error("simulatePayment:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Webhooks fournisseurs ────────────────────────────────────────────────────
+export const stripeWebhook = async (req, res) => {
+  try {
+    const event = stripeProvider.verifyWebhookSignature(req.body, req.headers["stripe-signature"]);
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object;
+      const paymentId = session.metadata?.paymentId || session.client_reference_id;
+      const payment = paymentId && await Payment.findById(paymentId);
+      if (payment) await completePayment(payment, { providerRef: session.id });
+    } else if (event.type === "checkout.session.expired") {
+      const session = event.data.object;
+      const paymentId = session.metadata?.paymentId || session.client_reference_id;
+      const payment = paymentId && await Payment.findById(paymentId);
+      if (payment) await failPayment(payment, "session_expired");
+    }
+    res.json({ received: true });
+  } catch (err) {
+    logger.error("stripeWebhook:", err.message);
+    res.status(400).json({ message: "Webhook invalide." });
+  }
+};
+
+export const waveWebhook = async (req, res) => {
+  try {
+    const rawBody = Buffer.isBuffer(req.body) ? req.body.toString("utf8") : req.body;
+    const event = waveProvider.verifyWebhookSignature(rawBody, req.headers["wave-signature"]);
+    const paymentId = event.client_reference;
+    const payment = paymentId && await Payment.findById(paymentId);
+    if (payment) {
+      if (event.payment_status === "succeeded" || event.checkout_status === "complete") {
+        await completePayment(payment, { providerRef: event.id });
+      } else if (event.payment_status === "failed" || event.checkout_status === "expired") {
+        await failPayment(payment, event.payment_status || event.checkout_status);
+      }
+    }
+    res.json({ received: true });
+  } catch (err) {
+    logger.error("waveWebhook:", err.message);
+    res.status(400).json({ message: "Webhook invalide." });
+  }
+};
+
+export const orangeMoneyWebhook = async (req, res) => {
+  try {
+    const body = orangeMoneyProvider.verifyWebhookPayload(req.body);
+    const payment = await Payment.findById(body.order_id);
+    if (payment) {
+      if (["SUCCESS", "SUCCESSFUL"].includes(String(body.status).toUpperCase())) {
+        await completePayment(payment, { providerRef: body.txnid || body.order_id });
+      } else {
+        await failPayment(payment, body.status);
+      }
+    }
+    res.json({ received: true });
+  } catch (err) {
+    logger.error("orangeMoneyWebhook:", err.message);
+    res.status(400).json({ message: "Webhook invalide." });
+  }
+};
 
 // ── Créer un enregistrement de paiement ─────────────────────────────────────
 export const createPayment = async (req, res) => {

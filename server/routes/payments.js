@@ -4,8 +4,21 @@ import { authenticate, optionalAuth } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 
 const router = express.Router();
+const vid = validateObjectId();
 
 router.post("/",                          optionalAuth, paymentController.createPayment);
 router.get("/booking/:bookingId",         validateObjectId("bookingId"), authenticate, paymentController.getBookingPayment);
+
+// ── Passerelle de paiement réelle (Stripe/Orange Money/Wave, avec repli
+// simulé si aucun identifiant n'est configuré — voir services/payment/) ────
+router.post("/initiate",                  optionalAuth, paymentController.initiatePayment);
+router.get("/:id/status",                 vid, paymentController.getPaymentStatus);
+router.post("/:id/simulate",              vid, paymentController.simulatePayment);
+
+// Orange Money ne nécessite pas le corps brut (pas de vérification HMAC) —
+// passe par le parsing JSON normal. Stripe et Wave, eux, ont besoin du corps
+// BRUT pour vérifier leur signature : leurs routes webhook sont montées
+// directement dans server.js, AVANT express.json(), pas ici.
+router.post("/webhook/orange-money",      paymentController.orangeMoneyWebhook);
 
 export default router;
