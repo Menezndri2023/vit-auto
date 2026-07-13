@@ -117,7 +117,7 @@ const SearchBar = memo(() => {
           <div className={styles.selectWrapper}>
             <span className={styles.selectIcon}>🚙</span>
             <select value={modele} onChange={(e) => setModele(e.target.value)}>
-              {MODELES.map((m) => <option key={m}>{m}</option>)}
+              {MODELES.map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
         </div>

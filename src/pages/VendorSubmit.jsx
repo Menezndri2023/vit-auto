@@ -523,7 +523,7 @@ const VendorSubmit = () => {
               <div className={styles.field}>
                 <label>Catégorie de permis</label>
                 <select name="permisCategorie" value={driver.permisCategorie} onChange={handleDrvChange}>
-                  {["B", "C", "D", "E", "B+C"].map(c => <option key={c}>{c}</option>)}
+                  {["B", "C", "D", "E", "B+C"].map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
             </div>
@@ -555,19 +555,19 @@ const VendorSubmit = () => {
               <div className={styles.field}>
                 <label>Année</label>
                 <select name="annee" value={vehicle.annee} onChange={handleVehChange}>
-                  {ANNEES.map(y => <option key={y}>{y}</option>)}
+                  {ANNEES.map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
               </div>
               <div className={styles.field}>
                 <label>État général</label>
                 <select name="etat" value={vehicle.etat} onChange={handleVehChange}>
-                  {ETATS.map(e => <option key={e}>{e}</option>)}
+                  {ETATS.map(e => <option key={e} value={e}>{e}</option>)}
                 </select>
               </div>
               <div className={styles.field}>
                 <label>Type de véhicule</label>
                 <select name="vehicleType" value={vehicle.vehicleType || "SUV"} onChange={e => setVeh("vehicleType", e.target.value)}>
-                  {VEHICLE_TYPES.map(t => <option key={t}>{t}</option>)}
+                  {VEHICLE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div className={styles.field}>
@@ -588,7 +588,7 @@ const VendorSubmit = () => {
               <div className={styles.field}>
                 <label>Disponibilité *</label>
                 <select name="disponibilite" value={driver.disponibilite} onChange={handleDrvChange}>
-                  {DISPOS.map(d => <option key={d}>{d}</option>)}
+                  {DISPOS.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
                 {errors.disponibilite && <span className={styles.err}>{errors.disponibilite}</span>}
               </div>
@@ -643,13 +643,13 @@ const VendorSubmit = () => {
               <div className={styles.field}>
                 <label>Carburant</label>
                 <select name="carburant" value={vehicle.carburant} onChange={handleVehChange}>
-                  {FUELS.map(f => <option key={f}>{f}</option>)}
+                  {FUELS.map(f => <option key={f} value={f}>{f}</option>)}
                 </select>
               </div>
               <div className={styles.field}>
                 <label>Transmission</label>
                 <select name="transmission" value={vehicle.transmission} onChange={handleVehChange}>
-                  {TRANSMISSIONS.map(t => <option key={t}>{t}</option>)}
+                  {TRANSMISSIONS.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div className={styles.field}>

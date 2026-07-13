@@ -76,6 +76,12 @@ process.on("uncaughtException", (err) => {
 
 const app = express();
 
+// Railway (et tout load balancer devant l'app) transmet X-Forwarded-For — sans
+// ceci, express-rate-limit ne peut pas identifier les clients de façon fiable
+// et logge une erreur de validation à chaque requête (tous les clients
+// partageant potentiellement le même compteur de rate-limit derrière le proxy).
+app.set("trust proxy", 1);
+
 // ── Healthcheck (avant tout middleware) ───────────────────────────────────
 // Doit répondre avant Helmet/CORS : les sondes Railway (et autres load balancers)
 // n'envoient pas de header Origin, or la vérif CORS rejette toute requête sans
