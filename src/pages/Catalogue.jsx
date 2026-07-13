@@ -136,7 +136,7 @@ const SORT_OPTIONS  = [
 
 const Catalogue = () => {
   const { vehicles, drivers, refreshVehicles } = useVehicles();
-  const { fmt } = useCurrency();
+  const { fmt, catalogCountry, setCatalogCountry, COUNTRIES_CONFIG, COUNTRY_INTERNATIONAL } = useCurrency();
   const { success: toastSuccess } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [refreshing,  setRefreshing]  = useState(false);
@@ -170,6 +170,7 @@ const Catalogue = () => {
     try {
       const params = new URLSearchParams({ status: "approved", limit: 24 });
       if (ieSource) params.set("sourceCountry", ieSource);
+      if (catalogCountry) params.set("country", catalogCountry);
       const res = await fetch(`/api/import-export/listings?${params}`);
       if (res.ok) {
         const d = await res.json();
@@ -192,7 +193,7 @@ const Catalogue = () => {
       }
     } catch {}
     setIeLoading(false);
-  }, [ieSource, ieSearch, ieSortKey]);
+  }, [ieSource, ieSearch, ieSortKey, catalogCountry]);
 
   useEffect(() => {
     if (isImportMode) loadIEListings();
@@ -223,15 +224,19 @@ const Catalogue = () => {
   const chauffeursFiltered = useMemo(() => {
     if (!isChauffeurMode) return [];
     const q = searchTerm.toLowerCase();
-    let list = drivers.filter((d) => !q
-      || `${d.firstName} ${d.lastName}`.toLowerCase().includes(q)
-      || (d.zone || d.ville || "").toLowerCase().includes(q)
-      || (d.title || "").toLowerCase().includes(q));
+    // Un chauffeur sans pays renseigné (créé avant cette fonctionnalité) reste
+    // toujours visible, quel que soit le pays sélectionné.
+    let list = drivers.filter((d) =>
+      (catalogCountry === COUNTRY_INTERNATIONAL || !d.country || d.country === catalogCountry)
+      && (!q
+        || `${d.firstName} ${d.lastName}`.toLowerCase().includes(q)
+        || (d.zone || d.ville || "").toLowerCase().includes(q)
+        || (d.title || "").toLowerCase().includes(q)));
     if (sortKey === "price_asc")  list = [...list].sort((a,b) => (a.tarifHeure||a.tarif||0) - (b.tarifHeure||b.tarif||0));
     if (sortKey === "price_desc") list = [...list].sort((a,b) => (b.tarifHeure||b.tarif||0) - (a.tarifHeure||a.tarif||0));
     if (sortKey === "newest")     list = [...list].sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
     return list;
-  }, [drivers, isChauffeurMode, searchTerm, sortKey]);
+  }, [drivers, isChauffeurMode, searchTerm, sortKey, catalogCountry, COUNTRY_INTERNATIONAL]);
 
   const filtered = useMemo(() => {
     if (isImportMode || isChauffeurMode) return [];
@@ -244,20 +249,23 @@ const Catalogue = () => {
       const fuelOk = fuelType === "Tous" || (v.fuel || v.carburant) === fuelType;
       const transOk = transmission === "Tous" || v.transmission === transmission;
       const priceOk = activeMode === "Acheter" || (v.pricePerDay || 0) <= maxPrice;
+      // Un véhicule sans pays renseigné (créé avant cette fonctionnalité) reste
+      // toujours visible, quel que soit le pays sélectionné.
+      const countryOk = catalogCountry === COUNTRY_INTERNATIONAL || !v.country || v.country === catalogCountry;
       const q = searchTerm.toLowerCase();
       const textOk = !q
         || (v.title || v.name || "").toLowerCase().includes(q)
         || (v.description || "").toLowerCase().includes(q)
         || (v.ville || v.city || "").toLowerCase().includes(q)
         || (v.marque || "").toLowerCase().includes(q);
-      return modeOk && typeOk && etatOk && fuelOk && transOk && priceOk && textOk;
+      return modeOk && typeOk && etatOk && fuelOk && transOk && priceOk && countryOk && textOk;
     });
 
     if (sortKey === "price_asc")  list = [...list].sort((a,b) => (a.pricePerDay||a.priceForSale||0) - (b.pricePerDay||b.priceForSale||0));
     if (sortKey === "price_desc") list = [...list].sort((a,b) => (b.pricePerDay||b.priceForSale||0) - (a.pricePerDay||a.priceForSale||0));
     if (sortKey === "newest")     list = [...list].sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
     return list;
-  }, [vehicles, activeMode, activeType, activeEtat, fuelType, transmission, maxPrice, searchTerm, sortKey, isImportMode, isChauffeurMode]);
+  }, [vehicles, activeMode, activeType, activeEtat, fuelType, transmission, maxPrice, searchTerm, sortKey, isImportMode, isChauffeurMode, catalogCountry, COUNTRY_INTERNATIONAL]);
 
   const activeChips = (!isImportMode && !isChauffeurMode) ? [
     activeMode !== "Tout"   && { label: activeMode,         clear: () => { setActiveMode("Tout"); setParam("mode",""); } },
@@ -393,6 +401,18 @@ const Catalogue = () => {
           </div>
 
           <div className={styles.resultsRight}>
+            <select
+              className={styles.sortSelect}
+              value={catalogCountry}
+              onChange={(e) => setCatalogCountry(e.target.value)}
+              title="Filtrer les annonces par pays"
+            >
+              <option value={COUNTRY_INTERNATIONAL}>🌍 Tous pays (International)</option>
+              {COUNTRIES_CONFIG.map((c) => (
+                <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
+              ))}
+            </select>
+
             {!isImportMode && !isChauffeurMode && (
               <button type="button" className={styles.filterToggleBtn} onClick={() => setFilterOpen(true)}>
                 ⚙️ Filtres

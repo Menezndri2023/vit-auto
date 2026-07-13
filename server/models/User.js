@@ -21,6 +21,13 @@ const userSchema = new mongoose.Schema({
   profilePhoto: { type: String, default: null },
   address:      { type: String, default: null },
 
+  // Pays de résidence/d'opération (code ISO-2, ex: "MA", "CI", "FR", "CN") —
+  // sert au filtrage international du catalogue (véhicules/IE) et au drapeau
+  // de reconnaissance admin. `null` = comptes créés avant cette fonctionnalité
+  // ou pays non renseigné : traité comme "visible partout" (aucune restriction),
+  // jamais comme un blocage rétroactif.
+  country: { type: String, uppercase: true, trim: true, default: null },
+
   // ── Préférences de notifications (Profile.jsx → onglet Notifications) ──
   notif_emailReminders:       { type: Boolean, default: true },
   notif_smsReminders:         { type: Boolean, default: false },

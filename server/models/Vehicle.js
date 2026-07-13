@@ -64,6 +64,11 @@ const vehicleSchema = new mongoose.Schema({
   contactTel: { type: String, trim: true },
 
   // ── Localisation ──────────────────────────────────────────
+  // Code ISO-2 hérité du pays du partenaire propriétaire au moment de la
+  // création (jamais depuis le body — voir vehicleController.createVehicle) —
+  // sert au filtrage international du catalogue. `null` = annonces créées
+  // avant cette fonctionnalité, traitées comme visibles depuis tous les pays.
+  country:    { type: String, uppercase: true, trim: true, default: null },
   ville:      { type: String, trim: true },
   adresse:    { type: String, trim: true },
   coordonnees: {
@@ -111,6 +116,7 @@ const vehicleSchema = new mongoose.Schema({
 vehicleSchema.index({ owner: 1 });
 vehicleSchema.index({ type: 1 });
 vehicleSchema.index({ ville: 1 });
+vehicleSchema.index({ country: 1 });
 vehicleSchema.index({ pricePerDay: 1 });
 // Couvre le filtre + tri exact du catalogue public (status:"approved", available:true,
 // trié par createdAt desc) — remplace l'ancien index simple sur status seul, qui ne

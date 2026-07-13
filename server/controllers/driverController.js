@@ -45,6 +45,7 @@ export const createDriver = async (req, res) => {
       images: images || [],
       // Champs serveur — jamais depuis req.body
       owner:         req.user._id,
+      country:       req.user.country || null,
       status:        "pending",
       noteMoyenne:   0,
       nombreAvis:    0,
@@ -74,10 +75,14 @@ export const createDriver = async (req, res) => {
 // ── Tous les chauffeurs approuvés (public) ────────────────────────────────
 export const getDrivers = async (req, res) => {
   try {
-    const { zone, disponibilite } = req.query;
+    const { zone, disponibilite, country } = req.query;
     const filter = { status: "approved" };
     if (zone)         filter.zone = new RegExp(escapeRegex(String(zone).slice(0, 100)), "i");
     if (disponibilite) filter.disponibilite = disponibilite;
+    // Voir vehicleController.getVehicles pour le même filtre (pays absent = pas de restriction).
+    if (country && country !== "INTL") {
+      filter.$or = [{ country: String(country).toUpperCase() }, { country: null }];
+    }
 
     const drivers = await Driver.find(filter)
       .sort({ noteMoyenne: -1, createdAt: -1 })

@@ -363,7 +363,7 @@ export const getKycList = async (req, res) => {
     // Exclut les photos base64 (identity.frontImage/backImage/selfie, plusieurs Mo chacune)
     // de la LISTE — l'admin les consulte via getKycDetail en cliquant sur un dossier précis.
     const users = await User.find(filter)
-      .select("firstName lastName email phone role kycStatus kycScore kycBadge kycSubmittedAt kycOcrData kycFaceMatchScore kycAuditLog identity.type identity.number identity.expiryDate identity.status")
+      .select("firstName lastName email phone role country kycStatus kycScore kycBadge kycSubmittedAt kycOcrData kycFaceMatchScore kycAuditLog identity.type identity.number identity.expiryDate identity.status")
       .sort({ kycSubmittedAt: -1 })
       .skip(skip)
       .limit(safeLimit)

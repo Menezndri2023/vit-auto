@@ -2,11 +2,13 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useCurrency } from "../context/CurrencyContext";
 import styles from "./Auth.module.css";
 
 const Register = () => {
   const { register } = useAuth();
   const { success, error } = useToast();
+  const { countryCode, COUNTRIES_CONFIG } = useCurrency();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -17,8 +19,15 @@ const Register = () => {
     phone: "",
     password: "",
     confirmPassword: "",
+    country: "",
     role: searchParams.get("role") === "partenaire" ? "partenaire" : "client",
   });
+
+  // Pré-remplit avec le pays détecté par IP (CurrencyContext) dès qu'il est
+  // connu — l'utilisateur reste libre de le changer avant de soumettre.
+  useEffect(() => {
+    if (countryCode) setForm((prev) => (prev.country ? prev : { ...prev, country: countryCode }));
+  }, [countryCode]);
 
   const [submitting,   setSubmitting]   = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -42,7 +51,7 @@ const Register = () => {
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    if (!form.email.trim() || !form.password || !form.firstName || !form.lastName) {
+    if (!form.email.trim() || !form.password || !form.firstName || !form.lastName || !form.country) {
       error("Veuillez remplir tous les champs obligatoires."); return;
     }
     if (form.password !== form.confirmPassword) {
@@ -60,6 +69,7 @@ const Register = () => {
         role:      form.role,
         email:     form.email.trim(),
         phone:     form.phone.trim() || undefined,
+        country:   form.country,
       });
 
       success("Inscription réussie ! Vérifiez votre boîte mail pour activer votre compte. Redirection…");
@@ -118,6 +128,16 @@ const Register = () => {
             onChange={handleChange}
             placeholder="Téléphone (optionnel, ex : +225 07 00 00 00)"
           />
+
+          <select name="country" value={form.country} onChange={handleChange} autoComplete="country" required>
+            <option value="" disabled>Pays *</option>
+            {COUNTRIES_CONFIG.map((c) => (
+              <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
+            ))}
+          </select>
+          <small style={{ color: "#8493b0", fontSize: "0.78rem", display: "block", marginTop: -8, marginBottom: 4 }}>
+            📍 Utilisé pour vous montrer les annonces de votre pays.
+          </small>
 
           <select name="role" value={form.role} onChange={handleChange} autoComplete="off">
             <option value="client">🧑 Client — Louer des véhicules</option>

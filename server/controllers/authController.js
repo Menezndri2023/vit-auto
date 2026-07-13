@@ -10,6 +10,7 @@ import { smsConfigured, twilioVerifyConfigured } from "../utils/smsConfigured.js
 import { emailVerificationRequired } from "../utils/emailVerificationRequired.js";
 import { dispatch } from "../queue/index.js";
 import { sendVerification, checkVerification } from "../services/twilioVerify.js";
+import { isValidCountryCode } from "../utils/countries.js";
 
 const JWT_SECRET         = () => process.env.JWT_SECRET;
 // REFRESH_TOKEN_SECRET est obligatoire et vérifié au démarrage (server.js) — jamais
@@ -55,6 +56,7 @@ function safeUser(u) {
     lastName:         u.lastName,
     email:            u.email,
     phone:            u.phone,
+    country:          u.country || null,
     role:             u.role,
     emailVerified:    u.emailVerified,
     phoneVerified:    u.phoneVerified,
@@ -90,11 +92,15 @@ export const register = async (req, res) => {
   const password  = req.body.password; // Ne pas modifier le mot de passe
   const role      = sanitize(req.body.role);
 
-  const email = sanitize(req.body.email)?.toLowerCase() || null;
-  const phone = sanitize(req.body.phone) || null;
+  const email   = sanitize(req.body.email)?.toLowerCase() || null;
+  const phone   = sanitize(req.body.phone) || null;
+  const country = sanitize(req.body.country)?.toUpperCase() || null;
 
   if (!password || !firstName || !lastName) {
     return res.status(400).json({ message: "Données manquantes." });
+  }
+  if (country && !isValidCountryCode(country)) {
+    return res.status(400).json({ message: "Pays invalide." });
   }
   if (!email) {
     return res.status(400).json({ message: "Une adresse e-mail est requise pour créer un compte." });
@@ -152,6 +158,7 @@ export const register = async (req, res) => {
       firstName, lastName,
       email,
       phone,
+      country,
       password: hash,
       role: userRole,
       emailVerificationToken:   autoVerify ? null : token,

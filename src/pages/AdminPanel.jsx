@@ -1,7 +1,18 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useCurrency } from "../context/CurrencyContext";
 import { Link, useNavigate } from "react-router-dom";
 import styles from "./AdminPanel.module.css";
+
+// Drapeau pays — reconnaissance rapide du pays d'un partenaire/client par
+// l'admin, à partir du code ISO stocké sur User/Vehicle/Driver (voir
+// CurrencyContext.COUNTRIES_CONFIG pour la liste des pays supportés).
+const CountryFlag = ({ code, countriesConfig }) => {
+  if (!code) return null;
+  const c = countriesConfig.find((x) => x.code === code);
+  if (!c) return null;
+  return <span title={c.name} style={{ marginLeft: 6 }}>{c.flag}</span>;
+};
 
 // ─── Utilitaires ───────────────────────────────────────────────────────────────
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
@@ -367,6 +378,7 @@ function ConfirmModal({ message, onConfirm, onCancel, danger }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function AdminPanel() {
   const { user, isAuthenticated, token, logout } = useAuth();
+  const { COUNTRIES_CONFIG } = useCurrency();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab]   = useState("dashboard");
@@ -1740,7 +1752,7 @@ export default function AdminPanel() {
                                 {u.profilePhoto ? <img src={u.profilePhoto} alt="" /> : <span>{(u.firstName?.[0] || "?").toUpperCase()}</span>}
                               </div>
                               <div>
-                                <strong>{u.firstName} {u.lastName}</strong>
+                                <strong>{u.firstName} {u.lastName}<CountryFlag code={u.country} countriesConfig={COUNTRIES_CONFIG} /></strong>
                                 {isSelf && <span className={styles.selfTag}>Vous</span>}
                                 {u.phone && <div style={{ fontSize:".72rem", color:"#94a3b8" }}>{u.phone}</div>}
                               </div>
@@ -2844,7 +2856,7 @@ export default function AdminPanel() {
                     {/* Infos utilisateur */}
                     <div>
                       <div style={{ fontWeight: 800, fontSize: ".95rem", color: "#0f1b3f", marginBottom: 2 }}>
-                        {u.firstName} {u.lastName}
+                        {u.firstName} {u.lastName}<CountryFlag code={u.country} countriesConfig={COUNTRIES_CONFIG} />
                       </div>
                       <div style={{ fontSize: ".81rem", color: "#64748b" }}>{u.email}</div>
                       <div style={{ fontSize: ".76rem", color: "#94a3b8", marginTop: 3 }}>
@@ -4343,7 +4355,7 @@ export default function AdminPanel() {
                             {o.isFoundingPartner && <span style={{ fontSize:".7rem", background:"#fef3c7", color:"#b45309", padding:"2px 8px", borderRadius:20, fontWeight:700 }}>🌟 FP</span>}
                           </div>
                           <div style={{ fontSize:".76rem", color:"#64748b", marginTop:2 }}>
-                            {user.firstName} {user.lastName} · {user.email}
+                            {user.firstName} {user.lastName}<CountryFlag code={user.country} countriesConfig={COUNTRIES_CONFIG} /> · {user.email}
                             <span style={{ marginLeft:8, color:"#94a3b8" }}>Réf: {o.referenceNumber || "—"}</span>
                           </div>
                         </div>
@@ -4715,6 +4727,7 @@ function TrustScoreRing({ score }) {
 }
 
 function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFilter, setPvFilter, pvDetail, setPvDetail, pvCreateModal, setPvCreateModal, pvCreateForm, setPvCreateForm, pvSaving, setPvSaving, pvCriterionLoading, setPvCriterionLoading, users, onRefresh, showToast }) {
+  const { COUNTRIES_CONFIG } = useCurrency();
   const [detailTab, setDetailTab] = useState("dossier");
   const [editInfoMode, setEditInfoMode] = useState(false);
   const [editInfoForm, setEditInfoForm] = useState({});
@@ -4919,7 +4932,15 @@ function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFil
                     </div>
                   </td>
                   <td><span style={{ fontSize: "0.78rem", color: "#475569" }}>{COMPANY_TYPES.find((t) => t.value === pv.companyType)?.label || pv.companyType}</span></td>
-                  <td><span style={{ fontSize: "0.82rem" }}>{pv.country || "—"}</span></td>
+                  <td>
+                    <span style={{ fontSize: "0.82rem" }}>
+                      {pv.country || "—"}
+                      {pv.country && (() => {
+                        const match = COUNTRIES_CONFIG.find((c) => c.name.toLowerCase() === String(pv.country).toLowerCase());
+                        return match ? <span title={match.name} style={{ marginLeft: 6 }}>{match.flag}</span> : null;
+                      })()}
+                    </span>
+                  </td>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <div style={{ flex: 1, height: 6, background: "#e2e8f0", borderRadius: 4, overflow: "hidden", minWidth: 60 }}>

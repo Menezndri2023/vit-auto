@@ -5,6 +5,7 @@ import { useToast } from "../context/ToastContext";
 import { useSocket } from "../context/SocketContext";
 import { useChat } from "../context/ChatContext";
 import { Link, useNavigate } from "react-router-dom";
+import { SUBSCRIPTIONS_ENABLED } from "../config/featureFlags";
 import styles from "./VendorDashboard.module.css";
 
 /* ── Utilitaires ────────────────────────────────────────────────────────── */
@@ -1212,7 +1213,7 @@ export default function VendorDashboard() {
         <div className={isPro ? styles.proBanner : styles.freeBanner}>
           <span className={styles.planBadge}>{isPro ? "✨ Pro" : "Gratuit"}</span>
           <span>{isPro ? `Plan Pro actif jusqu'au ${proEnd}` : "Passez en Pro pour la mise en avant automatique."}</span>
-          {!isPro && <Link to="/plans" className={styles.upgradeLink}>Passer en Pro →</Link>}
+          {!isPro && SUBSCRIPTIONS_ENABLED && <Link to="/plans" className={styles.upgradeLink}>Passer en Pro →</Link>}
         </div>
       )}
 
@@ -1556,7 +1557,7 @@ export default function VendorDashboard() {
                     <div className={styles.vehicleCardActions}>
                       <Link to={`/vendor?edit=${vid}`} className={styles.btnSecondary}>Modifier</Link>
                       <Link to={`/vehicle/${vid}`} className={styles.btnSecondary}>Voir</Link>
-                      {!isBoosted && <button className={styles.btnBoost} onClick={() => handleBoost(vid)} disabled={boostTarget === vid}>{boostTarget === vid ? "…" : "⭐ Booster"}</button>}
+                      {SUBSCRIPTIONS_ENABLED && !isBoosted && <button className={styles.btnBoost} onClick={() => handleBoost(vid)} disabled={boostTarget === vid}>{boostTarget === vid ? "…" : "⭐ Booster"}</button>}
                       <button className={styles.btnDanger} onClick={() => handleDeleteVehicle(vid)}>Suppr.</button>
                     </div>
                     {(vehicle.validationErrors || []).map((e, i) => <p key={i} className={styles.validErr}>❌ {e}</p>)}

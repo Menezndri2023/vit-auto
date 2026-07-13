@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useI18n } from "../context/I18nContext";
+import { SUBSCRIPTIONS_ENABLED } from "../config/featureFlags";
 import styles from "./Plans.module.css";
 
 /* ── Constantes ──────────────────────────────────── */
@@ -286,14 +287,27 @@ export default function Plans() {
               </ul>
 
               {/* CTA */}
-              <button
-                className={`${styles.planCta} ${plan.ctaDisabled ? styles.planCtaDisabled : ""} ${plan.popular ? styles.planCtaPopular : ""}`}
-                style={plan.popular ? {} : { borderColor: plan.color, color: plan.ctaDisabled ? "#94a3b8" : plan.color }}
-                disabled={plan.ctaDisabled || activating === plan.id}
-                onClick={() => !plan.ctaDisabled && handleActivate(plan)}
-              >
-                {activating === plan.id ? t("plans.activating") : plan.id === "corporate" ? t("plans.contact") : plan.cta}
-              </button>
+              {/* Abonnements Pro/Premium temporairement désactivés (aucune passerelle
+                  de paiement réelle branchée) — Corporate reste un simple contact,
+                  Gratuit reste "Plan actuel" : les deux ne passent jamais par activate-pro. */}
+              {(() => {
+                const forceDisabled = !SUBSCRIPTIONS_ENABLED && !["corporate", "decouverte"].includes(plan.id);
+                const isDisabled = plan.ctaDisabled || forceDisabled;
+                return (
+                  <button
+                    className={`${styles.planCta} ${isDisabled ? styles.planCtaDisabled : ""} ${plan.popular ? styles.planCtaPopular : ""}`}
+                    style={plan.popular ? {} : { borderColor: plan.color, color: isDisabled ? "#94a3b8" : plan.color }}
+                    disabled={isDisabled || activating === plan.id}
+                    onClick={() => !isDisabled && handleActivate(plan)}
+                    title={forceDisabled ? "Bientôt disponible" : undefined}
+                  >
+                    {activating === plan.id ? t("plans.activating")
+                      : plan.id === "corporate" ? t("plans.contact")
+                      : forceDisabled ? "Bientôt disponible"
+                      : plan.cta}
+                  </button>
+                );
+              })()}
             </div>
           ))}
         </div>

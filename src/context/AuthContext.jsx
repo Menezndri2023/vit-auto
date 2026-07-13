@@ -173,11 +173,11 @@ export const AuthProvider = ({ children }) => {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Méthodes publiques ─────────────────────────────────────────────────────
-  const register = async ({ firstName, lastName, email, password, phone, role }) => {
+  const register = async ({ firstName, lastName, email, password, phone, role, country }) => {
     const res  = await fetch("/api/auth/register", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ firstName, lastName, email, password, phone, role }),
+      body:    JSON.stringify({ firstName, lastName, email, password, phone, role, country }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || "Erreur d'inscription.");

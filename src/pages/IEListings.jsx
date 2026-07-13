@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { COUNTRIES_ALL, CAR_MAKES } from "../data/autocomplete";
+import { useCurrency } from "../context/CurrencyContext";
 import styles from "./IEListings.module.css";
 import ieModalStyles from "./ImportExport.module.css";
 
@@ -183,6 +184,7 @@ function ListingCard({ l, onContact }) {
 // PAGE PRINCIPALE
 // ═════════════════════════════════════════════════════════════════════════
 export default function IEListings() {
+  const { catalogCountry } = useCurrency();
   const [listings,     setListings]     = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [total,        setTotal]        = useState(0);
@@ -198,6 +200,7 @@ export default function IEListings() {
     try {
       const params = new URLSearchParams({ status: "approved", limit: 12, page });
       if (filterCountry) params.set("sourceCountry", filterCountry);
+      if (catalogCountry) params.set("country", catalogCountry);
       const res = await fetch(`/api/import-export/listings?${params}`);
       if (res.ok) {
         const d = await res.json();
@@ -218,7 +221,7 @@ export default function IEListings() {
       }
     } catch {}
     setLoading(false);
-  }, [page, filterCountry, searchMake, sortOrder]);
+  }, [page, filterCountry, searchMake, sortOrder, catalogCountry]);
 
   useEffect(() => { load(); }, [load]);
 

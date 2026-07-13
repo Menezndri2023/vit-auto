@@ -63,6 +63,7 @@ export const createVehicle = async (req, res) => {
       ...whitelisted,
       // Champs serveur — jamais depuis req.body
       owner:              req.user._id,
+      country:            req.user.country || null,
       status:             validation.status,
       available:          validation.status === "approved",
       validationScore:    validation.score,
@@ -116,7 +117,7 @@ export const getVehicles = async (req, res) => {
   try {
     const {
       type, ville, carburant, transmission, minPrice, maxPrice,
-      vehicleType, search, owner,
+      vehicleType, search, owner, country,
       page  = 1,
       limit = 20,
       status,    // admin uniquement
@@ -153,6 +154,20 @@ export const getVehicles = async (req, res) => {
     }
     // Filtre par propriétaire (showroom public partenaire) — validé ObjectId uniquement
     if (owner && /^[0-9a-f]{24}$/i.test(String(owner))) filter.owner = owner;
+
+    // Filtre pays (International/"INTL" ou absent = aucune restriction). Les
+    // annonces sans pays renseigné (créées avant cette fonctionnalité) restent
+    // toujours visibles, quel que soit le pays demandé — jamais de régression
+    // de visibilité pour les annonces existantes.
+    if (country && country !== "INTL") {
+      const countryOr = [{ country: String(country).toUpperCase() }, { country: null }];
+      if (filter.$or) {
+        filter.$and = [{ $or: filter.$or }, { $or: countryOr }];
+        delete filter.$or;
+      } else {
+        filter.$or = countryOr;
+      }
+    }
 
     const maxLimit  = isAdmin ? 500 : 100;
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), maxLimit);

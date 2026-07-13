@@ -5,6 +5,7 @@ import ImportExportListing     from "../models/ImportExportListing.js";
 import User                    from "../models/User.js";
 import Notification            from "../models/Notification.js";
 import { ensureImporterProfile } from "../utils/ensureImporterProfile.js";
+import { COUNTRY_CODE_TO_NAME } from "../utils/countries.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DEMANDES CLIENT (import/export requests)
@@ -333,7 +334,7 @@ export const getImporterProfileById = async (req, res) => {
 // GET /api/import-export/listings  — public
 export const getListings = async (req, res) => {
   try {
-    const { sourceCountry, status, page = 1, limit = 20, partner } = req.query;
+    const { sourceCountry, status, page = 1, limit = 20, partner, country } = req.query;
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
     const safePage  = Math.max(Number(page), 1);
 
@@ -348,6 +349,20 @@ export const getListings = async (req, res) => {
       filter.sourceCountry = new RegExp(escaped.slice(0, 100), "i");
     }
     if (partner && /^[0-9a-f]{24}$/i.test(String(partner))) filter.partner = partner;
+
+    // Filtre international (code ISO du pays du visiteur) — une annonce est
+    // pertinente pour ce pays si elle en provient (sourceCountry) OU si elle y
+    // est proposée à la livraison (availableIn). "INTL"/absent = pas de filtre
+    // (comportement actuel inchangé, cohérent avec vehicleController.getVehicles).
+    if (country && country !== "INTL") {
+      const countryName = COUNTRY_CODE_TO_NAME[String(country).toUpperCase()];
+      if (countryName) {
+        // Insensible à la casse : sourceCountry/availableIn sont de la saisie
+        // libre (datalist, pas un enum strict), la casse exacte n'est pas garantie.
+        const re = new RegExp(`^${countryName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+        filter.$or = [{ sourceCountry: re }, { availableIn: re }];
+      }
+    }
 
     const [listings, total] = await Promise.all([
       ImportExportListing.find(filter)

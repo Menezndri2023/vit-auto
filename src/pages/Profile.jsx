@@ -155,7 +155,7 @@ const Profile = () => {
   const { user, isAuthenticated, token, updateUser } = useAuth();
   const { bookings, partnerVehicles, partnerBookings, removeBooking } = useVehicles();
   const { success: toastSuccess, error: toastError } = useToast();
-  const { fmt } = useCurrency();
+  const { fmt, COUNTRIES_CONFIG } = useCurrency();
   const { t } = useI18n();
 
   const isPartner = user?.role === "partenaire" || user?.role === "admin";
@@ -187,6 +187,7 @@ const Profile = () => {
     email:         user?.email         || "",
     phone:         user?.phone         || "",
     address:       user?.address       || "",
+    country:       user?.country       || "",
     licenseNumber: user?.licenseNumber || "",
     licenseExpiry: user?.licenseExpiry || "",
     profilePhoto:  user?.profilePhoto  || "",
@@ -566,6 +567,19 @@ const Profile = () => {
                   <input type="text" placeholder={t("auth.address") || "Votre adresse complète"}
                     value={profileData.address}
                     onChange={(e) => handleProfileChange("address", e.target.value)} />
+                </div>
+
+                <div className={styles.field}>
+                  <label>Pays</label>
+                  <select value={profileData.country} onChange={(e) => handleProfileChange("country", e.target.value)}>
+                    <option value="">— Sélectionner —</option>
+                    {COUNTRIES_CONFIG.map((c) => (
+                      <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
+                    ))}
+                  </select>
+                  <small style={{ color: "#8493b0", fontSize: "0.78rem" }}>
+                    📍 Détermine les annonces de votre pays affichées dans le catalogue.
+                  </small>
                 </div>
 
                 {/* Permis (seulement clients) */}

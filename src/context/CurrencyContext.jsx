@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
+import { useAuth } from "./AuthContext";
 
 const CurrencyContext = createContext(null);
 
@@ -15,6 +16,7 @@ export const EXCHANGE_RATES_FROM_MAD = {
   TND: 0.310,
   DZD: 13.5,
   GNF: 927,
+  CNY: 0.716,
 };
 
 // Taux de conversion XOF → devise (pour rétrocompat avec fmt(amountXOF))
@@ -29,6 +31,7 @@ export const EXCHANGE_RATES = {
   TND: 195,
   DZD: 4.4,
   GNF: 0.065,
+  CNY: 84.5,
 };
 
 // Correspondance pays → devise
@@ -45,6 +48,7 @@ const COUNTRY_TO_CURRENCY = {
   GB: "GBP",
   US: "USD",
   CA: "CAD",
+  CN: "CNY",
 };
 
 export const CURRENCIES = [
@@ -57,6 +61,7 @@ export const CURRENCIES = [
   { code: "CHF", symbol: "CHF",  name: "Franc suisse",     flag: "🇨🇭",  locale: "fr-CH" },
   { code: "TND", symbol: "DT",   name: "Dinar tunisien",   flag: "🇹🇳",  locale: "fr-TN" },
   { code: "DZD", symbol: "DA",   name: "Dinar algérien",   flag: "🇩🇿",  locale: "fr-DZ" },
+  { code: "CNY", symbol: "¥",    name: "Yuan chinois",     flag: "🇨🇳",  locale: "zh-CN" },
 ];
 
 export const COUNTRIES_CONFIG = [
@@ -72,14 +77,44 @@ export const COUNTRIES_CONFIG = [
   { code: "CH", name: "Suisse",        flag: "🇨🇭", currency: "CHF", symbol: "CHF",  locale: "fr-CH" },
   { code: "US", name: "États-Unis",    flag: "🇺🇸", currency: "USD", symbol: "$",    locale: "en-US" },
   { code: "CA", name: "Canada",        flag: "🇨🇦", currency: "CAD", symbol: "CA$",  locale: "fr-CA" },
+  { code: "CN", name: "Chine",         flag: "🇨🇳", currency: "CNY", symbol: "¥",    locale: "zh-CN" },
 ];
 
+// Valeur spéciale (pas un vrai code pays ISO) pour "toutes les annonces, tous
+// pays confondus" — utilisée par le sélecteur de catalogue, jamais stockée
+// sur un utilisateur/une annonce.
+export const COUNTRY_INTERNATIONAL = "INTL";
+
 export function CurrencyProvider({ children }) {
+  const { user } = useAuth();
   const saved = localStorage.getItem("vit_currency");
   // Devise par défaut : MAD (Maroc — siège social)
   const [currencyCode, setCurrencyState] = useState(saved || "MAD");
   const [detectedCountry, setDetectedCountry] = useState(saved ? "MA" : null);
   const [detecting, setDetecting] = useState(!saved);
+
+  // ── Filtre pays du catalogue (véhicules, chauffeurs, import/export) ────────
+  // Distinct de la devise : "International" affiche tout sans changer la
+  // devise active. Par défaut, un utilisateur connecté voit le catalogue de
+  // son propre pays déclaré au profil ; sinon, celui détecté par IP/enregistré.
+  const savedCatalog = localStorage.getItem("vit_catalog_country");
+  const [catalogCountry, setCatalogCountryState] = useState(savedCatalog || null);
+  const catalogManuallySet = useRef(!!savedCatalog);
+
+  const setCatalogCountry = useCallback((code) => {
+    catalogManuallySet.current = true;
+    setCatalogCountryState(code);
+    localStorage.setItem("vit_catalog_country", code);
+  }, []);
+
+  // Le pays du profil (déclaré à l'inscription) prime sur la détection IP dès
+  // qu'il est connu — mais seulement tant que l'utilisateur n'a pas choisi
+  // explicitement un autre pays de catalogue via le sélecteur.
+  useEffect(() => {
+    if (catalogManuallySet.current) return;
+    if (user?.country) setCatalogCountryState(user.country);
+    else if (detectedCountry) setCatalogCountryState(detectedCountry);
+  }, [user?.country, detectedCountry]);
 
   // Auto-détection IP → devise si aucun choix manuel
   useEffect(() => {
@@ -185,6 +220,9 @@ export function CurrencyProvider({ children }) {
           const cur = COUNTRY_TO_CURRENCY[cc];
           if (cur) setCurrency(cur);
         },
+        catalogCountry: catalogCountry || detectedCountry || "MA",
+        setCatalogCountry,
+        COUNTRY_INTERNATIONAL,
       }}
     >
       {children}

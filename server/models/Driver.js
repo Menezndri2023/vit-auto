@@ -30,6 +30,9 @@ const driverSchema = new mongoose.Schema({
   },
   zone:        { type: String, required: true, trim: true },
   ville:       { type: String, trim: true },
+  // Hérité du pays du partenaire propriétaire (jamais depuis le body) — même
+  // usage que Vehicle.country pour le filtrage international du catalogue.
+  country:     { type: String, uppercase: true, trim: true, default: null },
 
   // ── Expérience & compétences ──────────────────────────────
   experience:     { type: String, required: true }, // ex: "5 ans"
@@ -61,6 +64,7 @@ const driverSchema = new mongoose.Schema({
 driverSchema.index({ owner: 1 });
 driverSchema.index({ status: 1 });
 driverSchema.index({ zone: 1 });
+driverSchema.index({ country: 1 });
 
 driverSchema.pre("save", function (next) {
   this.updatedAt = new Date();

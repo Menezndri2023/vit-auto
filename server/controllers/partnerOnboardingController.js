@@ -547,7 +547,7 @@ export const adminList = async (req, res) => {
     const skip = (Number(page) - 1) * Number(limit);
     const [docs, total] = await Promise.all([
       PartnerOnboarding.find(filter)
-        .populate("userId", "firstName lastName email phone profilePhoto certificationBadge")
+        .populate("userId", "firstName lastName email phone profilePhoto certificationBadge country")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(Math.min(Number(limit), 50))

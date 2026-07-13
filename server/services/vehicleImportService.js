@@ -438,7 +438,7 @@ async function downloadImagesForRow(imageUrls, budgetDeadline, rowWarnings, file
 }
 
 // ── Traite une ligne du batch (véhicule catalogue) et retourne le résultat ───
-async function processVehicleImportRow(batch, rawRow, rowIndex, budgetDeadline) {
+async function processVehicleImportRow(batch, rawRow, rowIndex, budgetDeadline, ownerUser) {
   let vehicleLabel = "";
   try {
     const { data, imageUrls, rowWarnings } = mapRowToVehicleInput(rawRow);
@@ -477,6 +477,7 @@ async function processVehicleImportRow(batch, rawRow, rowIndex, budgetDeadline) 
     const vehicle = await Vehicle.create({
       ...whitelisted,
       owner:              batch.owner,
+      country:            ownerUser?.country || null,
       status:             validation.status,
       available:          validation.status === "approved",
       validationScore:    validation.score,
@@ -579,7 +580,7 @@ async function processImportRow(batch, rawRow, rowIndex, budgetDeadline, ctx) {
   if (batch.targetType === "export") {
     return processIEImportRow(batch, rawRow, rowIndex, budgetDeadline, ctx.ownerUser, ctx.importerProfile);
   }
-  return processVehicleImportRow(batch, rawRow, rowIndex, budgetDeadline);
+  return processVehicleImportRow(batch, rawRow, rowIndex, budgetDeadline, ctx.ownerUser);
 }
 
 // ── Traite un batch d'import — appelé par le worker ET en fallback synchrone ─
@@ -593,16 +594,15 @@ export async function processImportBatch(batchId) {
   const isExport = batch.targetType === "export";
 
   try {
-    // ── Contexte export : propriétaire + profil importateur auto-provisionné ─
-    // une seule fois pour tout le batch (pas à chaque ligne).
-    let ctx = {};
+    // ── Contexte partagé : propriétaire (pour son pays + profil importateur
+    // export si besoin) chargé une seule fois pour tout le batch, pas à chaque ligne.
+    const ownerUser = await User.findById(batch.owner);
+    let ctx = { ownerUser };
     if (isExport) {
-      const ownerUser = await User.findById(batch.owner);
       if (!ownerUser?.isFounder) {
         throw new Error("Ce compte n'est plus Founding Partner — import export annulé.");
       }
-      const importerProfile = await ensureImporterProfile(ownerUser);
-      ctx = { ownerUser, importerProfile };
+      ctx.importerProfile = await ensureImporterProfile(ownerUser);
     }
 
     while (batch.pendingRows.length > 0) {

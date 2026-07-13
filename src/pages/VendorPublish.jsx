@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
 import { useToast } from "../context/ToastContext";
 import { CAR_MAKES, BODY_TYPES, COUNTRIES_ALL, COUNTRIES_AFRIQUE_OUEST, CURRENCIES } from "../data/autocomplete";
+import { SUBSCRIPTIONS_ENABLED } from "../config/featureFlags";
 import styles from "./VendorPublish.module.css";
 
 const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " DH";
@@ -118,7 +119,7 @@ const VehicleCard = ({ v, bookings, onDelete, onBoost }) => {
           <div className={styles.miniStat}><span className={styles.miniVal} style={{ color: "#10b981" }}>{fmt(vst.revenue)}</span><span className={styles.miniLbl}>Revenus</span></div>
         </div>
         <div className={styles.cardActions}>
-          {v.status === "approved" && (
+          {v.status === "approved" && SUBSCRIPTIONS_ENABLED && (
             <button className={styles.boostBtn} onClick={() => onBoost(v)}>⚡ Booster</button>
           )}
           {v.status === "rejected" && (

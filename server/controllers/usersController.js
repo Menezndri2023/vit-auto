@@ -7,6 +7,7 @@ import Notification from "../models/Notification.js";
 import { sendEmail, identityRejectedTemplate } from "../config/email.js";
 import { logAction } from "../middleware/auditLog.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
+import { isValidCountryCode } from "../utils/countries.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -378,13 +379,20 @@ export const getPendingIdentities = async (req, res) => {
 // ── Mettre à jour son propre profil (utilisateur connecté) ───────────────
 export const updateMyProfile = async (req, res) => {
   try {
-    const allowed = ["firstName", "lastName", "phone", "address",
+    const allowed = ["firstName", "lastName", "phone", "address", "country",
                      "notif_emailReminders", "notif_smsReminders",
                      "notif_promotionalEmails", "notif_bookingConfirmations",
                      "licenseNumber", "licenseExpiry", "profilePhoto"];
     const updates = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
+    }
+
+    if (updates.country) {
+      updates.country = String(updates.country).toUpperCase();
+      if (!isValidCountryCode(updates.country)) {
+        return res.status(400).json({ message: "Pays invalide." });
+      }
     }
 
     if (updates.profilePhoto) {
