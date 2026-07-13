@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useChat } from "../context/ChatContext";
 import styles from "./IETransactionTracking.module.css";
 
 const fmtPrice = (p, c = "EUR") =>
@@ -564,6 +565,7 @@ export default function IETransactionTracking() {
   const { id }        = useParams();
   const { user, token } = useAuth();
   const navigate      = useNavigate();
+  const { selectChat, setOpen: setChatOpen } = useChat();
 
   const [tx,      setTx]      = useState(null);
   const [loading, setLoading] = useState(true);
@@ -765,12 +767,24 @@ export default function IETransactionTracking() {
             </div>
           )}
 
-          {/* Lien chat */}
+          {/* Lien chat — le chat est déjà créé à la réservation (createTransactionChat,
+              voir ieTransactionController.js), donc on l'ouvre directement par son ID
+              plutôt que via getOrCreateChat (qui exige un bookingId réel — une
+              IETransaction n'en a pas). */}
           {tx.chat && (
-            <div className={styles.sideCard}>
+            <button
+              type="button"
+              className={styles.sideCard}
+              style={{ width: "100%", textAlign: "left", cursor: "pointer", border: "none" }}
+              onClick={() => {
+                const other = role === "client" ? tx.partner : tx.client;
+                selectChat({ _id: tx.chat, other, type: "client_partner" });
+                setChatOpen(true);
+              }}
+            >
               <h4>💬 Messagerie sécurisée</h4>
-              <p className={styles.chatNote}>Toutes vos communications sont enregistrées et sécurisées sur VIT AUTO.</p>
-            </div>
+              <p className={styles.chatNote}>Toutes vos communications sont enregistrées et sécurisées sur VIT AUTO. Cliquez pour ouvrir la conversation.</p>
+            </button>
           )}
 
           {/* Lien vers l'annonce */}

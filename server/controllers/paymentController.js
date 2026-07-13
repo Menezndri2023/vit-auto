@@ -65,7 +65,12 @@ export const initiatePayment = async (req, res) => {
     if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
     if (booking.isPaid) return res.status(409).json({ message: "Cette réservation est déjà payée." });
 
-    if (booking.client && req.user && req.user.role !== "admin" && booking.client.toString() !== req.user._id.toString()) {
+    // Si la réservation appartient à un compte (pas une réservation invité),
+    // exiger d'être authentifié en tant que ce client (ou admin) — la
+    // condition précédente ne rejetait QUE si req.user était présent ET ne
+    // correspondait pas, ce qui laissait passer n'importe quel appel anonyme
+    // (sans en-tête Authorization du tout) sur la réservation d'un compte réel.
+    if (booking.client && (!req.user || (req.user.role !== "admin" && booking.client.toString() !== req.user._id.toString()))) {
       return res.status(403).json({ message: "Accès refusé. Vous ne pouvez payer que vos propres réservations." });
     }
 
@@ -120,6 +125,17 @@ export const simulatePayment = async (req, res) => {
     }
     if (payment.status !== "pending") {
       return res.status(409).json({ message: "Ce paiement n'est plus en attente." });
+    }
+
+    // Route non authentifiée à l'origine : n'importe qui connaissant/devinant
+    // un ObjectId de Payment pouvait marquer la réservation d'un tiers comme
+    // payée gratuitement. Même garde que initiatePayment ci-dessus — exige
+    // d'être le client de la réservation (ou admin) dès qu'elle appartient à
+    // un compte ; une réservation invité (sans client) reste simulable par
+    // quiconque détient l'ID, comme n'importe quel flux de paiement invité.
+    const booking = await Booking.findById(payment.booking).select("client");
+    if (booking?.client && (!req.user || (req.user.role !== "admin" && booking.client.toString() !== req.user._id.toString()))) {
+      return res.status(403).json({ message: "Accès refusé." });
     }
 
     if (outcome === "success") await completePayment(payment, { providerRef: `sim_${payment._id}` });

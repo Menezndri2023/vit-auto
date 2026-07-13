@@ -7,8 +7,32 @@ import { dispatch } from "../queue/index.js";
 import { scoreAnnonce, buildVehicleWhitelist } from "../services/vehicleScoring.js";
 import { logAction } from "../middleware/auditLog.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
+import { validateImageDataUri } from "../utils/imageValidation.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const MAX_VEHICLE_IMAGE_BYTES = 6 * 1024 * 1024; // cohérent avec KYC/profil
+const MAX_IMAGE_URL_LENGTH    = 2048;
+
+// `images` n'était jamais validé côté serveur (seule la longueur du tableau
+// l'était) : un partenaire authentifié pouvait soumettre un blob base64 énorme
+// ou une chaîne arbitraire directement dans ce champ, indépendamment du flux
+// prévu (compression client + upload ImageKit). Chaque entrée doit être soit
+// une data URI image valide (magic bytes + taille, comme KYC), soit une URL
+// http(s) de longueur raisonnable.
+function validateVehicleImages(images) {
+  if (!Array.isArray(images)) return null;
+  for (const img of images) {
+    if (typeof img !== "string" || !img) continue;
+    if (img.startsWith("data:")) {
+      const check = validateImageDataUri(img, MAX_VEHICLE_IMAGE_BYTES);
+      if (!check.ok) return check.message;
+    } else if (!/^https?:\/\//i.test(img) || img.length > MAX_IMAGE_URL_LENGTH) {
+      return "Image invalide : URL http(s) ou image encodée attendue.";
+    }
+  }
+  return null;
+}
 
 // ── Créer une annonce véhicule (partenaire) ───────────────────────────────────
 export const createVehicle = async (req, res) => {
@@ -53,6 +77,8 @@ export const createVehicle = async (req, res) => {
     if (req.body.images && req.body.images.length > 8) {
       req.body.images = req.body.images.slice(0, 8);
     }
+    const imagesError = validateVehicleImages(req.body.images);
+    if (imagesError) return res.status(400).json({ message: imagesError });
 
     // ── Validation automatique ──────────────────────────────────────────────
     const validation = scoreAnnonce(req.body);
@@ -354,6 +380,12 @@ export const updateVehicle = async (req, res) => {
     ];
     // Champs réservés admin
     const ADMIN_ONLY = ["featured", "sponsoredUntil", "boostLevel"];
+    if (req.body.images) {
+      req.body.images = req.body.images.slice(0, 8);
+      const imagesError = validateVehicleImages(req.body.images);
+      if (imagesError) return res.status(400).json({ message: imagesError });
+    }
+
     const safeUpdate = {};
     for (const key of EDITABLE) {
       if (req.body[key] !== undefined) safeUpdate[key] = req.body[key];

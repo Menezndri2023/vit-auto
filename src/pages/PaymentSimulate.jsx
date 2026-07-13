@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useCurrency } from "../context/CurrencyContext";
+import { useAuth } from "../context/AuthContext";
 
 const METHOD_LABELS = { card: "Carte bancaire", orange_money: "Orange Money", wave: "Wave" };
 
@@ -16,6 +17,7 @@ export default function PaymentSimulate() {
   const { paymentId } = useParams();
   const navigate = useNavigate();
   const { fmt } = useCurrency();
+  const { token } = useAuth();
   const [payment, setPayment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -43,14 +45,16 @@ export default function PaymentSimulate() {
   const handleOutcome = useCallback(async (outcome) => {
     setActing(true);
     try {
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
       await fetch(`/api/payments/${paymentId}/simulate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ outcome }),
       });
     } catch { /* la page de résultat re-vérifiera le statut */ }
     navigate(outcome === "success" ? `/payment/success?paymentId=${paymentId}` : `/payment/cancel?paymentId=${paymentId}`);
-  }, [paymentId, navigate]);
+  }, [paymentId, navigate, token]);
 
   if (loading) {
     return (

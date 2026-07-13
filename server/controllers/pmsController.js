@@ -5,6 +5,7 @@ import PartnerShowroom from "../models/PartnerShowroom.js";
 import Booking from "../models/Booking.js";
 import Vehicle from "../models/Vehicle.js";
 import User from "../models/User.js";
+import { sendViaEmail, sendViaSms } from "../services/communication/CommunicationService.js";
 
 // Champs autorisés à la création d'un lead (sous-ensemble strict)
 const LEAD_CREATE_FIELDS = [
@@ -306,6 +307,31 @@ export async function sendQuote(req, res) {
       { new: true }
     );
     if (!quote) return res.status(404).json({ message: "Devis introuvable ou non modifiable" });
+
+    // Le passage à "envoye" ne notifiait jamais réellement l'acheteur — le
+    // partenaire croyait le devis transmis alors que rien ne partait jamais
+    // vers buyer.email/buyer.phone (saisis au formulaire mais jamais utilisés).
+    const partner = await User.findById(req.user._id).select("firstName lastName business.name").lean();
+    const partnerName = partner?.business?.name || `${partner?.firstName || ""} ${partner?.lastName || ""}`.trim() || "VIT AUTO";
+    const totalFmt = `${Number(quote.total || 0).toLocaleString("fr-FR")} ${quote.currency}`;
+
+    if (quote.buyer?.email) {
+      sendViaEmail({
+        to: quote.buyer.email,
+        subject: `Devis ${quote.quoteNumber} — ${partnerName}`,
+        html: `<p>Bonjour ${quote.buyer.name || ""},</p>
+          <p>${partnerName} vous a envoyé un devis pour votre projet d'importation :</p>
+          <p><strong>Devis n°${quote.quoteNumber}</strong><br/>Montant total : <strong>${totalFmt}</strong></p>
+          <p>Connectez-vous à votre espace VIT AUTO ou contactez directement le partenaire pour toute question.</p>`,
+      }).catch((err) => logger.error("sendQuote email:", err));
+    }
+    if (quote.buyer?.phone) {
+      sendViaSms({
+        to: quote.buyer.phone,
+        message: `VIT AUTO : ${partnerName} vous a envoyé le devis ${quote.quoteNumber} (${totalFmt}). Consultez votre email pour le détail.`,
+      }).catch((err) => logger.error("sendQuote sms:", err));
+    }
+
     res.json(quote);
   } catch (err) {
     res.status(500).json({ message: err.message });

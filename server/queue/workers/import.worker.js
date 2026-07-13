@@ -46,9 +46,13 @@ export async function processImportJob(job) {
       const stepLabel = IE_STEP_LABELS[newStep] || `Étape ${newStep}`;
 
       // Notifications aux participants
-      const { sendViaInternal, sendViaSms } = await import("../../services/communication/CommunicationService.js");
+      const { sendViaInternal } = await import("../../services/communication/CommunicationService.js");
 
-      const notifyIds = [tx.buyer, tx.seller, tx.broker].filter(Boolean).map(String);
+      // IETransaction n'a que `client`/`partner` (voir models/IETransaction.js) —
+      // pas de buyer/seller/broker, ces champs n'ont jamais existé sur ce
+      // schéma. `notifyIds` était donc toujours vide et ce job ne notifiait
+      // jamais personne.
+      const notifyIds = [tx.client, tx.partner].filter(Boolean).map(String);
       await Promise.allSettled(notifyIds.map((uid) =>
         sendViaInternal({
           userId:  uid,
@@ -64,52 +68,45 @@ export async function processImportJob(job) {
     }
 
     case "escrow_check": {
+      // La libération réelle des fonds se fait de façon synchrone et explicite
+      // dans releaseFunds (ieTransactionController.js — action du client ou d'un
+      // admin sur une transaction "delivered"), jamais automatiquement ici. Ce
+      // job référençait des champs qui n'ont jamais existé sur IETransaction
+      // (currentStep/escrow.status/isPaid — le schéma réel n'a que `status` et
+      // `payment.releasedAt`) et ne faisait donc jamais rien. Conservé comme
+      // simple point de contrôle de cohérence plutôt que de réintroduire une
+      // logique de libération automatique qui ne correspond à aucune règle
+      // métier actuelle.
       const IETransaction = (await import("../../models/IETransaction.js")).default;
-      const tx = await IETransaction.findById(transactionId).lean();
+      const tx = await IETransaction.findById(transactionId).select("status payment").lean();
       if (!tx) return { skipped: true, reason: "tx_not_found" };
 
-      // Escrow libérable si step >= 13 (validation client) et isPaid
-      const canRelease = tx.currentStep >= 13 && tx.escrow?.status === "held" && tx.isPaid;
-
-      if (canRelease) {
-        await IETransaction.findByIdAndUpdate(transactionId, {
-          $set: {
-            "escrow.status":      "released",
-            "escrow.releasedAt":  new Date(),
-          },
-        });
-
-        const { sendViaInternal } = await import("../../services/communication/CommunicationService.js");
-        if (tx.seller) {
-          await sendViaInternal({
-            userId:  tx.seller.toString(),
-            type:    "payment",
-            titre:   "💰 Fonds débloqués — Escrow libéré",
-            message: "Les fonds de votre transaction ont été libérés depuis l'escrow.",
-            lien:    `/ie/transaction/${transactionId}`,
-          }).catch(() => {});
-        }
-        logger.info("[ImportWorker] Escrow libéré", { transactionId });
-        return { transactionId, escrowReleased: true };
-      }
-
-      return { transactionId, escrowReleased: false };
+      const released = tx.status === "funds_released" || tx.status === "completed" || !!tx.payment?.releasedAt;
+      return { transactionId, escrowAlreadyReleased: released };
     }
 
     case "evaluation_prompt": {
-      const { buyerId, sellerId } = data;
+      // `data.buyerId`/`data.sellerId` n'ont jamais existé — dispatch.ieStepTransition
+      // (queue/index.js) planifie ce job avec `data: {}`. Recharger la transaction
+      // directement (client/partner, seuls champs réels du schéma IETransaction)
+      // au moment où le job s'exécute (24h plus tard) est aussi plus fiable que de
+      // figer des IDs dans les données du job.
+      const IETransaction = (await import("../../models/IETransaction.js")).default;
+      const tx = await IETransaction.findById(transactionId).select("client partner").lean();
+      if (!tx) return { skipped: true, reason: "tx_not_found" };
+
       const { sendViaInternal } = await import("../../services/communication/CommunicationService.js");
 
       await Promise.allSettled([
-        buyerId && sendViaInternal({
-          userId:  buyerId,
+        tx.client && sendViaInternal({
+          userId:  tx.client.toString(),
           type:    "system",
           titre:   "⭐ Évaluez votre expérience",
           message: "Votre transaction est terminée. Partagez votre avis sur le vendeur/partenaire.",
           lien:    `/ie/transaction/${transactionId}`,
         }),
-        sellerId && sendViaInternal({
-          userId:  sellerId,
+        tx.partner && sendViaInternal({
+          userId:  tx.partner.toString(),
           type:    "system",
           titre:   "⭐ Évaluez l'acheteur",
           message: "La transaction est clôturée. Évaluez l'acheteur pour améliorer la communauté.",

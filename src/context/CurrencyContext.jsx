@@ -116,30 +116,91 @@ export function CurrencyProvider({ children }) {
     else if (detectedCountry) setCatalogCountryState(detectedCountry);
   }, [user?.country, detectedCountry]);
 
-  // Auto-détection IP → devise si aucun choix manuel
+  // Auto-détection pays → devise si aucun choix manuel. Priorité au endpoint
+  // serveur (geoip-lite, base locale hors ligne, fiable et sans dépendance
+  // réseau tierce) — l'ancienne approche 100% côté client (fetch direct vers
+  // ipapi.co) échouait silencieusement dès qu'un bloqueur de pub, une politique
+  // CORS ou le quota gratuit du service tiers intervenait, et retombait alors
+  // TOUJOURS sur le Maroc par défaut, y compris pour des visiteurs d'Afrique
+  // de l'Ouest (marché principal) — gardé uniquement en second repli.
   useEffect(() => {
     if (saved) { setDetecting(false); return; }
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
+    let cancelled = false;
 
-    fetch("https://ipapi.co/json/", { signal: controller.signal })
-      .then((r) => r.ok ? r.json() : Promise.reject())
-      .then((data) => {
-        const cc = data.country_code || "MA";
-        const cur = COUNTRY_TO_CURRENCY[cc] || "MAD";
-        setDetectedCountry(cc);
-        setCurrencyState(cur);
-      })
-      .catch(() => {
-        // Fallback : MAD (Maroc). L'ancien second essai visait ip-api.com en http:// —
-        // bloqué en mixed-content sur un site servi en HTTPS, donc mort de toute façon,
-        // et son échec n'était jamais attendu par le .finally() ci-dessous.
-        setDetectedCountry("MA");
-      })
-      .finally(() => { clearTimeout(timer); setDetecting(false); });
+    const applyCountry = (cc) => {
+      if (cancelled || !cc) return false;
+      const cur = COUNTRY_TO_CURRENCY[cc] || "MAD";
+      setDetectedCountry(cc);
+      setCurrencyState(cur);
+      return true;
+    };
 
-    return () => { controller.abort(); clearTimeout(timer); };
+    (async () => {
+      try {
+        const r = await fetch("/api/geo/my-country");
+        if (r.ok) {
+          const d = await r.json();
+          if (applyCountry(d.country)) { setDetecting(false); return; }
+        }
+      } catch { /* backend indisponible — repli ci-dessous */ }
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      try {
+        const r = await fetch("https://ipapi.co/json/", { signal: controller.signal });
+        if (r.ok) {
+          const d = await r.json();
+          applyCountry(d.country_code || "MA");
+        } else {
+          applyCountry("MA");
+        }
+      } catch {
+        applyCountry("MA");
+      } finally {
+        clearTimeout(timer);
+        if (!cancelled) setDetecting(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Détection précise optionnelle via géolocalisation navigateur (GPS/Wi-Fi) —
+  // complète la détection IP quand elle est disponible (ex : IP faussée par un
+  // VPN/proxy mobile) ou lorsqu'un utilisateur veut explicitement affiner sa
+  // position (bouton dédié, jamais déclenché automatiquement sans geste
+  // utilisateur). Reverse-geocode via Nominatim, déjà utilisé ailleurs sur le
+  // site (Booking.jsx, VendorSubmit.jsx) — aucune clé API supplémentaire.
+  const detectPreciseCountry = useCallback(() => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve({ ok: false, message: "Géolocalisation non supportée par ce navigateur." }); return; }
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          try {
+            const { latitude, longitude } = pos.coords;
+            const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`, { headers: { "Accept-Language": "fr" } });
+            const d = await r.json();
+            const cc = d?.address?.country_code?.toUpperCase();
+            if (cc && COUNTRIES_CONFIG.some((c) => c.code === cc)) {
+              const cur = COUNTRY_TO_CURRENCY[cc] || "MAD";
+              setDetectedCountry(cc);
+              setCurrencyState(cur);
+              catalogManuallySet.current = true;
+              setCatalogCountryState(cc);
+              localStorage.setItem("vit_catalog_country", cc);
+              resolve({ ok: true, country: cc });
+            } else {
+              resolve({ ok: false, message: "Pays non reconnu ou non couvert par VIT AUTO." });
+            }
+          } catch {
+            resolve({ ok: false, message: "Impossible de déterminer le pays depuis votre position." });
+          }
+        },
+        (err) => resolve({ ok: false, message: err.code === 1 ? "Accès à la position refusé." : "Position indisponible." }),
+        { enableHighAccuracy: false, timeout: 10000 }
+      );
+    });
+  }, []);
 
   const currentCurrency = CURRENCIES.find((c) => c.code === currencyCode) || CURRENCIES[0];
 
@@ -222,6 +283,7 @@ export function CurrencyProvider({ children }) {
         },
         catalogCountry: catalogCountry || detectedCountry || "MA",
         setCatalogCountry,
+        detectPreciseCountry,
         COUNTRY_INTERNATIONAL,
       }}
     >

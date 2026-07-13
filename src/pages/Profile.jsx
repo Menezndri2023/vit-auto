@@ -152,7 +152,7 @@ const KYC_STATUS_CFG = {
 const Profile = () => {
   const navigate  = useNavigate();
   const location  = useLocation();
-  const { user, isAuthenticated, token, updateUser } = useAuth();
+  const { user, isAuthenticated, token, updateUser, setSession } = useAuth();
   const { bookings, partnerVehicles, partnerBookings, removeBooking } = useVehicles();
   const { success: toastSuccess, error: toastError } = useToast();
   const { fmt, COUNTRIES_CONFIG } = useCurrency();
@@ -418,6 +418,10 @@ const Profile = () => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Erreur.");
+      // Le changement de mot de passe invalide l'ancien token (voir tokenVersion,
+      // server/middleware/auth.js) — sans appliquer le nouveau immédiatement, la
+      // session en cours serait rejetée (401) à la toute prochaine requête.
+      if (data.token) setSession(user, data.token);
       toastSuccess("Mot de passe modifié avec succès !");
       setPwdForm({ current: "", next: "", confirm: "" });
       setShowPwdForm(false);

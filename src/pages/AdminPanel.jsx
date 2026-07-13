@@ -399,6 +399,16 @@ export default function AdminPanel() {
   }, []);
   const [ieRequests, setIeRequests]       = useState([]);
   const [ieLoading,  setIeLoading]        = useState(false);
+  // Transactions IE réelles (pipeline escrow 14 étapes) — distinctes des
+  // "requests" ci-dessus (demandes initiales étapes 1-3). Aucune interface
+  // admin n'exposait auparavant les litiges ou l'inspection indépendante de
+  // ce pipeline, alors que de l'argent réel y est bloqué en entiercement.
+  const [ieTransactions, setIeTransactions] = useState([]);
+  const [ieTxLoading,    setIeTxLoading]    = useState(false);
+  const [ieTxModal,      setIeTxModal]      = useState(null); // { tx, mode: "dispute"|"inspection" }
+  const [ieTxNote,       setIeTxNote]       = useState("");
+  const [ieTxRelease,    setIeTxRelease]    = useState(true);
+  const [ieTxSaving,     setIeTxSaving]     = useState(false);
   // Commissions & Factures
   const [commissions,      setCommissions]      = useState([]);
   const [commissionsStats, setCommissionsStats] = useState(null);
@@ -600,6 +610,46 @@ export default function AdminPanel() {
     } catch { /* endpoint optionnel */ }
     setIeLoading(false);
   }, [token, headers]);
+
+  const loadIeTransactions = useCallback(async () => {
+    if (!token) return;
+    setIeTxLoading(true);
+    try {
+      const res = await fetch("/api/import-export/transactions?limit=100", { headers });
+      if (res.ok) { const d = await res.json(); setIeTransactions(d.transactions || []); }
+    } catch { /* ignore */ }
+    setIeTxLoading(false);
+  }, [token, headers]);
+
+  const handleResolveIeDispute = async () => {
+    if (!ieTxModal?.tx) return;
+    setIeTxSaving(true);
+    try {
+      const r = await fetch(`/api/import-export/transactions/${ieTxModal.tx._id}/dispute/resolve`, {
+        method: "PATCH", headers,
+        body: JSON.stringify({ resolution: ieTxNote, releaseToPartner: ieTxRelease }),
+      });
+      const d = await r.json();
+      if (r.ok) { showToast("Litige résolu.", "success"); setIeTxModal(null); setIeTxNote(""); loadIeTransactions(); }
+      else showToast(d.message || "Erreur.", "error");
+    } catch { showToast("Erreur réseau.", "error"); }
+    setIeTxSaving(false);
+  };
+
+  const handleCompleteIeInspection = async () => {
+    if (!ieTxModal?.tx) return;
+    setIeTxSaving(true);
+    try {
+      const r = await fetch(`/api/import-export/transactions/${ieTxModal.tx._id}/complete-inspection`, {
+        method: "PATCH", headers,
+        body: JSON.stringify({ reportNotes: ieTxNote }),
+      });
+      const d = await r.json();
+      if (r.ok) { showToast("Inspection complétée.", "success"); setIeTxModal(null); setIeTxNote(""); loadIeTransactions(); }
+      else showToast(d.message || "Erreur.", "error");
+    } catch { showToast("Erreur réseau.", "error"); }
+    setIeTxSaving(false);
+  };
 
   // ── Profils & annonces importateurs ────────────────────────────────────────
   const loadImporters = useCallback(async () => {
@@ -1012,7 +1062,7 @@ export default function AdminPanel() {
   }, [token, headers, pvFilter]);
 
   useEffect(() => {
-    if (activeTab === "import_export")  loadImportExport();
+    if (activeTab === "import_export")  { loadImportExport(); loadIeTransactions(); }
     if (activeTab === "exportateurs")   loadImporters();
     if (activeTab === "commissions")    loadCommissions();
     if (activeTab === "factures")       loadInvoices();
@@ -1025,7 +1075,7 @@ export default function AdminPanel() {
     if (activeTab === "paiements")         loadSubRequests();
     if (activeTab === "reviews")           loadReviews();
     if (activeTab === "audit")             loadAuditLog();
-  }, [activeTab, loadImportExport, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog]);
+  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog]);
 
   // Rafraîchissement périodique de la liste support (nouvelles demandes) tant que
   // l'onglet est affiché — même logique de polling que le widget chat public.
@@ -3415,6 +3465,112 @@ export default function AdminPanel() {
               </table>
             </div>
           )}
+
+          {/* ── Transactions IE réelles (pipeline escrow) — litiges & inspections ── */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "2rem 0 1rem", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h3 style={{ fontSize: "1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🔒 Transactions en cours (escrow)</h3>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Pipeline réel étapes 4-14 — argent bloqué en entiercement, litiges et inspections à traiter ici.</p>
+            </div>
+            <button className={styles.btnRefresh} onClick={loadIeTransactions}>↻ Actualiser</button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: "1.5rem" }}>
+            {[
+              { icon: "🔒", label: "Total",         value: ieTransactions.length, color: "#6366f1" },
+              { icon: "⚖️", label: "En litige",      value: ieTransactions.filter(t => t.status === "disputed").length, color: "#dc2626" },
+              { icon: "🔍", label: "Inspection en attente", value: ieTransactions.filter(t => t.status === "inspection_requested").length, color: "#d97706" },
+              { icon: "✅", label: "Terminées",      value: ieTransactions.filter(t => ["completed","funds_released"].includes(t.status)).length, color: "#10b981" },
+            ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
+          </div>
+
+          {ieTxLoading ? (
+            <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>
+          ) : ieTransactions.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
+              <div style={{ fontSize: "3rem", marginBottom: 12 }}>🔒</div>
+              <p style={{ fontWeight: 600 }}>Aucune transaction escrow pour le moment.</p>
+            </div>
+          ) : (
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr><th>Client</th><th>Partenaire</th><th>Montant</th><th>Statut</th><th>Litige</th><th>Date</th><th>Actions</th></tr>
+                </thead>
+                <tbody>
+                  {ieTransactions.map((t) => {
+                    const ST = {
+                      reserved: { l: "Réservée", c: "#6366f1", bg: "#eef2ff" },
+                      disputed: { l: "⚖️ Litige", c: "#dc2626", bg: "#fee2e2" },
+                      inspection_requested: { l: "Inspection demandée", c: "#d97706", bg: "#fef3c7" },
+                      in_escrow: { l: "En entiercement", c: "#0891b2", bg: "#ecfeff" },
+                      funds_released: { l: "Fonds libérés", c: "#10b981", bg: "#d1fae5" },
+                      completed: { l: "Terminée", c: "#10b981", bg: "#d1fae5" },
+                      cancelled: { l: "Annulée", c: "#94a3b8", bg: "#f1f5f9" },
+                    };
+                    const st = ST[t.status] || { l: t.status, c: "#64748b", bg: "#f1f5f9" };
+                    return (
+                      <tr key={t._id} className={styles.tr}>
+                        <td><strong style={{ fontSize: ".85rem" }}>{t.client?.firstName} {t.client?.lastName}</strong><div style={{ fontSize: ".74rem", color: "#94a3b8" }}>{t.client?.email}</div></td>
+                        <td><strong style={{ fontSize: ".85rem" }}>{t.partner?.firstName} {t.partner?.lastName}</strong><div style={{ fontSize: ".74rem", color: "#94a3b8" }}>{t.partner?.business?.name || t.partner?.email}</div></td>
+                        <td className={styles.tdPrice}>{t.finalOffer?.totalAmount ? `${Number(t.finalOffer.totalAmount).toLocaleString("fr-FR")} ${t.finalOffer.currency}` : "—"}</td>
+                        <td><Badge label={st.l} color={st.c} bg={st.bg} /></td>
+                        <td style={{ fontSize: ".78rem", color: "#64748b", maxWidth: 200 }}>{t.dispute?.opened ? (t.dispute.reason || "Litige ouvert") : "—"}</td>
+                        <td className={styles.tdDate}>{fmtDate(t.createdAt)}</td>
+                        <td>
+                          {t.status === "disputed" && (
+                            <button className={styles.btnRefresh} style={{ background: "#dc2626", color: "#fff", border: "none" }}
+                              onClick={() => { setIeTxModal({ tx: t, mode: "dispute" }); setIeTxNote(""); setIeTxRelease(true); }}>
+                              ⚖️ Trancher
+                            </button>
+                          )}
+                          {t.status === "inspection_requested" && (
+                            <button className={styles.btnRefresh} style={{ background: "#d97706", color: "#fff", border: "none" }}
+                              onClick={() => { setIeTxModal({ tx: t, mode: "inspection" }); setIeTxNote(""); }}>
+                              🔍 Compléter
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {ieTxModal && (
+        <div className={styles.modalBackdrop} onClick={() => setIeTxModal(null)}>
+          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()}>
+            {ieTxModal.mode === "dispute" ? (
+              <>
+                <h3>⚖️ Trancher le litige</h3>
+                <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "#64748b" }}>
+                  Raison invoquée : {ieTxModal.tx.dispute?.reason || "—"}
+                </p>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, marginBottom: 14, cursor: "pointer" }}>
+                  <input type="checkbox" checked={ieTxRelease} onChange={(e) => setIeTxRelease(e.target.checked)} />
+                  Libérer les fonds au fournisseur (sinon : annuler et rembourser le client)
+                </label>
+                <textarea className={styles.rejectTextarea} placeholder="Résolution / justification..." value={ieTxNote} onChange={(e) => setIeTxNote(e.target.value)} />
+                <div className={styles.rejectActions}>
+                  <button className={styles.btnAccept} onClick={handleResolveIeDispute} disabled={ieTxSaving}>{ieTxSaving ? "Envoi…" : "✅ Confirmer la décision"}</button>
+                  <button className={styles.btnSecondary} onClick={() => setIeTxModal(null)}>Annuler</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3>🔍 Compléter l'inspection indépendante</h3>
+                <textarea className={styles.rejectTextarea} placeholder="Notes du rapport d'inspection..." value={ieTxNote} onChange={(e) => setIeTxNote(e.target.value)} />
+                <div className={styles.rejectActions}>
+                  <button className={styles.btnAccept} onClick={handleCompleteIeInspection} disabled={ieTxSaving}>{ieTxSaving ? "Envoi…" : "✅ Marquer complétée"}</button>
+                  <button className={styles.btnSecondary} onClick={() => setIeTxModal(null)}>Annuler</button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 

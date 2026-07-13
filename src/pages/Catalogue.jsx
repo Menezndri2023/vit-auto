@@ -137,8 +137,21 @@ const SORT_OPTIONS  = [
 
 const Catalogue = () => {
   const { vehicles, drivers, refreshVehicles } = useVehicles();
-  const { fmt, catalogCountry, setCatalogCountry, COUNTRIES_CONFIG, COUNTRY_INTERNATIONAL } = useCurrency();
-  const { success: toastSuccess } = useToast();
+  const { fmt, catalogCountry, setCatalogCountry, COUNTRIES_CONFIG, COUNTRY_INTERNATIONAL, detectPreciseCountry } = useCurrency();
+  const { success: toastSuccess, error: toastError } = useToast();
+  const [detectingCountry, setDetectingCountry] = useState(false);
+
+  const handleDetectCountry = async () => {
+    setDetectingCountry(true);
+    const res = await detectPreciseCountry();
+    setDetectingCountry(false);
+    if (res.ok) {
+      const c = COUNTRIES_CONFIG.find((x) => x.code === res.country);
+      toastSuccess(`📍 Pays détecté : ${c ? `${c.flag} ${c.name}` : res.country}`);
+    } else {
+      toastError(res.message || "Détection impossible.");
+    }
+  };
   const [searchParams, setSearchParams] = useSearchParams();
   const [refreshing,  setRefreshing]  = useState(false);
   const [filterOpen,  setFilterOpen]  = useState(false);
@@ -312,7 +325,7 @@ const Catalogue = () => {
     activeEtat !== "Tous"   && { label: activeEtat,         clear: () => { setActiveEtat("Tous"); setParam("etat",""); } },
     fuelType   !== "Tous"   && { label: fuelType,           clear: () => setFuelType("Tous") },
     transmission !== "Tous" && { label: transmission,       clear: () => setTransmission("Tous") },
-    maxPrice < 200000       && { label: `≤ ${fmt(maxPrice)}`, clear: () => setMaxPrice(200000) },
+    activeMode !== "Acheter" && maxPrice < 200000 && { label: `≤ ${fmt(maxPrice)}`, clear: () => setMaxPrice(200000) },
     searchTerm              && { label: `"${searchTerm}"`,  clear: () => setSearchTerm("") },
   ].filter(Boolean) : [];
 
@@ -456,6 +469,16 @@ const Catalogue = () => {
               ))}
             </select>
 
+            <button
+              type="button"
+              className={styles.filterToggleBtn}
+              onClick={handleDetectCountry}
+              disabled={detectingCountry}
+              title="Détecter mon pays via ma position (plus précis que l'IP)"
+            >
+              {detectingCountry ? "📍 Détection…" : "📍 Détecter"}
+            </button>
+
             {!isImportMode && !isChauffeurMode && (
               <button
                 type="button"
@@ -505,7 +528,7 @@ const Catalogue = () => {
                 fuelType={fuelType} setFuelType={setFuelType}
                 transmission={transmission} setTransmission={setTransmission}
                 fuels={fuels} etats={etats} transmissions={transmissions}
-                fmt={fmt}
+                fmt={fmt} activeMode={activeMode}
               />
               <button className={styles.resetBtn} onClick={() => { resetFilters(); setFilterOpen(false); }}>
                 Réinitialiser
@@ -519,19 +542,21 @@ const Catalogue = () => {
           <div className={styles.layout}>
             <aside className={styles.sidebar}>
               <div className={styles.sidebarInner}>
-                <div className={styles.sidebarSection}>
-                  <h4 className={styles.sidebarTitle}>💰 Prix max / jour</h4>
-                  <div className={styles.priceRange}>
-                    <span className={styles.priceLabel}>{fmt(maxPrice)}</span>
-                    <input type="range" min="10000" max="200000" step="5000"
-                      value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))}
-                      className={styles.rangeInput} />
-                    <div className={styles.rangeLimits}>
-                      <span>{fmt(10000)}</span>
-                      <span>{fmt(200000)}</span>
+                {activeMode !== "Acheter" && (
+                  <div className={styles.sidebarSection}>
+                    <h4 className={styles.sidebarTitle}>💰 Prix max / jour</h4>
+                    <div className={styles.priceRange}>
+                      <span className={styles.priceLabel}>{fmt(maxPrice)}</span>
+                      <input type="range" min="10000" max="200000" step="5000"
+                        value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))}
+                        className={styles.rangeInput} />
+                      <div className={styles.rangeLimits}>
+                        <span>{fmt(10000)}</span>
+                        <span>{fmt(200000)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
                 <div className={styles.sidebarSection}>
                   <h4 className={styles.sidebarTitle}>✨ État</h4>
                   <div className={styles.pillGroup}>
@@ -664,15 +689,17 @@ const Catalogue = () => {
 
 /* ── Composant filtres drawer mobile ── */
 function DrawerFilters({ maxPrice, setMaxPrice, activeEtat, setActiveEtat, fuelType, setFuelType,
-  transmission, setTransmission, fuels, etats, transmissions, fmt }) {
+  transmission, setTransmission, fuels, etats, transmissions, fmt, activeMode }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 16 }}>
-      <div>
-        <p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: "0.82rem", color: "#0f1b3f" }}>💰 Prix max / jour — {fmt(maxPrice)}</p>
-        <input type="range" min="10000" max="200000" step="5000" value={maxPrice}
-          onChange={(e) => setMaxPrice(Number(e.target.value))}
-          style={{ width: "100%", accentColor: "#ff4d2d" }} />
-      </div>
+      {activeMode !== "Acheter" && (
+        <div>
+          <p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: "0.82rem", color: "#0f1b3f" }}>💰 Prix max / jour — {fmt(maxPrice)}</p>
+          <input type="range" min="10000" max="200000" step="5000" value={maxPrice}
+            onChange={(e) => setMaxPrice(Number(e.target.value))}
+            style={{ width: "100%", accentColor: "#ff4d2d" }} />
+        </div>
+      )}
       {[
         { title: "✨ État",          opts: etats,         val: activeEtat,   set: setActiveEtat },
         { title: "⛽ Carburant",     opts: fuels,         val: fuelType,     set: setFuelType },

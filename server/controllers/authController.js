@@ -27,7 +27,7 @@ function makeToken() {
 
 function signJWT(user) {
   return jwt.sign(
-    { id: user._id, email: user.email, role: user.role },
+    { id: user._id, email: user.email, role: user.role, tokenVersion: user.tokenVersion || 0 },
     JWT_SECRET(),
     { expiresIn: "7d" }
   );
@@ -240,11 +240,17 @@ export const login = async (req, res) => {
     // uniquement à l'inscription (lien envoyé une fois, voir register()). Se
     // connecter ne doit jamais exiger la saisie d'un code.
 
-    // 2FA — si activé, retourner un challenge au lieu des tokens
+    // 2FA — si activé, retourner un challenge signé au lieu des tokens. Un
+    // jeton dédié (pas le userId brut) preuve que le mot de passe a déjà été
+    // vérifié : sans ça, /2fa/verify acceptait n'importe quel userId fourni
+    // par l'appelant, permettant de compléter la connexion à un compte tiers
+    // en connaissant seulement son secret TOTP (ou un code de secours fuité),
+    // sans jamais avoir prouvé connaître le mot de passe.
     if (user.twoFactor?.enabled) {
+      const challengeToken = jwt.sign({ id: user._id, purpose: "2fa_challenge" }, JWT_SECRET(), { expiresIn: "10m" });
       return res.json({
         requiresTwoFactor: true,
-        userId: user._id,
+        challengeToken,
         message: "Code d'authentification requis.",
       });
     }
@@ -320,10 +326,13 @@ export const resendVerification = async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ message: "E-mail requis." });
 
+  // Réponse générique systématique (compte inexistant ou déjà vérifié) — même
+  // principe que forgotPassword : un 404 différencié ici permettait de sonder
+  // l'existence d'un compte par adresse e-mail.
+  const genericRes = () => res.json({ message: "Si un compte existe avec cette adresse, un nouveau lien a été envoyé." });
   try {
     const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) return res.status(404).json({ message: "Compte introuvable." });
-    if (user.emailVerified) return res.json({ message: "E-mail déjà vérifié." });
+    if (!user || user.emailVerified) return genericRes();
 
     const token = makeToken();
     user.emailVerificationToken   = token;
@@ -333,7 +342,7 @@ export const resendVerification = async (req, res) => {
     const verifyUrl = `${APP_URL()}/verify-email?token=${token}`;
     await dispatch.emailVerification(user.email, user._id.toString(), verifyUrl, user.firstName).catch(() => {});
 
-    res.json({ message: "Nouveau lien envoyé ! Vérifiez votre boîte mail." });
+    genericRes();
   } catch (err) {
     logger.error("resendVerification:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -366,8 +375,13 @@ export const changePassword = async (req, res) => {
 
     user.password = await bcrypt.hash(newPassword, 12);
     user.refreshTokens = [];
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();
-    res.json({ message: "Mot de passe modifié avec succès." });
+    // tokenVersion invalide tout JWT émis avant ce changement (y compris un
+    // éventuel token volé) — mais casserait aussi la session en cours de
+    // l'appelant lui-même s'il continuait à utiliser son ancien token. On lui
+    // renvoie donc immédiatement un nouveau token à jour.
+    res.json({ message: "Mot de passe modifié avec succès.", token: signJWT(user) });
   } catch (err) {
     logger.error("changePassword:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -492,14 +506,16 @@ export const sendPhoneOtp = async (req, res) => {
     });
   }
 
-  const { phone, userId } = req.body;
+  const { phone } = req.body;
   const target = phone?.trim();
   if (!target) return res.status(400).json({ message: "Numéro de téléphone requis." });
 
   try {
-    const filter = userId ? { _id: userId } : { phone: target };
-    const user = await User.findOne(filter);
-    if (!user) return res.status(404).json({ message: "Compte introuvable pour ce numéro." });
+    // Toujours le compte de l'appelant authentifié (jamais un `userId` fourni
+    // dans le corps de la requête) — sinon n'importe qui connaissant l'ID d'un
+    // compte tiers pouvait déclencher l'envoi d'un OTP vers SON téléphone à lui
+    // et réinitialiser son statut phoneVerified, sans jamais être ce compte.
+    const user = req.user;
     if (user.phoneVerified && user.phone === target) {
       return res.json({ message: "Téléphone déjà vérifié.", alreadyVerified: true });
     }
@@ -563,13 +579,12 @@ export const verifyPhoneOtp = async (req, res) => {
     return res.status(503).json({ message: "Le service de vérification par SMS est momentanément indisponible.", smsUnavailable: true });
   }
 
-  const { phone, userId, otp } = req.body;
+  const { phone, otp } = req.body;
   if (!otp) return res.status(400).json({ message: "Code OTP requis." });
 
   try {
-    const filter = userId ? { _id: userId } : { phone: phone?.trim() };
-    const user = await User.findOne(filter);
-    if (!user) return res.status(404).json({ message: "Compte introuvable." });
+    // Même principe que sendPhoneOtp — jamais un userId fourni par le client.
+    const user = req.user;
     if (user.phoneVerified) return res.json({ message: "Téléphone déjà vérifié.", success: true });
 
     let otpValid;
@@ -718,6 +733,7 @@ export const resetPassword = async (req, res) => {
     user.passwordResetToken   = null;
     user.passwordResetExpires = null;
     user.refreshTokens        = [];
+    user.tokenVersion         = (user.tokenVersion || 0) + 1;
     await user.save();
 
     res.json({ message: "Mot de passe réinitialisé avec succès. Vous pouvez vous connecter.", success: true });
@@ -811,10 +827,18 @@ export const enable2FA = async (req, res) => {
 // POST /api/auth/2fa/verify — Complète la connexion après challenge 2FA
 export const verify2FA = async (req, res) => {
   try {
-    const { userId, token } = req.body;
-    if (!userId || !token) return res.status(400).json({ message: "userId et token requis." });
+    const { challengeToken, token } = req.body;
+    if (!challengeToken || !token) return res.status(400).json({ message: "challengeToken et token requis." });
 
-    const user = await User.findById(userId);
+    let decoded;
+    try {
+      decoded = jwt.verify(challengeToken, JWT_SECRET());
+    } catch {
+      return res.status(401).json({ message: "Session de connexion expirée. Reconnectez-vous." });
+    }
+    if (decoded.purpose !== "2fa_challenge") return res.status(401).json({ message: "Jeton invalide." });
+
+    const user = await User.findById(decoded.id);
     if (!user || !user.isActive) return res.status(401).json({ message: "Utilisateur introuvable." });
     if (!user.twoFactor?.enabled) return res.status(400).json({ message: "2FA non activé." });
 

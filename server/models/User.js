@@ -163,6 +163,12 @@ const userSchema = new mongoose.Schema({
   // Hash SHA-256 des refresh tokens actifs (jamais la valeur en clair — voir authController.js hashRefreshToken)
   refreshTokens: { type: [String], default: [] },
 
+  // Incrémenté à chaque changement/réinitialisation de mot de passe — permet à
+  // authenticate() de rejeter immédiatement tout JWT d'accès émis AVANT ce
+  // changement (jusqu'à 7 jours de validité sinon), par exemple un token volé
+  // avant que le titulaire ne sécurise son compte.
+  tokenVersion: { type: Number, default: 0 },
+
   importerProfile: {
     status: {
       type: String,

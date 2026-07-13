@@ -14,6 +14,15 @@ export const authenticate = async (req, res, next) => {
 
     if (!user) return res.status(401).json({ message: "Utilisateur introuvable" });
     if (!user.isActive) return res.status(403).json({ message: "Compte bloqué." });
+    // Un changement/réinitialisation de mot de passe incrémente tokenVersion
+    // (voir changePassword/resetPassword) — un JWT émis avant reste signé
+    // valide jusqu'à 7 jours sinon, y compris s'il a été volé. `|| 0` couvre
+    // les tokens émis avant l'introduction de ce champ (jamais forcés à se
+    // déconnecter par ce déploiement, seuls les changements de mot de passe
+    // FUTURS invalident réellement une session).
+    if ((decoded.tokenVersion || 0) !== (user.tokenVersion || 0)) {
+      return res.status(401).json({ message: "Session expirée suite à un changement de mot de passe. Reconnectez-vous." });
+    }
 
     req.user = user;
     next();
@@ -34,7 +43,7 @@ export const optionalAuth = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id)
       .select("-password -phoneOtp -passwordResetToken -emailVerificationToken -twoFactor.secret -refreshTokens");
-    if (user && user.isActive) req.user = user;
+    if (user && user.isActive && (decoded.tokenVersion || 0) === (user.tokenVersion || 0)) req.user = user;
   } catch {
     // Token invalide → mode invité
   }

@@ -1,4 +1,5 @@
 import express from "express";
+import { rateLimit } from "express-rate-limit";
 import * as b from "../controllers/bookingController.js";
 import { authenticate, authorizeAdmin, optionalAuth } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
@@ -8,13 +9,24 @@ import Booking from "../models/Booking.js";
 const router = express.Router();
 const vid = validateObjectId();
 
+// Créer une réservation déclenche des écritures DB + emails/notifications par
+// appel — le apiLimiter générique (300/10min) restait trop permissif pour un
+// point d'entrée aussi coûteux, accessible sans authentification.
+const createBookingLimiter = rateLimit({
+  windowMs:        10 * 60 * 1000,
+  max:             30,
+  message:         { message: "Trop de réservations créées. Réessayez plus tard." },
+  standardHeaders: true,
+  legacyHeaders:   false,
+});
+
 // ── Public : dates/créneaux déjà occupés ──────────────────
 router.get("/vehicle/:vehicleId/occupied-dates", b.getVehicleOccupiedDates);
 router.get("/driver/:driverId/occupied-slots",   b.getDriverOccupiedSlots);
 router.get("/vehicle/:vehicleId/essai-slots",    b.getEssaiOccupiedSlots);
 
 // ── Création réservation (auth optionnelle — liaison user si connecté) ─
-router.post("/", optionalAuth, b.createBooking);
+router.post("/", createBookingLimiter, optionalAuth, b.createBooking);
 
 // ── Client connecté ───────────────────────────────────────
 router.get("/mine",                    authenticate, b.getMyBookings);
