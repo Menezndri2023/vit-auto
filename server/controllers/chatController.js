@@ -191,6 +191,8 @@ export const sendMessage = async (req, res) => {
 
     await chat.save();
 
+    const savedMsg = chat.messages[chat.messages.length - 1];
+
     // Notification pour les autres participants
     const others = chat.participants.filter((p) => p.toString() !== myId);
     const senderName = `${req.user.firstName} ${req.user.lastName}`;
@@ -206,7 +208,23 @@ export const sendMessage = async (req, res) => {
       } catch { /* non bloquant */ }
     }
 
-    const savedMsg = chat.messages[chat.messages.length - 1];
+    // Temps réel : sans ça, chaque participant ne voit un nouveau message
+    // qu'au prochain cycle de polling (jusqu'à 5s pour la conversation ouverte,
+    // 20s pour la liste) — inacceptable pour un vrai support client en direct.
+    // Tous les utilisateurs authentifiés (client, partenaire, admin) rejoignent
+    // `user_${id}` à la connexion (voir server.js), donc un seul canal suffit
+    // quel que soit le rôle du destinataire.
+    const io = global._io;
+    if (io) {
+      const payload = { chatId: chat._id.toString(), message: savedMsg, type: chat.type };
+      for (const otherId of others) io.to(`user_${otherId}`).emit("chat:message", payload);
+      // Pour les conversations de support, tout admin doit voir apparaître la
+      // demande en direct dans sa file partagée même s'il n'est pas encore
+      // participant (voir findAccessibleChat) — sans ceci, seul l'admin déjà
+      // ajouté aux participants recevrait l'événement ci-dessus.
+      if (SUPPORT_TYPES.includes(chat.type)) io.to("admins").emit("chat:message", payload);
+    }
+
     res.json({ message: savedMsg });
   } catch (err) {
     logger.error("sendMessage:", err);

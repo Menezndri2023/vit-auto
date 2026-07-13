@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import { useAuth }     from "../context/AuthContext";
 import { useCurrency } from "../context/CurrencyContext";
-import { haversineKm } from "../utils/geo";
+import { haversineKm, geocodeAddress } from "../utils/geo";
 import { getKycBadge, generateBookingRef } from "../utils/kycEngine.js";
 import styles from "./Booking.module.css";
 
@@ -34,15 +34,6 @@ const STEPS = [
   { id: 3, label: "Paiement" },
   { id: 4, label: "Confirmation" },
 ];
-
-async function geocodeAddress(address) {
-  try {
-    const res  = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`, { headers: { "Accept-Language": "fr" } });
-    const data = await res.json();
-    if (data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-  } catch {}
-  return null;
-}
 
 async function reverseGeocode(lat, lng) {
   try {
@@ -224,9 +215,21 @@ export default function Booking() {
   // l'apport initial fixé par le partenaire (financingTerms), jamais un prix/jour
   // (qui n'existe pas pour un véhicule en mode "Acheter") — voir bookingController.js
   // createBooking, qui calcule montantBase de la même façon côté serveur.
+  // Promotion active du véhicule (affichage uniquement — même logique que
+  // VehicleCard.jsx/server/utils/promotion.js ; le prix réellement facturé
+  // reste toujours recalculé et autoritaire côté serveur dans createBooking).
+  const promo = vehicle?.promotion;
+  const promoActive = !!(
+    promo?.active && promo.discountPercent > 0 &&
+    (!promo.startDate || new Date(promo.startDate) <= new Date()) &&
+    (!promo.endDate   || new Date(promo.endDate)   >= new Date())
+  );
+  const effectivePricePerDay = promoActive
+    ? Math.round((vehicle?.pricePerDay || 0) * (1 - promo.discountPercent / 100))
+    : (vehicle?.pricePerDay || 0);
   const baseTotal    = isLeasing
     ? (financingTerms?.apportInitial || 0)
-    : (vehicle?.pricePerDay || 0) * Math.max(days, 1);
+    : effectivePricePerDay * Math.max(days, 1);
   const totalToPay   = isTrial ? SERVICE_FEE
     : isLeasing ? baseTotal + SERVICE_FEE
     : baseTotal + optionsTotal + deliveryFee + SERVICE_FEE;
@@ -351,7 +354,11 @@ export default function Booking() {
         commissionRate,
         commissionAmount,
         partnerPayout,
-        cautionAmount:  Math.round(totalToPay * 0.5),
+        // Estimation d'affichage uniquement — la valeur autoritaire est celle
+        // renseignée par le partenaire (vehicle.caution), jamais un pourcentage
+        // du total. Écrasée par la vraie valeur serveur juste après la création
+        // (voir plus bas, apiData.booking.cautionAmount).
+        cautionAmount:  vehicle?.caution || 0,
         paidWith:       payMethod,
         mobileNumber:   ["orange_money","wave","mtn","moov"].includes(payMethod) ? mobileNumber : undefined,
       } : {}),
@@ -454,6 +461,18 @@ export default function Booking() {
         bookingData.serverBookingId = apiData.booking._id;
         bookingData.reference       = apiData.booking.reference || bookingRef;
         bookingData.status          = apiData.booking.status    || "pending";
+        // Le serveur reste seul autoritaire pour tout montant recalculé
+        // (promotion, frais de livraison, caution) — on écrase les estimations
+        // client par les vraies valeurs renvoyées, pour que la page de
+        // confirmation et le suivi n'affichent jamais un chiffre différent de
+        // ce qui a réellement été enregistré/facturé.
+        if (apiData.booking.montantBase    != null) bookingData.baseTotal       = apiData.booking.montantBase;
+        if (apiData.booking.montantOptions != null) bookingData.optionsTotal    = apiData.booking.montantOptions;
+        if (apiData.booking.montantTotal   != null) { bookingData.montantTotal = apiData.booking.montantTotal; bookingData.total = apiData.booking.montantTotal; }
+        if (apiData.booking.cautionAmount  != null) bookingData.cautionAmount   = apiData.booking.cautionAmount;
+        if (apiData.booking.location?.deliveryFee != null) bookingData.deliveryFee = apiData.booking.location.deliveryFee;
+        if (apiData.booking.commissionAmount != null) bookingData.commissionAmount = apiData.booking.commissionAmount;
+        if (apiData.booking.partnerPayout    != null) bookingData.partnerPayout    = apiData.booking.partnerPayout;
 
         // Paiement en ligne (carte/Orange Money/Wave) : redirection vers la
         // page de paiement hébergée par le fournisseur (ou le mode simulé si

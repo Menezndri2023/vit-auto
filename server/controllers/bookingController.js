@@ -144,6 +144,7 @@ export const createBooking = async (req, res) => {
     }
 
     let montantBase = 0;
+    let cautionAmount = 0;
     let vehicle = null;
     let driver  = null;
     let ownerId = null;
@@ -185,6 +186,14 @@ export const createBooking = async (req, res) => {
         // active du véhicule si présente (voir Vehicle.promotion).
         const effectivePricePerDay = applyPromotion(vehicle.pricePerDay || 0, vehicle.promotion);
         montantBase = effectivePricePerDay * (location?.days || 1);
+      }
+      // Caution toujours dérivée de la configuration réelle du véhicule
+      // (vehicle.caution, fixée par le partenaire à la publication), jamais
+      // d'une estimation ou d'une valeur envoyée par le client — sinon trois
+      // montants de caution différents peuvent coexister (véhicule, client,
+      // contrat) sans jamais se recouper.
+      if (type === "location") {
+        cautionAmount = vehicle.caution || 0;
       }
       if (type === "leasing") {
         montantBase = leasingData?.apportInitial || 0;
@@ -354,6 +363,7 @@ export const createBooking = async (req, res) => {
       montantBase,
       montantOptions,
       montantTotal,
+      cautionAmount,
       devise: "XOF",
       commissionRate,
       commissionAmount,
@@ -723,7 +733,7 @@ export const updateBookingStatus = async (req, res) => {
             pickupLocation:   booking.location?.pickupLocation,
             returnLocation:   booking.location?.returnLocation,
             dailyRateXOF:     veh?.pricePerDay,
-            cautionXOF:       200000,
+            cautionXOF:       booking.cautionAmount ?? 0,
             serviceFeeXOF:    booking.serviceFeeFCFA ?? 1000,
             optionsXOF:       booking.montantOptions ?? 0,
             baseXOF:          booking.montantBase,

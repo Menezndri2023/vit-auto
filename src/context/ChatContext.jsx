@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "./AuthContext";
+import { useSocket } from "./SocketContext";
 
 const ChatContext = createContext(null);
 
@@ -12,6 +13,7 @@ export const useChat = () => {
 
 export const ChatProvider = ({ children }) => {
   const { token, isAuthenticated, authReady } = useAuth();
+  const { on } = useSocket();
   const [chats,       setChats]       = useState([]);
   const [activeChat,  setActiveChat]  = useState(null); // { _id, other, type, ... }
   const [messages,    setMessages]    = useState([]);
@@ -19,6 +21,10 @@ export const ChatProvider = ({ children }) => {
   const [open,        setOpen]        = useState(false);
   const [loading,     setLoading]     = useState(false);
   const pollRef = useRef(null);
+  // Miroir de open/activeChat lisible depuis le handler socket sans le
+  // ré-abonner à chaque changement (voir useEffect chat:message ci-dessous).
+  const viewingRef = useRef({ open: false, chatId: null });
+  useEffect(() => { viewingRef.current = { open, chatId: activeChat?._id || null }; }, [open, activeChat]);
 
   const fetchChats = useCallback(async () => {
     if (!token) return;
@@ -131,6 +137,30 @@ export const ChatProvider = ({ children }) => {
     const t = setInterval(fetchChats, 20_000);
     return () => clearInterval(t);
   }, [authReady, isAuthenticated, token, fetchChats]);
+
+  // Temps réel — un message reçu via Socket.io met à jour la conversation
+  // ouverte instantanément (au lieu d'attendre jusqu'à 5s de polling) et la
+  // liste des chats (dernier message, badge non-lu) sans attendre les 20s du
+  // polling de liste. Le polling reste en place comme filet de secours (socket
+  // déconnecté/reconnexion en cours).
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    return on("chat:message", ({ chatId, message }) => {
+      const isViewing = viewingRef.current.open && viewingRef.current.chatId === chatId;
+      if (isViewing) {
+        setMessages((prev) => prev.some((m) => m._id === message._id) ? prev : [...prev, message]);
+      } else {
+        setUnreadTotal((prev) => prev + 1);
+      }
+      setChats((prev) => {
+        const exists = prev.some((c) => c._id === chatId);
+        if (!exists) { fetchChats(); return prev; }
+        return prev.map((c) => c._id === chatId
+          ? { ...c, lastMessage: message.content?.substring(0, 100), lastMessageAt: message.createdAt, unread: isViewing ? c.unread : (c.unread || 0) + 1 }
+          : c);
+      });
+    });
+  }, [isAuthenticated, on, fetchChats]);
 
   return (
     <ChatContext.Provider value={{

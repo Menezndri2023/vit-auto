@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useCurrency } from "../context/CurrencyContext";
+import { useSocket } from "../context/SocketContext";
 import { Link, useNavigate } from "react-router-dom";
 import styles from "./AdminPanel.module.css";
 
@@ -379,6 +380,7 @@ function ConfirmModal({ message, onConfirm, onCancel, danger }) {
 export default function AdminPanel() {
   const { user, isAuthenticated, token, logout } = useAuth();
   const { COUNTRIES_CONFIG } = useCurrency();
+  const { on: onSocket } = useSocket();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab]   = useState("dashboard");
@@ -1032,6 +1034,19 @@ export default function AdminPanel() {
     const t = setInterval(loadSupportChats, 15_000);
     return () => clearInterval(t);
   }, [activeTab, loadSupportChats]);
+
+  // Temps réel : un client/partenaire qui écrit doit apparaître instantanément
+  // dans la file support partagée, sans attendre jusqu'à 15s de polling — et si
+  // la conversation ouverte par cet admin reçoit un message, l'afficher tout de
+  // suite plutôt qu'au prochain clic.
+  useEffect(() => {
+    return onSocket("chat:message", ({ chatId, message }) => {
+      if (supportActive?._id === chatId) {
+        setSupportMessages((prev) => prev.some((m) => m._id === message._id) ? prev : [...prev, message]);
+      }
+      if (activeTab === "support") loadSupportChats();
+    });
+  }, [onSocket, supportActive, activeTab, loadSupportChats]);
 
   // Ferme tous les modals au changement d'onglet pour éviter les états résiduels
   useEffect(() => {

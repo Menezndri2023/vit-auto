@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
 import { useToast } from "../context/ToastContext";
+import { geocodeAddress } from "../utils/geo";
 import styles from "./VendorSubmit.module.css";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -301,9 +302,17 @@ const VendorSubmit = () => {
     if (!validate()) return;
     setSubmitting(true);
 
+    // Géocodage de l'adresse à la publication — sans coordonnées GPS enregistrées
+    // ici, le calcul des frais de livraison (server/services/deliveryFee.js) ne
+    // peut jamais s'exécuter côté serveur pour ce véhicule et retombe toujours
+    // sur une estimation côté client (voir Booking.jsx). Non bloquant : une
+    // adresse introuvable ne doit jamais empêcher la publication de l'annonce.
+    const coordonnees = await geocodeAddress(`${identity.adresse}, ${identity.ville}`);
+
     const contactInfo = {
       ville: identity.ville,
       adresse: identity.adresse,
+      coordonnees: coordonnees || undefined,
       contactNom: identity.typePubliant === "particulier"
         ? `${identity.prenom} ${identity.nom}`
         : identity.nomEntreprise || identity.nom,

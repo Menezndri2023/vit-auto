@@ -878,6 +878,12 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, valid
             <span>{fmt(booking.optionsTotal)}</span>
           </div>
         )}
+        {booking.type === "location" && booking.deliveryFee > 0 && (
+          <div className={styles.finRow}>
+            <span>Livraison</span>
+            <span>{fmt(booking.deliveryFee)}</span>
+          </div>
+        )}
         <div className={styles.finRow}>
           <span>Frais de service VIT AUTO</span>
           <span>{fmt(booking.serviceFeeFCFA || 1000)}</span>
@@ -886,6 +892,12 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, valid
           <span>Total réglé</span>
           <strong>{fmt(booking.total || booking.serviceFeeFCFA || 1000)}</strong>
         </div>
+        {booking.type === "location" && booking.cautionAmount > 0 && (
+          <div className={styles.finRow} style={{ color: "#d97706" }}>
+            <span>Caution à prévoir sur place</span>
+            <span>{fmt(booking.cautionAmount)}</span>
+          </div>
+        )}
       </div>
 
       {/* ── Actions ── */}

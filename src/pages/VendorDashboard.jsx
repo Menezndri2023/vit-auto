@@ -7,6 +7,7 @@ import { useChat } from "../context/ChatContext";
 import { Link, useNavigate } from "react-router-dom";
 import { SUBSCRIPTIONS_ENABLED } from "../config/featureFlags";
 import PartnerCalendar from "../components/PartnerCalendar/PartnerCalendar";
+import { geocodeAddress } from "../utils/geo";
 import styles from "./VendorDashboard.module.css";
 
 /* ── Utilitaires ────────────────────────────────────────────────────────── */
@@ -455,6 +456,15 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
                     <div className={styles.detailItem}><span className={styles.detailLabel}>Fin</span><span className={styles.detailValue}>{fmtDate(order.endDate||order.location?.endDate)}</span></div>
                     <div className={styles.detailItem}><span className={styles.detailLabel}>Durée</span><span className={styles.detailValue}>{order.days||order.location?.days||"—"} jour(s)</span></div>
                     {order.location?.returnLocation && <div className={styles.detailItem}><span className={styles.detailLabel}>Retour</span><span className={styles.detailValue}>{order.location.returnLocation}</span></div>}
+                    {order.pickupMethod === "livraison" && <div className={styles.detailItem}><span className={styles.detailLabel}>Adresse livraison</span><span className={styles.detailValue}>{order.pickupAddress||"—"}</span></div>}
+                    {order.pickupLat != null && order.pickupLng != null && (
+                      <div className={styles.detailItem}>
+                        <span className={styles.detailLabel}>Position GPS</span>
+                        <span className={styles.detailValue}>
+                          <a href={`https://www.google.com/maps?q=${order.pickupLat},${order.pickupLng}`} target="_blank" rel="noopener noreferrer">🗺️ Voir sur la carte</a>
+                        </span>
+                      </div>
+                    )}
                   </>}
                   {subType==="vente" && <>
                     <div className={styles.detailItem}><span className={styles.detailLabel}>Date RDV</span><span className={styles.detailValue}>{fmtDate(order.preferredDate||order.essai?.preferredDate)}</span></div>
@@ -485,9 +495,11 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
                 <div className={styles.finBreakdown}>
                   <div className={styles.finTitle}>Décomposition financière</div>
                   <div className={styles.finRow}><span>Total client</span><strong>{fmtXOF(totalAmt)}</strong></div>
+                  {order.deliveryFee > 0 && <div className={styles.finRow}><span>dont livraison</span><strong>{fmtXOF(order.deliveryFee)}</strong></div>}
                   <div className={styles.finRow} style={{color:"#dc2626"}}><span>Commission VIT-AUTO ({Math.round(commRate*100)}%)</span><strong>− {fmtXOF(commAmt)}</strong></div>
                   <div className={styles.finRow} style={{color:"#dc2626"}}><span>Frais de service</span><strong>− {fmtXOF(SERVICE_FEE)}</strong></div>
                   <div className={styles.finRowNet}><span>Votre net partenaire</span><strong>{fmtXOF(netAmt)}</strong></div>
+                  {order.cautionAmount > 0 && <div className={styles.finRow} style={{color:"#d97706"}}><span>Caution à percevoir sur place</span><strong>{fmtXOF(order.cautionAmount)}</strong></div>}
                 </div>
 
                 {/* Options location */}
@@ -879,7 +891,7 @@ function TxForm({ form, setForm, onSubmit, onCancel, cancelLabel = "Annuler", su
    ══════════════════════════════════════════════════════════════════════════════ */
 export default function VendorDashboard() {
   const { user, isAuthenticated, token } = useAuth();
-  const { partnerVehicles: myVehicles, partnerBookings, bookings, updateBookingStatus, loadPartnerVehicles, loadPartnerOrders } = useVehicles();
+  const { partnerVehicles: myVehicles, partnerBookings, bookings, updateBookingStatus, updateVehicle, loadPartnerVehicles, loadPartnerOrders } = useVehicles();
   const { success: toastSuccess, error: toastError } = useToast();
   const { on } = useSocket();
   const { openOrCreateChat } = useChat();
@@ -902,6 +914,10 @@ export default function VendorDashboard() {
   const [promoModal,     setPromoModal]     = useState(null); // véhicule en cours d'édition promo
   const [promoForm,      setPromoForm]      = useState({ active: false, discountPercent: 15, label: "", startDate: "", endDate: "" });
   const [promoSaving,    setPromoSaving]    = useState(false);
+
+  const [editModal,  setEditModal]  = useState(null); // véhicule en cours d'édition
+  const [editForm,   setEditForm]   = useState(null);
+  const [editSaving, setEditSaving] = useState(false);
   const [gererModalId,   setGererModalId]   = useState(null);
   const [orderDetail,    setOrderDetail]    = useState(null);
   const [detailLoading,  setDetailLoading]  = useState(false);
@@ -1096,6 +1112,68 @@ export default function VendorDashboard() {
       } else toastError(d.message || "Erreur.");
     } catch { toastError("Erreur réseau."); }
     finally { setPromoSaving(false); }
+  };
+
+  // Le bouton "Modifier" pointait auparavant vers /vendor?edit=<id>, une route
+  // jamais lue par VendorSubmit.jsx (aucune donnée n'était jamais préremplie ni
+  // sauvegardée) — un lien mort depuis toujours. Une modale ciblée sur les
+  // champs qu'un partenaire a réellement besoin de corriger après publication
+  // (prix, caution, disponibilité, description, adresse...) via le PATCH déjà
+  // fonctionnel côté serveur (vehicleController.updateVehicle).
+  const handleOpenEdit = (vehicle) => {
+    setEditForm({
+      title:       vehicle.name || "",
+      pricePerDay: vehicle.pricePerDay || "",
+      priceForSale: vehicle.priceForSale || vehicle.buyPrice || "",
+      caution:     vehicle.caution || "",
+      ville:       vehicle.ville || "",
+      adresse:     vehicle.adresse || "",
+      description: vehicle.description || "",
+      ageMin:      vehicle.ageMin || "",
+      permisRequis: vehicle.permisRequis !== false,
+      assuranceOptionnelle: !!vehicle.assuranceOptionnelle,
+      withDriver:  !!vehicle.withDriver,
+      available:   vehicle.available !== false,
+    });
+    setEditModal(vehicle);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editModal || !editForm) return;
+    const vid = editModal.id || editModal._id;
+    setEditSaving(true);
+    try {
+      const patch = {
+        title:       editForm.title,
+        caution:     Number(editForm.caution) || 0,
+        description: editForm.description,
+        ville:       editForm.ville,
+        adresse:     editForm.adresse,
+        ageMin:      Number(editForm.ageMin) || 0,
+        permisRequis: editForm.permisRequis,
+        assuranceOptionnelle: editForm.assuranceOptionnelle,
+        withDriver:  editForm.withDriver,
+        available:   editForm.available,
+      };
+      if (editModal.mode === "Acheter") patch.priceForSale = Number(editForm.priceForSale) || 0;
+      else patch.pricePerDay = Number(editForm.pricePerDay) || 0;
+
+      // Adresse modifiée → re-géocoder pour garder les frais de livraison à
+      // jour (voir VendorSubmit.jsx, même logique à la publication initiale).
+      if (editForm.adresse !== editModal.adresse || editForm.ville !== editModal.ville) {
+        const coords = await geocodeAddress(`${editForm.adresse}, ${editForm.ville}`);
+        if (coords) patch.coordonnees = coords;
+      }
+
+      await updateVehicle(vid, patch);
+      toastSuccess("✅ Annonce mise à jour.");
+      setEditModal(null);
+      loadPartnerVehicles();
+    } catch (err) {
+      toastError(err.message || "Erreur lors de la mise à jour.");
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const handleContactClient = async (bookingId) => {
@@ -1665,7 +1743,7 @@ export default function VendorDashboard() {
                       )}
                     </div>
                     <div className={styles.vehicleCardActions}>
-                      <Link to={`/vendor?edit=${vid}`} className={styles.btnSecondary}>Modifier</Link>
+                      <button className={styles.btnSecondary} onClick={() => handleOpenEdit(vehicle)}>✏️ Modifier</button>
                       <Link to={`/vehicle/${vid}`} className={styles.btnSecondary}>Voir</Link>
                       <button className={styles.btnSecondary} onClick={() => handleOpenPromo(vehicle)}>
                         {vehicle.promotion?.active ? "🏷️ Promo active" : "🏷️ Promo"}
@@ -2083,6 +2161,90 @@ export default function VendorDashboard() {
                 {promoSaving ? "Envoi…" : "✅ Enregistrer"}
               </button>
               <button className={styles.btnSecondary} onClick={() => setPromoModal(null)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editModal && editForm && (
+        <div className={styles.modalBackdrop} onClick={() => setEditModal(null)}>
+          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()}>
+            <h3>✏️ Modifier — {editModal.name}</h3>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Titre de l'annonce</label>
+              <input type="text" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                value={editForm.title} onChange={(e) => setEditForm((p) => ({ ...p, title: e.target.value }))} />
+            </div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>
+                  {editModal.mode === "Acheter" ? "Prix de vente (XOF)" : "Prix / jour (XOF)"}
+                </label>
+                <input type="number" min="0" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                  value={editModal.mode === "Acheter" ? editForm.priceForSale : editForm.pricePerDay}
+                  onChange={(e) => setEditForm((p) => ({ ...p, [editModal.mode === "Acheter" ? "priceForSale" : "pricePerDay"]: e.target.value }))} />
+              </div>
+              {editModal.mode !== "Acheter" && (
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Caution (XOF)</label>
+                  <input type="number" min="0" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                    value={editForm.caution} onChange={(e) => setEditForm((p) => ({ ...p, caution: e.target.value }))} />
+                </div>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Ville</label>
+                <input type="text" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                  value={editForm.ville} onChange={(e) => setEditForm((p) => ({ ...p, ville: e.target.value }))} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Adresse</label>
+                <input type="text" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                  value={editForm.adresse} onChange={(e) => setEditForm((p) => ({ ...p, adresse: e.target.value }))} />
+              </div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Description</label>
+              <textarea className={styles.rejectTextarea} rows={3}
+                value={editForm.description} onChange={(e) => setEditForm((p) => ({ ...p, description: e.target.value }))} />
+            </div>
+            {editModal.mode !== "Acheter" && (
+              <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Âge minimum requis</label>
+                  <input type="number" min="0" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                    value={editForm.ageMin} onChange={(e) => setEditForm((p) => ({ ...p, ageMin: e.target.value }))} />
+                </div>
+              </div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+              {editModal.mode !== "Acheter" && (
+                <>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: "0.85rem" }}>
+                    <input type="checkbox" checked={editForm.permisRequis} onChange={(e) => setEditForm((p) => ({ ...p, permisRequis: e.target.checked }))} />
+                    Permis de conduire requis
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: "0.85rem" }}>
+                    <input type="checkbox" checked={editForm.assuranceOptionnelle} onChange={(e) => setEditForm((p) => ({ ...p, assuranceOptionnelle: e.target.checked }))} />
+                    Assurance optionnelle proposée
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: "0.85rem" }}>
+                    <input type="checkbox" checked={editForm.withDriver} onChange={(e) => setEditForm((p) => ({ ...p, withDriver: e.target.checked }))} />
+                    Disponible avec chauffeur
+                  </label>
+                </>
+              )}
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: "0.85rem", fontWeight: 700 }}>
+                <input type="checkbox" checked={editForm.available} onChange={(e) => setEditForm((p) => ({ ...p, available: e.target.checked }))} />
+                Annonce disponible (visible au catalogue)
+              </label>
+            </div>
+            <div className={styles.rejectActions}>
+              <button className={styles.btnAccept} onClick={handleSaveEdit} disabled={editSaving}>
+                {editSaving ? "Envoi…" : "✅ Enregistrer"}
+              </button>
+              <button className={styles.btnSecondary} onClick={() => setEditModal(null)}>Annuler</button>
             </div>
           </div>
         </div>

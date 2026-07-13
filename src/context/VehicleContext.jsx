@@ -44,6 +44,7 @@ const normalizeBackendBooking = (b) => {
     pickupLng:     hasGps ? pos.lng : null,
     returnLocation: b.location?.returnLocation,
     selectedOptions: b.location?.options || {},
+    deliveryFee:   b.location?.deliveryFee,
     // Essai
     essai:         b.essai,
     preferredDate: b.essai?.preferredDate,
@@ -64,6 +65,7 @@ const normalizeBackendBooking = (b) => {
     commissionRate:    b.commissionRate,
     commissionAmount:  b.commissionAmount,
     partnerPayout:     b.partnerPayout,
+    cautionAmount:     b.cautionAmount,
     pricePerDay:       veh?.pricePerDay,
     // Paiement & transaction
     paidWith:      b.payment?.method,
@@ -320,6 +322,24 @@ export const VehicleProvider = ({ children }) => {
     return saved;
   };
 
+  // PATCH /api/vehicles/:id — édition d'une annonce déjà publiée (le serveur
+  // n'accepte que les champs de la whitelist EDITABLE, voir vehicleController.js).
+  const updateVehicle = async (id, patch) => {
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch(`/api/vehicles/${id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify(patch),
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(data?.message || `Erreur serveur (${response.status}).`);
+    const saved = normalizeVehicle(data.vehicle || data);
+    setPartnerVehicles((prev) => prev.map((v) => (v._id === saved._id || String(v.id) === String(saved.id)) ? saved : v));
+    setVehicles((prev) => prev.map((v) => (v._id === saved._id || String(v.id) === String(saved.id)) ? saved : v));
+    return saved;
+  };
+
   const addDriver = async (newDriver) => {
     const pending = { ...newDriver, status: "pending" };
     setDrivers((prev) => [...prev, pending]);
@@ -445,6 +465,7 @@ export const VehicleProvider = ({ children }) => {
       bookings,
       getItemById,
       addVehicle,
+      updateVehicle,
       addDriver,
       addBooking,
       removeBooking,
