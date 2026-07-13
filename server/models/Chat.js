@@ -28,6 +28,11 @@ const chatSchema = new mongoose.Schema({
 
   lastMessage:   { type: String, default: "" },
   lastMessageAt: { type: Date, default: Date.now },
+  // Rôle de l'auteur du dernier message — permet à l'inbox support admin de savoir
+  // en un coup d'œil quelles conversations attendent une réponse (dernier message
+  // envoyé par un client/partenaire, pas encore par un admin) sans recharger tous
+  // les messages de chaque conversation.
+  lastMessageSenderRole: { type: String, default: null },
   unreadCount:   { type: Map, of: Number, default: {} },
 }, { timestamps: true });
 

@@ -188,7 +188,6 @@ export const AuthProvider = ({ children }) => {
     return {
       ...backendUser,
       emailVerificationSent: data.emailVerificationSent,
-      phoneVerificationSent: data.phoneVerificationSent,
     };
   };
 

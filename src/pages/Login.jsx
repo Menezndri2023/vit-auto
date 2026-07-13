@@ -24,16 +24,8 @@ const Login = () => {
   const [showPassword,   setShowPassword]   = useState(false);
   const [loading,        setLoading]        = useState(false);
   const [notVerified,    setNotVerified]    = useState(null);      // email non vérifié
-  const [phoneNotVerif,  setPhoneNotVerif]  = useState(null);      // { phone, userId }
   const [resendLoading,  setResendLoading]  = useState(false);
   const [resendDone,     setResendDone]     = useState(false);
-
-  // OTP téléphone
-  const [otp,          setOtp]          = useState("");
-  const [otpLoading,   setOtpLoading]   = useState(false);
-  const [devOtp,       setDevOtp]       = useState(null);
-  const [resendPhone,  setResendPhone]  = useState(false);
-  const [phoneCooldown, setPhoneCooldown] = useState(0);
 
   const handleChange = (e) => setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
@@ -42,7 +34,6 @@ const Login = () => {
     if (!form.identifier || !form.password) { error("Veuillez remplir tous les champs."); return; }
     setLoading(true);
     setNotVerified(null);
-    setPhoneNotVerif(null);
     try {
       const loggedUser = await login({ identifier: form.identifier, password: form.password });
       success("Connexion réussie ! Redirection...");
@@ -56,10 +47,6 @@ const Login = () => {
     } catch (err) {
       if (err.code === "EMAIL_NOT_VERIFIED") {
         setNotVerified(err.email || form.identifier);
-      } else if (err.code === "PHONE_NOT_VERIFIED") {
-        setPhoneNotVerif({ phone: err.phone, userId: err.userId });
-        // Envoyer automatiquement le code OTP
-        sendPhoneOtp(err.phone, err.userId, true);
       } else {
         error(err.message || "Identifiants incorrects.");
       }
@@ -86,46 +73,6 @@ const Login = () => {
     }
   };
 
-  const sendPhoneOtp = async (phone, userId, auto = false) => {
-    if (!auto) setResendPhone(true);
-    try {
-      const res = await fetch("/api/auth/send-phone-otp", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ phone, userId }),
-      });
-      const data = await res.json();
-      if (!res.ok) { error(data.message); return; }
-      if (data.devOtp) setDevOtp(data.devOtp);
-      if (!auto) { success("Nouveau code OTP envoyé !"); setPhoneCooldown(60); }
-    } catch {
-      error("Erreur réseau.");
-    } finally {
-      if (!auto) setResendPhone(false);
-    }
-  };
-
-  const onVerifyPhoneOtp = async (e) => {
-    e.preventDefault();
-    if (!otp || otp.length !== 6) { error("Entrez le code à 6 chiffres."); return; }
-    setOtpLoading(true);
-    try {
-      const res = await fetch("/api/auth/verify-phone-otp", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ phone: phoneNotVerif?.phone, userId: phoneNotVerif?.userId, otp }),
-      });
-      const data = await res.json();
-      if (!res.ok) { error(data.message || "Code incorrect."); return; }
-      success("Téléphone vérifié ! Reconnexion...");
-      setTimeout(() => window.location.reload(), 1200);
-    } catch {
-      error("Erreur réseau.");
-    } finally {
-      setOtpLoading(false);
-    }
-  };
-
   return (
     <div className={styles.page}>
       <div className={styles.card}>
@@ -136,7 +83,7 @@ const Login = () => {
         </div>
 
         {/* Bloc redirection depuis page protégée */}
-        {fromPage && !notVerified && !phoneNotVerif && (
+        {fromPage && !notVerified && (
           <div style={{ background: "#eff6ff", border: "1.5px solid #bfdbfe", borderRadius: 12, padding: "12px 16px", marginBottom: 16 }}>
             <p style={{ margin: 0, fontSize: "0.85rem", color: "#1e40af", fontWeight: 600 }}>
               🔒 Connectez-vous pour accéder à{" "}
@@ -170,109 +117,45 @@ const Login = () => {
           </div>
         )}
 
-        {/* Bloc téléphone non vérifié */}
-        {phoneNotVerif && (
-          <div style={{ background: "#f0fdf4", border: "1.5px solid #86efac", borderRadius: 12, padding: "16px 18px", marginBottom: 16 }}>
-            <p style={{ margin: "0 0 4px", fontWeight: 700, color: "#166534" }}>📱 Vérification téléphone requise</p>
-            <p style={{ margin: "0 0 12px", fontSize: "0.88rem", color: "#15803d" }}>
-              Un code a été envoyé au <strong>{phoneNotVerif.phone}</strong>.<br />
-              Entrez-le ci-dessous pour accéder à votre compte.
-            </p>
-
-            {devOtp && (
-              <div style={{ marginBottom: 10, padding: "6px 10px", background: "#fef3c7", borderRadius: 8, color: "#92400e", fontWeight: 700, fontSize: "0.85rem" }}>
-                🛠 [DEV] Code OTP : {devOtp}
-              </div>
-            )}
-
-            <form onSubmit={onVerifyPhoneOtp} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]{6}"
-                maxLength={6}
-                placeholder="Code 6 chiffres"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                style={{
-                  flex: 1, minWidth: 120, padding: "10px 14px",
-                  border: "1.5px solid #86efac", borderRadius: 10,
-                  fontSize: "1.1rem", letterSpacing: "0.3em",
-                  textAlign: "center", fontWeight: 700,
-                }}
-              />
-              <button type="submit" disabled={otpLoading || otp.length !== 6}
-                style={{ padding: "10px 18px", background: "#10b981", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: "0.9rem" }}>
-                {otpLoading ? "…" : t("auth.validate")}
-              </button>
-            </form>
-
-            <div style={{ marginTop: 10, fontSize: "0.82rem" }}>
-              {phoneCooldown > 0 ? (
-                <span style={{ color: "#94a3b8" }}>Renvoyer dans {phoneCooldown}s</span>
-              ) : (
-                <button onClick={() => sendPhoneOtp(phoneNotVerif.phone, phoneNotVerif.userId)} disabled={resendPhone}
-                  style={{ background: "none", border: "none", color: "#059669", cursor: "pointer", fontWeight: 600, fontSize: "0.82rem" }}>
-                  {resendPhone ? "Envoi…" : "📤 Renvoyer le code"}
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Formulaire de connexion (caché si OTP téléphone en attente) */}
-        {!phoneNotVerif && (
-          <form className={styles.form} onSubmit={onSubmit} autoComplete="on">
+        <form className={styles.form} onSubmit={onSubmit} autoComplete="on">
+          <input
+            type="text"
+            name="identifier"
+            autoComplete="username"
+            value={form.identifier}
+            onChange={handleChange}
+            placeholder="Email ou téléphone"
+            required
+          />
+          <div style={{ position: "relative" }}>
             <input
-              type="text"
-              name="identifier"
-              autoComplete="username"
-              value={form.identifier}
+              type={showPassword ? "text" : "password"}
+              name="password"
+              autoComplete="current-password"
+              value={form.password}
               onChange={handleChange}
-              placeholder="Email ou téléphone"
+              placeholder={t("auth.password")}
               required
+              minLength="8"
+              style={{ width: "100%", boxSizing: "border-box", paddingRight: 44 }}
             />
-            <div style={{ position: "relative" }}>
-              <input
-                type={showPassword ? "text" : "password"}
-                name="password"
-                autoComplete="current-password"
-                value={form.password}
-                onChange={handleChange}
-                placeholder={t("auth.password")}
-                required
-                minLength="8"
-                style={{ width: "100%", boxSizing: "border-box", paddingRight: 44 }}
-              />
-              <button type="button" onClick={() => setShowPassword((p) => !p)}
-                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-                style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem" }}>
-                {showPassword ? "🙈" : "👁️"}
-              </button>
-            </div>
-            <button type="submit" className={styles.submitBtn} disabled={loading}>
-              {loading ? `${t("common.loading")}` : t("auth.loginBtn")}
-            </button>
-            <div className={styles.footerLink}>
-              <Link to="/forgot-password">{t("auth.forgotPwd")}</Link>
-            </div>
-            <div className={styles.footerLink}>
-              <span>{t("auth.noAccount") || "Pas encore de compte ? "}</span>
-              <Link to="/register">{t("auth.registerBtn")}</Link>
-            </div>
-          </form>
-        )}
-
-        {phoneNotVerif && (
-          <div style={{ textAlign: "center", marginTop: 12 }}>
-            <button
-              onClick={() => { setPhoneNotVerif(null); setOtp(""); }}
-              style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "0.83rem" }}
-            >
-              ← {t("auth.backToLogin")}
+            <button type="button" onClick={() => setShowPassword((p) => !p)}
+              aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem" }}>
+              {showPassword ? "🙈" : "👁️"}
             </button>
           </div>
-        )}
+          <button type="submit" className={styles.submitBtn} disabled={loading}>
+            {loading ? `${t("common.loading")}` : t("auth.loginBtn")}
+          </button>
+          <div className={styles.footerLink}>
+            <Link to="/forgot-password">{t("auth.forgotPwd")}</Link>
+          </div>
+          <div className={styles.footerLink}>
+            <span>{t("auth.noAccount") || "Pas encore de compte ? "}</span>
+            <Link to="/register">{t("auth.registerBtn")}</Link>
+          </div>
+        </form>
       </div>
     </div>
   );

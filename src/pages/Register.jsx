@@ -10,29 +10,18 @@ const Register = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // ── Étapes : "form" → "otp" (inscription par téléphone uniquement) ──────
-  const [step, setStep] = useState("form");
-
-  // Email ou téléphone — un seul des deux (voir contactType).
-  const [contactType, setContactType] = useState("email"); // "email" | "phone"
-
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
-    contact: "",
+    email: "",
+    phone: "",
     password: "",
     confirmPassword: "",
     role: searchParams.get("role") === "partenaire" ? "partenaire" : "client",
   });
 
-  const [createdUserId, setCreatedUserId] = useState(null);
-  const [otp,           setOtp]           = useState("");
-  const [otpLoading,    setOtpLoading]    = useState(false);
-  const [resendLoading, setResendLoading] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
-  const [otpError,      setOtpError]      = useState("");
-  const [submitting,    setSubmitting]    = useState(false);
-  const [showPassword,  setShowPassword]  = useState(false);
+  const [submitting,   setSubmitting]   = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Destination post-inscription : ?redirect= explicite, sinon offre Fondateur, sinon selon le rôle
   const redirectParam = searchParams.get("redirect");
@@ -49,23 +38,11 @@ const Register = () => {
     }
   }, [searchParams]);
 
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [resendCooldown]);
-
   const handleChange = (e) => setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
-  const switchContactType = (type) => {
-    setContactType(type);
-    setForm((prev) => ({ ...prev, contact: "" }));
-  };
-
-  // ── Étape 1 : inscription ──────────────────────────────────────
   const onSubmit = async (e) => {
     e.preventDefault();
-    if (!form.contact.trim() || !form.password || !form.firstName || !form.lastName) {
+    if (!form.email.trim() || !form.password || !form.firstName || !form.lastName) {
       error("Veuillez remplir tous les champs obligatoires."); return;
     }
     if (form.password !== form.confirmPassword) {
@@ -76,26 +53,17 @@ const Register = () => {
     }
     setSubmitting(true);
     try {
-      const payload = {
+      await register({
         firstName: form.firstName,
         lastName:  form.lastName,
         password:  form.password,
         role:      form.role,
-        ...(contactType === "email" ? { email: form.contact.trim() } : { phone: form.contact.trim() }),
-      };
-      const result = await register(payload);
+        email:     form.email.trim(),
+        phone:     form.phone.trim() || undefined,
+      });
 
-      if (contactType === "phone" && result?.phoneVerificationSent) {
-        setCreatedUserId(result?._id || result?.id);
-        setStep("otp");
-      } else {
-        success(
-          contactType === "phone"
-            ? "Compte créé ! Vérification par SMS momentanément indisponible — vous pourrez vérifier votre numéro plus tard."
-            : "Inscription réussie ! Vérifiez votre boîte mail pour activer votre compte. Redirection…"
-        );
-        setTimeout(() => navigate(getDest()), 1500);
-      }
+      success("Inscription réussie ! Vérifiez votre boîte mail pour activer votre compte. Redirection…");
+      setTimeout(() => navigate(getDest()), 1500);
     } catch (err) {
       error(err.message || "Impossible de créer votre compte.");
     } finally {
@@ -103,122 +71,6 @@ const Register = () => {
     }
   };
 
-  // ── Renvoyer le code OTP ────────────────────────────────────────
-  const resendOtp = async () => {
-    setResendLoading(true);
-    try {
-      const res = await fetch("/api/auth/send-phone-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: form.contact.trim(), userId: createdUserId }),
-      });
-      const data = await res.json();
-      if (!res.ok) { error(data.message || "Erreur lors de l'envoi du code."); return; }
-      success("Nouveau code envoyé !");
-      setResendCooldown(60);
-    } catch {
-      error("Erreur réseau. Réessayez.");
-    } finally {
-      setResendLoading(false);
-    }
-  };
-
-  // ── Étape 2 : vérification OTP ────────────────────────────────
-  const onVerifyOtp = async (e) => {
-    e.preventDefault();
-    if (!otp || otp.length !== 6) { error("Entrez le code à 6 chiffres."); return; }
-    setOtpLoading(true);
-    setOtpError("");
-    try {
-      const res = await fetch("/api/auth/verify-phone-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: form.contact.trim(), userId: createdUserId, otp }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setOtpError(data.message || "Code incorrect."); return; }
-      success("Téléphone vérifié ! Bienvenue sur VIT AUTO.");
-      setTimeout(() => navigate(getDest()), 1200);
-    } catch {
-      setOtpError("Erreur réseau. Réessayez.");
-    } finally {
-      setOtpLoading(false);
-    }
-  };
-
-  // ── Ignorer la vérification téléphone (passer) ────────────────
-  const skipPhoneVerif = () => {
-    success("Inscription réussie ! Vous pourrez vérifier votre téléphone plus tard.");
-    navigate(getDest());
-  };
-
-  // ════════════════════════════════════════════════════════════════
-  // RENDU — Étape OTP téléphone
-  // ════════════════════════════════════════════════════════════════
-  if (step === "otp") {
-    return (
-      <div className={styles.page}>
-        <div className={styles.card}>
-          <div className={styles.logo}>
-            <div className={styles.logoIcon}>📱</div>
-            <h1>Vérification</h1>
-            <p>Confirmez votre numéro de téléphone</p>
-          </div>
-
-          <div style={{ background: "#eff6ff", border: "1.5px solid #bfdbfe", borderRadius: 12, padding: "14px 16px", marginBottom: 18, fontSize: "0.88rem", color: "#1e40af" }}>
-            <strong>Code envoyé au :</strong> <span style={{ fontWeight: 700 }}>{form.contact}</span><br />
-            <span style={{ opacity: .8 }}>Vérifiez vos SMS. Le code est valable quelques minutes.</span>
-          </div>
-
-          <form className={styles.form} onSubmit={onVerifyOtp}>
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]{6}"
-              maxLength={6}
-              placeholder="Code à 6 chiffres"
-              value={otp}
-              onChange={(e) => { setOtp(e.target.value.replace(/\D/g, "").slice(0, 6)); setOtpError(""); }}
-              style={{ letterSpacing: "0.35em", fontSize: "1.4rem", textAlign: "center", fontWeight: 700 }}
-              required
-            />
-            {otpError && <p style={{ color: "#dc2626", fontSize: "0.85rem", margin: 0 }}>{otpError}</p>}
-
-            <button type="submit" className={styles.submitBtn} disabled={otpLoading || otp.length !== 6}>
-              {otpLoading ? "Vérification…" : "Confirmer le code →"}
-            </button>
-          </form>
-
-          <div className={styles.footerLink} style={{ marginTop: 12 }}>
-            {resendCooldown > 0 ? (
-              <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}>Renvoyer dans {resendCooldown}s</span>
-            ) : (
-              <button
-                onClick={resendOtp}
-                disabled={resendLoading}
-                style={{ background: "none", border: "none", color: "#6366f1", cursor: "pointer", fontSize: "0.88rem", fontWeight: 600 }}
-              >
-                {resendLoading ? "Envoi…" : "📤 Renvoyer le code"}
-              </button>
-            )}
-          </div>
-
-          <div className={styles.footerLink} style={{ marginTop: 6 }}>
-            <button
-              onClick={skipPhoneVerif}
-              style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "0.83rem" }}
-            >
-              Ignorer pour l'instant →
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ════════════════════════════════════════════════════════════════
-  // RENDU — Formulaire d'inscription
-  // ════════════════════════════════════════════════════════════════
   return (
     <div className={styles.page}>
       <div className={styles.card}>
@@ -248,51 +100,24 @@ const Register = () => {
             />
           </div>
 
-          {/* Sélecteur Email / Téléphone — un seul des deux sert d'identifiant */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
-            <button type="button" onClick={() => switchContactType("email")}
-              style={{
-                flex: 1, padding: "9px 0", borderRadius: 10, cursor: "pointer",
-                border: `1.5px solid ${contactType === "email" ? "#ff4d2d" : "#e5e9f4"}`,
-                background: contactType === "email" ? "#fff5f3" : "#fff",
-                color: contactType === "email" ? "#ff4d2d" : "#64748b",
-                fontWeight: 700, fontSize: "0.88rem",
-              }}>
-              📧 Email
-            </button>
-            <button type="button" onClick={() => switchContactType("phone")}
-              style={{
-                flex: 1, padding: "9px 0", borderRadius: 10, cursor: "pointer",
-                border: `1.5px solid ${contactType === "phone" ? "#ff4d2d" : "#e5e9f4"}`,
-                background: contactType === "phone" ? "#fff5f3" : "#fff",
-                color: contactType === "phone" ? "#ff4d2d" : "#64748b",
-                fontWeight: 700, fontSize: "0.88rem",
-              }}>
-              📱 Téléphone
-            </button>
-          </div>
+          <input
+            type="email"
+            name="email"
+            autoComplete="email"
+            value={form.email}
+            onChange={handleChange}
+            placeholder="Adresse e-mail *"
+            required
+          />
 
-          {contactType === "email" ? (
-            <input
-              type="email"
-              name="contact"
-              autoComplete="email"
-              value={form.contact}
-              onChange={handleChange}
-              placeholder="Adresse e-mail *"
-              required
-            />
-          ) : (
-            <input
-              type="tel"
-              name="contact"
-              autoComplete="tel"
-              value={form.contact}
-              onChange={handleChange}
-              placeholder="Téléphone (ex : +225 07 00 00 00) *"
-              required
-            />
-          )}
+          <input
+            type="tel"
+            name="phone"
+            autoComplete="tel"
+            value={form.phone}
+            onChange={handleChange}
+            placeholder="Téléphone (optionnel, ex : +225 07 00 00 00)"
+          />
 
           <select name="role" value={form.role} onChange={handleChange} autoComplete="off">
             <option value="client">🧑 Client — Louer des véhicules</option>

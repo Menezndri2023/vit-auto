@@ -6,7 +6,7 @@ import * as OTPAuth from "otpauth";
 import QRCode from "qrcode";
 import User from "../models/User.js";
 import { serverValidateIdentity } from "../utils/idValidation.js";
-import { smsConfigured, twilioVerifyConfigured } from "../utils/smsConfigured.js";
+import { twilioVerifyConfigured } from "../utils/smsConfigured.js";
 import { emailVerificationRequired } from "../utils/emailVerificationRequired.js";
 import { dispatch } from "../queue/index.js";
 import { sendVerification, checkVerification } from "../services/twilioVerify.js";
@@ -80,27 +80,24 @@ const isDevNoSmtp = () =>
 const sanitize = (v) => (typeof v === "string" ? v.replace(/<[^>]*>/g, "").trim() : v);
 
 // ── Inscription ───────────────────────────────────────────────────────────
-// Email et téléphone sont mutuellement exclusifs : le formulaire (Register.jsx)
-// n'envoie qu'un seul des deux selon le mode choisi par l'utilisateur — la
-// vérification se fait alors par lien email OU par OTP SMS (Twilio Verify),
-// jamais les deux.
+// L'e-mail est l'unique canal d'inscription et de vérification (voir
+// smsConfigured.js — la vérification SMS est désactivée). Le téléphone reste un
+// champ de profil facultatif (utile pour les réservations, KYC, etc.) mais n'est
+// ni un identifiant de connexion ni un canal de vérification.
 export const register = async (req, res) => {
   const firstName = sanitize(req.body.firstName);
   const lastName  = sanitize(req.body.lastName);
   const password  = req.body.password; // Ne pas modifier le mot de passe
   const role      = sanitize(req.body.role);
 
-  let email = sanitize(req.body.email)?.toLowerCase() || null;
-  let phone = sanitize(req.body.phone) || null;
-  // Si les deux arrivent quand même (client non standard), on privilégie l'email —
-  // canal de récupération de compte plus fiable qu'un numéro.
-  if (email && phone) phone = null;
+  const email = sanitize(req.body.email)?.toLowerCase() || null;
+  const phone = sanitize(req.body.phone) || null;
 
   if (!password || !firstName || !lastName) {
     return res.status(400).json({ message: "Données manquantes." });
   }
-  if (!email && !phone) {
-    return res.status(400).json({ message: "Un email ou un numéro de téléphone est requis." });
+  if (!email) {
+    return res.status(400).json({ message: "Une adresse e-mail est requise pour créer un compte." });
   }
   if (firstName.length < 2 || firstName.length > 50) {
     return res.status(400).json({ message: "Le prénom doit contenir entre 2 et 50 caractères." });
@@ -114,23 +111,21 @@ export const register = async (req, res) => {
   if (password.length > 128) {
     return res.status(400).json({ message: "Mot de passe trop long." });
   }
-  if (email) {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.status(400).json({ message: "Format d'e-mail invalide." });
-    }
-    if (email.length > 254) {
-      return res.status(400).json({ message: "Adresse e-mail trop longue." });
-    }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ message: "Format d'e-mail invalide." });
+  }
+  if (email.length > 254) {
+    return res.status(400).json({ message: "Adresse e-mail trop longue." });
   }
   if (phone && !/^[+\d\s\-().]{6,20}$/.test(phone)) {
     return res.status(400).json({ message: "Format de téléphone invalide." });
   }
 
   try {
-    const existing = await User.findOne(email ? { email } : { phone });
+    const existing = await User.findOne({ email });
     if (existing) {
       // En dev sans SMTP : si le compte existe mais n'est pas vérifié, on le vérifie automatiquement
-      if (email && isDevNoSmtp() && !existing.emailVerified) {
+      if (isDevNoSmtp() && !existing.emailVerified) {
         existing.emailVerified = true;
         existing.emailVerificationToken   = null;
         existing.emailVerificationExpires = null;
@@ -143,78 +138,47 @@ export const register = async (req, res) => {
           message: "[DEV] Compte existant auto-vérifié. Vous pouvez vous connecter.",
         });
       }
-      return res.status(409).json({
-        message: email ? "Adresse e-mail déjà utilisée." : "Numéro de téléphone déjà utilisé.",
-      });
+      return res.status(409).json({ message: "Adresse e-mail déjà utilisée." });
     }
 
     const allowedRoles = ["client", "partenaire"];
     const userRole = allowedRoles.includes(role) ? role : "client";
     const hash = await bcrypt.hash(password, 12);
 
-    // ── Inscription par email ────────────────────────────────────────────
-    if (email) {
-      const token = makeToken();
-      const autoVerify = isDevNoSmtp(); // En développement sans SMTP : auto-vérifier l'email
+    const token = makeToken();
+    const autoVerify = isDevNoSmtp(); // En développement sans SMTP : auto-vérifier l'email
 
-      const user = await User.create({
-        firstName, lastName,
-        email,
-        password: hash,
-        role: userRole,
-        emailVerificationToken:   autoVerify ? null : token,
-        emailVerificationExpires: autoVerify ? null : new Date(Date.now() + VERIFY_TTL),
-        emailVerified:            autoVerify,
-      });
-
-      const jwtToken = signJWT(user);
-
-      if (autoVerify) {
-        logger.info("[DEV] Compte auto-vérifié", { email: user.email });
-        return res.status(201).json({
-          user: safeUser(user),
-          token: jwtToken,
-          emailVerificationSent: false,
-          message: "Compte créé et activé automatiquement (mode développement).",
-        });
-      }
-
-      const verifyUrl = `${APP_URL()}/verify-email?token=${token}`;
-      dispatch.emailVerification(user.email, user._id.toString(), verifyUrl, user.firstName).catch(() => {});
-
-      return res.status(201).json({
-        user: safeUser(user),
-        token: jwtToken,
-        emailVerificationSent: true,
-        message: "Compte créé ! Vérifiez votre boîte mail pour activer votre compte.",
-      });
-    }
-
-    // ── Inscription par téléphone ────────────────────────────────────────
     const user = await User.create({
       firstName, lastName,
+      email,
       phone,
       password: hash,
       role: userRole,
-      phoneVerified: false,
+      emailVerificationToken:   autoVerify ? null : token,
+      emailVerificationExpires: autoVerify ? null : new Date(Date.now() + VERIFY_TTL),
+      emailVerified:            autoVerify,
     });
 
     const jwtToken = signJWT(user);
 
-    let otpSent = false;
-    if (twilioVerifyConfigured()) {
-      const result = await sendVerification(phone);
-      otpSent = result.sent;
-      if (!result.sent) logger.error("register: échec envoi OTP Twilio Verify", { phone, error: result.error });
+    if (autoVerify) {
+      logger.info("[DEV] Compte auto-vérifié", { email: user.email });
+      return res.status(201).json({
+        user: safeUser(user),
+        token: jwtToken,
+        emailVerificationSent: false,
+        message: "Compte créé et activé automatiquement (mode développement).",
+      });
     }
 
-    res.status(201).json({
+    const verifyUrl = `${APP_URL()}/verify-email?token=${token}`;
+    dispatch.emailVerification(user.email, user._id.toString(), verifyUrl, user.firstName).catch(() => {});
+
+    return res.status(201).json({
       user: safeUser(user),
       token: jwtToken,
-      phoneVerificationSent: otpSent,
-      message: otpSent
-        ? "Compte créé ! Un code de vérification a été envoyé par SMS."
-        : "Compte créé !",
+      emailVerificationSent: true,
+      message: "Compte créé ! Vérifiez votre boîte mail pour activer votre compte.",
     });
   } catch (err) {
     logger.error("register:", err);
@@ -264,17 +228,10 @@ export const login = async (req, res) => {
       user.emailVerificationExpires = null;
     }
 
-    // Bloquer si téléphone fourni mais non vérifié (sauf admin) — uniquement si un
-    // provider SMS est réellement configuré (sinon personne ne pourrait jamais se
-    // débloquer, faute de pouvoir recevoir le code : voir smsConfigured() ci-dessus).
-    if (user.phone && !user.phoneVerified && user.role !== "admin" && smsConfigured()) {
-      return res.status(403).json({
-        code: "PHONE_NOT_VERIFIED",
-        message: "Veuillez vérifier votre numéro de téléphone pour vous connecter.",
-        phone: user.phone,
-        userId: user._id,
-      });
-    }
+    // La vérification téléphone n'est jamais exigée à la connexion — voir
+    // smsConfigured.js (SMS désactivé) : seule l'adresse e-mail est vérifiée, et
+    // uniquement à l'inscription (lien envoyé une fois, voir register()). Se
+    // connecter ne doit jamais exiger la saisie d'un code.
 
     // 2FA — si activé, retourner un challenge au lieu des tokens
     if (user.twoFactor?.enabled) {
