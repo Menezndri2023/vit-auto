@@ -4,9 +4,12 @@ import mongoose from "mongoose";
 import PartnerOnboarding from "../models/PartnerOnboarding.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
+import PartnerCertification from "../models/PartnerCertification.js";
+import PartnerVerification, { CRITERIA_WEIGHTS } from "../models/PartnerVerification.js";
 import { buildOnboardingPDFBuffer } from "../utils/pdfGenerator.js";
 import { dispatch } from "../queue/index.js";
 import { validateDocumentDataUri } from "../utils/imageValidation.js";
+import { computeScore, computeBadge, syncUserBadge } from "./partnerCertificationController.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
 const FOUNDING_LIMIT = 20;
@@ -39,6 +42,87 @@ async function addAudit(docId, action, performedBy, note = "") {
   await PartnerOnboarding.findByIdAndUpdate(docId, {
     $push: { auditLog: { action, performedBy: performedBy || null, note, timestamp: new Date() } },
   }).catch(() => {});
+}
+
+// ── Cascade Founding Partner ──────────────────────────────────────────────────
+// Avant ceci, signer l'Accord de Partenariat Fondateur ne posait le badge
+// "fondateur" QUE sur User.certificationBadge : le KYC (User.kycStatus), la
+// Certification 7 niveaux (PartnerCertification) et la Vérification Partenaire
+// (PartnerVerification) restaient chacun dans leur état antérieur, inchangé —
+// trois écrans admin séparés donnant une image incohérente du même partenaire
+// (ex: "EN_ATTENTE" en KYC alors qu'il est déjà partenaire fondateur signé).
+// L'Accord Founding Partner est le niveau de vérification le plus exigeant du
+// site (identité + entreprise + représentant + banque + véhicules + export déjà
+// collectés pendant l'onboarding) : sa signature vaut donc validation complète
+// des 3 autres systèmes, pas seulement l'attribution d'un badge isolé.
+const NOTE_AUTO = "Vérifié automatiquement — Accord de Partenariat Fondateur signé.";
+
+async function cascadeFoundingPartnerApproval(doc) {
+  const userId = doc.userId;
+  const now = new Date();
+
+  try {
+    // 1. KYC — mêmes champs qu'une décision admin "VERIFIE" manuelle
+    //    (voir kycController.adminReviewKyc) + score/badge au maximum (cohérent
+    //    avec kycEngine.js : score 100 → badge "CERTIFIÉ").
+    await User.findByIdAndUpdate(userId, {
+      $set: {
+        kycStatus:          "VERIFIE",
+        kycScore:           100,
+        kycBadge:           "CERTIFIÉ",
+        documentsVerified:  true,
+        "identity.status":     "verified",
+        "identity.verifiedAt": now,
+      },
+    });
+
+    // 2. Certification (7 niveaux) — même résultat qu'un admin approuvant
+    //    manuellement chaque niveau (computeScore/computeBadge réutilisés tels
+    //    quels, jamais recalculés séparément ici).
+    let cert = await PartnerCertification.findOne({ userId });
+    if (!cert) cert = new PartnerCertification({ userId });
+    for (let n = 1; n <= 7; n++) {
+      const lvl = cert[`level${n}`];
+      lvl.status     = "approved";
+      lvl.reviewedAt = now;
+      lvl.adminNote  = lvl.adminNote || NOTE_AUTO;
+    }
+    cert.certificationScore = computeScore(cert);
+    cert.certificationBadge = computeBadge(cert);
+    cert.overallStatus      = "approved";
+    await cert.save();
+    await syncUserBadge(userId, cert.certificationBadge);
+
+    // 3. Vérification Partenaire — tous les critères validés (recalcul
+    //    trustScore/trustLevel automatique via le pre("save") du modèle).
+    let pv = await PartnerVerification.findOne({ userId });
+    if (!pv) {
+      pv = new PartnerVerification({
+        userId,
+        companyName: doc.companyInfo?.legalName || `${doc.companyInfo?.mainContact || "Founding Partner"}`,
+        companyType: "autre",
+        country:     doc.companyInfo?.registrationCountry || "",
+        city:        "",
+      });
+    }
+    for (const key of Object.keys(CRITERIA_WEIGHTS)) {
+      pv.criteria[key] = {
+        verified:   true,
+        verifiedAt: now,
+        verifiedBy: null,
+        note:       pv.criteria[key]?.note || NOTE_AUTO,
+        docUrl:     pv.criteria[key]?.docUrl || null,
+      };
+    }
+    pv.status = "verifie";
+    await pv.save();
+
+    logger.info("cascadeFoundingPartnerApproval : KYC/Certification/Vérification synchronisés", { userId: userId.toString() });
+  } catch (err) {
+    // Non bloquant : l'Accord Founding Partner reste valide même si la
+    // synchronisation d'un des systèmes annexes échoue (à examiner via ce log).
+    logger.error("cascadeFoundingPartnerApproval:", err);
+  }
 }
 
 // ── Section update factory ────────────────────────────────────────────────────
@@ -357,13 +441,10 @@ export const signAgreement = async (req, res) => {
     doc.isFoundingPartner = true;
     await doc.save();
 
-    // Activer le partenaire comme Founding Partner
-    await User.findByIdAndUpdate(doc.userId, {
-      $set: {
-        isFounder: true,
-        certificationBadge: "fondateur",
-      },
-    });
+    // Activer le partenaire comme Founding Partner + synchroniser KYC,
+    // Certification et Vérification Partenaire (voir cascadeFoundingPartnerApproval).
+    await User.findByIdAndUpdate(doc.userId, { $set: { isFounder: true } });
+    await cascadeFoundingPartnerApproval(doc);
 
     await addAudit(doc._id, "ACCORD_SIGNE", req.user.id, `Signé par: ${signerName} — Commissions verrouillées`);
 
@@ -834,9 +915,8 @@ export const signByToken = async (req, res) => {
       doc.isFoundingPartner = true;
       await doc.save();
 
-      await User.findByIdAndUpdate(doc.userId, {
-        $set: { isFounder: true, certificationBadge: "fondateur" },
-      });
+      await User.findByIdAndUpdate(doc.userId, { $set: { isFounder: true } });
+      await cascadeFoundingPartnerApproval(doc);
 
       await addAudit(doc._id, "ACCORD_SIGNE_PAR_LIEN", null, `Via lien sécurisé — IP: ${ip}`);
 

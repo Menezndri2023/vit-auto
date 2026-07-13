@@ -72,7 +72,12 @@ function validateLevelDocs(payload, lvlNum) {
 }
 
 // ── Calcul du score global ───────────────────────────────────────────────────
-function computeScore(cert) {
+// Exportées (avec computeBadge/syncUserBadge) pour être réutilisées par la
+// cascade Founding Partner (partnerOnboardingController.js) — un partenaire
+// dont l'Accord de Partenariat Fondateur est signé doit obtenir exactement le
+// même résultat qu'un admin approuvant manuellement les 7 niveaux ici, pas une
+// logique de score/badge dupliquée et potentiellement désynchronisée.
+export function computeScore(cert) {
   let score = 0;
   ["level1","level2","level3","level4","level5","level6","level7"].forEach((l) => {
     if (cert[l]?.status === "approved") score += Math.floor(100 / 8);
@@ -82,7 +87,7 @@ function computeScore(cert) {
 }
 
 // ── Calcul du badge automatique ─────────────────────────────────────────────
-function computeBadge(cert) {
+export function computeBadge(cert) {
   const approved = (l) => cert[l]?.status === "approved";
   if (cert.level8?.badgeAwarded && cert.level8.badgeAwarded !== "none") return cert.level8.badgeAwarded;
   if (["level1","level2","level3","level4","level5","level6","level7"].every(approved)) return "fondateur";
@@ -91,7 +96,7 @@ function computeBadge(cert) {
 }
 
 // ── Sync badge sur le modèle User ────────────────────────────────────────────
-async function syncUserBadge(userId, certBadge) {
+export async function syncUserBadge(userId, certBadge) {
   const badgeLevelMap = { premium: "platinum", fondateur: "gold", verifie: "silver", none: "none" };
   await User.findByIdAndUpdate(userId, {
     $set: {
