@@ -154,6 +154,7 @@ export default function Booking() {
   const [geoDistance,    setGeoDistance]    = useState(null);
   const [geoFee,         setGeoFee]         = useState(null);
   const [geoFeeLoading,  setGeoFeeLoading]  = useState(false);
+  const [leasingAccepted, setLeasingAccepted] = useState(false);
 
   /* ── STEP 2 : Options ──────────────────────────────────────────── */
   const [selectedOptions, setSelectedOptions] = useState({ babySeat: false, insurance: false, driver: false, gps: false });
@@ -189,9 +190,17 @@ export default function Booking() {
     }, 0);
   }, [selectedOptions, days]);
 
-  const deliveryFee  = pickupMethod === "livraison" ? (geoFee ?? 3000) : 0;
-  const baseTotal    = (vehicle?.pricePerDay || 0) * Math.max(days, 1);
-  const totalToPay   = isTrial ? SERVICE_FEE : baseTotal + optionsTotal + deliveryFee + SERVICE_FEE;
+  const deliveryFee  = (pickupMethod === "livraison" && !isLeasing) ? (geoFee ?? 3000) : 0;
+  // Leasing = achat à mensualités : le seul montant exigé à la réservation est
+  // l'apport initial fixé par le partenaire (vehicle.leasing), jamais un prix/jour
+  // (qui n'existe pas pour un véhicule en mode "Acheter") — voir bookingController.js
+  // createBooking, qui calcule montantBase de la même façon côté serveur.
+  const baseTotal    = isLeasing
+    ? (vehicle?.leasing?.apportInitial || 0)
+    : (vehicle?.pricePerDay || 0) * Math.max(days, 1);
+  const totalToPay   = isTrial ? SERVICE_FEE
+    : isLeasing ? baseTotal + SERVICE_FEE
+    : baseTotal + optionsTotal + deliveryFee + SERVICE_FEE;
 
   /* ── GPS ───────────────────────────────────────────────────────── */
   const handleDetectGPS = async () => {
@@ -328,6 +337,13 @@ export default function Booking() {
       } : {}),
       // Leasing specifics
       ...(isLeasing ? {
+        leasing: {
+          apportInitial: vehicle?.leasing?.apportInitial || 0,
+          mensualite:    vehicle?.leasing?.mensualite    || 0,
+          duree:         vehicle?.leasing?.duree         || 36,
+          tauxInteret:   vehicle?.leasing?.tauxInteret   || 8,
+          totalLeasing:  (vehicle?.leasing?.apportInitial || 0) + (vehicle?.leasing?.mensualite || 0) * (vehicle?.leasing?.duree || 36),
+        },
         serviceFeeFCFA: SERVICE_FEE,
         montantTotal:   totalToPay,
         total:          totalToPay,
@@ -377,6 +393,25 @@ export default function Booking() {
             preferredDate: form.preferredDate,
             preferredTime: form.preferredTime,
             notes:         form.notes || "",
+          },
+        } : {}),
+        // Leasing : apport initial (seul montant exigé à la réservation, voir
+        // bookingController.createBooking) + moyen de paiement de cet apport —
+        // sans ce bloc, ni le montant ni le mode de paiement n'atteignaient
+        // jamais le serveur et la réservation était enregistrée à 0 FCFA.
+        ...(isLeasing ? {
+          leasing: {
+            apportInitial: vehicle?.leasing?.apportInitial || 0,
+            mensualite:    vehicle?.leasing?.mensualite    || 0,
+            duree:         vehicle?.leasing?.duree         || 36,
+            tauxInteret:   vehicle?.leasing?.tauxInteret   || 8,
+            totalLeasing:  (vehicle?.leasing?.apportInitial || 0) + (vehicle?.leasing?.mensualite || 0) * (vehicle?.leasing?.duree || 36),
+          },
+          payment: {
+            method:       payMethod,
+            mobileNumber: mobileNumber || undefined,
+            cardLast4:    cardNumber ? cardNumber.replace(/\s/g, "").slice(-4) : undefined,
+            cardHolder:   cardHolder || undefined,
           },
         } : {}),
       };
@@ -505,7 +540,7 @@ export default function Booking() {
       {/* ── Contenu principal ───────────────────────────── */}
       <div className={styles.content}>
         <h1 className={styles.pageTitle}>
-          {isTrial ? "🔑 Demande d'essai" : "📅 Réserver ce véhicule"}
+          {isTrial ? "🔑 Demande d'essai" : isLeasing ? "💳 Réserver ce leasing" : "📅 Réserver ce véhicule"}
         </h1>
 
         {/* KYC Badge */}
@@ -546,8 +581,30 @@ export default function Booking() {
                 onChange={(e) => setForm({ ...form, phone: e.target.value })} required />
             </div>
 
-            {/* Essai / Location */}
-            {isTrial ? (
+            {/* Essai / Leasing / Location */}
+            {isLeasing ? (
+              <>
+                <h3 className={styles.sectionTitle}>💳 Conditions du leasing</h3>
+                <p className={styles.optionsNote} style={{ marginBottom: 12 }}>
+                  Ce véhicule est proposé par le partenaire avec les conditions de financement suivantes — non modifiables à cette étape.
+                </p>
+                <div className={styles.confirmRows}>
+                  <div className={styles.confirmRow}><span>Apport initial</span><strong>{fmt(vehicle?.leasing?.apportInitial || 0)}</strong></div>
+                  <div className={styles.confirmRow}><span>Mensualité</span><strong>{fmt(vehicle?.leasing?.mensualite || 0)} / mois</strong></div>
+                  <div className={styles.confirmRow}><span>Durée</span><strong>{vehicle?.leasing?.duree || 36} mois</strong></div>
+                  <div className={styles.confirmRow}><span>Taux d'intérêt</span><strong>{vehicle?.leasing?.tauxInteret || 8}% / an</strong></div>
+                  {vehicle?.leasing?.description && (
+                    <div className={styles.confirmRow}><span>Conditions</span><strong>{vehicle.leasing.description}</strong></div>
+                  )}
+                </div>
+                <label className={styles.optionCard} style={{ marginTop: 16, cursor: "pointer" }}>
+                  <input type="checkbox" className={styles.optionCheckbox}
+                    checked={leasingAccepted}
+                    onChange={(e) => setLeasingAccepted(e.target.checked)} />
+                  <span>J'ai lu et j'accepte les conditions de ce leasing. L'apport initial sera exigé pour confirmer la réservation ; le reste est payé directement au partenaire selon l'échéancier ci-dessus.</span>
+                </label>
+              </>
+            ) : isTrial ? (
               <>
                 <h3 className={styles.sectionTitle}>Date d'essai</h3>
                 <div className={styles.row}>
@@ -669,12 +726,13 @@ export default function Booking() {
               <div />
               <button
                 className={styles.primaryBtn}
-                onClick={() => setStep(2)}
+                onClick={() => setStep(isLeasing ? 3 : 2)}
                 disabled={
                   !form.firstName || !form.lastName || !form.email || !form.phone ||
-                  (!isTrial && (!form.startDate || !form.endDate || days <= 0)) ||
+                  (isLeasing && !leasingAccepted) ||
+                  (!isTrial && !isLeasing && (!form.startDate || !form.endDate || days <= 0)) ||
                   (isTrial && (!form.preferredDate || !form.preferredTime)) ||
-                  (pickupMethod === "livraison" && !pickupAddress.trim())
+                  (!isLeasing && pickupMethod === "livraison" && !pickupAddress.trim())
                 }
               >
                 Suivant →
@@ -781,7 +839,7 @@ export default function Booking() {
             </div>
 
             <div className={styles.actionRow}>
-              <button className={styles.secondaryBtn} onClick={() => setStep(2)}>← Retour</button>
+              <button className={styles.secondaryBtn} onClick={() => setStep(isLeasing ? 1 : 2)}>← Retour</button>
               <button
                 className={styles.primaryBtn}
                 onClick={() => setStep(4)}
@@ -828,6 +886,13 @@ export default function Booking() {
                   <div className={styles.confirmRow}><span>Heure</span><strong>{form.preferredTime}</strong></div>
                 </>
               )}
+              {isLeasing && (
+                <>
+                  <div className={styles.confirmRow}><span>Apport initial</span><strong>{fmt(baseTotal)}</strong></div>
+                  <div className={styles.confirmRow}><span>Mensualité</span><strong>{fmt(vehicle?.leasing?.mensualite || 0)} / mois</strong></div>
+                  <div className={styles.confirmRow}><span>Durée</span><strong>{vehicle?.leasing?.duree || 36} mois</strong></div>
+                </>
+              )}
               <div className={styles.confirmRow}><span>Frais de service</span><strong>{fmt(SERVICE_FEE)}</strong></div>
               <div className={styles.confirmRow}><span>Paiement</span><strong>{PAYMENT_METHODS.find((p) => p.value === payMethod)?.label || payMethod}</strong></div>
               <div className={`${styles.confirmRow} ${styles.confirmTotal}`}>
@@ -871,18 +936,28 @@ export default function Booking() {
           </div>
 
           <div className={styles.sidebarRows}>
-            {!isTrial && <div className={styles.sidebarRow}><span>Prix / jour</span><strong>{fmt(vehicle.pricePerDay || 0)}</strong></div>}
-            {days > 0 && !isTrial && <div className={styles.sidebarRow}><span>Durée</span><strong>{days} j</strong></div>}
-            {baseTotal > 0 && !isTrial && <div className={styles.sidebarRow}><span>Base</span><strong>{fmt(baseTotal)}</strong></div>}
-            {optionsTotal > 0 && <div className={styles.sidebarRow}><span>Options</span><strong>{fmt(optionsTotal)}</strong></div>}
-            {pickupMethod === "livraison" && !isTrial && (
-              <div className={styles.sidebarRow}>
-                <span>Livraison{geoDistance ? ` (${geoDistance}km)` : ""}</span>
-                <strong>{geoFeeLoading ? "…" : fmt(deliveryFee)}</strong>
-              </div>
-            )}
-            {pickupMethod === "retrait" && !isTrial && (
-              <div className={styles.sidebarRow}><span>Retrait agence</span><strong className={styles.freeLabel}>Gratuit</strong></div>
+            {isLeasing ? (
+              <>
+                <div className={styles.sidebarRow}><span>Apport initial</span><strong>{fmt(baseTotal)}</strong></div>
+                <div className={styles.sidebarRow}><span>Mensualité</span><strong>{fmt(vehicle?.leasing?.mensualite || 0)}/mois</strong></div>
+                <div className={styles.sidebarRow}><span>Durée</span><strong>{vehicle?.leasing?.duree || 36} mois</strong></div>
+              </>
+            ) : (
+              <>
+                {!isTrial && <div className={styles.sidebarRow}><span>Prix / jour</span><strong>{fmt(vehicle.pricePerDay || 0)}</strong></div>}
+                {days > 0 && !isTrial && <div className={styles.sidebarRow}><span>Durée</span><strong>{days} j</strong></div>}
+                {baseTotal > 0 && !isTrial && <div className={styles.sidebarRow}><span>Base</span><strong>{fmt(baseTotal)}</strong></div>}
+                {optionsTotal > 0 && <div className={styles.sidebarRow}><span>Options</span><strong>{fmt(optionsTotal)}</strong></div>}
+                {pickupMethod === "livraison" && !isTrial && (
+                  <div className={styles.sidebarRow}>
+                    <span>Livraison{geoDistance ? ` (${geoDistance}km)` : ""}</span>
+                    <strong>{geoFeeLoading ? "…" : fmt(deliveryFee)}</strong>
+                  </div>
+                )}
+                {pickupMethod === "retrait" && !isTrial && (
+                  <div className={styles.sidebarRow}><span>Retrait agence</span><strong className={styles.freeLabel}>Gratuit</strong></div>
+                )}
+              </>
             )}
             <div className={styles.sidebarRow}><span>Frais service</span><strong>{fmt(SERVICE_FEE)}</strong></div>
             <div className={`${styles.sidebarRow} ${styles.sidebarTotal}`}>
