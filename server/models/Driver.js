@@ -65,6 +65,9 @@ driverSchema.index({ owner: 1 });
 driverSchema.index({ status: 1 });
 driverSchema.index({ zone: 1 });
 driverSchema.index({ country: 1 });
+// Couvre le filtre + tri du catalogue public (status:"approved", pays précis,
+// trié par récence) — même logique que Vehicle.
+driverSchema.index({ status: 1, country: 1, createdAt: -1 });
 
 driverSchema.pre("save", function (next) {
   this.updatedAt = new Date();

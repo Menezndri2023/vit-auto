@@ -6,6 +6,7 @@ import Booking from "../models/Booking.js";
 import { dispatch } from "../queue/index.js";
 import { scoreAnnonce, buildVehicleWhitelist } from "../services/vehicleScoring.js";
 import { logAction } from "../middleware/auditLog.js";
+import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -118,12 +119,27 @@ export const getVehicles = async (req, res) => {
     const {
       type, ville, carburant, transmission, minPrice, maxPrice,
       vehicleType, search, owner, country,
+      lat, lng, radiusKm = 50,
       page  = 1,
       limit = 20,
       status,    // admin uniquement
     } = req.query;
 
     const isAdmin = req.user?.role === "admin";
+    const clientLat = parseFloat(lat);
+    const clientLng = parseFloat(lng);
+    const hasGeo = !isAdmin && Number.isFinite(clientLat) && Number.isFinite(clientLng);
+
+    // Cache mémoire (public, non-géolocalisé uniquement — voir utils/catalogCache.js) :
+    // le catalogue est haute-lecture, une fraîcheur de quelques secondes est
+    // largement acceptable et évite de re-taper Mongo à chaque requête identique.
+    const cacheKey = !isAdmin && !hasGeo
+      ? buildCacheKey("vehicles", { type, ville, carburant, transmission, minPrice, maxPrice, vehicleType, search, owner, country, page, limit })
+      : null;
+    if (cacheKey) {
+      const cached = cacheGet(cacheKey);
+      if (cached) return res.json(cached);
+    }
 
     let filter;
     if (isAdmin && status && status !== "all") {
@@ -172,17 +188,58 @@ export const getVehicles = async (req, res) => {
     const maxLimit  = isAdmin ? 500 : 100;
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), maxLimit);
     const skip  = (Math.max(Number(page), 1) - 1) * safeLimit;
-    const [vehicles, total] = await Promise.all([
-      Vehicle.find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(safeLimit)
-        .populate("owner", "firstName phone ville certificationBadge")
-        .lean(),
-      Vehicle.countDocuments(filter),
-    ]);
 
-    res.json({ vehicles, total, page: Number(page), pages: Math.ceil(total / safeLimit) });
+    let vehicles, total;
+    if (hasGeo) {
+      // Recherche "près de moi" : $geoNear doit être le premier stage du pipeline,
+      // trie nativement par distance croissante — on lui passe le même filtre
+      // (statut/pays/prix/etc.) via son option `query`. Les véhicules sans
+      // coordonnées (donc sans `location`) sont naturellement exclus par $geoNear.
+      const safeRadiusKm = Math.min(Math.max(Number(radiusKm) || 50, 1), 500);
+      const [result] = await Vehicle.aggregate([
+        {
+          $geoNear: {
+            near:          { type: "Point", coordinates: [clientLng, clientLat] },
+            distanceField: "distanceKm",
+            distanceMultiplier: 0.001,
+            maxDistance:   safeRadiusKm * 1000,
+            spherical:     true,
+            query:         filter,
+          },
+        },
+        {
+          $facet: {
+            data:  [{ $skip: skip }, { $limit: safeLimit }],
+            count: [{ $count: "total" }],
+          },
+        },
+      ]);
+      vehicles = result?.data || [];
+      total    = result?.count?.[0]?.total || 0;
+
+      // populate() n'existe pas en aggregation — hydrater owner manuellement.
+      const User = (await import("../models/User.js")).default;
+      const ownerIds = [...new Set(vehicles.map((v) => v.owner?.toString()).filter(Boolean))];
+      const owners = await User.find({ _id: { $in: ownerIds } })
+        .select("firstName phone ville certificationBadge")
+        .lean();
+      const ownerMap = Object.fromEntries(owners.map((o) => [o._id.toString(), o]));
+      vehicles = vehicles.map((v) => ({ ...v, owner: ownerMap[v.owner?.toString()] || v.owner, distanceKm: Math.round(v.distanceKm * 10) / 10 }));
+    } else {
+      [vehicles, total] = await Promise.all([
+        Vehicle.find(filter)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(safeLimit)
+          .populate("owner", "firstName phone ville certificationBadge")
+          .lean(),
+        Vehicle.countDocuments(filter),
+      ]);
+    }
+
+    const payload = { vehicles, total, page: Number(page), pages: Math.ceil(total / safeLimit) };
+    if (cacheKey) cacheSet(cacheKey, payload);
+    res.json(payload);
   } catch (err) {
     logger.error("getVehicles:", err);
     res.status(500).json({ message: "Erreur récupération véhicules." });

@@ -86,6 +86,9 @@ const importExportListingSchema = new mongoose.Schema({
 importExportListingSchema.index({ status: 1, createdAt: -1 });
 importExportListingSchema.index({ partner: 1 });
 importExportListingSchema.index({ sourceCountry: 1 });
+// Le filtrage pays teste sourceCountry OU availableIn (voir getListings) —
+// availableIn est un tableau (multikey), indexé séparément pour couvrir ce cas.
+importExportListingSchema.index({ availableIn: 1 });
 
 importExportListingSchema.pre("save", function (next) {
   this.updatedAt = new Date();

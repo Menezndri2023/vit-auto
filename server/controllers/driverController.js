@@ -1,6 +1,7 @@
 import logger from "../utils/logger.js";
 import Driver from "../models/Driver.js";
 import Notification from "../models/Notification.js";
+import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -76,6 +77,11 @@ export const createDriver = async (req, res) => {
 export const getDrivers = async (req, res) => {
   try {
     const { zone, disponibilite, country } = req.query;
+
+    const cacheKey = buildCacheKey("drivers", { zone, disponibilite, country });
+    const cached = cacheGet(cacheKey);
+    if (cached) return res.json(cached);
+
     const filter = { status: "approved" };
     if (zone)         filter.zone = new RegExp(escapeRegex(String(zone).slice(0, 100)), "i");
     if (disponibilite) filter.disponibilite = disponibilite;
@@ -88,6 +94,7 @@ export const getDrivers = async (req, res) => {
       .sort({ noteMoyenne: -1, createdAt: -1 })
       .populate("owner", "firstName phone");
 
+    cacheSet(cacheKey, drivers);
     res.json(drivers);
   } catch (err) {
     logger.error("getDrivers:", err);

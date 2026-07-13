@@ -5,6 +5,7 @@ import { useVehicles } from "../context/VehicleContext";
 import { useCurrency } from "../context/CurrencyContext";
 import styles from "./Catalogue.module.css";
 import { useToast } from "../context/ToastContext";
+import { haversineKm } from "../utils/geo";
 
 const MODES = [
   { key: "Tout",      icon: "⚡", label: "Tout"         },
@@ -154,6 +155,34 @@ const Catalogue = () => {
   const [transmission, setTransmission] = useState("Tous");
   const [maxPrice,     setMaxPrice]     = useState(200000);
 
+  // ── "Près de moi" (recherche géolocalisée) ────────────────────────────────
+  const [nearMeActive, setNearMeActive] = useState(false);
+  const [userPos,      setUserPos]      = useState(null); // { lat, lng }
+  const [geoLoading,   setGeoLoading]   = useState(false);
+  const [geoError,     setGeoError]     = useState(null);
+
+  const handleToggleNearMe = () => {
+    if (nearMeActive) { setNearMeActive(false); return; }
+    if (!navigator.geolocation) {
+      setGeoError("Géolocalisation non disponible sur cet appareil.");
+      return;
+    }
+    setGeoLoading(true);
+    setGeoError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setNearMeActive(true);
+        setGeoLoading(false);
+      },
+      () => {
+        setGeoError("Impossible d'obtenir votre position. Vérifiez les autorisations de localisation.");
+        setGeoLoading(false);
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+    );
+  };
+
   // ── État Import/Export ────────────────────────────────────────────────────
   const [ieListings,  setIeListings]  = useState([]);
   const [ieLoading,   setIeLoading]   = useState(false);
@@ -261,11 +290,21 @@ const Catalogue = () => {
       return modeOk && typeOk && etatOk && fuelOk && transOk && priceOk && countryOk && textOk;
     });
 
+    // "Près de moi" : ne garder que les véhicules avec des coordonnées connues,
+    // calculer la distance et trier par proximité — prioritaire sur le tri choisi.
+    if (nearMeActive && userPos) {
+      list = list
+        .filter((v) => v.coordonnees?.lat != null && v.coordonnees?.lng != null)
+        .map((v) => ({ ...v, distance: haversineKm(userPos.lat, userPos.lng, v.coordonnees.lat, v.coordonnees.lng) }))
+        .sort((a, b) => a.distance - b.distance);
+      return list;
+    }
+
     if (sortKey === "price_asc")  list = [...list].sort((a,b) => (a.pricePerDay||a.priceForSale||0) - (b.pricePerDay||b.priceForSale||0));
     if (sortKey === "price_desc") list = [...list].sort((a,b) => (b.pricePerDay||b.priceForSale||0) - (a.pricePerDay||a.priceForSale||0));
     if (sortKey === "newest")     list = [...list].sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
     return list;
-  }, [vehicles, activeMode, activeType, activeEtat, fuelType, transmission, maxPrice, searchTerm, sortKey, isImportMode, isChauffeurMode, catalogCountry, COUNTRY_INTERNATIONAL]);
+  }, [vehicles, activeMode, activeType, activeEtat, fuelType, transmission, maxPrice, searchTerm, sortKey, isImportMode, isChauffeurMode, catalogCountry, COUNTRY_INTERNATIONAL, nearMeActive, userPos]);
 
   const activeChips = (!isImportMode && !isChauffeurMode) ? [
     activeMode !== "Tout"   && { label: activeMode,         clear: () => { setActiveMode("Tout"); setParam("mode",""); } },
@@ -389,6 +428,10 @@ const Catalogue = () => {
               }
             </span>
 
+            {geoError && !isImportMode && !isChauffeurMode && (
+              <span className={styles.activeChip} title={geoError}>⚠️ {geoError}</span>
+            )}
+
             {!isImportMode && !isChauffeurMode && activeChips.map((chip, i) => (
               <button key={i} type="button" className={styles.activeChip} onClick={chip.clear}>
                 {chip.label} <span>✕</span>
@@ -412,6 +455,18 @@ const Catalogue = () => {
                 <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
               ))}
             </select>
+
+            {!isImportMode && !isChauffeurMode && (
+              <button
+                type="button"
+                className={styles.filterToggleBtn}
+                onClick={handleToggleNearMe}
+                disabled={geoLoading}
+                title={nearMeActive ? "Désactiver le tri par proximité" : "Trier les véhicules par distance depuis ma position"}
+              >
+                {geoLoading ? "📍 Localisation…" : nearMeActive ? "✅ Près de moi" : "📍 Près de moi"}
+              </button>
+            )}
 
             {!isImportMode && !isChauffeurMode && (
               <button type="button" className={styles.filterToggleBtn} onClick={() => setFilterOpen(true)}>

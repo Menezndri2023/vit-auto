@@ -6,6 +6,7 @@ import User                    from "../models/User.js";
 import Notification            from "../models/Notification.js";
 import { ensureImporterProfile } from "../utils/ensureImporterProfile.js";
 import { COUNTRY_CODE_TO_NAME } from "../utils/countries.js";
+import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DEMANDES CLIENT (import/export requests)
@@ -342,6 +343,15 @@ export const getListings = async (req, res) => {
     // sinon n'importe quel visiteur pourrait lister les annonces en attente de
     // validation d'un partenaire via ?status=pending (fuite d'information).
     const isAdmin = req.user?.role === "admin";
+
+    const cacheKey = !isAdmin
+      ? buildCacheKey("ie_listings", { sourceCountry, page, limit, partner, country })
+      : null;
+    if (cacheKey) {
+      const cached = cacheGet(cacheKey);
+      if (cached) return res.json(cached);
+    }
+
     const filter = isAdmin && status ? { status } : { status: "approved" };
 
     if (sourceCountry) {
@@ -374,7 +384,9 @@ export const getListings = async (req, res) => {
       ImportExportListing.countDocuments(filter),
     ]);
 
-    res.json({ listings, total, pages: Math.ceil(total / safeLimit) });
+    const payload = { listings, total, pages: Math.ceil(total / safeLimit) };
+    if (cacheKey) cacheSet(cacheKey, payload);
+    res.json(payload);
   } catch (err) {
     logger.error("getListings:", err);
     res.status(500).json({ message: "Erreur serveur." });

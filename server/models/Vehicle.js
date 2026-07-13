@@ -75,6 +75,13 @@ const vehicleSchema = new mongoose.Schema({
     lat: { type: Number },
     lng: { type: Number },
   },
+  // GeoJSON Point synchronisé automatiquement depuis coordonnees (voir hook
+  // pre("save") plus bas) — Mongo n'indexe/ne recherche par proximité (2dsphere,
+  // $geoNear) qu'au format GeoJSON, jamais directement {lat, lng}.
+  location: {
+    type: { type: String, enum: ["Point"], default: "Point" },
+    coordinates: { type: [Number], default: undefined }, // [lng, lat]
+  },
 
   // ── Médias ────────────────────────────────────────────────
   images:      { type: [String], default: [] },
@@ -122,10 +129,25 @@ vehicleSchema.index({ pricePerDay: 1 });
 // trié par createdAt desc) — remplace l'ancien index simple sur status seul, qui ne
 // couvrait ni "available" ni le tri (fait en mémoire sur chaque requête).
 vehicleSchema.index({ status: 1, available: 1, createdAt: -1 });
+// Même couverture mais avec le pays en tête — sert le filtrage international du
+// catalogue (le cas le plus fréquent en usage réel : un pays précis, pas "INTL").
+vehicleSchema.index({ status: 1, available: 1, country: 1, createdAt: -1 });
+// Géolocalisation (recherche "près de moi") — nécessite le format GeoJSON, voir
+// le hook pre("save") ci-dessous qui synchronise `location` depuis `coordonnees`.
+vehicleSchema.index({ location: "2dsphere" });
 
-// Mettre à jour updatedAt automatiquement
+// Mettre à jour updatedAt automatiquement + synchroniser le point GeoJSON
+// (coordonnees.lat/lng → location.coordinates) pour permettre les requêtes
+// $geoNear/2dsphere sans dupliquer la saisie côté formulaire annonce.
 vehicleSchema.pre("save", function (next) {
   this.updatedAt = new Date();
+  const lat = this.coordonnees?.lat;
+  const lng = this.coordonnees?.lng;
+  if (typeof lat === "number" && typeof lng === "number" && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+    this.location = { type: "Point", coordinates: [lng, lat] };
+  } else {
+    this.location = undefined;
+  }
   next();
 });
 
