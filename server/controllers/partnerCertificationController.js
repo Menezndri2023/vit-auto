@@ -3,6 +3,7 @@ import PartnerCertification from "../models/PartnerCertification.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { sendEmail } from "../config/email.js";
+import { validateDocumentDataUri } from "../utils/imageValidation.js";
 
 // ── Champs autorisés par niveau (whitelist anti mass-assignment) ──────────────
 const LEVEL_ALLOWED_FIELDS = {
@@ -24,6 +25,22 @@ const LEVEL_ALLOWED_FIELDS = {
       "agreedToDelays","agreedToDataProt","agreedToRefund"],
 };
 
+// ── Champs "document" (base64) par niveau — doivent être validés en taille/type
+// réel avant tout stockage (voir MAX_CERT_DOC_BYTES ci-dessous), contrairement au
+// reste du payload qui n'est que du texte/booléens.
+const LEVEL_DOC_FIELDS = {
+  1: ["registrationDoc", "taxDoc", "addressProofDoc"],
+  2: ["idFrontDoc", "idBackDoc", "selfieDoc", "profCardDoc"],
+  4: ["bankDoc"],
+  5: ["grayCardDoc", "photoDoc", "invoiceDoc"],
+  6: ["sampleDoc"],
+};
+
+// Cohérent avec MAX_KYC_IMAGE_BYTES (kycController.js) — ces documents peuvent
+// être scannés en PDF (RCCM, RIB...) ou en photo, voir accept="image/*,application/pdf"
+// sur le formulaire (PartnerCertification.jsx).
+const MAX_CERT_DOC_BYTES = 6 * 1024 * 1024;
+
 // ── Extraire uniquement les champs autorisés d'un payload ────────────────────
 function pickAllowed(payload, lvlNum) {
   const allowed = LEVEL_ALLOWED_FIELDS[lvlNum] || [];
@@ -32,6 +49,26 @@ function pickAllowed(payload, lvlNum) {
     if (key in payload) safe[key] = payload[key];
   }
   return safe;
+}
+
+// ── Valider les documents soumis pour un niveau (taille + type réel) ─────────
+// Avant ce contrôle, seul le NOM du champ était vérifié (anti mass-assignment) —
+// le CONTENU (n'importe quel fichier, n'importe quelle taille jusqu'à la limite
+// globale du body JSON) était stocké tel quel, avec deux conséquences concrètes :
+// un document surdimensionné pouvait faire dépasser la limite BSON 16 Mo du
+// document PartnerCertification (qui cumule tous les niveaux), et un fichier
+// comme un SVG contenant du script passait les filtres d'affichage admin
+// (safeImgHref n'autorise que data:image/*, qu'un <svg> satisfait techniquement).
+function validateLevelDocs(payload, lvlNum) {
+  for (const key of LEVEL_DOC_FIELDS[lvlNum] || []) {
+    const doc = payload[key];
+    if (!doc) continue;
+    const data = typeof doc === "object" ? doc.data : null;
+    if (!data) continue;
+    const check = validateDocumentDataUri(data, MAX_CERT_DOC_BYTES);
+    if (!check.ok) return { ok: false, field: key, message: check.message };
+  }
+  return { ok: true };
 }
 
 // ── Calcul du score global ───────────────────────────────────────────────────
@@ -119,6 +156,11 @@ export const submitLevel = async (req, res) => {
 
     // Whitelist : seuls les champs autorisés pour ce niveau sont acceptés
     const safePayload = pickAllowed(req.body, lvlNum);
+
+    const docCheck = validateLevelDocs(safePayload, lvlNum);
+    if (!docCheck.ok) {
+      return res.status(400).json({ message: `${docCheck.field} : ${docCheck.message}`, code: "INVALID_DOCUMENT" });
+    }
 
     const levelKey = `level${lvlNum}`;
     cert[levelKey] = {

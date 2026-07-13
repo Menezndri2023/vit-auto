@@ -83,3 +83,62 @@ export function validateImageDataUri(value, maxBytes) {
 
   return { ok: true, detectedType, size: buffer.length };
 }
+
+// ── PDF : détection par magic bytes ("%PDF-") ─────────────────────────────────
+function isPdf(buffer) {
+  return buffer.length >= 5 && buffer.toString("ascii", 0, 5) === "%PDF-";
+}
+
+const DOC_DATA_URI_RE = /^data:(image\/[a-zA-Z0-9.+-]+|application\/pdf);base64,([A-Za-z0-9+/=]+)$/;
+
+/**
+ * Valide un document (justificatif entreprise, RIB, carte grise...) transmis en
+ * data URI base64 — comme validateImageDataUri, mais accepte aussi le PDF (ces
+ * documents administratifs sont fréquemment scannés en PDF, pas seulement en
+ * image). Mêmes protections : taille plafonnée + type réel vérifié par magic
+ * bytes (bloque au passage un SVG contenant du script, qui n'a pas de signature
+ * binaire image/PDF reconnue).
+ * @param {string} value    - la data URI complète
+ * @param {number} maxBytes - taille maximale décodée autorisée (octets)
+ * @returns {{ ok: boolean, message?: string, detectedType?: string, size?: number }}
+ */
+export function validateDocumentDataUri(value, maxBytes) {
+  if (!value) return { ok: true };
+
+  if (typeof value !== "string") {
+    return { ok: false, message: "Format de document invalide." };
+  }
+
+  const match = DOC_DATA_URI_RE.exec(value);
+  if (!match) {
+    return { ok: false, message: "Format de document invalide (image ou PDF attendu)." };
+  }
+
+  const base64Part = match[2];
+  const approxBytes = (base64Part.length * 3) / 4;
+  if (approxBytes > maxBytes) {
+    return { ok: false, message: `Document trop volumineux (max ${Math.round(maxBytes / (1024 * 1024))} Mo).` };
+  }
+
+  let buffer;
+  try {
+    buffer = Buffer.from(base64Part, "base64");
+  } catch {
+    return { ok: false, message: "Document corrompu ou encodage base64 invalide." };
+  }
+
+  if (buffer.length > maxBytes) {
+    return { ok: false, message: `Document trop volumineux (max ${Math.round(maxBytes / (1024 * 1024))} Mo).` };
+  }
+
+  if (isPdf(buffer)) {
+    return { ok: true, detectedType: "pdf", size: buffer.length };
+  }
+
+  const detectedType = detectImageType(buffer);
+  if (!detectedType) {
+    return { ok: false, message: "Contenu de fichier invalide : ni une image (PNG/JPEG/WEBP/GIF) ni un PDF valide." };
+  }
+
+  return { ok: true, detectedType, size: buffer.length };
+}

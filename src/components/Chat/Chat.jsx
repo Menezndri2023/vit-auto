@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useChat } from "../../context/ChatContext";
+import { useToast } from "../../context/ToastContext";
 import { getAssistantResponse } from "./VirtualAssistant";
 import styles from "./Chat.module.css";
 
@@ -127,7 +128,9 @@ function ChannelList({ onSelect, onOpenChannel, user }) {
 function ConversationView({ channel }) {
   const { user }   = useAuth();
   const { messages, sendMessage } = useChat();
+  const { error }  = useToast();
   const [text, setText]  = useState("");
+  const [sending, setSending] = useState(false);
   const [botMsgs, setBotMsgs] = useState([
     { _id: "bot-0", content: "Bonjour ! 👋 Je suis l'assistant virtuel VIT AUTO. Comment puis-je vous aider aujourd'hui ?", isBot: true, createdAt: new Date().toISOString() },
   ]);
@@ -141,20 +144,28 @@ function ConversationView({ channel }) {
   }, [displayedMsgs]);
 
   const handleSend = async () => {
-    if (!text.trim()) return;
+    if (!text.trim() || sending) return;
     const userMsg = text.trim();
-    setText("");
 
     if (isBot) {
+      setText("");
       const userBubble = { _id: `u-${Date.now()}`, content: userMsg, isMe: true, createdAt: new Date().toISOString() };
       setBotMsgs((prev) => [...prev, userBubble]);
       setTimeout(() => {
         const reply = getAssistantResponse(userMsg);
         setBotMsgs((prev) => [...prev, { _id: `b-${Date.now()}`, content: reply, isBot: true, createdAt: new Date().toISOString() }]);
       }, 600);
-    } else {
-      await sendMessage(userMsg);
+      return;
     }
+
+    // Le texte n'est effacé qu'après confirmation d'envoi — sinon un échec
+    // (rate limit, session expirée, conversation supprimée) faisait disparaître
+    // le message tapé sans aucune trace ni possibilité de réessayer.
+    setSending(true);
+    const result = await sendMessage(userMsg);
+    setSending(false);
+    if (result.ok) setText("");
+    else error(result.message || "Message non envoyé. Réessayez.");
   };
 
   const handleKey = (e) => {
@@ -187,7 +198,7 @@ function ConversationView({ channel }) {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKey}
         />
-        <button className={styles.sendBtn} onClick={handleSend} disabled={!text.trim()}>
+        <button className={styles.sendBtn} onClick={handleSend} disabled={!text.trim() || sending}>
           ➤
         </button>
       </div>
@@ -201,6 +212,7 @@ function ConversationView({ channel }) {
 export default function Chat() {
   const { user, isAuthenticated } = useAuth();
   const { open, setOpen, closeChat, openOrCreateChat, selectChat, unreadTotal, loading } = useChat();
+  const { error } = useToast();
   const location = useLocation();
 
   const [view, setView]             = useState("list"); // "list" | "convo"
@@ -225,10 +237,12 @@ export default function Chat() {
       setView("convo");
     } else {
       const type = ch.type || "client_support";
-      const chat = await openOrCreateChat(type);
-      if (chat) {
+      const result = await openOrCreateChat(type);
+      if (result.ok) {
         setActiveChannel(ch);
         setView("convo");
+      } else {
+        error(result.message || "Impossible d'ouvrir cette conversation. Réessayez.");
       }
     }
   };

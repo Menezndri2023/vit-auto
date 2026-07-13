@@ -17,11 +17,16 @@ async function findAccessibleChat(id, user) {
   if (chat) return chat;
 
   if (user.role === "admin") {
-    chat = await Chat.findOne({ _id: id, type: { $in: SUPPORT_TYPES } });
-    if (chat && !chat.participants.some((p) => p.toString() === myId)) {
-      chat.participants.push(user._id);
-      await chat.save();
-    }
+    // $addToSet est atomique côté MongoDB — contrairement à un push() en mémoire
+    // suivi d'un save(), deux admins qui ouvrent la même conversation au même
+    // instant ne peuvent pas s'écraser mutuellement (avec l'ancienne approche
+    // read-then-write, le second save() pouvait silencieusement perdre l'ajout
+    // du premier admin aux participants).
+    chat = await Chat.findOneAndUpdate(
+      { _id: id, type: { $in: SUPPORT_TYPES } },
+      { $addToSet: { participants: user._id } },
+      { new: true }
+    );
   }
   return chat;
 }
@@ -83,22 +88,33 @@ export const getOrCreateChat = async (req, res) => {
       const booking = await Booking.findById(bookingId)
         .populate("vehicle", "owner")
         .populate("driver", "owner");
-      if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
+
+      // Réponse générique identique que la réservation n'existe pas OU qu'elle
+      // existe mais n'implique pas l'appelant — sinon la différence 404/403
+      // permet de sonder l'existence d'un bookingId arbitraire par force brute.
+      const notPartyErr = () => res.status(404).json({ message: "Réservation introuvable." });
+      if (!booking) return notPartyErr();
 
       const clientId = booking.client?.toString();
       const ownerId  = (booking.vehicle?.owner || booking.driver?.owner)?.toString();
-      if (!ownerId) return res.status(404).json({ message: "Partenaire introuvable pour cette réservation." });
+      if (!ownerId) return notPartyErr();
 
       if (myId === clientId)      targetId = ownerId;
       else if (myId === ownerId)  targetId = clientId;
-      else return res.status(403).json({ message: "Vous n'êtes pas partie prenante de cette réservation." });
+      else return notPartyErr();
     }
 
     if (targetId === myId) return res.status(400).json({ message: "Impossible de vous écrire à vous-même." });
 
-    // Chercher conversation existante entre ces deux participants
-    const filter = { type, participants: { $all: [myId, targetId] } };
-    if (type === "client_partner") filter.booking = bookingId;
+    // Chercher conversation existante. Pour le support, un seul chat par
+    // (client, type) doit exister quel que soit l'admin nominal — sinon, comme
+    // aucun ordre n'est garanti sur `User.findOne({role:"admin"})` quand
+    // plusieurs admins existent, un second appel peut désigner un admin
+    // différent et faire échouer le `$all:[myId,targetId]`, créant une
+    // conversation en double (historique éclaté en plusieurs fils).
+    const filter = SUPPORT_TYPES.includes(type)
+      ? { type, participants: myId }
+      : { type, participants: { $all: [myId, targetId] }, booking: bookingId };
 
     let chat = await Chat.findOne(filter)
       .populate("participants", "firstName lastName email role profilePhoto");

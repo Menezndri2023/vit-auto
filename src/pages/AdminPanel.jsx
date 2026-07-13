@@ -409,11 +409,16 @@ export default function AdminPanel() {
   const [kycList,       setKycList]       = useState([]);
   const [kycLoading,    setKycLoading]    = useState(false);
   const [kycFilter,     setKycFilter]     = useState("EN_ATTENTE");
+  const [kycSearch,     setKycSearch]     = useState("");
   const [kycDetailUser, setKycDetailUser] = useState(null);
   const [kycDetailLoading, setKycDetailLoading] = useState(false);
   const [kycReviewForm, setKycReviewForm] = useState({ decision: "VERIFIE", note: "" });
   const [kycReviewLoading, setKycReviewLoading] = useState(false);
   const [kycReviewMsg,  setKycReviewMsg]  = useState("");
+  // Compteur "en attente" indépendant du filtre actuellement affiché (kycList
+  // change selon kycFilter — un badge calculé dessus mentirait dès que l'admin
+  // clique sur un autre filtre, voir loadKycPendingTotal ci-dessous).
+  const [kycPendingTotal, setKycPendingTotal] = useState(0);
   // Support Client (inbox chats client_support / partner_support)
   const [supportChats,    setSupportChats]    = useState([]);
   const [supportLoading,  setSupportLoading]  = useState(false);
@@ -670,6 +675,19 @@ export default function AdminPanel() {
     setKycLoading(false);
   }, [token, headers]);
 
+  // Compteur "en attente" — toujours interrogé SANS filtre de statut (le backend
+  // applique alors son défaut EN_ATTENTE + A_REVOIR_MANUELLEMENT, voir
+  // kycController.getKycList) donc jamais affecté par le filtre choisi dans l'UI.
+  const loadKycPendingTotal = useCallback(async () => {
+    if (!token) return;
+    try {
+      const r = await fetch("/api/kyc/admin/list?limit=1", { headers });
+      if (r.ok) { const d = await r.json(); setKycPendingTotal(d.total || 0); }
+    } catch { /* ignore */ }
+  }, [token, headers]);
+
+  useEffect(() => { loadKycPendingTotal(); }, [loadKycPendingTotal]);
+
   const loadCertList = useCallback(async () => {
     if (!token) return;
     setCertLoading(true);
@@ -754,6 +772,7 @@ export default function AdminPanel() {
         setKycReviewMsg(`✅ Décision enregistrée : ${kycReviewForm.decision}`);
         setKycDetailUser(null);
         loadKycList(kycFilter);
+        loadKycPendingTotal();
       } else {
         setKycReviewMsg(`❌ ${d.message || "Erreur."}`);
       }
@@ -1121,7 +1140,11 @@ export default function AdminPanel() {
   const pendingVeh = vehicles.filter((v) => v.status === "pending").length;
   const pendingBk  = bookings.filter((b) => b.status === "pending").length;
   const disputedBk = bookings.filter((b) => b.status === "disputed").length;
-  const pendingKyc  = kycList.filter((u) => u.kycStatus === "EN_ATTENTE" || u.kycStatus === "A_REVOIR_MANUELLEMENT").length;
+  // Ne PAS dériver ce badge de kycList : cette liste est filtrée par kycFilter
+  // (statut choisi dans l'UI) et change de contenu selon l'onglet affiché — un
+  // badge basé dessus retomberait trompeusement à 0 dès qu'un autre filtre est
+  // sélectionné. kycPendingTotal est interrogé indépendamment (voir plus haut).
+  const pendingKyc  = kycPendingTotal;
   const pendingCert = certList.filter((c) => ["level1","level2","level3","level4","level5","level6","level7"].some((l) => c[l]?.status === "submitted")).length;
   const pendingImp = importerProfiles.filter((p) => p.status === "pending").length;
   const pendingInv = invoices.filter((i) => i.status === "pending").length;
@@ -2648,8 +2671,9 @@ export default function AdminPanel() {
           </div>
 
           {/* Filtres par statut */}
-          <div style={{ display: "flex", gap: 8, marginBottom: "1.25rem", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap" }}>
             {[
+              { v: "ALL",                   l: "Tous",       ic: "📋" },
               { v: "EN_ATTENTE",            l: "En attente", ic: "⏳" },
               { v: "A_REVOIR_MANUELLEMENT", l: "En révision", ic: "🔍" },
               { v: "VERIFIE",               l: "Vérifiés",   ic: "✅" },
@@ -2670,16 +2694,42 @@ export default function AdminPanel() {
             ))}
           </div>
 
-          {kycLoading ? (
-            <div className={styles.loadingBox}><div className={styles.spinner} /><p>Chargement des dossiers KYC…</p></div>
-          ) : kycList.length === 0 ? (
-            <div className={styles.emptyBox} style={{ textAlign: "center", padding: "40px 20px" }}>
-              <div style={{ fontSize: "2.5rem", marginBottom: 8 }}>✅</div>
-              <p style={{ margin: 0, fontWeight: 600, color: "#475569" }}>Aucun dossier en attente de traitement.</p>
-            </div>
-          ) : (
+          {/* Recherche — pratique pour retrouver un compte précis (ex: déjà
+              approuvé) sans devoir deviner sous quel filtre de statut il se trouve */}
+          <input
+            className={styles.searchInput}
+            placeholder="Rechercher par nom ou email…"
+            value={kycSearch}
+            onChange={(e) => setKycSearch(e.target.value)}
+            style={{ width: "100%", boxSizing: "border-box", marginBottom: "1.25rem" }}
+          />
+
+          {(() => {
+            const q = kycSearch.trim().toLowerCase();
+            const filteredKycList = q
+              ? kycList.filter((u) =>
+                  `${u.firstName} ${u.lastName} ${u.email || ""}`.toLowerCase().includes(q))
+              : kycList;
+
+            if (kycLoading) return (
+              <div className={styles.loadingBox}><div className={styles.spinner} /><p>Chargement des dossiers KYC…</p></div>
+            );
+            if (filteredKycList.length === 0) return (
+              <div className={styles.emptyBox} style={{ textAlign: "center", padding: "40px 20px" }}>
+                <div style={{ fontSize: "2.5rem", marginBottom: 8 }}>✅</div>
+                <p style={{ margin: 0, fontWeight: 600, color: "#475569" }}>
+                  {q
+                    ? "Aucun résultat pour cette recherche."
+                    : kycFilter === "ALL"     ? "Aucun dossier KYC."
+                    : kycFilter === "VERIFIE" ? "Aucun dossier vérifié."
+                    : kycFilter === "REFUSE"  ? "Aucun dossier refusé."
+                    : "Aucun dossier en attente de traitement."}
+                </p>
+              </div>
+            );
+            return (
             <div style={{ display: "grid", gap: 10 }}>
-              {kycList.map((u) => {
+              {filteredKycList.map((u) => {
                 const KC = {
                   VERIFIE:               { c: "#059669", bg: "#d1fae5", border: "#6ee7b7", emoji: "✅" },
                   EN_ATTENTE:            { c: "#d97706", bg: "#fef3c7", border: "#fde68a", emoji: "⏳" },
@@ -2729,7 +2779,8 @@ export default function AdminPanel() {
                 );
               })}
             </div>
-          )}
+            );
+          })()}
 
           {/* Modal détail + décision KYC */}
           {kycDetailUser && (

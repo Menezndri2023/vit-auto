@@ -45,8 +45,12 @@ export const ChatProvider = ({ children }) => {
     } catch { /* ignore */ }
   }, [token, chats]);
 
+  // Retourne { ok, chat?, message? } plutôt que null en cas d'échec : sans ça,
+  // l'appelant (Chat.jsx) n'avait aucun moyen de distinguer "aucun agent
+  // disponible" ou une session expirée d'un simple clic ignoré, et n'affichait
+  // donc jamais d'erreur à l'utilisateur.
   const openOrCreateChat = useCallback(async (type, targetUserId = null, bookingId = null) => {
-    if (!token) return null;
+    if (!token) return { ok: false, message: "Vous devez être connecté." };
     setLoading(true);
     try {
       const res = await fetch("/api/chats", {
@@ -54,36 +58,43 @@ export const ChatProvider = ({ children }) => {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ type, targetUserId, bookingId }),
       });
-      if (!res.ok) { setLoading(false); return null; }
-      const { chat } = await res.json();
-      setActiveChat(chat);
-      await fetchMessages(chat._id);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setLoading(false); return { ok: false, message: data.message || "Impossible d'ouvrir la conversation." }; }
+      setActiveChat(data.chat);
+      await fetchMessages(data.chat._id);
       setOpen(true);
       setLoading(false);
-      return chat;
+      return { ok: true, chat: data.chat };
     } catch {
       setLoading(false);
-      return null;
+      return { ok: false, message: "Erreur réseau. Réessayez." };
     }
   }, [token, fetchMessages]);
 
+  // Retourne { ok, message? } — voir openOrCreateChat ci-dessus pour la même
+  // raison : un échec d'envoi (rate limit, conversation supprimée, session
+  // expirée...) doit remonter jusqu'à l'UI, pas disparaître silencieusement
+  // avec le message déjà effacé de la zone de saisie.
   const sendMessage = useCallback(async (content) => {
-    if (!token || !activeChat || !content.trim()) return;
+    if (!token || !activeChat || !content.trim()) return { ok: false, message: "Message vide." };
     try {
       const res = await fetch(`/api/chats/${activeChat._id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ content }),
       });
-      if (!res.ok) return;
-      const { message } = await res.json();
-      setMessages((prev) => [...prev, message]);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, message: data.message || "Échec de l'envoi." };
+      setMessages((prev) => [...prev, data.message]);
       setChats((prev) => prev.map((c) =>
         c._id === activeChat._id
           ? { ...c, lastMessage: content.substring(0, 80), lastMessageAt: new Date().toISOString() }
           : c
       ));
-    } catch { /* ignore */ }
+      return { ok: true };
+    } catch {
+      return { ok: false, message: "Erreur réseau. Réessayez." };
+    }
   }, [token, activeChat]);
 
   const selectChat = useCallback(async (chat) => {

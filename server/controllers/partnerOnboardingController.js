@@ -6,6 +6,7 @@ import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { buildOnboardingPDFBuffer } from "../utils/pdfGenerator.js";
 import { dispatch } from "../queue/index.js";
+import { validateDocumentDataUri } from "../utils/imageValidation.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
 const FOUNDING_LIMIT = 20;
@@ -144,14 +145,17 @@ export const updateSection = async (req, res) => {
     for (const field of fields) {
       if (field in req.body) {
         const val = req.body[field];
-        // Valider la taille des fichiers base64
-        if (typeof val === "string" && val.startsWith("data:")) {
-          const base64Part = val.split(",")[1] || val;
-          const byteSize = Buffer.byteLength(base64Part, "base64");
-          if (byteSize > MAX_FILE_BYTES) {
-            return res.status(413).json({
-              message: `Le fichier "${field}" dépasse la taille maximale autorisée (5 Mo). Compressez le fichier et réessayez.`,
-            });
+        // Valider les fichiers base64 : taille ET type réel (magic bytes) — pas
+        // seulement le préfixe "data:" déclaré, qu'un client malveillant peut
+        // usurper (ex: un SVG contenant du script passerait un simple contrôle
+        // de taille). S'applique aussi aux champs tableaux (companyPhotos, etc.).
+        const candidates = Array.isArray(val) ? val : [val];
+        for (const item of candidates) {
+          if (typeof item === "string" && item.startsWith("data:")) {
+            const check = validateDocumentDataUri(item, MAX_FILE_BYTES);
+            if (!check.ok) {
+              return res.status(400).json({ message: `Le fichier "${field}" est invalide : ${check.message}` });
+            }
           }
         }
         update[`${sectionKey}.${field}`] = val;

@@ -6,7 +6,7 @@ import * as OTPAuth from "otpauth";
 import QRCode from "qrcode";
 import User from "../models/User.js";
 import { serverValidateIdentity } from "../utils/idValidation.js";
-import { twilioVerifyConfigured } from "../utils/smsConfigured.js";
+import { smsConfigured, twilioVerifyConfigured } from "../utils/smsConfigured.js";
 import { emailVerificationRequired } from "../utils/emailVerificationRequired.js";
 import { dispatch } from "../queue/index.js";
 import { sendVerification, checkVerification } from "../services/twilioVerify.js";
@@ -472,6 +472,19 @@ async function sendSmsOtp(phoneNumber, otp) {
 // — on ne stocke plus rien localement pour ce provider. Le flux OTP maison
 // (génération + hash bcrypt) n'est conservé que pour Africa's Talking / dev.
 export const sendPhoneOtp = async (req, res) => {
+  // Coupe-circuit AVANT toute lecture/écriture en base : sans ce garde, cet
+  // endpoint non authentifié restait exploitable même SMS désactivé — un
+  // appelant connaissant (ou devinant) le numéro de téléphone d'un compte tiers
+  // pouvait quand même déclencher user.phoneVerified=false + génération d'un
+  // OTP stocké en base pour ce compte, avant même de savoir qu'aucun SMS ne
+  // sera jamais délivré (voir smsConfigured.js — SMS_ENABLED=false).
+  if (!smsConfigured()) {
+    return res.status(503).json({
+      message: "Le service d'envoi de SMS est momentanément indisponible. Contactez le support VIT AUTO (contact@vit-auto.com) pour vérifier votre compte.",
+      smsUnavailable: true,
+    });
+  }
+
   const { phone, userId } = req.body;
   const target = phone?.trim();
   if (!target) return res.status(400).json({ message: "Numéro de téléphone requis." });
@@ -539,6 +552,10 @@ export const sendPhoneOtp = async (req, res) => {
 
 // ── Vérifier OTP téléphone ────────────────────────────────────────────────
 export const verifyPhoneOtp = async (req, res) => {
+  if (!smsConfigured()) {
+    return res.status(503).json({ message: "Le service de vérification par SMS est momentanément indisponible.", smsUnavailable: true });
+  }
+
   const { phone, userId, otp } = req.body;
   if (!otp) return res.status(400).json({ message: "Code OTP requis." });
 

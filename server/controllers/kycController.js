@@ -351,7 +351,11 @@ export const getKycList = async (req, res) => {
     const { status, page = 1, limit = 20 } = req.query;
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
     const filter = {};
-    if (status) filter.kycStatus = status;
+    // "ALL" : aucun filtre de statut — sinon un compte déjà vérifié/refusé (donc
+    // absent des deux statuts par défaut ci-dessous) devient introuvable pour
+    // l'admin s'il ne pense pas à cliquer sur le filtre correspondant.
+    if (status === "ALL") { /* pas de filtre kycStatus */ }
+    else if (status) filter.kycStatus = status;
     else filter.kycStatus = { $in: ["EN_ATTENTE", "A_REVOIR_MANUELLEMENT"] };
 
     const skip  = (Math.max(Number(page), 1) - 1) * safeLimit;
