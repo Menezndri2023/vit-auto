@@ -113,6 +113,10 @@ const bookingSchema = new mongoose.Schema({
   // ── Champs spécifiques : CHAUFFEUR ────────────────────────
   chauffeur: {
     date:        { type: Date },
+    // Calculé côté serveur (date + heures), jamais depuis le client — permet
+    // une détection de conflit de planning efficace au niveau requête Mongo,
+    // sur le même principe que location.startDate/endDate pour les véhicules.
+    dateFin:     { type: Date },
     heures:      { type: Number },
     lieuDepart:  { type: String },
     destination: { type: String },
@@ -246,6 +250,7 @@ bookingSchema.index({ type: 1 });
 bookingSchema.index({ createdAt: -1 });
 // Index pour la vérification de chevauchement de dates
 bookingSchema.index({ vehicle: 1, status: 1, "location.startDate": 1, "location.endDate": 1 });
+bookingSchema.index({ driver: 1, status: 1, "chauffeur.date": 1, "chauffeur.dateFin": 1 });
 
 bookingSchema.pre("save", function (next) {
   this.updatedAt = new Date();

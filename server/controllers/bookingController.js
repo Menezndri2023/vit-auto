@@ -174,6 +174,7 @@ export const createBooking = async (req, res) => {
     }
 
     // ── Chauffeur ──────────────────────────────────────────────────────────────
+    let chauffeurDateFin = null;
     if (type === "chauffeur") {
       if (!driverId) return res.status(400).json({ message: "driverId requis." });
       driver = await Driver.findById(driverId);
@@ -183,6 +184,32 @@ export const createBooking = async (req, res) => {
       // surfacture massivement (ex: tarif journée × nombre d'heures).
       montantBase = (driver.tarifHeure || driver.tarif || 0) * (chauffeur?.heures || 1);
       ownerId = driver.owner;
+
+      // Date/heure de mission requise pour pouvoir détecter les conflits de
+      // planning — sans elle, deux clients pouvaient réserver le même
+      // chauffeur en même temps sans qu'aucun contrôle ne l'empêche.
+      const chauffeurDate = chauffeur?.date ? new Date(chauffeur.date) : null;
+      if (!chauffeurDate || isNaN(chauffeurDate.getTime())) {
+        return res.status(400).json({ message: "Date et heure de la mission requises." });
+      }
+      if (chauffeurDate < new Date()) {
+        return res.status(400).json({ message: "La date de la mission ne peut pas être dans le passé." });
+      }
+      const heures = Number(chauffeur?.heures) || 1;
+      chauffeurDateFin = new Date(chauffeurDate.getTime() + heures * 3600000);
+
+      const conflict = await Booking.findOne({
+        driver:  driverId,
+        status:  { $in: ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "transaction_concluded", "waiting_client_validation"] },
+        "chauffeur.date":    { $lt: chauffeurDateFin },
+        "chauffeur.dateFin": { $gt: chauffeurDate },
+      });
+      if (conflict) {
+        return res.status(409).json({
+          message: "Ce chauffeur est déjà réservé sur ce créneau.",
+          conflict: { date: conflict.chauffeur.date, dateFin: conflict.chauffeur.dateFin },
+        });
+      }
     }
 
     // ── Options location ───────────────────────────────────────────────────────
@@ -264,7 +291,8 @@ export const createBooking = async (req, res) => {
       // deliveryFee toujours écrasé par la valeur calculée serveur ci-dessus, jamais celle du client
       location: type === "location" && location ? { ...location, deliveryFee } : (type === "location" ? location : undefined),
       essai:    type === "essai"    ? essai    : undefined,
-      chauffeur: type === "chauffeur" ? chauffeur : undefined,
+      // dateFin toujours écrasé par la valeur calculée serveur ci-dessus, jamais celle du client
+      chauffeur: type === "chauffeur" ? { ...chauffeur, dateFin: chauffeurDateFin } : undefined,
       leasing:  type === "leasing"  ? leasingData : undefined,
       montantBase,
       montantOptions,
@@ -928,6 +956,42 @@ export const getVehicleOccupiedDates = async (req, res) => {
     });
   } catch (err) {
     logger.error("getVehicleOccupiedDates:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 8c. CRÉNEAUX OCCUPÉS D'UN CHAUFFEUR (pour éviter un double-booking visible côté client)
+// ═══════════════════════════════════════════════════════════════════════════════
+export const getDriverOccupiedSlots = async (req, res) => {
+  try {
+    const { driverId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(driverId)) {
+      return res.status(400).json({ message: "driverId invalide." });
+    }
+
+    const activeStatuses = [
+      "pending", "confirmed", "preparing", "ready", "in_progress",
+      "client_arrived", "transaction_concluded", "waiting_client_validation",
+    ];
+
+    const bookings = await Booking.find({
+      driver:  driverId,
+      status:  { $in: activeStatuses },
+      "chauffeur.date":    { $exists: true },
+      "chauffeur.dateFin": { $exists: true },
+    }).select("chauffeur.date chauffeur.dateFin status reference -_id");
+
+    const occupied = bookings.map((b) => ({
+      date:      b.chauffeur.date,
+      dateFin:   b.chauffeur.dateFin,
+      status:    b.status,
+      reference: b.reference || "",
+    }));
+
+    res.json({ driverId, occupied });
+  } catch (err) {
+    logger.error("getDriverOccupiedSlots:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

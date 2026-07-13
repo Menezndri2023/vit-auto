@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -30,12 +30,43 @@ const DriverBooking = () => {
   const [lastName,  setLastName]  = useState(user?.lastName  || "");
   const [email,     setEmail]     = useState(user?.email     || "");
   const [phone,     setPhone]     = useState(user?.phone     || "");
+  const [missionDate, setMissionDate] = useState("");
+  const [missionTime, setMissionTime] = useState("");
+  const [lieuDepart,  setLieuDepart]  = useState("");
   const [heures,    setHeures]    = useState(4);
+  const [occupiedSlots, setOccupiedSlots] = useState([]);
   const [selectedMethod, setSelectedMethod] = useState("orange_money");
   const [mobileNumber, setMobileNumber] = useState("");
   const [cardNumber,   setCardNumber]   = useState("");
   const [cardHolder,   setCardHolder]   = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Créneaux déjà réservés pour ce chauffeur — permet d'avertir le client
+  // avant soumission plutôt que de découvrir le conflit après coup (le
+  // serveur reste seul garant : voir bookingController.createBooking).
+  useEffect(() => {
+    if (!id) return;
+    fetch(`/api/bookings/driver/${id}/occupied-slots`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.occupied) setOccupiedSlots(d.occupied); })
+      .catch(() => {});
+  }, [id]);
+
+  const missionStart = useMemo(() => {
+    if (!missionDate || !missionTime) return null;
+    const dt = new Date(`${missionDate}T${missionTime}`);
+    return isNaN(dt.getTime()) ? null : dt;
+  }, [missionDate, missionTime]);
+
+  const missionEnd = useMemo(() => {
+    if (!missionStart) return null;
+    return new Date(missionStart.getTime() + (Number(heures) || 0) * 3600000);
+  }, [missionStart, heures]);
+
+  const slotConflict = useMemo(() => {
+    if (!missionStart || !missionEnd) return null;
+    return occupiedSlots.find((s) => new Date(s.date) < missionEnd && new Date(s.dateFin) > missionStart) || null;
+  }, [missionStart, missionEnd, occupiedSlots]);
 
   if (!driver) {
     return (
@@ -59,8 +90,20 @@ const DriverBooking = () => {
       error("Veuillez remplir toutes vos informations.");
       return;
     }
+    if (!missionStart) {
+      error("Veuillez choisir la date et l'heure de la mission.");
+      return;
+    }
+    if (missionStart < new Date()) {
+      error("La date de la mission ne peut pas être dans le passé.");
+      return;
+    }
     if (!Number.isFinite(Number(heures)) || Number(heures) <= 0) {
       error("Nombre d'heures invalide.");
+      return;
+    }
+    if (slotConflict) {
+      error("Ce chauffeur est déjà réservé sur ce créneau. Choisissez une autre date/heure.");
       return;
     }
     if (isMobile && !mobileNumber.trim()) {
@@ -84,7 +127,7 @@ const DriverBooking = () => {
           type: "chauffeur",
           driverId: id,
           clientInfo: { firstName, lastName, email, phone },
-          chauffeur: { heures: Number(heures) },
+          chauffeur: { date: missionStart.toISOString(), heures: Number(heures), lieuDepart: lieuDepart.trim() || undefined },
           payment: {
             method: selectedMethod,
             mobileNumber: isMobile ? mobileNumber : undefined,
@@ -141,8 +184,35 @@ const DriverBooking = () => {
         <input className={styles.input} type="tel" placeholder="Téléphone *" value={phone} onChange={(e) => setPhone(e.target.value)} />
       </div>
 
-      {/* Durée */}
-      <h2 style={{ color: "#0f1b3f", fontSize: "1.05rem", marginBottom: 12 }}>Durée de la mission</h2>
+      {/* Date, heure & durée */}
+      <h2 style={{ color: "#0f1b3f", fontSize: "1.05rem", marginBottom: 12 }}>Date et durée de la mission</h2>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={{ fontWeight: 700, color: "#374151", fontSize: "0.85rem" }}>Date *</span>
+          <input type="date" value={missionDate} min={new Date().toISOString().split("T")[0]}
+            onChange={(e) => setMissionDate(e.target.value)}
+            style={{ padding: "12px 16px", borderRadius: 12, border: "1.5px solid #e5e9f4", fontSize: "0.95rem", boxSizing: "border-box" }} />
+        </label>
+        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={{ fontWeight: 700, color: "#374151", fontSize: "0.85rem" }}>Heure de début *</span>
+          <input type="time" value={missionTime}
+            onChange={(e) => setMissionTime(e.target.value)}
+            style={{ padding: "12px 16px", borderRadius: 12, border: "1.5px solid #e5e9f4", fontSize: "0.95rem", boxSizing: "border-box" }} />
+        </label>
+      </div>
+      {slotConflict && (
+        <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 10, padding: "10px 14px", marginBottom: 12, color: "#991b1b", fontSize: "0.85rem", fontWeight: 600 }}>
+          ⛔ Ce chauffeur est déjà réservé sur ce créneau. Choisissez une autre date/heure.
+        </div>
+      )}
+      <div style={{ marginBottom: 12 }}>
+        <label style={{ fontWeight: 700, color: "#374151", fontSize: "0.85rem", display: "block", marginBottom: 6 }}>
+          Lieu de départ (optionnel)
+        </label>
+        <input type="text" placeholder="Ex : Aéroport Félix-Houphouët-Boigny, Abidjan" value={lieuDepart}
+          onChange={(e) => setLieuDepart(e.target.value)}
+          style={{ width: "100%", padding: "12px 16px", borderRadius: 12, border: "1.5px solid #e5e9f4", fontSize: "0.95rem", boxSizing: "border-box" }} />
+      </div>
       <div style={{ marginBottom: 20 }}>
         <label style={{ fontWeight: 700, color: "#374151", fontSize: "0.85rem", display: "block", marginBottom: 6 }}>
           Nombre d'heures
@@ -212,10 +282,11 @@ const DriverBooking = () => {
         <strong style={{ color: "#0f1b3f", fontSize: "1.2rem" }}>{fmt(total)}</strong>
       </div>
 
-      <button onClick={handleSubmit} disabled={submitting}
+      <button onClick={handleSubmit} disabled={submitting || !missionStart || !!slotConflict}
         style={{
-          width: "100%", padding: "15px", borderRadius: 14, border: "none", cursor: submitting ? "not-allowed" : "pointer",
-          background: submitting ? "#94a3b8" : "linear-gradient(135deg, #ff4d2d, #e03519)",
+          width: "100%", padding: "15px", borderRadius: 14, border: "none",
+          cursor: (submitting || !missionStart || slotConflict) ? "not-allowed" : "pointer",
+          background: (submitting || !missionStart || slotConflict) ? "#94a3b8" : "linear-gradient(135deg, #ff4d2d, #e03519)",
           color: "#fff", fontWeight: 800, fontSize: "1rem",
         }}>
         {submitting ? "Envoi en cours…" : `Réserver ce chauffeur — ${fmt(total)}`}

@@ -10,6 +10,7 @@ const vid = validateObjectId();
 
 // ── Public : dates bloquées d'un véhicule ─────────────────
 router.get("/vehicle/:vehicleId/occupied-dates", b.getVehicleOccupiedDates);
+router.get("/driver/:driverId/occupied-slots",   b.getDriverOccupiedSlots);
 
 // ── Création réservation (auth optionnelle — liaison user si connecté) ─
 router.post("/", optionalAuth, b.createBooking);
