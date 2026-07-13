@@ -9,6 +9,7 @@
 import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
+import { noteRedisError } from "../connection.js";
 
 // Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
 // Redis/BullMQ est indisponible.
@@ -45,6 +46,9 @@ export function startNotificationWorker(connection) {
 
   worker.on("failed", (job, err) => {
     logger.error("[NotifWorker] Échec", { jobId: job?.id, channel: job?.data?.channel, error: err.message });
+  });
+  worker.on("error", (err) => {
+    if (!noteRedisError(err)) logger.error("[NotifWorker] Erreur worker", { error: err.message });
   });
 
   logger.info("[NotificationWorker] Démarré", { queue: QUEUE_NAMES.NOTIFICATION });

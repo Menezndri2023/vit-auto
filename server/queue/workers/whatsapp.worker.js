@@ -6,6 +6,7 @@
 import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
+import { noteRedisError } from "../connection.js";
 
 // Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
 // Redis/BullMQ est indisponible.
@@ -31,6 +32,9 @@ export function startWhatsAppWorker(connection) {
 
   worker.on("failed", (job, err) => {
     logger.error("[WAWorker] Échec", { jobId: job?.id, template: job?.data?.template, error: err.message });
+  });
+  worker.on("error", (err) => {
+    if (!noteRedisError(err)) logger.error("[WAWorker] Erreur worker", { error: err.message });
   });
 
   logger.info("[WhatsAppWorker] Démarré", { queue: QUEUE_NAMES.WHATSAPP });

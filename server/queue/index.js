@@ -10,12 +10,14 @@
 import { Queue } from "bullmq";
 import logger from "../utils/logger.js";
 import { QUEUE_NAMES, QUEUE_OPTIONS, PRIORITY } from "./definitions.js";
-import { initQueueConnection, isQueueConnected } from "./connection.js";
+import { initQueueConnection, isQueueConnected, isConnectionHardBroken } from "./connection.js";
 
 // ── Registre des queues ───────────────────────────────────────────────────────
 let _queues = {};
 let _workers = [];
 let _ready = false;
+let _workersPaused = false;
+let _pauseMonitor = null;
 
 // ── Initialisation ────────────────────────────────────────────────────────────
 export async function initQueues() {
@@ -38,7 +40,30 @@ export async function initQueues() {
 
   // Démarrer tous les workers
   await startAllWorkers(conn);
+  startPauseMonitor();
   return true;
+}
+
+// ── Surveillance panne dure Redis ─────────────────────────────────────────────
+// Vérification purement locale (aucun appel Redis) : quand une panne dure est
+// détectée (ex: quota Upstash), on met les workers en pause pour arrêter de
+// solliciter Redis en boucle — les jobs continuent d'être traités via le
+// fallback synchrone de enqueue(). Reprise automatique dès que ça se résorbe.
+function startPauseMonitor() {
+  if (_pauseMonitor) return;
+  _pauseMonitor = setInterval(() => {
+    const broken = isConnectionHardBroken();
+    if (broken && !_workersPaused) {
+      _workersPaused = true;
+      _workers.forEach((w) => w.pause(true).catch(() => {}));
+      logger.warn("[Queue] Workers mis en pause (panne Redis dure)");
+    } else if (!broken && _workersPaused) {
+      _workersPaused = false;
+      _workers.forEach((w) => w.resume());
+      logger.info("[Queue] Workers repris (Redis rétabli)");
+    }
+  }, 5000);
+  _pauseMonitor.unref?.();
 }
 
 async function startAllWorkers(conn) {
@@ -92,6 +117,7 @@ export async function getQueueStats() {
 }
 
 export async function closeQueues() {
+  if (_pauseMonitor) { clearInterval(_pauseMonitor); _pauseMonitor = null; }
   await Promise.all(_workers.map((w) => w.close?.().catch(() => {})));
   await Promise.all(Object.values(_queues).map((q) => q.close?.().catch(() => {})));
   const { closeQueueConnection } = await import("./connection.js");

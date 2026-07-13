@@ -13,6 +13,7 @@
 import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
+import { noteRedisError } from "../connection.js";
 
 // Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
 // Redis/BullMQ est indisponible.
@@ -144,6 +145,9 @@ export function startAiWorker(connection) {
 
   worker.on("failed", (job, err) => {
     logger.error("[AiWorker] Échec", { jobId: job?.id, type: job?.data?.type, error: err.message });
+  });
+  worker.on("error", (err) => {
+    if (!noteRedisError(err)) logger.error("[AiWorker] Erreur worker", { error: err.message });
   });
 
   logger.info("[AiWorker] Démarré", { queue: QUEUE_NAMES.AI });

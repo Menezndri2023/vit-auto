@@ -67,7 +67,17 @@ if (process.env.REFRESH_TOKEN_SECRET === process.env.JWT_SECRET) {
 // faire crasher le process en silence (ex: coupure Mongo pendant un await
 // dans un handler async sans try/catch) — on logue puis on sort proprement
 // pour que Railway relance le service au lieu de rester dans un état zombie.
-process.on("unhandledRejection", (reason) => {
+process.on("unhandledRejection", async (reason) => {
+  // Les tentatives de reconnexion ioredis (AUTH pendant le cycle connect/close)
+  // rejettent parfois une promesse interne non rattrapée par le listener
+  // "error" du client — sans ce filtre, une panne Redis dure (ex: quota
+  // Upstash dépassé) inonderait les logs d'un dump brut à chaque reconnexion.
+  // noteRedisError() reconnaît ce motif, ouvre le circuit-breaker (queue/index.js
+  // met les workers en pause) et ne logue qu'une fois par fenêtre de cooldown.
+  try {
+    const { noteRedisError } = await import("./queue/connection.js");
+    if (noteRedisError(reason)) return;
+  } catch { /* ignore */ }
   logger.error("Unhandled promise rejection:", reason);
 });
 process.on("uncaughtException", (err) => {

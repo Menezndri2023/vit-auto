@@ -12,6 +12,7 @@
 import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
+import { noteRedisError } from "../connection.js";
 import { smsConfigured } from "../../utils/smsConfigured.js";
 import { emailVerificationRequired } from "../../utils/emailVerificationRequired.js";
 
@@ -135,6 +136,9 @@ export function startOcrWorker(connection) {
 
   worker.on("failed", (job, err) => {
     logger.error("[OcrWorker] Échec", { jobId: job?.id, type: job?.data?.type, error: err.message });
+  });
+  worker.on("error", (err) => {
+    if (!noteRedisError(err)) logger.error("[OcrWorker] Erreur worker", { error: err.message });
   });
 
   logger.info("[OcrWorker] Démarré", { queue: QUEUE_NAMES.OCR });

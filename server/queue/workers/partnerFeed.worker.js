@@ -9,6 +9,7 @@
 import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
+import { noteRedisError } from "../connection.js";
 
 // Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
 // Redis/BullMQ est indisponible.
@@ -61,6 +62,9 @@ export function startPartnerFeedWorker(connection) {
         logger.error("[PartnerFeedWorker] Échec mise à jour statut batch", { error: updateErr.message });
       }
     }
+  });
+  worker.on("error", (err) => {
+    if (!noteRedisError(err)) logger.error("[PartnerFeedWorker] Erreur worker", { error: err.message });
   });
 
   logger.info("[PartnerFeedWorker] Démarré", { queue: QUEUE_NAMES.PARTNER_FEED });

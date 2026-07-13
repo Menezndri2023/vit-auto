@@ -16,6 +16,7 @@
 import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
+import { noteRedisError } from "../connection.js";
 
 // ── Dispatche vers le bon template selon le type de job ──────────────────────
 // Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
@@ -141,6 +142,9 @@ export function startEmailWorker(connection) {
   });
   worker.on("failed", (job, err) => {
     logger.error("[EmailWorker] Échec", { jobId: job?.id, type: job?.data?.type, error: err.message, attempts: job?.attemptsMade });
+  });
+  worker.on("error", (err) => {
+    if (!noteRedisError(err)) logger.error("[EmailWorker] Erreur worker", { error: err.message });
   });
 
   logger.info("[EmailWorker] Démarré", { queue: QUEUE_NAMES.EMAIL });
