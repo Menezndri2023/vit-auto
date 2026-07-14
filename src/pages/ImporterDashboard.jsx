@@ -37,9 +37,14 @@ function ListingForm({ onClose, onSaved, token }) {
     bodyType: "", color: "", condition: "occasion", description: "",
     sourceCountry: "", sourceCity: "", availableIn: [],
     price: "", currency: "EUR", negotiable: false, stockQty: 1,
+    vin: "", vehicleHistory: "", priceIncludes: [],
+    estimatedShippingCost: "", shippingCostCurrency: "EUR",
+    estimatedDelay: "", shippingType: "", exportDocumentsAvailable: [], videoUrl: "",
   });
   const [photos, setPhotos]         = useState([]);
   const [availText, setAvailText]   = useState("");
+  const [includeText, setIncludeText] = useState("");
+  const [docText, setDocText]         = useState("");
   const [saving, setSaving]         = useState(false);
   const [err, setErr]               = useState(null);
 
@@ -56,6 +61,18 @@ function ListingForm({ onClose, onSaved, token }) {
     const c = availText.trim();
     if (c && !f.availableIn.includes(c)) set("availableIn", [...f.availableIn, c]);
     setAvailText("");
+  };
+
+  const addInclude = () => {
+    const c = includeText.trim();
+    if (c && !f.priceIncludes.includes(c)) set("priceIncludes", [...f.priceIncludes, c]);
+    setIncludeText("");
+  };
+
+  const addDoc = () => {
+    const c = docText.trim();
+    if (c && !f.exportDocumentsAvailable.includes(c)) set("exportDocumentsAvailable", [...f.exportDocumentsAvailable, c]);
+    setDocText("");
   };
 
   const save = useCallback(async () => {
@@ -133,6 +150,59 @@ function ListingForm({ onClose, onSaved, token }) {
             <label><span>Carrosserie</span><input list="dl-dash-bodies" value={f.bodyType} onChange={(e) => set("bodyType", e.target.value)} placeholder="SUV, berline, pick-up…" /></label>
             <label><span>Couleur</span><input value={f.color} onChange={(e) => set("color", e.target.value)} placeholder="Blanc perle" /></label>
           </div>
+          <div className={styles.fGrid2}>
+            <label><span>VIN (numéro de châssis)</span><input value={f.vin} onChange={(e) => set("vin", e.target.value)} placeholder="JT..." /></label>
+            <label><span>Lien vidéo</span><input value={f.videoUrl} onChange={(e) => set("videoUrl", e.target.value)} placeholder="https://youtube.com/..." /></label>
+          </div>
+          <label className={styles.formFull}><span>Historique véhicule</span><textarea rows={2} value={f.vehicleHistory} onChange={(e) => set("vehicleHistory", e.target.value)} placeholder="Accidents, entretien, nombre de propriétaires..." /></label>
+
+          {/* Logistique export */}
+          <div className={styles.fGrid3}>
+            <label><span>Coût livraison estimé</span><input type="number" min="0" value={f.estimatedShippingCost} onChange={(e) => set("estimatedShippingCost", e.target.value)} placeholder="1500" /></label>
+            <label><span>Devise du coût</span>
+              <select value={f.shippingCostCurrency} onChange={(e) => set("shippingCostCurrency", e.target.value)}>
+                {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
+              </select>
+            </label>
+            <label><span>Délai estimé</span><input value={f.estimatedDelay} onChange={(e) => set("estimatedDelay", e.target.value)} placeholder="30-45 jours" /></label>
+          </div>
+          <label><span>Type de transport</span>
+            <select value={f.shippingType} onChange={(e) => set("shippingType", e.target.value)}>
+              <option value="">— Non précisé —</option>
+              <option value="maritime">Maritime</option>
+              <option value="terrestre">Terrestre</option>
+              <option value="aerien">Aérien</option>
+              <option value="multiple">Multiple</option>
+            </select>
+          </label>
+
+          {/* Prix inclut */}
+          <div className={styles.fieldset}>
+            <label className={styles.fsLegend}>Le prix inclut</label>
+            <div className={styles.addRow}>
+              <input value={includeText} onChange={(e) => setIncludeText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addInclude())} placeholder="Dédouanement, transport local…" />
+              <button type="button" className={styles.btnAdd} onClick={addInclude}>+</button>
+            </div>
+            <div className={styles.tagList}>
+              {f.priceIncludes.map((c) => (
+                <span key={c} className={styles.tag}>{c}<button onClick={() => set("priceIncludes", f.priceIncludes.filter((x) => x !== c))}>×</button></span>
+              ))}
+            </div>
+          </div>
+
+          {/* Documents export disponibles */}
+          <div className={styles.fieldset}>
+            <label className={styles.fsLegend}>Documents d'export disponibles</label>
+            <div className={styles.addRow}>
+              <input value={docText} onChange={(e) => setDocText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addDoc())} placeholder="Facture, connaissement, certificat d'origine…" />
+              <button type="button" className={styles.btnAdd} onClick={addDoc}>+</button>
+            </div>
+            <div className={styles.tagList}>
+              {f.exportDocumentsAvailable.map((c) => (
+                <span key={c} className={styles.tag}>{c}<button onClick={() => set("exportDocumentsAvailable", f.exportDocumentsAvailable.filter((x) => x !== c))}>×</button></span>
+              ))}
+            </div>
+          </div>
 
           {/* Disponibilité dans */}
           <div className={styles.fieldset}>
@@ -191,6 +261,7 @@ const TX_STATUS_CFG = {
   offer_sent:           { label: "Offre envoyée",       color: "#9333ea", bg: "#fdf4ff" },
   offer_accepted:       { label: "Offre acceptée",      color: "#9333ea", bg: "#fdf4ff" },
   payment_pending:      { label: "Paiement en attente", color: "#ea580c", bg: "#fff7ed" },
+  payment_submitted:    { label: "Paiement à vérifier",  color: "#d97706", bg: "#fffbeb" },
   in_escrow:            { label: "Fonds sécurisés",     color: "#059669", bg: "#ecfdf5" },
   preparing:            { label: "Préparation export",  color: "#6366f1", bg: "#f0f4ff" },
   shipped:              { label: "Expédié",             color: "#2563eb", bg: "#eff6ff" },

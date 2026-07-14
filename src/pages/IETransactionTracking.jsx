@@ -19,6 +19,7 @@ const STEPS = [
   { status: "offer_sent",           label: "Offre finale",         icon: "📄", step: 8  },
   { status: "offer_accepted",       label: "Offre acceptée",       icon: "🤝", step: 8  },
   { status: "payment_pending",      label: "Paiement requis",      icon: "💳", step: 9  },
+  { status: "payment_submitted",    label: "Paiement en vérification", icon: "⏳", step: 9  },
   { status: "in_escrow",            label: "Fonds sécurisés",      icon: "🔒", step: 9  },
   { status: "preparing",            label: "Préparation export",   icon: "📦", step: 10 },
   { status: "shipped",              label: "Expédié",              icon: "🚢", step: 11 },
@@ -64,7 +65,7 @@ function ProgressBar({ status }) {
   return (
     <div className={styles.progressWrap}>
       <div className={styles.stepsTrack}>
-        {STEPS.filter((s) => !["inspection_requested", "offer_accepted", "payment_pending"].includes(s.status)).map((s, i, arr) => {
+        {STEPS.filter((s) => !["inspection_requested", "offer_accepted", "payment_pending", "payment_submitted"].includes(s.status)).map((s, i, arr) => {
           const stepIdx   = STATUS_ORDER.indexOf(s.status);
           const isDone    = currentIdx >= stepIdx;
           const isCurrent = STATUS_ORDER[currentIdx] === s.status;
@@ -249,32 +250,79 @@ function ActionPanel({ tx, role, token, onRefresh }) {
   }
 
   // ── Étape 9 : paiement ─────────────────────────────────────────────────
+  // "Carte" redirige vers un vrai Stripe Checkout (payé et confirmé par
+  // webhook — jamais déclaré). Les autres méthodes ne peuvent pas être
+  // vérifiées automatiquement (pas d'intégration bancaire réelle) : le client
+  // déclare son paiement, un admin VIT AUTO doit ensuite confirmer la
+  // réception réelle des fonds avant que l'entiercement ne soit sécurisé.
   if (tx.status === "payment_pending" && role === "client") {
+    const isManual = form.method && form.method !== "carte";
+    const payAction = async () => {
+      setLoading(true); setError(null);
+      try {
+        const res = await fetch(`${base}/pay`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify(form),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message);
+        if (data.checkoutUrl) { window.location.href = data.checkoutUrl; return; }
+        onRefresh();
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
     return (
       <div className={styles.actionCard}>
         <h4>Procédez au paiement sécurisé</h4>
         <p>Votre paiement sera placé sur un compte d'entiercement (Escrow). Les fonds ne seront versés au fournisseur qu'après confirmation de livraison.</p>
         <div className={styles.escrowInfo}>
           <div>💰 <strong>{fmtPrice(tx.finalOffer?.totalAmount, tx.finalOffer?.currency)}</strong></div>
-          <p>Référence de paiement à mentionner : <code>TXN-{tx._id?.slice(-8).toUpperCase()}</code></p>
         </div>
         <div className={styles.formRow2}>
           <label><span>Moyen de paiement</span>
             <select onChange={(e) => setForm((f) => ({ ...f, method: e.target.value }))} defaultValue="">
               <option value="">Choisir…</option>
+              <option value="carte">Carte bancaire (paiement sécurisé en ligne)</option>
               <option value="virement">Virement bancaire</option>
-              <option value="carte">Carte bancaire</option>
               <option value="mobile_money">Mobile Money</option>
               <option value="crypto">Cryptomonnaie</option>
             </select>
           </label>
-          <label><span>Référence transaction</span><input placeholder="Réf de votre paiement" onChange={(e) => setForm((f) => ({ ...f, transactionRef: e.target.value }))} /></label>
+          {isManual && (
+            <label><span>Référence transaction</span><input placeholder="Réf de votre paiement" onChange={(e) => setForm((f) => ({ ...f, transactionRef: e.target.value }))} /></label>
+          )}
         </div>
-        <button className={styles.btnPrimary} disabled={loading || !form.method}
-          onClick={() => call(`${base}/pay`, "POST", form)}>
-          🔒 Confirmer le paiement en entiercement
+        {isManual && (
+          <p className={styles.actionNote}>
+            ⏳ Cette méthode ne peut pas être vérifiée automatiquement — VIT AUTO confirmera manuellement la réception des fonds avant de sécuriser l'entiercement.
+          </p>
+        )}
+        <button className={styles.btnPrimary} disabled={loading || !form.method} onClick={payAction}>
+          {form.method === "carte" ? "💳 Payer par carte" : "🔒 Déclarer mon paiement"}
         </button>
         {error && <p className={styles.err}>{error}</p>}
+      </div>
+    );
+  }
+
+  // ── Étape 9 : paiement déclaré, en attente de vérification VIT AUTO ────
+  if (tx.status === "payment_submitted") {
+    return (
+      <div className={styles.actionCard}>
+        <h4>⏳ Paiement en cours de vérification</h4>
+        <p>
+          {role === "client"
+            ? "Vous avez déclaré votre paiement. VIT AUTO vérifie la réception réelle des fonds avant de sécuriser l'entiercement — vous serez notifié dès confirmation."
+            : "Le client a déclaré son paiement. VIT AUTO vérifie la réception des fonds avant de sécuriser l'entiercement — vous serez notifié dès confirmation."}
+        </p>
+        <div className={styles.escrowInfo}>
+          <div>💰 <strong>{fmtPrice(tx.payment?.amount, tx.payment?.currency)}</strong></div>
+          {tx.payment?.transactionRef && <p>Référence déclarée : <code>{tx.payment.transactionRef}</code></p>}
+        </div>
       </div>
     );
   }

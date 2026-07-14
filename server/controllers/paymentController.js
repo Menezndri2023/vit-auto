@@ -1,8 +1,10 @@
 import logger from "../utils/logger.js";
 import Payment from "../models/Payment.js";
 import Booking from "../models/Booking.js";
+import IETransaction from "../models/IETransaction.js";
 import Notification from "../models/Notification.js";
 import { initiateCheckout, stripeProvider, waveProvider, orangeMoneyProvider } from "../services/payment/gateway.js";
+import { completeIEEscrowPayment } from "./ieTransactionController.js";
 
 const ALLOWED_METHODS = ["card", "orange_money", "wave", "mtn", "moov", "paypal", "cash"];
 const ONLINE_METHODS  = ["card", "orange_money", "wave"];
@@ -156,7 +158,15 @@ export const stripeWebhook = async (req, res) => {
       const session = event.data.object;
       const paymentId = session.metadata?.paymentId || session.client_reference_id;
       const payment = paymentId && await Payment.findById(paymentId);
-      if (payment) await completePayment(payment, { providerRef: session.id });
+      if (payment) {
+        await completePayment(payment, { providerRef: session.id });
+      } else if (paymentId) {
+        // Aucun Payment (flux réservation classique) trouvé pour cet ID — il
+        // s'agit peut-être d'un escrow Import/Export, qui n'utilise pas le
+        // modèle Payment (voir ieTransactionController.payEscrow).
+        const tx = await IETransaction.findById(paymentId);
+        if (tx) await completeIEEscrowPayment(tx, session.id);
+      }
     } else if (event.type === "checkout.session.expired") {
       const session = event.data.object;
       const paymentId = session.metadata?.paymentId || session.client_reference_id;

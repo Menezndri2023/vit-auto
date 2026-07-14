@@ -51,7 +51,8 @@ const ieTransactionSchema = new mongoose.Schema({
       "offer_sent",            // 8. Offre finale envoyée
       "offer_accepted",        // 8. Offre acceptée
       "payment_pending",       // 9. En attente de paiement
-      "in_escrow",             // 9. Fonds en entiercement
+      "payment_submitted",     // 9. Paiement manuel déclaré — vérification admin requise avant entiercement
+      "in_escrow",             // 9. Fonds en entiercement (confirmés)
       "preparing",             // 10. Préparation export
       "shipped",               // 11. Expédié
       "in_transit",            // 11. En transit
@@ -96,15 +97,24 @@ const ieTransactionSchema = new mongoose.Schema({
     acceptedAt:    { type: Date,   default: null },
   },
 
-  // ── Paiement escrow (étape 9) ─────────────────────────────────────────────
+  // ── Paiement escrow (étape 9) ───────────────────────────────────────────────
+  // "carte" passe par un vrai Stripe Checkout (webhook-confirmé, jamais
+  // déclaré par le client) — virement/mobile_money/crypto ne peuvent pas être
+  // vérifiés automatiquement sans intégration bancaire réelle : le client
+  // déclare seulement une intention de paiement (submittedAt), un admin doit
+  // ensuite confirmer la réception réelle des fonds (verifiedBy/verifiedAt)
+  // avant que le statut ne passe à "in_escrow". Voir ieTransactionController.js.
   payment: {
-    amount:         { type: Number, default: null },
-    currency:       { type: String, default: "EUR" },
-    method:         { type: String, default: null }, // virement, carte, crypto...
-    transactionRef: { type: String, default: null },
-    paidAt:         { type: Date,   default: null },
-    releasedAt:     { type: Date,   default: null },
-    escrowRef:      { type: String, default: null },
+    amount:          { type: Number, default: null },
+    currency:        { type: String, default: "EUR" },
+    method:          { type: String, default: null }, // virement, carte, mobile_money, crypto
+    transactionRef:  { type: String, default: null },
+    stripeSessionId: { type: String, default: null },
+    submittedAt:     { type: Date,   default: null }, // déclaration du client (méthodes manuelles)
+    paidAt:          { type: Date,   default: null }, // paiement réellement confirmé
+    verifiedBy:      { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    releasedAt:      { type: Date,   default: null },
+    escrowRef:       { type: String, default: null },
   },
 
   // ── Documents d'export (étape 10) ─────────────────────────────────────────

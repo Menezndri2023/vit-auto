@@ -24,6 +24,7 @@
 .chip_inspection_requested, .chip_inspection_done { background: #fffbeb; color: #d97706; }
 .chip_offer_sent, .chip_offer_accepted { background: #fdf4ff; color: #9333ea; }
 .chip_payment_pending { background: #fff7ed; color: #ea580c; }
+.chip_payment_submitted { background: #fffbeb; color: #d97706; }
 .chip_in_escrow { background: #ecfdf5; color: #059669; }
 .chip_preparing { background: #f0f4ff; color: #6366f1; }
 .chip_shipped, .chip_in_transit { background: #eff6ff; color: #2563eb; }

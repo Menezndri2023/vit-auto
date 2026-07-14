@@ -651,6 +651,25 @@ export default function AdminPanel() {
     setIeTxSaving(false);
   };
 
+  // Paiement manuel (virement/mobile money/crypto, ou carte sans Stripe
+  // configuré) déclaré par le client — aucune vérification automatique
+  // possible sans intégration bancaire réelle, un admin doit confirmer avant
+  // que l'entiercement ne soit considéré comme sécurisé.
+  const handleVerifyIePayment = async (approve) => {
+    if (!ieTxModal?.tx) return;
+    setIeTxSaving(true);
+    try {
+      const r = await fetch(`/api/import-export/transactions/${ieTxModal.tx._id}/${approve ? "verify-payment" : "reject-payment"}`, {
+        method: "PATCH", headers,
+        body: JSON.stringify({ reason: ieTxNote }),
+      });
+      const d = await r.json();
+      if (r.ok) { showToast(approve ? "Paiement vérifié." : "Paiement rejeté.", "success"); setIeTxModal(null); setIeTxNote(""); loadIeTransactions(); }
+      else showToast(d.message || "Erreur.", "error");
+    } catch { showToast("Erreur réseau.", "error"); }
+    setIeTxSaving(false);
+  };
+
   // ── Profils & annonces importateurs ────────────────────────────────────────
   const loadImporters = useCallback(async () => {
     if (!token) return;
@@ -3480,6 +3499,7 @@ export default function AdminPanel() {
               { icon: "🔒", label: "Total",         value: ieTransactions.length, color: "#6366f1" },
               { icon: "⚖️", label: "En litige",      value: ieTransactions.filter(t => t.status === "disputed").length, color: "#dc2626" },
               { icon: "🔍", label: "Inspection en attente", value: ieTransactions.filter(t => t.status === "inspection_requested").length, color: "#d97706" },
+              { icon: "⏳", label: "Paiement à vérifier", value: ieTransactions.filter(t => t.status === "payment_submitted").length, color: "#d97706" },
               { icon: "✅", label: "Terminées",      value: ieTransactions.filter(t => ["completed","funds_released"].includes(t.status)).length, color: "#10b981" },
             ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
           </div>
@@ -3503,6 +3523,7 @@ export default function AdminPanel() {
                       reserved: { l: "Réservée", c: "#6366f1", bg: "#eef2ff" },
                       disputed: { l: "⚖️ Litige", c: "#dc2626", bg: "#fee2e2" },
                       inspection_requested: { l: "Inspection demandée", c: "#d97706", bg: "#fef3c7" },
+                      payment_submitted: { l: "⏳ Paiement à vérifier", c: "#d97706", bg: "#fef3c7" },
                       in_escrow: { l: "En entiercement", c: "#0891b2", bg: "#ecfeff" },
                       funds_released: { l: "Fonds libérés", c: "#10b981", bg: "#d1fae5" },
                       completed: { l: "Terminée", c: "#10b981", bg: "#d1fae5" },
@@ -3528,6 +3549,12 @@ export default function AdminPanel() {
                             <button className={styles.btnRefresh} style={{ background: "#d97706", color: "#fff", border: "none" }}
                               onClick={() => { setIeTxModal({ tx: t, mode: "inspection" }); setIeTxNote(""); }}>
                               🔍 Compléter
+                            </button>
+                          )}
+                          {t.status === "payment_submitted" && (
+                            <button className={styles.btnRefresh} style={{ background: "#d97706", color: "#fff", border: "none" }}
+                              onClick={() => { setIeTxModal({ tx: t, mode: "payment" }); setIeTxNote(""); }}>
+                              ⏳ Vérifier
                             </button>
                           )}
                         </td>
@@ -3560,12 +3587,29 @@ export default function AdminPanel() {
                   <button className={styles.btnSecondary} onClick={() => setIeTxModal(null)}>Annuler</button>
                 </div>
               </>
-            ) : (
+            ) : ieTxModal.mode === "inspection" ? (
               <>
                 <h3>🔍 Compléter l'inspection indépendante</h3>
                 <textarea className={styles.rejectTextarea} placeholder="Notes du rapport d'inspection..." value={ieTxNote} onChange={(e) => setIeTxNote(e.target.value)} />
                 <div className={styles.rejectActions}>
                   <button className={styles.btnAccept} onClick={handleCompleteIeInspection} disabled={ieTxSaving}>{ieTxSaving ? "Envoi…" : "✅ Marquer complétée"}</button>
+                  <button className={styles.btnSecondary} onClick={() => setIeTxModal(null)}>Annuler</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3>⏳ Vérifier le paiement déclaré</h3>
+                <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "#64748b" }}>
+                  Méthode : <strong>{ieTxModal.tx.payment?.method || "—"}</strong> · Montant : <strong>{Number(ieTxModal.tx.payment?.amount || 0).toLocaleString("fr-FR")} {ieTxModal.tx.payment?.currency}</strong><br />
+                  Référence déclarée : {ieTxModal.tx.payment?.transactionRef || "—"}
+                </p>
+                <p style={{ margin: "0 0 14px", fontSize: "0.82rem", color: "#94a3b8" }}>
+                  Vérifiez la réception réelle des fonds (relevé bancaire, mobile money, etc.) avant de confirmer.
+                </p>
+                <textarea className={styles.rejectTextarea} placeholder="Motif (si rejet)..." value={ieTxNote} onChange={(e) => setIeTxNote(e.target.value)} />
+                <div className={styles.rejectActions}>
+                  <button className={styles.btnAccept} onClick={() => handleVerifyIePayment(true)} disabled={ieTxSaving}>{ieTxSaving ? "Envoi…" : "✅ Fonds reçus — sécuriser"}</button>
+                  <button className={styles.btnRefuseModal} onClick={() => handleVerifyIePayment(false)} disabled={ieTxSaving}>❌ Rejeter</button>
                   <button className={styles.btnSecondary} onClick={() => setIeTxModal(null)}>Annuler</button>
                 </div>
               </>

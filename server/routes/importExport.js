@@ -50,6 +50,8 @@ router.patch ("/transactions/:id/complete-inspection", authenticate, authorizeAd
 router.post  ("/transactions/:id/final-offer",      authenticate,       vid,     tx.sendFinalOffer);
 router.patch ("/transactions/:id/accept-offer",     authenticate,       vid,     tx.acceptOffer);
 router.post  ("/transactions/:id/pay",              authenticate,       vid,     tx.payEscrow);
+router.patch ("/transactions/:id/verify-payment",   authenticate, authorizeAdmin, vid, tx.confirmEscrowPayment);
+router.patch ("/transactions/:id/reject-payment",   authenticate, authorizeAdmin, vid, tx.rejectEscrowPayment);
 router.patch ("/transactions/:id/documents",        authenticate,       vid,     tx.updateDocuments);
 router.patch ("/transactions/:id/ship",             authenticate,       vid,     tx.markShipped);
 router.patch ("/transactions/:id/tracking",         authenticate,       vid,     tx.updateTracking);

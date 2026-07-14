@@ -17,6 +17,7 @@ const STATUS_CFG = {
   offer_sent:           { label: "Offre reçue",            icon: "📄", color: "#9333ea",  bg: "#fdf4ff" },
   offer_accepted:       { label: "Offre acceptée",         icon: "🤝", color: "#9333ea",  bg: "#fdf4ff" },
   payment_pending:      { label: "Paiement requis",        icon: "💳", color: "#ea580c",  bg: "#fff7ed" },
+  payment_submitted:    { label: "Paiement en vérification", icon: "⏳", color: "#d97706", bg: "#fffbeb" },
   in_escrow:            { label: "Fonds sécurisés",        icon: "🔒", color: "#059669",  bg: "#ecfdf5" },
   preparing:            { label: "Préparation export",     icon: "📦", color: "#6366f1",  bg: "#f0f4ff" },
   shipped:              { label: "Expédié",                icon: "🚢", color: "#2563eb",  bg: "#eff6ff" },

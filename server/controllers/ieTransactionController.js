@@ -6,6 +6,9 @@ import User                 from "../models/User.js";
 import Notification         from "../models/Notification.js";
 import Chat                 from "../models/Chat.js";
 import { dispatch } from "../queue/index.js";
+import { stripeProvider } from "../services/payment/gateway.js";
+
+const MANUAL_PAYMENT_METHODS = ["virement", "mobile_money", "crypto"];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -293,6 +296,16 @@ export const acceptOffer = async (req, res) => {
 // POST /api/import-export/transactions/:id/pay
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Le paiement était auparavant entièrement auto-déclaré par le client : il
+// choisissait "Carte bancaire"/"Mobile Money"/"Cryptomonnaie" dans un menu,
+// tapait une référence arbitraire, et le statut passait DIRECTEMENT à
+// "in_escrow" — sans la moindre vérification qu'un centime ait réellement
+// changé de mains. Corrigé en deux volets : "carte" passe désormais par un
+// vrai Stripe Checkout (webhook-confirmé, voir stripeWebhook dans
+// paymentController.js) ; toute autre méthode (ou carte sans compte Stripe
+// configuré) ne fait plus que déclarer une INTENTION de paiement — un admin
+// doit vérifier la réception réelle des fonds (confirmEscrowPayment) avant
+// que l'entiercement ne soit considéré comme sécurisé.
 export const payEscrow = async (req, res) => {
   try {
     const tx = await IETransaction.findOne({
@@ -303,26 +316,99 @@ export const payEscrow = async (req, res) => {
     if (!tx) return res.status(404).json({ message: "Transaction introuvable ou paiement non attendu." });
 
     const { method, transactionRef } = req.body;
+    if (!method) return res.status(400).json({ message: "Moyen de paiement requis." });
 
-    tx.payment = {
-      amount:         tx.finalOffer.totalAmount,
-      currency:       tx.finalOffer.currency,
-      method:         method || "virement",
-      transactionRef: transactionRef || null,
-      paidAt:         new Date(),
-      escrowRef:      `ESCROW-${tx._id.toString().slice(-8).toUpperCase()}-${Date.now()}`,
-      releasedAt:     null,
-    };
-    tx.status = "in_escrow";
-    pushHistory(tx, "in_escrow", req.user._id, `Paiement de ${tx.payment.amount} ${tx.payment.currency} reçu en entiercement.`);
+    if (method === "carte" && stripeProvider.isConfigured()) {
+      const base = (process.env.APP_URL || process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
+      const { checkoutUrl, providerRef } = await stripeProvider.createCheckout({
+        payment: { _id: tx._id, amount: tx.finalOffer.totalAmount, devise: tx.finalOffer.currency },
+        booking: { _id: tx._id, reference: `IE-${tx._id.toString().slice(-8).toUpperCase()}` },
+        successUrl: `${base}/import-export/transaction/${tx._id}`,
+        cancelUrl:  `${base}/import-export/transaction/${tx._id}`,
+      });
+      tx.payment.method          = method;
+      tx.payment.currency        = tx.finalOffer.currency;
+      tx.payment.amount          = tx.finalOffer.totalAmount;
+      tx.payment.stripeSessionId = providerRef;
+      await tx.save();
+      return res.json({ message: "Redirection vers le paiement sécurisé.", checkoutUrl });
+    }
+
+    tx.payment.method         = method;
+    tx.payment.currency       = tx.finalOffer.currency;
+    tx.payment.amount         = tx.finalOffer.totalAmount;
+    tx.payment.transactionRef = transactionRef || null;
+    tx.payment.submittedAt    = new Date();
+    tx.status = "payment_submitted";
+    pushHistory(tx, "payment_submitted", req.user._id, `Paiement déclaré via ${method} — en attente de vérification VIT AUTO.`);
     await tx.save();
 
-    await notify(tx.partner, "success", "Fonds sécurisés en entiercement !", `Le paiement de ${tx.payment.amount?.toLocaleString("fr-FR")} ${tx.payment.currency} est sécurisé. Procédez à la préparation de l'export.`, `/importer-dashboard`);
-    await notifyAdmins("ie_payment", "Paiement escrow reçu", `Transaction ${tx._id} — ${tx.payment.amount} ${tx.payment.currency} en entiercement.`, `/admin`);
+    await notifyAdmins("ie_payment", "Paiement à vérifier", `Transaction ${tx._id} — ${tx.payment.amount} ${tx.payment.currency} déclaré via ${method}, en attente de confirmation.`, `/admin`);
+    await notify(tx.partner, "info", "Paiement en cours de vérification", "Le client a déclaré son paiement — VIT AUTO vérifie la réception des fonds avant de sécuriser l'entiercement.", `/importer-dashboard`);
 
-    res.json({ message: "Paiement sécurisé en entiercement.", escrowRef: tx.payment.escrowRef, transaction: tx });
+    res.json({ message: "Paiement déclaré. VIT AUTO vérifie la réception des fonds avant de sécuriser l'entiercement.", transaction: tx });
   } catch (err) {
     logger.error("payEscrow:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// Appelée par le webhook Stripe (paymentController.js) une fois le paiement
+// carte réellement confirmé — jamais par une déclaration client.
+export async function completeIEEscrowPayment(tx, providerRef) {
+  if (tx.status !== "payment_pending" && tx.status !== "payment_submitted") return;
+  tx.payment.paidAt     = new Date();
+  tx.payment.escrowRef  = `ESCROW-${tx._id.toString().slice(-8).toUpperCase()}-${Date.now()}`;
+  if (providerRef) tx.payment.transactionRef = providerRef;
+  tx.status = "in_escrow";
+  pushHistory(tx, "in_escrow", null, "Paiement carte confirmé par Stripe — entiercement sécurisé.");
+  await tx.save();
+
+  await notify(tx.partner, "success", "Fonds sécurisés en entiercement !", `Le paiement de ${tx.payment.amount?.toLocaleString("fr-FR")} ${tx.payment.currency} est confirmé et sécurisé. Procédez à la préparation de l'export.`, `/importer-dashboard`);
+  await notify(tx.client, "success", "Paiement confirmé", "Votre paiement carte a été confirmé et sécurisé en entiercement.", `/import-export/transaction/${tx._id}`);
+}
+
+// ── Admin : vérifier/rejeter un paiement manuel déclaré (virement, mobile
+// money, crypto, ou carte sans Stripe configuré) ──────────────────────────
+// PATCH /api/import-export/transactions/:id/verify-payment
+export const confirmEscrowPayment = async (req, res) => {
+  try {
+    const tx = await IETransaction.findOne({ _id: req.params.id, status: "payment_submitted" });
+    if (!tx) return res.status(404).json({ message: "Transaction introuvable ou aucun paiement à vérifier." });
+
+    tx.payment.paidAt     = new Date();
+    tx.payment.verifiedBy = req.user._id;
+    tx.payment.escrowRef  = `ESCROW-${tx._id.toString().slice(-8).toUpperCase()}-${Date.now()}`;
+    tx.status = "in_escrow";
+    pushHistory(tx, "in_escrow", req.user._id, "Réception des fonds vérifiée par VIT AUTO — entiercement sécurisé.");
+    await tx.save();
+
+    await notify(tx.partner, "success", "Fonds sécurisés en entiercement !", `Le paiement de ${tx.payment.amount?.toLocaleString("fr-FR")} ${tx.payment.currency} est vérifié et sécurisé. Procédez à la préparation de l'export.`, `/importer-dashboard`);
+    await notify(tx.client, "success", "Paiement confirmé", "Votre paiement a été vérifié et sécurisé en entiercement.", `/import-export/transaction/${tx._id}`);
+
+    res.json({ message: "Paiement vérifié — entiercement sécurisé.", transaction: tx });
+  } catch (err) {
+    logger.error("confirmEscrowPayment:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// PATCH /api/import-export/transactions/:id/reject-payment
+export const rejectEscrowPayment = async (req, res) => {
+  try {
+    const { reason } = req.body;
+    const tx = await IETransaction.findOne({ _id: req.params.id, status: "payment_submitted" });
+    if (!tx) return res.status(404).json({ message: "Transaction introuvable ou aucun paiement à vérifier." });
+
+    tx.status = "payment_pending";
+    pushHistory(tx, "payment_pending", req.user._id, `Paiement déclaré non confirmé${reason ? " : " + reason : ""} — le client doit soumettre une nouvelle preuve.`);
+    await tx.save();
+
+    await notify(tx.client, "error", "Paiement non confirmé", `VIT AUTO n'a pas pu vérifier votre paiement${reason ? ` (${reason})` : ""}. Merci de le soumettre à nouveau ou de nous contacter.`, `/import-export/transaction/${tx._id}`);
+
+    res.json({ message: "Paiement rejeté — le client a été notifié.", transaction: tx });
+  } catch (err) {
+    logger.error("rejectEscrowPayment:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

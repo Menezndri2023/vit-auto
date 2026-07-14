@@ -7,6 +7,28 @@ import Notification            from "../models/Notification.js";
 import { ensureImporterProfile } from "../utils/ensureImporterProfile.js";
 import { COUNTRY_CODE_TO_NAME } from "../utils/countries.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
+import { validateImageDataUri } from "../utils/imageValidation.js";
+
+const MAX_LISTING_IMAGE_BYTES = 6 * 1024 * 1024;
+const MAX_IMAGE_URL_LENGTH    = 2048;
+
+// Même garde que vehicleController.js (validateVehicleImages) — absente ici
+// jusqu'à présent : un partenaire pouvait soumettre un blob base64 énorme ou
+// une chaîne arbitraire directement dans photos/mainPhoto, avec un risque
+// concret de dépasser la limite BSON de 16 Mo par document MongoDB.
+function validateListingImages(images) {
+  if (!Array.isArray(images)) return null;
+  for (const img of images) {
+    if (typeof img !== "string" || !img) continue;
+    if (img.startsWith("data:")) {
+      const check = validateImageDataUri(img, MAX_LISTING_IMAGE_BYTES);
+      if (!check.ok) return check.message;
+    } else if (!/^https?:\/\//i.test(img) || img.length > MAX_IMAGE_URL_LENGTH) {
+      return "Image invalide : URL http(s) ou image encodée attendue.";
+    }
+  }
+  return null;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DEMANDES CLIENT (import/export requests)
@@ -451,11 +473,16 @@ export const createListing = async (req, res) => {
       sourceCountry, sourceCity, availableIn,
       price, currency, priceIncludes, negotiable, stockQty,
       photos, mainPhoto,
+      vin, vehicleHistory, estimatedShippingCost, shippingCostCurrency,
+      estimatedDelay, shippingType, exportDocumentsAvailable, videoUrl,
     } = req.body;
 
     if (!title || !make || !model || !year || !sourceCountry || !price) {
       return res.status(400).json({ message: "Champs obligatoires manquants." });
     }
+
+    const imagesError = validateListingImages([...(photos || []), mainPhoto].filter(Boolean));
+    if (imagesError) return res.status(400).json({ message: imagesError });
 
     const listing = await ImportExportListing.create({
       partner: req.user._id,
@@ -473,6 +500,14 @@ export const createListing = async (req, res) => {
       stockQty: Number(stockQty) || 1,
       photos: photos || [],
       mainPhoto: mainPhoto || (photos?.[0] || null),
+      vin: vin || null,
+      vehicleHistory: vehicleHistory || null,
+      estimatedShippingCost: estimatedShippingCost != null ? Number(estimatedShippingCost) : null,
+      shippingCostCurrency: shippingCostCurrency || "EUR",
+      estimatedDelay: estimatedDelay || null,
+      shippingType: shippingType || null,
+      exportDocumentsAvailable: exportDocumentsAvailable || [],
+      videoUrl: videoUrl || null,
       status: "pending",
     });
 
@@ -512,13 +547,32 @@ export const updateListing = async (req, res) => {
       sourceCountry, sourceCity, availableIn,
       price, currency, priceIncludes, negotiable, stockQty,
       photos, mainPhoto,
+      vin, vehicleHistory, estimatedShippingCost, shippingCostCurrency,
+      estimatedDelay, shippingType, exportDocumentsAvailable, videoUrl,
     } = req.body;
 
+    const imagesError = validateListingImages([...(photos || []), mainPhoto].filter(Boolean));
+    if (imagesError) return res.status(400).json({ message: imagesError });
+
+    // Un champ omis (undefined) doit garder sa valeur existante — l'ancienne
+    // version écrasait directement title/make/model/fuelType/... par
+    // `undefined` dès qu'un appelant envoyait un payload partiel (aucune UI ne
+    // le fait aujourd'hui, mais l'API elle-même le permettait), ce qui faisait
+    // échouer la validation Mongoose des champs requis à la sauvegarde.
     Object.assign(listing, {
-      title, make, model, year: year ? Number(year) : listing.year,
+      title: title !== undefined ? title : listing.title,
+      make: make !== undefined ? make : listing.make,
+      model: model !== undefined ? model : listing.model,
+      year: year ? Number(year) : listing.year,
       mileage: mileage !== undefined ? Number(mileage) : listing.mileage,
-      fuelType, transmission, bodyType, color, condition, description,
-      sourceCountry, sourceCity,
+      fuelType: fuelType !== undefined ? fuelType : listing.fuelType,
+      transmission: transmission !== undefined ? transmission : listing.transmission,
+      bodyType: bodyType !== undefined ? bodyType : listing.bodyType,
+      color: color !== undefined ? color : listing.color,
+      condition: condition !== undefined ? condition : listing.condition,
+      description: description !== undefined ? description : listing.description,
+      sourceCountry: sourceCountry !== undefined ? sourceCountry : listing.sourceCountry,
+      sourceCity: sourceCity !== undefined ? sourceCity : listing.sourceCity,
       availableIn: availableIn || listing.availableIn,
       price: price ? Number(price) : listing.price,
       currency: currency || listing.currency,
@@ -527,6 +581,14 @@ export const updateListing = async (req, res) => {
       stockQty: stockQty ? Number(stockQty) : listing.stockQty,
       photos: photos || listing.photos,
       mainPhoto: mainPhoto || listing.mainPhoto,
+      vin: vin !== undefined ? vin : listing.vin,
+      vehicleHistory: vehicleHistory !== undefined ? vehicleHistory : listing.vehicleHistory,
+      estimatedShippingCost: estimatedShippingCost != null ? Number(estimatedShippingCost) : listing.estimatedShippingCost,
+      shippingCostCurrency: shippingCostCurrency || listing.shippingCostCurrency,
+      estimatedDelay: estimatedDelay !== undefined ? estimatedDelay : listing.estimatedDelay,
+      shippingType: shippingType !== undefined ? shippingType : listing.shippingType,
+      exportDocumentsAvailable: exportDocumentsAvailable || listing.exportDocumentsAvailable,
+      videoUrl: videoUrl !== undefined ? videoUrl : listing.videoUrl,
       status: "pending",
       updatedAt: new Date(),
     });
