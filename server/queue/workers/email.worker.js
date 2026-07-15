@@ -103,6 +103,13 @@ async function resolveEmailTemplate(type, data) {
         html:    identityRejectedTemplate(data.firstName, data.reason),
       };
     }
+    case "founding_partner_info_requested": {
+      const { foundingPartnerInfoRequestedTemplate } = await import("../../config/email.js");
+      return {
+        subject: "VIT AUTO — Complétez votre dossier Founding Partner",
+        html:    foundingPartnerInfoRequestedTemplate(data.firstName, data.companyName, data.infoRequested, data.referenceNumber),
+      };
+    }
 
     // ── Contrats ──────────────────────────────────────────────────────────
     case "contract_ready":

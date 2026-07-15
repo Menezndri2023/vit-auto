@@ -770,9 +770,11 @@ export const adminRequestInfo = async (req, res) => {
     const { infoRequested } = req.body;
     if (!infoRequested?.trim()) return res.status(400).json({ message: "Précisez les informations demandées." });
 
-    const doc = await PartnerOnboarding.findById(req.params.id);
+    const doc = await PartnerOnboarding.findById(req.params.id)
+      .populate("userId", "firstName lastName email");
     if (!doc) return res.status(404).json({ message: "Dossier introuvable." });
 
+    const partner = doc.userId;
     doc.status = "info_demandee";
     doc.adminReview.infoRequested = infoRequested.trim();
     doc.adminReview.reviewedBy    = req.user.id;
@@ -780,13 +782,28 @@ export const adminRequestInfo = async (req, res) => {
     await doc.save();
 
     await addAudit(doc._id, "INFO_DEMANDEE", req.user.id, infoRequested);
-    await notify(doc.userId,
+
+    const partnerId = partner._id || partner;
+    await notify(partnerId,
       "📝 Informations complémentaires requises",
       `Notre équipe a besoin d'informations supplémentaires pour traiter votre candidature : ${infoRequested}. Mettez à jour votre dossier et resoumettez.`
     );
 
+    // Email — un partenaire resté en "brouillon" ne consulte pas forcément le
+    // site : une notification in-app seule (comportement précédent) ne le
+    // touche jamais s'il n'est pas déjà connecté.
+    if (partner?.email) {
+      dispatch.foundingPartnerInfoRequested(partner.email, String(partnerId), {
+        firstName:       partner.firstName,
+        companyName:     doc.companyInfo?.legalName,
+        infoRequested:   infoRequested.trim(),
+        referenceNumber: doc.referenceNumber,
+      }).catch((e) => logger.error("dispatch.foundingPartnerInfoRequested:", e.message));
+    }
+
     res.json({ success: true, status: "info_demandee" });
   } catch (err) {
+    logger.error("adminRequestInfo:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

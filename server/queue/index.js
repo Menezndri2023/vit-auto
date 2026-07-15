@@ -417,6 +417,16 @@ export const dispatch = {
     }, { priority: PRIORITY.HIGH });
   },
 
+  // Relance — dossier Founding Partner resté incomplet (voir adminRequestInfo).
+  async foundingPartnerInfoRequested(to, userId, data) {
+    await enqueue(QUEUE_NAMES.EMAIL, "founding_partner_info_requested", {
+      type: "founding_partner_info_requested",
+      to,
+      userId,
+      data,
+    }, { priority: PRIORITY.HIGH });
+  },
+
   // ── Import/Export ─────────────────────────────────────────────────────────
   async ieStepTransition(transactionId, newStep, triggerUserId, note) {
     await enqueue(QUEUE_NAMES.IMPORT, `ie_step_${newStep}`, {

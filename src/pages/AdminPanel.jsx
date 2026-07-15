@@ -571,8 +571,22 @@ export default function AdminPanel() {
   const [importerProfiles, setImporterProfiles] = useState([]);
   const [importerListings, setImporterListings] = useState([]);
   const [importerLoading,  setImporterLoading]  = useState(false);
-  const [importerFilter,   setImporterFilter]   = useState("pending");
-  const [listingFilter,    setListingFilter]     = useState("pending");
+  // "" = Tous (par défaut) — un défaut sur "pending" cachait silencieusement les
+  // dossiers déjà vérifiés/refusés dès l'ouverture de l'onglet (voir loadImporters).
+  const [importerFilter,   setImporterFilter]   = useState("");
+  const [listingFilter,    setListingFilter]     = useState("");
+  // importerProfiles/importerListings contiennent TOUJOURS tous les statuts
+  // (voir loadImporters) — le filtre ne s'applique qu'à l'affichage du tableau,
+  // jamais aux KPI (Total/Vérifiés/Refusés...) qui doivent refléter la réalité
+  // complète quel que soit le filtre actif.
+  const filteredImporterProfiles = useMemo(
+    () => importerFilter ? importerProfiles.filter((p) => p.status === importerFilter) : importerProfiles,
+    [importerProfiles, importerFilter]
+  );
+  const filteredImporterListings = useMemo(
+    () => listingFilter ? importerListings.filter((l) => l.status === listingFilter) : importerListings,
+    [importerListings, listingFilter]
+  );
   const [reviewModal,      setReviewModal]       = useState(null);
   const [reviewDecision,   setReviewDecision]    = useState({ status: "verified", rejectionReason: "", badgeLevel: "silver" });
   const [listingRejectModal, setListingRejectModal] = useState(null);
@@ -581,7 +595,11 @@ export default function AdminPanel() {
   // KYC Admin
   const [kycList,       setKycList]       = useState([]);
   const [kycLoading,    setKycLoading]    = useState(false);
-  const [kycFilter,     setKycFilter]     = useState("EN_ATTENTE");
+  // "ALL" par défaut — un défaut sur "EN_ATTENTE" rendait un compte déjà
+  // vérifié/refusé introuvable dans cet onglet tant que l'admin ne pensait pas
+  // à cliquer sur le filtre correspondant (le backend gérait déjà ce cas, voir
+  // getKycList, mais le défaut front ne l'exploitait pas).
+  const [kycFilter,     setKycFilter]     = useState("ALL");
   const [kycSearch,     setKycSearch]     = useState("");
   const [kycDetailUser, setKycDetailUser] = useState(null);
   const [kycDetailLoading, setKycDetailLoading] = useState(false);
@@ -803,19 +821,27 @@ export default function AdminPanel() {
   };
 
   // ── Profils & annonces importateurs ────────────────────────────────────────
+  // Récupère TOUJOURS la liste complète (tous statuts confondus) — le filtre
+  // pending/verified/rejected/suspended s'applique ensuite côté client (voir
+  // filteredImporterProfiles/filteredImporterListings). Avant ce correctif, le
+  // filtre était appliqué côté serveur ET les KPI (Total, Vérifiés, Refusés...)
+  // étaient calculés sur cette même liste déjà filtrée : avec le filtre par
+  // défaut "En attente", le KPI "Total exportateurs" n'affichait jamais que les
+  // dossiers en attente — un partenaire déjà vérifié (donc jamais "pending")
+  // restait invisible sans qu'aucun indice ne signale son existence.
   const loadImporters = useCallback(async () => {
     if (!token) return;
     setImporterLoading(true);
     try {
       const [pRes, lRes] = await Promise.all([
-        fetch(`/api/import-export/importer-profiles?limit=100&status=${importerFilter}`, { headers }),
-        fetch(`/api/import-export/listings/admin?limit=100&status=${listingFilter}`,     { headers }),
+        fetch(`/api/import-export/importer-profiles?limit=100`, { headers }),
+        fetch(`/api/import-export/listings/admin?limit=100`,     { headers }),
       ]);
       if (pRes.ok) { const d = await pRes.json(); setImporterProfiles(d.profiles || []); }
       if (lRes.ok) { const d = await lRes.json(); setImporterListings(d.listings || []); }
     } catch {}
     setImporterLoading(false);
-  }, [token, headers, importerFilter, listingFilter]);
+  }, [token, headers]);
 
   const loadCommissions = useCallback(async () => {
     if (!token) return;
@@ -1141,6 +1167,30 @@ export default function AdminPanel() {
       const company = foundingList.find(o => o._id === id)?.companyInfo?.legalName || "Partenaire";
       setFoundingSignLink({ id, link: data.signLink, type: "agreement", companyName: company });
       showToast("Accord envoyé par email", "success");
+      loadFoundingPartners();
+    } catch { showToast("Erreur réseau", "error"); }
+    finally { setFoundingSubmitting(false); }
+  };
+
+  // Relance un dossier resté incomplet (brouillon jamais soumis, ou déjà relancé
+  // une première fois) — endpoint backend existant depuis longtemps
+  // (adminRequestInfo) mais jusqu'ici jamais appelé depuis cette interface : un
+  // partenaire ayant sauté des étapes n'avait aucun moyen d'être notifié pour
+  // compléter son dossier.
+  const foundingRequestInfo = async (id, infoRequested) => {
+    if (!infoRequested?.trim()) { showToast("Précisez ce qui doit être complété", "error"); return; }
+    if (foundingSubmitting) return;
+    setFoundingSubmitting(true);
+    try {
+      const r = await fetch(`/api/partner-onboarding/admin/${id}/request-info`, {
+        method: "POST", headers,
+        body: JSON.stringify({ infoRequested }),
+      });
+      const data = await r.json();
+      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
+      showToast("Partenaire relancé — notification envoyée", "success");
+      setFoundingAction(null);
+      setFoundingNote("");
       loadFoundingPartners();
     } catch { showToast("Erreur réseau", "error"); }
     finally { setFoundingSubmitting(false); }
@@ -2181,6 +2231,7 @@ export default function AdminPanel() {
                     onChange={(e) => setImporterFilter(e.target.value)}
                     style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}
                   >
+                    <option value="">Tous</option>
                     <option value="pending">En attente</option>
                     <option value="verified">Vérifiés</option>
                     <option value="rejected">Refusés</option>
@@ -2192,7 +2243,7 @@ export default function AdminPanel() {
                   <div className={styles.loadingBox} style={{ minHeight: 100 }}>
                     <div className={styles.spinner} /><p>Chargement...</p>
                   </div>
-                ) : importerProfiles.length === 0 ? (
+                ) : filteredImporterProfiles.length === 0 ? (
                   <div style={{ textAlign: "center", padding: "24px 0", color: "#94a3b8" }}>
                     <div style={{ fontSize: "2rem", marginBottom: 8 }}>🏅</div>
                     <p style={{ margin: 0 }}>Aucune candidature pour ce filtre.</p>
@@ -2212,7 +2263,7 @@ export default function AdminPanel() {
                         </tr>
                       </thead>
                       <tbody>
-                        {importerProfiles.map((p) => {
+                        {filteredImporterProfiles.map((p) => {
                           const stCfg = {
                             pending:   { label: "En attente", color: "#f59e0b", bg: "#fffbeb" },
                             verified:  { label: "Vérifié",    color: "#10b981", bg: "#ecfdf5" },
@@ -2288,6 +2339,7 @@ export default function AdminPanel() {
                     onChange={(e) => setListingFilter(e.target.value)}
                     style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}
                   >
+                    <option value="">Toutes</option>
                     <option value="pending">En attente</option>
                     <option value="approved">Publiées</option>
                     <option value="rejected">Refusées</option>
@@ -2295,7 +2347,7 @@ export default function AdminPanel() {
                 </div>
                 {importerLoading ? (
                   <div className={styles.loadingBox} style={{ minHeight: 80 }}><div className={styles.spinner} /></div>
-                ) : importerListings.length === 0 ? (
+                ) : filteredImporterListings.length === 0 ? (
                   <div style={{ textAlign: "center", padding: "20px 0", color: "#94a3b8" }}>
                     <p style={{ margin: 0 }}>Aucune annonce pour ce filtre.</p>
                   </div>
@@ -2314,7 +2366,7 @@ export default function AdminPanel() {
                         </tr>
                       </thead>
                       <tbody>
-                        {importerListings.map((l) => {
+                        {filteredImporterListings.map((l) => {
                           const stCfg = {
                             pending:  { label: "En attente", color: "#f59e0b", bg: "#fffbeb" },
                             approved: { label: "Publiée",    color: "#10b981", bg: "#ecfdf5" },
@@ -4642,17 +4694,23 @@ export default function AdminPanel() {
               <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.5)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
                 <div style={{ background:"#fff", borderRadius:16, padding:24, maxWidth:440, width:"100%", boxShadow:"0 20px 60px rgba(0,0,0,.25)" }}>
                   <h3 style={{ margin:"0 0 12px", color:"#0f1b3f", fontSize:"1rem", fontWeight:800 }}>
-                    {foundingAction.type === "approve" ? "✅ Approuver la candidature" : "❌ Rejeter le dossier"}
+                    {foundingAction.type === "approve" ? "✅ Approuver la candidature"
+                      : foundingAction.type === "request-info" ? "🔔 Relancer le partenaire"
+                      : "❌ Rejeter le dossier"}
                   </h3>
                   <p style={{ fontSize:".85rem", color:"#64748b", marginBottom:16 }}>
                     {foundingAction.type === "approve"
                       ? "La LOI sera générée et envoyée par email. Un lien sécurisé sera affiché ici pour partage WhatsApp."
+                      : foundingAction.type === "request-info"
+                      ? "Le partenaire reçoit une notification et un email l'invitant à compléter son dossier (le message ci-dessous lui sera affiché tel quel)."
                       : "Cette action est définitive. Le partenaire recevra une notification."}
                   </p>
                   <textarea
                     value={foundingNote}
                     onChange={e => setFoundingNote(e.target.value)}
-                    placeholder={foundingAction.type === "approve" ? "Note interne (optionnelle)…" : "Motif du rejet (obligatoire)…"}
+                    placeholder={foundingAction.type === "approve" ? "Note interne (optionnelle)…"
+                      : foundingAction.type === "request-info" ? "Ex : Merci de compléter les informations entreprise et vos documents légaux pour poursuivre votre candidature Founding Partner."
+                      : "Motif du rejet (obligatoire)…"}
                     style={{ width:"100%", minHeight:90, padding:12, border:"1.5px solid #e2e8f0", borderRadius:10, fontSize:".85rem", resize:"vertical", boxSizing:"border-box", fontFamily:"inherit" }}
                   />
                   <div style={{ display:"flex", gap:10, marginTop:14 }}>
@@ -4663,11 +4721,13 @@ export default function AdminPanel() {
                     <button
                       onClick={() => foundingAction.type === "approve"
                         ? foundingApprove(foundingAction.id, foundingNote)
+                        : foundingAction.type === "request-info"
+                        ? foundingRequestInfo(foundingAction.id, foundingNote)
                         : foundingReject(foundingAction.id, foundingNote)}
-                      disabled={foundingSubmitting}
-                      style={{ flex:2, padding:"10px", border:"none", borderRadius:10, cursor: foundingSubmitting ? "not-allowed" : "pointer", fontWeight:800, fontSize:".85rem", opacity: foundingSubmitting ? 0.6 : 1,
-                        background: foundingAction.type === "approve" ? "#16a34a" : "#dc2626", color:"#fff" }}>
-                      {foundingSubmitting ? "Envoi…" : foundingAction.type === "approve" ? "Approuver & Envoyer LOI" : "Confirmer le rejet"}
+                      disabled={foundingSubmitting || (foundingAction.type !== "approve" && !foundingNote.trim())}
+                      style={{ flex:2, padding:"10px", border:"none", borderRadius:10, cursor: foundingSubmitting ? "not-allowed" : "pointer", fontWeight:800, fontSize:".85rem", opacity: (foundingSubmitting || (foundingAction.type !== "approve" && !foundingNote.trim())) ? 0.6 : 1,
+                        background: foundingAction.type === "approve" ? "#16a34a" : foundingAction.type === "request-info" ? "#f59e0b" : "#dc2626", color:"#fff" }}>
+                      {foundingSubmitting ? "Envoi…" : foundingAction.type === "approve" ? "Approuver & Envoyer LOI" : foundingAction.type === "request-info" ? "Envoyer la relance" : "Confirmer le rejet"}
                     </button>
                   </div>
                 </div>
@@ -4722,6 +4782,13 @@ export default function AdminPanel() {
                                 ❌ Rejeter
                               </button>
                             </>
+                          )}
+                          {["brouillon","info_demandee"].includes(o.status) && (
+                            <button onClick={e => { e.stopPropagation(); setFoundingAction({ id: o._id, type:"request-info" }); setFoundingNote(""); }}
+                              style={{ padding:"6px 12px", borderRadius:8, border:"none", background:"#f59e0b", color:"#fff", fontWeight:700, fontSize:".76rem", cursor:"pointer" }}
+                              title="Dossier incomplet — notifier le partenaire pour qu'il le complète">
+                              🔔 Relancer
+                            </button>
                           )}
                           {o.status === "loi_signee" && (
                             <button onClick={e => { e.stopPropagation(); foundingSendAgreement(o._id); }}
