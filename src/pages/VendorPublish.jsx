@@ -7,7 +7,10 @@ import { CAR_MAKES, BODY_TYPES, COUNTRIES_ALL, CURRENCIES } from "../data/autoco
 import { SUBSCRIPTIONS_ENABLED } from "../config/featureFlags";
 import styles from "./VendorPublish.module.css";
 
-const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " DH";
+// FCFA (XOF) est la devise de base réelle des montants véhicule/réservation sur
+// tout le site (voir CurrencyContext.EXCHANGE_RATES : XOF = 1) — pas le Dirham
+// marocain, malgré le libellé "DH" utilisé ici jusqu'à présent.
+const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " FCFA";
 const fmtIE = (p, c = "EUR") => p ? `${Number(p).toLocaleString("fr-FR")} ${c}` : "—";
 
 // Cohérent avec IETransaction.escrow.method (server/models/IETransaction.js).
@@ -107,8 +110,8 @@ const VehicleCard = ({ v, bookings, onDelete, onBoost }) => {
           </div>
           <p className={styles.cardMeta}>
             {v.type === "location"
-              ? `${(v.pricePerDay || 0).toLocaleString("fr-FR")} DH / jour`
-              : `${(v.priceForSale || 0).toLocaleString("fr-FR")} DH`}
+              ? `${(v.pricePerDay || 0).toLocaleString("fr-FR")} FCFA / jour`
+              : `${(v.priceForSale || 0).toLocaleString("fr-FR")} FCFA`}
             {v.ville ? ` · ${v.ville}` : ""}
             {v.year  ? ` · ${v.year}`  : ""}
           </p>
