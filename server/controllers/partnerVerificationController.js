@@ -1,6 +1,7 @@
 import logger from "../utils/logger.js";
 import PartnerVerification, { CRITERIA_WEIGHTS } from "../models/PartnerVerification.js";
 import PartnerCertification from "../models/PartnerCertification.js";
+import PartnerOnboarding from "../models/PartnerOnboarding.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { logAction } from "../middleware/auditLog.js";
@@ -103,6 +104,31 @@ export const adminDetail = async (req, res) => {
         .lean();
       if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
       return res.json({ verification: null, user });
+    }
+
+    // Enrichissement en LECTURE SEULE (jamais persisté) : les dossiers créés avant
+    // que la cascade Founding Partner ne recopie les documents (voir
+    // partnerOnboardingController.cascadeFoundingPartnerApproval) restent vides ici
+    // même si les vraies pièces existent dans l'onboarding/KYC du partenaire — on
+    // les complète à l'affichage pour ne pas dépendre d'une re-signature.
+    if (!doc.documents?.businessLicenseDoc || !doc.documents?.rccmDoc || !doc.documents?.taxIdDoc || !doc.documents?.repIdDoc) {
+      const [onboarding, identityUser] = await Promise.all([
+        PartnerOnboarding.findOne({ userId: req.params.userId }).select("legalDocs platformMedia companyInfo businessVerification").lean(),
+        User.findById(req.params.userId).select("identity.frontImage").lean(),
+      ]);
+      if (onboarding || identityUser) {
+        doc.documents = doc.documents || {};
+        doc.documents.businessLicenseDoc = doc.documents.businessLicenseDoc || onboarding?.legalDocs?.businessLicense || onboarding?.legalDocs?.businessRegistration || null;
+        doc.documents.rccmDoc            = doc.documents.rccmDoc            || onboarding?.legalDocs?.businessRegistration || null;
+        doc.documents.taxIdDoc           = doc.documents.taxIdDoc           || onboarding?.legalDocs?.taxCertificate || null;
+        doc.documents.otherDoc           = doc.documents.otherDoc           || onboarding?.legalDocs?.exportLicense || onboarding?.legalDocs?.proofOfAddress || null;
+        doc.documents.repIdDoc           = doc.documents.repIdDoc           || identityUser?.identity?.frontImage || null;
+        doc.logoUrl     = doc.logoUrl     || onboarding?.platformMedia?.logo || null;
+        doc.website     = doc.website     || onboarding?.companyInfo?.website || "";
+        doc.email       = doc.email       || onboarding?.companyInfo?.email || "";
+        doc.phone       = doc.phone       || onboarding?.companyInfo?.phone || "";
+        doc.description = doc.description || onboarding?.businessVerification?.companyPresentation || "";
+      }
     }
 
     res.json({ verification: doc });

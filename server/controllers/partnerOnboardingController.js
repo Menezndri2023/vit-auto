@@ -85,6 +85,10 @@ async function cascadeFoundingPartnerApproval(doc) {
       },
     });
 
+    // Pièce d'identité KYC — réutilisée pour compléter Certification niveau 2 et
+    // Vérification Partenaire ci-dessous (un seul fetch pour les deux).
+    const identityUser = await User.findById(userId).select("identity.frontImage identity.backImage identity.selfie").lean();
+
     // 2. Certification (7 niveaux) — même résultat qu'un admin approuvant
     //    manuellement chaque niveau (computeScore/computeBadge réutilisés tels
     //    quels, jamais recalculés séparément ici).
@@ -96,6 +100,18 @@ async function cascadeFoundingPartnerApproval(doc) {
       lvl.reviewedAt = now;
       lvl.adminNote  = lvl.adminNote || NOTE_AUTO;
     }
+    // Copier les vraies pièces collectées pendant l'onboarding — avant ceci, un
+    // Founding Partner qui n'était jamais passé par le formulaire de certification
+    // séparé (submitLevel) voyait ses 7 niveaux marqués "approved" sans aucun
+    // document réel, alors que ces mêmes pièces existaient déjà dans son dossier
+    // d'onboarding et son KYC.
+    const fillCertDoc = (docObj, url) => (docObj?.data ? docObj : (url ? { name: NOTE_AUTO, data: url, uploadedAt: now } : docObj));
+    cert.level1.registrationDoc = fillCertDoc(cert.level1.registrationDoc, doc.legalDocs?.businessRegistration || doc.legalDocs?.businessLicense);
+    cert.level1.taxDoc          = fillCertDoc(cert.level1.taxDoc, doc.legalDocs?.taxCertificate);
+    cert.level1.addressProofDoc = fillCertDoc(cert.level1.addressProofDoc, doc.legalDocs?.proofOfAddress);
+    cert.level2.idFrontDoc      = fillCertDoc(cert.level2.idFrontDoc, identityUser?.identity?.frontImage);
+    cert.level2.idBackDoc       = fillCertDoc(cert.level2.idBackDoc, identityUser?.identity?.backImage);
+    cert.level2.selfieDoc       = fillCertDoc(cert.level2.selfieDoc, identityUser?.identity?.selfie);
     cert.certificationScore = computeScore(cert);
     cert.certificationBadge = computeBadge(cert);
     cert.overallStatus      = "approved";
@@ -124,6 +140,23 @@ async function cascadeFoundingPartnerApproval(doc) {
       };
     }
     pv.status = "verifie";
+    // Copier les vraies pièces/infos collectées pendant l'onboarding — avant ceci,
+    // la cascade ne validait que les CRITÈRES (booléens) sans jamais recopier les
+    // documents ni compléter le profil : l'onglet "Vérification Partenaires" de
+    // l'admin affichait donc un dossier "vérifié" mais entièrement vide.
+    pv.documents = pv.documents || {};
+    pv.documents.businessLicenseDoc = pv.documents.businessLicenseDoc || doc.legalDocs?.businessLicense || doc.legalDocs?.businessRegistration || null;
+    pv.documents.rccmDoc            = pv.documents.rccmDoc            || doc.legalDocs?.businessRegistration || null;
+    pv.documents.taxIdDoc           = pv.documents.taxIdDoc           || doc.legalDocs?.taxCertificate || null;
+    pv.documents.otherDoc           = pv.documents.otherDoc           || doc.legalDocs?.exportLicense || doc.legalDocs?.proofOfAddress || null;
+    pv.logoUrl          = pv.logoUrl          || doc.platformMedia?.logo || null;
+    pv.website           = pv.website           || doc.companyInfo?.website || "";
+    pv.email              = pv.email              || doc.companyInfo?.email || "";
+    pv.phone               = pv.phone               || doc.companyInfo?.phone || "";
+    pv.description           = pv.description           || doc.businessVerification?.companyPresentation || "";
+    pv.yearsExperience        = pv.yearsExperience        || doc.businessVerification?.yearsExperience || 0;
+    if (!pv.exportCountries?.length) pv.exportCountries = doc.businessVerification?.exportMarkets || [];
+    pv.documents.repIdDoc = pv.documents.repIdDoc || identityUser?.identity?.frontImage || null;
     await pv.save();
 
     // 4. Profil Importateur (Import/Export) — si un dossier existe déjà (ancien

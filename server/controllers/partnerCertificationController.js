@@ -1,5 +1,6 @@
 import logger from "../utils/logger.js";
 import PartnerCertification from "../models/PartnerCertification.js";
+import PartnerOnboarding from "../models/PartnerOnboarding.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { sendEmail } from "../config/email.js";
@@ -252,6 +253,31 @@ export const adminDetail = async (req, res) => {
       .populate("userId", "firstName lastName email phone role profilePhoto business")
       .lean();
     if (!cert) return res.status(404).json({ message: "Certification introuvable." });
+
+    // Enrichissement en LECTURE SEULE (jamais persisté) : un Founding Partner passé
+    // par l'onboarding complet mais jamais par le formulaire de certification séparé
+    // (submitLevel) a ses 7 niveaux marqués "approved" par la cascade de signature
+    // sans documents attachés — on les complète à l'affichage depuis son dossier
+    // d'onboarding et son KYC, sans dépendre d'une re-signature ou d'un script.
+    const needsFill = !cert.level1?.registrationDoc?.data || !cert.level2?.idFrontDoc?.data;
+    if (needsFill) {
+      const [onboarding, identityUser] = await Promise.all([
+        PartnerOnboarding.findOne({ userId: req.params.userId }).select("legalDocs").lean(),
+        User.findById(req.params.userId).select("identity.frontImage identity.backImage identity.selfie").lean(),
+      ]);
+      const fillDoc = (docObj, url) => (docObj?.data ? docObj : (url ? { name: "Fourni via Founding Partner / KYC", data: url, uploadedAt: null } : docObj));
+      if (onboarding || identityUser) {
+        cert.level1 = cert.level1 || {};
+        cert.level1.registrationDoc = fillDoc(cert.level1.registrationDoc, onboarding?.legalDocs?.businessRegistration || onboarding?.legalDocs?.businessLicense);
+        cert.level1.taxDoc          = fillDoc(cert.level1.taxDoc, onboarding?.legalDocs?.taxCertificate);
+        cert.level1.addressProofDoc = fillDoc(cert.level1.addressProofDoc, onboarding?.legalDocs?.proofOfAddress);
+        cert.level2 = cert.level2 || {};
+        cert.level2.idFrontDoc = fillDoc(cert.level2.idFrontDoc, identityUser?.identity?.frontImage);
+        cert.level2.idBackDoc  = fillDoc(cert.level2.idBackDoc, identityUser?.identity?.backImage);
+        cert.level2.selfieDoc  = fillDoc(cert.level2.selfieDoc, identityUser?.identity?.selfie);
+      }
+    }
+
     res.json({ certification: cert });
   } catch (err) {
     logger.error("certification adminDetail:", err);
