@@ -528,6 +528,55 @@
   background: #d1fae5;
 }
 
+/* ── Avis clients ─────────────────────────────────────────────────────────── */
+.reviewsList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.reviewItem {
+  padding: 12px 0;
+  border-bottom: 1px solid #eef1f8;
+}
+.reviewItem:last-child { border-bottom: none; padding-bottom: 0; }
+
+.reviewItemHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.reviewAuthor {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #0f1b3f;
+}
+
+.reviewStars {
+  color: #f59e0b;
+  font-size: 0.85rem;
+  letter-spacing: 1px;
+}
+
+.reviewDate {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-left: auto;
+}
+
+.reviewComment {
+  font-size: 0.85rem;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.reviewsEmpty {
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
 .publisherProfile {
   font-size: 0.82rem;
   font-weight: 700;

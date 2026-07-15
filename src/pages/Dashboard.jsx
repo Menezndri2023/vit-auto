@@ -92,6 +92,7 @@ const normalizeBooking = (b) => {
     // Annulation
     cancelReason:  b.cancelReason,
     cancelledAt:   b.cancelledAt,
+    hasReview:     !!b.review,
     _fromBackend:  true,
   };
 };
@@ -302,6 +303,7 @@ function ReviewModal({ booking, token, onClose, onSuccess }) {
   const [note, setNote] = useState(5);
   const [commentaire, setCommentaire] = useState("");
   const [loading, setLoading] = useState(false);
+  const { error: toastErr } = useToast();
 
   const submit = async () => {
     if (!token || !booking.vehicleId) return;
@@ -319,7 +321,11 @@ function ReviewModal({ booking, token, onClose, onSuccess }) {
         }),
       });
       if (res.ok) { onSuccess(); onClose(); }
-    } catch { /* ignore */ }
+      else {
+        const data = await res.json().catch(() => ({}));
+        toastErr(data.message || "Impossible d'envoyer l'avis.");
+      }
+    } catch { toastErr("Erreur réseau, réessayez."); }
     finally { setLoading(false); }
   };
 
@@ -392,7 +398,8 @@ const Dashboard = () => {
 
   const handleReviewSuccess = useCallback(() => {
     toastSuccess("Merci pour votre avis !");
-  }, [toastSuccess]);
+    fetchMyOrders();
+  }, [toastSuccess, fetchMyOrders]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -951,10 +958,15 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, valid
             💬 {contacting ? "Ouverture…" : "Message au partenaire"}
           </button>
         )}
-        {isCompleted && booking.vehicleId && (
+        {isCompleted && booking.vehicleId && !booking.hasReview && (
           <button className={styles.btnReview} onClick={() => onReview(booking)}>
             ⭐ Laisser un avis
           </button>
+        )}
+        {isCompleted && booking.vehicleId && booking.hasReview && (
+          <span className={styles.btnReview} style={{ opacity: 0.6, cursor: "default" }}>
+            ✅ Avis publié
+          </span>
         )}
         {canCancel && !confirmCancel && (
           <button className={styles.btnDanger} onClick={() => setConfirmCancel(true)}>

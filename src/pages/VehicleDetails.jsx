@@ -45,6 +45,47 @@ function LeasingCard({ leasing, priceForSale, vehicleId, navigate, fmt, t }) {
   );
 }
 
+function ReviewsSection({ vehicleId, t }) {
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!vehicleId) return;
+    setLoading(true);
+    fetch(`/api/reviews?targetType=vehicle&targetId=${vehicleId}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => setReviews(data?.reviews || []))
+      .catch(() => setReviews([]))
+      .finally(() => setLoading(false));
+  }, [vehicleId]);
+
+  if (loading) return null;
+
+  return (
+    <div className={styles.card}>
+      <h3 className={styles.cardTitle}>{t("vd.reviews") || "Avis"} {reviews.length > 0 && `(${reviews.length})`}</h3>
+      {reviews.length === 0 ? (
+        <p className={styles.reviewsEmpty}>{t("vd.noReviews") || "Aucun avis pour le moment."}</p>
+      ) : (
+        <div className={styles.reviewsList}>
+          {reviews.map((rv) => (
+            <div key={rv._id} className={styles.reviewItem}>
+              <div className={styles.reviewItemHead}>
+                <span className={styles.reviewAuthor}>
+                  {rv.reviewer?.firstName ? `${rv.reviewer.firstName} ${(rv.reviewer.lastName || "").charAt(0)}.` : "Client VIT AUTO"}
+                </span>
+                <span className={styles.reviewStars}>{"★".repeat(rv.note)}{"☆".repeat(5 - rv.note)}</span>
+                <span className={styles.reviewDate}>{new Date(rv.createdAt).toLocaleDateString("fr-FR")}</span>
+              </div>
+              {rv.commentaire && <p className={styles.reviewComment}>{rv.commentaire}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Mirroir de LeasingCard pour le Crédit classique — mêmes champs financiers
 // (Vehicle.credit), textes en dur (pas d'entrées i18n dédiées pour l'instant,
 // cohérent avec le reste des ajouts de cette session).
@@ -386,6 +427,9 @@ export default function VehicleDetails() {
               </div>
             </div>
           )}
+
+          {/* ── Avis clients ── */}
+          <ReviewsSection vehicleId={vehicle._id || vehicle.id} t={t} />
 
           {/* Bouton CTA */}
           <div className={styles.ctaBlock}>
