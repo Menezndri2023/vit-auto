@@ -1,0 +1,96 @@
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 20px 80px;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.header h1 {
+  color: #0f1b3f;
+  font-size: 1.6rem;
+  margin: 0 0 8px;
+}
+
+.header p {
+  color: #64748b;
+  margin: 0;
+}
+
+.muted {
+  text-align: center;
+  color: #94a3b8;
+  padding: 40px 0;
+}
+
+.empty {
+  text-align: center;
+  padding: 60px 20px;
+  background: #f8fafc;
+  border-radius: 16px;
+}
+
+.emptyIcon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+}
+
+.cta {
+  display: inline-block;
+  margin-top: 16px;
+  color: #6366f1;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.sectionTitle {
+  font-size: 1.05rem;
+  color: #0f1b3f;
+  margin: 28px 0 16px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 20px;
+}
+
+.ieCard {
+  display: flex;
+  flex-direction: column;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  background: #fff;
+  transition: transform 0.2s ease;
+}
+
+.ieCard:hover { transform: translateY(-3px); }
+
+.ieCard img {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+}
+
+.ieCardBody {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ieCardBody strong {
+  color: #0f1b3f;
+  font-size: 0.95rem;
+}
+
+.ieCardBody span {
+  color: #64748b;
+  font-size: 0.82rem;
+}

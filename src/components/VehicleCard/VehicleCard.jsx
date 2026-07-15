@@ -1,11 +1,22 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCurrency } from "../../context/CurrencyContext";
+import { useFavorites } from "../../context/FavoritesContext";
 import styles from "./VehicleCard.module.css";
 
 const VehicleCard = React.memo(({ car, compact }) => {
   const navigate  = useNavigate();
   const { fmt }   = useCurrency();
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const carId = car._id || car.id;
+  const favActive = isFavorite("vehicle", carId);
+
+  const handleFavClick = useCallback((e) => {
+    e.stopPropagation();
+    toggleFavorite("vehicle", carId).then((r) => {
+      if (r.needsAuth) navigate("/login");
+    });
+  }, [toggleFavorite, carId, navigate]);
   const imgs = (() => {
     const arr = [];
     if (Array.isArray(car.images) && car.images.length > 0) arr.push(...car.images);
@@ -58,6 +69,15 @@ const VehicleCard = React.memo(({ car, compact }) => {
   return (
     <div className={`${styles.card} ${compact ? styles.compact : ""}`}>
       <div className={styles.cover}>
+        <button
+          type="button"
+          className={`${styles.favBtn} ${favActive ? styles.favBtnActive : ""}`}
+          onClick={handleFavClick}
+          aria-label={favActive ? "Retirer des favoris" : "Ajouter aux favoris"}
+          title={favActive ? "Retirer des favoris" : "Ajouter aux favoris"}
+        >
+          {favActive ? "❤️" : "🤍"}
+        </button>
         {imgs ? (
           <>
             <img

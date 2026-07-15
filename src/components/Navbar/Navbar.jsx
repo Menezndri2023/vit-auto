@@ -83,6 +83,10 @@ const Navbar = () => {
           <li><NavLink to="/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>Tableau de bord</NavLink></li>
         )}
 
+        {isAuthenticated && (
+          <li><NavLink to="/favorites" className={navLink} onClick={() => setMenuOpen(false)}>❤️ Favoris</NavLink></li>
+        )}
+
         {/* ── Éléments additionnels dans le menu mobile (non connectés) ── */}
         {!isAuthenticated && (
           <>

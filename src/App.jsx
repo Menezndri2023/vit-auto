@@ -9,6 +9,7 @@ import { NotificationProvider } from "./context/NotificationContext";
 import { ChatProvider } from "./context/ChatContext";
 import { I18nProvider } from "./context/I18nContext";
 import { CurrencyProvider } from "./context/CurrencyContext";
+import { FavoritesProvider } from "./context/FavoritesContext";
 import { LocationProvider } from "./context/LocationContext";
 import { VehicleProvider } from "./context/VehicleContext";
 import Layout from "./components/Layout/Layout";
@@ -37,6 +38,7 @@ const DashboardStats        = lazy(() => import("./pages/DashboardStats"));
 const Checkout              = lazy(() => import("./pages/Checkout"));
 const Services              = lazy(() => import("./pages/Services"));
 const InsuranceRequest      = lazy(() => import("./pages/InsuranceRequest"));
+const Favorites             = lazy(() => import("./pages/Favorites"));
 const Help                  = lazy(() => import("./pages/Help"));
 const ContractPage          = lazy(() => import("./pages/ContractPage"));
 const Privacy               = lazy(() => import("./pages/Privacy"));
@@ -128,6 +130,7 @@ function AppRoutes() {
 
           {/* ── Espace client connecté ─────────────────────── */}
           <Route path="/dashboard"              element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
+          <Route path="/favorites"              element={<ErrorBoundary><Favorites /></ErrorBoundary>} />
           <Route path="/profile"                element={<ErrorBoundary><Profile /></ErrorBoundary>} />
           <Route path="/kyc"                    element={<KYC />} />
           <Route path="/contract/:bookingId"    element={<ContractPage />} />
@@ -181,9 +184,11 @@ function App() {
                     <CurrencyProvider>
                       <LocationProvider>
                         <VehicleProvider>
-                          <AppRoutes />
-                          <ToastContainer />
-                          <Chat />
+                          <FavoritesProvider>
+                            <AppRoutes />
+                            <ToastContainer />
+                            <Chat />
+                          </FavoritesProvider>
                         </VehicleProvider>
                       </LocationProvider>
                     </CurrencyProvider>
