@@ -112,6 +112,18 @@ async function cascadeFoundingPartnerApproval(doc) {
     cert.level2.idFrontDoc      = fillCertDoc(cert.level2.idFrontDoc, identityUser?.identity?.frontImage);
     cert.level2.idBackDoc       = fillCertDoc(cert.level2.idBackDoc, identityUser?.identity?.backImage);
     cert.level2.selfieDoc       = fillCertDoc(cert.level2.selfieDoc, identityUser?.identity?.selfie);
+    // Un badge de niveau 8 attribué manuellement AVANT que ce partenaire ne
+    // devienne Founding Partner (ex: "verifie" via adminAssignBadge) court-
+    // circuite computeBadge() — qui teste level8.badgeAwarded en premier — et
+    // masquait silencieusement le badge "fondateur" pourtant gagné par les 7
+    // niveaux approuvés ci-dessus (constaté sur un partenaire réel en
+    // production : score 96/100, 7 niveaux approuvés, badge resté "verifie").
+    // Founding Partner est le niveau de vérification le plus exigeant du site,
+    // il doit donc toujours l'emporter sur un badge de niveau 8 antérieur.
+    cert.level8.badgeAwarded = "fondateur";
+    cert.level8.status       = "approved";
+    cert.level8.reviewedAt   = now;
+    cert.level8.awardedAt    = cert.level8.awardedAt || now;
     cert.certificationScore = computeScore(cert);
     cert.certificationBadge = computeBadge(cert);
     cert.overallStatus      = "approved";
