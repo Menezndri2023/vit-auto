@@ -9,6 +9,15 @@ import { useI18n } from "../context/I18nContext";
 import { useChat } from "../context/ChatContext";
 import styles from "./Dashboard.module.css";
 
+// Cohérent avec FINANCING_DECISION_CFG (AdminPanel.jsx) — la décision admin sur
+// une demande leasing/crédit n'était jusqu'ici visible que via une notification
+// ponctuelle, jamais affichée durablement sur la carte de réservation elle-même.
+const FINANCING_DECISION_CFG = {
+  en_etude: { label: "🔍 En étude", color: "#d97706" },
+  accepte:  { label: "✅ Accepté",  color: "#10b981" },
+  refuse:   { label: "❌ Refusé",   color: "#dc2626" },
+};
+
 // Transforme une réservation brute du backend en objet plat utilisable par les composants
 const normalizeBooking = (b) => {
   const veh = b.vehicle;
@@ -54,10 +63,13 @@ const normalizeBooking = (b) => {
     chauffeurHeures:      b.chauffeur?.heures,
     chauffeurLieuDepart:  b.chauffeur?.lieuDepart,
     chauffeurDestination: b.chauffeur?.destination,
-    // Leasing
+    // Leasing / Crédit classique
     leasingApportInitial: b.leasing?.apportInitial,
     leasingMensualite:    b.leasing?.mensualite,
     leasingDuree:         b.leasing?.duree,
+    financingType:        b.leasing?.financingType,
+    financingDecision:    b.leasing?.decision,
+    financingDecisionNote: b.leasing?.decisionNote,
     // Finances
     total:         b.montantTotal,
     montantTotal:  b.montantTotal,
@@ -828,9 +840,15 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, valid
           </>
         ) : isLeasing ? (
           <>
+            <DetailRow icon="🏦" label="Type de financement" value={booking.financingType === "credit" ? "Crédit classique" : "Leasing (LOA)"} />
             {booking.leasingApportInitial != null && <DetailRow icon="💰" label="Apport initial" value={fmt(booking.leasingApportInitial)} />}
             {booking.leasingMensualite != null && <DetailRow icon="📆" label="Mensualité" value={fmt(booking.leasingMensualite)} />}
             {booking.leasingDuree && <DetailRow icon="🗓️" label="Durée" value={`${booking.leasingDuree} mois`} />}
+            <DetailRow icon="📋" label="Statut de la demande"
+              value={<span style={{ color: FINANCING_DECISION_CFG[booking.financingDecision || "en_etude"].color, fontWeight: 700 }}>
+                {FINANCING_DECISION_CFG[booking.financingDecision || "en_etude"].label}
+              </span>} />
+            {booking.financingDecisionNote && <DetailRow icon="💬" label="Note" value={booking.financingDecisionNote} />}
           </>
         ) : (
           <>
