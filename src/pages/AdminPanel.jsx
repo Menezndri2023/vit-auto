@@ -3854,7 +3854,7 @@ export default function AdminPanel() {
                     ) : <div />}
                     {/* Badge statut */}
                     <span style={{ padding: "4px 14px", borderRadius: 20, background: kc.bg, color: kc.c, fontSize: ".8rem", fontWeight: 800, whiteSpace: "nowrap" }}>
-                      {kc.emoji} {u.kycStatus.replace(/_/g, " ")}
+                      {kc.emoji} {(u.kycStatus || "EN_ATTENTE").replace(/_/g, " ")}
                     </span>
                     {/* Bouton examen */}
                     <button

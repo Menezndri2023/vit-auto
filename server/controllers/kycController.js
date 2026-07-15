@@ -369,6 +369,18 @@ export const getKycList = async (req, res) => {
       .limit(safeLimit)
       .lean();
 
+    // .lean() renvoie le document Mongo brut : les comptes créés avant l'ajout du
+    // champ kycStatus au schéma (défaut "EN_ATTENTE") ne l'ont jamais eu écrit en
+    // base et arrivent donc avec kycStatus=undefined. Le filtre "ALL" (aucun filtre
+    // de statut) les inclut, et le front appelle u.kycStatus.replace(...) sans
+    // garde — ça faisait planter tout l'onglet KYC/Identités (écran d'erreur React)
+    // dès qu'un seul de ces comptes legacy apparaissait dans la liste.
+    for (const u of users) {
+      if (!u.kycStatus) u.kycStatus = "EN_ATTENTE";
+      if (u.kycScore == null) u.kycScore = 0;
+      if (!u.kycBadge) u.kycBadge = "INSUFFISANT";
+    }
+
     res.json({ users, total, page: Number(page), limit: safeLimit });
   } catch (err) {
     logger.error("getKycList:", err);
