@@ -206,9 +206,14 @@ function IEListingForm({ onClose, onSaved, token }) {
     bodyType: "", color: "", condition: "occasion", description: "",
     sourceCountry: "", sourceCity: "", availableIn: [],
     price: "", currency: "EUR", negotiable: false, stockQty: 1,
+    vin: "", vehicleHistory: "", priceIncludes: [],
+    estimatedShippingCost: "", shippingCostCurrency: "EUR",
+    estimatedDelay: "", shippingType: "", exportDocumentsAvailable: [], videoUrl: "",
   });
   const [photos, setPhotos]       = useState([]);
   const [availText, setAvailText] = useState("");
+  const [includeText, setIncludeText] = useState("");
+  const [docText, setDocText]         = useState("");
   const [saving, setSaving]       = useState(false);
   const [err, setErr]             = useState(null);
 
@@ -226,6 +231,18 @@ function IEListingForm({ onClose, onSaved, token }) {
     const c = availText.trim();
     if (c && !f.availableIn.includes(c)) set("availableIn", [...f.availableIn, c]);
     setAvailText("");
+  };
+
+  const addInclude = () => {
+    const c = includeText.trim();
+    if (c && !f.priceIncludes.includes(c)) set("priceIncludes", [...f.priceIncludes, c]);
+    setIncludeText("");
+  };
+
+  const addDoc = () => {
+    const c = docText.trim();
+    if (c && !f.exportDocumentsAvailable.includes(c)) set("exportDocumentsAvailable", [...f.exportDocumentsAvailable, c]);
+    setDocText("");
   };
 
   const save = useCallback(async () => {
@@ -303,6 +320,67 @@ function IEListingForm({ onClose, onSaved, token }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
           <label style={lStyle}>Carrosserie <input list="dl-vp-bodies" style={iStyle} value={f.bodyType} onChange={(e) => set("bodyType", e.target.value)} placeholder="SUV, berline…" /></label>
           <label style={lStyle}>Couleur <input style={iStyle} value={f.color} onChange={(e) => set("color", e.target.value)} placeholder="Blanc perle" /></label>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+          <label style={lStyle}>VIN (numéro de châssis) <input style={iStyle} value={f.vin} onChange={(e) => set("vin", e.target.value)} placeholder="JT..." /></label>
+          <label style={lStyle}>Lien vidéo <input style={iStyle} value={f.videoUrl} onChange={(e) => set("videoUrl", e.target.value)} placeholder="https://youtube.com/..." /></label>
+        </div>
+        <label style={{ ...lStyle, marginBottom: 12 }}>Historique véhicule
+          <textarea style={{ ...iStyle, minHeight: 60, resize: "vertical" }} rows={2} value={f.vehicleHistory} onChange={(e) => set("vehicleHistory", e.target.value)} placeholder="Accidents, entretien, nombre de propriétaires…" />
+        </label>
+
+        {/* Logistique export */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
+          <label style={lStyle}>Coût livraison estimé <input type="number" min="0" style={iStyle} value={f.estimatedShippingCost} onChange={(e) => set("estimatedShippingCost", e.target.value)} placeholder="1500" /></label>
+          <label style={lStyle}>Devise du coût
+            <select style={iStyle} value={f.shippingCostCurrency} onChange={(e) => set("shippingCostCurrency", e.target.value)}>
+              {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
+            </select>
+          </label>
+          <label style={lStyle}>Délai estimé <input style={iStyle} value={f.estimatedDelay} onChange={(e) => set("estimatedDelay", e.target.value)} placeholder="30-45 jours" /></label>
+        </div>
+        <label style={{ ...lStyle, marginBottom: 12 }}>Type de transport
+          <select style={iStyle} value={f.shippingType} onChange={(e) => set("shippingType", e.target.value)}>
+            <option value="">— Non précisé —</option>
+            <option value="maritime">Maritime</option>
+            <option value="terrestre">Terrestre</option>
+            <option value="aerien">Aérien</option>
+            <option value="multiple">Multiple</option>
+          </select>
+        </label>
+
+        {/* Prix inclut */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: ".82rem", fontWeight: 600, marginBottom: 6 }}>Le prix inclut</div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+            <input style={{ ...iStyle, flex: 1 }} value={includeText} onChange={(e) => setIncludeText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addInclude())} placeholder="Dédouanement, transport local…" />
+            <button type="button" onClick={addInclude} style={{ padding: "8px 14px", background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700 }}>+</button>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {f.priceIncludes.map((c) => (
+              <span key={c} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(99,102,241,.1)", color: "#6366f1", borderRadius: 99, padding: "3px 10px", fontSize: ".78rem", fontWeight: 600 }}>
+                {c}<button onClick={() => set("priceIncludes", f.priceIncludes.filter((x) => x !== c))} style={{ background: "none", border: "none", cursor: "pointer", color: "#6366f1", padding: 0, lineHeight: 1 }}>×</button>
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Documents export disponibles */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: ".82rem", fontWeight: 600, marginBottom: 6 }}>Documents d'export disponibles</div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+            <input style={{ ...iStyle, flex: 1 }} value={docText} onChange={(e) => setDocText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addDoc())} placeholder="Facture, connaissement, certificat d'origine…" />
+            <button type="button" onClick={addDoc} style={{ padding: "8px 14px", background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700 }}>+</button>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {f.exportDocumentsAvailable.map((c) => (
+              <span key={c} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(99,102,241,.1)", color: "#6366f1", borderRadius: 99, padding: "3px 10px", fontSize: ".78rem", fontWeight: 600 }}>
+                {c}<button onClick={() => set("exportDocumentsAvailable", f.exportDocumentsAvailable.filter((x) => x !== c))} style={{ background: "none", border: "none", cursor: "pointer", color: "#6366f1", padding: 0, lineHeight: 1 }}>×</button>
+              </span>
+            ))}
+          </div>
         </div>
 
         {/* Disponible dans */}
