@@ -170,7 +170,27 @@ export default function ImporterApply() {
         <div className={styles.pageHeader}>
           <span className={styles.headerBadge}>🌍 PARTENAIRE IMPORTATEUR</span>
           <h1>Candidature importateur agréé</h1>
-          <p>Rejoignez le réseau VIT AUTO et publiez vos véhicules import/export auprès de milliers d'acheteurs.</p>
+          <p>Faites reconnaître votre entreprise comme importateur/exportateur agréé sur VIT AUTO — badge de confiance affiché sur votre profil public.</p>
+        </div>
+
+        {/* La publication d'annonces Import/Export exige le programme Founding
+            Partner (KYC + entreprise + LOI/Accord signés) depuis que celui-ci
+            a été introduit — cette candidature seule, même approuvée, ne
+            débloque jamais la publication. Le header promettait auparavant le
+            contraire ("publiez vos véhicules..."), ce qui était faux. */}
+        <div style={{ background: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: 14, padding: "16px 20px", marginBottom: 20, display: "flex", gap: 14, alignItems: "flex-start" }}>
+          <span style={{ fontSize: "1.6rem" }}>⚠️</span>
+          <div>
+            <strong style={{ display: "block", marginBottom: 4, color: "#92400e" }}>Cette candidature ne donne pas accès à la publication</strong>
+            <p style={{ margin: "0 0 10px", color: "#92400e", fontSize: ".88rem" }}>
+              Elle vous attribue un badge "Partenaire vérifié" affiché sur votre profil public, mais seul le
+              <strong> programme Founding Partner</strong> (vérification complète : identité, entreprise, LOI et Accord signés)
+              permet de publier des annonces Import/Export sur VIT AUTO.
+            </p>
+            <Link to="/partner-onboarding" style={{ display: "inline-block", padding: "8px 18px", background: "#f59e0b", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".85rem" }}>
+              Rejoindre le programme Founding Partner →
+            </Link>
+          </div>
         </div>
 
         {/* Stepper */}
