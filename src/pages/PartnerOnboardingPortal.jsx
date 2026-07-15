@@ -624,6 +624,15 @@ function StepDocuments({ onboarding, saving, onSaveSection, onNext, onBack }) {
   };
 
   const handleSave = async () => {
+    // Au moins une preuve d'immatriculation (RCCM, Kbis, Business/Trade
+    // License...) est requise — les autres documents restent au choix du
+    // partenaire selon sa situation ("si applicable"). Vérifié aussi côté
+    // serveur (submitApplication) : ce contrôle client n'est qu'un confort,
+    // pas la seule protection.
+    if (!files.businessRegistration && !files.businessLicense) {
+      setFileError("Fournissez au moins un document d'immatriculation (certificat d'immatriculation ou licence commerciale).");
+      return;
+    }
     const ok = await onSaveSection("legal-docs", files);
     if (ok) onNext();
   };

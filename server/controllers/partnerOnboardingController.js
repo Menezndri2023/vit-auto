@@ -361,6 +361,14 @@ export const submitApplication = async (req, res) => {
     if (!doc.companyInfo?.legalName) {
       return res.status(400).json({ message: "Le nom légal de l'entreprise est requis avant de soumettre." });
     }
+    // Au moins UNE preuve d'immatriculation légale (le partenaire choisit celle
+    // qui s'applique à son pays/statut — RCCM, Kbis, Business/Trade License...) —
+    // jusqu'ici rien ne l'exigeait, un dossier pouvait être approuvé Founding
+    // Partner (le niveau de vérification le plus exigeant du site, voir
+    // cascadeFoundingPartnerApproval) sans aucun document légal fourni.
+    if (!doc.legalDocs?.businessRegistration && !doc.legalDocs?.businessLicense) {
+      return res.status(400).json({ message: "Fournissez au moins un document d'immatriculation (certificat d'immatriculation ou licence commerciale) avant de soumettre." });
+    }
     if (!doc.legalAcceptance?.accepted) {
       return res.status(400).json({ message: "Vous devez accepter la Letter of Intent, le Founding Partner Agreement et la Verification Policy avant de soumettre." });
     }

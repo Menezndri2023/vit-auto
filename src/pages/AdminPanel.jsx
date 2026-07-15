@@ -308,6 +308,138 @@ function FoundingDocs({ o }) {
   );
 }
 
+// Sections du dossier Founding Partner remplies par le partenaire mais jusqu'ici
+// jamais rendues dans le détail admin (voir server/models/PartnerOnboarding.js —
+// businessVerification/vehicleInventory/exportCapabilities/paymentInfo/
+// commercialTerms) : seuls companyInfo, legalDocs et platformMedia l'étaient.
+const ENTITY_TYPE_LABELS  = { factory: "Usine", dealer: "Concessionnaire", exporter: "Exportateur", importer: "Importateur", agent: "Agent" };
+const VEHICLE_INV_LABELS  = { newVehicles: "Neufs", usedVehicles: "Occasion", electricVehicles: "Électriques", hybridVehicles: "Hybrides", luxuryVehicles: "Luxe", commercialVehicles: "Utilitaires" };
+const INCOTERM_LABELS     = { exw: "EXW", fob: "FOB", cif: "CIF", dap: "DAP", ddp: "DDP" };
+const PAYMENT_MODE_LABELS = { wire_transfer: "Virement", lc: "Crédit documentaire", tt: "T/T", cash: "Espèces", escrow: "Séquestre" };
+
+function InfoField({ label, value }) {
+  return (
+    <div>
+      <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: ".82rem", color: "#0f1b3f" }}>{value ?? "—"}</div>
+    </div>
+  );
+}
+
+function TagList({ items, labels }) {
+  if (!items?.length) return <span style={{ color: "#94a3b8" }}>—</span>;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      {items.map((v) => (
+        <span key={v} style={{ fontSize: ".72rem", fontWeight: 700, padding: "3px 9px", borderRadius: 20, background: "#eff6ff", color: "#1d4ed8" }}>
+          {labels?.[v] || v}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function FoundingBusinessInfo({ o }) {
+  const bv = o.businessVerification || {};
+  const vi = o.vehicleInventory     || {};
+  const ec = o.exportCapabilities   || {};
+  const pi = o.paymentInfo          || {};
+  const ct = o.commercialTerms      || {};
+
+  const activeVehicleTypes = Object.entries(vi).filter(([, v]) => v).map(([k]) => k);
+  const activeIncoterms    = Object.entries(ec.incoterms || {}).filter(([, v]) => v).map(([k]) => k);
+
+  const hasAny = bv.companyPresentation || bv.brands?.length || bv.mainActivities?.length || bv.exportMarkets?.length
+    || bv.entityTypes?.length || activeVehicleTypes.length || ec.shippingPorts?.length || activeIncoterms.length
+    || pi.acceptedMethods?.length || pi.bankName || ct.paymentModes?.length || ct.deliveryDays || ct.depositPercentage;
+
+  if (!hasAny) {
+    return (
+      <div style={{ background: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: 10, padding: "10px 14px", marginTop: 12, fontSize: ".8rem", color: "#92400e" }}>
+        ⚠️ Aucune information commerciale (activité, export, paiement, conditions) renseignée par ce partenaire.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div>
+        <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>🏢 Vérification commerciale</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
+          <InfoField label="Présentation" value={bv.companyPresentation} />
+          <InfoField label="Années d'expérience" value={bv.yearsExperience || "—"} />
+          <InfoField label="Capacité export annuelle" value={bv.annualExportCapacity} />
+          <InfoField label="Autorisation OEM" value={bv.oemAuthorization} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10, marginTop: 10 }}>
+          <div>
+            <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Types d'entité</div>
+            <TagList items={bv.entityTypes} labels={ENTITY_TYPE_LABELS} />
+          </div>
+          <div>
+            <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Marques représentées</div>
+            <TagList items={bv.brands} />
+          </div>
+          <div>
+            <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Activités principales</div>
+            <TagList items={bv.mainActivities} />
+          </div>
+          <div>
+            <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Marchés export</div>
+            <TagList items={bv.exportMarkets} />
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>🚗 Inventaire véhicules</div>
+        <TagList items={activeVehicleTypes} labels={VEHICLE_INV_LABELS} />
+      </div>
+
+      <div>
+        <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>🚢 Capacités export</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
+          <div>
+            <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Ports d'expédition</div>
+            <TagList items={ec.shippingPorts} />
+          </div>
+          <div>
+            <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Méthodes d'expédition</div>
+            <TagList items={ec.shippingMethods} />
+          </div>
+          <div>
+            <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Incoterms</div>
+            <TagList items={activeIncoterms} labels={INCOTERM_LABELS} />
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>💳 Paiement & conditions commerciales</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
+          <InfoField label="Banque" value={pi.bankName} />
+          <InfoField label="Devise préférée" value={pi.preferredCurrency} />
+          <InfoField label="Quantité minimum" value={ct.minimumOrderQuantity} />
+          <InfoField label="Acompte" value={ct.depositPercentage != null ? `${ct.depositPercentage}% (${ct.depositTiming || "—"})` : "—"} />
+          <InfoField label="Délai de livraison" value={ct.deliveryDays ? `${ct.deliveryDays} jours` : "—"} />
+          <InfoField label="Garantie" value={ct.warrantyAvailable == null ? "—" : ct.warrantyAvailable ? `${ct.warrantyMonths || "—"} mois` : "Non"} />
+          <InfoField label="Inspection" value={ct.inspectionType ? `${ct.inspectionType}${ct.inspectionAgency ? " · " + ct.inspectionAgency : ""}` : "—"} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10, marginTop: 10 }}>
+          <div>
+            <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Méthodes de paiement acceptées</div>
+            <TagList items={pi.acceptedMethods} />
+          </div>
+          <div>
+            <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Modes de paiement (transaction)</div>
+            <TagList items={ct.paymentModes} labels={PAYMENT_MODE_LABELS} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const STATUS_VEH = {
   approved: { label: "Publiée",     color: "#10b981", bg: "#ecfdf5" },
   pending:  { label: "En attente",  color: "#f59e0b", bg: "#fffbeb" },
@@ -4641,6 +4773,7 @@ export default function AdminPanel() {
                             </div>
                           </div>
                           <FoundingDocs o={o} />
+                          <FoundingBusinessInfo o={o} />
                           {/* Regénérer le lien sécurisé */}
                           {o.status === "loi_envoyee" && (
                             <div style={{ background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:10, padding:"10px 14px", marginTop:8 }}>
