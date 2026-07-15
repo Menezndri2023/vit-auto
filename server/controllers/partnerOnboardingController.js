@@ -1244,6 +1244,7 @@ export function generateLOI(doc, user, date) {
   const country   = doc.companyInfo?.registrationCountry || "—";
   const email     = doc.companyInfo?.email || user.email || "—";
   const typeLabel = PARTNER_TYPE_LABELS[doc.partnerType] || doc.partnerType;
+  const loiTier   = doc.legalEntityType === "particulier" ? "particulier" : "default";
 
   return `LETTER OF INTENT — VIT-AUTO FOUNDING PARTNER PROGRAM
 ══════════════════════════════════════════════════════════════
@@ -1288,8 +1289,8 @@ Reference        : ${doc.referenceNumber}
 FOUNDING PARTNER BENEFITS
 
   ✓  Free Premium Subscription ......... 12 months (value: €300+)
-  ✓  Rental Commission ................. ${FOUNDING_YEAR1_RATES.location * 100}% year 1, then ${FOUNDING_YEAR2_RATES.location * 100}% year 2+  (standard rate: 15%)
-  ✓  Sales Commission .................. ${FOUNDING_YEAR1_RATES.vente * 100}% year 1, then ${FOUNDING_YEAR2_RATES.vente * 100}% year 2+  (standard rate: 3%)
+  ✓  Rental Commission ................. ${FOUNDING_YEAR1_RATES[loiTier].location * 100}% year 1, then ${FOUNDING_YEAR2_RATES[loiTier].location * 100}% year 2+  (standard rate: 15%)
+  ✓  Sales Commission .................. ${FOUNDING_YEAR1_RATES[loiTier].vente * 100}% year 1, then ${FOUNDING_YEAR2_RATES[loiTier].vente * 100}% year 2+  (standard rate: 3%)
   ✓  Driver Commission ................. ${doc.commissions?.chauffeur || 10}%
   ✓  Exclusive "Founding Partner" Badge  on all listings
   ✓  Priority Catalog Placement ........ permanent top positioning
@@ -1332,6 +1333,7 @@ export function generateAgreement(doc, user, date) {
   const email     = doc.companyInfo?.email || user.email || "—";
   const typeLabel = PARTNER_TYPE_LABELS[doc.partnerType] || doc.partnerType;
   const drvRate   = doc.commissions?.chauffeur || 10;
+  const agrTier   = doc.legalEntityType === "particulier" ? "particulier" : "default";
 
   return `FOUNDING PARTNER AGREEMENT
 ══════════════════════════════════════════════════════════════
@@ -1387,8 +1389,8 @@ ARTICLE 3 — COMMERCIAL CONDITIONS
 
      Transaction Type       Standard Rate   Year 1          Year 2+
      ─────────────────────────────────────────────────────────────────
-     Vehicle Rental         15%             ${FOUNDING_YEAR1_RATES.location * 100}%             ${FOUNDING_YEAR2_RATES.location * 100}%
-     Vehicle Sales          3%              ${FOUNDING_YEAR1_RATES.vente * 100}%              ${FOUNDING_YEAR2_RATES.vente * 100}%
+     Vehicle Rental         15%             ${FOUNDING_YEAR1_RATES[agrTier].location * 100}%             ${FOUNDING_YEAR2_RATES[agrTier].location * 100}%
+     Vehicle Sales          3%              ${FOUNDING_YEAR1_RATES[agrTier].vente * 100}%              ${FOUNDING_YEAR2_RATES[agrTier].vente * 100}%
      Professional Driver    10%             ${drvRate}%             ${drvRate}%
      Premium Subscription   Paid            FREE (12 months)
 

@@ -5,8 +5,24 @@ import InspectionReport     from "../models/InspectionReport.js";
 import User                 from "../models/User.js";
 import Notification         from "../models/Notification.js";
 import Chat                 from "../models/Chat.js";
+import PartnerOnboarding    from "../models/PartnerOnboarding.js";
 import { dispatch } from "../queue/index.js";
 import { stripeProvider } from "../services/payment/gateway.js";
+import { foundingRateFor } from "../utils/foundingPartnerRates.js";
+
+// Commission VIT AUTO sur une transaction Import/Export — même barème que la
+// vente (foundingRateFor), puisque le partenaire d'une transaction IE est
+// toujours un Founding Partner (isFounder requis pour publier, voir
+// importExportController.createListing). Calculée une seule fois, à la
+// libération des fonds — jamais recalculée ensuite.
+async function computeIeCommission(tx) {
+  const fp = await PartnerOnboarding.findOne({ userId: tx.partner, isFoundingPartner: true })
+    .select("commissions.lockedAt legalEntityType")
+    .lean();
+  const rate = fp ? foundingRateFor(fp.commissions?.lockedAt, "vente", fp.legalEntityType) : 0.03; // 3% = tarif standard vente, repli si jamais non-fondateur
+  const amount = Math.round((tx.payment.amount || 0) * rate * 100) / 100;
+  return { rate, amount, payoutAmount: Math.round(((tx.payment.amount || 0) - amount) * 100) / 100 };
+}
 
 const MANUAL_PAYMENT_METHODS = ["virement", "mobile_money", "crypto", "lc"];
 const LC_REQUIRED_DOCS = ["commercialInvoice", "billOfLading", "originCertificate", "inspectionDocs"];
@@ -745,12 +761,14 @@ export const releaseFunds = async (req, res) => {
       return res.status(403).json({ message: "Accès refusé." });
     }
 
+    const { rate, amount, payoutAmount } = await computeIeCommission(tx);
+    tx.payment.commission = { rate, amount, payoutAmount, computedAt: new Date() };
     tx.payment.releasedAt = new Date();
     tx.status = "funds_released";
-    pushHistory(tx, "funds_released", req.user._id, `Fonds libérés vers le fournisseur par ${isAdmin ? "l'admin" : "le client"}.`);
+    pushHistory(tx, "funds_released", req.user._id, `Fonds libérés vers le fournisseur par ${isAdmin ? "l'admin" : "le client"} — commission VIT AUTO ${(rate * 100).toFixed(0)}% (${amount.toLocaleString("fr-FR")} ${tx.payment.currency}).`);
     await tx.save();
 
-    await notify(tx.partner, "success", "Fonds libérés !", `Les fonds de ${tx.payment.amount?.toLocaleString("fr-FR")} ${tx.payment.currency} ont été libérés sur votre compte.`, `/importer-dashboard`);
+    await notify(tx.partner, "success", "Fonds libérés !", `${payoutAmount.toLocaleString("fr-FR")} ${tx.payment.currency} ont été versés sur votre compte (commission VIT AUTO ${(rate * 100).toFixed(0)}% déduite, sur un total de ${tx.payment.amount?.toLocaleString("fr-FR")} ${tx.payment.currency}).`, `/importer-dashboard`);
     await notify(tx.client,  "info",    "Fonds libérés", "Les fonds ont été versés au fournisseur. N'oubliez pas de laisser votre évaluation.", `/import-export/transaction/${tx._id}`);
 
     // Étape 14 : invitation évaluation planifiée à 24h
@@ -867,9 +885,11 @@ export const resolveDispute = async (req, res) => {
     tx.dispute.resolvedBy = req.user._id;
 
     if (releaseToPartner) {
+      const { rate, amount, payoutAmount } = await computeIeCommission(tx);
+      tx.payment.commission = { rate, amount, payoutAmount, computedAt: new Date() };
       tx.payment.releasedAt = new Date();
       tx.status = "funds_released";
-      pushHistory(tx, "funds_released", req.user._id, `Litige résolu — fonds libérés au fournisseur. ${resolution || ""}`);
+      pushHistory(tx, "funds_released", req.user._id, `Litige résolu — fonds libérés au fournisseur (commission VIT AUTO ${(rate * 100).toFixed(0)}%). ${resolution || ""}`);
     } else {
       // Remboursement ou annulation
       tx.status = "cancelled";

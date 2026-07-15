@@ -113,7 +113,7 @@ export default function Partenaires() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", gap: 16, marginBottom: 28 }}>
           {[
             { icon: "🎁", label: "Gratuit 12 mois", desc: "Aucun abonnement, aucune carte requise pendant un an complet." },
-            { icon: "💸", label: "Commission réduite", desc: "Location : 5 % · Vente : 1 % la première année (au lieu de 15 % et 3 %), puis 7 % et 2 % ensuite." },
+            { icon: "💸", label: "Commission réduite", desc: "Location : 10 % · Vente : 2 % pendant 12 mois (au lieu de 15 % et 3 %). Partenaire particulier : 5 % / 1 %, acquis en permanence." },
             { icon: "🏅", label: "Badge Fondateur", desc: "Mention exclusive \"Partenaire Fondateur\" sur toutes vos annonces." },
             { icon: "📢", label: "Mise en avant permanente", desc: "Vos annonces apparaissent en premier dans le catalogue et les recherches." },
             { icon: "🔓", label: "Accès anticipé", desc: "Accès prioritaire aux nouvelles fonctionnalités avant tous les autres." },
@@ -236,8 +236,8 @@ export default function Partenaires() {
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px,1fr))", gap: 16 }}>
           {[
-            { label: "Location", standard: "15 %", founder: "5 %", icon: "🚗", note: "Ex. 500 DH → 75 DH commission" },
-            { label: "Vente", standard: "3 %", founder: "1 %", icon: "🏷️", note: "Ex. 100 000 DH → 3 000 DH commission" },
+            { label: "Location", standard: "15 %", founder: "10 %", icon: "🚗", note: "Ex. 500 DH → 75 DH commission · Particulier fondateur : 5 %" },
+            { label: "Vente", standard: "3 %", founder: "2 %", icon: "🏷️", note: "Ex. 100 000 DH → 3 000 DH commission · Particulier fondateur : 1 %" },
             { label: "Chauffeur", standard: "10 %", founder: "10 %", icon: "👨‍✈️", note: "Ex. 300 DH → 30 DH commission" },
             { label: "Assurance", standard: "Négociée", founder: "Négociée", icon: "🛡️", note: "Selon accord partenaire" },
             { label: "Frais service client", standard: "15 DH fixe", founder: "15 DH fixe", icon: "⚙️", note: "À la charge du client" },

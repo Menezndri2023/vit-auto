@@ -91,10 +91,10 @@ const COMMISSION_RATES = {
 async function resolveCommissionRate(type, ownerId) {
   if ((type === "location" || type === "essai") && ownerId) {
     const fp = await PartnerOnboarding.findOne({ userId: ownerId, isFoundingPartner: true })
-      .select("commissions.lockedAt")
+      .select("commissions.lockedAt legalEntityType")
       .lean();
     if (fp) {
-      return foundingRateFor(fp.commissions?.lockedAt, type === "location" ? "location" : "vente");
+      return foundingRateFor(fp.commissions?.lockedAt, type === "location" ? "location" : "vente", fp.legalEntityType);
     }
   }
   return COMMISSION_RATES[type] ?? 0.05;

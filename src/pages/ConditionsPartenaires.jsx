@@ -115,8 +115,8 @@ export default function ConditionsPartenaires() {
       <Art n="5" title="Commissions et paiements">
         <p>Les commissions appliquées sont les suivantes :</p>
         <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
-          <Li><strong>Location :</strong> 15 % du montant de la réservation (5 % pour les Partenaires Fondateurs la première année, puis 7 %)</Li>
-          <Li><strong>Vente :</strong> 3 % du prix de vente (1 % pour les Partenaires Fondateurs la première année, puis 2 %)</Li>
+          <Li><strong>Location :</strong> 15 % du montant de la réservation (10 % pour les Partenaires Fondateurs entreprise/professionnel/exportateur pendant 12 mois ; 5 % en permanence pour un Partenaire Fondateur particulier)</Li>
+          <Li><strong>Vente :</strong> 3 % du prix de vente (2 % pour les Partenaires Fondateurs entreprise/professionnel/exportateur pendant 12 mois ; 1 % en permanence pour un Partenaire Fondateur particulier)</Li>
           <Li><strong>Chauffeur :</strong> 10 % du montant de la course</Li>
           <Li><strong>Assurance :</strong> commission négociée directement avec le partenaire assureur (généralement 5–15 %)</Li>
           <Li><strong>Crédit / Leasing :</strong> commission négociée avec la banque ou le courtier (généralement 1–3 % du montant financé)</Li>
@@ -136,14 +136,15 @@ export default function ConditionsPartenaires() {
         </p>
         <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
           <Li>Accès gratuit à toutes les fonctionnalités (sans abonnement mensuel)</Li>
-          <Li>Commission réduite : 5 % sur location, 1 % sur vente la première année, puis 7 % et 2 % ensuite</Li>
+          <Li>Commission réduite pendant 12 mois : 10 % sur location, 2 % sur vente (entreprise/professionnel/exportateur) — 5 % et 1 %, acquis en permanence, pour un Partenaire Fondateur particulier</Li>
           <Li>Badge "Partenaire Fondateur" affiché sur toutes les annonces</Li>
           <Li>Mise en avant prioritaire dans les résultats de recherche et le catalogue</Li>
+          <Li>Un Partenaire Fondateur particulier reste limité à 10 annonces actives simultanées</Li>
         </ul>
         <p style={{ marginTop: 12 }}>
-          Passé les 12 premiers mois, la commission réduite (7 % location / 2 % vente) reste acquise de façon
-          permanente au Partenaire Fondateur — elle ne revient jamais au tarif standard. VIT AUTO se réserve
-          le droit d'ajuster cette offre avec un préavis de <strong>30 jours</strong>.
+          Passé les 12 premiers mois, un Partenaire Fondateur entreprise/professionnel/exportateur revient au tarif
+          standard (15 % / 3 %). Un Partenaire Fondateur particulier conserve son tarif réduit (5 % / 1 %) de façon
+          permanente. VIT AUTO se réserve le droit d'ajuster cette offre avec un préavis de <strong>30 jours</strong>.
         </p>
       </Art>
 

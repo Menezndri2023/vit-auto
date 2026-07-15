@@ -4508,7 +4508,14 @@ export default function AdminPanel() {
                       <tr key={t._id} className={styles.tr}>
                         <td><strong style={{ fontSize: ".85rem" }}>{t.client?.firstName} {t.client?.lastName}</strong><div style={{ fontSize: ".74rem", color: "#94a3b8" }}>{t.client?.email}</div></td>
                         <td><strong style={{ fontSize: ".85rem" }}>{t.partner?.firstName} {t.partner?.lastName}</strong><div style={{ fontSize: ".74rem", color: "#94a3b8" }}>{t.partner?.business?.name || t.partner?.email}</div></td>
-                        <td className={styles.tdPrice}>{t.finalOffer?.totalAmount ? `${Number(t.finalOffer.totalAmount).toLocaleString("fr-FR")} ${t.finalOffer.currency}` : "—"}</td>
+                        <td className={styles.tdPrice}>
+                          {t.finalOffer?.totalAmount ? `${Number(t.finalOffer.totalAmount).toLocaleString("fr-FR")} ${t.finalOffer.currency}` : "—"}
+                          {t.payment?.commission?.amount != null && (
+                            <div style={{ fontSize: ".72rem", color: "#059669", fontWeight: 700 }}>
+                              Commission {(t.payment.commission.rate * 100).toFixed(0)}% : {Number(t.payment.commission.amount).toLocaleString("fr-FR")} {t.payment.currency}
+                            </div>
+                          )}
+                        </td>
                         <td><Badge label={st.l} color={st.c} bg={st.bg} /></td>
                         <td style={{ fontSize: ".78rem", color: "#64748b", maxWidth: 200 }}>{t.dispute?.opened ? (t.dispute.reason || "Litige ouvert") : "—"}</td>
                         <td className={styles.tdDate}>{fmtDate(t.createdAt)}</td>

@@ -146,6 +146,19 @@ const ieTransactionSchema = new mongoose.Schema({
       balancePaidAt:         { type: Date,    default: null },
       balanceVerifiedBy:     { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     },
+
+    // ── Commission VIT AUTO (calculée à la libération des fonds) ───────────
+    // Aucune commission n'existait sur les transactions Import/Export avant
+    // ceci — le partenaire (toujours un Founding Partner, IE étant réservé à
+    // isFounder) recevait 100% du montant. Même barème que la vente
+    // (foundingRateFor), calculé au moment de releaseFunds — jamais recalculé
+    // ensuite, pour ne pas faire varier un montant déjà versé.
+    commission: {
+      rate:        { type: Number, default: null }, // ex. 0.02 = 2%
+      amount:      { type: Number, default: null }, // dans la devise de payment.currency
+      payoutAmount:{ type: Number, default: null }, // montant réellement versé au partenaire
+      computedAt:  { type: Date,   default: null },
+    },
   },
 
   // ── Documents d'export (étape 10) ─────────────────────────────────────────

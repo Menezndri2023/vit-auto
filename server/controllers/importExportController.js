@@ -5,6 +5,7 @@ import ImportExportListing     from "../models/ImportExportListing.js";
 import User                    from "../models/User.js";
 import Notification            from "../models/Notification.js";
 import PartnerVerification     from "../models/PartnerVerification.js";
+import PartnerOnboarding       from "../models/PartnerOnboarding.js";
 import { ensureImporterProfile } from "../utils/ensureImporterProfile.js";
 import { COUNTRY_CODE_TO_NAME } from "../utils/countries.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
@@ -483,6 +484,22 @@ export const createListing = async (req, res) => {
           : "Votre dossier partenaire a été rejeté. Contactez le support VIT AUTO.",
       });
     }
+    // Plafond annonces pour un Founding Partner "particulier" — même principe
+    // que INDIVIDUAL_SELLER_MAX_ACTIVE (vehicleController.js), mais ce champ
+    // vient de PartnerOnboarding.legalEntityType (pas User.sellerType, qui
+    // concerne uniquement le marché local location/vente).
+    const INDIVIDUAL_FOUNDER_MAX_ACTIVE = 10;
+    const onboarding = await PartnerOnboarding.findOne({ userId: req.user._id }).select("legalEntityType").lean();
+    if (onboarding?.legalEntityType === "particulier") {
+      const activeCount = await ImportExportListing.countDocuments({ partner: req.user._id, status: { $ne: "rejected" } });
+      if (activeCount >= INDIVIDUAL_FOUNDER_MAX_ACTIVE) {
+        return res.status(403).json({
+          code:    "LISTING_LIMIT_REACHED",
+          message: `Les Partenaires Fondateurs "Particulier" sont limités à ${INDIVIDUAL_FOUNDER_MAX_ACTIVE} annonces actives.`,
+        });
+      }
+    }
+
     const importerProfile = await ensureImporterProfile(req.user);
 
     const {
