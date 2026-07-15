@@ -74,7 +74,7 @@ const FAQS = [
       },
       {
         q: "Quelles sont les commissions ?",
-        a: "15 % sur les locations et 3 % sur les ventes. Les 20 premiers Partenaires Fondateurs bénéficient de 10 % sur les locations et 2 % sur les ventes pendant 12 mois.",
+        a: "15 % sur les locations et 3 % sur les ventes. Les 20 premiers Partenaires Fondateurs par pays bénéficient de 5 % sur les locations et 1 % sur les ventes la première année, puis 7 % et 2 % ensuite.",
       },
       {
         q: "Comment sont versés mes revenus ?",

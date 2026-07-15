@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import Vehicle from "../models/Vehicle.js";
 import Notification from "../models/Notification.js";
 import Booking from "../models/Booking.js";
+import PartnerVerification from "../models/PartnerVerification.js";
 import { dispatch } from "../queue/index.js";
 import { scoreAnnonce, buildVehicleWhitelist } from "../services/vehicleScoring.js";
 import { logAction } from "../middleware/auditLog.js";
@@ -78,6 +79,25 @@ export const createVehicle = async (req, res) => {
           message: "Complétez votre vérification partenaire avant de publier une annonce.",
         });
       }
+    }
+
+    // ── Suspension/rejet Vérification Partenaire ────────────────────────────
+    // certificationBadge (ci-dessus) et PartnerVerification sont deux systèmes
+    // de vérification distincts qui ne communiquaient jamais entre eux : un
+    // admin suspendant/rejetant un dossier via l'onglet "Vérification
+    // Partenaires" (adminUpdateStatus) ne faisait qu'envoyer une notification —
+    // rien n'empêchait réellement le partenaire de continuer à publier.
+    const suspendedVerif = await PartnerVerification.findOne({
+      userId: req.user._id,
+      status: { $in: ["suspendu", "rejete"] },
+    }).select("status").lean();
+    if (suspendedVerif) {
+      return res.status(403).json({
+        code:    "PARTNER_SUSPENDED",
+        message: suspendedVerif.status === "suspendu"
+          ? "Votre dossier partenaire est suspendu. Contactez le support VIT AUTO."
+          : "Votre dossier partenaire a été rejeté. Contactez le support VIT AUTO.",
+      });
     }
 
     // ── Plafond annonces "particulier" ──────────────────────────────────────

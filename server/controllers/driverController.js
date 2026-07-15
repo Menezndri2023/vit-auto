@@ -1,6 +1,7 @@
 import logger from "../utils/logger.js";
 import Driver from "../models/Driver.js";
 import Notification from "../models/Notification.js";
+import PartnerVerification from "../models/PartnerVerification.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -39,6 +40,22 @@ export const createDriver = async (req, res) => {
           message: "Complétez votre vérification partenaire avant de publier une annonce.",
         });
       }
+    }
+
+    // Suspension/rejet Vérification Partenaire — voir vehicleController.js
+    // createVehicle pour l'explication complète (deux systèmes de vérification
+    // qui ne communiquaient jamais entre eux).
+    const suspendedVerif = await PartnerVerification.findOne({
+      userId: req.user._id,
+      status: { $in: ["suspendu", "rejete"] },
+    }).select("status").lean();
+    if (suspendedVerif) {
+      return res.status(403).json({
+        code:    "PARTNER_SUSPENDED",
+        message: suspendedVerif.status === "suspendu"
+          ? "Votre dossier partenaire est suspendu. Contactez le support VIT AUTO."
+          : "Votre dossier partenaire a été rejeté. Contactez le support VIT AUTO.",
+      });
     }
 
     // Whitelist des champs autorisés (évite mass assignment sur owner, stats, status)

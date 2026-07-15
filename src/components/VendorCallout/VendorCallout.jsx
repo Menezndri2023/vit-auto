@@ -2,9 +2,14 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import styles from "./VendorCallout.module.css";
 
+// "Commission 0% les 30 premiers jours" retiré — aucune exemption de ce type
+// n'existe dans le calcul réel des commissions (server/controllers/
+// bookingController.js COMMISSION_RATES, toujours appliqué dès la première
+// réservation). Remplacé par un fait vérifiable : la publication d'annonce
+// elle-même est gratuite, quel que soit le statut du partenaire.
 const STATS = [
   { value: "20+",   label: "Pays couverts",          sub: "Afrique · Europe · Asie" },
-  { value: "0 %",   label: "Commission",             sub: "les 30 premiers jours" },
+  { value: "0 %",   label: "Frais de publication",   sub: "toujours gratuit" },
   { value: "24h",   label: "Validation",             sub: "annonce en ligne" },
 ];
 

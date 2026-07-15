@@ -113,13 +113,13 @@ const COMMISSIONS = [
   {
     label: "Location",
     rates: { decouverte: "15 %", pro: "15 %", premium: "15 %", corporate: "15 %" },
-    fondateur: "10 %",
+    fondateur: "5 % (puis 7 %)",
     color: "#6366f1",
   },
   {
     label: "Vente",
     rates: { decouverte: "3 %", pro: "3 %", premium: "3 %", corporate: "3 %" },
-    fondateur: "2 %",
+    fondateur: "1 % (puis 2 %)",
     color: "#10b981",
   },
   {

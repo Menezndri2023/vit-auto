@@ -4,6 +4,7 @@ import ImporterPartnerProfile  from "../models/ImporterPartnerProfile.js";
 import ImportExportListing     from "../models/ImportExportListing.js";
 import User                    from "../models/User.js";
 import Notification            from "../models/Notification.js";
+import PartnerVerification     from "../models/PartnerVerification.js";
 import { ensureImporterProfile } from "../utils/ensureImporterProfile.js";
 import { COUNTRY_CODE_TO_NAME } from "../utils/countries.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
@@ -463,6 +464,23 @@ export const createListing = async (req, res) => {
       return res.status(403).json({
         code:    "FOUNDING_PARTNER_REQUIRED",
         message: "Devenez Founding Partner pour publier des annonces d'export.",
+      });
+    }
+    // Suspension/rejet Vérification Partenaire — voir vehicleController.js
+    // createVehicle pour l'explication complète : isFounder ne communique
+    // jamais avec PartnerVerification, un admin "suspendant" un Founding
+    // Partner via l'onglet Vérification Partenaires ne l'empêchait pas de
+    // continuer à publier des annonces export.
+    const suspendedVerif = await PartnerVerification.findOne({
+      userId: req.user._id,
+      status: { $in: ["suspendu", "rejete"] },
+    }).select("status").lean();
+    if (suspendedVerif) {
+      return res.status(403).json({
+        code:    "PARTNER_SUSPENDED",
+        message: suspendedVerif.status === "suspendu"
+          ? "Votre dossier partenaire est suspendu. Contactez le support VIT AUTO."
+          : "Votre dossier partenaire a été rejeté. Contactez le support VIT AUTO.",
       });
     }
     const importerProfile = await ensureImporterProfile(req.user);
