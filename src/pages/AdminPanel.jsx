@@ -1231,6 +1231,7 @@ export default function AdminPanel() {
   // Filtres
   const [userSearch,  setUserSearch]  = useState("");
   const [userRole,    setUserRole]    = useState("all");
+  const [userCountry, setUserCountry] = useState("all");
   const [vehStatus,   setVehStatus]   = useState("all");
   const [bkStatus,    setBkStatus]    = useState("all");
 
@@ -2178,9 +2179,19 @@ export default function AdminPanel() {
   }, [broadcastForm, headers, showToast]);
 
   // ── Filtres & pagination ────────────────────────────────────────────────────
+  // Pays réellement présents parmi les comptes (dynamique — ne dépend pas
+  // d'une liste figée, couvre aussi un code pays détecté par géoloc/IP qui ne
+  // serait pas dans COUNTRIES_CONFIG).
+  const userCountryOptions = useMemo(() => {
+    const codes = [...new Set(users.map((u) => u.country).filter(Boolean))];
+    return codes.sort((a, b) => (COUNTRIES_CONFIG.find((c) => c.code === a)?.name || a)
+      .localeCompare(COUNTRIES_CONFIG.find((c) => c.code === b)?.name || b));
+  }, [users, COUNTRIES_CONFIG]);
+
   const filteredUsers = useMemo(() => {
     let r = users;
     if (userRole !== "all") r = r.filter((u) => u.role === userRole);
+    if (userCountry !== "all") r = r.filter((u) => u.country === userCountry);
     if (userSearch.trim()) {
       const q = userSearch.toLowerCase();
       r = r.filter((u) =>
@@ -2190,7 +2201,7 @@ export default function AdminPanel() {
       );
     }
     return r;
-  }, [users, userRole, userSearch]);
+  }, [users, userRole, userCountry, userSearch]);
 
   const filteredVehicles = useMemo(() =>
     vehStatus === "all" ? vehicles : vehicles.filter((v) => v.status === vehStatus),
@@ -2721,6 +2732,14 @@ export default function AdminPanel() {
                   <option value="partenaire">Partenaires</option>
                   <option value="admin">Admins</option>
                   <option value="chauffeur">Chauffeurs</option>
+                </select>
+                <select className={styles.filterSelect} value={userCountry}
+                  onChange={(e) => { setUserCountry(e.target.value); setUserPage(1); }}>
+                  <option value="all">Tous les pays</option>
+                  {userCountryOptions.map((code) => {
+                    const cfg = COUNTRIES_CONFIG.find((c) => c.code === code);
+                    return <option key={code} value={code}>{cfg ? `${cfg.flag} ${cfg.name}` : code}</option>;
+                  })}
                 </select>
                 <span className={styles.filterCount}>{filteredUsers.length} résultat{filteredUsers.length !== 1 ? "s" : ""}</span>
               </div>
