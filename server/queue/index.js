@@ -438,6 +438,16 @@ export const dispatch = {
     }, { priority: PRIORITY.NORMAL });
   },
 
+  // Relance "profil incomplet" — tous les comptes (voir utils/accountHealthCheck.js).
+  async accountIncomplete(to, userId, data) {
+    await enqueue(QUEUE_NAMES.EMAIL, "account_incomplete", {
+      type: "account_incomplete",
+      to,
+      userId,
+      data,
+    }, { priority: PRIORITY.LOW });
+  },
+
   // ── Import/Export ─────────────────────────────────────────────────────────
   async ieStepTransition(transactionId, newStep, triggerUserId, note) {
     await enqueue(QUEUE_NAMES.IMPORT, `ie_step_${newStep}`, {

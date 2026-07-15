@@ -10,6 +10,7 @@ import logger from "./utils/logger.js";
 import { initSentry, sentryRequestHandler, sentryTracingHandler, sentryErrorHandler } from "./config/sentry.js";
 import { initQueues, isReady as isQueuesReady, getQueueStats } from "./queue/index.js";
 import { startPartnerReminderScheduler } from "./utils/partnerReminders.js";
+import { startAccountHealthScheduler } from "./utils/accountHealthCheck.js";
 
 import authRoutes          from "./routes/auth.js";
 import vehicleRoutes       from "./routes/vehicles.js";
@@ -415,6 +416,9 @@ const startServer = async () => {
     // ── Relance automatique des dossiers partenaire incomplets ───────────
     // En mémoire (pas de job Redis) — voir utils/partnerReminders.js.
     startPartnerReminderScheduler();
+
+    // ── Relance automatique des profils/comptes incomplets (tous rôles) ──
+    startAccountHealthScheduler();
 
     const PORT = process.env.PORT || 5001;
 

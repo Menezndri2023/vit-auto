@@ -79,3 +79,22 @@ export function partnerDocumentsMissingTemplate(firstName, companyName, missingD
   <p style="color:#64748b;font-size:.85rem">Un dossier complet est examiné en priorité par notre équipe.</p>
 </div></body></html>`;
 }
+
+// Relance "profil incomplet" — tous les comptes (client/partenaire/chauffeur),
+// pas seulement les dossiers de vérification partenaire ci-dessus. Voir
+// utils/accountHealthCheck.js (analyse périodique + cooldown 14 jours).
+export function accountIncompleteTemplate(firstName, missingItems, portalPath) {
+  const portalUrl = `${process.env.APP_URL || "https://vit-auto.com"}${portalPath || "/profile"}`;
+  const list = (missingItems || []).map((d) => `<li>${d}</li>`).join("");
+  return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f8fafc;padding:32px">
+<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;box-shadow:0 2px 12px rgba(0,0,0,.08)">
+  <h2 style="color:#0f1b3f">VIT AUTO — Complétez votre profil</h2>
+  <p>Bonjour <strong>${firstName || ""}</strong>,</p>
+  <p>Quelques informations restent à compléter sur votre compte VIT AUTO :</p>
+  <ul style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 28px;margin:16px 0;color:#1e40af">${list}</ul>
+  <p style="text-align:center;margin:24px 0">
+    <a href="${portalUrl}" style="background:#0f1b3f;color:#fff;padding:12px 28px;border-radius:10px;text-decoration:none;font-weight:700;display:inline-block">Compléter mon profil →</a>
+  </p>
+  <p style="color:#64748b;font-size:.85rem">Un profil complet facilite vos réservations et rassure vos interlocuteurs.</p>
+</div></body></html>`;
+}

@@ -225,6 +225,9 @@ const userSchema = new mongoose.Schema({
   isActive:          { type: Boolean, default: true },
   lastLogin:         { type: Date,    default: null },
 
+  // Dernière relance "complétez votre profil" — voir utils/accountHealthCheck.js.
+  lastAccountHealthNudgeAt: { type: Date, default: null },
+
   // ── Verrouillage anti brute-force par compte ──────────────────
   // Complète le rate-limit par IP (authLimiter, 10/15min) — un attaquant
   // distribuant ses tentatives sur plusieurs IP ou attendant la fenêtre n'a

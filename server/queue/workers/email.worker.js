@@ -117,6 +117,13 @@ async function resolveEmailTemplate(type, data) {
         html:    partnerDocumentsMissingTemplate(data.firstName, data.companyName, data.missingDocs, data.portalPath),
       };
     }
+    case "account_incomplete": {
+      const { accountIncompleteTemplate } = await import("../../config/email.js");
+      return {
+        subject: "VIT AUTO — Complétez votre profil",
+        html:    accountIncompleteTemplate(data.firstName, data.missingItems, data.portalPath),
+      };
+    }
 
     // ── Contrats ──────────────────────────────────────────────────────────
     case "contract_ready":
