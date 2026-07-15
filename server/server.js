@@ -33,6 +33,7 @@ import partnerVerifRoutes     from "./routes/partnerVerification.js";
 import pmsRoutes              from "./routes/pms.js";
 import partnerOnboardingRoutes from "./routes/partnerOnboarding.js";
 import auditLogRoutes         from "./routes/auditLog.js";
+import analyticsRoutes        from "./routes/analytics.js";
 import { authenticate, authorizeAdmin } from "./middleware/auth.js";
 
 dotenv.config();
@@ -312,6 +313,7 @@ app.use("/api/pms",           apiLimiter,       pmsRoutes);           // Partner
 // appliqué directement dans routes/partnerOnboarding.js.
 app.use("/api/partner-onboarding", apiLimiter, partnerOnboardingRoutes); // Founding Partner Onboarding
 app.use("/api/audit-log",          apiLimiter, auditLogRoutes);          // Journal d'audit (consultation admin)
+app.use("/api/analytics",          apiLimiter, analyticsRoutes);         // Analytics avancé (consultation admin)
 
 // ── Communication tracking (pixel ouverture + clic email) ────────────────────
 const TRANSPARENT_GIF = Buffer.from(

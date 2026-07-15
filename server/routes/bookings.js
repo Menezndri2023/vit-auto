@@ -48,6 +48,8 @@ router.get("/:id/detail",             vid, authenticate, b.getBookingDetail);
 router.get("/",                           authenticate, authorizeAdmin, b.getAllBookings);
 router.get("/admin/export",               authenticate, authorizeAdmin, b.exportBookings);
 router.get("/admin/stats-full",           authenticate, authorizeAdmin, b.getAdminBookingStats);
+router.get("/admin/financing",            authenticate, authorizeAdmin, b.getFinancingRequests);
+router.patch("/:id/financing-decision",   vid, authenticate, authorizeAdmin, b.setFinancingDecision);
 router.patch("/:id/admin-status",         vid, authenticate, authorizeAdmin, b.updateBookingStatus);
 router.patch("/:id/admin-force-complete", vid, authenticate, authorizeAdmin, b.adminForceComplete);
 router.patch("/:id/resolve-dispute",      vid, authenticate, authorizeAdmin, b.resolveDispute);

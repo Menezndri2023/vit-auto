@@ -1776,6 +1776,68 @@ export const getAdminBookingStats = async (req, res) => {
   }
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FINANCEMENT — demandes de leasing/crédit (Booking type="leasing")
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── GET /api/bookings/admin/financing (admin) ───────────────────────────────
+export const getFinancingRequests = async (req, res) => {
+  try {
+    const { decision } = req.query;
+    const filter = { type: "leasing" };
+    if (decision) filter["leasing.decision"] = decision;
+
+    const requests = await Booking.find(filter)
+      .populate("client",  "firstName lastName email phone")
+      .populate("vehicle", "title marque modele priceForSale")
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .lean();
+
+    res.json({ requests });
+  } catch (err) {
+    logger.error("getFinancingRequests:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── PATCH /api/bookings/:id/financing-decision (admin) ──────────────────────
+// Décision manuelle — aucune banque/société de leasing partenaire n'est
+// intégrée pour l'instant (voir Vehicle.leasing/Vehicle.credit pour les
+// conditions publiées) : c'est l'admin qui statue, en attendant une
+// intégration réelle avec un établissement financier.
+export const setFinancingDecision = async (req, res) => {
+  try {
+    const { decision, note } = req.body;
+    if (!["en_etude", "accepte", "refuse"].includes(decision)) {
+      return res.status(400).json({ message: "Décision invalide." });
+    }
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: "Demande introuvable." });
+    if (booking.type !== "leasing") {
+      return res.status(400).json({ message: "Cette commande n'est pas une demande de financement." });
+    }
+
+    booking.leasing.decision     = decision;
+    booking.leasing.decisionNote = note || null;
+    booking.leasing.decisionAt   = new Date();
+    booking.leasing.decisionBy   = req.user._id;
+    await booking.save();
+
+    const labels = { accepte: "✅ Financement accepté", refuse: "❌ Financement refusé", en_etude: "🔍 Financement en étude" };
+    if (booking.client) {
+      await notify(booking.client, "system", labels[decision],
+        `Votre demande de financement ${booking.reference} : ${labels[decision].replace(/^[^\s]+\s/, "")}.${note ? ` Note : ${note}` : ""}`,
+        "/dashboard");
+    }
+
+    res.json({ success: true, booking });
+  } catch (err) {
+    logger.error("setFinancingDecision:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
 // Amélioration getAllBookings avec filtres avancés
 export const getAllBookingsEnhanced = async (req, res) => {
   try {

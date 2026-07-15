@@ -205,6 +205,14 @@ const bookingSchema = new mongoose.Schema({
     duree:         { type: Number, default: 36 },
     tauxInteret:   { type: Number, default: 8 },
     totalLeasing:  { type: Number, default: 0 },
+
+    // ── Décision admin (revue manuelle — aucune banque partenaire intégrée
+    // pour l'instant, voir server/controllers/bookingController.js
+    // setFinancingDecision) ──────────────────────────────────────────────
+    decision:     { type: String, enum: ["en_etude", "accepte", "refuse"], default: "en_etude" },
+    decisionNote: { type: String, default: null },
+    decisionAt:   { type: Date,   default: null },
+    decisionBy:   { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   },
 
   // ── Transaction finale (saisie partenaire) ───────────────

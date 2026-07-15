@@ -440,6 +440,316 @@ function FoundingBusinessInfo({ o }) {
   );
 }
 
+// ── Onglet Analytics avancé — construit entièrement à partir des données déjà
+// collectées (Booking/IETransaction/User), voir server/controllers/analyticsController.js.
+// Palette catégorielle fixe (jamais réordonnée selon les données affichées) et
+// une seule mesure par graphique (jamais deux échelles sur le même axe).
+const IE_STATUS_LABELS = {
+  reserved: "Réservée", confirmed: "Confirmée", in_discussion: "Discussion",
+  inspection_requested: "Inspection demandée", inspection_done: "Inspection faite",
+  offer_sent: "Offre envoyée", offer_accepted: "Offre acceptée",
+  payment_pending: "Paiement en attente", payment_submitted: "Paiement à vérifier",
+  in_escrow: "En entiercement", preparing: "Préparation", shipped: "Expédiée",
+  in_transit: "En transit", delivered: "Livrée", funds_released: "Fonds libérés",
+  completed: "Terminée", disputed: "Litige", cancelled: "Annulée",
+};
+
+function MonthTrendChart({ data, valueKey, color, label, formatValue }) {
+  const max = Math.max(1, ...data.map((d) => d[valueKey] || 0));
+  const fmt = formatValue || ((v) => v.toLocaleString("fr-FR"));
+  return (
+    <div>
+      <div style={{ fontSize: ".78rem", fontWeight: 700, color: "#64748b", marginBottom: 8 }}>{label}</div>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 90 }}>
+        {data.map((d) => {
+          const v = d[valueKey] || 0;
+          const h = Math.max(2, Math.round((v / max) * 100));
+          const [y, m] = d.month.split("-");
+          return (
+            <div key={d.month} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }} title={`${m}/${y} — ${fmt(v)}`}>
+              <div style={{ width: "100%", maxWidth: 22, height: `${h}%`, background: color, borderRadius: "4px 4px 0 0", minHeight: 2 }} />
+              <span style={{ fontSize: ".6rem", color: "#94a3b8" }}>{m}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BreakdownList({ items, labelKey, valueKey, color, formatValue, labels }) {
+  const max = Math.max(1, ...items.map((i) => i[valueKey] || 0));
+  const fmt = formatValue || ((v) => v.toLocaleString("fr-FR"));
+  if (!items.length) return <div style={{ color: "#94a3b8", fontSize: ".82rem" }}>Aucune donnée.</div>;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {items.map((i) => (
+        <div key={i[labelKey]}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: ".78rem", marginBottom: 3 }}>
+            <span style={{ color: "#0f1b3f", fontWeight: 600 }}>{labels?.[i[labelKey]] || i[labelKey]}</span>
+            <span style={{ color: "#64748b" }}>{fmt(i[valueKey] || 0)}</span>
+          </div>
+          <MiniBar value={i[valueKey] || 0} max={max} color={color} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AnalyticsSection({ analytics, loading }) {
+  if (loading && !analytics) {
+    return <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>;
+  }
+  if (!analytics) {
+    return <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Aucune donnée disponible.</div>;
+  }
+
+  const totalBookings12mo = analytics.monthlyBookings.reduce((s, d) => s + d.count, 0);
+  const totalRevenueByPrimaryCurrency = analytics.byCurrency[0];
+  const totalNewUsers12mo = analytics.monthlyUsers.reduce((s, d) => s + d.count, 0);
+  const activeIe = analytics.ieByStatus
+    .filter((s) => !["completed", "cancelled"].includes(s.status))
+    .reduce((s, d) => s + d.count, 0);
+
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 14, marginBottom: "1.5rem" }}>
+        <StatCard icon="📦" label="Réservations (12 mois)" value={totalBookings12mo} color="#6366f1" />
+        <StatCard icon="💰" label={`CA réalisé (${totalRevenueByPrimaryCurrency?.currency || "—"})`}
+          value={(totalRevenueByPrimaryCurrency?.total || 0).toLocaleString("fr-FR")} color="#10b981" />
+        <StatCard icon="🧑‍🤝‍🧑" label="Nouveaux comptes (12 mois)" value={totalNewUsers12mo} color="#f59e0b" />
+        <StatCard icon="🌍" label="Transactions I/E actives" value={activeIe} color="#0891b2" />
+      </div>
+
+      <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
+        <h3 className={styles.chartTitle} style={{ marginBottom: 14 }}>📈 Tendances mensuelles (12 derniers mois)</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px,1fr))", gap: 24 }}>
+          <MonthTrendChart data={analytics.monthlyBookings} valueKey="count" color="#6366f1" label="Volume de réservations" />
+          <MonthTrendChart data={analytics.monthlyBookings} valueKey="revenue" color="#10b981" label="Chiffre d'affaires (toutes devises confondues)" />
+          <MonthTrendChart data={analytics.monthlyUsers} valueKey="count" color="#f59e0b" label="Nouveaux comptes" />
+          <MonthTrendChart data={analytics.ieMonthly} valueKey="count" color="#0891b2" label="Nouvelles transactions Import/Export" />
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px,1fr))", gap: 20 }}>
+        <div className={styles.chartCard}>
+          <h3 className={styles.chartTitle} style={{ marginBottom: 14 }}>💱 Chiffre d'affaires par devise</h3>
+          <BreakdownList items={analytics.byCurrency} labelKey="currency" valueKey="total" color="#10b981" />
+        </div>
+        <div className={styles.chartCard}>
+          <h3 className={styles.chartTitle} style={{ marginBottom: 14 }}>🚗 Chiffre d'affaires par service</h3>
+          <BreakdownList items={analytics.byType} labelKey="type" valueKey="total" color="#6366f1"
+            labels={{ location: "Location", essai: "Vente", chauffeur: "Chauffeur", leasing: "Leasing" }} />
+        </div>
+        <div className={styles.chartCard}>
+          <h3 className={styles.chartTitle} style={{ marginBottom: 14 }}>🌍 Top pays (clients)</h3>
+          <BreakdownList items={analytics.byCountry} labelKey="country" valueKey="total" color="#f59e0b" />
+        </div>
+        <div className={styles.chartCard}>
+          <h3 className={styles.chartTitle} style={{ marginBottom: 14 }}>📦 Pipeline Import/Export par statut</h3>
+          <BreakdownList items={analytics.ieByStatus} labelKey="status" valueKey="count" color="#0891b2" labels={IE_STATUS_LABELS} formatValue={(v) => `${v}`} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Transport International — construit à partir de IETransaction.shipping,
+// déjà collecté via le pipeline export 14 étapes (markShipped/updateTracking,
+// voir ieTransactionController.js) mais jusqu'ici jamais affiché à l'admin :
+// aucune nouvelle donnée, uniquement une vue dédiée sur les transactions déjà
+// en logistique (aucun endpoint backend créé — réutilise ieTransactions,
+// chargé sans filtre par loadIeTransactions).
+const SHIPPING_TYPE_LABELS = { maritime: "🚢 Maritime", terrestre: "🚚 Terrestre", aerien: "✈️ Aérien" };
+
+function TransportSection({ ieTransactions, loading }) {
+  const inLogistics = ieTransactions.filter((t) => ["preparing", "shipped", "in_transit", "delivered"].includes(t.status));
+  const counts = {
+    preparing: inLogistics.filter((t) => t.status === "preparing").length,
+    shipped:   inLogistics.filter((t) => t.status === "shipped").length,
+    in_transit:inLogistics.filter((t) => t.status === "in_transit").length,
+    delivered: inLogistics.filter((t) => t.status === "delivered").length,
+  };
+
+  if (loading) return <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>;
+
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))", gap: 14, marginBottom: "1.5rem" }}>
+        <StatCard icon="📦" label="En préparation" value={counts.preparing}  color="#f59e0b" />
+        <StatCard icon="🚢" label="Expédiées"       value={counts.shipped}   color="#6366f1" />
+        <StatCard icon="🌊" label="En transit"      value={counts.in_transit} color="#0891b2" />
+        <StatCard icon="✅" label="Livrées"          value={counts.delivered} color="#10b981" />
+      </div>
+
+      {inLogistics.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
+          <div style={{ fontSize: "3rem", marginBottom: 12 }}>🚢</div>
+          <p style={{ fontWeight: 600 }}>Aucune cargaison en cours d'acheminement.</p>
+        </div>
+      ) : (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr><th>Client</th><th>Partenaire</th><th>Transporteur</th><th>N° suivi</th><th>Type</th><th>Départ</th><th>Arrivée est.</th><th>Statut</th></tr>
+            </thead>
+            <tbody>
+              {inLogistics.map((t) => {
+                const st = { preparing: { l: "Préparation", c: "#f59e0b", bg: "#fef3c7" }, shipped: { l: "Expédiée", c: "#6366f1", bg: "#eef2ff" },
+                  in_transit: { l: "En transit", c: "#0891b2", bg: "#ecfeff" }, delivered: { l: "Livrée", c: "#10b981", bg: "#d1fae5" } }[t.status];
+                return (
+                  <tr key={t._id} className={styles.tr}>
+                    <td><strong style={{ fontSize: ".85rem" }}>{t.client?.firstName} {t.client?.lastName}</strong></td>
+                    <td><strong style={{ fontSize: ".85rem" }}>{t.partner?.firstName} {t.partner?.lastName}</strong></td>
+                    <td style={{ fontSize: ".82rem" }}>{t.shipping?.carrier || "—"}</td>
+                    <td style={{ fontSize: ".82rem", fontFamily: "monospace" }}>{t.shipping?.trackingNumber || "—"}</td>
+                    <td style={{ fontSize: ".82rem" }}>{SHIPPING_TYPE_LABELS[t.shipping?.shippingType] || "—"}</td>
+                    <td className={styles.tdDate}>{fmtDate(t.shipping?.departureDate)}</td>
+                    <td className={styles.tdDate}>{fmtDate(t.shipping?.estimatedArrival)}</td>
+                    <td><Badge label={st.l} color={st.c} bg={st.bg} /></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Escrow / Séquestre — construit à partir de IETransaction.payment, déjà
+// collecté via payEscrow/confirmEscrowPayment/releaseFunds (voir
+// ieTransactionController.js) mais jusqu'ici jamais consolidé dans une vue
+// financière dédiée pour l'admin.
+function EscrowSection({ ieTransactions, loading }) {
+  const held     = ieTransactions.filter((t) => t.status === "in_escrow");
+  const released = ieTransactions.filter((t) => t.payment?.releasedAt);
+  const totalHeld = held.reduce((s, t) => s + (t.payment?.amount || 0), 0);
+  const thisMonth = new Date(); thisMonth.setDate(1); thisMonth.setHours(0, 0, 0, 0);
+  const releasedThisMonth = released.filter((t) => new Date(t.payment.releasedAt) >= thisMonth)
+    .reduce((s, t) => s + (t.payment?.amount || 0), 0);
+
+  if (loading) return <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>;
+
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 14, marginBottom: "1.5rem" }}>
+        <StatCard icon="🔐" label="Dossiers en séquestre" value={held.length} color="#0891b2" />
+        <StatCard icon="💰" label="Total bloqué"          value={`${totalHeld.toLocaleString("fr-FR")}`} color="#f59e0b" />
+        <StatCard icon="✅" label="Dossiers libérés"       value={released.length} color="#10b981" />
+        <StatCard icon="📤" label="Libéré ce mois"         value={`${releasedThisMonth.toLocaleString("fr-FR")}`} color="#6366f1" />
+      </div>
+
+      {held.length === 0 && released.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
+          <div style={{ fontSize: "3rem", marginBottom: 12 }}>🔐</div>
+          <p style={{ fontWeight: 600 }}>Aucun fonds en séquestre pour le moment.</p>
+        </div>
+      ) : (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr><th>Client</th><th>Partenaire</th><th>Montant</th><th>Méthode</th><th>Référence</th><th>Mis en séquestre le</th><th>Statut</th></tr>
+            </thead>
+            <tbody>
+              {[...held, ...released.filter((t) => t.status !== "in_escrow")].map((t) => (
+                <tr key={t._id} className={styles.tr}>
+                  <td><strong style={{ fontSize: ".85rem" }}>{t.client?.firstName} {t.client?.lastName}</strong></td>
+                  <td><strong style={{ fontSize: ".85rem" }}>{t.partner?.firstName} {t.partner?.lastName}</strong></td>
+                  <td className={styles.tdPrice}>{(t.payment?.amount || 0).toLocaleString("fr-FR")} {t.payment?.currency}</td>
+                  <td style={{ fontSize: ".82rem" }}>{t.payment?.method || "—"}</td>
+                  <td style={{ fontSize: ".78rem", fontFamily: "monospace" }}>{t.payment?.escrowRef || t.payment?.transactionRef || "—"}</td>
+                  <td className={styles.tdDate}>{fmtDate(t.payment?.paidAt)}</td>
+                  <td>{t.payment?.releasedAt
+                    ? <Badge label="Libéré" color="#10b981" bg="#d1fae5" />
+                    : <Badge label="En séquestre" color="#0891b2" bg="#ecfeff" />}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Financement — demandes leasing/crédit (Booking type="leasing", voir
+// server/models/Booking.js champ leasing.decision). Décision manuelle admin :
+// aucune banque/société de leasing partenaire n'est intégrée pour l'instant
+// (partie technique à raccorder plus tard).
+const FINANCING_DECISION_CFG = {
+  en_etude: { label: "🔍 En étude", color: "#d97706", bg: "#fef3c7" },
+  accepte:  { label: "✅ Accepté",  color: "#10b981", bg: "#d1fae5" },
+  refuse:   { label: "❌ Refusé",   color: "#dc2626", bg: "#fee2e2" },
+};
+
+function FinancingSection({ requests, loading, onDecide }) {
+  const counts = {
+    en_etude: requests.filter((r) => (r.leasing?.decision || "en_etude") === "en_etude").length,
+    accepte:  requests.filter((r) => r.leasing?.decision === "accepte").length,
+    refuse:   requests.filter((r) => r.leasing?.decision === "refuse").length,
+  };
+
+  if (loading) return <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>;
+
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))", gap: 14, marginBottom: "1.5rem" }}>
+        <StatCard icon="📋" label="Total demandes" value={requests.length}     color="#6366f1" />
+        <StatCard icon="🔍" label="En étude"        value={counts.en_etude}    color="#d97706" />
+        <StatCard icon="✅" label="Acceptées"       value={counts.accepte}     color="#10b981" />
+        <StatCard icon="❌" label="Refusées"        value={counts.refuse}      color="#dc2626" />
+      </div>
+
+      {requests.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
+          <div style={{ fontSize: "3rem", marginBottom: 12 }}>🏦</div>
+          <p style={{ fontWeight: 600 }}>Aucune demande de financement pour le moment.</p>
+        </div>
+      ) : (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr><th>Client</th><th>Véhicule</th><th>Produit</th><th>Apport</th><th>Mensualité</th><th>Durée</th><th>Taux</th><th>Décision</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              {requests.map((r) => {
+                const l  = r.leasing || {};
+                const st = FINANCING_DECISION_CFG[l.decision || "en_etude"];
+                return (
+                  <tr key={r._id} className={styles.tr}>
+                    <td><strong style={{ fontSize: ".85rem" }}>{r.client?.firstName} {r.client?.lastName}</strong><div style={{ fontSize: ".74rem", color: "#94a3b8" }}>{r.client?.email}</div></td>
+                    <td style={{ fontSize: ".82rem" }}>{r.vehicle?.title || `${r.vehicle?.marque || ""} ${r.vehicle?.modele || ""}`.trim() || "—"}</td>
+                    <td style={{ fontSize: ".82rem" }}>{l.financingType === "credit" ? "Crédit classique" : "Leasing (LOA)"}</td>
+                    <td className={styles.tdPrice}>{(l.apportInitial || 0).toLocaleString("fr-FR")}</td>
+                    <td className={styles.tdPrice}>{(l.mensualite || 0).toLocaleString("fr-FR")}</td>
+                    <td style={{ fontSize: ".82rem" }}>{l.duree || "—"} mois</td>
+                    <td style={{ fontSize: ".82rem" }}>{l.tauxInteret || "—"}%</td>
+                    <td><Badge label={st.label} color={st.color} bg={st.bg} /></td>
+                    <td>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        {l.decision !== "accepte" && (
+                          <button className={styles.btnRefresh} style={{ background: "#10b981", color: "#fff", border: "none" }}
+                            onClick={() => onDecide({ id: r._id, decision: "accepte" })}>✅</button>
+                        )}
+                        {l.decision !== "refuse" && (
+                          <button className={styles.btnRefresh} style={{ background: "#dc2626", color: "#fff", border: "none" }}
+                            onClick={() => onDecide({ id: r._id, decision: "refuse" })}>❌</button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const STATUS_VEH = {
   approved: { label: "Publiée",     color: "#10b981", bg: "#ecfdf5" },
   pending:  { label: "En attente",  color: "#f59e0b", bg: "#fffbeb" },
@@ -560,6 +870,17 @@ export default function AdminPanel() {
   const [reviewsLoading,   setReviewsLoading]   = useState(false);
   const [reviewsFilter,    setReviewsFilter]    = useState(""); // "" | "true" | "false"
   const [reviewActioning,  setReviewActioning]  = useState(null);
+
+  // Analytics avancé
+  const [analytics,        setAnalytics]        = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // Financement (leasing/crédit)
+  const [financingRequests, setFinancingRequests] = useState([]);
+  const [financingLoading,  setFinancingLoading]  = useState(false);
+  const [financingModal,    setFinancingModal]    = useState(null); // { id, decision }
+  const [financingNote,     setFinancingNote]     = useState("");
+  const [financingSaving,   setFinancingSaving]   = useState(false);
 
   // Journal d'audit
   const [auditEntries,     setAuditEntries]     = useState([]);
@@ -919,6 +1240,46 @@ export default function AdminPanel() {
     finally { setReviewActioning(null); }
   };
 
+  // ── Analytics avancé ────────────────────────────────────────────────────────
+  const loadAnalytics = useCallback(async () => {
+    if (!token) return;
+    setAnalyticsLoading(true);
+    try {
+      const r = await fetch("/api/analytics/admin", { headers });
+      if (r.ok) setAnalytics(await r.json());
+    } catch { /* ignore */ }
+    setAnalyticsLoading(false);
+  }, [token, headers]);
+
+  // ── Financement ──────────────────────────────────────────────────────────────
+  const loadFinancing = useCallback(async () => {
+    if (!token) return;
+    setFinancingLoading(true);
+    try {
+      const r = await fetch("/api/bookings/admin/financing", { headers });
+      if (r.ok) setFinancingRequests((await r.json()).requests || []);
+    } catch { /* ignore */ }
+    setFinancingLoading(false);
+  }, [token, headers]);
+
+  const submitFinancingDecision = async () => {
+    if (!financingModal) return;
+    setFinancingSaving(true);
+    try {
+      const r = await fetch(`/api/bookings/${financingModal.id}/financing-decision`, {
+        method: "PATCH", headers,
+        body: JSON.stringify({ decision: financingModal.decision, note: financingNote }),
+      });
+      const data = await r.json();
+      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
+      showToast("Décision enregistrée — client notifié", "success");
+      setFinancingModal(null);
+      setFinancingNote("");
+      loadFinancing();
+    } catch { showToast("Erreur réseau", "error"); }
+    finally { setFinancingSaving(false); }
+  };
+
   // ── Journal d'audit ──────────────────────────────────────────────────────────
   const loadAuditLog = useCallback(async () => {
     if (!token) return;
@@ -1276,7 +1637,9 @@ export default function AdminPanel() {
     if (activeTab === "paiements")         loadSubRequests();
     if (activeTab === "reviews")           loadReviews();
     if (activeTab === "audit")             loadAuditLog();
-  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog]);
+    if (activeTab === "analytics")         loadAnalytics();
+    if (activeTab === "financement")       loadFinancing();
+  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing]);
 
   // Rafraîchissement périodique de la liste support (nouvelles demandes) tant que
   // l'onglet est affiché — même logique de polling que le widget chat public.
@@ -4016,9 +4379,56 @@ export default function AdminPanel() {
       )}
 
       {/* ══════════════════════ WIP STUBS ══════════════════════ */}
-      {activeTab === "analytics" && <WipSection icon="📈" title="Analytics Avancé" subtitle="Rapports financiers, analyse par pays, prévisions de croissance et tendances du marché automobile." features={["Rapports financiers détaillés (CA, bénéfices, marges)","Analyse par pays et par devise","Graphiques de croissance mensuelle / annuelle","Export PDF / Excel","Comparaison des performances par région"]} />}
-      {activeTab === "transport"   && <WipSection icon="🚢" title="Transport International" subtitle="Suivi des cargaisons, gestion des compagnies de transport et documents douaniers." features={["Gestion compagnies maritimes / routières / aériennes","Suivi GPS des cargaisons en temps réel","Documents de transport : BL, CMR, Factures","Coordination douane & transit international"]} />}
-      {activeTab === "financement" && <WipSection icon="🏦" title="Financement Automobile" subtitle="Crédit auto, simulation de mensualités et intégration des partenaires financiers." features={["Demandes de crédit automobile en ligne","Simulation de mensualités et taux","Intégration banques & sociétés de leasing","Décision rapide : Accepté / Refusé / En étude"]} />}
+      {activeTab === "analytics" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>📈 Analytics Avancé</h2>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Chiffre d'affaires, croissance et répartition — 12 derniers mois.</p>
+            </div>
+            <button className={styles.btnRefresh} onClick={loadAnalytics}>↻ Actualiser</button>
+          </div>
+          <AnalyticsSection analytics={analytics} loading={analyticsLoading} />
+        </div>
+      )}
+      {activeTab === "transport" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🚢 Transport International</h2>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Suivi logistique des transactions Import/Export en cours d'acheminement.</p>
+            </div>
+            <button className={styles.btnRefresh} onClick={loadIeTransactions}>↻ Actualiser</button>
+          </div>
+          <TransportSection ieTransactions={ieTransactions} loading={ieTxLoading} />
+        </div>
+      )}
+      {activeTab === "financement" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🏦 Financement Automobile</h2>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Demandes de leasing (LOA) et crédit classique — décision manuelle en attendant une intégration bancaire.</p>
+            </div>
+            <button className={styles.btnRefresh} onClick={loadFinancing}>↻ Actualiser</button>
+          </div>
+          <FinancingSection requests={financingRequests} loading={financingLoading}
+            onDecide={(m) => { setFinancingModal(m); setFinancingNote(""); }} />
+        </div>
+      )}
+
+      {financingModal && (
+        <div className={styles.modalBackdrop} onClick={() => setFinancingModal(null)}>
+          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()}>
+            <h3>{financingModal.decision === "accepte" ? "✅ Accepter le financement" : "❌ Refuser le financement"}</h3>
+            <textarea className={styles.rejectTextarea} placeholder="Note pour le client (optionnel)…" value={financingNote} onChange={(e) => setFinancingNote(e.target.value)} />
+            <div className={styles.rejectActions}>
+              <button className={styles.btnAccept} onClick={submitFinancingDecision} disabled={financingSaving}>{financingSaving ? "Envoi…" : "Confirmer"}</button>
+              <button className={styles.btnSecondary} onClick={() => setFinancingModal(null)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
       {activeTab === "assurance"   && <WipSection icon="🔒" title="Assurance Automobile" subtitle="Gestion des demandes d'assurance auto, location et import/export." features={["Demandes assurance : auto / location / import","Gestion des sinistres et indemnisations","Partenaires assureurs intégrés","Renouvellement automatique"]} />}
       {/* ══════════════════════════════════════════════════
           TAB PAIEMENTS — Abonnements Pro / Boosts en attente
@@ -4139,7 +4549,18 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {activeTab === "escrow"      && <WipSection icon="🔐" title="Compte Séquestre (Escrow)" subtitle="Sécurisez les transactions : fonds bloqués à la commande, libérés après confirmation du service." features={["Blocage des fonds à la commande","Libération conditionnelle après service effectué","Remboursement immédiat en cas de litige","Traçabilité complète des flux financiers"]} />}
+      {activeTab === "escrow" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🔐 Compte Séquestre (Escrow)</h2>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Fonds Import/Export actuellement bloqués ou déjà libérés.</p>
+            </div>
+            <button className={styles.btnRefresh} onClick={loadIeTransactions}>↻ Actualiser</button>
+          </div>
+          <EscrowSection ieTransactions={ieTransactions} loading={ieTxLoading} />
+        </div>
+      )}
       {activeTab === "partner_verif" && (
         <PartnerVerifSection
           token={token}
