@@ -18,6 +18,18 @@ const userSchema = new mongoose.Schema({
     default: "client",
   },
 
+  // Permissions fines pour les comptes role="admin" — tableau VIDE = accès
+  // complet (rétrocompatible : tous les admins existants avant l'ajout de ce
+  // champ gardent un accès total, jamais de verrouillage rétroactif). Non
+  // exhaustif : seules les routes ajoutées avec requireAdminScope() le
+  // vérifient réellement (voir middleware/auth.js) — les routes admin
+  // préexistantes restent en accès admin classique, sans rétrofit global.
+  adminScope: {
+    type: [String],
+    enum: ["super_admin", "finance", "kyc", "import_export", "support", "moderation"],
+    default: [],
+  },
+
   // Renseigné à la première publication d'annonce (voir VendorSubmit.jsx —
   // identity.typePubliant) : détermine le niveau de vérification exigé avant de
   // publier — KYC identité (léger) pour un particulier vs certification

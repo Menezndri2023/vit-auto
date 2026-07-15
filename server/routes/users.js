@@ -17,6 +17,8 @@ router.get("/:id/public",      validateObjectId(), u.getPublicProfile);
 router.get("/",                authenticate, authorizeAdmin, u.getUsers);
 router.get("/stats",           authenticate, authorizeAdmin, u.getAdminStats);
 router.get("/pending-identity",authenticate, authorizeAdmin, u.getPendingIdentities);
+router.get("/admin/accounts",  authenticate, authorizeAdmin, u.getAdminAccounts);
+router.patch("/admin/:id/scope", authenticate, authorizeAdmin, validateObjectId(), u.updateAdminScope);
 router.get("/:id",             authenticate, authorizeAdmin, validateObjectId(), u.getUser);
 router.patch("/:id/role",      authenticate, authorizeAdmin, validateObjectId(), u.updateUserRole);
 router.patch("/:id/toggle",    authenticate, authorizeAdmin, validateObjectId(), u.toggleUserActive);

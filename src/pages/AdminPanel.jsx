@@ -750,6 +750,68 @@ function FinancingSection({ requests, loading, onDecide }) {
   );
 }
 
+// ── Rôles & Permissions — permissions fines pour les comptes admin (voir
+// server/middleware/auth.js requireAdminScope). adminScope=[] = accès complet
+// (comportement historique) ; seules les routes nouvellement ajoutées avec
+// requireAdminScope() vérifient réellement ces permissions pour l'instant —
+// retrofit des routes admin existantes volontairement laissé pour plus tard
+// (risque de régression trop élevé pour un rattrapage en une passe).
+const ADMIN_SCOPE_CFG = [
+  { key: "super_admin",   label: "Super Admin",       icon: "👑", desc: "Accès total, y compris gestion des permissions des autres admins." },
+  { key: "finance",       label: "Finance",           icon: "💰", desc: "Paiements, commissions, factures, financement." },
+  { key: "kyc",           label: "KYC",               icon: "🛡️", desc: "Identités et documents." },
+  { key: "import_export", label: "Import/Export",     icon: "🌍", desc: "Dossiers internationaux." },
+  { key: "support",       label: "Support",           icon: "🎧", desc: "Tickets clients." },
+  { key: "moderation",    label: "Modérateur",        icon: "📝", desc: "Annonces et contenu." },
+];
+
+function RolesSection({ admins, loading, savingId, onToggle, currentUserId }) {
+  if (loading) return <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>;
+  if (!admins.length) return <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Aucun compte admin.</div>;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {admins.map((a) => {
+        const scope = a.adminScope || [];
+        const isFullAccess = scope.length === 0 || scope.includes("super_admin");
+        return (
+          <div key={a._id} style={{ background: "#fff", border: "1.5px solid #e2e8f0", borderRadius: 12, padding: "14px 18px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
+              <div>
+                <strong style={{ fontSize: ".9rem", color: "#0f1b3f" }}>{a.firstName} {a.lastName}</strong>
+                {a._id === currentUserId && <span style={{ marginLeft: 8, fontSize: ".72rem", color: "#6366f1", fontWeight: 700 }}>(vous)</span>}
+                <div style={{ fontSize: ".78rem", color: "#94a3b8" }}>{a.email}</div>
+              </div>
+              <span style={{ fontSize: ".74rem", fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: isFullAccess ? "#fef3c7" : "#eff6ff", color: isFullAccess ? "#b45309" : "#1d4ed8" }}>
+                {isFullAccess ? "🔓 Accès complet" : `${scope.length} permission${scope.length > 1 ? "s" : ""}`}
+              </span>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {ADMIN_SCOPE_CFG.map((s) => {
+                const active = scope.includes(s.key);
+                return (
+                  <button key={s.key} title={s.desc} disabled={savingId === a._id}
+                    onClick={() => onToggle(a._id, scope, s.key)}
+                    style={{
+                      padding: "6px 12px", borderRadius: 20, border: "1.5px solid",
+                      borderColor: active ? "#6366f1" : "#e2e8f0",
+                      background: active ? "#6366f1" : "#f8fafc",
+                      color: active ? "#fff" : "#64748b",
+                      fontWeight: 700, fontSize: ".78rem", cursor: savingId === a._id ? "wait" : "pointer",
+                      opacity: savingId === a._id ? 0.6 : 1,
+                    }}>
+                    {s.icon} {s.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const STATUS_VEH = {
   approved: { label: "Publiée",     color: "#10b981", bg: "#ecfdf5" },
   pending:  { label: "En attente",  color: "#f59e0b", bg: "#fffbeb" },
@@ -881,6 +943,11 @@ export default function AdminPanel() {
   const [financingModal,    setFinancingModal]    = useState(null); // { id, decision }
   const [financingNote,     setFinancingNote]     = useState("");
   const [financingSaving,   setFinancingSaving]   = useState(false);
+
+  // Rôles & Permissions
+  const [adminAccounts,     setAdminAccounts]     = useState([]);
+  const [rolesLoading,      setRolesLoading]      = useState(false);
+  const [rolesSavingId,     setRolesSavingId]     = useState(null);
 
   // Journal d'audit
   const [auditEntries,     setAuditEntries]     = useState([]);
@@ -1280,6 +1347,35 @@ export default function AdminPanel() {
     finally { setFinancingSaving(false); }
   };
 
+  // ── Rôles & Permissions ──────────────────────────────────────────────────────
+  const loadAdminAccounts = useCallback(async () => {
+    if (!token) return;
+    setRolesLoading(true);
+    try {
+      const r = await fetch("/api/users/admin/accounts", { headers });
+      if (r.ok) setAdminAccounts((await r.json()).admins || []);
+    } catch { /* ignore */ }
+    setRolesLoading(false);
+  }, [token, headers]);
+
+  const toggleAdminScope = async (adminId, currentScope, scopeKey) => {
+    const next = currentScope.includes(scopeKey)
+      ? currentScope.filter((s) => s !== scopeKey)
+      : [...currentScope, scopeKey];
+    setRolesSavingId(adminId);
+    try {
+      const r = await fetch(`/api/users/admin/${adminId}/scope`, {
+        method: "PATCH", headers,
+        body: JSON.stringify({ scope: next }),
+      });
+      const data = await r.json();
+      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
+      showToast("Permissions mises à jour", "success");
+      loadAdminAccounts();
+    } catch { showToast("Erreur réseau", "error"); }
+    finally { setRolesSavingId(null); }
+  };
+
   // ── Journal d'audit ──────────────────────────────────────────────────────────
   const loadAuditLog = useCallback(async () => {
     if (!token) return;
@@ -1639,7 +1735,8 @@ export default function AdminPanel() {
     if (activeTab === "audit")             loadAuditLog();
     if (activeTab === "analytics")         loadAnalytics();
     if (activeTab === "financement")       loadFinancing();
-  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing]);
+    if (activeTab === "roles")             loadAdminAccounts();
+  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts]);
 
   // Rafraîchissement périodique de la liste support (nouvelles demandes) tant que
   // l'onglet est affiché — même logique de polling que le widget chat public.
@@ -5430,7 +5527,18 @@ export default function AdminPanel() {
           </div>
         </div>
       )}
-      {activeTab === "roles"       && <WipSection icon="🔑" title="Rôles Admin" subtitle="Gestion fine des permissions par rôle : Super Admin, Finance, KYC, Import, Support, Modérateur." features={["Super Admin — accès total","Admin Finance — paiements et commissions","Admin KYC — identités et documents","Admin Import/Export — dossiers internationaux","Admin Support — tickets clients","Modérateur — annonces et contenu"]} />}
+      {activeTab === "roles" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🔑 Rôles & Permissions</h2>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Cliquez une permission pour l'activer/désactiver pour ce compte admin. Aucune permission cochée = accès complet.</p>
+            </div>
+            <button className={styles.btnRefresh} onClick={loadAdminAccounts}>↻ Actualiser</button>
+          </div>
+          <RolesSection admins={adminAccounts} loading={rolesLoading} savingId={rolesSavingId} onToggle={toggleAdminScope} currentUserId={user?.id} />
+        </div>
+      )}
       {/* ══════════════════════════════════════════════════
           TAB AUDIT LOGS
       ══════════════════════════════════════════════════ */}

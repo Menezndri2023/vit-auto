@@ -78,6 +78,24 @@ export const requireRole = (roles) => (req, res, next) => {
 // ── Rétrocompatibilité — alias de requireRole("admin") ─────────────────────
 export const authorizeAdmin = requireRole("admin");
 
+// ── Permissions fines admin (Rôles & Permissions) ───────────────────────────
+// Doit être appelée APRÈS authenticate (ne remplace pas authorizeAdmin, la
+// combine : req.user.role === "admin" est déjà requis en amont sur ces
+// routes). Un admin avec adminScope=[] (défaut — comptes existants avant
+// l'ajout de ce champ) ou contenant "super_admin" garde un accès complet :
+// ce garde-fou n'exclut jamais un admin par accident, il n'ajoute des
+// restrictions qu'aux comptes explicitement scopés par un super admin.
+export const requireAdminScope = (scope) => (req, res, next) => {
+  if (!req.user || req.user.role !== "admin") {
+    return res.status(403).json({ message: "Accès réservé aux administrateurs." });
+  }
+  const scopes = req.user.adminScope || [];
+  if (scopes.length === 0 || scopes.includes("super_admin") || scopes.includes(scope)) {
+    return next();
+  }
+  return res.status(403).json({ message: `Accès refusé — permission "${scope}" requise.` });
+};
+
 // ── Vérification propriété — l'utilisateur doit être propriétaire OU admin ──
 // Usage : requireOwnership(resource, "ownerId")
 // resource doit être un objet avec la clé passée en deuxième argument.

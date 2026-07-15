@@ -104,6 +104,56 @@ export const updateUserRole = async (req, res) => {
   }
 };
 
+// ── Rôles & Permissions — comptes admin et leurs permissions fines ────────
+// (voir middleware/auth.js requireAdminScope). adminScope=[] = accès complet
+// (comportement historique, avant l'ajout de ce champ) — n'affiche donc pas
+// "aucune permission" pour un admin non encore scopé, mais "Accès complet".
+export const getAdminAccounts = async (req, res) => {
+  try {
+    const admins = await User.find({ role: "admin" })
+      .select("firstName lastName email adminScope isActive createdAt lastLogin")
+      .sort({ createdAt: 1 })
+      .lean();
+    res.json({ admins });
+  } catch (err) {
+    logger.error("getAdminAccounts:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── PATCH /api/users/admin/:id/scope ──────────────────────────────────────
+export const updateAdminScope = async (req, res) => {
+  try {
+    const VALID_SCOPES = ["super_admin", "finance", "kyc", "import_export", "support", "moderation"];
+    const { scope } = req.body;
+    if (!Array.isArray(scope) || scope.some((s) => !VALID_SCOPES.includes(s))) {
+      return res.status(400).json({ message: "Permissions invalides." });
+    }
+    const target = await User.findById(req.params.id).select("role adminScope");
+    if (!target) return res.status(404).json({ message: "Utilisateur introuvable." });
+    if (target.role !== "admin") return res.status(400).json({ message: "Ce compte n'est pas un compte admin." });
+
+    // Seul un super admin (ou un compte non encore scopé, accès complet
+    // historique) peut modifier les permissions d'un autre admin — sinon un
+    // admin "finance" pourrait s'auto-attribuer "super_admin".
+    const actingScopes = req.user.adminScope || [];
+    if (actingScopes.length > 0 && !actingScopes.includes("super_admin")) {
+      return res.status(403).json({ message: "Seul un super admin peut modifier les permissions." });
+    }
+
+    const before = target.adminScope;
+    target.adminScope = scope;
+    await target.save();
+
+    await logAction(req, "user.admin_scope_change", "User", req.params.id, { before, after: scope });
+
+    res.json({ success: true, adminScope: target.adminScope });
+  } catch (err) {
+    logger.error("updateAdminScope:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
 // ── Désactiver / réactiver un compte (admin) ──────────────────────────────
 export const toggleUserActive = async (req, res) => {
   try {
