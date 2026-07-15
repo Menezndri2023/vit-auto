@@ -107,7 +107,7 @@ const ieTransactionSchema = new mongoose.Schema({
   payment: {
     amount:          { type: Number, default: null },
     currency:        { type: String, default: "EUR" },
-    method:          { type: String, default: null }, // virement, carte, mobile_money, crypto
+    method:          { type: String, default: null }, // virement, carte, mobile_money, crypto, lc
     transactionRef:  { type: String, default: null },
     stripeSessionId: { type: String, default: null },
     submittedAt:     { type: Date,   default: null }, // déclaration du client (méthodes manuelles)
@@ -115,6 +115,37 @@ const ieTransactionSchema = new mongoose.Schema({
     verifiedBy:      { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     releasedAt:      { type: Date,   default: null },
     escrowRef:       { type: String, default: null },
+
+    // ── Lettre de Crédit (méthode "lc") ────────────────────────────────────
+    // VIT AUTO n'exécute pas la LC elle-même (hors de portée sans intégration
+    // bancaire réelle) : on trace seulement sa déclaration et la conformité
+    // documentaire, condition posée avant tout passage en "in_escrow" — voir
+    // confirmEscrowPayment dans ieTransactionController.js.
+    lc: {
+      reference:           { type: String, default: null }, // n° LC fourni par la banque du client
+      openedAt:             { type: Date,   default: null },
+      documentsValidatedAt: { type: Date,   default: null },
+      validatedBy:          { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    },
+
+    // ── Acompte + solde (toute méthode manuelle) ───────────────────────────
+    // Le statut global (payment_pending → payment_submitted → in_escrow) ne
+    // change pas de forme : "in_escrow" n'est atteint que lorsque le dépôt ET
+    // le solde sont vérifiés (voir confirmEscrowPayment/payInstallmentBalance).
+    installment: {
+      enabled:              { type: Boolean, default: false },
+      depositPercent:        { type: Number,  default: 30 },
+      depositAmount:         { type: Number,  default: null },
+      depositTransactionRef: { type: String,  default: null },
+      depositSubmittedAt:    { type: Date,    default: null },
+      depositPaidAt:         { type: Date,    default: null },
+      depositVerifiedBy:     { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      balanceAmount:         { type: Number,  default: null },
+      balanceTransactionRef: { type: String,  default: null },
+      balanceSubmittedAt:    { type: Date,    default: null },
+      balancePaidAt:         { type: Date,    default: null },
+      balanceVerifiedBy:     { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    },
   },
 
   // ── Documents d'export (étape 10) ─────────────────────────────────────────

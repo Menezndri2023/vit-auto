@@ -15,7 +15,7 @@ import { sendInternal, sendInternalBroadcast } from "./channels/InternalChannel.
 
 // ── Templates email ───────────────────────────────────────────────────────────
 import { emailVerificationTemplate, passwordResetTemplate } from "./templates/email/Verification.js";
-import { bookingConfirmationTemplate, newBookingPartnerTemplate, bookingAcceptedTemplate } from "./templates/email/Booking.js";
+import { bookingConfirmationTemplate, newBookingPartnerTemplate, bookingAcceptedTemplate, paymentReceiptTemplate } from "./templates/email/Booking.js";
 import { reservationCreatedTemplate, reservationConfirmedTemplate, transactionCompletedTemplate } from "./templates/email/Reservation.js";
 import { invoiceTemplate }    from "./templates/email/Invoice.js";
 import { welcomePartnerTemplate, loiReadyTemplate, agreementReadyTemplate } from "./templates/email/WelcomePartner.js";
@@ -29,6 +29,7 @@ const EMAIL_TEMPLATES = {
   booking_confirmation:    bookingConfirmationTemplate,
   new_booking_partner:     newBookingPartnerTemplate,
   booking_accepted:        bookingAcceptedTemplate,
+  payment_receipt:         paymentReceiptTemplate,
   reservation_created:     reservationCreatedTemplate,
   reservation_confirmed:   reservationConfirmedTemplate,
   transaction_completed:   transactionCompletedTemplate,
@@ -50,7 +51,7 @@ const EMAIL_TEMPLATES = {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function sendViaEmail({
   to, subject, html, template, data = {}, userId,
-  priority = "normal", tags = [], context = {},
+  priority = "normal", tags = [], context = {}, attachments = [],
 }) {
   const trackingId = randomUUID();
 
@@ -65,7 +66,7 @@ export async function sendViaEmail({
     }
 
     const { messageId, provider } = await sendEmail({
-      to, subject, html: finalHtml, trackingId, userId,
+      to, subject, html: finalHtml, trackingId, userId, attachments,
     });
 
     await logSend({

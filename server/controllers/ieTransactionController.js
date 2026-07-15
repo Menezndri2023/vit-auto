@@ -8,7 +8,8 @@ import Chat                 from "../models/Chat.js";
 import { dispatch } from "../queue/index.js";
 import { stripeProvider } from "../services/payment/gateway.js";
 
-const MANUAL_PAYMENT_METHODS = ["virement", "mobile_money", "crypto"];
+const MANUAL_PAYMENT_METHODS = ["virement", "mobile_money", "crypto", "lc"];
+const LC_REQUIRED_DOCS = ["commercialInvoice", "billOfLading", "originCertificate", "inspectionDocs"];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -44,6 +45,33 @@ const createTransactionChat = async (clientId, partnerId, txId) => {
     messages: [],
   });
   return chat._id;
+};
+
+// ── Profil de paiement du partenaire — purement informatif ────────────────
+// Aucune méthode de paiement n'est jamais bloquée : ceci ne sert qu'à afficher
+// une recommandation côté client (badge "Nouveau partenaire"/"Vérifié"/"Grand
+// compte"), le client et le partenaire restant libres de choisir n'importe
+// quelle option proposée.
+const getPartnerPaymentProfile = async (partnerId) => {
+  const [partner, completedCount] = await Promise.all([
+    User.findById(partnerId).select("isFounder importerProfile.badgeLevel"),
+    IETransaction.countDocuments({ partner: partnerId, status: { $in: ["completed", "funds_released"] } }),
+  ]);
+
+  let level = "nouveau";
+  if (partner?.isFounder) {
+    level = "grand_compte";
+  } else if (completedCount >= 1 || ["gold", "platinum"].includes(partner?.importerProfile?.badgeLevel)) {
+    level = "verifie";
+  }
+
+  const RECOMMENDATIONS = {
+    nouveau:      { label: "Nouveau partenaire",  recommended: ["lc", "virement"] },
+    verifie:      { label: "Partenaire vérifié",  recommended: ["virement", "carte"] },
+    grand_compte: { label: "Grand compte / Founding Partner", recommended: ["virement", "carte", "lc"] },
+  };
+
+  return { level, completedCount, ...RECOMMENDATIONS[level] };
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -315,7 +343,7 @@ export const payEscrow = async (req, res) => {
     });
     if (!tx) return res.status(404).json({ message: "Transaction introuvable ou paiement non attendu." });
 
-    const { method, transactionRef } = req.body;
+    const { method, transactionRef, lcReference, installment } = req.body;
     if (!method) return res.status(400).json({ message: "Moyen de paiement requis." });
 
     if (method === "carte" && stripeProvider.isConfigured()) {
@@ -334,21 +362,102 @@ export const payEscrow = async (req, res) => {
       return res.json({ message: "Redirection vers le paiement sécurisé.", checkoutUrl });
     }
 
+    if (method === "lc" && !lcReference) {
+      return res.status(400).json({ message: "Référence de la Lettre de Crédit (fournie par la banque du client) requise." });
+    }
+
+    // Acompte + solde (toute méthode manuelle) : le montant déclaré ici n'est
+    // que l'acompte ; le solde est déclaré séparément via payInstallmentBalance
+    // une fois l'acompte vérifié par VIT AUTO.
+    const installmentEnabled = MANUAL_PAYMENT_METHODS.includes(method) && installment?.enabled === true;
+    const depositPercent = installmentEnabled
+      ? Math.min(Math.max(Number(installment.depositPercent) || 30, 1), 99)
+      : null;
+    const totalAmount = tx.finalOffer.totalAmount;
+    const declaredAmount = installmentEnabled
+      ? Math.round(totalAmount * depositPercent / 100)
+      : totalAmount;
+
     tx.payment.method         = method;
     tx.payment.currency       = tx.finalOffer.currency;
-    tx.payment.amount         = tx.finalOffer.totalAmount;
+    tx.payment.amount         = totalAmount;
     tx.payment.transactionRef = transactionRef || null;
     tx.payment.submittedAt    = new Date();
+
+    if (method === "lc") {
+      tx.payment.lc.reference = lcReference;
+      tx.payment.lc.openedAt  = new Date();
+    }
+
+    if (installmentEnabled) {
+      tx.payment.installment.enabled              = true;
+      tx.payment.installment.depositPercent        = depositPercent;
+      tx.payment.installment.depositAmount         = declaredAmount;
+      tx.payment.installment.depositTransactionRef = transactionRef || null;
+      tx.payment.installment.depositSubmittedAt    = new Date();
+    }
+
     tx.status = "payment_submitted";
-    pushHistory(tx, "payment_submitted", req.user._id, `Paiement déclaré via ${method} — en attente de vérification VIT AUTO.`);
+    const note = installmentEnabled
+      ? `Acompte de ${depositPercent}% (${declaredAmount} ${tx.payment.currency}) déclaré via ${method} — en attente de vérification VIT AUTO.`
+      : method === "lc"
+        ? `Lettre de Crédit ouverte (réf. ${lcReference}) — documents d'export à fournir avant tout déblocage de fonds.`
+        : `Paiement déclaré via ${method} — en attente de vérification VIT AUTO.`;
+    pushHistory(tx, "payment_submitted", req.user._id, note);
     await tx.save();
 
-    await notifyAdmins("ie_payment", "Paiement à vérifier", `Transaction ${tx._id} — ${tx.payment.amount} ${tx.payment.currency} déclaré via ${method}, en attente de confirmation.`, `/admin`);
+    await notifyAdmins(
+      "ie_payment",
+      method === "lc" ? "Lettre de Crédit ouverte — à vérifier" : "Paiement à vérifier",
+      `Transaction ${tx._id} — ${declaredAmount} ${tx.payment.currency} déclaré via ${method}${installmentEnabled ? " (acompte)" : ""}, en attente de confirmation.`,
+      `/admin`
+    );
     await notify(tx.partner, "info", "Paiement en cours de vérification", "Le client a déclaré son paiement — VIT AUTO vérifie la réception des fonds avant de sécuriser l'entiercement.", `/importer-dashboard`);
 
-    res.json({ message: "Paiement déclaré. VIT AUTO vérifie la réception des fonds avant de sécuriser l'entiercement.", transaction: tx });
+    res.json({ message: note, transaction: tx });
   } catch (err) {
     logger.error("payEscrow:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Déclaration du règlement du solde (méthodes avec acompte + solde) ──────
+// POST /api/import-export/transactions/:id/pay-balance
+export const payInstallmentBalance = async (req, res) => {
+  try {
+    const tx = await IETransaction.findOne({
+      _id: req.params.id,
+      client: req.user._id,
+      status: "payment_submitted",
+    });
+    if (!tx) return res.status(404).json({ message: "Transaction introuvable ou statut incompatible." });
+
+    const inst = tx.payment.installment;
+    if (!inst?.enabled) {
+      return res.status(400).json({ message: "Cette transaction ne fait pas l'objet d'un paiement en 2 fois (acompte + solde)." });
+    }
+    if (!inst.depositPaidAt) {
+      return res.status(409).json({ message: "L'acompte n'a pas encore été vérifié par VIT AUTO — le solde ne peut pas encore être déclaré." });
+    }
+    if (inst.balanceSubmittedAt) {
+      return res.status(409).json({ message: "Le règlement du solde a déjà été déclaré." });
+    }
+
+    const { transactionRef } = req.body;
+    const balanceAmount = Math.max((tx.payment.amount || 0) - (inst.depositAmount || 0), 0);
+
+    inst.balanceAmount         = balanceAmount;
+    inst.balanceTransactionRef = transactionRef || null;
+    inst.balanceSubmittedAt    = new Date();
+    pushHistory(tx, "payment_submitted", req.user._id, `Solde de ${balanceAmount} ${tx.payment.currency} déclaré — en attente de vérification VIT AUTO.`);
+    await tx.save();
+
+    await notifyAdmins("ie_payment", "Solde à vérifier", `Transaction ${tx._id} — solde de ${balanceAmount} ${tx.payment.currency} déclaré.`, `/admin`);
+    await notify(tx.partner, "info", "Solde déclaré", "Le client a déclaré le règlement du solde — VIT AUTO vérifie la réception des fonds.", `/importer-dashboard`);
+
+    res.json({ message: "Solde déclaré. VIT AUTO vérifie la réception des fonds avant de sécuriser l'entiercement.", transaction: tx });
+  } catch (err) {
+    logger.error("payInstallmentBalance:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -376,6 +485,41 @@ export const confirmEscrowPayment = async (req, res) => {
     const tx = await IETransaction.findOne({ _id: req.params.id, status: "payment_submitted" });
     if (!tx) return res.status(404).json({ message: "Transaction introuvable ou aucun paiement à vérifier." });
 
+    const inst = tx.payment.installment;
+
+    // Acompte + solde : la première confirmation ne valide que l'acompte —
+    // l'entiercement n'est sécurisé qu'une fois le solde également vérifié.
+    if (inst?.enabled && !inst.depositPaidAt) {
+      inst.depositPaidAt     = new Date();
+      inst.depositVerifiedBy = req.user._id;
+      pushHistory(tx, "payment_submitted", req.user._id, `Acompte de ${inst.depositAmount} ${tx.payment.currency} vérifié — solde attendu avant sécurisation de l'entiercement.`);
+      await tx.save();
+
+      await notify(tx.client, "success", "Acompte vérifié", "VIT AUTO a vérifié votre acompte. Merci de régler le solde restant avant l'expédition du véhicule.", `/import-export/transaction/${tx._id}`);
+      await notify(tx.partner, "info", "Acompte vérifié", `L'acompte de la transaction ${tx._id} est vérifié — solde du client attendu.`, `/importer-dashboard`);
+
+      return res.json({ message: "Acompte vérifié. Le solde doit être réglé et vérifié avant la sécurisation complète de l'entiercement.", transaction: tx });
+    }
+    if (inst?.enabled && !inst.balanceSubmittedAt) {
+      return res.status(409).json({ message: "Le client n'a pas encore déclaré le règlement du solde." });
+    }
+
+    // Lettre de Crédit : les documents d'export clés doivent être conformes
+    // avant tout déblocage de fonds — condition réelle d'une LC bancaire.
+    if (tx.payment.method === "lc") {
+      const docsValid = LC_REQUIRED_DOCS.every((key) => tx.documents[key]?.status === "valide");
+      if (!docsValid) {
+        return res.status(409).json({ message: "Documents d'export non encore validés — la Lettre de Crédit ne peut libérer les fonds avant conformité documentaire (facture commerciale, connaissement, certificat d'origine, rapport d'inspection)." });
+      }
+      tx.payment.lc.documentsValidatedAt = new Date();
+      tx.payment.lc.validatedBy          = req.user._id;
+    }
+
+    if (inst?.enabled) {
+      inst.balancePaidAt     = new Date();
+      inst.balanceVerifiedBy = req.user._id;
+    }
+
     tx.payment.paidAt     = new Date();
     tx.payment.verifiedBy = req.user._id;
     tx.payment.escrowRef  = `ESCROW-${tx._id.toString().slice(-8).toUpperCase()}-${Date.now()}`;
@@ -399,6 +543,14 @@ export const rejectEscrowPayment = async (req, res) => {
     const { reason } = req.body;
     const tx = await IETransaction.findOne({ _id: req.params.id, status: "payment_submitted" });
     if (!tx) return res.status(404).json({ message: "Transaction introuvable ou aucun paiement à vérifier." });
+
+    // Un acompte déjà vérifié représente des fonds déjà reçus et confirmés —
+    // le rejet global (retour à "payment_pending") effacerait cette
+    // confirmation sans annuler réellement la réception des fonds. Ce cas
+    // relève d'un litige, pas d'un simple rejet de déclaration non vérifiée.
+    if (tx.payment.installment?.enabled && tx.payment.installment?.depositPaidAt) {
+      return res.status(409).json({ message: "L'acompte de cette transaction a déjà été vérifié — ouvrez un litige plutôt que de rejeter le paiement dans son ensemble." });
+    }
 
     tx.status = "payment_pending";
     pushHistory(tx, "payment_pending", req.user._id, `Paiement déclaré non confirmé${reason ? " : " + reason : ""} — le client doit soumettre une nouvelle preuve.`);
@@ -424,11 +576,17 @@ export const updateDocuments = async (req, res) => {
     // suivants) doivent être acceptés — sinon seule la toute première mise à jour
     // de document réussit : elle fait déjà basculer le statut vers "preparing",
     // ce qui bloquerait ensuite tous les documents restants avec un 404.
-    const tx = await IETransaction.findOne({
+    // "payment_submitted" est également accepté : une Lettre de Crédit exige que
+    // les documents d'export soient fournis et validés AVANT le déblocage des
+    // fonds (voir confirmEscrowPayment) — donc avant même l'entrée en escrow.
+    const isAdmin = req.user.role === "admin";
+    const filter = {
       _id: req.params.id,
-      partner: req.user._id,
-      status: { $in: ["in_escrow", "preparing"] },
-    });
+      status: { $in: ["payment_submitted", "in_escrow", "preparing"] },
+    };
+    if (!isAdmin) filter.partner = req.user._id;
+
+    const tx = await IETransaction.findOne(filter);
     if (!tx) return res.status(404).json({ message: "Transaction introuvable ou statut incompatible." });
 
     const { documents } = req.body;
@@ -439,7 +597,13 @@ export const updateDocuments = async (req, res) => {
     const allowed = ["commercialInvoice", "customsDocs", "originCertificate", "billOfLading", "inspectionDocs", "transportBooking"];
     for (const key of allowed) {
       if (documents[key]) {
-        tx.documents[key] = { ...tx.documents[key].toObject?.() || {}, ...documents[key] };
+        const incoming = { ...documents[key] };
+        // Seul un admin VIT AUTO peut valider un document ("valide") — une
+        // conformité indépendante est requise, en particulier pour la Lettre
+        // de Crédit (voir confirmEscrowPayment) : le partenaire ne peut pas
+        // s'auto-valider.
+        if (incoming.status === "valide" && !isAdmin) delete incoming.status;
+        tx.documents[key] = { ...tx.documents[key].toObject?.() || {}, ...incoming };
       }
     }
 
@@ -775,7 +939,9 @@ export const getTransactionById = async (req, res) => {
     const isAdmin       = req.user.role === "admin";
     if (!isParticipant && !isAdmin) return res.status(403).json({ message: "Accès refusé." });
 
-    res.json({ transaction: tx });
+    const paymentProfile = await getPartnerPaymentProfile(tx.partner._id);
+
+    res.json({ transaction: tx, paymentProfile });
   } catch (err) {
     logger.error("getTransactionById:", err);
     res.status(500).json({ message: "Erreur serveur." });

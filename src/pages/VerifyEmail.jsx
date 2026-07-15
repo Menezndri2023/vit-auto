@@ -9,6 +9,7 @@ const VerifyEmail = () => {
   const { setSession } = useAuth();
   const [status, setStatus] = useState("loading"); // loading | success | error | missing
   const [message, setMessage] = useState("");
+  const [dest, setDest] = useState("/dashboard");
   const ranOnce = useRef(false);
 
   useEffect(() => {
@@ -31,7 +32,13 @@ const VerifyEmail = () => {
           if (data.user && data.token) {
             setSession(data.user, data.token);
           }
-          setTimeout(() => navigate("/dashboard"), 1800);
+          // Comptes partenaires : direction le programme Founding Partner pour
+          // renseigner les informations entreprise, une fois l'e-mail confirmé
+          // (jusqu'ici seule une inscription via ?plan=fondateur y menait, et
+          // avant même la vérification — voir Register.jsx).
+          const target = data.user?.role === "partenaire" ? "/partner-onboarding" : "/dashboard";
+          setDest(target);
+          setTimeout(() => navigate(target), 1800);
         } else {
           setStatus("error");
           setMessage(data.message || "Lien invalide ou expiré.");
@@ -61,10 +68,12 @@ const VerifyEmail = () => {
             <div style={{ fontSize: "3rem", marginBottom: "12px", textAlign: "center" }}>✅</div>
             <h1 style={{ textAlign: "center", color: "#0f1b3f", margin: "0 0 12px" }}>Vérification réussie !</h1>
             <p style={{ textAlign: "center", color: "#64748b", margin: 0 }}>
-              Votre adresse e-mail a été confirmée. Redirection vers votre espace…
+              {dest === "/partner-onboarding"
+                ? "Votre adresse e-mail a été confirmée. Redirection vers le programme Founding Partner pour renseigner les informations de votre entreprise…"
+                : "Votre adresse e-mail a été confirmée. Redirection vers votre espace…"}
             </p>
-            <Link to="/dashboard" className={styles.submitBtn} style={{ display: "block", textAlign: "center", marginTop: "24px", textDecoration: "none" }}>
-              Accéder à mon espace →
+            <Link to={dest} className={styles.submitBtn} style={{ display: "block", textAlign: "center", marginTop: "24px", textDecoration: "none" }}>
+              {dest === "/partner-onboarding" ? "Continuer vers le programme Founding Partner →" : "Accéder à mon espace →"}
             </Link>
           </>
         )}

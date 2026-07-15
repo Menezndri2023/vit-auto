@@ -4244,7 +4244,10 @@ export default function AdminPanel() {
                               </div>
                               {/* Contact */}
                               <div style={{ fontSize:".8rem" }}>
-                                <div style={{ fontWeight:600, color:"#0f1b3f" }}>{ci.mainContact || `${(o.userId?.firstName||"")} ${(o.userId?.lastName||"")}`}</div>
+                                <div style={{ fontWeight:600, color:"#0f1b3f" }}>
+                                  {ci.mainContact || `${(o.userId?.firstName||"")} ${(o.userId?.lastName||"")}`}
+                                  <CountryFlag code={o.userId?.country} countriesConfig={COUNTRIES_CONFIG} />
+                                </div>
                                 {ci.whatsapp && <div style={{ color:"#16a34a", marginTop:1 }}>📱 {ci.whatsapp}</div>}
                                 {ci.wechat   && <div style={{ color:"#07c160", marginTop:1 }}>💬 {ci.wechat}</div>}
                                 {ci.email    && <div style={{ color:"#3b82f6", marginTop:1 }}>✉️ {ci.email}</div>}

@@ -87,7 +87,7 @@ function ProgressBar({ status }) {
 }
 
 // ── Panneau d'action selon statut et rôle ─────────────────────────────────
-function ActionPanel({ tx, role, token, onRefresh }) {
+function ActionPanel({ tx, role, token, onRefresh, paymentProfile }) {
   const [loading, setLoading]           = useState(false);
   const [error, setError]               = useState(null);
   const [form, setForm]                 = useState({});
@@ -257,13 +257,21 @@ function ActionPanel({ tx, role, token, onRefresh }) {
   // réception réelle des fonds avant que l'entiercement ne soit sécurisé.
   if (tx.status === "payment_pending" && role === "client") {
     const isManual = form.method && form.method !== "carte";
+    const isLc = form.method === "lc";
+    const installmentAllowed = isManual;
+    const depositPercent = Number(form.depositPercent) || 30;
+    const total = tx.finalOffer?.totalAmount || 0;
     const payAction = async () => {
       setLoading(true); setError(null);
       try {
+        const body = { ...form };
+        if (form.installmentEnabled) {
+          body.installment = { enabled: true, depositPercent };
+        }
         const res = await fetch(`${base}/pay`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify(form),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.message);
@@ -279,29 +287,66 @@ function ActionPanel({ tx, role, token, onRefresh }) {
       <div className={styles.actionCard}>
         <h4>Procédez au paiement sécurisé</h4>
         <p>Votre paiement sera placé sur un compte d'entiercement (Escrow). Les fonds ne seront versés au fournisseur qu'après confirmation de livraison.</p>
+        {paymentProfile && (
+          <p className={styles.actionNote}>
+            ℹ️ Profil fournisseur : <strong>{paymentProfile.label}</strong> — méthodes recommandées : {paymentProfile.recommended?.map((m) => ({ carte: "Carte", virement: "Virement SWIFT", lc: "Lettre de Crédit" }[m] || m)).join(", ")}.
+            Ceci n'est qu'une recommandation, vous restez libre de choisir n'importe quelle option ci-dessous.
+          </p>
+        )}
         <div className={styles.escrowInfo}>
-          <div>💰 <strong>{fmtPrice(tx.finalOffer?.totalAmount, tx.finalOffer?.currency)}</strong></div>
+          <div>💰 <strong>{fmtPrice(total, tx.finalOffer?.currency)}</strong></div>
         </div>
         <div className={styles.formRow2}>
           <label><span>Moyen de paiement</span>
             <select onChange={(e) => setForm((f) => ({ ...f, method: e.target.value }))} defaultValue="">
               <option value="">Choisir…</option>
               <option value="carte">Carte bancaire (paiement sécurisé en ligne)</option>
-              <option value="virement">Virement bancaire</option>
+              <option value="virement">Virement bancaire (SWIFT)</option>
               <option value="mobile_money">Mobile Money</option>
               <option value="crypto">Cryptomonnaie</option>
+              <option value="lc">Lettre de Crédit (LC)</option>
             </select>
           </label>
-          {isManual && (
+          {isManual && !isLc && (
             <label><span>Référence transaction</span><input placeholder="Réf de votre paiement" onChange={(e) => setForm((f) => ({ ...f, transactionRef: e.target.value }))} /></label>
           )}
         </div>
+        {isLc && (
+          <div className={styles.formRow2}>
+            <label><span>Référence LC (fournie par votre banque)</span>
+              <input placeholder="Ex : LC-2026-00123" onChange={(e) => setForm((f) => ({ ...f, lcReference: e.target.value }))} />
+            </label>
+          </div>
+        )}
+        {isLc && (
+          <p className={styles.actionNote}>
+            🏦 VIT AUTO ne gère pas l'exécution bancaire de la LC : votre banque libérera les fonds au fournisseur une fois les documents d'export (facture commerciale, connaissement, certificat d'origine, rapport d'inspection) validés par VIT AUTO.
+          </p>
+        )}
+        {installmentAllowed && (
+          <div className={styles.formRow2}>
+            <label style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <input type="checkbox" checked={!!form.installmentEnabled} onChange={(e) => setForm((f) => ({ ...f, installmentEnabled: e.target.checked }))} />
+              <span>Payer en 2 fois (acompte + solde)</span>
+            </label>
+            {form.installmentEnabled && (
+              <label><span>Pourcentage d'acompte</span>
+                <input type="number" min={1} max={99} placeholder="30" onChange={(e) => setForm((f) => ({ ...f, depositPercent: e.target.value }))} />
+              </label>
+            )}
+          </div>
+        )}
+        {form.installmentEnabled && (
+          <p className={styles.actionNote}>
+            💡 Acompte à déclarer maintenant : <strong>{fmtPrice(Math.round(total * depositPercent / 100), tx.finalOffer?.currency)}</strong> ({depositPercent}%). Le solde de {fmtPrice(total - Math.round(total * depositPercent / 100), tx.finalOffer?.currency)} sera à régler avant l'expédition, une fois l'acompte vérifié.
+          </p>
+        )}
         {isManual && (
           <p className={styles.actionNote}>
             ⏳ Cette méthode ne peut pas être vérifiée automatiquement — VIT AUTO confirmera manuellement la réception des fonds avant de sécuriser l'entiercement.
           </p>
         )}
-        <button className={styles.btnPrimary} disabled={loading || !form.method} onClick={payAction}>
+        <button className={styles.btnPrimary} disabled={loading || !form.method || (isLc && !form.lcReference)} onClick={payAction}>
           {form.method === "carte" ? "💳 Payer par carte" : "🔒 Déclarer mon paiement"}
         </button>
         {error && <p className={styles.err}>{error}</p>}
@@ -311,6 +356,29 @@ function ActionPanel({ tx, role, token, onRefresh }) {
 
   // ── Étape 9 : paiement déclaré, en attente de vérification VIT AUTO ────
   if (tx.status === "payment_submitted") {
+    const inst = tx.payment?.installment;
+    const depositVerified = !!inst?.depositPaidAt;
+    const balanceDeclared = !!inst?.balanceSubmittedAt;
+    const canPayBalance = role === "client" && inst?.enabled && depositVerified && !balanceDeclared;
+
+    const payBalance = async () => {
+      setLoading(true); setError(null);
+      try {
+        const res = await fetch(`${base}/pay-balance`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify(form),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message);
+        onRefresh();
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     return (
       <div className={styles.actionCard}>
         <h4>⏳ Paiement en cours de vérification</h4>
@@ -322,7 +390,25 @@ function ActionPanel({ tx, role, token, onRefresh }) {
         <div className={styles.escrowInfo}>
           <div>💰 <strong>{fmtPrice(tx.payment?.amount, tx.payment?.currency)}</strong></div>
           {tx.payment?.transactionRef && <p>Référence déclarée : <code>{tx.payment.transactionRef}</code></p>}
+          {tx.payment?.method === "lc" && tx.payment?.lc?.reference && (
+            <p>🏦 Lettre de Crédit : <code>{tx.payment.lc.reference}</code> — les documents d'export doivent être validés avant tout déblocage de fonds.</p>
+          )}
         </div>
+        {inst?.enabled && (
+          <div className={styles.escrowInfo}>
+            <p>Acompte ({inst.depositPercent}%) : <strong>{fmtPrice(inst.depositAmount, tx.payment?.currency)}</strong> — {depositVerified ? "✅ vérifié" : "⏳ en attente de vérification"}</p>
+            {depositVerified && (
+              <p>Solde restant : <strong>{fmtPrice(inst.balanceAmount || (tx.payment?.amount - inst.depositAmount), tx.payment?.currency)}</strong> — {balanceDeclared ? (inst.balancePaidAt ? "✅ vérifié" : "⏳ en attente de vérification") : "à déclarer"}</p>
+            )}
+          </div>
+        )}
+        {canPayBalance && (
+          <div className={styles.inlineForm}>
+            <input placeholder="Référence de votre paiement du solde" onChange={(e) => setForm((f) => ({ ...f, transactionRef: e.target.value }))} className={styles.inlineInput} />
+            <button className={styles.btnPrimary} disabled={loading} onClick={payBalance}>💰 Déclarer le règlement du solde</button>
+          </div>
+        )}
+        {error && <p className={styles.err}>{error}</p>}
       </div>
     );
   }
@@ -477,7 +563,7 @@ function DocsPanel({ docs, txId, token, role, status, onRefresh }) {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
 
-  const showDocs = ["in_escrow", "preparing", "shipped", "in_transit", "delivered", "funds_released", "completed"];
+  const showDocs = ["payment_submitted", "in_escrow", "preparing", "shipped", "in_transit", "delivered", "funds_released", "completed"];
   if (!showDocs.includes(status)) return null;
 
   const updateDoc = async (docKey, newStatus) => {
@@ -514,6 +600,15 @@ function DocsPanel({ docs, txId, token, role, status, onRefresh }) {
                     onChange={(e) => updateDoc(key, e.target.value)}>
                     <option value="en_attente">En attente</option>
                     <option value="fourni">Fourni</option>
+                    <option value="non_requis">Non requis</option>
+                  </select>
+                )}
+                {role === "admin" && (
+                  <select className={styles.docSelect} value={doc.status || "en_attente"} disabled={loading}
+                    onChange={(e) => updateDoc(key, e.target.value)}>
+                    <option value="en_attente">En attente</option>
+                    <option value="fourni">Fourni</option>
+                    <option value="valide">✅ Valider (conformité vérifiée)</option>
                     <option value="non_requis">Non requis</option>
                   </select>
                 )}
@@ -616,6 +711,7 @@ export default function IETransactionTracking() {
   const { selectChat, setOpen: setChatOpen } = useChat();
 
   const [tx,      setTx]      = useState(null);
+  const [paymentProfile, setPaymentProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
 
@@ -627,6 +723,7 @@ export default function IETransactionTracking() {
       if (!res.ok) throw new Error("Transaction introuvable.");
       const d = await res.json();
       setTx(d.transaction);
+      setPaymentProfile(d.paymentProfile || null);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -703,7 +800,7 @@ export default function IETransactionTracking() {
       <div className={styles.layout}>
         <div className={styles.main}>
           {/* Panneau d'action */}
-          <ActionPanel tx={tx} role={role} token={token} onRefresh={load} />
+          <ActionPanel tx={tx} role={role} token={token} onRefresh={load} paymentProfile={paymentProfile} />
 
           {/* Documents export */}
           <DocsPanel docs={tx.documents} txId={tx._id} token={token} role={role} status={tx.status} onRefresh={load} />

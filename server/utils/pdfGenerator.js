@@ -63,12 +63,7 @@ function fmtDate(d) {
 // ══════════════════════════════════════════════════════════════════════════════
 // 1. FACTURE PARTENAIRE
 // ══════════════════════════════════════════════════════════════════════════════
-export function generateInvoicePDF(invoice, res) {
-  const doc = new PDFDocument({ margin: 40, size: "A4" });
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename="facture-${invoice.reference}.pdf"`);
-  doc.pipe(res);
-
+function drawInvoice(doc, invoice) {
   header(doc, "FACTURE DE COMMISSION", invoice.reference);
 
   // ── Période ──────────────────────────────────────────────────────────────
@@ -126,7 +121,21 @@ export function generateInvoicePDF(invoice, res) {
     .text(fmtXOF(invoice.totalCommission), 0, doc.y, { align: "right", width: doc.page.width - 50 });
 
   footer(doc);
+}
+
+export function generateInvoicePDF(invoice, res) {
+  const doc = new PDFDocument({ margin: 40, size: "A4" });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="facture-${invoice.reference}.pdf"`);
+  doc.pipe(res);
+  drawInvoice(doc, invoice);
   doc.end();
+}
+
+// Variante Buffer — pour pièce jointe email (facture mensuelle de commission
+// envoyée au partenaire, voir invoiceController.js).
+export function generateInvoicePDFBuffer(invoice) {
+  return buildPDFBuffer((doc) => drawInvoice(doc, invoice));
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -311,12 +320,8 @@ export function buildOnboardingPDFBuffer(content, docTitle, ref, signatureBlock 
 // ══════════════════════════════════════════════════════════════════════════════
 // 4. REÇU DE PAIEMENT
 // ══════════════════════════════════════════════════════════════════════════════
-export function generateReceiptPDF(booking, res) {
-  const doc = new PDFDocument({ margin: 40, size: "A4" });
+function drawReceipt(doc, booking) {
   const ref = booking.reference || `VIT-REC-${Date.now()}`;
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename="recu-${ref}.pdf"`);
-  doc.pipe(res);
 
   header(doc, "REÇU DE PAIEMENT", ref);
 
@@ -348,5 +353,20 @@ export function generateReceiptPDF(booking, res) {
     .text(fmtXOF(booking.montantTotal), 0, doc.y, { align: "right", width: doc.page.width - 50 });
 
   footer(doc);
+}
+
+export function generateReceiptPDF(booking, res) {
+  const doc = new PDFDocument({ margin: 40, size: "A4" });
+  const ref = booking.reference || `VIT-REC-${Date.now()}`;
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="recu-${ref}.pdf"`);
+  doc.pipe(res);
+  drawReceipt(doc, booking);
   doc.end();
+}
+
+// Variante Buffer — pour pièce jointe email (voir queue/workers/pdf.worker.js,
+// job "receipt" déclenché après validation d'une transaction, cash ou en ligne).
+export function generateReceiptPDFBuffer(booking) {
+  return buildPDFBuffer((doc) => drawReceipt(doc, booking));
 }

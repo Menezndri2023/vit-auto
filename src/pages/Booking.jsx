@@ -25,7 +25,7 @@ const PAYMENT_METHODS = [
   { value: "mtn",          label: "MTN Mobile Money", icon: "💛", mobile: true },
   { value: "moov",         label: "Moov Money",       icon: "🟢", mobile: true },
   { value: "card",         label: "Carte bancaire",   icon: "💳", mobile: false },
-  { value: "cash",         label: "Espèces",          icon: "💵", mobile: false },
+  { value: "cash",         label: "Espèces sur place", icon: "💵", mobile: false },
 ];
 
 const STEPS = [
@@ -876,6 +876,15 @@ export default function Booking() {
                   <input className={styles.input} type="tel" placeholder="+225 07 00 00 00 00"
                     value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)} required />
                 </label>
+              </div>
+            )}
+
+            {payMethod === "cash" && (
+              <div className={styles.payDetails}>
+                <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 14px", fontSize: "0.85rem", color: "#1e3a8a" }}>
+                  💵 Le règlement se fera <strong>en espèces à la remise du véhicule</strong>, directement auprès du partenaire.
+                  Un reçu de paiement au format PDF vous sera automatiquement envoyé par email dès que la transaction sera validée.
+                </div>
               </div>
             )}
 

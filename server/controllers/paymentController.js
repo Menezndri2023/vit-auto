@@ -5,6 +5,7 @@ import IETransaction from "../models/IETransaction.js";
 import Notification from "../models/Notification.js";
 import { initiateCheckout, stripeProvider, waveProvider, orangeMoneyProvider } from "../services/payment/gateway.js";
 import { completeIEEscrowPayment } from "./ieTransactionController.js";
+import { dispatch } from "../queue/index.js";
 
 const ALLOWED_METHODS = ["card", "orange_money", "wave", "mtn", "moov", "paypal", "cash"];
 const ONLINE_METHODS  = ["card", "orange_money", "wave"];
@@ -17,7 +18,7 @@ async function completePayment(payment, { providerRef } = {}) {
   payment.webhookReceivedAt = new Date();
   await payment.save();
 
-  const booking = await Booking.findById(payment.booking);
+  const booking = await Booking.findById(payment.booking).populate("vehicle", "title");
   if (booking && !booking.isPaid) {
     booking.isPaid = true;
     booking.paidAt = new Date();
@@ -31,6 +32,16 @@ async function completePayment(payment, { providerRef } = {}) {
         lien: `/bookings/${booking._id}`,
       }).catch(() => {});
     }
+
+    // Reçu PDF automatique par email — même mécanisme que pour le règlement
+    // en espèces (bookingController.validateTransaction). Le sous-objet
+    // `transaction.paymentMethod` n'est renseigné que par le workflow partenaire
+    // (recordTransaction) : pour un paiement en ligne on retombe sur la méthode
+    // réelle du Payment pour que le reçu affiche le bon mode de règlement.
+    const bookingForReceipt = booking.transaction?.paymentMethod
+      ? booking
+      : { ...booking.toObject(), transaction: { ...(booking.transaction?.toObject?.() || booking.transaction), paymentMethod: payment.method } };
+    dispatch.transactionReceiptReady(bookingForReceipt, booking.clientInfo?.email, booking.client).catch(() => {});
   }
   return payment;
 }

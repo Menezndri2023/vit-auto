@@ -954,6 +954,10 @@ export const validateTransaction = async (req, res) => {
         `Le client a validé la transaction ${booking.reference}. Commission VIT-AUTO : ${Number(booking.commissionAmount).toLocaleString("fr-FR")} XOF.`,
         "/vendor/dashboard"
       );
+
+      // Reçu PDF automatique par email — couvre notamment le règlement en
+      // espèces sur place, qui ne passe jamais par un webhook de paiement.
+      dispatch.transactionReceiptReady(booking, booking.clientInfo?.email, booking.client).catch(() => {});
     } else {
       booking.status = "disputed";
       booking.clientValidation = {

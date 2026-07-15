@@ -85,6 +85,39 @@ export function newBookingPartnerTemplate({ partnerName, clientName, booking, ve
   });
 }
 
+export function paymentReceiptTemplate({ firstName, vehicleName, booking, downloadUrl }, trackingPixel = "") {
+  const { reference, montantTotal, devise = "XOF", paymentMethod } = booking || {};
+  const methodLabels = {
+    cash: "Espèces sur place", card: "Carte bancaire", orange_money: "Orange Money",
+    wave: "Wave", mtn: "MTN Money", moov: "Moov Money", virement: "Virement bancaire",
+  };
+
+  const body = `
+    ${heroSection("Paiement confirmé ✅", "Votre reçu est joint à cet email", "🧾")}
+    ${greeting(firstName)}
+    <p style="font-size:14px;color:${BRAND.muted};line-height:1.7;margin:0 0 20px">
+      Votre transaction pour <strong>${vehicleName || "votre véhicule"}</strong> a bien été réglée. Vous trouverez le reçu de paiement au format PDF en pièce jointe.
+    </p>
+
+    ${dataTable([
+      ["Référence", reference || "—", true],
+      ["Véhicule", vehicleName || "—"],
+      ["Mode de paiement", methodLabels[paymentMethod] || paymentMethod || "—"],
+      ["Montant total", `${Number(montantTotal || 0).toLocaleString("fr-FR")} ${devise}`, true],
+      ["Statut", badge("Payé", BRAND.success)],
+    ])}
+
+    ${downloadUrl ? btn("Voir ma réservation", downloadUrl, "primary") : ""}
+    ${signature()}
+    ${trackingPixel}
+  `;
+  return baseEmail({
+    title: "Reçu de paiement",
+    preheader: `Reçu ${reference} — ${Number(montantTotal || 0).toLocaleString("fr-FR")} ${devise}`,
+    body,
+  });
+}
+
 export function bookingAcceptedTemplate({ firstName, vehicleName, booking, partnerName, partnerPhone, dashboardUrl }, trackingPixel = "") {
   const { startDate, endDate, pickupAddress, reference } = booking || {};
 

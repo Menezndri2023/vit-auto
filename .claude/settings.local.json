@@ -5,7 +5,9 @@
       "Bash(ls /Applications/ | grep -i \"chrome\\\\|firefox\\\\|safari\\\\|brave\" 2>/dev/null)",
       "Read(//Applications/**)",
       "Bash(railway logs *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(git stash *)",
+      "Bash(npx eslint *)"
     ]
   }
 }

@@ -6,6 +6,7 @@ import Vehicle from "../models/Vehicle.js";
 import Driver  from "../models/Driver.js";
 import User    from "../models/User.js";
 import Notification from "../models/Notification.js";
+import { dispatch } from "../queue/index.js";
 
 // ── Génération référence facture ───────────────────────────────────────────────
 async function generateInvoiceReference(year) {
@@ -29,7 +30,7 @@ export const generatePartnerInvoice = async (req, res) => {
     }
 
     // Vérifier que le partnerId correspond à un utilisateur partenaire réel
-    const partner = await User.findById(partnerId).select("role isActive");
+    const partner = await User.findById(partnerId).select("role isActive email firstName lastName");
     if (!partner || !["partenaire", "admin"].includes(partner.role)) {
       return res.status(404).json({ message: "Partenaire introuvable ou rôle invalide." });
     }
@@ -109,6 +110,11 @@ export const generatePartnerInvoice = async (req, res) => {
       message: `Votre facture ${reference} de ${Number(totalCommission).toLocaleString("fr-FR")} XOF est disponible. Échéance : ${dueDate.toLocaleDateString("fr-FR")}.`,
       lien:    "/vendor/dashboard",
     }).catch(() => {});
+
+    // Envoi email de la facture PDF en pièce jointe
+    if (partner.email) {
+      dispatch.partnerInvoiceReady(invoice, partner.email, partnerId, partner.firstName).catch(() => {});
+    }
 
     res.status(201).json({ invoice, message: `Facture ${reference} générée avec ${lines.length} transaction(s).` });
   } catch (err) {
@@ -190,6 +196,12 @@ export const generateAllMonthlyInvoices = async (req, res) => {
         message: `Votre facture ${reference} de ${Number(totalCommission).toLocaleString("fr-FR")} XOF est disponible.`,
         lien:    "/vendor/dashboard",
       }).catch(() => {});
+
+      // Envoi email de la facture PDF en pièce jointe
+      const partner = await User.findById(partnerId).select("email firstName");
+      if (partner?.email) {
+        dispatch.partnerInvoiceReady(invoice, partner.email, partnerId, partner.firstName).catch(() => {});
+      }
 
       results.push({ partnerId, status: "created", reference, totalCommission, lines: lines.length });
     }

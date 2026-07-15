@@ -488,4 +488,27 @@ export const dispatch = {
       data:   invoiceData,
     });
   },
+
+  // Facture mensuelle de commission partenaire — génère le PDF et l'envoie en
+  // pièce jointe (voir queue/workers/pdf.worker.js, case "invoice").
+  async partnerInvoiceReady(invoice, partnerEmail, partnerId, partnerName) {
+    await enqueue(QUEUE_NAMES.PDF, "generate_invoice", {
+      type:      "invoice",
+      sendEmail: true,
+      data:      { invoice, partnerEmail, partnerName, userId: partnerId },
+    });
+  },
+
+  // ── Reçu de transaction ──────────────────────────────────────────────────
+  // Déclenché après toute transaction réglée — cash sur place (validateTransaction)
+  // ou paiement en ligne confirmé (webhook/simulatePayment) — pour que le client
+  // reçoive systématiquement un reçu PDF par email, peu importe le mode de paiement.
+  async transactionReceiptReady(booking, clientEmail, userId) {
+    if (!clientEmail) return;
+    await enqueue(QUEUE_NAMES.PDF, "generate_receipt", {
+      type:      "receipt",
+      sendEmail: true,
+      data:      { booking, clientEmail, userId },
+    });
+  },
 };
