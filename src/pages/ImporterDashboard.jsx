@@ -2,13 +2,23 @@ import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import styles from "./ImporterDashboard.module.css";
-import { CAR_MAKES, BODY_TYPES, COUNTRIES_ALL, COUNTRIES_AFRIQUE_OUEST, CURRENCIES } from "../data/autocomplete";
+import { CAR_MAKES, BODY_TYPES, COUNTRIES_ALL, CURRENCIES } from "../data/autocomplete";
 
 const toBase64 = (file) =>
   new Promise((res, rej) => { const r = new FileReader(); r.readAsDataURL(file); r.onload = () => res(r.result); r.onerror = rej; });
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 const fmtPrice = (p, c = "EUR") => p ? `${Number(p).toLocaleString("fr-FR")} ${c}` : "—";
+
+// Cohérent avec IETransaction.escrow.method (server/models/IETransaction.js).
+const PAYMENT_METHOD_OPTIONS = [
+  { value: "carte",        label: "💳 Carte bancaire" },
+  { value: "virement",     label: "🏦 Virement bancaire" },
+  { value: "mobile_money", label: "📱 Mobile Money" },
+  { value: "crypto",       label: "₿ Cryptomonnaie" },
+  { value: "lc",           label: "📄 Lettre de crédit (L/C)" },
+  { value: "cash",         label: "💵 Espèces à la livraison" },
+];
 
 const STATUS_CFG = {
   draft:    { label: "Brouillon",  color: "#94a3b8", bg: "#f8fafc" },
@@ -40,6 +50,7 @@ function ListingForm({ onClose, onSaved, token }) {
     vin: "", vehicleHistory: "", priceIncludes: [],
     estimatedShippingCost: "", shippingCostCurrency: "EUR",
     estimatedDelay: "", shippingType: "", exportDocumentsAvailable: [], videoUrl: "",
+    acceptedPaymentMethods: [],
   });
   const [photos, setPhotos]         = useState([]);
   const [availText, setAvailText]   = useState("");
@@ -105,7 +116,7 @@ function ListingForm({ onClose, onSaved, token }) {
           <datalist id="dl-dash-makes">{CAR_MAKES.map((m) => <option key={m} value={m} />)}</datalist>
           <datalist id="dl-dash-bodies">{BODY_TYPES.map((b) => <option key={b} value={b} />)}</datalist>
           <datalist id="dl-dash-countries">{COUNTRIES_ALL.map((c) => <option key={c} value={c} />)}</datalist>
-          <datalist id="dl-dash-avail">{COUNTRIES_AFRIQUE_OUEST.map((c) => <option key={c} value={c} />)}</datalist>
+          <datalist id="dl-dash-avail">{COUNTRIES_ALL.map((c) => <option key={c} value={c} />)}</datalist>
 
           <div className={styles.fGrid2}>
             <label><span>Titre de l'annonce *</span><input value={f.title} onChange={(e) => set("title", e.target.value)} placeholder="Toyota Land Cruiser V8 Import Dubaï" /></label>
@@ -175,6 +186,26 @@ function ListingForm({ onClose, onSaved, token }) {
               <option value="multiple">Multiple</option>
             </select>
           </label>
+
+          {/* Moyens de paiement acceptés */}
+          <div className={styles.fieldset}>
+            <label className={styles.fsLegend}>Moyens de paiement acceptés</label>
+            <div className={styles.tagList}>
+              {PAYMENT_METHOD_OPTIONS.map((pm) => {
+                const active = f.acceptedPaymentMethods.includes(pm.value);
+                return (
+                  <button type="button" key={pm.value}
+                    onClick={() => set("acceptedPaymentMethods", active
+                      ? f.acceptedPaymentMethods.filter((x) => x !== pm.value)
+                      : [...f.acceptedPaymentMethods, pm.value])}
+                    className={styles.tag}
+                    style={active ? { background: "#6366f1", color: "#fff" } : { background: "#f1f5f9", color: "#475569" }}>
+                    {pm.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Prix inclut */}
           <div className={styles.fieldset}>

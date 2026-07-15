@@ -3,12 +3,22 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
 import { useToast } from "../context/ToastContext";
-import { CAR_MAKES, BODY_TYPES, COUNTRIES_ALL, COUNTRIES_AFRIQUE_OUEST, CURRENCIES } from "../data/autocomplete";
+import { CAR_MAKES, BODY_TYPES, COUNTRIES_ALL, CURRENCIES } from "../data/autocomplete";
 import { SUBSCRIPTIONS_ENABLED } from "../config/featureFlags";
 import styles from "./VendorPublish.module.css";
 
 const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " DH";
 const fmtIE = (p, c = "EUR") => p ? `${Number(p).toLocaleString("fr-FR")} ${c}` : "—";
+
+// Cohérent avec IETransaction.escrow.method (server/models/IETransaction.js).
+const PAYMENT_METHOD_OPTIONS = [
+  { value: "carte",        label: "💳 Carte bancaire" },
+  { value: "virement",     label: "🏦 Virement bancaire" },
+  { value: "mobile_money", label: "📱 Mobile Money" },
+  { value: "crypto",       label: "₿ Cryptomonnaie" },
+  { value: "lc",           label: "📄 Lettre de crédit (L/C)" },
+  { value: "cash",         label: "💵 Espèces à la livraison" },
+];
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -209,6 +219,7 @@ function IEListingForm({ onClose, onSaved, token }) {
     vin: "", vehicleHistory: "", priceIncludes: [],
     estimatedShippingCost: "", shippingCostCurrency: "EUR",
     estimatedDelay: "", shippingType: "", exportDocumentsAvailable: [], videoUrl: "",
+    acceptedPaymentMethods: [],
   });
   const [photos, setPhotos]       = useState([]);
   const [availText, setAvailText] = useState("");
@@ -274,7 +285,7 @@ function IEListingForm({ onClose, onSaved, token }) {
         <datalist id="dl-vp-makes">{CAR_MAKES.map((m) => <option key={m} value={m} />)}</datalist>
         <datalist id="dl-vp-bodies">{BODY_TYPES.map((b) => <option key={b} value={b} />)}</datalist>
         <datalist id="dl-vp-countries">{COUNTRIES_ALL.map((c) => <option key={c} value={c} />)}</datalist>
-        <datalist id="dl-vp-avail">{COUNTRIES_AFRIQUE_OUEST.map((c) => <option key={c} value={c} />)}</datalist>
+        <datalist id="dl-vp-avail">{COUNTRIES_ALL.map((c) => <option key={c} value={c} />)}</datalist>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: ".85rem" }}>
@@ -348,6 +359,31 @@ function IEListingForm({ onClose, onSaved, token }) {
             <option value="multiple">Multiple</option>
           </select>
         </label>
+
+        {/* Moyens de paiement acceptés */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: ".82rem", fontWeight: 600, marginBottom: 6 }}>Moyens de paiement acceptés</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {PAYMENT_METHOD_OPTIONS.map((pm) => {
+              const active = f.acceptedPaymentMethods.includes(pm.value);
+              return (
+                <button type="button" key={pm.value}
+                  onClick={() => set("acceptedPaymentMethods", active
+                    ? f.acceptedPaymentMethods.filter((x) => x !== pm.value)
+                    : [...f.acceptedPaymentMethods, pm.value])}
+                  style={{
+                    padding: "6px 12px", borderRadius: 20, border: "1px solid", cursor: "pointer",
+                    fontSize: ".78rem", fontWeight: 600,
+                    borderColor: active ? "#6366f1" : "#e2e8f0",
+                    background: active ? "#6366f1" : "#f8fafc",
+                    color: active ? "#fff" : "#475569",
+                  }}>
+                  {pm.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         {/* Prix inclut */}
         <div style={{ marginBottom: 12 }}>

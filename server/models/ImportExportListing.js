@@ -53,6 +53,14 @@ const importExportListingSchema = new mongoose.Schema({
   },
   exportDocumentsAvailable: { type: [String], default: [] }, // ["facture", "connaissement", "certificat_origine"...]
 
+  // Moyens de paiement acceptés par l'exportateur pour CETTE annonce — cohérent
+  // avec le vocabulaire déjà utilisé par IETransaction.escrow.method.
+  acceptedPaymentMethods: {
+    type: [String],
+    enum: ["carte", "virement", "mobile_money", "crypto", "lc", "cash"],
+    default: [],
+  },
+
   // ── Rapport d'inspection (ref) ─────────────────────────────────
   inspectionReport: {
     type: mongoose.Schema.Types.ObjectId,

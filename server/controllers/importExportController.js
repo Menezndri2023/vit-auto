@@ -475,6 +475,7 @@ export const createListing = async (req, res) => {
       photos, mainPhoto,
       vin, vehicleHistory, estimatedShippingCost, shippingCostCurrency,
       estimatedDelay, shippingType, exportDocumentsAvailable, videoUrl,
+      acceptedPaymentMethods,
     } = req.body;
 
     if (!title || !make || !model || !year || !sourceCountry || !price) {
@@ -508,6 +509,7 @@ export const createListing = async (req, res) => {
       shippingType: shippingType || null,
       exportDocumentsAvailable: exportDocumentsAvailable || [],
       videoUrl: videoUrl || null,
+      acceptedPaymentMethods: acceptedPaymentMethods || [],
       status: "pending",
     });
 
@@ -549,6 +551,7 @@ export const updateListing = async (req, res) => {
       photos, mainPhoto,
       vin, vehicleHistory, estimatedShippingCost, shippingCostCurrency,
       estimatedDelay, shippingType, exportDocumentsAvailable, videoUrl,
+      acceptedPaymentMethods,
     } = req.body;
 
     const imagesError = validateListingImages([...(photos || []), mainPhoto].filter(Boolean));
@@ -589,6 +592,7 @@ export const updateListing = async (req, res) => {
       shippingType: shippingType !== undefined ? shippingType : listing.shippingType,
       exportDocumentsAvailable: exportDocumentsAvailable || listing.exportDocumentsAvailable,
       videoUrl: videoUrl !== undefined ? videoUrl : listing.videoUrl,
+      acceptedPaymentMethods: acceptedPaymentMethods || listing.acceptedPaymentMethods,
       status: "pending",
       updatedAt: new Date(),
     });

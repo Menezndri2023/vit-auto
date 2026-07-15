@@ -23,6 +23,10 @@ const COND_LABELS = {
 const RATING_LABEL = { excellent: "Excellent", bon: "Bon", moyen: "Moyen", mauvais: "Mauvais", na: "N/A" };
 const RATING_COLOR = { excellent: "#10b981", bon: "#3b82f6", moyen: "#f59e0b", mauvais: "#ef4444", na: "#94a3b8" };
 const BADGE_CFG   = { silver: "🥈 Silver", gold: "🥇 Gold", platinum: "💎 Platinum", none: "" };
+const PAYMENT_METHOD_LABELS = {
+  carte: "💳 Carte bancaire", virement: "🏦 Virement bancaire", mobile_money: "📱 Mobile Money",
+  crypto: "₿ Cryptomonnaie", lc: "📄 Lettre de crédit (L/C)", cash: "💵 Espèces à la livraison",
+};
 
 // ── Composant galerie photos ───────────────────────────────────────────────
 function Gallery({ photos, mainPhoto, title }) {
@@ -499,6 +503,17 @@ export default function IEListingDetail() {
                   <div className={styles.docTags}>
                     {listing.exportDocumentsAvailable.map((doc, i) => (
                       <span key={i} className={styles.docTag}>✓ {doc}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {listing.acceptedPaymentMethods?.length > 0 && (
+                <div className={styles.exportDocs}>
+                  <h4>💳 Moyens de paiement acceptés</h4>
+                  <div className={styles.docTags}>
+                    {listing.acceptedPaymentMethods.map((pm, i) => (
+                      <span key={i} className={styles.docTag}>{PAYMENT_METHOD_LABELS[pm] || pm}</span>
                     ))}
                   </div>
                 </div>
