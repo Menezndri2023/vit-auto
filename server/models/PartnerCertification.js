@@ -163,6 +163,10 @@ const partnerCertificationSchema = new mongoose.Schema({
     timestamp:   { type: Date,   default: Date.now },
   }],
 
+  // Dernière relance envoyée pour compléter un niveau resté incomplet — voir
+  // utils/partnerReminders.js (relance manuelle admin + job automatique).
+  lastReminderSentAt: { type: Date, default: null },
+
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });

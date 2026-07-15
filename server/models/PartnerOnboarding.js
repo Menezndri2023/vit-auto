@@ -233,6 +233,11 @@ const partnerOnboardingSchema = new mongoose.Schema({
     infoRequested: { type: String, default: "" },
   },
 
+  // Dernière relance (manuelle ou automatique) envoyée au partenaire pour un
+  // dossier resté incomplet — évite de spammer le même partenaire à chaque
+  // passage du job de relance automatique (voir utils/partnerReminders.js).
+  lastReminderSentAt: { type: Date, default: null },
+
   // ── Audit log ──────────────────────────────────────────────────────────────
   auditLog: [auditEntrySchema],
 

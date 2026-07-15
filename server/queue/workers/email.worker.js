@@ -110,6 +110,13 @@ async function resolveEmailTemplate(type, data) {
         html:    foundingPartnerInfoRequestedTemplate(data.firstName, data.companyName, data.infoRequested, data.referenceNumber),
       };
     }
+    case "partner_documents_missing": {
+      const { partnerDocumentsMissingTemplate } = await import("../../config/email.js");
+      return {
+        subject: "VIT AUTO — Documents manquants dans votre dossier partenaire",
+        html:    partnerDocumentsMissingTemplate(data.firstName, data.companyName, data.missingDocs, data.portalPath),
+      };
+    }
 
     // ── Contrats ──────────────────────────────────────────────────────────
     case "contract_ready":

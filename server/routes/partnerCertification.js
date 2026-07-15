@@ -18,5 +18,6 @@ router.get("/admin/list",                         protect, authorizeAdmin, cert.
 router.get("/admin/:userId",                      protect, authorizeAdmin, vidUser, cert.adminDetail);
 router.patch("/admin/:userId/level/:level/review",protect, authorizeAdmin, vidUser, cert.adminReviewLevel);
 router.patch("/admin/:userId/badge",              protect, authorizeAdmin, vidUser, cert.adminAssignBadge);
+router.post("/admin/:userId/relance",             protect, authorizeAdmin, vidUser, cert.adminRelance);
 
 export default router;

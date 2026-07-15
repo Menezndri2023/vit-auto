@@ -9,6 +9,7 @@ import connectDB from "./config/db.js";
 import logger from "./utils/logger.js";
 import { initSentry, sentryRequestHandler, sentryTracingHandler, sentryErrorHandler } from "./config/sentry.js";
 import { initQueues, isReady as isQueuesReady, getQueueStats } from "./queue/index.js";
+import { startPartnerReminderScheduler } from "./utils/partnerReminders.js";
 
 import authRoutes          from "./routes/auth.js";
 import vehicleRoutes       from "./routes/vehicles.js";
@@ -417,6 +418,11 @@ const startServer = async () => {
 
     // ── BullMQ : queues + workers (si Redis configuré) ───────────────────
     await initQueues();
+
+    // ── Relance automatique des dossiers partenaire incomplets ───────────
+    // En mémoire (pas de job Redis) — voir utils/partnerReminders.js.
+    startPartnerReminderScheduler();
+
     const PORT = process.env.PORT || 5001;
 
     const http    = await import("http");

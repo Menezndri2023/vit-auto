@@ -99,6 +99,10 @@ const partnerVerificationSchema = new mongoose.Schema({
     default: null,
   },
 
+  // Dernière relance envoyée pour compléter les documents manquants — voir
+  // utils/partnerReminders.js (relance manuelle admin + job automatique).
+  lastReminderSentAt: { type: Date, default: null },
+
   // ── Audit log ─────────────────────────────────────────────────────────────
   auditLog: [{
     action:      { type: String, required: true },

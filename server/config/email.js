@@ -59,3 +59,23 @@ export function foundingPartnerInfoRequestedTemplate(firstName, companyName, inf
   <p style="color:#64748b;font-size:.85rem">Le programme Founding Partner est limité aux 20 premiers partenaires par pays — plus votre dossier sera complété rapidement, plus vite il pourra être examiné.</p>
 </div></body></html>`;
 }
+
+// Relance générique "documents manquants" — Vérification Partenaire et
+// Certification (7 niveaux) n'avaient aucun moyen d'alerter un partenaire dont
+// le dossier reste incomplet : voir utils/partnerReminders.js (relance
+// automatique périodique + déclenchement manuel admin).
+export function partnerDocumentsMissingTemplate(firstName, companyName, missingDocs, portalPath) {
+  const portalUrl = `${process.env.APP_URL || "https://vit-auto.com"}${portalPath || "/profile"}`;
+  const list = (missingDocs || []).map((d) => `<li>${d}</li>`).join("");
+  return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f8fafc;padding:32px">
+<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;box-shadow:0 2px 12px rgba(0,0,0,.08)">
+  <h2 style="color:#0f1b3f">VIT AUTO — Dossier partenaire incomplet</h2>
+  <p>Bonjour <strong>${firstName || ""}</strong>,</p>
+  <p>Votre dossier partenaire${companyName ? ` (<strong>${companyName}</strong>)` : ""} est toujours en attente de vérification, mais il manque au moins un document pour que notre équipe puisse le traiter :</p>
+  <ul style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px 28px;margin:16px 0;color:#92400e">${list}</ul>
+  <p style="text-align:center;margin:24px 0">
+    <a href="${portalUrl}" style="background:#0f1b3f;color:#fff;padding:12px 28px;border-radius:10px;text-decoration:none;font-weight:700;display:inline-block">Compléter mon dossier →</a>
+  </p>
+  <p style="color:#64748b;font-size:.85rem">Un dossier complet est examiné en priorité par notre équipe.</p>
+</div></body></html>`;
+}

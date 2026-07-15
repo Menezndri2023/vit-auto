@@ -1772,6 +1772,18 @@ export default function AdminPanel() {
     setCertReviewLoading(false);
   }, [headers, certBadgeForm, certDetail, loadCertList]);
 
+  const handleCertRelance = useCallback(async () => {
+    if (!certDetail?.userId?._id) return;
+    setCertReviewLoading(true);
+    try {
+      const r = await fetch(`/api/certification/admin/${certDetail.userId._id}/relance`, { method: "POST", headers });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) showToast(`Relance envoyée (${d.missingDocs.join(", ")})`);
+      else showToast(d.message || "Erreur", "error");
+    } catch { showToast("Connexion impossible", "error"); }
+    setCertReviewLoading(false);
+  }, [headers, certDetail, showToast]);
+
   // Ouvre le dossier KYC — charge le détail complet (photos recto/verso/selfie,
   // permis de conduire...) depuis /api/kyc/admin/:userId, car la LISTE exclut
   // volontairement ces images base64 (trop lourdes pour un listing de 50 dossiers).
@@ -4230,6 +4242,22 @@ export default function AdminPanel() {
                   </div>
                 )}
 
+                {(() => {
+                  const missingCount = [
+                    certDetail.level1?.registrationDoc?.data, certDetail.level1?.taxDoc?.data,
+                    certDetail.level2?.idFrontDoc?.data, certDetail.level2?.idBackDoc?.data, certDetail.level2?.selfieDoc?.data,
+                  ].filter((v) => !v).length;
+                  if (!missingCount || certDetail.overallStatus === "approved") return null;
+                  return (
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, background:"#fff7ed", border:"1px solid #fed7aa", borderRadius:10, padding:"10px 14px", marginBottom:14 }}>
+                      <span style={{ fontSize:"0.82rem", color:"#92400e" }}>⚠️ {missingCount} document(s) manquant(s) pour ce dossier.</span>
+                      <button className={styles.btnPrimary} style={{ whiteSpace:"nowrap", flexShrink:0 }} onClick={handleCertRelance} disabled={certReviewLoading}>
+                        {certReviewLoading ? "…" : "🔔 Relancer"}
+                      </button>
+                    </div>
+                  );
+                })()}
+
                 {/* Niveaux 1-7 */}
                 {[1,2,3,4,5,6,7].map(n => {
                   const lv = certDetail[`level${n}`];
@@ -6076,6 +6104,19 @@ function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFil
     setPvSaving(false);
   };
 
+  const handlePvRelance = async () => {
+    if (!pvDetail || pvSaving) return;
+    const userId = pvDetail.userId?._id || pvDetail.userId;
+    setPvSaving(true);
+    try {
+      const res = await fetch(`/api/partner-verif/admin/${userId}/relance`, { method: "POST", headers });
+      const d = await res.json();
+      if (res.ok) showToast(`Relance envoyée (${d.missingDocs.join(", ")})`);
+      else showToast(d.message || "Erreur", "error");
+    } catch { showToast("Connexion impossible", "error"); }
+    setPvSaving(false);
+  };
+
   const totalPv = pvStats?.total || 0;
   const verifPv = pvStats?.byStatus?.verifie || 0;
   const avgScore = pvStats?.avgScore || 0;
@@ -6474,6 +6515,19 @@ function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFil
               {/* ── Onglet Documents ── */}
               {detailTab === "docs" && (
                 <div>
+                  {(() => {
+                    const requiredKeys = ["businessLicenseDoc", "rccmDoc", "taxIdDoc", "repIdDoc"];
+                    const missingCount = requiredKeys.filter((k) => !pvDetail.documents?.[k]).length;
+                    if (!missingCount || pvDetail.status === "verifie") return null;
+                    return (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 10, padding: "10px 14px", marginBottom: 14 }}>
+                        <span style={{ fontSize: "0.82rem", color: "#92400e" }}>⚠️ {missingCount} document(s) manquant(s) — le partenaire n'a pas été relancé automatiquement depuis plus de 7 jours au maximum.</span>
+                        <button className={styles.btnPrimary} style={{ whiteSpace: "nowrap", flexShrink: 0 }} onClick={handlePvRelance} disabled={pvSaving}>
+                          {pvSaving ? "…" : "🔔 Relancer"}
+                        </button>
+                      </div>
+                    );
+                  })()}
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                     {[
                       ["Licence commerciale", "businessLicenseDoc"],

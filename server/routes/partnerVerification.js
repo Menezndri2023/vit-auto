@@ -17,6 +17,7 @@ router.post("/admin",                            protect, authorizeAdmin, pv.adm
 router.patch("/admin/:userId/info",              protect, authorizeAdmin, vidUser, pv.adminUpdateInfo);
 router.patch("/admin/:userId/criterion",         protect, authorizeAdmin, vidUser, pv.adminToggleCriterion);
 router.patch("/admin/:userId/status",            protect, authorizeAdmin, vidUser, pv.adminUpdateStatus);
+router.post("/admin/:userId/relance",            protect, authorizeAdmin, vidUser, pv.adminRelance);
 router.delete("/admin/:userId",                  protect, authorizeAdmin, vidUser, pv.adminDelete);
 
 export default router;

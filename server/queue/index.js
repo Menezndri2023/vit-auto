@@ -427,6 +427,17 @@ export const dispatch = {
     }, { priority: PRIORITY.HIGH });
   },
 
+  // Relance générique — dossier Vérification Partenaire ou Certification resté
+  // incomplet (voir utils/partnerReminders.js).
+  async partnerDocumentsMissing(to, userId, data) {
+    await enqueue(QUEUE_NAMES.EMAIL, "partner_documents_missing", {
+      type: "partner_documents_missing",
+      to,
+      userId,
+      data,
+    }, { priority: PRIORITY.NORMAL });
+  },
+
   // ── Import/Export ─────────────────────────────────────────────────────────
   async ieStepTransition(transactionId, newStep, triggerUserId, note) {
     await enqueue(QUEUE_NAMES.IMPORT, `ie_step_${newStep}`, {

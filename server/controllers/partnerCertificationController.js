@@ -285,6 +285,31 @@ export const adminDetail = async (req, res) => {
   }
 };
 
+// ── POST /api/certification/admin/:userId/relance ────────────────────────────
+// Relance manuelle (bypass le cooldown de 7j du job automatique — voir
+// utils/partnerReminders.js) : l'admin veut prévenir tout de suite.
+export const adminRelance = async (req, res) => {
+  try {
+    const { missingCertificationDocs, sendReminder } = await import("../utils/partnerReminders.js");
+    const cert = await PartnerCertification.findOne({ userId: req.params.userId }).lean();
+    if (!cert) return res.status(404).json({ message: "Certification introuvable." });
+
+    const missing = missingCertificationDocs(cert);
+    if (!missing.length) return res.status(400).json({ message: "Aucun document manquant sur ce dossier." });
+
+    const ok = await sendReminder({ userId: cert.userId, companyName: cert.level1?.companyName, missingDocs: missing, portalPath: "/partner-certification" });
+    if (!ok) return res.status(404).json({ message: "Utilisateur introuvable." });
+
+    await PartnerCertification.updateOne({ _id: cert._id }, { $set: { lastReminderSentAt: new Date() } });
+    await addAudit(cert._id, "RELANCE_ENVOYEE", null, req.user.id, `Documents manquants : ${missing.join(", ")}`);
+
+    res.json({ success: true, missingDocs: missing });
+  } catch (err) {
+    logger.error("certification adminRelance:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
 // ── PATCH /api/certification/admin/:userId/level/:level/review ───────────────
 export const adminReviewLevel = async (req, res) => {
   try {
