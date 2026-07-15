@@ -233,6 +233,21 @@ export default function PartnerOnboardingPortal() {
     }
   };
 
+  const setLegalEntityType = async (legalEntityType) => {
+    setSaving(true);
+    try {
+      const r = await apiFetch("/legal-entity-type", token, {
+        method: "PATCH",
+        body: JSON.stringify({ legalEntityType }),
+      });
+      const json = await r.json();
+      if (r.ok) setOnboarding(json.onboarding);
+      else addToast(json.message || "Erreur", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const acceptLegal = async () => {
     try {
       const r = await apiFetch("/accept-legal", token, {
@@ -427,6 +442,7 @@ export default function PartnerOnboardingPortal() {
               saving={saving}
               onSaveSection={saveSection}
               onSetType={setPartnerType}
+              onSetLegalEntityType={setLegalEntityType}
               onNext={() => setActiveStep(1)}
             />
           )}
@@ -487,8 +503,16 @@ export default function PartnerOnboardingPortal() {
 // ════════════════════════════════════════════════════════════════════════════════
 // ÉTAPE 0 : Type de partenaire + Informations entreprise
 // ════════════════════════════════════════════════════════════════════════════════
-function StepTypeInfo({ onboarding, saving, onSaveSection, onSetType, onNext }) {
+const LEGAL_ENTITY_TYPES = [
+  { value: "particulier",   label: "Particulier",   icon: "🧑", desc: "Une seule pièce d'identité suffit (CNI, passeport, autre)" },
+  { value: "professionnel", label: "Professionnel",  icon: "💼", desc: "Documents professionnels (licence, attestation fiscale…)" },
+  { value: "entreprise",    label: "Entreprise",     icon: "🏢", desc: "Documents légaux d'entreprise (RCCM, immatriculation…)" },
+];
+
+function StepTypeInfo({ onboarding, saving, onSaveSection, onSetType, onSetLegalEntityType, onNext }) {
   const ci = onboarding?.companyInfo || {};
+  const legalEntityType = onboarding?.legalEntityType || "entreprise";
+  const isIndividual = legalEntityType === "particulier";
   const { form, set, reset } = useFormState({
     legalName: ci.legalName || "",
     registrationNumber: ci.registrationNumber || "",
@@ -537,6 +561,25 @@ function StepTypeInfo({ onboarding, saving, onSaveSection, onSetType, onNext }) 
         </div>
       </div>
 
+      {/* Statut du partenaire — détermine les documents exigés à l'étape suivante */}
+      <div className={styles.sectionBlock}>
+        <h3 className={styles.sectionTitle}>Statut du partenaire *</h3>
+        <div className={styles.typeGrid}>
+          {LEGAL_ENTITY_TYPES.map((lt) => (
+            <button
+              key={lt.value}
+              className={`${styles.typeCard} ${legalEntityType === lt.value ? styles.typeCardActive : ""}`}
+              onClick={() => onSetLegalEntityType(lt.value)}
+              disabled={saving}
+              title={lt.desc}
+            >
+              <span className={styles.typeIcon}>{lt.icon}</span>
+              <span>{lt.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Choix du type */}
       <div className={styles.sectionBlock}>
         <h3 className={styles.sectionTitle}>Type de partenaire</h3>
@@ -555,22 +598,32 @@ function StepTypeInfo({ onboarding, saving, onSaveSection, onSetType, onNext }) 
         </div>
       </div>
 
-      {/* Informations entreprise */}
+      {/* Informations entreprise / personnelles */}
       <div className={styles.sectionBlock}>
-        <h3 className={styles.sectionTitle}>Informations entreprise</h3>
+        <h3 className={styles.sectionTitle}>{isIndividual ? "Informations personnelles" : "Informations entreprise"}</h3>
         <div className={styles.formGrid}>
-          <Field label="Nom légal de l'entreprise *" value={form.legalName} onChange={set("legalName")} placeholder="Ex. VIT MOTORS SARL" />
-          <Field label="Numéro d'immatriculation *" value={form.registrationNumber} onChange={set("registrationNumber")} placeholder="Ex. RC-2023-12345" />
-          <Field label="Pays d'immatriculation *" value={form.registrationCountry} onChange={set("registrationCountry")} placeholder="Ex. Côte d'Ivoire" />
-          <Field label="Date de création" value={form.incorporationDate} onChange={set("incorporationDate")} type="date" />
-          <Field label="Adresse complète" value={form.address} onChange={set("address")} placeholder="Adresse du siège social" />
-          <Field label="Site web" value={form.website} onChange={set("website")} placeholder="https://exemple.com" />
-          <Field label="Email entreprise" value={form.email} onChange={set("email")} type="email" placeholder="contact@entreprise.com" />
+          <Field label={isIndividual ? "Nom complet *" : "Nom légal de l'entreprise *"} value={form.legalName} onChange={set("legalName")} placeholder={isIndividual ? "Ex. Jean Kouassi" : "Ex. VIT MOTORS SARL"} />
+          {!isIndividual && (
+            <>
+              <Field label="Numéro d'immatriculation *" value={form.registrationNumber} onChange={set("registrationNumber")} placeholder="Ex. RC-2023-12345" />
+              <Field label="Pays d'immatriculation *" value={form.registrationCountry} onChange={set("registrationCountry")} placeholder="Ex. Côte d'Ivoire" />
+              <Field label="Date de création" value={form.incorporationDate} onChange={set("incorporationDate")} type="date" />
+            </>
+          )}
+          <Field label="Adresse complète" value={form.address} onChange={set("address")} placeholder={isIndividual ? "Votre adresse" : "Adresse du siège social"} />
+          {!isIndividual && (
+            <Field label="Site web" value={form.website} onChange={set("website")} placeholder="https://exemple.com" />
+          )}
+          <Field label={isIndividual ? "Email" : "Email entreprise"} value={form.email} onChange={set("email")} type="email" placeholder={isIndividual ? "vous@exemple.com" : "contact@entreprise.com"} />
           <Field label="Téléphone" value={form.phone} onChange={set("phone")} placeholder="+225 07 00 00 00 00" />
           <Field label="WhatsApp" value={form.whatsapp} onChange={set("whatsapp")} placeholder="+225 07 00 00 00 00" />
           <Field label="WeChat ID" value={form.wechat} onChange={set("wechat")} placeholder="ID WeChat (pour partenaires chinois)" />
-          <Field label="Personne de contact principal" value={form.mainContact} onChange={set("mainContact")} placeholder="Prénom Nom" />
-          <Field label="Poste / Fonction" value={form.mainContactPosition} onChange={set("mainContactPosition")} placeholder="Ex. Directeur Commercial" />
+          {!isIndividual && (
+            <>
+              <Field label="Personne de contact principal" value={form.mainContact} onChange={set("mainContact")} placeholder="Prénom Nom" />
+              <Field label="Poste / Fonction" value={form.mainContactPosition} onChange={set("mainContactPosition")} placeholder="Ex. Directeur Commercial" />
+            </>
+          )}
         </div>
       </div>
 
@@ -586,7 +639,14 @@ function StepTypeInfo({ onboarding, saving, onSaveSection, onSetType, onNext }) 
 // ════════════════════════════════════════════════════════════════════════════════
 // ÉTAPE 1 : Documents légaux
 // ════════════════════════════════════════════════════════════════════════════════
+const INDIVIDUAL_DOC_TYPES = [
+  { value: "cni",       label: "Carte Nationale d'Identité" },
+  { value: "passeport", label: "Passeport" },
+  { value: "autre",     label: "Autre document justificatif" },
+];
+
 function StepDocuments({ onboarding, saving, onSaveSection, onNext, onBack }) {
+  const isIndividual = (onboarding?.legalEntityType || "entreprise") === "particulier";
   const docs = onboarding?.legalDocs || {};
   const [files, setFiles] = useState({
     businessRegistration: docs.businessRegistration || null,
@@ -594,6 +654,10 @@ function StepDocuments({ onboarding, saving, onSaveSection, onNext, onBack }) {
     exportLicense: docs.exportLicense || null,
     taxCertificate: docs.taxCertificate || null,
     proofOfAddress: docs.proofOfAddress || null,
+  });
+  const [individualDoc, setIndividualDoc] = useState({
+    type: onboarding?.individualDoc?.type || "cni",
+    file: onboarding?.individualDoc?.file || null,
   });
   const [fileError, setFileError] = useState("");
 
@@ -605,6 +669,10 @@ function StepDocuments({ onboarding, saving, onSaveSection, onNext, onBack }) {
       exportLicense: d.exportLicense || null,
       taxCertificate: d.taxCertificate || null,
       proofOfAddress: d.proofOfAddress || null,
+    });
+    setIndividualDoc({
+      type: onboarding?.individualDoc?.type || "cni",
+      file: onboarding?.individualDoc?.file || null,
     });
   }, [onboarding]);
 
@@ -623,14 +691,38 @@ function StepDocuments({ onboarding, saving, onSaveSection, onNext, onBack }) {
     reader.readAsDataURL(file);
   };
 
+  const handleIndividualFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > MAX_SIZE) {
+      setFileError(`"${file.name}" dépasse la limite de 5 Mo. Compressez le fichier et réessayez.`);
+      e.target.value = "";
+      return;
+    }
+    setFileError("");
+    const reader = new FileReader();
+    reader.onloadend = () => setIndividualDoc((d) => ({ ...d, file: reader.result }));
+    reader.readAsDataURL(file);
+  };
+
   const handleSave = async () => {
-    // Au moins une preuve d'immatriculation (RCCM, Kbis, Business/Trade
-    // License...) est requise — les autres documents restent au choix du
-    // partenaire selon sa situation ("si applicable"). Vérifié aussi côté
-    // serveur (submitApplication) : ce contrôle client n'est qu'un confort,
-    // pas la seule protection.
-    if (!files.businessRegistration && !files.businessLicense) {
-      setFileError("Fournissez au moins un document d'immatriculation (certificat d'immatriculation ou licence commerciale).");
+    if (isIndividual) {
+      // Un particulier n'a ni RCCM ni licence commerciale — une seule pièce
+      // justificative au choix (CNI, passeport, autre) suffit. Vérifié aussi
+      // côté serveur (submitApplication) : ce contrôle client n'est qu'un confort.
+      if (!individualDoc.file) {
+        setFileError("Importez au moins une pièce justificative pour continuer.");
+        return;
+      }
+      const ok = await onSaveSection("individual-doc", individualDoc);
+      if (ok) onNext();
+      return;
+    }
+    // Au moins un document légal (au choix ou combinés) est requis — vérifié
+    // aussi côté serveur (submitApplication).
+    const hasAny = Object.values(files).some(Boolean);
+    if (!hasAny) {
+      setFileError("Fournissez au moins un document légal (au choix ou combinés).");
       return;
     }
     const ok = await onSaveSection("legal-docs", files);
@@ -638,7 +730,7 @@ function StepDocuments({ onboarding, saving, onSaveSection, onNext, onBack }) {
   };
 
   const DOC_FIELDS = [
-    { key: "businessRegistration", label: "Certificat d'immatriculation *",          hint: "RCCM, Kbis, Business Registration…" },
+    { key: "businessRegistration", label: "Certificat d'immatriculation",             hint: "RCCM, Kbis, Business Registration…" },
     { key: "businessLicense",      label: "Licence commerciale",                      hint: "Business License, Trade License…" },
     { key: "exportLicense",        label: "Licence d'export (si applicable)",         hint: "Export License" },
     { key: "taxCertificate",       label: "Attestation fiscale (si applicable)",      hint: "Tax Registration Certificate" },
@@ -650,8 +742,12 @@ function StepDocuments({ onboarding, saving, onSaveSection, onNext, onBack }) {
       <div className={styles.stepHeader}>
         <div className={styles.stepIcon}>📁</div>
         <div>
-          <h2>Documents légaux</h2>
-          <p>Fournissez vos documents officiels pour la vérification (VA-FP-001 — Section 2)</p>
+          <h2>{isIndividual ? "Pièce justificative" : "Documents légaux"}</h2>
+          <p>
+            {isIndividual
+              ? "Une seule pièce d'identité suffit — CNI, passeport ou tout autre document justificatif."
+              : "Fournissez vos documents officiels pour la vérification (VA-FP-001 — Section 2)"}
+          </p>
         </div>
       </div>
 
@@ -660,28 +756,63 @@ function StepDocuments({ onboarding, saving, onSaveSection, onNext, onBack }) {
           ⚠️ {fileError}
         </div>
       )}
-      <div className={styles.sectionBlock}>
-        <div className={styles.docGrid}>
-          {DOC_FIELDS.map(({ key, label, hint }) => (
-            <div key={key} className={styles.docUpload}>
-              <div className={styles.docLabel}>{label}</div>
-              <div className={styles.docHint}>{hint}</div>
-              {files[key] ? (
+
+      {isIndividual ? (
+        <div className={styles.sectionBlock}>
+          <div className={styles.formGrid}>
+            <div className={styles.field}>
+              <label>Type de document</label>
+              <select
+                value={individualDoc.type}
+                onChange={(e) => setIndividualDoc((d) => ({ ...d, type: e.target.value }))}
+              >
+                {INDIVIDUAL_DOC_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className={styles.docGrid}>
+            <div className={styles.docUpload}>
+              <div className={styles.docLabel}>Pièce justificative *</div>
+              <div className={styles.docHint}>Une seule suffit — au choix</div>
+              {individualDoc.file ? (
                 <div className={styles.docUploaded}>
                   <span>✅ Document chargé</span>
-                  <button className={styles.docRemove} onClick={() => setFiles((f) => ({ ...f, [key]: null }))}>×</button>
+                  <button className={styles.docRemove} onClick={() => setIndividualDoc((d) => ({ ...d, file: null }))}>×</button>
                 </div>
               ) : (
                 <label className={styles.docDropzone}>
-                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFile(key)} />
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleIndividualFile} />
                   <span>📎 Cliquez pour choisir un fichier</span>
                   <small>PDF, JPG ou PNG — max 5 Mo</small>
                 </label>
               )}
             </div>
-          ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className={styles.sectionBlock}>
+          <div className={styles.docGrid}>
+            {DOC_FIELDS.map(({ key, label, hint }) => (
+              <div key={key} className={styles.docUpload}>
+                <div className={styles.docLabel}>{label}</div>
+                <div className={styles.docHint}>{hint}</div>
+                {files[key] ? (
+                  <div className={styles.docUploaded}>
+                    <span>✅ Document chargé</span>
+                    <button className={styles.docRemove} onClick={() => setFiles((f) => ({ ...f, [key]: null }))}>×</button>
+                  </div>
+                ) : (
+                  <label className={styles.docDropzone}>
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFile(key)} />
+                    <span>📎 Cliquez pour choisir un fichier</span>
+                    <small>PDF, JPG ou PNG — max 5 Mo</small>
+                  </label>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className={styles.stepActions}>
         <button className={styles.btnSecondary} onClick={onBack}>← Retour</button>

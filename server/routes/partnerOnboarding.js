@@ -7,6 +7,7 @@ import {
   applyToProgram,
   updateSection,
   updatePartnerType,
+  updateLegalEntityType,
   acceptLegalDocuments,
   submitApplication,
   signLOI,
@@ -64,6 +65,7 @@ router.post ("/apply",                        protect, applyToProgram);
 router.get  ("/my/loi/pdf",                   isPartner, downloadLOIPDF);
 router.get  ("/my/agreement/pdf",             isPartner, downloadAgreementPDF);
 router.patch("/partner-type",                 isPartner, updatePartnerType);
+router.patch("/legal-entity-type",            isPartner, updateLegalEntityType);
 router.patch("/accept-legal",                 isPartner, acceptLegalDocuments);
 router.patch("/section/:sectionName",         isPartner, sectionUploadLimiter, updateSection);
 router.post ("/submit",                       isPartner, submitApplication);

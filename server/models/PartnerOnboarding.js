@@ -59,6 +59,23 @@ const partnerOnboardingSchema = new mongoose.Schema({
     default: "concessionnaire",
   },
 
+  // ── Statut légal du partenaire ────────────────────────────────────────────
+  // Détermine l'exigence documentaire à la soumission (voir submitApplication) :
+  // "particulier" → une seule pièce justificative au choix suffit (CNI,
+  // passeport, autre), jamais l'ensemble des documents d'entreprise ;
+  // "professionnel"/"entreprise" → documents légaux d'entreprise (legalDocs).
+  legalEntityType: {
+    type: String,
+    enum: ["particulier", "professionnel", "entreprise"],
+    default: "entreprise",
+  },
+
+  // ── Pièce justificative — uniquement pour legalEntityType "particulier" ───
+  individualDoc: {
+    type: { type: String, enum: ["cni", "passeport", "autre", null], default: null },
+    file: { type: String, default: null },
+  },
+
   // Vrai uniquement une fois l'Accord signé (voir signAgreement) — pas dès la création
   // du dossier, sinon le badge "🌟 FP" affiché dans l'admin (AdminPanel.jsx) apparaît
   // même sur des brouillons jamais soumis ni examinés.

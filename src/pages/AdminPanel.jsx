@@ -244,11 +244,41 @@ const FOUNDING_PHOTO_GROUPS = [
   { key: "teamPhotos",      label: "Photos équipe" },
 ];
 
+const INDIVIDUAL_DOC_TYPE_LABELS = { cni: "Carte Nationale d'Identité", passeport: "Passeport", autre: "Autre document justificatif" };
+
 function FoundingDocs({ o }) {
+  const isIndividual = o.legalEntityType === "particulier";
   const legal = o.legalDocs || {};
   const media = o.platformMedia || {};
+  const individualDoc = o.individualDoc || {};
   const hasLegal = FOUNDING_LEGAL_DOCS.some((d) => legal[d.key]);
   const hasMedia = !!media.logo || FOUNDING_PHOTO_GROUPS.some((g) => media[g.key]?.length) || !!media.promotionalVideo;
+  const hasIndividualDoc = !!individualDoc.file;
+
+  if (isIndividual) {
+    return (
+      <div style={{ marginTop: 12 }}>
+        <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>
+          🧑 Pièce justificative (partenaire particulier)
+        </div>
+        {hasIndividualDoc ? (
+          <div style={{ border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden", background: "#fff", maxWidth: 200 }}>
+            <div style={{ fontSize: ".68rem", fontWeight: 700, color: "#64748b", padding: "5px 8px", background: "#f1f5f9", textTransform: "uppercase", letterSpacing: ".03em" }}>
+              {INDIVIDUAL_DOC_TYPE_LABELS[individualDoc.type] || "Pièce justificative"}
+            </div>
+            <a href={safeImgHref(individualDoc.file)} target="_blank" rel="noreferrer noopener">
+              <img src={individualDoc.file} alt="Pièce justificative" style={{ width: "100%", height: 120, objectFit: "cover", display: "block" }}
+                onError={(e) => { e.target.parentElement.innerHTML = '<div style="height:120px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:.72rem;padding:6px;text-align:center">Aperçu indisponible</div>'; }} />
+            </a>
+          </div>
+        ) : (
+          <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 10, padding: "10px 14px", fontSize: ".8rem", color: "#dc2626" }}>
+            ⚠️ Aucune pièce justificative soumise par ce partenaire particulier.
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (!hasLegal && !hasMedia) {
     return (
@@ -5610,6 +5640,7 @@ export default function AdminPanel() {
                           <div style={{ fontWeight:800, fontSize:".9rem", color:"#0f1b3f", display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                             {o.companyInfo?.legalName || "Société non renseignée"}
                             <span style={{ fontSize:".7rem", background:st.bg, color:st.c, padding:"2px 8px", borderRadius:20, fontWeight:700 }}>{st.l}</span>
+                            {o.legalEntityType === "particulier" && <span style={{ fontSize:".7rem", background:"#e0e7ff", color:"#4338ca", padding:"2px 8px", borderRadius:20, fontWeight:700 }}>🧑 Particulier</span>}
                             {o.isFoundingPartner && <span style={{ fontSize:".7rem", background:"#fef3c7", color:"#b45309", padding:"2px 8px", borderRadius:20, fontWeight:700 }}>🌟 FP</span>}
                           </div>
                           <div style={{ fontSize:".76rem", color:"#64748b", marginTop:2 }}>

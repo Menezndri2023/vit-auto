@@ -106,10 +106,12 @@ async function cascadeFoundingPartnerApproval(doc) {
     // document réel, alors que ces mêmes pièces existaient déjà dans son dossier
     // d'onboarding et son KYC.
     const fillCertDoc = (docObj, url) => (docObj?.data ? docObj : (url ? { name: NOTE_AUTO, data: url, uploadedAt: now } : docObj));
-    cert.level1.registrationDoc = fillCertDoc(cert.level1.registrationDoc, doc.legalDocs?.businessRegistration || doc.legalDocs?.businessLicense);
+    // Un partenaire "particulier" n'a ni RCCM ni licence commerciale — sa seule
+    // pièce (individualDoc) tient lieu de justificatif d'immatriculation/adresse.
+    cert.level1.registrationDoc = fillCertDoc(cert.level1.registrationDoc, doc.legalDocs?.businessRegistration || doc.legalDocs?.businessLicense || doc.individualDoc?.file);
     cert.level1.taxDoc          = fillCertDoc(cert.level1.taxDoc, doc.legalDocs?.taxCertificate);
-    cert.level1.addressProofDoc = fillCertDoc(cert.level1.addressProofDoc, doc.legalDocs?.proofOfAddress);
-    cert.level2.idFrontDoc      = fillCertDoc(cert.level2.idFrontDoc, identityUser?.identity?.frontImage);
+    cert.level1.addressProofDoc = fillCertDoc(cert.level1.addressProofDoc, doc.legalDocs?.proofOfAddress || doc.individualDoc?.file);
+    cert.level2.idFrontDoc      = fillCertDoc(cert.level2.idFrontDoc, identityUser?.identity?.frontImage || doc.individualDoc?.file);
     cert.level2.idBackDoc       = fillCertDoc(cert.level2.idBackDoc, identityUser?.identity?.backImage);
     cert.level2.selfieDoc       = fillCertDoc(cert.level2.selfieDoc, identityUser?.identity?.selfie);
     // Un badge de niveau 8 attribué manuellement AVANT que ce partenaire ne
@@ -168,7 +170,7 @@ async function cascadeFoundingPartnerApproval(doc) {
     pv.description           = pv.description           || doc.businessVerification?.companyPresentation || "";
     pv.yearsExperience        = pv.yearsExperience        || doc.businessVerification?.yearsExperience || 0;
     if (!pv.exportCountries?.length) pv.exportCountries = doc.businessVerification?.exportMarkets || [];
-    pv.documents.repIdDoc = pv.documents.repIdDoc || identityUser?.identity?.frontImage || null;
+    pv.documents.repIdDoc = pv.documents.repIdDoc || identityUser?.identity?.frontImage || doc.individualDoc?.file || null;
     await pv.save();
 
     // 4. Profil Importateur (Import/Export) — si un dossier existe déjà (ancien
@@ -215,6 +217,7 @@ async function autoGenerateAgreement(doc, reuseToken = null) {
 const SECTION_FIELDS = {
   "company-info": ["legalName", "registrationNumber", "incorporationDate", "registrationCountry", "address", "website", "email", "phone", "whatsapp", "wechat", "mainContact", "mainContactPosition"],
   "legal-docs":   ["businessRegistration", "businessLicense", "exportLicense", "taxCertificate", "proofOfAddress"],
+  "individual-doc": ["type", "file"],
   "business-verification": ["companyPresentation", "brands", "mainActivities", "exportMarkets", "annualExportCapacity", "yearsExperience", "oemAuthorization", "entityTypes"],
   "platform-media": ["logo", "companyPhotos", "officePhotos", "showroomPhotos", "warehousePhotos", "teamPhotos", "promotionalVideo"],
   "vehicle-inventory": ["newVehicles", "usedVehicles", "electricVehicles", "hybridVehicles", "luxuryVehicles", "commercialVehicles"],
@@ -226,6 +229,7 @@ const SECTION_FIELDS = {
 const SECTION_KEYS = {
   "company-info": "companyInfo",
   "legal-docs": "legalDocs",
+  "individual-doc": "individualDoc",
   "business-verification": "businessVerification",
   "platform-media": "platformMedia",
   "vehicle-inventory": "vehicleInventory",
@@ -368,6 +372,30 @@ export const updatePartnerType = async (req, res) => {
   }
 };
 
+// ── PATCH /api/partner-onboarding/legal-entity-type ──────────────────────────
+// Détermine l'exigence documentaire à la soumission (voir submitApplication) :
+// un particulier ne doit jamais être soumis aux mêmes exigences qu'une
+// entreprise (RCCM, licence commerciale...) — une seule pièce d'identité
+// suffit. Changer de statut ne supprime pas les documents déjà fournis (le
+// partenaire peut revenir en arrière sans perdre sa saisie).
+export const updateLegalEntityType = async (req, res) => {
+  try {
+    const VALID = ["particulier", "professionnel", "entreprise"];
+    const { legalEntityType } = req.body;
+    if (!VALID.includes(legalEntityType)) return res.status(400).json({ message: "Statut partenaire invalide." });
+
+    let doc = await PartnerOnboarding.findOne({ userId: req.user.id });
+    if (!doc) doc = await PartnerOnboarding.create({ userId: req.user.id, country: req.user.country || null });
+
+    doc.legalEntityType = legalEntityType;
+    await doc.save();
+    res.json({ success: true, onboarding: doc.toObject({ virtuals: true }) });
+  } catch (err) {
+    logger.error("updateLegalEntityType:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
 // ── PATCH /api/partner-onboarding/accept-legal ───────────────────────────────
 // Enregistre l'acceptation électronique de la LOI, du Founding Partner Agreement et
 // de la Partner Verification Policy — requis avant de pouvoir soumettre le dossier.
@@ -403,16 +431,28 @@ export const submitApplication = async (req, res) => {
     if (!["brouillon", "info_demandee"].includes(doc.status)) {
       return res.status(400).json({ message: "Ce dossier a déjà été soumis." });
     }
-    if (!doc.companyInfo?.legalName) {
-      return res.status(400).json({ message: "Le nom légal de l'entreprise est requis avant de soumettre." });
-    }
-    // Au moins UNE preuve d'immatriculation légale (le partenaire choisit celle
-    // qui s'applique à son pays/statut — RCCM, Kbis, Business/Trade License...) —
-    // jusqu'ici rien ne l'exigeait, un dossier pouvait être approuvé Founding
-    // Partner (le niveau de vérification le plus exigeant du site, voir
-    // cascadeFoundingPartnerApproval) sans aucun document légal fourni.
-    if (!doc.legalDocs?.businessRegistration && !doc.legalDocs?.businessLicense) {
-      return res.status(400).json({ message: "Fournissez au moins un document d'immatriculation (certificat d'immatriculation ou licence commerciale) avant de soumettre." });
+    // Exigence documentaire différente selon le statut légal (voir
+    // updateLegalEntityType) : un particulier n'a ni raison sociale, ni RCCM —
+    // on ne doit jamais lui demander l'un ou l'autre. Une seule pièce
+    // justificative au choix (CNI, passeport, autre) suffit à rendre son
+    // dossier soumissible ; pour un professionnel/une entreprise, les
+    // documents légaux classiques restent exigés (au moins un des cinq
+    // possibles, au choix ou combinés — jusqu'ici seuls deux des cinq
+    // comptaient, ce qui pénalisait un partenaire n'ayant fourni que sa
+    // licence d'export ou son attestation fiscale par exemple).
+    if (doc.legalEntityType === "particulier") {
+      if (!doc.individualDoc?.file) {
+        return res.status(400).json({ message: "Fournissez au moins une pièce justificative (pièce d'identité, passeport ou autre document) avant de soumettre." });
+      }
+    } else {
+      if (!doc.companyInfo?.legalName) {
+        return res.status(400).json({ message: "Le nom légal de l'entreprise est requis avant de soumettre." });
+      }
+      const hasAnyLegalDoc = ["businessRegistration", "businessLicense", "exportLicense", "taxCertificate", "proofOfAddress"]
+        .some((k) => !!doc.legalDocs?.[k]);
+      if (!hasAnyLegalDoc) {
+        return res.status(400).json({ message: "Fournissez au moins un document légal (certificat d'immatriculation, licence commerciale, licence d'export, attestation fiscale ou justificatif d'adresse) avant de soumettre." });
+      }
     }
     if (!doc.legalAcceptance?.accepted) {
       return res.status(400).json({ message: "Vous devez accepter la Letter of Intent, le Founding Partner Agreement et la Verification Policy avant de soumettre." });
