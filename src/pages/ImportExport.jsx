@@ -247,26 +247,15 @@ function RequestModal({ defaultPack, onClose }) {
                   <input type="tel" autoComplete="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+225 07 00 00 00" />
                 </label>
               </div>
-              <div className={styles.formRow}>
-                <label>
-                  <span>Service</span>
-                  <select value={form.serviceType} onChange={(e) => set("serviceType", e.target.value)}>
-                    <option value="import">Importation</option>
-                    <option value="export">Exportation</option>
-                    <option value="transit">Transit</option>
-                    <option value="pieces_detachees">Pièces détachées</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Pack souhaité</span>
-                  <select value={form.pack} onChange={(e) => set("pack", e.target.value)}>
-                    <option value="Silver">Silver — 399 €</option>
-                    <option value="Gold">Gold — 799 €</option>
-                    <option value="Platinum">Platinum — 1 499 €</option>
-                    <option value="Executive">Executive — 2 999 €</option>
-                  </select>
-                </label>
-              </div>
+              <label className={styles.formFull}>
+                <span>Service</span>
+                <select value={form.serviceType} onChange={(e) => set("serviceType", e.target.value)}>
+                  <option value="import">Importation</option>
+                  <option value="export">Exportation</option>
+                  <option value="transit">Transit</option>
+                  <option value="pieces_detachees">Pièces détachées</option>
+                </select>
+              </label>
               <div className={styles.formRow}>
                 <label>
                   <span>Pays d'origine</span>

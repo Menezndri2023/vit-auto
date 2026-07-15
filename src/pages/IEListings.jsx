@@ -82,16 +82,7 @@ function QuickRequestModal({ listing, onClose }) {
                 <label><span>Téléphone</span><input type="tel" autoComplete="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+225 07 00 00 00" /></label>
               </div>
               <div className={ieModalStyles.formRow}>
-                <label>
-                  <span>Pack souhaité</span>
-                  <select value={form.pack} onChange={(e) => set("pack", e.target.value)}>
-                    <option value="Silver">Silver — 399 €</option>
-                    <option value="Gold">Gold — 799 €</option>
-                    <option value="Platinum">Platinum — 1 499 €</option>
-                    <option value="Executive">Executive — 2 999 €</option>
-                  </select>
-                </label>
-                <label>
+                <label className={ieModalStyles.formFull}>
                   <span>Pays de destination</span>
                   <input list="qr-countries" value={form.destCountry} onChange={(e) => set("destCountry", e.target.value)} placeholder="Côte d'Ivoire, Sénégal…" />
                 </label>
