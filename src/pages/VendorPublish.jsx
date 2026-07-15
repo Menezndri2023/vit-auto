@@ -30,6 +30,9 @@ const STATUS_CFG = {
   approved: { label: "Publié",      color: "#10b981", bg: "#ecfdf5", dot: "#10b981" },
   pending:  { label: "En attente",  color: "#f59e0b", bg: "#fffbeb", dot: "#f59e0b" },
   rejected: { label: "Rejeté",      color: "#ef4444", bg: "#fef2f2", dot: "#ef4444" },
+  draft:    { label: "Brouillon",   color: "#64748b", bg: "#f1f5f9", dot: "#64748b" },
+  sold:     { label: "Vendu",       color: "#6366f1", bg: "#eef2ff", dot: "#6366f1" },
+  archived: { label: "Archivé",     color: "#94a3b8", bg: "#f8fafc", dot: "#94a3b8" },
 };
 
 const TYPE_CFG = {
@@ -62,6 +65,9 @@ const FILTER_TABS = [
   { key: "approved", label: "Publiées"    },
   { key: "pending",  label: "En attente"  },
   { key: "rejected", label: "Rejetées"    },
+  { key: "draft",    label: "Brouillons"  },
+  { key: "sold",     label: "Vendues"     },
+  { key: "archived", label: "Archivées"   },
 ];
 
 // ── Utilitaires ───────────────────────────────────────────────────────────────
@@ -86,11 +92,13 @@ const ScoreBar = ({ score }) => {
 };
 
 // ── Carte véhicule standard ───────────────────────────────────────────────────
-const VehicleCard = ({ v, bookings, onDelete, onBoost }) => {
+const VehicleCard = ({ v, bookings, onDelete, onBoost, onLifecycle }) => {
+  const [showHistory, setShowHistory] = useState(false);
   const st   = STATUS_CFG[v.status]   || STATUS_CFG.pending;
   const tp   = TYPE_CFG[v.type]       || TYPE_CFG.location;
   const vst  = vehicleStats(v.id || v._id, bookings);
   const hasScore = v.validationScore != null && v.status !== "approved";
+  const isLive = ["approved", "pending", "rejected"].includes(v.status);
 
   return (
     <div className={styles.card}>
@@ -138,8 +146,35 @@ const VehicleCard = ({ v, bookings, onDelete, onBoost }) => {
           {v.status === "rejected" && (
             <span className={styles.rejectTip}>Corrigez votre annonce et soumettez à nouveau</span>
           )}
+          {isLive && (
+            <button className={styles.deleteBtn} style={{ background: "#f1f5f9", color: "#475569" }} onClick={() => onLifecycle(v, "draft")}>📝 Brouillon</button>
+          )}
+          {isLive && (
+            <button className={styles.deleteBtn} style={{ background: "#eef2ff", color: "#6366f1" }} onClick={() => onLifecycle(v, "sold")}>🏷️ Marquer vendu</button>
+          )}
+          {["draft", "archived"].includes(v.status) && (
+            <button className={styles.deleteBtn} style={{ background: "#ecfdf5", color: "#10b981" }} onClick={() => onLifecycle(v, "pending")}>▶️ Remettre en vente</button>
+          )}
+          {v.status === "draft" && (
+            <button className={styles.deleteBtn} style={{ background: "#f8fafc", color: "#94a3b8" }} onClick={() => onLifecycle(v, "archived")}>🗄️ Archiver</button>
+          )}
+          {v.statusHistory?.length > 0 && (
+            <button className={styles.deleteBtn} style={{ background: "none", color: "#94a3b8" }} onClick={() => setShowHistory((s) => !s)}>
+              🕓 Historique
+            </button>
+          )}
           <button className={styles.deleteBtn} onClick={() => onDelete(v)}>🗑️ Supprimer</button>
         </div>
+        {showHistory && (
+          <div style={{ marginTop: 8, borderTop: "1px solid #f1f5f9", paddingTop: 8, fontSize: ".76rem", color: "#64748b" }}>
+            {v.statusHistory.slice().reverse().map((h, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
+                <span>{STATUS_CFG[h.status]?.label || h.status}</span>
+                <span>{new Date(h.changedAt).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -570,6 +605,22 @@ const VendorPublish = () => {
     finally { setDeleting(false); setDelete(null); }
   };
 
+  // Brouillon/vendu/archivé/remise en vente — alternative à la suppression
+  // définitive, qui casse l'historique des réservations liées à l'annonce.
+  const handleLifecycle = async (vehicle, status) => {
+    const id = vehicle.id || vehicle._id;
+    try {
+      const res = await fetch(`/api/vehicles/${id}/lifecycle`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) { toastOk("Statut mis à jour."); loadPartnerVehicles?.(); }
+      else { toastErr(d.message || "Erreur lors de la mise à jour."); }
+    } catch { toastErr("Erreur réseau — réessayez."); }
+  };
+
   const pStatus    = PROFILE_STATUS[ieProfile?.status || "none"];
   const badgeIcon  = BADGE_ICONS[ieProfile?.badgeLevel || "none"];
   const isVerified = ieProfile?.status === "verified";
@@ -679,7 +730,7 @@ const VendorPublish = () => {
           ) : (
             <div className={styles.cardGrid}>
               {filtered.map((v) => (
-                <VehicleCard key={v.id || v._id} v={v} bookings={partnerBookings || []} onDelete={setDelete} onBoost={setBoost} />
+                <VehicleCard key={v.id || v._id} v={v} bookings={partnerBookings || []} onDelete={setDelete} onBoost={setBoost} onLifecycle={handleLifecycle} />
               ))}
             </div>
           )}

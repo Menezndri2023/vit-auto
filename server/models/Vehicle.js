@@ -136,12 +136,24 @@ const vehicleSchema = new mongoose.Schema({
   nombreAvis:    { type: Number, default: 0 },
 
   // ── Modération ────────────────────────────────────────────
+  // draft/sold/archived sont des transitions PARTENAIRE (pas de modération) —
+  // pending/approved/rejected restent exclusivement admin (voir
+  // updateVehicleStatus vs updateVehicleLifecycle dans vehicleController.js).
   status: {
     type: String,
-    enum: ["pending", "approved", "rejected"],
+    enum: ["pending", "approved", "rejected", "draft", "sold", "archived"],
     default: "pending",
   },
   rejectionReason: { type: String, default: null },
+
+  // Historique des changements de statut — permet à un partenaire de retrouver
+  // quand une annonce est passée en brouillon/vendue/archivée, sans devoir
+  // supprimer définitivement l'annonce pour "faire le ménage".
+  statusHistory: [{
+    status:    { type: String, required: true },
+    changedAt: { type: Date,   default: Date.now },
+    changedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  }],
 
   // ── Validation automatique ────────────────────────────────
   validationScore:    { type: Number, default: null },

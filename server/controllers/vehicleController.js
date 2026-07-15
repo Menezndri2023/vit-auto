@@ -409,6 +409,46 @@ export const updateVehicleStatus = async (req, res) => {
   }
 };
 
+// ── PATCH /api/vehicles/:id/lifecycle — transitions PARTENAIRE (pas de modération) ──
+// Distinct de updateVehicleStatus (admin uniquement, approuver/rejeter) : un
+// partenaire peut mettre une annonce en brouillon, la marquer vendue ou
+// l'archiver sans jamais passer par un admin — et sans devoir la SUPPRIMER
+// définitivement (DELETE /:id reste possible mais casse l'historique des
+// réservations liées, une annonce supprimée n'étant plus jamais consultable).
+export const updateVehicleLifecycle = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const OWNER_ALLOWED = ["draft", "sold", "archived", "pending"];
+    if (!OWNER_ALLOWED.includes(status)) {
+      return res.status(400).json({ message: `Statut invalide. Valeurs acceptées : ${OWNER_ALLOWED.join(", ")}.` });
+    }
+
+    const vehicle = await Vehicle.findById(req.params.id);
+    if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable." });
+
+    const isOwner = vehicle.owner.toString() === req.user._id.toString();
+    if (req.user.role !== "admin" && !isOwner) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+    // "pending" = remise en vente depuis un brouillon : redemande une revue
+    // admin (cohérent avec la modération normale, jamais republiée directement
+    // "approved" par le partenaire lui-même).
+    if (status === "pending" && !["draft", "archived"].includes(vehicle.status)) {
+      return res.status(400).json({ message: "Seule une annonce en brouillon ou archivée peut être remise en vente." });
+    }
+
+    vehicle.status = status;
+    vehicle.available = false; // approbation admin requise avant de redevenir visible/réservable
+    vehicle.statusHistory.push({ status, changedAt: new Date(), changedBy: req.user._id });
+    await vehicle.save();
+
+    res.json({ vehicle });
+  } catch (err) {
+    logger.error("updateVehicleLifecycle:", err);
+    res.status(500).json({ message: "Erreur mise à jour du statut." });
+  }
+};
+
 // ── Modifier une annonce (propriétaire ou admin) ──────────────────────────────
 export const updateVehicle = async (req, res) => {
   try {
