@@ -105,3 +105,20 @@ export const CURRENCIES = [
   { code: "GHS", label: "Cedi ghanéen (GHS)" },
   { code: "NGN", label: "Naira nigérian (NGN)" },
 ];
+
+// ── Indicatifs téléphoniques par pays (ISO 3166-1 alpha-2) ────────────────────
+// Utilisé pour pré-remplir l'indicatif à la publication depuis le pays détecté
+// par géolocalisation IP (voir /api/geo/my-country) — jamais le numéro complet,
+// seulement le préfixe, l'utilisateur reste seul à saisir son propre numéro.
+export const CALLING_CODES = {
+  MA: "+212", CI: "+225", SN: "+221", ML: "+223", DZ: "+213", TN: "+216",
+  FR: "+33",  BE: "+32",  ES: "+34",  CH: "+41",  US: "+1",   CA: "+1",
+  CN: "+86",  GH: "+233", NG: "+234", BJ: "+229", TG: "+228", GN: "+224",
+  BF: "+226", NE: "+227", SL: "+232", LR: "+231", GM: "+220", MR: "+222",
+  CV: "+238", LY: "+218", EG: "+20",  DE: "+49",  NL: "+31",  PT: "+351",
+  SE: "+46",  NO: "+47",  DK: "+45",  FI: "+358", PL: "+48",  GB: "+44",
+  IE: "+353", LU: "+352", JP: "+81",  KR: "+82",  IN: "+91",  TH: "+66",
+  VN: "+84",  SG: "+65",  MY: "+60",  ID: "+62",  HK: "+852", TW: "+886",
+  AE: "+971", SA: "+966", QA: "+974", KW: "+965", BH: "+973", OM: "+968",
+  JO: "+962", LB: "+961", TR: "+90",  MX: "+52",  BR: "+55",  AU: "+61",
+};

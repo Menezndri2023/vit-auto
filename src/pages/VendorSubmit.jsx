@@ -3,7 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
 import { useToast } from "../context/ToastContext";
-import { geocodeAddress } from "../utils/geo";
+import { geocodeAddress, reverseGeocode } from "../utils/geo";
+import { CALLING_CODES } from "../data/autocomplete";
 import styles from "./VendorSubmit.module.css";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -54,6 +55,47 @@ const VendorSubmit = () => {
     ville:        "",
     adresse:      "",
   });
+  const [geoLocating, setGeoLocating] = useState(false);
+
+  // Pré-remplissage indicatif téléphonique + ville par géolocalisation IP —
+  // silencieux, jamais le numéro complet, jamais si déjà renseigné par
+  // l'utilisateur (ex: retour en arrière dans le formulaire).
+  useEffect(() => {
+    if (identity.telephone || identity.ville) return;
+    fetch("/api/geo/my-country")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d?.country) return;
+        setIdentity((p) => ({
+          ...p,
+          telephone: p.telephone || (CALLING_CODES[d.country] ? `${CALLING_CODES[d.country]} ` : p.telephone),
+          ville: p.ville || d.city || p.ville,
+        }));
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // "Utiliser ma position" — GPS + reverse-geocode, plus précis que l'IP pour
+  // la ville et surtout pour l'adresse exacte (jamais déductible d'une IP).
+  const useMyLocation = () => {
+    if (!navigator.geolocation) { error("Géolocalisation non disponible sur cet appareil."); return; }
+    setGeoLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const r = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+        if (r?.address || r?.city) {
+          setIdentity((p) => ({ ...p, ville: r.city || p.ville, adresse: r.address || p.adresse }));
+          success("Position détectée — vérifiez les champs pré-remplis.");
+        } else {
+          error("Impossible de déterminer votre adresse depuis votre position.");
+        }
+        setGeoLocating(false);
+      },
+      () => { error("Accès à la position refusé."); setGeoLocating(false); },
+      { enableHighAccuracy: false, timeout: 10000 }
+    );
+  };
 
   // ── Étape 2 : Type d'annonce
   const [adType, setAdType] = useState(""); // "location" | "vente" | "chauffeur"
@@ -459,7 +501,13 @@ const VendorSubmit = () => {
                 {errors.ville && <span className={styles.err}>{errors.ville}</span>}
               </div>
               <div className={`${styles.field} ${styles.colSpan2}`}>
-                <label>Adresse exacte *</label>
+                <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  Adresse exacte *
+                  <button type="button" onClick={useMyLocation} disabled={geoLocating}
+                    style={{ fontSize: ".76rem", fontWeight: 700, color: "#6366f1", background: "none", border: "none", cursor: geoLocating ? "not-allowed" : "pointer", padding: 0 }}>
+                    {geoLocating ? "📍 Localisation…" : "📍 Utiliser ma position"}
+                  </button>
+                </label>
                 <input value={identity.adresse} onChange={e => setId("adresse", e.target.value)}
                   placeholder="Ex : Rue 10, Plateau, Abidjan — utilisée pour la livraison GPS" />
                 {errors.adresse && <span className={styles.err}>{errors.adresse}</span>}

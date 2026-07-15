@@ -27,3 +27,19 @@ export async function geocodeAddress(address) {
   } catch { /* réseau indisponible */ }
   return null;
 }
+
+// Coordonnées GPS → adresse texte (Nominatim reverse) — utilisé pour le
+// pré-remplissage "Utiliser ma position" à la publication (ville + adresse),
+// plus précis que la seule géolocalisation IP.
+export async function reverseGeocode(lat, lng) {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`, { headers: { "Accept-Language": "fr" } });
+    const data = await res.json();
+    const a = data?.address;
+    if (!a) return null;
+    const road = [a.road, a.house_number].filter(Boolean).join(" ");
+    const city = a.city || a.town || a.village || a.county || null;
+    return { address: road || data.display_name || null, city };
+  } catch { /* réseau indisponible */ }
+  return null;
+}
