@@ -276,7 +276,15 @@ export const applyToProgram = async (req, res) => {
       await User.findByIdAndUpdate(req.user.id, { role: "partenaire" });
       await notify(req.user.id, "🤝 Compte partenaire activé", "Votre compte est maintenant un compte partenaire suite à votre candidature au programme Founding Partner.");
     }
-    const doc = await PartnerOnboarding.create({ userId: req.user.id, country });
+    // Reprend le statut choisi à l'inscription (Register.jsx — particulier/
+    // professionnel/entreprise) : sans ça, le dossier démarrait toujours sur
+    // "entreprise" par défaut, même pour un partenaire ayant explicitement
+    // choisi "particulier" ou "professionnel", l'obligeant à re-choisir un
+    // statut déjà donné et risquant une incohérence entre les deux.
+    const legalEntityType = ["particulier", "professionnel", "entreprise"].includes(req.user.sellerType)
+      ? req.user.sellerType
+      : "entreprise";
+    const doc = await PartnerOnboarding.create({ userId: req.user.id, country, legalEntityType });
     res.status(201).json({ onboarding: doc.toObject({ virtuals: true }) });
   } catch (err) {
     logger.error("applyToProgram:", err);
