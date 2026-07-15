@@ -916,7 +916,7 @@ function ShowroomSection({ token, showToast }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // SECTION: PERFORMANCE / TRUST CENTER
 // ══════════════════════════════════════════════════════════════════════════════
-function PerformanceSection({ token }) {
+function PerformanceSection({ token, user }) {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -1011,7 +1011,7 @@ function PerformanceSection({ token }) {
         <div className={styles.badgesGrid}>
           {[
             { icon:"✅", label:"VERIFIED",         desc:"Entreprise & documents vérifiés",      earned:data.score >= 50, gradient:"linear-gradient(135deg,#059669,#10b981)" },
-            { icon:"⭐", label:"FOUNDING PARTNER",  desc:"Réservé aux 20 premiers partenaires",  earned:false, gradient:"linear-gradient(135deg,#d97706,#f59e0b)" },
+            { icon:"⭐", label:"FOUNDING PARTNER",  desc:"Réservé aux 20 premiers partenaires par pays",  earned: !!user?.isFounder, gradient:"linear-gradient(135deg,#d97706,#f59e0b)" },
             { icon:"🏆", label:"PREMIUM EXPORTER",  desc:"Score ≥ 85 + 50 commandes finalisées", earned:data.score >= 85, gradient:"linear-gradient(135deg,#7c3aed,#a855f7)" },
           ].map((b) => (
             <div key={b.label} className={`${styles.badgeCard} ${!b.earned ? styles.badgeLocked : ""}`}>
@@ -1478,7 +1478,7 @@ export default function PartnerPMSDashboard() {
       case "leads":       return <LeadsSection token={token} showToast={showToast} />;
       case "quotes":      return <QuotesSection token={token} showToast={showToast} />;
       case "analytics":   return <AnalyticsSection token={token} />;
-      case "performance": return <PerformanceSection token={token} />;
+      case "performance": return <PerformanceSection token={token} user={user} />;
       default:            return <HomeSection token={token} user={user} onNav={onNav} />;
     }
   };

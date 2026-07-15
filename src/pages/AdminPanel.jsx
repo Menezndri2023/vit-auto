@@ -2294,7 +2294,7 @@ export default function AdminPanel() {
       label: "TABLEAU DE BORD",
       items: [
         { key: "dashboard",  icon: "📊", label: "Vue d'ensemble" },
-        { key: "analytics",  icon: "📈", label: "Analytics", wip: true },
+        { key: "analytics",  icon: "📈", label: "Analytics" },
       ],
     },
     {
@@ -2325,9 +2325,9 @@ export default function AdminPanel() {
         { key: "chauffeurs",    icon: "👨‍✈️", label: "Chauffeurs",           badge: drivers.length },
         { key: "import_export", icon: "🌍", label: "Transactions I/E",      badge: pendingIe },
         { key: "exportateurs",  icon: "📦", label: "Partenaires Export",    badge: pendingImp },
-        { key: "transport",     icon: "🚢", label: "Transport Intl.",        wip: true },
-        { key: "financement",   icon: "🏦", label: "Financement",           wip: true },
-        { key: "assurance",     icon: "🔒", label: "Assurance",             wip: true },
+        { key: "transport",     icon: "🚢", label: "Transport Intl." },
+        { key: "financement",   icon: "🏦", label: "Financement" },
+        { key: "assurance",     icon: "🔒", label: "Assurance" },
       ],
     },
     {
@@ -2344,7 +2344,7 @@ export default function AdminPanel() {
         { key: "commissions", icon: "💰", label: "Commissions" },
         { key: "factures",    icon: "📄", label: "Factures",          badge: pendingInv },
         { key: "paiements",   icon: "💳", label: "Paiements",         badge: pendingSub || undefined },
-        { key: "escrow",      icon: "🔐", label: "Escrow / Séquestre", wip: true },
+        { key: "escrow",      icon: "🔐", label: "Escrow / Séquestre" },
       ],
     },
     {
@@ -2352,14 +2352,14 @@ export default function AdminPanel() {
       items: [
         { key: "notifications", icon: "🔔", label: "Notifications & Broadcast" },
         { key: "reviews",       icon: "⭐", label: "Avis clients" },
-        { key: "ads",           icon: "📢", label: "Publicités & Campagnes",   wip: true },
+        { key: "ads",           icon: "📢", label: "Publicités & Campagnes" },
         { key: "support",       icon: "🎧", label: "Support Client",           badge: pendingSupport || undefined },
       ],
     },
     {
       label: "SYSTÈME",
       items: [
-        { key: "roles", icon: "🔑", label: "Rôles & Permissions", wip: true },
+        { key: "roles", icon: "🔑", label: "Rôles & Permissions" },
         { key: "audit", icon: "📜", label: "Audit Logs" },
       ],
     },
