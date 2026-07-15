@@ -900,6 +900,76 @@ function AdsSection({ ads, loading, form, setForm, saving, onSave, onToggle, onD
   );
 }
 
+// ── Assurance — décision manuelle admin (aucun assureur partenaire intégré
+// via API pour l'instant, voir server/models/InsuranceRequest.js).
+const INSURANCE_TYPE_LABELS = { auto: "🚗 Auto", location: "🔑 Location", import_export: "🌍 Import/Export" };
+const INSURANCE_STATUS_CFG = {
+  pending:  { label: "🔍 En attente", color: "#d97706", bg: "#fef3c7" },
+  approved: { label: "✅ Approuvée",  color: "#10b981", bg: "#d1fae5" },
+  rejected: { label: "❌ Refusée",    color: "#dc2626", bg: "#fee2e2" },
+};
+
+function InsuranceSection({ requests, loading, onDecide }) {
+  const counts = {
+    pending:  requests.filter((r) => r.status === "pending").length,
+    approved: requests.filter((r) => r.status === "approved").length,
+    rejected: requests.filter((r) => r.status === "rejected").length,
+  };
+
+  if (loading) return <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>;
+
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))", gap: 14, marginBottom: "1.5rem" }}>
+        <StatCard icon="📋" label="Total demandes" value={requests.length}  color="#6366f1" />
+        <StatCard icon="🔍" label="En attente"      value={counts.pending}  color="#d97706" />
+        <StatCard icon="✅" label="Approuvées"      value={counts.approved} color="#10b981" />
+        <StatCard icon="❌" label="Refusées"        value={counts.rejected} color="#dc2626" />
+      </div>
+
+      {requests.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
+          <div style={{ fontSize: "3rem", marginBottom: 12 }}>🔒</div>
+          <p style={{ fontWeight: 600 }}>Aucune demande d'assurance pour le moment.</p>
+        </div>
+      ) : (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr><th>Client</th><th>Type</th><th>Véhicule</th><th>Durée</th><th>Notes</th><th>Statut</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              {requests.map((r) => {
+                const st = INSURANCE_STATUS_CFG[r.status];
+                return (
+                  <tr key={r._id} className={styles.tr}>
+                    <td><strong style={{ fontSize: ".85rem" }}>{r.client?.firstName} {r.client?.lastName}</strong><div style={{ fontSize: ".74rem", color: "#94a3b8" }}>{r.client?.email}</div></td>
+                    <td style={{ fontSize: ".82rem" }}>{INSURANCE_TYPE_LABELS[r.type] || r.type}</td>
+                    <td style={{ fontSize: ".82rem" }}>{r.vehicle?.title || r.vehicleInfo || "—"}</td>
+                    <td style={{ fontSize: ".82rem" }}>{r.coveragePeriodMonths} mois</td>
+                    <td style={{ fontSize: ".78rem", color: "#64748b", maxWidth: 180 }}>{r.notes || "—"}</td>
+                    <td><Badge label={st.label} color={st.color} bg={st.bg} /></td>
+                    <td>
+                      {r.status === "pending" && (
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button className={styles.btnRefresh} style={{ background: "#10b981", color: "#fff", border: "none" }}
+                            onClick={() => onDecide({ id: r._id, status: "approved" })}>✅</button>
+                          <button className={styles.btnRefresh} style={{ background: "#dc2626", color: "#fff", border: "none" }}
+                            onClick={() => onDecide({ id: r._id, status: "rejected" })}>❌</button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const STATUS_VEH = {
   approved: { label: "Publiée",     color: "#10b981", bg: "#ecfdf5" },
   pending:  { label: "En attente",  color: "#f59e0b", bg: "#fffbeb" },
@@ -1042,6 +1112,14 @@ export default function AdminPanel() {
   const [adsLoading,     setAdsLoading]     = useState(false);
   const [adForm,         setAdForm]         = useState(null); // objet en édition/création, null = fermé
   const [adSaving,       setAdSaving]       = useState(false);
+
+  // Assurance
+  const [insuranceList,    setInsuranceList]    = useState([]);
+  const [insuranceLoading, setInsuranceLoading] = useState(false);
+  const [insuranceModal,   setInsuranceModal]   = useState(null); // { id, status }
+  const [insurancePremium, setInsurancePremium] = useState("");
+  const [insuranceNote,    setInsuranceNote]    = useState("");
+  const [insuranceSaving,  setInsuranceSaving]  = useState(false);
 
   // Journal d'audit
   const [auditEntries,     setAuditEntries]     = useState([]);
@@ -1517,6 +1595,36 @@ export default function AdminPanel() {
     } catch { showToast("Erreur réseau", "error"); }
   };
 
+  // ── Assurance ────────────────────────────────────────────────────────────────
+  const loadInsurance = useCallback(async () => {
+    if (!token) return;
+    setInsuranceLoading(true);
+    try {
+      const r = await fetch("/api/insurance/admin/list", { headers });
+      if (r.ok) setInsuranceList((await r.json()).requests || []);
+    } catch { /* ignore */ }
+    setInsuranceLoading(false);
+  }, [token, headers]);
+
+  const submitInsuranceDecision = async () => {
+    if (!insuranceModal) return;
+    setInsuranceSaving(true);
+    try {
+      const r = await fetch(`/api/insurance/${insuranceModal.id}/decision`, {
+        method: "PATCH", headers,
+        body: JSON.stringify({ status: insuranceModal.status, premium: insurancePremium, note: insuranceNote }),
+      });
+      const data = await r.json();
+      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
+      showToast("Décision enregistrée — client notifié", "success");
+      setInsuranceModal(null);
+      setInsurancePremium("");
+      setInsuranceNote("");
+      loadInsurance();
+    } catch { showToast("Erreur réseau", "error"); }
+    finally { setInsuranceSaving(false); }
+  };
+
   // ── Journal d'audit ──────────────────────────────────────────────────────────
   const loadAuditLog = useCallback(async () => {
     if (!token) return;
@@ -1878,7 +1986,8 @@ export default function AdminPanel() {
     if (activeTab === "financement")       loadFinancing();
     if (activeTab === "roles")             loadAdminAccounts();
     if (activeTab === "ads" || activeTab === "marketing") loadAds();
-  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds]);
+    if (activeTab === "assurance")         loadInsurance();
+  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds, loadInsurance]);
 
   // Rafraîchissement périodique de la liste support (nouvelles demandes) tant que
   // l'onglet est affiché — même logique de polling que le widget chat public.
@@ -4670,7 +4779,37 @@ export default function AdminPanel() {
           </div>
         </div>
       )}
-      {activeTab === "assurance"   && <WipSection icon="🔒" title="Assurance Automobile" subtitle="Gestion des demandes d'assurance auto, location et import/export." features={["Demandes assurance : auto / location / import","Gestion des sinistres et indemnisations","Partenaires assureurs intégrés","Renouvellement automatique"]} />}
+      {activeTab === "assurance" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🔒 Assurance Automobile</h2>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Demandes auto/location/import — décision manuelle en attendant une intégration assureur.</p>
+            </div>
+            <button className={styles.btnRefresh} onClick={loadInsurance}>↻ Actualiser</button>
+          </div>
+          <InsuranceSection requests={insuranceList} loading={insuranceLoading}
+            onDecide={(m) => { setInsuranceModal(m); setInsurancePremium(""); setInsuranceNote(""); }} />
+        </div>
+      )}
+
+      {insuranceModal && (
+        <div className={styles.modalBackdrop} onClick={() => setInsuranceModal(null)}>
+          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()}>
+            <h3>{insuranceModal.status === "approved" ? "✅ Approuver la demande" : "❌ Refuser la demande"}</h3>
+            {insuranceModal.status === "approved" && (
+              <input type="number" placeholder="Prime proposée (XOF)" value={insurancePremium}
+                onChange={(e) => setInsurancePremium(e.target.value)}
+                style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem", marginBottom: 10 }} />
+            )}
+            <textarea className={styles.rejectTextarea} placeholder="Note pour le client (optionnel)…" value={insuranceNote} onChange={(e) => setInsuranceNote(e.target.value)} />
+            <div className={styles.rejectActions}>
+              <button className={styles.btnAccept} onClick={submitInsuranceDecision} disabled={insuranceSaving}>{insuranceSaving ? "Envoi…" : "Confirmer"}</button>
+              <button className={styles.btnSecondary} onClick={() => setInsuranceModal(null)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* ══════════════════════════════════════════════════
           TAB PAIEMENTS — Abonnements Pro / Boosts en attente
           Aucune passerelle de paiement réelle n'étant branchée (Stripe/Orange

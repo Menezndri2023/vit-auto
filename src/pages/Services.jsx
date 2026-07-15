@@ -85,6 +85,15 @@ const SERVICES = [
     link:  "/import-export",
     highlight: true,
   },
+  {
+    icon:  "🔒",
+    color: "#0891b2",
+    bg:    "rgba(8,145,178,.10)",
+    title: "Assurance Automobile",
+    desc:  "Demande d'assurance auto, location ou import/export en quelques clics. Notre équipe étudie votre dossier et vous propose une prime adaptée.",
+    cta:   "Faire une demande",
+    link:  "/insurance-request",
+  },
 ];
 
 const STEPS = [

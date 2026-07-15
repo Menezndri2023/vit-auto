@@ -36,6 +36,7 @@ const AdminPanel            = lazy(() => import("./pages/AdminPanel"));
 const DashboardStats        = lazy(() => import("./pages/DashboardStats"));
 const Checkout              = lazy(() => import("./pages/Checkout"));
 const Services              = lazy(() => import("./pages/Services"));
+const InsuranceRequest      = lazy(() => import("./pages/InsuranceRequest"));
 const Help                  = lazy(() => import("./pages/Help"));
 const ContractPage          = lazy(() => import("./pages/ContractPage"));
 const Privacy               = lazy(() => import("./pages/Privacy"));
@@ -91,6 +92,7 @@ function AppRoutes() {
 
           {/* ── Pages d'information ────────────────────────── */}
           <Route path="/services"               element={<Services />} />
+          <Route path="/insurance-request"      element={<InsuranceRequest />} />
           <Route path="/help"                   element={<Help />} />
           <Route path="/plans"                  element={<Plans />} />
           <Route path="/partenaires"            element={<Partenaires />} />
