@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useI18n } from "../context/I18nContext";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import styles from "./VehicleDetails.module.css";
 
 const fmtN = (n) => n != null ? Number(n).toLocaleString("fr-FR") : "—";
@@ -144,6 +145,17 @@ export default function VehicleDetails() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => { setImgIdx(0); }, [id]);
+
+  // Titre/description/image de la fiche partagée sur réseaux sociaux/WhatsApp —
+  // avant ce hook, un lien vers CETTE voiture affichait toujours l'aperçu
+  // générique de la page d'accueil (voir hooks/useDocumentMeta.js).
+  const vehicleImg = (Array.isArray(vehicle?.images) && vehicle.images[0]) || vehicle?.image || null;
+  useDocumentMeta(vehicle ? {
+    title:       vehicle.title || vehicle.name || `${vehicle.marque || ""} ${vehicle.modele || ""}`.trim(),
+    description: vehicle.description || `${vehicle.marque || ""} ${vehicle.modele || ""} ${vehicle.annee || ""} — disponible sur VIT AUTO.`.trim(),
+    image:       vehicleImg,
+    url:         `https://vit-auto.com/vehicle/${id}`,
+  } : {});
 
   // États de chargement
   if (apiLoading || (vehiclesCtx.vehiclesLoading && !vehicle)) {

@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /vendor/dashboard
+Disallow: /partner-pms
+Disallow: /partner-fleet-import
+Disallow: /profile
+Disallow: /checkout
+Disallow: /kyc
+Disallow: /reset-password
+Disallow: /verify-email
+Disallow: /payment/
+Disallow: /sign/
+Disallow: /stats
+
+Sitemap: https://vit-auto.com/sitemap.xml

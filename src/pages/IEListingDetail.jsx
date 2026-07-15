@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import styles from "./IEListingDetail.module.css";
 
 const fmtPrice = (p, c = "EUR") =>
@@ -292,6 +293,16 @@ export default function IEListingDetail() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Aperçu WhatsApp/Facebook spécifique à CETTE annonce — sans ce hook, le lien
+  // partagé affiche toujours le titre/l'image génériques de la page d'accueil
+  // (voir hooks/useDocumentMeta.js).
+  useDocumentMeta(listing ? {
+    title:       listing.title,
+    description: listing.description,
+    image:       listing.mainPhoto || listing.photos?.[0],
+    url:         `https://vit-auto.com/import-export/listings/${id}`,
+  } : {});
 
   const handleReservationSuccess = (transaction) => {
     setShowReserve(false);

@@ -121,8 +121,22 @@ export const getPaymentStatus = async (req, res) => {
   try {
     const payment = await Payment.findById(req.params.id).select("status simulated amount devise method booking");
     if (!payment) return res.status(404).json({ message: "Paiement introuvable." });
+
+    // Contrairement à ses routes sœurs (initiatePayment/simulatePayment), cette
+    // route ne vérifiait aucune propriété — n'importe qui connaissant/devinant
+    // un ObjectId de Payment pouvait consulter son montant, sa méthode et son
+    // statut. Même garde que simulatePayment : exige d'être le client de la
+    // réservation (ou admin) dès qu'elle appartient à un compte ; une
+    // réservation invité (sans client) reste consultable par quiconque détient
+    // l'ID, comme pour le reste du flux de paiement invité.
+    const booking = await Booking.findById(payment.booking).select("client");
+    if (booking?.client && (!req.user || (req.user.role !== "admin" && booking.client.toString() !== req.user._id.toString()))) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+
     res.json({ payment });
   } catch (err) {
+    logger.error("getPaymentStatus:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
