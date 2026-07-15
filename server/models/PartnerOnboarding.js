@@ -19,6 +19,11 @@ const partnerOnboardingSchema = new mongoose.Schema({
     unique: true,
   },
 
+  // Pays dénormalisé depuis User.country au moment de la candidature (voir
+  // applyToProgram) — la limite des 20 Founding Partners se compte PAR PAYS,
+  // pas globalement : dénormaliser évite un $lookup sur User à chaque comptage.
+  country: { type: String, uppercase: true, default: null },
+
   // ── Statut du flux d'onboarding ───────────────────────────────────────────
   status: {
     type: String,
@@ -67,10 +72,18 @@ const partnerOnboardingSchema = new mongoose.Schema({
   },
 
   // ── Commissions (verrouillées à la signature) ─────────────────────────────
+  // Deux paliers dans le temps pour location/vente, décomptés depuis lockedAt —
+  // voir server/utils/foundingPartnerRates.js (seule source de vérité pour le
+  // taux réellement appliqué aux réservations, via bookingController.js) :
+  //   Année 1 (0-12 mois depuis signature) : location 5%, vente 1%
+  //   Année 2+ (au-delà)                    : location 7%, vente 2%
+  // Les valeurs stockées ici reflètent le taux Année 1 (standard : 15%/3%) —
+  // affichées dans la LOI/l'Agreement, mais jamais relues par le moteur de
+  // commission (qui recalcule via foundingRateFor à partir de lockedAt).
   commissions: {
-    location:  { type: Number, default: 10 },   // 10% fondateur (standard 15%)
-    vente:     { type: Number, default: 2 },    // 2% fondateur (standard 3%)
-    chauffeur: { type: Number, default: 10 },   // 10% identique
+    location:  { type: Number, default: 5 },
+    vente:     { type: Number, default: 1 },
+    chauffeur: { type: Number, default: 10 },   // 10% identique, aucun palier
     lockedAt:  { type: Date, default: null },
   },
 
@@ -300,6 +313,9 @@ partnerOnboardingSchema.set("toObject", {
 partnerOnboardingSchema.index({ status: 1 });
 partnerOnboardingSchema.index({ isFoundingPartner: 1 });
 partnerOnboardingSchema.index({ createdAt: -1 });
+// Comptage rapide de la limite des 20 Founding Partners PAR PAYS (voir
+// checkFoundingCapacity dans partnerOnboardingController.js).
+partnerOnboardingSchema.index({ country: 1, status: 1 });
 // Index pour recherche rapide par token de signature (sparse = ignore les null)
 partnerOnboardingSchema.index({ "loi.signingToken": 1 },       { sparse: true });
 partnerOnboardingSchema.index({ "agreement.signingToken": 1 }, { sparse: true });

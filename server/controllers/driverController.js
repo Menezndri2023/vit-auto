@@ -12,12 +12,33 @@ export const createDriver = async (req, res) => {
       return res.status(403).json({ message: "Réservé aux partenaires." });
     }
 
-    // Même exigence de certification que pour les véhicules (voir vehicleController.js).
-    if (req.user.role === "partenaire" && !req.user.isFounder && req.user.certificationBadge === "none") {
-      return res.status(403).json({
-        code:    "CERTIFICATION_REQUIRED",
-        message: "Complétez votre vérification partenaire avant de publier une annonce.",
-      });
+    // Même logique que pour les véhicules (voir vehicleController.js createVehicle) :
+    // un chauffeur particulier proposant son propre service n'a besoin que d'une
+    // vérification d'identité KYC (déjà disponible via /kyc), pas de la
+    // certification entreprise complète. Le type n'est jamais relu depuis
+    // req.body une fois déjà fixé sur le compte (anti-contournement) — le corps
+    // de la requête ne sert qu'à amorcer les comptes plus anciens.
+    const SELLER_TYPES = ["particulier", "professionnel", "entreprise"];
+    if (!req.user.sellerType && SELLER_TYPES.includes(req.body.typePubliant)) {
+      req.user.sellerType = req.body.typePubliant;
+      await req.user.save();
+    }
+    const isIndividualSeller = req.user.sellerType === "particulier";
+
+    if (req.user.role === "partenaire" && !req.user.isFounder) {
+      if (isIndividualSeller) {
+        if (req.user.kycStatus !== "VERIFIE") {
+          return res.status(403).json({
+            code:    "KYC_REQUIRED",
+            message: "Complétez votre vérification d'identité (pièce d'identité + selfie) avant de publier.",
+          });
+        }
+      } else if (req.user.certificationBadge === "none") {
+        return res.status(403).json({
+          code:    "CERTIFICATION_REQUIRED",
+          message: "Complétez votre vérification partenaire avant de publier une annonce.",
+        });
+      }
     }
 
     // Whitelist des champs autorisés (évite mass assignment sur owner, stats, status)

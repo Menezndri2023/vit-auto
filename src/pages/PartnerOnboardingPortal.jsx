@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useCurrency } from "../context/CurrencyContext";
 import styles from "./PartnerOnboardingPortal.module.css";
 
 const API_BASE = "/api/partner-onboarding";
@@ -96,6 +97,7 @@ function useFormState(initial = {}) {
 export default function PartnerOnboardingPortal() {
   const { user, token } = useAuth();
   const { addToast } = useToast();
+  const { countryCode } = useCurrency();
   const navigate = useNavigate();
 
   const [onboarding, setOnboarding] = useState(null);
@@ -182,13 +184,15 @@ export default function PartnerOnboardingPortal() {
   };
 
   // Visiteur non connecté : vérifier qu'il reste des places avant de proposer l'inscription
+  // (limite des 20 Founding Partners comptée PAR PAYS — voir checkFoundingCapacity).
   useEffect(() => {
     if (token) return;
-    fetch("/api/partner-onboarding/availability")
+    const qs = countryCode ? `?country=${encodeURIComponent(countryCode)}` : "";
+    fetch(`/api/partner-onboarding/availability${qs}`)
       .then((r) => r.json())
       .then((d) => setAvailability(d))
       .catch(() => setAvailability({ available: true, message: null })); // en cas d'erreur réseau, ne pas bloquer l'inscription — le backend revalidera de toute façon à la création du dossier
-  }, [token]);
+  }, [token, countryCode]);
 
   const saveSection = async (sectionName, data) => {
     setSaving(true);

@@ -328,13 +328,16 @@ const VendorSubmit = () => {
         const res = await fetch("/api/drivers", {
           method: "POST",
           headers,
-          body: JSON.stringify({ ...driver, ...contactInfo, images: imageUrls }),
+          body: JSON.stringify({ ...driver, typePubliant: identity.typePubliant, ...contactInfo, images: imageUrls }),
         });
         if (res.ok) {
           success("Votre profil chauffeur est soumis pour vérification !");
         } else {
           const data = await res.json().catch(() => null);
-          if (data?.code === "CERTIFICATION_REQUIRED") {
+          if (data?.code === "KYC_REQUIRED") {
+            error("Vérifiez votre identité (pièce d'identité + selfie) pour publier votre annonce. Redirection…");
+            setTimeout(() => navigate("/kyc"), 1500);
+          } else if (data?.code === "CERTIFICATION_REQUIRED") {
             error("Terminez votre vérification partenaire pour publier une annonce. Redirection…");
             setTimeout(() => navigate("/partner-onboarding"), 1500);
           } else {
@@ -347,6 +350,7 @@ const VendorSubmit = () => {
           ...vehicle,
           type: adType,
           vehicleType: vehicle.vehicleType || "SUV",
+          typePubliant: identity.typePubliant,
           ...contactInfo,
           images: imageUrls,
           leasing: adType === "vente" ? {
@@ -379,7 +383,10 @@ const VendorSubmit = () => {
       }
       setTimeout(() => navigate("/vendor/dashboard"), 2000);
     } catch (err) {
-      if (err.code === "CERTIFICATION_REQUIRED") {
+      if (err.code === "KYC_REQUIRED") {
+        error("Vérifiez votre identité (pièce d'identité + selfie) pour publier votre annonce. Redirection…");
+        setTimeout(() => navigate("/kyc"), 1500);
+      } else if (err.code === "CERTIFICATION_REQUIRED") {
         error("Terminez votre vérification partenaire pour publier une annonce. Redirection…");
         setTimeout(() => navigate("/partner-onboarding"), 1500);
       } else {

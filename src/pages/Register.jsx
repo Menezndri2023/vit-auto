@@ -21,6 +21,12 @@ const Register = () => {
     confirmPassword: "",
     country: "",
     role: searchParams.get("role") === "partenaire" ? "partenaire" : "client",
+    // Un lien "?plan=fondateur" (page Partenaires.jsx) cible explicitement le
+    // programme Founding Partner, pensé pour des sociétés — sans ce défaut,
+    // un candidat arrivant par ce lien et ne touchant pas au sélecteur (valeur
+    // par défaut "particulier") aurait été redirigé vers /vendor au lieu du
+    // programme qu'il est venu rejoindre (voir getDest ci-dessous).
+    sellerType: searchParams.get("plan") === "fondateur" ? "entreprise" : "particulier",
   });
 
   // Pré-remplit avec le pays détecté par IP (CurrencyContext) dès qu'il est
@@ -32,11 +38,16 @@ const Register = () => {
   const [submitting,   setSubmitting]   = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Destination post-inscription : ?redirect= explicite, sinon offre Fondateur, sinon selon le rôle
+  // Destination post-inscription : ?redirect= explicite, sinon offre Fondateur
+  // (entreprise/professionnel uniquement — programme pensé pour des sociétés),
+  // sinon selon le rôle. Un partenaire "particulier" n'a rien à faire dans le
+  // programme Founding Partner (RCCM, IBAN, export...) : direction la publication
+  // d'annonce, où seule une vérification d'identité KYC lui sera demandée.
   const redirectParam = searchParams.get("redirect");
   const planParam      = searchParams.get("plan");
   const getDest = () => {
     if (redirectParam) return decodeURIComponent(redirectParam);
+    if (form.role === "partenaire" && form.sellerType === "particulier") return "/vendor";
     if (planParam === "fondateur") return "/partner-onboarding";
     return form.role === "partenaire" ? "/vendor/dashboard" : "/dashboard";
   };
@@ -63,13 +74,14 @@ const Register = () => {
     setSubmitting(true);
     try {
       await register({
-        firstName: form.firstName,
-        lastName:  form.lastName,
-        password:  form.password,
-        role:      form.role,
-        email:     form.email.trim(),
-        phone:     form.phone.trim() || undefined,
-        country:   form.country,
+        firstName:  form.firstName,
+        lastName:   form.lastName,
+        password:   form.password,
+        role:       form.role,
+        email:      form.email.trim(),
+        phone:      form.phone.trim() || undefined,
+        country:    form.country,
+        sellerType: form.role === "partenaire" ? form.sellerType : undefined,
       });
 
       success("Inscription réussie ! Vérifiez votre boîte mail pour activer votre compte. Redirection…");
@@ -143,6 +155,21 @@ const Register = () => {
             <option value="client">🧑 Client — Louer des véhicules</option>
             <option value="partenaire">🤝 Partenaire — Publier des annonces</option>
           </select>
+
+          {form.role === "partenaire" && (
+            <>
+              <select name="sellerType" value={form.sellerType} onChange={handleChange} autoComplete="off">
+                <option value="particulier">🧑 Particulier — Je vends/loue mon propre véhicule</option>
+                <option value="professionnel">🏢 Professionnel — Agent, chauffeur indépendant...</option>
+                <option value="entreprise">🏛️ Entreprise — Société de location/vente</option>
+              </select>
+              <small style={{ color: "#8493b0", fontSize: "0.78rem", display: "block", marginTop: -8, marginBottom: 4 }}>
+                {form.sellerType === "particulier"
+                  ? "📍 En tant que particulier, seule une vérification d'identité (pièce + selfie) vous sera demandée pour publier."
+                  : "📍 Une vérification entreprise (documents légaux) sera nécessaire pour publier."}
+              </small>
+            </>
+          )}
 
           <div className={styles.row}>
             <div style={{ position: "relative" }}>

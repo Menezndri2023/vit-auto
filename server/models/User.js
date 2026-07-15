@@ -18,6 +18,17 @@ const userSchema = new mongoose.Schema({
     default: "client",
   },
 
+  // Renseigné à la première publication d'annonce (voir VendorSubmit.jsx —
+  // identity.typePubliant) : détermine le niveau de vérification exigé avant de
+  // publier — KYC identité (léger) pour un particulier vs certification
+  // entreprise (RCCM, IBAN, export...) pour un professionnel/une entreprise.
+  // Voir vehicleController.js createVehicle.
+  sellerType: {
+    type: String,
+    enum: ["particulier", "professionnel", "entreprise", null],
+    default: null,
+  },
+
   profilePhoto: { type: String, default: null },
   address:      { type: String, default: null },
 

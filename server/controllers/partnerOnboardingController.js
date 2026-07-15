@@ -11,6 +11,7 @@ import { buildOnboardingPDFBuffer } from "../utils/pdfGenerator.js";
 import { dispatch } from "../queue/index.js";
 import { validateDocumentDataUri } from "../utils/imageValidation.js";
 import { computeScore, computeBadge, syncUserBadge } from "./partnerCertificationController.js";
+import { foundingRateFor, FOUNDING_YEAR1_RATES, FOUNDING_YEAR2_RATES } from "../utils/foundingPartnerRates.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
 const FOUNDING_LIMIT = 20;
@@ -19,13 +20,20 @@ const ACTIVE_FOUNDING_STATUSES = ["soumis", "en_review", "loi_envoyee", "loi_sig
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // ── Le programme est ouvert à tous (site public, lien partagé, etc.) — le seul
-// garde-fou est la limite de 20 partenaires fondateurs, vérifiée dès la création
-// du dossier (pas seulement à la soumission finale, pour éviter qu'un candidat
-// remplisse tout le wizard avant de découvrir que le programme est complet).
-async function checkFoundingCapacity() {
-  const activeCount = await PartnerOnboarding.countDocuments({ status: { $in: ACTIVE_FOUNDING_STATUSES } });
+// garde-fou est la limite de 20 partenaires fondateurs PAR PAYS, vérifiée dès la
+// création du dossier (pas seulement à la soumission finale, pour éviter qu'un
+// candidat remplisse tout le wizard avant de découvrir que son pays est complet).
+async function checkFoundingCapacity(country) {
+  const filter = { status: { $in: ACTIVE_FOUNDING_STATUSES } };
+  if (country) filter.country = country;
+  const activeCount = await PartnerOnboarding.countDocuments(filter);
   if (activeCount >= FOUNDING_LIMIT) {
-    return { ok: false, message: `Le programme Founding Partner est complet (${FOUNDING_LIMIT}/${FOUNDING_LIMIT} partenaires). Contactez-nous à contact@vit-auto.com pour rejoindre la liste d'attente.` };
+    return {
+      ok: false,
+      message: country
+        ? `Le programme Founding Partner est complet pour votre pays (${FOUNDING_LIMIT}/${FOUNDING_LIMIT} partenaires). Contactez-nous à contact@vit-auto.com pour rejoindre la liste d'attente.`
+        : `Le programme Founding Partner est complet (${FOUNDING_LIMIT}/${FOUNDING_LIMIT} partenaires). Contactez-nous à contact@vit-auto.com pour rejoindre la liste d'attente.`,
+    };
   }
   return { ok: true };
 }
@@ -210,7 +218,8 @@ export const applyToProgram = async (req, res) => {
     const existing = await PartnerOnboarding.findOne({ userId: req.user.id });
     if (existing) return res.json({ onboarding: existing.toObject({ virtuals: true }) });
 
-    const check = await checkFoundingCapacity();
+    const country = req.user.country || null;
+    const check = await checkFoundingCapacity(country);
     if (!check.ok) {
       return res.status(403).json({ message: check.message, programFull: true });
     }
@@ -218,7 +227,7 @@ export const applyToProgram = async (req, res) => {
       await User.findByIdAndUpdate(req.user.id, { role: "partenaire" });
       await notify(req.user.id, "🤝 Compte partenaire activé", "Votre compte est maintenant un compte partenaire suite à votre candidature au programme Founding Partner.");
     }
-    const doc = await PartnerOnboarding.create({ userId: req.user.id });
+    const doc = await PartnerOnboarding.create({ userId: req.user.id, country });
     res.status(201).json({ onboarding: doc.toObject({ virtuals: true }) });
   } catch (err) {
     logger.error("applyToProgram:", err);
@@ -229,10 +238,13 @@ export const applyToProgram = async (req, res) => {
 // ── GET /api/partner-onboarding/availability (public) ─────────────────────────
 // Permet d'afficher "programme complet" avant même l'inscription, plutôt que de
 // laisser un candidat remplir tout le dossier pour se le voir refuser à la fin.
+// ?country=XX (code ISO) pour vérifier la limite du pays du visiteur — sans ce
+// paramètre, vérifie la limite globale (tous pays confondus) par compatibilité.
 export const getAvailability = async (req, res) => {
   try {
-    const check = await checkFoundingCapacity();
-    res.json({ available: check.ok, message: check.ok ? null : check.message });
+    const country = req.query.country ? String(req.query.country).toUpperCase().slice(0, 2) : null;
+    const check = await checkFoundingCapacity(country);
+    res.json({ available: check.ok, message: check.ok ? null : check.message, country });
   } catch (err) {
     logger.error("getAvailability:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -251,7 +263,7 @@ export const updateSection = async (req, res) => {
     }
 
     let doc = await PartnerOnboarding.findOne({ userId: req.user.id });
-    if (!doc) doc = await PartnerOnboarding.create({ userId: req.user.id });
+    if (!doc) doc = await PartnerOnboarding.create({ userId: req.user.id, country: req.user.country || null });
 
     if (["accord_signe", "actif"].includes(doc.status)) {
       return res.status(400).json({ message: "Dossier finalisé — modifications non autorisées." });
@@ -301,7 +313,7 @@ export const updatePartnerType = async (req, res) => {
     if (!VALID.includes(partnerType)) return res.status(400).json({ message: "Type partenaire invalide." });
 
     let doc = await PartnerOnboarding.findOne({ userId: req.user.id });
-    if (!doc) doc = await PartnerOnboarding.create({ userId: req.user.id });
+    if (!doc) doc = await PartnerOnboarding.create({ userId: req.user.id, country: req.user.country || null });
 
     doc.partnerType = partnerType;
     await doc.save();
@@ -320,7 +332,7 @@ export const acceptLegalDocuments = async (req, res) => {
       return res.status(400).json({ message: "L'acceptation des documents légaux est requise." });
     }
     let doc = await PartnerOnboarding.findOne({ userId: req.user.id });
-    if (!doc) doc = await PartnerOnboarding.create({ userId: req.user.id });
+    if (!doc) doc = await PartnerOnboarding.create({ userId: req.user.id, country: req.user.country || null });
 
     doc.legalAcceptance = {
       accepted: true,
@@ -353,17 +365,25 @@ export const submitApplication = async (req, res) => {
       return res.status(400).json({ message: "Vous devez accepter la Letter of Intent, le Founding Partner Agreement et la Verification Policy avant de soumettre." });
     }
 
-    // Vérifier la limite du programme (20 partenaires fondateurs max) et faire la
-    // transition de statut dans la MÊME transaction — sinon deux soumissions
-    // concurrentes pourraient toutes les deux lire un compte sous la limite avant
-    // qu'aucune n'ait écrit son nouveau statut, dépassant les 20 places autorisées.
+    // Dossier créé avant l'ajout du champ `country` (ou via un auto-create de
+    // section qui ne le renseignait pas) — on le complète ici avant le comptage
+    // par pays, sinon ce dossier compterait à tort dans le groupe "sans pays".
+    if (!doc.country && req.user.country) doc.country = req.user.country;
+
+    // Vérifier la limite du programme (20 partenaires fondateurs max PAR PAYS) et
+    // faire la transition de statut dans la MÊME transaction — sinon deux
+    // soumissions concurrentes du même pays pourraient toutes les deux lire un
+    // compte sous la limite avant qu'aucune n'ait écrit son nouveau statut,
+    // dépassant les 20 places autorisées pour ce pays.
     const session = await mongoose.startSession();
     try {
       await session.withTransaction(async () => {
-        const activeCount = await PartnerOnboarding.countDocuments({
+        const countFilter = {
           status: { $in: ACTIVE_FOUNDING_STATUSES },
           _id: { $ne: doc._id },
-        }).session(session);
+        };
+        if (doc.country) countFilter.country = doc.country;
+        const activeCount = await PartnerOnboarding.countDocuments(countFilter).session(session);
         if (activeCount >= FOUNDING_LIMIT) {
           throw Object.assign(new Error("PROGRAM_FULL"), { programFull: true });
         }
@@ -373,7 +393,9 @@ export const submitApplication = async (req, res) => {
     } catch (txErr) {
       if (txErr.programFull) {
         return res.status(400).json({
-          message: `Le programme Founding Partner est complet (${FOUNDING_LIMIT}/${FOUNDING_LIMIT} partenaires). Contactez-nous à contact@vit-auto.com pour rejoindre la liste d'attente.`,
+          message: doc.country
+            ? `Le programme Founding Partner est complet pour votre pays (${FOUNDING_LIMIT}/${FOUNDING_LIMIT} partenaires). Contactez-nous à contact@vit-auto.com pour rejoindre la liste d'attente.`
+            : `Le programme Founding Partner est complet (${FOUNDING_LIMIT}/${FOUNDING_LIMIT} partenaires). Contactez-nous à contact@vit-auto.com pour rejoindre la liste d'attente.`,
           programFull: true,
         });
       }
@@ -1140,17 +1162,16 @@ This Letter of Intent formalizes the mutual intention of VIT-AUTO
 and ${company} to enter into a Founding Partner relationship.
 
 Partner Category : ${typeLabel}
-Program          : Founding Partner Program (limited to first 20 partners)
+Program          : Founding Partner Program (limited to the first 20 partners per country)
 Reference        : ${doc.referenceNumber}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 FOUNDING PARTNER BENEFITS
-(Guaranteed for 12 months from profile activation)
 
   ✓  Free Premium Subscription ......... 12 months (value: €300+)
-  ✓  Rental Commission ................. ${doc.commissions?.location || 10}%  (standard rate: 15%)
-  ✓  Sales Commission .................. ${doc.commissions?.vente || 2}%  (standard rate: 3%)
+  ✓  Rental Commission ................. ${FOUNDING_YEAR1_RATES.location * 100}% year 1, then ${FOUNDING_YEAR2_RATES.location * 100}% year 2+  (standard rate: 15%)
+  ✓  Sales Commission .................. ${FOUNDING_YEAR1_RATES.vente * 100}% year 1, then ${FOUNDING_YEAR2_RATES.vente * 100}% year 2+  (standard rate: 3%)
   ✓  Driver Commission ................. ${doc.commissions?.chauffeur || 10}%
   ✓  Exclusive "Founding Partner" Badge  on all listings
   ✓  Priority Catalog Placement ........ permanent top positioning
@@ -1192,8 +1213,6 @@ export function generateAgreement(doc, user, date) {
   const regNum    = doc.companyInfo?.registrationNumber  || "—";
   const email     = doc.companyInfo?.email || user.email || "—";
   const typeLabel = PARTNER_TYPE_LABELS[doc.partnerType] || doc.partnerType;
-  const locRate   = doc.commissions?.location  || 10;
-  const saleRate  = doc.commissions?.vente     || 2;
   const drvRate   = doc.commissions?.chauffeur || 10;
 
   return `FOUNDING PARTNER AGREEMENT
@@ -1233,7 +1252,8 @@ from preferential conditions in recognition of early commitment.
 ARTICLE 2 — FOUNDING PARTNER STATUS
 
 2.1  The Partner is recognized as a Founding Partner of VIT-AUTO,
-     member of the exclusive first cohort (limited to 20 partners).
+     member of the exclusive first cohort (limited to 20 partners
+     per country).
 
 2.2  This status is non-transferable and permanently recorded
      in the Partner profile under reference ${doc.referenceNumber}.
@@ -1245,17 +1265,19 @@ ARTICLE 2 — FOUNDING PARTNER STATUS
 
 ARTICLE 3 — COMMERCIAL CONDITIONS
 
-3.1  Preferential rates guaranteed for 12 months from activation:
+3.1  Preferential rates, in two steps from the Agreement signing date:
 
-     Transaction Type       Standard Rate   Founding Partner Rate
-     ────────────────────────────────────────────────────────────
-     Vehicle Rental         15%             ${locRate}%
-     Vehicle Sales          3%              ${saleRate}%
-     Professional Driver    10%             ${drvRate}%
+     Transaction Type       Standard Rate   Year 1          Year 2+
+     ─────────────────────────────────────────────────────────────────
+     Vehicle Rental         15%             ${FOUNDING_YEAR1_RATES.location * 100}%             ${FOUNDING_YEAR2_RATES.location * 100}%
+     Vehicle Sales          3%              ${FOUNDING_YEAR1_RATES.vente * 100}%              ${FOUNDING_YEAR2_RATES.vente * 100}%
+     Professional Driver    10%             ${drvRate}%             ${drvRate}%
      Premium Subscription   Paid            FREE (12 months)
 
-3.2  After the 12-month period, standard rates apply unless renewed
-     by mutual written agreement.
+3.2  "Year 1" runs for the first 12 months from the Agreement signing
+     date (Article 3.3). From month 13 onward ("Year 2+"), the Year 2+
+     rates above apply automatically, without requiring a new
+     agreement or admin action.
 
 3.3  Commission rates locked from Agreement signing date: ${date}
 

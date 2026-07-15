@@ -41,16 +41,62 @@ export const createVehicle = async (req, res) => {
       return res.status(403).json({ message: "Réservé aux partenaires." });
     }
 
-    // ── Certification requise avant publication ───────────────────────────
-    // Un partenaire doit avoir complété sa vérification (Founding Partner ou
-    // certification "Partenaire Vérifié") avant de pouvoir publier une annonce —
-    // sinon redirection côté frontend vers le programme Founding Partner
-    // (voir VendorSubmit.jsx : code CERTIFICATION_REQUIRED).
-    if (req.user.role === "partenaire" && !req.user.isFounder && req.user.certificationBadge === "none") {
-      return res.status(403).json({
-        code:    "CERTIFICATION_REQUIRED",
-        message: "Complétez votre vérification partenaire avant de publier une annonce.",
-      });
+    // ── Type de vendeur (particulier vs professionnel/entreprise) ─────────
+    // Normalement déjà fixé à l'inscription (voir Register.jsx/authController.js).
+    // Ce champ n'est JAMAIS relu depuis req.body une fois qu'il est déjà défini
+    // sur le compte — sinon un partenaire "entreprise" pourrait déclarer
+    // "particulier" à chaque annonce pour contourner la certification complète.
+    // Le corps de la requête ne sert qu'à amorcer les comptes plus anciens (créés
+    // avant ce champ, ou promus "partenaire" via applyToProgram) une seule fois.
+    const SELLER_TYPES = ["particulier", "professionnel", "entreprise"];
+    if (!req.user.sellerType && SELLER_TYPES.includes(req.body.typePubliant)) {
+      req.user.sellerType = req.body.typePubliant;
+      await req.user.save();
+    }
+    const isIndividualSeller = req.user.sellerType === "particulier";
+
+    // ── Vérification requise avant publication ─────────────────────────────
+    // Un particulier vendant son propre véhicule ne doit pas franchir le même mur
+    // que les entreprises (RCCM, IBAN, documents export — voir PartnerCertification.js) :
+    // pour lui, la vérification d'identité KYC (pièce + selfie + face-match, déjà
+    // disponible via /kyc) suffit à publier — code KYC_REQUIRED, redirection
+    // frontend vers /kyc (voir VendorSubmit.jsx). Un professionnel/une entreprise
+    // (ou un compte sans type renseigné) reste soumis à la certification partenaire
+    // complète, sauf Founding Partner déjà vérifié — code CERTIFICATION_REQUIRED,
+    // redirection vers /partner-onboarding.
+    if (req.user.role === "partenaire" && !req.user.isFounder) {
+      if (isIndividualSeller) {
+        if (req.user.kycStatus !== "VERIFIE") {
+          return res.status(403).json({
+            code:    "KYC_REQUIRED",
+            message: "Complétez votre vérification d'identité (pièce d'identité + selfie) avant de publier.",
+          });
+        }
+      } else if (req.user.certificationBadge === "none") {
+        return res.status(403).json({
+          code:    "CERTIFICATION_REQUIRED",
+          message: "Complétez votre vérification partenaire avant de publier une annonce.",
+        });
+      }
+    }
+
+    // ── Plafond annonces "particulier" ──────────────────────────────────────
+    // Le KYC identité (léger) n'atteste que de qui est le vendeur, pas de la
+    // légitimité commerciale d'une flotte — sans plafond, un professionnel non
+    // certifié pourrait déclarer "particulier" une fois puis publier un nombre
+    // illimité de véhicules avec la seule vérification d'identité individuelle.
+    // Un particulier vendant/louant réellement ses propres véhicules dépasse
+    // rarement 3 annonces actives simultanées ; au-delà, la certification
+    // entreprise complète est requise.
+    const INDIVIDUAL_SELLER_MAX_ACTIVE = 3;
+    if (isIndividualSeller && !req.user.isFounder) {
+      const activeCount = await Vehicle.countDocuments({ owner: req.user._id, status: { $ne: "rejected" } });
+      if (activeCount >= INDIVIDUAL_SELLER_MAX_ACTIVE) {
+        return res.status(403).json({
+          code:    "CERTIFICATION_REQUIRED",
+          message: `Les comptes "Particulier" sont limités à ${INDIVIDUAL_SELLER_MAX_ACTIVE} annonces actives. Complétez la certification entreprise pour publier davantage.`,
+        });
+      }
     }
 
     // ── Détection doublon (même marque + modèle + année + propriétaire) ────

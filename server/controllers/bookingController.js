@@ -7,9 +7,11 @@ import Payment from "../models/Payment.js";
 import Notification from "../models/Notification.js";
 import Contract from "../models/Contract.js";
 import User from "../models/User.js";
+import PartnerOnboarding from "../models/PartnerOnboarding.js";
 import { dispatch } from "../queue/index.js";
 import { resolveDeliveryFee, detectCountryFromCoords } from "../services/deliveryFee.js";
 import { applyPromotion } from "../utils/promotion.js";
+import { foundingRateFor } from "../utils/foundingPartnerRates.js";
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -76,7 +78,27 @@ const COMMISSION_RATES = {
   chauffeur: 0.10,
   leasing:   0.05,
 };
-const getCommissionRate = (type) => COMMISSION_RATES[type] ?? 0.05;
+
+// ── Taux réel appliqué, en tenant compte du statut Founding Partner ───────────
+// Un Founding Partner (isFoundingPartner=true dans son dossier d'onboarding)
+// bénéficie d'un taux préférentiel sur la location et la vente ("essai" porte
+// la commission de vente — voir generateAgreement) selon deux paliers dans le
+// temps depuis la signature de son Accord (foundingRateFor) — jamais sur
+// chauffeur/leasing, non concernés par l'offre Founding Partner (voir Article 3
+// de l'Agreement). Les taux PartnerOnboarding.commissions ne sont qu'un affichage
+// figé au moment de la signature ; c'est ICI que le taux réellement facturé est
+// calculé, à chaque réservation.
+async function resolveCommissionRate(type, ownerId) {
+  if ((type === "location" || type === "essai") && ownerId) {
+    const fp = await PartnerOnboarding.findOne({ userId: ownerId, isFoundingPartner: true })
+      .select("commissions.lockedAt")
+      .lean();
+    if (fp) {
+      return foundingRateFor(fp.commissions?.lockedAt, type === "location" ? "location" : "vente");
+    }
+  }
+  return COMMISSION_RATES[type] ?? 0.05;
+}
 
 // ── Génération référence unique ────────────────────────────────────────────────
 const REF_PREFIX = { location: "LOC", essai: "VENTE", chauffeur: "CHAUFF", leasing: "LEAS" };
@@ -302,7 +324,7 @@ export const createBooking = async (req, res) => {
     }
 
     const montantTotal    = montantBase + montantOptions + deliveryFee;
-    const commissionRate  = getCommissionRate(type);
+    const commissionRate  = await resolveCommissionRate(type, ownerId);
     const commissionAmount = Math.round(montantTotal * commissionRate);
     const serviceFeeFCFA  = 1000;
     const partnerPayout   = Math.max(montantTotal - commissionAmount - serviceFeeFCFA, 0);
@@ -838,7 +860,7 @@ export const recordTransaction = async (req, res) => {
     }
 
     // Recalcul commission sur montant final réel
-    const commissionRate   = getCommissionRate(booking.type);
+    const commissionRate   = await resolveCommissionRate(booking.type, _vOwnerId || _dOwnerId);
     const commissionAmount = Math.round(finalAmount * commissionRate);
     const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA || 1000), 0);
 
@@ -856,6 +878,7 @@ export const recordTransaction = async (req, res) => {
         tauxInteret:   financingType !== "comptant" ? Number(financing?.tauxInteret)   || 0 : 0,
       },
     };
+    booking.commissionRate   = commissionRate;
     booking.commissionAmount = commissionAmount;
     booking.partnerPayout    = partnerPayout;
     booking.montantTotal     = finalAmount;
@@ -1253,7 +1276,7 @@ export const partnerConfirm = async (req, res) => {
       return res.status(400).json({ message: "Mensualité requise pour un financement leasing/crédit." });
     }
 
-    const commissionRate   = getCommissionRate(booking.type);
+    const commissionRate   = await resolveCommissionRate(booking.type, _vOwnerId || _dOwnerId);
     const commissionAmount = Math.round(finalAmount * commissionRate);
     const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA || 1000), 0);
 
@@ -1272,6 +1295,7 @@ export const partnerConfirm = async (req, res) => {
         tauxInteret:   financingType !== "comptant" ? Number(financing?.tauxInteret)   || 0 : 0,
       },
     };
+    booking.commissionRate   = commissionRate;
     booking.commissionAmount = commissionAmount;
     booking.partnerPayout    = partnerPayout;
     booking.montantTotal     = finalAmount;
@@ -1595,12 +1619,13 @@ export const adminForceComplete = async (req, res) => {
       }
       amount = parsed;
     }
-    const commRate = getCommissionRate(booking.type);
+    const commRate = await resolveCommissionRate(booking.type, booking.vehicle?.owner || booking.driver?.owner);
 
     booking.status           = "completed";
     booking.isPaid           = true;
     booking.paidAt           = new Date();
     booking.montantTotal     = amount;
+    booking.commissionRate   = commRate;
     booking.commissionAmount = Math.round(amount * commRate);
     booking.partnerPayout    = Math.max(amount - booking.commissionAmount - (booking.serviceFeeFCFA || 1000), 0);
 

@@ -58,6 +58,7 @@ function safeUser(u) {
     phone:            u.phone,
     country:          u.country || null,
     role:             u.role,
+    sellerType:       u.sellerType || null,
     emailVerified:    u.emailVerified,
     phoneVerified:    u.phoneVerified,
     identityStatus:   u.identity?.status || "not_submitted",
@@ -95,6 +96,13 @@ export const register = async (req, res) => {
   const email   = sanitize(req.body.email)?.toLowerCase() || null;
   const phone   = sanitize(req.body.phone) || null;
   const country = sanitize(req.body.country)?.toUpperCase() || null;
+  // Précisé uniquement pour role="partenaire" (voir Register.jsx) — détermine le
+  // niveau de vérification exigé pour publier une annonce (particulier : KYC
+  // identité seul ; professionnel/entreprise : certification complète —
+  // voir vehicleController.js/driverController.js createVehicle/createDriver).
+  const SELLER_TYPES = ["particulier", "professionnel", "entreprise"];
+  const sellerTypeIn = sanitize(req.body.sellerType);
+  const sellerType   = SELLER_TYPES.includes(sellerTypeIn) ? sellerTypeIn : null;
 
   if (!password || !firstName || !lastName) {
     return res.status(400).json({ message: "Données manquantes." });
@@ -161,6 +169,7 @@ export const register = async (req, res) => {
       country,
       password: hash,
       role: userRole,
+      sellerType: userRole === "partenaire" ? sellerType : null,
       emailVerificationToken:   autoVerify ? null : token,
       emailVerificationExpires: autoVerify ? null : new Date(Date.now() + VERIFY_TTL),
       emailVerified:            autoVerify,
