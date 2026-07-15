@@ -164,6 +164,7 @@ const Catalogue = () => {
   const [searchTerm,   setSearchTerm]   = useState(() => searchParams.get("location") || "");
   const [activeType,   setActiveType]   = useState(() => searchParams.get("type")     || "Tous");
   const [activeEtat,   setActiveEtat]   = useState(() => searchParams.get("etat")     || "Tous");
+  const [activeDuree,  setActiveDuree]  = useState(() => searchParams.get("duree")    || "Tous");
   const [fuelType,     setFuelType]     = useState("Tous");
   const [transmission, setTransmission] = useState("Tous");
   const [maxPrice,     setMaxPrice]     = useState(200000);
@@ -250,7 +251,7 @@ const Catalogue = () => {
 
   const resetFilters = () => {
     setActiveType("Tous"); setActiveEtat("Tous"); setFuelType("Tous");
-    setTransmission("Tous"); setMaxPrice(200000); setSearchTerm("");
+    setTransmission("Tous"); setMaxPrice(200000); setSearchTerm(""); setActiveDuree("Tous");
     setActiveMode("Tout"); setSearchParams(new URLSearchParams()); setPage(1);
     setIeSearch(""); setIeSource(""); setIeSortKey("newest");
   };
@@ -291,6 +292,11 @@ const Catalogue = () => {
       const fuelOk = fuelType === "Tous" || (v.fuel || v.carburant) === fuelType;
       const transOk = transmission === "Tous" || v.transmission === transmission;
       const priceOk = activeMode === "Acheter" || (v.pricePerDay || 0) <= maxPrice;
+      // Un véhicule sans durée renseignée (créé avant cette fonctionnalité) ou
+      // marqué "les_deux" reste visible sous les deux filtres.
+      const dureeOk = activeMode !== "Louer" || activeDuree === "Tous"
+        || !v.rentalDurationType || v.rentalDurationType === "les_deux"
+        || v.rentalDurationType === (activeDuree === "Courte" ? "courte" : "longue");
       // Un véhicule sans pays renseigné (créé avant cette fonctionnalité) reste
       // toujours visible, quel que soit le pays sélectionné.
       const countryOk = catalogCountry === COUNTRY_INTERNATIONAL || !v.country || v.country === catalogCountry;
@@ -300,7 +306,7 @@ const Catalogue = () => {
         || (v.description || "").toLowerCase().includes(q)
         || (v.ville || v.city || "").toLowerCase().includes(q)
         || (v.marque || "").toLowerCase().includes(q);
-      return modeOk && typeOk && etatOk && fuelOk && transOk && priceOk && countryOk && textOk;
+      return modeOk && typeOk && etatOk && fuelOk && transOk && priceOk && dureeOk && countryOk && textOk;
     });
 
     // "Près de moi" : ne garder que les véhicules avec des coordonnées connues,
@@ -317,12 +323,13 @@ const Catalogue = () => {
     if (sortKey === "price_desc") list = [...list].sort((a,b) => (b.pricePerDay||b.priceForSale||0) - (a.pricePerDay||a.priceForSale||0));
     if (sortKey === "newest")     list = [...list].sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
     return list;
-  }, [vehicles, activeMode, activeType, activeEtat, fuelType, transmission, maxPrice, searchTerm, sortKey, isImportMode, isChauffeurMode, catalogCountry, COUNTRY_INTERNATIONAL, nearMeActive, userPos]);
+  }, [vehicles, activeMode, activeType, activeEtat, activeDuree, fuelType, transmission, maxPrice, searchTerm, sortKey, isImportMode, isChauffeurMode, catalogCountry, COUNTRY_INTERNATIONAL, nearMeActive, userPos]);
 
   const activeChips = (!isImportMode && !isChauffeurMode) ? [
     activeMode !== "Tout"   && { label: activeMode,         clear: () => { setActiveMode("Tout"); setParam("mode",""); } },
     activeType !== "Tous"   && { label: activeType,         clear: () => { setActiveType("Tous"); setParam("type",""); } },
     activeEtat !== "Tous"   && { label: activeEtat,         clear: () => { setActiveEtat("Tous"); setParam("etat",""); } },
+    activeMode === "Louer" && activeDuree !== "Tous" && { label: activeDuree, clear: () => { setActiveDuree("Tous"); setParam("duree",""); } },
     fuelType   !== "Tous"   && { label: fuelType,           clear: () => setFuelType("Tous") },
     transmission !== "Tous" && { label: transmission,       clear: () => setTransmission("Tous") },
     activeMode !== "Acheter" && maxPrice < 200000 && { label: `≤ ${fmt(maxPrice)}`, clear: () => setMaxPrice(200000) },
@@ -567,6 +574,18 @@ const Catalogue = () => {
                     ))}
                   </div>
                 </div>
+                {activeMode === "Louer" && (
+                  <div className={styles.sidebarSection}>
+                    <h4 className={styles.sidebarTitle}>🗓️ Durée</h4>
+                    <div className={styles.pillGroup}>
+                      {["Tous", "Courte", "Longue"].map((d) => (
+                        <button key={d} type="button"
+                          className={`${styles.filterPill} ${activeDuree === d ? styles.filterPillActive : ""}`}
+                          onClick={() => { setActiveDuree(d); setParam("duree", d); }}>{d}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className={styles.sidebarSection}>
                   <h4 className={styles.sidebarTitle}>⛽ Carburant</h4>
                   <div className={styles.pillGroup}>

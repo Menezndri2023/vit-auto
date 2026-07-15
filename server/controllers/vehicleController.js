@@ -190,7 +190,7 @@ export const getVehicles = async (req, res) => {
   try {
     const {
       type, ville, carburant, transmission, minPrice, maxPrice,
-      vehicleType, search, owner, country,
+      vehicleType, search, owner, country, dureeLocation,
       lat, lng, radiusKm = 50,
       page  = 1,
       limit = 20,
@@ -206,7 +206,7 @@ export const getVehicles = async (req, res) => {
     // le catalogue est haute-lecture, une fraîcheur de quelques secondes est
     // largement acceptable et évite de re-taper Mongo à chaque requête identique.
     const cacheKey = !isAdmin && !hasGeo
-      ? buildCacheKey("vehicles", { type, ville, carburant, transmission, minPrice, maxPrice, vehicleType, search, owner, country, page, limit })
+      ? buildCacheKey("vehicles", { type, ville, carburant, transmission, minPrice, maxPrice, vehicleType, search, owner, country, dureeLocation, page, limit })
       : null;
     if (cacheKey) {
       const cached = cacheGet(cacheKey);
@@ -227,6 +227,11 @@ export const getVehicles = async (req, res) => {
     if (ville)        filter.ville = new RegExp(escapeRegex(String(ville).slice(0, 100)), "i");
     if (carburant)    filter.carburant = carburant;
     if (transmission) filter.transmission = transmission;
+    // Un véhicule "les_deux" (défaut) reste visible sous les deux filtres —
+    // seul un véhicule explicitement limité à une durée est exclu de l'autre.
+    if (dureeLocation && ["courte", "longue"].includes(dureeLocation)) {
+      filter.rentalDurationType = { $in: [dureeLocation, "les_deux"] };
+    }
     if (search) {
       const s = escapeRegex(String(search).slice(0, 100));
       filter.$or = [
@@ -420,6 +425,7 @@ export const updateVehicle = async (req, res) => {
       "title", "marque", "modele", "annee", "couleur", "kilometrage", "etat",
       "vehicleType", "carburant", "transmission", "nombrePlaces", "nombrePortes",
       "climatisation", "withDriver", "pricePerDay", "priceForSale", "caution",
+      "rentalDurationType",
       "leasing", "credit", "ageMin", "permisRequis", "assuranceOptionnelle",
       "contactNom", "contactTel", "ville", "adresse", "coordonnees",
       "images", "description", "available", "type",

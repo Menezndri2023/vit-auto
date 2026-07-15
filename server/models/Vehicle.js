@@ -42,7 +42,17 @@ const vehicleSchema = new mongoose.Schema({
   // ── Tarification (FCFA / XOF) ─────────────────────────────
   pricePerDay:  { type: Number }, // location
   priceForSale: { type: Number }, // vente
-  caution:      { type: Number }, // caution location (FCFA)
+  caution:      { type: Number }, // caution location (FCFA) — toujours optionnelle
+
+  // Durée de location proposée (uniquement pertinent pour type "location") —
+  // permet de distinguer "Location courte durée" / "Location longue durée"
+  // (voir Services.jsx), qui pointaient jusqu'ici vers le même catalogue sans
+  // filtre réel.
+  rentalDurationType: {
+    type: String,
+    enum: ["courte", "longue", "les_deux"],
+    default: "les_deux",
+  },
 
   // ── Leasing (LOA — location avec option d'achat, pour type "vente" uniquement) ──
   leasing: {

@@ -128,6 +128,7 @@ const VendorSubmit = () => {
     nombrePlaces: 5, nombrePortes: 4, climatisation: true, withDriver: false,
     kilometrage: "",
     pricePerDay: "", priceForSale: "", caution: "",
+    rentalDurationType: "les_deux", // courte | longue | les_deux — location uniquement
     ageMin: 21, permisRequis: true, assuranceOptionnelle: true,
     description: "", images: [""],
   });
@@ -814,12 +815,20 @@ const VendorSubmit = () => {
                   {errors.pricePerDay && <span className={styles.err}>{errors.pricePerDay}</span>}
                 </div>
                 <div className={styles.field}>
-                  <label>Caution (FCFA)</label>
+                  <label>Caution (FCFA) — optionnelle</label>
                   <div className={styles.inputAffix}>
                     <input type="number" name="caution" value={vehicle.caution}
                       onChange={handleVehChange} placeholder="Ex : 100000" />
                     <span>FCFA</span>
                   </div>
+                </div>
+                <div className={styles.field}>
+                  <label>Durée de location proposée</label>
+                  <select name="rentalDurationType" value={vehicle.rentalDurationType} onChange={handleVehChange}>
+                    <option value="les_deux">Courte et longue durée</option>
+                    <option value="courte">Courte durée uniquement</option>
+                    <option value="longue">Longue durée uniquement</option>
+                  </select>
                 </div>
                 <div className={styles.field}>
                   <label>Âge minimum du conducteur</label>

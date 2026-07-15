@@ -9,7 +9,7 @@ const SERVICES = [
     title: "Location courte durée",
     desc:  "Louez un véhicule à la journée pour vos déplacements ponctuels. Disponible en Côte d'Ivoire, Maroc, Sénégal, France et 10 autres pays.",
     cta:   "Explorer le catalogue",
-    link:  "/catalogue?mode=Louer",
+    link:  "/catalogue?mode=Louer&duree=Courte",
   },
   {
     icon:  "📅",
@@ -18,7 +18,7 @@ const SERVICES = [
     title: "Location longue durée",
     desc:  "Tarif mensuel dégressif sans engagement d'achat. Idéal pour les expatriés, les missions professionnelles et les étudiants.",
     cta:   "Voir les offres",
-    link:  "/catalogue?mode=Louer",
+    link:  "/catalogue?mode=Louer&duree=Longue",
   },
   {
     icon:  "🚚",
