@@ -17,8 +17,21 @@ let _conn = null;
 // pour permettre à queue/index.js de mettre les workers en pause le temps que
 // ça se résorbe, sans jamais perdre de job (le fallback synchrone prend le relai).
 const HARD_FAILURE_PATTERN = /max requests limit exceeded|max number of clients|OOM command not allowed/i;
-const HARD_FAILURE_COOLDOWN_MS = 60_000;
+// Un quota journalier dépassé (Upstash) ne se résorbe pas en 60s — un cooldown
+// fixe faisait reprendre les 9 workers toutes les 60s, qui échouaient à
+// nouveau presque immédiatement (le quota ne s'était pas régénéré), inondant
+// les logs et ajoutant sans arrêt de nouvelles requêtes en échec au compteur
+// déjà dépassé — ce qui retardait d'autant sa propre résorption. Backoff
+// exponentiel : le cooldown double à chaque panne consécutive (60s → 2min →
+// 4min → ... plafonné à 30min), et se réinitialise seulement après 10 min
+// sans nouvelle panne (signe d'une vraie reprise, pas d'un simple répit entre
+// deux tentatives).
+const HARD_FAILURE_COOLDOWN_BASE_MS = 60_000;
+const HARD_FAILURE_COOLDOWN_MAX_MS  = 30 * 60_000;
+const RECOVERY_RESET_MS             = 10 * 60_000;
 let _hardFailureUntil = 0;
+let _consecutiveHardFailures = 0;
+let _lastHardFailureAt = 0;
 
 export function isConnectionHardBroken() {
   return Date.now() < _hardFailureUntil;
@@ -30,9 +43,21 @@ export function isConnectionHardBroken() {
 export function noteRedisError(err) {
   const message = err?.message || String(err);
   if (HARD_FAILURE_PATTERN.test(message)) {
+    const now = Date.now();
     const wasAlreadyBroken = isConnectionHardBroken();
-    _hardFailureUntil = Date.now() + HARD_FAILURE_COOLDOWN_MS;
-    if (!wasAlreadyBroken) logger.warn("[Queue] Panne dure détectée — workers en pause temporaire", { error: message });
+    if (now - _lastHardFailureAt > RECOVERY_RESET_MS) _consecutiveHardFailures = 0;
+    _lastHardFailureAt = now;
+    _consecutiveHardFailures++;
+    const cooldown = Math.min(
+      HARD_FAILURE_COOLDOWN_BASE_MS * (2 ** (_consecutiveHardFailures - 1)),
+      HARD_FAILURE_COOLDOWN_MAX_MS
+    );
+    _hardFailureUntil = now + cooldown;
+    if (!wasAlreadyBroken) {
+      logger.warn("[Queue] Panne dure détectée — workers en pause temporaire", {
+        error: message, cooldownMs: cooldown, consecutive: _consecutiveHardFailures,
+      });
+    }
     return true;
   }
   return false;
