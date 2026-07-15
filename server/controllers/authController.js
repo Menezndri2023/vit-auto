@@ -223,8 +223,37 @@ export const login = async (req, res) => {
       return res.status(403).json({ message: "Compte bloqué. Contactez le support VIT AUTO." });
     }
 
+    // Verrouillage par compte (complète authLimiter, par IP — voir server.js) :
+    // sans ça, un attaquant distribuant ses tentatives sur plusieurs IP ou
+    // attendant simplement la fenêtre de 15 min n'a aucune résistance au
+    // niveau du compte lui-même.
+    if (user.lockUntil && user.lockUntil > new Date()) {
+      const minutesLeft = Math.ceil((user.lockUntil.getTime() - Date.now()) / 60000);
+      return res.status(429).json({ message: `Compte temporairement verrouillé après trop de tentatives. Réessayez dans ${minutesLeft} min.` });
+    }
+
     const isValid = await bcrypt.compare(password, user.password);
-    if (!isValid) return res.status(401).json({ message: "Identifiants invalides." });
+    if (!isValid) {
+      const MAX_ATTEMPTS = 5, LOCKOUT_MS = 15 * 60 * 1000;
+      // $inc atomique : deux requêtes concurrentes (ex: double-clic, script
+      // brute-force parallèle) incrémentent chacune leur propre valeur sans
+      // écraser l'autre, contrairement à un read-then-write en JS.
+      const updated = await User.findByIdAndUpdate(
+        user._id,
+        { $inc: { failedLoginAttempts: 1 } },
+        { new: true }
+      ).select("failedLoginAttempts");
+      if (updated.failedLoginAttempts >= MAX_ATTEMPTS) {
+        await User.updateOne({ _id: user._id }, { $set: { lockUntil: new Date(Date.now() + LOCKOUT_MS), failedLoginAttempts: 0 } });
+        return res.status(429).json({ message: "Compte temporairement verrouillé après trop de tentatives. Réessayez dans 15 min." });
+      }
+      return res.status(401).json({ message: "Identifiants invalides." });
+    }
+
+    // Mot de passe correct : réinitialise le compteur d'échecs.
+    if (user.failedLoginAttempts || user.lockUntil) {
+      await User.updateOne({ _id: user._id }, { $set: { failedLoginAttempts: 0, lockUntil: null } });
+    }
 
     // Bloquer si email non vérifié (sauf admin, mode dev sans SMTP, ou tant que la
     // vérification email n'est pas exigée — voir emailVerificationRequired()). Ne

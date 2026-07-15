@@ -217,15 +217,6 @@ const authLimiter = rateLimit({
   skipSuccessfulRequests: true,
 });
 
-// Limitation stricte : OTP, reset mot de passe
-const strictLimiter = rateLimit({
-  windowMs:        60 * 60 * 1000,     // 1 heure
-  max:             5,
-  message:         { message: "Trop de tentatives. Réessayez dans 1 heure." },
-  standardHeaders: true,
-  legacyHeaders:   false,
-});
-
 const apiLimiter = rateLimit({
   windowMs:        10 * 60 * 1000,     // 10 minutes
   max:             300,

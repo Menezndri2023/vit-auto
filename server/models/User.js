@@ -225,6 +225,13 @@ const userSchema = new mongoose.Schema({
   isActive:          { type: Boolean, default: true },
   lastLogin:         { type: Date,    default: null },
 
+  // ── Verrouillage anti brute-force par compte ──────────────────
+  // Complète le rate-limit par IP (authLimiter, 10/15min) — un attaquant
+  // distribuant ses tentatives sur plusieurs IP ou attendant la fenêtre n'a
+  // sinon aucune résistance au niveau du compte lui-même.
+  failedLoginAttempts: { type: Number, default: 0 },
+  lockUntil:           { type: Date,   default: null },
+
   // ── Authentification à deux facteurs (TOTP) ──────────────────
   twoFactor: {
     enabled:     { type: Boolean, default: false },
