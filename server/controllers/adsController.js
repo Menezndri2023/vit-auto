@@ -17,6 +17,12 @@ export const getAds = async (req, res) => {
       ],
     }).sort({ priority: -1 }).limit(10);
 
+    // Comptabilise une impression par annonce effectivement renvoyée au
+    // visiteur — best-effort, ne doit jamais bloquer/retarder la réponse.
+    if (ads.length) {
+      Ad.updateMany({ _id: { $in: ads.map((a) => a._id) } }, { $inc: { views: 1 } }).catch(() => {});
+    }
+
     res.json(ads);
   } catch {
     res.status(500).json({ message: "Erreur récupération annonces." });

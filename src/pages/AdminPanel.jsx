@@ -812,6 +812,94 @@ function RolesSection({ admins, loading, savingId, onToggle, currentUserId }) {
   );
 }
 
+// ── Publicités & Campagnes — le backend (server/models/Ad.js, controllers/
+// adsController.js, routes/ads.js) existait déjà en entier (CRUD + tracking
+// clics) mais n'était consommé par aucune interface, ni admin ni publique.
+const AD_POSITION_LABELS = {
+  featured_section: "Section vedette (accueil)",
+  catalogue_top:    "Haut du catalogue",
+  catalogue_mid:    "Milieu du catalogue",
+  sidebar:          "Barre latérale",
+};
+
+const emptyAdForm = () => ({ title: "", description: "", image: "", link: "", linkLabel: "En savoir plus", position: "featured_section", active: true, priority: 0 });
+
+function AdsSection({ ads, loading, form, setForm, saving, onSave, onToggle, onDelete }) {
+  return (
+    <div>
+      <div style={{ marginBottom: 16 }}>
+        <button className={styles.btnRefresh} style={{ background: "#0f1b3f", color: "#fff", border: "none" }}
+          onClick={() => setForm(emptyAdForm())}>
+          + Nouvelle annonce
+        </button>
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>
+      ) : ads.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
+          <div style={{ fontSize: "3rem", marginBottom: 12 }}>📢</div>
+          <p style={{ fontWeight: 600 }}>Aucune bannière/campagne pour le moment.</p>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px,1fr))", gap: 14 }}>
+          {ads.map((ad) => (
+            <div key={ad._id} style={{ border: `2px solid ${ad.active ? "#10b981" : "#e2e8f0"}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
+              {ad.image
+                ? <img src={ad.image} alt="" style={{ width: "100%", height: 100, objectFit: "cover" }} onError={(e) => { e.target.style.display = "none"; }} />
+                : <div style={{ height: 100, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem" }}>📢</div>}
+              <div style={{ padding: "10px 12px" }}>
+                <div style={{ fontSize: ".85rem", fontWeight: 700, color: "#0f1b3f" }}>{ad.title}</div>
+                <div style={{ fontSize: ".74rem", color: "#94a3b8", marginBottom: 6 }}>{AD_POSITION_LABELS[ad.position] || ad.position}</div>
+                <div style={{ fontSize: ".76rem", color: "#64748b", marginBottom: 8 }}>👁️ {ad.views || 0} vues · 🖱️ {ad.clicks || 0} clics</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => setForm(ad)} style={{ flex: 1, padding: "5px 0", borderRadius: 8, border: "1.5px solid #e2e8f0", background: "#fff", cursor: "pointer", fontWeight: 700, fontSize: ".76rem" }}>✏️ Éditer</button>
+                  <button onClick={() => onToggle(ad)} style={{ flex: 1, padding: "5px 0", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: ".76rem", background: ad.active ? "#fef3c7" : "#d1fae5", color: ad.active ? "#b45309" : "#047857" }}>
+                    {ad.active ? "⏸️ Pause" : "▶️ Activer"}
+                  </button>
+                  <button onClick={() => onDelete(ad._id)} style={{ padding: "5px 10px", borderRadius: 8, border: "none", background: "#fee2e2", color: "#dc2626", cursor: "pointer", fontWeight: 700, fontSize: ".76rem" }}>🗑️</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {form && (
+        <div className={styles.modalBackdrop} onClick={() => setForm(null)}>
+          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <h3>{form._id ? "✏️ Modifier l'annonce" : "+ Nouvelle annonce"}</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, margin: "14px 0" }}>
+              <input placeholder="Titre *" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+                style={{ padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              <textarea placeholder="Description (optionnel)" value={form.description || ""} onChange={(e) => setForm({ ...form, description: e.target.value })}
+                style={{ padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem", minHeight: 60, fontFamily: "inherit" }} />
+              <input placeholder="URL de l'image" value={form.image || ""} onChange={(e) => setForm({ ...form, image: e.target.value })}
+                style={{ padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              <input placeholder="Lien de redirection au clic" value={form.link || ""} onChange={(e) => setForm({ ...form, link: e.target.value })}
+                style={{ padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              <input placeholder="Texte du bouton" value={form.linkLabel || ""} onChange={(e) => setForm({ ...form, linkLabel: e.target.value })}
+                style={{ padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              <select value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })}
+                style={{ padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }}>
+                {Object.entries(AD_POSITION_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: ".85rem" }}>
+                <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
+                Active immédiatement
+              </label>
+            </div>
+            <div className={styles.rejectActions}>
+              <button className={styles.btnAccept} onClick={onSave} disabled={saving}>{saving ? "Envoi…" : "Enregistrer"}</button>
+              <button className={styles.btnSecondary} onClick={() => setForm(null)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const STATUS_VEH = {
   approved: { label: "Publiée",     color: "#10b981", bg: "#ecfdf5" },
   pending:  { label: "En attente",  color: "#f59e0b", bg: "#fffbeb" },
@@ -948,6 +1036,12 @@ export default function AdminPanel() {
   const [adminAccounts,     setAdminAccounts]     = useState([]);
   const [rolesLoading,      setRolesLoading]      = useState(false);
   const [rolesSavingId,     setRolesSavingId]     = useState(null);
+
+  // Publicités & Campagnes
+  const [adsList,        setAdsList]        = useState([]);
+  const [adsLoading,     setAdsLoading]     = useState(false);
+  const [adForm,         setAdForm]         = useState(null); // objet en édition/création, null = fermé
+  const [adSaving,       setAdSaving]       = useState(false);
 
   // Journal d'audit
   const [auditEntries,     setAuditEntries]     = useState([]);
@@ -1376,6 +1470,53 @@ export default function AdminPanel() {
     finally { setRolesSavingId(null); }
   };
 
+  // ── Publicités & Campagnes ───────────────────────────────────────────────────
+  const loadAds = useCallback(async () => {
+    if (!token) return;
+    setAdsLoading(true);
+    try {
+      const r = await fetch("/api/ads/all", { headers });
+      if (r.ok) setAdsList(await r.json());
+    } catch { /* ignore */ }
+    setAdsLoading(false);
+  }, [token, headers]);
+
+  const saveAd = async () => {
+    if (!adForm?.title?.trim()) { showToast("Titre requis", "error"); return; }
+    setAdSaving(true);
+    try {
+      const isNew = !adForm._id;
+      const r = await fetch(isNew ? "/api/ads" : `/api/ads/${adForm._id}`, {
+        method: isNew ? "POST" : "PUT", headers,
+        body: JSON.stringify(adForm),
+      });
+      const data = await r.json();
+      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
+      showToast(isNew ? "Annonce créée." : "Annonce mise à jour.", "success");
+      setAdForm(null);
+      loadAds();
+    } catch { showToast("Erreur réseau", "error"); }
+    finally { setAdSaving(false); }
+  };
+
+  const toggleAdActive = async (ad) => {
+    try {
+      const r = await fetch(`/api/ads/${ad._id}`, {
+        method: "PUT", headers,
+        body: JSON.stringify({ active: !ad.active }),
+      });
+      if (r.ok) loadAds();
+    } catch { showToast("Erreur réseau", "error"); }
+  };
+
+  const deleteAd = async (id) => {
+    if (!window.confirm("Supprimer définitivement cette annonce ?")) return;
+    try {
+      const r = await fetch(`/api/ads/${id}`, { method: "DELETE", headers });
+      if (r.ok) { showToast("Annonce supprimée.", "success"); loadAds(); }
+    } catch { showToast("Erreur réseau", "error"); }
+  };
+
   // ── Journal d'audit ──────────────────────────────────────────────────────────
   const loadAuditLog = useCallback(async () => {
     if (!token) return;
@@ -1736,7 +1877,8 @@ export default function AdminPanel() {
     if (activeTab === "analytics")         loadAnalytics();
     if (activeTab === "financement")       loadFinancing();
     if (activeTab === "roles")             loadAdminAccounts();
-  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts]);
+    if (activeTab === "ads" || activeTab === "marketing") loadAds();
+  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds]);
 
   // Rafraîchissement périodique de la liste support (nouvelles demandes) tant que
   // l'onglet est affiché — même logique de polling que le widget chat public.
@@ -2319,7 +2461,9 @@ export default function AdminPanel() {
         <>
           {/* ══════════════════════ TAB MARKETING & CMS ══════════════ */}
           {activeTab === "marketing" && (
-            <MarketingSection vehicles={vehicles} token={token} onRefresh={loadAll} />
+            <MarketingSection vehicles={vehicles} token={token} onRefresh={loadAll}
+              adsList={adsList} adsLoading={adsLoading} adForm={adForm} setAdForm={setAdForm} adSaving={adSaving}
+              saveAd={saveAd} toggleAdActive={toggleAdActive} deleteAd={deleteAd} />
           )}
 
           {/* ══════════════════════ TAB CATALOGUE ════════════════════ */}
@@ -5403,7 +5547,18 @@ export default function AdminPanel() {
       })()}
 
       {activeTab === "partenaires" && <WipSection icon="🤝" title="Gestion des Partenariats" subtitle="Contrats partenaires, commissions, et tableau de bord dédié par partenaire stratégique." features={["Concessionnaires, loueurs, assureurs, banques","Contrats : date, commission, statut","Tableau de bord commissions par partenaire","Catégories : BYD, Hyundai, Total, NSIA..."]} />}
-      {activeTab === "ads"         && <WipSection icon="📢" title="Publicités & Sponsoring" subtitle="Bannières publicitaires, annonces sponsorisées et gestion des campagnes marketing." features={["Bannières homepage et catégories","Véhicules sponsorisés : mise en avant","Gestion des budgets de campagne","Statistiques de clics et de conversions"]} />}
+      {activeTab === "ads" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>📢 Publicités & Sponsoring</h2>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Bannières affichées sur le site public — accueil, catalogue, barre latérale.</p>
+            </div>
+            <button className={styles.btnRefresh} onClick={loadAds}>↻ Actualiser</button>
+          </div>
+          <AdsSection ads={adsList} loading={adsLoading} form={adForm} setForm={setAdForm} saving={adSaving} onSave={saveAd} onToggle={toggleAdActive} onDelete={deleteAd} />
+        </div>
+      )}
       {activeTab === "support" && (
         <div className={styles.tabContent}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
@@ -6749,7 +6904,7 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
 // ═══════════════════════════════════════════════════════════════════════════════
 const MAX_SPOTLIGHTS_M = 5;
 
-function MarketingSection({ vehicles, token, onRefresh }) {
+function MarketingSection({ vehicles, token, onRefresh, adsList, adsLoading, adForm, setAdForm, adSaving, saveAd, toggleAdActive, deleteAd }) {
   const approved = vehicles.filter((v) => v.status === "approved" || v.available);
   const [subTab, setSubTab] = useState("accueil");
 
@@ -6927,7 +7082,8 @@ function MarketingSection({ vehicles, token, onRefresh }) {
 
       {/* ── Campagnes ── */}
       {subTab === "campagnes" && (
-        <WipSection icon="📢" title="Campagnes & Publicités" subtitle="Gérez vos bannières promotionnelles, annonces sponsorisées et campagnes marketing sur le site." features={["Bannières homepage personnalisées","Véhicules sponsorisés avec budget","Statistiques de clics et conversions","Envoi de newsletter ciblée","Codes promo et réductions"]} />
+        <AdsSection ads={adsList} loading={adsLoading} form={adForm} setForm={setAdForm} saving={adSaving}
+          onSave={saveAd} onToggle={toggleAdActive} onDelete={deleteAd} />
       )}
     </div>
   );
