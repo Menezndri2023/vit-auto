@@ -174,7 +174,12 @@ export const updateAdminScope = async (req, res) => {
     if (!Array.isArray(scope) || scope.some((s) => !VALID_SCOPES.includes(s))) {
       return res.status(400).json({ message: "Permissions invalides." });
     }
-    const target = await User.findById(req.params.id).select("role adminScope");
+    // Inclut email/phone même si non modifiés ici : le hook pre("validate") du
+    // modèle ("au moins un email ou téléphone") s'exécute sur target.save() plus
+    // bas et rejetait systématiquement cette sauvegarde quand ces champs
+    // n'étaient pas chargés (undefined sur le document ≠ absent en base) — bug
+    // réel qui cassait cette route à 100% avant ce correctif.
+    const target = await User.findById(req.params.id).select("role adminScope email phone");
     if (!target) return res.status(404).json({ message: "Utilisateur introuvable." });
     if (target.role !== "admin") return res.status(400).json({ message: "Ce compte n'est pas un compte admin." });
 
