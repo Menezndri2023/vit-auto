@@ -70,6 +70,30 @@ const ieTransactionSchema = new mongoose.Schema({
   destCity:    { type: String, trim: true },
   notes:       { type: String, trim: true, maxlength: 1000 },
 
+  // ── Devis du coût total d'importation (Import Cost Engine) ─────────────────
+  // Calculé automatiquement à la réservation à partir du barème pays en
+  // vigueur à cet instant (voir services/importCostEngine.js) — c'est une
+  // ESTIMATION ("niveau 1", voir demande produit), pas un montant contractuel
+  // verrouillé. Recalculée si le client change de destination avant l'offre
+  // finale du fournisseur (finalOffer reste la seule valeur contractuelle).
+  costEstimate: {
+    available:      { type: Boolean, default: false },
+    breakdown: {
+      vehiclePrice:    Number,
+      inlandTransport: Number,
+      seaFreight:      Number,
+      insurance:       Number,
+      portFees:        Number,
+      customs:         Number,
+      delivery:        Number,
+      commission:      Number,
+    },
+    totalServices: { type: Number, default: null },
+    grandTotal:    { type: Number, default: null },
+    currency:      { type: String, default: null },
+    computedAt:    { type: Date,   default: null },
+  },
+
   // ── Délai d'expiration de réservation (72h par défaut) ────────────────────
   reservedAt:          { type: Date, default: Date.now },
   reservationExpires:  { type: Date, default: () => new Date(Date.now() + 72 * 60 * 60 * 1000) },

@@ -9,6 +9,7 @@ import PartnerOnboarding    from "../models/PartnerOnboarding.js";
 import { dispatch } from "../queue/index.js";
 import { stripeProvider } from "../services/payment/gateway.js";
 import { foundingRateFor } from "../utils/foundingPartnerRates.js";
+import { computeImportCost } from "../services/importCostEngine.js";
 
 // Commission VIT AUTO sur une transaction Import/Export — même barème que la
 // vente (foundingRateFor), puisque le partenaire d'une transaction IE est
@@ -122,6 +123,25 @@ export const createReservation = async (req, res) => {
     // Créer le chat
     const chatId = await createTransactionChat(req.user._id, listing.partner, null);
 
+    // Devis du coût total d'importation (estimation) — voir Import Cost Engine.
+    // Silencieux si aucun barème n'est configuré pour ce pays (pas encore un
+    // motif de blocage de la réservation, seulement une estimation manquante).
+    let costEstimate = { available: false };
+    if (destCountry) {
+      try {
+        const est = await computeImportCost({
+          vehiclePrice: listing.price, currency: listing.currency,
+          sourceCountry: listing.sourceCountry, destCountry, destCity,
+        });
+        if (est.available) {
+          costEstimate = {
+            available: true, breakdown: est.breakdown, totalServices: est.totalServices,
+            grandTotal: est.grandTotal, currency: est.currency, computedAt: est.computedAt,
+          };
+        }
+      } catch (e) { logger.error("createReservation costEstimate:", e); }
+    }
+
     const tx = await IETransaction.create({
       listing: listingId,
       client:  req.user._id,
@@ -131,6 +151,7 @@ export const createReservation = async (req, res) => {
       notes:       notes       || null,
       status: "reserved",
       chat:   chatId,
+      costEstimate,
       statusHistory: [{
         status: "reserved", changedAt: new Date(), changedBy: req.user._id, note: "Réservation initiale",
       }],

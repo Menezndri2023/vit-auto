@@ -1147,6 +1147,11 @@ export default function AdminPanel() {
 
   // Assurance
   const [insuranceList,    setInsuranceList]    = useState([]);
+  const [costConfigs,      setCostConfigs]      = useState([]);
+  const [laneRates,        setLaneRates]        = useState([]);
+  const [importCostLoading, setImportCostLoading] = useState(false);
+  const [costConfigForm,  setCostConfigForm]    = useState(null); // null = fermé, {} = nouveau, objet = édition
+  const [laneForm,        setLaneForm]          = useState(null);
   const [insuranceLoading, setInsuranceLoading] = useState(false);
   const [insuranceModal,   setInsuranceModal]   = useState(null); // { id, status }
   const [insurancePremium, setInsurancePremium] = useState("");
@@ -1671,6 +1676,62 @@ export default function AdminPanel() {
     finally { setInsuranceSaving(false); }
   };
 
+  // ── Import Cost Engine — barèmes pays + liaisons de fret ─────────────────────
+  const loadImportCostData = useCallback(async () => {
+    if (!token) return;
+    setImportCostLoading(true);
+    try {
+      const [cRes, lRes] = await Promise.all([
+        fetch("/api/import-cost/admin/configs", { headers }),
+        fetch("/api/import-cost/admin/lanes",   { headers }),
+      ]);
+      if (cRes.ok) setCostConfigs((await cRes.json()).configs || []);
+      if (lRes.ok) setLaneRates((await lRes.json()).lanes || []);
+    } catch { /* ignore */ }
+    setImportCostLoading(false);
+  }, [token, headers]);
+
+  const saveCostConfig = async () => {
+    if (!costConfigForm?.country) { showToast("Pays requis", "error"); return; }
+    try {
+      const r = await fetch("/api/import-cost/admin/configs", {
+        method: "POST", headers, body: JSON.stringify(costConfigForm),
+      });
+      const d = await r.json().catch(() => null);
+      if (r.ok) { showToast("Barème enregistré."); setCostConfigForm(null); loadImportCostData(); }
+      else showToast(d?.message || "Erreur", "error");
+    } catch { showToast("Erreur réseau", "error"); }
+  };
+
+  const deleteCostConfig = async (id) => {
+    if (!confirm("Supprimer ce barème ?")) return;
+    await fetch(`/api/import-cost/admin/configs/${id}`, { method: "DELETE", headers });
+    showToast("Barème supprimé.");
+    loadImportCostData();
+  };
+
+  const saveLaneRate = async () => {
+    if (!laneForm?.sourceCountry || !laneForm?.destCountry || !laneForm?.seaFreightUSD) {
+      showToast("Pays d'origine, destination et tarif de fret requis", "error"); return;
+    }
+    try {
+      const isEdit = !!laneForm._id;
+      const r = await fetch(isEdit ? `/api/import-cost/admin/lanes/${laneForm._id}` : "/api/import-cost/admin/lanes", {
+        method: isEdit ? "PATCH" : "POST", headers, body: JSON.stringify(laneForm),
+      });
+      const d = await r.json().catch(() => null);
+      if (r.ok) { showToast("Liaison enregistrée."); setLaneForm(null); loadImportCostData(); }
+      else showToast(d?.message || "Erreur", "error");
+    } catch { showToast("Erreur réseau", "error"); }
+  };
+
+  const deleteLaneRate = async (id) => {
+    if (!confirm("Supprimer cette liaison ?")) return;
+    await fetch(`/api/import-cost/admin/lanes/${id}`, { method: "DELETE", headers });
+    showToast("Liaison supprimée.");
+    loadImportCostData();
+  };
+
   // ── Journal d'audit ──────────────────────────────────────────────────────────
   const loadAuditLog = useCallback(async () => {
     if (!token) return;
@@ -2045,7 +2106,8 @@ export default function AdminPanel() {
     if (activeTab === "roles")             loadAdminAccounts();
     if (activeTab === "ads" || activeTab === "marketing") loadAds();
     if (activeTab === "assurance")         loadInsurance();
-  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds, loadInsurance]);
+    if (activeTab === "import_cost")       loadImportCostData();
+  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds, loadInsurance, loadImportCostData]);
 
   // Rafraîchissement périodique de la liste support (nouvelles demandes) tant que
   // l'onglet est affiché — même logique de polling que le widget chat public.
@@ -2341,6 +2403,7 @@ export default function AdminPanel() {
         { key: "import_export", icon: "🌍", label: "Transactions I/E",      badge: pendingIe },
         { key: "exportateurs",  icon: "📦", label: "Partenaires Export",    badge: pendingImp },
         { key: "transport",     icon: "🚢", label: "Transport Intl." },
+        { key: "import_cost",   icon: "🧮", label: "Coûts Import" },
         { key: "financement",   icon: "🏦", label: "Financement" },
         { key: "assurance",     icon: "🔒", label: "Assurance" },
       ],
@@ -4864,6 +4927,201 @@ export default function AdminPanel() {
           <TransportSection ieTransactions={ieTransactions} loading={ieTxLoading} />
         </div>
       )}
+      {activeTab === "import_cost" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🧮 Coûts Import — Barèmes</h2>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Configure le moteur de calcul du coût total d'importation (devis instantané côté acheteur). Montants en USD.</p>
+            </div>
+            <button className={styles.btnRefresh} onClick={loadImportCostData}>↻ Actualiser</button>
+          </div>
+
+          {/* ── Barèmes pays de destination ── */}
+          <div className={styles.chartCard}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h3 className={styles.chartTitle} style={{ margin: 0 }}>🌍 Barèmes par pays de destination</h3>
+              <button className={styles.btnApprove} style={{ fontSize: ".8rem" }}
+                onClick={() => setCostConfigForm({
+                  country: "", customsDutyPercent: 20, vatPercent: 18, transitFixedFeeUSD: 150,
+                  redevancesFixedFeeUSD: 100, portFeesFixedUSD: 300, deliveryFixedFeeUSD: 200,
+                  insurancePercent: 1, defaultSeaFreightUSD: 1200, active: true,
+                })}>+ Nouveau barème</button>
+            </div>
+            {importCostLoading ? (
+              <div className={styles.loadingBox} style={{ minHeight: 80 }}><div className={styles.spinner} /></div>
+            ) : costConfigs.length === 0 ? (
+              <p style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>Aucun barème configuré — le calculateur acheteur reste indisponible tant qu'aucun pays n'est configuré.</p>
+            ) : (
+              <div className={styles.tableWrap}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr><th>Pays</th><th>Douane</th><th>TVA</th><th>Transit</th><th>Redevances</th><th>Port</th><th>Livraison</th><th>Assurance</th><th>Fret défaut</th><th>Statut</th><th>Actions</th></tr>
+                  </thead>
+                  <tbody>
+                    {costConfigs.map((c) => (
+                      <tr key={c._id} className={styles.tr}>
+                        <td style={{ fontWeight: 700 }}>{c.country}</td>
+                        <td>{c.customsDutyPercent}%</td>
+                        <td>{c.vatPercent}%</td>
+                        <td>${c.transitFixedFeeUSD}</td>
+                        <td>${c.redevancesFixedFeeUSD}</td>
+                        <td>${c.portFeesFixedUSD}</td>
+                        <td>${c.deliveryFixedFeeUSD}</td>
+                        <td>{c.insurancePercent}%</td>
+                        <td>${c.defaultSeaFreightUSD}</td>
+                        <td><Badge label={c.active ? "Actif" : "Inactif"} color={c.active ? "#10b981" : "#94a3b8"} bg={c.active ? "#ecfdf5" : "#f1f5f9"} /></td>
+                        <td>
+                          <div className={styles.actionBtns}>
+                            <button className={styles.btnGhost} style={{ fontSize: ".75rem" }} onClick={() => setCostConfigForm(c)}>✏️</button>
+                            <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteCostConfig(c._id)}>🗑️</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* ── Liaisons de fret ── */}
+          <div className={styles.chartCard}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h3 className={styles.chartTitle} style={{ margin: 0 }}>🚢 Liaisons de fret (origine → destination)</h3>
+              <button className={styles.btnApprove} style={{ fontSize: ".8rem" }}
+                onClick={() => setLaneForm({ sourceCountry: "", destCountry: "", seaFreightUSD: "", inlandTransportUSD: 150, carrier: "", estimatedDelayDays: "" })}>
+                + Nouvelle liaison</button>
+            </div>
+            {laneRates.length === 0 ? (
+              <p style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>Aucune liaison configurée — le fret retombe sur l'estimation générique du pays de destination.</p>
+            ) : (
+              <div className={styles.tableWrap}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr><th>Origine</th><th>Destination</th><th>Fret maritime</th><th>Transport intérieur</th><th>Compagnie</th><th>Délai</th><th>Statut</th><th>Actions</th></tr>
+                  </thead>
+                  <tbody>
+                    {laneRates.map((l) => (
+                      <tr key={l._id} className={styles.tr}>
+                        <td>{l.sourceCountry}</td>
+                        <td>{l.destCountry}</td>
+                        <td>${l.seaFreightUSD}</td>
+                        <td>${l.inlandTransportUSD}</td>
+                        <td>{l.carrier || "—"}</td>
+                        <td>{l.estimatedDelayDays ? `${l.estimatedDelayDays} j` : "—"}</td>
+                        <td><Badge label={l.active ? "Actif" : "Inactif"} color={l.active ? "#10b981" : "#94a3b8"} bg={l.active ? "#ecfdf5" : "#f1f5f9"} /></td>
+                        <td>
+                          <div className={styles.actionBtns}>
+                            <button className={styles.btnGhost} style={{ fontSize: ".75rem" }} onClick={() => setLaneForm(l)}>✏️</button>
+                            <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteLaneRate(l._id)}>🗑️</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal barème pays ── */}
+      {costConfigForm && (
+        <div className={styles.overlay} onClick={() => setCostConfigForm(null)}>
+          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
+            <h3 style={{ margin: "0 0 14px", color: "#0f1b3f", fontSize: "1rem" }}>
+              {costConfigForm._id ? "✏️ Modifier le barème" : "+ Nouveau barème pays"}
+            </h3>
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Pays de destination *</label>
+              <input value={costConfigForm.country} disabled={!!costConfigForm._id}
+                onChange={(e) => setCostConfigForm((p) => ({ ...p, country: e.target.value }))}
+                placeholder="Côte d'Ivoire" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              {[
+                ["customsDutyPercent", "Droits de douane (%)"], ["vatPercent", "TVA (%)"],
+                ["transitFixedFeeUSD", "Transit fixe ($)"], ["redevancesFixedFeeUSD", "Redevances fixes ($)"],
+                ["portFeesFixedUSD", "Frais portuaires ($)"], ["deliveryFixedFeeUSD", "Livraison finale ($)"],
+                ["insurancePercent", "Assurance (%)"], ["defaultSeaFreightUSD", "Fret maritime défaut ($)"],
+              ].map(([key, label]) => (
+                <div key={key}>
+                  <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>{label}</label>
+                  <input type="number" value={costConfigForm[key]}
+                    onChange={(e) => setCostConfigForm((p) => ({ ...p, [key]: e.target.value }))}
+                    style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+                </div>
+              ))}
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: ".85rem", marginBottom: 14 }}>
+              <input type="checkbox" checked={costConfigForm.active} onChange={(e) => setCostConfigForm((p) => ({ ...p, active: e.target.checked }))} />
+              Barème actif
+            </label>
+            <div className={styles.confirmActions}>
+              <button className={styles.btnApprove} onClick={saveCostConfig}>Enregistrer</button>
+              <button className={styles.btnGhost} onClick={() => setCostConfigForm(null)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal liaison de fret ── */}
+      {laneForm && (
+        <div className={styles.overlay} onClick={() => setLaneForm(null)}>
+          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <h3 style={{ margin: "0 0 14px", color: "#0f1b3f", fontSize: "1rem" }}>
+              {laneForm._id ? "✏️ Modifier la liaison" : "+ Nouvelle liaison de fret"}
+            </h3>
+            <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Pays d'origine *</label>
+                <input value={laneForm.sourceCountry} disabled={!!laneForm._id}
+                  onChange={(e) => setLaneForm((p) => ({ ...p, sourceCountry: e.target.value }))}
+                  placeholder="Chine" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Pays de destination *</label>
+                <input value={laneForm.destCountry} disabled={!!laneForm._id}
+                  onChange={(e) => setLaneForm((p) => ({ ...p, destCountry: e.target.value }))}
+                  placeholder="Côte d'Ivoire" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Fret maritime ($) *</label>
+                <input type="number" value={laneForm.seaFreightUSD}
+                  onChange={(e) => setLaneForm((p) => ({ ...p, seaFreightUSD: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Transport intérieur ($)</label>
+                <input type="number" value={laneForm.inlandTransportUSD}
+                  onChange={(e) => setLaneForm((p) => ({ ...p, inlandTransportUSD: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Compagnie (optionnel)</label>
+                <input value={laneForm.carrier || ""} onChange={(e) => setLaneForm((p) => ({ ...p, carrier: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Délai estimé (jours)</label>
+                <input type="number" value={laneForm.estimatedDelayDays || ""} onChange={(e) => setLaneForm((p) => ({ ...p, estimatedDelayDays: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              </div>
+            </div>
+            <div className={styles.confirmActions}>
+              <button className={styles.btnApprove} onClick={saveLaneRate}>Enregistrer</button>
+              <button className={styles.btnGhost} onClick={() => setLaneForm(null)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === "financement" && (
         <div className={styles.tabContent}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>

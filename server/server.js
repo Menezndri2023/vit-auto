@@ -26,6 +26,7 @@ import subscriptionRoutes  from "./routes/subscriptions.js";
 import chatRoutes          from "./routes/chats.js";
 import contractRoutes      from "./routes/contracts.js";
 import importExportRoutes  from "./routes/importExport.js";
+import importCostRoutes    from "./routes/importCost.js";
 import invoiceRoutes       from "./routes/invoices.js";
 import adsRoutes           from "./routes/ads.js";
 import geoRoutes           from "./routes/geo.js";
@@ -311,6 +312,7 @@ app.use("/api/audit-log",          apiLimiter, auditLogRoutes);          // Jour
 app.use("/api/analytics",          apiLimiter, analyticsRoutes);         // Analytics avancé (consultation admin)
 app.use("/api/insurance",          apiLimiter, insuranceRoutes);         // Demandes d'assurance
 app.use("/api/favorites",          apiLimiter, favoritesRoutes);         // Favoris véhicules / annonces IE
+app.use("/api/import-cost",        apiLimiter, importCostRoutes);        // Moteur de calcul coût d'importation
 
 // ── Communication tracking (pixel ouverture + clic email) ────────────────────
 const TRANSPARENT_GIF = Buffer.from(

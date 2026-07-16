@@ -171,6 +171,85 @@ function InspectionSection({ listingId }) {
   );
 }
 
+// ── Calculateur du coût total d'importation (Import Cost Engine) ───────────
+// Estimation instantanée (niveau 1 — voir demande produit) : le client choisit
+// un pays de destination (parmi ceux déclarés par le partenaire) et voit tout
+// de suite le détail transport/fret/assurance/douanes/livraison/commission.
+// Rien n'est verrouillé ici — seule l'offre finale du fournisseur fait foi.
+const COST_LINE_LABELS = {
+  vehiclePrice: "Prix du véhicule", inlandTransport: "Transport intérieur",
+  seaFreight: "Fret maritime", insurance: "Assurance maritime",
+  portFees: "Frais portuaires", customs: "Douanes / transit",
+  delivery: "Livraison finale", commission: "Frais de service VIT AUTO",
+};
+function ImportCostCalculator({ listingId, availableIn }) {
+  const { fmtFromCurrency } = useCurrency();
+  const [destCountry, setDestCountry] = useState(availableIn?.[0] || "");
+  const [destCity, setDestCity]       = useState("");
+  const [result, setResult]           = useState(null);
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState(null);
+
+  const compute = async () => {
+    if (!destCountry) return;
+    setLoading(true); setError(null); setResult(null);
+    try {
+      const params = new URLSearchParams({ destCountry });
+      if (destCity) params.set("destCity", destCity);
+      const res = await fetch(`/api/import-cost/listings/${listingId}/estimate?${params}`);
+      const d = await res.json();
+      if (!res.ok || !d.available) { setError(d.message || "Estimation indisponible pour cette destination."); return; }
+      setResult(d);
+    } catch { setError("Erreur réseau."); }
+    finally { setLoading(false); }
+  };
+
+  if (!availableIn?.length) return null;
+
+  return (
+    <div className={styles.card}>
+      <div className={styles.sectionHeader}><span>🧮</span><h3>Calculateur du coût total d'importation</h3></div>
+      <p style={{ fontSize: ".85rem", color: "#64748b", margin: "0 0 14px" }}>
+        Estimation instantanée — transport, fret, assurance, douanes et livraison inclus. Le montant définitif sera confirmé dans l'offre du fournisseur.
+      </p>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+        <select value={destCountry} onChange={(e) => setDestCountry(e.target.value)}
+          style={{ flex: "1 1 200px", padding: "9px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}>
+          {availableIn.map((c) => <option key={c} value={c}>{getCountryFlag(c)} {c}</option>)}
+        </select>
+        <input value={destCity} onChange={(e) => setDestCity(e.target.value)} placeholder="Ville d'arrivée (optionnel)"
+          style={{ flex: "1 1 160px", padding: "9px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+        <button onClick={compute} disabled={loading || !destCountry}
+          style={{ padding: "9px 18px", background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer" }}>
+          {loading ? "Calcul…" : "Calculer"}
+        </button>
+      </div>
+
+      {error && <p style={{ color: "#dc2626", fontSize: ".85rem" }}>❌ {error}</p>}
+
+      {result && (
+        <div style={{ background: "#f8fafc", borderRadius: 10, padding: "14px 16px", border: "1.5px solid #e2e8f0" }}>
+          {Object.entries(result.breakdown).map(([key, value]) => (
+            <div key={key} style={{ display: "flex", justifyContent: "space-between", fontSize: ".85rem", padding: "5px 0", borderBottom: "1px solid #eef1f8" }}>
+              <span style={{ color: "#475569" }}>{COST_LINE_LABELS[key] || key}</span>
+              <strong>{fmtFromCurrency(value, result.currency)}</strong>
+            </div>
+          ))}
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "1rem", fontWeight: 900, paddingTop: 10, marginTop: 4, color: "#0f1b3f" }}>
+            <span>Total à payer</span>
+            <span>{fmtFromCurrency(result.grandTotal, result.currency)}</span>
+          </div>
+          {!result.laneConfigured && (
+            <p style={{ fontSize: ".72rem", color: "#94a3b8", margin: "8px 0 0" }}>
+              Fret estimé sur une base générique (aucune liaison exacte configurée pour cette route).
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Formulaire de réservation ──────────────────────────────────────────────
 function ReservationModal({ listing, onClose, onSuccess }) {
   const { token } = useAuth();
@@ -526,6 +605,10 @@ export default function IEListingDetail() {
                 <p>Les coûts de transport définitifs seront précisés dans l'offre finale du fournisseur après confirmation de votre destination.</p>
               </div>
             </div>
+          )}
+
+          {activeTab === "transport" && (
+            <ImportCostCalculator listingId={id} availableIn={listing.availableIn} />
           )}
 
           {/* ── Onglet Fournisseur ── */}
