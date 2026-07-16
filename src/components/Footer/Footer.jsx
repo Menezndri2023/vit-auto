@@ -60,6 +60,7 @@ const Footer = () => {
               <li><Link to="/conditions-partenaires">Conditions partenaires</Link></li>
               <li><Link to="/privacy">Politique de confidentialité</Link></li>
               <li><Link to="/cookies">Politique Cookies</Link></li>
+              <li><Link to="/politiques">Confiance & Conformité</Link></li>
               <li><Link to="/mentions-legales">Mentions légales</Link></li>
               <li><Link to="/faq">Questions fréquentes</Link></li>
             </ul>

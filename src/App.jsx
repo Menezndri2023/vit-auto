@@ -46,6 +46,7 @@ const FAQ                   = lazy(() => import("./pages/FAQ"));
 const CGU                   = lazy(() => import("./pages/CGU"));
 const CGV                   = lazy(() => import("./pages/CGV"));
 const Cookies                = lazy(() => import("./pages/Cookies"));
+const Policies                = lazy(() => import("./pages/Policies"));
 const PartnerProfile        = lazy(() => import("./pages/PartnerProfile"));
 const NotFound              = lazy(() => import("./pages/NotFound"));
 const VerifyEmail           = lazy(() => import("./pages/VerifyEmail"));
@@ -114,6 +115,7 @@ function AppRoutes() {
           <Route path="/cgu"                    element={<CGU />} />
           <Route path="/cgv"                    element={<CGV />} />
           <Route path="/cookies"                element={<Cookies />} />
+          <Route path="/politiques"             element={<Policies />} />
           <Route path="/mentions-legales"       element={<MentionsLegales />} />
           <Route path="/conditions-partenaires" element={<ConditionsPartenaires />} />
 
