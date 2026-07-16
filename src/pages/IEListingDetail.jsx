@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { getCountryFlag } from "../data/autocomplete";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
+import ReportButton from "../components/ReportButton/ReportButton";
 import styles from "./IEListingDetail.module.css";
 
 const fmtDate = (d) =>
@@ -456,6 +457,9 @@ export default function IEListingDetail() {
                   {listing.sourceCity && <span>· {listing.sourceCity}</span>}
                   {badge && <span className={styles.badgePill}>{badge}</span>}
                   <span className={styles.condition}>{COND_LABELS[listing.condition] || listing.condition}</span>
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <ReportButton targetType="ie_listing" targetId={listing._id} compact />
                 </div>
               </div>
               <div className={styles.priceBlock}>

@@ -1210,6 +1210,12 @@ export default function AdminPanel() {
   const [kycPendingTotal, setKycPendingTotal] = useState(0);
   // Support Client (inbox chats client_support / partner_support)
   const [supportChats,    setSupportChats]    = useState([]);
+  const [reports,         setReports]         = useState([]);
+  const [trustModal,      setTrustModal]      = useState(null);   // utilisateur ciblé
+  const [trustOverview,   setTrustOverview]   = useState(null);
+  const [trustLoading,    setTrustLoading]    = useState(false);
+  const [reportsLoading,  setReportsLoading]  = useState(false);
+  const [reportFilter,    setReportFilter]    = useState("en_attente");
   const [supportLoading,  setSupportLoading]  = useState(false);
   const [supportActive,   setSupportActive]   = useState(null);   // chat sélectionné (résumé liste)
   const [supportMessages, setSupportMessages] = useState([]);
@@ -1762,6 +1768,41 @@ export default function AdminPanel() {
     setSupportLoading(false);
   }, [token, headers]);
 
+  // Toujours chargé sans filtre serveur — le filtre (reportFilter) s'applique
+  // côté client, pour que le badge "en attente" reste exact quel que soit le
+  // filtre actuellement affiché (voir pendingReports plus haut).
+  const loadReports = useCallback(async () => {
+    if (!token) return;
+    setReportsLoading(true);
+    try {
+      const r = await fetch("/api/reports/admin?limit=100", { headers });
+      if (r.ok) { const d = await r.json(); setReports(d.reports || []); }
+    } catch { /* ignore */ }
+    setReportsLoading(false);
+  }, [token, headers]);
+
+  const openTrustOverview = async (u) => {
+    setTrustModal(u);
+    setTrustOverview(null);
+    setTrustLoading(true);
+    try {
+      const r = await fetch(`/api/users/${u._id}/trust-overview`, { headers });
+      if (r.ok) { const d = await r.json(); setTrustOverview(d.overview); }
+    } catch { /* ignore */ }
+    setTrustLoading(false);
+  };
+
+  const decideReport = async (id, status) => {
+    const note = status === "classe_sans_suite" ? null : prompt("Note (optionnel) :") || null;
+    try {
+      const r = await fetch(`/api/reports/admin/${id}`, {
+        method: "PATCH", headers, body: JSON.stringify({ status, reviewNote: note }),
+      });
+      if (r.ok) { showToast("Signalement mis à jour."); loadReports(); }
+      else showToast("Erreur", "error");
+    } catch { showToast("Erreur réseau", "error"); }
+  };
+
   const openSupportChat = useCallback(async (chat) => {
     setSupportActive(chat);
     setSupportMsgLoading(true);
@@ -2107,7 +2148,8 @@ export default function AdminPanel() {
     if (activeTab === "ads" || activeTab === "marketing") loadAds();
     if (activeTab === "assurance")         loadInsurance();
     if (activeTab === "import_cost")       loadImportCostData();
-  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds, loadInsurance, loadImportCostData]);
+    if (activeTab === "reports")           loadReports();
+  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds, loadInsurance, loadImportCostData, loadReports]);
 
   // Rafraîchissement périodique de la liste support (nouvelles demandes) tant que
   // l'onglet est affiché — même logique de polling que le widget chat public.
@@ -2359,6 +2401,7 @@ export default function AdminPanel() {
         + (s.boosts || []).filter((b) => !b.isActive).length, 0);
   const pendingIe  = ieRequests.filter((r) => r.status === "pending").length;
   const pendingSupport = supportChats.filter((c) => c.needsReply).length;
+  const pendingReports = reports.filter((r) => r.status === "en_attente").length;
   // Basé sur pvStats (non filtré) plutôt que pvList — pvList reflète les filtres
   // actifs de l'onglet (statut/niveau/type/recherche), donc son décompte
   // s'effondrait faussement dès qu'un admin appliquait un filtre (même bug que
@@ -2432,6 +2475,7 @@ export default function AdminPanel() {
         { key: "reviews",       icon: "⭐", label: "Avis clients" },
         { key: "ads",           icon: "📢", label: "Publicités & Campagnes" },
         { key: "support",       icon: "🎧", label: "Support Client",           badge: pendingSupport || undefined },
+        { key: "reports",       icon: "🚩", label: "Signalements",             badge: pendingReports || undefined },
       ],
     },
     {
@@ -2905,6 +2949,11 @@ export default function AdminPanel() {
                                   onClick={() => setConfirm({ message: `Supprimer définitivement ${u.firstName} ${u.lastName} ? Cette action est irréversible.`, danger: true, action: () => deleteUser(u._id) })}
                                   title="Supprimer">🗑️</button>
                               )}
+                              {u.role === "partenaire" && (
+                                <button className={styles.btnGhost} style={{ fontSize: ".72rem" }}
+                                  onClick={() => openTrustOverview(u)}
+                                  title="Vue de confiance unifiée">🛡️ Confiance</button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -2914,6 +2963,51 @@ export default function AdminPanel() {
                 </table>
               </div>
               <Pagination page={userPage} total={totalPages(filteredUsers)} onChange={setUserPage} />
+            </div>
+          )}
+
+          {/* ── Modal vue de confiance unifiée ── */}
+          {trustModal && (
+            <div className={styles.overlay} onClick={() => setTrustModal(null)}>
+              <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+                <h3 style={{ margin: "0 0 4px", color: "#0f1b3f", fontSize: "1rem" }}>🛡️ Confiance — {trustModal.firstName} {trustModal.lastName}</h3>
+                <p style={{ margin: "0 0 16px", fontSize: ".78rem", color: "#94a3b8" }}>
+                  Vue agrégée en lecture seule des 6 systèmes existants — aucune fusion de données.
+                </p>
+                {trustLoading ? (
+                  <div style={{ textAlign: "center", padding: "2rem 0", color: "#94a3b8" }}>Chargement…</div>
+                ) : trustOverview ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: ".85rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                      <span>Type de vendeur (sellerType)</span><strong>{trustOverview.sellerType || "—"}</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                      <span>KYC identité</span><strong>{trustOverview.kyc.status || "—"} {trustOverview.kyc.badge ? `(${trustOverview.kyc.badge})` : ""}</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                      <span>Badge de certification (User)</span><strong>{trustOverview.certificationBadge || "—"}</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                      <span>Certification partenaire (7 niveaux)</span><strong>{trustOverview.partnerCertification ? `${trustOverview.partnerCertification.status} — ${trustOverview.partnerCertification.badge}` : "aucun dossier"}</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                      <span>Vérification Partenaire (trust score)</span><strong>{trustOverview.partnerVerification ? `${trustOverview.partnerVerification.status} — ${trustOverview.partnerVerification.trustScore}/100 (${trustOverview.partnerVerification.trustLevel})` : "aucun dossier"}</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                      <span>Founding Partner</span><strong>{trustOverview.foundingPartner ? `${trustOverview.foundingPartner.isFoundingPartner ? "Oui" : "Non"} — ${trustOverview.foundingPartner.legalEntityType || "—"} — ${trustOverview.foundingPartner.status}` : "aucun dossier"}</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                      <span>Profil Importateur</span><strong>{trustOverview.importerProfile ? `${trustOverview.importerProfile.status} — ${trustOverview.importerProfile.badgeLevel}` : "aucun dossier"}</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                      <span>Showroom PMS (trust score)</span><strong>{trustOverview.showroom ? `${trustOverview.showroom.trustScore ?? "—"}/100 — ${trustOverview.showroom.isPublished ? "publié" : "non publié"}` : "aucun showroom"}</strong>
+                    </div>
+                  </div>
+                ) : <p style={{ color: "#dc2626" }}>Erreur de chargement.</p>}
+                <div className={styles.confirmActions} style={{ marginTop: 16 }}>
+                  <button className={styles.btnGhost} onClick={() => setTrustModal(null)}>Fermer</button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -6191,6 +6285,82 @@ export default function AdminPanel() {
               )}
             </div>
           </div>
+        </div>
+      )}
+      {activeTab === "reports" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🚩 Signalements</h2>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Signalements envoyés par les utilisateurs sur des annonces, avis ou profils.</p>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <select value={reportFilter} onChange={(e) => setReportFilter(e.target.value)}
+                style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}>
+                <option value="">Tous</option>
+                <option value="en_attente">En attente</option>
+                <option value="examine">Examiné</option>
+                <option value="classe_sans_suite">Classé sans suite</option>
+                <option value="action_prise">Action prise</option>
+              </select>
+              <button className={styles.btnRefresh} onClick={loadReports}>↻ Actualiser</button>
+            </div>
+          </div>
+          {reportsLoading ? (
+            <div className={styles.loadingBox}><div className={styles.spinner} /></div>
+          ) : (() => {
+            const filtered = reportFilter ? reports.filter((r) => r.status === reportFilter) : reports;
+            const STATUS_CFG = {
+              en_attente:         { label: "En attente",         color: "#d97706", bg: "#fffbeb" },
+              examine:            { label: "Examiné",            color: "#2563eb", bg: "#eff6ff" },
+              classe_sans_suite:  { label: "Classé sans suite",  color: "#94a3b8", bg: "#f1f5f9" },
+              action_prise:       { label: "Action prise",       color: "#059669", bg: "#ecfdf5" },
+            };
+            const REASON_LABELS = {
+              fraude: "Fraude / arnaque", contenu_inapproprie: "Contenu inapproprié",
+              annonce_fausse: "Annonce fausse", contenu_illicite: "Contenu illicite",
+              harcelement: "Harcèlement", autre: "Autre",
+            };
+            return filtered.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
+                <div style={{ fontSize: "3rem", marginBottom: 12 }}>🚩</div>
+                <p style={{ fontWeight: 600 }}>Aucun signalement pour ce filtre.</p>
+              </div>
+            ) : (
+              <div className={styles.tableWrap}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr><th>Cible</th><th>Motif</th><th>Description</th><th>Par</th><th>Statut</th><th>Date</th><th>Actions</th></tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((r) => {
+                      const sc = STATUS_CFG[r.status] || STATUS_CFG.en_attente;
+                      return (
+                        <tr key={r._id} className={styles.tr}>
+                          <td style={{ fontSize: ".82rem" }}>{r.targetType} <span style={{ color: "#94a3b8", fontFamily: "monospace", fontSize: ".72rem" }}>{r.targetId}</span></td>
+                          <td style={{ fontSize: ".82rem" }}>{REASON_LABELS[r.reason] || r.reason}</td>
+                          <td style={{ fontSize: ".8rem", maxWidth: 240 }}>{r.description || "—"}</td>
+                          <td style={{ fontSize: ".82rem" }}>{r.reporter?.firstName} {r.reporter?.lastName}</td>
+                          <td><Badge label={sc.label} color={sc.color} bg={sc.bg} /></td>
+                          <td className={styles.tdDate}>{fmtDate(r.createdAt)}</td>
+                          <td>
+                            <div className={styles.actionBtns}>
+                              {r.status === "en_attente" && (
+                                <>
+                                  <button className={styles.btnApprove} style={{ fontSize: ".72rem" }} onClick={() => decideReport(r._id, "action_prise")}>Action prise</button>
+                                  <button className={styles.btnGhost} style={{ fontSize: ".72rem" }} onClick={() => decideReport(r._id, "classe_sans_suite")}>Classer sans suite</button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
         </div>
       )}
       {activeTab === "roles" && (

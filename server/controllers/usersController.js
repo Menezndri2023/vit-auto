@@ -8,6 +8,11 @@ import { sendEmail, identityRejectedTemplate } from "../config/email.js";
 import { logAction } from "../middleware/auditLog.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
 import { isValidCountryCode } from "../utils/countries.js";
+import PartnerVerification from "../models/PartnerVerification.js";
+import PartnerCertification from "../models/PartnerCertification.js";
+import PartnerOnboarding from "../models/PartnerOnboarding.js";
+import ImporterPartnerProfile from "../models/ImporterPartnerProfile.js";
+import PartnerShowroom from "../models/PartnerShowroom.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -78,6 +83,46 @@ export const getUser = async (req, res) => {
     res.json({ user });
   } catch (err) {
     logger.error("getUser:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Vue de confiance unifiée (admin) — ajoutée 2026-07-16 ─────────────────
+// VIT AUTO a accumulé 6 systèmes de confiance/vérification distincts au fil
+// des sessions (sellerType, certificationBadge/PartnerCertification,
+// PartnerVerification, Founding Partner/PartnerOnboarding, ImporterPartnerProfile,
+// PartnerShowroom.trustScore), sans jamais les fusionner ni les relier
+// clairement — un admin devait ouvrir 5 onglets différents pour comprendre le
+// niveau de confiance réel d'un partenaire. Cet endpoint ne fusionne AUCUNE
+// donnée (risque jugé disproportionné) : il se contente d'agréger en lecture
+// seule ce qui existe déjà, pour un seul affichage consolidé côté admin.
+export const getUserTrustOverview = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const [user, verification, certification, onboarding, importerProfile, showroom] = await Promise.all([
+      User.findById(userId).select("sellerType certificationBadge kycStatus kycBadge isFounder role").lean(),
+      PartnerVerification.findOne({ userId }).select("status trustScore trustLevel").lean(),
+      PartnerCertification.findOne({ userId }).select("overallStatus certificationBadge").lean(),
+      PartnerOnboarding.findOne({ userId }).select("isFoundingPartner legalEntityType status commissions.lockedAt").lean(),
+      ImporterPartnerProfile.findOne({ userId }).select("status badgeLevel").lean(),
+      PartnerShowroom.findOne({ partnerId: userId }).select("trustScore.overall isPublished").lean(),
+    ]);
+    if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
+
+    res.json({
+      overview: {
+        sellerType:          user.sellerType || null,
+        kyc:                 { status: user.kycStatus || null, badge: user.kycBadge || null },
+        certificationBadge:  user.certificationBadge || null, // badge synchronisé sur User (source: PartnerCertification)
+        partnerVerification: verification ? { status: verification.status, trustScore: verification.trustScore, trustLevel: verification.trustLevel } : null,
+        partnerCertification: certification ? { status: certification.overallStatus, badge: certification.certificationBadge } : null,
+        foundingPartner:     onboarding ? { isFoundingPartner: onboarding.isFoundingPartner, legalEntityType: onboarding.legalEntityType, status: onboarding.status, lockedAt: onboarding.commissions?.lockedAt } : null,
+        importerProfile:     importerProfile ? { status: importerProfile.status, badgeLevel: importerProfile.badgeLevel } : null,
+        showroom:            showroom ? { trustScore: showroom.trustScore?.overall ?? null, isPublished: showroom.isPublished } : null,
+      },
+    });
+  } catch (err) {
+    logger.error("getUserTrustOverview:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

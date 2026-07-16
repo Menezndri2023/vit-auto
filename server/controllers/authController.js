@@ -135,6 +135,31 @@ export const register = async (req, res) => {
     return res.status(400).json({ message: "Format de téléphone invalide." });
   }
 
+  // ── Vérification d'âge (ajoutée 2026-07-16) ───────────────────────────────
+  // Aucune date de naissance n'était demandée à l'inscription avant cette date —
+  // la Politique de protection des mineurs ne pouvait affirmer aucune vérification
+  // réelle. Obligatoire pour toute NOUVELLE inscription, sans effet rétroactif
+  // sur les comptes déjà créés (User.birthDate reste optionnel dans le schéma).
+  const birthDateRaw = req.body.birthDate;
+  if (!birthDateRaw) {
+    return res.status(400).json({ message: "Date de naissance requise." });
+  }
+  const birthDate = new Date(birthDateRaw);
+  if (isNaN(birthDate.getTime())) {
+    return res.status(400).json({ message: "Date de naissance invalide." });
+  }
+  const ageMs = Date.now() - birthDate.getTime();
+  const age = ageMs / (365.25 * 24 * 60 * 60 * 1000);
+  if (age < 18) {
+    return res.status(403).json({
+      message: "Vous devez avoir au moins 18 ans pour créer un compte VIT AUTO.",
+      code: "MINOR_NOT_ALLOWED",
+    });
+  }
+  if (age > 120) {
+    return res.status(400).json({ message: "Date de naissance invalide." });
+  }
+
   try {
     const existing = await User.findOne({ email });
     if (existing) {
@@ -167,6 +192,7 @@ export const register = async (req, res) => {
       email,
       phone,
       country,
+      birthDate,
       password: hash,
       role: userRole,
       sellerType: userRole === "partenaire" ? sellerType : null,

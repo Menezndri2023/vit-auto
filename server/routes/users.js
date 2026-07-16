@@ -20,6 +20,7 @@ router.get("/pending-identity",authenticate, authorizeAdmin, u.getPendingIdentit
 router.get("/admin/accounts",  authenticate, authorizeAdmin, u.getAdminAccounts);
 router.patch("/admin/:id/scope", authenticate, authorizeAdmin, validateObjectId(), u.updateAdminScope);
 router.get("/:id",             authenticate, authorizeAdmin, validateObjectId(), u.getUser);
+router.get("/:id/trust-overview", authenticate, authorizeAdmin, validateObjectId(), u.getUserTrustOverview);
 router.patch("/:id/role",      authenticate, authorizeAdmin, validateObjectId(), u.updateUserRole);
 router.patch("/:id/toggle",    authenticate, authorizeAdmin, validateObjectId(), u.toggleUserActive);
 router.patch("/:id/verify-identity", authenticate, authorizeAdmin, validateObjectId(), u.adminVerifyIdentity);

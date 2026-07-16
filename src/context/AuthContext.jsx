@@ -173,11 +173,16 @@ export const AuthProvider = ({ children }) => {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Méthodes publiques ─────────────────────────────────────────────────────
-  const register = async ({ firstName, lastName, email, password, phone, role, country }) => {
+  const register = async ({ firstName, lastName, email, password, phone, role, country, birthDate, sellerType }) => {
+    // sellerType était silencieusement absent de ce payload depuis toujours : le
+    // choix particulier/professionnel/entreprise fait à l'inscription (Register.jsx)
+    // n'atteignait jamais le backend — createVehicle s'en sortait via un fallback
+    // (amorçage au premier véhicule publié) qui masquait le vrai bug plutôt que de
+    // le corriger. birthDate ajouté le 2026-07-16 (vérification d'âge).
     const res  = await fetch("/api/auth/register", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ firstName, lastName, email, password, phone, role, country }),
+      body:    JSON.stringify({ firstName, lastName, email, password, phone, role, country, birthDate, sellerType }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || "Erreur d'inscription.");

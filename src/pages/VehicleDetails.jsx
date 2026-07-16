@@ -4,6 +4,7 @@ import { useVehicles } from "../context/VehicleContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useI18n } from "../context/I18nContext";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
+import ReportButton from "../components/ReportButton/ReportButton";
 import styles from "./VehicleDetails.module.css";
 
 const fmtN = (n) => n != null ? Number(n).toLocaleString("fr-FR") : "—";
@@ -78,6 +79,7 @@ function ReviewsSection({ vehicleId, t }) {
                 <span className={styles.reviewDate}>{new Date(rv.createdAt).toLocaleDateString("fr-FR")}</span>
               </div>
               {rv.commentaire && <p className={styles.reviewComment}>{rv.commentaire}</p>}
+              <ReportButton targetType="review" targetId={rv._id} compact />
             </div>
           ))}
         </div>
@@ -265,6 +267,7 @@ export default function VehicleDetails() {
           <button className={styles.shareBtn} onClick={handleShare}>
             {copied ? t("vd.linkCopied") : t("vd.share")}
           </button>
+          <ReportButton targetType="vehicle" targetId={vehicle._id || vehicle.id} />
         </div>
       </div>
 

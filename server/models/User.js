@@ -3,6 +3,10 @@ import mongoose from "mongoose";
 const userSchema = new mongoose.Schema({
   firstName:  { type: String, required: true, trim: true },
   lastName:   { type: String, required: true, trim: true },
+  // Vérification d'âge à l'inscription (ajoutée 2026-07-16) — les comptes créés
+  // avant cette date n'ont pas ce champ, ne jamais bloquer un compte existant
+  // sur son absence.
+  birthDate:  { type: Date, default: null },
   // Email et téléphone sont mutuellement optionnels (l'un ou l'autre suffit à
   // l'inscription — voir authController.js/register), mais l'unicité de chacun
   // reste appliquée dès qu'une valeur réelle est renseignée (index partiels

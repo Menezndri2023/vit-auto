@@ -17,6 +17,7 @@ const Register = () => {
     lastName: "",
     email: "",
     phone: "",
+    birthDate: "",
     password: "",
     confirmPassword: "",
     country: "",
@@ -62,7 +63,7 @@ const Register = () => {
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    if (!form.email.trim() || !form.password || !form.firstName || !form.lastName || !form.country) {
+    if (!form.email.trim() || !form.password || !form.firstName || !form.lastName || !form.country || !form.birthDate) {
       error("Veuillez remplir tous les champs obligatoires."); return;
     }
     if (form.password !== form.confirmPassword) {
@@ -70,6 +71,10 @@ const Register = () => {
     }
     if (form.password.length < 8) {
       error("Le mot de passe doit contenir au moins 8 caractères."); return;
+    }
+    const age = (Date.now() - new Date(form.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+    if (age < 18) {
+      error("Vous devez avoir au moins 18 ans pour créer un compte VIT AUTO."); return;
     }
     setSubmitting(true);
     try {
@@ -81,6 +86,7 @@ const Register = () => {
         email:      form.email.trim(),
         phone:      form.phone.trim() || undefined,
         country:    form.country,
+        birthDate:  form.birthDate,
         sellerType: form.role === "partenaire" ? form.sellerType : undefined,
       });
 
@@ -139,6 +145,19 @@ const Register = () => {
             value={form.phone}
             onChange={handleChange}
             placeholder="Téléphone (optionnel, ex : +225 07 00 00 00)"
+          />
+
+          <label style={{ display: "block", fontSize: "0.82rem", color: "#4a5876", marginBottom: 4 }}>
+            Date de naissance * <span style={{ color: "#94a3b8" }}>(vous devez avoir 18 ans ou plus)</span>
+          </label>
+          <input
+            type="date"
+            name="birthDate"
+            autoComplete="bday"
+            value={form.birthDate}
+            onChange={handleChange}
+            max={new Date(Date.now() - 18 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)}
+            required
           />
 
           <select name="country" value={form.country} onChange={handleChange} autoComplete="country" required>
