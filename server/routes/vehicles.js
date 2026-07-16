@@ -18,6 +18,7 @@ router.post("/",       authenticate, v.createVehicle);                       // 
 // ── Admin — routes statiques ──────────────────────────────
 router.get("/pending", authenticate, authorizeAdmin, v.getPendingVehicles);  // annonces en attente
 router.post("/sync-availability", authenticate, authorizeAdmin, v.syncAllAvailability);
+router.post("/backfill-thumbnails", authenticate, authorizeAdmin, v.backfillThumbnails);
 
 // ── Routes paramétrées (viennent APRÈS les routes statiques) ─────────────────
 router.get("/:id/availability", vid, optionalAuth, v.getVehicleAvailability);    // disponibilité dates

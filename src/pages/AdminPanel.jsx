@@ -6968,6 +6968,7 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
   const [exportForm, setExportForm] = useState({ price: "", currency: "XOF", availableIn: [], sourceCity: "" });
   const [exportAvailText, setExportAvailText] = useState("");
   const [exportSaving, setExportSaving] = useState(false);
+  const [thumbBackfilling, setThumbBackfilling] = useState(false);
   const PAGE = 12;
 
   // ── Édition complète d'une annonce véhicule (admin) — même principe que
@@ -7180,6 +7181,19 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
               onChange={(e) => { setVehSearch(e.target.value); setVehPage(1); }}
               style={{ flex: 1, minWidth: 200 }} />
             <button className={styles.btnSmall} onClick={onRefresh}>↻ Actualiser</button>
+            <button className={styles.btnSmall} disabled={thumbBackfilling}
+              onClick={async () => {
+                setThumbBackfilling(true);
+                try {
+                  const r = await fetch("/api/vehicles/backfill-thumbnails", { method: "POST", headers });
+                  const d = await r.json();
+                  showToast(r.ok ? d.message : (d.message || "Erreur"), r.ok ? "success" : "error");
+                  if (r.ok) onRefresh();
+                } catch { showToast("Erreur réseau", "error"); }
+                setThumbBackfilling(false);
+              }}>
+              {thumbBackfilling ? "Génération…" : "🖼️ Générer les vignettes manquantes"}
+            </button>
           </div>
 
           {filtered.length === 0 ? (

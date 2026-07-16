@@ -803,3 +803,43 @@ export const syncAllAvailability = async (req, res) => {
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
+
+// ── Rattrapage des vignettes manquantes (admin) ───────────────────────────────
+// Les véhicules publiés avant l'ajout du champ `thumbnail` (voir
+// vehicleScoring.limitVehicleImages) retombent sur leur première photo pleine
+// résolution dans les vues liste. Réutilisable à volonté — les imports en
+// masse (vehicleImportService.js) utilisent des URLs déjà légères et n'ont pas
+// besoin de ce traitement, seules les photos base64 (publication manuelle) le
+// nécessitent.
+export const backfillThumbnails = async (req, res) => {
+  try {
+    const { generateThumbnailFromDataUri } = await import("../utils/imageThumbnail.js");
+    const vehicles = await Vehicle.find({
+      thumbnail: null,
+      images: { $exists: true, $ne: [] },
+    }).select("images");
+
+    let updated = 0, skipped = 0;
+    for (const v of vehicles) {
+      const cover = v.images[0];
+      if (!cover) { skipped++; continue; }
+      try {
+        if (cover.startsWith("data:")) {
+          v.thumbnail = await generateThumbnailFromDataUri(cover);
+        } else {
+          // Déjà une URL (import en masse / ImageKit) — légère par nature, pas besoin de recompression.
+          v.thumbnail = cover;
+        }
+        if (v.thumbnail) { await v.save(); updated++; } else { skipped++; }
+      } catch (e) {
+        logger.error("backfillThumbnails — véhicule ignoré:", { vehicleId: v._id, error: e.message });
+        skipped++;
+      }
+    }
+
+    res.json({ message: `Rattrapage terminé : ${updated} vignette(s) générée(s), ${skipped} ignorée(s).`, total: vehicles.length, updated, skipped });
+  } catch (err) {
+    logger.error("backfillThumbnails:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};

@@ -6,7 +6,8 @@ import User                 from "../models/User.js";
 import Notification         from "../models/Notification.js";
 import Chat                 from "../models/Chat.js";
 import PartnerOnboarding    from "../models/PartnerOnboarding.js";
-import { dispatch } from "../queue/index.js";
+import { dispatch, enqueue } from "../queue/index.js";
+import { QUEUE_NAMES } from "../queue/definitions.js";
 import { stripeProvider } from "../services/payment/gateway.js";
 import { foundingRateFor } from "../utils/foundingPartnerRates.js";
 import { computeImportCost } from "../services/importCostEngine.js";
@@ -174,6 +175,35 @@ export const createReservation = async (req, res) => {
       `/importer-dashboard`
     );
 
+    // Notifier le client — email "reservation_created" (template déjà prêt côté
+    // CommunicationService/email.worker mais jamais réellement déclenché avant
+    // ceci) + notification interne, incluant le devis d'importation s'il a pu
+    // être calculé (voir Import Cost Engine ci-dessus).
+    const estimateNote = costEstimate.available
+      ? ` Devis estimatif : ${costEstimate.grandTotal.toLocaleString("fr-FR")} ${costEstimate.currency}.`
+      : "";
+    await notify(
+      client._id,
+      "ie_reservation",
+      "Réservation envoyée !",
+      `Votre demande pour "${listing.title}" a été transmise au fournisseur.${estimateNote}`,
+      `/import-export/transaction/${tx._id}`
+    );
+    if (client.email) {
+      await enqueue(QUEUE_NAMES.EMAIL, "ie_reservation_created", {
+        type: "reservation_created",
+        to:   client.email,
+        userId: client._id.toString(),
+        data: {
+          firstName:   client.firstName,
+          reservation: { reference: tx._id.toString(), createdAt: tx.createdAt, status: tx.status },
+          vehicleName: listing.title,
+          destCountry: destCountry || null,
+          dashboardUrl: `${(process.env.APP_URL || process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "")}/import-export/transaction/${tx._id}`,
+        },
+      }).catch((e) => logger.error("enqueue ie_reservation_created:", e));
+    }
+
     res.status(201).json({
       message: "Réservation effectuée avec succès. Le fournisseur va confirmer la disponibilité sous peu.",
       transaction: tx,
@@ -195,7 +225,7 @@ export const confirmReservation = async (req, res) => {
       _id: req.params.id,
       partner: req.user._id,
       status: "reserved",
-    });
+    }).populate("client", "firstName email").populate("listing", "title");
     if (!tx) return res.status(404).json({ message: "Transaction introuvable ou déjà traitée." });
 
     tx.status = "confirmed";
@@ -203,12 +233,27 @@ export const confirmReservation = async (req, res) => {
     await tx.save();
 
     await notify(
-      tx.client,
+      tx.client._id,
       "success",
       "Réservation confirmée !",
       "Le fournisseur a confirmé la disponibilité du véhicule. Vous pouvez maintenant échanger directement.",
       `/import-export/transaction/${tx._id}`
     );
+    if (tx.client.email) {
+      await enqueue(QUEUE_NAMES.EMAIL, "ie_reservation_confirmed", {
+        type: "reservation_confirmed",
+        to:   tx.client.email,
+        userId: tx.client._id.toString(),
+        data: {
+          firstName:   tx.client.firstName,
+          reservation: { reference: tx._id.toString() },
+          vehicleName: tx.listing?.title,
+          partnerName: `${req.user.firstName} ${req.user.lastName}`,
+          nextSteps:   "Vous pouvez maintenant échanger directement avec le fournisseur et demander une inspection indépendante si besoin.",
+          dashboardUrl: `${(process.env.APP_URL || process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "")}/import-export/transaction/${tx._id}`,
+        },
+      }).catch((e) => logger.error("enqueue ie_reservation_confirmed:", e));
+    }
 
     res.json({ message: "Réservation confirmée.", transaction: tx });
   } catch (err) {

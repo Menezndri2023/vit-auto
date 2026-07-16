@@ -923,6 +923,25 @@ export default function IETransactionTracking() {
             })()}
           </div>
 
+          {/* Devis estimatif (Import Cost Engine) — avant l'offre finale contractuelle */}
+          {!tx.finalOffer?.totalAmount && tx.costEstimate?.available && (
+            <div className={styles.sideCard}>
+              <h4>🧮 Devis estimatif</h4>
+              <div className={styles.finLines}>
+                <div className={styles.finLine}><span>Véhicule</span><strong>{fmtPrice(tx.costEstimate.breakdown.vehiclePrice, tx.costEstimate.currency)}</strong></div>
+                <div className={styles.finLine}><span>Transport intérieur</span><strong>{fmtPrice(tx.costEstimate.breakdown.inlandTransport, tx.costEstimate.currency)}</strong></div>
+                <div className={styles.finLine}><span>Fret maritime</span><strong>{fmtPrice(tx.costEstimate.breakdown.seaFreight, tx.costEstimate.currency)}</strong></div>
+                <div className={styles.finLine}><span>Assurance</span><strong>{fmtPrice(tx.costEstimate.breakdown.insurance, tx.costEstimate.currency)}</strong></div>
+                <div className={styles.finLine}><span>Frais portuaires</span><strong>{fmtPrice(tx.costEstimate.breakdown.portFees, tx.costEstimate.currency)}</strong></div>
+                <div className={styles.finLine}><span>Douanes / transit</span><strong>{fmtPrice(tx.costEstimate.breakdown.customs, tx.costEstimate.currency)}</strong></div>
+                <div className={styles.finLine}><span>Livraison finale</span><strong>{fmtPrice(tx.costEstimate.breakdown.delivery, tx.costEstimate.currency)}</strong></div>
+                <div className={styles.finLine}><span>Commission VIT AUTO</span><strong>{fmtPrice(tx.costEstimate.breakdown.commission, tx.costEstimate.currency)}</strong></div>
+                <div className={`${styles.finLine} ${styles.finTotal}`}><span>TOTAL ESTIMÉ</span><strong>{fmtPrice(tx.costEstimate.grandTotal, tx.costEstimate.currency)}</strong></div>
+              </div>
+              <p className={styles.actionNote}>Estimation automatique — l'offre finale du fournisseur fera foi.</p>
+            </div>
+          )}
+
           {/* Récap financier */}
           {tx.finalOffer?.totalAmount && (
             <div className={styles.sideCard}>

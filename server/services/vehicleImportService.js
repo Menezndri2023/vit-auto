@@ -469,6 +469,11 @@ async function processVehicleImportRow(batch, rawRow, rowIndex, budgetDeadline, 
     }
 
     data.images = await downloadImagesForRow(imageUrls, budgetDeadline, rowWarnings, "partner-import");
+    // Déjà une URL légère (ImageKit), pas besoin de recompression — mais sans
+    // ce champ, les vues liste (limitVehicleImages) retombaient sur le premier
+    // élément de `images` de toute façon : le fixer explicitement documente
+    // l'intention et reste cohérent avec la publication manuelle.
+    data.thumbnail = data.images[0] || null;
 
     const validation = scoreAnnonce(data);
     validation.warnings = [...rowWarnings, ...validation.warnings];

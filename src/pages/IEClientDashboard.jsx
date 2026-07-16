@@ -69,10 +69,15 @@ function TxCard({ tx }) {
           </div>
 
           <div className={styles.txRight}>
-            {tx.finalOffer?.totalAmount
-              ? <span className={styles.txPrice}>{fmtPrice(tx.finalOffer.totalAmount, tx.finalOffer.currency)}</span>
-              : <span className={styles.txPriceRef}>{fmtPrice(tx.listing?.price, tx.listing?.currency)}</span>
-            }
+            {tx.finalOffer?.totalAmount ? (
+              <span className={styles.txPrice}>{fmtPrice(tx.finalOffer.totalAmount, tx.finalOffer.currency)}</span>
+            ) : tx.costEstimate?.available ? (
+              <span className={styles.txPriceRef} title="Devis estimatif — l'offre finale du fournisseur fera foi">
+                ~{fmtPrice(tx.costEstimate.grandTotal, tx.costEstimate.currency)}
+              </span>
+            ) : (
+              <span className={styles.txPriceRef}>{fmtPrice(tx.listing?.price, tx.listing?.currency)}</span>
+            )}
             <span className={styles.txDate}>{fmtDate(tx.createdAt)}</span>
           </div>
         </div>
