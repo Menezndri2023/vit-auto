@@ -496,7 +496,7 @@ export const updateVehicle = async (req, res) => {
       "climatisation", "withDriver", "pricePerDay", "priceForSale", "caution",
       "rentalDurationType",
       "leasing", "credit", "ageMin", "permisRequis", "assuranceOptionnelle",
-      "contactNom", "contactTel", "ville", "adresse", "coordonnees",
+      "contactNom", "contactTel", "ville", "adresse", "coordonnees", "country",
       "images", "thumbnail", "description", "available", "type",
     ];
     // Champs réservés admin

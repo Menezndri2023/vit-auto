@@ -591,13 +591,21 @@ export const createListing = async (req, res) => {
 // PUT /api/import-export/listings/:id  — partenaire modifie (si draft ou rejected)
 export const updateListing = async (req, res) => {
   try {
-    const listing = await ImportExportListing.findOne({
-      _id: req.params.id,
-      partner: req.user._id,
-    });
+    const isAdmin = req.user.role === "admin";
+    // Le filtre `partner: req.user._id` excluait de fait TOUT admin (son ID ne
+    // correspond jamais au partenaire propriétaire) — l'édition admin de cet
+    // endpoint était inatteignable malgré les vérifications `role !== admin`
+    // plus bas qui laissaient croire le contraire.
+    const listing = await ImportExportListing.findOne(
+      isAdmin ? { _id: req.params.id } : { _id: req.params.id, partner: req.user._id }
+    );
     if (!listing) return res.status(404).json({ message: "Annonce introuvable." });
-    if (!["draft", "rejected"].includes(listing.status) && req.user.role !== "admin") {
-      return res.status(403).json({ message: "Annonce non modifiable dans ce statut." });
+    // Une vente conclue ("sold") est un historique figé — tout le reste
+    // (draft/pending/approved/rejected/archived) reste modifiable par le
+    // partenaire propriétaire. Modifier une annonce déjà approuvée la repasse
+    // en "pending" ci-dessous (re-modération), cohérent avec vehicleController.
+    if (listing.status === "sold" && !isAdmin) {
+      return res.status(403).json({ message: "Une annonce vendue ne peut plus être modifiée." });
     }
 
     // Whitelist des champs modifiables par le partenaire (évite le mass assignment)
@@ -614,6 +622,9 @@ export const updateListing = async (req, res) => {
 
     const imagesError = validateListingImages([...(photos || []), mainPhoto].filter(Boolean));
     if (imagesError) return res.status(400).json({ message: imagesError });
+    if (availableIn !== undefined && (!Array.isArray(availableIn) || availableIn.length === 0)) {
+      return res.status(400).json({ message: "Indiquez au moins un pays de destination (livraison disponible vers)." });
+    }
 
     // Un champ omis (undefined) doit garder sa valeur existante — l'ancienne
     // version écrasait directement title/make/model/fuelType/... par
@@ -651,7 +662,10 @@ export const updateListing = async (req, res) => {
       exportDocumentsAvailable: exportDocumentsAvailable || listing.exportDocumentsAvailable,
       videoUrl: videoUrl !== undefined ? videoUrl : listing.videoUrl,
       acceptedPaymentMethods: acceptedPaymentMethods || listing.acceptedPaymentMethods,
-      status: "pending",
+      // Une édition partenaire repasse l'annonce en modération (pas de
+      // scoring automatique côté IE, contrairement aux véhicules) ; une
+      // édition admin ne touche pas au statut qu'il a lui-même déjà décidé.
+      status: isAdmin ? listing.status : "pending",
       updatedAt: new Date(),
     });
     await listing.save();

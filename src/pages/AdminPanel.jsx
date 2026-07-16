@@ -4,6 +4,7 @@ import { useCurrency } from "../context/CurrencyContext";
 import { useSocket } from "../context/SocketContext";
 import { Link, useNavigate } from "react-router-dom";
 import styles from "./AdminPanel.module.css";
+import { ListingForm as IEListingEditForm } from "./ImporterDashboard";
 
 // Drapeau pays — reconnaissance rapide du pays d'un partenaire/client par
 // l'admin, à partir du code ISO stocké sur User/Vehicle/Driver (voir
@@ -1165,6 +1166,7 @@ export default function AdminPanel() {
   // dossiers déjà vérifiés/refusés dès l'ouverture de l'onglet (voir loadImporters).
   const [importerFilter,   setImporterFilter]   = useState("");
   const [listingFilter,    setListingFilter]     = useState("");
+  const [editingIeListing, setEditingIeListing]  = useState(null); // annonce complète en édition (admin)
   // importerProfiles/importerListings contiennent TOUJOURS tous les statuts
   // (voir loadImporters) — le filtre ne s'applique qu'à l'affichage du tableau,
   // jamais aux KPI (Total/Vérifiés/Refusés...) qui doivent refléter la réalité
@@ -1433,6 +1435,18 @@ export default function AdminPanel() {
     } catch {}
     setImporterLoading(false);
   }, [token, headers]);
+
+  // /listings/admin (liste) ne renvoie plus le tableau `photos` complet — voir
+  // importExportController.getAdminListings (optimisation payload liste). Il
+  // faut recharger l'annonce en entier (getListingById, jamais tronqué).
+  const openEditIeListing = async (id) => {
+    try {
+      const r = await fetch(`/api/import-export/listings/${id}`, { headers });
+      const d = await r.json();
+      if (!r.ok) throw new Error();
+      setEditingIeListing(d.listing);
+    } catch { showToast("Impossible de charger l'annonce.", "error"); }
+  };
 
   const loadCommissions = useCallback(async () => {
     if (!token) return;
@@ -3164,6 +3178,8 @@ export default function AdminPanel() {
                               <td className={styles.tdDate}>{fmtDate(l.createdAt)}</td>
                               <td>
                                 <div className={styles.actionBtns}>
+                                  <button className={styles.btnGhost} style={{ fontSize: ".78rem" }}
+                                    onClick={() => openEditIeListing(l._id)}>✏️ Modifier</button>
                                   {l.status === "pending" && (
                                     <>
                                       <button className={styles.btnApprove}
@@ -3302,6 +3318,16 @@ export default function AdminPanel() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* ══ MODAL ÉDITION ANNONCE IMPORT/EXPORT (admin) ══ */}
+          {editingIeListing && (
+            <IEListingEditForm
+              token={token}
+              listing={editingIeListing}
+              onClose={() => setEditingIeListing(null)}
+              onSaved={() => { setEditingIeListing(null); showToast("Annonce mise à jour."); loadImporters(); }}
+            />
           )}
 
           {/* ══ MODAL DOSSIER EXPORTATEUR ══ */}
@@ -6665,13 +6691,116 @@ function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFil
 // CATALOGUE SECTION — Annonces & Validations (combiné)
 // ═══════════════════════════════════════════════════════════════════════════════
 function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefresh, showToast, setConfirm, rejectModal, setRejectModal, rejectReason, setRejectReason, driverRejectModal, setDriverRejectModal, driverRejectReason, setDriverRejectReason, updateVehicleStatus, deleteVehicle }) {
+  const { COUNTRIES_CONFIG } = useCurrency();
   const [subTab,         setSubTab]         = useState("pending");
   const [vehSearch,      setVehSearch]      = useState("");
   const [vehPage,        setVehPage]        = useState(1);
   const [previewVehicle, setPreviewVehicle] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewImgIdx,  setPreviewImgIdx]  = useState(0);
+  const [editVehicle,  setEditVehicle]  = useState(null); // véhicule brut en édition admin
+  const [editForm,     setEditForm]     = useState(null);
+  const [editPhotos,   setEditPhotos]   = useState([]);
+  const [editLoading,  setEditLoading]  = useState(false);
+  const [editSaving,   setEditSaving]   = useState(false);
   const PAGE = 12;
+
+  // ── Édition complète d'une annonce véhicule (admin) — même principe que
+  // VendorDashboard.handleOpenEdit côté partenaire : getMyVehicles/getVehicles
+  // (listes) ne renvoient qu'une image par véhicule (voir limitVehicleImages),
+  // il faut recharger le véhicule en entier (getVehicleById, jamais tronqué).
+  const compressImageAdmin = (dataUrl, maxDim, quality) =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width  = Math.round(img.width  * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  const readFileAdmin = (file) =>
+    new Promise((resolve) => {
+      if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) return resolve(null);
+      const reader = new FileReader();
+      reader.onload = async (e) => resolve(await compressImageAdmin(e.target.result, 1600, 0.78));
+      reader.readAsDataURL(file);
+    });
+  const addEditPhotosAdmin = async (files) => {
+    const remaining = 6 - editPhotos.length;
+    if (remaining <= 0) return;
+    const results = await Promise.all(Array.from(files).slice(0, remaining).map(readFileAdmin));
+    const valid = results.filter(Boolean).map((preview) => ({ id: `${Date.now()}-${Math.random()}`, preview }));
+    setEditPhotos((prev) => [...prev, ...valid]);
+  };
+  const removeEditPhotoAdmin = (id) => setEditPhotos((prev) => prev.filter((p) => p.id !== id));
+
+  const openEditVehicle = async (vid) => {
+    setEditLoading(true);
+    setEditVehicle({ _id: vid });
+    try {
+      const r = await fetch(`/api/vehicles/${vid}`, { headers });
+      const d = await r.json();
+      if (!r.ok) throw new Error();
+      const v = d.vehicle;
+      setEditVehicle(v);
+      setEditForm({
+        type: v.type || "location",
+        title: v.title || "", marque: v.marque || "", modele: v.modele || "",
+        annee: v.annee || new Date().getFullYear(), etat: v.etat || "Bon état",
+        vehicleType: v.vehicleType || "SUV", couleur: v.couleur || "",
+        carburant: v.carburant || "Essence", transmission: v.transmission || "Automatique",
+        nombrePlaces: v.nombrePlaces || 5, nombrePortes: v.nombrePortes || 5,
+        kilometrage: v.kilometrage || "", climatisation: !!v.climatisation,
+        rentalDurationType: v.rentalDurationType || "les_deux",
+        pricePerDay: v.pricePerDay || "", priceForSale: v.priceForSale || "",
+        caution: v.caution || "", country: v.country || "",
+        ville: v.ville || "", adresse: v.adresse || "", description: v.description || "",
+        ageMin: v.ageMin || "", permisRequis: v.permisRequis !== false,
+        assuranceOptionnelle: !!v.assuranceOptionnelle, withDriver: !!v.withDriver,
+        available: v.available !== false,
+      });
+      setEditPhotos((v.images || []).map((preview, i) => ({ id: `existing-${i}`, preview })));
+    } catch { showToast("Impossible de charger l'annonce", "error"); setEditVehicle(null); }
+    setEditLoading(false);
+  };
+
+  const handleSaveEditVehicle = async () => {
+    if (!editVehicle || !editForm) return;
+    if (editPhotos.length === 0) { showToast("Ajoutez au moins une photo", "error"); return; }
+    setEditSaving(true);
+    try {
+      const images = editPhotos.map((p) => p.preview);
+      const patch = {
+        type: editForm.type, title: editForm.title, marque: editForm.marque, modele: editForm.modele,
+        annee: Number(editForm.annee) || undefined, etat: editForm.etat, vehicleType: editForm.vehicleType,
+        couleur: editForm.couleur, carburant: editForm.carburant, transmission: editForm.transmission,
+        nombrePlaces: Number(editForm.nombrePlaces) || undefined, nombrePortes: Number(editForm.nombrePortes) || undefined,
+        kilometrage: Number(editForm.kilometrage) || 0, climatisation: editForm.climatisation,
+        rentalDurationType: editForm.rentalDurationType, caution: Number(editForm.caution) || 0,
+        description: editForm.description, country: editForm.country || null,
+        ville: editForm.ville, adresse: editForm.adresse, ageMin: Number(editForm.ageMin) || 0,
+        permisRequis: editForm.permisRequis, assuranceOptionnelle: editForm.assuranceOptionnelle,
+        withDriver: editForm.withDriver, available: editForm.available, images,
+      };
+      if (editForm.type === "vente") patch.priceForSale = Number(editForm.priceForSale) || 0;
+      else patch.pricePerDay = Number(editForm.pricePerDay) || 0;
+      if (images[0]) patch.thumbnail = await compressImageAdmin(images[0], 480, 0.6);
+
+      const r = await fetch(`/api/vehicles/${editVehicle._id}`, { method: "PATCH", headers, body: JSON.stringify(patch) });
+      const d = await r.json().catch(() => null);
+      if (r.ok) {
+        showToast("✅ Annonce mise à jour");
+        setEditVehicle(null); setEditForm(null); setEditPhotos([]);
+        onRefresh();
+      } else showToast(d?.message || "Erreur mise à jour", "error");
+    } catch { showToast("Erreur réseau", "error"); }
+    setEditSaving(false);
+  };
 
   const openPreview = async (vid) => {
     setPreviewLoading(true);
@@ -6817,6 +6946,11 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                               onClick={() => openPreview(vid)}
                               style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#eff6ff", color: "#2563eb", border: "1.5px solid #bfdbfe", borderRadius: 6, cursor: "pointer" }}>
                               👁
+                            </button>
+                            <button title="Modifier l'annonce"
+                              onClick={() => openEditVehicle(vid)}
+                              style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#f5f3ff", color: "#7c3aed", border: "1.5px solid #ddd6fe", borderRadius: 6, cursor: "pointer" }}>
+                              ✏️
                             </button>
                             {v.status !== "approved" && (
                               <button className={styles.btnApprove} style={{ fontSize: ".75rem", padding: "4px 10px" }}
@@ -7141,6 +7275,243 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                   </div>
                 );
               })() : null}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ MODAL ÉDITION COMPLÈTE (admin) ══ */}
+      {editVehicle && (
+        <div className={styles.overlay} onClick={() => { setEditVehicle(null); setEditForm(null); setEditPhotos([]); }}
+          style={{ alignItems: "flex-start", paddingTop: "2vh", overflowY: "auto" }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: "#fff", borderRadius: 16, width: "min(680px, 96vw)", maxHeight: "95dvh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 24px 60px rgba(0,0,0,.22)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px 14px", borderBottom: "1.5px solid #e2e8f0", flexShrink: 0 }}>
+              <h2 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 900, color: "#0f1b3f" }}>✏️ Modifier l'annonce (admin)</h2>
+              <button onClick={() => { setEditVehicle(null); setEditForm(null); setEditPhotos([]); }}
+                style={{ background: "#f1f5f9", border: "none", borderRadius: 8, width: 34, height: 34, fontSize: "1.1rem", cursor: "pointer" }}>✕</button>
+            </div>
+            <div style={{ overflowY: "auto", padding: "20px 24px 24px", flex: 1 }}>
+              {editLoading || !editForm ? (
+                <p style={{ textAlign: "center", color: "#94a3b8", padding: "2rem 0" }}>Chargement…</p>
+              ) : (
+                <>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                    {[{ v: "location", l: "🔑 Location" }, { v: "vente", l: "💰 Vente" }].map((o) => (
+                      <button key={o.v} type="button" onClick={() => setEditForm((p) => ({ ...p, type: o.v }))}
+                        style={{ flex: 1, padding: "8px 12px", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: ".85rem",
+                          border: editForm.type === o.v ? "2px solid #7c3aed" : "1.5px solid #e2e8f0",
+                          background: editForm.type === o.v ? "rgba(124,58,237,.08)" : "#fff",
+                          color: editForm.type === o.v ? "#7c3aed" : "#475569" }}>
+                        {o.l}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 6 }}>Photos ({editPhotos.length}/6)</label>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {editPhotos.map((p) => (
+                        <div key={p.id} style={{ position: "relative", width: 68, height: 68 }}>
+                          <img src={p.preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }} />
+                          <button type="button" onClick={() => removeEditPhotoAdmin(p.id)}
+                            style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", border: "none", background: "#dc2626", color: "#fff", cursor: "pointer", fontSize: ".7rem" }}>✕</button>
+                        </div>
+                      ))}
+                      {editPhotos.length < 6 && (
+                        <label style={{ width: 68, height: 68, border: "1.5px dashed #cbd5e1", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: "1.3rem", color: "#94a3b8" }}>
+                          +<input type="file" accept="image/*" multiple hidden onChange={(e) => addEditPhotosAdmin(e.target.files)} />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Titre</label>
+                    <input type="text" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                      value={editForm.title} onChange={(e) => setEditForm((p) => ({ ...p, title: e.target.value }))} />
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Marque</label>
+                      <input type="text" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                        value={editForm.marque} onChange={(e) => setEditForm((p) => ({ ...p, marque: e.target.value }))} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Modèle</label>
+                      <input type="text" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                        value={editForm.modele} onChange={(e) => setEditForm((p) => ({ ...p, modele: e.target.value }))} />
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Année</label>
+                      <select style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                        value={editForm.annee} onChange={(e) => setEditForm((p) => ({ ...p, annee: e.target.value }))}>
+                        {Array.from({ length: 30 }, (_, i) => new Date().getFullYear() - i).map((y) => <option key={y} value={y}>{y}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>État</label>
+                      <select style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                        value={editForm.etat} onChange={(e) => setEditForm((p) => ({ ...p, etat: e.target.value }))}>
+                        {["Neuf", "Comme neuf", "Bon état", "À réparer"].map((e_) => <option key={e_} value={e_}>{e_}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Couleur</label>
+                      <input type="text" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                        value={editForm.couleur} onChange={(e) => setEditForm((p) => ({ ...p, couleur: e.target.value }))} />
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+                    <div style={{ flex: "1 1 140px" }}>
+                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Type de véhicule</label>
+                      <select style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                        value={editForm.vehicleType} onChange={(e) => setEditForm((p) => ({ ...p, vehicleType: e.target.value }))}>
+                        {["SUV", "Berline", "Sportif", "Citadine", "Monospace", "Pick-up", "Cabriolet", "Utilitaire"].map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ flex: "1 1 140px" }}>
+                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Carburant</label>
+                      <select style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                        value={editForm.carburant} onChange={(e) => setEditForm((p) => ({ ...p, carburant: e.target.value }))}>
+                        {["Essence", "Diesel", "Hybride", "Électrique", "GPL"].map((f) => <option key={f} value={f}>{f}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ flex: "1 1 140px" }}>
+                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Transmission</label>
+                      <select style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                        value={editForm.transmission} onChange={(e) => setEditForm((p) => ({ ...p, transmission: e.target.value }))}>
+                        {["Automatique", "Manuelle"].map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Places</label>
+                      <input type="number" min="1" max="20" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                        value={editForm.nombrePlaces} onChange={(e) => setEditForm((p) => ({ ...p, nombrePlaces: e.target.value }))} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Portes</label>
+                      <input type="number" min="2" max="6" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                        value={editForm.nombrePortes} onChange={(e) => setEditForm((p) => ({ ...p, nombrePortes: e.target.value }))} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Kilométrage</label>
+                      <input type="number" min="0" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                        value={editForm.kilometrage} onChange={(e) => setEditForm((p) => ({ ...p, kilometrage: e.target.value }))} />
+                    </div>
+                  </div>
+
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: ".85rem", marginBottom: 12 }}>
+                    <input type="checkbox" checked={editForm.climatisation} onChange={(e) => setEditForm((p) => ({ ...p, climatisation: e.target.checked }))} />
+                    ❄️ Climatisation
+                  </label>
+
+                  <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>
+                        {editForm.type === "vente" ? "Prix de vente (XOF)" : "Prix / jour (XOF)"}
+                      </label>
+                      <input type="number" min="0" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                        value={editForm.type === "vente" ? editForm.priceForSale : editForm.pricePerDay}
+                        onChange={(e) => setEditForm((p) => ({ ...p, [editForm.type === "vente" ? "priceForSale" : "pricePerDay"]: e.target.value }))} />
+                    </div>
+                    {editForm.type !== "vente" && (
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Caution (XOF)</label>
+                        <input type="number" min="0" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                          value={editForm.caution} onChange={(e) => setEditForm((p) => ({ ...p, caution: e.target.value }))} />
+                      </div>
+                    )}
+                  </div>
+
+                  {editForm.type !== "vente" && (
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Durée de location proposée</label>
+                      <select style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                        value={editForm.rentalDurationType} onChange={(e) => setEditForm((p) => ({ ...p, rentalDurationType: e.target.value }))}>
+                        <option value="les_deux">Courte et longue durée</option>
+                        <option value="courte">Courte durée uniquement</option>
+                        <option value="longue">Longue durée uniquement</option>
+                      </select>
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Pays</label>
+                      <select style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                        value={editForm.country} onChange={(e) => setEditForm((p) => ({ ...p, country: e.target.value }))}>
+                        <option value="">— Non précisé —</option>
+                        {COUNTRIES_CONFIG.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Ville</label>
+                      <input type="text" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                        value={editForm.ville} onChange={(e) => setEditForm((p) => ({ ...p, ville: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Adresse</label>
+                    <input type="text" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                      value={editForm.adresse} onChange={(e) => setEditForm((p) => ({ ...p, adresse: e.target.value }))} />
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Description</label>
+                    <textarea rows={3} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem", resize: "vertical" }}
+                      value={editForm.description} onChange={(e) => setEditForm((p) => ({ ...p, description: e.target.value }))} />
+                  </div>
+
+                  {editForm.type !== "vente" && (
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Âge minimum requis</label>
+                      <input type="number" min="0" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                        value={editForm.ageMin} onChange={(e) => setEditForm((p) => ({ ...p, ageMin: e.target.value }))} />
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+                    {editForm.type !== "vente" && (
+                      <>
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: ".85rem" }}>
+                          <input type="checkbox" checked={editForm.permisRequis} onChange={(e) => setEditForm((p) => ({ ...p, permisRequis: e.target.checked }))} />
+                          Permis de conduire requis
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: ".85rem" }}>
+                          <input type="checkbox" checked={editForm.assuranceOptionnelle} onChange={(e) => setEditForm((p) => ({ ...p, assuranceOptionnelle: e.target.checked }))} />
+                          Assurance optionnelle proposée
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: ".85rem" }}>
+                          <input type="checkbox" checked={editForm.withDriver} onChange={(e) => setEditForm((p) => ({ ...p, withDriver: e.target.checked }))} />
+                          Disponible avec chauffeur
+                        </label>
+                      </>
+                    )}
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: ".85rem", fontWeight: 700 }}>
+                      <input type="checkbox" checked={editForm.available} onChange={(e) => setEditForm((p) => ({ ...p, available: e.target.checked }))} />
+                      Annonce disponible (visible au catalogue)
+                    </label>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button onClick={handleSaveEditVehicle} disabled={editSaving} className={styles.btnApprove} style={{ fontSize: ".85rem", padding: "8px 18px" }}>
+                      {editSaving ? "Envoi…" : "✅ Enregistrer"}
+                    </button>
+                    <button onClick={() => { setEditVehicle(null); setEditForm(null); setEditPhotos([]); }} className={styles.btnGhost} style={{ fontSize: ".85rem", padding: "8px 18px" }}>
+                      Annuler
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import styles from "./ImporterDashboard.module.css";
-import { CAR_MAKES, BODY_TYPES, COUNTRIES_ALL, CURRENCIES } from "../data/autocomplete";
+import { CAR_MAKES, BODY_TYPES, COUNTRIES_ALL, CURRENCIES, getCountryFlag } from "../data/autocomplete";
 
 const toBase64 = (file) =>
   new Promise((res, rej) => { const r = new FileReader(); r.readAsDataURL(file); r.onload = () => res(r.result); r.onerror = rej; });
@@ -40,8 +40,30 @@ const PROFILE_STATUS = {
 const BADGE_ICONS = { silver: "🥈", gold: "🥇", platinum: "💎", none: "" };
 
 /* ─── Formulaire nouvelle annonce ─────────────────────────────────────────── */
-function ListingForm({ onClose, onSaved, token }) {
-  const [f, setF] = useState({
+// Exporté pour réutilisation côté admin (AdminPanel.jsx) — même formulaire
+// complet, l'édition admin passe aussi par PUT /listings/:id (voir
+// importExportController.updateListing, désormais compatible admin).
+export function ListingForm({ onClose, onSaved, token, listing }) {
+  const isEdit = !!listing;
+  const [f, setF] = useState(() => listing ? {
+    title: listing.title || "", make: listing.make || "", model: listing.model || "",
+    year: listing.year || new Date().getFullYear(),
+    mileage: listing.mileage || 0, fuelType: listing.fuelType || "essence",
+    transmission: listing.transmission || "automatique",
+    bodyType: listing.bodyType || "", color: listing.color || "",
+    condition: listing.condition || "occasion", description: listing.description || "",
+    sourceCountry: listing.sourceCountry || "", sourceCity: listing.sourceCity || "",
+    availableIn: listing.availableIn || [],
+    price: listing.price || "", currency: listing.currency || "EUR",
+    negotiable: !!listing.negotiable, stockQty: listing.stockQty || 1,
+    vin: listing.vin || "", vehicleHistory: listing.vehicleHistory || "",
+    priceIncludes: listing.priceIncludes || [],
+    estimatedShippingCost: listing.estimatedShippingCost || "",
+    shippingCostCurrency: listing.shippingCostCurrency || "EUR",
+    estimatedDelay: listing.estimatedDelay || "", shippingType: listing.shippingType || "",
+    exportDocumentsAvailable: listing.exportDocumentsAvailable || [], videoUrl: listing.videoUrl || "",
+    acceptedPaymentMethods: listing.acceptedPaymentMethods || [],
+  } : {
     title: "", make: "", model: "", year: new Date().getFullYear(),
     mileage: 0, fuelType: "essence", transmission: "automatique",
     bodyType: "", color: "", condition: "occasion", description: "",
@@ -52,7 +74,7 @@ function ListingForm({ onClose, onSaved, token }) {
     estimatedDelay: "", shippingType: "", exportDocumentsAvailable: [], videoUrl: "",
     acceptedPaymentMethods: [],
   });
-  const [photos, setPhotos]         = useState([]);
+  const [photos, setPhotos]         = useState(() => listing?.photos || []);
   const [availText, setAvailText]   = useState("");
   const [includeText, setIncludeText] = useState("");
   const [docText, setDocText]         = useState("");
@@ -67,6 +89,8 @@ function ListingForm({ onClose, onSaved, token }) {
     const b64 = await toBase64(file);
     setPhotos((p) => [...p, b64]);
   }, []);
+
+  const removePhoto = (i) => setPhotos((p) => p.filter((_, idx) => idx !== i));
 
   const addAvail = () => {
     const c = availText.trim();
@@ -91,10 +115,15 @@ function ListingForm({ onClose, onSaved, token }) {
       setErr("Complétez au minimum : titre, marque, modèle, pays source, prix.");
       return;
     }
+    if (f.availableIn.length === 0) {
+      setErr("Indiquez au moins un pays de destination (livraison disponible vers).");
+      return;
+    }
     setSaving(true); setErr(null);
     try {
-      const res = await fetch("/api/import-export/listings", {
-        method: "POST",
+      const url = isEdit ? `/api/import-export/listings/${listing._id}` : "/api/import-export/listings";
+      const res = await fetch(url, {
+        method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ ...f, photos, mainPhoto: photos[0] || null }),
       });
@@ -102,13 +131,13 @@ function ListingForm({ onClose, onSaved, token }) {
       onSaved();
     } catch (e) { setErr(e.message); }
     finally { setSaving(false); }
-  }, [f, photos, token, onSaved]);
+  }, [f, photos, token, onSaved, isEdit, listing]);
 
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.formModal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.formModalHeader}>
-          <h3>Nouvelle annonce Import/Export</h3>
+          <h3>{isEdit ? "Modifier l'annonce" : "Nouvelle annonce Import/Export"}</h3>
           <button className={styles.closeBtn} onClick={onClose}>✕</button>
         </div>
         <div className={styles.formScroll}>
@@ -237,14 +266,14 @@ function ListingForm({ onClose, onSaved, token }) {
 
           {/* Disponibilité dans */}
           <div className={styles.fieldset}>
-            <label className={styles.fsLegend}>Disponible pour livraison dans</label>
+            <label className={styles.fsLegend}>Disponible pour livraison dans *</label>
             <div className={styles.addRow}>
               <input list="dl-dash-avail" value={availText} onChange={(e) => setAvailText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addAvail())} placeholder="Côte d'Ivoire, Sénégal…" />
               <button type="button" className={styles.btnAdd} onClick={addAvail}>+</button>
             </div>
             <div className={styles.tagList}>
               {f.availableIn.map((c) => (
-                <span key={c} className={styles.tag}>{c}<button onClick={() => set("availableIn", f.availableIn.filter((x) => x !== c))}>×</button></span>
+                <span key={c} className={styles.tag}>{getCountryFlag(c)} {c}<button onClick={() => set("availableIn", f.availableIn.filter((x) => x !== c))}>×</button></span>
               ))}
             </div>
           </div>
@@ -255,7 +284,13 @@ function ListingForm({ onClose, onSaved, token }) {
           <div className={styles.fieldset}>
             <label className={styles.fsLegend}>Photos ({photos.length}/8)</label>
             <div className={styles.photosRow}>
-              {photos.map((p, i) => <img key={i} src={p} className={styles.photoThumb} alt={`photo-${i}`} />)}
+              {photos.map((p, i) => (
+                <div key={i} style={{ position: "relative" }}>
+                  <img src={p} className={styles.photoThumb} alt={`photo-${i}`} />
+                  <button type="button" onClick={() => removePhoto(i)}
+                    style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", border: "none", background: "#dc2626", color: "#fff", cursor: "pointer", fontSize: ".7rem" }}>✕</button>
+                </div>
+              ))}
               {photos.length < 8 && (
                 <label className={styles.photoAdd}>
                   <input type="file" accept="image/*" onChange={addPhoto} />
@@ -275,7 +310,7 @@ function ListingForm({ onClose, onSaved, token }) {
         <div className={styles.formModalFooter}>
           <button className={styles.btnGhost} onClick={onClose}>Annuler</button>
           <button className={styles.btnPrimary} onClick={save} disabled={saving}>
-            {saving ? "Envoi..." : "Soumettre l'annonce →"}
+            {saving ? "Envoi..." : isEdit ? "Enregistrer les modifications" : "Soumettre l'annonce →"}
           </button>
         </div>
       </div>
@@ -315,6 +350,7 @@ export default function ImporterDashboard() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [showForm, setShowForm]     = useState(false);
+  const [editingListing, setEditingListing] = useState(null); // annonce complète en édition (getMyListings tronque `photos`)
   const [toast, setToast]           = useState(null);
 
   const headers = { Authorization: `Bearer ${token}` };
@@ -347,6 +383,19 @@ export default function ImporterDashboard() {
     await fetch(`/api/import-export/listings/${id}`, { method: "DELETE", headers });
     showMsg("Annonce supprimée.");
     load();
+  };
+
+  // /listings/mine (liste) ne renvoie plus le tableau `photos` complet — voir
+  // importExportController.getMyListings (optimisation payload liste). Il faut
+  // recharger l'annonce en entier (getListingById, jamais tronqué) pour éditer.
+  const openEditListing = async (id) => {
+    try {
+      const r = await fetch(`/api/import-export/listings/${id}`, { headers });
+      const d = await r.json();
+      if (!r.ok) throw new Error();
+      setEditingListing(d.listing);
+      setShowForm(true);
+    } catch { showMsg("Impossible de charger l'annonce."); }
   };
 
 
@@ -600,6 +649,7 @@ export default function ImporterDashboard() {
                             )}
                           </div>
                           <div className={styles.listingActions}>
+                            <button className={styles.btnGhost} onClick={() => openEditListing(l._id)}>✏️ Modifier</button>
                             <button className={styles.btnDanger} onClick={() => deleteListing(l._id)}>Supprimer</button>
                           </div>
                         </div>
@@ -666,8 +716,14 @@ export default function ImporterDashboard() {
       {showForm && (
         <ListingForm
           token={token}
-          onClose={() => setShowForm(false)}
-          onSaved={() => { setShowForm(false); showMsg("Annonce soumise pour validation !"); load(); }}
+          listing={editingListing}
+          onClose={() => { setShowForm(false); setEditingListing(null); }}
+          onSaved={() => {
+            setShowForm(false);
+            showMsg(editingListing ? "Annonce mise à jour !" : "Annonce soumise pour validation !");
+            setEditingListing(null);
+            load();
+          }}
         />
       )}
     </div>
