@@ -272,6 +272,18 @@
   border: 1.5px solid rgba(245,158,11,.44);
 }
 
+.cardTypeBadge {
+  position: absolute;
+  bottom: 8px;
+  left: 10px;
+  background: #6366f1;
+  color: #fff;
+  border-radius: 8px;
+  padding: 3px 9px;
+  font-size: .7rem;
+  font-weight: 800;
+}
+
 .cardPhotoCount {
   position: absolute;
   bottom: 8px;

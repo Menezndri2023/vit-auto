@@ -783,6 +783,18 @@
   border: 1.5px solid rgba(245,158,11,.27);
 }
 
+.ieCardTypeBadge {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background: #6366f1;
+  color: #fff;
+  border-radius: 8px;
+  padding: 3px 10px;
+  font-size: .7rem;
+  font-weight: 800;
+}
+
 .ieCardBody {
   padding: 14px 16px;
   flex: 1;

@@ -20,6 +20,10 @@ export const EXCHANGE_RATES_FROM_MAD = {
 };
 
 // Taux de conversion XOF → devise (pour rétrocompat avec fmt(amountXOF))
+// AED/GHS/NGN ajoutées pour les annonces Import/Export (voir CURRENCIES dans
+// data/autocomplete.js, choix de devise du formulaire de publication) — sans
+// ces taux, fmtFromCurrency() serait tombée à 1 (traitée comme du XOF), soit
+// un prix affiché des centaines de fois trop faible pour ces devises.
 export const EXCHANGE_RATES = {
   XOF: 1,
   MAD: 60.5,
@@ -32,6 +36,9 @@ export const EXCHANGE_RATES = {
   DZD: 4.4,
   GNF: 0.065,
   CNY: 84.5,
+  AED: 163,
+  GHS: 40,
+  NGN: 0.4,
 };
 
 // Correspondance pays → devise
@@ -235,6 +242,19 @@ export function CurrencyProvider({ children }) {
     [convert, currentCurrency]
   );
 
+  // Formate un montant déjà exprimé dans une devise arbitraire (annonces
+  // Import/Export : le partenaire choisit librement la devise de son annonce,
+  // ex. EUR/USD/AED — jamais XOF) dans la devise active du visiteur (détectée
+  // par IP). Repasse par XOF comme pivot, comme fmt().
+  const fmtFromCurrency = useCallback(
+    (amount, sourceCode) => {
+      if (amount == null || isNaN(amount)) return "—";
+      const sourceRate = EXCHANGE_RATES[sourceCode] ?? 1;
+      return fmt(amount * sourceRate);
+    },
+    [fmt]
+  );
+
   // Convertit MAD → devise active (pour Plans, commissions, prix en DH)
   const fmtFromMAD = useCallback(
     (amountMAD) => {
@@ -268,6 +288,7 @@ export function CurrencyProvider({ children }) {
         setCurrency,
         convert,
         fmt,
+        fmtFromCurrency,
         fmtFromMAD,
         fromMAD,
         detecting,

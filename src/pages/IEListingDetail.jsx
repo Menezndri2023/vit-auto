@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useCurrency } from "../context/CurrencyContext";
+import { getCountryFlag } from "../data/autocomplete";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import styles from "./IEListingDetail.module.css";
 
-const fmtPrice = (p, c = "EUR") =>
-  p != null ? `${Number(p).toLocaleString("fr-FR")} ${c}` : "—";
 const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
@@ -276,6 +276,7 @@ export default function IEListingDetail() {
   const { id }        = useParams();
   const navigate      = useNavigate();
   const { user, token } = useAuth();
+  const { fmtFromCurrency } = useCurrency();
 
   const [listing,     setListing]     = useState(null);
   const [loading,     setLoading]     = useState(true);
@@ -366,14 +367,15 @@ export default function IEListingDetail() {
               <div>
                 <h1 className={styles.title}>{listing.title}</h1>
                 <div className={styles.metaRow}>
-                  <span className={styles.origin}>🌍 {listing.sourceCountry}</span>
+                  <span className={styles.badgePill}>🌍 Import/Export</span>
+                  <span className={styles.origin}>{getCountryFlag(listing.sourceCountry)} {listing.sourceCountry}</span>
                   {listing.sourceCity && <span>· {listing.sourceCity}</span>}
                   {badge && <span className={styles.badgePill}>{badge}</span>}
                   <span className={styles.condition}>{COND_LABELS[listing.condition] || listing.condition}</span>
                 </div>
               </div>
               <div className={styles.priceBlock}>
-                <span className={styles.price}>{fmtPrice(listing.price, listing.currency)}</span>
+                <span className={styles.price}>{fmtFromCurrency(listing.price, listing.currency)}</span>
                 {listing.negotiable && <span className={styles.neg}>Négociable</span>}
               </div>
             </div>
@@ -446,7 +448,7 @@ export default function IEListingDetail() {
                 <div className={styles.availability}>
                   <h4>🌍 Livraison disponible vers</h4>
                   <div className={styles.availTags}>
-                    {listing.availableIn.map((c) => <span key={c}>{c}</span>)}
+                    {listing.availableIn.map((c) => <span key={c}>{getCountryFlag(c)} {c}</span>)}
                   </div>
                 </div>
               )}
@@ -473,7 +475,7 @@ export default function IEListingDetail() {
                     <span>💶</span>
                     <div>
                       <p>Coût de transport estimatif</p>
-                      <strong>{fmtPrice(listing.estimatedShippingCost, listing.shippingCostCurrency)}</strong>
+                      <strong>{fmtFromCurrency(listing.estimatedShippingCost, listing.shippingCostCurrency)}</strong>
                     </div>
                   </div>
                 )}
@@ -561,14 +563,14 @@ export default function IEListingDetail() {
           <div className={styles.stickyCard}>
             <div className={styles.sidePrice}>
               <span className={styles.sidePriceLabel}>Prix</span>
-              <span className={styles.sidePriceValue}>{fmtPrice(listing.price, listing.currency)}</span>
+              <span className={styles.sidePriceValue}>{fmtFromCurrency(listing.price, listing.currency)}</span>
               {listing.negotiable && <span className={styles.neg}>Négociable</span>}
             </div>
 
             {listing.estimatedShippingCost != null && (
               <div className={styles.sideShipping}>
                 <span>🚢 Transport estimé</span>
-                <strong>{fmtPrice(listing.estimatedShippingCost, listing.shippingCostCurrency)}</strong>
+                <strong>{fmtFromCurrency(listing.estimatedShippingCost, listing.shippingCostCurrency)}</strong>
               </div>
             )}
 

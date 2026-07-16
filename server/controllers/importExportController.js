@@ -408,13 +408,14 @@ export const getListings = async (req, res) => {
         .lean(),
       ImportExportListing.countDocuments(filter),
     ]);
-    // `photos` est stocké en base64 (jusqu'à plusieurs Mo/annonce) — une vue
-    // liste n'a besoin que d'un aperçu, le détail (getListingById) garde tout.
     // `photos` (base64, jusqu'à plusieurs Mo/annonce) n'est jamais affiché en
     // vue liste — seul `mainPhoto` l'est (Catalogue/Favorites/IEListings/...).
-    // Le détail (getListingById) reste seul à recevoir le tableau complet.
+    // `photosCount` est conservé pour le badge "📷 N" sans transférer le
+    // tableau complet. Le détail (getListingById) reste seul à tout recevoir.
     const listings = listingsRaw.map((l) => (
-      Array.isArray(l.photos) && l.photos.length > 0 ? { ...l, photos: [] } : l
+      Array.isArray(l.photos) && l.photos.length > 0
+        ? { ...l, photosCount: l.photos.length, photos: [] }
+        : l
     ));
 
     const payload = { listings, total, pages: Math.ceil(total / safeLimit) };
@@ -531,6 +532,12 @@ export const createListing = async (req, res) => {
 
     if (!title || !make || !model || !year || !sourceCountry || !price) {
       return res.status(400).json({ message: "Champs obligatoires manquants." });
+    }
+    // Sans pays de destination, l'annonce n'est trouvable par aucun client
+    // (filtre pays du catalogue — voir getListings) : le partenaire doit en
+    // déclarer au moins un.
+    if (!Array.isArray(availableIn) || availableIn.length === 0) {
+      return res.status(400).json({ message: "Indiquez au moins un pays de destination (livraison disponible vers)." });
     }
 
     const imagesError = validateListingImages([...(photos || []), mainPhoto].filter(Boolean));

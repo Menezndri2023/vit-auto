@@ -1,11 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { COUNTRIES_ALL, CAR_MAKES } from "../data/autocomplete";
+import { COUNTRIES_ALL, CAR_MAKES, getCountryFlag } from "../data/autocomplete";
 import { useCurrency } from "../context/CurrencyContext";
 import styles from "./IEListings.module.css";
 import ieModalStyles from "./ImportExport.module.css";
-
-const fmtPrice = (p, c = "EUR") => p ? `${Number(p).toLocaleString("fr-FR")} ${c}` : "—";
 
 const BADGE_CFG = {
   silver:   { label: "Silver",   icon: "🥈" },
@@ -106,6 +104,7 @@ function QuickRequestModal({ listing, onClose }) {
 // ── Carte annonce ──────────────────────────────────────────────────────────
 function ListingCard({ l, onContact }) {
   const badge = BADGE_CFG[l.importerProfile?.badgeLevel || "none"];
+  const { fmtFromCurrency } = useCurrency();
   return (
     <div className={styles.card}>
       <Link to={`/import-export/listings/${l._id}`} className={styles.cardImgLink}>
@@ -114,12 +113,13 @@ function ListingCard({ l, onContact }) {
             ? <img src={l.mainPhoto} alt={l.title} />
             : <div className={styles.cardImgFallback}>🚗</div>
           }
-          <div className={styles.cardOrigin}>🌍 {l.sourceCountry}</div>
+          <div className={styles.cardOrigin}>{getCountryFlag(l.sourceCountry)} {l.sourceCountry}</div>
+          <div className={styles.cardTypeBadge}>🌍 Import/Export</div>
           {badge.icon && (
             <div className={styles.cardBadge}>{badge.icon} {badge.label}</div>
           )}
-          {l.photos?.length > 1 && (
-            <div className={styles.cardPhotoCount}>📷 {l.photos.length}</div>
+          {(l.photosCount ?? l.photos?.length ?? 0) > 1 && (
+            <div className={styles.cardPhotoCount}>📷 {l.photosCount ?? l.photos.length}</div>
           )}
           {l.inspectionReport && (
             <div className={styles.cardInspected}>🔍 Inspecté</div>
@@ -138,7 +138,7 @@ function ListingCard({ l, onContact }) {
         {l.availableIn?.length > 0 && (
           <div className={styles.cardTags}>
             {l.availableIn.slice(0, 4).map((c) => (
-              <span key={c} className={styles.cardTag}>{c}</span>
+              <span key={c} className={styles.cardTag}>{getCountryFlag(c)} {c}</span>
             ))}
             {l.availableIn.length > 4 && (
               <span className={styles.cardTagMore}>+{l.availableIn.length - 4}</span>
@@ -156,7 +156,7 @@ function ListingCard({ l, onContact }) {
 
         <div className={styles.cardFooter}>
           <div>
-            <span className={styles.cardPrice}>{fmtPrice(l.price, l.currency)}</span>
+            <span className={styles.cardPrice}>{fmtFromCurrency(l.price, l.currency)}</span>
             {l.negotiable && <span className={styles.cardNeg}>Négociable</span>}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>

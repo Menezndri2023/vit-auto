@@ -69,6 +69,31 @@ export const COUNTRIES_ALL = [
   "États-Unis", "Canada", "Mexique", "Brésil", "Australie",
 ];
 
+// ── Drapeaux pays (saisie libre avec suggestion datalist — voir sourceCountry/
+// availableIn d'une annonce Import/Export) ───────────────────────────────────
+export const COUNTRY_FLAGS = {
+  "Côte d'Ivoire": "🇨🇮", "Sénégal": "🇸🇳", "Ghana": "🇬🇭", "Nigeria": "🇳🇬",
+  "Bénin": "🇧🇯", "Togo": "🇹🇬", "Mali": "🇲🇱", "Guinée": "🇬🇳",
+  "Guinée-Bissau": "🇬🇼", "Burkina Faso": "🇧🇫", "Niger": "🇳🇪",
+  "Sierra Leone": "🇸🇱", "Liberia": "🇱🇷", "Gambie": "🇬🇲",
+  "Mauritanie": "🇲🇷", "Cap-Vert": "🇨🇻",
+  "Maroc": "🇲🇦", "Algérie": "🇩🇿", "Tunisie": "🇹🇳", "Libye": "🇱🇾", "Égypte": "🇪🇬",
+  "France": "🇫🇷", "Allemagne": "🇩🇪", "Belgique": "🇧🇪", "Pays-Bas": "🇳🇱",
+  "Espagne": "🇪🇸", "Italie": "🇮🇹", "Portugal": "🇵🇹", "Suisse": "🇨🇭",
+  "Autriche": "🇦🇹", "Suède": "🇸🇪", "Norvège": "🇳🇴", "Danemark": "🇩🇰",
+  "Finlande": "🇫🇮", "Pologne": "🇵🇱", "Royaume-Uni": "🇬🇧", "Irlande": "🇮🇪",
+  "Luxembourg": "🇱🇺",
+  "Chine": "🇨🇳", "Japon": "🇯🇵", "Corée du Sud": "🇰🇷", "Inde": "🇮🇳",
+  "Thaïlande": "🇹🇭", "Vietnam": "🇻🇳", "Singapour": "🇸🇬", "Malaisie": "🇲🇾",
+  "Indonésie": "🇮🇩", "Hong Kong": "🇭🇰", "Taiwan": "🇹🇼",
+  "Émirats Arabes Unis": "🇦🇪", "Dubaï": "🇦🇪", "Arabie Saoudite": "🇸🇦",
+  "Qatar": "🇶🇦", "Koweït": "🇰🇼", "Bahreïn": "🇧🇭", "Oman": "🇴🇲",
+  "Jordanie": "🇯🇴", "Liban": "🇱🇧", "Turquie": "🇹🇷",
+  "États-Unis": "🇺🇸", "Canada": "🇨🇦", "Mexique": "🇲🇽", "Brésil": "🇧🇷", "Australie": "🇦🇺",
+};
+
+export const getCountryFlag = (name) => COUNTRY_FLAGS[name?.trim()] || "🌍";
+
 // ── Villes Côte d'Ivoire ──────────────────────────────────────────────────────
 export const CITIES_CI = [
   "Abidjan", "Bouaké", "Yamoussoukro", "Korhogo", "San Pedro",

@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
 import { useToast } from "../context/ToastContext";
-import { CAR_MAKES, BODY_TYPES, COUNTRIES_ALL, CURRENCIES } from "../data/autocomplete";
+import { CAR_MAKES, BODY_TYPES, COUNTRIES_ALL, CURRENCIES, getCountryFlag } from "../data/autocomplete";
 import { SUBSCRIPTIONS_ENABLED } from "../config/featureFlags";
 import styles from "./VendorPublish.module.css";
 
@@ -298,6 +298,9 @@ function IEListingForm({ onClose, onSaved, token }) {
     if (!f.title || !f.make || !f.model || !f.sourceCountry || !f.price) {
       setErr("Complétez : titre, marque, modèle, pays source, prix."); return;
     }
+    if (f.availableIn.length === 0) {
+      setErr("Indiquez au moins un pays de destination (livraison disponible vers)."); return;
+    }
     setSaving(true); setErr(null);
     try {
       const res = await fetch("/api/import-export/listings", {
@@ -459,7 +462,7 @@ function IEListingForm({ onClose, onSaved, token }) {
 
         {/* Disponible dans */}
         <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: ".82rem", fontWeight: 600, marginBottom: 6 }}>Disponible pour livraison dans</div>
+          <div style={{ fontSize: ".82rem", fontWeight: 600, marginBottom: 6 }}>Disponible pour livraison dans *</div>
           <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
             <input list="dl-vp-avail" style={{ ...iStyle, flex: 1 }} value={availText} onChange={(e) => setAvailText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addAvail())} placeholder="Côte d'Ivoire, Sénégal…" />
@@ -468,7 +471,7 @@ function IEListingForm({ onClose, onSaved, token }) {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {f.availableIn.map((c) => (
               <span key={c} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(99,102,241,.1)", color: "#6366f1", borderRadius: 99, padding: "3px 10px", fontSize: ".78rem", fontWeight: 600 }}>
-                {c}<button onClick={() => set("availableIn", f.availableIn.filter((x) => x !== c))} style={{ background: "none", border: "none", cursor: "pointer", color: "#6366f1", padding: 0, lineHeight: 1 }}>×</button>
+                {getCountryFlag(c)} {c}<button onClick={() => set("availableIn", f.availableIn.filter((x) => x !== c))} style={{ background: "none", border: "none", cursor: "pointer", color: "#6366f1", padding: 0, lineHeight: 1 }}>×</button>
               </span>
             ))}
           </div>

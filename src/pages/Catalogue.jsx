@@ -6,6 +6,7 @@ import { useCurrency } from "../context/CurrencyContext";
 import styles from "./Catalogue.module.css";
 import { useToast } from "../context/ToastContext";
 import { haversineKm } from "../utils/geo";
+import { getCountryFlag } from "../data/autocomplete";
 
 const MODES = [
   { key: "Tout",      icon: "⚡", label: "Tout"         },
@@ -41,12 +42,11 @@ const FUEL_LABELS = {
   gpl: "GPL", autre: "Autre",
 };
 
-const fmtIE = (p, c = "EUR") => p ? `${Number(p).toLocaleString("fr-FR")} ${c}` : "—";
-
 const BADGE_ICONS_MAP = { silver: "🥈", gold: "🥇", platinum: "💎" };
 
 /* ── Carte Import/Export ── */
 function IECard({ l }) {
+  const { fmtFromCurrency } = useCurrency();
   return (
     <div className={styles.ieCard}>
       <div className={styles.ieCardImg}>
@@ -54,7 +54,8 @@ function IECard({ l }) {
           ? <img src={l.mainPhoto} alt={l.title} loading="lazy" width="320" height="200" />
           : <div className={styles.ieCardImgFallback}>🚗</div>
         }
-        <div className={styles.ieCardOrigin}>🌍 {l.sourceCountry}</div>
+        <div className={styles.ieCardOrigin}>{getCountryFlag(l.sourceCountry)} {l.sourceCountry}</div>
+        <div className={styles.ieCardTypeBadge}>🌍 Import/Export</div>
         {l.importerProfile?.badgeLevel && l.importerProfile.badgeLevel !== "none" && (
           <div className={styles.ieCardBadge}>
             {BADGE_ICONS_MAP[l.importerProfile.badgeLevel]} {l.importerProfile.badgeLevel.toUpperCase()}
@@ -71,7 +72,7 @@ function IECard({ l }) {
         {l.availableIn?.length > 0 && (
           <div className={styles.ieCardTags}>
             {l.availableIn.slice(0, 3).map((c) => (
-              <span key={c} className={styles.ieCardTag}>{c}</span>
+              <span key={c} className={styles.ieCardTag}>{getCountryFlag(c)} {c}</span>
             ))}
             {l.availableIn.length > 3 && <span style={{ fontSize: ".7rem", color: "#94a3b8" }}>+{l.availableIn.length - 3}</span>}
           </div>
@@ -83,7 +84,7 @@ function IECard({ l }) {
 
         <div className={styles.ieCardFooter}>
           <div>
-            <div className={styles.ieCardPrice}>{fmtIE(l.price, l.currency)}</div>
+            <div className={styles.ieCardPrice}>{fmtFromCurrency(l.price, l.currency)}</div>
             {l.negotiable && <span className={styles.ieCardNeg}>Négociable</span>}
           </div>
           <Link to="/import-export/listings" className={styles.ieCardLink}>Voir →</Link>
