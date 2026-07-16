@@ -6,6 +6,7 @@ import { Link, useNavigate } from "react-router-dom";
 import styles from "./AdminPanel.module.css";
 import { ListingForm as IEListingEditForm } from "./ImporterDashboard";
 import { COUNTRIES_ALL, CURRENCIES as IE_CURRENCIES, getCountryFlag } from "../data/autocomplete";
+import { INCOTERMS as IE_LISTING_INCOTERMS } from "../constants/incoterms";
 
 // Drapeau pays — reconnaissance rapide du pays d'un partenaire/client par
 // l'admin, à partir du code ISO stocké sur User/Vehicle/Driver (voir
@@ -347,6 +348,10 @@ function FoundingDocs({ o }) {
 const ENTITY_TYPE_LABELS  = { factory: "Usine", dealer: "Concessionnaire", exporter: "Exportateur", importer: "Importateur", agent: "Agent" };
 const VEHICLE_INV_LABELS  = { newVehicles: "Neufs", usedVehicles: "Occasion", electricVehicles: "Électriques", hybridVehicles: "Hybrides", luxuryVehicles: "Luxe", commercialVehicles: "Utilitaires" };
 const INCOTERM_LABELS     = { exw: "EXW", fob: "FOB", cif: "CIF", dap: "DAP", ddp: "DDP" };
+// Distinct de INCOTERM_LABELS ci-dessus (capacités déclaratives du Founding
+// Partner à l'onboarding) — celui-ci couvre les 11 Incoterms 2020 épinglés
+// sur une annonce ImportExportListing (voir src/constants/incoterms.js).
+const ieListingIncotermLabel = (code) => IE_LISTING_INCOTERMS.find((i) => i.code === code)?.label || code;
 const PAYMENT_MODE_LABELS = { wire_transfer: "Virement", lc: "Crédit documentaire", tt: "T/T", cash: "Espèces", escrow: "Séquestre" };
 
 function InfoField({ label, value }) {
@@ -3305,6 +3310,7 @@ export default function AdminPanel() {
                           <th>Annonce</th>
                           <th>Partenaire</th>
                           <th>Source</th>
+                          <th>Incoterm</th>
                           <th>Prix</th>
                           <th>Statut</th>
                           <th>Date</th>
@@ -3329,6 +3335,11 @@ export default function AdminPanel() {
                                 <span className={styles.vehMeta}>{l.importerProfile?.companyName}</span>
                               </td>
                               <td style={{ fontSize: ".82rem" }}>{l.sourceCountry}</td>
+                              <td style={{ fontSize: ".82rem" }}>
+                                {l.incoterm
+                                  ? <span title={ieListingIncotermLabel(l.incoterm)} style={{ fontSize: ".72rem", fontWeight: 800, padding: "3px 9px", borderRadius: 20, background: "#f5f3ff", color: "#7c3aed", border: "1px solid #ddd6fe" }}>📦 {l.incoterm}</span>
+                                  : <span style={{ color: "#94a3b8" }}>—</span>}
+                              </td>
                               <td className={styles.tdPrice}>
                                 {l.price ? `${Number(l.price).toLocaleString("fr-FR")} ${l.currency}` : "—"}
                               </td>

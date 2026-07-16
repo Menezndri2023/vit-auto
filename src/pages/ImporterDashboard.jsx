@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import styles from "./ImporterDashboard.module.css";
 import { CAR_MAKES, BODY_TYPES, COUNTRIES_ALL, CURRENCIES, getCountryFlag } from "../data/autocomplete";
+import { INCOTERMS, INCOTERM_STAGES, INCOTERM_GROUP_LABELS, getIncoterm, isIncotermCompatible } from "../constants/incoterms";
 
 const toBase64 = (file) =>
   new Promise((res, rej) => { const r = new FileReader(); r.readAsDataURL(file); r.onload = () => res(r.result); r.onerror = rej; });
@@ -63,6 +64,7 @@ export function ListingForm({ onClose, onSaved, token, listing }) {
     estimatedDelay: listing.estimatedDelay || "", shippingType: listing.shippingType || "",
     exportDocumentsAvailable: listing.exportDocumentsAvailable || [], videoUrl: listing.videoUrl || "",
     acceptedPaymentMethods: listing.acceptedPaymentMethods || [],
+    incoterm: listing.incoterm || "",
   } : {
     title: "", make: "", model: "", year: new Date().getFullYear(),
     mileage: 0, fuelType: "essence", transmission: "automatique",
@@ -72,7 +74,7 @@ export function ListingForm({ onClose, onSaved, token, listing }) {
     vin: "", vehicleHistory: "", priceIncludes: [],
     estimatedShippingCost: "", shippingCostCurrency: "EUR",
     estimatedDelay: "", shippingType: "", exportDocumentsAvailable: [], videoUrl: "",
-    acceptedPaymentMethods: [],
+    acceptedPaymentMethods: [], incoterm: "",
   });
   const [photos, setPhotos]         = useState(() => listing?.photos || []);
   const [availText, setAvailText]   = useState("");
@@ -215,6 +217,37 @@ export function ListingForm({ onClose, onSaved, token, listing }) {
               <option value="multiple">Multiple</option>
             </select>
           </label>
+
+          {/* Incoterm (règle de vente export) */}
+          <label><span>Incoterm (règle de vente export)</span>
+            <select value={f.incoterm} onChange={(e) => set("incoterm", e.target.value)}>
+              <option value="">— Non précisé —</option>
+              <optgroup label={INCOTERM_GROUP_LABELS.multimodal}>
+                {INCOTERMS.filter((i) => i.group === "multimodal").map((i) => (
+                  <option key={i.code} value={i.code}>{i.label}</option>
+                ))}
+              </optgroup>
+              <optgroup label={INCOTERM_GROUP_LABELS.maritime}>
+                {INCOTERMS.filter((i) => i.group === "maritime").map((i) => (
+                  <option key={i.code} value={i.code} disabled={!isIncotermCompatible(i.code, f.shippingType)}>
+                    {i.label}{!isIncotermCompatible(i.code, f.shippingType) ? " (maritime uniquement)" : ""}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+          </label>
+          {f.incoterm && getIncoterm(f.incoterm) && (
+            <div className={styles.fieldset} style={{ background: "#f8fafc" }}>
+              <p style={{ margin: "0 0 8px", fontSize: ".82rem", color: "#475569" }}>{getIncoterm(f.incoterm).summary}</p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 6 }}>
+                {INCOTERM_STAGES.map(([key, stageLabel]) => (
+                  <div key={key} style={{ fontSize: ".78rem", color: "#334155" }}>
+                    <strong>{stageLabel} :</strong> {getIncoterm(f.incoterm).responsibilities[key] === "vendeur" ? "Vendeur" : "Acheteur"}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Moyens de paiement acceptés */}
           <div className={styles.fieldset}>

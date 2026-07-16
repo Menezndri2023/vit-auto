@@ -56,6 +56,9 @@ function IECard({ l }) {
         }
         <div className={styles.ieCardOrigin}>{getCountryFlag(l.sourceCountry)} {l.sourceCountry}</div>
         <div className={styles.ieCardTypeBadge}>🌍 Import/Export</div>
+        {l.incoterm && (
+          <div className={styles.ieCardIncoterm}>📦 {l.incoterm}</div>
+        )}
         {l.importerProfile?.badgeLevel && l.importerProfile.badgeLevel !== "none" && (
           <div className={styles.ieCardBadge}>
             {BADGE_ICONS_MAP[l.importerProfile.badgeLevel]} {l.importerProfile.badgeLevel.toUpperCase()}

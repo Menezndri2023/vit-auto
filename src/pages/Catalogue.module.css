@@ -795,6 +795,18 @@
   font-weight: 800;
 }
 
+.ieCardIncoterm {
+  position: absolute;
+  bottom: 36px;
+  left: 10px;
+  background: #7c3aed;
+  color: #fff;
+  border-radius: 8px;
+  padding: 3px 10px;
+  font-size: .7rem;
+  font-weight: 800;
+}
+
 .ieCardBody {
   padding: 14px 16px;
   flex: 1;

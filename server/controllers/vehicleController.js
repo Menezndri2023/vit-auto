@@ -13,6 +13,7 @@ import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
 import { ensureImporterProfile } from "../utils/ensureImporterProfile.js";
 import { COUNTRY_CODE_TO_NAME } from "../utils/countries.js";
+import { isIncotermCompatible } from "../constants/incoterms.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -586,12 +587,15 @@ export const convertVehicleToExport = async (req, res) => {
       });
     }
 
-    const { price, currency, availableIn, sourceCity } = req.body;
+    const { price, currency, availableIn, sourceCity, incoterm } = req.body;
     if (!price || Number(price) <= 0) {
       return res.status(400).json({ message: "Un prix d'export est requis." });
     }
     if (!Array.isArray(availableIn) || availableIn.length === 0) {
       return res.status(400).json({ message: "Indiquez au moins un pays de destination (livraison disponible vers)." });
+    }
+    if (incoterm && !isIncotermCompatible(incoterm, null)) {
+      return res.status(400).json({ message: "Incoterm invalide." });
     }
 
     const importerProfile = await ensureImporterProfile(ownerUser);
@@ -615,6 +619,7 @@ export const convertVehicleToExport = async (req, res) => {
       currency: currency || "XOF",
       photos: vehicle.images || [],
       mainPhoto: vehicle.thumbnail || vehicle.images?.[0] || null,
+      incoterm: incoterm || null,
       status: "pending",
     });
 

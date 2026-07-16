@@ -5,6 +5,7 @@ import { useCurrency } from "../context/CurrencyContext";
 import { getCountryFlag } from "../data/autocomplete";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import ReportButton from "../components/ReportButton/ReportButton";
+import { INCOTERM_STAGES, getIncoterm } from "../constants/incoterms";
 import styles from "./IEListingDetail.module.css";
 
 const fmtDate = (d) =>
@@ -453,6 +454,9 @@ export default function IEListingDetail() {
                 <h1 className={styles.title}>{listing.title}</h1>
                 <div className={styles.metaRow}>
                   <span className={styles.badgePill}>🌍 Import/Export</span>
+                  {listing.incoterm && (
+                    <span className={styles.badgePill} title={getIncoterm(listing.incoterm)?.label}>📦 {listing.incoterm}</span>
+                  )}
                   <span className={styles.origin}>{getCountryFlag(listing.sourceCountry)} {listing.sourceCountry}</span>
                   {listing.sourceCity && <span>· {listing.sourceCity}</span>}
                   {badge && <span className={styles.badgePill}>{badge}</span>}
@@ -557,6 +561,27 @@ export default function IEListingDetail() {
           {activeTab === "transport" && (
             <div className={styles.card}>
               <div className={styles.sectionHeader}><span>🚢</span><h3>Informations de transport</h3></div>
+
+              {listing.incoterm && getIncoterm(listing.incoterm) && (
+                <div className={styles.incotermBox}>
+                  <h4>📦 Incoterm : {listing.incoterm} — {getIncoterm(listing.incoterm).label.replace(`${listing.incoterm} — `, "")}</h4>
+                  <p className={styles.incotermSummary}>{getIncoterm(listing.incoterm).summary}</p>
+                  <div className={styles.incotermStages}>
+                    {INCOTERM_STAGES.map(([key, stageLabel]) => {
+                      const who = getIncoterm(listing.incoterm).responsibilities[key];
+                      return (
+                        <div key={key} className={styles.incotermStage}>
+                          <span>{stageLabel}</span>
+                          <strong className={who === "vendeur" ? styles.incotermSeller : styles.incotermBuyer}>
+                            {who === "vendeur" ? "Vendeur" : "Acheteur"}
+                          </strong>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div className={styles.transportGrid}>
                 {listing.estimatedShippingCost != null && (
                   <div className={styles.transportItem}>

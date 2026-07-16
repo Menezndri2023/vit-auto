@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { INCOTERM_CODES } from "../constants/incoterms.js";
 
 // Annonce import/export publiée par un partenaire importateur vérifié
 const importExportListingSchema = new mongoose.Schema({
@@ -59,6 +60,15 @@ const importExportListingSchema = new mongoose.Schema({
     default: null,
   },
   exportDocumentsAvailable: { type: [String], default: [] }, // ["facture", "connaissement", "certificat_origine"...]
+
+  // Incoterm 2020 (règle vendeur/acheteur) épinglé sur l'annonce — voir
+  // server/constants/incoterms.js pour la matrice de responsabilités.
+  // FAS/FOB/CFR/CIF réservés à shippingType "maritime" (validé dans le controller).
+  incoterm: {
+    type: String,
+    enum: [...INCOTERM_CODES, null],
+    default: null,
+  },
 
   // Moyens de paiement acceptés par l'exportateur pour CETTE annonce — cohérent
   // avec le vocabulaire déjà utilisé par IETransaction.escrow.method.

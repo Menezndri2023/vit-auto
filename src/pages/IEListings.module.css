@@ -284,6 +284,18 @@
   font-weight: 800;
 }
 
+.cardIncoterm {
+  position: absolute;
+  bottom: 34px;
+  left: 10px;
+  background: #7c3aed;
+  color: #fff;
+  border-radius: 8px;
+  padding: 3px 9px;
+  font-size: .7rem;
+  font-weight: 800;
+}
+
 .cardPhotoCount {
   position: absolute;
   bottom: 8px;

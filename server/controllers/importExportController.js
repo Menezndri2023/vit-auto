@@ -10,6 +10,7 @@ import { ensureImporterProfile } from "../utils/ensureImporterProfile.js";
 import { COUNTRY_CODE_TO_NAME } from "../utils/countries.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
+import { isIncotermCompatible } from "../constants/incoterms.js";
 
 const MAX_LISTING_IMAGE_BYTES = 6 * 1024 * 1024;
 const MAX_IMAGE_URL_LENGTH    = 2048;
@@ -527,11 +528,14 @@ export const createListing = async (req, res) => {
       photos, mainPhoto,
       vin, vehicleHistory, estimatedShippingCost, shippingCostCurrency,
       estimatedDelay, shippingType, exportDocumentsAvailable, videoUrl,
-      acceptedPaymentMethods,
+      acceptedPaymentMethods, incoterm,
     } = req.body;
 
     if (!title || !make || !model || !year || !sourceCountry || !price) {
       return res.status(400).json({ message: "Champs obligatoires manquants." });
+    }
+    if (incoterm && !isIncotermCompatible(incoterm, shippingType)) {
+      return res.status(400).json({ message: "Cet Incoterm est réservé au transport maritime — choisissez FAS, FOB, CFR ou CIF uniquement avec un type de transport maritime." });
     }
     // Sans pays de destination, l'annonce n'est trouvable par aucun client
     // (filtre pays du catalogue — voir getListings) : le partenaire doit en
@@ -568,6 +572,7 @@ export const createListing = async (req, res) => {
       exportDocumentsAvailable: exportDocumentsAvailable || [],
       videoUrl: videoUrl || null,
       acceptedPaymentMethods: acceptedPaymentMethods || [],
+      incoterm: incoterm || null,
       status: "pending",
     });
 
@@ -617,13 +622,21 @@ export const updateListing = async (req, res) => {
       photos, mainPhoto,
       vin, vehicleHistory, estimatedShippingCost, shippingCostCurrency,
       estimatedDelay, shippingType, exportDocumentsAvailable, videoUrl,
-      acceptedPaymentMethods,
+      acceptedPaymentMethods, incoterm,
     } = req.body;
 
     const imagesError = validateListingImages([...(photos || []), mainPhoto].filter(Boolean));
     if (imagesError) return res.status(400).json({ message: imagesError });
     if (availableIn !== undefined && (!Array.isArray(availableIn) || availableIn.length === 0)) {
       return res.status(400).json({ message: "Indiquez au moins un pays de destination (livraison disponible vers)." });
+    }
+    // Un champ omis garde son ancienne valeur (voir Object.assign plus bas) —
+    // la validation doit donc tenir compte de la valeur effective résultante,
+    // pas seulement de ce que ce PUT envoie.
+    const effectiveIncoterm = incoterm !== undefined ? incoterm : listing.incoterm;
+    const effectiveShippingType = shippingType !== undefined ? shippingType : listing.shippingType;
+    if (effectiveIncoterm && !isIncotermCompatible(effectiveIncoterm, effectiveShippingType)) {
+      return res.status(400).json({ message: "Cet Incoterm est réservé au transport maritime — choisissez FAS, FOB, CFR ou CIF uniquement avec un type de transport maritime." });
     }
 
     // Un champ omis (undefined) doit garder sa valeur existante — l'ancienne
@@ -662,6 +675,7 @@ export const updateListing = async (req, res) => {
       exportDocumentsAvailable: exportDocumentsAvailable || listing.exportDocumentsAvailable,
       videoUrl: videoUrl !== undefined ? videoUrl : listing.videoUrl,
       acceptedPaymentMethods: acceptedPaymentMethods || listing.acceptedPaymentMethods,
+      incoterm: effectiveIncoterm || null,
       // Une édition partenaire repasse l'annonce en modération (pas de
       // scoring automatique côté IE, contrairement aux véhicules) ; une
       // édition admin ne touche pas au statut qu'il a lui-même déjà décidé.

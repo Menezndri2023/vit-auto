@@ -115,6 +115,9 @@ function ListingCard({ l, onContact }) {
           }
           <div className={styles.cardOrigin}>{getCountryFlag(l.sourceCountry)} {l.sourceCountry}</div>
           <div className={styles.cardTypeBadge}>🌍 Import/Export</div>
+          {l.incoterm && (
+            <div className={styles.cardIncoterm}>📦 {l.incoterm}</div>
+          )}
           {badge.icon && (
             <div className={styles.cardBadge}>{badge.icon} {badge.label}</div>
           )}

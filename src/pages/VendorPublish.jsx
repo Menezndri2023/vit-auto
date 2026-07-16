@@ -5,6 +5,7 @@ import { useVehicles } from "../context/VehicleContext";
 import { useToast } from "../context/ToastContext";
 import { CAR_MAKES, BODY_TYPES, COUNTRIES_ALL, CURRENCIES, getCountryFlag } from "../data/autocomplete";
 import { SUBSCRIPTIONS_ENABLED } from "../config/featureFlags";
+import { INCOTERMS, INCOTERM_STAGES, INCOTERM_GROUP_LABELS, getIncoterm, isIncotermCompatible } from "../constants/incoterms";
 import styles from "./VendorPublish.module.css";
 
 // FCFA (XOF) est la devise de base réelle des montants véhicule/réservation sur
@@ -257,7 +258,7 @@ function IEListingForm({ onClose, onSaved, token }) {
     vin: "", vehicleHistory: "", priceIncludes: [],
     estimatedShippingCost: "", shippingCostCurrency: "EUR",
     estimatedDelay: "", shippingType: "", exportDocumentsAvailable: [], videoUrl: "",
-    acceptedPaymentMethods: [],
+    acceptedPaymentMethods: [], incoterm: "",
   });
   const [photos, setPhotos]       = useState([]);
   const [availText, setAvailText] = useState("");
@@ -400,6 +401,37 @@ function IEListingForm({ onClose, onSaved, token }) {
             <option value="multiple">Multiple</option>
           </select>
         </label>
+
+        {/* Incoterm (règle de vente export) */}
+        <label style={{ ...lStyle, marginBottom: 12 }}>Incoterm (règle de vente export)
+          <select style={iStyle} value={f.incoterm} onChange={(e) => set("incoterm", e.target.value)}>
+            <option value="">— Non précisé —</option>
+            <optgroup label={INCOTERM_GROUP_LABELS.multimodal}>
+              {INCOTERMS.filter((i) => i.group === "multimodal").map((i) => (
+                <option key={i.code} value={i.code}>{i.label}</option>
+              ))}
+            </optgroup>
+            <optgroup label={INCOTERM_GROUP_LABELS.maritime}>
+              {INCOTERMS.filter((i) => i.group === "maritime").map((i) => (
+                <option key={i.code} value={i.code} disabled={!isIncotermCompatible(i.code, f.shippingType)}>
+                  {i.label}{!isIncotermCompatible(i.code, f.shippingType) ? " (maritime uniquement)" : ""}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        </label>
+        {f.incoterm && getIncoterm(f.incoterm) && (
+          <div style={{ marginBottom: 12, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 9, padding: "10px 12px" }}>
+            <p style={{ margin: "0 0 8px", fontSize: ".82rem", color: "#475569" }}>{getIncoterm(f.incoterm).summary}</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 6 }}>
+              {INCOTERM_STAGES.map(([key, stageLabel]) => (
+                <div key={key} style={{ fontSize: ".78rem", color: "#334155" }}>
+                  <strong>{stageLabel} :</strong> {getIncoterm(f.incoterm).responsibilities[key] === "vendeur" ? "Vendeur" : "Acheteur"}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Moyens de paiement acceptés */}
         <div style={{ marginBottom: 12 }}>

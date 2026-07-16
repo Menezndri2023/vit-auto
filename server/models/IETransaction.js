@@ -65,6 +65,11 @@ const ieTransactionSchema = new mongoose.Schema({
     default: "reserved",
   },
 
+  // Incoterm figé au moment de la réservation (copié depuis
+  // ImportExportListing.incoterm) — reste inchangé même si le partenaire
+  // modifie l'annonce ensuite, pour préserver la clause contractuelle.
+  incoterm: { type: String, default: null },
+
   // ── Destination client ─────────────────────────────────────────────────────
   destCountry: { type: String, trim: true },
   destCity:    { type: String, trim: true },
