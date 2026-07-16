@@ -249,6 +249,28 @@ const VendorSubmit = () => {
       img.src = dataUrl;
     });
 
+  // Vignette dédiée (~480px, qualité 0.6) pour les vues liste (catalogue,
+  // favoris, mes annonces) — la photo de couverture recompressée en 1600px/0.78
+  // pèse encore plusieurs centaines de Ko ; multipliée par le nombre de
+  // véhicules d'une page catalogue, ça se traduisait par des Mo de JSON et des
+  // chargements interminables. Voir server/services/vehicleScoring.js.
+  const THUMB_MAX_DIMENSION = 480;
+  const compressThumbnail = (dataUrl) =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, THUMB_MAX_DIMENSION / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width  = Math.round(img.width  * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.6));
+      };
+      img.onerror = () => resolve(null);
+      img.src = dataUrl;
+    });
+
   const readFile = (file) =>
     new Promise((resolve) => {
       if (!file.type.startsWith("image/")) return resolve(null);
@@ -363,6 +385,7 @@ const VendorSubmit = () => {
     };
 
     const imageUrls = photos.map(p => p.preview);
+    const thumbnail = photos[0]?.preview ? await compressThumbnail(photos[0].preview) : null;
 
     try {
       if (adType === "chauffeur") {
@@ -396,6 +419,7 @@ const VendorSubmit = () => {
           typePubliant: identity.typePubliant,
           ...contactInfo,
           images: imageUrls,
+          thumbnail,
           leasing: adType === "vente" ? {
             disponible:    leasing.disponible,
             apportInitial: Number(leasing.apportInitial) || 0,

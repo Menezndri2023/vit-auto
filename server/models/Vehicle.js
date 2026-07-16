@@ -106,6 +106,12 @@ const vehicleSchema = new mongoose.Schema({
 
   // ── Médias ────────────────────────────────────────────────
   images:      { type: [String], default: [] },
+  // Vignette dédiée (~480px, qualité 0.6) générée côté client à la publication —
+  // les vues LISTE (catalogue, favoris, mes annonces...) l'utilisent à la place
+  // du tableau `images` pleine résolution (~1600px, jusqu'à plusieurs Mo/photo).
+  // Les véhicules publiés avant l'ajout de ce champ restent sans vignette :
+  // les vues liste retombent alors sur `images[0]` (voir limitVehicleImages).
+  thumbnail:   { type: String, default: null },
   description: { type: String, trim: true },
 
   // ── Propriétaire (partenaire) ─────────────────────────────

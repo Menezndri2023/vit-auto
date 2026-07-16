@@ -19,7 +19,8 @@ const VehicleCard = React.memo(({ car, compact }) => {
   }, [toggleFavorite, carId, navigate]);
   const imgs = (() => {
     const arr = [];
-    if (Array.isArray(car.images) && car.images.length > 0) arr.push(...car.images);
+    if (car.thumbnail) arr.push(car.thumbnail);
+    else if (Array.isArray(car.images) && car.images.length > 0) arr.push(...car.images);
     else if (car.image) arr.push(car.image);
     return arr.length > 0 ? arr : null;
   })();

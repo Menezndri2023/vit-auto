@@ -105,16 +105,23 @@ export const scoreAnnonce = (data) => {
   };
 };
 
-// ── Limite le nombre d'images renvoyées dans une vue LISTE ───────────────────
+// ── Réduit la charge images d'une vue LISTE ──────────────────────────────────
 // Les images sont stockées en base64 directement dans le document (jusqu'à 6
 // photos, ~1 Mo chacune après compression) — un catalogue de quelques dizaines
 // de véhicules pèse alors plusieurs dizaines de Mo de JSON si on renvoie le
 // tableau complet pour chacun. La fiche détail (getVehicleById) reste seule à
-// recevoir le tableau complet ; toute vue liste (catalogue, mes annonces,
-// favoris, PMS, bookings...) se contente des `max` premières.
-export const limitVehicleImages = (v, max = 3) => {
-  if (!v || !Array.isArray(v.images) || v.images.length <= max) return v;
-  return { ...v, images: v.images.slice(0, max) };
+// recevoir le tableau complet. Une vue liste remplace `images` par un tableau
+// à une seule entrée — la vignette dédiée (`thumbnail`, ~480px) quand elle
+// existe, sinon la première photo complète pour les véhicules publiés avant
+// l'ajout de ce champ. Volontairement injectée EN PLACE de `images[0]` (plutôt
+// que d'ajouter un champ séparé à gérer) : tout le code existant qui affiche
+// déjà `images[0]`/`image` (AdminPanel, Profile, VendorDashboard, HeroSection...)
+// bénéficie du gain sans modification, aucun ne lit `images[1+]` en vue liste.
+export const limitVehicleImages = (v) => {
+  if (!v) return v;
+  const cover = v.thumbnail || (Array.isArray(v.images) ? v.images[0] : null);
+  if (!cover) return v;
+  return { ...v, images: [cover] };
 };
 
 // ── Whitelist des champs légitimes d'une annonce véhicule ────────────────────
@@ -128,7 +135,7 @@ export const buildVehicleWhitelist = (data) => {
     pricePerDay, priceForSale, caution, leasing, credit,
     ageMin, permisRequis, assuranceOptionnelle,
     contactNom, contactTel, ville, adresse, coordonnees,
-    images, description, rentalDurationType,
+    images, thumbnail, description, rentalDurationType,
   } = data;
 
   return {
@@ -138,6 +145,6 @@ export const buildVehicleWhitelist = (data) => {
     pricePerDay, priceForSale, caution, leasing, credit,
     ageMin, permisRequis, assuranceOptionnelle,
     contactNom, contactTel, ville, adresse, coordonnees,
-    images: images || [], description, rentalDurationType,
+    images: images || [], thumbnail: thumbnail || null, description, rentalDurationType,
   };
 };

@@ -151,7 +151,7 @@ export const createVehicle = async (req, res) => {
     if (req.body.images && req.body.images.length > 8) {
       req.body.images = req.body.images.slice(0, 8);
     }
-    const imagesError = validateVehicleImages(req.body.images);
+    const imagesError = validateVehicleImages([...(req.body.images || []), req.body.thumbnail].filter(Boolean));
     if (imagesError) return res.status(400).json({ message: imagesError });
 
     // ── Validation automatique ──────────────────────────────────────────────
@@ -497,13 +497,13 @@ export const updateVehicle = async (req, res) => {
       "rentalDurationType",
       "leasing", "credit", "ageMin", "permisRequis", "assuranceOptionnelle",
       "contactNom", "contactTel", "ville", "adresse", "coordonnees",
-      "images", "description", "available", "type",
+      "images", "thumbnail", "description", "available", "type",
     ];
     // Champs réservés admin
     const ADMIN_ONLY = ["featured", "sponsoredUntil", "boostLevel"];
-    if (req.body.images) {
-      req.body.images = req.body.images.slice(0, 8);
-      const imagesError = validateVehicleImages(req.body.images);
+    if (req.body.images) req.body.images = req.body.images.slice(0, 8);
+    if (req.body.images || req.body.thumbnail) {
+      const imagesError = validateVehicleImages([...(req.body.images || []), req.body.thumbnail].filter(Boolean));
       if (imagesError) return res.status(400).json({ message: imagesError });
     }
 

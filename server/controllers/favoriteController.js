@@ -22,7 +22,9 @@ export const getFavorites = async (req, res) => {
       listingIds.length ? ImportExportListing.find({ _id: { $in: listingIds } }).lean() : [],
     ]);
     const vehicleMap = new Map(vehicles.map((v) => [String(v._id), limitVehicleImages(v)]));
-    const listingMap = new Map(listings.map((l) => [String(l._id), limitVehicleImages(l)]));
+    const listingMap = new Map(listings.map((l) => [String(l._id), (
+      Array.isArray(l.photos) && l.photos.length > 0 ? { ...l, photos: [] } : l
+    )]));
 
     const items = favs
       .map((f) => {

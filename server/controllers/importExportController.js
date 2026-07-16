@@ -410,8 +410,11 @@ export const getListings = async (req, res) => {
     ]);
     // `photos` est stocké en base64 (jusqu'à plusieurs Mo/annonce) — une vue
     // liste n'a besoin que d'un aperçu, le détail (getListingById) garde tout.
+    // `photos` (base64, jusqu'à plusieurs Mo/annonce) n'est jamais affiché en
+    // vue liste — seul `mainPhoto` l'est (Catalogue/Favorites/IEListings/...).
+    // Le détail (getListingById) reste seul à recevoir le tableau complet.
     const listings = listingsRaw.map((l) => (
-      Array.isArray(l.photos) && l.photos.length > 3 ? { ...l, photos: l.photos.slice(0, 3) } : l
+      Array.isArray(l.photos) && l.photos.length > 0 ? { ...l, photos: [] } : l
     ));
 
     const payload = { listings, total, pages: Math.ceil(total / safeLimit) };
@@ -430,8 +433,11 @@ export const getMyListings = async (req, res) => {
       .populate("importerProfile", "companyName badgeLevel status")
       .sort({ createdAt: -1 })
       .lean();
+    // `photos` (base64, jusqu'à plusieurs Mo/annonce) n'est jamais affiché en
+    // vue liste — seul `mainPhoto` l'est (Catalogue/Favorites/IEListings/...).
+    // Le détail (getListingById) reste seul à recevoir le tableau complet.
     const listings = listingsRaw.map((l) => (
-      Array.isArray(l.photos) && l.photos.length > 3 ? { ...l, photos: l.photos.slice(0, 3) } : l
+      Array.isArray(l.photos) && l.photos.length > 0 ? { ...l, photos: [] } : l
     ));
     res.json({ listings });
   } catch (err) {
@@ -724,8 +730,11 @@ export const getAdminListings = async (req, res) => {
         .lean(),
       ImportExportListing.countDocuments(filter),
     ]);
+    // `photos` (base64, jusqu'à plusieurs Mo/annonce) n'est jamais affiché en
+    // vue liste — seul `mainPhoto` l'est (Catalogue/Favorites/IEListings/...).
+    // Le détail (getListingById) reste seul à recevoir le tableau complet.
     const listings = listingsRaw.map((l) => (
-      Array.isArray(l.photos) && l.photos.length > 3 ? { ...l, photos: l.photos.slice(0, 3) } : l
+      Array.isArray(l.photos) && l.photos.length > 0 ? { ...l, photos: [] } : l
     ));
 
     res.json({ listings, total, pages: Math.ceil(total / safeLimit) });
