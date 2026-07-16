@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
 import { COUNTRIES_CONFIG } from "../context/CurrencyContext";
+import { COUNTRIES_ALL, CURRENCIES as IE_CURRENCIES, getCountryFlag } from "../data/autocomplete";
 import { useToast } from "../context/ToastContext";
 import { useSocket } from "../context/SocketContext";
 import { useChat } from "../context/ChatContext";
@@ -921,6 +922,12 @@ export default function VendorDashboard() {
   const [editSaving, setEditSaving] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [editPhotos, setEditPhotos] = useState([]); // [{ id, preview }] — photos actuelles + nouvelles
+  // Conversion en annonce Import/Export — prix/devise/destinations n'existent
+  // pas sur Vehicle, demandés séparément avant l'appel à convert-to-export.
+  const [exportMode, setExportMode] = useState(false);
+  const [exportForm, setExportForm] = useState({ price: "", currency: "XOF", availableIn: [], sourceCity: "" });
+  const [exportAvailText, setExportAvailText] = useState("");
+  const [exportSaving, setExportSaving] = useState(false);
   const [gererModalId,   setGererModalId]   = useState(null);
   const [orderDetail,    setOrderDetail]    = useState(null);
   const [detailLoading,  setDetailLoading]  = useState(false);
@@ -1164,6 +1171,8 @@ export default function VendorDashboard() {
     const vid = vehicle.id || vehicle._id;
     setEditLoading(true);
     setEditModal(vehicle);
+    setExportMode(false);
+    setExportForm({ price: "", currency: "XOF", availableIn: [], sourceCity: "" });
     try {
       const r = await fetch(`/api/vehicles/${vid}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       const d = await r.json().catch(() => null);
@@ -1266,6 +1275,43 @@ export default function VendorDashboard() {
       toastError(err.message || "Erreur lors de la mise à jour.");
     } finally {
       setEditSaving(false);
+    }
+  };
+
+  const addExportAvail = () => {
+    const c = exportAvailText.trim();
+    if (c && !exportForm.availableIn.includes(c)) setExportForm((p) => ({ ...p, availableIn: [...p.availableIn, c] }));
+    setExportAvailText("");
+  };
+
+  const handleConvertToExport = async () => {
+    if (!editModal) return;
+    if (!exportForm.price || Number(exportForm.price) <= 0) { toastError("Indiquez un prix d'export."); return; }
+    if (exportForm.availableIn.length === 0) { toastError("Indiquez au moins un pays de destination."); return; }
+    const vid = editModal.id || editModal._id;
+    setExportSaving(true);
+    try {
+      const res = await fetch(`/api/vehicles/${vid}/convert-to-export`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          price: Number(exportForm.price),
+          currency: exportForm.currency,
+          availableIn: exportForm.availableIn,
+          sourceCity: exportForm.sourceCity,
+        }),
+      });
+      const d = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(d?.message || "Erreur lors de la conversion.");
+      toastSuccess("🌍 Annonce transformée en export, soumise à modération.");
+      setEditModal(null);
+      setEditPhotos([]);
+      setExportMode(false);
+      loadPartnerVehicles();
+    } catch (err) {
+      toastError(err.message || "Erreur réseau.");
+    } finally {
+      setExportSaving(false);
     }
   };
 
@@ -2271,19 +2317,78 @@ export default function VendorDashboard() {
                 <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
                   {[{ v: "location", l: "🔑 Location" }, { v: "vente", l: "💰 Vente" }].map((o) => (
                     <button key={o.v} type="button"
-                      onClick={() => setEditForm((p) => ({ ...p, type: o.v }))}
+                      onClick={() => { setExportMode(false); setEditForm((p) => ({ ...p, type: o.v })); }}
                       style={{
                         flex: 1, padding: "8px 12px", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: ".85rem",
-                        border: editForm.type === o.v ? "2px solid #ff4d2d" : "1.5px solid #e2e8f0",
-                        background: editForm.type === o.v ? "rgba(255,77,45,.08)" : "#fff",
-                        color: editForm.type === o.v ? "#ff4d2d" : "#475569",
+                        border: !exportMode && editForm.type === o.v ? "2px solid #ff4d2d" : "1.5px solid #e2e8f0",
+                        background: !exportMode && editForm.type === o.v ? "rgba(255,77,45,.08)" : "#fff",
+                        color: !exportMode && editForm.type === o.v ? "#ff4d2d" : "#475569",
                       }}>
                       {o.l}
                     </button>
                   ))}
+                  <button type="button" onClick={() => setExportMode(true)}
+                    style={{
+                      flex: 1, padding: "8px 12px", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: ".85rem",
+                      border: exportMode ? "2px solid #6366f1" : "1.5px solid #e2e8f0",
+                      background: exportMode ? "rgba(99,102,241,.08)" : "#fff",
+                      color: exportMode ? "#6366f1" : "#475569",
+                    }}>
+                    🌍 Exportation
+                  </button>
                 </div>
 
+                {exportMode && (
+                  <div style={{ marginBottom: 16, padding: 14, background: "#f8fafc", borderRadius: 10, border: "1.5px solid #e2e8f0" }}>
+                    <p style={{ fontSize: ".8rem", color: "#475569", margin: "0 0 12px" }}>
+                      Cette annonce sera transformée en <strong>annonce Import/Export</strong> (soumise à modération) et l'annonce {editForm.type === "vente" ? "vente" : "location"} actuelle sera archivée.
+                    </p>
+                    <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Prix d'export *</label>
+                        <input type="number" min="0" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                          value={exportForm.price} onChange={(e) => setExportForm((p) => ({ ...p, price: e.target.value }))} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Devise</label>
+                        <select className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                          value={exportForm.currency} onChange={(e) => setExportForm((p) => ({ ...p, currency: e.target.value }))}>
+                          {IE_CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: 8 }}>
+                      <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Pays de destination *</label>
+                      <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+                        <input list="dl-export-avail" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px", flex: 1 }}
+                          value={exportAvailText} onChange={(e) => setExportAvailText(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addExportAvail())}
+                          placeholder="Côte d'Ivoire, Sénégal…" />
+                        <datalist id="dl-export-avail">{COUNTRIES_ALL.map((c) => <option key={c} value={c} />)}</datalist>
+                        <button type="button" onClick={addExportAvail}
+                          style={{ padding: "8px 14px", background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700 }}>+</button>
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {exportForm.availableIn.map((c) => (
+                          <span key={c} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(99,102,241,.1)", color: "#6366f1", borderRadius: 99, padding: "3px 10px", fontSize: ".78rem", fontWeight: 600 }}>
+                            {getCountryFlag(c)} {c}
+                            <button onClick={() => setExportForm((p) => ({ ...p, availableIn: p.availableIn.filter((x) => x !== c) }))}
+                              style={{ background: "none", border: "none", cursor: "pointer", color: "#6366f1", padding: 0, lineHeight: 1 }}>×</button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className={styles.rejectActions}>
+                      <button className={styles.btnAccept} onClick={handleConvertToExport} disabled={exportSaving}>
+                        {exportSaving ? "Conversion…" : "🌍 Transformer en annonce Export"}
+                      </button>
+                      <button className={styles.btnSecondary} onClick={() => setExportMode(false)}>Annuler</button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Photos */}
+                {!exportMode && (<>
                 <div style={{ marginBottom: 14 }}>
                   <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 6 }}>Photos ({editPhotos.length}/6)</label>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
@@ -2485,6 +2590,7 @@ export default function VendorDashboard() {
                   </button>
                   <button className={styles.btnSecondary} onClick={() => { setEditModal(null); setEditPhotos([]); }}>Annuler</button>
                 </div>
+                </>)}
               </>
             )}
           </div>

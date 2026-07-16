@@ -24,6 +24,7 @@ router.get("/:id/availability", vid, optionalAuth, v.getVehicleAvailability);   
 router.patch("/:id/status",   vid, authenticate, authorizeAdmin, v.updateVehicleStatus); // approuver/rejeter
 router.patch("/:id/lifecycle",vid, authenticate, v.updateVehicleLifecycle);               // brouillon/vendu/archivé (partenaire)
 router.patch("/:id/promotion",vid, authenticate, v.updatePromotion);                      // activer/désactiver une promotion
+router.post("/:id/convert-to-export", vid, authenticate, v.convertVehicleToExport);       // transforme en annonce Import/Export
 router.patch("/:id",          vid, authenticate, v.updateVehicle);                        // mise à jour partielle (featured, etc.)
 router.put("/:id",            vid, authenticate, v.updateVehicle);                        // modifier annonce (compat)
 router.delete("/:id", vid, authenticate, v.deleteVehicle);                        // supprimer annonce

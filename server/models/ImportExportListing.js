@@ -12,6 +12,13 @@ const importExportListingSchema = new mongoose.Schema({
     ref: "ImporterPartnerProfile",
     required: true,
   },
+  // Renseigné uniquement quand cette annonce provient de la conversion d'une
+  // annonce véhicule (location/vente) — voir vehicleController.convertVehicleToExport.
+  convertedFromVehicle: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Vehicle",
+    default: null,
+  },
 
   // ── Véhicule ───────────────────────────────────────────────────
   title:       { type: String, required: true, trim: true },

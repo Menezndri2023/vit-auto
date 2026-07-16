@@ -1,14 +1,18 @@
 import logger from "../utils/logger.js";
 import mongoose from "mongoose";
 import Vehicle from "../models/Vehicle.js";
+import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Booking from "../models/Booking.js";
 import PartnerVerification from "../models/PartnerVerification.js";
+import ImportExportListing from "../models/ImportExportListing.js";
 import { dispatch } from "../queue/index.js";
 import { scoreAnnonce, buildVehicleWhitelist, limitVehicleImages } from "../services/vehicleScoring.js";
 import { logAction } from "../middleware/auditLog.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
+import { ensureImporterProfile } from "../utils/ensureImporterProfile.js";
+import { COUNTRY_CODE_TO_NAME } from "../utils/countries.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -539,6 +543,93 @@ export const updateVehicle = async (req, res) => {
       return res.status(400).json({ message: "Données invalides : " + err.message });
     }
     res.status(500).json({ message: "Erreur mise à jour." });
+  }
+};
+
+// ── Conversion d'une annonce véhicule (location/vente) en annonce export ────
+// Deux modèles Mongo distincts (Vehicle / ImportExportListing) — impossible de
+// simplement changer un champ `type`. On crée une nouvelle ImportExportListing
+// à partir des données du véhicule (soumise à modération comme toute annonce
+// export) et on archive le véhicule d'origine (jamais supprimé : conserve
+// l'historique des réservations déjà passées dessus).
+const VEHICLE_FUEL_TO_IE = { Essence: "essence", Diesel: "diesel", Hybride: "hybride", "Électrique": "electrique", GPL: "gpl" };
+const VEHICLE_TRANS_TO_IE = { Automatique: "automatique", Manuelle: "manuelle" };
+const VEHICLE_ETAT_TO_IE = { "Neuf": "neuf", "Comme neuf": "occasion", "Bon état": "occasion", "À réparer": "occasion" };
+
+export const convertVehicleToExport = async (req, res) => {
+  try {
+    const vehicle = await Vehicle.findById(req.params.id);
+    if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable." });
+
+    const isAdmin = req.user.role === "admin";
+    const isOwner = vehicle.owner.toString() === req.user._id.toString();
+    if (!isAdmin && !isOwner) return res.status(403).json({ message: "Accès refusé." });
+
+    // Mêmes garde-fous que la création directe d'une annonce export (voir
+    // importExportController.createListing) — cette conversion est une autre
+    // porte d'entrée vers le même système, elle ne doit pas le contourner.
+    const ownerUser = isOwner ? req.user : await User.findById(vehicle.owner);
+    if (!ownerUser?.isFounder) {
+      return res.status(403).json({
+        code: "FOUNDING_PARTNER_REQUIRED",
+        message: "Le propriétaire doit être Founding Partner pour publier une annonce d'export.",
+      });
+    }
+    const suspendedVerif = await PartnerVerification.findOne({
+      userId: ownerUser._id,
+      status: { $in: ["suspendu", "rejete"] },
+    }).select("status").lean();
+    if (suspendedVerif) {
+      return res.status(403).json({
+        code: "PARTNER_SUSPENDED",
+        message: "Dossier partenaire suspendu ou rejeté — impossible de publier une annonce export.",
+      });
+    }
+
+    const { price, currency, availableIn, sourceCity } = req.body;
+    if (!price || Number(price) <= 0) {
+      return res.status(400).json({ message: "Un prix d'export est requis." });
+    }
+    if (!Array.isArray(availableIn) || availableIn.length === 0) {
+      return res.status(400).json({ message: "Indiquez au moins un pays de destination (livraison disponible vers)." });
+    }
+
+    const importerProfile = await ensureImporterProfile(ownerUser);
+    const listing = await ImportExportListing.create({
+      partner: vehicle.owner,
+      importerProfile: importerProfile._id,
+      convertedFromVehicle: vehicle._id,
+      title: vehicle.title,
+      make: vehicle.marque, model: vehicle.modele, year: vehicle.annee || new Date().getFullYear(),
+      mileage: vehicle.kilometrage || 0,
+      fuelType: VEHICLE_FUEL_TO_IE[vehicle.carburant] || "autre",
+      transmission: VEHICLE_TRANS_TO_IE[vehicle.transmission] || "automatique",
+      bodyType: vehicle.vehicleType || "",
+      color: vehicle.couleur || "",
+      condition: VEHICLE_ETAT_TO_IE[vehicle.etat] || "occasion",
+      description: vehicle.description || "",
+      sourceCountry: COUNTRY_CODE_TO_NAME[vehicle.country] || vehicle.ville || vehicle.country || "Côte d'Ivoire",
+      sourceCity: sourceCity || vehicle.ville || "",
+      availableIn,
+      price: Number(price),
+      currency: currency || "XOF",
+      photos: vehicle.images || [],
+      mainPhoto: vehicle.thumbnail || vehicle.images?.[0] || null,
+      status: "pending",
+    });
+
+    vehicle.status = "archived";
+    vehicle.available = false;
+    vehicle.statusHistory.push({ status: "archived", changedBy: req.user._id });
+    await vehicle.save();
+
+    res.json({ listing, vehicle });
+  } catch (err) {
+    logger.error("convertVehicleToExport:", err);
+    if (err.name === "ValidationError") {
+      return res.status(400).json({ message: "Données invalides : " + err.message });
+    }
+    res.status(500).json({ message: "Erreur lors de la conversion." });
   }
 };
 
