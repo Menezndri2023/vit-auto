@@ -11,6 +11,7 @@ import { QUEUE_NAMES } from "../queue/definitions.js";
 import { stripeProvider } from "../services/payment/gateway.js";
 import { foundingRateFor } from "../utils/foundingPartnerRates.js";
 import { computeImportCost } from "../services/importCostEngine.js";
+import { captureException } from "../config/sentry.js";
 
 // Commission VIT AUTO sur une transaction Import/Export — même barème que la
 // vente (foundingRateFor), puisque le partenaire d'une transaction IE est
@@ -148,6 +149,7 @@ export const createReservation = async (req, res) => {
       listing: listingId,
       client:  req.user._id,
       partner: listing.partner,
+      incoterm: listing.incoterm || null,
       destCountry: destCountry || null,
       destCity:    destCity    || null,
       notes:       notes       || null,
@@ -500,6 +502,7 @@ export const payEscrow = async (req, res) => {
     res.json({ message: note, transaction: tx });
   } catch (err) {
     logger.error("payEscrow:", err);
+    captureException(err, { controller: "ieTransactionController.payEscrow", txId: req.params.id });
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -616,6 +619,7 @@ export const confirmEscrowPayment = async (req, res) => {
     res.json({ message: "Paiement vérifié — entiercement sécurisé.", transaction: tx });
   } catch (err) {
     logger.error("confirmEscrowPayment:", err);
+    captureException(err, { controller: "ieTransactionController.confirmEscrowPayment", txId: req.params.id });
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -644,6 +648,7 @@ export const rejectEscrowPayment = async (req, res) => {
     res.json({ message: "Paiement rejeté — le client a été notifié.", transaction: tx });
   } catch (err) {
     logger.error("rejectEscrowPayment:", err);
+    captureException(err, { controller: "ieTransactionController.rejectEscrowPayment", txId: req.params.id });
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -845,6 +850,7 @@ export const releaseFunds = async (req, res) => {
     res.json({ message: "Fonds libérés avec succès.", transaction: tx });
   } catch (err) {
     logger.error("releaseFunds:", err);
+    captureException(err, { controller: "ieTransactionController.releaseFunds", txId: req.params.id });
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -935,6 +941,7 @@ export const openDispute = async (req, res) => {
     res.json({ message: "Litige ouvert. VIT AUTO va examiner la situation.", transaction: tx });
   } catch (err) {
     logger.error("openDispute:", err);
+    captureException(err, { controller: "ieTransactionController.openDispute", txId: req.params.id });
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -970,6 +977,7 @@ export const resolveDispute = async (req, res) => {
     res.json({ message: "Litige résolu.", transaction: tx });
   } catch (err) {
     logger.error("resolveDispute:", err);
+    captureException(err, { controller: "ieTransactionController.resolveDispute", txId: req.params.id });
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -1003,6 +1011,7 @@ export const cancelTransaction = async (req, res) => {
     res.json({ message: "Transaction annulée.", transaction: tx });
   } catch (err) {
     logger.error("cancelTransaction:", err);
+    captureException(err, { controller: "ieTransactionController.cancelTransaction", txId: req.params.id });
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

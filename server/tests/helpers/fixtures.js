@@ -1,0 +1,89 @@
+import User from "../../models/User.js";
+import ImporterPartnerProfile from "../../models/ImporterPartnerProfile.js";
+import ImportExportListing from "../../models/ImportExportListing.js";
+import IETransaction from "../../models/IETransaction.js";
+import Vehicle from "../../models/Vehicle.js";
+
+let counter = 0;
+const uniq = (prefix) => `${prefix}${++counter}`;
+
+export async function createUser(overrides = {}) {
+  return User.create({
+    firstName: "Test",
+    lastName: uniq("User"),
+    email: `${uniq("user")}@example.test`,
+    password: "not-hashed-fixture-password",
+    role: "client",
+    ...overrides,
+  });
+}
+
+export async function createImporterProfile(userId, overrides = {}) {
+  return ImporterPartnerProfile.create({
+    userId,
+    companyName: uniq("Company"),
+    status: "verified",
+    badgeLevel: "gold",
+    ...overrides,
+  });
+}
+
+export async function createListing(overrides = {}) {
+  let { partner, importerProfile, ...rest } = overrides;
+  if (!partner) partner = (await createUser({ isFounder: true }))._id;
+  if (!importerProfile) importerProfile = (await createImporterProfile(partner))._id;
+
+  return ImportExportListing.create({
+    partner,
+    importerProfile,
+    title: "Toyota Land Cruiser V8 Import",
+    make: "Toyota",
+    model: "Land Cruiser",
+    year: 2022,
+    sourceCountry: "Émirats Arabes Unis",
+    availableIn: ["Côte d'Ivoire"],
+    price: 25000,
+    currency: "EUR",
+    status: "approved",
+    ...rest,
+  });
+}
+
+export async function createIETransaction(overrides = {}) {
+  let { listing, client, partner, ...rest } = overrides;
+  if (!listing) {
+    const l = await createListing();
+    listing = l._id;
+    partner = partner || l.partner;
+  }
+  if (!client) client = (await createUser())._id;
+  if (!partner) partner = (await createUser({ isFounder: true }))._id;
+
+  return IETransaction.create({
+    listing,
+    client,
+    partner,
+    ...rest,
+  });
+}
+
+// Nom distinct du controller `createVehicle` (vehicleController.js) pour
+// éviter toute collision quand les deux sont importés dans le même fichier.
+export async function createVehicleDoc(overrides = {}) {
+  let { owner, ...rest } = overrides;
+  if (!owner) owner = (await createUser({ role: "partenaire" }))._id;
+
+  return Vehicle.create({
+    title: "Toyota Corolla 2020",
+    type: "location",
+    marque: "Toyota",
+    modele: "Corolla",
+    annee: 2020,
+    pricePerDay: 15000,
+    caution: 50000,
+    available: true,
+    status: "approved",
+    owner,
+    ...rest,
+  });
+}

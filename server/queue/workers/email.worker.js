@@ -15,6 +15,7 @@
  */
 import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
+import { captureException } from "../../config/sentry.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
 import { noteRedisError } from "../connection.js";
 
@@ -163,9 +164,13 @@ export function startEmailWorker(connection) {
   });
   worker.on("failed", (job, err) => {
     logger.error("[EmailWorker] Échec", { jobId: job?.id, type: job?.data?.type, error: err.message, attempts: job?.attemptsMade });
+    captureException(err, { worker: "EmailWorker", jobId: job?.id });
   });
   worker.on("error", (err) => {
-    if (!noteRedisError(err)) logger.error("[EmailWorker] Erreur worker", { error: err.message });
+    if (!noteRedisError(err)) {
+      logger.error("[EmailWorker] Erreur worker", { error: err.message });
+      captureException(err, { worker: "EmailWorker", source: "workerError" });
+    }
   });
 
   logger.info("[EmailWorker] Démarré", { queue: QUEUE_NAMES.EMAIL });

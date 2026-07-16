@@ -8,6 +8,7 @@ import { validateImageDataUri } from "../utils/imageValidation.js";
 import { smsConfigured } from "../utils/smsConfigured.js";
 import { emailVerificationRequired } from "../utils/emailVerificationRequired.js";
 import { encryptField, decryptField, hmacIndex } from "../utils/fieldEncryption.js";
+import { captureException } from "../config/sentry.js";
 
 const MAX_KYC_IMAGE_BYTES = 6 * 1024 * 1024; // 6 Mo — cohérent avec usersController/partnerOnboarding
 
@@ -276,6 +277,7 @@ export const submitKyc = async (req, res) => {
     });
   } catch (err) {
     logger.error("submitKyc:", err);
+    captureException(err, { controller: "kycController.submitKyc", userId: req.user?._id });
     res.status(500).json({ message: "Erreur lors de l'enregistrement KYC." });
   }
 };
@@ -538,6 +540,7 @@ export const adminReviewKyc = async (req, res) => {
     });
   } catch (err) {
     logger.error("adminReviewKyc:", err);
+    captureException(err, { controller: "kycController.adminReviewKyc", userId: req.params?.userId });
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

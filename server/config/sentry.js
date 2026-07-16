@@ -16,7 +16,14 @@ export function initSentry() {
     dsn,
     environment: process.env.NODE_ENV || "development",
     tracesSampleRate: process.env.NODE_ENV === "production" ? 0.2 : 1.0,
-    integrations: [Sentry.expressIntegration()],
+    // Passer un tableau à `integrations` REMPLACE la liste par défaut au lieu
+    // de l'étendre — sans onUncaughtException/onUnhandledRejection explicites
+    // ici, les crashs process n'étaient plus jamais capturés par Sentry.
+    integrations: [
+      Sentry.expressIntegration(),
+      Sentry.onUncaughtExceptionIntegration(),
+      Sentry.onUnhandledRejectionIntegration(),
+    ],
     beforeSend(event, hint) {
       const status = hint?.originalException?.status;
       if (status && status < 500) return null;

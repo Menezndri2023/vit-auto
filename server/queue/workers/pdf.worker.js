@@ -13,6 +13,7 @@
  */
 import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
+import { captureException } from "../../config/sentry.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
 import { noteRedisError } from "../connection.js";
 
@@ -172,9 +173,13 @@ export function startPdfWorker(connection) {
 
   worker.on("failed", (job, err) => {
     logger.error("[PdfWorker] Échec", { jobId: job?.id, type: job?.data?.type, error: err.message });
+    captureException(err, { worker: "PdfWorker", jobId: job?.id });
   });
   worker.on("error", (err) => {
-    if (!noteRedisError(err)) logger.error("[PdfWorker] Erreur worker", { error: err.message });
+    if (!noteRedisError(err)) {
+      logger.error("[PdfWorker] Erreur worker", { error: err.message });
+      captureException(err, { worker: "PdfWorker", source: "workerError" });
+    }
   });
 
   logger.info("[PdfWorker] Démarré", { queue: QUEUE_NAMES.PDF });

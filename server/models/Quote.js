@@ -102,8 +102,14 @@ const quoteSchema = new mongoose.Schema({
 quoteSchema.index({ partnerId: 1, status: 1 });
 quoteSchema.index({ partnerId: 1, createdAt: -1 });
 
-// Auto-génération numéro de devis
-quoteSchema.pre("save", function (next) {
+// Auto-génération numéro de devis — doit tourner en pre("validate"), pas
+// pre("save") : Mongoose exécute la validation (donc le check `required`
+// sur quoteNumber) AVANT les hooks pre("save"), qui arrivent trop tard pour
+// renseigner le champ. Avec pre("save"), toute création de devis sans
+// quoteNumber explicite (le cas normal — jamais fourni par le client ni le
+// controller, voir pmsController.createQuote) échouait systématiquement
+// avec "quoteNumber: Path `quoteNumber` is required."
+quoteSchema.pre("validate", function (next) {
   this.updatedAt = new Date();
   if (!this.quoteNumber) {
     const y = new Date().getFullYear().toString().slice(-2);

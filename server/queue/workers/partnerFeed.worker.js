@@ -8,6 +8,7 @@
  */
 import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
+import { captureException } from "../../config/sentry.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
 import { noteRedisError } from "../connection.js";
 
@@ -47,6 +48,7 @@ export function startPartnerFeedWorker(connection) {
 
   worker.on("failed", async (job, err) => {
     logger.error("[PartnerFeedWorker] Échec", { jobId: job?.id, batchId: job?.data?.batchId, error: err.message });
+    captureException(err, { worker: "PartnerFeedWorker", jobId: job?.id });
 
     // Backstop : si tous les essais BullMQ sont épuisés, s'assurer que le batch ne reste
     // pas indéfiniment en "processing" (processImportBatch a normalement déjà mis "failed",
@@ -64,7 +66,10 @@ export function startPartnerFeedWorker(connection) {
     }
   });
   worker.on("error", (err) => {
-    if (!noteRedisError(err)) logger.error("[PartnerFeedWorker] Erreur worker", { error: err.message });
+    if (!noteRedisError(err)) {
+      logger.error("[PartnerFeedWorker] Erreur worker", { error: err.message });
+      captureException(err, { worker: "PartnerFeedWorker", source: "workerError" });
+    }
   });
 
   logger.info("[PartnerFeedWorker] Démarré", { queue: QUEUE_NAMES.PARTNER_FEED });

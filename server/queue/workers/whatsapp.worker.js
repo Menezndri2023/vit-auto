@@ -5,6 +5,7 @@
  */
 import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
+import { captureException } from "../../config/sentry.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
 import { noteRedisError } from "../connection.js";
 
@@ -32,9 +33,13 @@ export function startWhatsAppWorker(connection) {
 
   worker.on("failed", (job, err) => {
     logger.error("[WAWorker] Échec", { jobId: job?.id, template: job?.data?.template, error: err.message });
+    captureException(err, { worker: "WAWorker", jobId: job?.id });
   });
   worker.on("error", (err) => {
-    if (!noteRedisError(err)) logger.error("[WAWorker] Erreur worker", { error: err.message });
+    if (!noteRedisError(err)) {
+      logger.error("[WAWorker] Erreur worker", { error: err.message });
+      captureException(err, { worker: "WAWorker", source: "workerError" });
+    }
   });
 
   logger.info("[WhatsAppWorker] Démarré", { queue: QUEUE_NAMES.WHATSAPP });

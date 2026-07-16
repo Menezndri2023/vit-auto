@@ -6,6 +6,7 @@ import Notification from "../models/Notification.js";
 import { initiateCheckout, stripeProvider, waveProvider, orangeMoneyProvider } from "../services/payment/gateway.js";
 import { completeIEEscrowPayment } from "./ieTransactionController.js";
 import { dispatch } from "../queue/index.js";
+import { captureException } from "../config/sentry.js";
 
 const ALLOWED_METHODS = ["card", "orange_money", "wave", "mtn", "moov", "paypal", "cash"];
 const ONLINE_METHODS  = ["card", "orange_money", "wave"];
@@ -112,6 +113,7 @@ export const initiatePayment = async (req, res) => {
     res.json({ checkoutUrl, paymentId: payment._id, simulated });
   } catch (err) {
     logger.error("initiatePayment:", err);
+    captureException(err, { controller: "paymentController.initiatePayment", bookingId: req.body?.bookingId });
     res.status(500).json({ message: "Erreur lors de l'initialisation du paiement." });
   }
 };
@@ -201,6 +203,7 @@ export const stripeWebhook = async (req, res) => {
     res.json({ received: true });
   } catch (err) {
     logger.error("stripeWebhook:", err.message);
+    captureException(err, { controller: "paymentController.stripeWebhook" });
     res.status(400).json({ message: "Webhook invalide." });
   }
 };
@@ -221,6 +224,7 @@ export const waveWebhook = async (req, res) => {
     res.json({ received: true });
   } catch (err) {
     logger.error("waveWebhook:", err.message);
+    captureException(err, { controller: "paymentController.waveWebhook" });
     res.status(400).json({ message: "Webhook invalide." });
   }
 };
@@ -239,6 +243,7 @@ export const orangeMoneyWebhook = async (req, res) => {
     res.json({ received: true });
   } catch (err) {
     logger.error("orangeMoneyWebhook:", err.message);
+    captureException(err, { controller: "paymentController.orangeMoneyWebhook" });
     res.status(400).json({ message: "Webhook invalide." });
   }
 };
@@ -326,6 +331,7 @@ export const createPayment = async (req, res) => {
       return res.status(409).json({ message: "Un paiement est déjà enregistré pour cette réservation." });
     }
     logger.error("createPayment:", err);
+    captureException(err, { controller: "paymentController.createPayment", bookingId: req.body?.booking });
     res.status(500).json({ message: "Erreur serveur lors du paiement." });
   }
 };

@@ -7,6 +7,7 @@
  */
 import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
+import { captureException } from "../../config/sentry.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
 import { noteRedisError } from "../connection.js";
 
@@ -41,9 +42,13 @@ export function startSmsWorker(connection) {
 
   worker.on("failed", (job, err) => {
     logger.error("[SmsWorker] Échec", { jobId: job?.id, type: job?.data?.type, error: err.message });
+    captureException(err, { worker: "SmsWorker", jobId: job?.id });
   });
   worker.on("error", (err) => {
-    if (!noteRedisError(err)) logger.error("[SmsWorker] Erreur worker", { error: err.message });
+    if (!noteRedisError(err)) {
+      logger.error("[SmsWorker] Erreur worker", { error: err.message });
+      captureException(err, { worker: "SmsWorker", source: "workerError" });
+    }
   });
 
   logger.info("[SmsWorker] Démarré", { queue: QUEUE_NAMES.SMS });

@@ -1,3 +1,4 @@
+import { pathToFileURL } from "url";
 import express from "express";
 import compression from "compression";
 import cors from "cors";
@@ -7,7 +8,7 @@ import { rateLimit } from "express-rate-limit";
 import mongoSanitize from "express-mongo-sanitize";
 import connectDB from "./config/db.js";
 import logger from "./utils/logger.js";
-import { initSentry, sentryRequestHandler, sentryTracingHandler, sentryErrorHandler } from "./config/sentry.js";
+import { initSentry, sentryRequestHandler, sentryTracingHandler, sentryErrorHandler, captureException } from "./config/sentry.js";
 import { initQueues, isReady as isQueuesReady, getQueueStats } from "./queue/index.js";
 import { startPartnerReminderScheduler } from "./utils/partnerReminders.js";
 import { startAccountHealthScheduler } from "./utils/accountHealthCheck.js";
@@ -87,9 +88,11 @@ process.on("unhandledRejection", async (reason) => {
     if (noteRedisError(reason)) return;
   } catch { /* ignore */ }
   logger.error("Unhandled promise rejection:", reason);
+  captureException(reason, { source: "unhandledRejection" });
 });
 process.on("uncaughtException", (err) => {
   logger.error("Uncaught exception:", err);
+  captureException(err, { source: "uncaughtException" });
   process.exit(1);
 });
 
@@ -212,6 +215,11 @@ app.use(mongoSanitize({
 }));
 
 // ── Rate limiting ─────────────────────────────────────────────────────────
+// NODE_ENV=test uniquement (jamais dev/production) — évite qu'une suite de
+// tests HTTP (supertest) déclenche de faux 429 en dépassant 10 req/15min sur
+// /api/auth/*, sans affaiblir la protection anti brute-force réelle.
+const skipInTest = () => process.env.NODE_ENV === "test";
+
 const authLimiter = rateLimit({
   windowMs:        15 * 60 * 1000,     // 15 minutes
   max:             10,                  // 10 tentatives (anti brute-force renforcé)
@@ -219,6 +227,7 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders:   false,
   skipSuccessfulRequests: true,
+  skip:            skipInTest,
 });
 
 const apiLimiter = rateLimit({
@@ -517,4 +526,19 @@ const startServer = async () => {
   }
 };
 
-startServer();
+// Ne démarre le serveur (connexion Mongo réelle, queues, écoute HTTP/Socket.io)
+// que lorsque ce fichier est exécuté directement (`node server.js`, utilisé par
+// Railway) — pas quand il est importé pour son `app` Express (tests HTTP via
+// supertest, voir server/tests/http.*.test.js). `app` reste exportée dans les
+// deux cas : la construction des middlewares/routes ci-dessus est inconditionnelle.
+// pathToFileURL résout aussi bien un argv[1] relatif ("node server.js" depuis
+// server/) qu'absolu — une comparaison littérale `file://${process.argv[1]}`
+// échoue silencieusement dès que Node ne fournit pas déjà un chemin absolu
+// (le cas par défaut), empêchant startServer() de tourner en production.
+const isMainModule = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMainModule) {
+  startServer();
+}
+
+export default app;
+export { startServer };

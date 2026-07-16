@@ -67,6 +67,9 @@ jobs:
       - name: Syntax check — controllers
         run: find controllers -name "*.js" -exec node --check {} \;
 
+      - name: Tests
+        run: npm test
+
       - name: Security audit
         run: npm audit --audit-level=high
 

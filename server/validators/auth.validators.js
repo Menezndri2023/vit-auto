@@ -14,6 +14,14 @@ export const registerSchema = z.object({
   role:      z.enum(["client", "partenaire", "chauffeur"]).optional().default("client"),
   phone:     z.string().regex(/^\+?[0-9\s\-().]{7,20}$/, "Numéro de téléphone invalide").optional(),
   country:   z.string().length(2).optional(),
+  // z.object() sans .passthrough() supprime silencieusement toute clé non
+  // déclarée ici — birthDate et sellerType étaient absents malgré leur usage
+  // dans register() (authController.js), qui ne les recevait donc jamais.
+  // Pour birthDate en particulier : toute inscription échouait avec "Date de
+  // naissance requise" depuis l'ajout de la vérification d'âge (2026-07-16).
+  // Le format/la plage d'âge restent validés dans le controller, pas ici.
+  birthDate: z.string().optional(),
+  sellerType: z.enum(["particulier", "professionnel", "entreprise"]).optional(),
 }).refine((data) => !!data.email || !!data.phone, {
   message: "Un email ou un numéro de téléphone est requis.",
   path:    ["email"],

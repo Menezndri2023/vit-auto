@@ -8,6 +8,7 @@
  */
 import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
+import { captureException } from "../../config/sentry.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
 import { noteRedisError } from "../connection.js";
 
@@ -46,9 +47,13 @@ export function startNotificationWorker(connection) {
 
   worker.on("failed", (job, err) => {
     logger.error("[NotifWorker] Échec", { jobId: job?.id, channel: job?.data?.channel, error: err.message });
+    captureException(err, { worker: "NotifWorker", jobId: job?.id });
   });
   worker.on("error", (err) => {
-    if (!noteRedisError(err)) logger.error("[NotifWorker] Erreur worker", { error: err.message });
+    if (!noteRedisError(err)) {
+      logger.error("[NotifWorker] Erreur worker", { error: err.message });
+      captureException(err, { worker: "NotifWorker", source: "workerError" });
+    }
   });
 
   logger.info("[NotificationWorker] Démarré", { queue: QUEUE_NAMES.NOTIFICATION });

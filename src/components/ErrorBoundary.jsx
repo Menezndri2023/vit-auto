@@ -1,4 +1,5 @@
 import React from 'react';
+import * as Sentry from '@sentry/react';
 
 // Textes multilingues — pas de hook (class component), on lit localStorage directement
 const MSGS = {
@@ -25,6 +26,8 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, info) {
     console.error('[ErrorBoundary]', error, info?.componentStack?.slice(0, 200));
+    // No-op silencieux si Sentry n'a jamais été initialisé (VITE_SENTRY_DSN absente).
+    Sentry.captureException(error, { extra: { componentStack: info?.componentStack } });
   }
 
   render() {
