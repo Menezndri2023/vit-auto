@@ -5,7 +5,7 @@ import Notification from "../models/Notification.js";
 import Booking from "../models/Booking.js";
 import PartnerVerification from "../models/PartnerVerification.js";
 import { dispatch } from "../queue/index.js";
-import { scoreAnnonce, buildVehicleWhitelist } from "../services/vehicleScoring.js";
+import { scoreAnnonce, buildVehicleWhitelist, limitVehicleImages } from "../services/vehicleScoring.js";
 import { logAction } from "../middleware/auditLog.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
@@ -329,7 +329,7 @@ export const getVehicles = async (req, res) => {
         .select("firstName phone ville certificationBadge")
         .lean();
       const ownerMap = Object.fromEntries(owners.map((o) => [o._id.toString(), o]));
-      vehicles = vehicles.map((v) => ({ ...v, owner: ownerMap[v.owner?.toString()] || v.owner, distanceKm: Math.round(v.distanceKm * 10) / 10 }));
+      vehicles = vehicles.map((v) => limitVehicleImages({ ...v, owner: ownerMap[v.owner?.toString()] || v.owner, distanceKm: Math.round(v.distanceKm * 10) / 10 }));
     } else {
       [vehicles, total] = await Promise.all([
         Vehicle.find(filter)
@@ -340,6 +340,7 @@ export const getVehicles = async (req, res) => {
           .lean(),
         Vehicle.countDocuments(filter),
       ]);
+      vehicles = vehicles.map((v) => limitVehicleImages(v));
     }
 
     const payload = { vehicles, total, page: Number(page), pages: Math.ceil(total / safeLimit) };
@@ -378,7 +379,7 @@ export const getVehicleById = async (req, res) => {
 export const getMyVehicles = async (req, res) => {
   try {
     const vehicles = await Vehicle.find({ owner: req.user._id }).sort({ createdAt: -1 }).lean();
-    res.json({ vehicles });
+    res.json({ vehicles: vehicles.map((v) => limitVehicleImages(v)) });
   } catch (err) {
     logger.error("getMyVehicles:", err);
     res.status(500).json({ message: "Erreur récupération." });
@@ -392,7 +393,7 @@ export const getPendingVehicles = async (req, res) => {
       .sort({ createdAt: 1 })
       .populate("owner", "firstName lastName email phone")
       .lean();
-    res.json({ vehicles });
+    res.json({ vehicles: vehicles.map((v) => limitVehicleImages(v)) });
   } catch (err) {
     logger.error("getPendingVehicles:", err);
     res.status(500).json({ message: "Erreur récupération." });

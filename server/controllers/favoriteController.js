@@ -3,6 +3,7 @@ import logger from "../utils/logger.js";
 import Favorite from "../models/Favorite.js";
 import Vehicle from "../models/Vehicle.js";
 import ImportExportListing from "../models/ImportExportListing.js";
+import { limitVehicleImages } from "../services/vehicleScoring.js";
 
 const ITEM_TYPES = ["vehicle", "ie_listing"];
 
@@ -20,8 +21,8 @@ export const getFavorites = async (req, res) => {
       vehicleIds.length ? Vehicle.find({ _id: { $in: vehicleIds } }).lean() : [],
       listingIds.length ? ImportExportListing.find({ _id: { $in: listingIds } }).lean() : [],
     ]);
-    const vehicleMap = new Map(vehicles.map((v) => [String(v._id), v]));
-    const listingMap = new Map(listings.map((l) => [String(l._id), l]));
+    const vehicleMap = new Map(vehicles.map((v) => [String(v._id), limitVehicleImages(v)]));
+    const listingMap = new Map(listings.map((l) => [String(l._id), limitVehicleImages(l)]));
 
     const items = favs
       .map((f) => {

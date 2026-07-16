@@ -512,7 +512,7 @@ export const getMyBookings = async (req, res) => {
         .sort({ createdAt: -1 })
         .skip((safePage - 1) * safeLimit)
         .limit(safeLimit)
-        .populate("vehicle", "title marque modele images pricePerDay ville contactTel contactNom owner")
+        .populate("vehicle", "title marque modele pricePerDay ville contactTel contactNom owner")
         .populate("driver",  "firstName lastName profilePhoto tarif zone phone owner")
         .populate("payment", "method status amount devise")
         .lean(),
@@ -548,7 +548,7 @@ export const getPartnerBookings = async (req, res) => {
         .sort({ createdAt: -1 })
         .skip((safePage - 1) * safeLimit)
         .limit(safeLimit)
-        .populate("vehicle", "title marque modele owner images pricePerDay contactNom contactTel")
+        .populate("vehicle", "title marque modele owner pricePerDay contactNom contactTel")
         .populate("driver",  "firstName lastName owner tarif phone")
         .populate("payment", "method status amount")
         // Données KYC limitées : le partenaire voit le statut et le score, pas les données biométriques brutes

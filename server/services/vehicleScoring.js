@@ -105,6 +105,18 @@ export const scoreAnnonce = (data) => {
   };
 };
 
+// ── Limite le nombre d'images renvoyées dans une vue LISTE ───────────────────
+// Les images sont stockées en base64 directement dans le document (jusqu'à 6
+// photos, ~1 Mo chacune après compression) — un catalogue de quelques dizaines
+// de véhicules pèse alors plusieurs dizaines de Mo de JSON si on renvoie le
+// tableau complet pour chacun. La fiche détail (getVehicleById) reste seule à
+// recevoir le tableau complet ; toute vue liste (catalogue, mes annonces,
+// favoris, PMS, bookings...) se contente des `max` premières.
+export const limitVehicleImages = (v, max = 3) => {
+  if (!v || !Array.isArray(v.images) || v.images.length <= max) return v;
+  return { ...v, images: v.images.slice(0, max) };
+};
+
 // ── Whitelist des champs légitimes d'une annonce véhicule ────────────────────
 // Reproduit exactement le destructuring historique de vehicleController.createVehicle
 // (anti mass-assignment : owner/status/stats ne viennent jamais d'ici).

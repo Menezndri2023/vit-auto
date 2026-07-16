@@ -398,15 +398,21 @@ export const getListings = async (req, res) => {
       }
     }
 
-    const [listings, total] = await Promise.all([
+    const [listingsRaw, total] = await Promise.all([
       ImportExportListing.find(filter)
         .populate("partner", "firstName lastName profilePhoto business")
         .populate("importerProfile", "companyName badgeLevel")
         .sort({ createdAt: -1 })
         .skip((safePage - 1) * safeLimit)
-        .limit(safeLimit),
+        .limit(safeLimit)
+        .lean(),
       ImportExportListing.countDocuments(filter),
     ]);
+    // `photos` est stocké en base64 (jusqu'à plusieurs Mo/annonce) — une vue
+    // liste n'a besoin que d'un aperçu, le détail (getListingById) garde tout.
+    const listings = listingsRaw.map((l) => (
+      Array.isArray(l.photos) && l.photos.length > 3 ? { ...l, photos: l.photos.slice(0, 3) } : l
+    ));
 
     const payload = { listings, total, pages: Math.ceil(total / safeLimit) };
     if (cacheKey) cacheSet(cacheKey, payload);
@@ -420,9 +426,13 @@ export const getListings = async (req, res) => {
 // GET /api/import-export/listings/mine  — partenaire : ses propres annonces
 export const getMyListings = async (req, res) => {
   try {
-    const listings = await ImportExportListing.find({ partner: req.user._id })
+    const listingsRaw = await ImportExportListing.find({ partner: req.user._id })
       .populate("importerProfile", "companyName badgeLevel status")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
+    const listings = listingsRaw.map((l) => (
+      Array.isArray(l.photos) && l.photos.length > 3 ? { ...l, photos: l.photos.slice(0, 3) } : l
+    ));
     res.json({ listings });
   } catch (err) {
     logger.error("getMyListings:", err);
@@ -704,15 +714,19 @@ export const getAdminListings = async (req, res) => {
     const filter = {};
     if (status) filter.status = status;
 
-    const [listings, total] = await Promise.all([
+    const [listingsRaw, total] = await Promise.all([
       ImportExportListing.find(filter)
         .populate("partner", "firstName lastName email profilePhoto")
         .populate("importerProfile", "companyName badgeLevel")
         .sort({ createdAt: -1 })
         .skip((safePage - 1) * safeLimit)
-        .limit(safeLimit),
+        .limit(safeLimit)
+        .lean(),
       ImportExportListing.countDocuments(filter),
     ]);
+    const listings = listingsRaw.map((l) => (
+      Array.isArray(l.photos) && l.photos.length > 3 ? { ...l, photos: l.photos.slice(0, 3) } : l
+    ));
 
     res.json({ listings, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {

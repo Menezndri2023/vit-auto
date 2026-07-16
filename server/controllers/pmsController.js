@@ -78,7 +78,7 @@ export async function getPMSOverview(req, res) {
       Lead.find({ partnerId }).lean(),
       Quote.find({ partnerId }).lean(),
       getPartnerBookings(partnerId),
-      Vehicle.find({ owner: partnerId }).lean(),
+      Vehicle.find({ owner: partnerId }).select("-images").lean(),
       PartnerShowroom.findOne({ partnerId }).lean(),
     ]);
 
