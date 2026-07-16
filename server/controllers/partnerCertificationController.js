@@ -5,6 +5,7 @@ import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { sendEmail } from "../config/email.js";
 import { validateDocumentDataUri } from "../utils/imageValidation.js";
+import { decryptField } from "../utils/fieldEncryption.js";
 
 // ── Champs autorisés par niveau (whitelist anti mass-assignment) ──────────────
 const LEVEL_ALLOWED_FIELDS = {
@@ -272,9 +273,10 @@ export const adminDetail = async (req, res) => {
         cert.level1.taxDoc          = fillDoc(cert.level1.taxDoc, onboarding?.legalDocs?.taxCertificate);
         cert.level1.addressProofDoc = fillDoc(cert.level1.addressProofDoc, onboarding?.legalDocs?.proofOfAddress);
         cert.level2 = cert.level2 || {};
-        cert.level2.idFrontDoc = fillDoc(cert.level2.idFrontDoc, identityUser?.identity?.frontImage);
-        cert.level2.idBackDoc  = fillDoc(cert.level2.idBackDoc, identityUser?.identity?.backImage);
-        cert.level2.selfieDoc  = fillDoc(cert.level2.selfieDoc, identityUser?.identity?.selfie);
+        // Déchiffrement avant réutilisation dans PartnerCertification — voir fieldEncryption.js.
+        cert.level2.idFrontDoc = fillDoc(cert.level2.idFrontDoc, decryptField(identityUser?.identity?.frontImage));
+        cert.level2.idBackDoc  = fillDoc(cert.level2.idBackDoc, decryptField(identityUser?.identity?.backImage));
+        cert.level2.selfieDoc  = fillDoc(cert.level2.selfieDoc, decryptField(identityUser?.identity?.selfie));
       }
     }
 

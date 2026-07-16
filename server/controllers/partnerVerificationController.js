@@ -5,6 +5,7 @@ import PartnerOnboarding from "../models/PartnerOnboarding.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { logAction } from "../middleware/auditLog.js";
+import { decryptField } from "../utils/fieldEncryption.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -122,7 +123,7 @@ export const adminDetail = async (req, res) => {
         doc.documents.rccmDoc            = doc.documents.rccmDoc            || onboarding?.legalDocs?.businessRegistration || null;
         doc.documents.taxIdDoc           = doc.documents.taxIdDoc           || onboarding?.legalDocs?.taxCertificate || null;
         doc.documents.otherDoc           = doc.documents.otherDoc           || onboarding?.legalDocs?.exportLicense || onboarding?.legalDocs?.proofOfAddress || null;
-        doc.documents.repIdDoc           = doc.documents.repIdDoc           || identityUser?.identity?.frontImage || null;
+        doc.documents.repIdDoc           = doc.documents.repIdDoc           || decryptField(identityUser?.identity?.frontImage) || null;
         doc.logoUrl     = doc.logoUrl     || onboarding?.platformMedia?.logo || null;
         doc.website     = doc.website     || onboarding?.companyInfo?.website || "";
         doc.email       = doc.email       || onboarding?.companyInfo?.email || "";

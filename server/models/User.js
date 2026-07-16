@@ -92,11 +92,14 @@ const userSchema = new mongoose.Schema({
     lastName:         { type: String, default: null },
     birthDate:        { type: Date,   default: null },
     gender:           { type: String, enum: ["M", "F", null], default: null },
-    documentNumber:   { type: String, default: null },
+    documentNumber:   { type: String, default: null }, // chiffré au repos (voir fieldEncryption.js)
+    // Index déterministe (HMAC) pour la détection de doublon — documentNumber
+    // étant chiffré avec un IV aléatoire, il n'est plus cherchable par égalité.
+    documentNumberHash: { type: String, default: null, index: true },
     expiryDate:       { type: Date,   default: null },
     issuingCountry:   { type: String, default: null },
     documentType:     { type: String, default: null },
-    rawOcrText:       { type: String, default: null },
+    rawOcrText:       { type: String, default: null }, // chiffré au repos (voir fieldEncryption.js)
     ocrConfidence:    { type: Number, default: 0 },
     isExpired:        { type: Boolean, default: false },
     processedAt:      { type: Date,   default: null },

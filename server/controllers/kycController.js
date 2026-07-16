@@ -7,6 +7,7 @@ import { logAction } from "../middleware/auditLog.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
 import { smsConfigured } from "../utils/smsConfigured.js";
 import { emailVerificationRequired } from "../utils/emailVerificationRequired.js";
+import { encryptField, decryptField, hmacIndex } from "../utils/fieldEncryption.js";
 
 const MAX_KYC_IMAGE_BYTES = 6 * 1024 * 1024; // 6 Mo — cohérent avec usersController/partnerOnboarding
 
@@ -124,14 +125,20 @@ export const submitKyc = async (req, res) => {
     }
 
     // ── Détection doublon numéro (seulement si un numéro lisible a été extrait) ─
-    if (safeOcrData.documentNumber && safeOcrData.documentNumber.length >= 5) {
+    // documentNumber est chiffré au repos (IV aléatoire, non cherchable par
+    // égalité) — la détection de doublon passe par un HMAC déterministe dédié
+    // (documentNumberHash), jamais par le numéro en clair. Voir fieldEncryption.js.
+    const documentNumberHash = safeOcrData.documentNumber && safeOcrData.documentNumber.length >= 5
+      ? hmacIndex(safeOcrData.documentNumber)
+      : null;
+    if (documentNumberHash) {
       const existingNum = await User.findOne({
-        "kycOcrData.documentNumber": safeOcrData.documentNumber,
+        "kycOcrData.documentNumberHash": documentNumberHash,
         _id: { $ne: req.user.id },
         kycStatus: { $in: ["VERIFIE", "EN_ATTENTE", "A_REVOIR_MANUELLEMENT"] },
       });
       if (existingNum) {
-        await addAuditLog(req.user.id, "DUPLICATE_NUMBER_BLOCKED", null, `Numéro: ${safeOcrData.documentNumber}`);
+        await addAuditLog(req.user.id, "DUPLICATE_NUMBER_BLOCKED", null, "Numéro de document déjà utilisé sur un autre compte");
         return res.status(409).json({
           message: "Ce numéro de document est déjà associé à un autre compte. Contactez le support.",
           code: "DOCUMENT_NUMBER_ALREADY_USED",
@@ -210,11 +217,14 @@ export const submitKyc = async (req, res) => {
       lastName:       safeOcrData.lastName       || null,
       birthDate:      safeOcrData.birthDate      ? new Date(safeOcrData.birthDate) : null,
       gender:         safeOcrData.gender         || null,
-      documentNumber: safeOcrData.documentNumber || null,
+      // Chiffrés au repos — voir fieldEncryption.js. documentNumberHash (déterministe,
+      // non réversible) reste seul cherchable, pour la détection de doublon ci-dessus.
+      documentNumber:     encryptField(safeOcrData.documentNumber) || null,
+      documentNumberHash,
       expiryDate:     safeOcrData.expiryDate     ? new Date(safeOcrData.expiryDate) : null,
       issuingCountry: safeOcrData.issuingCountry || null,
       documentType:   documentType               || safeOcrData.documentType || null,
-      rawOcrText:     safeOcrData.rawOcrText     || null,
+      rawOcrText:     encryptField(safeOcrData.rawOcrText) || null,
       ocrConfidence:  ocrConf,
       isExpired,
       processedAt:    new Date(),
@@ -232,14 +242,14 @@ export const submitKyc = async (req, res) => {
         kycFaceMatchScore:  faceConf,
         documentsVerified:  newKycStatus === "VERIFIE",
         "identity.type":    documentType || safeOcrData.documentType || null,
-        "identity.number":  safeOcrData.documentNumber || null,
+        "identity.number":  encryptField(safeOcrData.documentNumber) || null,
         "identity.status":  newKycStatus === "VERIFIE" ? "verified" : "pending",
         "identity.submittedAt": new Date(),
         "identity.verifiedAt":  newKycStatus === "VERIFIE" ? new Date() : null,
-        // Images du document (base64) pour consultation partenaire
-        ...(frontImageData ? { "identity.frontImage": frontImageData } : {}),
-        ...(backImageData  ? { "identity.backImage":  backImageData  } : {}),
-        ...(selfieData     ? { "identity.selfie":     selfieData     } : {}),
+        // Images du document — chiffrées au repos (AES-256-GCM, voir fieldEncryption.js)
+        ...(frontImageData ? { "identity.frontImage": encryptField(frontImageData) } : {}),
+        ...(backImageData  ? { "identity.backImage":  encryptField(backImageData)  } : {}),
+        ...(selfieData     ? { "identity.selfie":     encryptField(selfieData)     } : {}),
       },
     });
 
@@ -312,22 +322,25 @@ export const submitDriverLicense = async (req, res) => {
     await User.findByIdAndUpdate(req.user.id, {
       $set: {
         driverLicenseOcr: {
-          licenseNumber:   licenseOcrData.licenseNumber  || null,
+          licenseNumber:   encryptField(licenseOcrData.licenseNumber) || null,
           deliveredDate:   licenseOcrData.deliveredDate  ? new Date(licenseOcrData.deliveredDate) : null,
           expiryDate:      licenseOcrData.expiryDate     ? new Date(licenseOcrData.expiryDate)    : null,
           categories:      licenseOcrData.categories     || null,
           issuingCountry:  licenseOcrData.issuingCountry || null,
           isExpired:       isExpired,
-          rawOcrText:      licenseOcrData.rawOcrText     || null,
+          rawOcrText:      encryptField(licenseOcrData.rawOcrText) || null,
           processedAt:     new Date(),
-          frontImage:      frontImageData || null,
-          backImage:       backImageData  || null,
+          // Images du permis — chiffrées au repos (AES-256-GCM, voir fieldEncryption.js)
+          frontImage:      encryptField(frontImageData) || null,
+          backImage:       encryptField(backImageData)  || null,
         },
       },
     });
 
+    // Le journal d'audit n'est pas chiffré — ne jamais y écrire le numéro de
+    // permis en clair (voir fieldEncryption.js pour le champ lui-même).
     await addAuditLog(req.user.id, "DRIVER_LICENSE_SUBMITTED", null,
-      `Permis: ${licenseOcrData.licenseNumber} — Exp: ${licenseOcrData.expiryDate}`);
+      `Permis soumis — Exp: ${licenseOcrData.expiryDate}`);
 
     res.json({
       success:   true,
@@ -379,6 +392,12 @@ export const getKycList = async (req, res) => {
       if (!u.kycStatus) u.kycStatus = "EN_ATTENTE";
       if (u.kycScore == null) u.kycScore = 0;
       if (!u.kycBadge) u.kycBadge = "INSUFFISANT";
+      // Déchiffrement pour affichage admin — voir fieldEncryption.js.
+      if (u.identity) u.identity.number = decryptField(u.identity.number);
+      if (u.kycOcrData) {
+        u.kycOcrData.documentNumber = decryptField(u.kycOcrData.documentNumber);
+        u.kycOcrData.rawOcrText     = decryptField(u.kycOcrData.rawOcrText);
+      }
     }
 
     res.json({ users, total, page: Number(page), limit: safeLimit });
@@ -398,8 +417,28 @@ export const getKycDetail = async (req, res) => {
 
     const user = await User.findById(req.params.userId).select(
       "firstName lastName email phone role kycStatus kycScore kycBadge kycSubmittedAt kycOcrData kycFaceMatchScore kycAuditLog kycReviewNote kycRejectionReason kycDocumentHash identity driverLicenseOcr emailVerified phoneVerified createdAt"
-    );
+    ).lean();
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
+
+    // Déchiffrement pour affichage admin — voir fieldEncryption.js. Les valeurs
+    // legacy non chiffrées (comptes créés avant le 2026-07-16) sont renvoyées
+    // telles quelles par decryptField (no-op si déjà en clair).
+    if (user.identity) {
+      user.identity.number     = decryptField(user.identity.number);
+      user.identity.frontImage = decryptField(user.identity.frontImage);
+      user.identity.backImage  = decryptField(user.identity.backImage);
+      user.identity.selfie     = decryptField(user.identity.selfie);
+    }
+    if (user.kycOcrData) {
+      user.kycOcrData.documentNumber = decryptField(user.kycOcrData.documentNumber);
+      user.kycOcrData.rawOcrText     = decryptField(user.kycOcrData.rawOcrText);
+    }
+    if (user.driverLicenseOcr) {
+      user.driverLicenseOcr.licenseNumber = decryptField(user.driverLicenseOcr.licenseNumber);
+      user.driverLicenseOcr.frontImage    = decryptField(user.driverLicenseOcr.frontImage);
+      user.driverLicenseOcr.backImage     = decryptField(user.driverLicenseOcr.backImage);
+      user.driverLicenseOcr.rawOcrText    = decryptField(user.driverLicenseOcr.rawOcrText);
+    }
 
     res.json({ user });
   } catch (err) {

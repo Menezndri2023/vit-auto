@@ -12,6 +12,7 @@ import { dispatch } from "../queue/index.js";
 import { validateDocumentDataUri } from "../utils/imageValidation.js";
 import { computeScore, computeBadge, syncUserBadge } from "./partnerCertificationController.js";
 import { foundingRateFor, FOUNDING_YEAR1_RATES, FOUNDING_YEAR2_RATES } from "../utils/foundingPartnerRates.js";
+import { decryptField } from "../utils/fieldEncryption.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
 const FOUNDING_LIMIT = 20;
@@ -88,6 +89,14 @@ async function cascadeFoundingPartnerApproval(doc) {
     // Pièce d'identité KYC — réutilisée pour compléter Certification niveau 2 et
     // Vérification Partenaire ci-dessous (un seul fetch pour les deux).
     const identityUser = await User.findById(userId).select("identity.frontImage identity.backImage identity.selfie").lean();
+    // Déchiffrement avant réutilisation dans d'autres collections (Certification/
+    // Vérification Partenaire) — voir fieldEncryption.js. Sans ceci, le blob chiffré
+    // serait copié tel quel et deviendrait indéchiffrable dans ces autres documents.
+    if (identityUser?.identity) {
+      identityUser.identity.frontImage = decryptField(identityUser.identity.frontImage);
+      identityUser.identity.backImage  = decryptField(identityUser.identity.backImage);
+      identityUser.identity.selfie     = decryptField(identityUser.identity.selfie);
+    }
 
     // 2. Certification (7 niveaux) — même résultat qu'un admin approuvant
     //    manuellement chaque niveau (computeScore/computeBadge réutilisés tels
