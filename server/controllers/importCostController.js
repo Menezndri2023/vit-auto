@@ -13,7 +13,7 @@ export const getListingCostEstimate = async (req, res) => {
     const { destCountry, destCity } = req.query;
     if (!destCountry) return res.status(400).json({ message: "Pays de destination requis." });
 
-    const listing = await ImportExportListing.findById(req.params.id).select("price currency sourceCountry status").lean();
+    const listing = await ImportExportListing.findById(req.params.id).select("price currency sourceCountry year status").lean();
     if (!listing) return res.status(404).json({ message: "Annonce introuvable." });
     if (listing.status !== "approved") return res.status(404).json({ message: "Annonce introuvable." });
 
@@ -21,6 +21,7 @@ export const getListingCostEstimate = async (req, res) => {
       vehiclePrice:  listing.price,
       currency:      listing.currency,
       sourceCountry: listing.sourceCountry,
+      vehicleYear:   listing.year,
       destCountry,
       destCity,
     });
@@ -46,7 +47,8 @@ export const getCostConfigs = async (req, res) => {
 
 const COST_CONFIG_FIELDS = [
   "country", "customsDutyPercent", "vatPercent", "transitFixedFeeUSD", "redevancesFixedFeeUSD",
-  "portFeesFixedUSD", "deliveryFixedFeeUSD", "insurancePercent", "defaultSeaFreightUSD", "active",
+  "portFeesFixedUSD", "deliveryFixedFeeUSD", "insurancePercent", "defaultSeaFreightUSD",
+  "ageSurchargeThresholdYears", "ageSurchargePercent", "active",
 ];
 
 export const upsertCostConfig = async (req, res) => {

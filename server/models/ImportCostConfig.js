@@ -20,6 +20,12 @@ const importCostConfigSchema = new mongoose.Schema({
   transitFixedFeeUSD: { type: Number, default: 150 },  // frais de transit/dédouanement fixes
   redevancesFixedFeeUSD: { type: Number, default: 100 }, // redevances diverses (statistique, informatique...)
 
+  // Surtaxe sur les véhicules d'occasion au-delà d'un certain âge — pratique
+  // courante dans plusieurs pays d'Afrique de l'Ouest. 0 = désactivé (comportement
+  // par défaut, n'affecte pas les barèmes déjà configurés avant cet ajout).
+  ageSurchargeThresholdYears: { type: Number, default: 8 },
+  ageSurchargePercent:        { type: Number, default: 0 }, // ajouté à customsDutyPercent si véhicule plus vieux que le seuil
+
   // ── Frais portuaires & livraison (côté destination) ────────────────────
   portFeesFixedUSD:      { type: Number, default: 300 },
   deliveryFixedFeeUSD:   { type: Number, default: 200 }, // port → ville principale

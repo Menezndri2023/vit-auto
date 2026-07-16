@@ -4945,7 +4945,8 @@ export default function AdminPanel() {
                 onClick={() => setCostConfigForm({
                   country: "", customsDutyPercent: 20, vatPercent: 18, transitFixedFeeUSD: 150,
                   redevancesFixedFeeUSD: 100, portFeesFixedUSD: 300, deliveryFixedFeeUSD: 200,
-                  insurancePercent: 1, defaultSeaFreightUSD: 1200, active: true,
+                  insurancePercent: 1, defaultSeaFreightUSD: 1200,
+                  ageSurchargeThresholdYears: 8, ageSurchargePercent: 0, active: true,
                 })}>+ Nouveau barème</button>
             </div>
             {importCostLoading ? (
@@ -5046,6 +5047,7 @@ export default function AdminPanel() {
                 ["transitFixedFeeUSD", "Transit fixe ($)"], ["redevancesFixedFeeUSD", "Redevances fixes ($)"],
                 ["portFeesFixedUSD", "Frais portuaires ($)"], ["deliveryFixedFeeUSD", "Livraison finale ($)"],
                 ["insurancePercent", "Assurance (%)"], ["defaultSeaFreightUSD", "Fret maritime défaut ($)"],
+                ["ageSurchargeThresholdYears", "Seuil d'âge surtaxe (ans)"], ["ageSurchargePercent", "Surtaxe véhicule ancien (%)"],
               ].map(([key, label]) => (
                 <div key={key}>
                   <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>{label}</label>

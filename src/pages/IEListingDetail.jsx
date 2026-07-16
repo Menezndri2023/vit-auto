@@ -244,6 +244,11 @@ function ImportCostCalculator({ listingId, availableIn }) {
               Fret estimé sur une base générique (aucune liaison exacte configurée pour cette route).
             </p>
           )}
+          {result.ageSurchargeApplied && (
+            <p style={{ fontSize: ".72rem", color: "#d97706", margin: "8px 0 0" }}>
+              ⚠️ Surtaxe douanière appliquée — véhicule au-delà de l'âge seuil pour ce pays.
+            </p>
+          )}
         </div>
       )}
     </div>

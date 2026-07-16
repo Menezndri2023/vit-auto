@@ -131,7 +131,8 @@ export const createReservation = async (req, res) => {
       try {
         const est = await computeImportCost({
           vehiclePrice: listing.price, currency: listing.currency,
-          sourceCountry: listing.sourceCountry, destCountry, destCity,
+          sourceCountry: listing.sourceCountry, vehicleYear: listing.year,
+          destCountry, destCity,
         });
         if (est.available) {
           costEstimate = {

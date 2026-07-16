@@ -94,6 +94,26 @@ function ActionPanel({ tx, role, token, onRefresh, paymentProfile }) {
   const [cancelReason, setCancelReason] = useState(null);  // null = form masqué
   const [disputeReason, setDisputeReason] = useState(null);
 
+  // ── "Devis partenaire" (niveau 2 de l'Import Cost Engine) ────────────────
+  // Pré-remplit l'offre finale à partir du devis auto-calculé à la réservation
+  // (tx.costEstimate) — le partenaire valide ou ajuste au lieu de repartir de
+  // zéro. Une fois envoyée puis acceptée par le client, l'offre est verrouillée
+  // (acceptOffer ne peut plus être suivi d'un nouvel appel à sendFinalOffer) :
+  // c'est le niveau 3 "Prix garanti", déjà assuré par le pipeline existant.
+  useEffect(() => {
+    const est = tx.costEstimate;
+    if (est?.available && ["confirmed", "in_discussion", "inspection_done"].includes(tx.status)) {
+      setForm((f) => (f.vehiclePrice !== undefined ? f : {
+        vehiclePrice: est.breakdown.vehiclePrice,
+        exportFees:   Math.round((est.breakdown.portFees + est.breakdown.customs + est.breakdown.commission) * 100) / 100,
+        shippingCost: Math.round((est.breakdown.inlandTransport + est.breakdown.seaFreight + est.breakdown.delivery) * 100) / 100,
+        insurance:    est.breakdown.insurance,
+        currency:     est.currency,
+        prefilled:    true,
+      }));
+    }
+  }, [tx.costEstimate, tx.status]);
+
   const call = async (url, method = "PATCH", body = {}) => {
     setLoading(true); setError(null);
     try {
@@ -170,31 +190,39 @@ function ActionPanel({ tx, role, token, onRefresh, paymentProfile }) {
 
   // ── Étape 8 : offre finale — partenaire ────────────────────────────────
   if (["confirmed", "in_discussion", "inspection_done"].includes(tx.status) && role === "partner") {
+    const offerCurrency = form.currency || "EUR";
     return (
       <div className={styles.actionCard}>
         <h4>Envoyer l'offre finale</h4>
         <p>Composez l'offre finale avec tous les frais détaillés.</p>
+        {form.prefilled && (
+          <p className={styles.actionNote}>💡 Pré-rempli à partir du devis automatique (transport, douanes et commission VIT AUTO déjà inclus dans "Frais d'export"/"Frais de transport") — ajustez si besoin avant d'envoyer.</p>
+        )}
         <div className={styles.offerForm}>
           <div className={styles.formRow2}>
-            <label><span>Prix véhicule * (EUR)</span><input type="number" placeholder="25000" onChange={(e) => setForm((f) => ({ ...f, vehiclePrice: e.target.value }))} /></label>
-            <label><span>Frais d'export</span><input type="number" placeholder="500" onChange={(e) => setForm((f) => ({ ...f, exportFees: e.target.value }))} /></label>
+            <label><span>Prix véhicule * ({offerCurrency})</span>
+              <input type="number" placeholder="25000" value={form.vehiclePrice ?? ""} onChange={(e) => setForm((f) => ({ ...f, vehiclePrice: e.target.value }))} /></label>
+            <label><span>Frais d'export (douanes, port, commission)</span>
+              <input type="number" placeholder="500" value={form.exportFees ?? ""} onChange={(e) => setForm((f) => ({ ...f, exportFees: e.target.value }))} /></label>
           </div>
           <div className={styles.formRow2}>
-            <label><span>Frais de transport</span><input type="number" placeholder="1200" onChange={(e) => setForm((f) => ({ ...f, shippingCost: e.target.value }))} /></label>
-            <label><span>Assurance (optionnel)</span><input type="number" placeholder="300" onChange={(e) => setForm((f) => ({ ...f, insurance: e.target.value }))} /></label>
+            <label><span>Frais de transport (intérieur + fret + livraison)</span>
+              <input type="number" placeholder="1200" value={form.shippingCost ?? ""} onChange={(e) => setForm((f) => ({ ...f, shippingCost: e.target.value }))} /></label>
+            <label><span>Assurance (optionnel)</span>
+              <input type="number" placeholder="300" value={form.insurance ?? ""} onChange={(e) => setForm((f) => ({ ...f, insurance: e.target.value }))} /></label>
           </div>
-          <label><span>Délai estimé</span><input placeholder="Ex : 45-60 jours" onChange={(e) => setForm((f) => ({ ...f, estimatedDelay: e.target.value }))} /></label>
-          <label><span>Notes</span><textarea rows={2} placeholder="Conditions particulières…" onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} /></label>
+          <label><span>Délai estimé</span><input placeholder="Ex : 45-60 jours" value={form.estimatedDelay ?? ""} onChange={(e) => setForm((f) => ({ ...f, estimatedDelay: e.target.value }))} /></label>
+          <label><span>Notes</span><textarea rows={2} placeholder="Conditions particulières…" value={form.notes ?? ""} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} /></label>
           {form.vehiclePrice && (
             <div className={styles.offerTotal}>
               <span>Total estimé :</span>
               <strong>{fmtPrice(
-                (Number(form.vehiclePrice) || 0) + (Number(form.exportFees) || 0) + (Number(form.shippingCost) || 0) + (Number(form.insurance) || 0), "EUR"
+                (Number(form.vehiclePrice) || 0) + (Number(form.exportFees) || 0) + (Number(form.shippingCost) || 0) + (Number(form.insurance) || 0), offerCurrency
               )}</strong>
             </div>
           )}
           <button className={styles.btnPrimary} disabled={loading || !form.vehiclePrice}
-            onClick={() => call(`${base}/final-offer`, "POST", { ...form, currency: "EUR" })}>
+            onClick={() => call(`${base}/final-offer`, "POST", { ...form, currency: offerCurrency })}>
             📄 Envoyer l'offre finale
           </button>
         </div>

@@ -31,7 +31,7 @@ export function computeImportServiceFeeUSD(vehiclePriceUSD) {
 // avec les barèmes ImportCostConfig/ShippingLaneRate) pour éviter d'accumuler
 // des erreurs d'arrondi ligne par ligne — seul le résultat final est converti
 // dans la devise de l'annonce/transaction.
-export async function computeImportCost({ vehiclePrice, currency, sourceCountry, destCountry, destCity }) {
+export async function computeImportCost({ vehiclePrice, currency, sourceCountry, destCountry, destCity, vehicleYear }) {
   if (!destCountry) {
     return { available: false, message: "Pays de destination requis." };
   }
@@ -54,9 +54,18 @@ export async function computeImportCost({ vehiclePrice, currency, sourceCountry,
   const insuranceUSD       = vehiclePriceUSD * (config.insurancePercent / 100);
   const portFeesUSD        = config.portFeesFixedUSD;
 
+  // Surtaxe véhicule d'occasion au-delà du seuil d'âge (désactivée par défaut,
+  // voir ImportCostConfig.ageSurchargePercent) — approximation simple, pas un
+  // barème progressif par tranche d'âge réel.
+  const vehicleAgeYears = vehicleYear ? new Date().getFullYear() - vehicleYear : null;
+  const ageSurchargeApplies = vehicleAgeYears != null
+    && config.ageSurchargePercent > 0
+    && vehicleAgeYears > config.ageSurchargeThresholdYears;
+  const effectiveDutyPercent = config.customsDutyPercent + (ageSurchargeApplies ? config.ageSurchargePercent : 0);
+
   // CIF = Cost + Insurance + Freight, base standard des droits de douane.
   const cifBaseUSD      = vehiclePriceUSD + seaFreightUSD + insuranceUSD;
-  const customsDutyUSD  = cifBaseUSD * (config.customsDutyPercent / 100);
+  const customsDutyUSD  = cifBaseUSD * (effectiveDutyPercent / 100);
   const vatUSD           = (cifBaseUSD + customsDutyUSD) * (config.vatPercent / 100);
   const customsTotalUSD = customsDutyUSD + vatUSD + config.transitFixedFeeUSD + config.redevancesFixedFeeUSD;
 
@@ -75,6 +84,7 @@ export async function computeImportCost({ vehiclePrice, currency, sourceCountry,
     destCountry,
     destCity: destCity || null,
     laneConfigured: !!lane,
+    ageSurchargeApplied: ageSurchargeApplies,
     breakdown: {
       vehiclePrice:    toCcy(vehiclePriceUSD),
       inlandTransport: toCcy(inlandTransportUSD),
