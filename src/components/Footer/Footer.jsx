@@ -56,8 +56,10 @@ const Footer = () => {
             <h3>Légal & Confiance</h3>
             <ul>
               <li><Link to="/cgu">Conditions d'utilisation</Link></li>
+              <li><Link to="/cgv">Conditions de vente</Link></li>
               <li><Link to="/conditions-partenaires">Conditions partenaires</Link></li>
               <li><Link to="/privacy">Politique de confidentialité</Link></li>
+              <li><Link to="/cookies">Politique Cookies</Link></li>
               <li><Link to="/mentions-legales">Mentions légales</Link></li>
               <li><Link to="/faq">Questions fréquentes</Link></li>
             </ul>
@@ -81,7 +83,9 @@ const Footer = () => {
         <span>© {new Date().getFullYear()} VIT AUTO. Tous droits réservés.</span>
         <div className={styles.bottomLinks}>
           <Link to="/cgu">CGU</Link>
+          <Link to="/cgv">CGV</Link>
           <Link to="/privacy">Confidentialité</Link>
+          <Link to="/cookies">Cookies</Link>
           <Link to="/mentions-legales">Mentions légales</Link>
           <Link to="/conditions-partenaires">Partenaires</Link>
           <Link to="/faq">FAQ</Link>

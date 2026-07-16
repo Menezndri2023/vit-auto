@@ -2,6 +2,17 @@
 
 > Document de référence unique. Toute nouvelle fonctionnalité doit s'inscrire dans ce cadre avant d'être développée.
 > Version : 2026-07-02 | Révision : CTO Review v1.0
+> **Mise à jour de vérification : 2026-07-16** — voir encadré ci-dessous.
+
+> ⚠️ **Note de vérification (2026-07-16)** — Ce document mélangeait, dans sa version d'origine, l'état réel du projet et une architecture **cible** non encore implémentée, sans toujours le distinguer clairement. Corrections vérifiées ligne de code à l'appui à cette date :
+> - **Médias : pas de Cloudinary.** Aucune référence à Cloudinary n'existe dans le code. Le stockage réel est double : base64 directement en base MongoDB pour la publication manuelle (véhicules/annonces Import-Export), et ImageKit uniquement pour le flux d'import en masse (CSV/Excel partenaire). Voir §5 et le journal des évolutions en fin de document (passe de compression/vignettes du 2026-07-16).
+> - **Pas de chiffrement AES-256-GCM en base.** §7.4 affirmait un chiffrement des champs sensibles (`nationalId`, `taxNumber`, détails de paiement) — **aucun code de chiffrement de ce type n'existe dans le projet**, ces champs sont stockés en clair. C'est un vrai écart de sécurité à traiter, pas seulement une erreur de doc.
+> - **Redis = Upstash**, pas "Railway Redis" — le circuit-breaker de `queue/index.js` gère explicitement les dépassements de quota Upstash (incident déjà survenu en production).
+> - **Domaines réels** : `vit-auto.com` (Vercel) + `vit-auto.vercel.app`, un seul environnement de production. Aucune preuve de `admin.vit-auto.com`/`partners.vit-auto.com`/Cloudflare/Fly.io en usage réel — à traiter comme une piste future (§10), pas un état actuel.
+> - **CI/CD réel** (`.github/workflows/ci.yml`) : lint + build frontend, vérification syntaxe + `npm audit` backend — **ne déploie rien**. Le déploiement est natif Railway (backend) et Vercel (frontend), déclenché automatiquement sur push vers `main` (configuré le 2026-07-11).
+> - Les seuils de rate limiting (§7.4) et plusieurs valeurs numériques n'ont pas toutes été re-vérifiées une par une dans cette passe — seules les divergences trouvées ci-dessus sont confirmées à 100 %. Ne pas traiter le reste du document comme audité exhaustivement.
+>
+> Un **journal des évolutions majeures** (fonctionnalités livrées depuis le 2026-07-02) a été ajouté en fin de document.
 
 ---
 
@@ -60,9 +71,11 @@ VIT AUTO est une **plateforme internationale** de vente, location, import/export
                               ┌──────────────┼──────────────┐
                               │              │              │
                     ┌─────────▼──┐  ┌───────▼─────┐  ┌────▼────┐
-                    │ MongoDB    │  │    Redis     │  │Cloudinary│
-                    │  Atlas     │  │  (Cache+BQ)  │  │(Médias) │
-                    └───────────┘  └─────────────┘  └─────────┘
+                    │ MongoDB    │  │   Upstash    │  │ ImageKit │
+                    │  Atlas     │  │  (Cache+BQ)  │  │(import   │
+                    │ (médias en │  │              │  │en masse  │
+                    │ base64 aussi)│ └─────────────┘  │seulement)│
+                    └───────────┘                    └─────────┘
                               │
           ┌───────────────────┼───────────────────┐
           │                   │                   │
@@ -74,13 +87,17 @@ VIT AUTO est une **plateforme internationale** de vente, location, import/export
 
 ### Domaines
 
+**Réel (vérifié 2026-07-16)** : un seul environnement de production — `vit-auto.com` + `vit-auto.vercel.app` (frontend, Vercel), API sur un sous-domaine Railway généré (`*.up.railway.app`). Pas de sous-domaines dédiés admin/partenaires (mêmes routes React protégées par rôle, `/admin`, `/partner-pms` etc.), pas d'environnement staging séparé.
+
+Table ci-dessous = **cible visée**, pas l'état actuel :
+
 | Domaine | Cible | Environnement |
 |---|---|---|
-| `vit-auto.com` | Frontend public | Vercel (Production) |
-| `admin.vit-auto.com` | Admin Panel | Vercel (Production) |
-| `partners.vit-auto.com` | Portail partenaires | Vercel (Production) |
-| `api.vit-auto.com` | API REST | Railway / Fly.io |
-| `staging.vit-auto.com` | Staging complet | Vercel + Railway |
+| `vit-auto.com` | Frontend public | Vercel (Production) — **existe** |
+| `admin.vit-auto.com` | Admin Panel | Vercel (Production) — non fait |
+| `partners.vit-auto.com` | Portail partenaires | Vercel (Production) — non fait |
+| `api.vit-auto.com` | API REST | Railway / Fly.io — non fait (URL Railway brute utilisée) |
+| `staging.vit-auto.com` | Staging complet | Vercel + Railway — non fait |
 
 ### Variables d'environnement requises
 
@@ -102,10 +119,11 @@ SMTP_PORT=587
 SMTP_USER=
 SMTP_PASS=
 
-# Médias
-CLOUDINARY_CLOUD_NAME=
-CLOUDINARY_API_KEY=
-CLOUDINARY_API_SECRET=
+# Médias — pas de Cloudinary (voir note en tête de document) : publication
+# manuelle = base64 direct en base, import en masse = ImageKit
+IMAGEKIT_PUBLIC_KEY=
+IMAGEKIT_PRIVATE_KEY=
+IMAGEKIT_URL_ENDPOINT=
 
 # Paiements
 STRIPE_SECRET_KEY=sk_live_...
@@ -742,19 +760,19 @@ REDIS_URL=...
 
 ### 6.4 Stratégie de sauvegarde
 
+> ⚠️ Non re-vérifié le 2026-07-16 : le niveau de sauvegarde ci-dessous suppose un plan Atlas payant avec Continuous Backup. **À confirmer directement dans le dashboard MongoDB Atlas** (Project → Backup) — un cluster sur le tier gratuit/partagé n'a pas ces garanties. Les photos étant stockées en base64 **dans les documents MongoDB eux-mêmes** (voir note en tête de document), leur sauvegarde dépend entièrement de la sauvegarde Atlas — il n'y a pas de sauvegarde média séparée (pas de Cloudinary).
+
 ```
-MongoDB Atlas
-  └─ Continuous Backup (point-in-time recovery)
+MongoDB Atlas (à confirmer selon le tier réel du cluster)
+  └─ Continuous Backup (point-in-time recovery) — si plan M10+
   └─ Snapshot quotidien → conservé 7 jours
   └─ Snapshot hebdomadaire → conservé 4 semaines
   └─ Snapshot mensuel → conservé 12 mois
 
-Cloudinary
-  └─ Backups automatiques inclus dans le plan
-
-Redis
-  └─ RDB snapshot toutes les heures (Railway Redis)
-  └─ AOF désactivé (données cache, pas critiques)
+Upstash (Redis)
+  └─ Persistence gérée par Upstash — vérifier le niveau réel du plan souscrit
+  └─ Données de cache/file d'attente, non critiques en cas de perte (les jobs
+     BullMQ échoués ne bloquent pas les requêtes principales, voir §4.4)
 ```
 
 ### 6.5 Monitoring
@@ -859,11 +877,15 @@ Révision admin
 
 ### 7.4 Protection des données sensibles
 
+> 🔴 **Écart de sécurité réel, pas seulement documentaire (vérifié 2026-07-16)** : aucun chiffrement applicatif (AES-256-GCM ou autre) n'existe dans le code pour ces champs — ils sont stockés **en clair** dans MongoDB, y compris les photos KYC (pièce d'identité recto/verso + selfie, `User.identity.frontImage/backImage/selfie` — en base64, pas d'URL signée ni de dossier privé séparé). La sécurité de ces données repose aujourd'hui uniquement sur : le contrôle d'accès applicatif (KYC jamais renvoyé en vue liste, réservé au propriétaire/admin — voir passe perf du 2026-07-13), la sécurité réseau/auth MongoDB Atlas, et le TLS en transit. **À traiter comme un chantier de sécurité prioritaire**, en particulier avant toute expansion vers des pays à régime de protection des données strict (RGPD UE notamment — voir note RGPD ci-dessous).
+
 ```javascript
-// Données chiffrées en base (AES-256-GCM)
-- payment_methods.details (numéros de carte, IBAN)
+// Données identifiées comme sensibles — actuellement NON chiffrées au repos,
+// stockées en clair (voir avertissement ci-dessus) :
+- payment_methods.details (numéros de carte, IBAN) — si ce champ existe réellement, à confirmer
 - users.nationalId
 - users.taxNumber (partenaires)
+- users.identity.frontImage / backImage / selfie (KYC, base64)
 
 // Données masquées dans les logs
 - Mots de passe (jamais loggués)
@@ -903,6 +925,25 @@ const AUDITED_ACTIONS = [
 ];
 // Champs : userId, role, action, resource, resourceId, ip, userAgent, before, after, timestamp
 ```
+
+### 7.6 RGPD & droits des personnes concernées (ajouté 2026-07-16, état vérifié)
+
+VIT AUTO traite des données de résidents de l'UE (partenaires/clients en France, Belgique) — le RGPD s'applique dès lors, indépendamment du siège de l'entreprise.
+
+**Ce qui existe déjà et sert de socle :**
+- Consentement/authentification par compte (email + mot de passe, ou OTP téléphone via Twilio Verify).
+- Contrôle d'accès sur les données KYC (jamais exposées en vue liste, réservées au titulaire + admin).
+- Journal d'audit sur les actions admin sensibles (§7.5).
+- Politique de confidentialité et CGU existantes côté site (`src/pages/CGU.jsx`, `MentionsLegales.jsx`) — à compléter (voir phase juridique).
+
+**Ce qui manque et doit être traité avant toute mise en conformité affirmée :**
+- ❌ **Aucun mécanisme de droit d'accès/portabilité** (export des données personnelles d'un utilisateur sur demande) n'est implémenté.
+- ❌ **Aucun mécanisme de droit à l'effacement** (suppression de compte + anonymisation en cascade des données liées — réservations, KYC, avis) n'est implémenté. La suppression d'un véhicule/utilisateur existante dans le code est une suppression administrative, pas un parcours RGPD dédié.
+- ❌ **Pas de chiffrement au repos** des données sensibles (voir §7.4) — un point que la CNIL et les régulateurs équivalents examinent pour les données KYC/identité en particulier.
+- ❌ **Pas de registre des traitements ni de base légale documentée** par type de donnée (nécessaire pour un DPO ou une notice de confidentialité complète).
+- ❌ **Pas de mécanisme de consentement granulaire aux cookies non essentiels** (analytics, marketing) — voir phase juridique, Politique Cookies à créer.
+
+Ce chantier relève à la fois de développement (droits d'accès/effacement, chiffrement) et de conseil juridique (registre des traitements, base légale, DPO) — voir le fichier `CGU-CGV-Confidentialite-Cookies-DRAFT.md` livré dans cette même session pour un premier brouillon de politique de confidentialité qui **documente honnêtement ces manques** plutôt que de prétendre une conformité non atteinte.
 
 ---
 
@@ -1092,8 +1133,7 @@ const response = await anthropic.messages.create({
 - **Fallback** : véhicules populaires dans le même pays si pas assez de données
 
 #### Modération de contenu
-- **Photos** : Cloudinary AI moderation (intégré)
-  - Bloque les images NSFW / violentes automatiquement
+- **Photos** : ⚠️ non implémenté (vérifié 2026-07-16) — aucune modération automatique NSFW/violence n'existe. La validation image actuelle (`imageValidation.js`) vérifie le type MIME réel et la taille, pas le contenu visuel. Modération humaine uniquement (admin approuve/rejette chaque annonce).
 - **Textes** : regex + liste de mots interdits (multilangue)
   - Descriptions d'annonces, messages chat, avis
 - **Avis frauduleux** : score de similarité (TF-IDF) pour détecter les doublons
@@ -1130,9 +1170,9 @@ const extracted = parseIdCard(text); // regex extraction
 - [x] Import/Export 14 étapes
 - [x] PMS Partenaires 20 étapes
 - [x] Partner Onboarding (LOI + Agreement)
-- [ ] **Email : Resend (Cas B)** ← en cours
-- [ ] Images : migrer base64 → Cloudinary
-- [ ] Redis : cache sessions + rate limit distribué
+- [x] Email : Resend (Cas B) — fait, confirmé en usage
+- [~] Images : base64 en base — vignettes compressées ajoutées le 2026-07-16 (gain majeur mesuré : catalogue 20 véhicules 3,9 Mo → 455 Ko) sans changer le stockage sous-jacent ; migration complète vers un stockage objet externe (Cloudinary ou équivalent) reste une option future, plus nécessaire en urgence après ce correctif
+- [x] Redis : Upstash déjà en place (cache catalogue + BullMQ) — pas de rate limit distribué dessus pour l'instant (express-rate-limit reste en mémoire par instance)
 
 ### Phase 1 — Stabilisation (J+30 → J+60)
 - [ ] Tests (Vitest unit + Jest integration)
@@ -1213,3 +1253,26 @@ const createVehicleSchema = z.object({
 - [ ] Pagination si liste (limit cap à 200)
 - [ ] Tests (au moins 1 unit + 1 intégration)
 - [ ] Ajout dans ce document (section métier ou API)
+
+---
+
+## Annexe D — Journal des évolutions majeures (depuis le 2026-07-02)
+
+> Résumé factuel, pas exhaustif au niveau du code — voir l'historique Git pour le détail complet. Compilé le 2026-07-16.
+
+- **Sécurité & performance (2026-07-09 → 13)** : audit complet, chunking Vite (273 → 138 Ko gzip au chargement initial), compression HTTP, index Mongo composés, `.lean()` sur les lectures, correction d'une faille IDOR critique sur le paiement, tokenVersion/2FA/OTP renforcés.
+- **CORS & connexion (2026-07-10)** : bug CORS www/non-www et connexion bloquée par vérification téléphone sans provider SMS configuré.
+- **Déploiement Railway (2026-07-11)** : auto-déploiement GitHub→Railway réparé (root dir, healthcheck), CI/CD GitHub Actions ajouté (lint/build/audit, ne déploie pas).
+- **Auth & Twilio (2026-07-11)** : 8 bugs production corrigés, Twilio Verify intégré, certification obligatoire avant publication.
+- **KYC refonte** : OCR Tesseract, statuts EN_ATTENTE/VERIFIE/REFUSE, face matching, revue admin, Socket.io temps réel.
+- **Import/Export (pipeline 14 étapes)**, **Partner Management System (20 étapes)**, **Founding Partner Onboarding** (LOI + Accord signature électronique) : systèmes complets construits.
+- **Filtrage international par pays (2026-07-13)** : `User`/`Vehicle`/`Driver.country`, filtrage catalogue/IE par pays, abonnements désactivés (feature flag réversible).
+- **Escrow paiement IE (2026-07-13)** : le paiement était auto-déclaré côté client sans vérification réelle — Stripe réel pour carte, vérification admin obligatoire pour virement/mobile money/crypto.
+- **Cohérence location + chat temps réel (2026-07-13)** : caution/GPS livraison/promotions/édition annonce corrigés ; chat client/partenaire/admin passé en Socket.io (polling en filet de secours).
+- **Commissions Founding Partner (2026-07-14)** : barème à deux paliers — 10 %/2 % (location/vente) pour entreprise/professionnel/exportateur pendant 12 mois puis tarif standard 15 %/3 % ; 5 %/1 % permanent pour les Founding Partners "particulier" (plafonnés à 10 annonces actives) ; commission Import/Export ajoutée (jusque-là inexistante, le partenaire touchait 100 %).
+- **Système d'avis clients** : soumission + affichage sur fiche véhicule (jusque-là le backend existait sans aucune UI de soumission).
+- **Performance images catalogue (2026-07-16)** : les vues liste (catalogue, favoris, mes annonces, PMS, réservations) ne renvoyaient qu'une seule vignette compressée au lieu du tableau complet de photos pleine résolution en base64 — gain mesuré : 7,2 Mo → 455 Ko sur une page de 20 véhicules. Rattrapage appliqué aux véhicules publiés avant cette fonctionnalité (Jimp, pur JS).
+- **Import/Export — devise, drapeaux, badge, pays de destination obligatoire (2026-07-16)** : les prix affichaient la devise brute du partenaire au lieu de la devise détectée du visiteur ; drapeaux pays et badge "Import/Export" ajoutés ; au moins un pays de destination désormais obligatoire à la publication.
+- **Édition complète des annonces (2026-07-16)** : modale d'édition complète (photos, tous les champs, bascule location/vente, pays) côté partenaire et admin pour les véhicules ; formulaire d'édition (POST→PUT) pour les annonces Import/Export, jusque-là non modifiables après publication côté partenaire et inatteignables côté admin (bug de filtre `partner: req.user._id`).
+- **Conversion véhicule → annonce export (2026-07-16)** : transformation explicite d'une annonce location/vente en annonce Import/Export (les deux restant des modèles Mongo distincts), avec les mêmes garde-fous que la création directe (Founding Partner requis).
+- **Import Cost Engine (2026-07-16)** : moteur de calcul automatique du coût total d'importation (transport intérieur, fret maritime, assurance, frais portuaires, douane+TVA+transit+redevances, livraison finale) + commission de service VIT AUTO (hybride 3 % du prix véhicule, plancher 300 €/plafond 1 500 €, facturée à l'acheteur — distincte de la commission déjà prélevée sur le partenaire). Barèmes configurables par pays de destination et par liaison de fret (admin). Calculateur instantané sur la fiche annonce, devis figé à la réservation, pré-remplissage de l'offre finale du fournisseur à partir du devis (les emails `reservation_created`/`reservation_confirmed` existaient déjà en base mais n'étaient jamais déclenchés — câblés à cette occasion).

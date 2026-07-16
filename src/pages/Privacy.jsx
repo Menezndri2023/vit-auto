@@ -88,14 +88,14 @@ export default function Privacy() {
           Lorsque vous choisissez la <strong>livraison à domicile</strong>, nous collectons votre position GPS via le navigateur
           (avec votre accord explicite) pour calculer automatiquement la distance entre vous et le partenaire,
           et en déduire les frais de livraison. Ces coordonnées sont transmises au partenaire
-          <strong> uniquement pour réaliser la livraison</strong> et sont supprimées après 90 jours.
+          <strong> uniquement pour réaliser la livraison</strong>.
         </p>
       </Section>
 
       <Section title="6. Conservation des données">
         <p>
           Vos données personnelles sont conservées pendant la durée d'activité de votre compte,
-          puis archivées 3 ans après votre dernière activité. Les coordonnées GPS sont supprimées après 90 jours.
+          puis archivées 3 ans après votre dernière activité.
         </p>
       </Section>
 
@@ -113,20 +113,25 @@ export default function Privacy() {
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           <Li><strong>Accès</strong> — obtenir une copie de vos données personnelles</Li>
           <Li><strong>Rectification</strong> — corriger des informations inexactes</Li>
-          <Li><strong>Effacement</strong> — supprimer votre compte et toutes les données associées</Li>
+          <Li><strong>Effacement</strong> — demander la suppression de votre compte et des données associées</Li>
           <Li><strong>Opposition</strong> — vous opposer à certains traitements</Li>
           <Li><strong>Portabilité</strong> — recevoir vos données dans un format lisible</Li>
         </ul>
         <p style={{ marginTop: 14 }}>
-          Pour exercer vos droits :{" "}
-          <a href="mailto:contact@vit-auto.com" style={{ color: "#ff4d2d", fontWeight: 700 }}>contact@vit-auto.com</a>
+          Pour exercer vos droits, contactez-nous à{" "}
+          <a href="mailto:contact@vit-auto.com" style={{ color: "#ff4d2d", fontWeight: 700 }}>contact@vit-auto.com</a>.
+          {" "}Ces demandes sont actuellement traitées <strong>manuellement par notre équipe</strong> (pas encore de suppression ou d'export
+          automatisés depuis votre compte) — nous répondons sous un délai raisonnable et au plus tard dans le délai légal applicable.
         </p>
       </Section>
 
-      <Section title="9. Cookies">
+      <Section title="9. Cookies et technologies similaires">
         <p>
-          Nous utilisons uniquement des cookies <strong>strictement nécessaires</strong> au fonctionnement (session, préférences de langue et devise).
-          Aucun cookie publicitaire tiers n'est installé sans votre consentement.
+          VIT AUTO n'utilise pas de cookies de suivi publicitaire ni d'outil d'analyse tiers (aucun traceur Google Analytics,
+          Meta Pixel ou équivalent n'est installé). Vos préférences (langue, devise) et votre session de connexion sont conservées
+          via le <strong>stockage local de votre navigateur</strong> (localStorage), pas via des cookies au sens strict — cette
+          distinction technique n'enlève rien à votre droit de contrôle : voir notre{" "}
+          <Link to="/cookies" style={{ color: "#ff4d2d", fontWeight: 700 }}>Politique Cookies</Link> dédiée pour le détail.
         </p>
       </Section>
 
