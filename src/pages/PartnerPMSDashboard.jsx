@@ -916,15 +916,30 @@ function ShowroomSection({ token, showToast }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // SECTION: PERFORMANCE / TRUST CENTER
 // ══════════════════════════════════════════════════════════════════════════════
+const VERIF_CRITERIA_LABELS = {
+  businessLicense:   { icon: "🏢", label: "Licence commerciale" },
+  repIdentified:     { icon: "👤", label: "Représentant identifié" },
+  exportCapacity:    { icon: "🌍", label: "Capacité d'export" },
+  documentsReceived: { icon: "📄", label: "Documents reçus" },
+  addressVerified:   { icon: "📍", label: "Adresse vérifiée" },
+  websiteVerified:   { icon: "🌐", label: "Site web vérifié" },
+  verificationDone:  { icon: "✅", label: "Vérification finale" },
+};
+
 function PerformanceSection({ token, user }) {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
+  const [verif, setVerif]     = useState(null);
 
   useEffect(() => {
     API("/performance", token)
       .then((r) => r.ok ? r.json() : null)
       .then(setData)
       .finally(() => setLoading(false));
+    fetch("/api/partner-verification/me", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.ok ? r.json() : null)
+      .then(setVerif)
+      .catch(() => setVerif(null));
   }, [token]);
 
   if (loading) return <div className={styles.loader}>Calcul du score…</div>;
@@ -1023,6 +1038,49 @@ function PerformanceSection({ token, user }) {
           ))}
         </div>
       </div>
+
+      {/* Vérification partenaire — distinct du score de performance ci-dessus :
+          calculé par un admin sur des critères de conformité (licence, adresse,
+          documents...), pas déduit automatiquement des commandes. Auparavant
+          visible uniquement côté admin ou publiquement une fois vérifié — un
+          partenaire ne savait jamais précisément ce qui lui manquait. */}
+      {verif && (
+        <div className={styles.badgesSection}>
+          <h3 className={styles.badgesSectionTitle}>
+            🛡️ Vérification partenaire {verif.verification && `— ${verif.verification.trustScore}/100`}
+          </h3>
+          {!verif.verification ? (
+            <p className={styles.sectionSub}>
+              Aucun dossier de vérification n'a encore été ouvert par notre équipe. Il s'ouvre automatiquement
+              lors de l'examen de votre profil, ou dès la signature de votre Accord Founding Partner.
+            </p>
+          ) : (
+            <>
+              <p className={styles.sectionSub}>
+                Statut : <strong>{verif.verification.status}</strong> — niveau {verif.verification.trustLevel}
+              </p>
+              <div className={styles.metricsGrid}>
+                {Object.entries(VERIF_CRITERIA_LABELS).map(([key, meta]) => {
+                  const c = verif.verification.criteria?.[key];
+                  const ok = !!c?.verified;
+                  return (
+                    <div key={key} className={styles.metricCard} style={{ opacity: ok ? 1 : .7 }}>
+                      <div className={styles.metricIcon}>{ok ? "✅" : meta.icon}</div>
+                      <div className={styles.metricValue} style={{ color: ok ? "#059669" : "#94a3b8", fontSize: ".95rem" }}>
+                        {ok ? "Validé" : "En attente"}
+                      </div>
+                      <div className={styles.metricLabel}>{meta.label} · {verif.criteriaWeights?.[key]} pts</div>
+                      {!ok && c?.note && (
+                        <p style={{ margin: "6px 0 0", fontSize: ".75rem", color: "#dc2626" }}>⚠️ {c.note}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

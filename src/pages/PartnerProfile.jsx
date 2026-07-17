@@ -2,6 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import VehicleCard from "../components/VehicleCard/VehicleCard";
+import ReportButton from "../components/ReportButton/ReportButton";
 import styles from "./PartnerProfile.module.css";
 
 const CERT_BADGE = {
@@ -100,6 +101,9 @@ export default function PartnerProfile() {
               📞 {partner.phone}
             </a>
           )}
+          <div style={{ marginTop: 10 }}>
+            <ReportButton targetType="user" targetId={id} compact />
+          </div>
 
           {/* ── Explication badge VIT AUTO ── */}
           {certBadge && (

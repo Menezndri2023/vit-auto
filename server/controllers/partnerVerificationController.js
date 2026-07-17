@@ -320,6 +320,31 @@ export const adminDelete = async (req, res) => {
   }
 };
 
+// ── GET /api/partner-verification/me ───────────────────────────────────────────
+// Le partenaire connecté consulte sa propre grille de critères — jusqu'ici ce
+// détail n'existait que côté admin (adminDetail) ou publiquement une fois
+// status="verifie" (publicProfile) : un partenaire pas encore (ou pas
+// entièrement) vérifié n'avait aucun moyen de savoir précisément ce qui lui
+// manquait pour progresser (quel critère, avec quelle note laissée par l'admin
+// au dernier refus). adminNote/internalRating/assignedTo restent exclus : ce
+// sont des champs internes admin, pas destinés au partenaire.
+export const getMine = async (req, res) => {
+  try {
+    const doc = await PartnerVerification.findOne({ userId: req.user.id })
+      .select("companyName companyType status trustScore trustLevel criteria exportCountries importCountries vehicleCategories yearsExperience updatedAt")
+      .lean();
+
+    if (!doc) {
+      return res.json({ verification: null, criteriaWeights: CRITERIA_WEIGHTS });
+    }
+
+    res.json({ verification: doc, criteriaWeights: CRITERIA_WEIGHTS });
+  } catch (err) {
+    logger.error("partnerVerif getMine:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
 // ── GET /api/partner-verification/public/:userId ──────────────────────────────
 export const publicProfile = async (req, res) => {
   try {

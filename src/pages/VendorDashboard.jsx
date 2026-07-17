@@ -905,6 +905,8 @@ export default function VendorDashboard() {
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [transactions,   setTransactions]   = useState([]);
   const [txLoading,      setTxLoading]      = useState(false);
+  const [contracts,      setContracts]      = useState([]);
+  const [contractsLoading, setContractsLoading] = useState(false);
   const [subscription,   setSubscription]   = useState(null);
   const [subLoading,     setSubLoading]     = useState(true);
   const [boostTarget,    setBoostTarget]    = useState(null);
@@ -1383,6 +1385,14 @@ export default function VendorDashboard() {
     setTxLoading(false);
   }, [token]);
 
+  const loadContracts = useCallback(async () => {
+    if (!token) return;
+    setContractsLoading(true);
+    try { const r = await fetch("/api/contracts/mine", { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) { const d = await r.json(); setContracts(d.contracts || []); } }
+    catch { /* ignore */ }
+    setContractsLoading(false);
+  }, [token]);
+
   const loadMyDrivers = useCallback(async () => {
     if (!token) return;
     setDriverLoading(true);
@@ -1437,13 +1447,13 @@ export default function VendorDashboard() {
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadPartnerOrders(), loadPartnerVehicles(), loadMyDrivers(), loadInvoices(), loadTransactions()]);
+    await Promise.all([loadPartnerOrders(), loadPartnerVehicles(), loadMyDrivers(), loadInvoices(), loadTransactions(), loadContracts()]);
     setRefreshing(false);
     toastSuccess("Données actualisées.");
   }, [loadPartnerOrders, loadPartnerVehicles, loadMyDrivers, loadInvoices, loadTransactions, toastSuccess]);
 
   useEffect(() => { loadMyDrivers(); }, [loadMyDrivers]);
-  useEffect(() => { loadInvoices(); loadTransactions(); }, [loadInvoices, loadTransactions]);
+  useEffect(() => { loadInvoices(); loadTransactions(); loadContracts(); }, [loadInvoices, loadTransactions, loadContracts]);
 
   // ── Temps réel : Socket.io + polling de secours (60s) ─────────────────────
   const prevCountRef = useRef(0);
@@ -2044,6 +2054,38 @@ export default function VendorDashboard() {
                       <a href={`/api/invoices/${inv._id}/pdf`} target="_blank" rel="noopener noreferrer"
                         style={{ display:"inline-flex", alignItems:"center", gap:6, marginTop:10, padding:"6px 14px", borderRadius:8, background:"#0f1b3f", color:"#fff", textDecoration:"none", fontSize:".8rem", fontWeight:700 }}>
                         ⬇️ Télécharger la facture PDF
+                      </a>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Contrats — vue groupée (avant, uniquement accessible commande par
+              commande via le lien /contract/:bookingId de chaque réservation) */}
+          <div className={styles.dashSection} style={{ marginTop: 24 }}>
+            <div className={styles.dashSectionHeader}><h3>Mes contrats ({contracts.length})</h3></div>
+            {contractsLoading ? <p className={styles.loadingMsg}>Chargement…</p> : contracts.length === 0 ? (
+              <p className={styles.emptyMsg}>Aucun contrat généré pour l'instant.</p>
+            ) : (
+              <div className={styles.invoiceList}>
+                {contracts.map((ct) => {
+                  const cs = ct.isSigned
+                    ? { l: "✅ Signé", c: "#059669", bg: "#dcfce7" }
+                    : { l: "🕐 En attente de signature", c: "#d97706", bg: "#fef3c7" };
+                  return (
+                    <div key={ct._id} className={styles.invoiceCard}>
+                      <div className={styles.invoiceCardHeader}>
+                        <div>
+                          <div className={styles.invoiceRef}>{ct.booking?.reference || ct.booking?._id}</div>
+                          <div className={styles.invoicePeriod}>{ct.type} — {fmtXOF(ct.booking?.montantTotal || 0)}</div>
+                        </div>
+                        <span className={styles.invoiceStatusBadge} style={{ background: cs.bg, color: cs.c }}>{cs.l}</span>
+                      </div>
+                      <a href={`/api/contracts/${ct._id}/pdf`} target="_blank" rel="noopener noreferrer"
+                        style={{ display:"inline-flex", alignItems:"center", gap:6, marginTop:10, padding:"6px 14px", borderRadius:8, background:"#0f1b3f", color:"#fff", textDecoration:"none", fontSize:".8rem", fontWeight:700 }}>
+                        ⬇️ Télécharger le contrat PDF
                       </a>
                     </div>
                   );

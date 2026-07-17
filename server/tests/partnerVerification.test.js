@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { computeTrustScore, computeTrustLevel } from "../models/PartnerVerification.js";
 import PartnerVerification from "../models/PartnerVerification.js";
-import { adminToggleCriterion, adminUpdateStatus } from "../controllers/partnerVerificationController.js";
+import { adminToggleCriterion, adminUpdateStatus, getMine } from "../controllers/partnerVerificationController.js";
 import { createVehicle } from "../controllers/vehicleController.js";
 import { createUser } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
@@ -86,5 +86,46 @@ describe("partnerVerificationController.adminUpdateStatus — boucle jusqu'au bl
     const { req, res } = mockReqRes({ user: admin, params: { userId: partner._id.toString() }, body: { status: "banni" } });
     await adminUpdateStatus(req, res);
     expect(res.status).toHaveBeenCalledWith(400);
+  });
+});
+
+describe("getMine — vue de confiance personnelle du partenaire", () => {
+  it("répond un état vide (pas d'erreur) si aucun dossier n'a encore été ouvert", async () => {
+    const partner = await createUser({ role: "partenaire" });
+    const { req, res } = mockReqRes({ user: { id: partner._id } });
+    await getMine(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.verification).toBeNull();
+    expect(res.body.criteriaWeights.businessLicense).toBe(20);
+  });
+
+  it("expose ses propres critères, y compris la note d'un critère refusé", async () => {
+    const partner = await createUser({ role: "partenaire" });
+    const other = await createUser({ role: "partenaire" });
+    await PartnerVerification.create({
+      userId: other._id, companyName: "Autre SARL",
+      criteria: { businessLicense: { verified: false, note: "Document illisible" } },
+    });
+    await PartnerVerification.create({
+      userId: partner._id, companyName: "Test SARL",
+      criteria: {
+        businessLicense: { verified: true },
+        addressVerified:  { verified: false, note: "Adresse introuvable sur la facture fournie" },
+      },
+      adminNote: "Note interne confidentielle",
+    });
+
+    const { req, res } = mockReqRes({ user: { id: partner._id } });
+    await getMine(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.verification.companyName).toBe("Test SARL");
+    // trustScore recalculé automatiquement par le hook pre("save") du modèle à
+    // partir des poids des critères vérifiés (businessLicense=20), jamais lu
+    // tel quel depuis l'input — comportement du modèle, pas de ce controller.
+    expect(res.body.verification.trustScore).toBe(20);
+    expect(res.body.verification.criteria.businessLicense.verified).toBe(true);
+    expect(res.body.verification.criteria.addressVerified.note).toBe("Adresse introuvable sur la facture fournie");
+    // Champs internes admin non exposés au partenaire.
+    expect(res.body.verification.adminNote).toBeUndefined();
   });
 });

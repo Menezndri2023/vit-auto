@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import VehicleCard from "../components/VehicleCard/VehicleCard";
+import ReportButton from "../components/ReportButton/ReportButton";
 
 const fmtNum = (n) => Number(n || 0).toLocaleString("fr-FR");
 
@@ -413,6 +414,12 @@ export default function PartnerShowroomPublic() {
               </Link>
             </div>
           </div>
+
+          {showroom.partnerId && (
+            <div style={{ textAlign:"center" }}>
+              <ReportButton targetType="user" targetId={showroom.partnerId} compact />
+            </div>
+          )}
         </div>
       </div>
     </div>

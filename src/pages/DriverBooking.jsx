@@ -4,6 +4,7 @@ import { useVehicles } from "../context/VehicleContext";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../context/CurrencyContext";
+import ReportButton from "../components/ReportButton/ReportButton";
 import styles from "./Booking.module.css";
 
 // Labels fixes (méthodes de paiement — même liste que Checkout.jsx)
@@ -168,6 +169,9 @@ const DriverBooking = () => {
             📍 {driver.zone || driver.ville || "—"} · {driver.experience || 0} ans d'expérience
             {driver.noteMoyenne > 0 && <> · ⭐ {driver.noteMoyenne.toFixed(1)} ({driver.nombreAvis || 0})</>}
           </p>
+        </div>
+        <div style={{ marginLeft: "auto" }}>
+          <ReportButton targetType="driver" targetId={driver._id || driver.id} compact />
         </div>
       </div>
 

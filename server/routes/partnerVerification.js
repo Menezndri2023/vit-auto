@@ -6,6 +6,9 @@ import { validateObjectId } from "../middleware/validateObjectId.js";
 const router = Router();
 const vidUser = validateObjectId("userId");
 
+// ── Partenaire connecté ─────────────────────────────────────────────────────────
+router.get("/me", protect, pv.getMine);
+
 // ── Public ────────────────────────────────────────────────────────────────────
 router.get("/public/:userId", vidUser, pv.publicProfile);
 
