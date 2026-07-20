@@ -37,9 +37,12 @@ export function SocketProvider({ children }) {
     // En dev, le backend Socket.io est sur :5001 (pas sur :5173 Vite). En prod, si
     // VITE_API_URL n'est pas configurée dans les variables d'environnement Vercel, ne
     // JAMAIS retomber sur localhost:5001 (inutilisable pour un vrai visiteur) — utiliser
-    // à la place l'URL Railway réelle (même valeur que le rewrite /api de vercel.json).
+    // à la place le domaine courant : /socket.io est réécrit vers le backend par
+    // vercel.json (même mécanisme que /api), donc ce repli reste valide même après
+    // une migration de backend (Railway→Render 2026-07-20) sans jamais coder l'URL
+    // du backend en dur ici — piège rencontré une première fois avec Railway.
     const SOCKET_URL = import.meta.env.VITE_API_URL
-      || (import.meta.env.PROD ? "https://ideal-learning-production-3c89.up.railway.app" : "http://localhost:5001");
+      || (import.meta.env.PROD ? window.location.origin : "http://localhost:5001");
 
     const socket = io(SOCKET_URL, {
       auth:                { token },
