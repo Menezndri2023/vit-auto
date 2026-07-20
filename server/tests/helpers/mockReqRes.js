@@ -20,6 +20,14 @@ export function mockReqRes({ body = {}, params = {}, user = null, query = {} } =
       res.body = payload;
       return res;
     }),
+    send: vi.fn(function send(payload) {
+      res.body = payload;
+      return res;
+    }),
+    sendStatus: vi.fn(function sendStatus(code) {
+      res.statusCode = code;
+      return res;
+    }),
   };
   return { req, res };
 }

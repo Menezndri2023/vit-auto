@@ -17,7 +17,7 @@ process.env.NODE_ENV ||= "test";
 // quel si présent dans le .env local du développeur. On bloque explicitement
 // ces variables à vide pour qu'aucun test n'appelle jamais un vrai service
 // externe, même par accident.
-for (const key of ["SMTP_HOST", "SMTP_USER", "SMTP_PASS", "RESEND_API_KEY", "STRIPE_SECRET_KEY", "REDIS_URL", "SENTRY_DSN", "TWILIO_ACCOUNT_SID", "WHATSAPP_TOKEN", "IMAGEKIT_PUBLIC_KEY"]) {
+for (const key of ["SMTP_HOST", "SMTP_USER", "SMTP_PASS", "RESEND_API_KEY", "STRIPE_SECRET_KEY", "REDIS_URL", "SENTRY_DSN", "TWILIO_ACCOUNT_SID", "WHATSAPP_TOKEN", "IMAGEKIT_PUBLIC_KEY", "ANTHROPIC_API_KEY"]) {
   process.env[key] = "";
 }
 

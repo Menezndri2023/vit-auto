@@ -41,6 +41,8 @@ import auditLogRoutes         from "./routes/auditLog.js";
 import analyticsRoutes        from "./routes/analytics.js";
 import insuranceRoutes        from "./routes/insurance.js";
 import favoritesRoutes        from "./routes/favorites.js";
+import whatsappRoutes         from "./routes/whatsapp.js";
+import * as whatsappController from "./controllers/whatsappController.js";
 import { authenticate, authorizeAdmin } from "./middleware/auth.js";
 
 dotenv.config();
@@ -199,6 +201,11 @@ app.use(cors({
 app.post("/api/payments/webhook/stripe", express.raw({ type: "application/json" }), paymentController.stripeWebhook);
 app.post("/api/payments/webhook/wave",   express.raw({ type: "application/json" }), paymentController.waveWebhook);
 
+// ── Webhook WhatsApp (Meta Cloud API) — même raison : signature X-Hub-Signature-256
+// vérifiée sur le corps brut. Le challenge GET n'a besoin d'aucun body parsing.
+app.get ("/api/whatsapp/webhook", whatsappController.verifyWebhook);
+app.post("/api/whatsapp/webhook", express.raw({ type: "application/json" }), whatsappController.receiveWebhook);
+
 // ── Body parsing — 20 MB pour couvrir jusqu'à 6 photos véhicule (VendorSubmit.jsx,
 // recompressées côté client mais avec marge) en plus des photos base64 KYC ──
 app.use(express.json({ limit: "20mb" }));
@@ -324,6 +331,7 @@ app.use("/api/insurance",          apiLimiter, insuranceRoutes);         // Dema
 app.use("/api/favorites",          apiLimiter, favoritesRoutes);         // Favoris véhicules / annonces IE
 app.use("/api/import-cost",        apiLimiter, importCostRoutes);        // Moteur de calcul coût d'importation
 app.use("/api/reports",            apiLimiter, reportRoutes);            // Signalement de contenu
+app.use("/api/whatsapp",           apiLimiter, whatsappRoutes);           // Bot WhatsApp partenaires (admin)
 
 // ── Communication tracking (pixel ouverture + clic email) ────────────────────
 const TRANSPARENT_GIF = Buffer.from(
