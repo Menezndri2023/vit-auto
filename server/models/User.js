@@ -193,6 +193,11 @@ const userSchema = new mongoose.Schema({
   // Hash SHA-256 des refresh tokens actifs (jamais la valeur en clair — voir authController.js hashRefreshToken)
   refreshTokens: { type: [String], default: [] },
 
+  // Tokens FCM des appareils natifs (iOS/Android via app Capacitor) — plusieurs
+  // possibles par utilisateur (téléphone + tablette...). Voir PushChannel.js
+  // (envoi effectif, no-op tant que FCM_SERVER_KEY n'est pas configuré).
+  pushTokens: { type: [String], default: [] },
+
   // Incrémenté à chaque changement/réinitialisation de mot de passe — permet à
   // authenticate() de rejeter immédiatement tout JWT d'accès émis AVANT ce
   // changement (jusqu'à 7 jours de validité sinon), par exemple un token volé

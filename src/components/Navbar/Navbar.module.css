@@ -339,8 +339,11 @@
     display: none;
   }
 
+  /* Le burger/menu déroulant est remplacé par la BottomNav (Accueil/Catalogue/
+     Favoris/Chat/Profil) + son onglet "Plus" (Tableau de bord/Aide/Connexion...)
+     en dessous de 900px — voir src/components/BottomNav. On le garde caché ici. */
   .burger {
-    display: flex;
+    display: none;
   }
 
   /* Menu déroulant mobile */
@@ -380,24 +383,19 @@
     display: flex;
   }
 
-  /* Badge profil : seul accès au profil, on le garde visible mais compact */
+  /* Badge profil + déconnexion : redondants avec la BottomNav (onglet Profil)
+     et son onglet "Plus" (Déconnexion) en dessous de 900px — Navbar mobile
+     ne garde que logo/notifications/langue. */
   .badgePartner,
-  .userBadge {
-    padding: 5px 9px;
-    font-size: 0.76rem;
-    max-width: 32vw;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .userBadge,
+  .linkBtn {
+    display: none;
   }
 
-  /* Réduire les boutons */
-  .linkBtn, .ctaBtn {
+  .ctaBtn {
     padding: 8px 12px;
     font-size: 0.82rem;
   }
-
-  /* Sur très petits écrans, masquer le texte de déconnexion pour laisser
-     la place au badge profil (seul accès restant au profil) */
 
   /* Afficher items mobiles */
   .mobileOnly {

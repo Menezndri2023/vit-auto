@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "./AuthContext";
+import { getCurrentPosition } from "../utils/geo.js";
 
 const CurrencyContext = createContext(null);
 
@@ -180,8 +181,7 @@ export function CurrencyProvider({ children }) {
   // site (Booking.jsx, VendorSubmit.jsx) — aucune clé API supplémentaire.
   const detectPreciseCountry = useCallback(() => {
     return new Promise((resolve) => {
-      if (!navigator.geolocation) { resolve({ ok: false, message: "Géolocalisation non supportée par ce navigateur." }); return; }
-      navigator.geolocation.getCurrentPosition(
+      getCurrentPosition(
         async (pos) => {
           try {
             const { latitude, longitude } = pos.coords;

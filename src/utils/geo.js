@@ -1,3 +1,28 @@
+import { Capacitor } from "@capacitor/core";
+import { Geolocation } from "@capacitor/geolocation";
+
+// Enveloppe getCurrentPosition avec la même signature que l'API navigateur
+// (callbacks success/error, err.code 1=refusé/2=indisponible/3=timeout) pour
+// que les appelants existants n'aient pas à changer — mais utilise le plugin
+// natif Capacitor.Geolocation sur iOS/Android (permission système native au
+// lieu du prompt WebView, plus fiable en arrière-plan/premier-plan).
+export function getCurrentPosition(onSuccess, onError, options) {
+  if (Capacitor.isNativePlatform()) {
+    Geolocation.getCurrentPosition(options)
+      .then(onSuccess)
+      .catch((err) => {
+        const denied = /denied|permission/i.test(err?.message || "");
+        onError?.({ code: denied ? 1 : 2, message: err?.message });
+      });
+    return;
+  }
+  if (!navigator.geolocation) {
+    onError?.({ code: 2, message: "Géolocalisation non supportée par ce navigateur." });
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(onSuccess, onError, options);
+}
+
 // Distance en km entre deux points GPS (formule de Haversine) — même formule
 // que server/services/deliveryFee.js, dupliquée ici volontairement car le
 // calcul se fait côté client (pas d'appel réseau nécessaire pour trier une

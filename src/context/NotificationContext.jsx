@@ -1,4 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
+import { PushNotifications } from "@capacitor/push-notifications";
 import { useAuth } from "./AuthContext";
 
 const NotificationContext = createContext(null);
@@ -37,6 +40,7 @@ function playNotifSound() {
 
 export const NotificationProvider = ({ children }) => {
   const { token, isAuthenticated, authReady } = useAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount,   setUnreadCount]   = useState(0);
   const [soundEnabled,  setSoundEnabled]  = useState(() => {
@@ -90,6 +94,49 @@ export const NotificationProvider = ({ children }) => {
     intervalRef.current = setInterval(fetchNotifications, 20_000); // toutes les 20s
 
     return () => clearInterval(intervalRef.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authReady, isAuthenticated, token]);
+
+  // Push natif (iOS/Android) — en plus du polling ci-dessus, jamais à sa place :
+  // le polling/Socket.io reste le canal universel (web + natif), le push ne
+  // sert qu'à réveiller l'app quand elle est fermée/en arrière-plan.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || !authReady || !isAuthenticated || !token) return;
+
+    let registrationListener, receivedListener, actionListener;
+
+    (async () => {
+      const perm = await PushNotifications.checkPermissions();
+      if (perm.receive !== "granted") {
+        const req = await PushNotifications.requestPermissions();
+        if (req.receive !== "granted") return;
+      }
+
+      registrationListener = await PushNotifications.addListener("registration", (t) => {
+        fetch("/api/notifications/push-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ token: t.value }),
+        }).catch(() => {});
+      });
+
+      receivedListener = await PushNotifications.addListener("pushNotificationReceived", () => {
+        fetchNotifications();
+      });
+
+      actionListener = await PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
+        const lien = action.notification?.data?.lien;
+        if (lien) navigate(lien);
+      });
+
+      await PushNotifications.register();
+    })();
+
+    return () => {
+      registrationListener?.remove();
+      receivedListener?.remove();
+      actionListener?.remove();
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authReady, isAuthenticated, token]);
 

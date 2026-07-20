@@ -364,3 +364,12 @@
     padding-bottom: calc(0.6rem + var(--safe-bottom, 0px));
   }
 }
+
+/* En dessous de 900px, la BottomNav (voir src/components/BottomNav) fournit
+   déjà un accès au chat — le bouton flottant serait redondant et se
+   superposerait à la barre d'onglets fixe en bas d'écran. */
+@media (max-width: 900px) {
+  .fab {
+    display: none;
+  }
+}

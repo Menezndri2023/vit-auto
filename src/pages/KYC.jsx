@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams, Navigate } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
+import { Camera, CameraResultType, CameraSource, CameraDirection } from "@capacitor/camera";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../utils/apiClient";
 import { hashDocument } from "../utils/kycEngine.js";
@@ -126,12 +128,6 @@ export default function KYC() {
     if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
   }, []);
 
-  // Guard APRÈS tous les hooks — redirige vers login si non connecté
-  if (!token) {
-    const kycSearch = returnTo !== "/dashboard" ? `?returnTo=${encodeURIComponent(returnTo)}` : "";
-    return <Navigate to="/login" state={{ from: { pathname: "/kyc", search: kycSearch } }} replace />;
-  }
-
   /* ════════ STEP 1 ════════════════════════════════════════════════════════ */
   const handleResendEmail = async () => {
     setEmailError(""); setEmailResent(false);
@@ -174,6 +170,57 @@ export default function KYC() {
     setExpiryValid({ ok: null, message: "" });
   }, []);
 
+  const processDocumentImageUrl = useCallback(async (url, side) => {
+    if (side === "back") {
+      setDocBackUrl(url);
+      const bh = await hashDocument(url);
+      setDocBackHash(bh);
+      // Contrôle qualité du verso aussi
+      const bq = await checkDocumentQuality(url);
+      setDocBackOk(bq.ok);
+      return;
+    }
+    // Recto
+    setDocFrontUrl(url); setDocImageOk(false); setOcrData(null);
+    setOcrError(""); setDocQualityError(""); setDocQuality(null);
+
+    const quality = await checkDocumentQuality(url);
+    setDocQuality(quality);
+    if (!quality.ok) { setDocQualityError(quality.message); return; }
+
+    const h = await hashDocument(url);
+    setDocHash(h);
+
+    // Lancer OCR — montrer la barre immédiatement
+    setOcrRunning(true);
+    setOcrProgress(5);
+    try {
+      const extracted = await extractDocumentOcr(url, docType, (p) => setOcrProgress(Math.max(5, p)));
+      if (!extracted.success || extracted.ocrConfidence < 20) {
+        // OCR trop faible → accepter quand même mais signaler
+        setOcrData({
+          ...extracted,
+          ocrConfidence: extracted.ocrConfidence || 0,
+          _lowQuality: true,
+        });
+        setDocImageOk(true);
+        return;
+      }
+      if (extracted.expiryDate) {
+        const ev = validateExpiryDate(extracted.expiryDate);
+        setExpiryValid(ev);
+        if (ev.expired) { setOcrError(ev.message); return; }
+      }
+      setOcrData(extracted);
+      setDocImageOk(true);
+    } catch {
+      setOcrError("Erreur OCR. Réessayez avec une image plus nette.");
+    } finally {
+      setOcrRunning(false);
+      setOcrProgress(100);
+    }
+  }, [docType]);
+
   const processDocumentImage = useCallback(async (file, side) => {
     if (!file) return;
     const allowed = ["image/jpeg", "image/png", "image/webp"];
@@ -181,59 +228,23 @@ export default function KYC() {
     if (file.size > 15 * 1024 * 1024) { setDocQualityError("Fichier trop volumineux (max 15 Mo)."); return; }
 
     const reader = new FileReader();
-    reader.onload = async (e) => {
-      const url = e.target.result;
-      if (side === "back") {
-        setDocBackUrl(url);
-        const bh = await hashDocument(url);
-        setDocBackHash(bh);
-        // Contrôle qualité du verso aussi
-        const bq = await checkDocumentQuality(url);
-        setDocBackOk(bq.ok);
-        return;
-      }
-      // Recto
-      setDocFrontUrl(url); setDocImageOk(false); setOcrData(null);
-      setOcrError(""); setDocQualityError(""); setDocQuality(null);
-
-      const quality = await checkDocumentQuality(url);
-      setDocQuality(quality);
-      if (!quality.ok) { setDocQualityError(quality.message); return; }
-
-      const h = await hashDocument(url);
-      setDocHash(h);
-
-      // Lancer OCR — montrer la barre immédiatement
-      setOcrRunning(true);
-      setOcrProgress(5);
-      try {
-        const extracted = await extractDocumentOcr(url, docType, (p) => setOcrProgress(Math.max(5, p)));
-        if (!extracted.success || extracted.ocrConfidence < 20) {
-          // OCR trop faible → accepter quand même mais signaler
-          setOcrData({
-            ...extracted,
-            ocrConfidence: extracted.ocrConfidence || 0,
-            _lowQuality: true,
-          });
-          setDocImageOk(true);
-          return;
-        }
-        if (extracted.expiryDate) {
-          const ev = validateExpiryDate(extracted.expiryDate);
-          setExpiryValid(ev);
-          if (ev.expired) { setOcrError(ev.message); return; }
-        }
-        setOcrData(extracted);
-        setDocImageOk(true);
-      } catch {
-        setOcrError("Erreur OCR. Réessayez avec une image plus nette.");
-      } finally {
-        setOcrRunning(false);
-        setOcrProgress(100);
-      }
-    };
+    reader.onload = (e) => processDocumentImageUrl(e.target.result, side);
     reader.readAsDataURL(file);
-  }, [docType]);
+  }, [processDocumentImageUrl]);
+
+  // Capture native (iOS/Android) — ouvre directement l'appareil photo/galerie
+  // du système au lieu du sélecteur de fichier web (décision produit validée :
+  // UI caméra native plutôt que reproduire l'écran web).
+  const captureDocumentNative = useCallback(async (side) => {
+    try {
+      const photo = await Camera.getPhoto({
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Prompt,
+        quality: 90,
+      });
+      if (photo.dataUrl) await processDocumentImageUrl(photo.dataUrl, side);
+    } catch { /* utilisateur a annulé */ }
+  }, [processDocumentImageUrl]);
 
   /* ════════ STEP 3 — Selfie ═══════════════════════════════════════════════ */
   const handleStopCamera = useCallback(() => {
@@ -298,6 +309,21 @@ export default function KYC() {
     reader.readAsDataURL(file);
   }, [processSelfie, docFrontUrl]);
 
+  // Selfie natif (iOS/Android) — appareil photo frontal natif ou galerie,
+  // remplace le flux getUserMedia + cadre ovale custom (natif uniquement).
+  const handleNativeSelfie = useCallback(async (source) => {
+    setSelfieError("");
+    try {
+      const photo = await Camera.getPhoto({
+        resultType: CameraResultType.DataUrl,
+        source: source === "gallery" ? CameraSource.Photos : CameraSource.Camera,
+        direction: CameraDirection.Front,
+        quality: 90,
+      });
+      if (photo.dataUrl) await processSelfie(photo.dataUrl, docFrontUrl);
+    } catch { /* utilisateur a annulé */ }
+  }, [processSelfie, docFrontUrl]);
+
   /* ════════ STEP 4 — Soumission ═══════════════════════════════════════════ */
   const handleSubmitKyc = async () => {
     setSubmitting(true); setSubmitError("");
@@ -326,6 +352,12 @@ export default function KYC() {
     } catch (err) { setSubmitError(err.message || "Connexion impossible. Vérifiez votre réseau."); }
     finally { setSubmitting(false); }
   };
+
+  // Guards APRÈS tous les hooks (règle React) — redirige vers login si non connecté
+  if (!token) {
+    const kycSearch = returnTo !== "/dashboard" ? `?returnTo=${encodeURIComponent(returnTo)}` : "";
+    return <Navigate to="/login" state={{ from: { pathname: "/kyc", search: kycSearch } }} replace />;
+  }
 
   if (!user) {
     return (
@@ -544,7 +576,7 @@ export default function KYC() {
             <p className={styles.uploadHint}>JPG · PNG · WebP — Bonne lumière, document entier visible — Max 15 Mo</p>
 
             {!docFrontUrl ? (
-              <div className={styles.uploadZone} onClick={() => frontRef.current?.click()}>
+              <div className={styles.uploadZone} onClick={() => Capacitor.isNativePlatform() ? captureDocumentNative("front") : frontRef.current?.click()}>
                 <div className={styles.uploadZoneInner}>
                   <span className={styles.uploadZoneIcon}>📷</span>
                   <span className={styles.uploadZoneLabel}>Cliquez pour uploader la photo recto</span>
@@ -590,7 +622,7 @@ export default function KYC() {
                 Le recto seul ne suffit pas. Le verso est obligatoire pour vérifier l'authenticité de votre document.
               </p>
               {!docBackUrl ? (
-                <div className={styles.uploadZone} style={{ borderColor: "#fca5a5", background: "#fff7f7" }} onClick={() => backRef.current?.click()}>
+                <div className={styles.uploadZone} style={{ borderColor: "#fca5a5", background: "#fff7f7" }} onClick={() => Capacitor.isNativePlatform() ? captureDocumentNative("back") : backRef.current?.click()}>
                   <div className={styles.uploadZoneInner}>
                     <span className={styles.uploadZoneIcon}>📷</span>
                     <span className={styles.uploadZoneLabel}>Uploader le verso de votre CNI</span>
@@ -673,15 +705,24 @@ export default function KYC() {
 
           {!selfieOk && !cameraActive && (
             <div className={styles.selfieActions}>
-              <button className={styles.cameraBtn} onClick={handleStartCamera}>📷 Prendre un selfie</button>
-              <label className={styles.uploadBtnLabel}>
-                📎 Importer depuis la galerie
-                <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleSelfieUpload} />
-              </label>
+              {Capacitor.isNativePlatform() ? (
+                <>
+                  <button className={styles.cameraBtn} onClick={() => handleNativeSelfie("camera")}>📷 Prendre un selfie</button>
+                  <button className={styles.uploadBtnLabel} onClick={() => handleNativeSelfie("gallery")}>📎 Importer depuis la galerie</button>
+                </>
+              ) : (
+                <>
+                  <button className={styles.cameraBtn} onClick={handleStartCamera}>📷 Prendre un selfie</button>
+                  <label className={styles.uploadBtnLabel}>
+                    📎 Importer depuis la galerie
+                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleSelfieUpload} />
+                  </label>
+                </>
+              )}
             </div>
           )}
 
-          {cameraActive && (
+          {!Capacitor.isNativePlatform() && cameraActive && (
             <div className={styles.cameraBlock}>
               <div className={styles.cameraGuide}>
                 <video ref={videoRef} autoPlay playsInline muted className={styles.cameraVideo} />

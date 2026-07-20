@@ -1,10 +1,16 @@
-import { useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
+import { App as CapacitorApp } from "@capacitor/app";
 import Navbar from "../Navbar/Navbar";
 import Footer from "../Footer/Footer";
 import BackToTop from "./BackToTop";
 import ScrollToTop from "./ScrollToTop";
+import BottomNav from "../BottomNav/BottomNav";
+import OfflineBanner from "../OfflineBanner/OfflineBanner";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../context/ToastContext";
+import useIsMobile from "../../hooks/useIsMobile";
 import styles from "./Layout.module.css";
 
 // Routes qui gèrent leur propre layout (pas de Navbar/Footer global)
@@ -76,7 +82,34 @@ const EmailBanner = ({ email }) => {
 const Layout = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+  const { info: toastInfo } = useToast();
   const bare = isBareRoute(location.pathname);
+  const isMobile = useIsMobile();
+  const lastBackPress = useRef(0);
+
+  // Bouton retour matériel Android : navigue dans l'historique React Router
+  // tant qu'on n'est pas sur la page d'accueil, sinon "appuyer 2x pour quitter"
+  // plutôt qu'une sortie brutale au premier appui.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const listenerPromise = CapacitorApp.addListener("backButton", () => {
+      if (location.pathname !== "/") {
+        navigate(-1);
+        return;
+      }
+      const now = Date.now();
+      if (now - lastBackPress.current < 2000) {
+        CapacitorApp.exitApp();
+      } else {
+        lastBackPress.current = now;
+        toastInfo("Appuyez de nouveau pour quitter");
+      }
+    });
+
+    return () => { listenerPromise.then((l) => l.remove()); };
+  }, [location.pathname, navigate, toastInfo]);
 
   const showBanner = isAuthenticated && user && user.emailVerified === false;
 
@@ -85,6 +118,7 @@ const Layout = ({ children }) => {
     return (
       <>
         <ScrollToTop />
+        <OfflineBanner />
         {/* La bannière email s'affiche aussi en admin (important pour les admins non vérifiés) */}
         {showBanner && <EmailBanner email={user.email} />}
         {children}
@@ -95,11 +129,13 @@ const Layout = ({ children }) => {
   return (
     <div className={styles.page}>
       <ScrollToTop />
+      <OfflineBanner />
       <Navbar />
       {showBanner && <EmailBanner email={user.email} />}
-      <main className={styles.main}>{children}</main>
+      <main className={`${styles.main} ${isMobile ? styles.mainWithBottomNav : ""}`}>{children}</main>
       <Footer />
       <BackToTop />
+      {isMobile && <BottomNav />}
     </div>
   );
 };

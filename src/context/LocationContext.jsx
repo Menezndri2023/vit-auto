@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { getCurrentPosition } from '../utils/geo.js';
 
 const LocationContext = createContext();
 
@@ -31,15 +32,11 @@ export const LocationProvider = ({ children }) => {
   }, []);
 
   const getCurrentLocation = useCallback(async () => {
-    if (!navigator.geolocation) {
-      setError('Géolocalisation non supportée par ce navigateur');
-      return;
-    }
     setLoading(true);
     setError(null);
 
     return new Promise((resolve) => {
-      navigator.geolocation.getCurrentPosition(
+      getCurrentPosition(
         async (pos) => {
           const lat  = pos.coords.latitude;
           const lng  = pos.coords.longitude;

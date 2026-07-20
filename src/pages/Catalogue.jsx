@@ -5,7 +5,7 @@ import { useVehicles } from "../context/VehicleContext";
 import { useCurrency } from "../context/CurrencyContext";
 import styles from "./Catalogue.module.css";
 import { useToast } from "../context/ToastContext";
-import { haversineKm } from "../utils/geo";
+import { haversineKm, getCurrentPosition } from "../utils/geo";
 import { getCountryFlag } from "../data/autocomplete";
 
 const MODES = [
@@ -181,13 +181,9 @@ const Catalogue = () => {
 
   const handleToggleNearMe = () => {
     if (nearMeActive) { setNearMeActive(false); return; }
-    if (!navigator.geolocation) {
-      setGeoError("Géolocalisation non disponible sur cet appareil.");
-      return;
-    }
     setGeoLoading(true);
     setGeoError(null);
-    navigator.geolocation.getCurrentPosition(
+    getCurrentPosition(
       (pos) => {
         setUserPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setNearMeActive(true);

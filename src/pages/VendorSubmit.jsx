@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
 import { useToast } from "../context/ToastContext";
-import { geocodeAddress, reverseGeocode } from "../utils/geo";
+import { geocodeAddress, reverseGeocode, getCurrentPosition } from "../utils/geo";
 import { CALLING_CODES } from "../data/autocomplete";
 import styles from "./VendorSubmit.module.css";
 
@@ -79,9 +79,8 @@ const VendorSubmit = () => {
   // "Utiliser ma position" — GPS + reverse-geocode, plus précis que l'IP pour
   // la ville et surtout pour l'adresse exacte (jamais déductible d'une IP).
   const useMyLocation = () => {
-    if (!navigator.geolocation) { error("Géolocalisation non disponible sur cet appareil."); return; }
     setGeoLocating(true);
-    navigator.geolocation.getCurrentPosition(
+    getCurrentPosition(
       async (pos) => {
         const r = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
         if (r?.address || r?.city) {

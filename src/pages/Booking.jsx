@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import { useAuth }     from "../context/AuthContext";
 import { useCurrency } from "../context/CurrencyContext";
-import { haversineKm, geocodeAddress } from "../utils/geo";
+import { haversineKm, geocodeAddress, getCurrentPosition } from "../utils/geo";
 import { getKycBadge, generateBookingRef } from "../utils/kycEngine.js";
 import styles from "./Booking.module.css";
 
@@ -245,13 +245,11 @@ export default function Booking() {
 
     try {
       const pos = await new Promise((res, rej) =>
-        navigator.geolocation
-          ? navigator.geolocation.getCurrentPosition(
-              (p) => res({ lat: p.coords.latitude, lng: p.coords.longitude }),
-              (e) => rej(new Error(e.code === 1 ? "Accès GPS refusé." : "Position indisponible.")),
-              { enableHighAccuracy: true, timeout: 12000 }
-            )
-          : rej(new Error("Géolocalisation non supportée."))
+        getCurrentPosition(
+          (p) => res({ lat: p.coords.latitude, lng: p.coords.longitude }),
+          (e) => rej(new Error(e.code === 1 ? "Accès GPS refusé." : "Position indisponible.")),
+          { enableHighAccuracy: true, timeout: 12000 }
+        )
       );
       const addr = await reverseGeocode(pos.lat, pos.lng);
       setPickupPosition(pos);

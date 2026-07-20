@@ -1,5 +1,21 @@
 import mongoose from "mongoose";
 import logger from "../../../utils/logger.js";
+import { sendPush, isAvailable as pushAvailable } from "./PushChannel.js";
+
+// Relaie vers les appareils natifs (iOS/Android) de l'utilisateur si des
+// tokens FCM sont enregistrés — jamais attendu par l'appelant (l'in-app via
+// Socket.io reste la voie principale, le push est un bonus best-effort).
+async function fanOutPush(userId, title, body, data) {
+  try {
+    const User = (await import("../../../models/User.js")).default;
+    const u = await User.findById(userId).select("pushTokens").lean();
+    if (u?.pushTokens?.length) {
+      await sendPush({ to: u.pushTokens, title, body, data });
+    }
+  } catch (err) {
+    logger.warn("[InternalChannel] fan-out push échoué", { error: err.message, userId });
+  }
+}
 
 const EVENT_ICONS = {
   booking:           "🚗",
@@ -54,6 +70,8 @@ export async function sendInternal({ userId, type = "system", titre, message, li
       global._io.to(`user_${userId}`).emit("notification_new", payload);
     }
 
+    if (pushAvailable()) fanOutPush(userId, notif.titre, message, { lien: lien || "", type });
+
     logger.debug("[InternalChannel] Notification envoyée", { userId, type, titre });
     return { sent: true, notifId: notif._id, provider: "socket" };
   } catch (err) {
@@ -65,7 +83,7 @@ export async function sendInternal({ userId, type = "system", titre, message, li
 export async function sendInternalBroadcast({ role, type, titre, message, lien }) {
   try {
     const User = (await import("../../../models/User.js")).default;
-    const users = await User.find({ role, isActive: true }).select("_id").lean();
+    const users = await User.find({ role, isActive: true }).select("_id pushTokens").lean();
 
     if (!users.length) return { sent: false, count: 0 };
 
@@ -83,6 +101,14 @@ export async function sendInternalBroadcast({ role, type, titre, message, lien }
           type, titre: titreWithIcon, message, lien, createdAt: new Date(),
         });
       });
+    }
+
+    if (pushAvailable()) {
+      const allTokens = users.flatMap((u) => u.pushTokens || []);
+      if (allTokens.length) {
+        sendPush({ to: allTokens, title: titreWithIcon, body: message, data: { lien: lien || "", type } })
+          .catch((err) => logger.warn("[InternalChannel] fan-out push broadcast échoué", { error: err.message }));
+      }
     }
 
     logger.info("[InternalChannel] Broadcast envoyé", { role, count: users.length, type });

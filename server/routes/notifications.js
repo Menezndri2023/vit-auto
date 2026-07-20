@@ -8,8 +8,12 @@ const vid = validateObjectId();
 
 router.get("/", authenticate, n.getMyNotifications);
 router.patch("/read-all", authenticate, n.markAllAsRead);
+// Routes à segment fixe AVANT "/:id" (sinon "push-token"/"admin" seraient
+// interceptés par validateObjectId comme un id invalide).
+router.post("/push-token",   authenticate, n.registerPushToken);
+router.delete("/push-token", authenticate, n.unregisterPushToken);
+router.post("/admin/broadcast", authenticate, authorizeAdmin, n.sendAdminNotification);
 router.patch("/:id/read", vid, authenticate, n.markAsRead);
 router.delete("/:id",     vid, authenticate, n.deleteNotification);
-router.post("/admin/broadcast", authenticate, authorizeAdmin, n.sendAdminNotification);
 
 export default router;

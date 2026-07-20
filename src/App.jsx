@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy, useState, useEffect } from "react";
+import { Capacitor } from "@capacitor/core";
+import { SplashScreen as NativeSplashScreen } from "@capacitor/splash-screen";
 import ErrorBoundary from "./components/ErrorBoundary";
 import PartnerRoute from "./components/PartnerRoute";
 import AdminRoute from "./components/AdminRoute";
@@ -176,6 +178,15 @@ function AppRoutes() {
 // ── Composant racine ────────────────────────────────────────────────────────
 function App() {
   const [splashDone, setSplashDone] = useState(false);
+
+  // launchAutoHide=false dans capacitor.config.json : le splash natif reste
+  // affiché jusqu'à ce que ce composant JS ait pris le relais visuellement,
+  // pour éviter un flash blanc entre le splash natif et le splash React.
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      NativeSplashScreen.hide();
+    }
+  }, []);
 
   return (
     <>

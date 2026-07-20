@@ -59,6 +59,32 @@ export const deleteNotification = async (req, res) => {
   }
 };
 
+// ── Enregistrer un token push (app native iOS/Android) ────────────────────
+export const registerPushToken = async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ message: "Token requis." });
+    await User.updateOne({ _id: req.user._id }, { $addToSet: { pushTokens: token } });
+    res.json({ message: "Token enregistré." });
+  } catch (err) {
+    logger.error("registerPushToken:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Retirer un token push (déconnexion / désinstallation) ─────────────────
+export const unregisterPushToken = async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ message: "Token requis." });
+    await User.updateOne({ _id: req.user._id }, { $pull: { pushTokens: token } });
+    res.json({ message: "Token retiré." });
+  } catch (err) {
+    logger.error("unregisterPushToken:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
 // ── Envoyer une notification système (admin) ──────────────────────────────
 export const sendAdminNotification = async (req, res) => {
   try {

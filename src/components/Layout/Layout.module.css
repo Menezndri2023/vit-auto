@@ -28,3 +28,8 @@
     padding-bottom: var(--safe-bottom, 0px);
   }
 }
+
+/* ── Espace réservé au-dessus de la BottomNav fixe (56px + safe-area) ── */
+.mainWithBottomNav {
+  padding-bottom: calc(56px + var(--safe-bottom, 0px));
+}

@@ -22,3 +22,10 @@
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(255, 77, 45, 0.4);
 }
+
+/* Remonter au-dessus de la BottomNav fixe (56px + safe-area) en dessous de 900px */
+@media (max-width: 900px) {
+  .backToTop {
+    bottom: calc(56px + 16px + var(--safe-bottom, 0px));
+  }
+}

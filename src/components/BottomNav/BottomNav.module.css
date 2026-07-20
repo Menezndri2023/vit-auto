@@ -1,0 +1,146 @@
+/* ═══════════════════════════════════════
+   BOTTOM NAV — Barre d'onglets mobile
+   ═══════════════════════════════════════ */
+
+.bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 950;
+  display: flex;
+  align-items: stretch;
+  background: var(--c-bg-card, #fff);
+  border-top: 1px solid var(--c-border, #e5eaf5);
+  box-shadow: var(--sh-md, 0 6px 20px rgba(15, 27, 63, 0.1));
+  padding-bottom: var(--safe-bottom, 0px);
+  padding-left: var(--safe-left, 0px);
+  padding-right: var(--safe-right, 0px);
+}
+
+.item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 56px;
+  padding: 6px 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--c-text-muted, #8493b0);
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.icon {
+  position: relative;
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.label {
+  font-size: 0.66rem;
+  font-weight: 600;
+}
+
+.active {
+  color: var(--c-primary, #ff4d2d);
+}
+
+.badge {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  background: var(--c-primary, #ff4d2d);
+  color: #fff;
+  font-size: 0.58rem;
+  font-weight: 800;
+  line-height: 1;
+  border-radius: var(--r-full, 9999px);
+  padding: 2px 4px;
+  min-width: 14px;
+  text-align: center;
+}
+
+/* ── Feuille "Plus" ── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 960;
+  background: rgba(15, 27, 63, 0.45);
+  display: flex;
+  align-items: flex-end;
+  animation: fadeInOverlay 0.2s ease;
+}
+
+@keyframes fadeInOverlay {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.sheet {
+  width: 100%;
+  background: var(--c-bg-card, #fff);
+  border-radius: var(--r-xl, 24px) var(--r-xl, 24px) 0 0;
+  padding: 10px 8px calc(12px + var(--safe-bottom, 0px));
+  padding-bottom: calc(72px + var(--safe-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.22s ease;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+.sheetHandle {
+  width: 40px;
+  height: 4px;
+  border-radius: var(--r-full, 9999px);
+  background: var(--c-border-strong, #c8d3e8);
+  align-self: center;
+  margin-bottom: 10px;
+}
+
+.sheetItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  border-radius: var(--r-sm, 10px);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--c-text-primary, #0f1b3f);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sheetItem:active {
+  background: var(--c-bg-subtle, #f0f4ff);
+}
+
+.sheetPartner {
+  color: var(--c-primary, #ff4d2d);
+}
+
+.sheetDivider {
+  height: 1px;
+  background: var(--c-border, #e5eaf5);
+  margin: 6px 8px;
+}
+
+/* Masqué au-delà du breakpoint mobile — filet de sécurité si le montage
+   conditionnel dans Layout.jsx changeait un jour (ex: SSR). */
+@media (min-width: 901px) {
+  .bar, .overlay { display: none; }
+}

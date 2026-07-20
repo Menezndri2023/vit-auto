@@ -8,17 +8,46 @@
   "theme_color": "#ff4d2d",
   "orientation": "portrait-primary",
   "lang": "fr",
-  "categories": ["automotive", "shopping"],
+  "categories": [
+    "automotive",
+    "shopping"
+  ],
   "icons": [
     {
       "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [
-    { "name": "Catalogue", "url": "/catalogue", "description": "Parcourir les véhicules" },
-    { "name": "Mon Espace", "url": "/dashboard", "description": "Mon tableau de bord" }
+    {
+      "name": "Catalogue",
+      "url": "/catalogue",
+      "description": "Parcourir les véhicules"
+    },
+    {
+      "name": "Mon Espace",
+      "url": "/dashboard",
+      "description": "Mon tableau de bord"
+    }
   ]
 }

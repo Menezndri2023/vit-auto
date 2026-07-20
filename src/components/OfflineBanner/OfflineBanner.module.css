@@ -1,0 +1,13 @@
+.banner {
+  position: relative;
+  z-index: 900;
+  width: 100%;
+  padding: 8px 16px;
+  padding-top: calc(8px + var(--safe-top, 0px));
+  background: var(--c-error-bg, #fef2f2);
+  color: var(--c-error, #ef4444);
+  border-bottom: 2px solid var(--c-error, #ef4444);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: center;
+}
