@@ -582,8 +582,8 @@ const Dashboard = () => {
             className={styles.refreshBtn || ""}
             style={{
               background: "transparent",
-              border: "2px solid rgba(255,255,255,0.3)",
-              color: "#fff",
+              border: "2px solid #d8dfef",
+              color: "#0f1b3f",
               borderRadius: "8px",
               padding: "0.5rem 1rem",
               cursor: refreshing ? "not-allowed" : "pointer",
@@ -595,7 +595,7 @@ const Dashboard = () => {
             }}
           >
             <span style={{ display: "inline-block", animation: refreshing ? "spin 0.8s linear infinite" : "none" }}>↻</span>
-            {refreshing ? "…" : "↻"}
+            {refreshing ? "…" : null}
           </button>
           <Link to="/catalogue" className={styles.ctaBtn}>
             + {t("dash.book")}

@@ -344,7 +344,7 @@
   flex-wrap: wrap;
 }
 
-.welcomeTitle { margin: 0 0 6px; font-size: 1.4rem; font-weight: 900; }
+.welcomeTitle { margin: 0 0 6px; font-size: 1.4rem; font-weight: 900; color: #fff; }
 .welcomeSub   { margin: 0; color: rgba(255,255,255,.75); font-size: 0.88rem; }
 .welcomeActions { display: flex; gap: 10px; flex-wrap: wrap; }
 

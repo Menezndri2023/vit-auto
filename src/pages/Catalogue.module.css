@@ -636,6 +636,12 @@
   .grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
   .headerInner { padding: 16px 16px 0; }
   .typePillsRow { margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
+  /* Le sélecteur de pays (long texte "🌍 Tous pays (International)") + le
+     bouton "📍 Détecter" ne tenaient jamais sur une largeur mobile — le
+     select n'avait aucune limite de largeur et .resultsRight refusait de
+     rétrécir (flex-shrink:0, hérité du desktop où il y a la place). */
+  .resultsRight { flex-wrap: wrap; flex-shrink: 1; }
+  .sortSelect { max-width: 100%; min-width: 0; }
 }
 
 @media (max-width: 480px) {
