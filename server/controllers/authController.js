@@ -113,11 +113,11 @@ export const register = async (req, res) => {
   if (!email) {
     return res.status(400).json({ message: "Une adresse e-mail est requise pour créer un compte." });
   }
-  if (firstName.length < 2 || firstName.length > 50) {
-    return res.status(400).json({ message: "Le prénom doit contenir entre 2 et 50 caractères." });
+  if (firstName.length < 1 || firstName.length > 100) {
+    return res.status(400).json({ message: "Le prénom doit contenir entre 1 et 100 caractères." });
   }
-  if (lastName.length < 2 || lastName.length > 50) {
-    return res.status(400).json({ message: "Le nom doit contenir entre 2 et 50 caractères." });
+  if (lastName.length < 1 || lastName.length > 100) {
+    return res.status(400).json({ message: "Le nom doit contenir entre 1 et 100 caractères." });
   }
   if (password.length < 8) {
     return res.status(400).json({ message: "Le mot de passe doit contenir au moins 8 caractères." });

@@ -7,8 +7,8 @@ const password = z.string()
 // Email et téléphone sont mutuellement facultatifs — l'un des deux est requis
 // (voir register() dans authController.js : inscription "email OU téléphone").
 export const registerSchema = z.object({
-  firstName: z.string().min(1).max(50).trim(),
-  lastName:  z.string().min(1).max(50).trim(),
+  firstName: z.string().min(1).max(100).trim(),
+  lastName:  z.string().min(1).max(100).trim(),
   email:     z.string().email("Email invalide").toLowerCase().trim().optional(),
   password,
   role:      z.enum(["client", "partenaire", "chauffeur"]).optional().default("client"),
