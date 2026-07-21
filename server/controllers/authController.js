@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import * as OTPAuth from "otpauth";
 import QRCode from "qrcode";
+import { OAuth2Client } from "google-auth-library";
 import User from "../models/User.js";
 import { serverValidateIdentity } from "../utils/idValidation.js";
 import { smsConfigured, twilioVerifyConfigured } from "../utils/smsConfigured.js";
@@ -11,6 +12,8 @@ import { emailVerificationRequired } from "../utils/emailVerificationRequired.js
 import { dispatch } from "../queue/index.js";
 import { sendVerification, checkVerification } from "../services/twilioVerify.js";
 import { isValidCountryCode } from "../utils/countries.js";
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_OAUTH_CLIENT_ID);
 
 const JWT_SECRET         = () => process.env.JWT_SECRET;
 // REFRESH_TOKEN_SECRET est obligatoire et vérifié au démarrage (server.js) — jamais
@@ -337,6 +340,129 @@ export const login = async (req, res) => {
   } catch (err) {
     logger.error("login:", err);
     res.status(500).json({ message: "Erreur serveur lors de la connexion." });
+  }
+};
+
+// ── Connexion / inscription via Google ────────────────────────────────────
+// Le jeton (`credential`, un ID token JWT) est vérifié côté serveur via
+// google-auth-library — seul un Client ID (public) est nécessaire, jamais de
+// secret. `birthDate`/`country` ne sont envoyés que depuis Register.jsx (voir
+// SocialAuthButtons côté frontend) : Google ne fournit jamais la date de
+// naissance, indispensable à la vérification 18+ ci-dessous pour toute
+// création de compte. Si le bouton est utilisé sur /login (pas de birthDate)
+// et qu'aucun compte n'existe, on renvoie OAUTH_NO_ACCOUNT plutôt que de
+// créer un compte sans cette vérification.
+export const oauthGoogle = async (req, res) => {
+  if (!process.env.GOOGLE_OAUTH_CLIENT_ID) {
+    return res.status(503).json({ message: "La connexion Google n'est pas encore configurée." });
+  }
+
+  const { credential, birthDate: birthDateRaw, country: countryRaw, role: roleRaw, sellerType: sellerTypeRaw } = req.body;
+  if (!credential) return res.status(400).json({ message: "Jeton Google manquant." });
+
+  let payload;
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_OAUTH_CLIENT_ID,
+    });
+    payload = ticket.getPayload();
+  } catch (err) {
+    return res.status(401).json({ message: "Authentification Google invalide ou expirée." });
+  }
+
+  if (!payload?.email) {
+    return res.status(400).json({ message: "Impossible de récupérer votre adresse e-mail depuis Google." });
+  }
+  const email    = payload.email.toLowerCase();
+  const googleId = payload.sub;
+
+  try {
+    let user = await User.findOne({ $or: [{ googleId }, { email }] });
+
+    if (!user) {
+      if (!birthDateRaw) {
+        return res.status(404).json({
+          message: "Aucun compte associé à cette adresse Google. Merci de vous inscrire d'abord.",
+          code: "OAUTH_NO_ACCOUNT",
+        });
+      }
+
+      const country = sanitize(countryRaw)?.toUpperCase() || null;
+      if (country && !isValidCountryCode(country)) {
+        return res.status(400).json({ message: "Pays invalide." });
+      }
+
+      const birthDate = new Date(birthDateRaw);
+      if (isNaN(birthDate.getTime())) {
+        return res.status(400).json({ message: "Date de naissance invalide." });
+      }
+      const age = (Date.now() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+      if (age < 18) {
+        return res.status(403).json({
+          message: "Vous devez avoir au moins 18 ans pour créer un compte VIT AUTO.",
+          code: "MINOR_NOT_ALLOWED",
+        });
+      }
+      if (age > 120) {
+        return res.status(400).json({ message: "Date de naissance invalide." });
+      }
+
+      const allowedRoles = ["client", "partenaire"];
+      const role       = allowedRoles.includes(sanitize(roleRaw)) ? sanitize(roleRaw) : "client";
+      const sellerType = role === "partenaire" ? sanitize(sellerTypeRaw) : null;
+      const randomPassword = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 12);
+
+      user = await User.create({
+        firstName: sanitize(payload.given_name) || "Utilisateur",
+        lastName:  sanitize(payload.family_name) || "",
+        email,
+        googleId,
+        authProvider: "google",
+        birthDate,
+        country,
+        role,
+        sellerType,
+        password:      randomPassword,
+        emailVerified: true, // Google a déjà vérifié cette adresse
+        profilePhoto:  payload.picture || null,
+      });
+    } else if (!user.googleId) {
+      // Compte existant (mot de passe classique) avec le même e-mail — Google
+      // vient de prouver cryptographiquement qu'il en est le propriétaire :
+      // liaison sûre plutôt que de créer un doublon.
+      user.googleId = googleId;
+      if (!user.emailVerified) user.emailVerified = true;
+      await user.save();
+    }
+
+    if (!user.isActive) {
+      return res.status(403).json({ message: "Compte bloqué. Contactez le support VIT AUTO." });
+    }
+
+    if (user.twoFactor?.enabled) {
+      const challengeToken = jwt.sign({ id: user._id, purpose: "2fa_challenge" }, JWT_SECRET(), { expiresIn: "10m" });
+      return res.json({
+        requiresTwoFactor: true,
+        challengeToken,
+        message: "Code d'authentification requis.",
+      });
+    }
+
+    user.lastLogin = new Date();
+    const refreshToken = signRefreshToken(user);
+    user.refreshTokens = [...(user.refreshTokens || []).slice(-4), hashRefreshToken(refreshToken)];
+    await user.save();
+    const token = signJWT(user);
+
+    res.json({
+      user: safeUser(user),
+      token,
+      refreshToken,
+    });
+  } catch (err) {
+    logger.error("oauthGoogle:", err);
+    res.status(500).json({ message: "Erreur serveur lors de l'authentification Google." });
   }
 };
 

@@ -215,6 +215,28 @@ export const AuthProvider = ({ children }) => {
     return data.user;
   };
 
+  // Connexion / inscription Google — `birthDate`/`country`/`role`/`sellerType`
+  // ne sont fournis que depuis Register.jsx (voir authController.js oauthGoogle :
+  // sans birthDate, un compte inexistant renvoie OAUTH_NO_ACCOUNT au lieu d'être créé).
+  const oauthGoogle = async ({ credential, birthDate, country, role, sellerType }) => {
+    const res  = await fetch("/api/auth/oauth/google", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ credential, birthDate, country, role, sellerType }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(data.message || "Erreur d'authentification Google.");
+      if (data.code) err.code = data.code;
+      throw err;
+    }
+    if (data.requiresTwoFactor) return data; // { requiresTwoFactor, challengeToken }
+    setUser(data.user);
+    if (data.token)        setToken(data.token);
+    if (data.refreshToken) saveRefreshToken(data.refreshToken);
+    return data.user;
+  };
+
   // Hydrate la session à partir d'une réponse déjà authentifiée (ex: vérification
   // email réussie) sans repasser par /api/auth/login.
   const setSession = (sessionUser, jwtToken, refreshToken) => {
@@ -243,7 +265,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const value = useMemo(
-    () => ({ user, token, isAuthenticated: !!user, authReady, authFetch, register, login, logout, updateUser, setSession }),
+    () => ({ user, token, isAuthenticated: !!user, authReady, authFetch, register, login, oauthGoogle, logout, updateUser, setSession }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [user, token, authReady]
   );

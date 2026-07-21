@@ -30,6 +30,7 @@
     "@capacitor/push-notifications": "^8.1.2",
     "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/status-bar": "^8.0.3",
+    "@react-oauth/google": "^0.13.5",
     "@sentry/react": "^10.66.0",
     "leaflet": "^1.9.4",
     "react": "^19.2.4",

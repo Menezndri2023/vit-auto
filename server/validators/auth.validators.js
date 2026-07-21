@@ -27,6 +27,18 @@ export const registerSchema = z.object({
   path:    ["email"],
 });
 
+// birthDate/country/role/sellerType ne sont envoyés que depuis Register.jsx
+// (création de compte) — un appel depuis Login.jsx n'envoie que `credential`
+// (voir oauthGoogle() dans authController.js pour la logique connexion vs
+// inscription selon leur présence).
+export const oauthGoogleSchema = z.object({
+  credential: z.string().min(10, "Jeton Google invalide"),
+  birthDate:  z.string().optional(),
+  country:    z.string().length(2).optional(),
+  role:       z.enum(["client", "partenaire"]).optional(),
+  sellerType: z.enum(["particulier", "professionnel", "entreprise"]).optional(),
+});
+
 // identifier : email OU téléphone, saisi dans un champ unique (Login.jsx) — le
 // controller détecte le type (présence d'un "@").
 export const loginSchema = z.object({

@@ -16,6 +16,15 @@ const userSchema = new mongoose.Schema({
   password:   { type: String, required: true },
   phone:      { type: String, trim: true, default: null },
 
+  // Connexion Google (voir authController.js oauthGoogle) — un compte créé via
+  // Google a un mot de passe aléatoire inutilisable dans `password` (le schéma
+  // l'exige toujours) ; il peut le remplacer via "mot de passe oublié" s'il
+  // veut aussi se connecter classiquement. Index unique déclaré plus bas en
+  // partial index (voir pourquoi à côté de celui d'email/phone) — `sparse`
+  // seul indexerait quand même les `null` explicites du `default: null` ici.
+  googleId:     { type: String, default: null },
+  authProvider: { type: String, enum: ["local", "google"], default: "local" },
+
   role: {
     type: String,
     enum: ["client", "partenaire", "chauffeur", "admin"],
@@ -279,6 +288,10 @@ userSchema.index(
 userSchema.index(
   { phone: 1 },
   { unique: true, partialFilterExpression: { phone: { $type: "string" } } }
+);
+userSchema.index(
+  { googleId: 1 },
+  { unique: true, partialFilterExpression: { googleId: { $type: "string" } } }
 );
 
 // Garde-fou modèle (en plus de la validation dans authController.js) : un compte

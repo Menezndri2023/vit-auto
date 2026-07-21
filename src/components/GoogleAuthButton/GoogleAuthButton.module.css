@@ -1,0 +1,18 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  filter: grayscale(0.4);
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #8493b0;
+  text-align: center;
+}

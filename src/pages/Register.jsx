@@ -3,10 +3,11 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../context/CurrencyContext";
+import GoogleAuthButton from "../components/GoogleAuthButton/GoogleAuthButton";
 import styles from "./Auth.module.css";
 
 const Register = () => {
-  const { register } = useAuth();
+  const { register, oauthGoogle } = useAuth();
   const { success, error } = useToast();
   const { countryCode, COUNTRIES_CONFIG } = useCurrency();
   const navigate = useNavigate();
@@ -94,6 +95,36 @@ const Register = () => {
       setTimeout(() => navigate(getDest()), 1500);
     } catch (err) {
       error(err.message || "Impossible de créer votre compte.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Google ne fournit jamais la date de naissance — on exige birthDate/country
+  // (déjà dans le formulaire, country pré-rempli par géo-IP) avant d'autoriser
+  // ce bouton, pour garder la même vérification 18+ qu'à l'inscription classique
+  // (voir oauthGoogleSchema/oauthGoogle côté serveur).
+  const googleDisabled = !form.birthDate || !form.country;
+
+  const handleGoogleCredential = async (credential) => {
+    if (!credential) { error("Connexion Google annulée ou impossible."); return; }
+    setSubmitting(true);
+    try {
+      const result = await oauthGoogle({
+        credential,
+        birthDate:  form.birthDate,
+        country:    form.country,
+        role:       form.role,
+        sellerType: form.role === "partenaire" ? form.sellerType : undefined,
+      });
+      if (result?.requiresTwoFactor) {
+        error("Ce compte a la double authentification activée. Connectez-vous avec votre mot de passe.");
+        return;
+      }
+      success("Inscription réussie ! Redirection…");
+      setTimeout(() => navigate(getDest()), 1000);
+    } catch (err) {
+      error(err.message || "Impossible de continuer avec Google.");
     } finally {
       setSubmitting(false);
     }
@@ -189,6 +220,13 @@ const Register = () => {
               </small>
             </>
           )}
+
+          <div className={styles.divider}>OU</div>
+          <GoogleAuthButton
+            onCredential={handleGoogleCredential}
+            disabled={googleDisabled}
+            disabledHint={googleDisabled ? "Renseignez votre date de naissance et votre pays pour continuer avec Google." : null}
+          />
 
           <div className={styles.row}>
             <div style={{ position: "relative" }}>

@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import * as Sentry from '@sentry/react'
+import { GoogleOAuthProvider } from '@react-oauth/google'
 import './index.css'
 import App from './App.jsx'
 
@@ -13,4 +14,10 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   })
 }
 
-createRoot(document.getElementById('root')).render(<App />)
+// GoogleAuthButton.jsx se masque lui-même si VITE_GOOGLE_CLIENT_ID est absent
+// — un clientId vide ici ne casse rien tant qu'aucun <GoogleLogin> n'est monté.
+createRoot(document.getElementById('root')).render(
+  <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ""}>
+    <App />
+  </GoogleOAuthProvider>
+)

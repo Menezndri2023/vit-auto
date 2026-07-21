@@ -6,6 +6,7 @@ import { validate } from "../middleware/validate.js";
 import {
   registerSchema,
   loginSchema,
+  oauthGoogleSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
   changePasswordSchema,
@@ -32,6 +33,7 @@ const identityLimiter = rateLimit({
 
 router.post("/register",             validate(registerSchema), auth.register);
 router.post("/login",                validate(loginSchema), auth.login);
+router.post("/oauth/google",         validate(oauthGoogleSchema), auth.oauthGoogle);
 router.get("/verify-email/:token",   auth.verifyEmail);
 router.post("/resend-verification",  strictLimiter, auth.resendVerification);
 router.post("/send-phone-otp",       strictLimiter, authenticate, auth.sendPhoneOtp);

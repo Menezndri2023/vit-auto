@@ -3,10 +3,11 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useI18n } from "../context/I18nContext";
+import GoogleAuthButton from "../components/GoogleAuthButton/GoogleAuthButton";
 import styles from "./Auth.module.css";
 
 const Login = () => {
-  const { login } = useAuth();
+  const { login, oauthGoogle } = useAuth();
   const { success, error } = useToast();
   const { t } = useI18n();
   const navigate  = useNavigate();
@@ -37,18 +38,43 @@ const Login = () => {
     try {
       const loggedUser = await login({ identifier: form.identifier, password: form.password });
       success("Connexion réussie ! Redirection...");
-      const role = loggedUser?.role;
-      // Admin → accueil du site (le bouton ⚙️ Admin dans la Navbar permet d'accéder au panel)
-      // Partenaire → tableau de bord partenaire
-      // Client → accueil
-      const defaultDest = role === "partenaire" ? "/vendor/dashboard" : "/";
-      const dest = fromPage || defaultDest;
-      setTimeout(() => navigate(dest + fromSearch, { replace: true }), 900);
+      redirectAfterAuth(loggedUser?.role);
     } catch (err) {
       if (err.code === "EMAIL_NOT_VERIFIED") {
         setNotVerified(err.email || form.identifier);
       } else {
         error(err.message || "Identifiants incorrects.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const redirectAfterAuth = (role) => {
+    // Admin → accueil du site (le bouton ⚙️ Admin dans la Navbar permet d'accéder au panel)
+    // Partenaire → tableau de bord partenaire ; Client → accueil
+    const defaultDest = role === "partenaire" ? "/vendor/dashboard" : "/";
+    const dest = fromPage || defaultDest;
+    setTimeout(() => navigate(dest + fromSearch, { replace: true }), 900);
+  };
+
+  const handleGoogleCredential = async (credential) => {
+    if (!credential) { error("Connexion Google annulée ou impossible."); return; }
+    setLoading(true);
+    try {
+      const result = await oauthGoogle({ credential });
+      if (result?.requiresTwoFactor) {
+        error("Ce compte a la double authentification activée. Connectez-vous avec votre mot de passe.");
+        return;
+      }
+      success("Connexion réussie ! Redirection...");
+      redirectAfterAuth(result?.role);
+    } catch (err) {
+      if (err.code === "OAUTH_NO_ACCOUNT") {
+        error("Aucun compte trouvé pour cette adresse Google. Merci de vous inscrire d'abord.");
+        setTimeout(() => navigate("/register"), 1200);
+      } else {
+        error(err.message || "Erreur de connexion Google.");
       }
     } finally {
       setLoading(false);
@@ -148,6 +174,8 @@ const Login = () => {
           <button type="submit" className={styles.submitBtn} disabled={loading}>
             {loading ? `${t("common.loading")}` : t("auth.loginBtn")}
           </button>
+          <div className={styles.divider}>OU</div>
+          <GoogleAuthButton onCredential={handleGoogleCredential} />
           <div className={styles.footerLink}>
             <Link to="/forgot-password">{t("auth.forgotPwd")}</Link>
           </div>
