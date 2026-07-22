@@ -8,6 +8,112 @@ import ReportButton from "../components/ReportButton/ReportButton";
 import styles from "./VehicleDetails.module.css";
 
 const fmtN = (n) => n != null ? Number(n).toLocaleString("fr-FR") : "—";
+const fmtInspDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" }) : null;
+const RATING_LABEL = { excellent: "Excellent", bon: "Bon", moyen: "Moyen", mauvais: "Mauvais", na: "N/A" };
+const RATING_COLOR = { excellent: "#10b981", bon: "#3b82f6", moyen: "#f59e0b", mauvais: "#ef4444", na: "#94a3b8" };
+
+// ── Rapport d'inspection ─────────────────────────────────────────────────
+// Même composant que IEListingDetail.jsx's InspectionSection, sur le nouvel
+// endpoint /api/vehicles/:id/inspection-report (généralisation d'
+// InspectionReport au-delà des annonces Import/Export).
+function InspectionSection({ vehicleId }) {
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/vehicles/${vehicleId}/inspection-report`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { setReport(d?.report || null); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [vehicleId]);
+
+  if (loading || !report) return null; // pas de rapport = section masquée (pas de bruit sur la fiche véhicule)
+
+  const components = [
+    { key: "engine",       label: "Moteur",           icon: "⚙️" },
+    { key: "transmission", label: "Boîte de vitesses", icon: "🔧" },
+    { key: "suspension",   label: "Suspension",       icon: "🛞" },
+    { key: "brakes",       label: "Freins",           icon: "🛑" },
+    { key: "tires",        label: "Pneus",            icon: "⬛" },
+    { key: "bodywork",     label: "Carrosserie",      icon: "🚗" },
+    { key: "interior",     label: "Intérieur",        icon: "🪑" },
+    { key: "electronics",  label: "Électronique",     icon: "💡" },
+    { key: "battery",      label: "Batterie (VE)",    icon: "🔋" },
+  ];
+
+  return (
+    <div className={styles.card}>
+      <div className={styles.inspSectionHeader}>
+        <span>🔍</span><h3 className={styles.cardTitle}>Rapport d'inspection</h3>
+        <div className={styles.overallBadge} style={{ background: RATING_COLOR[report.overallRating] + "22", color: RATING_COLOR[report.overallRating] }}>
+          {RATING_LABEL[report.overallRating]}
+        </div>
+      </div>
+
+      <div className={styles.inspMeta}>
+        {report.inspectorName && <span>👤 {report.inspectorName}</span>}
+        {report.inspectionDate && <span>📅 {fmtInspDate(report.inspectionDate)}</span>}
+        {report.inspectionLocation && <span>📍 {report.inspectionLocation}</span>}
+      </div>
+
+      <div className={styles.inspGrid}>
+        {components.map(({ key, label, icon }) => {
+          const comp = report[key];
+          if (!comp || comp.rating === "na") return null;
+          return (
+            <div key={key} className={styles.inspItem}>
+              <span className={styles.inspIcon}>{icon}</span>
+              <div>
+                <p className={styles.inspLabel}>{label}</p>
+                <span className={styles.inspRating} style={{ color: RATING_COLOR[comp.rating] }}>
+                  {RATING_LABEL[comp.rating]}
+                </span>
+                {comp.notes && <p className={styles.inspNotes}>{comp.notes}</p>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {report.overallNotes && (
+        <div className={styles.overallNotes}>
+          <strong>Observations générales :</strong>
+          <p>{report.overallNotes}</p>
+        </div>
+      )}
+
+      {report.defects?.length > 0 && (
+        <div className={styles.defects}>
+          <button className={styles.defectsToggle} onClick={() => setOpen((o) => !o)}>
+            ⚠️ {report.defects.length} défaut(s) signalé(s) {open ? "▲" : "▼"}
+          </button>
+          {open && (
+            <div className={styles.defectsList}>
+              {report.defects.map((d, i) => (
+                <div key={i} className={styles.defectItem}>
+                  <span className={styles.defectSeverity} data-severity={d.severity}>
+                    {d.severity === "majeur" ? "🔴" : d.severity === "modere" ? "🟡" : "🟢"} {d.severity}
+                  </span>
+                  <p>{d.description}</p>
+                  {d.photo && <img src={d.photo} alt="défaut" className={styles.defectPhoto} />}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {report.photos?.length > 0 && (
+        <div className={styles.inspPhotos}>
+          {report.photos.map((src, i) => (
+            <img key={i} src={src} alt={`Inspection ${i + 1}`} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function LeasingCard({ leasing, priceForSale, vehicleId, navigate, fmt, t }) {
   const totalEstime = (leasing.apportInitial || 0) + (leasing.mensualite || 0) * (leasing.duree || 36);
@@ -430,6 +536,9 @@ export default function VehicleDetails() {
               </div>
             </div>
           )}
+
+          {/* ── Rapport d'inspection ── */}
+          <InspectionSection vehicleId={vehicle._id || vehicle.id} />
 
           {/* ── Avis clients ── */}
           <ReviewsSection vehicleId={vehicle._id || vehicle.id} t={t} />

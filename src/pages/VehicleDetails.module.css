@@ -594,3 +594,27 @@
   background: #e0e7ff;
   border-color: #6366f1;
 }
+
+/* ── Rapport d'inspection ─────────────────────────────────────────────── */
+.inspSectionHeader { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+.inspSectionHeader span { font-size: 20px; }
+.inspSectionHeader h3 { margin: 0; flex: 1; padding-bottom: 0; text-transform: none; letter-spacing: normal; font-size: 15px; }
+.overallBadge { margin-left: auto; border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 700; }
+.inspMeta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: #64748b; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0; }
+.inspGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.inspItem { display: flex; gap: 10px; background: #f8fafc; border-radius: 10px; padding: 12px; }
+.inspIcon { font-size: 20px; flex-shrink: 0; }
+.inspLabel { font-size: 12px; color: #64748b; margin: 0 0 2px; }
+.inspRating { font-size: 13px; font-weight: 700; }
+.inspNotes { font-size: 12px; color: #94a3b8; margin: 4px 0 0; }
+.overallNotes { background: #f8fafc; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+.overallNotes strong { font-size: 13px; color: #475569; }
+.overallNotes p { font-size: 13px; color: #0f172a; margin: 6px 0 0; line-height: 1.5; }
+.defectsToggle { background: #fffbeb; border: 1px solid #fbbf24; color: #92400e; border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; width: 100%; text-align: left; margin-bottom: 8px; }
+.defectsList { display: flex; flex-direction: column; gap: 8px; }
+.defectItem { background: #f8fafc; border-radius: 8px; padding: 10px 14px; }
+.defectSeverity { font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 4px; display: block; }
+.defectItem p { font-size: 13px; color: #0f172a; margin: 0; }
+.defectPhoto { width: 100%; max-width: 200px; border-radius: 6px; margin-top: 8px; }
+.inspPhotos { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.inspPhotos img { width: 120px; height: 80px; object-fit: cover; border-radius: 8px; }

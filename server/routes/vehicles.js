@@ -1,5 +1,6 @@
 import express from "express";
 import * as v from "../controllers/vehicleController.js";
+import { createVehicleInspectionReport, getVehicleInspectionReport } from "../controllers/inspectionController.js";
 import { authenticate, authorizeAdmin, optionalAuth } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 
@@ -22,6 +23,8 @@ router.post("/backfill-thumbnails", authenticate, authorizeAdmin, v.backfillThum
 
 // ── Routes paramétrées (viennent APRÈS les routes statiques) ─────────────────
 router.get("/:id/availability", vid, optionalAuth, v.getVehicleAvailability);    // disponibilité dates
+router.get("/:id/inspection-report",  vid, optionalAuth,  getVehicleInspectionReport);   // rapport d'inspection (public)
+router.post("/:id/inspection-report", vid, authenticate,  createVehicleInspectionReport); // publié/mis à jour par le propriétaire
 router.patch("/:id/status",   vid, authenticate, authorizeAdmin, v.updateVehicleStatus); // approuver/rejeter
 router.patch("/:id/lifecycle",vid, authenticate, v.updateVehicleLifecycle);               // brouillon/vendu/archivé (partenaire)
 router.patch("/:id/promotion",vid, authenticate, v.updatePromotion);                      // activer/désactiver une promotion

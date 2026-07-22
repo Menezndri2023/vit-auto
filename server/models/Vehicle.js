@@ -124,6 +124,13 @@ const vehicleSchema = new mongoose.Schema({
     required: true,
   },
 
+  // ── Rapport d'inspection (ref) ─────────────────────────────
+  inspectionReport: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "InspectionReport",
+    default: null,
+  },
+
   // ── Disponibilité ─────────────────────────────────────────
   available: { type: Boolean, default: true },
 

@@ -16,11 +16,19 @@ const defectSchema = new mongoose.Schema({
 }, { _id: true });
 
 const inspectionReportSchema = new mongoose.Schema({
+  // Un rapport porte sur UNE cible : soit une annonce Import/Export, soit un
+  // véhicule du catalogue standard (location/vente) — jamais les deux (voir
+  // le pre("validate") plus bas). `listing` reste le nom historique du champ
+  // pour ne pas casser les appelants IE existants.
   listing: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "ImportExportListing",
-    required: true,
-    unique: true,
+    default: null,
+  },
+  vehicle: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Vehicle",
+    default: null,
   },
   partner: {
     type: mongoose.Schema.Types.ObjectId,
@@ -68,6 +76,19 @@ const inspectionReportSchema = new mongoose.Schema({
 });
 
 inspectionReportSchema.index({ partner: 1 });
+// Un seul rapport par cible — index partiel (et non `unique` inline sur le
+// champ) car `listing`/`vehicle` sont désormais tous deux optionnels ; un
+// index unique classique indexerait les `null` des documents qui portent sur
+// l'autre cible et provoquerait de fausses collisions entre eux.
+inspectionReportSchema.index({ listing: 1 }, { unique: true, partialFilterExpression: { listing: { $type: "objectId" } } });
+inspectionReportSchema.index({ vehicle: 1 }, { unique: true, partialFilterExpression: { vehicle: { $type: "objectId" } } });
+
+inspectionReportSchema.pre("validate", function (next) {
+  if (!this.listing === !this.vehicle) { // les deux vides OU les deux renseignés
+    return next(new Error("Un rapport d'inspection doit porter sur exactement une cible (listing OU vehicle)."));
+  }
+  next();
+});
 
 inspectionReportSchema.pre("save", function (next) {
   this.updatedAt = new Date();
