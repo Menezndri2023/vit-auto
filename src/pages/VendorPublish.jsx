@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useCurrency } from "../context/CurrencyContext";
 import { useVehicles } from "../context/VehicleContext";
 import { useToast } from "../context/ToastContext";
 import { CAR_MAKES, BODY_TYPES, COUNTRIES_ALL, CURRENCIES, getCountryFlag } from "../data/autocomplete";
@@ -8,10 +9,10 @@ import { SUBSCRIPTIONS_ENABLED } from "../config/featureFlags";
 import { INCOTERMS, INCOTERM_STAGES, INCOTERM_GROUP_LABELS, getIncoterm, isIncotermCompatible } from "../constants/incoterms";
 import styles from "./VendorPublish.module.css";
 
-// FCFA (XOF) est la devise de base réelle des montants véhicule/réservation sur
-// tout le site (voir CurrencyContext.EXCHANGE_RATES : XOF = 1) — pas le Dirham
-// marocain, malgré le libellé "DH" utilisé ici jusqu'à présent.
-const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " FCFA";
+// USD est la devise de base réelle des montants véhicule/réservation sur tout
+// le site depuis la refonte du modèle économique (voir server/models/ExchangeRate.js,
+// server/scripts/migrate-vehicle-booking-to-usd.mjs) — plus du FCFA/XOF.
+const fmt = (n) => Number(n || 0).toLocaleString("fr-FR") + " USD";
 const fmtIE = (p, c = "EUR") => p ? `${Number(p).toLocaleString("fr-FR")} ${c}` : "—";
 
 // Cohérent avec IETransaction.escrow.method (server/models/IETransaction.js).
@@ -119,8 +120,8 @@ const VehicleCard = ({ v, bookings, onDelete, onBoost, onLifecycle }) => {
           </div>
           <p className={styles.cardMeta}>
             {v.type === "location"
-              ? `${(v.pricePerDay || 0).toLocaleString("fr-FR")} FCFA / jour`
-              : `${(v.priceForSale || 0).toLocaleString("fr-FR")} FCFA`}
+              ? `${(v.pricePerDay || 0).toLocaleString("fr-FR")} USD / jour`
+              : `${(v.priceForSale || 0).toLocaleString("fr-FR")} USD`}
             {v.ville ? ` · ${v.ville}` : ""}
             {v.year  ? ` · ${v.year}`  : ""}
           </p>
@@ -182,14 +183,29 @@ const VehicleCard = ({ v, bookings, onDelete, onBoost, onLifecycle }) => {
 };
 
 // ── Modal boost ───────────────────────────────────────────────────────────────
-// Un seul produit de mise en avant existe réellement côté serveur (30 jours,
-// 5 000 XOF, POST /api/subscriptions/boost, activé après confirmation admin
-// du paiement — voir subscriptionController.js). Les anciens "packs"
-// Starter/Pro/Premium affichés ici n'ont jamais existé côté backend et leur
-// bouton n'appelait aucune API : purement décoratif.
+// 4 paliers de mise en avant configurables admin (PricingConfig.boosts, voir
+// pricingEngine.getBoostPrice) — POST /api/subscriptions/boost {vehicleId, tier},
+// activé après confirmation admin du paiement (subscriptionController.js).
+const BOOST_TIERS = [
+  { tier: "24h",           label: "Flash 24 h",       days: "1 jour",   color: "#f59e0b" },
+  { tier: "7d",             label: "Semaine",          days: "7 jours",  color: "#0ea5e9" },
+  { tier: "30d",            label: "Mise en avant",    days: "30 jours", color: "#ff4d2d" },
+  { tier: "international",  label: "Internationale",   days: "30 jours", color: "#8b5cf6" },
+];
+
 const BoostModal = ({ vehicle, token, onClose, onBoosted }) => {
+  const { fmtUSD } = useCurrency();
+  const [prices, setPrices] = useState({});
+  const [selected, setSelected] = useState("30d");
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    fetch("/api/pricing/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.boosts) setPrices(d.boosts); })
+      .catch(() => {});
+  }, []);
 
   const handleBoost = async () => {
     const vehicleId = vehicle?.id || vehicle?._id;
@@ -200,7 +216,7 @@ const BoostModal = ({ vehicle, token, onClose, onBoosted }) => {
       const res = await fetch("/api/subscriptions/boost", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ vehicleId }),
+        body: JSON.stringify({ vehicleId, tier: selected }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) { setErr(data?.message || "Erreur lors de la demande de mise en avant."); return; }
@@ -220,28 +236,36 @@ const BoostModal = ({ vehicle, token, onClose, onBoosted }) => {
         <h2 className={styles.boostTitle}>⚡ Booster mon annonce</h2>
         <p className={styles.boostSub}>Multipliez la visibilité de <strong>{vehicle?.name}</strong> et recevez plus de réservations.</p>
         <div className={styles.boostPacksGrid}>
-          <div className={styles.boostPack} style={{ borderColor: "#ff4d2d44" }}>
-            <div className={styles.boostPackName} style={{ color: "#ff4d2d" }}>Mise en avant</div>
-            <div className={styles.boostPackPrice}>5 000 FCFA</div>
-            <div className={styles.boostPackDays}>30 jours</div>
-            <ul className={styles.boostPackFeatures}>
-              <li><span style={{ color: "#ff4d2d" }}>✓</span> Badge Sponsorisé</li>
-              <li><span style={{ color: "#ff4d2d" }}>✓</span> Priorité dans le catalogue</li>
-            </ul>
-            {err && <p style={{ color: "#ef4444", fontSize: ".85rem", margin: "8px 0 0" }}>{err}</p>}
-            <button
-              className={styles.boostPackBtn}
-              style={{ background: "#ff4d2d", opacity: submitting ? 0.7 : 1, cursor: submitting ? "not-allowed" : "pointer" }}
-              onClick={handleBoost}
-              disabled={submitting}
+          {BOOST_TIERS.map((b) => (
+            <div
+              key={b.tier}
+              className={styles.boostPack}
+              style={{ borderColor: b.color + (selected === b.tier ? "" : "44"), cursor: "pointer", outline: selected === b.tier ? `2px solid ${b.color}` : "none" }}
+              onClick={() => setSelected(b.tier)}
             >
-              {submitting ? "Envoi…" : "Demander la mise en avant →"}
-            </button>
-            <p style={{ fontSize: ".72rem", color: "#94a3b8", margin: "8px 0 0" }}>
-              Activée après confirmation du paiement par notre équipe.
-            </p>
-          </div>
+              <div className={styles.boostPackName} style={{ color: b.color }}>{b.label}</div>
+              <div className={styles.boostPackPrice}>{prices[b.tier] != null ? fmtUSD(prices[b.tier]) : "…"}</div>
+              <div className={styles.boostPackDays}>{b.days}</div>
+              <ul className={styles.boostPackFeatures}>
+                <li><span style={{ color: b.color }}>✓</span> Badge Sponsorisé</li>
+                <li><span style={{ color: b.color }}>✓</span> Priorité dans le catalogue</li>
+                {b.tier === "international" && <li><span style={{ color: b.color }}>✓</span> Visibilité multi-pays</li>}
+              </ul>
+            </div>
+          ))}
         </div>
+        {err && <p style={{ color: "#ef4444", fontSize: ".85rem", margin: "12px 0 0" }}>{err}</p>}
+        <button
+          className={styles.boostPackBtn}
+          style={{ background: BOOST_TIERS.find((b) => b.tier === selected)?.color, opacity: submitting ? 0.7 : 1, cursor: submitting ? "not-allowed" : "pointer", marginTop: 12 }}
+          onClick={handleBoost}
+          disabled={submitting}
+        >
+          {submitting ? "Envoi…" : "Demander la mise en avant →"}
+        </button>
+        <p style={{ fontSize: ".72rem", color: "#94a3b8", margin: "8px 0 0" }}>
+          Activée après confirmation du paiement par notre équipe.
+        </p>
       </div>
     </div>
   );

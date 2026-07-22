@@ -1,7 +1,7 @@
 import geoip from "geoip-lite";
-import { COUNTRIES } from "../config/countries.js";
 import Vehicle from "../models/Vehicle.js";
 import { resolveDeliveryFee, detectCountryFromCoords } from "../services/deliveryFee.js";
+import { getActiveCountries, getActiveRates } from "../services/currencyEngine.js";
 
 /**
  * GET|POST /api/geo/delivery-fee
@@ -53,7 +53,7 @@ export const getDeliveryFee = async (req, res) => {
     });
   }
 
-  const result = resolveDeliveryFee({
+  const result = await resolveDeliveryFee({
     clientLat: cLat, clientLng: cLng, vehicleLat: pLat, vehicleLng: pLng, countryCode,
   });
 
@@ -88,13 +88,14 @@ export const getMyCountry = (req, res) => {
  * GET /api/geo/countries
  * Retourne la liste complète des pays supportés
  */
-export const getCountries = (_req, res) => {
-  const list = COUNTRIES.map(({
-    code, name, flag, currency, currencySymbol, languages, paymentMethods,
-    deliveryRatePerKm, deliveryBaseRate, deliveryMaxKm,
-  }) => ({
-    code, name, flag, currency, currencySymbol, languages, paymentMethods,
-    deliveryRatePerKm, deliveryBaseRate, deliveryMaxKm,
+export const getCountries = async (_req, res) => {
+  const [countries, rates] = await Promise.all([getActiveCountries(), getActiveRates()]);
+  const symbolByCode = Object.fromEntries(rates.map((r) => [r.code, r.symbol]));
+  const list = countries.map((c) => ({
+    code: c.code, name: c.name, flag: c.flag,
+    currency: c.defaultCurrency, currencySymbol: symbolByCode[c.defaultCurrency] || c.defaultCurrency,
+    languages: c.languages, paymentMethods: c.paymentMethods,
+    deliveryRatePerKm: c.deliveryRatePerKm, deliveryBaseRate: c.deliveryBaseRate, deliveryMaxKm: c.deliveryMaxKm,
   }));
   res.json(list);
 };

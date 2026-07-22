@@ -19,6 +19,9 @@ dist-ssr
 server/.env
 server/.env.local
 
+# Sauvegardes de migration (données réelles de production) — NE JAMAIS COMMITTER
+server/backups/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

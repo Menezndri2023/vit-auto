@@ -7,11 +7,11 @@ import Payment from "../models/Payment.js";
 import Notification from "../models/Notification.js";
 import Contract from "../models/Contract.js";
 import User from "../models/User.js";
-import PartnerOnboarding from "../models/PartnerOnboarding.js";
 import { dispatch } from "../queue/index.js";
 import { resolveDeliveryFee, detectCountryFromCoords } from "../services/deliveryFee.js";
 import { applyPromotion } from "../utils/promotion.js";
-import { foundingRateFor } from "../utils/foundingPartnerRates.js";
+import { resolveCommissionRate, computeServiceFee, getRentalOptionPrice } from "../services/pricingEngine.js";
+import { convertAmount } from "../services/currencyEngine.js";
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -62,8 +62,8 @@ async function syncVehicleAvailability(vehicleId) {
   } catch { /* non-bloquant */ }
 }
 
-// ── Tarifs options (XOF) ───────────────────────────────────────────────────────
-const PRIX_OPTIONS = { gps: 10000, babySeat: 7000, insurance: 15000, driver: 50000 };
+// Tarifs options (gps/babySeat/insurance/driver) : voir
+// pricingEngine.getRentalOptionPrice() / PricingConfig.rentalOptions (USD).
 
 // ── Durée fixe d'un rendez-vous d'essai (véhicule en vente) ────────────────────
 // Sert uniquement à détecter les chevauchements de créneaux sur le même
@@ -72,33 +72,11 @@ const PRIX_OPTIONS = { gps: 10000, babySeat: 7000, insurance: 15000, driver: 500
 const ESSAI_DURATION_MS = 60 * 60 * 1000;
 
 // ── Taux de commission par type ────────────────────────────────────────────────
-const COMMISSION_RATES = {
-  location:  0.15,
-  essai:     0.03,
-  chauffeur: 0.10,
-  leasing:   0.05,
-};
-
-// ── Taux réel appliqué, en tenant compte du statut Founding Partner ───────────
-// Un Founding Partner (isFoundingPartner=true dans son dossier d'onboarding)
-// bénéficie d'un taux préférentiel sur la location et la vente ("essai" porte
-// la commission de vente — voir generateAgreement) selon deux paliers dans le
-// temps depuis la signature de son Accord (foundingRateFor) — jamais sur
-// chauffeur/leasing, non concernés par l'offre Founding Partner (voir Article 3
-// de l'Agreement). Les taux PartnerOnboarding.commissions ne sont qu'un affichage
-// figé au moment de la signature ; c'est ICI que le taux réellement facturé est
-// calculé, à chaque réservation.
-async function resolveCommissionRate(type, ownerId) {
-  if ((type === "location" || type === "essai") && ownerId) {
-    const fp = await PartnerOnboarding.findOne({ userId: ownerId, isFoundingPartner: true })
-      .select("commissions.lockedAt legalEntityType")
-      .lean();
-    if (fp) {
-      return foundingRateFor(fp.commissions?.lockedAt, type === "location" ? "location" : "vente", fp.legalEntityType);
-    }
-  }
-  return COMMISSION_RATES[type] ?? 0.05;
-}
+// Résolution complète (standard / abonné premium / Founding Partner actif)
+// déléguée à pricingEngine.resolveCommissionRate(type, ownerId) — signature
+// conservée à l'identique pour ne pas toucher les points d'appel ci-dessous.
+// Toutes les valeurs vivent désormais dans PricingConfig (voir
+// server/models/PricingConfig.js), éditable admin sans redéploiement.
 
 // ── Génération référence unique ────────────────────────────────────────────────
 const REF_PREFIX = { location: "LOC", essai: "VENTE", chauffeur: "CHAUFF", leasing: "LEAS" };
@@ -301,9 +279,9 @@ export const createBooking = async (req, res) => {
     let montantOptions = 0;
     if (type === "location" && location?.options) {
       for (const [key, active] of Object.entries(location.options)) {
-        if (active && PRIX_OPTIONS[key]) {
-          montantOptions += PRIX_OPTIONS[key] * (location.days || 1);
-        }
+        if (!active) continue;
+        const optionPrice = await getRentalOptionPrice(key);
+        if (optionPrice) montantOptions += optionPrice * (location.days || 1);
       }
     }
 
@@ -314,19 +292,26 @@ export const createBooking = async (req, res) => {
       const cLng = location?.pickupPosition?.lng;
       if (cLat != null && cLng != null && vehicle?.coordonnees?.lat != null && vehicle?.coordonnees?.lng != null) {
         const countryCode = detectCountryFromCoords(cLat, cLng);
-        const fee = resolveDeliveryFee({
+        const fee = await resolveDeliveryFee({
           clientLat: cLat, clientLng: cLng,
           vehicleLat: vehicle.coordonnees.lat, vehicleLng: vehicle.coordonnees.lng,
           countryCode,
         });
-        if (fee?.fee != null) deliveryFee = fee.fee;
+        // resolveDeliveryFee renvoie un montant dans la devise LOCALE du pays
+        // (barème deliveryBaseRate/deliveryRatePerKm de CountryConfig) —
+        // conversion en USD indispensable avant de l'additionner à montantTotal,
+        // qui est désormais toujours en USD (montantBase/montantOptions).
+        if (fee?.fee != null) {
+          const feeUSD = await convertAmount(fee.fee, fee.currency, "USD");
+          deliveryFee = feeUSD ?? 0;
+        }
       }
     }
 
     const montantTotal    = montantBase + montantOptions + deliveryFee;
     const commissionRate  = await resolveCommissionRate(type, ownerId);
-    const commissionAmount = Math.round(montantTotal * commissionRate);
-    const serviceFeeFCFA  = 1000;
+    const commissionAmount = Math.round(montantTotal * commissionRate * 100) / 100;
+    const serviceFeeFCFA  = await computeServiceFee(montantTotal);
     const partnerPayout   = Math.max(montantTotal - commissionAmount - serviceFeeFCFA, 0);
 
     const reference = await generateReference(type);
@@ -386,7 +371,7 @@ export const createBooking = async (req, res) => {
       montantOptions,
       montantTotal,
       cautionAmount,
-      devise: "XOF",
+      devise: "USD",
       commissionRate,
       commissionAmount,
       serviceFeeFCFA,
@@ -728,6 +713,7 @@ export const updateBookingStatus = async (req, res) => {
         const contract = await Contract.create({
           booking: booking._id,
           type:    booking.type,
+          currency: booking.devise || "USD",
           client: {
             firstName: ci?.firstName,
             lastName:  ci?.lastName,
@@ -756,7 +742,7 @@ export const updateBookingStatus = async (req, res) => {
             returnLocation:   booking.location?.returnLocation,
             dailyRateXOF:     veh?.pricePerDay,
             cautionXOF:       booking.cautionAmount ?? 0,
-            serviceFeeXOF:    booking.serviceFeeFCFA ?? 1000,
+            serviceFeeXOF:    booking.serviceFeeFCFA ?? 1,
             optionsXOF:       booking.montantOptions ?? 0,
             baseXOF:          booking.montantBase,
             totalXOF:         booking.montantTotal,
@@ -861,8 +847,8 @@ export const recordTransaction = async (req, res) => {
 
     // Recalcul commission sur montant final réel
     const commissionRate   = await resolveCommissionRate(booking.type, _vOwnerId || _dOwnerId);
-    const commissionAmount = Math.round(finalAmount * commissionRate);
-    const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA || 1000), 0);
+    const commissionAmount = Math.round(finalAmount * commissionRate * 100) / 100;
+    const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA || 1), 0);
 
     booking.transaction = {
       finalAmount,
@@ -889,7 +875,7 @@ export const recordTransaction = async (req, res) => {
       const payment = await Payment.create({
         booking: booking._id,
         amount:  finalAmount,
-        devise:  booking.devise || "XOF",
+        devise:  booking.devise || "USD",
         method:  "cash",
         status:  "pending",  // En attente de validation client
         paymentDetails: { provider: "cash" },
@@ -1277,8 +1263,8 @@ export const partnerConfirm = async (req, res) => {
     }
 
     const commissionRate   = await resolveCommissionRate(booking.type, _vOwnerId || _dOwnerId);
-    const commissionAmount = Math.round(finalAmount * commissionRate);
-    const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA || 1000), 0);
+    const commissionAmount = Math.round(finalAmount * commissionRate * 100) / 100;
+    const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA || 1), 0);
 
     booking.status = "waiting_client_validation";
     booking.transaction = {
@@ -1304,7 +1290,7 @@ export const partnerConfirm = async (req, res) => {
       const payment = await Payment.create({
         booking: booking._id,
         amount:  finalAmount,
-        devise:  booking.devise || "XOF",
+        devise:  booking.devise || "USD",
         method:  "cash",
         status:  "pending",
         paymentDetails: { provider: "cash" },
@@ -1626,8 +1612,8 @@ export const adminForceComplete = async (req, res) => {
     booking.paidAt           = new Date();
     booking.montantTotal     = amount;
     booking.commissionRate   = commRate;
-    booking.commissionAmount = Math.round(amount * commRate);
-    booking.partnerPayout    = Math.max(amount - booking.commissionAmount - (booking.serviceFeeFCFA || 1000), 0);
+    booking.commissionAmount = Math.round(amount * commRate * 100) / 100;
+    booking.partnerPayout    = Math.max(amount - booking.commissionAmount - (booking.serviceFeeFCFA || 1), 0);
 
     if (!booking.transaction?.finalAmount) {
       booking.transaction = { finalAmount: amount, paymentMethod: "cash", comment: `Force-complete admin: ${note || ""}`, recordedAt: new Date(), recordedBy: req.user._id };

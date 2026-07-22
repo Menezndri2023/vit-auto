@@ -128,17 +128,21 @@ const bookingSchema = new mongoose.Schema({
     notes:       { type: String },
   },
 
-  // ── Financier (FCFA / XOF) ────────────────────────────────
+  // ── Financier (USD — voir server/scripts/migrate-vehicle-booking-to-usd.mjs
+  // pour la migration des réservations créées avant ce changement de pivot,
+  // toutes implicitement en FCFA/XOF) ───────────────────────
   montantBase:    { type: Number, default: 0 },
   montantOptions: { type: Number, default: 0 },
   montantTotal:   { type: Number, default: 0 },
-  devise:         { type: String, default: "XOF" },
+  devise:         { type: String, default: "USD" },
 
   // ── Commission & Frais plateforme ─────────────────────────
-  // location → 15 % | vente/essai → 3 %
+  // Taux résolus dynamiquement par pricingEngine.resolveCommissionRate() (voir
+  // server/services/pricingEngine.js) — PricingConfig est la source de vérité,
+  // pas ces defaults (utilisés seulement si jamais recalculés).
   commissionRate:   { type: Number, default: 0 },      // ex: 0.15
   commissionAmount: { type: Number, default: 0 },      // montantBase * commissionRate
-  serviceFeeFCFA:   { type: Number, default: 1000 },   // 1 000 FCFA fixe
+  serviceFeeFCFA:   { type: Number, default: 1 },      // nom conservé (voir Vehicle/Booking dans le plan de refonte), désormais en USD — calculé par pricingEngine.computeServiceFee()
   cautionAmount:    { type: Number, default: 0 },      // caution / dépôt de garantie
   partnerPayout:    { type: Number, default: 0 },      // net versé au partenaire
 

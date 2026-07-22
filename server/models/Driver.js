@@ -18,7 +18,9 @@ const driverSchema = new mongoose.Schema({
   title:       { type: String, required: true, trim: true },
   description: { type: String, trim: true },
 
-  // ── Tarification (FCFA) ───────────────────────────────────
+  // ── Tarification (USD — voir server/scripts/migrate-vehicle-booking-to-usd.mjs
+  // pour la migration des profils créés avant ce champ, implicitement en FCFA/XOF) ──
+  currency:    { type: String, default: "USD" },
   tarif:       { type: Number, required: true }, // par jour
   tarifHeure:  { type: Number },                 // à l'heure (optionnel)
 

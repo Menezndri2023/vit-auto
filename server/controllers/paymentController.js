@@ -96,7 +96,7 @@ export const initiatePayment = async (req, res) => {
       payment = await Payment.create({
         booking: bookingId,
         amount:  booking.montantTotal,
-        devise:  booking.devise || "XOF",
+        devise:  booking.devise || "USD",
         method,
         status:  "pending",
       });
@@ -275,10 +275,10 @@ export const createPayment = async (req, res) => {
       }
     }
 
-    // Vérifier que le montant correspond au montant attendu (± 1 FCFA pour arrondi)
-    if (Math.abs(amount - booking.montantTotal) > 1) {
+    // Vérifier que le montant correspond au montant attendu (± 0.01 USD pour arrondi)
+    if (Math.abs(amount - booking.montantTotal) > 0.01) {
       return res.status(400).json({
-        message: `Montant incorrect. Attendu : ${booking.montantTotal} FCFA, reçu : ${amount} FCFA.`,
+        message: `Montant incorrect. Attendu : ${booking.montantTotal} ${booking.devise || "USD"}, reçu : ${amount} ${booking.devise || "USD"}.`,
       });
     }
 
@@ -312,7 +312,7 @@ export const createPayment = async (req, res) => {
     const payment = await Payment.create({
       booking: bookingId,
       amount,
-      devise:  "XOF",
+      devise:  booking.devise || "USD",
       method,
       status:  "pending",
       paymentDetails,

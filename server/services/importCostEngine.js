@@ -1,6 +1,6 @@
 import ImportCostConfig from "../models/ImportCostConfig.js";
 import ShippingLaneRate from "../models/ShippingLaneRate.js";
-import { convertAmount, convertUSD } from "../utils/exchangeRates.js";
+import { getRateFromUSD } from "./currencyEngine.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -13,10 +13,11 @@ const COMMISSION_PERCENT = 0.03;
 const COMMISSION_MIN_EUR = 300;
 const COMMISSION_MAX_EUR = 1500;
 
-export function computeImportServiceFeeUSD(vehiclePriceUSD) {
+export async function computeImportServiceFeeUSD(vehiclePriceUSD) {
   const raw = vehiclePriceUSD * COMMISSION_PERCENT;
-  const minUSD = convertAmount(COMMISSION_MIN_EUR, "EUR", "USD");
-  const maxUSD = convertAmount(COMMISSION_MAX_EUR, "EUR", "USD");
+  const eurRateFromUSD = await getRateFromUSD("EUR"); // unités EUR pour 1 USD
+  const minUSD = COMMISSION_MIN_EUR / eurRateFromUSD;
+  const maxUSD = COMMISSION_MAX_EUR / eurRateFromUSD;
   return Math.min(Math.max(raw, minUSD), maxUSD);
 }
 
@@ -47,7 +48,11 @@ export async function computeImportCost({ vehiclePrice, currency, sourceCountry,
     lane = await ShippingLaneRate.findOne({ sourceCountry: sourceRe, destCountry: destRe, active: true }).lean();
   }
 
-  const vehiclePriceUSD = convertAmount(vehiclePrice, currency, "USD");
+  const rateFromUSD = await getRateFromUSD(currency);
+  if (rateFromUSD == null) {
+    return { available: false, message: `Devise "${currency}" non supportée pour le moment.` };
+  }
+  const vehiclePriceUSD = vehiclePrice / rateFromUSD;
 
   const inlandTransportUSD = lane?.inlandTransportUSD ?? 150;
   const seaFreightUSD      = lane?.seaFreightUSD ?? config.defaultSeaFreightUSD;
@@ -70,12 +75,12 @@ export async function computeImportCost({ vehiclePrice, currency, sourceCountry,
   const customsTotalUSD = customsDutyUSD + vatUSD + config.transitFixedFeeUSD + config.redevancesFixedFeeUSD;
 
   const deliveryUSD   = config.deliveryFixedFeeUSD;
-  const commissionUSD = computeImportServiceFeeUSD(vehiclePriceUSD);
+  const commissionUSD = await computeImportServiceFeeUSD(vehiclePriceUSD);
 
   const totalServicesUSD = inlandTransportUSD + seaFreightUSD + insuranceUSD + portFeesUSD + customsTotalUSD + deliveryUSD;
   const grandTotalUSD    = vehiclePriceUSD + totalServicesUSD + commissionUSD;
 
-  const toCcy = (amountUSD) => Math.round(convertUSD(amountUSD, currency) * 100) / 100;
+  const toCcy = (amountUSD) => Math.round(amountUSD * rateFromUSD * 100) / 100;
 
   return {
     available: true,

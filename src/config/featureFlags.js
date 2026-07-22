@@ -2,7 +2,9 @@
 // Interrupteurs simples pour désactiver une fonctionnalité sans supprimer son
 // code (backend + UI restent en place, juste inertes côté utilisateur).
 
-// Abonnements Pro & mises en avant (boost) — désactivés le temps qu'un vrai
-// prestataire de paiement soit branché (aucune passerelle réelle aujourd'hui,
-// tout restait "pending" en attente de confirmation manuelle admin).
-export const SUBSCRIPTIONS_ENABLED = false;
+// Abonnements & mises en avant (boost) — réactivés avec la refonte du modèle
+// économique (tarifs USD configurables, voir PricingConfig). Le mécanisme de
+// paiement reste inchangé (aucune passerelle de paiement récurrent réelle
+// branchée) : toute demande passe en "pending" jusqu'à confirmation manuelle
+// admin — voir subscriptionController.js activatePlan/purchaseBoost.
+export const SUBSCRIPTIONS_ENABLED = true;

@@ -83,7 +83,7 @@ const normalizeBooking = (b) => {
     paidAt:        b.paidAt,
     transaction:   b.transaction,
     clientValidation: b.clientValidation,
-    devise:        b.devise || "XOF",
+    devise:        b.devise || "USD",
     // Partenaire
     partnerPhone:  veh?.contactTel || drv?.phone || null,
     partnerName:   veh?.contactNom || (drv ? `${drv.firstName} ${drv.lastName}` : null),
@@ -169,6 +169,7 @@ function getStepIndex(status) {
 
 // ── Timeline suivi ────────────────────────────────────────────────────────────
 function DeliveryTimeline({ booking, onValidate, onDispute, validating }) {
+  const { fmt } = useCurrency();
   const currentIdx  = getStepIndex(booking.status);
   const isCancelled = booking.status === "cancelled";
 
@@ -263,7 +264,7 @@ function DeliveryTimeline({ booking, onValidate, onDispute, validating }) {
               <div className={styles.txSummary}>
                 <div className={styles.txSummaryRow}>
                   <span>Montant</span>
-                  <strong>{Number(booking.transaction.finalAmount).toLocaleString("fr-FR")} {booking.devise || "XOF"}</strong>
+                  <strong>{fmt(booking.transaction.finalAmount)}</strong>
                 </div>
                 <div className={styles.txSummaryRow}>
                   <span>Mode de paiement</span>
@@ -911,11 +912,11 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, valid
         )}
         <div className={styles.finRow}>
           <span>Frais de service VIT AUTO</span>
-          <span>{fmt(booking.serviceFeeFCFA || 1000)}</span>
+          <span>{fmt(booking.serviceFeeFCFA || 1)}</span>
         </div>
         <div className={`${styles.finRow} ${styles.finTotal}`}>
           <span>Total réglé</span>
-          <strong>{fmt(booking.total || booking.serviceFeeFCFA || 1000)}</strong>
+          <strong>{fmt(booking.total || booking.serviceFeeFCFA || 1)}</strong>
         </div>
         {booking.type === "location" && booking.cautionAmount > 0 && (
           <div className={styles.finRow} style={{ color: "#d97706" }}>

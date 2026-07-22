@@ -1,13 +1,20 @@
 import Subscription from "../models/Subscription.js";
 import User from "../models/User.js";
 import Vehicle from "../models/Vehicle.js";
+import { getSubscriptionPrice, getBoostPrice } from "../services/pricingEngine.js";
 
-// ── Constantes tarifaires ─────────────────────────────────────
-const PLAN_PRICE_XOF   = 25000; // Abonnement Pro : 25 000 FCFA/mois
-const BOOST_PRICE_XOF  = 5000;  // Mise en avant  :  5 000 FCFA/annonce
-const COMMISSION_LOCATION = 0.15; // 15 % sur location
-const COMMISSION_VENTE    = 0.03; //  3 % sur vente
-const SERVICE_FEE_XOF  = 1000;  // Frais de service : 1 000 FCFA
+const PLAN_TIERS  = ["individuel_plus", "business", "exportateur"];
+const BOOST_TIERS = ["24h", "7d", "30d", "international"];
+
+// Durée de chaque palier de boost — voir PricingConfig.boosts (montants) et
+// cahier des charges "Options de boost configurables" (durées, elles, ne sont
+// pas éditables admin : ce sont des paliers de temps fixes par construction).
+const BOOST_DURATION_MS = {
+  "24h":          24 * 60 * 60 * 1000,
+  "7d":           7  * 24 * 60 * 60 * 1000,
+  "30d":          30 * 24 * 60 * 60 * 1000,
+  international:  30 * 24 * 60 * 60 * 1000,
+};
 
 // Récupère ou crée l'abonnement du vendeur connecté
 export const getMySubscription = async (req, res) => {
@@ -16,38 +23,38 @@ export const getMySubscription = async (req, res) => {
     if (!sub) {
       sub = await Subscription.create({ vendor: req.user.id, plan: "free" });
     }
-    res.json({
-      subscription: sub,
-      pricing: {
-        planPriceXOF: PLAN_PRICE_XOF,
-        boostPriceXOF: BOOST_PRICE_XOF,
-        commissionLocation: COMMISSION_LOCATION,
-        commissionVente: COMMISSION_VENTE,
-        serviceFeeFCFA: SERVICE_FEE_XOF,
-      },
-    });
+    const pricing = {};
+    for (const tier of PLAN_TIERS) pricing[tier] = await getSubscriptionPrice(tier);
+    const boostPricing = {};
+    for (const tier of BOOST_TIERS) boostPricing[tier] = await getBoostPrice(tier);
+
+    res.json({ subscription: sub, pricing: { plans: pricing, boosts: boostPricing } });
   } catch (err) {
     res.status(500).json({ message: "Erreur récupération abonnement.", error: err.message });
   }
 };
 
-// Demande d'activation du plan Pro — aucun prestataire de paiement réel n'étant
-// branché à ce jour, on n'active PAS le plan automatiquement : la demande est
-// enregistrée "pending" et un admin doit confirmer la réception réelle du paiement
-// (cf. décision produit du 2026-07 — même traitement que createPayment/booking).
-export const activatePro = async (req, res) => {
+// Demande d'activation d'un plan payant — aucun prestataire de paiement récurrent
+// réel n'étant branché à ce jour, on n'active PAS le plan automatiquement : la
+// demande est enregistrée "pending" et un admin doit confirmer la réception
+// réelle du paiement (même mécanisme que createPayment/booking).
+export const activatePlan = async (req, res) => {
   try {
+    const { planTier, paymentMethod } = req.body;
+    if (!PLAN_TIERS.includes(planTier)) {
+      return res.status(400).json({ message: `Palier invalide. Attendu : ${PLAN_TIERS.join(", ")}.` });
+    }
+    const priceUSD = await getSubscriptionPrice(planTier);
+    if (priceUSD == null) return res.status(503).json({ message: "Tarification indisponible pour le moment." });
+
     let sub = await Subscription.findOne({ vendor: req.user.id });
     if (!sub) sub = new Subscription({ vendor: req.user.id });
 
-    const startDate = new Date();
-    const endDate   = new Date();
-    endDate.setMonth(endDate.getMonth() + 1); // +1 mois, appliqué seulement à la confirmation admin
-
-    const period = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}`;
+    const period = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
     sub.paymentHistory.push({
-      amount: PLAN_PRICE_XOF,
-      method: req.body.paymentMethod || "card",
+      planTier,
+      amount: priceUSD,
+      method: paymentMethod || "card",
       paidAt: new Date(),
       status: "pending",
       period,
@@ -55,11 +62,11 @@ export const activatePro = async (req, res) => {
 
     await sub.save();
     res.status(202).json({
-      message: "Demande d'activation Pro enregistrée, en attente de confirmation du paiement par un administrateur.",
+      message: "Demande d'activation enregistrée, en attente de confirmation du paiement par un administrateur.",
       subscription: sub,
     });
   } catch (err) {
-    res.status(500).json({ message: "Erreur activation Pro.", error: err.message });
+    res.status(500).json({ message: "Erreur activation du plan.", error: err.message });
   }
 };
 
@@ -67,27 +74,28 @@ export const activatePro = async (req, res) => {
 // immédiate tant qu'aucune vérification réelle de paiement n'est branchée.
 export const purchaseBoost = async (req, res) => {
   try {
-    const { vehicleId } = req.body;
+    const { vehicleId, tier } = req.body;
     if (!vehicleId) return res.status(400).json({ message: "vehicleId requis." });
+    if (!BOOST_TIERS.includes(tier)) {
+      return res.status(400).json({ message: `Palier de boost invalide. Attendu : ${BOOST_TIERS.join(", ")}.` });
+    }
 
     // Le véhicule doit appartenir au vendeur qui demande le boost.
     const vehicle = await Vehicle.findOne({ _id: vehicleId, owner: req.user.id });
     if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable ou ne vous appartenant pas." });
 
+    const priceUSD = await getBoostPrice(tier);
+    if (priceUSD == null) return res.status(503).json({ message: "Tarification indisponible pour le moment." });
+
     let sub = await Subscription.findOne({ vendor: req.user.id });
     if (!sub) sub = new Subscription({ vendor: req.user.id });
 
-    const startDate = new Date();
-    const endDate   = new Date();
-    endDate.setDate(endDate.getDate() + 30); // 30 jours, appliqué seulement à la confirmation admin
-
     sub.boosts.push({
-      vehicle:  vehicleId,
-      startDate,
-      endDate,
+      vehicle: vehicleId,
+      tier,
       isActive: false, // activé par un admin après confirmation du paiement
-      priceXOF: BOOST_PRICE_XOF,
-      paidAt:   null,
+      priceUSD,
+      paidAt: null,
     });
 
     await sub.save();
@@ -100,7 +108,7 @@ export const purchaseBoost = async (req, res) => {
   }
 };
 
-// ── ADMIN : demandes Pro/Boost en attente de confirmation de paiement ────────
+// ── ADMIN : demandes de plan/boost en attente de confirmation de paiement ────
 export const getPendingSubscriptionRequests = async (_req, res) => {
   try {
     const subs = await Subscription.find({
@@ -115,8 +123,8 @@ export const getPendingSubscriptionRequests = async (_req, res) => {
   }
 };
 
-// ── ADMIN : confirme la réception réelle du paiement Pro → active le plan ───
-export const adminApproveProPayment = async (req, res) => {
+// ── ADMIN : confirme la réception réelle du paiement → active le plan ───────
+export const adminApprovePlanPayment = async (req, res) => {
   try {
     const { subscriptionId, paymentId } = req.params;
     const sub = await Subscription.findById(subscriptionId);
@@ -131,18 +139,18 @@ export const adminApproveProPayment = async (req, res) => {
     const startDate = new Date();
     const endDate   = new Date();
     endDate.setMonth(endDate.getMonth() + 1);
-    sub.plan = "pro";
-    sub.proDetails = { startDate, endDate, isActive: true, priceXOF: PLAN_PRICE_XOF };
+    sub.plan = entry.planTier;
+    sub.planDetails = { startDate, endDate, isActive: true, priceUSD: entry.amount };
 
     await sub.save();
-    res.json({ message: "Plan Pro activé.", subscription: sub });
+    res.json({ message: "Plan activé.", subscription: sub });
   } catch (err) {
-    res.status(500).json({ message: "Erreur confirmation Pro.", error: err.message });
+    res.status(500).json({ message: "Erreur confirmation du plan.", error: err.message });
   }
 };
 
-// ── ADMIN : rejette une demande Pro en attente (paiement non reçu) ───────────
-export const adminRejectProPayment = async (req, res) => {
+// ── ADMIN : rejette une demande de plan en attente (paiement non reçu) ───────
+export const adminRejectPlanPayment = async (req, res) => {
   try {
     const { subscriptionId, paymentId } = req.params;
     const sub = await Subscription.findById(subscriptionId);
@@ -157,7 +165,7 @@ export const adminRejectProPayment = async (req, res) => {
   }
 };
 
-// ── ADMIN : confirme la réception réelle du paiement boost → active 30 jours ─
+// ── ADMIN : confirme la réception réelle du paiement boost → active selon le palier ─
 export const adminApproveBoost = async (req, res) => {
   try {
     const { subscriptionId, boostId } = req.params;
@@ -168,10 +176,9 @@ export const adminApproveBoost = async (req, res) => {
     if (boost.isActive) return res.status(409).json({ message: "Ce boost est déjà actif." });
 
     const startDate = new Date();
-    const endDate   = new Date();
-    endDate.setDate(endDate.getDate() + 30);
+    const durationMs = BOOST_DURATION_MS[boost.tier] ?? BOOST_DURATION_MS["30d"];
     boost.startDate = startDate;
-    boost.endDate   = endDate;
+    boost.endDate   = new Date(startDate.getTime() + durationMs);
     boost.isActive  = true;
     boost.paidAt    = new Date();
 
@@ -180,64 +187,4 @@ export const adminApproveBoost = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: "Erreur confirmation boost.", error: err.message });
   }
-};
-
-// Calcule la commission sur une transaction
-// Commission = % du montant brut, frais de service = prélèvement plateforme séparé
-// Net partenaire = montantBase - commission (les frais service sont facturés AU CLIENT)
-export const computeCommission = (montantBase, type) => {
-  const rate             = type === "location" ? COMMISSION_LOCATION : COMMISSION_VENTE;
-  const commissionAmount = Math.round(montantBase * rate);
-  const partnerPayout    = Math.max(montantBase - commissionAmount, 0);
-  return {
-    rate,
-    commissionAmount,
-    serviceFeeFCFA: SERVICE_FEE_XOF,   // facturé au client en sus du montant
-    partnerPayout,
-  };
-};
-
-// Retourne les infos tarifaires publiques (sans auth)
-export const getPricing = async (_req, res) => {
-  res.json({
-    commissions: {
-      location: { rate: COMMISSION_LOCATION, label: "15 % sur chaque location" },
-      vente:    { rate: COMMISSION_VENTE,    label: "3 % sur chaque vente" },
-    },
-    fraisService: { montant: SERVICE_FEE_XOF, label: "1 000 FCFA par réservation" },
-    plans: [
-      {
-        id: "free",
-        name: "Gratuit",
-        priceXOF: 0,
-        features: [
-          "Publication illimitée",
-          "Commission 15% (location) / 3% (vente)",
-          "Frais de service : 1 000 FCFA/réservation",
-          "Visibilité standard",
-        ],
-      },
-      {
-        id: "pro",
-        name: "Pro",
-        priceXOF: PLAN_PRICE_XOF,
-        features: [
-          "Tout du plan Gratuit",
-          "Annonces mises en avant automatiquement",
-          "Badge Vendeur Pro",
-          "Statistiques avancées",
-          "Support prioritaire",
-          "1 boost d'annonce offert/mois",
-        ],
-      },
-    ],
-    boosts: [
-      {
-        id: "boost_30",
-        name: "Mise en avant 30 jours",
-        priceXOF: BOOST_PRICE_XOF,
-        description: "Votre annonce apparaît en première position pendant 30 jours.",
-      },
-    ],
-  });
 };

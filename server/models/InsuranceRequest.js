@@ -26,8 +26,12 @@ const insuranceRequestSchema = new mongoose.Schema({
     enum: ["pending", "approved", "rejected"],
     default: "pending",
   },
-  premium:       { type: Number, default: null },      // prime proposée (devise du compte)
-  devise:        { type: String, default: "XOF" },
+  premium:       { type: Number, default: null },      // prime proposée, en USD
+  devise:        { type: String, default: "USD" },
+  commission: {
+    rate:   { type: Number, default: null }, // depuis PricingConfig.services.assurance
+    amount: { type: Number, default: null },
+  },
   decisionNote:  { type: String, default: null },
   decisionAt:    { type: Date,   default: null },
   decisionBy:    { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },

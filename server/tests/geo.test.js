@@ -1,7 +1,21 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { getDeliveryFee, getMyCountry, getCountries } from "../controllers/geoController.js";
 import { createVehicleDoc } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
+import ExchangeRate from "../models/ExchangeRate.js";
+import CountryConfig from "../models/CountryConfig.js";
+
+// getDeliveryFee/getCountries lisent désormais CountryConfig/ExchangeRate en
+// base (voir server/services/currencyEngine.js) au lieu de server/config/countries.js
+// (supprimé) — chaque test qui en dépend doit seeder ces référentiels.
+beforeEach(async () => {
+  await ExchangeRate.create({ code: "XOF", name: "Franc CFA", symbol: "FCFA", rateFromUSD: 600 });
+  await CountryConfig.create({
+    code: "CI", name: "Côte d'Ivoire", flag: "🇨🇮", defaultCurrency: "XOF", locale: "fr-CI",
+    languages: ["fr"], paymentMethods: ["orange_money", "wave", "card", "cash"],
+    deliveryRatePerKm: 200, deliveryBaseRate: 1000, deliveryMaxKm: 100,
+  });
+});
 
 describe("getDeliveryFee", () => {
   it("400 si les coordonnées client sont manquantes", async () => {
@@ -65,9 +79,9 @@ describe("getMyCountry", () => {
 });
 
 describe("getCountries", () => {
-  it("renvoie la liste des pays avec uniquement les champs whitelist", () => {
+  it("renvoie la liste des pays avec uniquement les champs whitelist", async () => {
     const { req, res } = mockReqRes({});
-    getCountries(req, res);
+    await getCountries(req, res);
     expect(res.statusCode).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body.length).toBeGreaterThan(0);

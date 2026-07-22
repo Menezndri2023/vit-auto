@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useCurrency } from "../context/CurrencyContext";
@@ -6,101 +6,25 @@ import { useI18n } from "../context/I18nContext";
 import { SUBSCRIPTIONS_ENABLED } from "../config/featureFlags";
 import styles from "./Plans.module.css";
 
-/* ── Constantes ──────────────────────────────────── */
-const PLANS = [
-  {
-    id:    "decouverte",
-    name:  "Gratuit",
-    price: 0,
-    period: null,
-    badge: null,
-    color: "#64748b",
-    icon:  "🚀",
-    desc:  "Idéal pour démarrer et tester la plateforme sans engagement.",
-    features: [
-      { ok: true,  text: "Jusqu'à 5 véhicules publiés" },
-      { ok: true,  text: "Profil partenaire complet" },
-      { ok: true,  text: "Réception des demandes clients" },
-      { ok: true,  text: "Contrat digital automatique" },
-      { ok: false, text: "Statistiques & performances" },
-      { ok: false, text: "Mise en avant locale" },
-      { ok: false, text: "Badge Partenaire Vérifié" },
-      { ok: false, text: "Support prioritaire" },
-    ],
-    cta: "Plan actuel",
-    ctaDisabled: true,
-    popular: false,
+// Repli affiché tant que GET /api/pricing/config n'a pas répondu — mêmes
+// valeurs que server/config/defaultPricingConfig.js (source de vérité réelle).
+const FALLBACK_PRICING = {
+  commissions: {
+    standard: { vente: 0.03, location: 0.15, chauffeur: 0.10, import_export: 0.03, leasing: 0.05 },
+    premium:  { vente: 0.02, location: 0.12, chauffeur: 0.08, import_export: 0.02, leasing: 0.04 },
   },
-  {
-    id:    "pro",
-    name:  "Pro",
-    price: 199,
-    period: "mois",
-    badge: null,
-    color: "#6366f1",
-    icon:  "⚡",
-    desc:  "Pour les partenaires actifs qui veulent plus de visibilité et de clients.",
-    features: [
-      { ok: true,  text: "Jusqu'à 30 véhicules publiés" },
-      { ok: true,  text: "Profil partenaire complet" },
-      { ok: true,  text: "Réception des demandes clients" },
-      { ok: true,  text: "Contrat digital automatique" },
-      { ok: true,  text: "Statistiques & performances" },
-      { ok: true,  text: "Mise en avant locale ✓" },
-      { ok: false, text: "Badge Partenaire Vérifié" },
-      { ok: false, text: "Support prioritaire 24h" },
-    ],
-    cta: "Choisir Pro",
-    ctaDisabled: false,
-    popular: false,
+  foundingPartner: {
+    durationMonths: 12,
+    entreprise:  { location: 0.10, vente: 0.015 },
+    particulier: { location: 0.10, vente: 0.02 },
   },
-  {
-    id:    "premium",
-    name:  "Premium",
-    price: 499,
-    period: "mois",
-    badge: "⭐ Recommandé",
-    color: "#f59e0b",
-    icon:  "🏆",
-    desc:  "Le choix des meilleurs partenaires. Visibilité nationale, badge vérifié.",
-    features: [
-      { ok: true,  text: "Véhicules illimités" },
-      { ok: true,  text: "Profil partenaire complet" },
-      { ok: true,  text: "Réception des demandes clients" },
-      { ok: true,  text: "Contrat digital automatique" },
-      { ok: true,  text: "Statistiques avancées & export" },
-      { ok: true,  text: "Mise en avant nationale ⭐" },
-      { ok: true,  text: "Badge Partenaire Vérifié ✓" },
-      { ok: true,  text: "Support prioritaire 24h" },
-    ],
-    cta: "Choisir Premium",
-    ctaDisabled: false,
-    popular: true,
+  serviceFee: { minUSD: 1, percent: 0.005, maxUSD: 25 },
+  subscriptions: {
+    individuel_plus: { priceUSD: 9.99 },
+    business:         { priceUSD: 19.99 },
+    exportateur:      { priceUSD: 49.99 },
   },
-  {
-    id:    "corporate",
-    name:  "Corporate",
-    price: null,
-    period: null,
-    badge: "🏢 Sur devis",
-    color: "#0f1b3f",
-    icon:  "🌍",
-    desc:  "Pour les importateurs, grands concessionnaires, réseaux multi-pays et flottes internationales.",
-    features: [
-      { ok: true,  text: "Véhicules illimités (multi-agences)" },
-      { ok: true,  text: "Accès Import / Export international" },
-      { ok: true,  text: "Statistiques avancées & export" },
-      { ok: true,  text: "Mise en avant mondiale illimitée" },
-      { ok: true,  text: "Badge Corporate 🏢 & page dédiée" },
-      { ok: true,  text: "Tableau de bord multi-utilisateurs" },
-      { ok: true,  text: "Account manager dédié 24h/7j" },
-      { ok: true,  text: "Tarif : 1 500 – 5 000 DH/mois selon volume" },
-    ],
-    cta: "Contacter l'équipe",
-    ctaDisabled: false,
-    popular: false,
-  },
-];
+};
 
 const HOW_IT_WORKS = [
   { icon: "📋", title: "Publiez votre annonce",    text: "Formulaire en 7 étapes : identité, véhicule, photos, tarif. Adresse GPS obligatoire pour la livraison." },
@@ -109,58 +33,118 @@ const HOW_IT_WORKS = [
   { icon: "💰", title: "Revenus directs",           text: "Après commission et frais de service, le montant net vous est versé via votre méthode préférée." },
 ];
 
-const COMMISSIONS = [
-  {
-    label: "Location",
-    rates: { decouverte: "15 %", pro: "15 %", premium: "15 %", corporate: "15 %" },
-    fondateur: "10 % (12 mois) — 5 % pour un fondateur particulier",
-    color: "#6366f1",
-  },
-  {
-    label: "Vente",
-    rates: { decouverte: "3 %", pro: "3 %", premium: "3 %", corporate: "3 %" },
-    fondateur: "2 % (12 mois) — 1 % pour un fondateur particulier",
-    color: "#10b981",
-  },
-  {
-    label: "Chauffeur",
-    rates: { decouverte: "10 %", pro: "10 %", premium: "10 %", corporate: "10 %" },
-    fondateur: "10 %",
-    color: "#f59e0b",
-  },
-  {
-    label: "Assurance",
-    rates: { decouverte: "Négociée", pro: "Négociée", premium: "Négociée", corporate: "Négociée" },
-    fondateur: "Négociée",
-    color: "#0ea5e9",
-  },
-  {
-    label: "Crédit / Leasing",
-    rates: { decouverte: "Négociée", pro: "Négociée", premium: "Négociée", corporate: "Négociée" },
-    fondateur: "Négociée",
-    color: "#8b5cf6",
-  },
-];
+const pct = (rate) => rate == null ? "—" : `${Math.round(rate * 1000) / 10} %`;
 
 export default function Plans() {
-  const { user, isAuthenticated, token } = useAuth();
-  const { fmtFromMAD, currentCurrency } = useCurrency();
+  const { isAuthenticated, token } = useAuth();
+  const { fmtUSD, currentCurrency } = useCurrency();
   const { t } = useI18n();
   const navigate = useNavigate();
-  const [activating, setActivating] = useState(null);
-  const [successMsg, setSuccessMsg]  = useState("");
+  const [activating,  setActivating]  = useState(null);
+  const [successMsg,  setSuccessMsg]  = useState("");
+  const [pricing,     setPricing]     = useState(FALLBACK_PRICING);
 
-  const fmtPlan = (mad) => mad === 0 ? t("plans.free") : fmtFromMAD(mad);
+  useEffect(() => {
+    fetch("/api/pricing/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setPricing(d); })
+      .catch(() => {}); // repli déjà en place
+  }, []);
+
+  // Construit la liste des offres à partir de la tarification live — chaque
+  // catégorie du cahier des charges (Particulier/Professionnel/Exportateur/
+  // Entreprise) correspond à un palier Subscription.plan (voir server/models/Subscription.js).
+  const PLANS = [
+    {
+      id: "free", planTier: null, name: "Gratuit", price: 0, period: null,
+      badge: null, color: "#64748b", icon: "🚀",
+      desc: "Toute catégorie de partenaire peut démarrer gratuitement, sans engagement.",
+      features: [
+        { ok: true,  text: "Publication d'annonces illimitée" },
+        { ok: true,  text: "Profil partenaire complet" },
+        { ok: true,  text: "Réception des demandes clients" },
+        { ok: true,  text: "Contrat digital automatique" },
+        { ok: false, text: "Commission réduite" },
+        { ok: false, text: "Classement prioritaire" },
+        { ok: false, text: "Statistiques avancées" },
+        { ok: false, text: "Badge premium" },
+      ],
+      cta: "Plan actuel", ctaDisabled: true, popular: false,
+    },
+    {
+      id: "individuel_plus", planTier: "individuel_plus", name: "Individuel Plus",
+      price: pricing.subscriptions?.individuel_plus?.priceUSD, period: "mois",
+      badge: null, color: "#6366f1", icon: "⚡",
+      desc: "Pour les particuliers — vendeurs, conducteurs, loueurs privés — qui veulent plus de visibilité.",
+      features: [
+        { ok: true,  text: "Tout du plan Gratuit" },
+        { ok: true,  text: "Commission réduite" },
+        { ok: true,  text: "Classement prioritaire" },
+        { ok: true,  text: "Analyses de performance" },
+        { ok: true,  text: "Badge premium" },
+        { ok: false, text: "Outils d'export / API" },
+        { ok: false, text: "Multi-utilisateurs" },
+        { ok: false, text: "Assistance premium" },
+      ],
+      cta: "Choisir Individuel Plus", ctaDisabled: false, popular: false,
+    },
+    {
+      id: "business", planTier: "business", name: "Business",
+      price: pricing.subscriptions?.business?.priceUSD, period: "mois",
+      badge: "⭐ Recommandé", color: "#f59e0b", icon: "🏆",
+      desc: "Pour les professionnels — concessionnaires, garages, sociétés de location, gestionnaires de flotte.",
+      features: [
+        { ok: true,  text: "Tout du plan Individuel Plus" },
+        { ok: true,  text: "Classement prioritaire renforcé" },
+        { ok: true,  text: "Statistiques avancées & export" },
+        { ok: true,  text: "Plus de visibilité média" },
+        { ok: true,  text: "Assistance premium" },
+        { ok: true,  text: "Badge premium" },
+        { ok: false, text: "Outils d'export / API" },
+        { ok: false, text: "Multi-utilisateurs" },
+      ],
+      cta: "Choisir Business", ctaDisabled: false, popular: true,
+    },
+    {
+      id: "exportateur", planTier: "exportateur", name: "Exportateur",
+      price: pricing.subscriptions?.exportateur?.priceUSD, period: "mois",
+      badge: "🌍 International", color: "#0ea5e9", icon: "🌍",
+      desc: "Pour les exportateurs internationaux — catalogue illimité, outils d'export, accès API, CRM.",
+      features: [
+        { ok: true,  text: "Catalogue illimité" },
+        { ok: true,  text: "Outils d'exportation" },
+        { ok: true,  text: "Accès API" },
+        { ok: true,  text: "CRM intégré" },
+        { ok: true,  text: "Badge vérifié" },
+        { ok: true,  text: "Multi-utilisateurs" },
+        { ok: true,  text: "Assistance premium" },
+        { ok: true,  text: "Commission réduite" },
+      ],
+      cta: "Choisir Exportateur", ctaDisabled: false, popular: false,
+    },
+    {
+      id: "entreprise", planTier: null, name: "Entreprise", price: null, period: null,
+      badge: "🏢 Sur devis", color: "#0f1b3f", icon: "🏛️",
+      desc: "Pour les grands réseaux, flottes multi-pays et volumes importants — tarification personnalisée.",
+      features: [
+        { ok: true,  text: "Fonctionnalités illimitées" },
+        { ok: true,  text: "Tableau de bord multi-utilisateurs" },
+        { ok: true,  text: "Account manager dédié" },
+        { ok: true,  text: "Devis manuel adapté à votre volume" },
+      ],
+      cta: "Contacter l'équipe", ctaDisabled: false, popular: false,
+    },
+  ];
 
   const handleActivate = async (plan) => {
     if (!isAuthenticated) { navigate("/login?returnTo=/plans"); return; }
-    if (plan.id === "corporate") { navigate("/help"); return; }
+    if (plan.id === "entreprise" || plan.id === "free") { navigate("/help"); return; }
     setActivating(plan.id);
     try {
-      const res = await fetch("/api/subscriptions/activate-pro", {
+      const res = await fetch("/api/subscriptions/activate-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ plan: plan.id, price: plan.price }),
+        body: JSON.stringify({ planTier: plan.planTier }),
       });
       setSuccessMsg(res.ok ? t("plans.success") : t("plans.error"));
     } catch {
@@ -169,6 +153,19 @@ export default function Plans() {
       setActivating(null);
     }
   };
+
+  const std  = pricing.commissions?.standard  || FALLBACK_PRICING.commissions.standard;
+  const prem = pricing.commissions?.premium   || FALLBACK_PRICING.commissions.premium;
+  const fp   = pricing.foundingPartner        || FALLBACK_PRICING.foundingPartner;
+  const sf   = pricing.serviceFee             || FALLBACK_PRICING.serviceFee;
+
+  const COMMISSIONS = [
+    { label: "Location",      color: "#6366f1", standard: std.location,      premium: prem.location,      founder: fp.entreprise?.location },
+    { label: "Vente",         color: "#10b981", standard: std.vente,         premium: prem.vente,         founder: fp.entreprise?.vente },
+    { label: "Chauffeur",     color: "#f59e0b", standard: std.chauffeur,     premium: prem.chauffeur,     founder: null },
+    { label: "Import/Export", color: "#0ea5e9", standard: std.import_export, premium: prem.import_export, founder: fp.entreprise?.import_export },
+    { label: "Leasing",       color: "#8b5cf6", standard: std.leasing,       premium: prem.leasing,       founder: null },
+  ];
 
   return (
     <div className={styles.page}>
@@ -210,7 +207,7 @@ export default function Plans() {
               {t("plans.founder.title")}
             </h3>
             <p style={{ margin: 0, color: "#78350f", fontSize: "0.88rem" }}>
-              {t("plans.founder.sub")}
+              {t("plans.founder.sub")} Taux préférentiel pendant {fp.durationMonths} mois, retour automatique au tarif standard ensuite.
             </p>
           </div>
           <Link to="/partenaires#offre-fondateur" style={{
@@ -227,7 +224,7 @@ export default function Plans() {
       <section className={styles.plansSection}>
         <div className={styles.sectionHeader}>
           <h2>{t("plans.choose.title")}</h2>
-          <p>{t("plans.choose.sub")}</p>
+          <p>Gratuit pour démarrer — les abonnements restent facultatifs, avec commission réduite et plus de visibilité en option.</p>
         </div>
 
         {successMsg && (
@@ -262,14 +259,14 @@ export default function Plans() {
                     <span className={styles.planFree}>{t("plans.free")}</span>
                   ) : (
                     <div className={styles.planPrice}>
-                      <span className={styles.planAmount}>{fmtPlan(plan.price)}</span>
+                      <span className={styles.planAmount}>{fmtUSD(plan.price)}</span>
                       <span className={styles.planPeriod}>/{t("plans.perMonth")}</span>
                     </div>
                   )}
                 </div>
                 {plan.price > 0 && (
                   <p style={{ margin: "4px 0 0", fontSize: ".72rem", color: "#94a3b8" }}>
-                    {t("plans.currency")} {currentCurrency?.symbol || "DH"}
+                    {t("plans.currency")} {currentCurrency?.symbol || "$"}
                   </p>
                 )}
               </div>
@@ -287,11 +284,8 @@ export default function Plans() {
               </ul>
 
               {/* CTA */}
-              {/* Abonnements Pro/Premium temporairement désactivés (aucune passerelle
-                  de paiement réelle branchée) — Corporate reste un simple contact,
-                  Gratuit reste "Plan actuel" : les deux ne passent jamais par activate-pro. */}
               {(() => {
-                const forceDisabled = !SUBSCRIPTIONS_ENABLED && !["corporate", "decouverte"].includes(plan.id);
+                const forceDisabled = !SUBSCRIPTIONS_ENABLED && !["entreprise", "free"].includes(plan.id);
                 const isDisabled = plan.ctaDisabled || forceDisabled;
                 return (
                   <button
@@ -302,7 +296,7 @@ export default function Plans() {
                     title={forceDisabled ? "Bientôt disponible" : undefined}
                   >
                     {activating === plan.id ? t("plans.activating")
-                      : plan.id === "corporate" ? t("plans.contact")
+                      : plan.id === "entreprise" ? t("plans.contact")
                       : forceDisabled ? "Bientôt disponible"
                       : plan.cta}
                   </button>
@@ -326,8 +320,8 @@ export default function Plans() {
             <div className={styles.commRow + " " + styles.commHead}>
               <div className={styles.commCell}>{t("plans.comm.service")}</div>
               <div className={`${styles.commCell} ${styles.commCellActive}`}>{t("plans.comm.founder")}</div>
+              <div className={styles.commCell}>Abonné</div>
               <div className={styles.commCell}>{t("plans.comm.standard")}</div>
-              <div className={styles.commCell}>{t("plans.comm.example")}</div>
             </div>
             {/* Rows */}
             {COMMISSIONS.map((row) => (
@@ -336,32 +330,25 @@ export default function Plans() {
                   <span style={{ color: row.color, fontWeight: 700 }}>{row.label}</span>
                 </div>
                 <div className={`${styles.commCell} ${styles.commCellActive}`}>
-                  <span className={styles.commRate} style={{ color: "#f59e0b" }}>{row.fondateur}</span>
+                  <span className={styles.commRate} style={{ color: "#f59e0b" }}>
+                    {row.founder != null ? `${pct(row.founder)} (${fp.durationMonths} mois)` : "—"}
+                  </span>
                 </div>
                 <div className={styles.commCell}>
-                  <span className={styles.commRate}>{row.rates.decouverte}</span>
+                  <span className={styles.commRate}>{pct(row.premium)}</span>
                 </div>
-                <div className={styles.commCell} style={{ fontSize: "0.8rem", color: "#64748b" }}>
-                  {row.label === "Location" && "500 DH → 75 DH comm."}
-                  {row.label === "Vente" && "100 000 DH → 3 000 DH comm."}
-                  {row.label === "Chauffeur" && "300 DH → 30 DH comm."}
-                  {(row.label === "Assurance" || row.label === "Crédit / Leasing") && "Selon accord partenaire"}
+                <div className={styles.commCell}>
+                  <span className={styles.commRate}>{pct(row.standard)}</span>
                 </div>
               </div>
             ))}
             {/* Frais service */}
             <div className={styles.commRow}>
               <div className={styles.commCell}>
-                <span style={{ color: "#6366f1", fontWeight: 700 }}>Frais service client</span>
+                <span style={{ color: "#6366f1", fontWeight: 700 }}>Frais de service client</span>
               </div>
-              <div className={`${styles.commCell} ${styles.commCellActive}`}>
-                <span className={styles.commRate} style={{ color: "#f59e0b" }}>15 DH</span>
-              </div>
-              <div className={styles.commCell}>
-                <span className={styles.commRate}>15 DH fixe</span>
-              </div>
-              <div className={styles.commCell} style={{ fontSize: "0.8rem", color: "#64748b" }}>
-                À la charge du client
+              <div className={`${styles.commCell} ${styles.commCellActive}`} style={{ gridColumn: "span 3", fontSize: "0.82rem", color: "#64748b" }}>
+                max({fmtUSD(sf.minUSD)}, {sf.percent * 100}% du montant), plafonné à {fmtUSD(sf.maxUSD)} — à la charge du client
               </div>
             </div>
           </div>
@@ -370,15 +357,15 @@ export default function Plans() {
           <div className={styles.commExamples}>
             <div className={styles.commExample}>
               <span style={{ color: "#6366f1" }}>📊</span>
-              <span>Ex. location : {fmtFromMAD(500)} loué → vous recevez {fmtFromMAD(500 * 0.85 - 15)} nets (standard 15%)</span>
+              <span>Ex. location : {fmtUSD(50)} loué → vous recevez {fmtUSD(50 * (1 - std.location) - 1)} nets (standard {pct(std.location)})</span>
             </div>
             <div className={styles.commExample}>
               <span style={{ color: "#10b981" }}>📊</span>
-              <span>Ex. vente : {fmtFromMAD(100000)} → vous recevez {fmtFromMAD(100000 * 0.97 - 15)} nets (standard 3%)</span>
+              <span>Ex. vente : {fmtUSD(10000)} → vous recevez {fmtUSD(10000 * (1 - std.vente) - 25)} nets (standard {pct(std.vente)})</span>
             </div>
             <div className={styles.commExample}>
               <span style={{ color: "#f59e0b" }}>👑</span>
-              <span>Fondateur — location {fmtFromMAD(500)} → {fmtFromMAD(500 * 0.90 - 15)} nets (10% réduit)</span>
+              <span>Fondateur — location {fmtUSD(50)} → {fmtUSD(50 * (1 - (fp.entreprise?.location ?? std.location)) - 1)} nets ({pct(fp.entreprise?.location)} réduit)</span>
             </div>
           </div>
         </div>

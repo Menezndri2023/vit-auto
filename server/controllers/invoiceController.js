@@ -75,7 +75,7 @@ export const generatePartnerInvoice = async (req, res) => {
       montantTransaction: b.transaction?.finalAmount || b.montantTotal || 0,
       commissionRate:     b.commissionRate || 0,
       commissionAmount:   b.commissionAmount || 0,
-      devise:             b.devise || "XOF",
+      devise:             b.devise || "USD",
       completedAt:        b.paidAt,
     }));
 
@@ -91,7 +91,7 @@ export const generatePartnerInvoice = async (req, res) => {
       year,
       lines,
       totalCommission,
-      devise: "XOF",
+      devise: "USD",
       status: "pending",
       dueDate,
     });
@@ -164,7 +164,7 @@ export const generateAllMonthlyInvoices = async (req, res) => {
         montantTransaction: b.transaction?.finalAmount || b.montantTotal || 0,
         commissionRate:     b.commissionRate || 0,
         commissionAmount:   b.commissionAmount || 0,
-        devise:             b.devise || "XOF",
+        devise:             b.devise || "USD",
         completedAt:        b.paidAt,
       }));
 
@@ -179,7 +179,7 @@ export const generateAllMonthlyInvoices = async (req, res) => {
         year,
         lines,
         totalCommission,
-        devise: "XOF",
+        devise: "USD",
         status: "pending",
         dueDate,
       });

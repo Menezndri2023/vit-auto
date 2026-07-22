@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
-import { COUNTRIES_CONFIG } from "../context/CurrencyContext";
+import { useCurrency } from "../context/CurrencyContext";
 import { COUNTRIES_ALL, CURRENCIES as IE_CURRENCIES, getCountryFlag } from "../data/autocomplete";
 import { useToast } from "../context/ToastContext";
 import { useSocket } from "../context/SocketContext";
@@ -13,12 +13,14 @@ import { geocodeAddress } from "../utils/geo";
 import styles from "./VendorDashboard.module.css";
 
 /* ── Utilitaires ────────────────────────────────────────────────────────── */
-const fmtXOF = (n) => `${Number(n || 0).toLocaleString("fr-FR")} XOF`;
+// fmtXOF n'existe plus en tant que constante module — chaque composant qui en
+// a besoin l'obtient via useCurrency().fmt (alias fmtUSD, voir CurrencyContext.jsx)
+// puisque Vehicle/Booking/Driver sont désormais stockés en USD (migration Phase 2).
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 const fmtDateTime = (d) => d ? new Date(d).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
 
 const COMM_RATE = { location: 0.15, essai: 0.03, chauffeur: 0.10, leasing: 0.05 };
-const SERVICE_FEE = 1000;
+const SERVICE_FEE = 1; // repli d'affichage — le vrai frais est calculé côté serveur (pricingEngine.computeServiceFee, plancher 1 USD)
 
 const MOIS = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
 
@@ -228,6 +230,7 @@ const ORDER_WORKFLOWS = {
 function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onPrepare, onReady, onInProgress,
   onClientArrived, onClientAbsent, onRecordTransaction, onPartnerConfirm, onComplete, onReject, onPartnerVerifyKyc }) {
   // Tous les hooks AVANT tout return conditionnel (règles des hooks React)
+  const { fmt: fmtXOF } = useCurrency();
   const [txForm, setTxForm] = useState({
     finalAmount:   order?.transaction?.finalAmount || order?.montantTotal || order?.total || "",
     paymentMethod: order?.transaction?.paymentMethod || "cash",
@@ -805,15 +808,15 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
 /* ── Formulaire de transaction réutilisable ──────────────────────────────── */
 function TxForm({ form, setForm, onSubmit, onCancel, cancelLabel = "Annuler", submitting = false, commRate = 0.15, isVente = false }) {
   const amt    = Number(form.finalAmount) || 0;
-  const comm   = Math.round(amt * commRate);
-  const netPay = Math.max(Math.round(amt - comm) - SERVICE_FEE, 0);
+  const comm   = Math.round(amt * commRate * 100) / 100;
+  const netPay = Math.max(Math.round((amt - comm - SERVICE_FEE) * 100) / 100, 0);
   const financing = form.financing || { type: "comptant" };
   const setFinancing = (patch) => setForm((p) => ({ ...p, financing: { ...(p.financing || {}), ...patch } }));
   return (
     <div className={styles.txForm}>
       <div className={styles.txRow}>
-        <label className={styles.txLabel}>Montant encaissé (XOF) *</label>
-        <input type="number" min="1" className={styles.txInput} placeholder="Ex : 120 000"
+        <label className={styles.txLabel}>Montant encaissé (USD) *</label>
+        <input type="number" min="1" className={styles.txInput} placeholder="Ex : 1200"
           value={form.finalAmount} onChange={(e) => setForm((p) => ({ ...p, finalAmount: e.target.value }))} />
       </div>
       <div className={styles.txRow}>
@@ -845,8 +848,8 @@ function TxForm({ form, setForm, onSubmit, onCancel, cancelLabel = "Annuler", su
                 Conditions négociées sur place — le montant encaissé ci-dessus correspond à l'apport initial.
               </p>
               <div className={styles.txRow}>
-                <label className={styles.txLabel}>Mensualité (XOF) *</label>
-                <input type="number" min="1" className={styles.txInput} placeholder="Ex : 350 000"
+                <label className={styles.txLabel}>Mensualité (USD) *</label>
+                <input type="number" min="1" className={styles.txInput} placeholder="Ex : 350"
                   value={financing.mensualite} onChange={(e) => setFinancing({ mensualite: e.target.value })} />
               </div>
               <div className={styles.txRow}>
@@ -872,10 +875,10 @@ function TxForm({ form, setForm, onSubmit, onCancel, cancelLabel = "Annuler", su
       </div>
       {amt > 0 && (
         <div className={styles.txPreview}>
-          <div className={styles.txPreviewRow}><span>Montant encaissé</span><strong>{amt.toLocaleString("fr-FR")} XOF</strong></div>
-          <div className={styles.txPreviewRow} style={{ color: "#dc2626" }}><span>Commission VIT-AUTO ({Math.round(commRate * 100)}%)</span><strong>− {comm.toLocaleString("fr-FR")} XOF</strong></div>
-          <div className={styles.txPreviewRow} style={{ color: "#dc2626" }}><span>Frais de service</span><strong>− {SERVICE_FEE.toLocaleString("fr-FR")} XOF</strong></div>
-          <div className={styles.txPreviewNet}><span>Votre net</span><strong>{netPay.toLocaleString("fr-FR")} XOF</strong></div>
+          <div className={styles.txPreviewRow}><span>Montant encaissé</span><strong>{amt.toLocaleString("fr-FR")} USD</strong></div>
+          <div className={styles.txPreviewRow} style={{ color: "#dc2626" }}><span>Commission VIT-AUTO ({Math.round(commRate * 100)}%)</span><strong>− {comm.toLocaleString("fr-FR")} USD</strong></div>
+          <div className={styles.txPreviewRow} style={{ color: "#dc2626" }}><span>Frais de service</span><strong>− {SERVICE_FEE.toLocaleString("fr-FR")} USD</strong></div>
+          <div className={styles.txPreviewNet}><span>Votre net</span><strong>{netPay.toLocaleString("fr-FR")} USD</strong></div>
         </div>
       )}
       <div className={styles.txActions}>
@@ -897,6 +900,7 @@ export default function VendorDashboard() {
   const { success: toastSuccess, error: toastError } = useToast();
   const { on } = useSocket();
   const { openOrCreateChat } = useChat();
+  const { COUNTRIES_CONFIG, fmt: fmtXOF } = useCurrency();
   const navigate = useNavigate();
 
   const [activeTab,      setActiveTab]      = useState("dashboard");
@@ -988,7 +992,7 @@ export default function VendorDashboard() {
             clientValidation: b.clientValidation,
             createdAt:   b.createdAt,
             isPaid:      b.isPaid,
-            devise:      b.devise || "XOF",
+            devise:      b.devise || "USD",
             partnerName: veh?.contactNom || (drv ? `${drv.firstName} ${drv.lastName}` : null),
           };
         }));
@@ -1079,15 +1083,17 @@ export default function VendorDashboard() {
     return { totalVehicles: myVehicles.length, approved: myVehicles.filter((v) => v.status === "approved").length, totalOrders: allOrders.length, pending: pending.length, active: active.length, waiting: waiting.length, completed: completed.length, revenue, netRevenue: Math.max(netRevenue, 0) };
   }, [allOrders, myVehicles]);
 
-  const isPro  = subscription?.plan === "pro" && subscription?.proDetails?.isActive;
-  const proEnd = subscription?.proDetails?.endDate ? new Date(subscription.proDetails.endDate).toLocaleDateString("fr-FR") : null;
+  const PLAN_LABELS = { individuel_plus: "Individuel Plus", business: "Business", exportateur: "Exportateur" };
+  const isPro   = subscription?.plan && subscription.plan !== "free" && subscription?.planDetails?.isActive;
+  const planName = isPro ? (PLAN_LABELS[subscription.plan] || subscription.plan) : null;
+  const proEnd  = subscription?.planDetails?.endDate ? new Date(subscription.planDetails.endDate).toLocaleDateString("fr-FR") : null;
 
   /* ── Actions ─────────────────────────────────────────────────────────────── */
-  const handleBoost = async (vehicleId) => {
+  const handleBoost = async (vehicleId, tier = "30d") => {
     if (!token) { navigate("/login?returnTo=/vendor/dashboard"); return; }
     setBoostTarget(vehicleId);
     try {
-      const r = await fetch("/api/subscriptions/boost", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ vehicleId }) });
+      const r = await fetch("/api/subscriptions/boost", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ vehicleId, tier }) });
       const d = await r.json();
       if (r.ok) toastSuccess(d.message || "Demande de mise en avant envoyée — en attente de confirmation du paiement."); else toastError(d.message || "Erreur.");
     } catch { toastError("Erreur réseau."); }
@@ -1362,7 +1368,7 @@ export default function VendorDashboard() {
       const d = await r.json();
       if (r.ok) {
         if (!payload.clientPresent) toastError("🚫 Absence enregistrée.");
-        else toastSuccess(`✅ Transaction enregistrée — ${Number(payload.finalAmount).toLocaleString("fr-FR")} XOF. Attente validation client.`);
+        else toastSuccess(`✅ Transaction enregistrée — ${Number(payload.finalAmount).toLocaleString("fr-FR")} USD. Attente validation client.`);
         setGererModalId(null);
         setTimeout(() => { loadPartnerOrders(); loadTransactions(); }, 800);
       } else toastError(d.message || "Erreur.");
@@ -1542,9 +1548,9 @@ export default function VendorDashboard() {
       {/* ── Plan Banner ── */}
       {!subLoading && (
         <div className={isPro ? styles.proBanner : styles.freeBanner}>
-          <span className={styles.planBadge}>{isPro ? "✨ Pro" : "Gratuit"}</span>
-          <span>{isPro ? `Plan Pro actif jusqu'au ${proEnd}` : "Passez en Pro pour la mise en avant automatique."}</span>
-          {!isPro && SUBSCRIPTIONS_ENABLED && <Link to="/plans" className={styles.upgradeLink}>Passer en Pro →</Link>}
+          <span className={styles.planBadge}>{isPro ? `✨ ${planName}` : "Gratuit"}</span>
+          <span>{isPro ? `Plan ${planName} actif jusqu'au ${proEnd}` : "Passez à un plan supérieur pour réduire vos commissions et la mise en avant automatique."}</span>
+          {!isPro && SUBSCRIPTIONS_ENABLED && <Link to="/plans" className={styles.upgradeLink}>Voir les plans →</Link>}
         </div>
       )}
 
@@ -1878,7 +1884,7 @@ export default function VendorDashboard() {
                         {vehicle.fuel && <span className={styles.vTag}>{vehicle.fuel}</span>}
                       </div>
                       <div className={styles.vehiclePrice}>
-                        {vehicle.pricePerDay ? `${Number(vehicle.pricePerDay).toLocaleString("fr-FR")} XOF / jour` : vehicle.buyPrice ? `${Number(vehicle.buyPrice).toLocaleString("fr-FR")} XOF` : "—"}
+                        {vehicle.pricePerDay ? `${fmtXOF(vehicle.pricePerDay)} / jour` : vehicle.buyPrice ? fmtXOF(vehicle.buyPrice) : "—"}
                         {vehicle.promotion?.active && (
                           <span style={{ marginLeft: 8, background: "#fee2e2", color: "#dc2626", fontSize: "0.72rem", fontWeight: 800, padding: "2px 8px", borderRadius: 999 }}>
                             -{vehicle.promotion.discountPercent}%
@@ -1936,7 +1942,7 @@ export default function VendorDashboard() {
                         {drv.zone && <span className={styles.vTag}>{drv.zone}</span>}
                         {drv.permisCategorie && <span className={styles.vTag}>Permis {drv.permisCategorie}</span>}
                       </div>
-                      <div className={styles.vehiclePrice}>{drv.tarif ? `${Number(drv.tarif).toLocaleString("fr-FR")} XOF / jour` : "Tarif non renseigné"}</div>
+                      <div className={styles.vehiclePrice}>{drv.tarif ? `${fmtXOF(drv.tarif)} / jour` : "Tarif non renseigné"}</div>
                     </div>
                     <div className={styles.vehicleCardActions}>
                       <button className={styles.btnDanger} onClick={() => { if (confirm("Supprimer ce profil ?")) { fetch(`/api/drivers/${drv._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).then(() => setMyDrivers((p) => p.filter((d) => d._id !== drv._id))).catch(() => {}); } }}>Supprimer</button>
@@ -2542,7 +2548,7 @@ export default function VendorDashboard() {
                 <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                   <div style={{ flex: 1 }}>
                     <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>
-                      {editForm.type === "vente" ? "Prix de vente (XOF)" : "Prix / jour (XOF)"}
+                      {editForm.type === "vente" ? "Prix de vente (USD)" : "Prix / jour (USD)"}
                     </label>
                     <input type="number" min="0" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
                       value={editForm.type === "vente" ? editForm.priceForSale : editForm.pricePerDay}
@@ -2550,7 +2556,7 @@ export default function VendorDashboard() {
                   </div>
                   {editForm.type !== "vente" && (
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Caution (XOF)</label>
+                      <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Caution (USD)</label>
                       <input type="number" min="0" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
                         value={editForm.caution} onChange={(e) => setEditForm((p) => ({ ...p, caution: e.target.value }))} />
                     </div>

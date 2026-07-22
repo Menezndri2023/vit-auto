@@ -1,6 +1,7 @@
 import logger from "../utils/logger.js";
 import InsuranceRequest from "../models/InsuranceRequest.js";
 import Notification from "../models/Notification.js";
+import { getServiceConfig } from "../services/pricingEngine.js";
 
 async function notify(userId, titre, message) {
   try {
@@ -73,6 +74,14 @@ export const setDecision = async (req, res) => {
     request.status       = status;
     request.premium       = status === "approved" ? (Number(premium) || null) : null;
     request.devise         = devise || request.devise;
+    if (status === "approved" && request.premium) {
+      const svc = await getServiceConfig("assurance");
+      request.commission = svc?.enabled
+        ? { rate: svc.commissionRate || 0, amount: Math.round((request.premium * (svc.commissionRate || 0) + (svc.fixedFeeUSD || 0)) * 100) / 100 }
+        : { rate: null, amount: null };
+    } else {
+      request.commission = { rate: null, amount: null };
+    }
     request.decisionNote  = note || null;
     request.decisionAt    = new Date();
     request.decisionBy    = req.user._id;

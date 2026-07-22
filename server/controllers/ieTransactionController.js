@@ -5,24 +5,20 @@ import InspectionReport     from "../models/InspectionReport.js";
 import User                 from "../models/User.js";
 import Notification         from "../models/Notification.js";
 import Chat                 from "../models/Chat.js";
-import PartnerOnboarding    from "../models/PartnerOnboarding.js";
 import { dispatch, enqueue } from "../queue/index.js";
 import { QUEUE_NAMES } from "../queue/definitions.js";
 import { stripeProvider } from "../services/payment/gateway.js";
-import { foundingRateFor } from "../utils/foundingPartnerRates.js";
+import { resolveCommissionRate } from "../services/pricingEngine.js";
 import { computeImportCost } from "../services/importCostEngine.js";
 import { captureException } from "../config/sentry.js";
 
-// Commission VIT AUTO sur une transaction Import/Export — même barème que la
-// vente (foundingRateFor), puisque le partenaire d'une transaction IE est
-// toujours un Founding Partner (isFounder requis pour publier, voir
-// importExportController.createListing). Calculée une seule fois, à la
-// libération des fonds — jamais recalculée ensuite.
+// Commission VIT AUTO sur une transaction Import/Export — barème "import_export"
+// (PricingConfig), avec taux Founding Partner préférentiel puisque le partenaire
+// d'une transaction IE est toujours un Founding Partner (isFounder requis pour
+// publier, voir importExportController.createListing). Calculée une seule
+// fois, à la libération des fonds — jamais recalculée ensuite.
 async function computeIeCommission(tx) {
-  const fp = await PartnerOnboarding.findOne({ userId: tx.partner, isFoundingPartner: true })
-    .select("commissions.lockedAt legalEntityType")
-    .lean();
-  const rate = fp ? foundingRateFor(fp.commissions?.lockedAt, "vente", fp.legalEntityType) : 0.03; // 3% = tarif standard vente, repli si jamais non-fondateur
+  const rate = await resolveCommissionRate("import_export", tx.partner);
   const amount = Math.round((tx.payment.amount || 0) * rate * 100) / 100;
   return { rate, amount, payoutAmount: Math.round(((tx.payment.amount || 0) - amount) * 100) / 100 };
 }

@@ -54,6 +54,19 @@ const userSchema = new mongoose.Schema({
     default: null,
   },
 
+  // Catégorie partenaire du nouveau modèle économique (Particulier/Professionnel/
+  // Exportateur international/Entreprise) — surensemble de `sellerType`, gardé
+  // distinct pour ne jamais perturber la logique de vérification KYC/certification
+  // déjà branchée sur `sellerType` (vehicleController.js/driverController.js).
+  // "exportateur" n'a pas d'équivalent dans l'ancien système (branché sur
+  // ImporterPartnerProfile/isFounder, pas sur ce champ) ; les 3 autres valeurs
+  // restent synchronisées avec `sellerType` (voir le hook pre("validate") plus bas).
+  partnerCategory: {
+    type: String,
+    enum: ["particulier", "professionnel", "exportateur", "entreprise", null],
+    default: null,
+  },
+
   profilePhoto: { type: String, default: null },
   address:      { type: String, default: null },
 
@@ -299,6 +312,14 @@ userSchema.index(
 userSchema.pre("validate", function (next) {
   if (!this.email && !this.phone) {
     return next(new Error("Un compte doit avoir au moins un email ou un numéro de téléphone."));
+  }
+  // Synchronisation partnerCategory ↔ sellerType : tout code existant qui ne
+  // connaît que `sellerType` (Register.jsx, VendorSubmit.jsx) continue de
+  // fonctionner sans modification — `partnerCategory` se dérive automatiquement
+  // tant qu'il n'a jamais été fixé explicitement à une valeur propre au nouveau
+  // système ("exportateur", qui n'a pas d'équivalent dans sellerType).
+  if (!this.partnerCategory && this.sellerType) {
+    this.partnerCategory = this.sellerType;
   }
   next();
 });

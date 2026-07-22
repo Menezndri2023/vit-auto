@@ -13,6 +13,12 @@ const contractSchema = new mongoose.Schema({
     unique: true,
   },
 
+  // Devise des montants ci-dessous (terms.*XOF — noms conservés, voir
+  // server/scripts/migrate-vehicle-booking-to-usd.mjs) : "USD" pour tout
+  // contrat généré après la refonte du modèle économique, "XOF" pour les
+  // contrats historiques migrés (valeurs converties, jamais réinterprétées).
+  currency: { type: String, default: "USD" },
+
   type: {
     type: String,
     enum: ["location", "essai", "chauffeur", "leasing"],

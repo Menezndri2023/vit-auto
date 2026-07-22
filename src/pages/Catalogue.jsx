@@ -171,7 +171,7 @@ const Catalogue = () => {
   const [activeDuree,  setActiveDuree]  = useState(() => searchParams.get("duree")    || "Tous");
   const [fuelType,     setFuelType]     = useState("Tous");
   const [transmission, setTransmission] = useState("Tous");
-  const [maxPrice,     setMaxPrice]     = useState(200000);
+  const [maxPrice,     setMaxPrice]     = useState(300);
 
   // ── "Près de moi" (recherche géolocalisée) ────────────────────────────────
   const [nearMeActive, setNearMeActive] = useState(false);
@@ -251,7 +251,7 @@ const Catalogue = () => {
 
   const resetFilters = () => {
     setActiveType("Tous"); setActiveEtat("Tous"); setFuelType("Tous");
-    setTransmission("Tous"); setMaxPrice(200000); setSearchTerm(""); setActiveDuree("Tous");
+    setTransmission("Tous"); setMaxPrice(300); setSearchTerm(""); setActiveDuree("Tous");
     setActiveMode("Tout"); setSearchParams(new URLSearchParams()); setPage(1);
     setIeSearch(""); setIeSource(""); setIeSortKey("newest");
   };
@@ -332,7 +332,7 @@ const Catalogue = () => {
     activeMode === "Louer" && activeDuree !== "Tous" && { label: activeDuree, clear: () => { setActiveDuree("Tous"); setParam("duree",""); } },
     fuelType   !== "Tous"   && { label: fuelType,           clear: () => setFuelType("Tous") },
     transmission !== "Tous" && { label: transmission,       clear: () => setTransmission("Tous") },
-    activeMode !== "Acheter" && maxPrice < 200000 && { label: `≤ ${fmt(maxPrice)}`, clear: () => setMaxPrice(200000) },
+    activeMode !== "Acheter" && maxPrice < 300 && { label: `≤ ${fmt(maxPrice)}`, clear: () => setMaxPrice(300) },
     searchTerm              && { label: `"${searchTerm}"`,  clear: () => setSearchTerm("") },
   ].filter(Boolean) : [];
 
@@ -554,12 +554,12 @@ const Catalogue = () => {
                     <h4 className={styles.sidebarTitle}>💰 Prix max / jour</h4>
                     <div className={styles.priceRange}>
                       <span className={styles.priceLabel}>{fmt(maxPrice)}</span>
-                      <input type="range" min="10000" max="200000" step="5000"
+                      <input type="range" min="10" max="300" step="5"
                         value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))}
                         className={styles.rangeInput} />
                       <div className={styles.rangeLimits}>
-                        <span>{fmt(10000)}</span>
-                        <span>{fmt(200000)}</span>
+                        <span>{fmt(10)}</span>
+                        <span>{fmt(300)}</span>
                       </div>
                     </div>
                   </div>
@@ -714,7 +714,7 @@ function DrawerFilters({ maxPrice, setMaxPrice, activeEtat, setActiveEtat, fuelT
       {activeMode !== "Acheter" && (
         <div>
           <p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: "0.82rem", color: "#0f1b3f" }}>💰 Prix max / jour — {fmt(maxPrice)}</p>
-          <input type="range" min="10000" max="200000" step="5000" value={maxPrice}
+          <input type="range" min="10" max="300" step="5" value={maxPrice}
             onChange={(e) => setMaxPrice(Number(e.target.value))}
             style={{ width: "100%", accentColor: "#ff4d2d" }} />
         </div>

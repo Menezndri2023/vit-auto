@@ -7,7 +7,7 @@ const invoiceLineSchema = new mongoose.Schema({
   montantTransaction: { type: Number, default: 0 },
   commissionRate:     { type: Number, default: 0 },
   commissionAmount:   { type: Number, default: 0 },
-  devise:             { type: String, default: "XOF" },
+  devise:             { type: String, default: "USD" },
   completedAt:        { type: Date },
 }, { _id: false });
 

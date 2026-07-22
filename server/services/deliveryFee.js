@@ -1,4 +1,4 @@
-import { calculateDeliveryFee } from "../config/countries.js";
+import { calculateDeliveryFee } from "./currencyEngine.js";
 
 /**
  * Formule de Haversine — distance en km entre deux points GPS.
@@ -57,7 +57,7 @@ export function detectCountryFromCoords(lat, lng) {
  * coordonnées du véhicule (jamais depuis une valeur fournie par le client).
  * Retourne null si la distance ne peut pas être calculée (coords manquantes).
  */
-export function resolveDeliveryFee({ clientLat, clientLng, vehicleLat, vehicleLng, countryCode }) {
+export async function resolveDeliveryFee({ clientLat, clientLng, vehicleLat, vehicleLng, countryCode }) {
   const cLat = parseFloat(clientLat);
   const cLng = parseFloat(clientLng);
   const vLat = parseFloat(vehicleLat);
@@ -66,6 +66,6 @@ export function resolveDeliveryFee({ clientLat, clientLng, vehicleLat, vehicleLn
   if ([cLat, cLng, vLat, vLng].some((n) => Number.isNaN(n))) return null;
 
   const distanceKm = haversineKm(cLat, cLng, vLat, vLng);
-  const result = calculateDeliveryFee(countryCode || "CI", distanceKm);
+  const result = await calculateDeliveryFee(countryCode || "CI", distanceKm);
   return { distanceKm: Math.round(distanceKm * 10) / 10, ...result };
 }

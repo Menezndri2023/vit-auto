@@ -8,9 +8,9 @@ const paymentSchema = new mongoose.Schema({
     required: true,
   },
 
-  // ── Montant (FCFA / XOF) ──────────────────────────────────
+  // ── Montant (USD) ──────────────────────────────────────────
   amount:   { type: Number, required: true },
-  devise:   { type: String, default: "XOF" },
+  devise:   { type: String, default: "USD" },
 
   // ── Méthode de paiement ───────────────────────────────────
   method: {

@@ -11,7 +11,16 @@ import { buildOnboardingPDFBuffer } from "../utils/pdfGenerator.js";
 import { dispatch } from "../queue/index.js";
 import { validateDocumentDataUri } from "../utils/imageValidation.js";
 import { computeScore, computeBadge, syncUserBadge } from "./partnerCertificationController.js";
-import { foundingRateFor, FOUNDING_YEAR1_RATES, FOUNDING_YEAR2_RATES } from "../utils/foundingPartnerRates.js";
+// Taux Founding Partner affichés dans la LOI/l'Agreement — copie de texte
+// légal, mise à jour manuellement si PricingConfig.foundingPartner change
+// (voir server/models/PricingConfig.js pour les valeurs réellement facturées,
+// calculées live par pricingEngine.resolveCommissionRate à chaque réservation ;
+// ce document ne fait qu'annoncer les conditions au moment de la signature).
+const FOUNDING_PARTNER_DURATION_MONTHS = 12;
+const FOUNDING_PARTNER_RATES = {
+  default:     { location: 0.10, vente: 0.015 },
+  particulier: { location: 0.10, vente: 0.02 },
+};
 import { decryptField } from "../utils/fieldEncryption.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
@@ -1298,8 +1307,8 @@ Reference        : ${doc.referenceNumber}
 FOUNDING PARTNER BENEFITS
 
   ✓  Free Premium Subscription ......... 12 months (value: €300+)
-  ✓  Rental Commission ................. ${FOUNDING_YEAR1_RATES[loiTier].location * 100}% year 1, then ${FOUNDING_YEAR2_RATES[loiTier].location * 100}% year 2+  (standard rate: 15%)
-  ✓  Sales Commission .................. ${FOUNDING_YEAR1_RATES[loiTier].vente * 100}% year 1, then ${FOUNDING_YEAR2_RATES[loiTier].vente * 100}% year 2+  (standard rate: 3%)
+  ✓  Rental Commission ................. ${FOUNDING_PARTNER_RATES[loiTier].location * 100}% for ${FOUNDING_PARTNER_DURATION_MONTHS} months, then standard rate (15%)
+  ✓  Sales Commission .................. ${FOUNDING_PARTNER_RATES[loiTier].vente * 100}% for ${FOUNDING_PARTNER_DURATION_MONTHS} months, then standard rate (3%)
   ✓  Driver Commission ................. ${doc.commissions?.chauffeur || 10}%
   ✓  Exclusive "Founding Partner" Badge  on all listings
   ✓  Priority Catalog Placement ........ permanent top positioning
@@ -1394,14 +1403,14 @@ ARTICLE 2 — FOUNDING PARTNER STATUS
 
 ARTICLE 3 — COMMERCIAL CONDITIONS
 
-3.1  Preferential rates, in two steps from the Agreement signing date:
+3.1  Preferential rate for ${FOUNDING_PARTNER_DURATION_MONTHS} months from the Agreement signing date, then automatic return to the standard rate:
 
-     Transaction Type       Standard Rate   Year 1          Year 2+
+     Transaction Type       Standard Rate   Founding Partner Rate (${FOUNDING_PARTNER_DURATION_MONTHS} months)
      ─────────────────────────────────────────────────────────────────
-     Vehicle Rental         15%             ${FOUNDING_YEAR1_RATES[agrTier].location * 100}%             ${FOUNDING_YEAR2_RATES[agrTier].location * 100}%
-     Vehicle Sales          3%              ${FOUNDING_YEAR1_RATES[agrTier].vente * 100}%              ${FOUNDING_YEAR2_RATES[agrTier].vente * 100}%
-     Professional Driver    10%             ${drvRate}%             ${drvRate}%
-     Premium Subscription   Paid            FREE (12 months)
+     Vehicle Rental         15%             ${FOUNDING_PARTNER_RATES[agrTier].location * 100}%
+     Vehicle Sales          3%              ${FOUNDING_PARTNER_RATES[agrTier].vente * 100}%
+     Professional Driver    10%             ${drvRate}%
+     Premium Subscription   Paid            FREE (${FOUNDING_PARTNER_DURATION_MONTHS} months)
 
 3.2  "Year 1" runs for the first 12 months from the Agreement signing
      date (Article 3.3). From month 13 onward ("Year 2+"), the Year 2+

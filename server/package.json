@@ -10,6 +10,7 @@
     "dev": "nodemon server.js",
     "start": "node server.js",
     "seed:admin": "node scripts/createAdmin.js",
+    "seed:pricing": "node scripts/migrate-currency-config.mjs",
     "health": "curl -f http://localhost:${PORT:-5001}/api/ping || exit 1",
     "test": "vitest run"
   },

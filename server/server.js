@@ -40,9 +40,12 @@ import partnerOnboardingRoutes from "./routes/partnerOnboarding.js";
 import auditLogRoutes         from "./routes/auditLog.js";
 import analyticsRoutes        from "./routes/analytics.js";
 import insuranceRoutes        from "./routes/insurance.js";
+import serviceRequestRoutes   from "./routes/serviceRequests.js";
 import favoritesRoutes        from "./routes/favorites.js";
 import whatsappRoutes         from "./routes/whatsapp.js";
 import * as whatsappController from "./controllers/whatsappController.js";
+import pricingRoutes          from "./routes/pricing.js";
+import businessConfigRoutes   from "./routes/businessConfig.js";
 import { authenticate, authorizeAdmin } from "./middleware/auth.js";
 
 dotenv.config();
@@ -328,10 +331,13 @@ app.use("/api/partner-onboarding", apiLimiter, partnerOnboardingRoutes); // Foun
 app.use("/api/audit-log",          apiLimiter, auditLogRoutes);          // Journal d'audit (consultation admin)
 app.use("/api/analytics",          apiLimiter, analyticsRoutes);         // Analytics avancé (consultation admin)
 app.use("/api/insurance",          apiLimiter, insuranceRoutes);         // Demandes d'assurance
+app.use("/api/service-requests",   apiLimiter, serviceRequestRoutes);    // Transport/Transit/Douanes/Immatriculation/Garantie/Financement/Change
 app.use("/api/favorites",          apiLimiter, favoritesRoutes);         // Favoris véhicules / annonces IE
 app.use("/api/import-cost",        apiLimiter, importCostRoutes);        // Moteur de calcul coût d'importation
 app.use("/api/reports",            apiLimiter, reportRoutes);            // Signalement de contenu
 app.use("/api/whatsapp",           apiLimiter, whatsappRoutes);           // Bot WhatsApp partenaires (admin)
+app.use("/api/pricing",            catalogueLimiter, pricingRoutes);      // Devises/pays/tarifs — public, consulté au chargement de l'app
+app.use("/api/admin/business-config", apiLimiter, businessConfigRoutes);  // Configuration métier (commissions/abonnements/devises...)
 
 // ── Communication tracking (pixel ouverture + clic email) ────────────────────
 const TRANSPARENT_GIF = Buffer.from(

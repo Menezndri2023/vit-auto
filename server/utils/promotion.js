@@ -15,5 +15,5 @@ export function isPromotionActive(promotion) {
 export function applyPromotion(basePrice, promotion) {
   if (!isPromotionActive(promotion)) return basePrice;
   const pct = Math.min(Math.max(Number(promotion.discountPercent) || 0, 0), 90);
-  return Math.round(basePrice * (1 - pct / 100));
+  return Math.round(basePrice * (1 - pct / 100) * 100) / 100;
 }

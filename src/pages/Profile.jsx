@@ -80,6 +80,7 @@ const OrderCard = ({ order, fmt }) => {
 
 // ── Carte de publication (partenaires) ─────────────────────
 const PublicationCard = ({ vehicle }) => {
+  const { fmt } = useCurrency();
   const st    = VEHICLE_STATUS[vehicle.status] || VEHICLE_STATUS.pending;
   const score = vehicle.validationScore;
   const scoreColor =
@@ -99,7 +100,7 @@ const PublicationCard = ({ vehicle }) => {
           <span className={styles.bcBadge} style={{ color: st.color, background: st.bg }}>{st.label}</span>
         </div>
         <p className={styles.pubMeta}>
-          {vehicle.type === "location" ? `${vehicle.pricePerDay?.toLocaleString("fr-FR") || "—"} XOF / jour` : `${(vehicle.priceForSale || vehicle.buyPrice)?.toLocaleString("fr-FR") || "—"} XOF`}
+          {vehicle.type === "location" ? `${fmt(vehicle.pricePerDay)} / jour` : fmt(vehicle.priceForSale || vehicle.buyPrice)}
           {vehicle.ville ? ` · ${vehicle.ville}` : ""}
         </p>
 

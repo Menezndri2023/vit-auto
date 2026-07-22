@@ -7,16 +7,18 @@ import { haversineKm, geocodeAddress, getCurrentPosition } from "../utils/geo";
 import { getKycBadge, generateBookingRef } from "../utils/kycEngine.js";
 import styles from "./Booking.module.css";
 
-/* ── Constantes financières (en XOF — converties par fmt() à l'affichage) ── */
-const SERVICE_FEE     = 1000;   // 1 000 FCFA ≈ 16 MAD ≈ 1.52 €
-const DELIVERY_BASE   = 1500;   // 1 500 FCFA base de livraison
-const DELIVERY_PER_KM = 300;    // 300 FCFA / km
+/* ── Constantes financières (USD — voir PricingConfig.serviceFee/rentalOptions
+   côté serveur ; ceci n'est qu'un aperçu client avant soumission, le serveur
+   recalcule et fait toujours foi à la création — voir bookingController.js) ── */
+const SERVICE_FEE     = 1;      // plancher serviceFee.minUSD (PricingConfig)
+const DELIVERY_BASE   = 3;      // repli si /api/geo/delivery-fee échoue
+const DELIVERY_PER_KM = 0.5;    // repli si /api/geo/delivery-fee échoue
 
 const OPTIONS_CATALOG = [
-  { id: "babySeat",  label: "Siège bébé",        price: 7000,  icon: "👶" },
-  { id: "insurance", label: "Prime d'assurance", price: 15000, icon: "🛡️" },
-  { id: "driver",    label: "Chauffeur privé",   price: 50000, icon: "🧑‍✈️" },
-  { id: "gps",       label: "GPS intégré",        price: 10000, icon: "🗺️" },
+  { id: "babySeat",  label: "Siège bébé",        price: 11.67, icon: "👶" },
+  { id: "insurance", label: "Prime d'assurance", price: 25,    icon: "🛡️" },
+  { id: "driver",    label: "Chauffeur privé",   price: 83.33, icon: "🧑‍✈️" },
+  { id: "gps",       label: "GPS intégré",        price: 16.67, icon: "🗺️" },
 ];
 
 const PAYMENT_METHODS = [

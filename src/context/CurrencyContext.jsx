@@ -4,88 +4,20 @@ import { getCurrentPosition } from "../utils/geo.js";
 
 const CurrencyContext = createContext(null);
 
-// ─── Taux de conversion base MAD (dirham marocain = devise primaire) ────────────
-// 1 MAD vaut N unités de la devise cible
-export const EXCHANGE_RATES_FROM_MAD = {
-  MAD: 1,
-  XOF: 60.5,      // 1 MAD ≈ 60.5 FCFA
-  EUR: 0.0916,    // 1 MAD ≈ 0.092 €
-  USD: 0.100,     // 1 MAD ≈ 0.10 $
-  GBP: 0.0793,    // 1 MAD ≈ 0.079 £
-  CAD: 0.136,
-  CHF: 0.0903,
-  TND: 0.310,
-  DZD: 13.5,
-  GNF: 927,
-  CNY: 0.716,
-};
-
-// Taux de conversion XOF → devise (pour rétrocompat avec fmt(amountXOF))
-// AED/GHS/NGN ajoutées pour les annonces Import/Export (voir CURRENCIES dans
-// data/autocomplete.js, choix de devise du formulaire de publication) — sans
-// ces taux, fmtFromCurrency() serait tombée à 1 (traitée comme du XOF), soit
-// un prix affiché des centaines de fois trop faible pour ces devises.
-export const EXCHANGE_RATES = {
-  XOF: 1,
-  MAD: 60.5,
-  EUR: 655.957,
-  USD: 600,
-  GBP: 765,
-  CAD: 450,
-  CHF: 680,
-  TND: 195,
-  DZD: 4.4,
-  GNF: 0.065,
-  CNY: 84.5,
-  AED: 163,
-  GHS: 40,
-  NGN: 0.4,
-};
-
-// Correspondance pays → devise
-const COUNTRY_TO_CURRENCY = {
-  MA: "MAD",                                        // Maroc — devise primaire
-  CI: "XOF", SN: "XOF", ML: "XOF", BF: "XOF",
-  NE: "XOF", TG: "XOF", BJ: "XOF", CM: "XOF",
-  GN: "GNF",
-  DZ: "DZD",
-  TN: "TND",
-  FR: "EUR", BE: "EUR", ES: "EUR", PT: "EUR",
-  IT: "EUR", DE: "EUR", NL: "EUR", LU: "EUR",
-  CH: "CHF",
-  GB: "GBP",
-  US: "USD",
-  CA: "CAD",
-  CN: "CNY",
-};
-
-export const CURRENCIES = [
-  { code: "MAD", symbol: "DH",   name: "Dirham marocain", flag: "🇲🇦", locale: "fr-MA" },
-  { code: "XOF", symbol: "FCFA", name: "Franc CFA",       flag: "🌍",  locale: "fr-CI" },
-  { code: "EUR", symbol: "€",    name: "Euro",             flag: "🇪🇺",  locale: "fr-FR" },
-  { code: "USD", symbol: "$",    name: "Dollar US",        flag: "🇺🇸",  locale: "en-US" },
-  { code: "GBP", symbol: "£",    name: "Livre sterling",   flag: "🇬🇧",  locale: "en-GB" },
-  { code: "CAD", symbol: "CA$",  name: "Dollar canadien",  flag: "🇨🇦",  locale: "fr-CA" },
-  { code: "CHF", symbol: "CHF",  name: "Franc suisse",     flag: "🇨🇭",  locale: "fr-CH" },
-  { code: "TND", symbol: "DT",   name: "Dinar tunisien",   flag: "🇹🇳",  locale: "fr-TN" },
-  { code: "DZD", symbol: "DA",   name: "Dinar algérien",   flag: "🇩🇿",  locale: "fr-DZ" },
-  { code: "CNY", symbol: "¥",    name: "Yuan chinois",     flag: "🇨🇳",  locale: "zh-CN" },
+// ─── Source de vérité : /api/pricing/currencies + /api/pricing/countries ────
+// (server/models/ExchangeRate.js + CountryConfig.js, éditables admin) — plus
+// aucun taux/pays codé en dur ici. Utilisé uniquement si le fetch échoue au
+// tout premier chargement (backend indisponible) pour éviter un écran cassé ;
+// remplacé dès que la vraie réponse arrive.
+const FALLBACK_CURRENCIES = [
+  { code: "MAD", symbol: "DH",   name: "Dirham marocain", rateFromUSD: 9.9174 },
+  { code: "XOF", symbol: "FCFA", name: "Franc CFA",       rateFromUSD: 600 },
+  { code: "EUR", symbol: "€",    name: "Euro",             rateFromUSD: 0.9147 },
+  { code: "USD", symbol: "$",    name: "Dollar US",        rateFromUSD: 1 },
 ];
-
-export const COUNTRIES_CONFIG = [
-  { code: "MA", name: "Maroc",         flag: "🇲🇦", currency: "MAD", symbol: "DH",   locale: "fr-MA" },
-  { code: "CI", name: "Côte d'Ivoire", flag: "🇨🇮", currency: "XOF", symbol: "FCFA", locale: "fr-CI" },
-  { code: "SN", name: "Sénégal",       flag: "🇸🇳", currency: "XOF", symbol: "FCFA", locale: "fr-SN" },
-  { code: "ML", name: "Mali",          flag: "🇲🇱", currency: "XOF", symbol: "FCFA", locale: "fr-ML" },
-  { code: "DZ", name: "Algérie",       flag: "🇩🇿", currency: "DZD", symbol: "DA",   locale: "fr-DZ" },
-  { code: "TN", name: "Tunisie",       flag: "🇹🇳", currency: "TND", symbol: "DT",   locale: "fr-TN" },
-  { code: "FR", name: "France",        flag: "🇫🇷", currency: "EUR", symbol: "€",    locale: "fr-FR" },
-  { code: "BE", name: "Belgique",      flag: "🇧🇪", currency: "EUR", symbol: "€",    locale: "fr-BE" },
-  { code: "ES", name: "Espagne",       flag: "🇪🇸", currency: "EUR", symbol: "€",    locale: "es-ES" },
-  { code: "CH", name: "Suisse",        flag: "🇨🇭", currency: "CHF", symbol: "CHF",  locale: "fr-CH" },
-  { code: "US", name: "États-Unis",    flag: "🇺🇸", currency: "USD", symbol: "$",    locale: "en-US" },
-  { code: "CA", name: "Canada",        flag: "🇨🇦", currency: "CAD", symbol: "CA$",  locale: "fr-CA" },
-  { code: "CN", name: "Chine",         flag: "🇨🇳", currency: "CNY", symbol: "¥",    locale: "zh-CN" },
+const FALLBACK_COUNTRIES = [
+  { code: "MA", name: "Maroc",         flag: "🇲🇦", currency: "MAD", locale: "fr-MA" },
+  { code: "CI", name: "Côte d'Ivoire", flag: "🇨🇮", currency: "XOF", locale: "fr-CI" },
 ];
 
 // Valeur spéciale (pas un vrai code pays ISO) pour "toutes les annonces, tous
@@ -93,13 +25,61 @@ export const COUNTRIES_CONFIG = [
 // sur un utilisateur/une annonce.
 export const COUNTRY_INTERNATIONAL = "INTL";
 
+const INTL_CODES = ["EUR", "USD", "CAD", "CHF", "GBP"];
+
 export function CurrencyProvider({ children }) {
   const { user } = useAuth();
   const saved = localStorage.getItem("vit_currency");
-  // Devise par défaut : MAD (Maroc — siège social)
+  // Devise par défaut : MAD (Maroc — siège social) — le temps que le fetch réponde.
   const [currencyCode, setCurrencyState] = useState(saved || "MAD");
   const [detectedCountry, setDetectedCountry] = useState(saved ? "MA" : null);
   const [detecting, setDetecting] = useState(!saved);
+
+  // ── Référentiels devises/pays, chargés une fois au montage ────────────────
+  const [currencies, setCurrencies] = useState(FALLBACK_CURRENCIES);
+  const [countriesConfig, setCountriesConfig] = useState(FALLBACK_COUNTRIES);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [rCur, rCountries] = await Promise.all([
+          fetch("/api/pricing/currencies"),
+          fetch("/api/pricing/countries"),
+        ]);
+        if (rCur.ok) {
+          const d = await rCur.json();
+          if (Array.isArray(d.currencies) && d.currencies.length) setCurrencies(d.currencies);
+        }
+        if (rCountries.ok) {
+          const d = await rCountries.json();
+          if (Array.isArray(d.countries) && d.countries.length) setCountriesConfig(d.countries);
+        }
+      } catch {
+        // Backend indisponible au chargement — les tables de repli restent actives.
+      }
+    })();
+  }, []);
+
+  // Taux (unités de `code` pour 1 USD) — table dérivée du fetch, jamais en dur.
+  const rateFromUSD = useCallback(
+    (code) => currencies.find((c) => c.code === code)?.rateFromUSD ?? 1,
+    [currencies]
+  );
+
+  const COUNTRY_TO_CURRENCY = Object.fromEntries(countriesConfig.map((c) => [c.code, c.currency]));
+
+  // CURRENCIES (liste pour le sélecteur) — flag/locale hérités du premier pays
+  // trouvé utilisant cette devise (info de présentation, pas une règle commerciale).
+  const CURRENCIES = currencies.map((c) => {
+    const country = countriesConfig.find((co) => co.currency === c.code);
+    return { code: c.code, symbol: c.symbol, name: c.name, flag: country?.flag || "🌍", locale: country?.locale || "fr-FR" };
+  });
+
+  const COUNTRIES_CONFIG = countriesConfig.map((c) => ({
+    code: c.code, name: c.name, flag: c.flag, currency: c.currency,
+    symbol: currencies.find((cur) => cur.code === c.currency)?.symbol || c.currency,
+    locale: c.locale,
+  }));
 
   // ── Filtre pays du catalogue (véhicules, chauffeurs, import/export) ────────
   // Distinct de la devise : "International" affiche tout sans changer la
@@ -130,7 +110,7 @@ export function CurrencyProvider({ children }) {
   // ipapi.co) échouait silencieusement dès qu'un bloqueur de pub, une politique
   // CORS ou le quota gratuit du service tiers intervenait, et retombait alors
   // TOUJOURS sur le Maroc par défaut, y compris pour des visiteurs d'Afrique
-  // de l'Ouest (marché principal) — gardé uniquement en second repli.
+  // de l'Ouest (marché principal). Gardé uniquement en second repli.
   useEffect(() => {
     if (saved) { setDetecting(false); return; }
     let cancelled = false;
@@ -171,7 +151,8 @@ export function CurrencyProvider({ children }) {
     })();
 
     return () => { cancelled = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countriesConfig]);
 
   // Détection précise optionnelle via géolocalisation navigateur (GPS/Wi-Fi) —
   // complète la détection IP quand elle est disponible (ex : IP faussée par un
@@ -188,7 +169,7 @@ export function CurrencyProvider({ children }) {
             const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`, { headers: { "Accept-Language": "fr" } });
             const d = await r.json();
             const cc = d?.address?.country_code?.toUpperCase();
-            if (cc && COUNTRIES_CONFIG.some((c) => c.code === cc)) {
+            if (cc && countriesConfig.some((c) => c.code === cc)) {
               const cur = COUNTRY_TO_CURRENCY[cc] || "MAD";
               setDetectedCountry(cc);
               setCurrencyState(cur);
@@ -207,7 +188,8 @@ export function CurrencyProvider({ children }) {
         { enableHighAccuracy: false, timeout: 10000 }
       );
     });
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countriesConfig]);
 
   const currentCurrency = CURRENCIES.find((c) => c.code === currencyCode) || CURRENCIES[0];
 
@@ -216,31 +198,44 @@ export function CurrencyProvider({ children }) {
     localStorage.setItem("vit_currency", code);
   }, []);
 
-  // Convertit XOF → devise active (rétrocompat)
-  const convert = useCallback(
-    (amountXOF) => {
-      const rate = EXCHANGE_RATES[currentCurrency.code];
-      if (!rate || rate === 1) return amountXOF;
-      return Math.round((amountXOF / rate) * 100) / 100;
+  // Formate un montant déjà en USD — formateur canonique pour toute nouvelle
+  // donnée (PricingConfig, et progressivement Vehicle/Booking après migration).
+  const fmtUSD = useCallback(
+    (amountUSD) => {
+      if (amountUSD == null || isNaN(amountUSD)) return "—";
+      const { code, locale, symbol } = currentCurrency;
+      const converted = code === "USD" ? amountUSD : amountUSD * rateFromUSD(code);
+      if (INTL_CODES.includes(code)) {
+        return new Intl.NumberFormat(locale, { style: "currency", currency: code, maximumFractionDigits: 2 }).format(converted);
+      }
+      return `${Number(Math.round(converted * 100) / 100).toLocaleString(locale)} ${symbol}`;
     },
-    [currentCurrency]
+    [currentCurrency, rateFromUSD]
   );
 
-  // Formate XOF dans la devise active
-  const fmt = useCallback(
+  // Convertit XOF → devise active (rétrocompat — XOF reste le pivot historique
+  // de Vehicle/Booking tant que la Phase 2 de la refonte n'a pas migré leur
+  // stockage vers USD ; passe par USD en interne).
+  const convert = useCallback(
     (amountXOF) => {
-      if (amountXOF == null || isNaN(amountXOF)) return "—";
-      const converted = convert(amountXOF);
-      const { code, locale, symbol } = currentCurrency;
-      if (["EUR", "USD", "CAD", "CHF", "GBP"].includes(code)) {
-        return new Intl.NumberFormat(locale, {
-          style: "currency", currency: code, maximumFractionDigits: 0,
-        }).format(converted);
-      }
-      return `${Number(converted).toLocaleString(locale)} ${symbol}`;
+      if (amountXOF == null || isNaN(amountXOF)) return amountXOF;
+      const amountUSD = amountXOF / rateFromUSD("XOF");
+      const targetRate = rateFromUSD(currentCurrency.code);
+      if (currentCurrency.code === "XOF") return amountXOF;
+      return Math.round(amountUSD * targetRate * 100) / 100;
     },
-    [convert, currentCurrency]
+    [currentCurrency, rateFromUSD]
   );
+
+  // `fmt` = alias de `fmtUSD` — depuis la Phase 2 de la refonte (migration
+  // Vehicle/Booking/Driver vers un stockage 100% USD, voir
+  // server/scripts/migrate-vehicle-booking-to-usd.mjs), les ~90 points d'appel
+  // existants de fmt() dans l'app formatent tous des champs désormais en USD
+  // (pricePerDay, montantTotal, commissionAmount, tarif...). Garder le nom
+  // historique évite de toucher chacun de ces call sites individuellement ;
+  // `convert()` ci-dessus reste l'ancien pivot XOF, non utilisé ici, conservé
+  // pour compat si un appelant externe en dépend encore.
+  const fmt = fmtUSD;
 
   // Formate un montant déjà exprimé dans une devise arbitraire (annonces
   // Import/Export : le partenaire choisit librement la devise de son annonce,
@@ -249,34 +244,33 @@ export function CurrencyProvider({ children }) {
   const fmtFromCurrency = useCallback(
     (amount, sourceCode) => {
       if (amount == null || isNaN(amount)) return "—";
-      const sourceRate = EXCHANGE_RATES[sourceCode] ?? 1;
-      return fmt(amount * sourceRate);
+      const sourceRateXOF = rateFromUSD("XOF") / (rateFromUSD(sourceCode) || 1); // XOF pour 1 unité de sourceCode
+      return fmt(amount * sourceRateXOF);
     },
-    [fmt]
+    [fmt, rateFromUSD]
   );
 
-  // Convertit MAD → devise active (pour Plans, commissions, prix en DH)
+  // Convertit MAD → devise active (pour Plans, commissions)
   const fmtFromMAD = useCallback(
     (amountMAD) => {
       if (amountMAD == null || isNaN(amountMAD)) return "—";
       if (amountMAD === 0) return "Gratuit";
       const { code, symbol, locale } = currentCurrency;
-      const rate = EXCHANGE_RATES_FROM_MAD[code] ?? 1;
-      const converted = Math.round(amountMAD * rate);
-      if (["EUR", "USD", "CAD", "CHF", "GBP"].includes(code)) {
+      const converted = amountMAD * (rateFromUSD(code) / rateFromUSD("MAD"));
+      if (INTL_CODES.includes(code)) {
         return new Intl.NumberFormat(locale, {
           style: "currency", currency: code, maximumFractionDigits: 0,
-        }).format(amountMAD * rate);
+        }).format(converted);
       }
-      return `${Number(converted).toLocaleString(locale)} ${symbol}`;
+      return `${Number(Math.round(converted)).toLocaleString(locale)} ${symbol}`;
     },
-    [currentCurrency]
+    [currentCurrency, rateFromUSD]
   );
 
   // Valeur brute MAD → XOF pour calculs
   const fromMAD = useCallback(
-    (amountMAD) => Math.round(amountMAD * EXCHANGE_RATES.MAD),
-    []
+    (amountMAD) => Math.round(amountMAD * (rateFromUSD("XOF") / rateFromUSD("MAD"))),
+    [rateFromUSD]
   );
 
   return (
@@ -288,14 +282,15 @@ export function CurrencyProvider({ children }) {
         setCurrency,
         convert,
         fmt,
+        fmtUSD,
         fmtFromCurrency,
         fmtFromMAD,
         fromMAD,
         detecting,
         detectedCountry: detectedCountry || "MA",
         CURRENCIES,
-        EXCHANGE_RATES,
-        EXCHANGE_RATES_FROM_MAD,
+        EXCHANGE_RATES: Object.fromEntries(currencies.map((c) => [c.code, rateFromUSD("XOF") / c.rateFromUSD])),
+        EXCHANGE_RATES_FROM_MAD: Object.fromEntries(currencies.map((c) => [c.code, c.rateFromUSD / rateFromUSD("MAD")])),
         countryCode: detectedCountry || "MA",
         COUNTRIES_CONFIG,
         setCountry: (cc) => {

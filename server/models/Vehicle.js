@@ -39,10 +39,13 @@ const vehicleSchema = new mongoose.Schema({
   climatisation: { type: Boolean, default: true },
   withDriver:    { type: Boolean, default: false }, // Option chauffeur avec la location
 
-  // ── Tarification (FCFA / XOF) ─────────────────────────────
+  // ── Tarification (USD — voir server/scripts/migrate-vehicle-booking-to-usd.mjs
+  // pour la migration des annonces créées avant ce champ, qui étaient toutes
+  // implicitement en FCFA/XOF) ───────────────────────────────
+  currency:     { type: String, default: "USD" },
   pricePerDay:  { type: Number }, // location
   priceForSale: { type: Number }, // vente
-  caution:      { type: Number }, // caution location (FCFA) — toujours optionnelle
+  caution:      { type: Number }, // caution location — toujours optionnelle
 
   // Durée de location proposée (uniquement pertinent pour type "location") —
   // permet de distinguer "Location courte durée" / "Location longue durée"
@@ -57,8 +60,8 @@ const vehicleSchema = new mongoose.Schema({
   // ── Leasing (LOA — location avec option d'achat, pour type "vente" uniquement) ──
   leasing: {
     disponible:    { type: Boolean, default: false },
-    apportInitial: { type: Number, default: 0 },     // FCFA
-    mensualite:    { type: Number, default: 0 },     // FCFA/mois
+    apportInitial: { type: Number, default: 0 },     // USD
+    mensualite:    { type: Number, default: 0 },     // USD/mois
     duree:         { type: Number, default: 36 },    // mois
     tauxInteret:   { type: Number, default: 8 },     // % annuel
     description:   { type: String, default: "" },
@@ -68,8 +71,8 @@ const vehicleSchema = new mongoose.Schema({
   // l'achat contrairement au leasing/LOA — pour type "vente" uniquement) ────
   credit: {
     disponible:    { type: Boolean, default: false },
-    apportInitial: { type: Number, default: 0 },     // FCFA
-    mensualite:    { type: Number, default: 0 },     // FCFA/mois
+    apportInitial: { type: Number, default: 0 },     // USD
+    mensualite:    { type: Number, default: 0 },     // USD/mois
     duree:         { type: Number, default: 36 },    // mois
     tauxInteret:   { type: Number, default: 8 },     // % annuel
     description:   { type: String, default: "" },

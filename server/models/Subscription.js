@@ -8,28 +8,34 @@ const subscriptionSchema = new mongoose.Schema({
     unique: true,
   },
 
+  // "entreprise" est volontairement absent — tarification personnalisée /
+  // devis manuel (hors self-service), voir Plans.jsx.
   plan: {
     type: String,
-    enum: ["free", "pro"],
+    enum: ["free", "individuel_plus", "business", "exportateur"],
     default: "free",
   },
 
-  // Détails du plan Pro
-  proDetails: {
-    startDate:  { type: Date },
-    endDate:    { type: Date },
-    isActive:   { type: Boolean, default: false },
-    priceXOF:   { type: Number, default: 25000 }, // 25 000 FCFA/mois
+  // Détails du plan payant actif (un seul à la fois par vendeur) — prix figé
+  // au moment de l'activation (voir pricingEngine.getSubscriptionPrice()),
+  // pour ne jamais faire varier rétroactivement le montant déjà facturé si
+  // l'admin modifie PricingConfig.subscriptions ensuite.
+  planDetails: {
+    startDate: { type: Date },
+    endDate:   { type: Date },
+    isActive:  { type: Boolean, default: false },
+    priceUSD:  { type: Number, default: 0 },
   },
 
-  // Mises en avant (boosts d'annonces)
+  // Mises en avant (boosts d'annonces) — 4 paliers, voir PricingConfig.boosts.
   boosts: [
     {
       vehicle:   { type: mongoose.Schema.Types.ObjectId, ref: "Vehicle" },
+      tier:      { type: String, enum: ["24h", "7d", "30d", "international"], default: "30d" },
       startDate: { type: Date },
       endDate:   { type: Date },
       isActive:  { type: Boolean, default: false },
-      priceXOF:  { type: Number, default: 5000 }, // 5 000 FCFA / boost
+      priceUSD:  { type: Number, default: 0 },
       paidAt:    { type: Date },
     },
   ],
@@ -37,6 +43,7 @@ const subscriptionSchema = new mongoose.Schema({
   // Historique des paiements d'abonnement
   paymentHistory: [
     {
+      planTier: { type: String, enum: ["individuel_plus", "business", "exportateur"] },
       amount:  { type: Number },
       method:  { type: String },
       paidAt:  { type: Date, default: Date.now },
@@ -57,12 +64,13 @@ const subscriptionSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now },
 });
 
-// Vérifie si le plan Pro est actif en ce moment
-subscriptionSchema.virtual("isProActive").get(function () {
-  if (this.plan !== "pro") return false;
-  if (!this.proDetails?.isActive) return false;
-  if (!this.proDetails?.endDate) return false;
-  return new Date() < this.proDetails.endDate;
+// Vérifie si un plan payant est actif en ce moment (n'importe lequel des 3 —
+// remplace l'ancien isProActive spécifique au plan "pro" unique).
+subscriptionSchema.virtual("isPlanActive").get(function () {
+  if (this.plan === "free") return false;
+  if (!this.planDetails?.isActive) return false;
+  if (!this.planDetails?.endDate) return false;
+  return new Date() < this.planDetails.endDate;
 });
 
 subscriptionSchema.set("toJSON", { virtuals: true });

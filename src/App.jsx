@@ -40,6 +40,7 @@ const DashboardStats        = lazy(() => import("./pages/DashboardStats"));
 const Checkout              = lazy(() => import("./pages/Checkout"));
 const Services              = lazy(() => import("./pages/Services"));
 const InsuranceRequest      = lazy(() => import("./pages/InsuranceRequest"));
+const ServiceRequest        = lazy(() => import("./pages/ServiceRequest"));
 const Favorites             = lazy(() => import("./pages/Favorites"));
 const Help                  = lazy(() => import("./pages/Help"));
 const ContractPage          = lazy(() => import("./pages/ContractPage"));
@@ -100,6 +101,7 @@ function AppRoutes() {
           {/* ── Pages d'information ────────────────────────── */}
           <Route path="/services"               element={<Services />} />
           <Route path="/insurance-request"      element={<InsuranceRequest />} />
+          <Route path="/services/:category"     element={<ServiceRequest />} />
           <Route path="/help"                   element={<Help />} />
           <Route path="/plans"                  element={<Plans />} />
           <Route path="/partenaires"            element={<Partenaires />} />

@@ -31,6 +31,7 @@ const timeAgo = (d) => {
   return new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
 };
 const MOIS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
+const PLAN_TIER_LABELS = { individuel_plus: "Individuel Plus", business: "Business", exportateur: "Exportateur" };
 // Sanitise une URL avant de l'utiliser dans href (bloque javascript: et autres schémas dangereux)
 const safeHref = (url) => {
   if (!url) return "#";
@@ -1007,6 +1008,94 @@ function InsuranceSection({ requests, loading, onDecide }) {
   );
 }
 
+// ── Demandes de services génériques (transport/transit/douanes/immatriculation/
+// garantie/financement/change de devises) — décision manuelle admin, commission
+// calculée à l'approbation depuis PricingConfig.services.<catégorie>.
+const SVC_REQ_CATEGORY_LABELS = {
+  transport: "🚢 Transport", transit: "🛃 Transit", douanes: "🏛️ Douanes",
+  immatriculation: "🪪 Immatriculation", garantie: "🛡️ Garantie",
+  financement: "🏦 Financement", change_devises: "💱 Change de devises",
+};
+const SVC_REQ_STATUS_CFG = {
+  pending:  { label: "🔍 En attente", color: "#d97706", bg: "#fef3c7" },
+  approved: { label: "✅ Approuvée",  color: "#10b981", bg: "#d1fae5" },
+  rejected: { label: "❌ Refusée",    color: "#dc2626", bg: "#fee2e2" },
+};
+
+function ServiceRequestsSection({ requests, loading, category, onCategoryChange, onDecide }) {
+  const counts = {
+    pending:  requests.filter((r) => r.status === "pending").length,
+    approved: requests.filter((r) => r.status === "approved").length,
+    rejected: requests.filter((r) => r.status === "rejected").length,
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+        <select value={category} onChange={(e) => onCategoryChange(e.target.value)}
+          style={{ padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }}>
+          <option value="">Toutes les catégories</option>
+          {Object.entries(SVC_REQ_CATEGORY_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        </select>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))", gap: 14, marginBottom: "1.5rem" }}>
+        <StatCard icon="📋" label="Total demandes" value={requests.length}  color="#6366f1" />
+        <StatCard icon="🔍" label="En attente"      value={counts.pending}  color="#d97706" />
+        <StatCard icon="✅" label="Approuvées"      value={counts.approved} color="#10b981" />
+        <StatCard icon="❌" label="Refusées"        value={counts.rejected} color="#dc2626" />
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>
+      ) : requests.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
+          <div style={{ fontSize: "3rem", marginBottom: 12 }}>🧰</div>
+          <p style={{ fontWeight: 600 }}>Aucune demande pour le moment.</p>
+        </div>
+      ) : (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr><th>Client</th><th>Catégorie</th><th>Véhicule</th><th>Détails</th><th>Notes</th><th>Statut</th><th>Devis / Commission</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              {requests.map((r) => {
+                const st = SVC_REQ_STATUS_CFG[r.status];
+                const detailsStr = Object.entries(r.details || {}).filter(([, v]) => v !== "" && v != null).map(([k, v]) => `${k}: ${v}`).join(" · ");
+                return (
+                  <tr key={r._id} className={styles.tr}>
+                    <td><strong style={{ fontSize: ".85rem" }}>{r.client?.firstName} {r.client?.lastName}</strong><div style={{ fontSize: ".74rem", color: "#94a3b8" }}>{r.client?.email}</div></td>
+                    <td style={{ fontSize: ".82rem" }}>{SVC_REQ_CATEGORY_LABELS[r.category] || r.category}</td>
+                    <td style={{ fontSize: ".82rem" }}>{r.vehicle?.title || r.vehicleInfo || "—"}</td>
+                    <td style={{ fontSize: ".76rem", color: "#64748b", maxWidth: 200 }}>{detailsStr || "—"}</td>
+                    <td style={{ fontSize: ".78rem", color: "#64748b", maxWidth: 160 }}>{r.notes || "—"}</td>
+                    <td><Badge label={st.label} color={st.color} bg={st.bg} /></td>
+                    <td style={{ fontSize: ".78rem" }}>
+                      {r.quotedAmountUSD != null ? `$${r.quotedAmountUSD}` : "—"}
+                      {r.commission?.amount != null && <div style={{ color: "#10b981" }}>Comm. ${r.commission.amount}</div>}
+                    </td>
+                    <td>
+                      {r.status === "pending" && (
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button className={styles.btnRefresh} style={{ background: "#10b981", color: "#fff", border: "none" }}
+                            onClick={() => onDecide({ id: r._id, status: "approved" })}>✅</button>
+                          <button className={styles.btnRefresh} style={{ background: "#dc2626", color: "#fff", border: "none" }}
+                            onClick={() => onDecide({ id: r._id, status: "rejected" })}>❌</button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const STATUS_VEH = {
   approved: { label: "Publiée",     color: "#10b981", bg: "#ecfdf5" },
   pending:  { label: "En attente",  color: "#f59e0b", bg: "#fffbeb" },
@@ -1078,7 +1167,7 @@ function ConfirmModal({ message, onConfirm, onCancel, danger }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function AdminPanel() {
   const { user, isAuthenticated, token, logout } = useAuth();
-  const { COUNTRIES_CONFIG } = useCurrency();
+  const { COUNTRIES_CONFIG, fmtUSD } = useCurrency();
   const { on: onSocket } = useSocket();
   const navigate = useNavigate();
 
@@ -1161,6 +1250,33 @@ export default function AdminPanel() {
   const [insuranceModal,   setInsuranceModal]   = useState(null); // { id, status }
   const [insurancePremium, setInsurancePremium] = useState("");
   const [insuranceNote,    setInsuranceNote]    = useState("");
+
+  // Demandes de services génériques (transport/transit/douanes/immatriculation/
+  // garantie/financement/change de devises) — voir server/models/ServiceRequest.js
+  const [svcReqList,       setSvcReqList]       = useState([]);
+  const [svcReqLoading,    setSvcReqLoading]    = useState(false);
+  const [svcReqCategory,   setSvcReqCategory]   = useState("");
+  const [svcReqModal,      setSvcReqModal]      = useState(null); // { id, status }
+  const [svcReqAmount,     setSvcReqAmount]     = useState("");
+  const [svcReqNote,       setSvcReqNote]       = useState("");
+  const [svcReqSaving,     setSvcReqSaving]     = useState(false);
+
+  // Configuration métier (PricingConfig + ExchangeRate + CountryConfig)
+  const [bizSubTab,        setBizSubTab]        = useState("commissions");
+  const [bizConfig,        setBizConfig]        = useState(null); // PricingConfig brut
+  const [bizConfigLoading, setBizConfigLoading] = useState(false);
+  const [bizSaving,        setBizSaving]        = useState(null); // clé de section en cours de sauvegarde
+  const [commissionsForm,  setCommissionsForm]  = useState(null);
+  const [foundingForm,     setFoundingForm]     = useState(null);
+  const [serviceFeeForm,   setServiceFeeForm]   = useState(null);
+  const [subscriptionsForm,setSubscriptionsForm]= useState(null);
+  const [boostsForm,       setBoostsForm]       = useState(null);
+  const [servicesForm,     setServicesForm]     = useState(null);
+  const [adsConfigForm,    setAdsConfigForm]    = useState(null);
+  const [exchangeRates,    setExchangeRates]    = useState([]);
+  const [countryConfigs,   setCountryConfigs]   = useState([]);
+  const [rateForm,         setRateForm]         = useState(null); // null = fermé
+  const [countryForm,      setCountryForm]      = useState(null);
   const [insuranceSaving,  setInsuranceSaving]  = useState(false);
 
   // Journal d'audit
@@ -1693,6 +1809,37 @@ export default function AdminPanel() {
     finally { setInsuranceSaving(false); }
   };
 
+  // ── Demandes de services génériques ──────────────────────────────────────────
+  const loadServiceRequests = useCallback(async () => {
+    if (!token) return;
+    setSvcReqLoading(true);
+    try {
+      const params = svcReqCategory ? `?category=${svcReqCategory}` : "";
+      const r = await fetch(`/api/service-requests/admin/list${params}`, { headers });
+      if (r.ok) setSvcReqList((await r.json()).requests || []);
+    } catch { /* ignore */ }
+    setSvcReqLoading(false);
+  }, [token, headers, svcReqCategory]);
+
+  const submitServiceRequestDecision = async () => {
+    if (!svcReqModal) return;
+    setSvcReqSaving(true);
+    try {
+      const r = await fetch(`/api/service-requests/${svcReqModal.id}/decision`, {
+        method: "PATCH", headers,
+        body: JSON.stringify({ status: svcReqModal.status, quotedAmountUSD: svcReqAmount, note: svcReqNote }),
+      });
+      const data = await r.json();
+      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
+      showToast("Décision enregistrée — client notifié", "success");
+      setSvcReqModal(null);
+      setSvcReqAmount("");
+      setSvcReqNote("");
+      loadServiceRequests();
+    } catch { showToast("Erreur réseau", "error"); }
+    finally { setSvcReqSaving(false); }
+  };
+
   // ── Import Cost Engine — barèmes pays + liaisons de fret ─────────────────────
   const loadImportCostData = useCallback(async () => {
     if (!token) return;
@@ -1747,6 +1894,88 @@ export default function AdminPanel() {
     await fetch(`/api/import-cost/admin/lanes/${id}`, { method: "DELETE", headers });
     showToast("Liaison supprimée.");
     loadImportCostData();
+  };
+
+  // ── Configuration métier — PricingConfig + ExchangeRate + CountryConfig ─────
+  const loadBusinessConfig = useCallback(async () => {
+    if (!token) return;
+    setBizConfigLoading(true);
+    try {
+      const [pRes, rRes, cRes] = await Promise.all([
+        fetch("/api/admin/business-config/pricing", { headers }),
+        fetch("/api/admin/business-config/exchange-rates", { headers }),
+        fetch("/api/admin/business-config/countries", { headers }),
+      ]);
+      if (pRes.ok) {
+        const { config } = await pRes.json();
+        setBizConfig(config);
+        setCommissionsForm(config.commissions);
+        setFoundingForm(config.foundingPartner);
+        setServiceFeeForm(config.serviceFee);
+        setSubscriptionsForm(config.subscriptions);
+        setBoostsForm(config.boosts);
+        setServicesForm(config.services);
+        setAdsConfigForm(config.ads);
+      }
+      if (rRes.ok) setExchangeRates((await rRes.json()).rates || []);
+      if (cRes.ok) setCountryConfigs((await cRes.json()).countries || []);
+    } catch { /* ignore */ }
+    setBizConfigLoading(false);
+  }, [token, headers]);
+
+  const savePricingSection = async (section, payload) => {
+    setBizSaving(section);
+    try {
+      const r = await fetch(`/api/admin/business-config/pricing/${section}`, {
+        method: "PATCH", headers, body: JSON.stringify(payload),
+      });
+      const d = await r.json().catch(() => null);
+      if (r.ok) { showToast("Configuration enregistrée."); setBizConfig(d.config); }
+      else showToast(d?.message || "Erreur", "error");
+    } catch { showToast("Erreur réseau", "error"); }
+    finally { setBizSaving(null); }
+  };
+
+  const saveExchangeRate = async () => {
+    if (!rateForm?.code || !rateForm?.name || !rateForm?.symbol || !rateForm?.rateFromUSD) {
+      showToast("Code, nom, symbole et taux sont requis", "error"); return;
+    }
+    try {
+      const r = await fetch("/api/admin/business-config/exchange-rates", {
+        method: "POST", headers, body: JSON.stringify(rateForm),
+      });
+      const d = await r.json().catch(() => null);
+      if (r.ok) { showToast("Devise enregistrée."); setRateForm(null); loadBusinessConfig(); }
+      else showToast(d?.message || "Erreur", "error");
+    } catch { showToast("Erreur réseau", "error"); }
+  };
+
+  const deleteExchangeRateFn = async (id) => {
+    if (!confirm("Supprimer cette devise ?")) return;
+    await fetch(`/api/admin/business-config/exchange-rates/${id}`, { method: "DELETE", headers });
+    showToast("Devise supprimée.");
+    loadBusinessConfig();
+  };
+
+  const saveCountryConfig = async () => {
+    if (!countryForm?.code || !countryForm?.name || !countryForm?.defaultCurrency) {
+      showToast("Code, nom et devise par défaut sont requis", "error"); return;
+    }
+    try {
+      const r = await fetch("/api/admin/business-config/countries", {
+        method: "POST", headers, body: JSON.stringify(countryForm),
+      });
+      const d = await r.json().catch(() => null);
+      if (r.ok) { showToast("Pays enregistré."); setCountryForm(null); loadBusinessConfig(); }
+      else showToast(d?.message || "Erreur", "error");
+    } catch { showToast("Erreur réseau", "error"); }
+  };
+
+  const deleteCountryConfigFn = async (id) => {
+    if (!confirm("Supprimer ce pays ?")) return;
+    await fetch(`/api/admin/business-config/countries/${id}`, { method: "DELETE", headers });
+    showToast("Pays supprimé.");
+    loadBusinessConfig();
   };
 
   // ── Journal d'audit ──────────────────────────────────────────────────────────
@@ -2200,10 +2429,12 @@ export default function AdminPanel() {
     if (activeTab === "roles")             loadAdminAccounts();
     if (activeTab === "ads" || activeTab === "marketing") loadAds();
     if (activeTab === "assurance")         loadInsurance();
+    if (activeTab === "service_requests")  loadServiceRequests();
     if (activeTab === "import_cost")       loadImportCostData();
     if (activeTab === "reports")           loadReports();
     if (activeTab === "whatsapp")          loadWaConversations();
-  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds, loadInsurance, loadImportCostData, loadReports, loadWaConversations]);
+    if (activeTab === "business_config")   loadBusinessConfig();
+  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds, loadInsurance, loadServiceRequests, loadImportCostData, loadReports, loadWaConversations, loadBusinessConfig]);
 
   // Rafraîchissement périodique de la liste support (nouvelles demandes) tant que
   // l'onglet est affiché — même logique de polling que le widget chat public.
@@ -2454,6 +2685,7 @@ export default function AdminPanel() {
     sum + (s.paymentHistory || []).filter((p) => p.status === "pending").length
         + (s.boosts || []).filter((b) => !b.isActive).length, 0);
   const pendingIe  = ieRequests.filter((r) => r.status === "pending").length;
+  const pendingSvcReq = svcReqList.filter((r) => r.status === "pending").length;
   const pendingSupport = supportChats.filter((c) => c.needsReply).length;
   const pendingReports = reports.filter((r) => r.status === "en_attente").length;
   const pendingWa = waConversations.filter((c) => c.status === "escalated").length;
@@ -2504,6 +2736,7 @@ export default function AdminPanel() {
         { key: "import_cost",   icon: "🧮", label: "Coûts Import" },
         { key: "financement",   icon: "🏦", label: "Financement" },
         { key: "assurance",     icon: "🔒", label: "Assurance" },
+        { key: "service_requests", icon: "🧰", label: "Autres services", badge: pendingSvcReq || undefined },
       ],
     },
     {
@@ -2517,10 +2750,11 @@ export default function AdminPanel() {
     {
       label: "FINANCE",
       items: [
-        { key: "commissions", icon: "💰", label: "Commissions" },
-        { key: "factures",    icon: "📄", label: "Factures",          badge: pendingInv },
-        { key: "paiements",   icon: "💳", label: "Paiements",         badge: pendingSub || undefined },
-        { key: "escrow",      icon: "🔐", label: "Escrow / Séquestre" },
+        { key: "commissions",     icon: "💰", label: "Commissions" },
+        { key: "factures",        icon: "📄", label: "Factures",          badge: pendingInv },
+        { key: "paiements",       icon: "💳", label: "Paiements",         badge: pendingSub || undefined },
+        { key: "escrow",          icon: "🔐", label: "Escrow / Séquestre" },
+        { key: "business_config", icon: "⚙️", label: "Configuration métier" },
       ],
     },
     {
@@ -2632,7 +2866,7 @@ export default function AdminPanel() {
               Cette action finalise la commande sans validation client. À utiliser uniquement si la commande est bloquée.
             </p>
             <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:14 }}>
-              <label style={{ fontSize:".85rem", fontWeight:600 }}>Montant final (XOF) :</label>
+              <label style={{ fontSize:".85rem", fontWeight:600 }}>Montant final (USD) :</label>
               <input type="number" min="0" value={forceAmount} onChange={e=>setForceAmount(e.target.value)}
                 placeholder={`Montant original: ${forceModal.booking.montantTotal||0}`}
                 style={{ padding:"0.5rem", borderRadius:8, border:"1.5px solid #e2e8f0", fontSize:".9rem" }} />
@@ -2841,8 +3075,8 @@ export default function AdminPanel() {
                 <StatCard icon="✅" label="Commandes terminées" value={stats?.bookings?.completed || 0}
                   sub={`${stats?.bookings?.cancelled || 0} annulées`} color="#64748b" />
                 <StatCard icon="💰" label="Revenus totaux"
-                  value={Number(stats?.revenue?.total || 0).toLocaleString("fr-FR") + " XOF"}
-                  sub={`Ce mois : ${Number(stats?.revenue?.thisMonth || 0).toLocaleString("fr-FR")} XOF`}
+                  value={fmtUSD(stats?.revenue?.total || 0)}
+                  sub={`Ce mois : ${fmtUSD(stats?.revenue?.thisMonth || 0)}`}
                   color="#ef4444" />
                 <StatCard icon="🌍" label="Import/Export"
                   value={ieRequests.length || stats?.importExport?.total || "—"}
@@ -3155,8 +3389,8 @@ export default function AdminPanel() {
                             </div>
                           </td>
                           <td className={styles.tdPrice}>
-                            {b.montantTotal > 0 ? `${Number(b.montantTotal).toLocaleString("fr-FR")} XOF` : "—"}
-                            {b.commissionAmount > 0 && <span style={{ display:"block", fontSize:"0.68rem", color:"#dc2626" }}>Com: {Number(b.commissionAmount).toLocaleString("fr-FR")}</span>}
+                            {b.montantTotal > 0 ? fmtUSD(b.montantTotal) : "—"}
+                            {b.commissionAmount > 0 && <span style={{ display:"block", fontSize:"0.68rem", color:"#dc2626" }}>Com: {fmtUSD(b.commissionAmount)}</span>}
                           </td>
                           <td><Badge label={bs.label} color={bs.color} bg={bs.bg} /></td>
                           <td className={styles.tdDate}>{fmtDate(b.createdAt)}</td>
@@ -3837,8 +4071,8 @@ export default function AdminPanel() {
           {commissionsStats && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 14, marginBottom: "1.5rem" }}>
               <StatCard icon="📊" label="Transactions terminées" value={commissionsStats.count} color="#6366f1" />
-              <StatCard icon="💵" label="Montant total transactions" value={`${Number(commissionsStats.transactions || 0).toLocaleString("fr-FR")} XOF`} color="#0ea5e9" />
-              <StatCard icon="💰" label="Commissions générées" value={`${Number(commissionsStats.total || 0).toLocaleString("fr-FR")} XOF`} color="#10b981" />
+              <StatCard icon="💵" label="Montant total transactions" value={fmtUSD(commissionsStats.transactions || 0)} color="#0ea5e9" />
+              <StatCard icon="💰" label="Commissions générées" value={fmtUSD(commissionsStats.total || 0)} color="#10b981" />
             </div>
           )}
 
@@ -3869,13 +4103,13 @@ export default function AdminPanel() {
                       <td><Badge label={b.type} color="#6366f1" bg="#f5f3ff" /></td>
                       <td style={{ fontSize: "0.83rem" }}>{b.clientInfo?.firstName} {b.clientInfo?.lastName}</td>
                       <td style={{ fontWeight: 700 }}>
-                        {Number(b.transaction?.finalAmount || b.montantTotal || 0).toLocaleString("fr-FR")} {b.devise || "XOF"}
+                        {fmtUSD(b.transaction?.finalAmount || b.montantTotal || 0)}
                       </td>
                       <td style={{ color: "#6366f1", fontWeight: 700 }}>
                         {Math.round((b.commissionRate || 0) * 100)} %
                       </td>
                       <td style={{ fontWeight: 800, color: "#10b981" }}>
-                        {Number(b.commissionAmount || 0).toLocaleString("fr-FR")} {b.devise || "XOF"}
+                        {fmtUSD(b.commissionAmount || 0)}
                       </td>
                       <td style={{ fontSize: "0.83rem" }}>
                         {b.paidAt ? new Date(b.paidAt).toLocaleDateString("fr-FR") : "—"}
@@ -3961,8 +4195,8 @@ export default function AdminPanel() {
               <StatCard icon="📄" label="Total factures" value={invoices.length} color="#6366f1" />
               <StatCard icon="🕐" label="En attente de paiement" value={invoices.filter(i => i.status === "pending").length} color="#f59e0b" />
               <StatCard icon="✅" label="Payées" value={invoices.filter(i => i.status === "paid").length} color="#10b981" />
-              <StatCard icon="💰" label="Total encaissé" value={`${Number(invoicesStats.totalPaid || 0).toLocaleString("fr-FR")} XOF`} color="#10b981" />
-              <StatCard icon="⏳" label="En attente" value={`${Number(invoicesStats.totalPending || 0).toLocaleString("fr-FR")} XOF`} color="#f59e0b" />
+              <StatCard icon="💰" label="Total encaissé" value={fmtUSD(invoicesStats.totalPaid || 0)} color="#10b981" />
+              <StatCard icon="⏳" label="En attente" value={fmtUSD(invoicesStats.totalPending || 0)} color="#f59e0b" />
             </div>
           )}
 
@@ -4007,7 +4241,7 @@ export default function AdminPanel() {
                         </td>
                         <td style={{ textAlign: "center" }}>{(inv.lines || []).length}</td>
                         <td style={{ fontWeight: 800, color: "#0f1b3f" }}>
-                          {Number(inv.totalCommission || 0).toLocaleString("fr-FR")} {inv.devise || "XOF"}
+                          {fmtUSD(inv.totalCommission || 0)}
                         </td>
                         <td>
                           <Badge label={statusLabel} color={statusColor} bg={statusBg} />
@@ -4694,7 +4928,7 @@ export default function AdminPanel() {
                             <div style={{ fontSize: ".74rem", color: "#94a3b8" }}>{r.clientInfo?.email || r.buyer?.email || "—"}</div>
                           </div>
                         </td>
-                        <td className={styles.tdPrice}>{r.totalAmount ? `${Number(r.totalAmount).toLocaleString("fr-FR")} ${r.currency || "XOF"}` : "—"}</td>
+                        <td className={styles.tdPrice}>{r.totalAmount ? `${Number(r.totalAmount).toLocaleString("fr-FR")} ${r.currency || "EUR"}` : "—"}</td>
                         <td><Badge label={st.l} color={st.c} bg={st.bg} /></td>
                         <td className={styles.tdDate}>{fmtDate(r.createdAt)}</td>
                       </tr>
@@ -4861,7 +5095,7 @@ export default function AdminPanel() {
             {[
               { icon: "⚖️", label: "Litiges ouverts",  value: bookings.filter(b => b.status === "disputed").length, color: "#dc2626" },
               { icon: "✅", label: "Résolus ce mois",   value: bookings.filter(b => ["completed","compensated"].includes(b.status) && b.disputeResolvedAt).length, color: "#10b981" },
-              { icon: "💰", label: "Montant en jeu",    value: `${bookings.filter(b=>b.status==="disputed").reduce((s,b)=>s+(b.montantTotal||0),0).toLocaleString("fr-FR")} XOF`, color: "#f59e0b" },
+              { icon: "💰", label: "Montant en jeu",    value: fmtUSD(bookings.filter(b=>b.status==="disputed").reduce((s,b)=>s+(b.montantTotal||0),0)), color: "#f59e0b" },
             ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
           </div>
 
@@ -4886,7 +5120,7 @@ export default function AdminPanel() {
                         <td><div><strong style={{ fontSize:"0.82rem" }}>{clientName||"—"}</strong><span className={styles.vehMeta}>{b.clientInfo?.email}</span></div></td>
                         <td style={{ fontSize:"0.82rem" }}>{vName}</td>
                         <td style={{ fontSize:"0.8rem", color:"#dc2626", maxWidth:200 }}>{b.clientValidation?.disputeReason||"Non précisée"}</td>
-                        <td className={styles.tdPrice}>{b.montantTotal>0?`${Number(b.montantTotal).toLocaleString("fr-FR")} XOF`:"—"}</td>
+                        <td className={styles.tdPrice}>{b.montantTotal>0?fmtUSD(b.montantTotal):"—"}</td>
                         <td className={styles.tdDate}>{fmtDate(b.createdAt)}</td>
                         <td>
                           <button style={{ padding:"5px 12px", background:"#fee2e2", color:"#dc2626", border:"1px solid #fca5a5", borderRadius:8, cursor:"pointer", fontWeight:700, fontSize:"0.78rem" }}
@@ -4921,7 +5155,7 @@ export default function AdminPanel() {
               { icon:"👨‍✈️", label:"En attente validation", value: drivers.length,                                                  color:"#f59e0b" },
               { icon:"✅",   label:"Chauffeurs actifs",      value: users.filter(u=>u.role==="chauffeur"&&u.isActive).length,       color:"#10b981" },
               { icon:"🚗",   label:"Missions terminées",     value: bookings.filter(b=>b.type==="chauffeur"&&b.status==="completed").length, color:"#3b82f6" },
-              { icon:"💰",   label:"Revenue chauffeurs",     value: `${bookings.filter(b=>b.type==="chauffeur"&&b.status==="completed").reduce((s,b)=>s+(b.montantTotal||0),0).toLocaleString("fr-FR")} XOF`, color:"#6366f1" },
+              { icon:"💰",   label:"Revenue chauffeurs",     value: fmtUSD(bookings.filter(b=>b.type==="chauffeur"&&b.status==="completed").reduce((s,b)=>s+(b.montantTotal||0),0)), color:"#6366f1" },
             ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
           </div>
 
@@ -4949,7 +5183,7 @@ export default function AdminPanel() {
                           </div>
                         </td>
                         <td><Badge label={d.disponibilite||"—"} color="#8b5cf6" bg="#f5f3ff" /></td>
-                        <td className={styles.tdPrice}>{d.tarif?`${Number(d.tarif).toLocaleString("fr-FR")} XOF/j`:"—"}</td>
+                        <td className={styles.tdPrice}>{d.tarif?`${fmtUSD(d.tarif)}/j`:"—"}</td>
                         <td style={{ fontSize:"0.85rem", color:"#64748b" }}>{d.zone||d.ville||"—"}</td>
                         <td className={styles.tdDate}>{fmtDate(d.createdAt)}</td>
                         <td>
@@ -5184,6 +5418,425 @@ export default function AdminPanel() {
         </div>
       )}
 
+      {activeTab === "business_config" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>⚙️ Configuration métier</h2>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Commissions, abonnements, boosts, devises, pays, services et publicités — modifiables sans redéploiement. Tous les montants en USD.</p>
+            </div>
+            <button className={styles.btnRefresh} onClick={loadBusinessConfig}>↻ Actualiser</button>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginBottom: "1.25rem", flexWrap: "wrap" }}>
+            {[
+              ["commissions", "💰 Commissions"],
+              ["subs_boosts", "⭐ Abonnements & Boosts"],
+              ["currencies", "🌍 Devises & Pays"],
+              ["services_ads", "🛠️ Services & Publicités"],
+            ].map(([key, label]) => (
+              <button key={key} onClick={() => setBizSubTab(key)}
+                style={{
+                  padding: "8px 16px", borderRadius: 9, cursor: "pointer", fontWeight: 700, fontSize: ".82rem",
+                  border: bizSubTab === key ? "1.5px solid #6366f1" : "1.5px solid #e2e8f0",
+                  background: bizSubTab === key ? "#eef2ff" : "#fff",
+                  color: bizSubTab === key ? "#4338ca" : "#475569",
+                }}>{label}</button>
+            ))}
+          </div>
+
+          {bizConfigLoading ? (
+            <div className={styles.loadingBox} style={{ minHeight: 120 }}><div className={styles.spinner} /></div>
+          ) : !bizConfig ? (
+            <p style={{ textAlign: "center", color: "#94a3b8", padding: "30px 0" }}>Configuration non initialisée — exécutez le script server/scripts/migrate-currency-config.mjs.</p>
+          ) : (
+            <>
+              {bizSubTab === "commissions" && commissionsForm && foundingForm && serviceFeeForm && (
+                <>
+                  <div className={styles.chartCard}>
+                    <h3 className={styles.chartTitle}>💰 Commissions — Standard vs. Abonné premium</h3>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 10 }}>
+                      {["standard", "premium"].map((tier) => (
+                        <div key={tier}>
+                          <div style={{ fontWeight: 800, fontSize: ".82rem", color: tier === "standard" ? "#64748b" : "#6366f1", marginBottom: 8, textTransform: "uppercase" }}>
+                            {tier === "standard" ? "Standard" : "Abonné premium"}
+                          </div>
+                          {[["vente", "Vente"], ["location", "Location"], ["chauffeur", "Chauffeur"], ["import_export", "Import/Export"], ["leasing", "Leasing"]].map(([key, label]) => (
+                            <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+                              <label style={{ fontSize: ".82rem", color: "#334155" }}>{label}</label>
+                              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                <input type="number" step="0.1" min="0" max="100" style={{ width: 70, padding: "6px 8px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".82rem", textAlign: "right" }}
+                                  value={Math.round((commissionsForm[tier][key] ?? 0) * 1000) / 10}
+                                  onChange={(e) => setCommissionsForm((p) => ({ ...p, [tier]: { ...p[tier], [key]: Number(e.target.value) / 100 } }))} />
+                                <span style={{ fontSize: ".8rem", color: "#94a3b8" }}>%</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                    <button className={styles.btnApprove} style={{ marginTop: 8 }} disabled={bizSaving === "commissions"}
+                      onClick={() => savePricingSection("commissions", commissionsForm)}>
+                      {bizSaving === "commissions" ? "…" : "💾 Enregistrer les commissions"}
+                    </button>
+                  </div>
+
+                  <div className={styles.chartCard}>
+                    <h3 className={styles.chartTitle}>👑 Partenaire Fondateur</h3>
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Durée de l'offre (mois)</label>
+                      <input type="number" min="1" style={{ width: 100, padding: "6px 8px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
+                        value={foundingForm.durationMonths}
+                        onChange={(e) => setFoundingForm((p) => ({ ...p, durationMonths: Number(e.target.value) }))} />
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                      {["entreprise", "particulier"].map((profile) => (
+                        <div key={profile}>
+                          <div style={{ fontWeight: 800, fontSize: ".82rem", color: "#b45309", marginBottom: 8, textTransform: "uppercase" }}>{profile}</div>
+                          {["location", "vente", "import_export"].map((key) => (
+                            (profile === "particulier" && key === "import_export") ? null : (
+                              <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+                                <label style={{ fontSize: ".82rem", color: "#334155" }}>{key === "import_export" ? "Import/Export" : key === "location" ? "Location" : "Vente"}</label>
+                                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                  <input type="number" step="0.1" min="0" max="100" style={{ width: 70, padding: "6px 8px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".82rem", textAlign: "right" }}
+                                    value={Math.round((foundingForm[profile][key] ?? 0) * 1000) / 10}
+                                    onChange={(e) => setFoundingForm((p) => ({ ...p, [profile]: { ...p[profile], [key]: Number(e.target.value) / 100 } }))} />
+                                  <span style={{ fontSize: ".8rem", color: "#94a3b8" }}>%</span>
+                                </div>
+                              </div>
+                            )
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                    <button className={styles.btnApprove} style={{ marginTop: 8 }} disabled={bizSaving === "foundingPartner"}
+                      onClick={() => savePricingSection("foundingPartner", foundingForm)}>
+                      {bizSaving === "foundingPartner" ? "…" : "💾 Enregistrer l'offre fondateur"}
+                    </button>
+                  </div>
+
+                  <div className={styles.chartCard}>
+                    <h3 className={styles.chartTitle}>🧾 Frais de service client</h3>
+                    <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#64748b" }}>max(minimum, montant × %), plafonné au maximum.</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, maxWidth: 460 }}>
+                      <div>
+                        <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Minimum ($)</label>
+                        <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
+                          value={serviceFeeForm.minUSD} onChange={(e) => setServiceFeeForm((p) => ({ ...p, minUSD: Number(e.target.value) }))} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Pourcentage (%)</label>
+                        <input type="number" min="0" max="100" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
+                          value={Math.round(serviceFeeForm.percent * 1000) / 10}
+                          onChange={(e) => setServiceFeeForm((p) => ({ ...p, percent: Number(e.target.value) / 100 }))} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Maximum ($)</label>
+                        <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
+                          value={serviceFeeForm.maxUSD} onChange={(e) => setServiceFeeForm((p) => ({ ...p, maxUSD: Number(e.target.value) }))} />
+                      </div>
+                    </div>
+                    <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "serviceFee"}
+                      onClick={() => savePricingSection("serviceFee", serviceFeeForm)}>
+                      {bizSaving === "serviceFee" ? "…" : "💾 Enregistrer les frais de service"}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {bizSubTab === "subs_boosts" && subscriptionsForm && boostsForm && (
+                <>
+                  <div className={styles.chartCard}>
+                    <h3 className={styles.chartTitle}>⭐ Abonnements (mensuel, USD)</h3>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, maxWidth: 560, marginTop: 10 }}>
+                      {[["individuel_plus", "Individuel Plus"], ["business", "Business"], ["exportateur", "Exportateur"]].map(([key, label]) => (
+                        <div key={key}>
+                          <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>{label} ($/mois)</label>
+                          <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
+                            value={subscriptionsForm[key]?.priceUSD ?? 0}
+                            onChange={(e) => setSubscriptionsForm((p) => ({ ...p, [key]: { priceUSD: Number(e.target.value) } }))} />
+                        </div>
+                      ))}
+                    </div>
+                    <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "subscriptions"}
+                      onClick={() => savePricingSection("subscriptions", subscriptionsForm)}>
+                      {bizSaving === "subscriptions" ? "…" : "💾 Enregistrer les abonnements"}
+                    </button>
+                  </div>
+
+                  <div className={styles.chartCard}>
+                    <h3 className={styles.chartTitle}>🚀 Boosts (mise en avant, USD)</h3>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, maxWidth: 700, marginTop: 10 }}>
+                      {[["24h", "24 heures"], ["7d", "7 jours"], ["30d", "30 jours"], ["international", "Internationale"]].map(([key, label]) => (
+                        <div key={key}>
+                          <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>{label} ($)</label>
+                          <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
+                            value={boostsForm[key] ?? 0}
+                            onChange={(e) => setBoostsForm((p) => ({ ...p, [key]: Number(e.target.value) }))} />
+                        </div>
+                      ))}
+                    </div>
+                    <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "boosts"}
+                      onClick={() => savePricingSection("boosts", boostsForm)}>
+                      {bizSaving === "boosts" ? "…" : "💾 Enregistrer les boosts"}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {bizSubTab === "currencies" && (
+                <>
+                  <div className={styles.chartCard}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                      <h3 className={styles.chartTitle} style={{ margin: 0 }}>💱 Devises</h3>
+                      <button className={styles.btnApprove} style={{ fontSize: ".8rem" }}
+                        onClick={() => setRateForm({ code: "", name: "", symbol: "", rateFromUSD: "", active: true })}>+ Nouvelle devise</button>
+                    </div>
+                    {exchangeRates.length === 0 ? (
+                      <p style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>Aucune devise configurée.</p>
+                    ) : (
+                      <div className={styles.tableWrap}>
+                        <table className={styles.table}>
+                          <thead><tr><th>Code</th><th>Nom</th><th>Symbole</th><th>Taux depuis 1 USD</th><th>Statut</th><th>Actions</th></tr></thead>
+                          <tbody>
+                            {exchangeRates.map((r) => (
+                              <tr key={r._id} className={styles.tr}>
+                                <td style={{ fontWeight: 700 }}>{r.code}</td>
+                                <td>{r.name}</td>
+                                <td>{r.symbol}</td>
+                                <td>{r.rateFromUSD}</td>
+                                <td><Badge label={r.active ? "Actif" : "Inactif"} color={r.active ? "#10b981" : "#94a3b8"} bg={r.active ? "#ecfdf5" : "#f1f5f9"} /></td>
+                                <td>
+                                  <div className={styles.actionBtns}>
+                                    <button className={styles.btnGhost} style={{ fontSize: ".75rem" }} onClick={() => setRateForm(r)}>✏️</button>
+                                    <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteExchangeRateFn(r._id)}>🗑️</button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={styles.chartCard}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                      <h3 className={styles.chartTitle} style={{ margin: 0 }}>🌍 Pays</h3>
+                      <button className={styles.btnApprove} style={{ fontSize: ".8rem" }}
+                        onClick={() => setCountryForm({ code: "", name: "", flag: "🌍", defaultCurrency: "", locale: "fr-FR", deliveryRatePerKm: 200, deliveryBaseRate: 1000, deliveryMaxKm: 100, taxPercent: 0, active: true })}>+ Nouveau pays</button>
+                    </div>
+                    {countryConfigs.length === 0 ? (
+                      <p style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>Aucun pays configuré.</p>
+                    ) : (
+                      <div className={styles.tableWrap}>
+                        <table className={styles.table}>
+                          <thead><tr><th>Pays</th><th>Code</th><th>Devise</th><th>Livraison (base/km)</th><th>Taxe</th><th>Statut</th><th>Actions</th></tr></thead>
+                          <tbody>
+                            {countryConfigs.map((c) => (
+                              <tr key={c._id} className={styles.tr}>
+                                <td style={{ fontWeight: 700 }}>{c.flag} {c.name}</td>
+                                <td>{c.code}</td>
+                                <td>{c.defaultCurrency}</td>
+                                <td>{c.deliveryBaseRate}/{c.deliveryRatePerKm}</td>
+                                <td>{c.taxPercent}%</td>
+                                <td><Badge label={c.active ? "Actif" : "Inactif"} color={c.active ? "#10b981" : "#94a3b8"} bg={c.active ? "#ecfdf5" : "#f1f5f9"} /></td>
+                                <td>
+                                  <div className={styles.actionBtns}>
+                                    <button className={styles.btnGhost} style={{ fontSize: ".75rem" }} onClick={() => setCountryForm(c)}>✏️</button>
+                                    <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteCountryConfigFn(c._id)}>🗑️</button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {bizSubTab === "services_ads" && servicesForm && adsConfigForm && (
+                <>
+                  <div className={styles.chartCard}>
+                    <h3 className={styles.chartTitle}>🛠️ Plateforme de services</h3>
+                    <div className={styles.tableWrap}>
+                      <table className={styles.table}>
+                        <thead><tr><th>Service</th><th>Activé</th><th>Commission (%)</th><th>Frais fixe ($)</th></tr></thead>
+                        <tbody>
+                          {[
+                            ["inspection", "Inspection"], ["assurance", "Assurance"], ["transport", "Transport"], ["transit", "Transit"],
+                            ["douanes", "Douanes"], ["immatriculation", "Immatriculation"], ["garantie", "Garantie"],
+                            ["financement", "Financement"], ["sequestre", "Séquestre"], ["change_devises", "Change de devises"],
+                          ].map(([key, label]) => (
+                            <tr key={key} className={styles.tr}>
+                              <td style={{ fontWeight: 700 }}>{label}</td>
+                              <td>
+                                <input type="checkbox" checked={!!servicesForm[key]?.enabled}
+                                  onChange={(e) => setServicesForm((p) => ({ ...p, [key]: { ...p[key], enabled: e.target.checked } }))} />
+                              </td>
+                              <td>
+                                <input type="number" min="0" max="100" step="0.1" style={{ width: 80, padding: "6px 8px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".82rem" }}
+                                  value={Math.round((servicesForm[key]?.commissionRate ?? 0) * 1000) / 10}
+                                  onChange={(e) => setServicesForm((p) => ({ ...p, [key]: { ...p[key], commissionRate: Number(e.target.value) / 100 } }))} />
+                              </td>
+                              <td>
+                                <input type="number" min="0" step="0.01" style={{ width: 90, padding: "6px 8px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".82rem" }}
+                                  value={servicesForm[key]?.fixedFeeUSD ?? 0}
+                                  onChange={(e) => setServicesForm((p) => ({ ...p, [key]: { ...p[key], fixedFeeUSD: Number(e.target.value) } }))} />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "services"}
+                      onClick={() => savePricingSection("services", servicesForm)}>
+                      {bizSaving === "services" ? "…" : "💾 Enregistrer les services"}
+                    </button>
+                  </div>
+
+                  <div className={styles.chartCard}>
+                    <h3 className={styles.chartTitle}>📢 Publicités</h3>
+                    <div className={styles.tableWrap}>
+                      <table className={styles.table}>
+                        <thead><tr><th>Emplacement</th><th>Prix ($)</th><th>Durée (jours)</th></tr></thead>
+                        <tbody>
+                          {[
+                            ["banner", "Bannière"], ["homepage_feature", "Mise en avant page d'accueil"],
+                            ["category_promo", "Promotion catégorie"], ["seo", "SEO"],
+                          ].map(([key, label]) => (
+                            <tr key={key} className={styles.tr}>
+                              <td style={{ fontWeight: 700 }}>{label}</td>
+                              <td>
+                                <input type="number" min="0" step="0.01" style={{ width: 90, padding: "6px 8px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".82rem" }}
+                                  value={adsConfigForm[key]?.priceUSD ?? 0}
+                                  onChange={(e) => setAdsConfigForm((p) => ({ ...p, [key]: { ...p[key], priceUSD: Number(e.target.value) } }))} />
+                              </td>
+                              <td>
+                                <input type="number" min="1" style={{ width: 80, padding: "6px 8px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".82rem" }}
+                                  value={adsConfigForm[key]?.durationDays ?? 7}
+                                  onChange={(e) => setAdsConfigForm((p) => ({ ...p, [key]: { ...p[key], durationDays: Number(e.target.value) } }))} />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "ads"}
+                      onClick={() => savePricingSection("ads", adsConfigForm)}>
+                      {bizSaving === "ads" ? "…" : "💾 Enregistrer les publicités"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Modal devise (ExchangeRate) ── */}
+      {rateForm && (
+        <div className={styles.overlay} onClick={() => setRateForm(null)}>
+          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <h3 style={{ margin: "0 0 14px", color: "#0f1b3f", fontSize: "1rem" }}>
+              {rateForm._id ? "✏️ Modifier la devise" : "+ Nouvelle devise"}
+            </h3>
+            {[
+              ["code", "Code ISO 4217 (ex. MAD)"], ["name", "Nom"], ["symbol", "Symbole"],
+            ].map(([key, label]) => (
+              <div key={key} style={{ marginBottom: 10 }}>
+                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>{label}</label>
+                <input value={rateForm[key] || ""} disabled={key === "code" && !!rateForm._id}
+                  onChange={(e) => setRateForm((p) => ({ ...p, [key]: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              </div>
+            ))}
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Taux depuis 1 USD</label>
+              <input type="number" min="0" step="0.0001" value={rateForm.rateFromUSD}
+                onChange={(e) => setRateForm((p) => ({ ...p, rateFromUSD: e.target.value }))}
+                style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: ".85rem", marginBottom: 16 }}>
+              <input type="checkbox" checked={!!rateForm.active} onChange={(e) => setRateForm((p) => ({ ...p, active: e.target.checked }))} />
+              Devise active
+            </label>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button className={styles.btnGhost} onClick={() => setRateForm(null)}>Annuler</button>
+              <button className={styles.btnApprove} onClick={saveExchangeRate}>💾 Enregistrer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal pays (CountryConfig) ── */}
+      {countryForm && (
+        <div className={styles.overlay} onClick={() => setCountryForm(null)}>
+          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <h3 style={{ margin: "0 0 14px", color: "#0f1b3f", fontSize: "1rem" }}>
+              {countryForm._id ? "✏️ Modifier le pays" : "+ Nouveau pays"}
+            </h3>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div>
+                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Code ISO-2 (ex. MA)</label>
+                <input value={countryForm.code} disabled={!!countryForm._id}
+                  onChange={(e) => setCountryForm((p) => ({ ...p, code: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Nom du pays</label>
+                <input value={countryForm.name}
+                  onChange={(e) => setCountryForm((p) => ({ ...p, name: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Drapeau (emoji)</label>
+                <input value={countryForm.flag}
+                  onChange={(e) => setCountryForm((p) => ({ ...p, flag: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Devise par défaut</label>
+                <select value={countryForm.defaultCurrency}
+                  onChange={(e) => setCountryForm((p) => ({ ...p, defaultCurrency: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }}>
+                  <option value="">— Choisir —</option>
+                  {exchangeRates.map((r) => <option key={r.code} value={r.code}>{r.code}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+              {[
+                ["deliveryBaseRate", "Livraison base"], ["deliveryRatePerKm", "Livraison /km"], ["deliveryMaxKm", "Livraison max (km)"],
+              ].map(([key, label]) => (
+                <div key={key}>
+                  <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>{label}</label>
+                  <input type="number" min="0" value={countryForm[key]}
+                    onChange={(e) => setCountryForm((p) => ({ ...p, [key]: Number(e.target.value) }))}
+                    style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ marginBottom: 10, maxWidth: 160 }}>
+              <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Taxe locale (%)</label>
+              <input type="number" min="0" max="100" step="0.1" value={countryForm.taxPercent}
+                onChange={(e) => setCountryForm((p) => ({ ...p, taxPercent: Number(e.target.value) }))}
+                style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: ".85rem", marginBottom: 16 }}>
+              <input type="checkbox" checked={!!countryForm.active} onChange={(e) => setCountryForm((p) => ({ ...p, active: e.target.checked }))} />
+              Pays actif
+            </label>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button className={styles.btnGhost} onClick={() => setCountryForm(null)}>Annuler</button>
+              <button className={styles.btnApprove} onClick={saveCountryConfig}>💾 Enregistrer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Modal barème pays ── */}
       {costConfigForm && (
         <div className={styles.overlay} onClick={() => setCostConfigForm(null)}>
@@ -5325,7 +5978,7 @@ export default function AdminPanel() {
           <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()}>
             <h3>{insuranceModal.status === "approved" ? "✅ Approuver la demande" : "❌ Refuser la demande"}</h3>
             {insuranceModal.status === "approved" && (
-              <input type="number" placeholder="Prime proposée (XOF)" value={insurancePremium}
+              <input type="number" placeholder="Prime proposée (USD)" value={insurancePremium}
                 onChange={(e) => setInsurancePremium(e.target.value)}
                 style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem", marginBottom: 10 }} />
             )}
@@ -5337,6 +5990,39 @@ export default function AdminPanel() {
           </div>
         </div>
       )}
+
+      {activeTab === "service_requests" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🧰 Autres services</h2>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Transport, transit, douanes, immatriculation, garantie, financement, change de devises — décision manuelle en attendant une intégration prestataire.</p>
+            </div>
+            <button className={styles.btnRefresh} onClick={loadServiceRequests}>↻ Actualiser</button>
+          </div>
+          <ServiceRequestsSection requests={svcReqList} loading={svcReqLoading} category={svcReqCategory} onCategoryChange={setSvcReqCategory}
+            onDecide={(m) => { setSvcReqModal(m); setSvcReqAmount(""); setSvcReqNote(""); }} />
+        </div>
+      )}
+
+      {svcReqModal && (
+        <div className={styles.modalBackdrop} onClick={() => setSvcReqModal(null)}>
+          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()}>
+            <h3>{svcReqModal.status === "approved" ? "✅ Approuver la demande" : "❌ Refuser la demande"}</h3>
+            {svcReqModal.status === "approved" && (
+              <input type="number" placeholder="Devis proposé (USD)" value={svcReqAmount}
+                onChange={(e) => setSvcReqAmount(e.target.value)}
+                style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem", marginBottom: 10 }} />
+            )}
+            <textarea className={styles.rejectTextarea} placeholder="Note pour le client (optionnel)…" value={svcReqNote} onChange={(e) => setSvcReqNote(e.target.value)} />
+            <div className={styles.rejectActions}>
+              <button className={styles.btnAccept} onClick={submitServiceRequestDecision} disabled={svcReqSaving}>{svcReqSaving ? "Envoi…" : "Confirmer"}</button>
+              <button className={styles.btnSecondary} onClick={() => setSvcReqModal(null)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ══════════════════════════════════════════════════
           TAB PAIEMENTS — Abonnements Pro / Boosts en attente
           Aucune passerelle de paiement réelle n'étant branchée (Stripe/Orange
@@ -5371,18 +6057,18 @@ export default function AdminPanel() {
                     {pendingPayments.map((p) => (
                       <div key={p._id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 0", borderTop: "1px solid #f1f5f9", flexWrap: "wrap" }}>
                         <div style={{ fontSize: ".88rem" }}>
-                          <strong>Plan Pro</strong> — {p.amount?.toLocaleString("fr-FR")} FCFA · {p.method} · période {p.period}
+                          <strong>{PLAN_TIER_LABELS[p.planTier] || p.planTier}</strong> — {fmtUSD(p.amount)} · {p.method} · période {p.period}
                         </div>
                         <div style={{ display: "flex", gap: 8 }}>
                           <button
                             className={styles.btnPrimary}
                             disabled={subActioning === `${sub._id}:${p._id}`}
-                            onClick={() => subAction(`pro/${p._id}/approve`, sub._id, p._id)}
+                            onClick={() => subAction(`plan/${p._id}/approve`, sub._id, p._id)}
                           >✅ Confirmer le paiement</button>
                           <button
                             className={styles.btnDanger}
                             disabled={subActioning === `${sub._id}:${p._id}`}
-                            onClick={() => subAction(`pro/${p._id}/reject`, sub._id, p._id)}
+                            onClick={() => subAction(`plan/${p._id}/reject`, sub._id, p._id)}
                           >❌ Rejeter</button>
                         </div>
                       </div>
@@ -5390,7 +6076,7 @@ export default function AdminPanel() {
                     {pendingBoosts.map((b) => (
                       <div key={b._id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 0", borderTop: "1px solid #f1f5f9", flexWrap: "wrap" }}>
                         <div style={{ fontSize: ".88rem" }}>
-                          <strong>Mise en avant</strong> — véhicule #{String(b.vehicle).slice(-6)} · {b.priceXOF?.toLocaleString("fr-FR")} FCFA
+                          <strong>Mise en avant ({b.tier})</strong> — véhicule #{String(b.vehicle).slice(-6)} · {fmtUSD(b.priceUSD)}
                         </div>
                         <button
                           className={styles.btnPrimary}
@@ -7287,7 +7973,7 @@ function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFil
 // CATALOGUE SECTION — Annonces & Validations (combiné)
 // ═══════════════════════════════════════════════════════════════════════════════
 function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefresh, showToast, setConfirm, rejectModal, setRejectModal, rejectReason, setRejectReason, driverRejectModal, setDriverRejectModal, driverRejectReason, setDriverRejectReason, updateVehicleStatus, deleteVehicle }) {
-  const { COUNTRIES_CONFIG } = useCurrency();
+  const { COUNTRIES_CONFIG, fmtUSD } = useCurrency();
   const [subTab,         setSubTab]         = useState("pending");
   const [vehSearch,      setVehSearch]      = useState("");
   const [vehPage,        setVehPage]        = useState(1);
@@ -7824,8 +8510,8 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                             ["Portes", v.nombrePortes],
                             ["Climatisation", v.climatisation ? "✅ Oui" : "❌ Non"],
                             ["Avec chauffeur", v.withDriver ? "✅ Oui" : "Non"],
-                            v.type === "location" ? ["Prix / jour", v.pricePerDay ? `${Number(v.pricePerDay).toLocaleString("fr-FR")} XOF` : "—"] : ["Prix vente", v.priceForSale ? `${Number(v.priceForSale).toLocaleString("fr-FR")} XOF` : "—"],
-                            v.type === "location" && v.caution ? ["Caution", `${Number(v.caution).toLocaleString("fr-FR")} XOF`] : null,
+                            v.type === "location" ? ["Prix / jour", v.pricePerDay ? fmtUSD(v.pricePerDay) : "—"] : ["Prix vente", v.priceForSale ? fmtUSD(v.priceForSale) : "—"],
+                            v.type === "location" && v.caution ? ["Caution", fmtUSD(v.caution)] : null,
                             ["Ville", v.ville || "—"],
                             ["Adresse", v.adresse || "—"],
                             ["Âge min", v.ageMin ? `${v.ageMin} ans` : "—"],
@@ -7842,7 +8528,7 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                         {v.leasing?.disponible && (
                           <div style={{ marginTop: 10, padding: "8px 12px", background: "#ede9fe", borderRadius: 8 }}>
                             <div style={{ fontSize: ".78rem", fontWeight: 800, color: "#6d28d9", marginBottom: 4 }}>🏦 Leasing disponible</div>
-                            <div style={{ fontSize: ".78rem", color: "#4c1d95" }}>Apport : {Number(v.leasing.apportInitial).toLocaleString("fr-FR")} XOF • {v.leasing.mensualite && `${Number(v.leasing.mensualite).toLocaleString("fr-FR")} XOF/mois`} • {v.leasing.duree} mois • {v.leasing.tauxInteret}%</div>
+                            <div style={{ fontSize: ".78rem", color: "#4c1d95" }}>Apport : {fmtUSD(v.leasing.apportInitial)} • {v.leasing.mensualite && `${fmtUSD(v.leasing.mensualite)}/mois`} • {v.leasing.duree} mois • {v.leasing.tauxInteret}%</div>
                           </div>
                         )}
                       </div>
@@ -8119,7 +8805,7 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                   <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                     <div style={{ flex: 1 }}>
                       <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>
-                        {editForm.type === "vente" ? "Prix de vente (XOF)" : "Prix / jour (XOF)"}
+                        {editForm.type === "vente" ? "Prix de vente (USD)" : "Prix / jour (USD)"}
                       </label>
                       <input type="number" min="0" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                         value={editForm.type === "vente" ? editForm.priceForSale : editForm.pricePerDay}
@@ -8127,7 +8813,7 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                     </div>
                     {editForm.type !== "vente" && (
                       <div style={{ flex: 1 }}>
-                        <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Caution (XOF)</label>
+                        <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Caution (USD)</label>
                         <input type="number" min="0" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                           value={editForm.caution} onChange={(e) => setEditForm((p) => ({ ...p, caution: e.target.value }))} />
                       </div>
