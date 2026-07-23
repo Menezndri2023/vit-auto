@@ -34,6 +34,21 @@ describe("HTTP /api/auth (via supertest, cycle complet middleware+controller)", 
     expect(res.body.user.password).toBeUndefined();
   });
 
+  // Régression trouvée en testant réellement l'inscription en conditions
+  // proches de la prod (session Playwright) : register() ne renvoyait jamais
+  // de refreshToken, contrairement à login()/oauthGoogle(). Sans lui, le moindre
+  // 401 prématuré juste après l'inscription (avant que l'utilisateur ne se
+  // reconnecte manuellement) déconnectait silencieusement le compte fraîchement
+  // créé — apiClient.js tentait un rafraîchissement automatique, ne trouvait
+  // aucun refresh token à utiliser, et effaçait toute la session.
+  it("renvoie un refreshToken à l'inscription, comme login()", async () => {
+    const res = await request(app).post("/api/auth/register").send(validPayload());
+
+    expect(res.status).toBe(201);
+    expect(res.body.refreshToken).toBeTruthy();
+    expect(typeof res.body.refreshToken).toBe("string");
+  });
+
   it("refuse une inscription sans date de naissance", async () => {
     const payload = validPayload();
     delete payload.birthDate;

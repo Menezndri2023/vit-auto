@@ -6935,7 +6935,7 @@ export default function AdminPanel() {
                     </a>
                   </div>
                   <p style={{ margin:"10px 0 0", fontSize:".73rem", color:"#94a3b8" }}>
-                    Ce lien fonctionne pour tout partenaire : s'il n'a pas de compte → il s'inscrit puis accède au portail. S'il a déjà un compte partenaire → il arrive directement sur son dossier. Les 20 places du programme restent la seule limite — au-delà, l'inscription affiche automatiquement "programme complet".
+                    Ce lien fonctionne pour tout partenaire : s'il n'a pas de compte → il s'inscrit puis accède au portail. S'il a déjà un compte partenaire → il arrive directement sur son dossier. Le programme n'a plus de plafond de places.
                   </p>
                 </div>
               );

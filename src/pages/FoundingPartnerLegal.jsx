@@ -156,11 +156,11 @@ export default function FoundingPartnerLegal() {
           </Art>
 
           <Art n="2" title="Founding Partner Status">
-            The Partner is recognized as a Founding Partner of VIT-AUTO, member of the exclusive
-            first cohort, limited to <strong>20 partners</strong>. This status is non-transferable and
-            permanently recorded in the Partner profile under a unique reference number. The exclusive
-            "Founding Partner" badge is displayed on all Partner listings for the duration of the
-            partnership.
+            The Partner is recognized as a Founding Partner of VIT-AUTO, having completed the
+            mandatory Founding Partner onboarding required of every VIT-AUTO partner. This status
+            is non-transferable and permanently recorded in the Partner profile under a unique
+            reference number. The exclusive "Founding Partner" badge is displayed on all Partner
+            listings for the duration of the partnership.
           </Art>
 
           <Art n="3" title="Commercial Conditions">

@@ -56,7 +56,7 @@ export function foundingPartnerInfoRequestedTemplate(firstName, companyName, inf
   <p style="text-align:center;margin:24px 0">
     <a href="${portalUrl}" style="background:#0f1b3f;color:#fff;padding:12px 28px;border-radius:10px;text-decoration:none;font-weight:700;display:inline-block">Compléter mon dossier →</a>
   </p>
-  <p style="color:#64748b;font-size:.85rem">Le programme Founding Partner est limité aux 20 premiers partenaires par pays — plus votre dossier sera complété rapidement, plus vite il pourra être examiné.</p>
+  <p style="color:#64748b;font-size:.85rem">Plus votre dossier sera complété rapidement, plus vite il pourra être examiné.</p>
 </div></body></html>`;
 }
 

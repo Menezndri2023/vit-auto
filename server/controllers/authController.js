@@ -206,12 +206,22 @@ export const register = async (req, res) => {
     });
 
     const jwtToken = signJWT(user);
+    // Généré ici aussi (auparavant seulement à login()) : sans lui, le moindre
+    // 401 prématuré juste après l'inscription (ex: un composant qui appelle
+    // l'API avant que le contexte d'auth n'ait fini de se mettre à jour)
+    // déconnectait silencieusement le partenaire fraîchement inscrit — le
+    // rafraîchissement automatique du token (apiClient.js) n'avait alors
+    // aucun refresh token à utiliser et effaçait la session entière.
+    const refreshToken = signRefreshToken(user);
+    user.refreshTokens = [hashRefreshToken(refreshToken)];
+    await user.save();
 
     if (autoVerify) {
       logger.info("[DEV] Compte auto-vérifié", { email: user.email });
       return res.status(201).json({
         user: safeUser(user),
         token: jwtToken,
+        refreshToken,
         emailVerificationSent: false,
         message: "Compte créé et activé automatiquement (mode développement).",
       });
@@ -239,6 +249,7 @@ export const register = async (req, res) => {
     return res.status(201).json({
       user: safeUser(user),
       token: jwtToken,
+      refreshToken,
       emailVerificationSent: true,
       message: "Compte créé ! Vérifiez votre boîte mail pour activer votre compte.",
     });

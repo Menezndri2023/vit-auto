@@ -105,8 +105,9 @@ export default function PartnerOnboardingPortal() {
   const [saving, setSaving] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [signModal, setSignModal] = useState(null); // "loi" | "agreement" | null
-  // Message "programme complet" — renvoyé par le backend quand un compte connecté sans
-  // dossier existant tente d'en créer un alors que les 20 places sont déjà prises.
+  // Repli défensif seulement — le backend n'a plus de plafond (programme
+  // devenu obligatoire pour tout partenaire), ce message ne devrait normalement
+  // plus jamais s'afficher (voir checkFoundingCapacity, neutralisée en no-op).
   const [onboardingError, setOnboardingError] = useState(null);
   // true si le compte connecté n'a pas encore de dossier — GET /my est en lecture seule
   // (aucune création automatique) ; il faut un clic explicite sur "Commencer ma candidature".
@@ -183,8 +184,9 @@ export default function PartnerOnboardingPortal() {
     }
   };
 
-  // Visiteur non connecté : vérifier qu'il reste des places avant de proposer l'inscription
-  // (limite des 20 Founding Partners comptée PAR PAYS — voir checkFoundingCapacity).
+  // Visiteur non connecté : vérifie la disponibilité avant de proposer l'inscription —
+  // ne renvoie plus jamais indisponible depuis la suppression du plafond
+  // (checkFoundingCapacity), conservé pour compatibilité de l'endpoint /availability.
   useEffect(() => {
     if (token) return;
     const qs = countryCode ? `?country=${encodeURIComponent(countryCode)}` : "";
@@ -1569,7 +1571,7 @@ function PublicHero() {
         <div className={styles.publicHeroContent}>
           <div className={styles.heroLabel}>VIT-AUTO · FOUNDING PARTNER PROGRAM</div>
           <h1>Join the VIT-AUTO International<br /><span className={styles.heroAccent}>Founding Partner Program</span></h1>
-          <p>Reduced commissions, 12 months free Premium subscription, exclusive "Founding Partner" badge — limited to the first 20 partners.</p>
+          <p>Reduced commissions, 12 months free Premium subscription, exclusive "Founding Partner" badge — the mandatory step for every new partner.</p>
           <div className={styles.heroStats}>
             <div className={styles.heroStat}><span>12 mo.</span><small>Free Premium</small></div>
             <div className={styles.heroStatDivider} />
@@ -1634,7 +1636,7 @@ function PublicHero() {
       {/* ── Apply Now ── */}
       <section className={`${styles.publicSection} ${styles.applySection}`}>
         <h2 className={styles.publicSectionTitle}>Ready to Apply?</h2>
-        <p className={styles.publicSectionSubtitle}>Only 20 Founding Partner spots — first come, first served.</p>
+        <p className={styles.publicSectionSubtitle}>The mandatory first step for every VIT-AUTO partner.</p>
         <div className={styles.publicActions}>
           <button className={styles.btnPrimary} onClick={() => navigate("/register?role=partenaire&redirect=/partner-onboarding")}>
             Apply Now →

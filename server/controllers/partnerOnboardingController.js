@@ -1270,7 +1270,7 @@ This Letter of Intent formalizes the mutual intention of VIT-AUTO
 and ${company} to enter into a Founding Partner relationship.
 
 Partner Category : ${typeLabel}
-Program          : Founding Partner Program (limited to the first 20 partners per country)
+Program          : Founding Partner Program (mandatory onboarding step for every VIT-AUTO partner)
 Reference        : ${doc.referenceNumber}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1369,8 +1369,8 @@ from preferential conditions in recognition of early commitment.
 ARTICLE 2 — FOUNDING PARTNER STATUS
 
 2.1  The Partner is recognized as a Founding Partner of VIT-AUTO,
-     member of the exclusive first cohort (limited to 20 partners
-     per country).
+     having completed the mandatory Founding Partner onboarding
+     required of every VIT-AUTO partner.
 
 2.2  This status is non-transferable and permanently recorded
      in the Partner profile under reference ${doc.referenceNumber}.
