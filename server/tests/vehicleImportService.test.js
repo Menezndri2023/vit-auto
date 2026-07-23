@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import ExcelJS from "exceljs";
-import { parseUploadedFile, mapRowToVehicleInput, countRecognizedColumns, isTypeColumnRecognized } from "../services/vehicleImportService.js";
+import { parseUploadedFile, mapRowToVehicleInput, countRecognizedColumns, isTypeColumnRecognized, buildColumnMappingSuggestion } from "../services/vehicleImportService.js";
 
 // Fonctions pures (aucune DB) — reproduisent le bug de production signalé :
 // un fichier rempli à partir du template affichait "0 créé, 0 doublon, 299
@@ -104,5 +104,57 @@ describe("vehicleImportService — parsing robuste", () => {
     const rows = await parseUploadedFile(Buffer.from(buf), "flotte.xlsx");
     expect(rows).toHaveLength(1);
     expect(rows[0].Titre).toBe("Toyota Corolla");
+  });
+});
+
+// Bug réel découvert en production : un fichier partenaire avait sa PROPRE
+// colonne "Type" (carrosserie/catégorie, sans rapport avec location/vente).
+// La clé technique "type" étant toujours acceptée comme en-tête valide (en
+// plus des alias), cette colonne était reconnue à tort — mais ses valeurs
+// ("Berline", "SUV"...) ne correspondaient jamais à location/vente : 100% des
+// lignes échouaient quand même, sans qu'aucun garde-fou ne le détecte. Fixé en
+// donnant au partenaire un écran de mappage explicite (voir
+// buildColumnMappingSuggestion + columnMapping) plutôt qu'en devinant.
+describe("vehicleImportService — mappage explicite des colonnes", () => {
+  it("reproduit le bug réel : une colonne 'Type' sans rapport est suggérée à tort par l'auto-détection", () => {
+    const rows = [{ Marque: "VOLKSWAGEN", Modele: "Golf", Type: "Berline" }];
+    const { suggestion } = buildColumnMappingSuggestion(rows, "vehicle");
+    // Documente le comportement actuel de la suggestion (avant confirmation
+    // partenaire) — c'est justement pourquoi ce n'est qu'une SUGGESTION.
+    expect(suggestion.type).toBe("Type");
+    // Sans mappage explicite, la valeur "Berline" ne matche ni l'enum ni les
+    // alias location/vente : le champ reste indéfini (pas de faux succès).
+    expect(mapRowToVehicleInput(rows[0]).data.type).toBeUndefined();
+  });
+
+  it("un mappage explicite type:null (colonne inexistante confirmée) n'utilise plus la détection automatique", () => {
+    const rows = [{ Marque: "VOLKSWAGEN", Modele: "Golf", Type: "Berline" }];
+    // Le partenaire a vu la suggestion incorrecte et l'a corrigée à "Aucune colonne".
+    const { data } = mapRowToVehicleInput(rows[0], { type: null, marque: "Marque", modele: "Modele" });
+    expect(data.type).toBeUndefined();
+    expect(data.marque).toBe("VOLKSWAGEN");
+  });
+
+  it("applique le type par défaut de l'import quand aucune colonne type n'est mappée", () => {
+    const rows = [
+      { Marque: "VOLKSWAGEN", Modele: "Golf", Type: "Berline" },
+      { Marque: "HYUNDAI", Modele: "Tucson", Type: "SUV" },
+    ];
+    const columnMapping = { type: null, marque: "Marque", modele: "Modele" };
+    for (const row of rows) {
+      expect(mapRowToVehicleInput(row, columnMapping, "location").data.type).toBe("location");
+    }
+  });
+
+  it("un mappage explicite vers la bonne colonne prime sur la détection automatique", () => {
+    const row = { Marque: "KIA", Modele: "Sportage", Transaction: "Louer" };
+    const { data } = mapRowToVehicleInput(row, { type: "Transaction", marque: "Marque", modele: "Modele" });
+    expect(data.type).toBe("location");
+  });
+
+  it("buildColumnMappingSuggestion retourne null pour un champ sans colonne correspondante", () => {
+    const { suggestion } = buildColumnMappingSuggestion([{ Marque: "Toyota" }], "vehicle");
+    expect(suggestion.title).toBeNull();
+    expect(suggestion.marque).toBe("Marque");
   });
 });

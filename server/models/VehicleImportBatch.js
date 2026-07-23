@@ -49,6 +49,19 @@ const vehicleImportBatchSchema = new mongoose.Schema({
   originalFileName: { type: String, default: "" },
   googleSheetUrl:   { type: String, default: "" },
 
+  // Mappage colonne-par-colonne confirmé par le partenaire à l'écran de
+  // prévisualisation ({ clé technique VIT AUTO: en-tête exact de son fichier })
+  // — prioritaire sur la détection automatique par alias (voir
+  // mapRowToVehicleInput), qui reste un repli si un champ n'a pas été mappé.
+  // `null` = ancien flux sans écran de mappage (détection automatique seule).
+  columnMapping: { type: mongoose.Schema.Types.Mixed, default: null },
+
+  // Type appliqué à TOUTES les lignes quand le partenaire confirme n'avoir
+  // aucune colonne location/vente dans son fichier (flotte 100% d'un seul
+  // type) — voir mapRowToVehicleInput. Sans rapport avec targetType
+  // ("vehicle"/"export"), qui distingue catalogue classique vs Import/Export.
+  defaultType: { type: String, enum: ["location", "vente", null], default: null },
+
   totalRows:     { type: Number, default: 0 },
   processedRows: { type: Number, default: 0 },
 

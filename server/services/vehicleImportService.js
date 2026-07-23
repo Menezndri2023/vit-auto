@@ -59,7 +59,13 @@ const NUMBER_KEYS  = ["annee", "kilometrage", "nombrePlaces", "nombrePortes", "p
 // symptôme exact remonté en production. Couvre les formulations les plus
 // probables plutôt que d'exiger la correspondance exacte du template.
 const HEADER_ALIASES = {
-  type: ["TypeAnnonce", "Type Annonce", "Type d'annonce", "Type d’annonce", "Type", "Location/Vente", "Location Vente"],
+  // "Type" seul est délibérément EXCLU : trop générique, il entrait en collision
+  // avec une colonne sans rapport dans un vrai fichier partenaire (ex. "Type" de
+  // véhicule/carrosserie) — la colonne était alors "reconnue" à tort, mais ses
+  // valeurs ne correspondaient jamais à location/vente : 100% des lignes
+  // échouaient quand même, sans qu'aucun garde-fou ne le détecte. Bug réel
+  // découvert en production, pas une hypothèse.
+  type: ["TypeAnnonce", "Type Annonce", "Type d'annonce", "Type d’annonce", "Location/Vente", "Location Vente"],
   vehicleType: ["CategorieVehicule", "Categorie Vehicule", "Catégorie", "Categorie", "Type de véhicule", "Type Vehicule"],
   pricePerDay: ["PrixParJour", "Prix Par Jour", "Prix/Jour", "Prix journalier", "Prix location"],
   priceForSale: ["PrixVente", "Prix Vente", "Prix de vente"],
@@ -315,13 +321,56 @@ export function isTypeColumnRecognized(rawRows) {
   return acceptedKeysFor(typeCol).some((k) => keys.has(k));
 }
 
-// ── Mappe une ligne brute (en-têtes du template) vers les champs Vehicle ────
-export function mapRowToVehicleInput(rawRow) {
+// ── Suggestion de mappage colonne-par-colonne ───────────────────────────────
+// Le partenaire n'utilise pas toujours notre template : deviner le bon en-tête
+// par ressemblance (HEADER_ALIASES) reste un pari — parfois faux (voir le bug
+// réel découvert : l'alias générique "Type" collisionnait avec une colonne
+// sans rapport dans un vrai fichier partenaire). La solution robuste n'est pas
+// de deviner mieux, mais de laisser le partenaire CONFIRMER explicitement la
+// correspondance avant l'import (voir previewImportFile / columnMapping).
+// Cette fonction ne fait que suggérer un pré-remplissage à partir des mêmes
+// alias, modifiable par le partenaire dans l'écran de mappage.
+export function buildColumnMappingSuggestion(rawRows, targetType = "vehicle") {
+  const columns = targetType === "export" ? IE_IMPORT_COLUMNS : IMPORT_COLUMNS;
+  const detectedHeaders = rawRows.length ? Object.keys(rawRows[0]) : [];
+  const byNormalized = new Map(detectedHeaders.map((h) => [normalizeHeaderKey(h), h]));
+
+  const suggestion = {};
+  for (const col of columns) {
+    const found = acceptedKeysFor(col).find((k) => byNormalized.has(k));
+    suggestion[col.key] = found ? byNormalized.get(found) : null;
+  }
+  return { detectedHeaders, suggestion };
+}
+
+// ── Mappe une ligne brute (en-têtes du template OU mappage explicite confirmé
+// par le partenaire) vers les champs Vehicle ────────────────────────────────
+// `columnMapping` : { [clé technique]: "en-tête exact du fichier du partenaire" }
+// — quand fourni (écran de mappage confirmé), prioritaire sur la détection
+// automatique par alias, qui reste le repli si un champ n'a pas été mappé.
+// `defaultType` : "location" ou "vente" appliqué à TOUTES les lignes quand le
+// partenaire a confirmé n'avoir aucune colonne distinguant location/vente
+// dans son fichier (flotte 100% location ou 100% vente) — évite de l'obliger
+// à ajouter une colonne juste pour répéter la même valeur sur chaque ligne.
+export function mapRowToVehicleInput(rawRow, columnMapping = null, defaultType = null) {
   const normalizedRow = buildNormalizedRow(rawRow);
   const byHeader = {};
   for (const col of IMPORT_COLUMNS) {
-    const found = acceptedKeysFor(col).find((k) => normalizedRow[k] !== undefined);
-    byHeader[col.key] = found !== undefined ? normalizedRow[found] : undefined;
+    // Distinction volontaire entre "clé absente du mappage" (aucun écran de
+    // confirmation, ex. appel API direct legacy → on devine par alias) et
+    // "clé présente avec valeur null" (le partenaire a confirmé qu'AUCUNE
+    // colonne de son fichier ne correspond → on ne doit surtout pas deviner
+    // quand même, c'est exactement le bug réel découvert : une colonne "Type"
+    // sans rapport dans le fichier du partenaire était acceptée par défaut
+    // via la clé technique elle-même).
+    const hasMapping = columnMapping && Object.prototype.hasOwnProperty.call(columnMapping, col.key);
+    if (hasMapping) {
+      const mappedHeader = columnMapping[col.key];
+      byHeader[col.key] = mappedHeader ? normalizedRow[normalizeHeaderKey(mappedHeader)] : undefined;
+    } else {
+      const found = acceptedKeysFor(col).find((k) => normalizedRow[k] !== undefined);
+      byHeader[col.key] = found !== undefined ? normalizedRow[found] : undefined;
+    }
   }
 
   const data = {};
@@ -348,6 +397,10 @@ export function mapRowToVehicleInput(rawRow) {
     if (value !== undefined && value !== "") data[key] = value;
   }
 
+  if (!data.type && defaultType && ENUM_FIELDS.type.includes(defaultType)) {
+    data.type = defaultType;
+  }
+
   const imageUrls = String(byHeader.imageUrls || "")
     .split(/[,;]/)
     .map((u) => u.trim())
@@ -357,12 +410,18 @@ export function mapRowToVehicleInput(rawRow) {
 }
 
 // ── Mappe une ligne brute vers les champs ImportExportListing ───────────────
-export function mapRowToIEListingInput(rawRow) {
+export function mapRowToIEListingInput(rawRow, columnMapping = null) {
   const normalizedRow = buildNormalizedRow(rawRow);
   const byHeader = {};
   for (const col of IE_IMPORT_COLUMNS) {
-    const found = acceptedKeysFor(col).find((k) => normalizedRow[k] !== undefined);
-    byHeader[col.key] = found !== undefined ? normalizedRow[found] : undefined;
+    const hasMapping = columnMapping && Object.prototype.hasOwnProperty.call(columnMapping, col.key);
+    if (hasMapping) {
+      const mappedHeader = columnMapping[col.key];
+      byHeader[col.key] = mappedHeader ? normalizedRow[normalizeHeaderKey(mappedHeader)] : undefined;
+    } else {
+      const found = acceptedKeysFor(col).find((k) => normalizedRow[k] !== undefined);
+      byHeader[col.key] = found !== undefined ? normalizedRow[found] : undefined;
+    }
   }
 
   const data = {};
@@ -585,7 +644,7 @@ async function downloadImagesForRow(imageUrls, budgetDeadline, rowWarnings, file
 async function processVehicleImportRow(batch, rawRow, rowIndex, budgetDeadline, ownerUser) {
   let vehicleLabel = "";
   try {
-    const { data, imageUrls, rowWarnings } = mapRowToVehicleInput(rawRow);
+    const { data, imageUrls, rowWarnings } = mapRowToVehicleInput(rawRow, batch.columnMapping, batch.defaultType);
     data.contactTel = data.contactTel ? String(data.contactTel) : data.contactTel;
     vehicleLabel = [data.marque, data.modele, data.annee].filter(Boolean).join(" ") || `Ligne ${rowIndex}`;
 
@@ -659,7 +718,7 @@ async function processVehicleImportRow(batch, rawRow, rowIndex, budgetDeadline, 
 async function processIEImportRow(batch, rawRow, rowIndex, budgetDeadline, ownerUser, importerProfile) {
   let vehicleLabel = "";
   try {
-    const { data, imageUrls, rowWarnings } = mapRowToIEListingInput(rawRow);
+    const { data, imageUrls, rowWarnings } = mapRowToIEListingInput(rawRow, batch.columnMapping);
     vehicleLabel = [data.make, data.model, data.year].filter(Boolean).join(" ") || `Ligne ${rowIndex}`;
 
     if (!data.title || !data.make || !data.model || !data.year || !data.sourceCountry || !data.price) {

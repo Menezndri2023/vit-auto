@@ -50,7 +50,7 @@ const PartnerFleetImport = () => {
   const { user } = useAuth();
   const { success, error } = useToast();
 
-  const [step, setStep] = useState(1); // 1: méthode, 2: saisie, 3: progression/résultats
+  const [step, setStep] = useState(1); // 1: méthode, 2: saisie, "mapping": correspondance colonnes, 3: progression/résultats
   const [method, setMethod] = useState(null);
 
   const [file, setFile] = useState(null);
@@ -59,6 +59,17 @@ const PartnerFleetImport = () => {
 
   const [googleSheetUrl, setGoogleSheetUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // ── Aperçu + mappage colonne-par-colonne (avant l'import réel) ─────────────
+  // Deviner le bon en-tête par ressemblance s'est révélé risqué en production
+  // (un alias trop générique avait collisionné avec une colonne sans rapport
+  // dans un vrai fichier partenaire, provoquant un échec total silencieux) —
+  // le partenaire confirme désormais explicitement la correspondance.
+  const [analyzing, setAnalyzing] = useState(false);
+  const [preview, setPreview] = useState(null); // { totalRows, detectedHeaders, suggestion, columns }
+  const [mapping, setMapping] = useState({});
+  const [defaultType, setDefaultType] = useState(""); // "location" | "vente" | "" — si aucune colonne type
+  const [pendingBody, setPendingBody] = useState(null);
 
   const [batchId, setBatchId] = useState(null);
   const [batch, setBatch] = useState(null);
@@ -74,6 +85,9 @@ const PartnerFleetImport = () => {
     setMethod(null);
     setFile(null);
     setGoogleSheetUrl("");
+    setPreview(null);
+    setMapping({});
+    setDefaultType("");
   };
 
   // ── Fichier ──────────────────────────────────────────────────────────────
@@ -134,16 +148,46 @@ const PartnerFleetImport = () => {
     }
   };
 
+  // Analyse le fichier/la feuille (en-têtes détectées + suggestion de mappage)
+  // AVANT de lancer l'import réel sur potentiellement des centaines de lignes.
+  const analyzeFile = async (body) => {
+    setAnalyzing(true);
+    try {
+      const res = await api.post("/api/vehicles/import/preview", { ...body, targetType: isExport ? "export" : "vehicle" });
+      setPreview(res);
+      setMapping(res.suggestion || {});
+      setDefaultType("");
+      setPendingBody(body);
+      setStep("mapping");
+    } catch (e) {
+      error(e.message || "Erreur lors de l'analyse du fichier.");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const handleSubmitFile = async () => {
     if (!file) return;
     const base64 = await readFileAsBase64(file);
     const ext = (file.name.split(".").pop() || "").toLowerCase();
-    await startImport({ source: ext === "csv" ? "csv" : "excel", fileBase64: base64, fileName: file.name });
+    await analyzeFile({ source: ext === "csv" ? "csv" : "excel", fileBase64: base64, fileName: file.name });
   };
 
   const handleSubmitGoogleSheet = async () => {
     if (!googleSheetUrl.trim()) return;
-    await startImport({ source: "google_sheet", googleSheetUrl: googleSheetUrl.trim() });
+    await analyzeFile({ source: "google_sheet", googleSheetUrl: googleSheetUrl.trim() });
+  };
+
+  const setMappingField = (key, header) => setMapping((p) => ({ ...p, [key]: header || null }));
+
+  const missingTypeMapping = !isExport && !mapping.type && !defaultType;
+
+  const confirmMappingAndImport = async () => {
+    if (missingTypeMapping) {
+      error("Indiquez quelle colonne distingue location/vente, ou choisissez un type par défaut pour tout l'import.");
+      return;
+    }
+    await startImport({ ...pendingBody, columnMapping: mapping, defaultType: defaultType || undefined });
   };
 
   // ── Suivi de l'import ────────────────────────────────────────────────────
@@ -184,6 +228,10 @@ const PartnerFleetImport = () => {
     setMethod(null);
     setFile(null);
     setGoogleSheetUrl("");
+    setPreview(null);
+    setMapping({});
+    setDefaultType("");
+    setPendingBody(null);
     setBatchId(null);
     setBatch(null);
   };
@@ -195,6 +243,10 @@ const PartnerFleetImport = () => {
     setStep(2);
     setFile(null);
     setGoogleSheetUrl("");
+    setPreview(null);
+    setMapping({});
+    setDefaultType("");
+    setPendingBody(null);
     setBatchId(null);
     setBatch(null);
   };
@@ -309,10 +361,10 @@ const PartnerFleetImport = () => {
           <button
             type="button"
             className={styles.primaryBtn}
-            disabled={!file || submitting}
+            disabled={!file || analyzing}
             onClick={handleSubmitFile}
           >
-            {submitting ? "Import en cours..." : "Importer ce fichier"}
+            {analyzing ? "Analyse en cours..." : "Analyser mon fichier →"}
           </button>
         </div>
       )}
@@ -335,10 +387,67 @@ const PartnerFleetImport = () => {
           <button
             type="button"
             className={styles.primaryBtn}
-            disabled={!googleSheetUrl.trim() || submitting}
+            disabled={!googleSheetUrl.trim() || analyzing}
             onClick={handleSubmitGoogleSheet}
           >
-            {submitting ? "Import en cours..." : "Importer cette feuille"}
+            {analyzing ? "Analyse en cours..." : "Analyser cette feuille →"}
+          </button>
+        </div>
+      )}
+
+      {step === "mapping" && preview && (
+        <div className={styles.card}>
+          <button type="button" className={styles.backBtn} onClick={() => setStep(2)}>← Changer de fichier</button>
+          <h2 className={styles.cardTitle}>Vérifiez la correspondance des colonnes</h2>
+          <p className={styles.hint}>
+            {preview.totalRows} véhicule(s) détecté(s). Associez chaque champ VIT AUTO à la colonne correspondante
+            de votre fichier — la suggestion automatique n'est pas toujours exacte, vérifiez-la avant de continuer.
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
+            {preview.columns.map((col) => (
+              <div key={col.key} style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <label style={{ flex: "0 0 210px", fontSize: ".85rem", fontWeight: 700, color: "#334155" }}>
+                  {col.label}{col.required ? " *" : ""}
+                </label>
+                <select
+                  value={mapping[col.key] || ""}
+                  onChange={(e) => setMappingField(col.key, e.target.value)}
+                  style={{ flex: "1 1 200px", padding: "8px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                >
+                  <option value="">— Aucune colonne (ignorer) —</option>
+                  {preview.detectedHeaders.map((h) => <option key={h} value={h}>{h}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+
+          {!isExport && !mapping.type && (
+            <div style={{ marginTop: 18, padding: "14px 18px", background: "#eff6ff", border: "1.5px solid #93c5fd", borderRadius: 12 }}>
+              <strong style={{ display: "block", fontSize: ".85rem", marginBottom: 8, color: "#1e3a8a" }}>
+                Aucune colonne location/vente sélectionnée — quel type pour TOUS les véhicules de cet import ?
+              </strong>
+              <div style={{ display: "flex", gap: 18 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: ".85rem" }}>
+                  <input type="radio" name="defaultType" checked={defaultType === "location"} onChange={() => setDefaultType("location")} />
+                  Location
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: ".85rem" }}>
+                  <input type="radio" name="defaultType" checked={defaultType === "vente"} onChange={() => setDefaultType("vente")} />
+                  Vente
+                </label>
+              </div>
+            </div>
+          )}
+
+          <button
+            type="button"
+            className={styles.primaryBtn}
+            style={{ marginTop: 18 }}
+            disabled={submitting || missingTypeMapping}
+            onClick={confirmMappingAndImport}
+          >
+            {submitting ? "Import en cours..." : `Importer ${preview.totalRows} véhicule(s) →`}
           </button>
         </div>
       )}
