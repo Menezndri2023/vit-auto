@@ -116,9 +116,33 @@ const IE_ENUM_FIELDS = {
   condition:    ["neuf", "occasion", "reconditionne"],
 };
 
-const normalizeEnumValue = (value, allowed) => {
+// Valeurs alternatives tolérées pour `type` — LE champ obligatoire (aucune
+// valeur par défaut possible) le plus susceptible d'être rempli en texte libre
+// par un partenaire plutôt qu'avec l'exact "location"/"vente" attendu. Sans
+// ceci, une ligne "Louer"/"À vendre"/"Rent"/"Sale" échoue avec "Type d'annonce
+// manquant" — un chiffre significatif d'un batch en erreur peut venir de là
+// plutôt que d'un en-tête de colonne mal reconnu (déjà couvert par HEADER_ALIASES).
+const VALUE_ALIASES = {
+  type: {
+    location: ["location", "louer", "à louer", "a louer", "loue", "rent", "renting", "for rent", "to rent", "location courte durée", "location longue durée"],
+    vente: ["vente", "vendre", "à vendre", "a vendre", "achat", "sale", "for sale", "to sell"],
+  },
+};
+
+const normalizeEnumValue = (value, allowed, field) => {
   if (value === undefined) return undefined;
-  return allowed.find((a) => a.toLowerCase() === String(value).trim().toLowerCase());
+  const raw = String(value).trim().toLowerCase();
+  const exact = allowed.find((a) => a.toLowerCase() === raw);
+  if (exact) return exact;
+  const aliasMap = field && VALUE_ALIASES[field];
+  if (aliasMap) {
+    for (const canonical of Object.keys(aliasMap)) {
+      if (aliasMap[canonical].includes(raw)) {
+        return allowed.find((a) => a.toLowerCase() === canonical);
+      }
+    }
+  }
+  return undefined;
 };
 
 const parseBool = (v) => {
@@ -283,7 +307,7 @@ export function mapRowToVehicleInput(rawRow) {
     else if (typeof value === "string") value = value.trim();
 
     if (ENUM_FIELDS[key] && value !== undefined && value !== "") {
-      const normalized = normalizeEnumValue(value, ENUM_FIELDS[key]);
+      const normalized = normalizeEnumValue(value, ENUM_FIELDS[key], key);
       if (!normalized && key !== "type") {
         // Champs secondaires : on ignore la valeur non reconnue plutôt que de faire échouer la ligne
         rowWarnings.push(`Valeur "${value}" non reconnue pour "${col.header}" — ignorée (valeurs acceptées : ${ENUM_FIELDS[key].join(", ")})`);

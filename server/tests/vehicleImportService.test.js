@@ -68,4 +68,15 @@ describe("vehicleImportService — parsing robuste", () => {
   it("isTypeColumnRecognized détecte l'absence totale de la colonne type", () => {
     expect(isTypeColumnRecognized([{ Titre: "x", Marque: "y" }])).toBe(false);
   });
+
+  it("accepte des valeurs de type en texte libre (Louer/À vendre/Rent/Sale) plutôt que le mot-clé exact", () => {
+    expect(mapRowToVehicleInput({ TypeAnnonce: "Louer" }).data.type).toBe("location");
+    expect(mapRowToVehicleInput({ TypeAnnonce: "À vendre" }).data.type).toBe("vente");
+    expect(mapRowToVehicleInput({ TypeAnnonce: "Rent" }).data.type).toBe("location");
+    expect(mapRowToVehicleInput({ TypeAnnonce: "for sale" }).data.type).toBe("vente");
+  });
+
+  it("laisse type indéfini pour une valeur réellement non reconnue (ni alias ni enum)", () => {
+    expect(mapRowToVehicleInput({ TypeAnnonce: "Chauffeur" }).data.type).toBeUndefined();
+  });
 });

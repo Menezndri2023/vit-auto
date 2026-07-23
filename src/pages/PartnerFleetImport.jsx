@@ -199,6 +199,20 @@ const PartnerFleetImport = () => {
   const skipped = batch?.results?.filter((r) => r.status === "skipped_duplicate").length || 0;
   const errored = batch?.results?.filter((r) => r.status === "error").length || 0;
 
+  // Regroupe les erreurs identiques — sur un batch de 300 lignes, répéter le même
+  // message 300 fois masque la vraie cause ; un résumé groupé la rend évidente
+  // d'un coup d'œil (ex. "263 lignes : Type d'annonce manquant").
+  const errorGroups = Object.values(
+    (batch?.results || [])
+      .filter((r) => r.status === "error")
+      .flatMap((r) => (r.errors?.length ? r.errors : ["Erreur inconnue"]).map((message) => ({ message, rowIndex: r.rowIndex })))
+      .reduce((acc, { message, rowIndex }) => {
+        if (!acc[message]) acc[message] = { message, count: 0, firstRow: rowIndex };
+        acc[message].count += 1;
+        return acc;
+      }, {})
+  ).sort((a, b) => b.count - a.count);
+
   // L'import en masse d'annonces export est réservé aux Founding Partners
   // (même vérification que la publication manuelle — voir VendorPublish.jsx).
   if (isExport && !user?.isFounder) {
@@ -368,6 +382,21 @@ const PartnerFleetImport = () => {
                 <span className={styles.summarySkipped}>{skipped} doublon(s) ignoré(s)</span>
                 <span className={styles.summaryError}>{errored} erreur(s)</span>
               </div>
+
+              {errorGroups.length > 0 && (
+                <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 12, padding: "14px 18px", marginBottom: 16 }}>
+                  <strong style={{ display: "block", color: "#991b1b", fontSize: ".88rem", marginBottom: 8 }}>
+                    Motifs d'erreur les plus fréquents :
+                  </strong>
+                  <ul style={{ margin: 0, paddingLeft: 20 }}>
+                    {errorGroups.slice(0, 5).map((g) => (
+                      <li key={g.message} style={{ color: "#991b1b", fontSize: ".82rem", marginBottom: 4 }}>
+                        <strong>{g.count} ligne{g.count > 1 ? "s" : ""}</strong> : {g.message}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <ul className={styles.resultList}>
                 {(batch.results || []).map((r) => {
