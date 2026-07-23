@@ -27,6 +27,19 @@ export async function processNotificationJob(job) {
     case "broadcast":
       return comm.broadcast(payload);
 
+    // Rappel différé (sondage post-service) — voir bookingController
+    // .schedulePostServiceSurvey. Revérifie l'état de la commande au moment de
+    // l'envoi (24h après planification) : si le client a déjà laissé un avis,
+    // ou si la commande n'est plus "completed" (litige rouvert entre-temps...),
+    // la relance n'a plus lieu d'être.
+    case "booking_review_reminder": {
+      const { bookingId, ...notifPayload } = payload;
+      const Booking = (await import("../../models/Booking.js")).default;
+      const booking = await Booking.findById(bookingId).select("status review").lean();
+      if (!booking || booking.status !== "completed" || booking.review) return null;
+      return comm.sendViaInternal(notifPayload);
+    }
+
     case "internal":
     default:
       return comm.sendViaInternal(payload);

@@ -13,6 +13,7 @@ import PartnerCertification from "../models/PartnerCertification.js";
 import PartnerOnboarding from "../models/PartnerOnboarding.js";
 import ImporterPartnerProfile from "../models/ImporterPartnerProfile.js";
 import PartnerShowroom from "../models/PartnerShowroom.js";
+import Review from "../models/Review.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -67,8 +68,30 @@ export const getPublicProfile = async (req, res) => {
     if (!user || !user.isActive || !["partenaire", "admin"].includes(user.role)) {
       return res.status(404).json({ message: "Partenaire introuvable." });
     }
+
+    // Note globale du partenaire — agrégée sur TOUTES ses annonces (véhicules
+    // ET chauffeurs), pas seulement une annonce précise. Review.noteMoyenne
+    // n'existe qu'au niveau d'un véhicule/chauffeur individuel (voir Review.js
+    // recalcTargetStats) ; aucune moyenne au niveau partenaire n'existait avant.
+    const [vehicleIds, driverIds] = await Promise.all([
+      Vehicle.find({ owner: user._id }).select("_id").lean(),
+      Driver.find({ owner: user._id }).select("_id").lean(),
+    ]);
+    const targets = [
+      ...vehicleIds.map((v) => ({ targetType: "vehicle", targetId: v._id })),
+      ...driverIds.map((d) => ({ targetType: "driver", targetId: d._id })),
+    ];
+    let rating = { average: 0, count: 0 };
+    if (targets.length) {
+      const agg = await Review.aggregate([
+        { $match: { visible: true, $or: targets } },
+        { $group: { _id: null, avg: { $avg: "$note" }, count: { $sum: 1 } } },
+      ]);
+      if (agg.length) rating = { average: Math.round(agg[0].avg * 10) / 10, count: agg[0].count };
+    }
+
     const { isActive: _isActive, role: _role, ...publicFields } = user;
-    res.json(publicFields);
+    res.json({ ...publicFields, rating });
   } catch (err) {
     logger.error("getPublicProfile:", err);
     res.status(500).json({ message: "Erreur serveur." });

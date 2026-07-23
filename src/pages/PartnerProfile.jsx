@@ -90,6 +90,15 @@ export default function PartnerProfile() {
             )}
           </div>
           <p className={styles.type}>{partnerType}</p>
+          {partner?.rating?.count > 0 && (
+            <p className={styles.location} title={`${partner.rating.average}/5 sur ${partner.rating.count} avis (véhicules et chauffeurs confondus)`}>
+              <span style={{ color: "#f59e0b", letterSpacing: 1 }}>
+                {"★".repeat(Math.round(partner.rating.average))}{"☆".repeat(5 - Math.round(partner.rating.average))}
+              </span>
+              <span style={{ marginLeft: 6, fontWeight: 700 }}>{partner.rating.average.toFixed(1)}</span>
+              <span style={{ marginLeft: 4, color: "#94a3b8" }}>({partner.rating.count} avis)</span>
+            </p>
+          )}
           {partner?.defaultLocation?.city && (
             <p className={styles.location}>📍 {partner.defaultLocation.city}</p>
           )}

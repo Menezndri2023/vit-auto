@@ -7,7 +7,8 @@ import Payment from "../models/Payment.js";
 import Notification from "../models/Notification.js";
 import Contract from "../models/Contract.js";
 import User from "../models/User.js";
-import { dispatch } from "../queue/index.js";
+import { dispatch, schedule } from "../queue/index.js";
+import { QUEUE_NAMES } from "../queue/definitions.js";
 import { resolveDeliveryFee, detectCountryFromCoords } from "../services/deliveryFee.js";
 import { applyPromotion } from "../utils/promotion.js";
 import { resolveCommissionRate, computeServiceFee, getRentalOptionPrice } from "../services/pricingEngine.js";
@@ -105,6 +106,27 @@ async function notify(userId, type, titre, message, lien = "/dashboard") {
       createdAt: notif.createdAt,
     });
   }
+}
+
+// ── Sondage post-service (client) ──────────────────────────────────────────────
+// Une commande peut passer à "completed" depuis 4 endroits distincts
+// (updateBookingStatus, validateTransaction, resolveDispute, adminForceComplete) —
+// jusqu'ici seul le premier invitait le client à laisser un avis, et aucun des 4
+// ne relançait le client s'il ne le faisait pas dans la foulée. Planifie un
+// rappel différé (même schéma que dispatch.ieStepTransition côté Import/Export,
+// voir import.worker.js "evaluation_prompt") — le worker revérifie qu'aucun avis
+// n'a été laissé entre-temps avant d'envoyer la relance (voir notification.worker.js).
+function schedulePostServiceSurvey(booking) {
+  if (!booking?.client) return;
+  schedule(QUEUE_NAMES.NOTIFICATION, "booking_review_reminder", {
+    channel:   "booking_review_reminder",
+    bookingId: booking._id.toString(),
+    userId:    booking.client.toString(),
+    type:      "system",
+    titre:     "⭐ Comment s'est passée votre expérience ?",
+    message:   `Donnez votre avis sur votre commande ${booking.reference || ""} — ça aide les autres clients à choisir en confiance.`,
+    lien:      "/dashboard",
+  }, 24 * 3600 * 1000).catch(() => {});
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -784,6 +806,7 @@ export const updateBookingStatus = async (req, res) => {
     if (n && booking.client) {
       await notify(booking.client, n.type, n.titre, n.msg, n.lien || "/dashboard");
     }
+    if (status === "completed") schedulePostServiceSurvey(booking);
 
     res.json({ booking });
   } catch (err) {
@@ -967,6 +990,7 @@ export const validateTransaction = async (req, res) => {
       // Reçu PDF automatique par email — couvre notamment le règlement en
       // espèces sur place, qui ne passe jamais par un webhook de paiement.
       dispatch.transactionReceiptReady(booking, booking.clientInfo?.email, booking.client).catch(() => {});
+      schedulePostServiceSurvey(booking);
     } else {
       booking.status = "disputed";
       booking.clientValidation = {
@@ -1563,6 +1587,7 @@ export const resolveDispute = async (req, res) => {
     if (booking.client?._id) await notify(booking.client._id, "system", "Litige résolu", clientMsg, "/dashboard");
     if (disputeOwnerId) await notify(disputeOwnerId, "system", "Litige résolu",
       `Le litige sur la commande ${booking.reference} a été résolu par l'administration.`, "/vendor/dashboard");
+    if (booking.status === "completed") schedulePostServiceSurvey(booking);
 
     res.json({ booking, message: "Litige résolu.", resolution });
   } catch (err) {
@@ -1627,6 +1652,7 @@ export const adminForceComplete = async (req, res) => {
     const forceCompleteOwnerId = booking.vehicle?.owner || booking.driver?.owner;
     if (booking.client?._id) await notify(booking.client._id, "system", "✅ Commande finalisée", `Votre commande ${booking.reference} a été finalisée par l'administration.`, "/dashboard");
     if (forceCompleteOwnerId) await notify(forceCompleteOwnerId, "system", "✅ Commande finalisée", `La commande ${booking.reference} a été finalisée.`, "/vendor/dashboard");
+    schedulePostServiceSurvey(booking);
 
     res.json({ booking, message: "Commande finalisée avec succès." });
   } catch (err) {

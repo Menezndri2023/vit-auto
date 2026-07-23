@@ -34,6 +34,8 @@ const normalizeBooking = (b) => {
       ? [veh.title, veh.marque, veh.modele].filter(Boolean).join(" ")
       : (drv ? `${drv.firstName || ""} ${drv.lastName || ""}`.trim() : "Véhicule"),
     vehicleId:     veh?._id?.toString() || (typeof veh === "string" ? veh : null),
+    // Réservation chauffeur — cible d'avis distincte du véhicule (voir Review.targetType).
+    driverId:      drv?._id?.toString() || (typeof drv === "string" ? drv : null),
     vehicleType:   veh?.vehicleType || veh?.type || null,
     vehicleMode:   veh?.type === "vente" ? "Acheter" : (veh?.type || null),
     // Infos client
@@ -306,8 +308,17 @@ function ReviewModal({ booking, token, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const { error: toastErr } = useToast();
 
+  // Réservation chauffeur (booking.driverId) vs véhicule — targetType/targetId
+  // doivent correspondre à la ressource réellement réservée (voir reviewController.
+  // createReview, qui accepte déjà pleinement targetType "driver" côté backend ;
+  // ce composant l'envoyait jusqu'ici toujours en dur en "vehicle", ce qui
+  // empêchait silencieusement tout avis sur une mission chauffeur terminée).
+  const isDriverBooking = !booking.vehicleId && !!booking.driverId;
+  const targetType = isDriverBooking ? "driver" : "vehicle";
+  const targetId   = isDriverBooking ? booking.driverId : booking.vehicleId;
+
   const submit = async () => {
-    if (!token || !booking.vehicleId) return;
+    if (!token || !targetId) return;
     setLoading(true);
     try {
       const res = await fetch("/api/reviews", {
@@ -315,8 +326,8 @@ function ReviewModal({ booking, token, onClose, onSuccess }) {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           bookingId: booking.id,
-          targetType: "vehicle",
-          targetId: booking.vehicleId,
+          targetType,
+          targetId,
           note,
           commentaire,
         }),
@@ -347,7 +358,7 @@ function ReviewModal({ booking, token, onClose, onSuccess }) {
         <textarea
           className={styles.reviewTextarea}
           rows={4}
-          placeholder="Partagez votre expérience avec ce véhicule..."
+          placeholder={isDriverBooking ? "Partagez votre expérience avec ce chauffeur..." : "Partagez votre expérience avec ce véhicule..."}
           value={commentaire}
           onChange={(e) => setCommentaire(e.target.value)}
         />
@@ -990,12 +1001,12 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, valid
             💬 {contacting ? "Ouverture…" : "Message au partenaire"}
           </button>
         )}
-        {isCompleted && booking.vehicleId && !booking.hasReview && (
+        {isCompleted && (booking.vehicleId || booking.driverId) && !booking.hasReview && (
           <button className={styles.btnReview} onClick={() => onReview(booking)}>
             ⭐ Laisser un avis
           </button>
         )}
-        {isCompleted && booking.vehicleId && booking.hasReview && (
+        {isCompleted && (booking.vehicleId || booking.driverId) && booking.hasReview && (
           <span className={styles.btnReview} style={{ opacity: 0.6, cursor: "default" }}>
             ✅ Avis publié
           </span>
