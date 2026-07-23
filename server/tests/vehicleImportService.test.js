@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseUploadedFile, mapRowToVehicleInput, countRecognizedColumns } from "../services/vehicleImportService.js";
+import { parseUploadedFile, mapRowToVehicleInput, countRecognizedColumns, isTypeColumnRecognized } from "../services/vehicleImportService.js";
 
 // Fonctions pures (aucune DB) — reproduisent le bug de production signalé :
 // un fichier rempli à partir du template affichait "0 créé, 0 doublon, 299
@@ -47,5 +47,25 @@ describe("vehicleImportService — parsing robuste", () => {
     );
     expect(recognized).toBe(3);
     expect(expected).toBeGreaterThan(3);
+  });
+
+  it("reconnaît la colonne type sous un intitulé reformulé (\"Type d'annonce\")", async () => {
+    const csv = "Titre,Marque,Modele,Annee,Type d'annonce\nToyota Corolla 2020,Toyota,Corolla,2020,location\n";
+    const rows = await parseUploadedFile(Buffer.from(csv, "utf8"), "flotte.csv");
+
+    expect(isTypeColumnRecognized(rows)).toBe(true);
+    expect(mapRowToVehicleInput(rows[0]).data.type).toBe("location");
+  });
+
+  it("reconnaît la colonne type sous un intitulé reformulé + séparateur point-virgule", async () => {
+    const csv = "Titre;Marque;Modele;Annee;Type Annonce\nBMW X5;BMW;X5;2021;Vente\n";
+    const rows = await parseUploadedFile(Buffer.from(csv, "utf8"), "flotte.csv");
+
+    expect(isTypeColumnRecognized(rows)).toBe(true);
+    expect(mapRowToVehicleInput(rows[0]).data.type).toBe("vente");
+  });
+
+  it("isTypeColumnRecognized détecte l'absence totale de la colonne type", () => {
+    expect(isTypeColumnRecognized([{ Titre: "x", Marque: "y" }])).toBe(false);
   });
 });

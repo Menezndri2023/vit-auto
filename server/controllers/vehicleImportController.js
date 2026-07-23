@@ -8,6 +8,7 @@ import {
   parseGoogleSheetUrl,
   processImportBatch,
   countRecognizedColumns,
+  isTypeColumnRecognized,
 } from "../services/vehicleImportService.js";
 
 const requirePartnerRole = (req, res) => {
@@ -83,8 +84,20 @@ export const createImportBatch = async (req, res) => {
     // erreur cryptique après traitement complet du batch.
     const { recognized } = countRecognizedColumns(rawRows, isExport ? "export" : "vehicle");
     if (recognized === 0) {
+      const detected = Object.keys(rawRows[0] || {}).join(", ") || "(aucune)";
       return res.status(400).json({
-        message: "Aucune colonne du template n'a été reconnue dans ce fichier. Téléchargez le template ci-dessus et remplissez-le sans renommer les colonnes (pour un CSV exporté depuis Excel, vérifiez aussi le séparateur : virgule ou point-virgule).",
+        message: `Aucune colonne du template n'a été reconnue dans ce fichier. En-têtes détectées : ${detected}. Téléchargez le template ci-dessus et remplissez-le sans renommer les colonnes (pour un CSV exporté depuis Excel, vérifiez aussi le séparateur : virgule ou point-virgule).`,
+      });
+    }
+    // La colonne "type" (location/vente) n'a pas de valeur par défaut possible —
+    // si elle n'est reconnue sous AUCUNE variante, la totalité du batch échouera
+    // ligne par ligne avec "Type d'annonce manquant" sans que ce soit clair pour
+    // le partenaire. Un seul message explicite, avec les en-têtes réellement
+    // détectées, vaut mieux que 300 lignes en erreur après traitement complet.
+    if (!isExport && !isTypeColumnRecognized(rawRows)) {
+      const detected = Object.keys(rawRows[0] || {}).join(", ") || "(aucune)";
+      return res.status(400).json({
+        message: `La colonne indiquant si chaque véhicule est à louer ou à vendre (en-tête "TypeAnnonce" dans le template) est introuvable dans ce fichier — c'est un champ obligatoire, sans lui toutes les lignes échoueront. En-têtes détectées : ${detected}.`,
       });
     }
 

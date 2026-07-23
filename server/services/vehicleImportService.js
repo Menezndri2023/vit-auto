@@ -51,6 +51,22 @@ export const IMPORT_COLUMNS = [
 const BOOLEAN_KEYS = ["climatisation", "withDriver", "permisRequis", "assuranceOptionnelle"];
 const NUMBER_KEYS  = ["annee", "kilometrage", "nombrePlaces", "nombrePortes", "pricePerDay", "priceForSale", "caution", "ageMin"];
 
+// ── Alias d'en-têtes tolérés en plus du nom exact du template ───────────────
+// Un partenaire ne recopie pas toujours l'en-tête exact du template (traduit,
+// reformulé, avec espaces/apostrophes) — en particulier pour `type`, le SEUL
+// champ sans valeur par défaut possible : si sa colonne n'est reconnue sous
+// AUCUNE variante, 100% des lignes échouent avec "Type d'annonce manquant",
+// symptôme exact remonté en production. Couvre les formulations les plus
+// probables plutôt que d'exiger la correspondance exacte du template.
+const HEADER_ALIASES = {
+  type: ["TypeAnnonce", "Type Annonce", "Type d'annonce", "Type d’annonce", "Type", "Location/Vente", "Location Vente"],
+  vehicleType: ["CategorieVehicule", "Categorie Vehicule", "Catégorie", "Categorie", "Type de véhicule", "Type Vehicule"],
+  pricePerDay: ["PrixParJour", "Prix Par Jour", "Prix/Jour", "Prix journalier", "Prix location"],
+  priceForSale: ["PrixVente", "Prix Vente", "Prix de vente"],
+  ville: ["Ville"],
+  adresse: ["Adresse"],
+};
+
 // Valeurs acceptées par les enums du modèle Vehicle — une saisie CSV/Excel est bien
 // moins contrôlée qu'un <select> du formulaire manuel (casse différente, typo...).
 // On normalise en comparaison insensible à la casse plutôt que de laisser
@@ -198,11 +214,22 @@ export async function parseGoogleSheetUrl(url) {
   return parseCsvSync(text, { columns: true, skip_empty_lines: true, trim: true });
 }
 
-// Normalise une clé d'en-tête pour un rapprochement tolérant à la casse et aux
-// espaces superflus (ex. copié-collé depuis un autre fichier, en-tête retapé
-// à la main plutôt que le template téléchargé) — la correspondance stricte
-// précédente faisait échouer TOUTE la ligne dès qu'un seul en-tête différait.
-const normalizeHeaderKey = (h) => String(h ?? "").trim().toLowerCase();
+// Normalise une clé d'en-tête pour un rapprochement tolérant à la casse, aux
+// accents, aux apostrophes et aux espaces superflus (ex. copié-collé depuis un
+// autre fichier, en-tête retapé/reformulé à la main plutôt que le template
+// téléchargé) — la correspondance stricte précédente faisait échouer TOUTE la
+// ligne dès qu'un seul en-tête différait, même par un simple espace ou accent.
+const normalizeHeaderKey = (h) => String(h ?? "")
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // accents (marques combinantes apres decomposition NFD)
+  .toLowerCase()
+  .replace(/[^a-z0-9]/g, ""); // espaces, apostrophes, ponctuation
+
+// Toutes les clés normalisées (en-tête + clé technique + alias) acceptées pour
+// une colonne donnée — voir HEADER_ALIASES.
+function acceptedKeysFor(col) {
+  const raw = [col.header, col.key, ...(HEADER_ALIASES[col.key] || [])];
+  return raw.map(normalizeHeaderKey);
+}
 
 function buildNormalizedRow(rawRow) {
   const normalized = {};
@@ -219,8 +246,21 @@ export function countRecognizedColumns(rawRows, targetType = "vehicle") {
   const columns = targetType === "export" ? IE_IMPORT_COLUMNS : IMPORT_COLUMNS;
   if (!rawRows.length) return { recognized: 0, expected: columns.length };
   const keys = new Set(Object.keys(rawRows[0]).map(normalizeHeaderKey));
-  const recognized = columns.filter((c) => keys.has(normalizeHeaderKey(c.header)) || keys.has(normalizeHeaderKey(c.key))).length;
+  const recognized = columns.filter((c) => acceptedKeysFor(c).some((k) => keys.has(k))).length;
   return { recognized, expected: columns.length };
+}
+
+// ── Détecte si la colonne "type" (location/vente) est reconnue dans ce fichier —
+// c'est le SEUL champ obligatoire sans valeur par défaut (voir
+// processVehicleImportRow) : si sa colonne n'est reconnue sous aucun alias, 100%
+// des lignes échoueront avec "Type d'annonce manquant" sans que ce soit évident
+// pour le partenaire. Détecté à part de countRecognizedColumns (qui peut passer
+// avec d'autres colonnes reconnues alors que celle-ci, critique, manque).
+export function isTypeColumnRecognized(rawRows) {
+  if (!rawRows.length) return true; // pas de ligne = pas de faux positif ici, déjà rejeté ailleurs
+  const keys = new Set(Object.keys(rawRows[0]).map(normalizeHeaderKey));
+  const typeCol = IMPORT_COLUMNS.find((c) => c.key === "type");
+  return acceptedKeysFor(typeCol).some((k) => keys.has(k));
 }
 
 // ── Mappe une ligne brute (en-têtes du template) vers les champs Vehicle ────
@@ -228,7 +268,8 @@ export function mapRowToVehicleInput(rawRow) {
   const normalizedRow = buildNormalizedRow(rawRow);
   const byHeader = {};
   for (const col of IMPORT_COLUMNS) {
-    byHeader[col.key] = normalizedRow[normalizeHeaderKey(col.header)] ?? normalizedRow[normalizeHeaderKey(col.key)];
+    const found = acceptedKeysFor(col).find((k) => normalizedRow[k] !== undefined);
+    byHeader[col.key] = found !== undefined ? normalizedRow[found] : undefined;
   }
 
   const data = {};
@@ -268,7 +309,8 @@ export function mapRowToIEListingInput(rawRow) {
   const normalizedRow = buildNormalizedRow(rawRow);
   const byHeader = {};
   for (const col of IE_IMPORT_COLUMNS) {
-    byHeader[col.key] = normalizedRow[normalizeHeaderKey(col.header)] ?? normalizedRow[normalizeHeaderKey(col.key)];
+    const found = acceptedKeysFor(col).find((k) => normalizedRow[k] !== undefined);
+    byHeader[col.key] = found !== undefined ? normalizedRow[found] : undefined;
   }
 
   const data = {};

@@ -67,7 +67,10 @@ describe("createImportBatch — portes d'accès", () => {
 
   it("crée un batch pour un fichier valide sous la limite", async () => {
     const partner = await createUser({ role: "partenaire" });
-    const rows = ["titre", "Ligne 1", "Ligne 2"];
+    // La colonne "type" (TypeAnnonce) doit être présente et reconnue, sinon le
+    // batch est désormais rejeté à l'upload (voir isTypeColumnRecognized) plutôt
+    // que créé pour échouer ligne par ligne au traitement.
+    const rows = ["titre,TypeAnnonce", "Ligne 1,location", "Ligne 2,vente"];
     const { req, res } = mockReqRes({
       user: partner, body: { source: "csv", fileBase64: csvBase64(rows), fileName: "f.csv" },
     });
