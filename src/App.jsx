@@ -18,6 +18,7 @@ import Layout from "./components/Layout/Layout";
 import ToastContainer from "./components/Toast/Toast";
 import Chat from "./components/Chat/Chat";
 import SplashScreen from "./components/SplashScreen/SplashScreen";
+import UpdateBanner from "./components/UpdateBanner/UpdateBanner";
 import { SocketProvider } from "./context/SocketContext";
 
 // ── Lazy loading des pages ─────────────────────────────────────────────────
@@ -206,6 +207,7 @@ function App() {
                           <FavoritesProvider>
                             <AppRoutes />
                             <ToastContainer />
+                            <UpdateBanner />
                             <Chat />
                           </FavoritesProvider>
                         </VehicleProvider>

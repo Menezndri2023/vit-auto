@@ -1,0 +1,29 @@
+.bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  background: #162040;
+  color: #fff;
+  padding: 12px 16px;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  font-size: .88rem;
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, .2);
+}
+
+.btn {
+  background: #ff4d2d;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 18px;
+  font-weight: 700;
+  font-size: .85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}

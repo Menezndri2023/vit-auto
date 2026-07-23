@@ -1,11 +1,32 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// Identifiant de build unique par déploiement (SHA du commit sur Vercel, sinon
+// horodatage en local) — sert à détecter côté client qu'une nouvelle version a
+// été déployée pendant qu'un onglet/PWA restait ouvert avec l'ancien bundle en
+// mémoire (voir src/hooks/useVersionCheck.js).
+const APP_VERSION = process.env.VERCEL_GIT_COMMIT_SHA || String(Date.now());
+
+// Écrit dist/version.json (servi avec Cache-Control: no-cache, cf vercel.json)
+// pour que le client puisse comparer sa propre version à celle réellement en
+// ligne, sans dépendre du service worker (qui ne se réinstalle que si sw.js
+// lui-même change).
+const versionFilePlugin = () => ({
+  name: 'write-version-json',
+  generateBundle() {
+    this.emitFile({
+      type: 'asset',
+      fileName: 'version.json',
+      source: JSON.stringify({ version: APP_VERSION }),
+    });
+  },
+});
+
 export default defineConfig(({ mode }) => ({
-  plugins: [react()],
+  plugins: [react(), versionFilePlugin()],
 
   define: {
-    __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
   },
 
   server: {
