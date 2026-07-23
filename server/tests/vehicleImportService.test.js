@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import ExcelJS from "exceljs";
 import { parseUploadedFile, mapRowToVehicleInput, countRecognizedColumns, isTypeColumnRecognized } from "../services/vehicleImportService.js";
 
 // Fonctions pures (aucune DB) — reproduisent le bug de production signalé :
@@ -78,5 +79,30 @@ describe("vehicleImportService — parsing robuste", () => {
 
   it("laisse type indéfini pour une valeur réellement non reconnue (ni alias ni enum)", () => {
     expect(mapRowToVehicleInput({ TypeAnnonce: "Chauffeur" }).data.type).toBeUndefined();
+  });
+
+  it("rejette un .xls (Excel 97-2003) avec un message actionnable — ExcelJS ne sait lire que .xlsx", async () => {
+    // Signature OLE2/CFB réelle d'un .xls (D0 CF 11 E0...) — pas un ZIP du tout,
+    // contrairement à .xlsx, donc ExcelJS échoue systématiquement dessus.
+    const fakeXls = Buffer.from([0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1, ...Array(100).fill(0)]);
+    await expect(parseUploadedFile(fakeXls, "flotte.xls")).rejects.toThrow(/\.xls.*n'est pas pris en charge/);
+  });
+
+  it("rejette un .xlsx corrompu/invalide avec un message clair plutôt que l'erreur JSZip brute", async () => {
+    const corrupted = Buffer.from("ceci n'est pas un vrai fichier excel");
+    await expect(parseUploadedFile(corrupted, "flotte.xlsx")).rejects.toThrow(/Impossible de lire ce fichier/);
+  });
+
+  it("lit la première feuille non vide plutôt que de supposer que c'est toujours la première", async () => {
+    const wb = new ExcelJS.Workbook();
+    wb.addWorksheet("Vide");
+    const data = wb.addWorksheet("Données");
+    data.addRow(["Titre", "Marque", "TypeAnnonce"]);
+    data.addRow(["Toyota Corolla", "Toyota", "location"]);
+    const buf = await wb.xlsx.writeBuffer();
+
+    const rows = await parseUploadedFile(Buffer.from(buf), "flotte.xlsx");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].Titre).toBe("Toyota Corolla");
   });
 });

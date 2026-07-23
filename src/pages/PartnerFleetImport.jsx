@@ -81,8 +81,12 @@ const PartnerFleetImport = () => {
     const f = fileList?.[0];
     if (!f) return;
     const ext = (f.name.split(".").pop() || "").toLowerCase();
-    if (!["csv", "xlsx", "xls"].includes(ext)) {
-      error("Format non supporté. Utilisez un fichier .csv, .xlsx ou .xls");
+    if (ext === "xls") {
+      error("Le format .xls (Excel 97-2003) n'est pas pris en charge — réenregistrez votre fichier au format .xlsx (Fichier > Enregistrer sous > Classeur Excel .xlsx) ou en .csv, puis réessayez.");
+      return;
+    }
+    if (!["csv", "xlsx"].includes(ext)) {
+      error("Format non supporté. Utilisez un fichier .csv ou .xlsx");
       return;
     }
     if (f.size > 8 * 1024 * 1024) {
@@ -290,7 +294,7 @@ const PartnerFleetImport = () => {
               <>
                 <div className={styles.dropIcon}>🖼️</div>
                 <p className={styles.dropTitle}>Glissez votre fichier ici</p>
-                <p className={styles.dropSub}>ou cliquez pour sélectionner (.csv, .xlsx, .xls)</p>
+                <p className={styles.dropSub}>ou cliquez pour sélectionner (.csv ou .xlsx)</p>
               </>
             )}
           </div>

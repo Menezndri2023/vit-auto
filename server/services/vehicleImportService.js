@@ -199,10 +199,38 @@ export async function parseUploadedFile(buffer, fileName = "") {
     return parseCsvSync(text, { columns: true, skip_empty_lines: true, trim: true, delimiter });
   }
 
-  // .xlsx / .xls
+  // ExcelJS ne sait lire QUE le format .xlsx (OOXML, une archive ZIP) — jamais
+  // l'ancien format binaire .xls (Excel 97-2003, structure OLE2/CFB, pas un
+  // ZIP du tout). Un .xls y échoue avec une erreur JSZip bas niveau ("Can't
+  // find end of central directory : is this a zip file ?") totalement opaque
+  // pour un partenaire, alors que le formulaire accepte pourtant ".xls" en
+  // entrée (voir accept=".csv,.xlsx,.xls" côté frontend). Détecté ici en amont
+  // pour un message actionnable immédiat plutôt que ce message technique.
+  if (ext === "xls") {
+    throw new Error(
+      "Le format .xls (Excel 97-2003) n'est pas pris en charge — réenregistrez votre fichier au format .xlsx " +
+      "(dans Excel/LibreOffice/Google Sheets : Fichier > Enregistrer sous > Classeur Excel .xlsx) ou en .csv, puis réimportez-le."
+    );
+  }
+
+  // .xlsx
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
-  const sheet = workbook.worksheets[0];
+  try {
+    await workbook.xlsx.load(buffer);
+  } catch {
+    // Cause la plus probable : un fichier renommé en .xlsx sans être un vrai
+    // classeur Excel (ex. un .xls simplement renommé), ou un fichier corrompu.
+    throw new Error(
+      "Impossible de lire ce fichier comme un classeur Excel (.xlsx) valide. Vérifiez qu'il s'agit bien d'un fichier .xlsx " +
+      "non corrompu (pas un .xls simplement renommé), ou réexportez-le en .csv."
+    );
+  }
+
+  // Un fichier peut contenir plusieurs feuilles (onglet vide ajouté par défaut,
+  // export multi-feuilles...) — on ne suppose plus que les données utiles sont
+  // forcément sur la première : on prend la première feuille qui contient
+  // réellement plus d'une ligne (en-tête + au moins une donnée).
+  const sheet = workbook.worksheets.find((s) => s.rowCount > 1) || workbook.worksheets[0];
   if (!sheet) return [];
 
   const headerRow = sheet.getRow(1).values; // index 0 vide (ExcelJS 1-based)
