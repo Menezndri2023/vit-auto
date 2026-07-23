@@ -392,7 +392,11 @@ export function mapRowToVehicleInput(rawRow, columnMapping = null, defaultType =
     let value = byHeader[key];
     if (BOOLEAN_KEYS.includes(key)) value = parseBool(value);
     else if (NUMBER_KEYS.includes(key)) value = parseNumber(value);
-    else if (typeof value === "string") value = value.trim();
+    // Un champ censé être du texte (ex. "Modele") peut arriver comme Number
+    // depuis Excel/ExcelJS quand sa valeur ressemble à un nombre (ex. "308",
+    // "500") — sans cette coercition, `.trim()` plus loin (scoring, doublons)
+    // plante sur un type qui n'est pas une chaîne. Bug réel constaté en prod.
+    else if (value !== undefined && value !== null) value = String(value).trim();
 
     if (ENUM_FIELDS[key] && value !== undefined && value !== "") {
       const normalized = normalizeEnumValue(value, ENUM_FIELDS[key], key);
@@ -410,6 +414,17 @@ export function mapRowToVehicleInput(rawRow, columnMapping = null, defaultType =
 
   if (!data.type && defaultType && ENUM_FIELDS.type.includes(defaultType)) {
     data.type = defaultType;
+  }
+
+  // Le champ "Titre" est délibérément optionnel dans l'écran d'aperçu (seul
+  // "TypeAnnonce" y est marqué obligatoire) — mais Vehicle.title est requis en
+  // base. Un fichier de flotte partenaire n'a quasiment jamais de colonne
+  // "Titre" toute faite : on le génère à partir de marque/modèle/année plutôt
+  // que de faire échouer chaque ligne qui en est dépourvue (bug réel constaté
+  // en prod : 290 lignes sur 299 rejetées pour "title required").
+  if (!data.title) {
+    const parts = [data.marque, data.modele, data.annee].filter(Boolean);
+    if (parts.length) data.title = parts.join(" ");
   }
 
   const imageUrls = String(byHeader.imageUrls || "")
@@ -443,7 +458,9 @@ export function mapRowToIEListingInput(rawRow, columnMapping = null) {
     let value = byHeader[key];
     if (IE_BOOLEAN_KEYS.includes(key)) value = parseBool(value);
     else if (IE_NUMBER_KEYS.includes(key)) value = parseNumber(value);
-    else if (typeof value === "string") value = value.trim();
+    // Même coercition que mapRowToVehicleInput : un champ texte (ex. "Modele"
+    // = "308") peut arriver comme Number depuis Excel/ExcelJS.
+    else if (value !== undefined && value !== null) value = String(value).trim();
 
     if (IE_ENUM_FIELDS[key] && value !== undefined && value !== "") {
       const normalized = normalizeEnumValue(value, IE_ENUM_FIELDS[key]);
