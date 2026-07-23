@@ -1,11 +1,24 @@
 import mongoose from "mongoose";
 
 const paymentSchema = new mongoose.Schema({
-  // ── Lien avec la commande ─────────────────────────────────
+  // ── Lien avec la commande — exactement UN des trois (voir pre-validate
+  // ci-dessous). ServiceRequest/InsuranceRequest couvrent le paiement d'un
+  // devis approuvé (assurance, transport, garantie...), qui n'avait jusqu'ici
+  // aucun moyen de règlement depuis l'interface client.
   booking: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Booking",
-    required: true,
+    default: null,
+  },
+  serviceRequest: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "ServiceRequest",
+    default: null,
+  },
+  insuranceRequest: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "InsuranceRequest",
+    default: null,
   },
 
   // ── Montant (USD) ──────────────────────────────────────────
@@ -60,13 +73,32 @@ const paymentSchema = new mongoose.Schema({
 });
 
 paymentSchema.index({ booking: 1 });
+paymentSchema.index({ serviceRequest: 1 });
+paymentSchema.index({ insuranceRequest: 1 });
 paymentSchema.index({ status: 1 });
-// Un seul paiement actif (pending/completed) par réservation — empêche les doublons
+// Un seul paiement actif (pending/completed) par cible — empêche les doublons
 // en cas de double-clic/retry concurrent, contrainte appliquée au niveau base.
 paymentSchema.index(
   { booking: 1 },
-  { unique: true, partialFilterExpression: { status: { $in: ["pending", "completed"] } }, name: "unique_active_payment_per_booking" }
+  { unique: true, partialFilterExpression: { booking: { $type: "objectId" }, status: { $in: ["pending", "completed"] } }, name: "unique_active_payment_per_booking" }
 );
+paymentSchema.index(
+  { serviceRequest: 1 },
+  { unique: true, partialFilterExpression: { serviceRequest: { $type: "objectId" }, status: { $in: ["pending", "completed"] } }, name: "unique_active_payment_per_service_request" }
+);
+paymentSchema.index(
+  { insuranceRequest: 1 },
+  { unique: true, partialFilterExpression: { insuranceRequest: { $type: "objectId" }, status: { $in: ["pending", "completed"] } }, name: "unique_active_payment_per_insurance_request" }
+);
+
+// Exactement une cible (booking XOR serviceRequest XOR insuranceRequest).
+paymentSchema.pre("validate", function (next) {
+  const targets = [this.booking, this.serviceRequest, this.insuranceRequest].filter(Boolean);
+  if (targets.length !== 1) {
+    return next(new Error("Un paiement doit référencer exactement une cible (booking, serviceRequest ou insuranceRequest)."));
+  }
+  next();
+});
 
 const Payment = mongoose.models.Payment || mongoose.model("Payment", paymentSchema);
 export default Payment;

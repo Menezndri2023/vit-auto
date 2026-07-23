@@ -51,6 +51,14 @@ export default function KYC() {
   const [otpError,        setOtpError]        = useState("");
   const [otpSuccess,      setOtpSuccess]      = useState("");
   const [devOtp,          setDevOtp]          = useState("");
+  // Échappatoire si le SMS ne parvient jamais (Twilio "configuré" globalement
+  // ne garantit pas la délivrabilité réelle par pays — ex. numéros chinois
+  // +86, souvent filtrés par les opérateurs locaux pour les SMS internationaux).
+  // Sans ça, un utilisateur dont l'OTP n'arrive jamais reste bloqué à l'étape 1
+  // pour toujours, incapable d'atteindre l'upload de documents (voir gating
+  // du bouton "Continuer" plus bas) — phoneVerified reste correctement à
+  // false (pas de triche sur le score), seul le blocage saute.
+  const [phoneSkipped,    setPhoneSkipped]    = useState(false);
   const [emailResent,     setEmailResent]     = useState(false);
   const [emailError,      setEmailError]      = useState("");
   // Tant qu'aucun provider SMS réel n'est configuré côté serveur, la vérification
@@ -517,6 +525,13 @@ export default function KYC() {
                   )}
                   {otpError   && <p className={styles.errorMsg}>{otpError}</p>}
                   {otpSuccess && !otpError && <p className={styles.successMsg}>{otpSuccess}</p>}
+                  {!phoneSkipped && (
+                    <button type="button"
+                      style={{ background: "none", border: "none", color: "#6366f1", textDecoration: "underline", cursor: "pointer", fontSize: ".85rem", marginTop: 8, padding: 0 }}
+                      onClick={() => setPhoneSkipped(true)}>
+                      Vous ne recevez pas le code ? Continuer sans vérifier mon téléphone
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -525,11 +540,11 @@ export default function KYC() {
           <div className={styles.cardFooter}>
             <div />
             <button className={styles.primaryBtn} onClick={() => setStep(2)}
-              disabled={(hasEmail && emailVerifRequired && !emailVerified) || (hasPhone && smsAvailable && !phoneVerified)}>
-              {((hasEmail && emailVerifRequired && !emailVerified) || (hasPhone && smsAvailable && !phoneVerified)) ? "Complétez la vérification" : "Continuer →"}
+              disabled={(hasEmail && emailVerifRequired && !emailVerified) || (hasPhone && smsAvailable && !phoneVerified && !phoneSkipped)}>
+              {((hasEmail && emailVerifRequired && !emailVerified) || (hasPhone && smsAvailable && !phoneVerified && !phoneSkipped)) ? "Complétez la vérification" : "Continuer →"}
             </button>
           </div>
-          {((hasEmail && emailVerifRequired && !emailVerified) || (hasPhone && smsAvailable && !phoneVerified)) && (
+          {((hasEmail && emailVerifRequired && !emailVerified) || (hasPhone && smsAvailable && !phoneVerified && !phoneSkipped)) && (
             <p className={styles.gateMsg}>
               {hasEmail ? "Votre email doit être vérifié pour continuer." : "Votre téléphone doit être vérifié pour continuer."}
             </p>

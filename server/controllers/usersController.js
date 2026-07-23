@@ -490,7 +490,7 @@ export const updateMyProfile = async (req, res) => {
 
     if (updates.country) {
       updates.country = String(updates.country).toUpperCase();
-      if (!isValidCountryCode(updates.country)) {
+      if (!(await isValidCountryCode(updates.country))) {
         return res.status(400).json({ message: "Pays invalide." });
       }
     }

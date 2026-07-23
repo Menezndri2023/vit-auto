@@ -17,14 +17,14 @@ const countryConfigSchema = new mongoose.Schema({
   // Frais de livraison locaux (voir server/services/deliveryFee.js) — dans la
   // devise locale du pays (defaultCurrency), pas en USD : ce sont des tarifs
   // logistiques fixés par zone, pas un montant à convertir.
-  deliveryRatePerKm: { type: Number, default: 200 },
-  deliveryBaseRate:  { type: Number, default: 1000 },
-  deliveryMaxKm:     { type: Number, default: 100 },
+  deliveryRatePerKm: { type: Number, default: 200, min: 0 },
+  deliveryBaseRate:  { type: Number, default: 1000, min: 0 },
+  deliveryMaxKm:     { type: Number, default: 100, min: 0 },
 
   // Taux de taxe locale (TVA/équivalent) applicable aux transactions dans ce
   // pays — configurable indépendamment par pays (cahier des charges "règles
   // par pays"/"taxes"). 0 = pas de taxe appliquée (comportement par défaut).
-  taxPercent: { type: Number, default: 0 },
+  taxPercent: { type: Number, default: 0, min: 0, max: 100 },
 
   active:    { type: Boolean, default: true },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },

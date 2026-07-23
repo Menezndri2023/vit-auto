@@ -1,7 +1,7 @@
 import express from "express";
 import { rateLimit } from "express-rate-limit";
 import * as c from "../controllers/chatController.js";
-import { authenticate, authorizeAdmin } from "../middleware/auth.js";
+import { authenticate, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 
 const router = express.Router();
@@ -34,7 +34,7 @@ router.get("/",           c.getMyChats);
 router.get("/unread",     c.getUnreadCount);
 // Route statique AVANT "/:id" (sinon "support" serait interprété comme un :id et
 // rejeté par validateObjectId).
-router.get("/support",    authorizeAdmin, c.getSupportChats);
+router.get("/support",    authorizeAdmin, requireAdminScope("support"), c.getSupportChats);
 router.post("/",          createChatLimiter, c.getOrCreateChat);
 router.get("/:id",        vid, c.getMessages);
 router.post("/:id",       vid, sendMessageLimiter, c.sendMessage);

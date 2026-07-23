@@ -1269,10 +1269,14 @@ export default function AdminPanel() {
   const [commissionsForm,  setCommissionsForm]  = useState(null);
   const [foundingForm,     setFoundingForm]     = useState(null);
   const [serviceFeeForm,   setServiceFeeForm]   = useState(null);
+  const [importFeeForm,    setImportFeeForm]    = useState(null);
   const [subscriptionsForm,setSubscriptionsForm]= useState(null);
   const [boostsForm,       setBoostsForm]       = useState(null);
+  const [rentalOptsForm,   setRentalOptsForm]   = useState(null);
   const [servicesForm,     setServicesForm]     = useState(null);
   const [adsConfigForm,    setAdsConfigForm]    = useState(null);
+  const [discountCampaigns, setDiscountCampaigns] = useState([]);
+  const [discountForm,    setDiscountForm]      = useState(null); // objet en cours d'édition/création, ou null
   const [exchangeRates,    setExchangeRates]    = useState([]);
   const [countryConfigs,   setCountryConfigs]   = useState([]);
   const [rateForm,         setRateForm]         = useState(null); // null = fermé
@@ -1376,6 +1380,7 @@ export default function AdminPanel() {
   const [vehicles,  setVehicles]  = useState([]);
   const [bookings,  setBookings]  = useState([]);
   const [drivers,   setDrivers]   = useState([]);
+  const [activeDrivers, setActiveDrivers] = useState([]); // Driver.status==="approved" — remplace l'ancien filtre User.role==="chauffeur" (jamais assignable, voir Register.jsx)
   const [loading,   setLoading]   = useState(true);
   const [toast,     setToast]     = useState(null);
 
@@ -1458,12 +1463,13 @@ export default function AdminPanel() {
     if (!token) return;
     setLoading(true);
     try {
-      const [sRes, uRes, vRes, bRes, dRes] = await Promise.all([
+      const [sRes, uRes, vRes, bRes, dRes, adRes] = await Promise.all([
         fetch("/api/users/stats",    { headers }),
         fetch("/api/users?limit=200", { headers }),
         fetch("/api/vehicles?limit=200&status=all", { headers }),
         fetch("/api/bookings?limit=200", { headers }),
         fetch("/api/drivers/pending", { headers }),
+        fetch("/api/drivers", { headers }),
       ]);
       if (sRes.ok) setStats((await sRes.json()));
       if (uRes.ok) setUsers((await uRes.json()).users || []);
@@ -1473,6 +1479,7 @@ export default function AdminPanel() {
       }
       if (bRes.ok) setBookings((await bRes.json()).bookings || []);
       if (dRes.ok) setDrivers((await dRes.json()).drivers || []);
+      if (adRes.ok) { const ad = await adRes.json(); setActiveDrivers(Array.isArray(ad) ? ad : ad.drivers || []); }
     } catch { /* ignore */ }
     setLoading(false);
   }, [token, headers]);
@@ -1901,10 +1908,11 @@ export default function AdminPanel() {
     if (!token) return;
     setBizConfigLoading(true);
     try {
-      const [pRes, rRes, cRes] = await Promise.all([
+      const [pRes, rRes, cRes, dRes] = await Promise.all([
         fetch("/api/admin/business-config/pricing", { headers }),
         fetch("/api/admin/business-config/exchange-rates", { headers }),
         fetch("/api/admin/business-config/countries", { headers }),
+        fetch("/api/admin/business-config/discount-campaigns", { headers }),
       ]);
       if (pRes.ok) {
         const { config } = await pRes.json();
@@ -1912,13 +1920,16 @@ export default function AdminPanel() {
         setCommissionsForm(config.commissions);
         setFoundingForm(config.foundingPartner);
         setServiceFeeForm(config.serviceFee);
+        setImportFeeForm(config.importEstimateFee);
         setSubscriptionsForm(config.subscriptions);
         setBoostsForm(config.boosts);
+        setRentalOptsForm(config.rentalOptions);
         setServicesForm(config.services);
         setAdsConfigForm(config.ads);
       }
       if (rRes.ok) setExchangeRates((await rRes.json()).rates || []);
       if (cRes.ok) setCountryConfigs((await cRes.json()).countries || []);
+      if (dRes.ok) setDiscountCampaigns((await dRes.json()).campaigns || []);
     } catch { /* ignore */ }
     setBizConfigLoading(false);
   }, [token, headers]);
@@ -1975,6 +1986,33 @@ export default function AdminPanel() {
     if (!confirm("Supprimer ce pays ?")) return;
     await fetch(`/api/admin/business-config/countries/${id}`, { method: "DELETE", headers });
     showToast("Pays supprimé.");
+    loadBusinessConfig();
+  };
+
+  const saveDiscountCampaign = async () => {
+    if (!discountForm?.code || !discountForm?.discountPercent) {
+      showToast("Code et pourcentage de réduction requis", "error"); return;
+    }
+    try {
+      const payload = {
+        ...discountForm,
+        maxRedemptions: discountForm.maxRedemptions === "" ? null : discountForm.maxRedemptions,
+        startDate: discountForm.startDate || null,
+        endDate: discountForm.endDate || null,
+      };
+      const r = await fetch("/api/admin/business-config/discount-campaigns", {
+        method: "POST", headers, body: JSON.stringify(payload),
+      });
+      const d = await r.json().catch(() => null);
+      if (r.ok) { showToast("Campagne enregistrée."); setDiscountForm(null); loadBusinessConfig(); }
+      else showToast(d?.message || "Erreur", "error");
+    } catch { showToast("Erreur réseau", "error"); }
+  };
+
+  const deleteDiscountCampaignFn = async (id) => {
+    if (!confirm("Supprimer cette campagne ?")) return;
+    await fetch(`/api/admin/business-config/discount-campaigns/${id}`, { method: "DELETE", headers });
+    showToast("Campagne supprimée.");
     loadBusinessConfig();
   };
 
@@ -2436,6 +2474,12 @@ export default function AdminPanel() {
     if (activeTab === "business_config")   loadBusinessConfig();
   }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds, loadInsurance, loadServiceRequests, loadImportCostData, loadReports, loadWaConversations, loadBusinessConfig]);
 
+  // Chargé indépendamment de l'onglet actif (contrairement au bloc ci-dessus,
+  // conditionné par activeTab === "business_config") : le message d'invitation
+  // Founding Partner (vue "onboarding") a besoin des taux de commission
+  // courants même si l'admin n'a jamais ouvert l'onglet Configuration métier.
+  useEffect(() => { if (!bizConfig) loadBusinessConfig(); }, [bizConfig, loadBusinessConfig]);
+
   // Rafraîchissement périodique de la liste support (nouvelles demandes) tant que
   // l'onglet est affiché — même logique de polling que le widget chat public.
   useEffect(() => {
@@ -2538,6 +2582,20 @@ export default function AdminPanel() {
       if (!res.ok) throw new Error();
       setDrivers((prev) => prev.filter((d) => d._id !== did));
       showToast(`Chauffeur ${status === "approved" ? "approuvé" : "rejeté"}`);
+    } catch { showToast("Erreur lors de la mise à jour", "error"); }
+  }, [headers, showToast]);
+
+  // Retire un chauffeur actif du catalogue public (repasse en "rejected" —
+  // Driver.status n'a pas de statut "suspendu" dédié) — action utilisée par la
+  // section "Chauffeurs actifs" (voir tab chauffeurs).
+  const deactivateActiveDriver = useCallback(async (did) => {
+    try {
+      const res = await fetch(`/api/drivers/${did}/status`, {
+        method: "PATCH", headers, body: JSON.stringify({ status: "rejected", rejectionReason: "Désactivé par l'administration" }),
+      });
+      if (!res.ok) throw new Error();
+      setActiveDrivers((prev) => prev.filter((d) => d._id !== did));
+      showToast("Chauffeur retiré du catalogue.");
     } catch { showToast("Erreur lors de la mise à jour", "error"); }
   }, [headers, showToast]);
 
@@ -2696,7 +2754,33 @@ export default function AdminPanel() {
   const pendingPv       = (pvStats?.byStatus?.en_attente || 0) + (pvStats?.byStatus?.en_cours || 0);
   const foundingPending = foundingList.filter((o) => ["soumis", "en_review"].includes(o.status)).length;
 
-  const NAV_GROUPS = [
+  // Onglets restreints par scope admin — miroir exact des routes réellement
+  // gardées par requireAdminScope() côté serveur (server/routes/*.js). Un
+  // onglet absent d'ici reste visible à tout admin (aucune route serveur
+  // associée ne vérifie de scope, donc le restreindre ici serait trompeur :
+  // ni plus ni moins permissif que le backend). adminScope vide/absent ou
+  // contenant "super_admin" = accès complet, même règle que requireAdminScope.
+  const TAB_SCOPES = {
+    kyc:              "kyc",
+    support:          "support",
+    whatsapp:         "support",
+    reviews:          "moderation",
+    reports:          "moderation",
+    import_export:    "import_export",
+    exportateurs:     "import_export",
+    assurance:        "finance",
+    financement:      "finance",
+    service_requests: "finance",
+    business_config:  "finance",
+  };
+  const canSeeTab = (key) => {
+    const scope = TAB_SCOPES[key];
+    if (!scope) return true;
+    const scopes = user?.adminScope || [];
+    return scopes.length === 0 || scopes.includes("super_admin") || scopes.includes(scope);
+  };
+
+  const NAV_GROUPS_ALL = [
     {
       label: "TABLEAU DE BORD",
       items: [
@@ -2776,6 +2860,10 @@ export default function AdminPanel() {
       ],
     },
   ];
+
+  const NAV_GROUPS = NAV_GROUPS_ALL
+    .map((group) => ({ ...group, items: group.items.filter((i) => canSeeTab(i.key)) }))
+    .filter((group) => group.items.length > 0);
 
   // Titre de l'onglet actif
   const activeLabel = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.key === activeTab)?.label || "Dashboard";
@@ -5153,7 +5241,7 @@ export default function AdminPanel() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12, marginBottom: "1.5rem" }}>
             {[
               { icon:"👨‍✈️", label:"En attente validation", value: drivers.length,                                                  color:"#f59e0b" },
-              { icon:"✅",   label:"Chauffeurs actifs",      value: users.filter(u=>u.role==="chauffeur"&&u.isActive).length,       color:"#10b981" },
+              { icon:"✅",   label:"Chauffeurs actifs",      value: activeDrivers.length,       color:"#10b981" },
               { icon:"🚗",   label:"Missions terminées",     value: bookings.filter(b=>b.type==="chauffeur"&&b.status==="completed").length, color:"#3b82f6" },
               { icon:"💰",   label:"Revenue chauffeurs",     value: fmtUSD(bookings.filter(b=>b.type==="chauffeur"&&b.status==="completed").reduce((s,b)=>s+(b.montantTotal||0),0)), color:"#6366f1" },
             ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
@@ -5200,31 +5288,35 @@ export default function AdminPanel() {
             )}
           </div>
 
-          {/* Chauffeurs actifs */}
+          {/* Chauffeurs actifs — profils Driver approuvés (catalogue public "Chauffeur"),
+              pas des comptes User : un chauffeur est une fiche de service publiée par
+              un partenaire (owner), jamais un rôle de compte autonome (voir Register.jsx,
+              qui ne propose que client/partenaire à l'inscription). */}
           <div className={styles.chartCard}>
-            <h3 className={styles.chartTitle}>✅ Chauffeurs actifs ({users.filter(u=>u.role==="chauffeur"&&u.isActive).length})</h3>
-            {users.filter(u=>u.role==="chauffeur").length === 0 ? (
-              <p style={{ color:"#64748b", fontSize:"0.9rem" }}>Aucun chauffeur enregistré.</p>
+            <h3 className={styles.chartTitle}>✅ Chauffeurs actifs ({activeDrivers.length})</h3>
+            {activeDrivers.length === 0 ? (
+              <p style={{ color:"#64748b", fontSize:"0.9rem" }}>Aucun chauffeur actif dans le catalogue.</p>
             ) : (
               <div className={styles.tableWrap}>
                 <table className={styles.table}>
-                  <thead><tr><th>Chauffeur</th><th>Email</th><th>Statut</th><th>Inscrit le</th><th>Actions</th></tr></thead>
+                  <thead><tr><th>Chauffeur</th><th>Partenaire</th><th>Zone</th><th>Tarif</th><th>Note</th><th>Actions</th></tr></thead>
                   <tbody>
-                    {users.filter(u=>u.role==="chauffeur").map(u => (
-                      <tr key={u._id} className={styles.tr}>
+                    {activeDrivers.map(d => (
+                      <tr key={d._id} className={styles.tr}>
                         <td>
                           <div className={styles.userCell}>
-                            <div className={styles.avatar}>{u.firstName?.[0]?.toUpperCase()||"?"}</div>
-                            <strong>{u.firstName} {u.lastName}</strong>
+                            <div className={styles.avatar}>{d.firstName?.[0]?.toUpperCase()||"?"}</div>
+                            <strong>{d.firstName} {d.lastName}</strong>
                           </div>
                         </td>
-                        <td className={styles.tdEmail}>{u.email}</td>
-                        <td>{u.isActive ? <Badge label="Actif" color="#10b981" bg="#ecfdf5" /> : <Badge label="Bloqué" color="#ef4444" bg="#fef2f2" />}</td>
-                        <td className={styles.tdDate}>{fmtDate(u.createdAt)}</td>
+                        <td style={{ fontSize:"0.85rem", color:"#64748b" }}>{d.owner?.firstName||"—"} {d.owner?.phone ? `· ${d.owner.phone}` : ""}</td>
+                        <td style={{ fontSize:"0.85rem", color:"#64748b" }}>{d.zone||"—"}</td>
+                        <td className={styles.tdPrice}>{d.tarif?`${fmtUSD(d.tarif)}/j`:"—"}</td>
+                        <td>{d.noteMoyenne > 0 ? `⭐ ${d.noteMoyenne.toFixed(1)}` : "—"}</td>
                         <td>
-                          <button className={u.isActive ? styles.btnBlock : styles.btnUnblock}
-                            onClick={() => setConfirm({ message:`${u.isActive?"Bloquer":"Débloquer"} ${u.firstName} ?`, action:()=>toggleBlock(u._id) })}>
-                            {u.isActive ? "🚫 Bloquer" : "✅ Débloquer"}
+                          <button className={styles.btnReject}
+                            onClick={() => setConfirm({ message:`Retirer ${d.firstName} ${d.lastName} du catalogue ?`, action:()=>deactivateActiveDriver(d._id) })}>
+                            🚫 Retirer
                           </button>
                         </td>
                       </tr>
@@ -5434,6 +5526,7 @@ export default function AdminPanel() {
               ["subs_boosts", "⭐ Abonnements & Boosts"],
               ["currencies", "🌍 Devises & Pays"],
               ["services_ads", "🛠️ Services & Publicités"],
+              ["discounts", "🎟️ Codes promo"],
             ].map(([key, label]) => (
               <button key={key} onClick={() => setBizSubTab(key)}
                 style={{
@@ -5541,6 +5634,35 @@ export default function AdminPanel() {
                       {bizSaving === "serviceFee" ? "…" : "💾 Enregistrer les frais de service"}
                     </button>
                   </div>
+
+                  {importFeeForm && (
+                    <div className={styles.chartCard}>
+                      <h3 className={styles.chartTitle}>🌍 Frais de l'estimateur d'import</h3>
+                      <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#64748b" }}>Distinct de la commission Import/Export ci-dessus — facturé à l'acheteur pour l'estimation de coût d'import (server/services/importCostEngine.js).</p>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, maxWidth: 460 }}>
+                        <div>
+                          <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Minimum ($)</label>
+                          <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
+                            value={importFeeForm.minUSD} onChange={(e) => setImportFeeForm((p) => ({ ...p, minUSD: Number(e.target.value) }))} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Pourcentage (%)</label>
+                          <input type="number" min="0" max="100" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
+                            value={Math.round(importFeeForm.percent * 1000) / 10}
+                            onChange={(e) => setImportFeeForm((p) => ({ ...p, percent: Number(e.target.value) / 100 }))} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Maximum ($)</label>
+                          <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
+                            value={importFeeForm.maxUSD} onChange={(e) => setImportFeeForm((p) => ({ ...p, maxUSD: Number(e.target.value) }))} />
+                        </div>
+                      </div>
+                      <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "importEstimateFee"}
+                        onClick={() => savePricingSection("importEstimateFee", importFeeForm)}>
+                        {bizSaving === "importEstimateFee" ? "…" : "💾 Enregistrer les frais d'estimation import"}
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -5581,6 +5703,26 @@ export default function AdminPanel() {
                       {bizSaving === "boosts" ? "…" : "💾 Enregistrer les boosts"}
                     </button>
                   </div>
+
+                  {rentalOptsForm && (
+                    <div className={styles.chartCard}>
+                      <h3 className={styles.chartTitle}>🚗 Options de location (par jour, USD)</h3>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, maxWidth: 700, marginTop: 10 }}>
+                        {[["gps", "GPS"], ["babySeat", "Siège bébé"], ["insurance", "Assurance"], ["driver", "Chauffeur"]].map(([key, label]) => (
+                          <div key={key}>
+                            <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>{label} ($)</label>
+                            <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
+                              value={rentalOptsForm[key] ?? 0}
+                              onChange={(e) => setRentalOptsForm((p) => ({ ...p, [key]: Number(e.target.value) }))} />
+                          </div>
+                        ))}
+                      </div>
+                      <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "rentalOptions"}
+                        onClick={() => savePricingSection("rentalOptions", rentalOptsForm)}>
+                        {bizSaving === "rentalOptions" ? "…" : "💾 Enregistrer les options de location"}
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -5624,7 +5766,7 @@ export default function AdminPanel() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                       <h3 className={styles.chartTitle} style={{ margin: 0 }}>🌍 Pays</h3>
                       <button className={styles.btnApprove} style={{ fontSize: ".8rem" }}
-                        onClick={() => setCountryForm({ code: "", name: "", flag: "🌍", defaultCurrency: "", locale: "fr-FR", deliveryRatePerKm: 200, deliveryBaseRate: 1000, deliveryMaxKm: 100, taxPercent: 0, active: true })}>+ Nouveau pays</button>
+                        onClick={() => setCountryForm({ code: "", name: "", flag: "🌍", defaultCurrency: "", locale: "fr-FR", phone: "", languages: ["fr"], paymentMethods: [], deliveryRatePerKm: 200, deliveryBaseRate: 1000, deliveryMaxKm: 100, taxPercent: 0, active: true })}>+ Nouveau pays</button>
                     </div>
                     {countryConfigs.length === 0 ? (
                       <p style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>Aucun pays configuré.</p>
@@ -5731,6 +5873,47 @@ export default function AdminPanel() {
                   </div>
                 </>
               )}
+
+              {bizSubTab === "discounts" && (
+                <div className={styles.chartCard}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                    <h3 className={styles.chartTitle} style={{ margin: 0 }}>🎟️ Campagnes de réduction</h3>
+                    <button className={styles.btnApprove} style={{ fontSize: ".8rem" }}
+                      onClick={() => setDiscountForm({ code: "", label: "", discountPercent: 10, appliesTo: ["subscriptions", "boosts"], startDate: "", endDate: "", maxRedemptions: "", active: true })}>+ Nouvelle campagne</button>
+                  </div>
+                  <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#64748b" }}>Codes promo appliqués par le partenaire à l'activation d'un abonnement ou d'un boost (champ "Code promo" optionnel).</p>
+                  {discountCampaigns.length === 0 ? (
+                    <p style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>Aucune campagne configurée.</p>
+                  ) : (
+                    <div className={styles.tableWrap}>
+                      <table className={styles.table}>
+                        <thead><tr><th>Code</th><th>Réduction</th><th>Applicable à</th><th>Période</th><th>Utilisations</th><th>Statut</th><th>Actions</th></tr></thead>
+                        <tbody>
+                          {discountCampaigns.map((c) => (
+                            <tr key={c._id} className={styles.tr}>
+                              <td style={{ fontWeight: 700 }}>{c.code}{c.label ? ` — ${c.label}` : ""}</td>
+                              <td>{c.discountPercent}%</td>
+                              <td>{(c.appliesTo || []).join(", ")}</td>
+                              <td style={{ fontSize: ".78rem" }}>
+                                {c.startDate ? new Date(c.startDate).toLocaleDateString("fr-FR") : "—"} → {c.endDate ? new Date(c.endDate).toLocaleDateString("fr-FR") : "—"}
+                              </td>
+                              <td>{c.redemptionCount}{c.maxRedemptions != null ? ` / ${c.maxRedemptions}` : ""}</td>
+                              <td><Badge label={c.active ? "Active" : "Inactive"} color={c.active ? "#10b981" : "#94a3b8"} bg={c.active ? "#ecfdf5" : "#f1f5f9"} /></td>
+                              <td>
+                                <div className={styles.actionBtns}>
+                                  <button className={styles.btnGhost} style={{ fontSize: ".75rem" }}
+                                    onClick={() => setDiscountForm({ ...c, startDate: c.startDate ? c.startDate.slice(0, 10) : "", endDate: c.endDate ? c.endDate.slice(0, 10) : "", maxRedemptions: c.maxRedemptions ?? "" })}>✏️</button>
+                                  <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteDiscountCampaignFn(c._id)}>🗑️</button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>
@@ -5806,6 +5989,30 @@ export default function AdminPanel() {
                   {exchangeRates.map((r) => <option key={r.code} value={r.code}>{r.code}</option>)}
                 </select>
               </div>
+              <div>
+                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Locale (ex. fr-FR)</label>
+                <input value={countryForm.locale || ""}
+                  onChange={(e) => setCountryForm((p) => ({ ...p, locale: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Indicatif tél. (ex. +225)</label>
+                <input value={countryForm.phone || ""}
+                  onChange={(e) => setCountryForm((p) => ({ ...p, phone: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Langues (séparées par virgule)</label>
+                <input value={(countryForm.languages || []).join(", ")}
+                  onChange={(e) => setCountryForm((p) => ({ ...p, languages: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) }))}
+                  placeholder="fr, en" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Moyens de paiement (séparés par virgule)</label>
+                <input value={(countryForm.paymentMethods || []).join(", ")}
+                  onChange={(e) => setCountryForm((p) => ({ ...p, paymentMethods: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) }))}
+                  placeholder="carte, orange_money, wave" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
               {[
@@ -5832,6 +6039,81 @@ export default function AdminPanel() {
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button className={styles.btnGhost} onClick={() => setCountryForm(null)}>Annuler</button>
               <button className={styles.btnApprove} onClick={saveCountryConfig}>💾 Enregistrer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal campagne de réduction ── */}
+      {discountForm && (
+        <div className={styles.overlay} onClick={() => setDiscountForm(null)}>
+          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460 }}>
+            <h3 style={{ margin: "0 0 14px", color: "#0f1b3f", fontSize: "1rem" }}>
+              {discountForm._id ? "✏️ Modifier la campagne" : "+ Nouvelle campagne"}
+            </h3>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div>
+                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Code promo</label>
+                <input value={discountForm.code} disabled={!!discountForm._id}
+                  onChange={(e) => setDiscountForm((p) => ({ ...p, code: e.target.value.toUpperCase() }))}
+                  placeholder="LAUNCH50" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Réduction (%)</label>
+                <input type="number" min="1" max="100" value={discountForm.discountPercent}
+                  onChange={(e) => setDiscountForm((p) => ({ ...p, discountPercent: Number(e.target.value) }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              </div>
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Libellé (optionnel)</label>
+              <input value={discountForm.label || ""}
+                onChange={(e) => setDiscountForm((p) => ({ ...p, label: e.target.value }))}
+                placeholder="Lancement France" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 6 }}>Applicable à</label>
+              <div style={{ display: "flex", gap: 16 }}>
+                {[["subscriptions", "Abonnements"], ["boosts", "Boosts"]].map(([key, label]) => (
+                  <label key={key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: ".85rem", cursor: "pointer" }}>
+                    <input type="checkbox" checked={(discountForm.appliesTo || []).includes(key)}
+                      onChange={(e) => setDiscountForm((p) => {
+                        const set = new Set(p.appliesTo || []);
+                        e.target.checked ? set.add(key) : set.delete(key);
+                        return { ...p, appliesTo: [...set] };
+                      })} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div>
+                <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Début (optionnel)</label>
+                <input type="date" value={discountForm.startDate || ""}
+                  onChange={(e) => setDiscountForm((p) => ({ ...p, startDate: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Fin (optionnel)</label>
+                <input type="date" value={discountForm.endDate || ""}
+                  onChange={(e) => setDiscountForm((p) => ({ ...p, endDate: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+              </div>
+            </div>
+            <div style={{ marginBottom: 10, maxWidth: 220 }}>
+              <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Limite d'utilisations (vide = illimité)</label>
+              <input type="number" min="1" value={discountForm.maxRedemptions ?? ""}
+                onChange={(e) => setDiscountForm((p) => ({ ...p, maxRedemptions: e.target.value === "" ? "" : Number(e.target.value) }))}
+                style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: ".85rem", marginBottom: 16 }}>
+              <input type="checkbox" checked={!!discountForm.active} onChange={(e) => setDiscountForm((p) => ({ ...p, active: e.target.checked }))} />
+              Campagne active
+            </label>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button className={styles.btnGhost} onClick={() => setDiscountForm(null)}>Annuler</button>
+              <button className={styles.btnApprove} onClick={saveDiscountCampaign}>💾 Enregistrer</button>
             </div>
           </div>
         </div>
@@ -6058,6 +6340,7 @@ export default function AdminPanel() {
                       <div key={p._id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 0", borderTop: "1px solid #f1f5f9", flexWrap: "wrap" }}>
                         <div style={{ fontSize: ".88rem" }}>
                           <strong>{PLAN_TIER_LABELS[p.planTier] || p.planTier}</strong> — {fmtUSD(p.amount)} · {p.method} · période {p.period}
+                          {p.promoCode && <span style={{ marginLeft: 8, fontSize: ".72rem", fontWeight: 700, color: "#7c3aed", background: "#ede9fe", padding: "2px 8px", borderRadius: 6 }}>🎟️ {p.promoCode}</span>}
                         </div>
                         <div style={{ display: "flex", gap: 8 }}>
                           <button
@@ -6077,6 +6360,7 @@ export default function AdminPanel() {
                       <div key={b._id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 0", borderTop: "1px solid #f1f5f9", flexWrap: "wrap" }}>
                         <div style={{ fontSize: ".88rem" }}>
                           <strong>Mise en avant ({b.tier})</strong> — véhicule #{String(b.vehicle).slice(-6)} · {fmtUSD(b.priceUSD)}
+                          {b.promoCode && <span style={{ marginLeft: 8, fontSize: ".72rem", fontWeight: 700, color: "#7c3aed", background: "#ede9fe", padding: "2px 8px", borderRadius: 6 }}>🎟️ {b.promoCode}</span>}
                         </div>
                         <button
                           className={styles.btnPrimary}
@@ -6598,12 +6882,23 @@ export default function AdminPanel() {
             {(() => {
               if (foundingView !== "onboarding") return null;
               const inviteLink = `${window.location.origin}/partner-onboarding`;
+              // Taux lus depuis bizConfig (PricingConfig live) — jamais figés dans le
+              // texte d'invitation, sinon ce message continuerait d'annoncer d'anciens
+              // taux après une modification depuis Configuration métier.
+              const fpRate      = bizConfig?.foundingPartner?.entreprise;
+              const fpDuration  = bizConfig?.foundingPartner?.durationMonths ?? 12;
+              const stdLocation = Math.round((bizConfig?.commissions?.standard?.location ?? 0.15) * 100);
+              const stdVente    = Math.round((bizConfig?.commissions?.standard?.vente ?? 0.03) * 100);
+              const fpLocation  = Math.round((fpRate?.location ?? 0.10) * 100);
+              const fpVente     = Math.round((fpRate?.vente ?? 0.015) * 100);
+              const businessSub = bizConfig?.subscriptions?.business?.priceUSD ?? 19.99;
+              const subValue    = `$${Math.round(businessSub * fpDuration)}+`;
               const waMsg = encodeURIComponent(
-                `Bonjour ! 👋\n\nVIT-AUTO vous invite à rejoindre notre *Programme Partenaire Fondateur* — places limitées à 20 partenaires.\n\n✅ *Avantages exclusifs Founding Partner :*\n• Commission Location : *10%* (standard 15%)\n• Commission Vente : *2%* (standard 3%)\n• Abonnement Premium *OFFERT 12 mois* (valeur 300€+)\n• Badge exclusif *"Founding Partner"* sur toutes vos annonces\n• Placement prioritaire dans le catalogue international\n• Accès anticipé à toutes les nouvelles fonctionnalités\n\n🔗 *Inscrivez-vous et déposez votre dossier directement ici :*\n${inviteLink}\n\nDes questions ? Contactez-nous : contact@vit-auto.com\n\n_VIT-AUTO — Plateforme Automobile Internationale_`
+                `Bonjour ! 👋\n\nVIT-AUTO vous invite à rejoindre notre *Programme Partenaire Fondateur* — places limitées à 20 partenaires.\n\n✅ *Avantages exclusifs Founding Partner :*\n• Commission Location : *${fpLocation}%* (standard ${stdLocation}%)\n• Commission Vente : *${fpVente}%* (standard ${stdVente}%)\n• Abonnement Premium *OFFERT ${fpDuration} mois* (valeur ${subValue})\n• Badge exclusif *"Founding Partner"* sur toutes vos annonces\n• Placement prioritaire dans le catalogue international\n• Accès anticipé à toutes les nouvelles fonctionnalités\n\n🔗 *Inscrivez-vous et déposez votre dossier directement ici :*\n${inviteLink}\n\nDes questions ? Contactez-nous : contact@vit-auto.com\n\n_VIT-AUTO — Plateforme Automobile Internationale_`
               );
               const mailSubject = encodeURIComponent("Rejoignez le Programme Founding Partner VIT-AUTO");
               const mailBody = encodeURIComponent(
-                `Bonjour,\n\nVIT-AUTO vous invite à rejoindre son Programme Partenaire Fondateur — places limitées à 20 partenaires.\n\nAvantages exclusifs Founding Partner :\n• Commission Location : 10% (standard 15%)\n• Commission Vente : 2% (standard 3%)\n• Abonnement Premium OFFERT 12 mois (valeur 300€+)\n• Badge exclusif "Founding Partner" sur toutes vos annonces\n• Placement prioritaire dans le catalogue international\n\nInscrivez-vous et déposez votre dossier directement ici :\n${inviteLink}\n\nCordialement,\nManassé N'DRI N'GUESSAN — Founder & CEO\nVIT-AUTO | contact@vit-auto.com`
+                `Bonjour,\n\nVIT-AUTO vous invite à rejoindre son Programme Partenaire Fondateur — places limitées à 20 partenaires.\n\nAvantages exclusifs Founding Partner :\n• Commission Location : ${fpLocation}% (standard ${stdLocation}%)\n• Commission Vente : ${fpVente}% (standard ${stdVente}%)\n• Abonnement Premium OFFERT ${fpDuration} mois (valeur ${subValue})\n• Badge exclusif "Founding Partner" sur toutes vos annonces\n• Placement prioritaire dans le catalogue international\n\nInscrivez-vous et déposez votre dossier directement ici :\n${inviteLink}\n\nCordialement,\nManassé N'DRI N'GUESSAN — Founder & CEO\nVIT-AUTO | contact@vit-auto.com`
               );
               return (
                 <div style={{ background:"#fff", border:"2px solid #e2e8f0", borderRadius:14, padding:"18px 20px", marginBottom:"1.5rem" }}>

@@ -3,11 +3,14 @@ import {
   getPricingConfig, updatePricingSection,
   getExchangeRates, upsertExchangeRate, deleteExchangeRate,
   getCountryConfigs, upsertCountryConfig, deleteCountryConfig,
+  getDiscountCampaigns, upsertDiscountCampaign, deleteDiscountCampaign,
 } from "../controllers/businessConfigController.js";
 import { getCurrencies, getCountries, getPublicConfig } from "../controllers/pricingController.js";
+import { applyDiscountCode, redeemDiscountCode } from "../services/pricingEngine.js";
 import PricingConfig from "../models/PricingConfig.js";
 import ExchangeRate from "../models/ExchangeRate.js";
 import CountryConfig from "../models/CountryConfig.js";
+import DiscountCampaign from "../models/DiscountCampaign.js";
 import { createUser } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
@@ -110,6 +113,90 @@ describe("Admin — CountryConfig CRUD", () => {
     await deleteCountryConfig(reqDel, resDel);
     const remaining = await CountryConfig.countDocuments();
     expect(remaining).toBe(1);
+  });
+});
+
+describe("Admin — DiscountCampaign CRUD", () => {
+  it("liste, crée/met à jour (upsert) et supprime une campagne", async () => {
+    const admin = await createUser({ role: "admin" });
+
+    const { req: reqUpsert, res: resUpsert } = mockReqRes({
+      user: { _id: admin._id },
+      body: { code: "launch50", discountPercent: 50, appliesTo: ["subscriptions"] },
+    });
+    await upsertDiscountCampaign(reqUpsert, resUpsert);
+    expect(resUpsert.statusCode).toBe(200);
+    expect(resUpsert.body.campaign.code).toBe("LAUNCH50"); // uppercase forcé
+
+    const { req: reqList, res: resList } = mockReqRes({});
+    await getDiscountCampaigns(reqList, resList);
+    expect(resList.body.campaigns.length).toBe(1);
+
+    const { req: reqDel, res: resDel } = mockReqRes({ params: { id: resUpsert.body.campaign._id.toString() } });
+    await deleteDiscountCampaign(reqDel, resDel);
+    expect(resDel.statusCode).toBe(200);
+    expect(await DiscountCampaign.countDocuments()).toBe(0);
+  });
+
+  it("refuse un upsert sans code", async () => {
+    const admin = await createUser({ role: "admin" });
+    const { req, res } = mockReqRes({ user: { _id: admin._id }, body: { discountPercent: 10 } });
+    await upsertDiscountCampaign(req, res);
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("refuse un pourcentage hors bornes", async () => {
+    const admin = await createUser({ role: "admin" });
+    const { req, res } = mockReqRes({ user: { _id: admin._id }, body: { code: "BAD", discountPercent: 150, appliesTo: ["boosts"] } });
+    await upsertDiscountCampaign(req, res);
+    expect(res.statusCode).toBe(500); // erreur de validation Mongoose remontée
+  });
+});
+
+describe("pricingEngine — applyDiscountCode / redeemDiscountCode", () => {
+  it("renvoie le prix inchangé si aucun code fourni", async () => {
+    const { priceUSD, campaign } = await applyDiscountCode(null, "subscriptions", 19.99);
+    expect(priceUSD).toBe(19.99);
+    expect(campaign).toBeNull();
+  });
+
+  it("applique la réduction pour un code valide et applicable", async () => {
+    const c = await DiscountCampaign.create({ code: "LAUNCH50", discountPercent: 50, appliesTo: ["subscriptions"] });
+    const { priceUSD, campaign } = await applyDiscountCode("launch50", "subscriptions", 20);
+    expect(priceUSD).toBe(10);
+    expect(campaign._id.toString()).toBe(c._id.toString());
+  });
+
+  it("rejette un code inexistant", async () => {
+    await expect(applyDiscountCode("NOPE", "subscriptions", 19.99)).rejects.toThrow();
+  });
+
+  it("rejette un code qui ne s'applique pas à ce produit", async () => {
+    await DiscountCampaign.create({ code: "BOOSTONLY", discountPercent: 20, appliesTo: ["boosts"] });
+    await expect(applyDiscountCode("BOOSTONLY", "subscriptions", 19.99)).rejects.toThrow();
+  });
+
+  it("rejette un code expiré", async () => {
+    await DiscountCampaign.create({
+      code: "OLD", discountPercent: 20, appliesTo: ["subscriptions"],
+      endDate: new Date(Date.now() - 24 * 60 * 60 * 1000),
+    });
+    await expect(applyDiscountCode("OLD", "subscriptions", 19.99)).rejects.toThrow();
+  });
+
+  it("rejette un code ayant atteint sa limite d'utilisation", async () => {
+    await DiscountCampaign.create({
+      code: "LIMITED", discountPercent: 20, appliesTo: ["subscriptions"],
+      maxRedemptions: 1, redemptionCount: 1,
+    });
+    await expect(applyDiscountCode("LIMITED", "subscriptions", 19.99)).rejects.toThrow();
+  });
+
+  it("redeemDiscountCode incrémente le compteur d'utilisation", async () => {
+    const c = await DiscountCampaign.create({ code: "COUNT", discountPercent: 10, appliesTo: ["subscriptions"] });
+    await redeemDiscountCode(c._id);
+    const updated = await DiscountCampaign.findById(c._id);
+    expect(updated.redemptionCount).toBe(1);
   });
 });
 

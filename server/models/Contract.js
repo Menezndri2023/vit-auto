@@ -61,8 +61,8 @@ const contractSchema = new mongoose.Schema({
     pickupLocation:   { type: String },
     returnLocation:   { type: String },
     dailyRateXOF:     { type: Number },
-    cautionXOF:       { type: Number, default: 200000 },  // 200 000 FCFA caution
-    serviceFeeXOF:    { type: Number, default: 1000 },    // 1 000 FCFA frais plateforme
+    cautionXOF:       { type: Number, default: 0 },  // en USD (voir champ `currency` ci-dessus)
+    serviceFeeXOF:    { type: Number, default: 1 },   // en USD, plancher pricingEngine.computeServiceFee()
     optionsXOF:       { type: Number, default: 0 },
     baseXOF:          { type: Number },
     totalXOF:         { type: Number },

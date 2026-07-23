@@ -4,6 +4,7 @@ import Notification from "../models/Notification.js";
 import { getServiceConfig } from "../services/pricingEngine.js";
 
 const CATEGORY_LABELS = {
+  inspection:      "Inspection indépendante",
   transport:       "Transport international",
   transit:         "Transit",
   douanes:         "Douanes",
@@ -11,6 +12,7 @@ const CATEGORY_LABELS = {
   garantie:        "Garantie",
   financement:     "Financement",
   change_devises:  "Change de devises",
+  sequestre:       "Séquestre / Escrow",
 };
 
 async function notify(userId, titre, message) {

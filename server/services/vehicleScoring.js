@@ -54,13 +54,16 @@ export const scoreAnnonce = (data) => {
   if ((data.couleur || "").trim().length >= 2) score += 4;
 
   // ── 4. TARIFICATION (15 pts) ──────────────────────────────────────────────
+  // Montants en USD (voir server/scripts/migrate-vehicle-booking-to-usd.mjs) —
+  // seuil bas pour écarter uniquement les prix nuls/absents, pas de plafond
+  // arbitraire imposé (marché international, écarts de prix légitimes).
   const price = Number(data.pricePerDay || data.priceForSale || 0);
-  if (price >= 1000) {
+  if (price >= 1) {
     score += 12;
-    if (data.pricePerDay  > 1_500_000) warnings.push("Tarif journalier très élevé — vérifiez le montant");
-    if (data.priceForSale > 300_000_000) warnings.push("Prix de vente très élevé — vérifiez le montant");
+    if (data.pricePerDay  > 1_000) warnings.push("Tarif journalier très élevé — vérifiez le montant");
+    if (data.priceForSale > 500_000) warnings.push("Prix de vente très élevé — vérifiez le montant");
   } else {
-    errors.push("Prix manquant ou invalide (minimum 1 000 FCFA)");
+    errors.push("Prix manquant ou invalide (minimum 1 USD)");
   }
   if (Number(data.caution) > 0) score += 3;
 

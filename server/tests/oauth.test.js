@@ -20,15 +20,21 @@ vi.mock("google-auth-library", () => ({
 
 // server.js n'exporte `app` correctement qu'après que tests/setup.js ait
 // positionné MONGO_URI dans son propre beforeAll (voir http.auth.test.js).
-let app, User, createUser;
+let app, User, createUser, CountryConfig;
 beforeAll(async () => {
   ({ default: app } = await import("../server.js"));
   ({ default: User } = await import("../models/User.js"));
   ({ createUser } = await import("./helpers/fixtures.js"));
+  ({ default: CountryConfig } = await import("../models/CountryConfig.js"));
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   mockVerifyIdToken.mockReset();
+  // isValidCountryCode() (server/utils/countries.js) vérifie désormais contre
+  // CountryConfig (source de vérité live) et non plus une liste figée — la
+  // base de test étant réinitialisée entre les tests (voir tests/setup.js),
+  // le pays utilisé ci-dessous doit être seedé explicitement.
+  await CountryConfig.create({ code: "CI", name: "Côte d'Ivoire", defaultCurrency: "XOF" });
 });
 
 const googlePayload = (overrides = {}) => ({

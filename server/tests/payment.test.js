@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import { initiatePayment, createPayment, simulatePayment } from "../controllers/paymentController.js";
 import Payment from "../models/Payment.js";
 import Booking from "../models/Booking.js";
+import ServiceRequest from "../models/ServiceRequest.js";
+import InsuranceRequest from "../models/InsuranceRequest.js";
 import { createUser } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
@@ -49,6 +51,65 @@ describe("paymentController.initiatePayment", () => {
 
     const payment = await Payment.findById(res.body.paymentId);
     expect(payment.status).toBe("pending");
+  });
+});
+
+describe("paymentController.initiatePayment — devis ServiceRequest/InsuranceRequest", () => {
+  it("refuse de payer un devis pas encore approuvé", async () => {
+    const client = await createUser();
+    const sr = await ServiceRequest.create({ client: client._id, category: "transport" });
+    const { req, res } = mockReqRes({ user: client, body: { serviceRequestId: sr._id.toString(), method: "card" } });
+    await initiatePayment(req, res);
+    expect(res.status).toHaveBeenCalledWith(409);
+  });
+
+  it("refuse qu'un client paie le devis d'un autre compte", async () => {
+    const owner = await createUser();
+    const intruder = await createUser();
+    const sr = await ServiceRequest.create({ client: owner._id, category: "garantie", status: "approved", quotedAmountUSD: 120 });
+    const { req, res } = mockReqRes({ user: intruder, body: { serviceRequestId: sr._id.toString(), method: "card" } });
+    await initiatePayment(req, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+  });
+
+  it("initie le paiement d'un devis ServiceRequest approuvé", async () => {
+    const client = await createUser();
+    const sr = await ServiceRequest.create({ client: client._id, category: "transport", status: "approved", quotedAmountUSD: 250 });
+    const { req, res } = mockReqRes({ user: client, body: { serviceRequestId: sr._id.toString(), method: "card" } });
+    await initiatePayment(req, res);
+
+    expect(res.status).not.toHaveBeenCalledWith(400);
+    expect(res.body.checkoutUrl).toBeTruthy();
+    const payment = await Payment.findById(res.body.paymentId);
+    expect(payment.serviceRequest.toString()).toBe(sr._id.toString());
+    expect(payment.amount).toBe(250);
+  });
+
+  it("initie le paiement d'une prime InsuranceRequest approuvée", async () => {
+    const client = await createUser();
+    const ir = await InsuranceRequest.create({ client: client._id, type: "auto", status: "approved", premium: 80 });
+    const { req, res } = mockReqRes({ user: client, body: { insuranceRequestId: ir._id.toString(), method: "wave" } });
+    await initiatePayment(req, res);
+
+    expect(res.status).not.toHaveBeenCalledWith(400);
+    const payment = await Payment.findById(res.body.paymentId);
+    expect(payment.insuranceRequest.toString()).toBe(ir._id.toString());
+    expect(payment.amount).toBe(80);
+  });
+
+  it("marque le devis payé après une simulation réussie", async () => {
+    const client = await createUser();
+    const sr = await ServiceRequest.create({ client: client._id, category: "financement", status: "approved", quotedAmountUSD: 60 });
+    const { req: reqInit, res: resInit } = mockReqRes({ user: client, body: { serviceRequestId: sr._id.toString(), method: "card" } });
+    await initiatePayment(reqInit, resInit);
+
+    const { req: reqSim, res: resSim } = mockReqRes({ user: client, params: { id: resInit.body.paymentId.toString() }, body: { outcome: "success" } });
+    await simulatePayment(reqSim, resSim);
+    expect(resSim.body.status).toBe("completed");
+
+    const updated = await ServiceRequest.findById(sr._id);
+    expect(updated.isPaid).toBe(true);
+    expect(updated.paidAt).toBeTruthy();
   });
 });
 

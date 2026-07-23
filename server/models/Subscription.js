@@ -37,6 +37,7 @@ const subscriptionSchema = new mongoose.Schema({
       isActive:  { type: Boolean, default: false },
       priceUSD:  { type: Number, default: 0 },
       paidAt:    { type: Date },
+      promoCode: { type: String, default: null }, // code DiscountCampaign appliqué, le cas échéant
     },
   ],
 
@@ -49,6 +50,7 @@ const subscriptionSchema = new mongoose.Schema({
       paidAt:  { type: Date, default: Date.now },
       status:  { type: String, enum: ["pending", "completed", "failed"], default: "pending" },
       period:  { type: String }, // ex: "2026-04"
+      promoCode: { type: String, default: null }, // code DiscountCampaign appliqué, le cas échéant
     },
   ],
 

@@ -2,13 +2,15 @@ import logger from "../utils/logger.js";
 import PricingConfig from "../models/PricingConfig.js";
 import ExchangeRate from "../models/ExchangeRate.js";
 import CountryConfig from "../models/CountryConfig.js";
+import DiscountCampaign from "../models/DiscountCampaign.js";
+import { logAction } from "../middleware/auditLog.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PricingConfig — patch par section (jamais le document entier d'un coup, pour
 // éviter qu'un formulaire partiel n'écrase involontairement les autres
 // sections — même whitelist-par-section que ImportCostConfig/COST_CONFIG_FIELDS).
 // ═══════════════════════════════════════════════════════════════════════════
-const SECTIONS = ["commissions", "foundingPartner", "serviceFee", "boosts", "subscriptions", "services", "ads", "rentalOptions"];
+const SECTIONS = ["commissions", "foundingPartner", "serviceFee", "importEstimateFee", "boosts", "subscriptions", "services", "ads", "rentalOptions"];
 
 export const getPricingConfig = async (_req, res) => {
   try {
@@ -27,11 +29,15 @@ export const updatePricingSection = async (req, res) => {
     if (!SECTIONS.includes(section)) {
       return res.status(400).json({ message: `Section inconnue. Attendu : ${SECTIONS.join(", ")}.` });
     }
+    const before = await PricingConfig.findOne({ key: "global" }).select(section).lean();
     const config = await PricingConfig.findOneAndUpdate(
       { key: "global" },
       { $set: { [section]: req.body, updatedBy: req.user._id } },
       { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
     );
+    await logAction(req, `business_config.pricing.${section}`, "PricingConfig", config._id, {
+      before: before?.[section] ?? null, after: config[section],
+    });
     res.json({ config });
   } catch (err) {
     logger.error("updatePricingSection:", err);
@@ -62,11 +68,13 @@ export const upsertExchangeRate = async (req, res) => {
     for (const key of RATE_FIELDS) if (req.body[key] !== undefined) payload[key] = req.body[key];
     payload.updatedBy = req.user._id;
 
+    const before = await ExchangeRate.findOne({ code: code.toUpperCase() }).lean();
     const rate = await ExchangeRate.findOneAndUpdate(
       { code: code.toUpperCase() },
       payload,
       { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
     );
+    await logAction(req, before ? "business_config.exchange_rate.update" : "business_config.exchange_rate.create", "ExchangeRate", rate._id, { before, after: rate });
     res.json({ rate });
   } catch (err) {
     logger.error("upsertExchangeRate:", err);
@@ -77,7 +85,8 @@ export const upsertExchangeRate = async (req, res) => {
 
 export const deleteExchangeRate = async (req, res) => {
   try {
-    await ExchangeRate.findByIdAndDelete(req.params.id);
+    const deleted = await ExchangeRate.findByIdAndDelete(req.params.id);
+    await logAction(req, "business_config.exchange_rate.delete", "ExchangeRate", req.params.id, { before: deleted });
     res.json({ message: "Devise supprimée." });
   } catch (err) {
     logger.error("deleteExchangeRate:", err);
@@ -111,11 +120,13 @@ export const upsertCountryConfig = async (req, res) => {
     for (const key of COUNTRY_FIELDS) if (req.body[key] !== undefined) payload[key] = req.body[key];
     payload.updatedBy = req.user._id;
 
+    const before = await CountryConfig.findOne({ code: code.toUpperCase() }).lean();
     const country = await CountryConfig.findOneAndUpdate(
       { code: code.toUpperCase() },
       payload,
       { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
     );
+    await logAction(req, before ? "business_config.country.update" : "business_config.country.create", "CountryConfig", country._id, { before, after: country });
     res.json({ country });
   } catch (err) {
     logger.error("upsertCountryConfig:", err);
@@ -126,10 +137,61 @@ export const upsertCountryConfig = async (req, res) => {
 
 export const deleteCountryConfig = async (req, res) => {
   try {
-    await CountryConfig.findByIdAndDelete(req.params.id);
+    const deleted = await CountryConfig.findByIdAndDelete(req.params.id);
+    await logAction(req, "business_config.country.delete", "CountryConfig", req.params.id, { before: deleted });
     res.json({ message: "Pays supprimé." });
   } catch (err) {
     logger.error("deleteCountryConfig:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DiscountCampaign — codes promo abonnements/boosts (cahier des charges
+// "discount campaigns"), appliqués via subscriptionController.applyDiscountCode.
+// ═══════════════════════════════════════════════════════════════════════════
+export const getDiscountCampaigns = async (_req, res) => {
+  try {
+    const campaigns = await DiscountCampaign.find().sort({ createdAt: -1 }).lean();
+    res.json({ campaigns });
+  } catch (err) {
+    logger.error("getDiscountCampaigns:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+const DISCOUNT_FIELDS = ["code", "label", "discountPercent", "appliesTo", "startDate", "endDate", "active", "maxRedemptions"];
+
+export const upsertDiscountCampaign = async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ message: "Code promo requis." });
+    const payload = {};
+    for (const key of DISCOUNT_FIELDS) if (req.body[key] !== undefined) payload[key] = req.body[key];
+    payload.updatedBy = req.user._id;
+
+    const before = await DiscountCampaign.findOne({ code: code.toUpperCase() }).lean();
+    const campaign = await DiscountCampaign.findOneAndUpdate(
+      { code: code.toUpperCase() },
+      payload,
+      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+    );
+    await logAction(req, before ? "business_config.discount_campaign.update" : "business_config.discount_campaign.create", "DiscountCampaign", campaign._id, { before, after: campaign });
+    res.json({ campaign });
+  } catch (err) {
+    logger.error("upsertDiscountCampaign:", err);
+    if (err.code === 11000) return res.status(409).json({ message: "Ce code promo existe déjà." });
+    res.status(500).json({ message: err.message || "Erreur serveur." });
+  }
+};
+
+export const deleteDiscountCampaign = async (req, res) => {
+  try {
+    const deleted = await DiscountCampaign.findByIdAndDelete(req.params.id);
+    await logAction(req, "business_config.discount_campaign.delete", "DiscountCampaign", req.params.id, { before: deleted });
+    res.json({ message: "Campagne supprimée." });
+  } catch (err) {
+    logger.error("deleteDiscountCampaign:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

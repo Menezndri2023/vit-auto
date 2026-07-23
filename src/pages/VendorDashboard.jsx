@@ -19,7 +19,11 @@ import styles from "./VendorDashboard.module.css";
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 const fmtDateTime = (d) => d ? new Date(d).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
 
-const COMM_RATE = { location: 0.15, essai: 0.03, chauffeur: 0.10, leasing: 0.05 };
+// Repli si /api/pricing/config n'a pas encore répondu — valeurs par défaut de
+// PricingConfig (server/config/defaultPricingConfig.js), remplacées dès que
+// commissionRates est chargé pour ne jamais afficher un taux périmé si
+// l'admin modifie les commissions depuis le panneau Configuration métier.
+const DEFAULT_COMM_RATE = { location: 0.15, essai: 0.03, chauffeur: 0.10, leasing: 0.05 };
 const SERVICE_FEE = 1; // repli d'affichage — le vrai frais est calculé côté serveur (pricingEngine.computeServiceFee, plancher 1 USD)
 
 const MOIS = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
@@ -228,7 +232,7 @@ const ORDER_WORKFLOWS = {
    MODAL GÉRER — Gestion complète, identité intégrée, workflow par type VIT-AUTO
    ══════════════════════════════════════════════════════════════════════════════ */
 function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onPrepare, onReady, onInProgress,
-  onClientArrived, onClientAbsent, onRecordTransaction, onPartnerConfirm, onComplete, onReject, onPartnerVerifyKyc }) {
+  onClientArrived, onClientAbsent, onRecordTransaction, onPartnerConfirm, onComplete, onReject, onPartnerVerifyKyc, commRates = DEFAULT_COMM_RATE }) {
   // Tous les hooks AVANT tout return conditionnel (règles des hooks React)
   const { fmt: fmtXOF } = useCurrency();
   const [txForm, setTxForm] = useState({
@@ -318,7 +322,7 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
 
   // ── Contrat & finances ────────────────────────────────────────────────────
   const contractId = orderDetail?.contract?._id || order.contract || null;
-  const commRate   = COMM_RATE[order.type] || 0.15;
+  const commRate   = commRates[order.type] ?? DEFAULT_COMM_RATE[order.type] ?? 0.15;
   const totalAmt   = order.montantTotal || order.total || 0;
   const commAmt    = order.commissionAmount || Math.round(totalAmt * commRate);
   const netAmt     = order.partnerPayout    || Math.max(totalAmt - commAmt - SERVICE_FEE, 0);
@@ -913,7 +917,13 @@ export default function VendorDashboard() {
   const [contractsLoading, setContractsLoading] = useState(false);
   const [subscription,   setSubscription]   = useState(null);
   const [subLoading,     setSubLoading]     = useState(true);
+  const [commRates,      setCommRates]      = useState(null); // { location, essai, chauffeur, leasing } — depuis /api/pricing/config
+  const [partnerStats,   setPartnerStats]   = useState(null); // agrégation serveur — voir loadPartnerStats
   const [boostTarget,    setBoostTarget]    = useState(null);
+  const [boostModal,     setBoostModal]     = useState(null); // { vehicleId, title } — véhicule en cours de sélection de palier boost
+  const [boostTier,      setBoostTier]      = useState("30d");
+  const [boostPromoCode, setBoostPromoCode] = useState("");
+  const [boostPricing,   setBoostPricing]   = useState(null); // { "24h": priceUSD, ... } — depuis /api/subscriptions/me
   const [orderFilter,    setOrderFilter]    = useState("all");
   const [statusFilter,   setStatusFilter]   = useState("all");
   const [searchQuery,    setSearchQuery]    = useState("");
@@ -951,8 +961,29 @@ export default function VendorDashboard() {
   useEffect(() => {
     if (!isAuthenticated || !token) { setSubLoading(false); return; }
     fetch("/api/subscriptions/me", { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json()).then((d) => setSubscription(d.subscription)).catch(() => {}).finally(() => setSubLoading(false));
+      .then((r) => r.json())
+      .then((d) => { setSubscription(d.subscription); setBoostPricing(d.pricing?.boosts || null); })
+      .catch(() => {}).finally(() => setSubLoading(false));
   }, [isAuthenticated, token]);
+
+  // Taux de commission courants (standard ou premium selon l'abonnement actif) —
+  // remplace DEFAULT_COMM_RATE dès que la config admin est chargée, pour ne
+  // jamais afficher une prévision de commission périmée.
+  useEffect(() => {
+    fetch("/api/pricing/config")
+      .then((r) => r.json())
+      .then((d) => setCommRates(d.commissions))
+      .catch(() => {});
+  }, []);
+
+  const isPremiumPartner = !!(subscription?.plan && subscription.plan !== "free" && subscription?.planDetails?.isActive);
+  // PricingConfig utilise la clé "vente" (pricingEngine.BOOKING_TYPE_TO_PRICING_TYPE),
+  // la réservation utilise "essai" — on remappe pour indexer par booking.type.
+  const activeCommRates = useMemo(() => {
+    const tier = commRates && (isPremiumPartner ? commRates.premium : commRates.standard);
+    if (!tier) return DEFAULT_COMM_RATE;
+    return { location: tier.location, essai: tier.vente, chauffeur: tier.chauffeur, leasing: tier.leasing };
+  }, [commRates, isPremiumPartner]);
 
   const myVehicleIds = useMemo(() => new Set(myVehicles.map((v) => String(v.id || v._id))), [myVehicles]);
 
@@ -1071,17 +1102,28 @@ export default function VendorDashboard() {
     [myVehicles, statusFilter]
   );
 
-  // Statistiques réelles
+  // Statistiques réelles — revenu/commission/reversement viennent de
+  // l'agrégation serveur (partnerStats, getPartnerStats) dès qu'elle a
+  // répondu ; repli sur un calcul client approximatif (taux de commission
+  // encore en dur ici en dernier recours) tant qu'elle n'a pas chargé.
   const stats = useMemo(() => {
     const completed  = allOrders.filter((b) => b.status === "completed");
     const pending    = allOrders.filter((b) => ["À confirmer","pending"].includes(b.status));
     const active     = allOrders.filter((b) => ["confirmed","preparing","ready","in_progress","client_arrived","client_absent"].includes(b.status));
     const waiting    = allOrders.filter((b) => b.status === "waiting_client_validation");
-    const revenue    = completed.reduce((s, b) => s + (b.transaction?.finalAmount || b.montantTotal || 0), 0);
-    const commission = completed.reduce((s, b) => s + (b.commissionAmount || Math.round((b.montantTotal || 0) * 0.15)), 0);
-    const netRevenue = revenue - commission - completed.length * SERVICE_FEE;
-    return { totalVehicles: myVehicles.length, approved: myVehicles.filter((v) => v.status === "approved").length, totalOrders: allOrders.length, pending: pending.length, active: active.length, waiting: waiting.length, completed: completed.length, revenue, netRevenue: Math.max(netRevenue, 0) };
-  }, [allOrders, myVehicles]);
+
+    let revenue, netRevenue;
+    if (partnerStats) {
+      revenue    = partnerStats.totalRevenue;
+      netRevenue = partnerStats.totalPayout;
+    } else {
+      revenue    = completed.reduce((s, b) => s + (b.transaction?.finalAmount || b.montantTotal || 0), 0);
+      const commission = completed.reduce((s, b) => s + (b.commissionAmount || Math.round((b.montantTotal || 0) * 0.15)), 0);
+      netRevenue = Math.max(revenue - commission - completed.length * SERVICE_FEE, 0);
+    }
+
+    return { totalVehicles: myVehicles.length, approved: myVehicles.filter((v) => v.status === "approved").length, totalOrders: allOrders.length, pending: pending.length, active: active.length, waiting: waiting.length, completed: completed.length, revenue, netRevenue };
+  }, [allOrders, myVehicles, partnerStats]);
 
   const PLAN_LABELS = { individuel_plus: "Individuel Plus", business: "Business", exportateur: "Exportateur" };
   const isPro   = subscription?.plan && subscription.plan !== "free" && subscription?.planDetails?.isActive;
@@ -1089,16 +1131,22 @@ export default function VendorDashboard() {
   const proEnd  = subscription?.planDetails?.endDate ? new Date(subscription.planDetails.endDate).toLocaleDateString("fr-FR") : null;
 
   /* ── Actions ─────────────────────────────────────────────────────────────── */
-  const handleBoost = async (vehicleId, tier = "30d") => {
+  const handleBoost = async (vehicleId, tier = "30d", promoCode = "") => {
     if (!token) { navigate("/login?returnTo=/vendor/dashboard"); return; }
     setBoostTarget(vehicleId);
     try {
-      const r = await fetch("/api/subscriptions/boost", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ vehicleId, tier }) });
+      const r = await fetch("/api/subscriptions/boost", {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ vehicleId, tier, promoCode: promoCode.trim() || undefined }),
+      });
       const d = await r.json();
-      if (r.ok) toastSuccess(d.message || "Demande de mise en avant envoyée — en attente de confirmation du paiement."); else toastError(d.message || "Erreur.");
+      if (r.ok) { toastSuccess(d.message || "Demande de mise en avant envoyée — en attente de confirmation du paiement."); setBoostModal(null); setBoostPromoCode(""); }
+      else toastError(d.message || "Erreur.");
     } catch { toastError("Erreur réseau."); }
     finally { setBoostTarget(null); }
   };
+
+  const BOOST_TIER_LABELS = { "24h": "24 heures", "7d": "7 jours", "30d": "30 jours", international: "Internationale" };
 
   const handleOpenPromo = (vehicle) => {
     const p = vehicle.promotion || {};
@@ -1451,12 +1499,25 @@ export default function VendorDashboard() {
     } catch { toastError("Erreur réseau."); }
   }, [token, toastSuccess, toastError, loadPartnerOrders]);
 
+  // Agrégation serveur (server/controllers/bookingController.getPartnerStats)
+  // — source de vérité pour revenu/commission/reversement, jamais recalculée
+  // approximativement côté client (voir stats ci-dessous).
+  const loadPartnerStats = useCallback(async () => {
+    if (!token) return;
+    try {
+      const r = await fetch("/api/bookings/partner/stats", { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) setPartnerStats(await r.json());
+    } catch { /* repli sur le calcul client approximatif ci-dessous */ }
+  }, [token]);
+
+  useEffect(() => { loadPartnerStats(); }, [loadPartnerStats]);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadPartnerOrders(), loadPartnerVehicles(), loadMyDrivers(), loadInvoices(), loadTransactions(), loadContracts()]);
+    await Promise.all([loadPartnerOrders(), loadPartnerVehicles(), loadMyDrivers(), loadInvoices(), loadTransactions(), loadContracts(), loadPartnerStats()]);
     setRefreshing(false);
     toastSuccess("Données actualisées.");
-  }, [loadPartnerOrders, loadPartnerVehicles, loadMyDrivers, loadInvoices, loadTransactions, toastSuccess]);
+  }, [loadPartnerOrders, loadPartnerVehicles, loadMyDrivers, loadInvoices, loadTransactions, loadPartnerStats, toastSuccess]);
 
   useEffect(() => { loadMyDrivers(); }, [loadMyDrivers]);
   useEffect(() => { loadInvoices(); loadTransactions(); loadContracts(); }, [loadInvoices, loadTransactions, loadContracts]);
@@ -1803,7 +1864,7 @@ export default function VendorDashboard() {
                         </div>
                         <div className={styles.orderFinItem}>
                           <span>Votre net</span>
-                          <strong style={{ color:"#059669" }}>{fmtXOF(order.partnerPayout||Math.max((order.montantTotal||order.total||0)*(1-(COMM_RATE[order.type]||0.15))-SERVICE_FEE,0))}</strong>
+                          <strong style={{ color:"#059669" }}>{fmtXOF(order.partnerPayout||Math.max((order.montantTotal||order.total||0)*(1-(activeCommRates[order.type]??0.15))-SERVICE_FEE,0))}</strong>
                         </div>
                         <div className={styles.orderFinItem}>
                           <span>Paiement</span>
@@ -1903,7 +1964,7 @@ export default function VendorDashboard() {
                       <button className={styles.btnSecondary} onClick={() => handleOpenPromo(vehicle)}>
                         {vehicle.promotion?.active ? "🏷️ Promo active" : "🏷️ Promo"}
                       </button>
-                      {SUBSCRIPTIONS_ENABLED && !isBoosted && <button className={styles.btnBoost} onClick={() => handleBoost(vid)} disabled={boostTarget === vid}>{boostTarget === vid ? "…" : "⭐ Booster"}</button>}
+                      {SUBSCRIPTIONS_ENABLED && !isBoosted && <button className={styles.btnBoost} onClick={() => { setBoostTier("30d"); setBoostPromoCode(""); setBoostModal({ vehicleId: vid, title: vehicle.name || vehicle.title }); }} disabled={boostTarget === vid}>{boostTarget === vid ? "…" : "⭐ Booster"}</button>}
                       <button className={styles.btnDanger} onClick={() => handleDeleteVehicle(vid)}>Suppr.</button>
                     </div>
                     {(vehicle.validationErrors || []).map((e, i) => <p key={i} className={styles.validErr}>❌ {e}</p>)}
@@ -2108,6 +2169,7 @@ export default function VendorDashboard() {
           order={gererModal}
           orderDetail={orderDetail}
           detailLoading={detailLoading}
+          commRates={activeCommRates}
           onClose={() => { setGererModalId(null); setOrderDetail(null); }}
           onConfirm={handleConfirm}
           onPrepare={handlePrepare}
@@ -2293,6 +2355,36 @@ export default function VendorDashboard() {
             <div className={styles.rejectActions}>
               <button className={styles.btnRefuseModal} onClick={handleReject}>Confirmer le refus</button>
               <button className={styles.btnSecondary} onClick={() => setRejectModal(null)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {boostModal && (
+        <div className={styles.modalBackdrop} onClick={() => setBoostModal(null)}>
+          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()}>
+            <h3>⭐ Booster — {boostModal.title}</h3>
+            <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "#64748b" }}>Choisissez un palier de mise en avant. Le paiement est confirmé par un administrateur.</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+              {Object.keys(BOOST_TIER_LABELS).map((tier) => (
+                <label key={tier} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 12px", border: `1.5px solid ${boostTier === tier ? "#6366f1" : "#e2e8f0"}`, borderRadius: 9, cursor: "pointer" }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input type="radio" name="boostTier" checked={boostTier === tier} onChange={() => setBoostTier(tier)} />
+                    {BOOST_TIER_LABELS[tier]}
+                  </span>
+                  <strong>{boostPricing?.[tier] != null ? fmtXOF(boostPricing[tier]) : "—"}</strong>
+                </label>
+              ))}
+            </div>
+            <label style={{ fontSize: ".8rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Code promo (optionnel)</label>
+            <input value={boostPromoCode} onChange={(e) => setBoostPromoCode(e.target.value)} placeholder="Ex : LAUNCH50"
+              style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem", marginBottom: 14 }} />
+            <div className={styles.rejectActions}>
+              <button className={styles.btnApprove} disabled={boostTarget === boostModal.vehicleId}
+                onClick={() => handleBoost(boostModal.vehicleId, boostTier, boostPromoCode)}>
+                {boostTarget === boostModal.vehicleId ? "…" : "Confirmer"}
+              </button>
+              <button className={styles.btnSecondary} onClick={() => setBoostModal(null)}>Annuler</button>
             </div>
           </div>
         </div>

@@ -936,7 +936,7 @@ function PerformanceSection({ token, user }) {
       .then((r) => r.ok ? r.json() : null)
       .then(setData)
       .finally(() => setLoading(false));
-    fetch("/api/partner-verification/me", { headers: { Authorization: `Bearer ${token}` } })
+    fetch("/api/partner-verif/me", { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.ok ? r.json() : null)
       .then(setVerif)
       .catch(() => setVerif(null));

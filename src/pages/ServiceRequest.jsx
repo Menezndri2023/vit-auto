@@ -1,15 +1,23 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useCurrency } from "../context/CurrencyContext";
 import styles from "./InsuranceRequest.module.css";
 
-// Une seule page générique pour les 7 catégories "entièrement neuves" de la
-// plateforme de services (transport/transit/douanes/immatriculation/
-// garantie/financement/change de devises) — même gabarit que
-// /insurance-request (InsuranceRequest.jsx), paramétré par catégorie plutôt
-// que dupliqué 7 fois. Les champs propres à chaque catégorie sont stockés
-// dans ServiceRequest.details (voir server/models/ServiceRequest.js).
+// Une seule page générique pour les catégories "entièrement neuves" de la
+// plateforme de services (inspection/transport/transit/douanes/
+// immatriculation/garantie/financement/change de devises/séquestre) — même
+// gabarit que /insurance-request (InsuranceRequest.jsx), paramétré par
+// catégorie plutôt que dupliqué. Les champs propres à chaque catégorie sont
+// stockés dans ServiceRequest.details (voir server/models/ServiceRequest.js).
 const CATEGORY_META = {
+  inspection: {
+    icon: "🔍", title: "Inspection indépendante",
+    desc: "Faites inspecter un véhicule par un expert VIT AUTO avant achat ou import.",
+    fields: [
+      { key: "location", label: "Ville / lieu de l'inspection", type: "text", placeholder: "Abidjan, Côte d'Ivoire" },
+    ],
+  },
   transport: {
     icon: "🚢", title: "Transport international",
     desc: "Organisez le transport de votre véhicule entre deux pays — maritime, terrestre ou aérien.",
@@ -66,6 +74,13 @@ const CATEGORY_META = {
       { key: "toCurrency",   label: "Devise cible",  type: "text",   placeholder: "XOF" },
     ],
   },
+  sequestre: {
+    icon: "🔒", title: "Séquestre / Escrow",
+    desc: "Sécurisez le paiement d'une transaction entre particuliers via un compte séquestre VIT AUTO.",
+    fields: [
+      { key: "amountUSD", label: "Montant à sécuriser (USD)", type: "number", placeholder: "5000" },
+    ],
+  },
 };
 
 const STATUS_LABELS = {
@@ -78,6 +93,7 @@ export default function ServiceRequest() {
   const { category } = useParams();
   const meta = CATEGORY_META[category];
   const { isAuthenticated, token } = useAuth();
+  const { fmtUSD } = useCurrency();
   const navigate = useNavigate();
 
   const emptyDetails = useMemo(() => Object.fromEntries((meta?.fields || []).map((f) => [f.key, f.type === "select" ? f.options[0][0] : ""])), [meta]);
@@ -89,6 +105,10 @@ export default function ServiceRequest() {
   const [error, setError] = useState(null);
   const [myRequests, setMyRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [payingId, setPayingId] = useState(null);   // _id de la demande en cours de paiement (affiche le sélecteur de méthode)
+  const [payMethod, setPayMethod] = useState("card");
+  const [payError, setPayError] = useState(null);
+  const [paySubmitting, setPaySubmitting] = useState(false);
 
   useEffect(() => { setDetails(emptyDetails); }, [emptyDetails]);
 
@@ -102,6 +122,27 @@ export default function ServiceRequest() {
   }, [token, category]);
 
   useEffect(() => { loadMine(); }, [loadMine]);
+
+  // Paie un devis approuvé — même passerelle que Booking.jsx (Stripe/Orange
+  // Money/Wave, voir server/controllers/paymentController.initiatePayment).
+  const handlePayQuote = async (requestId) => {
+    setPaySubmitting(true);
+    setPayError(null);
+    try {
+      const r = await fetch("/api/payments/initiate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ serviceRequestId: requestId, method: payMethod }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.checkoutUrl) { window.location.href = data.checkoutUrl; return; }
+      setPayError(data.message || "Paiement indisponible pour le moment.");
+    } catch {
+      setPayError("Erreur réseau — réessayez plus tard.");
+    } finally {
+      setPaySubmitting(false);
+    }
+  };
 
   if (!meta) {
     return (
@@ -198,15 +239,41 @@ export default function ServiceRequest() {
             <div className={styles.list}>
               {myRequests.map((r) => {
                 const st = STATUS_LABELS[r.status];
+                const canPay = r.status === "approved" && r.quotedAmountUSD != null && !r.isPaid;
                 return (
-                  <div key={r._id} className={styles.item}>
-                    <div>
-                      <strong>{r.vehicleInfo || meta.title}</strong>
-                      {r.status === "approved" && r.quotedAmountUSD != null && (
-                        <div className={styles.premium}>Devis proposé : {Number(r.quotedAmountUSD).toLocaleString("fr-FR")} USD</div>
-                      )}
+                  <div key={r._id} className={styles.item} style={{ flexDirection: "column", alignItems: "stretch" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                      <div>
+                        <strong>{r.vehicleInfo || meta.title}</strong>
+                        {r.status === "approved" && r.quotedAmountUSD != null && (
+                          <div className={styles.premium}>
+                            Devis proposé : {fmtUSD(r.quotedAmountUSD)}{r.isPaid ? " — ✅ Payé" : ""}
+                          </div>
+                        )}
+                      </div>
+                      <span className={styles.badge} style={{ color: st.c, background: st.bg }}>{st.l}</span>
                     </div>
-                    <span className={styles.badge} style={{ color: st.c, background: st.bg }}>{st.l}</span>
+
+                    {canPay && (
+                      payingId === r._id ? (
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
+                          <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
+                            <option value="card">Carte bancaire</option>
+                            <option value="orange_money">Orange Money</option>
+                            <option value="wave">Wave</option>
+                          </select>
+                          <button type="button" disabled={paySubmitting} onClick={() => handlePayQuote(r._id)}>
+                            {paySubmitting ? "…" : "Confirmer"}
+                          </button>
+                          <button type="button" onClick={() => { setPayingId(null); setPayError(null); }}>Annuler</button>
+                        </div>
+                      ) : (
+                        <button type="button" style={{ marginTop: 8, alignSelf: "flex-start" }} onClick={() => { setPayingId(r._id); setPayError(null); }}>
+                          💳 Payer ce devis
+                        </button>
+                      )
+                    )}
+                    {payingId === r._id && payError && <div className={styles.error} style={{ marginTop: 6 }}>{payError}</div>}
                   </div>
                 );
               })}

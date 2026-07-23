@@ -49,9 +49,9 @@ function row(doc, label, value, highlight = false) {
   doc.moveDown(0.9);
 }
 
-function fmtXOF(n) {
+function fmtAmount(n, currency = "USD") {
   return n != null && n !== 0
-    ? `${Number(n).toLocaleString("fr-FR")} XOF`
+    ? `${Number(n).toLocaleString("fr-FR")} ${currency}`
     : "—";
 }
 
@@ -106,8 +106,8 @@ function drawInvoice(doc, invoice) {
       if (i % 2 === 0) doc.rect(40, rowY, doc.page.width - 80, 18).fill("#f8fafc");
       doc.fillColor(GRAY).text(line.bookingRef || "—",    colRef,  rowY + 4);
       doc.fillColor(NAVY).text(line.serviceType || "—",   colType, rowY + 4);
-      doc.fillColor(NAVY).text(fmtXOF(line.montantTransaction), colMont, rowY + 4);
-      doc.fillColor(BRAND).font("Helvetica-Bold").text(fmtXOF(line.commissionAmount), colComm, rowY + 4);
+      doc.fillColor(NAVY).text(fmtAmount(line.montantTransaction, line.devise || invoice.devise), colMont, rowY + 4);
+      doc.fillColor(BRAND).font("Helvetica-Bold").text(fmtAmount(line.commissionAmount, line.devise || invoice.devise), colComm, rowY + 4);
       doc.font("Helvetica");
       doc.moveDown(0.8);
     });
@@ -118,7 +118,7 @@ function drawInvoice(doc, invoice) {
   doc.rect(40, doc.y, doc.page.width - 80, 40).fill(NAVY);
   doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(14)
     .text("TOTAL COMMISSIONS DUES :", 50, doc.y - 36, { width: 300 })
-    .text(fmtXOF(invoice.totalCommission), 0, doc.y, { align: "right", width: doc.page.width - 50 });
+    .text(fmtAmount(invoice.totalCommission, invoice.devise), 0, doc.y, { align: "right", width: doc.page.width - 50 });
 
   footer(doc);
 }
@@ -196,12 +196,12 @@ export function generateContractPDF(contract, res) {
     row(doc, "Durée",             contract.terms?.days ? `${contract.terms.days} jour(s)` : "—");
     row(doc, "Lieu de prise",     contract.terms?.pickupLocation || "—");
     row(doc, "Lieu de retour",    contract.terms?.returnLocation || "—");
-    row(doc, "Tarif journalier",  fmtXOF(contract.terms?.dailyRateXOF));
-    row(doc, "Caution",           fmtXOF(contract.terms?.cautionXOF));
+    row(doc, "Tarif journalier",  fmtAmount(contract.terms?.dailyRateXOF, contract.currency));
+    row(doc, "Caution",           fmtAmount(contract.terms?.cautionXOF, contract.currency));
   }
   if (contract.type === "leasing") {
-    row(doc, "Apport initial",    fmtXOF(contract.terms?.apportInitial));
-    row(doc, "Mensualité",        fmtXOF(contract.terms?.mensualite));
+    row(doc, "Apport initial",    fmtAmount(contract.terms?.apportInitial, contract.currency));
+    row(doc, "Mensualité",        fmtAmount(contract.terms?.mensualite, contract.currency));
     row(doc, "Durée leasing",     contract.terms?.dureeLeasing ? `${contract.terms.dureeLeasing} mois` : "—");
     row(doc, "Taux d'intérêt",   contract.terms?.tauxInteret ? `${contract.terms.tauxInteret}%` : "—");
   }
@@ -209,15 +209,15 @@ export function generateContractPDF(contract, res) {
 
   // ── Récapitulatif financier ───────────────────────────────────────────────
   section(doc, "Récapitulatif financier");
-  row(doc, "Montant de base",    fmtXOF(contract.terms?.baseXOF));
-  row(doc, "Options",            fmtXOF(contract.terms?.optionsXOF));
-  row(doc, "Frais de service",   fmtXOF(contract.terms?.serviceFeeXOF));
-  row(doc, "Commission VIT AUTO", fmtXOF(contract.terms?.commissionXOF));
+  row(doc, "Montant de base",    fmtAmount(contract.terms?.baseXOF, contract.currency));
+  row(doc, "Options",            fmtAmount(contract.terms?.optionsXOF, contract.currency));
+  row(doc, "Frais de service",   fmtAmount(contract.terms?.serviceFeeXOF, contract.currency));
+  row(doc, "Commission VIT AUTO", fmtAmount(contract.terms?.commissionXOF, contract.currency));
   doc.moveDown(0.3);
   doc.rect(40, doc.y, doc.page.width - 80, 26).fill(NAVY);
   doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(12)
     .text("TOTAL À RÉGLER :", 50, doc.y - 22, { width: 250 })
-    .text(fmtXOF(contract.terms?.totalXOF || contract.terms?.totalLeasing), 0, doc.y - 22, {
+    .text(fmtAmount(contract.terms?.totalXOF || contract.terms?.totalLeasing, contract.currency), 0, doc.y - 22, {
       align: "right", width: doc.page.width - 50,
     });
   doc.moveDown(2);
@@ -350,7 +350,7 @@ function drawReceipt(doc, booking) {
   doc.rect(40, doc.y, doc.page.width - 80, 40).fill(NAVY);
   doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(14)
     .text("MONTANT TOTAL :", 50, doc.y - 36, { width: 300 })
-    .text(fmtXOF(booking.montantTotal), 0, doc.y, { align: "right", width: doc.page.width - 50 });
+    .text(fmtAmount(booking.montantTotal, booking.devise), 0, doc.y, { align: "right", width: doc.page.width - 50 });
 
   footer(doc);
 }

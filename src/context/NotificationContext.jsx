@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { useAuth } from "./AuthContext";
+import { useSocket } from "./SocketContext";
 
 const NotificationContext = createContext(null);
 
@@ -40,6 +41,7 @@ function playNotifSound() {
 
 export const NotificationProvider = ({ children }) => {
   const { token, isAuthenticated, authReady } = useAuth();
+  const { on } = useSocket();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount,   setUnreadCount]   = useState(0);
@@ -80,7 +82,8 @@ export const NotificationProvider = ({ children }) => {
     } catch { /* backend indisponible */ }
   }, [token, soundEnabled]);
 
-  // Polling simple — pas de dépendance Socket.io pour éviter les crashs
+  // Polling — filet de secours si la connexion Socket.io tombe (voir écoute
+  // temps réel ci-dessous, même principe que ChatContext.jsx).
   useEffect(() => {
     if (!authReady || !isAuthenticated || !token) {
       setNotifications([]);
@@ -96,6 +99,24 @@ export const NotificationProvider = ({ children }) => {
     return () => clearInterval(intervalRef.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authReady, isAuthenticated, token]);
+
+  // Temps réel — le backend émet déjà "notification_new" (InternalChannel,
+  // bookingController, etc.) mais rien ne l'écoutait côté client jusqu'ici, ce
+  // qui obligeait à attendre jusqu'à 20s (prochain polling) pour voir une
+  // notification. useSocket() ne lance jamais d'erreur si le Provider est
+  // absent (NOOP_SOCKET), donc pas de risque de crash à l'ajouter ici.
+  useEffect(() => {
+    if (!authReady || !isAuthenticated || !token) return undefined;
+
+    return on("notification_new", (payload) => {
+      setNotifications((prev) => (
+        prev.some((n) => n._id === payload._id) ? prev : [{ ...payload, lu: false }, ...prev]
+      ));
+      setUnreadCount((prev) => prev + 1);
+      prevUnreadRef.current += 1;
+      if (soundEnabled) playNotifSound();
+    });
+  }, [authReady, isAuthenticated, token, on, soundEnabled]);
 
   // Push natif (iOS/Android) — en plus du polling ci-dessus, jamais à sa place :
   // le polling/Socket.io reste le canal universel (web + natif), le push ne

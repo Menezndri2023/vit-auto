@@ -11,16 +11,7 @@ import { buildOnboardingPDFBuffer } from "../utils/pdfGenerator.js";
 import { dispatch } from "../queue/index.js";
 import { validateDocumentDataUri } from "../utils/imageValidation.js";
 import { computeScore, computeBadge, syncUserBadge } from "./partnerCertificationController.js";
-// Taux Founding Partner affichés dans la LOI/l'Agreement — copie de texte
-// légal, mise à jour manuellement si PricingConfig.foundingPartner change
-// (voir server/models/PricingConfig.js pour les valeurs réellement facturées,
-// calculées live par pricingEngine.resolveCommissionRate à chaque réservation ;
-// ce document ne fait qu'annoncer les conditions au moment de la signature).
-const FOUNDING_PARTNER_DURATION_MONTHS = 12;
-const FOUNDING_PARTNER_RATES = {
-  default:     { location: 0.10, vente: 0.015 },
-  particulier: { location: 0.10, vente: 0.02 },
-};
+import { getConfig } from "../services/pricingEngine.js";
 import { decryptField } from "../utils/fieldEncryption.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
@@ -221,7 +212,7 @@ async function cascadeFoundingPartnerApproval(doc) {
 async function autoGenerateAgreement(doc, reuseToken = null) {
   const user = await User.findById(doc.userId).lean();
   const refDate = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
-  doc.agreement.content = generateAgreement(doc, user, refDate);
+  doc.agreement.content = await generateAgreement(doc, user, refDate);
   doc.agreement.sentAt  = new Date();
   if (reuseToken) {
     doc.agreement.signingToken        = reuseToken;
@@ -753,7 +744,7 @@ export const adminApprove = async (req, res) => {
     const user = doc.userId;
     const refDate = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
 
-    const loiContent = generateLOI(doc, user, refDate);
+    const loiContent = await generateLOI(doc, user, refDate);
     const loiToken = crypto.randomBytes(32).toString("hex");
 
     doc.loi.content             = loiContent;
@@ -808,7 +799,7 @@ export const adminSendAgreement = async (req, res) => {
 
     const user = doc.userId;
     const refDate = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
-    const agreementContent = generateAgreement(doc, user, refDate);
+    const agreementContent = await generateAgreement(doc, user, refDate);
     const agrToken = crypto.randomBytes(32).toString("hex");
 
     doc.agreement.content             = agreementContent;
@@ -1255,14 +1246,24 @@ const PARTNER_TYPE_LABELS = {
   inspecteur_vehicles:     "Vehicle Inspector",
 };
 
-export function generateLOI(doc, user, date) {
+export async function generateLOI(doc, user, date) {
   const company   = doc.companyInfo?.legalName   || "—";
   const contact   = doc.companyInfo?.mainContact || `${user.firstName || ""} ${user.lastName || ""}`.trim() || "—";
   const position  = doc.companyInfo?.mainContactPosition || "—";
   const country   = doc.companyInfo?.registrationCountry || "—";
   const email     = doc.companyInfo?.email || user.email || "—";
   const typeLabel = PARTNER_TYPE_LABELS[doc.partnerType] || doc.partnerType;
-  const loiTier   = doc.legalEntityType === "particulier" ? "particulier" : "default";
+  const loiTier   = doc.legalEntityType === "particulier" ? "particulier" : "entreprise";
+
+  // Conditions commerciales lues live depuis PricingConfig (jamais figées dans
+  // le texte légal) — reflète exactement ce que pricingEngine.resolveCommissionRate
+  // applique réellement à la facturation, même si l'admin les modifie ensuite.
+  const config       = await getConfig();
+  const fpRate       = config.foundingPartner[loiTier];
+  const fpDuration   = config.foundingPartner.durationMonths;
+  const stdLocation  = Math.round(config.commissions.standard.location * 100);
+  const stdVente     = Math.round(config.commissions.standard.vente * 100);
+  const businessSub  = config.subscriptions.business?.priceUSD ?? 0;
 
   return `LETTER OF INTENT — VIT-AUTO FOUNDING PARTNER PROGRAM
 ══════════════════════════════════════════════════════════════
@@ -1306,9 +1307,9 @@ Reference        : ${doc.referenceNumber}
 
 FOUNDING PARTNER BENEFITS
 
-  ✓  Free Premium Subscription ......... 12 months (value: €300+)
-  ✓  Rental Commission ................. ${FOUNDING_PARTNER_RATES[loiTier].location * 100}% for ${FOUNDING_PARTNER_DURATION_MONTHS} months, then standard rate (15%)
-  ✓  Sales Commission .................. ${FOUNDING_PARTNER_RATES[loiTier].vente * 100}% for ${FOUNDING_PARTNER_DURATION_MONTHS} months, then standard rate (3%)
+  ✓  Free Premium Subscription ......... ${fpDuration} months (value: $${(businessSub * fpDuration).toFixed(0)}+)
+  ✓  Rental Commission ................. ${fpRate.location * 100}% for ${fpDuration} months, then standard rate (${stdLocation}%)
+  ✓  Sales Commission .................. ${fpRate.vente * 100}% for ${fpDuration} months, then standard rate (${stdVente}%)
   ✓  Driver Commission ................. ${doc.commissions?.chauffeur || 10}%
   ✓  Exclusive "Founding Partner" Badge  on all listings
   ✓  Priority Catalog Placement ........ permanent top positioning
@@ -1342,7 +1343,7 @@ Document Reference: ${doc.referenceNumber}
 VIT-AUTO © 2026 · vit-auto.com · contact@vit-auto.com`;
 }
 
-export function generateAgreement(doc, user, date) {
+export async function generateAgreement(doc, user, date) {
   const company   = doc.companyInfo?.legalName   || "—";
   const contact   = doc.companyInfo?.mainContact || `${user.firstName || ""} ${user.lastName || ""}`.trim() || "—";
   const position  = doc.companyInfo?.mainContactPosition || "—";
@@ -1350,8 +1351,16 @@ export function generateAgreement(doc, user, date) {
   const regNum    = doc.companyInfo?.registrationNumber  || "—";
   const email     = doc.companyInfo?.email || user.email || "—";
   const typeLabel = PARTNER_TYPE_LABELS[doc.partnerType] || doc.partnerType;
-  const drvRate   = doc.commissions?.chauffeur || 10;
-  const agrTier   = doc.legalEntityType === "particulier" ? "particulier" : "default";
+  const agrTier   = doc.legalEntityType === "particulier" ? "particulier" : "entreprise";
+
+  // Conditions commerciales lues live depuis PricingConfig — voir generateLOI.
+  const config      = await getConfig();
+  const fpRate      = config.foundingPartner[agrTier];
+  const fpDuration  = config.foundingPartner.durationMonths;
+  const stdLocation = Math.round(config.commissions.standard.location * 100);
+  const stdVente    = Math.round(config.commissions.standard.vente * 100);
+  const stdDrv      = Math.round(config.commissions.standard.chauffeur * 100);
+  const drvRate     = doc.commissions?.chauffeur || stdDrv;
 
   return `FOUNDING PARTNER AGREEMENT
 ══════════════════════════════════════════════════════════════
@@ -1403,19 +1412,19 @@ ARTICLE 2 — FOUNDING PARTNER STATUS
 
 ARTICLE 3 — COMMERCIAL CONDITIONS
 
-3.1  Preferential rate for ${FOUNDING_PARTNER_DURATION_MONTHS} months from the Agreement signing date, then automatic return to the standard rate:
+3.1  Preferential rate for ${fpDuration} months from the Agreement signing date, then automatic return to the standard rate:
 
-     Transaction Type       Standard Rate   Founding Partner Rate (${FOUNDING_PARTNER_DURATION_MONTHS} months)
+     Transaction Type       Standard Rate   Founding Partner Rate (${fpDuration} months)
      ─────────────────────────────────────────────────────────────────
-     Vehicle Rental         15%             ${FOUNDING_PARTNER_RATES[agrTier].location * 100}%
-     Vehicle Sales          3%              ${FOUNDING_PARTNER_RATES[agrTier].vente * 100}%
-     Professional Driver    10%             ${drvRate}%
-     Premium Subscription   Paid            FREE (${FOUNDING_PARTNER_DURATION_MONTHS} months)
+     Vehicle Rental         ${stdLocation}%             ${fpRate.location * 100}%
+     Vehicle Sales          ${stdVente}%              ${fpRate.vente * 100}%
+     Professional Driver    ${stdDrv}%             ${drvRate}%
+     Premium Subscription   Paid            FREE (${fpDuration} months)
 
-3.2  "Year 1" runs for the first 12 months from the Agreement signing
-     date (Article 3.3). From month 13 onward ("Year 2+"), the Year 2+
-     rates above apply automatically, without requiring a new
-     agreement or admin action.
+3.2  The Founding Partner rate above applies for the first ${fpDuration} months
+     from the Agreement signing date (Article 3.3). From month ${fpDuration + 1}
+     onward, the Standard Rate applies automatically, without requiring
+     a new agreement or admin action.
 
 3.3  Commission rates locked from Agreement signing date: ${date}
 

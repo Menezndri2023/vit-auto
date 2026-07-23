@@ -728,12 +728,16 @@ const Dashboard = () => {
 };
 
 // ── Carte de réservation ──────────────────────────────────────────────────────
+const ONLINE_PAY_METHODS = ["card", "orange_money", "wave"];
+
 const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, validating }) => {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const { fmt } = useCurrency();
   const { openOrCreateChat } = useChat();
   const { error: toastErr } = useToast();
+  const { token } = useAuth();
   const [contacting, setContacting] = useState(false);
+  const [payingNow, setPayingNow] = useState(false);
 
   const handleContactPartner = async () => {
     if (contacting) return;
@@ -741,6 +745,28 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, valid
     const res = await openOrCreateChat("client_partner", null, booking.id);
     if (!res.ok) toastErr(res.message || "Impossible d'ouvrir la conversation.");
     setContacting(false);
+  };
+
+  // Relance le paiement en ligne d'une réservation déjà enregistrée mais
+  // jamais payée (ex: passerelle indisponible à la création — voir
+  // BookingSuccess.jsx payment.initFailed) — même route que Booking.jsx.
+  const handlePayNow = async () => {
+    if (payingNow || !booking.id) return;
+    setPayingNow(true);
+    try {
+      const r = await fetch("/api/payments/initiate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ bookingId: booking.id, method: booking.paidWith }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.checkoutUrl) { window.location.href = d.checkoutUrl; return; }
+      toastErr(d.message || "Paiement indisponible pour le moment, réessayez plus tard.");
+    } catch {
+      toastErr("Erreur réseau — réessayez plus tard.");
+    } finally {
+      setPayingNow(false);
+    }
   };
 
   const status         = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending;
@@ -928,6 +954,11 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, valid
 
       {/* ── Actions ── */}
       <div className={styles.cardActions}>
+        {!booking.isPaid && booking.status !== "cancelled" && ONLINE_PAY_METHODS.includes(booking.paidWith) && (
+          <button className={styles.btnContract} onClick={handlePayNow} disabled={payingNow}>
+            💳 {payingNow ? "Redirection…" : "Payer maintenant"}
+          </button>
+        )}
         {booking.vehicleId && (
           <Link to={`/vehicle/${booking.vehicleId}`} className={styles.btnSecondary}>
             Voir le véhicule

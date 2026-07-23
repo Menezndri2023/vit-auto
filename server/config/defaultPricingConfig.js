@@ -18,6 +18,7 @@ export const DEFAULT_PRICING_CONFIG = {
     particulier: { location: 0.10, vente: 0.02, import_export: null },
   },
   serviceFee: { minUSD: 1, percent: 0.005, maxUSD: 25 },
+  importEstimateFee: { percent: 0.03, minUSD: 333, maxUSD: 1666 },
   boosts: { "24h": 2, "7d": 5, "30d": 12, international: 20 },
   // Repli des anciens PRIX_OPTIONS FCFA (bookingController.js) convertis au
   // taux ~600 XOF/USD en vigueur à la migration : 10000→16.67, 7000→11.67,

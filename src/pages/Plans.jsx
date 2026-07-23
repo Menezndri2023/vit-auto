@@ -43,6 +43,7 @@ export default function Plans() {
   const [activating,  setActivating]  = useState(null);
   const [successMsg,  setSuccessMsg]  = useState("");
   const [pricing,     setPricing]     = useState(FALLBACK_PRICING);
+  const [promoCode,   setPromoCode]   = useState("");
 
   useEffect(() => {
     fetch("/api/pricing/config")
@@ -144,9 +145,10 @@ export default function Plans() {
       const res = await fetch("/api/subscriptions/activate-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ planTier: plan.planTier }),
+        body: JSON.stringify({ planTier: plan.planTier, promoCode: promoCode.trim() || undefined }),
       });
-      setSuccessMsg(res.ok ? t("plans.success") : t("plans.error"));
+      const data = await res.json().catch(() => null);
+      setSuccessMsg(res.ok ? t("plans.success") : (data?.message || t("plans.error")));
     } catch {
       setSuccessMsg(t("plans.error"));
     } finally {
@@ -230,6 +232,15 @@ export default function Plans() {
         {successMsg && (
           <div className={styles.successBanner}>{successMsg}</div>
         )}
+
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "1.25rem" }}>
+          <input
+            value={promoCode}
+            onChange={(e) => setPromoCode(e.target.value)}
+            placeholder="Code promo (optionnel)"
+            style={{ maxWidth: 240, width: "100%", padding: "8px 14px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: ".85rem", textAlign: "center" }}
+          />
+        </div>
 
         <div className={styles.plansGrid}>
           {PLANS.map((plan) => (

@@ -18,7 +18,7 @@ const invoiceSchema = new mongoose.Schema({
   year:            { type: Number, required: true },
   lines:           [invoiceLineSchema],
   totalCommission: { type: Number, default: 0 },
-  devise:          { type: String, default: "XOF" },
+  devise:          { type: String, default: "USD" },
   status: {
     type: String,
     enum: ["pending", "paid", "overdue"],

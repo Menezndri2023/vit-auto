@@ -1,24 +1,17 @@
 import ImportCostConfig from "../models/ImportCostConfig.js";
 import ShippingLaneRate from "../models/ShippingLaneRate.js";
 import { getRateFromUSD } from "./currencyEngine.js";
+import { computeImportEstimateFee } from "./pricingEngine.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // ── Frais de service VIT AUTO (Import) — hybride avec plancher/plafond ───────
-// Décision produit (2026-07-16) : 3 % du prix du véhicule, plancher 300 €,
-// plafond 1 500 €. Distinct de la commission existante prélevée sur le
-// partenaire à la libération des fonds (foundingPartnerRates.js) — celle-ci
-// est un frais de service facturé à l'ACHETEUR, visible dans son devis.
-const COMMISSION_PERCENT = 0.03;
-const COMMISSION_MIN_EUR = 300;
-const COMMISSION_MAX_EUR = 1500;
-
+// Barème éditable depuis l'admin (PricingConfig.importEstimateFee — voir
+// pricingEngine.computeImportEstimateFee()). Distinct de la commission
+// import_export prélevée sur le partenaire à la libération des fonds —
+// celle-ci est un frais de service facturé à l'ACHETEUR, visible dans son devis.
 export async function computeImportServiceFeeUSD(vehiclePriceUSD) {
-  const raw = vehiclePriceUSD * COMMISSION_PERCENT;
-  const eurRateFromUSD = await getRateFromUSD("EUR"); // unités EUR pour 1 USD
-  const minUSD = COMMISSION_MIN_EUR / eurRateFromUSD;
-  const maxUSD = COMMISSION_MAX_EUR / eurRateFromUSD;
-  return Math.min(Math.max(raw, minUSD), maxUSD);
+  return computeImportEstimateFee(vehiclePriceUSD);
 }
 
 // ── Moteur de calcul du coût total d'importation ─────────────────────────────

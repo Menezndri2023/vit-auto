@@ -21,4 +21,9 @@ router.get   ("/countries",     ...financeOnly, bc.getCountryConfigs);
 router.post  ("/countries",     ...financeOnly, bc.upsertCountryConfig);
 router.delete("/countries/:id", vid, ...financeOnly, bc.deleteCountryConfig);
 
+// ── DiscountCampaign (codes promo abonnements/boosts) ────────────────────
+router.get   ("/discount-campaigns",     ...financeOnly, bc.getDiscountCampaigns);
+router.post  ("/discount-campaigns",     ...financeOnly, bc.upsertDiscountCampaign);
+router.delete("/discount-campaigns/:id", vid, ...financeOnly, bc.deleteDiscountCampaign);
+
 export default router;

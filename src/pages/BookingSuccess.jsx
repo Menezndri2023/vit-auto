@@ -35,6 +35,7 @@ const BookingSuccess = () => {
   const navigate = useNavigate();
   const { fmt }  = useCurrency();
   const booking  = location.state?.booking;
+  const paymentInitFailed = !!location.state?.payment?.initFailed;
 
   const contractNumber = `VIT-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999) + 1).padStart(5, "0")}`;
   const today = new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
@@ -79,6 +80,16 @@ const BookingSuccess = () => {
           <p>Merci {booking.firstName || booking.clientInfo?.firstName || ""} {booking.lastName || booking.clientInfo?.lastName || ""}. Votre contrat numérique est généré ci-dessous.</p>
         </div>
       </div>
+
+      {/* ── Avertissement paiement en ligne non initié ─────────────────── */}
+      {paymentInitFailed && (
+        <div style={{ background: "#fef3c7", border: "1.5px solid #f59e0b", borderRadius: 12, padding: "14px 18px", margin: "0 auto 1.5rem", maxWidth: 900, display: "flex", gap: 12, alignItems: "flex-start" }}>
+          <span style={{ fontSize: "1.3rem" }}>⚠️</span>
+          <div style={{ fontSize: ".88rem", color: "#78350f" }}>
+            <strong>Votre réservation est bien enregistrée</strong>, mais le paiement en ligne n'a pas pu être initié (passerelle momentanément indisponible). Rendez-vous sur votre <Link to="/dashboard" style={{ color: "#78350f", textDecoration: "underline", fontWeight: 700 }}>tableau de bord</Link> pour réessayer le paiement, ou contactez le support.
+          </div>
+        </div>
+      )}
 
       {/* ── Contrat digital ───────────────────── */}
       <div className={styles.contract} id="contract-to-print">

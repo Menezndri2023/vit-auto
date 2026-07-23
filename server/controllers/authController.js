@@ -110,7 +110,7 @@ export const register = async (req, res) => {
   if (!password || !firstName || !lastName) {
     return res.status(400).json({ message: "Données manquantes." });
   }
-  if (country && !isValidCountryCode(country)) {
+  if (country && !(await isValidCountryCode(country))) {
     return res.status(400).json({ message: "Pays invalide." });
   }
   if (!email) {
@@ -389,7 +389,7 @@ export const oauthGoogle = async (req, res) => {
       }
 
       const country = sanitize(countryRaw)?.toUpperCase() || null;
-      if (country && !isValidCountryCode(country)) {
+      if (country && !(await isValidCountryCode(country))) {
         return res.status(400).json({ message: "Pays invalide." });
       }
 

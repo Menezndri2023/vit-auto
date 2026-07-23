@@ -1,7 +1,16 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
 import styles from "./ImportExport.module.css";
 import { COUNTRIES_ALL, VEHICLE_TYPES } from "../data/autocomplete";
+import { useCurrency } from "../context/CurrencyContext";
+
+// Repli tant que GET /api/pricing/config n'a pas répondu — mêmes valeurs que
+// server/config/defaultPricingConfig.js (source de vérité réelle).
+const FALLBACK_PRICING = {
+  commissions:  { standard: { import_export: 0.03 }, premium: { import_export: 0.02 } },
+  serviceFee:   { minUSD: 1, percent: 0.005, maxUSD: 25 },
+  subscriptions:{ individuel_plus: { priceUSD: 9.99 }, business: { priceUSD: 19.99 }, exportateur: { priceUSD: 49.99 } },
+};
 
 /* ── Zones géographiques ── */
 const ZONES = [
@@ -118,20 +127,10 @@ const STEPS = [
   { num: "07", icon: "🏠", title: "Livraison", desc: "Remise du véhicule à votre adresse avec tous les documents." },
 ];
 
-/* ── Commissions ── */
-const COMMISSIONS = [
-  { range: "< 10 000 €",          rate: "3 %",  fee: "150 €" },
-  { range: "10 000 – 30 000 €",   rate: "4 %",  fee: "300 €" },
-  { range: "> 30 000 €",          rate: "5 %",  fee: "500 €" },
-];
-
-/* ── Abonnements professionnels ── */
-const PLANS = [
-  { name: "Starter",              price: "49 €/mois",    features: ["10 annonces", "Badge basique", "Statistiques de base"] },
-  { name: "Business",             price: "199 €/mois",   features: ["50 annonces", "Badge vérifié", "Statistiques avancées", "Mise en avant"] },
-  { name: "Enterprise",           price: "599 €/mois",   features: ["Annonces illimitées", "Badge Premium", "Tableau de bord dédié", "Support prioritaire"] },
-  { name: "Corporate International", price: "1 499 €/mois", highlight: true, features: ["Tout Enterprise inclus", "Accès multi-pays", "Gestionnaire de compte dédié", "API intégrée"] },
-];
+// Les tableaux COMMISSIONS et PLANS ne sont plus des données statiques —
+// construits dans le composant à partir de /api/pricing/config (voir plus
+// bas), pour ne jamais afficher un modèle économique différent de celui
+// réellement appliqué par pricingEngine.js / Subscription.js.
 
 /* ── Pays de couverture ── */
 const COUNTRIES = [
@@ -316,8 +315,40 @@ function RequestModal({ defaultPack, onClose }) {
 const ImportExport = () => {
   const [showModal, setShowModal] = useState(false);
   const [modalPack, setModalPack] = useState("Silver");
+  const [pricing, setPricing] = useState(FALLBACK_PRICING);
+  const { fmtUSD } = useCurrency();
+
+  useEffect(() => {
+    fetch("/api/pricing/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setPricing(d); })
+      .catch(() => {}); // repli déjà en place
+  }, []);
 
   const openModal = (pack = "Silver") => { setModalPack(pack); setShowModal(true); };
+
+  // Commission réelle sur une transaction Import/Export (voir
+  // pricingEngine.resolveCommissionRate("import_export", ...)) — un seul taux
+  // plat, pas de palier par valeur ; le "frais acheteur" est le frais de
+  // service générique (max(min, montant×%), plafonné) sur un exemple de 15 000$.
+  const stdRate = pricing.commissions.standard.import_export;
+  const premRate = pricing.commissions.premium.import_export;
+  const { minUSD, percent, maxUSD } = pricing.serviceFee;
+  const exampleFee = Math.min(Math.max(minUSD, 15000 * percent), maxUSD);
+  const COMMISSIONS = [
+    { range: "Standard",          rate: `${Math.round(stdRate * 1000) / 10} %`,  fee: fmtUSD(exampleFee) },
+    { range: "Abonné premium",    rate: `${Math.round(premRate * 1000) / 10} %`, fee: fmtUSD(exampleFee) },
+  ];
+
+  // Abonnements réels (Subscription.js) — les mêmes 3 paliers self-service que
+  // /plans, présentés ici dans le contexte Import/Export. "Enterprise" reste
+  // à devis manuel (pas de self-service, voir PricingConfig.subscriptions).
+  const PLANS = [
+    { name: "Individuel Plus", price: `${fmtUSD(pricing.subscriptions.individuel_plus.priceUSD)}/mois`, features: ["Commission réduite", "Classement prioritaire", "Statistiques de base"] },
+    { name: "Business",        price: `${fmtUSD(pricing.subscriptions.business.priceUSD)}/mois`,        features: ["Commission réduite", "Badge vérifié", "Statistiques avancées", "Mise en avant"] },
+    { name: "Exportateur",     price: `${fmtUSD(pricing.subscriptions.exportateur.priceUSD)}/mois`,     highlight: true, features: ["Catalogue illimité", "Outils export & API", "CRM", "Badge vérifié", "Multi-utilisateur"] },
+    { name: "Enterprise",      price: "Sur devis", features: ["Tout Exportateur inclus", "Tarification personnalisée", "Fonctionnalités illimitées"] },
+  ];
 
   return (
   <div className={styles.page}>
@@ -467,9 +498,9 @@ const ImportExport = () => {
             <table className={styles.econTable}>
               <thead>
                 <tr>
-                  <th>Valeur du véhicule</th>
+                  <th>Profil</th>
                   <th>Commission</th>
-                  <th>Frais acheteur</th>
+                  <th>Frais de service (ex. 15 000$)</th>
                 </tr>
               </thead>
               <tbody>

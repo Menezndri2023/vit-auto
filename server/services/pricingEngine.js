@@ -1,6 +1,7 @@
 import PricingConfig from "../models/PricingConfig.js";
 import PartnerOnboarding from "../models/PartnerOnboarding.js";
 import Subscription from "../models/Subscription.js";
+import DiscountCampaign from "../models/DiscountCampaign.js";
 import { DEFAULT_PRICING_CONFIG } from "../config/defaultPricingConfig.js";
 
 // Moteur central de tarification — remplace les constantes en dur dispersées
@@ -38,10 +39,16 @@ async function isFoundingPartnerActive(userId) {
   return fp;
 }
 
+// `.lean()` ne calcule pas le virtual Subscription.isPlanActive — on
+// réplique ici la même règle (plan payant + planDetails.isActive + endDate
+// non dépassée), sinon un abonnement expiré continue indéfiniment à
+// bénéficier du taux de commission premium.
 async function hasPremiumSubscription(userId) {
   if (!userId) return false;
   const sub = await Subscription.findOne({ vendor: userId }).lean();
-  return !!(sub && sub.plan && sub.plan !== "free");
+  if (!sub || !sub.plan || sub.plan === "free") return false;
+  if (!sub.planDetails?.isActive || !sub.planDetails?.endDate) return false;
+  return new Date() < new Date(sub.planDetails.endDate);
 }
 
 // `type` : "location" | "essai" | "chauffeur" | "leasing" (types de Booking)
@@ -82,6 +89,16 @@ export async function computeServiceFee(amountUSD) {
   return Math.min(Math.max(minUSD, amountUSD * percent), maxUSD);
 }
 
+// Frais de l'estimateur de coût d'import (server/services/importCostEngine.js)
+// — formule identique à computeServiceFee mais barème distinct et éditable
+// séparément (config.importEstimateFee), car facturé à l'acheteur pour un
+// service différent de la commission import_export prélevée au partenaire.
+export async function computeImportEstimateFee(vehiclePriceUSD) {
+  const config = await getConfig();
+  const { minUSD, percent, maxUSD } = config.importEstimateFee;
+  return Math.min(Math.max(vehiclePriceUSD * percent, minUSD), maxUSD);
+}
+
 export async function getBoostPrice(tier) {
   const config = await getConfig();
   return config.boosts[tier] ?? null;
@@ -108,4 +125,33 @@ export async function getAdConfig(adKey) {
 export async function getRentalOptionPrice(option) {
   const config = await getConfig();
   return config.rentalOptions?.[option] ?? 0;
+}
+
+// ── Campagnes de réduction (DiscountCampaign) ───────────────────────────────
+// `productType` : "subscriptions" | "boosts" — doit figurer dans
+// campaign.appliesTo. Renvoie { priceUSD (remisé), campaign } ou lève une
+// Error avec un message destiné à l'utilisateur si le code est invalide —
+// jamais de remise silencieuse appliquée à tort.
+export async function applyDiscountCode(code, productType, baseUSD) {
+  if (!code) return { priceUSD: baseUSD, campaign: null };
+
+  const campaign = await DiscountCampaign.findOne({ code: code.trim().toUpperCase() });
+  if (!campaign || !campaign.active) throw new Error("Code promo invalide ou expiré.");
+  if (!campaign.appliesTo.includes(productType)) throw new Error("Ce code promo ne s'applique pas à ce produit.");
+
+  const now = new Date();
+  if (campaign.startDate && now < campaign.startDate) throw new Error("Ce code promo n'est pas encore actif.");
+  if (campaign.endDate && now > campaign.endDate) throw new Error("Ce code promo a expiré.");
+  if (campaign.maxRedemptions != null && campaign.redemptionCount >= campaign.maxRedemptions) {
+    throw new Error("Ce code promo a atteint sa limite d'utilisation.");
+  }
+
+  const priceUSD = Math.round(baseUSD * (1 - campaign.discountPercent / 100) * 100) / 100;
+  return { priceUSD, campaign };
+}
+
+// Incrémente le compteur d'utilisation — appelé uniquement après une
+// activation réellement enregistrée (pas à la simple prévisualisation du prix).
+export async function redeemDiscountCode(campaignId) {
+  await DiscountCampaign.findByIdAndUpdate(campaignId, { $inc: { redemptionCount: 1 } });
 }

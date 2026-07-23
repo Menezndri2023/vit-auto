@@ -141,6 +141,35 @@ const DriverBooking = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Erreur lors de la réservation.");
 
+      // Paiement en ligne (carte/Orange Money/Wave) : redirection vers la
+      // passerelle réelle — même logique que Booking.jsx. Les autres méthodes
+      // (mtn/moov/cash) n'ont aucune intégration en ligne côté serveur (voir
+      // paymentController.ONLINE_METHODS) et gardent la confirmation directe.
+      if (["card", "orange_money", "wave"].includes(selectedMethod) && data.booking?._id) {
+        try {
+          const initRes = await fetch("/api/payments/initiate", {
+            method: "POST", headers,
+            body: JSON.stringify({ bookingId: data.booking._id, method: selectedMethod }),
+          });
+          const initData = await initRes.json().catch(() => ({}));
+          if (initRes.ok && initData.checkoutUrl) {
+            window.location.href = initData.checkoutUrl;
+            return;
+          }
+          error("La passerelle de paiement est momentanément indisponible. Votre réservation est enregistrée, complétez le paiement depuis votre tableau de bord.");
+          navigate("/booking/success", {
+            state: { booking: data.booking, payment: { paymentMethod: selectedMethod, mobileNumber, initFailed: true } },
+          });
+          return;
+        } catch {
+          error("La passerelle de paiement est momentanément indisponible. Votre réservation est enregistrée, complétez le paiement depuis votre tableau de bord.");
+          navigate("/booking/success", {
+            state: { booking: data.booking, payment: { paymentMethod: selectedMethod, mobileNumber, initFailed: true } },
+          });
+          return;
+        }
+      }
+
       success("Réservation chauffeur envoyée ! En attente de confirmation.");
       navigate("/booking/success", {
         state: { booking: data.booking, payment: { paymentMethod: selectedMethod, mobileNumber } },

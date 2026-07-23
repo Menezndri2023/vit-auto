@@ -44,7 +44,10 @@ describe("resolveCommissionRate", () => {
 
   it("renvoie le taux premium si le partenaire a un abonnement payant actif", async () => {
     const owner = await createUser({ role: "partenaire" });
-    await Subscription.create({ vendor: owner._id, plan: "business" });
+    await Subscription.create({
+      vendor: owner._id, plan: "business",
+      planDetails: { isActive: true, endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
+    });
     expect(await resolveCommissionRate("location", owner._id)).toBe(0.12);
     expect(await resolveCommissionRate("essai", owner._id)).toBe(0.02);
   });
@@ -52,6 +55,24 @@ describe("resolveCommissionRate", () => {
   it("un abonnement 'free' n'active PAS le taux premium", async () => {
     const owner = await createUser({ role: "partenaire" });
     await Subscription.create({ vendor: owner._id, plan: "free" });
+    expect(await resolveCommissionRate("location", owner._id)).toBe(0.15);
+  });
+
+  it("un abonnement payant expiré retombe au taux standard", async () => {
+    const owner = await createUser({ role: "partenaire" });
+    await Subscription.create({
+      vendor: owner._id, plan: "business",
+      planDetails: { isActive: true, endDate: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+    });
+    expect(await resolveCommissionRate("location", owner._id)).toBe(0.15);
+  });
+
+  it("un abonnement payant avec isActive=false n'active PAS le taux premium", async () => {
+    const owner = await createUser({ role: "partenaire" });
+    await Subscription.create({
+      vendor: owner._id, plan: "business",
+      planDetails: { isActive: false, endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
+    });
     expect(await resolveCommissionRate("location", owner._id)).toBe(0.15);
   });
 

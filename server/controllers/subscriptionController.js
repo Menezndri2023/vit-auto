@@ -1,7 +1,7 @@
 import Subscription from "../models/Subscription.js";
 import User from "../models/User.js";
 import Vehicle from "../models/Vehicle.js";
-import { getSubscriptionPrice, getBoostPrice } from "../services/pricingEngine.js";
+import { getSubscriptionPrice, getBoostPrice, applyDiscountCode, redeemDiscountCode } from "../services/pricingEngine.js";
 
 const PLAN_TIERS  = ["individuel_plus", "business", "exportateur"];
 const BOOST_TIERS = ["24h", "7d", "30d", "international"];
@@ -40,12 +40,19 @@ export const getMySubscription = async (req, res) => {
 // réelle du paiement (même mécanisme que createPayment/booking).
 export const activatePlan = async (req, res) => {
   try {
-    const { planTier, paymentMethod } = req.body;
+    const { planTier, paymentMethod, promoCode } = req.body;
     if (!PLAN_TIERS.includes(planTier)) {
       return res.status(400).json({ message: `Palier invalide. Attendu : ${PLAN_TIERS.join(", ")}.` });
     }
-    const priceUSD = await getSubscriptionPrice(planTier);
-    if (priceUSD == null) return res.status(503).json({ message: "Tarification indisponible pour le moment." });
+    const basePriceUSD = await getSubscriptionPrice(planTier);
+    if (basePriceUSD == null) return res.status(503).json({ message: "Tarification indisponible pour le moment." });
+
+    let priceUSD, campaign;
+    try {
+      ({ priceUSD, campaign } = await applyDiscountCode(promoCode, "subscriptions", basePriceUSD));
+    } catch (err) {
+      return res.status(400).json({ message: err.message });
+    }
 
     let sub = await Subscription.findOne({ vendor: req.user.id });
     if (!sub) sub = new Subscription({ vendor: req.user.id });
@@ -58,9 +65,12 @@ export const activatePlan = async (req, res) => {
       paidAt: new Date(),
       status: "pending",
       period,
+      promoCode: campaign?.code || null,
     });
 
     await sub.save();
+    if (campaign) await redeemDiscountCode(campaign._id);
+
     res.status(202).json({
       message: "Demande d'activation enregistrée, en attente de confirmation du paiement par un administrateur.",
       subscription: sub,
@@ -74,7 +84,7 @@ export const activatePlan = async (req, res) => {
 // immédiate tant qu'aucune vérification réelle de paiement n'est branchée.
 export const purchaseBoost = async (req, res) => {
   try {
-    const { vehicleId, tier } = req.body;
+    const { vehicleId, tier, promoCode } = req.body;
     if (!vehicleId) return res.status(400).json({ message: "vehicleId requis." });
     if (!BOOST_TIERS.includes(tier)) {
       return res.status(400).json({ message: `Palier de boost invalide. Attendu : ${BOOST_TIERS.join(", ")}.` });
@@ -84,8 +94,15 @@ export const purchaseBoost = async (req, res) => {
     const vehicle = await Vehicle.findOne({ _id: vehicleId, owner: req.user.id });
     if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable ou ne vous appartenant pas." });
 
-    const priceUSD = await getBoostPrice(tier);
-    if (priceUSD == null) return res.status(503).json({ message: "Tarification indisponible pour le moment." });
+    const basePriceUSD = await getBoostPrice(tier);
+    if (basePriceUSD == null) return res.status(503).json({ message: "Tarification indisponible pour le moment." });
+
+    let priceUSD, campaign;
+    try {
+      ({ priceUSD, campaign } = await applyDiscountCode(promoCode, "boosts", basePriceUSD));
+    } catch (err) {
+      return res.status(400).json({ message: err.message });
+    }
 
     let sub = await Subscription.findOne({ vendor: req.user.id });
     if (!sub) sub = new Subscription({ vendor: req.user.id });
@@ -96,9 +113,12 @@ export const purchaseBoost = async (req, res) => {
       isActive: false, // activé par un admin après confirmation du paiement
       priceUSD,
       paidAt: null,
+      promoCode: campaign?.code || null,
     });
 
     await sub.save();
+    if (campaign) await redeemDiscountCode(campaign._id);
+
     res.status(202).json({
       message: "Demande de mise en avant enregistrée, en attente de confirmation du paiement.",
       subscription: sub,

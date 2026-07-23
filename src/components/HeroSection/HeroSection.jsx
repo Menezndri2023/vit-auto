@@ -12,43 +12,50 @@ const STATS = [
   { icon: "🚢", value: "Import", label: "Japon · Europe · Dubaï" },
 ];
 
-// Slides par défaut — données Afrique de l'Ouest, prix en FCFA
+// Slides par défaut — données Afrique de l'Ouest, montants en USD (source de
+// vérité de la plateforme, voir server/scripts/migrate-vehicle-booking-to-usd.mjs)
+// convertis dans la devise du visiteur au rendu, comme les vrais véhicules
+// (voir vehicleToSlide ci-dessous) — jamais un libellé figé en FCFA/EUR.
 const DEFAULT_SLIDES = [
   {
-    img:     "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=1200&q=80&auto=format&fit=crop&fm=webp",
-    name:    "Toyota Land Cruiser V8 2024",
-    type:    "SUV Premium",
-    city:    "Abidjan",
-    fuel:    "Diesel",
-    partner: "VIT AUTO Côte d'Ivoire",
-    price:   "75 000 FCFA / jour",
+    img:      "https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=1200&q=80&auto=format&fit=crop&fm=webp",
+    name:     "Toyota Land Cruiser V8 2024",
+    type:     "SUV Premium",
+    city:     "Abidjan",
+    fuel:     "Diesel",
+    partner:  "VIT AUTO Côte d'Ivoire",
+    priceUSD: 125,
+    isSale:   false,
   },
   {
-    img:     "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=1200&q=80&auto=format&fit=crop&fm=webp",
-    name:    "Mercedes-Benz Classe E 2023",
-    type:    "Berline Executive",
-    city:    "Abidjan",
-    fuel:    "Diesel",
-    partner: "VIT AUTO Premium",
-    price:   "55 000 FCFA / jour",
+    img:      "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=1200&q=80&auto=format&fit=crop&fm=webp",
+    name:     "Mercedes-Benz Classe E 2023",
+    type:     "Berline Executive",
+    city:     "Abidjan",
+    fuel:     "Diesel",
+    partner:  "VIT AUTO Premium",
+    priceUSD: 92,
+    isSale:   false,
   },
   {
-    img:     "https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=1200&q=80&auto=format&fit=crop&fm=webp",
-    name:    "BMW X5 2022 — Import Allemagne",
-    type:    "SUV Import",
-    city:    "Abidjan · Livraison 45j",
-    fuel:    "Essence",
-    partner: "VIT AUTO Import/Export",
-    price:   "À partir de 18 500 €",
+    img:      "https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=1200&q=80&auto=format&fit=crop&fm=webp",
+    name:     "BMW X5 2022 — Import Allemagne",
+    type:     "SUV Import",
+    city:     "Abidjan · Livraison 45j",
+    fuel:     "Essence",
+    partner:  "VIT AUTO Import/Export",
+    priceUSD: 20000,
+    isSale:   true,
   },
   {
-    img:     "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=1200&q=80&auto=format&fit=crop&fm=webp",
-    name:    "Hyundai Tucson 2023",
-    type:    "SUV — Vente / Leasing",
-    city:    "Abidjan",
-    fuel:    "Hybride",
-    partner: "VIT AUTO Vente",
-    price:   "16 900 000 FCFA",
+    img:      "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=1200&q=80&auto=format&fit=crop&fm=webp",
+    name:     "Hyundai Tucson 2023",
+    type:     "SUV — Vente / Leasing",
+    city:     "Abidjan",
+    fuel:     "Hybride",
+    partner:  "VIT AUTO Vente",
+    priceUSD: 28000,
+    isSale:   true,
   },
 ];
 
@@ -70,6 +77,11 @@ export default function HeroSection() {
     } catch { return []; }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const defaultSlides = useMemo(() => DEFAULT_SLIDES.map((s) => ({
+    ...s,
+    price: `${fmt(s.priceUSD)}${s.isSale ? "" : " / jour"}`,
+  })), [fmt]);
+
   const vehicleToSlide = useCallback((v) => {
     const isSale = v.listingType === "vente" || v.mode === "Acheter";
     const rawPrice = isSale ? (v.buyPrice || v.priceForSale) : v.pricePerDay;
@@ -88,7 +100,7 @@ export default function HeroSection() {
 
   // Construire les slides : admin > featured > all > défauts
   const slides = useMemo(() => {
-    if (vehicles.length === 0) return DEFAULT_SLIDES;
+    if (vehicles.length === 0) return defaultSlides;
 
     // 1. Slides sélectionnées par l'admin (dans l'ordre choisi)
     if (adminIds.length > 0) {
@@ -104,8 +116,8 @@ export default function HeroSection() {
     if (pool.length > 0) return pool.map(vehicleToSlide);
 
     // 3. Fallback absolu
-    return DEFAULT_SLIDES;
-  }, [vehicles, adminIds, vehicleToSlide]);
+    return defaultSlides;
+  }, [vehicles, adminIds, vehicleToSlide, defaultSlides]);
 
   const total = slides.length;
 

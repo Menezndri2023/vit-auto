@@ -37,6 +37,11 @@ const insuranceRequestSchema = new mongoose.Schema({
   decisionBy:    { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   assignedPartner: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null }, // partenaire assureur
 
+  // Paiement de la prime — voir paymentController.js (Payment.insuranceRequest),
+  // même passerelle (Stripe/Orange Money/Wave) que les réservations.
+  isPaid: { type: Boolean, default: false },
+  paidAt: { type: Date, default: null },
+
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });

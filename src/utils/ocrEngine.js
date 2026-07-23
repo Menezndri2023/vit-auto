@@ -10,10 +10,21 @@ import { createWorker } from "tesseract.js";
 let _worker = null;
 let _workerReady = false;
 
+// "fra+eng" seul laissait les documents en écriture non-latine (ex. carte
+// d'identité chinoise, sans MRZ) totalement illisibles pour Tesseract — OCR à
+// 0%, aucun champ auto-rempli. Un passeport reste lu correctement quel que
+// soit le pays d'émission via sa zone MRZ (A-Z0-9< normalisés, voir
+// parseDocumentText ci-dessous), mais une pièce d'identité NATIONALE
+// (sans MRZ) a besoin du modèle de langue correspondant. "chi_sim" (chinois
+// simplifié) et "ara" (arabe — Maroc/Algérie/Tunisie/Émirats, déjà langues
+// d'interface supportées) couvrent les pays du catalogue CountryConfig dont
+// les pièces ne sont pas nécessairement bilingues français/anglais. Ne
+// bloque jamais la suite : un échec/faible confiance reste géré en amont
+// (voir KYC.jsx, docImageOk mis à true même à 0% de confiance).
 export async function initOcrWorker(onProgress) {
   if (_worker && _workerReady) return _worker;
 
-  _worker = await createWorker("fra+eng", 1, {
+  _worker = await createWorker("fra+eng+chi_sim+ara", 1, {
     logger: (m) => {
       if (onProgress && m.status === "recognizing text") {
         onProgress(Math.round(m.progress * 100));

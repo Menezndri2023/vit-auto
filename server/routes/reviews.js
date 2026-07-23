@@ -1,8 +1,10 @@
 import express from "express";
 import { rateLimit } from "express-rate-limit";
 import * as r from "../controllers/reviewController.js";
-import { authenticate, authorizeAdmin } from "../middleware/auth.js";
+import { authenticate, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
+
+const moderationScope = requireAdminScope("moderation");
 
 const router = express.Router();
 
@@ -21,8 +23,8 @@ router.get("/", r.getReviews);
 router.post("/", authenticate, createReviewLimiter, r.createReview);
 
 // ── Admin ─────────────────────────────────────────────────
-router.get  ("/admin/list", authenticate, authorizeAdmin, r.adminListReviews);
-router.patch("/:id/hide",   validateObjectId(), authenticate, authorizeAdmin, r.hideReview);
-router.patch("/:id/unhide", validateObjectId(), authenticate, authorizeAdmin, r.unhideReview);
+router.get  ("/admin/list", authenticate, authorizeAdmin, moderationScope, r.adminListReviews);
+router.patch("/:id/hide",   validateObjectId(), authenticate, authorizeAdmin, moderationScope, r.hideReview);
+router.patch("/:id/unhide", validateObjectId(), authenticate, authorizeAdmin, moderationScope, r.unhideReview);
 
 export default router;

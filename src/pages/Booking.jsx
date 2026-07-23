@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import { useAuth }     from "../context/AuthContext";
 import { useCurrency } from "../context/CurrencyContext";
+import { useToast }    from "../context/ToastContext";
 import { haversineKm, geocodeAddress, getCurrentPosition } from "../utils/geo";
 import { getKycBadge, generateBookingRef } from "../utils/kycEngine.js";
 import styles from "./Booking.module.css";
@@ -57,6 +58,7 @@ export default function Booking() {
   const { fmt }         = useCurrency();
   const { vehicles, addBooking, getItemById } = useVehicles();
   const { token, user } = useAuth();
+  const { error: toastError } = useToast();
 
   const getVehicleById = getItemById
     || ((vid) => vehicles?.find((v) => String(v.id) === String(vid) || v._id === String(vid)));
@@ -480,6 +482,7 @@ export default function Booking() {
         // Les autres méthodes (cash, virement...) gardent le parcours existant
         // : confirmation immédiate, règlement géré manuellement par la suite.
         if (["card", "orange_money", "wave"].includes(payMethod)) {
+          let paymentInitFailed = false;
           try {
             const initRes = await fetch("/api/payments/initiate", {
               method: "POST", headers,
@@ -490,14 +493,27 @@ export default function Booking() {
               window.location.href = initData.checkoutUrl;
               return;
             }
-          } catch { /* passerelle indisponible — on retombe sur la confirmation classique */ }
+            paymentInitFailed = true;
+          } catch {
+            paymentInitFailed = true;
+          }
+          // La réservation existe bien côté serveur (statut "pending"), mais le
+          // paiement en ligne n'a pas pu être initié — le client doit le savoir
+          // au lieu de croire sa réservation payée (voir BookingSuccess.jsx qui
+          // affiche l'avertissement correspondant via payment.initFailed).
+          if (paymentInitFailed) {
+            toastError("La passerelle de paiement est momentanément indisponible. Votre réservation est enregistrée, complétez le paiement depuis votre tableau de bord.");
+            setSubmitting(false);
+            navigate("/booking/success", { state: { booking: bookingData, trial: isTrial, payment: { paymentMethod: payMethod, mobileNumber, initFailed: true } } });
+            return;
+          }
         }
       }
     } catch { /* mode hors-ligne — réservation locale uniquement */ }
 
     setSubmitting(false);
     navigate("/booking/success", { state: { booking: bookingData, trial: isTrial, payment: { paymentMethod: payMethod, mobileNumber } } });
-  }, [form, pickupMethod, pickupAddress, pickupPosition, selectedOptions, payMethod, mobileNumber, cardNumber, cardHolder, days, deliveryFee, geoDistance, baseTotal, optionsTotal, totalToPay, kycOk, kycScore, kycBadge, bookingRef, isTrial, isLeasing, financingType, financingTerms, vehicle, token, user, addBooking, navigate, agencyFull]);
+  }, [form, pickupMethod, pickupAddress, pickupPosition, selectedOptions, payMethod, mobileNumber, cardNumber, cardHolder, days, deliveryFee, geoDistance, baseTotal, optionsTotal, totalToPay, kycOk, kycScore, kycBadge, bookingRef, isTrial, isLeasing, financingType, financingTerms, vehicle, token, user, addBooking, navigate, agencyFull, toastError]);
 
   /* ════════════════════════════════════════════════════════════════
      RENDU

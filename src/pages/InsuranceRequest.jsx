@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useCurrency } from "../context/CurrencyContext";
 import styles from "./InsuranceRequest.module.css";
 
 const TYPE_OPTIONS = [
@@ -17,6 +18,7 @@ const STATUS_LABELS = {
 
 export default function InsuranceRequest() {
   const { isAuthenticated, token } = useAuth();
+  const { fmtUSD } = useCurrency();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({ type: "auto", vehicleInfo: "", coveragePeriodMonths: 12, notes: "" });
@@ -24,6 +26,10 @@ export default function InsuranceRequest() {
   const [error, setError] = useState(null);
   const [myRequests, setMyRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [payingId, setPayingId] = useState(null);
+  const [payMethod, setPayMethod] = useState("card");
+  const [payError, setPayError] = useState(null);
+  const [paySubmitting, setPaySubmitting] = useState(false);
 
   const loadMine = useCallback(async () => {
     if (!token) { setLoading(false); return; }
@@ -35,6 +41,27 @@ export default function InsuranceRequest() {
   }, [token]);
 
   useEffect(() => { loadMine(); }, [loadMine]);
+
+  // Paie une prime approuvée — même passerelle que Booking.jsx (Stripe/Orange
+  // Money/Wave, voir server/controllers/paymentController.initiatePayment).
+  const handlePayQuote = async (requestId) => {
+    setPaySubmitting(true);
+    setPayError(null);
+    try {
+      const r = await fetch("/api/payments/initiate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ insuranceRequestId: requestId, method: payMethod }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.checkoutUrl) { window.location.href = data.checkoutUrl; return; }
+      setPayError(data.message || "Paiement indisponible pour le moment.");
+    } catch {
+      setPayError("Erreur réseau — réessayez plus tard.");
+    } finally {
+      setPaySubmitting(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -114,16 +141,40 @@ export default function InsuranceRequest() {
             <div className={styles.list}>
               {myRequests.map((r) => {
                 const st = STATUS_LABELS[r.status];
+                const canPay = r.status === "approved" && r.premium != null && !r.isPaid;
                 return (
-                  <div key={r._id} className={styles.item}>
-                    <div>
-                      <strong>{TYPE_OPTIONS.find((o) => o.value === r.type)?.label || r.type}</strong>
-                      <div className={styles.itemMeta}>{r.vehicleInfo || "—"} · {r.coveragePeriodMonths} mois</div>
-                      {r.status === "approved" && r.premium && (
-                        <div className={styles.premium}>Prime proposée : {Number(r.premium).toLocaleString("fr-FR")} {r.devise}</div>
-                      )}
+                  <div key={r._id} className={styles.item} style={{ flexDirection: "column", alignItems: "stretch" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                      <div>
+                        <strong>{TYPE_OPTIONS.find((o) => o.value === r.type)?.label || r.type}</strong>
+                        <div className={styles.itemMeta}>{r.vehicleInfo || "—"} · {r.coveragePeriodMonths} mois</div>
+                        {r.status === "approved" && r.premium != null && (
+                          <div className={styles.premium}>Prime proposée : {fmtUSD(r.premium)}{r.isPaid ? " — ✅ Payée" : ""}</div>
+                        )}
+                      </div>
+                      <span className={styles.badge} style={{ color: st.c, background: st.bg }}>{st.l}</span>
                     </div>
-                    <span className={styles.badge} style={{ color: st.c, background: st.bg }}>{st.l}</span>
+
+                    {canPay && (
+                      payingId === r._id ? (
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
+                          <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
+                            <option value="card">Carte bancaire</option>
+                            <option value="orange_money">Orange Money</option>
+                            <option value="wave">Wave</option>
+                          </select>
+                          <button type="button" disabled={paySubmitting} onClick={() => handlePayQuote(r._id)}>
+                            {paySubmitting ? "…" : "Confirmer"}
+                          </button>
+                          <button type="button" onClick={() => { setPayingId(null); setPayError(null); }}>Annuler</button>
+                        </div>
+                      ) : (
+                        <button type="button" style={{ marginTop: 8, alignSelf: "flex-start" }} onClick={() => { setPayingId(r._id); setPayError(null); }}>
+                          💳 Payer cette prime
+                        </button>
+                      )
+                    )}
+                    {payingId === r._id && payError && <div className={styles.error} style={{ marginTop: 6 }}>{payError}</div>}
                   </div>
                 );
               })}
