@@ -339,7 +339,7 @@ export default function PartnerOnboardingPortal() {
             <span className={styles.heroAccent}>Fondateur</span>
           </h1>
           <p className={styles.heroSub}>
-            Rejoignez les 20 premiers partenaires. Commission réduite, abonnement offert 12 mois, badge exclusif.
+            L'étape obligatoire de tout nouveau partenaire. Commission réduite, abonnement offert 12 mois, badge exclusif.
           </p>
           <div className={styles.heroStats}>
             <div className={styles.heroStat}><span>12 mois</span><small>Abonnement offert</small></div>

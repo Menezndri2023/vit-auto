@@ -23,12 +23,7 @@ const Register = () => {
     confirmPassword: "",
     country: "",
     role: searchParams.get("role") === "partenaire" ? "partenaire" : "client",
-    // Un lien "?plan=fondateur" (page Partenaires.jsx) cible explicitement le
-    // programme Founding Partner, pensé pour des sociétés — sans ce défaut,
-    // un candidat arrivant par ce lien et ne touchant pas au sélecteur (valeur
-    // par défaut "particulier") aurait été redirigé vers /vendor au lieu du
-    // programme qu'il est venu rejoindre (voir getDest ci-dessous).
-    sellerType: searchParams.get("plan") === "fondateur" ? "entreprise" : "particulier",
+    sellerType: "particulier",
   });
 
   // Pré-remplit avec le pays détecté par IP (CurrencyContext) dès qu'il est
@@ -40,18 +35,14 @@ const Register = () => {
   const [submitting,   setSubmitting]   = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Destination post-inscription : ?redirect= explicite, sinon offre Fondateur
-  // (entreprise/professionnel uniquement — programme pensé pour des sociétés),
-  // sinon selon le rôle. Un partenaire "particulier" n'a rien à faire dans le
-  // programme Founding Partner (RCCM, IBAN, export...) : direction la publication
-  // d'annonce, où seule une vérification d'identité KYC lui sera demandée.
+  // Destination post-inscription : ?redirect= explicite sinon prime toujours ;
+  // sinon, TOUT partenaire (particulier compris) passe désormais obligatoirement
+  // par le programme Founding Partner (LOI + Accord) avant de publier — ce
+  // n'est plus une offre optionnelle réservée aux sociétés.
   const redirectParam = searchParams.get("redirect");
-  const planParam      = searchParams.get("plan");
   const getDest = () => {
     if (redirectParam) return decodeURIComponent(redirectParam);
-    if (form.role === "partenaire" && form.sellerType === "particulier") return "/vendor";
-    if (planParam === "fondateur") return "/partner-onboarding";
-    return form.role === "partenaire" ? "/vendor/dashboard" : "/dashboard";
+    return form.role === "partenaire" ? "/partner-onboarding" : "/dashboard";
   };
 
   useEffect(() => {

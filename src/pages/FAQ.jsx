@@ -70,11 +70,11 @@ const FAQS = [
     items: [
       {
         q: "Comment devenir partenaire ?",
-        a: "Créez un compte avec le rôle « Partenaire », renseignez votre identité et publiez votre première annonce. L'adresse exacte est obligatoire pour le calcul de livraison. La publication est gratuite jusqu'à 5 véhicules (Pack Découverte).",
+        a: "Créez un compte avec le rôle « Partenaire », puis complétez le programme Founding Partner (Letter of Intent + Accord de Partenariat) — une étape obligatoire pour tout partenaire avant de publier. Renseignez ensuite votre identité et publiez votre première annonce ; l'adresse exacte est obligatoire pour le calcul de livraison.",
       },
       {
         q: "Quelles sont les commissions ?",
-        a: "15 % sur les locations et 3 % sur les ventes. Les 20 premiers Partenaires Fondateurs par pays (entreprise, professionnel, exportateur) bénéficient de 10 % sur les locations et 2 % sur les ventes pendant 12 mois, puis retour au tarif standard. Pour un partenaire fondateur particulier : 5 % et 1 %, un tarif réduit qui reste acquis en permanence.",
+        a: "15 % sur les locations et 3 % sur les ventes en tarif standard. Pendant les 12 premiers mois suivant la signature de l'Accord Founding Partner, tout partenaire (particulier, professionnel, entreprise, exportateur) bénéficie de 10 % sur les locations, et 1,5 % (entreprise/professionnel/exportateur) ou 2 % (particulier) sur les ventes — puis retour automatique au tarif standard.",
       },
       {
         q: "Comment sont versés mes revenus ?",

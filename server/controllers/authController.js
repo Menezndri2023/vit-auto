@@ -6,6 +6,7 @@ import * as OTPAuth from "otpauth";
 import QRCode from "qrcode";
 import { OAuth2Client } from "google-auth-library";
 import User from "../models/User.js";
+import Notification from "../models/Notification.js";
 import { serverValidateIdentity } from "../utils/idValidation.js";
 import { smsConfigured, twilioVerifyConfigured } from "../utils/smsConfigured.js";
 import { emailVerificationRequired } from "../utils/emailVerificationRequired.js";
@@ -218,6 +219,22 @@ export const register = async (req, res) => {
 
     const verifyUrl = `${APP_URL()}/verify-email?token=${token}`;
     dispatch.emailVerification(user.email, user._id.toString(), verifyUrl, user.firstName).catch(() => {});
+
+    // Le JWT est délivré immédiatement (l'utilisateur navigue déjà connecté) — cette
+    // notification in-app est donc visible tout de suite, en plus de l'email, au cas
+    // où celui-ci tarde ou finisse en indésirables (aucune garantie de délivrabilité
+    // ici : l'envoi est fire-and-forget, voir dispatch.emailVerification ci-dessus).
+    try {
+      await Notification.create({
+        user: user._id,
+        type: "system",
+        titre: "📧 Vérifiez votre adresse email",
+        message: `Un email de confirmation a été envoyé à ${user.email}. Cliquez sur le lien qu'il contient pour activer pleinement votre compte.`,
+        lien: "/profile",
+      });
+    } catch (notifErr) {
+      logger.error("Notification inscription (non bloquant):", notifErr.message);
+    }
 
     return res.status(201).json({
       user: safeUser(user),
@@ -495,8 +512,26 @@ export const verifyEmail = async (req, res) => {
       });
     }
 
+    // Capturé AVANT la mise à jour : les clients mail préchargent parfois ce lien
+    // plusieurs fois (voir commentaire ci-dessus) — sans ce garde-fou, chaque clic
+    // répété sur le même lien créerait une notification "email vérifié" en double.
+    const alreadyWasVerified = user.emailVerified;
     user.emailVerified = true;
     await user.save();
+
+    if (!alreadyWasVerified) {
+      try {
+        await Notification.create({
+          user: user._id,
+          type: "success",
+          titre: "✅ Email vérifié",
+          message: "Votre adresse email a été vérifiée avec succès. Votre compte est maintenant pleinement actif.",
+          lien: "/profile",
+        });
+      } catch (notifErr) {
+        logger.error("Notification email vérifié (non bloquant):", notifErr.message);
+      }
+    }
 
     const jwtToken = signJWT(user);
     res.json({

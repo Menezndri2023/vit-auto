@@ -90,17 +90,17 @@ export default function Partenaires() {
           fontSize: "0.72rem", padding: "7px 18px", borderRadius: "0 22px 0 14px",
           letterSpacing: "0.08em", textTransform: "uppercase",
         }}>
-          ⭐ OFFRE LIMITÉE
+          ⭐ ÉTAPE OBLIGATOIRE
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
           <span style={{ fontSize: "2rem" }}>👑</span>
           <div>
             <h2 style={{ margin: 0, fontSize: "clamp(1.2rem,2.2vw,1.65rem)", fontWeight: 900, color: "#0f1b3f" }}>
-              Offre Fondateur
+              Programme Fondateur
             </h2>
             <p style={{ margin: "3px 0 0", color: "#92400e", fontWeight: 700, fontSize: "0.85rem" }}>
-              Réservée aux 20 premiers partenaires inscrits par pays
+              Le parcours obligatoire de tout nouveau partenaire
             </p>
           </div>
         </div>
@@ -130,12 +130,12 @@ export default function Partenaires() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
-          <Link to="/register?role=partenaire&plan=fondateur" style={{
+          <Link to="/register?role=partenaire" style={{
             background: "#f59e0b", color: "#fff", fontWeight: 900, fontSize: "0.95rem",
             padding: "13px 30px", borderRadius: 11, textDecoration: "none",
             boxShadow: "0 4px 18px rgba(245,158,11,.4)", display: "inline-block",
           }}>
-            Réclamer mon offre Fondateur →
+            Devenir partenaire →
           </Link>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{
@@ -371,10 +371,10 @@ export default function Partenaires() {
           Prêt à rejoindre VIT AUTO ?
         </h2>
         <p style={{ margin: "0 0 28px", color: "rgba(255,255,255,.8)", fontSize: "0.95rem" }}>
-          L'inscription est gratuite. L'Offre Fondateur est limitée aux 20 premiers par pays.
+          L'inscription est gratuite. Le programme Fondateur (LOI + Accord) fait partie du parcours de tout partenaire.
         </p>
         <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
-          <Link to="/register?role=partenaire&plan=fondateur" style={{
+          <Link to="/register?role=partenaire" style={{
             background: "#fff", color: "#ff4d2d", fontWeight: 900, fontSize: "0.95rem",
             padding: "14px 32px", borderRadius: 12, textDecoration: "none",
             boxShadow: "0 4px 16px rgba(0,0,0,.2)", display: "inline-block",

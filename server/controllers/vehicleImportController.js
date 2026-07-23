@@ -5,7 +5,6 @@ import {
   MAX_IMPORT_ROWS,
   IMPORT_COLUMNS,
   IE_IMPORT_COLUMNS,
-  generateTemplateWorkbook,
   parseUploadedFile,
   parseGoogleSheetUrl,
   processImportBatch,
@@ -20,22 +19,6 @@ const requirePartnerRole = (req, res) => {
     return false;
   }
   return true;
-};
-
-// ── Télécharger le template Excel ────────────────────────────────────────────
-// ?type=export → template Import/Export (Founding Partners) ; sinon véhicules classiques.
-export const downloadTemplate = async (req, res) => {
-  try {
-    const isExport = req.query.type === "export";
-    const workbook = await generateTemplateWorkbook(isExport ? "export" : "vehicle");
-    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.setHeader("Content-Disposition", `attachment; filename=${isExport ? "vitauto_import_export.xlsx" : "vitauto_import_vehicules.xlsx"}`);
-    await workbook.xlsx.write(res);
-    res.end();
-  } catch (err) {
-    logger.error("downloadTemplate:", err);
-    res.status(500).json({ message: "Erreur génération du template." });
-  }
 };
 
 // ── Parsing partagé fichier/Google Sheet + validations communes ─────────────

@@ -1026,7 +1026,7 @@ function PerformanceSection({ token, user }) {
         <div className={styles.badgesGrid}>
           {[
             { icon:"✅", label:"VERIFIED",         desc:"Entreprise & documents vérifiés",      earned:data.score >= 50, gradient:"linear-gradient(135deg,#059669,#10b981)" },
-            { icon:"⭐", label:"FOUNDING PARTNER",  desc:"Réservé aux 20 premiers partenaires par pays",  earned: !!user?.isFounder, gradient:"linear-gradient(135deg,#d97706,#f59e0b)" },
+            { icon:"⭐", label:"FOUNDING PARTNER",  desc:"Programme obligatoire de tout partenaire (LOI + Accord)",  earned: !!user?.isFounder, gradient:"linear-gradient(135deg,#d97706,#f59e0b)" },
             { icon:"🏆", label:"PREMIUM EXPORTER",  desc:"Score ≥ 85 + 50 commandes finalisées", earned:data.score >= 85, gradient:"linear-gradient(135deg,#7c3aed,#a855f7)" },
           ].map((b) => (
             <div key={b.label} className={`${styles.badgeCard} ${!b.earned ? styles.badgeLocked : ""}`}>

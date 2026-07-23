@@ -398,7 +398,7 @@ const translations = {
   "plans.cta.publish":   { fr: "Publier une annonce",                 en: "Publish a listing",             ar: "انشر إعلاناً",          es: "Publicar un anuncio",      zh: "发布车辆"       },
   "plans.cta.faq":       { fr: "Lire la FAQ",                         en: "Read the FAQ",                  ar: "اقرأ الأسئلة الشائعة",  es: "Leer la FAQ",              zh: "查看常见问题"   },
   "plans.currency":      { fr: "Devise :",                            en: "Currency:",                     ar: "العملة:",               es: "Divisa:",                  zh: "货币："         },
-  "plans.limited":       { fr: "OFFRE LIMITÉE — 20 partenaires",      en: "LIMITED OFFER — 20 partners",   ar: "عرض محدود — 20 شريكاً", es: "OFERTA LIMITADA — 20 socios", zh: "限量优惠 — 20名" },
+  "plans.limited":       { fr: "ÉTAPE OBLIGATOIRE",      en: "MANDATORY STEP",   ar: "خطوة إلزامية", es: "PASO OBLIGATORIO", zh: "必须步骤" },
   "plans.perMonth":      { fr: "mois",                                en: "month",                         ar: "شهر",                   es: "mes",                      zh: "月"             },
 
   // ─── Dashboard client ─────────────────────────────────────────────────────

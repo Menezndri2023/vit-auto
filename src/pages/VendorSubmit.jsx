@@ -46,16 +46,20 @@ const VendorSubmit = () => {
   const MAX_PHOTOS = 6;
   const fileInputRef = useRef(null);
 
-  // ── Étape 1 : Identité du partenaire
-  const [identity, setIdentity] = useState({
-    typePubliant: "particulier",   // particulier | entreprise | professionnel
-    nom:          "",
-    prenom:       "",
+  // ── Étape 1 : Identité du partenaire ────────────────────────────────────────
+  // Préremplie directement depuis les informations déjà connues du compte
+  // (nom/prénom/téléphone/type de vendeur saisis à l'inscription) — le
+  // partenaire n'a plus à retaper ce qu'il a déjà donné, juste à vérifier/
+  // ajuster ville et adresse (propres à chaque annonce, jamais sur le compte).
+  const [identity, setIdentity] = useState(() => ({
+    typePubliant: user?.sellerType || "particulier",   // particulier | entreprise | professionnel
+    nom:          user?.lastName  || "",
+    prenom:       user?.firstName || "",
     nomEntreprise:"",
-    telephone:    "",
+    telephone:    user?.phone     || "",
     ville:        "",
     adresse:      "",
-  });
+  }));
   const [geoLocating, setGeoLocating] = useState(false);
 
   // ── Entreprises du partenaire (facultatif) ─────────────────────────────────
@@ -63,8 +67,24 @@ const VendorSubmit = () => {
   // son pays prime alors sur celui du compte (voir vehicleController.createVehicle).
   // Chargé une seule fois, jamais bloquant si la requête échoue (formulaire
   // toujours utilisable sans entreprise déclarée, comportement historique).
+  // L'entreprise par défaut (si elle existe) est appliquée automatiquement —
+  // le partenaire n'a besoin de rouvrir le sélecteur que pour en choisir une autre.
   const [businesses, setBusinesses] = useState([]);
   const [selectedBusinessId, setSelectedBusinessId] = useState("");
+
+  const applyBusinessToIdentity = (business) => {
+    if (!business) return;
+    setSelectedBusinessId(business._id);
+    setIdentity((p) => ({
+      ...p,
+      typePubliant: p.typePubliant === "particulier" ? "entreprise" : p.typePubliant,
+      nomEntreprise: business.companyName,
+      ville: business.ville || p.ville,
+      adresse: business.adresse || p.adresse,
+      telephone: business.contactTel || p.telephone,
+      nom: business.contactNom || p.nom,
+    }));
+  };
 
   useEffect(() => {
     api.get("/api/partner/businesses")
@@ -72,25 +92,10 @@ const VendorSubmit = () => {
         const list = res.businesses || [];
         setBusinesses(list);
         const def = list.find((b) => b.isDefault);
-        if (def) setSelectedBusinessId(def._id);
+        if (def) applyBusinessToIdentity(def);
       })
       .catch(() => {});
   }, []);
-
-  const applyBusinessToIdentity = (businessId) => {
-    setSelectedBusinessId(businessId);
-    const b = businesses.find((x) => x._id === businessId);
-    if (!b) return;
-    setIdentity((p) => ({
-      ...p,
-      typePubliant: p.typePubliant === "particulier" ? "entreprise" : p.typePubliant,
-      nomEntreprise: b.companyName,
-      ville: b.ville || p.ville,
-      adresse: b.adresse || p.adresse,
-      telephone: b.contactTel || p.telephone,
-      nom: b.contactNom || p.nom,
-    }));
-  };
 
   // Pré-remplissage indicatif téléphonique + ville par géolocalisation IP —
   // silencieux, jamais le numéro complet, jamais si déjà renseigné par
@@ -518,7 +523,10 @@ const VendorSubmit = () => {
                     + Gérer mes entreprises
                   </Link>
                 </label>
-                <select value={selectedBusinessId} onChange={(e) => applyBusinessToIdentity(e.target.value)}>
+                <select value={selectedBusinessId} onChange={(e) => {
+                  setSelectedBusinessId(e.target.value);
+                  applyBusinessToIdentity(businesses.find((b) => b._id === e.target.value));
+                }}>
                   <option value="">Compte personnel (aucune entreprise)</option>
                   {businesses.map((b) => (
                     <option key={b._id} value={b._id}>{b.companyName} — {b.ville}, {b.country}</option>
@@ -1427,50 +1435,6 @@ const VendorSubmit = () => {
         <h1>Publier une annonce</h1>
         <p>Étape {step} sur {STEPS.length} — {STEPS[step - 1].label}</p>
       </div>
-
-      {/* Bannière Import en masse — visible uniquement à l'étape 1 */}
-      {step === 1 && (
-        <div style={{
-          background: "linear-gradient(135deg, rgba(16,185,129,.08), rgba(99,102,241,.06))",
-          border: "1.5px solid rgba(16,185,129,.25)",
-          borderRadius: 14,
-          padding: "14px 20px",
-          marginBottom: 14,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 14,
-          flexWrap: "wrap",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: "1.7rem" }}>📦</span>
-            <div>
-              <strong style={{ display: "block", color: "#0f1b3f", fontSize: ".91rem", marginBottom: 2 }}>
-                Plusieurs véhicules à publier ?
-              </strong>
-              <span style={{ color: "#64748b", fontSize: ".81rem" }}>
-                Importez toute votre flotte d'un coup via un fichier Excel/CSV ou Google Sheet.
-              </span>
-            </div>
-          </div>
-          <Link
-            to="/partner-fleet-import"
-            style={{
-              display: "inline-block",
-              padding: "8px 18px",
-              background: "#10b981",
-              color: "#fff",
-              borderRadius: 10,
-              fontWeight: 700,
-              textDecoration: "none",
-              fontSize: ".83rem",
-              whiteSpace: "nowrap",
-            }}
-          >
-            Importer ma flotte →
-          </Link>
-        </div>
-      )}
 
       {/* Bannière Import/Export — visible uniquement à l'étape 1 */}
       {step === 1 && (

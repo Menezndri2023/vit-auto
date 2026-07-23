@@ -1,6 +1,5 @@
 import logger from "../utils/logger.js";
 import crypto from "crypto";
-import mongoose from "mongoose";
 import PartnerOnboarding from "../models/PartnerOnboarding.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
@@ -15,28 +14,28 @@ import { getConfig } from "../services/pricingEngine.js";
 import { decryptField } from "../utils/fieldEncryption.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
-const FOUNDING_LIMIT = 20;
-const ACTIVE_FOUNDING_STATUSES = ["soumis", "en_review", "loi_envoyee", "loi_signee", "accord_envoye", "accord_signe", "actif"];
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// ── Le programme est ouvert à tous (site public, lien partagé, etc.) — le seul
-// garde-fou est la limite de 20 partenaires fondateurs PAR PAYS, vérifiée dès la
-// création du dossier (pas seulement à la soumission finale, pour éviter qu'un
-// candidat remplisse tout le wizard avant de découvrir que son pays est complet).
-async function checkFoundingCapacity(country) {
-  const filter = { status: { $in: ACTIVE_FOUNDING_STATUSES } };
-  if (country) filter.country = country;
-  const activeCount = await PartnerOnboarding.countDocuments(filter);
-  if (activeCount >= FOUNDING_LIMIT) {
-    return {
-      ok: false,
-      message: country
-        ? `Le programme Founding Partner est complet pour votre pays (${FOUNDING_LIMIT}/${FOUNDING_LIMIT} partenaires). Contactez-nous à contact@vit-auto.com pour rejoindre la liste d'attente.`
-        : `Le programme Founding Partner est complet (${FOUNDING_LIMIT}/${FOUNDING_LIMIT} partenaires). Contactez-nous à contact@vit-auto.com pour rejoindre la liste d'attente.`,
-    };
-  }
+// ── Demande explicite : le programme Founding Partner devient le parcours
+// obligatoire de TOUT partenaire à l'inscription (voir Register.jsx) — le
+// plafond de 20/pays, pensé pour une offre de lancement rare, est donc retiré
+// (il bloquerait sinon les inscriptions dès le 21e partenaire d'un pays).
+// Conservée en no-op (plutôt que supprimée) pour ne pas devoir retoucher tous
+// ses appelants (applyToProgram/getAvailability) si une limite devait revenir.
+async function checkFoundingCapacity() {
   return { ok: true };
+}
+
+// ── Nom affiché dans les notifications admin ──────────────────────────────────
+// `companyInfo.legalName` n'existe que pour professionnel/entreprise/exportateur
+// — un dossier "particulier" (désormais la majorité des candidatures, le
+// programme étant devenu le parcours obligatoire de tout partenaire) l'a
+// toujours vide, ce qui affichait "undefined" dans les notifications admin.
+function applicantDisplayName(doc, user) {
+  return doc.companyInfo?.legalName
+    || [user?.firstName, user?.lastName].filter(Boolean).join(" ")
+    || "Candidat";
 }
 
 // ── Notification helper ───────────────────────────────────────────────────────
@@ -476,50 +475,21 @@ export const submitApplication = async (req, res) => {
     }
 
     // Dossier créé avant l'ajout du champ `country` (ou via un auto-create de
-    // section qui ne le renseignait pas) — on le complète ici avant le comptage
-    // par pays, sinon ce dossier compterait à tort dans le groupe "sans pays".
+    // section qui ne le renseignait pas) — on le complète ici par cohérence
+    // (utilisé ailleurs pour le filtrage CRM par pays), sans incidence sur la
+    // soumission elle-même : le programme n'a plus de plafond par pays (voir
+    // checkFoundingCapacity — devenu obligatoire pour tout partenaire).
     if (!doc.country && req.user.country) doc.country = req.user.country;
 
-    // Vérifier la limite du programme (20 partenaires fondateurs max PAR PAYS) et
-    // faire la transition de statut dans la MÊME transaction — sinon deux
-    // soumissions concurrentes du même pays pourraient toutes les deux lire un
-    // compte sous la limite avant qu'aucune n'ait écrit son nouveau statut,
-    // dépassant les 20 places autorisées pour ce pays.
-    const session = await mongoose.startSession();
-    try {
-      await session.withTransaction(async () => {
-        const countFilter = {
-          status: { $in: ACTIVE_FOUNDING_STATUSES },
-          _id: { $ne: doc._id },
-        };
-        if (doc.country) countFilter.country = doc.country;
-        const activeCount = await PartnerOnboarding.countDocuments(countFilter).session(session);
-        if (activeCount >= FOUNDING_LIMIT) {
-          throw Object.assign(new Error("PROGRAM_FULL"), { programFull: true });
-        }
-        doc.status = "soumis";
-        await doc.save({ session });
-      });
-    } catch (txErr) {
-      if (txErr.programFull) {
-        return res.status(400).json({
-          message: doc.country
-            ? `Le programme Founding Partner est complet pour votre pays (${FOUNDING_LIMIT}/${FOUNDING_LIMIT} partenaires). Contactez-nous à contact@vit-auto.com pour rejoindre la liste d'attente.`
-            : `Le programme Founding Partner est complet (${FOUNDING_LIMIT}/${FOUNDING_LIMIT} partenaires). Contactez-nous à contact@vit-auto.com pour rejoindre la liste d'attente.`,
-          programFull: true,
-        });
-      }
-      throw txErr;
-    } finally {
-      await session.endSession();
-    }
+    doc.status = "soumis";
+    await doc.save();
     await addAudit(doc._id, "DOSSIER_SOUMIS", req.user.id, "Candidature soumise par le partenaire");
 
     const admins = await User.find({ role: "admin" }).select("_id").lean();
     for (const admin of admins) {
       await notify(admin._id,
         "📋 Nouvelle candidature Founding Partner",
-        `${doc.companyInfo.legalName} (réf. ${doc.referenceNumber}) a soumis sa candidature au programme Founding Partner.`
+        `${applicantDisplayName(doc, req.user)} (réf. ${doc.referenceNumber}) a soumis sa candidature au programme Founding Partner.`
       );
     }
 
@@ -583,8 +553,8 @@ export const signLOI = async (req, res) => {
     for (const admin of admins) {
       await notify(admin._id, "LOI signée",
         chained
-          ? `${doc.companyInfo.legalName} (${doc.referenceNumber}) a signé la LOI. Accord généré automatiquement et en attente de signature.`
-          : `${doc.companyInfo.legalName} (${doc.referenceNumber}) a signé la LOI. Veuillez envoyer l'Accord de Partenariat.`
+          ? `${applicantDisplayName(doc, req.user)} (${doc.referenceNumber}) a signé la LOI. Accord généré automatiquement et en attente de signature.`
+          : `${applicantDisplayName(doc, req.user)} (${doc.referenceNumber}) a signé la LOI. Veuillez envoyer l'Accord de Partenariat.`
       );
     }
 

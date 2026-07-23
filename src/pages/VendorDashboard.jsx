@@ -1604,6 +1604,9 @@ export default function VendorDashboard() {
           <button className={styles.refreshBtn} onClick={handleRefresh} disabled={refreshing}>
             <span style={{ display: "inline-block", animation: refreshing ? "spin .8s linear infinite" : "none" }}>↻</span>
           </button>
+          <Link to="/partner-fleet-import" style={{ display: "inline-flex", alignItems: "center", padding: "0 18px", background: "#6366f1", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem", whiteSpace: "nowrap" }}>
+            📦 Importer ma flotte
+          </Link>
           <Link to="/vendor" className={styles.btnPrimary}>+ Nouvelle annonce</Link>
         </div>
       </header>

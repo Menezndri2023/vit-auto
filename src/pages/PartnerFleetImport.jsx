@@ -117,23 +117,6 @@ const PartnerFleetImport = () => {
     handleFiles(e.dataTransfer.files);
   };
 
-  const handleDownloadTemplate = async () => {
-    try {
-      const res = await api.get(`/api/vehicles/import/template${isExport ? "?type=export" : ""}`);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = isExport ? "vitauto_import_export.xlsx" : "vitauto_import_vehicules.xlsx";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      error(e.message || "Erreur lors du téléchargement du template.");
-    }
-  };
-
   const startImport = async (body) => {
     setSubmitting(true);
     try {
@@ -323,11 +306,10 @@ const PartnerFleetImport = () => {
         <div className={styles.card}>
           <button type="button" className={styles.backBtn} onClick={backToMethods}>← Changer de méthode</button>
           <h2 className={styles.cardTitle}>Fichier Excel / CSV</h2>
-
-          <button type="button" className={styles.templateBtn} onClick={handleDownloadTemplate}>
-            ⬇️ Télécharger le template
-          </button>
-          <p className={styles.hint}>Remplissez le template avec vos véhicules (une ligne par véhicule), puis importez-le ci-dessous.</p>
+          <p className={styles.hint}>
+            Importez directement votre propre fichier (inventaire, export de votre logiciel de gestion...) —
+            vous pourrez vérifier/ajuster la correspondance des colonnes à l'étape suivante.
+          </p>
 
           <div
             className={`${styles.dropZone} ${dragOver ? styles.dropZoneActive : ""}`}
@@ -374,8 +356,8 @@ const PartnerFleetImport = () => {
           <button type="button" className={styles.backBtn} onClick={backToMethods}>← Changer de méthode</button>
           <h2 className={styles.cardTitle}>Google Sheet</h2>
           <p className={styles.hint}>
-            Partagez votre feuille en "Lecture pour toute personne disposant du lien", puis collez son URL ci-dessous.
-            Les colonnes doivent suivre le même format que <button type="button" className={styles.linkBtn} onClick={handleDownloadTemplate}>le template Excel</button>.
+            Partagez votre feuille en "Lecture pour toute personne disposant du lien", puis collez son URL ci-dessous —
+            la correspondance des colonnes sera à vérifier à l'étape suivante.
           </p>
           <input
             type="url"

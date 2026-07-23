@@ -15,7 +15,12 @@ import { dispatch } from "../queue/index.js";
 import { uploadImage, isAvailable as imageKitAvailable } from "../config/imagekit.js";
 import { ensureImporterProfile } from "../utils/ensureImporterProfile.js";
 
-export const MAX_IMPORT_ROWS = 300;
+// Demande explicite : plus de limite significative par import. On garde un
+// plafond technique très large (jamais business) plutôt qu'un nombre
+// littéralement infini — le corps JSON (20 Mo, voir server.js) et le budget
+// de temps de téléchargement d'images du batch (IMAGE_FETCH_BUDGET_MS plus
+// bas) restent des contraintes réelles indépendantes de ce chiffre.
+export const MAX_IMPORT_ROWS = 5000;
 
 // ── Colonnes du template (ordre = ordre dans le fichier) ────────────────────
 export const IMPORT_COLUMNS = [
@@ -161,18 +166,6 @@ const parseNumber = (v) => {
   const n = Number(v);
   return Number.isNaN(n) ? undefined : n;
 };
-
-// ── Génère le classeur template téléchargeable ──────────────────────────────
-export async function generateTemplateWorkbook(targetType = "vehicle") {
-  const columns   = targetType === "export" ? IE_IMPORT_COLUMNS : IMPORT_COLUMNS;
-  const sheetName = targetType === "export" ? "Annonces Export" : "Véhicules";
-  const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet(sheetName);
-  sheet.columns = columns.map((c) => ({ header: c.header, key: c.key, width: 22 }));
-  sheet.addRow(Object.fromEntries(columns.map((c) => [c.key, c.example])));
-  sheet.getRow(1).font = { bold: true };
-  return workbook;
-}
 
 // ── Détecte le séparateur réel d'un CSV ──────────────────────────────────────
 // csv-parse suppose la virgule par défaut — mais Excel/LibreOffice en locale
@@ -330,6 +323,24 @@ export function isTypeColumnRecognized(rawRows) {
 // correspondance avant l'import (voir previewImportFile / columnMapping).
 // Cette fonction ne fait que suggérer un pré-remplissage à partir des mêmes
 // alias, modifiable par le partenaire dans l'écran de mappage.
+// Repli approximatif (sous-chaîne) quand aucune correspondance exacte n'est
+// trouvée — UNIQUEMENT sur l'en-tête humain et ses alias, JAMAIS sur la clé
+// technique brute (ex. "type", "ville") qui est trop générique pour un
+// rapprochement flou sans risquer une collision comme celle découverte en
+// production. Reste une suggestion modifiable, jamais utilisée pour deviner
+// silencieusement pendant l'import réel (voir mapRowToVehicleInput).
+function fuzzyFindHeader(col, byNormalized) {
+  const candidates = [col.header, ...(HEADER_ALIASES[col.key] || [])]
+    .map(normalizeHeaderKey)
+    .filter((c) => c.length >= 4); // évite les faux positifs sur des mots trop courts
+  for (const [normHeader, original] of byNormalized) {
+    if (candidates.some((c) => normHeader.includes(c) || c.includes(normHeader))) {
+      return original;
+    }
+  }
+  return null;
+}
+
 export function buildColumnMappingSuggestion(rawRows, targetType = "vehicle") {
   const columns = targetType === "export" ? IE_IMPORT_COLUMNS : IMPORT_COLUMNS;
   const detectedHeaders = rawRows.length ? Object.keys(rawRows[0]) : [];
@@ -338,7 +349,7 @@ export function buildColumnMappingSuggestion(rawRows, targetType = "vehicle") {
   const suggestion = {};
   for (const col of columns) {
     const found = acceptedKeysFor(col).find((k) => byNormalized.has(k));
-    suggestion[col.key] = found ? byNormalized.get(found) : null;
+    suggestion[col.key] = found ? byNormalized.get(found) : fuzzyFindHeader(col, byNormalized);
   }
   return { detectedHeaders, suggestion };
 }

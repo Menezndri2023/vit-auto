@@ -56,8 +56,11 @@ describe("partnerOnboardingController.submitApplication", () => {
     expect(res.status).toHaveBeenCalledWith(400);
   });
 
-  it("bloque la 21e candidature active d'un même pays (limite 20 Founding Partners/pays, vérifiée en transaction)", async () => {
-    // 20 dossiers déjà actifs pour le même pays
+  // Le programme Founding Partner est devenu le parcours obligatoire de TOUT
+  // partenaire (voir Register.jsx) — l'ancien plafond de 20 candidatures actives
+  // par pays a été retiré (il bloquerait sinon les inscriptions dès le 21e
+  // partenaire d'un pays). Ce test remplace les deux anciens tests de plafond.
+  it("accepte la soumission même avec 20 dossiers déjà actifs dans le même pays (plus de plafond)", async () => {
     for (let i = 0; i < 20; i++) {
       const u = await createUser({ role: "partenaire" });
       await PartnerOnboarding.create({ userId: u._id, status: "soumis", country: "CI", legalEntityType: "particulier" });
@@ -72,27 +75,9 @@ describe("partnerOnboardingController.submitApplication", () => {
     const { req, res } = mockReqRes({ user: partner });
     await submitApplication(req, res);
 
-    expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.body.programFull).toBe(true);
-    const updated = await PartnerOnboarding.findOne({ userId: partner._id });
-    expect(updated.status).toBe("brouillon"); // pas passé à "soumis"
-  });
-
-  it("n'applique pas la limite d'un pays à un dossier d'un autre pays", async () => {
-    for (let i = 0; i < 20; i++) {
-      const u = await createUser({ role: "partenaire" });
-      await PartnerOnboarding.create({ userId: u._id, status: "soumis", country: "CI", legalEntityType: "particulier" });
-    }
-
-    const partner = await createUser({ role: "partenaire", country: "SN" });
-    await PartnerOnboarding.create({
-      userId: partner._id, status: "brouillon", country: "SN", legalEntityType: "particulier",
-      individualDoc: { type: "cni", file: "data:..." }, legalAcceptance,
-    });
-
-    const { req, res } = mockReqRes({ user: partner });
-    await submitApplication(req, res);
     expect(res.status).not.toHaveBeenCalledWith(400);
+    const updated = await PartnerOnboarding.findOne({ userId: partner._id });
+    expect(updated.status).toBe("soumis");
   });
 });
 

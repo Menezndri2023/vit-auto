@@ -6616,7 +6616,7 @@ export default function AdminPanel() {
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1rem", flexWrap:"wrap", gap:12 }}>
               <div>
                 <h2 style={{ fontSize:"1.1rem", fontWeight:800, color:"#0f1b3f", margin:"0 0 3px" }}>🌟 Founding Partners</h2>
-                <p style={{ margin:0, fontSize:".83rem", color:"#64748b" }}>Programme exclusif — 20 partenaires fondateurs maximum.</p>
+                <p style={{ margin:0, fontSize:".83rem", color:"#64748b" }}>Étape obligatoire de tout partenaire — aucune limite de places.</p>
               </div>
               <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                 <div style={{ display:"flex", background:"#f1f5f9", borderRadius:10, padding:3, gap:2 }}>
@@ -6894,11 +6894,11 @@ export default function AdminPanel() {
               const businessSub = bizConfig?.subscriptions?.business?.priceUSD ?? 19.99;
               const subValue    = `$${Math.round(businessSub * fpDuration)}+`;
               const waMsg = encodeURIComponent(
-                `Bonjour ! 👋\n\nVIT-AUTO vous invite à rejoindre notre *Programme Partenaire Fondateur* — places limitées à 20 partenaires.\n\n✅ *Avantages exclusifs Founding Partner :*\n• Commission Location : *${fpLocation}%* (standard ${stdLocation}%)\n• Commission Vente : *${fpVente}%* (standard ${stdVente}%)\n• Abonnement Premium *OFFERT ${fpDuration} mois* (valeur ${subValue})\n• Badge exclusif *"Founding Partner"* sur toutes vos annonces\n• Placement prioritaire dans le catalogue international\n• Accès anticipé à toutes les nouvelles fonctionnalités\n\n🔗 *Inscrivez-vous et déposez votre dossier directement ici :*\n${inviteLink}\n\nDes questions ? Contactez-nous : contact@vit-auto.com\n\n_VIT-AUTO — Plateforme Automobile Internationale_`
+                `Bonjour ! 👋\n\nVIT-AUTO vous invite à rejoindre notre *Programme Partenaire Fondateur* — l'étape d'intégration de tout nouveau partenaire.\n\n✅ *Vos avantages Founding Partner :*\n• Commission Location : *${fpLocation}%* (standard ${stdLocation}%)\n• Commission Vente : *${fpVente}%* (standard ${stdVente}%)\n• Abonnement Premium *OFFERT ${fpDuration} mois* (valeur ${subValue})\n• Badge *"Founding Partner"* sur toutes vos annonces\n• Placement prioritaire dans le catalogue international\n• Accès anticipé à toutes les nouvelles fonctionnalités\n\n🔗 *Inscrivez-vous et déposez votre dossier directement ici :*\n${inviteLink}\n\nDes questions ? Contactez-nous : contact@vit-auto.com\n\n_VIT-AUTO — Plateforme Automobile Internationale_`
               );
               const mailSubject = encodeURIComponent("Rejoignez le Programme Founding Partner VIT-AUTO");
               const mailBody = encodeURIComponent(
-                `Bonjour,\n\nVIT-AUTO vous invite à rejoindre son Programme Partenaire Fondateur — places limitées à 20 partenaires.\n\nAvantages exclusifs Founding Partner :\n• Commission Location : ${fpLocation}% (standard ${stdLocation}%)\n• Commission Vente : ${fpVente}% (standard ${stdVente}%)\n• Abonnement Premium OFFERT ${fpDuration} mois (valeur ${subValue})\n• Badge exclusif "Founding Partner" sur toutes vos annonces\n• Placement prioritaire dans le catalogue international\n\nInscrivez-vous et déposez votre dossier directement ici :\n${inviteLink}\n\nCordialement,\nManassé N'DRI N'GUESSAN — Founder & CEO\nVIT-AUTO | contact@vit-auto.com`
+                `Bonjour,\n\nVIT-AUTO vous invite à rejoindre son Programme Partenaire Fondateur — l'étape d'intégration de tout nouveau partenaire.\n\nVos avantages Founding Partner :\n• Commission Location : ${fpLocation}% (standard ${stdLocation}%)\n• Commission Vente : ${fpVente}% (standard ${stdVente}%)\n• Abonnement Premium OFFERT ${fpDuration} mois (valeur ${subValue})\n• Badge "Founding Partner" sur toutes vos annonces\n• Placement prioritaire dans le catalogue international\n\nInscrivez-vous et déposez votre dossier directement ici :\n${inviteLink}\n\nCordialement,\nManassé N'DRI N'GUESSAN — Founder & CEO\nVIT-AUTO | contact@vit-auto.com`
               );
               return (
                 <div style={{ background:"#fff", border:"2px solid #e2e8f0", borderRadius:14, padding:"18px 20px", marginBottom:"1.5rem" }}>

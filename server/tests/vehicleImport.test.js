@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createImportBatch, getImportBatch, listImportBatches } from "../controllers/vehicleImportController.js";
+import { MAX_IMPORT_ROWS } from "../services/vehicleImportService.js";
 import VehicleImportBatch from "../models/VehicleImportBatch.js";
 import { createUser } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
@@ -54,15 +55,15 @@ describe("createImportBatch — portes d'accès", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("rejette un fichier dépassant MAX_IMPORT_ROWS (300)", async () => {
+  it(`rejette un fichier dépassant MAX_IMPORT_ROWS (${MAX_IMPORT_ROWS})`, async () => {
     const partner = await createUser({ role: "partenaire" });
-    const rows = ["titre", ...Array.from({ length: 301 }, (_, i) => `Ligne ${i}`)];
+    const rows = ["titre", ...Array.from({ length: MAX_IMPORT_ROWS + 1 }, (_, i) => `Ligne ${i}`)];
     const { req, res } = mockReqRes({
       user: partner, body: { source: "csv", fileBase64: csvBase64(rows), fileName: "f.csv" },
     });
     await createImportBatch(req, res);
     expect(res.statusCode).toBe(400);
-    expect(res.body.message).toMatch(/maximum 300/);
+    expect(res.body.message).toMatch(new RegExp(`maximum ${MAX_IMPORT_ROWS}`));
   });
 
   it("crée un batch pour un fichier valide sous la limite", async () => {

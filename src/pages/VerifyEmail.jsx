@@ -32,18 +32,10 @@ const VerifyEmail = () => {
           if (data.user && data.token) {
             setSession(data.user, data.token);
           }
-          // Comptes partenaires "entreprise/professionnel" : direction le programme
-          // Founding Partner pour renseigner les informations entreprise, une fois
-          // l'e-mail confirmé (jusqu'ici seule une inscription via ?plan=fondateur
-          // y menait, et avant même la vérification — voir Register.jsx). Un
-          // partenaire "particulier" n'a rien à faire dans ce programme pensé pour
-          // des sociétés (RCCM, IBAN, export...) : direction directe la publication
-          // d'annonce, où seule une vérification d'identité KYC lui sera demandée
-          // (voir vehicleController.js createVehicle).
-          let target = "/dashboard";
-          if (data.user?.role === "partenaire") {
-            target = data.user.sellerType === "particulier" ? "/vendor" : "/partner-onboarding";
-          }
+          // Tout compte partenaire (particulier compris) passe désormais
+          // obligatoirement par le programme Founding Partner (LOI + Accord)
+          // avant de publier — voir Register.jsx pour la même règle à l'inscription.
+          const target = data.user?.role === "partenaire" ? "/partner-onboarding" : "/dashboard";
           setDest(target);
           setTimeout(() => navigate(target), 1800);
         } else {
@@ -76,16 +68,12 @@ const VerifyEmail = () => {
             <h1 style={{ textAlign: "center", color: "#0f1b3f", margin: "0 0 12px" }}>Vérification réussie !</h1>
             <p style={{ textAlign: "center", color: "#64748b", margin: 0 }}>
               {dest === "/partner-onboarding"
-                ? "Votre adresse e-mail a été confirmée. Redirection vers le programme Founding Partner pour renseigner les informations de votre entreprise…"
-                : dest === "/vendor"
-                ? "Votre adresse e-mail a été confirmée. Redirection vers la publication de votre première annonce…"
+                ? "Votre adresse e-mail a été confirmée. Redirection vers le programme Founding Partner (LOI + Accord), obligatoire avant de publier…"
                 : "Votre adresse e-mail a été confirmée. Redirection vers votre espace…"}
             </p>
             <Link to={dest} className={styles.submitBtn} style={{ display: "block", textAlign: "center", marginTop: "24px", textDecoration: "none" }}>
               {dest === "/partner-onboarding"
                 ? "Continuer vers le programme Founding Partner →"
-                : dest === "/vendor"
-                ? "Publier mon annonce →"
                 : "Accéder à mon espace →"}
             </Link>
           </>

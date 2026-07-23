@@ -19,7 +19,6 @@ const importCreateLimiter = rateLimit({
 });
 
 // ── IMPORTANT : routes statiques AVANT les routes paramétrées ────────────────
-router.get("/template",  authenticate, vi.downloadTemplate);
 router.post("/preview",  authenticate, importCreateLimiter, vi.previewImportFile);
 router.post("/",         authenticate, importCreateLimiter, vi.createImportBatch);
 router.get("/",          authenticate, vi.listImportBatches);
