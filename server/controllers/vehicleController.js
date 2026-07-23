@@ -719,6 +719,47 @@ export const deleteVehicle = async (req, res) => {
   }
 };
 
+// ── Supprimer plusieurs annonces à la fois (sélection multiple) ──────────────
+// Un partenaire ne peut supprimer QUE ses propres annonces, même s'il envoie
+// des IDs d'autres partenaires (filtre `owner` silencieusement les IDs hors
+// périmètre plutôt que de renvoyer une erreur — le compte réellement supprimé
+// dans la réponse reste toujours exact et sûr). L'admin peut tout supprimer.
+const MAX_BULK_DELETE = 100;
+export const bulkDeleteVehicles = async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "Liste d'identifiants requise." });
+    }
+    if (ids.length > MAX_BULK_DELETE) {
+      return res.status(400).json({ message: `Maximum ${MAX_BULK_DELETE} annonces à la fois.` });
+    }
+    const validIds = ids.filter((id) => mongoose.Types.ObjectId.isValid(id));
+
+    const filter = { _id: { $in: validIds } };
+    if (req.user.role !== "admin") filter.owner = req.user._id;
+
+    const toDelete = await Vehicle.find(filter).select("_id title owner").lean();
+    if (toDelete.length === 0) {
+      return res.status(404).json({ message: "Aucune annonce trouvée ou accès refusé." });
+    }
+
+    const deletedIds = toDelete.map((v) => v._id.toString());
+    await Vehicle.deleteMany({ _id: { $in: deletedIds } });
+
+    if (req.user.role === "admin") {
+      await logAction(req, "vehicle.admin_bulk_delete", "Vehicle", null, {
+        before: { count: deletedIds.length, ids: deletedIds, titles: toDelete.map((v) => v.title) },
+      });
+    }
+
+    res.json({ message: `${deletedIds.length} annonce(s) supprimée(s).`, deletedCount: deletedIds.length, deletedIds });
+  } catch (err) {
+    logger.error("bulkDeleteVehicles:", err);
+    res.status(500).json({ message: "Erreur suppression multiple." });
+  }
+};
+
 // ── Transférer une annonce vers un autre compte/entreprise/ville/pays
 // (admin uniquement) ─────────────────────────────────────────────────────────
 // Un partenaire peut déjà déplacer ses propres annonces entre SES entreprises/

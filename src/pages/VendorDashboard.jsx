@@ -930,6 +930,11 @@ export default function VendorDashboard() {
   const [boostPricing,   setBoostPricing]   = useState(null); // { "24h": priceUSD, ... } — depuis /api/subscriptions/me
   const [orderFilter,    setOrderFilter]    = useState("all");
   const [statusFilter,   setStatusFilter]   = useState("all");
+  // Suppression par sélection (annonces véhicules ET profils chauffeur) —
+  // Set d'IDs cochés, vidé après chaque suppression réussie ou changement de filtre.
+  const [selectedVehicleIds, setSelectedVehicleIds] = useState(new Set());
+  const [selectedDriverIds,  setSelectedDriverIds]  = useState(new Set());
+  const [bulkDeleting,       setBulkDeleting]        = useState(false);
   const [searchQuery,    setSearchQuery]    = useState("");
   const [rejectModal,    setRejectModal]    = useState(null);
   const [rejectNote,     setRejectNote]     = useState("");
@@ -1395,6 +1400,54 @@ export default function VendorDashboard() {
     try { await fetch(`/api/vehicles/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }); }
     catch { /* ignore */ }
     loadPartnerVehicles();
+  };
+
+  const toggleVehicleSelect = (id) => setSelectedVehicleIds((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const toggleDriverSelect = (id) => setSelectedDriverIds((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  const handleBulkDeleteVehicles = async () => {
+    if (selectedVehicleIds.size === 0) return;
+    if (!confirm(`Supprimer définitivement ${selectedVehicleIds.size} annonce(s) sélectionnée(s) ?`)) return;
+    setBulkDeleting(true);
+    try {
+      const r = await fetch("/api/vehicles/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ids: [...selectedVehicleIds] }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) { toastSuccess(d.message || "Annonces supprimées."); setSelectedVehicleIds(new Set()); loadPartnerVehicles(); }
+      else toastError(d.message || "Erreur lors de la suppression.");
+    } catch { toastError("Erreur réseau."); }
+    setBulkDeleting(false);
+  };
+
+  const handleBulkDeleteDrivers = async () => {
+    if (selectedDriverIds.size === 0) return;
+    if (!confirm(`Supprimer définitivement ${selectedDriverIds.size} profil(s) sélectionné(s) ?`)) return;
+    setBulkDeleting(true);
+    try {
+      const r = await fetch("/api/drivers/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ids: [...selectedDriverIds] }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) {
+        toastSuccess(d.message || "Profils supprimés.");
+        setMyDrivers((prev) => prev.filter((drv) => !selectedDriverIds.has(drv._id)));
+        setSelectedDriverIds(new Set());
+      } else toastError(d.message || "Erreur lors de la suppression.");
+    } catch { toastError("Erreur réseau."); }
+    setBulkDeleting(false);
   };
 
   const doUpdateStatus = useCallback((id, status) => {
@@ -1952,7 +2005,12 @@ export default function VendorDashboard() {
         <div className={styles.tabContent}>
           <div className={styles.sectionToolbar}>
             <h2 className={styles.sectionTitle}>Mes véhicules ({filteredVehicles.length})</h2>
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              {selectedVehicleIds.size > 0 && (
+                <button className={styles.btnDanger} disabled={bulkDeleting} onClick={handleBulkDeleteVehicles}>
+                  🗑️ Supprimer la sélection ({selectedVehicleIds.size})
+                </button>
+              )}
               <select className={styles.selectFilter} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                 <option value="all">Tous les statuts</option>
                 <option value="approved">Approuvés</option>
@@ -1962,6 +2020,15 @@ export default function VendorDashboard() {
               <Link to="/vendor" className={styles.btnPrimary}>+ Nouvelle annonce</Link>
             </div>
           </div>
+
+          {filteredVehicles.length > 0 && (
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.82rem", color: "#64748b", marginBottom: 10, cursor: "pointer" }}>
+              <input type="checkbox"
+                checked={selectedVehicleIds.size > 0 && selectedVehicleIds.size === filteredVehicles.length}
+                onChange={(e) => setSelectedVehicleIds(e.target.checked ? new Set(filteredVehicles.map((v) => v.id || v._id)) : new Set())} />
+              Tout sélectionner
+            </label>
+          )}
 
           {filteredVehicles.length === 0 ? (
             <div className={styles.emptyFull}>
@@ -1978,7 +2045,9 @@ export default function VendorDashboard() {
                 const isBoosted = subscription?.boosts?.some((b) => b.isActive && String(b.vehicle) === String(vid));
                 const orderCount = allOrders.filter((b) => String(b.vehicleId) === String(vid)).length;
                 return (
-                  <div key={vid} className={[styles.vehicleCard, isBoosted ? styles.vehicleCardBoosted : ""].join(" ")}>
+                  <div key={vid} className={[styles.vehicleCard, isBoosted ? styles.vehicleCardBoosted : ""].join(" ")} style={{ position: "relative" }}>
+                    <input type="checkbox" checked={selectedVehicleIds.has(vid)} onChange={() => toggleVehicleSelect(vid)}
+                      style={{ position: "absolute", top: 10, left: 10, zIndex: 2, width: 18, height: 18, cursor: "pointer" }} />
                     {isBoosted && <div className={styles.boostBadge}>⭐ En vedette</div>}
                     <div className={styles.vehicleImgWrap}>
                       {vehicle.image ? <img src={vehicle.image} alt={vehicle.name} className={styles.vehicleImg} /> : <div className={styles.vehicleImgPlaceholder}>🚗</div>}
@@ -2032,7 +2101,14 @@ export default function VendorDashboard() {
           {/* Chauffeurs */}
           <div className={styles.sectionToolbar} style={{ marginTop: 32 }}>
             <h2 className={styles.sectionTitle}>Mes chauffeurs ({myDrivers.length})</h2>
-            <Link to="/vendor" className={styles.btnPrimary}>+ Ajouter</Link>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              {selectedDriverIds.size > 0 && (
+                <button className={styles.btnDanger} disabled={bulkDeleting} onClick={handleBulkDeleteDrivers}>
+                  🗑️ Supprimer la sélection ({selectedDriverIds.size})
+                </button>
+              )}
+              <Link to="/vendor" className={styles.btnPrimary}>+ Ajouter</Link>
+            </div>
           </div>
           {driverLoading ? <p className={styles.loadingMsg}>Chargement…</p> : myDrivers.length === 0 ? (
             <div className={styles.emptyFull} style={{ padding: "28px 20px" }}>
@@ -2041,11 +2117,20 @@ export default function VendorDashboard() {
               <p>Ajoutez un profil chauffeur depuis "Nouvelle annonce".</p>
             </div>
           ) : (
-            <div className={styles.vehicleGrid}>
+            <>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.82rem", color: "#64748b", marginBottom: 10, cursor: "pointer" }}>
+                <input type="checkbox"
+                  checked={selectedDriverIds.size > 0 && selectedDriverIds.size === myDrivers.length}
+                  onChange={(e) => setSelectedDriverIds(e.target.checked ? new Set(myDrivers.map((d) => d._id)) : new Set())} />
+                Tout sélectionner
+              </label>
+              <div className={styles.vehicleGrid}>
               {myDrivers.map((drv) => {
                 const sc = { approved: { l: "Validé", c: "#059669", bg: "#d1fae5" }, pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, rejected: { l: "Rejeté", c: "#dc2626", bg: "#fee2e2" } }[drv.status || "pending"];
                 return (
-                  <div key={drv._id} className={styles.vehicleCard}>
+                  <div key={drv._id} className={styles.vehicleCard} style={{ position: "relative" }}>
+                    <input type="checkbox" checked={selectedDriverIds.has(drv._id)} onChange={() => toggleDriverSelect(drv._id)}
+                      style={{ position: "absolute", top: 10, left: 10, zIndex: 2, width: 18, height: 18, cursor: "pointer" }} />
                     <div className={styles.vehicleImgWrap} style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", fontSize: "3rem", height: 120 }}>
                       {drv.profilePhoto ? <img src={drv.profilePhoto} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👨‍✈️"}
                     </div>
@@ -2066,7 +2151,8 @@ export default function VendorDashboard() {
                   </div>
                 );
               })}
-            </div>
+              </div>
+            </>
           )}
 
           {/* Propositions d'embauche CDD/CDI reçues (voir DriverEmployment.jsx côté client) */}

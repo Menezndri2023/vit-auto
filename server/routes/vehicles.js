@@ -15,6 +15,7 @@ router.get("/", optionalAuth, v.getVehicles);                                // 
 // ── Partenaire authentifié — routes statiques ─────────────
 router.get("/mine",    authenticate, v.getMyVehicles);                       // mes annonces
 router.post("/",       authenticate, v.createVehicle);                       // créer une annonce
+router.post("/bulk-delete", authenticate, v.bulkDeleteVehicles);             // supprimer plusieurs annonces (sélection)
 
 // ── Admin — routes statiques ──────────────────────────────
 router.get("/pending", authenticate, authorizeAdmin, v.getPendingVehicles);  // annonces en attente

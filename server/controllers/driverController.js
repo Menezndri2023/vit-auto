@@ -304,6 +304,46 @@ export const deleteDriver = async (req, res) => {
   }
 };
 
+// ── Supprimer plusieurs profils à la fois (sélection multiple) ──────────────
+// Même principe que vehicleController.bulkDeleteVehicles : un partenaire ne
+// peut supprimer que SES propres profils, même s'il envoie des IDs hors
+// périmètre (filtrés silencieusement, jamais d'erreur trompeuse).
+const MAX_BULK_DELETE = 100;
+export const bulkDeleteDrivers = async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "Liste d'identifiants requise." });
+    }
+    if (ids.length > MAX_BULK_DELETE) {
+      return res.status(400).json({ message: `Maximum ${MAX_BULK_DELETE} profils à la fois.` });
+    }
+    const validIds = ids.filter((id) => mongoose.Types.ObjectId.isValid(id));
+
+    const filter = { _id: { $in: validIds } };
+    if (req.user.role !== "admin") filter.owner = req.user._id;
+
+    const toDelete = await Driver.find(filter).select("_id firstName lastName owner").lean();
+    if (toDelete.length === 0) {
+      return res.status(404).json({ message: "Aucun profil trouvé ou accès refusé." });
+    }
+
+    const deletedIds = toDelete.map((d) => d._id.toString());
+    await Driver.deleteMany({ _id: { $in: deletedIds } });
+
+    if (req.user.role === "admin") {
+      await logAction(req, "driver.admin_bulk_delete", "Driver", null, {
+        before: { count: deletedIds.length, ids: deletedIds },
+      });
+    }
+
+    res.json({ message: `${deletedIds.length} profil(s) supprimé(s).`, deletedCount: deletedIds.length, deletedIds });
+  } catch (err) {
+    logger.error("bulkDeleteDrivers:", err);
+    res.status(500).json({ message: "Erreur suppression multiple." });
+  }
+};
+
 // ── Modifier un profil chauffeur (propriétaire ou admin) ─────────────────────
 // Il n'existait jusqu'ici aucune route d'édition pour un chauffeur (contrairement
 // à Vehicle) — un partenaire ne pouvait que créer ou supprimer. Whitelist calquée

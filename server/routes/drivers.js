@@ -11,6 +11,7 @@ router.get("/", d.getDrivers);
 // ── Partenaire authentifié ────────────────────────────────
 router.post("/", authenticate, d.createDriver);
 router.get("/mine", authenticate, d.getMyDrivers);
+router.post("/bulk-delete", authenticate, d.bulkDeleteDrivers); // supprimer plusieurs profils (sélection)
 router.patch("/:id", authenticate, validateObjectId(), d.updateDriver);
 router.delete("/:id", authenticate, validateObjectId(), d.deleteDriver);
 

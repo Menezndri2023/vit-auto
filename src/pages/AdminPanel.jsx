@@ -8347,6 +8347,54 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
   const [thumbBackfilling, setThumbBackfilling] = useState(false);
   const PAGE = 12;
 
+  // Suppression par sélection (annonces véhicules ET profils chauffeur) —
+  // vidé au changement de sous-onglet/page pour ne jamais supprimer une
+  // annonce hors du filtre actuellement affiché à l'écran.
+  const [selectedVehicleIds, setSelectedVehicleIds] = useState(new Set());
+  const [selectedDriverIds,  setSelectedDriverIds]  = useState(new Set());
+  const [bulkDeleting,       setBulkDeleting]        = useState(false);
+
+  const toggleVehicleSelect = (id) => setSelectedVehicleIds((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const toggleDriverSelect = (id) => setSelectedDriverIds((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  const handleBulkDeleteVehicles = async () => {
+    if (selectedVehicleIds.size === 0) return;
+    if (!confirm(`Supprimer définitivement ${selectedVehicleIds.size} annonce(s) sélectionnée(s) ?`)) return;
+    setBulkDeleting(true);
+    try {
+      const r = await fetch("/api/vehicles/bulk-delete", {
+        method: "POST", headers, body: JSON.stringify({ ids: [...selectedVehicleIds] }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) { showToast(d.message || "Annonces supprimées."); setSelectedVehicleIds(new Set()); onRefresh(); }
+      else showToast(d.message || "Erreur lors de la suppression.", "error");
+    } catch { showToast("Erreur réseau.", "error"); }
+    setBulkDeleting(false);
+  };
+
+  const handleBulkDeleteDrivers = async () => {
+    if (selectedDriverIds.size === 0) return;
+    if (!confirm(`Supprimer définitivement ${selectedDriverIds.size} profil(s) sélectionné(s) ?`)) return;
+    setBulkDeleting(true);
+    try {
+      const r = await fetch("/api/drivers/bulk-delete", {
+        method: "POST", headers, body: JSON.stringify({ ids: [...selectedDriverIds] }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) { showToast(d.message || "Profils supprimés."); setSelectedDriverIds(new Set()); onRefresh(); }
+      else showToast(d.message || "Erreur lors de la suppression.", "error");
+    } catch { showToast("Erreur réseau.", "error"); }
+    setBulkDeleting(false);
+  };
+
   // ── Transfert d'annonce (véhicule ou chauffeur) vers un autre compte/
   // entreprise/ville/pays — outil de support admin (owner immuable jusqu'ici
   // via l'édition normale, voir vehicleController.transferVehicle/driverController
@@ -8652,6 +8700,11 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
               onChange={(e) => { setVehSearch(e.target.value); setVehPage(1); }}
               style={{ flex: 1, minWidth: 200 }} />
             <button className={styles.btnSmall} onClick={onRefresh}>↻ Actualiser</button>
+            {selectedVehicleIds.size > 0 && (
+              <button className={styles.btnDanger} disabled={bulkDeleting} onClick={handleBulkDeleteVehicles}>
+                🗑️ Supprimer la sélection ({selectedVehicleIds.size})
+              </button>
+            )}
             <button className={styles.btnSmall} disabled={thumbBackfilling}
               onClick={async () => {
                 setThumbBackfilling(true);
@@ -8677,6 +8730,19 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
               <table className={styles.table}>
                 <thead>
                   <tr>
+                    <th style={{ width: 32 }}>
+                      <input type="checkbox"
+                        checked={paginated.length > 0 && paginated.every((v) => selectedVehicleIds.has(v._id || v.id))}
+                        onChange={(e) => {
+                          const pageIds = paginated.map((v) => v._id || v.id);
+                          setSelectedVehicleIds((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) pageIds.forEach((id) => next.add(id));
+                            else pageIds.forEach((id) => next.delete(id));
+                            return next;
+                          });
+                        }} />
+                    </th>
                     <th>Véhicule</th><th>Propriétaire</th><th>Type</th><th>Prix</th><th>Score</th><th>Statut</th><th>Date</th><th>Actions</th>
                   </tr>
                 </thead>
@@ -8689,6 +8755,9 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                     const owner = v.owner || v.userId;
                     return (
                       <tr key={vid} className={styles.tr}>
+                        <td>
+                          <input type="checkbox" checked={selectedVehicleIds.has(vid)} onChange={() => toggleVehicleSelect(vid)} />
+                        </td>
                         <td>
                           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                             {(v.images?.[0] || v.image)
@@ -8785,10 +8854,25 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
               <p style={{ fontWeight: 600 }}>Aucun profil chauffeur en attente</p>
             </div>
           ) : (
-            <div className={styles.tableWrap}>
+            <>
+              {selectedDriverIds.size > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <button className={styles.btnDanger} disabled={bulkDeleting} onClick={handleBulkDeleteDrivers}>
+                    🗑️ Supprimer la sélection ({selectedDriverIds.size})
+                  </button>
+                </div>
+              )}
+              <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
-                  <tr><th>Chauffeur</th><th>Permis</th><th>Expérience</th><th>Langues</th><th>CV</th><th>Soumis le</th><th>Actions</th></tr>
+                  <tr>
+                    <th style={{ width: 32 }}>
+                      <input type="checkbox"
+                        checked={drivers.length > 0 && drivers.every((d) => selectedDriverIds.has(d._id))}
+                        onChange={(e) => setSelectedDriverIds(e.target.checked ? new Set(drivers.map((d) => d._id)) : new Set())} />
+                    </th>
+                    <th>Chauffeur</th><th>Permis</th><th>Expérience</th><th>Langues</th><th>CV</th><th>Soumis le</th><th>Actions</th>
+                  </tr>
                 </thead>
                 <tbody>
                   {drivers.map((d) => {
@@ -8801,6 +8885,9 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                     const owner = d.owner || {};
                     return (
                       <tr key={d._id} className={styles.tr}>
+                        <td>
+                          <input type="checkbox" checked={selectedDriverIds.has(d._id)} onChange={() => toggleDriverSelect(d._id)} />
+                        </td>
                         <td>
                           <div style={{ display: "flex", gap: 9, alignItems: "center" }}>
                             {d.profilePhoto ? <img src={d.profilePhoto} alt="" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} /> : <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center" }}>👤</div>}
@@ -8833,7 +8920,8 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                   })}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )}
 
           {/* Propositions d'embauche CDD/CDI — décision accepter/refuser au partenaire,
