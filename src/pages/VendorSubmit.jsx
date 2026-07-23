@@ -1372,6 +1372,50 @@ const VendorSubmit = () => {
         <p>Étape {step} sur {STEPS.length} — {STEPS[step - 1].label}</p>
       </div>
 
+      {/* Bannière Import en masse — visible uniquement à l'étape 1 */}
+      {step === 1 && (
+        <div style={{
+          background: "linear-gradient(135deg, rgba(16,185,129,.08), rgba(99,102,241,.06))",
+          border: "1.5px solid rgba(16,185,129,.25)",
+          borderRadius: 14,
+          padding: "14px 20px",
+          marginBottom: 14,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 14,
+          flexWrap: "wrap",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: "1.7rem" }}>📦</span>
+            <div>
+              <strong style={{ display: "block", color: "#0f1b3f", fontSize: ".91rem", marginBottom: 2 }}>
+                Plusieurs véhicules à publier ?
+              </strong>
+              <span style={{ color: "#64748b", fontSize: ".81rem" }}>
+                Importez toute votre flotte d'un coup via un fichier Excel/CSV ou Google Sheet.
+              </span>
+            </div>
+          </div>
+          <Link
+            to="/partner-fleet-import"
+            style={{
+              display: "inline-block",
+              padding: "8px 18px",
+              background: "#10b981",
+              color: "#fff",
+              borderRadius: 10,
+              fontWeight: 700,
+              textDecoration: "none",
+              fontSize: ".83rem",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Importer ma flotte →
+          </Link>
+        </div>
+      )}
+
       {/* Bannière Import/Export — visible uniquement à l'étape 1 */}
       {step === 1 && (
         <div style={{

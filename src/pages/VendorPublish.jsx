@@ -696,7 +696,12 @@ const VendorPublish = () => {
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           {mainTab === "vehicles" && (
-            <button className={styles.newBtn} onClick={() => navigate("/vendor")}>+ Nouvelle annonce</button>
+            <>
+              <Link to="/partner-fleet-import" style={{ display: "inline-flex", alignItems: "center", padding: "11px 20px", background: "#6366f1", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem", whiteSpace: "nowrap" }}>
+                📦 Importer ma flotte
+              </Link>
+              <button className={styles.newBtn} onClick={() => navigate("/vendor")}>+ Nouvelle annonce</button>
+            </>
           )}
           {mainTab === "import-export" && isVerified && (
             <button className={styles.newBtn} onClick={() => setShowIeForm(true)}>🌍 Nouvelle annonce IE</button>
