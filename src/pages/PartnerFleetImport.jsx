@@ -184,6 +184,17 @@ const PartnerFleetImport = () => {
     setBatch(null);
   };
 
+  // Réessayer = revenir directement à l'étape d'envoi avec la même méthode déjà
+  // choisie (fichier/Google Sheet), sans repasser par le choix de méthode — utile
+  // après un batch en erreur pour renvoyer rapidement un fichier corrigé.
+  const retrySameMethod = () => {
+    setStep(2);
+    setFile(null);
+    setGoogleSheetUrl("");
+    setBatchId(null);
+    setBatch(null);
+  };
+
   const created = batch?.results?.filter((r) => r.status === "created").length || 0;
   const skipped = batch?.results?.filter((r) => r.status === "skipped_duplicate").length || 0;
   const errored = batch?.results?.filter((r) => r.status === "error").length || 0;
@@ -375,9 +386,16 @@ const PartnerFleetImport = () => {
               </ul>
 
               <div className={styles.resultActions}>
-                <button type="button" className={styles.primaryBtn} onClick={() => navigate(isExport ? "/vendor/publish?tab=import-export" : "/vendor/dashboard")}>
-                  Voir mes annonces →
-                </button>
+                {created > 0 && (
+                  <button type="button" className={styles.primaryBtn} onClick={() => navigate(isExport ? "/vendor/publish?tab=import-export" : "/vendor/dashboard")}>
+                    Voir mes annonces →
+                  </button>
+                )}
+                {errored > 0 && (
+                  <button type="button" className={created > 0 ? styles.secondaryBtn : styles.primaryBtn} onClick={retrySameMethod}>
+                    🔄 Réessayer
+                  </button>
+                )}
                 <button type="button" className={styles.secondaryBtn} onClick={resetAll}>
                   Nouvel import
                 </button>

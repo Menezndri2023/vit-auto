@@ -7,6 +7,7 @@ import {
   parseUploadedFile,
   parseGoogleSheetUrl,
   processImportBatch,
+  countRecognizedColumns,
 } from "../services/vehicleImportService.js";
 
 const requirePartnerRole = (req, res) => {
@@ -72,6 +73,18 @@ export const createImportBatch = async (req, res) => {
     if (rawRows.length > MAX_IMPORT_ROWS) {
       return res.status(400).json({
         message: `Ce fichier contient ${rawRows.length} lignes — maximum ${MAX_IMPORT_ROWS} par import. Divisez votre fichier en plusieurs imports.`,
+      });
+    }
+
+    // ── Garde-fou en-têtes ───────────────────────────────────────────────────
+    // Si aucune colonne attendue n'est reconnue (mauvais template, en-têtes
+    // renommés, ou — pour un CSV — séparateur différent mal interprété), mieux
+    // vaut UN message clair immédiat que des dizaines/centaines de lignes en
+    // erreur cryptique après traitement complet du batch.
+    const { recognized } = countRecognizedColumns(rawRows, isExport ? "export" : "vehicle");
+    if (recognized === 0) {
+      return res.status(400).json({
+        message: "Aucune colonne du template n'a été reconnue dans ce fichier. Téléchargez le template ci-dessus et remplissez-le sans renommer les colonnes (pour un CSV exporté depuis Excel, vérifiez aussi le séparateur : virgule ou point-virgule).",
       });
     }
 

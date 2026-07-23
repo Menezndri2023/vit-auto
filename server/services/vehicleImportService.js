@@ -128,12 +128,35 @@ export async function generateTemplateWorkbook(targetType = "vehicle") {
   return workbook;
 }
 
+// ── Détecte le séparateur réel d'un CSV ──────────────────────────────────────
+// csv-parse suppose la virgule par défaut — mais Excel/LibreOffice en locale
+// française (celle de la quasi-totalité de nos partenaires) exporte le CSV
+// avec un POINT-VIRGULE (la virgule y étant déjà le séparateur décimal). Sans
+// cette détection, un fichier "; "-séparé est lu comme une seule colonne géante
+// par ligne : aucun champ ne correspond plus jamais à un en-tête attendu, et
+// TOUTES les lignes échouent (ex. "Type d'annonce manquant" sur 100% du batch)
+// sans qu'aucun message n'explique pourquoi. On compte les séparateurs candidats
+// sur la ligne d'en-tête et on retient le plus fréquent.
+function detectCsvDelimiter(text) {
+  const firstLine = (text.split(/\r?\n/, 1)[0] || "");
+  const candidates = [",", ";", "\t"];
+  let best = ",";
+  let bestCount = 0;
+  for (const c of candidates) {
+    const count = firstLine.split(c).length - 1;
+    if (count > bestCount) { best = c; bestCount = count; }
+  }
+  return best;
+}
+
 // ── Parse un fichier uploadé (CSV ou Excel) en lignes brutes {header: value} ─
 export async function parseUploadedFile(buffer, fileName = "") {
   const ext = (fileName.split(".").pop() || "").toLowerCase();
 
   if (ext === "csv") {
-    return parseCsvSync(buffer, { columns: true, skip_empty_lines: true, trim: true });
+    const text = buffer.toString("utf8");
+    const delimiter = detectCsvDelimiter(text);
+    return parseCsvSync(text, { columns: true, skip_empty_lines: true, trim: true, delimiter });
   }
 
   // .xlsx / .xls
@@ -175,11 +198,37 @@ export async function parseGoogleSheetUrl(url) {
   return parseCsvSync(text, { columns: true, skip_empty_lines: true, trim: true });
 }
 
+// Normalise une clé d'en-tête pour un rapprochement tolérant à la casse et aux
+// espaces superflus (ex. copié-collé depuis un autre fichier, en-tête retapé
+// à la main plutôt que le template téléchargé) — la correspondance stricte
+// précédente faisait échouer TOUTE la ligne dès qu'un seul en-tête différait.
+const normalizeHeaderKey = (h) => String(h ?? "").trim().toLowerCase();
+
+function buildNormalizedRow(rawRow) {
+  const normalized = {};
+  for (const [k, v] of Object.entries(rawRow)) {
+    normalized[normalizeHeaderKey(k)] = v;
+  }
+  return normalized;
+}
+
+// ── Combien de colonnes attendues sont réellement reconnues dans ce fichier —
+// sert de garde-fou à l'upload : si 0 colonne ne correspond, mieux vaut un seul
+// message clair ("mauvais template/séparateur") que N lignes en erreur cryptique.
+export function countRecognizedColumns(rawRows, targetType = "vehicle") {
+  const columns = targetType === "export" ? IE_IMPORT_COLUMNS : IMPORT_COLUMNS;
+  if (!rawRows.length) return { recognized: 0, expected: columns.length };
+  const keys = new Set(Object.keys(rawRows[0]).map(normalizeHeaderKey));
+  const recognized = columns.filter((c) => keys.has(normalizeHeaderKey(c.header)) || keys.has(normalizeHeaderKey(c.key))).length;
+  return { recognized, expected: columns.length };
+}
+
 // ── Mappe une ligne brute (en-têtes du template) vers les champs Vehicle ────
 export function mapRowToVehicleInput(rawRow) {
+  const normalizedRow = buildNormalizedRow(rawRow);
   const byHeader = {};
   for (const col of IMPORT_COLUMNS) {
-    byHeader[col.key] = rawRow[col.header] ?? rawRow[col.key];
+    byHeader[col.key] = normalizedRow[normalizeHeaderKey(col.header)] ?? normalizedRow[normalizeHeaderKey(col.key)];
   }
 
   const data = {};
@@ -216,9 +265,10 @@ export function mapRowToVehicleInput(rawRow) {
 
 // ── Mappe une ligne brute vers les champs ImportExportListing ───────────────
 export function mapRowToIEListingInput(rawRow) {
+  const normalizedRow = buildNormalizedRow(rawRow);
   const byHeader = {};
   for (const col of IE_IMPORT_COLUMNS) {
-    byHeader[col.key] = rawRow[col.header] ?? rawRow[col.key];
+    byHeader[col.key] = normalizedRow[normalizeHeaderKey(col.header)] ?? normalizedRow[normalizeHeaderKey(col.key)];
   }
 
   const data = {};
