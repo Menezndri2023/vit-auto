@@ -5,6 +5,7 @@ import { useVehicles } from "../context/VehicleContext";
 import { useToast } from "../context/ToastContext";
 import { geocodeAddress, reverseGeocode, getCurrentPosition } from "../utils/geo";
 import { CALLING_CODES } from "../data/autocomplete";
+import { api } from "../utils/apiClient";
 import styles from "./VendorSubmit.module.css";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -56,6 +57,40 @@ const VendorSubmit = () => {
     adresse:      "",
   });
   const [geoLocating, setGeoLocating] = useState(false);
+
+  // ── Entreprises du partenaire (facultatif) ─────────────────────────────────
+  // Un partenaire multi-entités choisit ici quelle entreprise publie l'annonce —
+  // son pays prime alors sur celui du compte (voir vehicleController.createVehicle).
+  // Chargé une seule fois, jamais bloquant si la requête échoue (formulaire
+  // toujours utilisable sans entreprise déclarée, comportement historique).
+  const [businesses, setBusinesses] = useState([]);
+  const [selectedBusinessId, setSelectedBusinessId] = useState("");
+
+  useEffect(() => {
+    api.get("/api/partner/businesses")
+      .then((res) => {
+        const list = res.businesses || [];
+        setBusinesses(list);
+        const def = list.find((b) => b.isDefault);
+        if (def) setSelectedBusinessId(def._id);
+      })
+      .catch(() => {});
+  }, []);
+
+  const applyBusinessToIdentity = (businessId) => {
+    setSelectedBusinessId(businessId);
+    const b = businesses.find((x) => x._id === businessId);
+    if (!b) return;
+    setIdentity((p) => ({
+      ...p,
+      typePubliant: p.typePubliant === "particulier" ? "entreprise" : p.typePubliant,
+      nomEntreprise: b.companyName,
+      ville: b.ville || p.ville,
+      adresse: b.adresse || p.adresse,
+      telephone: b.contactTel || p.telephone,
+      nom: b.contactNom || p.nom,
+    }));
+  };
 
   // Pré-remplissage indicatif téléphonique + ville par géolocalisation IP —
   // silencieux, jamais le numéro complet, jamais si déjà renseigné par
@@ -416,6 +451,7 @@ const VendorSubmit = () => {
           type: adType,
           vehicleType: vehicle.vehicleType || "SUV",
           typePubliant: identity.typePubliant,
+          businessId: selectedBusinessId || undefined,
           ...contactInfo,
           images: imageUrls,
           thumbnail,
@@ -473,6 +509,26 @@ const VendorSubmit = () => {
           <div className={styles.card}>
             <h2 className={styles.cardTitle}>👤 Votre identité</h2>
             <p className={styles.cardSub}>Ces informations apparaîtront comme contact de l'annonce.</p>
+
+            {businesses.length > 0 && (
+              <div className={`${styles.field} ${styles.mt2}`} style={{ marginBottom: 16 }}>
+                <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  Quelle entreprise publie cette annonce ?
+                  <Link to="/vendor/dashboard?tab=entreprises" style={{ fontSize: ".76rem", fontWeight: 700, color: "#6366f1" }}>
+                    + Gérer mes entreprises
+                  </Link>
+                </label>
+                <select value={selectedBusinessId} onChange={(e) => applyBusinessToIdentity(e.target.value)}>
+                  <option value="">Compte personnel (aucune entreprise)</option>
+                  {businesses.map((b) => (
+                    <option key={b._id} value={b._id}>{b.companyName} — {b.ville}, {b.country}</option>
+                  ))}
+                </select>
+                <small style={{ color: "#8493b0", fontSize: "0.78rem", marginTop: 3 }}>
+                  Le pays/ville/adresse de l'annonce seront pré-remplis depuis l'entreprise choisie — modifiables ci-dessous.
+                </small>
+              </div>
+            )}
 
             <div className={styles.typeToggle}>
               {[

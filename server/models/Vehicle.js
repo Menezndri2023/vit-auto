@@ -124,6 +124,18 @@ const vehicleSchema = new mongoose.Schema({
     required: true,
   },
 
+  // ── Entreprise du partenaire (facultatif) ──────────────────
+  // Un partenaire peut gérer plusieurs entreprises domiciliées à des endroits
+  // différents (voir PartnerBusiness.js) — purement indicatif/organisationnel,
+  // ne conditionne jamais country/ville/adresse après coup (déjà éditables
+  // indépendamment via updateVehicle). `null` = annonce non rattachée à une
+  // entreprise déclarée (comportement historique, compte personnel).
+  business: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "PartnerBusiness",
+    default: null,
+  },
+
   // ── Rapport d'inspection (ref) ─────────────────────────────
   inspectionReport: {
     type: mongoose.Schema.Types.ObjectId,

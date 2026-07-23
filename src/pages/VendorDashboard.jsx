@@ -6,9 +6,10 @@ import { COUNTRIES_ALL, CURRENCIES as IE_CURRENCIES, getCountryFlag } from "../d
 import { useToast } from "../context/ToastContext";
 import { useSocket } from "../context/SocketContext";
 import { useChat } from "../context/ChatContext";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { SUBSCRIPTIONS_ENABLED } from "../config/featureFlags";
 import PartnerCalendar from "../components/PartnerCalendar/PartnerCalendar";
+import PartnerBusinessManager from "../components/PartnerBusinessManager/PartnerBusinessManager";
 import { geocodeAddress } from "../utils/geo";
 import styles from "./VendorDashboard.module.css";
 
@@ -906,8 +907,9 @@ export default function VendorDashboard() {
   const { openOrCreateChat } = useChat();
   const { COUNTRIES_CONFIG, fmt: fmtXOF } = useCurrency();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const [activeTab,      setActiveTab]      = useState("dashboard");
+  const [activeTab,      setActiveTab]      = useState(searchParams.get("tab") || "dashboard");
   const [contactingOrder, setContactingOrder] = useState(null);
   const [invoices,       setInvoices]       = useState([]);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
@@ -1621,6 +1623,7 @@ export default function VendorDashboard() {
           { id: "dashboard",    icon: "📊", label: "Dashboard" },
           { id: "commandes",    icon: "📋", label: "Commandes",       count: stats.totalOrders,    alert: newOrdersCount },
           { id: "annonces",     icon: "🚗", label: "Annonces",        count: stats.totalVehicles },
+          { id: "entreprises",  icon: "🏢", label: "Mes entreprises" },
           { id: "calendrier",   icon: "📅", label: "Calendrier" },
           { id: "finances",     icon: "💰", label: "Finances",        count: invoices.filter((i) => i.status === "pending").length || null },
           { id: "reservations", icon: "🎫", label: "Mes réservations", alert: myPersonalBookings.filter((b) => b.status === "waiting_client_validation").length || null },
@@ -2013,6 +2016,13 @@ export default function VendorDashboard() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ══ TAB : MES ENTREPRISES ═════════════════════════════════════════ */}
+      {activeTab === "entreprises" && (
+        <div className={styles.tabContent}>
+          <PartnerBusinessManager />
         </div>
       )}
 

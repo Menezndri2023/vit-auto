@@ -16,6 +16,7 @@ import { startAccountHealthScheduler } from "./utils/accountHealthCheck.js";
 import authRoutes          from "./routes/auth.js";
 import vehicleRoutes       from "./routes/vehicles.js";
 import vehicleImportRoutes from "./routes/vehicleImport.js";
+import partnerBusinessRoutes from "./routes/partnerBusiness.js";
 import bookingRoutes       from "./routes/bookings.js";
 import paymentRoutes       from "./routes/payments.js";
 import * as paymentController from "./controllers/paymentController.js";
@@ -338,6 +339,7 @@ app.use("/api/reports",            apiLimiter, reportRoutes);            // Sign
 app.use("/api/whatsapp",           apiLimiter, whatsappRoutes);           // Bot WhatsApp partenaires (admin)
 app.use("/api/pricing",            catalogueLimiter, pricingRoutes);      // Devises/pays/tarifs — public, consulté au chargement de l'app
 app.use("/api/admin/business-config", apiLimiter, businessConfigRoutes);  // Configuration métier (commissions/abonnements/devises...)
+app.use("/api/partner/businesses",    apiLimiter, partnerBusinessRoutes);  // Entreprises gérées par un même partenaire (localisations multiples)
 
 // ── Communication tracking (pixel ouverture + clic email) ────────────────────
 const TRANSPARENT_GIF = Buffer.from(

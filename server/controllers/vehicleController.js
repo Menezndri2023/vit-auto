@@ -5,6 +5,7 @@ import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Booking from "../models/Booking.js";
 import PartnerVerification from "../models/PartnerVerification.js";
+import PartnerBusiness from "../models/PartnerBusiness.js";
 import ImportExportListing from "../models/ImportExportListing.js";
 import { dispatch } from "../queue/index.js";
 import { scoreAnnonce, buildVehicleWhitelist, limitVehicleImages } from "../services/vehicleScoring.js";
@@ -125,6 +126,17 @@ export const createVehicle = async (req, res) => {
       }
     }
 
+    // ── Entreprise du partenaire (facultatif) ───────────────────────────────
+    // Un partenaire multi-entités choisit dans le formulaire l'entreprise
+    // concernée (voir VendorSubmit.jsx) — son pays prime alors sur celui, unique,
+    // du compte User. Toujours revérifié en base (jamais fait confiance à un
+    // country envoyé directement dans le body, cf commentaire sur Vehicle.country).
+    let business = null;
+    if (req.body.businessId) {
+      business = await PartnerBusiness.findOne({ _id: req.body.businessId, owner: req.user._id }).lean();
+      if (!business) return res.status(400).json({ message: "Entreprise introuvable." });
+    }
+
     // ── Limite photos (max 8 côté backend) ────────────────────────────────
     if (req.body.images && req.body.images.length > 8) {
       req.body.images = req.body.images.slice(0, 8);
@@ -142,7 +154,8 @@ export const createVehicle = async (req, res) => {
       ...whitelisted,
       // Champs serveur — jamais depuis req.body
       owner:              req.user._id,
-      country:            req.user.country || null,
+      business:           business?._id || null,
+      country:            business?.country || req.user.country || null,
       status:             validation.status,
       available:          validation.status === "approved",
       validationScore:    validation.score,
@@ -493,6 +506,19 @@ export const updateVehicle = async (req, res) => {
     if (req.user.role === "admin") {
       for (const key of ADMIN_ONLY) {
         if (req.body[key] !== undefined) safeUpdate[key] = req.body[key];
+      }
+    }
+
+    // Rattacher/détacher l'annonce à une entreprise (voir createVehicle) — juste
+    // une étiquette d'organisation, ne modifie jamais country/ville/adresse
+    // (déjà éditables directement ci-dessus, source de vérité de l'annonce).
+    if (req.body.businessId !== undefined) {
+      if (req.body.businessId === null) {
+        safeUpdate.business = null;
+      } else {
+        const business = await PartnerBusiness.findOne({ _id: req.body.businessId, owner: vehicle.owner }).lean();
+        if (!business) return res.status(400).json({ message: "Entreprise introuvable." });
+        safeUpdate.business = business._id;
       }
     }
 

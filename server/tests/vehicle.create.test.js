@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createVehicle } from "../controllers/vehicleController.js";
 import Vehicle from "../models/Vehicle.js";
+import PartnerBusiness from "../models/PartnerBusiness.js";
 import { createUser } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
@@ -90,5 +91,33 @@ describe("vehicleController.createVehicle — contrôle d'accès à la publicati
     await createVehicle(req, res);
 
     expect(res.status).toHaveBeenCalledWith(409);
+  });
+
+  it("hérite du pays de l'entreprise choisie (businessId) plutôt que du compte", async () => {
+    const founder = await createUser({ role: "partenaire", isFounder: true, country: "CI" });
+    const business = await PartnerBusiness.create({
+      owner: founder._id, companyName: "Alpha Motors", country: "SN", ville: "Dakar",
+    });
+
+    const { req, res } = mockReqRes({ user: founder, body: minimalVehicle({ businessId: business._id.toString() }) });
+    await createVehicle(req, res);
+
+    expect(res.status).not.toHaveBeenCalledWith(400);
+    const saved = await Vehicle.findById(res.body.vehicle._id);
+    expect(saved.country).toBe("SN");
+    expect(saved.business.toString()).toBe(business._id.toString());
+  });
+
+  it("refuse un businessId qui n'appartient pas au partenaire", async () => {
+    const founder = await createUser({ role: "partenaire", isFounder: true });
+    const stranger = await createUser({ role: "partenaire", isFounder: true });
+    const business = await PartnerBusiness.create({
+      owner: stranger._id, companyName: "Alpha Motors", country: "SN", ville: "Dakar",
+    });
+
+    const { req, res } = mockReqRes({ user: founder, body: minimalVehicle({ businessId: business._id.toString() }) });
+    await createVehicle(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
   });
 });

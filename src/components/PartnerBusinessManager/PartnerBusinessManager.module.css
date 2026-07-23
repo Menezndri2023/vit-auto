@@ -1,0 +1,65 @@
+.wrap { display: flex; flex-direction: column; gap: 18px; }
+
+.header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.title { margin: 0 0 4px; font-size: 1.1rem; font-weight: 800; color: #0f1b3f; }
+.hint { margin: 0; font-size: .84rem; color: #64748b; max-width: 560px; }
+
+.addBtn {
+  background: linear-gradient(135deg, #ff4d2d, #e03519);
+  color: #fff; border: none; padding: 10px 20px; border-radius: 10px;
+  font-weight: 700; font-size: .85rem; cursor: pointer; white-space: nowrap;
+}
+
+.empty {
+  text-align: center; padding: 32px; color: #94a3b8;
+  border: 1.5px dashed #e2e8f0; border-radius: 14px;
+}
+.empty p { margin: 0 0 14px; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+
+.card {
+  position: relative; background: #fff; border: 1.5px solid #eef0f4; border-radius: 14px;
+  padding: 16px; display: flex; flex-direction: column; gap: 4px;
+}
+.defaultBadge {
+  position: absolute; top: 12px; right: 12px; background: #ecfdf5; color: #059669;
+  font-size: .68rem; font-weight: 700; padding: 3px 9px; border-radius: 99px;
+}
+.cardTitle { margin: 0 0 4px; font-size: .98rem; font-weight: 800; color: #0f1b3f; padding-right: 70px; }
+.cardLine { margin: 0; font-size: .82rem; color: #475569; }
+.cardActions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+
+.linkBtn, .linkBtnDanger {
+  background: none; border: none; padding: 0; font-size: .78rem; font-weight: 700; cursor: pointer;
+}
+.linkBtn { color: #6366f1; }
+.linkBtnDanger { color: #ef4444; }
+
+.formCard {
+  background: #f8fafc; border: 1.5px solid #eef0f4; border-radius: 14px; padding: 20px;
+}
+.formGrid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px;
+}
+.colSpan2 { grid-column: span 2; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label { font-size: .78rem; font-weight: 700; color: #334155; }
+.field input, .field select {
+  padding: 9px 12px; border: 1.5px solid #e2e8f0; border-radius: 9px; font-size: .86rem;
+}
+.formActions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.cancelBtn {
+  background: none; border: 1.5px solid #e2e8f0; border-radius: 9px; padding: 9px 18px;
+  font-weight: 700; cursor: pointer; color: #475569; font-size: .85rem;
+}
+.saveBtn {
+  background: #ff4d2d; color: #fff; border: none; border-radius: 9px; padding: 9px 18px;
+  font-weight: 700; cursor: pointer; font-size: .85rem;
+}
+.saveBtn:disabled, .cancelBtn:disabled { opacity: .6; cursor: not-allowed; }
+
+@media (max-width: 640px) {
+  .formGrid { grid-template-columns: 1fr; }
+  .colSpan2 { grid-column: span 1; }
+}
