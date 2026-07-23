@@ -186,6 +186,10 @@ const VendorSubmit = () => {
   // Photo de profil du chauffeur — distincte des photos du véhicule (`photos`
   // plus bas) : toujours exigée, que le chauffeur ait son propre véhicule ou non.
   const [driverProfilePhoto, setDriverProfilePhoto] = useState(null);
+  // CV du chauffeur (PDF ou image scannée) — obligatoire, consultable par un
+  // employeur potentiel avant une proposition d'embauche CDD/CDI.
+  const [driverCv, setDriverCv] = useState(null);
+  const [driverCvName, setDriverCvName] = useState("");
 
   const [errors, setErrors] = useState({});
 
@@ -352,6 +356,20 @@ const VendorSubmit = () => {
     reader.readAsDataURL(file);
   };
 
+  // ── CV chauffeur (PDF ou image, pas de recompression — un PDF resterait un PDF) ──
+  const MAX_CV_MB = 8;
+  const handleCvFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const isPdf = file.type === "application/pdf";
+    const isImg = file.type.startsWith("image/");
+    if (!isPdf && !isImg) { error("CV : PDF ou image uniquement."); return; }
+    if (file.size > MAX_CV_MB * 1024 * 1024) { error(`CV trop volumineux (max ${MAX_CV_MB} Mo).`); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => { setDriverCv(ev.target.result); setDriverCvName(file.name); };
+    reader.readAsDataURL(file);
+  };
+
   const handleDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
@@ -403,6 +421,7 @@ const VendorSubmit = () => {
         e.description = "Description trop courte (min 10 caractères si renseignée)";
       if (adType === "chauffeur") {
         if (!driverProfilePhoto) e.driverProfilePhoto = "Photo de profil du chauffeur requise";
+        if (!driverCv) e.driverCv = "CV requis (PDF ou image)";
         if (driver.vehiculePersonnel && photos.length === 0)
           e.photos = "Au moins 1 photo du véhicule est requise (chauffeur avec véhicule)";
       } else if (photos.length === 0) {
@@ -460,6 +479,7 @@ const VendorSubmit = () => {
             businessId: selectedBusinessId || undefined,
             ...contactInfo,
             profilePhoto: driverProfilePhoto,
+            cv: driverCv,
             // Photos véhicule uniquement si "avec véhicule" — sinon rien à photographier.
             images: driver.vehiculePersonnel ? imageUrls : [],
           }),
@@ -1210,6 +1230,21 @@ const VendorSubmit = () => {
                     {driverProfilePhoto ? "Changer la photo" : "Choisir une photo"}
                     <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleProfilePhotoFile} />
                   </label>
+                </div>
+              </div>
+            )}
+
+            {isDriverMode && (
+              <div className={styles.field} style={{ marginBottom: "1.25rem" }}>
+                <label>CV du chauffeur *</label>
+                {errors.driverCv && <span className={styles.err}>{errors.driverCv}</span>}
+                <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginTop: "0.5rem" }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 8, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.3rem", flexShrink: 0 }}>📄</div>
+                  <label className={styles.dropBtn} style={{ cursor: "pointer" }}>
+                    {driverCv ? "Changer le CV" : "Choisir un fichier (PDF ou image)"}
+                    <input type="file" accept="application/pdf,image/*" style={{ display: "none" }} onChange={handleCvFile} />
+                  </label>
+                  {driverCvName && <span className={styles.hint} style={{ margin: 0 }}>{driverCvName}</span>}
                 </div>
               </div>
             )}

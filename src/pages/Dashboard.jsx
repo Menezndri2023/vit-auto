@@ -108,6 +108,7 @@ const STATUS_CONFIG = {
   in_progress:               { label: "En route",            color: "#3b82f6", bg: "#eff6ff" },
   client_arrived:            { label: "Rendez-vous confirmé",color: "#0ea5e9", bg: "#e0f2fe" },
   client_absent:             { label: "Absence signalée",    color: "#dc2626", bg: "#fef2f2" },
+  driver_arrived:            { label: "Chauffeur arrivé",    color: "#0ea5e9", bg: "#e0f2fe" },
   transaction_concluded:     { label: "Transaction conclue", color: "#16a34a", bg: "#dcfce7" },
   transaction_not_concluded: { label: "Non conclue",         color: "#9ca3af", bg: "#f3f4f6" },
   waiting_client_validation: { label: "Validation requise",  color: "#d97706", bg: "#fef3c7" },
@@ -391,6 +392,8 @@ const Dashboard = () => {
   const [disputeTarget, setDisputeTarget] = useState(null);
   const [disputeReason, setDisputeReason] = useState("");
   const [validating,    setValidating]    = useState(null);
+  const [employmentRequests, setEmploymentRequests] = useState([]);
+  const [employmentCanceling, setEmploymentCanceling] = useState(null);
 
   // ── Fetch direct /api/bookings/mine — source de vérité ───────────────────
   const fetchMyOrders = useCallback(async () => {
@@ -412,6 +415,31 @@ const Dashboard = () => {
     toastSuccess("Merci pour votre avis !");
     fetchMyOrders();
   }, [toastSuccess, fetchMyOrders]);
+
+  // ── Mes propositions d'embauche CDD/CDI (voir DriverEmployment.jsx) ────────
+  const fetchEmploymentRequests = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/driver-employment/mine", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const { requests } = await res.json();
+      if (Array.isArray(requests)) setEmploymentRequests(requests);
+    } catch { /* ignore */ }
+  }, [token]);
+
+  const cancelEmploymentRequest = useCallback(async (id) => {
+    if (!token) return;
+    setEmploymentCanceling(id);
+    try {
+      const res = await fetch(`/api/driver-employment/${id}/cancel`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) { toastSuccess("Proposition annulée."); fetchEmploymentRequests(); }
+      else { const d = await res.json().catch(() => ({})); toastError(d.message || "Erreur lors de l'annulation."); }
+    } catch { toastError("Erreur réseau."); }
+    finally { setEmploymentCanceling(null); }
+  }, [token, toastSuccess, toastError, fetchEmploymentRequests]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -446,10 +474,34 @@ const Dashboard = () => {
     finally { setValidating(null); }
   }, [token, fetchMyOrders, toastSuccess, toastError]);
 
+  // ── Mission chauffeur : le client confirme l'arrivée puis clôt la mission ──
+  // (voir bookingController.markDriverArrived/completeMission — ces deux étapes
+  // sont pilotées par le client, contrairement au reste du pipeline).
+  const handleMissionAction = useCallback(async (bookingId, action) => {
+    if (!token || !bookingId) return;
+    setValidating(bookingId);
+    try {
+      const endpoint = action === "arrived" ? "driver-arrived" : "complete-mission";
+      const r = await fetch(`/api/bookings/${bookingId}/${endpoint}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) {
+        toastSuccess(action === "arrived" ? "📍 Arrivée du chauffeur confirmée." : "🏁 Mission terminée. Merci !");
+        await fetchMyOrders();
+      } else {
+        toastError(d.message || "Erreur lors de la mise à jour.");
+      }
+    } catch { toastError("Erreur réseau."); }
+    finally { setValidating(null); }
+  }, [token, fetchMyOrders, toastSuccess, toastError]);
+
   // ── Temps réel : Socket.io + polling de secours (60s) ─────────────────────
   useEffect(() => {
     if (!token) return;
     fetchMyOrders();
+    fetchEmploymentRequests();
 
     // Mise à jour instantanée sur événement Socket.io
     const handleBookingUpdate = (payload) => {
@@ -686,9 +738,52 @@ const Dashboard = () => {
               onReview={setReviewTarget}
               onValidate={(action) => handleValidate(booking.id, action)}
               onDispute={() => setDisputeTarget(booking.id)}
+              onMissionAction={(action) => handleMissionAction(booking.id, action)}
               validating={validating === booking.id}
             />
           ))}
+        </div>
+      )}
+
+      {/* ── Mes propositions d'embauche CDD/CDI (voir DriverEmployment.jsx) ── */}
+      {employmentRequests.length > 0 && (
+        <div style={{ marginTop: 32 }}>
+          <h2 style={{ fontSize: "1.05rem", fontWeight: 800, color: "#0f1b3f", marginBottom: 12 }}>
+            💼 Mes propositions d'embauche
+          </h2>
+          <div className={styles.bookingList}>
+            {employmentRequests.map((reqm) => {
+              const sc = { pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, accepted: { l: "Acceptée", c: "#059669", bg: "#d1fae5" }, declined: { l: "Refusée", c: "#dc2626", bg: "#fee2e2" }, cancelled: { l: "Annulée", c: "#64748b", bg: "#f1f5f9" } }[reqm.status];
+              return (
+                <div key={reqm._id} className={styles.bookingCard}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div>
+                      <strong style={{ color: "#0f1b3f" }}>{reqm.contractType?.toUpperCase()} — {reqm.driver?.firstName} {reqm.driver?.lastName}</strong>
+                      <p style={{ margin: "4px 0", color: "#64748b", fontSize: "0.85rem" }}>{fmt(reqm.proposedSalary)} / mois</p>
+                      <p style={{ margin: 0, color: "#94a3b8", fontSize: "0.8rem" }}>
+                        Début : {reqm.startDate ? new Date(reqm.startDate).toLocaleDateString("fr-FR") : "—"}
+                        {reqm.endDate && ` · Fin : ${new Date(reqm.endDate).toLocaleDateString("fr-FR")}`}
+                      </p>
+                    </div>
+                    <span style={{ padding: "4px 10px", borderRadius: 8, fontSize: "0.78rem", fontWeight: 700, color: sc.c, background: sc.bg }}>{sc.l}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    {reqm.status === "accepted" && (
+                      <a href={`/api/driver-employment/${reqm._id}/contract-pdf`} target="_blank" rel="noopener noreferrer" className={styles.btnContract}>
+                        ⬇️ Récapitulatif PDF
+                      </a>
+                    )}
+                    {reqm.status === "pending" && (
+                      <button className={styles.btnDangerSm} disabled={employmentCanceling === reqm._id}
+                        onClick={() => cancelEmploymentRequest(reqm._id)}>
+                        {employmentCanceling === reqm._id ? "…" : "Annuler"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -741,7 +836,7 @@ const Dashboard = () => {
 // ── Carte de réservation ──────────────────────────────────────────────────────
 const ONLINE_PAY_METHODS = ["card", "orange_money", "wave"];
 
-const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, validating }) => {
+const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, onMissionAction, validating }) => {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const { fmt } = useCurrency();
   const { openOrCreateChat } = useChat();
@@ -783,7 +878,12 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, valid
   const status         = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending;
   const canCancel      = ["À confirmer", "pending", "confirmed"].includes(booking.status) || !booking.status;
   const isCompleted    = booking.status === "completed";
-  const isActive       = ["confirmed", "preparing", "ready", "in_progress", "client_arrived"].includes(booking.status);
+  const isActive       = ["confirmed", "preparing", "ready", "in_progress", "client_arrived", "driver_arrived"].includes(booking.status);
+  // Mission chauffeur pilotée par le client : "confirmer l'arrivée" tant que le
+  // partenaire n'a pas encore atteint la destination, puis "terminer la mission"
+  // une fois l'arrivée confirmée (voir bookingController.markDriverArrived/completeMission).
+  const canMarkDriverArrived = booking.type === "chauffeur" && ["confirmed", "preparing", "in_progress"].includes(booking.status);
+  const canCompleteMission   = booking.type === "chauffeur" && booking.status === "driver_arrived";
   const isTrial        = booking.type === "essai";
   const isChauffeur    = booking.type === "chauffeur";
   const isLeasing      = booking.type === "leasing";
@@ -999,6 +1099,16 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, valid
         {isActive && booking.id && (
           <button className={styles.btnContact} onClick={handleContactPartner} disabled={contacting}>
             💬 {contacting ? "Ouverture…" : "Message au partenaire"}
+          </button>
+        )}
+        {canMarkDriverArrived && (
+          <button className={styles.btnContract} onClick={() => onMissionAction("arrived")} disabled={validating}>
+            📍 {validating ? "…" : "Confirmer l'arrivée du chauffeur"}
+          </button>
+        )}
+        {canCompleteMission && (
+          <button className={styles.btnSubmitReview} onClick={() => onMissionAction("complete")} disabled={validating}>
+            🏁 {validating ? "…" : "Terminer la mission"}
           </button>
         )}
         {isCompleted && (booking.vehicleId || booking.driverId) && !booking.hasReview && (

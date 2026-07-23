@@ -32,6 +32,8 @@ router.post("/", createBookingLimiter, optionalAuth, b.createBooking);
 router.get("/mine",                    authenticate, b.getMyBookings);
 router.patch("/:id/validate",          vid, authenticate, b.validateTransaction);
 router.patch("/:id/cancel",            vid, authenticate, b.cancelBookingByClient);
+router.patch("/:id/driver-arrived",    vid, authenticate, b.markDriverArrived);   // client confirme l'arrivée du chauffeur
+router.patch("/:id/complete-mission",  vid, authenticate, b.completeMission);      // client clôt la mission chauffeur
 
 // ── Partenaire connecté ───────────────────────────────────
 router.get("/partner",                    authenticate, b.getPartnerBookings);

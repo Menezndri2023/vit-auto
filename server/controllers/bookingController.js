@@ -13,6 +13,7 @@ import { resolveDeliveryFee, detectCountryFromCoords } from "../services/deliver
 import { applyPromotion } from "../utils/promotion.js";
 import { resolveCommissionRate, computeServiceFee, getRentalOptionPrice } from "../services/pricingEngine.js";
 import { convertAmount } from "../services/currencyEngine.js";
+import { issueServiceInvoice } from "./serviceInvoiceController.js";
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -806,7 +807,7 @@ export const updateBookingStatus = async (req, res) => {
     if (n && booking.client) {
       await notify(booking.client, n.type, n.titre, n.msg, n.lien || "/dashboard");
     }
-    if (status === "completed") schedulePostServiceSurvey(booking);
+    if (status === "completed") { schedulePostServiceSurvey(booking); issueServiceInvoice(booking); }
 
     res.json({ booking });
   } catch (err) {
@@ -991,6 +992,7 @@ export const validateTransaction = async (req, res) => {
       // espèces sur place, qui ne passe jamais par un webhook de paiement.
       dispatch.transactionReceiptReady(booking, booking.clientInfo?.email, booking.client).catch(() => {});
       schedulePostServiceSurvey(booking);
+      issueServiceInvoice(booking);
     } else {
       booking.status = "disputed";
       booking.clientValidation = {
@@ -1496,10 +1498,15 @@ export const cancelBookingByClient = async (req, res) => {
     if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
 
     // Vérifie que c'est bien le client de cette réservation
-    // Fallback email si booking.client est null (anciennes réservations)
+    // Fallback email si booking.client est null (réservation invité, sans compte) —
+    // n'accorde la propriété que si l'email du compte authentifié est VÉRIFIÉ,
+    // sinon n'importe qui pourrait créer un compte avec l'email d'un client
+    // invité (jamais confirmé) et s'approprier sa réservation. Faille réelle
+    // trouvée en audit de sécurité (2026-07).
     const userId = req.user?.id || req.user?._id;
     const isOwnerById    = booking.client && booking.client.toString() === userId?.toString();
-    const isOwnerByEmail = !booking.client && booking.clientInfo?.email?.toLowerCase() === req.user?.email?.toLowerCase();
+    const isOwnerByEmail = !booking.client && req.user?.emailVerified === true
+      && booking.clientInfo?.email?.toLowerCase() === req.user?.email?.toLowerCase();
     if (!isOwnerById && !isOwnerByEmail) {
       return res.status(403).json({ message: "Accès refusé à cette réservation." });
     }
@@ -1534,6 +1541,103 @@ export const cancelBookingByClient = async (req, res) => {
     res.json({ success: true, message: "Réservation annulée.", status: "cancelled" });
   } catch (err) {
     logger.error("cancelBookingByClient:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MISSION CHAUFFEUR — confirmation d'arrivée + fin de mission par le CLIENT
+// ═══════════════════════════════════════════════════════════════════════════════
+// Contrairement au reste du pipeline (préparation/en route/etc., piloté par le
+// partenaire via updateBookingStatus), ces deux étapes sont déclenchées par le
+// CLIENT ("l'employeur") lui-même : c'est lui qui constate que le chauffeur est
+// arrivé, puis lui qui clôt la mission — d'où deux routes dédiées plutôt qu'un
+// réemploi de la machine à états générique (VALID_TRANSITIONS), qui ne connaît
+// que des transitions pilotées par le partenaire ou le client-via-validation de
+// transaction (waiting_client_validation). Réservé au type "chauffeur" : sans
+// objet pour une location/vente/essai.
+
+const requireClientOwnership = (booking, req) => {
+  const userId = req.user?.id || req.user?._id;
+  const isOwnerById    = booking.client && booking.client.toString() === userId?.toString();
+  const isOwnerByEmail = !booking.client && booking.clientInfo?.email?.toLowerCase() === req.user?.email?.toLowerCase();
+  return isOwnerById || isOwnerByEmail;
+};
+
+// ── Le client confirme que le chauffeur est arrivé (démarrage de la mission) ──
+export const markDriverArrived = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Identifiant de réservation invalide." });
+    }
+
+    const booking = await Booking.findById(id).populate("driver", "firstName lastName owner");
+    if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
+    if (booking.type !== "chauffeur") {
+      return res.status(400).json({ message: "Réservé aux missions chauffeur." });
+    }
+    if (!requireClientOwnership(booking, req)) {
+      return res.status(403).json({ message: "Accès refusé à cette réservation." });
+    }
+    if (!["confirmed", "preparing", "in_progress"].includes(booking.status)) {
+      return res.status(409).json({ message: `Impossible de confirmer l'arrivée du chauffeur depuis le statut "${booking.status}".` });
+    }
+
+    booking.status = "driver_arrived";
+    await booking.save();
+    emitBookingUpdate(booking);
+
+    const driverOwnerId = booking.driver?.owner;
+    if (driverOwnerId) {
+      await notify(driverOwnerId, "system", "📍 Arrivée confirmée",
+        `Le client a confirmé votre arrivée pour la mission ${booking.reference || ""}.`, "/vendor/dashboard");
+    }
+
+    res.json({ booking, message: "Arrivée du chauffeur confirmée." });
+  } catch (err) {
+    logger.error("markDriverArrived:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Le client clôt la mission une fois terminée ────────────────────────────────
+export const completeMission = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Identifiant de réservation invalide." });
+    }
+
+    const booking = await Booking.findById(id).populate("driver", "firstName lastName owner");
+    if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
+    if (booking.type !== "chauffeur") {
+      return res.status(400).json({ message: "Réservé aux missions chauffeur." });
+    }
+    if (!requireClientOwnership(booking, req)) {
+      return res.status(403).json({ message: "Accès refusé à cette réservation." });
+    }
+    if (booking.status !== "driver_arrived") {
+      return res.status(409).json({ message: "Confirmez d'abord l'arrivée du chauffeur avant de terminer la mission." });
+    }
+
+    booking.status = "completed";
+    booking.isPaid = true;
+    booking.paidAt = booking.paidAt || new Date();
+    await booking.save();
+    emitBookingUpdate(booking);
+
+    const driverOwnerId = booking.driver?.owner;
+    if (driverOwnerId) {
+      await notify(driverOwnerId, "driver_completed", "🏁 Mission terminée",
+        `Le client a marqué la mission ${booking.reference || ""} comme terminée.`, "/vendor/dashboard");
+    }
+    schedulePostServiceSurvey(booking);
+    issueServiceInvoice(booking);
+
+    res.json({ booking, message: "Mission terminée." });
+  } catch (err) {
+    logger.error("completeMission:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -1587,7 +1691,7 @@ export const resolveDispute = async (req, res) => {
     if (booking.client?._id) await notify(booking.client._id, "system", "Litige résolu", clientMsg, "/dashboard");
     if (disputeOwnerId) await notify(disputeOwnerId, "system", "Litige résolu",
       `Le litige sur la commande ${booking.reference} a été résolu par l'administration.`, "/vendor/dashboard");
-    if (booking.status === "completed") schedulePostServiceSurvey(booking);
+    if (booking.status === "completed") { schedulePostServiceSurvey(booking); issueServiceInvoice(booking); }
 
     res.json({ booking, message: "Litige résolu.", resolution });
   } catch (err) {
@@ -1653,6 +1757,7 @@ export const adminForceComplete = async (req, res) => {
     if (booking.client?._id) await notify(booking.client._id, "system", "✅ Commande finalisée", `Votre commande ${booking.reference} a été finalisée par l'administration.`, "/dashboard");
     if (forceCompleteOwnerId) await notify(forceCompleteOwnerId, "system", "✅ Commande finalisée", `La commande ${booking.reference} a été finalisée.`, "/vendor/dashboard");
     schedulePostServiceSurvey(booking);
+    issueServiceInvoice(booking);
 
     res.json({ booking, message: "Commande finalisée avec succès." });
   } catch (err) {

@@ -912,6 +912,8 @@ export default function VendorDashboard() {
   const [activeTab,      setActiveTab]      = useState(searchParams.get("tab") || "dashboard");
   const [contactingOrder, setContactingOrder] = useState(null);
   const [invoices,       setInvoices]       = useState([]);
+  const [serviceInvoices, setServiceInvoices] = useState([]);
+  const [serviceInvoiceLoading, setServiceInvoiceLoading] = useState(false);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [transactions,   setTransactions]   = useState([]);
   const [txLoading,      setTxLoading]      = useState(false);
@@ -951,6 +953,9 @@ export default function VendorDashboard() {
   const [detailLoading,  setDetailLoading]  = useState(false);
   const [myDrivers,      setMyDrivers]      = useState([]);
   const [driverLoading,  setDriverLoading]  = useState(false);
+  const [employmentRequests, setEmploymentRequests] = useState([]);
+  const [employmentLoading,  setEmploymentLoading]  = useState(false);
+  const [employmentDeclining, setEmploymentDeclining] = useState(null); // id en cours de refus
   const [refreshing,     setRefreshing]     = useState(false);
 
   // ── Réservations personnelles (en tant que client) ─────────────────────────
@@ -1437,6 +1442,16 @@ export default function VendorDashboard() {
     setInvoiceLoading(false);
   }, [token]);
 
+  // Factures de prestation (une par commande terminée, voir issueServiceInvoice
+  // dans bookingController.js) — distinctes des factures mensuelles de commission ci-dessus.
+  const loadServiceInvoices = useCallback(async () => {
+    if (!token) return;
+    setServiceInvoiceLoading(true);
+    try { const r = await fetch("/api/service-invoices/mine", { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) { const d = await r.json(); setServiceInvoices(d.invoices || []); } }
+    catch { /* ignore */ }
+    setServiceInvoiceLoading(false);
+  }, [token]);
+
   const loadTransactions = useCallback(async () => {
     if (!token) return;
     setTxLoading(true);
@@ -1460,6 +1475,35 @@ export default function VendorDashboard() {
     catch { /* ignore */ }
     finally { setDriverLoading(false); }
   }, [token]);
+
+  // Propositions d'embauche CDD/CDI reçues pour mes chauffeurs (voir DriverEmployment.jsx côté client)
+  const loadEmploymentRequests = useCallback(async () => {
+    if (!token) return;
+    setEmploymentLoading(true);
+    try { const r = await fetch("/api/driver-employment/received", { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) { const d = await r.json(); setEmploymentRequests(d.requests || []); } }
+    catch { /* ignore */ }
+    finally { setEmploymentLoading(false); }
+  }, [token]);
+
+  const respondToEmployment = useCallback(async (requestId, action, reason) => {
+    if (!token) return;
+    setEmploymentDeclining(requestId);
+    try {
+      const r = await fetch(`/api/driver-employment/${requestId}/respond`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action, reason }),
+      });
+      if (r.ok) {
+        toastSuccess(action === "accept" ? "✅ Proposition acceptée." : "Proposition refusée.");
+        loadEmploymentRequests();
+      } else {
+        const d = await r.json().catch(() => ({}));
+        toastError(d.message || "Erreur lors de la réponse.");
+      }
+    } catch { toastError("Erreur réseau."); }
+    finally { setEmploymentDeclining(null); }
+  }, [token, loadEmploymentRequests, toastSuccess, toastError]);
 
   const handleReject = useCallback(() => {
     if (!rejectModal) return;
@@ -1526,7 +1570,8 @@ export default function VendorDashboard() {
   }, [loadPartnerOrders, loadPartnerVehicles, loadMyDrivers, loadInvoices, loadTransactions, loadPartnerStats, toastSuccess]);
 
   useEffect(() => { loadMyDrivers(); }, [loadMyDrivers]);
-  useEffect(() => { loadInvoices(); loadTransactions(); loadContracts(); }, [loadInvoices, loadTransactions, loadContracts]);
+  useEffect(() => { loadEmploymentRequests(); }, [loadEmploymentRequests]);
+  useEffect(() => { loadInvoices(); loadTransactions(); loadContracts(); loadServiceInvoices(); }, [loadInvoices, loadTransactions, loadContracts, loadServiceInvoices]);
 
   // ── Temps réel : Socket.io + polling de secours (60s) ─────────────────────
   const prevCountRef = useRef(0);
@@ -2023,6 +2068,53 @@ export default function VendorDashboard() {
               })}
             </div>
           )}
+
+          {/* Propositions d'embauche CDD/CDI reçues (voir DriverEmployment.jsx côté client) */}
+          <div className={styles.sectionToolbar} style={{ marginTop: 32 }}>
+            <h2 className={styles.sectionTitle}>💼 Propositions d'embauche ({employmentRequests.filter((r) => r.status === "pending").length} en attente)</h2>
+          </div>
+          {employmentLoading ? <p className={styles.loadingMsg}>Chargement…</p> : employmentRequests.length === 0 ? (
+            <div className={styles.emptyFull} style={{ padding: "28px 20px" }}>
+              <div className={styles.emptyIcon}>💼</div>
+              <h3>Aucune proposition</h3>
+              <p>Les propositions d'embauche à temps plein (CDD/CDI) pour vos chauffeurs apparaîtront ici.</p>
+            </div>
+          ) : (
+            <div className={styles.vehicleGrid}>
+              {employmentRequests.map((reqm) => {
+                const sc = { pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, accepted: { l: "Acceptée", c: "#059669", bg: "#d1fae5" }, declined: { l: "Refusée", c: "#dc2626", bg: "#fee2e2" }, cancelled: { l: "Annulée", c: "#64748b", bg: "#f1f5f9" } }[reqm.status];
+                return (
+                  <div key={reqm._id} className={styles.vehicleCard}>
+                    <div className={styles.vehicleCardBody}>
+                      <div className={styles.vehicleCardTop}>
+                        <h3 className={styles.vehicleName}>{reqm.contractType?.toUpperCase()} — {reqm.driver?.firstName} {reqm.driver?.lastName}</h3>
+                        <span className={styles.vehicleStatusBadge} style={{ background: sc.bg, color: sc.c }}>{sc.l}</span>
+                      </div>
+                      <div className={styles.vehicleTags}>
+                        <span className={styles.vTag}>{reqm.employer?.firstName} {reqm.employer?.lastName}</span>
+                        {reqm.employer?.phone && <span className={styles.vTag}>{reqm.employer.phone}</span>}
+                      </div>
+                      <div className={styles.vehiclePrice}>{fmtXOF(reqm.proposedSalary)} / mois</div>
+                      <p style={{ margin: "6px 0 0", fontSize: ".78rem", color: "#64748b" }}>
+                        Début : {reqm.startDate ? new Date(reqm.startDate).toLocaleDateString("fr-FR") : "—"}
+                        {reqm.endDate && ` · Fin : ${new Date(reqm.endDate).toLocaleDateString("fr-FR")}`}
+                      </p>
+                      {reqm.workSchedule && <p style={{ margin: "2px 0 0", fontSize: ".78rem", color: "#64748b" }}>🕐 {reqm.workSchedule}</p>}
+                      {reqm.missionDescription && <p style={{ margin: "4px 0 0", fontSize: ".82rem", color: "#374151" }}>{reqm.missionDescription}</p>}
+                    </div>
+                    {reqm.status === "pending" && (
+                      <div className={styles.vehicleCardActions}>
+                        <button className={styles.btnApprove} disabled={employmentDeclining === reqm._id}
+                          onClick={() => respondToEmployment(reqm._id, "accept")}>Accepter</button>
+                        <button className={styles.btnDanger} disabled={employmentDeclining === reqm._id}
+                          onClick={() => { const reason = prompt("Motif du refus (optionnel) :") || ""; respondToEmployment(reqm._id, "decline", reason); }}>Refuser</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -2142,6 +2234,45 @@ export default function VendorDashboard() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+
+          {/* Factures de prestation — une par commande terminée (voir issueServiceInvoice) */}
+          <div className={styles.dashSection} style={{ marginTop: 24 }}>
+            <div className={styles.dashSectionHeader}><h3>Factures de prestation ({serviceInvoices.length})</h3></div>
+            {serviceInvoiceLoading ? <p className={styles.loadingMsg}>Chargement…</p> : serviceInvoices.length === 0 ? (
+              <p className={styles.emptyMsg}>Aucune facture de prestation pour l'instant.</p>
+            ) : (
+              <div className={styles.invoiceList}>
+                {serviceInvoices.map((inv) => (
+                  <div key={inv._id} className={styles.invoiceCard}>
+                    <div className={styles.invoiceCardHeader}>
+                      <div>
+                        <div className={styles.invoiceRef}>{inv.reference}</div>
+                        <div className={styles.invoicePeriod}>{inv.bookingReference} · {PAY_LABELS[inv.paymentMethod] || inv.paymentMethod || "—"}</div>
+                      </div>
+                      <span className={styles.invoiceStatusBadge} style={{ background: "#dcfce7", color: "#059669" }}>✅ Envoyée</span>
+                    </div>
+                    <div className={styles.invoiceTotalRow}>
+                      <span>Net à percevoir</span>
+                      <strong>{fmtXOF(inv.netPayout || 0)}</strong>
+                    </div>
+                    <div className={styles.invoiceLineRow}>
+                      <span>Brut</span>
+                      <span>{fmtXOF(inv.grossAmount || 0)}</span>
+                    </div>
+                    <div className={styles.invoiceLineRow}>
+                      <span>Commission ({Math.round((inv.commissionRate || 0) * 100)}%)</span>
+                      <span style={{ color: "#dc2626" }}>− {fmtXOF(inv.commissionAmount || 0)}</span>
+                    </div>
+                    <div className={styles.invoiceDue}>Terminée le {fmtDate(inv.serviceCompletedAt)}</div>
+                    <a href={`/api/service-invoices/${inv._id}/pdf`} target="_blank" rel="noopener noreferrer"
+                      style={{ display:"inline-flex", alignItems:"center", gap:6, marginTop:10, padding:"6px 14px", borderRadius:8, background:"#0f1b3f", color:"#fff", textDecoration:"none", fontSize:".8rem", fontWeight:700 }}>
+                      ⬇️ Télécharger la facture PDF
+                    </a>
+                  </div>
+                ))}
               </div>
             )}
           </div>

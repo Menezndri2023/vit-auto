@@ -31,7 +31,13 @@ async function logPaymentEvent(action, payment, source) {
   }
 }
 
-const ALLOWED_METHODS = ["card", "orange_money", "wave", "mtn", "moov", "paypal", "cash"];
+// Moyens de paiement disponibles au choix du client pour les services
+// domestiques (location/vente/essai/chauffeur/assurance/services) — carte,
+// espèces et mobile money international. Espèces exclu volontairement du
+// flux Import/Export (achat international, voir ieTransactionController.js/
+// IETransactionTracking.jsx — virement/mobile_money/crypto/lc uniquement, pas
+// de remise en main propre possible pour un container à l'international).
+const ALLOWED_METHODS = ["card", "cash", "orange_money", "wave", "mtn", "moov", "paypal"];
 const ONLINE_METHODS  = ["card", "orange_money", "wave"];
 
 // ── Helpers partagés (webhooks + simulation) ────────────────────────────────

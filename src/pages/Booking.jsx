@@ -22,6 +22,7 @@ const OPTIONS_CATALOG = [
   { id: "gps",       label: "GPS intégré",        price: 16.67, icon: "🗺️" },
 ];
 
+// Moyens de paiement disponibles au choix du client (voir Checkout.jsx/DriverBooking.jsx).
 const PAYMENT_METHODS = [
   { value: "orange_money", label: "Orange Money",    icon: "🟠", mobile: true },
   { value: "wave",         label: "Wave",             icon: "🔵", mobile: true },
@@ -55,7 +56,7 @@ export default function Booking() {
   const [searchParams]  = useSearchParams();
   const navigate        = useNavigate();
   const location        = useLocation();
-  const { fmt }         = useCurrency();
+  const { fmt, getPaymentMethodsForCountry, catalogCountry, countryCode } = useCurrency();
   const { vehicles, addBooking, getItemById } = useVehicles();
   const { token, user } = useAuth();
   const { error: toastError } = useToast();
@@ -479,8 +480,8 @@ export default function Booking() {
         // Paiement en ligne (carte/Orange Money/Wave) : redirection vers la
         // page de paiement hébergée par le fournisseur (ou le mode simulé si
         // aucun compte marchand n'est configuré — voir server/services/payment/).
-        // Les autres méthodes (cash, virement...) gardent le parcours existant
-        // : confirmation immédiate, règlement géré manuellement par la suite.
+        // Les autres méthodes (cash, mtn/moov manuel...) gardent le parcours
+        // existant : confirmation immédiate, règlement géré manuellement par la suite.
         if (["card", "orange_money", "wave"].includes(payMethod)) {
           let paymentInitFailed = false;
           try {
@@ -619,6 +620,13 @@ export default function Booking() {
       </div>
     );
   }
+
+  // Restreint les moyens de paiement à ceux activés par l'admin pour le pays du
+  // véhicule (CountryConfig.paymentMethods) — voir Checkout.jsx pour le même mécanisme.
+  const allowedPaymentMethods = getPaymentMethodsForCountry(vehicle.country || catalogCountry || countryCode);
+  const visiblePaymentMethods = allowedPaymentMethods
+    ? PAYMENT_METHODS.filter((pm) => allowedPaymentMethods.includes(pm.value))
+    : PAYMENT_METHODS;
 
   return (
     <div className={styles.page}>
@@ -875,7 +883,7 @@ export default function Booking() {
             <h3 className={styles.sectionTitle}>Méthode de paiement</h3>
 
             <div className={styles.payMethodGrid}>
-              {PAYMENT_METHODS.map((pm) => (
+              {visiblePaymentMethods.map((pm) => (
                 <label key={pm.value} className={`${styles.payCard} ${payMethod === pm.value ? styles.payCardActive : ""}`}>
                   <input type="radio" name="payMethod" value={pm.value}
                     checked={payMethod === pm.value} onChange={() => setPayMethod(pm.value)} />

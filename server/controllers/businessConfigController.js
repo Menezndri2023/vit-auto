@@ -112,12 +112,26 @@ const COUNTRY_FIELDS = [
   "deliveryRatePerKm", "deliveryBaseRate", "deliveryMaxKm", "taxPercent", "active",
 ];
 
+// Moyens de paiement réels disponibles sur la plateforme (voir paymentController
+// .ALLOWED_METHODS) — CountryConfig.paymentMethods n'a pas d'enum au niveau schéma
+// (tableau de strings libre), donc rien n'empêchait une faute de frappe admin
+// ("Cash", "carte"...) de faire disparaître silencieusement TOUS les moyens de
+// paiement du checkout pour ce pays (Checkout.jsx compare en exact/sensible à la
+// casse). Faille réelle trouvée en audit de sécurité (2026-07) — normalisée ici,
+// à l'écriture, plutôt que dans le schéma pour rester tolérant à la casse en saisie.
+const VALID_PAYMENT_METHODS = ["card", "cash", "orange_money", "wave", "mtn", "moov", "paypal"];
+function normalizePaymentMethods(list) {
+  if (!Array.isArray(list)) return list;
+  return [...new Set(list.map((m) => String(m).trim().toLowerCase()).filter((m) => VALID_PAYMENT_METHODS.includes(m)))];
+}
+
 export const upsertCountryConfig = async (req, res) => {
   try {
     const { code } = req.body;
     if (!code) return res.status(400).json({ message: "Code pays requis." });
     const payload = {};
     for (const key of COUNTRY_FIELDS) if (req.body[key] !== undefined) payload[key] = req.body[key];
+    if (payload.paymentMethods !== undefined) payload.paymentMethods = normalizePaymentMethods(payload.paymentMethods);
     payload.updatedBy = req.user._id;
 
     const before = await CountryConfig.findOne({ code: code.toUpperCase() }).lean();

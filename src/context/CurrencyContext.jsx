@@ -79,7 +79,21 @@ export function CurrencyProvider({ children }) {
     code: c.code, name: c.name, flag: c.flag, currency: c.currency,
     symbol: currencies.find((cur) => cur.code === c.currency)?.symbol || c.currency,
     locale: c.locale,
+    // Moyens de paiement activés par l'admin pour ce pays (CountryConfig.paymentMethods,
+    // voir AdminPanel.jsx) — jusqu'ici récupéré du backend mais jamais exposé au
+    // reste du front, qui affichait toujours TOUS les moyens de paiement en dur
+    // quel que soit le pays. Un tableau vide = pays pas encore configuré : aucune
+    // restriction (voir getPaymentMethodsForCountry ci-dessous), jamais "aucun moyen".
+    paymentMethods: Array.isArray(c.paymentMethods) ? c.paymentMethods : [],
   }));
+
+  // Liste des moyens de paiement activés pour un pays — repli sur "aucune
+  // restriction" (null) si le pays est inconnu ou pas encore configuré, pour
+  // ne jamais casser le paiement d'un pays que l'admin n'a pas encore renseigné.
+  const getPaymentMethodsForCountry = useCallback((countryCode) => {
+    const cfg = COUNTRIES_CONFIG.find((c) => c.code === countryCode);
+    return cfg?.paymentMethods?.length ? cfg.paymentMethods : null;
+  }, [COUNTRIES_CONFIG]);
 
   // ── Filtre pays du catalogue (véhicules, chauffeurs, import/export) ────────
   // Distinct de la devise : "International" affiche tout sans changer la
@@ -293,6 +307,7 @@ export function CurrencyProvider({ children }) {
         EXCHANGE_RATES_FROM_MAD: Object.fromEntries(currencies.map((c) => [c.code, c.rateFromUSD / rateFromUSD("MAD")])),
         countryCode: detectedCountry || "MA",
         COUNTRIES_CONFIG,
+        getPaymentMethodsForCountry,
         setCountry: (cc) => {
           const cur = COUNTRY_TO_CURRENCY[cc];
           if (cur) setCurrency(cur);

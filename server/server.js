@@ -47,6 +47,8 @@ import whatsappRoutes         from "./routes/whatsapp.js";
 import * as whatsappController from "./controllers/whatsappController.js";
 import pricingRoutes          from "./routes/pricing.js";
 import businessConfigRoutes   from "./routes/businessConfig.js";
+import driverEmploymentRoutes from "./routes/driverEmployment.js";
+import serviceInvoiceRoutes   from "./routes/serviceInvoices.js";
 import { authenticate, authorizeAdmin } from "./middleware/auth.js";
 
 dotenv.config();
@@ -340,6 +342,8 @@ app.use("/api/whatsapp",           apiLimiter, whatsappRoutes);           // Bot
 app.use("/api/pricing",            catalogueLimiter, pricingRoutes);      // Devises/pays/tarifs — public, consulté au chargement de l'app
 app.use("/api/admin/business-config", apiLimiter, businessConfigRoutes);  // Configuration métier (commissions/abonnements/devises...)
 app.use("/api/partner/businesses",    apiLimiter, partnerBusinessRoutes);  // Entreprises gérées par un même partenaire (localisations multiples)
+app.use("/api/driver-employment",     apiLimiter, driverEmploymentRoutes); // Embauche chauffeur temps plein (CDD/CDI)
+app.use("/api/service-invoices",      apiLimiter, serviceInvoiceRoutes);   // Facture de prestation au partenaire après service
 
 // ── Communication tracking (pixel ouverture + clic email) ────────────────────
 const TRANSPARENT_GIF = Buffer.from(

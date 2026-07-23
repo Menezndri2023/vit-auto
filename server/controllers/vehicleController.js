@@ -313,14 +313,26 @@ export const getVehicles = async (req, res) => {
       vehicles = result?.data || [];
       total    = result?.count?.[0]?.total || 0;
 
-      // populate() n'existe pas en aggregation — hydrater owner manuellement.
+      // populate() n'existe pas en aggregation — hydrater owner/business manuellement.
+      // business.isConcessionnaire doit être disponible en LISTE comme en détail
+      // (getVehicleById le peuple déjà) — sinon le badge "Concessionnaire" reste
+      // incohérent selon le point d'entrée. Bug latent trouvé en audit (2026-07).
       const User = (await import("../models/User.js")).default;
+      const PartnerBusinessModel = (await import("../models/PartnerBusiness.js")).default;
       const ownerIds = [...new Set(vehicles.map((v) => v.owner?.toString()).filter(Boolean))];
-      const owners = await User.find({ _id: { $in: ownerIds } })
-        .select("firstName phone ville certificationBadge")
-        .lean();
+      const businessIds = [...new Set(vehicles.map((v) => v.business?.toString()).filter(Boolean))];
+      const [owners, businesses] = await Promise.all([
+        User.find({ _id: { $in: ownerIds } }).select("firstName phone ville certificationBadge").lean(),
+        businessIds.length ? PartnerBusinessModel.find({ _id: { $in: businessIds } }).select("companyName isConcessionnaire").lean() : [],
+      ]);
       const ownerMap = Object.fromEntries(owners.map((o) => [o._id.toString(), o]));
-      vehicles = vehicles.map((v) => limitVehicleImages({ ...v, owner: ownerMap[v.owner?.toString()] || v.owner, distanceKm: Math.round(v.distanceKm * 10) / 10 }));
+      const businessMap = Object.fromEntries(businesses.map((b) => [b._id.toString(), b]));
+      vehicles = vehicles.map((v) => limitVehicleImages({
+        ...v,
+        owner: ownerMap[v.owner?.toString()] || v.owner,
+        business: businessMap[v.business?.toString()] || v.business,
+        distanceKm: Math.round(v.distanceKm * 10) / 10,
+      }));
     } else {
       [vehicles, total] = await Promise.all([
         Vehicle.find(filter)
@@ -328,6 +340,7 @@ export const getVehicles = async (req, res) => {
           .skip(skip)
           .limit(safeLimit)
           .populate("owner", "firstName phone ville certificationBadge")
+          .populate("business", "companyName isConcessionnaire")
           .lean(),
         Vehicle.countDocuments(filter),
       ]);

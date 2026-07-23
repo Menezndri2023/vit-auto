@@ -7,11 +7,12 @@ import { mockReqRes } from "./helpers/mockReqRes.js";
 // Même logique d'accès que vehicleController.createVehicle (voir
 // vehicle.create.test.js) — portes KYC/certification/suspension partagées,
 // pas de plafond "particulier" ni de détection de doublon ici en revanche.
-// profilePhoto est désormais toujours exigé (voir createDriver) — inclus par défaut.
+// profilePhoto et cv sont désormais toujours exigés (voir createDriver) — inclus par défaut.
 const minimalDriver = (overrides = {}) => ({
   firstName: "Chauffeur", lastName: "Test", title: "Chauffeur pro Abidjan",
   tarif: 30000, disponibilite: "Temps plein", zone: "Abidjan", experience: "5 ans",
   profilePhoto: "https://cdn.example.test/driver-profile.jpg",
+  cv: "https://cdn.example.test/driver-cv.pdf",
   ...overrides,
 });
 

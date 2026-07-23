@@ -23,11 +23,18 @@ const bookingSchema = new mongoose.Schema({
   //   → client_arrived | client_absent
   //   → transaction_concluded | transaction_not_concluded
   //   → waiting_client_validation → completed | disputed
+  //
+  // "driver_arrived" est distinct de "client_arrived" : réservé aux missions
+  // chauffeur (type "chauffeur"), c'est le CLIENT ("l'employeur") qui confirme
+  // que le chauffeur est arrivé pour démarrer la mission — alors que
+  // "client_arrived" est déclenché par le PARTENAIRE et signifie autre chose
+  // selon le type (destination atteinte pour un chauffeur, présence du client
+  // pour une location). Voir bookingController.markDriverArrived/completeMission.
   status: {
     type: String,
     enum: [
       "pending", "confirmed", "preparing", "ready", "in_progress",
-      "client_arrived", "client_absent",
+      "client_arrived", "client_absent", "driver_arrived",
       "transaction_concluded", "transaction_not_concluded",
       "waiting_client_validation",
       "completed", "cancelled", "disputed",

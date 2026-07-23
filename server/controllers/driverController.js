@@ -6,13 +6,28 @@ import PartnerBusiness from "../models/PartnerBusiness.js";
 import Notification from "../models/Notification.js";
 import PartnerVerification from "../models/PartnerVerification.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
-import { validateImageDataUri } from "../utils/imageValidation.js";
+import { validateImageDataUri, validateDocumentDataUri } from "../utils/imageValidation.js";
 import { logAction } from "../middleware/auditLog.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const MAX_DRIVER_IMAGE_BYTES = 6 * 1024 * 1024;
 const MAX_IMAGE_URL_LENGTH   = 2048;
+const MAX_CV_BYTES           = 8 * 1024 * 1024;
+
+// CV obligatoire à la publication — consultable par un employeur potentiel
+// avant une proposition d'embauche CDD/CDI (DriverEmployment). Accepte PDF ou
+// image scannée (validateDocumentDataUri), ou une URL http(s) déjà hébergée.
+function validateCv(cv) {
+  if (!cv) return "CV requis pour publier un profil chauffeur.";
+  if (typeof cv === "string" && cv.startsWith("data:")) {
+    const check = validateDocumentDataUri(cv, MAX_CV_BYTES);
+    if (!check.ok) return check.message;
+  } else if (typeof cv !== "string" || !/^https?:\/\//i.test(cv) || cv.length > MAX_IMAGE_URL_LENGTH) {
+    return "CV invalide : PDF/image encodée ou URL http(s) attendue.";
+  }
+  return null;
+}
 
 // Même validation que vehicleController.validateVehicleImages — un partenaire
 // authentifié ne doit jamais pouvoir soumettre un blob arbitraire dans
@@ -110,7 +125,7 @@ export const createDriver = async (req, res) => {
     // Whitelist des champs autorisés (évite mass assignment sur owner, stats, status)
     const {
       firstName, lastName, telephone, contactTel, phone: phoneRaw,
-      profilePhoto, title, description,
+      profilePhoto, cv, title, description,
       tarif, tarifDemiJournee, tarifHeure,
       disponibilite, zone, ville,
       experience, langues, permisCategorie, vehiculePersonnel, typeVehicule,
@@ -130,6 +145,10 @@ export const createDriver = async (req, res) => {
     const imagesError = validateDriverImages([profilePhoto, ...vehicleImages]);
     if (imagesError) return res.status(400).json({ message: imagesError });
 
+    // ── CV obligatoire ──────────────────────────────────────────────────────
+    const cvError = validateCv(cv);
+    if (cvError) return res.status(400).json({ message: cvError });
+
     // ── Entreprise du partenaire (facultatif) — même principe que Vehicle ───
     let business = null;
     if (req.body.businessId) {
@@ -140,7 +159,7 @@ export const createDriver = async (req, res) => {
     const driver = await Driver.create({
       firstName, lastName, title, description,
       ...(phone ? { phone } : {}),
-      profilePhoto,
+      profilePhoto, cv,
       tarif: tarif || undefined, tarifDemiJournee: tarifDemiJournee || undefined, tarifHeure: tarifHeure || undefined,
       disponibilite, zone, ville,
       experience,
@@ -300,7 +319,7 @@ export const updateDriver = async (req, res) => {
     }
 
     const EDITABLE = [
-      "firstName", "lastName", "phone", "profilePhoto", "title", "description",
+      "firstName", "lastName", "phone", "profilePhoto", "cv", "title", "description",
       "tarif", "tarifDemiJournee", "tarifHeure",
       "disponibilite", "zone", "ville",
       "experience", "langues", "permisCategorie", "vehiculePersonnel", "typeVehicule",
@@ -325,6 +344,11 @@ export const updateDriver = async (req, res) => {
     if (!nextVehiculePersonnel) safeUpdate.images = [];
     const imagesError = validateDriverImages([nextProfilePhoto, ...(nextVehiculePersonnel ? nextImages : [])]);
     if (imagesError) return res.status(400).json({ message: imagesError });
+
+    // ── CV : requis en permanence (déjà exigé à la création) ────────────────
+    const nextCv = safeUpdate.cv !== undefined ? safeUpdate.cv : driver.cv;
+    const cvError = validateCv(nextCv);
+    if (cvError) return res.status(400).json({ message: cvError });
 
     // Rattachement à une entreprise du même propriétaire — même logique que
     // vehicleController.updateVehicle (déplacement du partenaire entre ses

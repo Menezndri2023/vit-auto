@@ -281,6 +281,10 @@ export default function VehicleDetails() {
             mode:     v.type === "vente" ? "Acheter" : "Louer",
             buyPrice: v.priceForSale,
             leasing:  v.leasing || null,
+            // getVehicleById peuple `business` en objet ({companyName, isConcessionnaire})
+            // — jamais aplati ici jusqu'ici, donc le badge "Concessionnaire" ne
+            // s'affichait jamais réellement. Bug réel trouvé en audit (2026-07).
+            isConcessionnaire: !!v.business?.isConcessionnaire,
           });
         } else {
           setNotFound(true);

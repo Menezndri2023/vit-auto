@@ -88,7 +88,7 @@ describe("paymentController.initiatePayment — devis ServiceRequest/InsuranceRe
   it("initie le paiement d'une prime InsuranceRequest approuvée", async () => {
     const client = await createUser();
     const ir = await InsuranceRequest.create({ client: client._id, type: "auto", status: "approved", premium: 80 });
-    const { req, res } = mockReqRes({ user: client, body: { insuranceRequestId: ir._id.toString(), method: "wave" } });
+    const { req, res } = mockReqRes({ user: client, body: { insuranceRequestId: ir._id.toString(), method: "card" } });
     await initiatePayment(req, res);
 
     expect(res.status).not.toHaveBeenCalledWith(400);
@@ -116,9 +116,20 @@ describe("paymentController.initiatePayment — devis ServiceRequest/InsuranceRe
 describe("paymentController.createPayment", () => {
   it("refuse un montant qui ne correspond pas à la réservation", async () => {
     const booking = await createBookingDoc({ montantTotal: 45000 });
-    const { req, res } = mockReqRes({ body: { booking: booking._id.toString(), amount: 10000, method: "mtn" } });
+    const { req, res } = mockReqRes({ body: { booking: booking._id.toString(), amount: 10000, method: "card" } });
     await createPayment(req, res);
     expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it("masque le numéro de carte sauf les 4 derniers chiffres", async () => {
+    const booking = await createBookingDoc({ montantTotal: 45000 });
+    const { req, res } = mockReqRes({
+      body: { booking: booking._id.toString(), amount: 45000, method: "card", cardLast4: "4242424242424242", cardHolder: "Jean Client" },
+    });
+    await createPayment(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(202);
+    expect(res.body.payment.paymentDetails.cardLast4).toBe("4242");
   });
 
   it("masque le numéro mobile money sauf les 2 derniers chiffres", async () => {
@@ -132,13 +143,20 @@ describe("paymentController.createPayment", () => {
     expect(res.body.payment.paymentDetails.mobileNumber).toMatch(/^\*+33$/);
   });
 
+  it("refuse une méthode de paiement non prise en charge", async () => {
+    const booking = await createBookingDoc({ montantTotal: 45000 });
+    const { req, res } = mockReqRes({ body: { booking: booking._id.toString(), amount: 45000, method: "bitcoin" } });
+    await createPayment(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
   it("refuse un doublon de paiement pour la même réservation", async () => {
     const booking = await createBookingDoc({ montantTotal: 45000 });
-    const { req: req1, res: res1 } = mockReqRes({ body: { booking: booking._id.toString(), amount: 45000, method: "mtn" } });
+    const { req: req1, res: res1 } = mockReqRes({ body: { booking: booking._id.toString(), amount: 45000, method: "cash" } });
     await createPayment(req1, res1);
     expect(res1.status).toHaveBeenCalledWith(202);
 
-    const { req: req2, res: res2 } = mockReqRes({ body: { booking: booking._id.toString(), amount: 45000, method: "mtn" } });
+    const { req: req2, res: res2 } = mockReqRes({ body: { booking: booking._id.toString(), amount: 45000, method: "cash" } });
     await createPayment(req2, res2);
     expect(res2.status).toHaveBeenCalledWith(409);
   });

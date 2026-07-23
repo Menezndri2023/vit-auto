@@ -7,7 +7,7 @@ import { useCurrency } from "../context/CurrencyContext";
 import ReportButton from "../components/ReportButton/ReportButton";
 import styles from "./Booking.module.css";
 
-// Labels fixes (méthodes de paiement — même liste que Checkout.jsx)
+// Moyens de paiement disponibles au choix du client (voir Checkout.jsx).
 const METHOD_LABELS = {
   orange_money: "Orange Money",
   wave:         "Wave",
@@ -23,7 +23,7 @@ const DriverBooking = () => {
   const { getItemById } = useVehicles();
   const { user, token } = useAuth();
   const { success, error } = useToast();
-  const { fmt } = useCurrency();
+  const { fmt, getPaymentMethodsForCountry, catalogCountry, countryCode } = useCurrency();
 
   const driver = getItemById(id);
 
@@ -90,6 +90,13 @@ const DriverBooking = () => {
 
   const isMobile = ["orange_money", "wave", "mtn", "moov"].includes(selectedMethod);
   const isCard   = selectedMethod === "card";
+
+  // Restreint les moyens de paiement à ceux activés par l'admin pour le pays du
+  // chauffeur (CountryConfig.paymentMethods) — voir Checkout.jsx pour le même mécanisme.
+  const allowedMethods = getPaymentMethodsForCountry(driver.country || catalogCountry || countryCode);
+  const visibleMethodLabels = allowedMethods
+    ? Object.fromEntries(Object.entries(METHOD_LABELS).filter(([val]) => allowedMethods.includes(val)))
+    : METHOD_LABELS;
 
   const handleSubmit = async () => {
     if (submitting) return;
@@ -211,6 +218,9 @@ const DriverBooking = () => {
           <p style={{ margin: "2px 0 0", color: "#94a3b8", fontSize: "0.82rem" }}>
             {driver.vehiculePersonnel ? `🚗 Avec véhicule${driver.typeVehicule ? ` (${driver.typeVehicule})` : ""}` : "🚶 Sans véhicule — conduit votre véhicule"}
           </p>
+          {driver.langues?.length > 0 && (
+            <p style={{ margin: "2px 0 0", color: "#94a3b8", fontSize: "0.82rem" }}>💬 {driver.langues.join(", ")}</p>
+          )}
         </div>
         <div style={{ marginLeft: "auto" }}>
           <ReportButton targetType="driver" targetId={driver._id || driver.id} compact />
@@ -220,6 +230,12 @@ const DriverBooking = () => {
       {driver.description && (
         <p style={{ color: "#374151", fontSize: "0.92rem", marginBottom: 24 }}>{driver.description}</p>
       )}
+
+      {/* Alternative à la mission ponctuelle ci-dessous : embauche durable CDD/CDI */}
+      <Link to={`/driver-employment/${driver._id || driver.id}`}
+        style={{ display: "block", textAlign: "center", padding: "12px 16px", marginBottom: 24, borderRadius: 12, border: "1.5px dashed #ff4d2d", color: "#ff4d2d", fontWeight: 700, textDecoration: "none", fontSize: "0.9rem" }}>
+        💼 Employer ce chauffeur à temps plein (CDD / CDI)
+      </Link>
 
       {/* Photos du véhicule (chauffeur avec véhicule) — distinctes de la photo de profil ci-dessus */}
       {driver.vehiculePersonnel && Array.isArray(driver.images) && driver.images.length > 0 && (
@@ -295,7 +311,7 @@ const DriverBooking = () => {
       {/* Paiement */}
       <h2 style={{ color: "#0f1b3f", fontSize: "1.05rem", marginBottom: 12 }}>Mode de paiement</h2>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
-        {Object.entries(METHOD_LABELS).map(([val, label]) => (
+        {Object.entries(visibleMethodLabels).map(([val, label]) => (
           <label key={val} style={{
             display: "flex", alignItems: "center", gap: 8,
             padding: "12px 16px", borderRadius: 12, cursor: "pointer",
@@ -356,7 +372,7 @@ const DriverBooking = () => {
           background: (submitting || !missionStart || slotConflict || !hasHourlyRate) ? "#94a3b8" : "linear-gradient(135deg, #ff4d2d, #e03519)",
           color: "#fff", fontWeight: 800, fontSize: "1rem",
         }}>
-        {submitting ? "Envoi en cours…" : `Réserver ce chauffeur — ${fmt(total)}`}
+        {submitting ? "Envoi en cours…" : `Employer ce chauffeur — ${fmt(total)}`}
       </button>
     </div>
   );

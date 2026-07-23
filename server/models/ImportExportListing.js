@@ -71,10 +71,12 @@ const importExportListingSchema = new mongoose.Schema({
   },
 
   // Moyens de paiement acceptés par l'exportateur pour CETTE annonce — cohérent
-  // avec le vocabulaire déjà utilisé par IETransaction.escrow.method.
+  // avec le vocabulaire déjà utilisé par IETransaction.escrow.method. Pas
+  // d'espèces ("cash") pour un achat international : aucune remise en main
+  // propre possible pour un véhicule expédié par container/fret.
   acceptedPaymentMethods: {
     type: [String],
-    enum: ["carte", "virement", "mobile_money", "crypto", "lc", "cash"],
+    enum: ["carte", "virement", "mobile_money", "crypto", "lc"],
     default: [],
   },
 

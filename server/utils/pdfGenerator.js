@@ -370,3 +370,165 @@ export function generateReceiptPDF(booking, res) {
 export function generateReceiptPDFBuffer(booking) {
   return buildPDFBuffer((doc) => drawReceipt(doc, booking));
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 4. CONTRAT D'EMBAUCHE CHAUFFEUR CDD/CDI (DriverEmployment)
+// ══════════════════════════════════════════════════════════════════════════════
+// Document récapitulatif des conditions proposées et acceptées — ne remplace
+// pas un contrat de travail en bonne et due forme (mentions légales locales,
+// cotisations sociales...), volontairement hors périmètre d'une marketplace :
+// sert de trace écrite des conditions négociées via la plateforme, à formaliser
+// ensuite entre les parties.
+const DEFAULT_EMPLOYMENT_CONDITIONS = [
+  "1. Le chauffeur s'engage à exécuter sa mission avec professionnalisme, ponctualité et respect du code de la route.",
+  "2. L'employeur s'engage à régler la rémunération convenue selon la périodicité définie d'un commun accord.",
+  "3. La période d'essai, le préavis et les conditions de rupture sont à définir entre les parties conformément au droit du travail applicable.",
+  "4. Toute modification substantielle des conditions ci-dessus doit faire l'objet d'un avenant écrit signé des deux parties.",
+  "5. VIT AUTO n'est ni employeur ni partie au contrat de travail : sa responsabilité se limite à la mise en relation.",
+].join("\n");
+
+function drawEmploymentContract(doc, request) {
+  const ref = `VIT-EMP-${request._id.toString().slice(-8).toUpperCase()}`;
+  header(doc, request.contractType === "cdi" ? "PROPOSITION D'EMBAUCHE — CDI" : "PROPOSITION D'EMBAUCHE — CDD", ref);
+
+  // ── Parties ──────────────────────────────────────────────────────────────
+  doc.rect(40, doc.y, (doc.page.width - 90) / 2, 100).fill(LGRAY).stroke("#e2e8f0");
+  const leftX = 50;
+  const rightX = (doc.page.width / 2) + 10;
+  const topY = doc.y - 98;
+
+  doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(9).text("EMPLOYEUR", leftX, topY + 6);
+  doc.font("Helvetica").fontSize(9).fillColor(GRAY);
+  doc.text(`${request.employerInfo?.firstName || ""} ${request.employerInfo?.lastName || ""}`, leftX, topY + 20);
+  doc.text(request.employerInfo?.email || "—", leftX, topY + 32);
+  doc.text(request.employerInfo?.phone || "—", leftX, topY + 44);
+
+  doc.rect(rightX - 10, doc.y - 100 + 2, (doc.page.width - 90) / 2, 100).fill(LGRAY).stroke("#e2e8f0");
+  doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(9).text("CHAUFFEUR", rightX, topY + 6);
+  doc.font("Helvetica").fontSize(9).fillColor(GRAY);
+  doc.text(`${request.driver?.firstName || ""} ${request.driver?.lastName || ""}`, rightX, topY + 20);
+  doc.text(request.driver?.phone || "—", rightX, topY + 32);
+
+  doc.moveDown(5);
+
+  // ── Conditions du contrat ─────────────────────────────────────────────────
+  section(doc, "Conditions proposées");
+  row(doc, "Type de contrat", request.contractType.toUpperCase());
+  row(doc, "Date de début", fmtDate(request.startDate));
+  if (request.contractType === "cdd") row(doc, "Date de fin", fmtDate(request.endDate));
+  row(doc, "Salaire mensuel", fmtAmount(request.proposedSalary, request.currency), true);
+  row(doc, "Horaires / rythme", request.workSchedule || "—");
+  if (request.location?.ville) row(doc, "Lieu de mission", [request.location.ville, request.location.country].filter(Boolean).join(", "));
+  doc.moveDown();
+
+  if (request.missionDescription) {
+    section(doc, "Description du poste");
+    doc.fillColor(NAVY).font("Helvetica").fontSize(9)
+      .text(request.missionDescription, 50, doc.y, { width: doc.page.width - 100, align: "justify" });
+    doc.moveDown();
+  }
+
+  // ── Statut ───────────────────────────────────────────────────────────────
+  doc.moveDown(0.5);
+  doc.rect(40, doc.y, doc.page.width - 80, 26).fill(request.status === "accepted" ? "#059669" : NAVY);
+  doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(11)
+    .text(request.status === "accepted" ? "✓ PROPOSITION ACCEPTÉE PAR LE CHAUFFEUR" : "PROPOSITION EN ATTENTE", 0, doc.y - 20, { align: "center", width: doc.page.width });
+  doc.moveDown(2);
+
+  // ── Clauses du contrat — texte par défaut, personnalisable par l'admin lors
+  // du traitement de la demande (voir driverEmploymentController.processEmploymentRequest) ──
+  section(doc, "Clauses du contrat");
+  doc.fillColor(NAVY).font("Helvetica").fontSize(9)
+    .text(request.contractConditions || DEFAULT_EMPLOYMENT_CONDITIONS, 50, doc.y, { width: doc.page.width - 100, align: "justify" });
+  doc.moveDown();
+
+  // ── Mentions légales ─────────────────────────────────────────────────────
+  doc.rect(40, doc.y, doc.page.width - 80, 1).fill("#e2e8f0");
+  doc.moveDown(0.5);
+  doc.fillColor(GRAY).font("Helvetica").fontSize(8)
+    .text(
+      "Ce document récapitule les conditions d'embauche proposées via la plateforme VIT AUTO et acceptées par le chauffeur " +
+      "concerné. Il ne constitue pas un contrat de travail en bonne et due forme : la rédaction du contrat définitif " +
+      "(mentions légales, cotisations sociales, clauses spécifiques) et sa signature restent à la charge des deux parties, " +
+      "en dehors de la plateforme. VIT AUTO n'intervient ni comme employeur ni comme intermédiaire d'embauche.",
+      40, doc.y, { width: doc.page.width - 80, align: "justify" }
+    );
+
+  footer(doc);
+}
+
+export function generateEmploymentContractPDF(request, res) {
+  const doc = new PDFDocument({ margin: 40, size: "A4" });
+  const ref = `contrat-embauche-${request._id.toString().slice(-8)}`;
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${ref}.pdf"`);
+  doc.pipe(res);
+  drawEmploymentContract(doc, request);
+  doc.end();
+}
+
+// Variante Buffer — pour pièce jointe email envoyée aux deux parties à l'acceptation.
+export function generateEmploymentContractPDFBuffer(request) {
+  return buildPDFBuffer((doc) => drawEmploymentContract(doc, request));
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 5. FACTURE DE PRESTATION AU PARTENAIRE (ServiceInvoice) — après service rendu
+// ══════════════════════════════════════════════════════════════════════════════
+// Distincte de generateInvoicePDF (facture MENSUELLE que le partenaire doit à
+// VIT AUTO) : ici, document remis au partenaire juste après une commande
+// terminée, détaillant ce qu'IL a encaissé/à percevoir pour cette prestation.
+const PAYMENT_METHOD_LABELS = {
+  cash: "Espèces", card: "Carte bancaire", orange_money: "Orange Money",
+  wave: "Wave", mtn: "MTN Mobile Money", moov: "Moov Money",
+  virement: "Virement bancaire", paypal: "PayPal", applepay: "Apple Pay", test: "Test",
+};
+
+function drawServiceInvoice(doc, invoice) {
+  const ref = invoice.reference || `VIT-SRV-${invoice._id.toString().slice(-8).toUpperCase()}`;
+  header(doc, "FACTURE DE PRESTATION", ref);
+
+  section(doc, "Prestation");
+  row(doc, "Commande",         invoice.bookingReference || "—");
+  row(doc, "Type de service",  { location: "Location", essai: "Essai/Vente", chauffeur: "Mission chauffeur", leasing: "Leasing" }[invoice.serviceType] || invoice.serviceType || "—");
+  row(doc, "Terminée le",      fmtDate(invoice.serviceCompletedAt));
+  row(doc, "Moyen de paiement", PAYMENT_METHOD_LABELS[invoice.paymentMethod] || invoice.paymentMethod || "—");
+  doc.moveDown();
+
+  section(doc, "Récapitulatif financier");
+  row(doc, "Montant brut",         fmtAmount(invoice.grossAmount, invoice.currency));
+  row(doc, "Commission VIT AUTO",  `${fmtAmount(invoice.commissionAmount, invoice.currency)} (${Math.round((invoice.commissionRate || 0) * 100)}%)`);
+  doc.moveDown(0.3);
+  doc.rect(40, doc.y, doc.page.width - 80, 26).fill(NAVY);
+  doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(12)
+    .text("NET À PERCEVOIR :", 50, doc.y - 22, { width: 250 })
+    .text(fmtAmount(invoice.netPayout, invoice.currency), 0, doc.y - 22, { align: "right", width: doc.page.width - 50 });
+  doc.moveDown(2);
+
+  doc.rect(40, doc.y, doc.page.width - 80, 1).fill("#e2e8f0");
+  doc.moveDown(0.5);
+  doc.fillColor(GRAY).font("Helvetica").fontSize(8)
+    .text(
+      "Ce document récapitule la répartition financière de la prestation ci-dessus, générée automatiquement par VIT AUTO " +
+      "à l'issue de la commande. Il ne remplace pas une facture fiscale émise par le partenaire lui-même si la réglementation " +
+      "locale l'exige.",
+      40, doc.y, { width: doc.page.width - 80, align: "justify" }
+    );
+
+  footer(doc);
+}
+
+export function generateServiceInvoicePDF(invoice, res) {
+  const doc = new PDFDocument({ margin: 40, size: "A4" });
+  const ref = invoice.reference || `facture-${invoice._id}`;
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${ref}.pdf"`);
+  doc.pipe(res);
+  drawServiceInvoice(doc, invoice);
+  doc.end();
+}
+
+// Variante Buffer — pièce jointe email envoyée au partenaire après service.
+export function generateServiceInvoicePDFBuffer(invoice) {
+  return buildPDFBuffer((doc) => drawServiceInvoice(doc, invoice));
+}

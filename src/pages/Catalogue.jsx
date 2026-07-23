@@ -126,11 +126,14 @@ function DriverCard({ d, fmt }) {
         <span className={styles.ieCardMeta}>
           {d.vehiculePersonnel ? `🚗 Avec véhicule${d.typeVehicule ? ` (${d.typeVehicule})` : ""}` : "🚶 Sans véhicule"}
         </span>
+        {d.langues?.length > 0 && (
+          <span className={styles.ieCardMeta}>💬 {d.langues.join(", ")}</span>
+        )}
         <div className={styles.ieCardFooter}>
           <div>
             <div className={styles.ieCardPrice}>{priceLabel}</div>
           </div>
-          <Link to={`/driver-booking/${d._id}`} className={styles.ieCardLink}>Réserver →</Link>
+          <Link to={`/driver-booking/${d._id}`} className={styles.ieCardLink}>Employer →</Link>
         </div>
       </div>
     </div>

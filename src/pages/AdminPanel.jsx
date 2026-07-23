@@ -1622,6 +1622,22 @@ export default function AdminPanel() {
     setInvoiceLoading(false);
   }, [token, headers]);
 
+  // Factures de PRESTATION (une par commande terminée, voir issueServiceInvoice
+  // dans bookingController.js) — distinctes des factures mensuelles de commission
+  // ci-dessus (ce que le partenaire doit à VIT AUTO) : ici, ce que le partenaire
+  // a encaissé/à percevoir, enregistré côté admin pour supervision.
+  const [serviceInvoicesAdmin, setServiceInvoicesAdmin] = useState([]);
+  const [serviceInvoicesAdminLoading, setServiceInvoicesAdminLoading] = useState(false);
+  const loadServiceInvoicesAdmin = useCallback(async () => {
+    if (!token) return;
+    setServiceInvoicesAdminLoading(true);
+    try {
+      const r = await fetch("/api/service-invoices?limit=100", { headers });
+      if (r.ok) { const d = await r.json(); setServiceInvoicesAdmin(d.invoices || []); }
+    } catch { /* ignore */ }
+    setServiceInvoicesAdminLoading(false);
+  }, [token, headers]);
+
   // ── Abonnements Pro / Boosts (paiements en attente de confirmation) ─────────
   const loadSubRequests = useCallback(async () => {
     if (!token) return;
@@ -2452,7 +2468,7 @@ export default function AdminPanel() {
     if (activeTab === "import_export")  { loadImportExport(); loadIeTransactions(); }
     if (activeTab === "exportateurs")   loadImporters();
     if (activeTab === "commissions")    loadCommissions();
-    if (activeTab === "factures")       loadInvoices();
+    if (activeTab === "factures")       { loadInvoices(); loadServiceInvoicesAdmin(); }
     if (activeTab === "kyc")            loadKycList(kycFilter);
     if (activeTab === "certification")  loadCertList();
     if (activeTab === "partner_verif")     loadPartnerVerif();
@@ -4365,6 +4381,45 @@ export default function AdminPanel() {
               </table>
             </div>
           )}
+
+          {/* Factures de PRESTATION — une par commande terminée, envoyée au
+              partenaire (voir issueServiceInvoice, distinct des factures de
+              commission ci-dessus) */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "2rem 0 1rem", flexWrap: "wrap", gap: 12 }}>
+            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>
+              🧾 Factures de prestation ({serviceInvoicesAdmin.length})
+            </h2>
+            <button className={styles.btnRefresh} onClick={loadServiceInvoicesAdmin}>↻ Actualiser</button>
+          </div>
+          {serviceInvoicesAdminLoading ? <p style={{ color: "#94a3b8" }}>Chargement…</p> : serviceInvoicesAdmin.length === 0 ? (
+            <p style={{ color: "#64748b", fontSize: "0.9rem" }}>Aucune facture de prestation émise.</p>
+          ) : (
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr><th>Référence</th><th>Partenaire</th><th>Commande</th><th>Paiement</th><th>Net partenaire</th><th>Émise le</th><th>PDF</th></tr>
+                </thead>
+                <tbody>
+                  {serviceInvoicesAdmin.map((inv) => (
+                    <tr key={inv._id}>
+                      <td style={{ fontWeight: 800, fontFamily: "monospace", fontSize: "0.8rem" }}>{inv.reference}</td>
+                      <td style={{ fontSize: "0.85rem" }}>
+                        <div style={{ fontWeight: 700 }}>{inv.partner?.firstName} {inv.partner?.lastName}</div>
+                        <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{inv.partner?.email}</div>
+                      </td>
+                      <td style={{ fontSize: "0.83rem" }}>{inv.bookingReference}</td>
+                      <td style={{ fontSize: "0.83rem" }}>{inv.paymentMethod || "—"}</td>
+                      <td style={{ fontWeight: 800, color: "#0f1b3f" }}>{fmtUSD(inv.netPayout || 0)}</td>
+                      <td style={{ fontSize: "0.8rem", color: "#64748b" }}>{inv.createdAt ? new Date(inv.createdAt).toLocaleDateString("fr-FR") : "—"}</td>
+                      <td>
+                        <a href={`/api/service-invoices/${inv._id}/pdf`} target="_blank" rel="noopener noreferrer" style={{ color: "#2563eb", fontSize: "0.82rem" }}>⬇️ Voir</a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -6011,7 +6066,12 @@ export default function AdminPanel() {
                 <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Moyens de paiement (séparés par virgule)</label>
                 <input value={(countryForm.paymentMethods || []).join(", ")}
                   onChange={(e) => setCountryForm((p) => ({ ...p, paymentMethods: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) }))}
-                  placeholder="carte, orange_money, wave" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+                  placeholder="card, cash, orange_money, wave, mtn, moov, paypal" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
+                <p style={{ margin: "4px 0 0", fontSize: ".72rem", color: "#94a3b8" }}>
+                  Codes exacts attendus (pas de traduction) : card, cash, orange_money, wave, mtn, moov, paypal.
+                  Laisser vide = tous proposés au client, sans restriction. Espèces ("cash") n'a pas de sens pour un
+                  paiement d'import/export international, distinct de ce réglage.
+                </p>
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
@@ -8295,6 +8355,32 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
   const [transferForm,   setTransferForm]   = useState({ ownerQuery: "", ownerResults: [], selectedOwner: null, country: "", ville: "", businessId: "" });
   const [transferSaving, setTransferSaving] = useState(false);
 
+  // Supervision des propositions d'embauche CDD/CDI — la décision accepter/
+  // refuser reste au partenaire propriétaire du chauffeur (voir
+  // driverEmploymentController.respondToEmploymentRequest), mais l'admin peut
+  // ensuite "traiter" une demande acceptée : personnaliser les clauses du
+  // contrat généré puis le transmettre automatiquement au partenaire.
+  const [employmentAdminList, setEmploymentAdminList] = useState([]);
+  const [employmentAdminLoading, setEmploymentAdminLoading] = useState(false);
+  const [processModal, setProcessModal] = useState(null); // { id, driverName }
+  const [processConditions, setProcessConditions] = useState("");
+  const [processSaving, setProcessSaving] = useState(false);
+
+  const loadEmploymentAdminList = useCallback(() => {
+    if (!token) return;
+    setEmploymentAdminLoading(true);
+    fetch("/api/driver-employment/admin/list?limit=50", { headers })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) setEmploymentAdminList(d.requests || []); })
+      .catch(() => {})
+      .finally(() => setEmploymentAdminLoading(false));
+  }, [token, headers]);
+
+  useEffect(() => {
+    if (subTab !== "drivers" || !token) return;
+    loadEmploymentAdminList();
+  }, [subTab, token, headers]);
+
   const openTransfer = (type, id, label, currentCountry, currentVille) => {
     setTransferModal({ type, id, label });
     setTransferForm({ ownerQuery: "", ownerResults: [], selectedOwner: null, country: currentCountry || "", ville: currentVille || "", businessId: "" });
@@ -8331,6 +8417,29 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
       } else showToast(d?.message || "Erreur lors du transfert.", "error");
     } catch { showToast("Erreur réseau.", "error"); }
     setTransferSaving(false);
+  };
+
+  const openProcessModal = (reqm) => {
+    setProcessModal({ id: reqm._id, driverName: `${reqm.driver?.firstName || ""} ${reqm.driver?.lastName || ""}`.trim() });
+    setProcessConditions(reqm.contractConditions || "");
+  };
+
+  const submitProcessRequest = async () => {
+    if (!processModal) return;
+    setProcessSaving(true);
+    try {
+      const r = await fetch(`/api/driver-employment/${processModal.id}/process`, {
+        method: "PATCH", headers,
+        body: JSON.stringify({ contractConditions: processConditions }),
+      });
+      const d = await r.json().catch(() => null);
+      if (r.ok) {
+        showToast("✅ Contrat généré et envoyé au partenaire.");
+        setProcessModal(null);
+        loadEmploymentAdminList();
+      } else showToast(d?.message || "Erreur lors du traitement.", "error");
+    } catch { showToast("Erreur réseau.", "error"); }
+    setProcessSaving(false);
   };
 
   // ── Édition complète d'une annonce véhicule (admin) — même principe que
@@ -8679,7 +8788,7 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
-                  <tr><th>Chauffeur</th><th>Permis</th><th>Expérience</th><th>Langues</th><th>Soumis le</th><th>Actions</th></tr>
+                  <tr><th>Chauffeur</th><th>Permis</th><th>Expérience</th><th>Langues</th><th>CV</th><th>Soumis le</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
                   {drivers.map((d) => {
@@ -8704,6 +8813,9 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                         <td style={{ fontSize: ".82rem" }}>{d.permisCategorie || "—"} {d.vehiculePersonnel && <span style={{ color: "#94a3b8" }}>· 🚗 avec véhicule</span>}</td>
                         <td style={{ fontSize: ".82rem" }}>{d.experience || "—"}</td>
                         <td style={{ fontSize: ".78rem" }}>{d.langues?.join(", ") || "—"}</td>
+                        <td style={{ fontSize: ".78rem" }}>
+                          {d.cv ? <a href={d.cv} target="_blank" rel="noopener noreferrer" style={{ color: "#2563eb" }}>📄 Voir</a> : <span style={{ color: "#dc2626" }}>Manquant</span>}
+                        </td>
                         <td style={{ fontSize: ".78rem", color: "#94a3b8" }}>{d.createdAt ? new Date(d.createdAt).toLocaleDateString("fr-FR") : "—"}</td>
                         <td>
                           <div style={{ display: "flex", gap: 5 }}>
@@ -8715,6 +8827,47 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                               🔀
                             </button>
                           </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Propositions d'embauche CDD/CDI — décision accepter/refuser au partenaire,
+              traitement (contrat modifiable + envoi) à l'admin une fois acceptée */}
+          <div className={styles.sectionToolbar} style={{ marginTop: 32 }}>
+            <h2 style={{ fontSize: "1rem", fontWeight: 800, color: "#0f1b3f" }}>💼 Propositions d'embauche CDD/CDI ({employmentAdminList.length})</h2>
+          </div>
+          {employmentAdminLoading ? <p style={{ color: "#94a3b8" }}>Chargement…</p> : employmentAdminList.length === 0 ? (
+            <p style={{ color: "#64748b", fontSize: "0.9rem" }}>Aucune proposition d'embauche.</p>
+          ) : (
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr><th>Chauffeur</th><th>Employeur</th><th>Contrat</th><th>Salaire</th><th>Statut</th><th>Soumise le</th><th>Traitement</th></tr>
+                </thead>
+                <tbody>
+                  {employmentAdminList.map((reqm) => {
+                    const sc = { pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, accepted: { l: "Acceptée", c: "#059669", bg: "#d1fae5" }, declined: { l: "Refusée", c: "#dc2626", bg: "#fee2e2" }, cancelled: { l: "Annulée", c: "#64748b", bg: "#f1f5f9" } }[reqm.status];
+                    return (
+                      <tr key={reqm._id} className={styles.tr}>
+                        <td style={{ fontSize: ".82rem" }}>{reqm.driver?.firstName} {reqm.driver?.lastName}</td>
+                        <td style={{ fontSize: ".82rem" }}>{reqm.employer?.firstName} {reqm.employer?.lastName}<div style={{ fontSize: ".73rem", color: "#94a3b8" }}>{reqm.employer?.email}</div></td>
+                        <td><span className={styles.badge} style={{ color: "#64748b", background: "#f1f5f9" }}>{reqm.contractType?.toUpperCase()}</span></td>
+                        <td style={{ fontSize: ".85rem", fontWeight: 700 }}>{Number(reqm.proposedSalary).toLocaleString()} {reqm.currency}</td>
+                        <td><span className={styles.badge} style={{ color: sc.c, background: sc.bg }}>{sc.l}</span></td>
+                        <td style={{ fontSize: ".78rem", color: "#94a3b8" }}>{reqm.createdAt ? new Date(reqm.createdAt).toLocaleDateString("fr-FR") : "—"}</td>
+                        <td>
+                          {reqm.status === "accepted" && !reqm.contractSentAt && (
+                            <button className={styles.btnApprove} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => openProcessModal(reqm)}>📄 Traiter</button>
+                          )}
+                          {reqm.contractSentAt && (
+                            <a href={`/api/driver-employment/${reqm._id}/contract-pdf`} target="_blank" rel="noopener noreferrer" style={{ color: "#2563eb", fontSize: ".78rem" }}>✓ Envoyé — voir PDF</a>
+                          )}
+                          {reqm.status !== "accepted" && !reqm.contractSentAt && <span style={{ color: "#94a3b8", fontSize: ".78rem" }}>—</span>}
                         </td>
                       </tr>
                     );
@@ -8818,6 +8971,26 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
             <div className={styles.confirmActions}>
               <button className={styles.btnPrimary} onClick={submitTransfer} disabled={transferSaving}>{transferSaving ? "…" : "Transférer"}</button>
               <button className={styles.btnGhost} onClick={() => setTransferModal(null)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ MODAL TRAITEMENT EMBAUCHE CDD/CDI (contrat modifiable) ══ */}
+      {processModal && (
+        <div className={styles.overlay} onClick={() => setProcessModal(null)}>
+          <div className={styles.confirmBox} onClick={e => e.stopPropagation()} style={{ width: "min(560px, 92vw)" }}>
+            <p className={styles.confirmMsg}>📄 Traiter le contrat de {processModal.driverName}</p>
+            <p style={{ fontSize: ".82rem", color: "#64748b", marginBottom: 10 }}>
+              Personnalisez les clauses du contrat si besoin — le texte par défaut s'applique si laissé vide. Le PDF sera
+              généré et le partenaire propriétaire du chauffeur sera notifié automatiquement.
+            </p>
+            <textarea style={{ width: "100%", minHeight: 180, borderRadius: 8, border: "1px solid #e2e8f0", padding: ".7rem", fontSize: ".85rem", marginBottom: ".75rem", resize: "vertical", fontFamily: "inherit" }}
+              placeholder="Laisser vide pour utiliser les clauses standard…"
+              value={processConditions} onChange={(e) => setProcessConditions(e.target.value)} />
+            <div className={styles.confirmActions}>
+              <button className={styles.btnPrimary} onClick={submitProcessRequest} disabled={processSaving}>{processSaving ? "…" : "Générer et envoyer"}</button>
+              <button className={styles.btnGhost} onClick={() => setProcessModal(null)}>Annuler</button>
             </div>
           </div>
         </div>

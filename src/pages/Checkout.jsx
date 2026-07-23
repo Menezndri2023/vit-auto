@@ -6,7 +6,8 @@ import { useCurrency } from "../context/CurrencyContext";
 import { useI18n } from "../context/I18nContext";
 import styles from "./Booking.module.css";
 
-// Labels fixes (noms de marques / méthodes — pas traduits)
+// Moyens de paiement disponibles au choix du client — voir CountryConfig
+// .paymentMethods (AdminPanel.jsx) pour la restriction éventuelle par pays.
 const METHOD_LABELS = {
   orange_money: "Orange Money",
   wave:         "Wave",
@@ -22,7 +23,7 @@ const Checkout = () => {
   const navigate    = useNavigate();
   const { token }   = useAuth();
   const { success, error } = useToast();
-  const { fmt }     = useCurrency();
+  const { fmt, getPaymentMethodsForCountry, catalogCountry, countryCode } = useCurrency();
   const { t, lang } = useI18n();
 
   const getLabel = (v) => typeof v === "object" ? (v[lang] || v.fr) : v;
@@ -42,6 +43,15 @@ const Checkout = () => {
   const { booking, payment: paymentInfo } = state;
   const amount = paymentInfo?.amount || booking?.total || booking?.montantTotal || 0;
   const method = paymentInfo?.paymentMethod || selectedMethod;
+
+  // Restreint les moyens de paiement proposés à ceux activés par l'admin pour
+  // le pays concerné (CountryConfig.paymentMethods) — jusqu'ici cette
+  // configuration existait côté admin mais n'était jamais appliquée ici, tous
+  // les moyens étaient toujours affichés sans distinction de pays.
+  const allowedMethods = getPaymentMethodsForCountry(booking?.country || catalogCountry || countryCode);
+  const visibleMethodLabels = allowedMethods
+    ? Object.fromEntries(Object.entries(METHOD_LABELS).filter(([val]) => allowedMethods.includes(val)))
+    : METHOD_LABELS;
 
   const handlePay = async () => {
     setLoading(true);
@@ -123,7 +133,7 @@ const Checkout = () => {
             {t("payment.method")}
           </label>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            {Object.entries(METHOD_LABELS).map(([val, label]) => (
+            {Object.entries(visibleMethodLabels).map(([val, label]) => (
               <label key={val} style={{
                 display: "flex", alignItems: "center", gap: 8,
                 padding: "12px 16px", borderRadius: 12, cursor: "pointer",

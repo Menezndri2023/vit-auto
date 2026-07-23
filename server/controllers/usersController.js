@@ -62,8 +62,12 @@ export const getUsers = async (req, res) => {
 // que côté frontend s'il existe (contact commercial), jamais de données KYC brutes.
 export const getPublicProfile = async (req, res) => {
   try {
+    // Sélection au niveau champ ET sous-champ : `business`/`defaultLocation` sont
+    // des sous-documents complets (rccm, taxId, logo, adresse, lat/lng précis) —
+    // les inclure entiers exposait ces données à tout visiteur anonyme sans
+    // qu'aucun usage frontend ne les consomme. Fuite PII trouvée en audit (2026-07).
     const user = await User.findById(req.params.id)
-      .select("firstName lastName phone profilePhoto business partnerType defaultLocation isFounder certificationBadge role isActive")
+      .select("firstName lastName phone profilePhoto business.companyName partnerType defaultLocation.city isFounder certificationBadge role isActive")
       .lean();
     if (!user || !user.isActive || !["partenaire", "admin"].includes(user.role)) {
       return res.status(404).json({ message: "Partenaire introuvable." });

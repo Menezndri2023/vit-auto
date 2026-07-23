@@ -13,6 +13,11 @@ const driverSchema = new mongoose.Schema({
   lastName:    { type: String, required: true, trim: true },
   phone:       { type: String, trim: true },
   profilePhoto:{ type: String, default: null },
+  // CV obligatoire à la publication (PDF ou image, voir driverController.js) —
+  // consultable par l'employeur potentiel avant une proposition d'embauche
+  // CDD/CDI (voir DriverEmployment.js), distinct des documents KYC (identité/
+  // permis) qui restent, eux, privés côté User.
+  cv:          { type: String, default: null },
 
   // ── Titre de l'annonce ────────────────────────────────────
   title:       { type: String, required: true, trim: true },

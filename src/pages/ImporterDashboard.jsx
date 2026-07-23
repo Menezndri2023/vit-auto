@@ -12,13 +12,13 @@ const fmtDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-dig
 const fmtPrice = (p, c = "EUR") => p ? `${Number(p).toLocaleString("fr-FR")} ${c}` : "—";
 
 // Cohérent avec IETransaction.escrow.method (server/models/IETransaction.js).
+// Pas d'espèces pour un achat international (véhicule expédié par container/fret).
 const PAYMENT_METHOD_OPTIONS = [
   { value: "carte",        label: "💳 Carte bancaire" },
   { value: "virement",     label: "🏦 Virement bancaire" },
   { value: "mobile_money", label: "📱 Mobile Money" },
   { value: "crypto",       label: "₿ Cryptomonnaie" },
   { value: "lc",           label: "📄 Lettre de crédit (L/C)" },
-  { value: "cash",         label: "💵 Espèces à la livraison" },
 ];
 
 const STATUS_CFG = {
