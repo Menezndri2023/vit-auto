@@ -105,33 +105,6 @@ export const createVehicle = async (req, res) => {
       });
     }
 
-    // ── Plafond annonces "particulier" ──────────────────────────────────────
-    // Le KYC identité (léger) n'atteste que de qui est le vendeur, pas de la
-    // légitimité commerciale d'une flotte — sans plafond, un professionnel non
-    // certifié pourrait déclarer "particulier" une fois puis publier un nombre
-    // illimité de véhicules avec la seule vérification d'identité individuelle.
-    // Un particulier vendant/louant réellement ses propres véhicules dépasse
-    // rarement 3 annonces actives simultanées ; au-delà, la certification
-    // entreprise complète est requise.
-    const INDIVIDUAL_SELLER_MAX_ACTIVE = 3;
-    // Un particulier devenu Founding Partner reste un particulier (KYC identité,
-    // jamais la certification entreprise complète) — mais la vérification plus
-    // poussée du programme (LOI/Accord signés) justifie un plafond plus large
-    // que le compte "particulier" standard.
-    const INDIVIDUAL_FOUNDER_MAX_ACTIVE = 10;
-    if (isIndividualSeller) {
-      const cap = req.user.isFounder ? INDIVIDUAL_FOUNDER_MAX_ACTIVE : INDIVIDUAL_SELLER_MAX_ACTIVE;
-      const activeCount = await Vehicle.countDocuments({ owner: req.user._id, status: { $ne: "rejected" } });
-      if (activeCount >= cap) {
-        return res.status(403).json({
-          code:    "CERTIFICATION_REQUIRED",
-          message: req.user.isFounder
-            ? `Les Partenaires Fondateurs "Particulier" sont limités à ${cap} annonces actives.`
-            : `Les comptes "Particulier" sont limités à ${cap} annonces actives. Complétez la certification entreprise pour publier davantage.`,
-        });
-      }
-    }
-
     // ── Détection doublon (même marque + modèle + année + propriétaire) ────
     const dupMarque = req.body.marque;
     const dupModele = req.body.modele;

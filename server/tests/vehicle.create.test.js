@@ -6,7 +6,7 @@ import { mockReqRes } from "./helpers/mockReqRes.js";
 
 // Ce controller porte la logique d'accès la plus sensible du catalogue : qui a
 // le droit de publier, sous quelle condition de vérification. Ces tests
-// couvrent les portes d'accès (KYC/certification/plafond), pas le scoring de
+// couvrent les portes d'accès (KYC/certification), pas le scoring de
 // qualité d'annonce (vehicleScoring.js, hors périmètre ici) — un corps minimal
 // { title, type } suffit à passer la validation Mongoose et exercer ces portes.
 const minimalVehicle = (overrides = {}) => ({ title: "Toyota Corolla 2020", type: "vente", ...overrides });
@@ -63,17 +63,17 @@ describe("vehicleController.createVehicle — contrôle d'accès à la publicati
     expect(res.body.code).toBe("CERTIFICATION_REQUIRED");
   });
 
-  it("applique le plafond de 3 annonces actives pour un particulier non-fondateur", async () => {
+  it("n'impose aucun plafond au nombre d'annonces actives pour un particulier vérifié", async () => {
     const seller = await createUser({ role: "partenaire", sellerType: "particulier", kycStatus: "VERIFIE" });
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
       await Vehicle.create({ ...minimalVehicle({ title: `Véhicule ${i}` }), owner: seller._id, status: "approved" });
     }
 
-    const { req, res } = mockReqRes({ user: seller, body: minimalVehicle({ title: "Véhicule de trop" }) });
+    const { req, res } = mockReqRes({ user: seller, body: minimalVehicle({ title: "Véhicule supplémentaire" }) });
     await createVehicle(req, res);
 
-    expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.body.code).toBe("CERTIFICATION_REQUIRED");
+    expect(res.status).not.toHaveBeenCalledWith(403);
+    expect(res.body.vehicle).toBeTruthy();
   });
 
   it("refuse une annonce en doublon (même marque/modèle/année pour le même propriétaire)", async () => {
