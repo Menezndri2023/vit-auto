@@ -63,7 +63,7 @@ const userSchema = new mongoose.Schema({
   // restent synchronisées avec `sellerType` (voir le hook pre("validate") plus bas).
   partnerCategory: {
     type: String,
-    enum: ["particulier", "professionnel", "exportateur", "entreprise", null],
+    enum: ["particulier", "professionnel", "exportateur", "entreprise", "concessionnaire", null],
     default: null,
   },
 

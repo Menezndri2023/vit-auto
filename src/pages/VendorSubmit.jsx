@@ -33,7 +33,7 @@ const fmt = (n) => Number(n || 0).toLocaleString("fr-FR");
 const VendorSubmit = () => {
   const { user, token } = useAuth();
   const { success, error } = useToast();
-  const { addVehicle } = useVehicles();
+  const { addVehicle, drivers } = useVehicles();
   const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
@@ -169,18 +169,23 @@ const VendorSubmit = () => {
     pricePerDay: "", priceForSale: "", caution: "",
     rentalDurationType: "les_deux", // courte | longue | les_deux — location uniquement
     ageMin: 21, permisRequis: true, assuranceOptionnelle: true,
+    conditionsLocation: "", conditionsVente: "",
     description: "", images: [""],
   });
 
   // ── Données chauffeur
   const [driver, setDriver] = useState({
     firstName: "", lastName: "", title: "", telephone: "",
-    tarif: "", tarifHeure: "",
+    tarif: "", tarifDemiJournee: "", tarifHeure: "",
     disponibilite: "Temps plein", zone: "", ville: "",
     experience: "", langues: ["Français"],
     permisCategorie: "B", vehiculePersonnel: false, typeVehicule: "",
     description: "", images: [""],
   });
+
+  // Photo de profil du chauffeur — distincte des photos du véhicule (`photos`
+  // plus bas) : toujours exigée, que le chauffeur ait son propre véhicule ou non.
+  const [driverProfilePhoto, setDriverProfilePhoto] = useState(null);
 
   const [errors, setErrors] = useState({});
 
@@ -251,7 +256,7 @@ const VendorSubmit = () => {
     setDriver(p => ({
       ...p,
       [name]: type === "checkbox" ? checked
-        : ["tarif","tarifHeure"].includes(name) ? (value === "" ? "" : Number(value))
+        : ["tarif","tarifDemiJournee","tarifHeure"].includes(name) ? (value === "" ? "" : Number(value))
         : value,
     }));
   };
@@ -335,6 +340,18 @@ const VendorSubmit = () => {
 
   const handleFileInput = (e) => addFiles(e.target.files);
 
+  // ── Photo de profil chauffeur (fichier unique, distinct des photos véhicule) ──
+  const handleProfilePhotoFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const compressed = await compressImage(ev.target.result);
+      setDriverProfilePhoto(compressed);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
@@ -378,15 +395,19 @@ const VendorSubmit = () => {
         e.pricePerDay = "Prix/jour requis (min 1 USD)";
       if (adType === "vente" && (!vehicle.priceForSale || vehicle.priceForSale < 1))
         e.priceForSale = "Prix de vente requis (min 1 USD)";
-      if (adType === "chauffeur" && (!driver.tarif || driver.tarif < 1))
-        e.tarif = "Tarif requis (min 1 USD)";
+      // Tarifs chauffeur facultatifs — le partenaire chauffeur fixe librement ses prix.
     }
     if (step === 6) {
       const desc = adType === "chauffeur" ? driver.description : vehicle.description;
       if (desc.trim().length > 0 && desc.trim().length < 10)
         e.description = "Description trop courte (min 10 caractères si renseignée)";
-      if (adType !== "chauffeur" && photos.length === 0)
+      if (adType === "chauffeur") {
+        if (!driverProfilePhoto) e.driverProfilePhoto = "Photo de profil du chauffeur requise";
+        if (driver.vehiculePersonnel && photos.length === 0)
+          e.photos = "Au moins 1 photo du véhicule est requise (chauffeur avec véhicule)";
+      } else if (photos.length === 0) {
         e.photos = "Au moins 1 photo est requise pour votre annonce véhicule";
+      }
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -433,14 +454,22 @@ const VendorSubmit = () => {
         const res = await fetch("/api/drivers", {
           method: "POST",
           headers,
-          body: JSON.stringify({ ...driver, typePubliant: identity.typePubliant, ...contactInfo, images: imageUrls }),
+          body: JSON.stringify({
+            ...driver,
+            typePubliant: identity.typePubliant,
+            businessId: selectedBusinessId || undefined,
+            ...contactInfo,
+            profilePhoto: driverProfilePhoto,
+            // Photos véhicule uniquement si "avec véhicule" — sinon rien à photographier.
+            images: driver.vehiculePersonnel ? imageUrls : [],
+          }),
         });
         if (res.ok) {
           success("Votre profil chauffeur est soumis pour vérification !");
         } else {
           const data = await res.json().catch(() => null);
-          if (data?.code === "KYC_REQUIRED") {
-            error("Vérifiez votre identité (pièce d'identité + selfie) pour publier votre annonce. Redirection…");
+          if (data?.code === "KYC_REQUIRED" || data?.code === "DRIVER_DOCS_REQUIRED") {
+            error(data?.message || "Vérifiez votre identité et votre permis de conduire pour publier votre annonce. Redirection…");
             setTimeout(() => navigate("/kyc"), 1500);
           } else if (data?.code === "CERTIFICATION_REQUIRED") {
             error("Terminez votre vérification partenaire pour publier une annonce. Redirection…");
@@ -856,36 +885,71 @@ const VendorSubmit = () => {
 
       // ── ÉTAPE 5 : Tarification ────────────────────────────────────────────
       case 5:
-        if (adType === "chauffeur") return (
-          <div className={styles.card}>
-            <h2 className={styles.cardTitle}>💰 Tarification du service</h2>
-            <div className={styles.grid2}>
-              <div className={styles.field}>
-                <label>Tarif à la journée (USD) *</label>
-                <div className={styles.inputAffix}>
-                  <input type="number" name="tarif" value={driver.tarif} onChange={handleDrvChange}
-                    placeholder="Ex : 50000" min="1000" />
-                  <span>USD / jour</span>
+        if (adType === "chauffeur") {
+          // Suggestion de prix — calculée depuis les chauffeurs déjà publiés dans
+          // la même ville et le même profil (avec/sans véhicule) ; élargie à tout
+          // le pays si trop peu de données locales. Jamais de chiffre inventé :
+          // s'il n'y a pas assez de données réelles, aucune suggestion n'apparaît.
+          const sameProfile = (drivers || []).filter(d => !!d.vehiculePersonnel === !!driver.vehiculePersonnel);
+          const localPool = driver.ville
+            ? sameProfile.filter(d => (d.ville || "").toLowerCase() === driver.ville.trim().toLowerCase())
+            : [];
+          const pool = localPool.length >= 2 ? localPool : sameProfile;
+          const tarifs = pool.map(d => d.tarif).filter(t => Number(t) > 0);
+          const suggestion = tarifs.length >= 2
+            ? { min: Math.min(...tarifs), avg: Math.round(tarifs.reduce((a, b) => a + Number(b), 0) / tarifs.length), max: Math.max(...tarifs), n: tarifs.length, local: localPool.length >= 2 }
+            : null;
+
+          return (
+            <div className={styles.card}>
+              <h2 className={styles.cardTitle}>💰 Tarification du service</h2>
+              <p className={styles.hint}>Facultatif — fixez librement vos tarifs, ou laissez vide.</p>
+              {suggestion && (
+                <div className={styles.pricePreview} style={{ marginBottom: "1rem" }}>
+                  <div className={styles.priceItem}>
+                    <span>💡 Prix suggéré {suggestion.local ? `(${driver.ville})` : "(national)"} — {suggestion.n} chauffeur{suggestion.n > 1 ? "s" : ""} {driver.vehiculePersonnel ? "avec véhicule" : "sans véhicule"}</span>
+                    <strong>{fmt(suggestion.min)} – {fmt(suggestion.max)} <small>(moy. {fmt(suggestion.avg)})</small></strong>
+                  </div>
                 </div>
-                {errors.tarif && <span className={styles.err}>{errors.tarif}</span>}
-              </div>
-              <div className={styles.field}>
-                <label>Tarif à l'heure (USD) — optionnel</label>
-                <div className={styles.inputAffix}>
-                  <input type="number" name="tarifHeure" value={driver.tarifHeure} onChange={handleDrvChange}
-                    placeholder="Ex : 8000" />
-                  <span>USD / h</span>
+              )}
+              <div className={styles.grid2}>
+                <div className={styles.field}>
+                  <label>Tarif à la journée (USD) — optionnel</label>
+                  <div className={styles.inputAffix}>
+                    <input type="number" name="tarif" value={driver.tarif} onChange={handleDrvChange}
+                      placeholder="Ex : 50000" min="0" />
+                    <span>USD / jour</span>
+                  </div>
                 </div>
+                <div className={styles.field}>
+                  <label>Tarif à la demi-journée (USD) — optionnel</label>
+                  <div className={styles.inputAffix}>
+                    <input type="number" name="tarifDemiJournee" value={driver.tarifDemiJournee} onChange={handleDrvChange}
+                      placeholder="Ex : 28000" min="0" />
+                    <span>USD / demi-j.</span>
+                  </div>
+                </div>
+                {driver.vehiculePersonnel && (
+                  <div className={styles.field}>
+                    <label>Tarif à l'heure (USD) — optionnel, avec véhicule</label>
+                    <div className={styles.inputAffix}>
+                      <input type="number" name="tarifHeure" value={driver.tarifHeure} onChange={handleDrvChange}
+                        placeholder="Ex : 8000" min="0" />
+                      <span>USD / h</span>
+                    </div>
+                  </div>
+                )}
               </div>
+              {(driver.tarif > 0 || driver.tarifDemiJournee > 0 || driver.tarifHeure > 0) && (
+                <div className={styles.pricePreview}>
+                  {driver.tarif > 0 && <div className={styles.priceItem}><span>Tarif journée</span><strong>{fmt(driver.tarif)}</strong></div>}
+                  {driver.tarifDemiJournee > 0 && <div className={styles.priceItem}><span>Tarif demi-journée</span><strong>{fmt(driver.tarifDemiJournee)}</strong></div>}
+                  {driver.vehiculePersonnel && driver.tarifHeure > 0 && <div className={styles.priceItem}><span>Tarif heure</span><strong>{fmt(driver.tarifHeure)}</strong></div>}
+                </div>
+              )}
             </div>
-            {driver.tarif > 0 && (
-              <div className={styles.pricePreview}>
-                <div className={styles.priceItem}><span>Tarif journée</span><strong>{fmt(driver.tarif)}</strong></div>
-                {driver.tarifHeure > 0 && <div className={styles.priceItem}><span>Tarif heure</span><strong>{fmt(driver.tarifHeure)}</strong></div>}
-              </div>
-            )}
-          </div>
-        );
+          );
+        }
 
         return (
           <div className={styles.card}>
@@ -937,6 +1001,12 @@ const VendorSubmit = () => {
                     </label>
                   </div>
                 </div>
+                <div className={`${styles.field} ${styles.colSpan2}`}>
+                  <label>Conditions de location particulières — optionnel</label>
+                  <textarea name="conditionsLocation" value={vehicle.conditionsLocation}
+                    onChange={handleVehChange} rows={3}
+                    placeholder="Ex : kilométrage inclus 200km/jour, pénalité retard 5000 USD/heure, plein d'essence requis au retour..." />
+                </div>
               </>}
 
               {adType === "vente" && (
@@ -949,6 +1019,12 @@ const VendorSubmit = () => {
                       <span>USD</span>
                     </div>
                     {errors.priceForSale && <span className={styles.err}>{errors.priceForSale}</span>}
+                  </div>
+                  <div className={`${styles.field} ${styles.colSpan2}`}>
+                    <label>Conditions de vente particulières — optionnel</label>
+                    <textarea name="conditionsVente" value={vehicle.conditionsVente}
+                      onChange={handleVehChange} rows={3}
+                      placeholder="Ex : garantie 3 mois pièces et main d'œuvre, contrôle technique fourni, reprise véhicule possible..." />
                   </div>
 
                   {/* ── LEASING OPTION ── */}
@@ -1122,12 +1198,31 @@ const VendorSubmit = () => {
           <div className={styles.card}>
             <h2 className={styles.cardTitle}>📸 Photos & Description</h2>
 
-            {errors.photos && (
-              <p className={styles.err} style={{ marginBottom: "0.75rem" }}>{errors.photos}</p>
+            {isDriverMode && (
+              <div className={styles.field} style={{ marginBottom: "1.25rem" }}>
+                <label>Photo de profil du chauffeur *</label>
+                {errors.driverProfilePhoto && <span className={styles.err}>{errors.driverProfilePhoto}</span>}
+                <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginTop: "0.5rem" }}>
+                  {driverProfilePhoto
+                    ? <img src={driverProfilePhoto} alt="" style={{ width: 96, height: 96, borderRadius: "50%", objectFit: "cover" }} />
+                    : <div style={{ width: 96, height: 96, borderRadius: "50%", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem" }}>👤</div>}
+                  <label className={styles.dropBtn} style={{ cursor: "pointer" }}>
+                    {driverProfilePhoto ? "Changer la photo" : "Choisir une photo"}
+                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleProfilePhotoFile} />
+                  </label>
+                </div>
+              </div>
             )}
 
-            {/* ── Zone upload ── */}
-            <div className={styles.uploadSection}>
+            {(!isDriverMode || driver.vehiculePersonnel) && (
+              <>
+                {isDriverMode && <p className={styles.hint}>🚗 Photos du véhicule (chauffeur avec véhicule) *</p>}
+                {errors.photos && (
+                  <p className={styles.err} style={{ marginBottom: "0.75rem" }}>{errors.photos}</p>
+                )}
+
+                {/* ── Zone upload ── */}
+                <div className={styles.uploadSection}>
               <div className={styles.uploadMeta}>
                 <span>{photos.length} / {MAX_PHOTOS} photos</span>
                 <span className={styles.uploadHint}>JPG, PNG, WEBP · max 5 Mo par photo</span>
@@ -1204,7 +1299,9 @@ const VendorSubmit = () => {
                 style={{ display: "none" }}
                 onChange={handleFileInput}
               />
-            </div>
+                </div>
+              </>
+            )}
 
             {/* ── Description ── */}
             <div className={`${styles.field} ${styles.mt2}`}>
@@ -1234,7 +1331,7 @@ const VendorSubmit = () => {
       // ── ÉTAPE 7 : Vérification & soumission ──────────────────────────────
       case 7: {
         const isC = adType === "chauffeur";
-        const mainImg = photos[0]?.preview || null;
+        const mainImg = isC ? driverProfilePhoto : (photos[0]?.preview || null);
         return (
           <div className={styles.card}>
             <h2 className={styles.cardTitle}>✅ Vérification de l'annonce</h2>
@@ -1278,6 +1375,7 @@ const VendorSubmit = () => {
                     <p>🗺️ {driver.zone}</p>
                     <p>🕐 {driver.disponibilite}</p>
                     <p>💬 {driver.langues.join(", ")}</p>
+                    <p>{driver.vehiculePersonnel ? `🚗 Avec véhicule (${driver.typeVehicule || "type non précisé"}, ${photos.length} photo${photos.length > 1 ? "s" : ""})` : "🚶 Sans véhicule"}</p>
                   </div>
                 )}
 
@@ -1290,10 +1388,13 @@ const VendorSubmit = () => {
                   {adType === "vente" && (
                     <p className={styles.bigPrice}>{fmt(vehicle.priceForSale)}</p>
                   )}
-                  {isC && <>
-                    <p className={styles.bigPrice}>{fmt(driver.tarif)}<small>/jour</small></p>
-                    {driver.tarifHeure > 0 && <p>{fmt(driver.tarifHeure)}/h</p>}
-                  </>}
+                  {isC && (driver.tarif > 0 || driver.tarifDemiJournee > 0 || driver.tarifHeure > 0 ? (
+                    <>
+                      {driver.tarif > 0 && <p className={styles.bigPrice}>{fmt(driver.tarif)}<small>/jour</small></p>}
+                      {driver.tarifDemiJournee > 0 && <p>{fmt(driver.tarifDemiJournee)}/demi-j.</p>}
+                      {driver.vehiculePersonnel && driver.tarifHeure > 0 && <p>{fmt(driver.tarifHeure)}/h</p>}
+                    </>
+                  ) : <p className={styles.bigPrice} style={{ fontSize: "1rem" }}>Tarif non fixé (à négocier)</p>)}
                 </div>
               </div>
 

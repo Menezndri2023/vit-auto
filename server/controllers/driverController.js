@@ -1,10 +1,51 @@
+import mongoose from "mongoose";
 import logger from "../utils/logger.js";
 import Driver from "../models/Driver.js";
+import User from "../models/User.js";
+import PartnerBusiness from "../models/PartnerBusiness.js";
 import Notification from "../models/Notification.js";
 import PartnerVerification from "../models/PartnerVerification.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
+import { validateImageDataUri } from "../utils/imageValidation.js";
+import { logAction } from "../middleware/auditLog.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const MAX_DRIVER_IMAGE_BYTES = 6 * 1024 * 1024;
+const MAX_IMAGE_URL_LENGTH   = 2048;
+
+// Même validation que vehicleController.validateVehicleImages — un partenaire
+// authentifié ne doit jamais pouvoir soumettre un blob arbitraire dans
+// `images`/`profilePhoto` en dehors du flux prévu (compression client + upload).
+function validateDriverImages(images) {
+  if (!Array.isArray(images)) return null;
+  for (const img of images) {
+    if (typeof img !== "string" || !img) continue;
+    if (img.startsWith("data:")) {
+      const check = validateImageDataUri(img, MAX_DRIVER_IMAGE_BYTES);
+      if (!check.ok) return check.message;
+    } else if (!/^https?:\/\//i.test(img) || img.length > MAX_IMAGE_URL_LENGTH) {
+      return "Image invalide : URL http(s) ou image encodée attendue.";
+    }
+  }
+  return null;
+}
+
+// ── Pièce d'identité (CNI/passeport) + permis de conduire vérifiés — exigence
+// obligatoire à la publication d'un profil chauffeur, quel que soit le type de
+// vendeur (contrairement à Vehicle où un Founding Partner en est exempté) : un
+// chauffeur transporte des clients, l'identité et le permis doivent être fiables.
+// Réutilise les documents déjà vérifiés via /api/kyc (submit + submit-driver-license)
+// plutôt que de créer un nouveau circuit de vérification.
+function missingDriverDocs(user) {
+  const hasIdentity = ["cni", "passport"].includes(user.identity?.type) && user.identity?.status === "verified";
+  const license = user.driverLicenseOcr;
+  const hasLicense = !!(license?.licenseNumber && license?.frontImage) && !license?.isExpired;
+  if (!hasIdentity && !hasLicense) return "Pièce d'identité (CNI/passeport) et permis de conduire vérifiés requis pour publier un profil chauffeur.";
+  if (!hasIdentity) return "Pièce d'identité (CNI/passeport) vérifiée requise pour publier un profil chauffeur.";
+  if (!hasLicense) return "Permis de conduire vérifié (recto/verso, non expiré) requis pour publier un profil chauffeur.";
+  return null;
+}
 
 // ── Créer un profil chauffeur (partenaire) ────────────────────────────────
 export const createDriver = async (req, res) => {
@@ -58,11 +99,19 @@ export const createDriver = async (req, res) => {
       });
     }
 
+    // ── Pièce d'identité + permis obligatoires (voir missingDriverDocs) ──────
+    if (req.user.role === "partenaire") {
+      const docsError = missingDriverDocs(req.user);
+      if (docsError) {
+        return res.status(403).json({ code: "DRIVER_DOCS_REQUIRED", message: docsError });
+      }
+    }
+
     // Whitelist des champs autorisés (évite mass assignment sur owner, stats, status)
     const {
       firstName, lastName, telephone, contactTel, phone: phoneRaw,
       profilePhoto, title, description,
-      tarif, tarifHeure,
+      tarif, tarifDemiJournee, tarifHeure,
       disponibilite, zone, ville,
       experience, langues, permisCategorie, vehiculePersonnel, typeVehicule,
       images,
@@ -70,21 +119,40 @@ export const createDriver = async (req, res) => {
 
     const phone = telephone || contactTel || phoneRaw;
 
+    // ── Photos : profil toujours requis ; véhicule requis seulement "avec véhicule" ──
+    if (!profilePhoto) {
+      return res.status(400).json({ message: "Photo de profil du chauffeur requise." });
+    }
+    const vehicleImages = vehiculePersonnel ? (images || []) : [];
+    if (vehiculePersonnel && vehicleImages.length === 0) {
+      return res.status(400).json({ message: "Au moins une photo du véhicule est requise pour un chauffeur avec véhicule." });
+    }
+    const imagesError = validateDriverImages([profilePhoto, ...vehicleImages]);
+    if (imagesError) return res.status(400).json({ message: imagesError });
+
+    // ── Entreprise du partenaire (facultatif) — même principe que Vehicle ───
+    let business = null;
+    if (req.body.businessId) {
+      business = await PartnerBusiness.findOne({ _id: req.body.businessId, owner: req.user._id }).lean();
+      if (!business) return res.status(400).json({ message: "Entreprise introuvable." });
+    }
+
     const driver = await Driver.create({
       firstName, lastName, title, description,
       ...(phone ? { phone } : {}),
-      profilePhoto: profilePhoto || null,
-      tarif, tarifHeure,
+      profilePhoto,
+      tarif: tarif || undefined, tarifDemiJournee: tarifDemiJournee || undefined, tarifHeure: tarifHeure || undefined,
       disponibilite, zone, ville,
       experience,
       langues: langues || ["Français"],
       permisCategorie: permisCategorie || "B",
       vehiculePersonnel: !!vehiculePersonnel,
       typeVehicule,
-      images: images || [],
+      images: vehicleImages,
       // Champs serveur — jamais depuis req.body
       owner:         req.user._id,
-      country:       req.user.country || null,
+      business:      business?._id || null,
+      country:       business?.country || req.user.country || null,
       status:        "pending",
       noteMoyenne:   0,
       nombreAvis:    0,
@@ -214,5 +282,127 @@ export const deleteDriver = async (req, res) => {
   } catch (err) {
     logger.error("deleteDriver:", err);
     res.status(500).json({ message: "Erreur suppression." });
+  }
+};
+
+// ── Modifier un profil chauffeur (propriétaire ou admin) ─────────────────────
+// Il n'existait jusqu'ici aucune route d'édition pour un chauffeur (contrairement
+// à Vehicle) — un partenaire ne pouvait que créer ou supprimer. Whitelist calquée
+// sur vehicleController.updateVehicle : mêmes garde-fous (mass assignment, photos).
+export const updateDriver = async (req, res) => {
+  try {
+    const driver = await Driver.findById(req.params.id);
+    if (!driver) return res.status(404).json({ message: "Chauffeur introuvable." });
+
+    const isOwner = driver.owner.toString() === req.user._id.toString();
+    if (req.user.role !== "admin" && !isOwner) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+
+    const EDITABLE = [
+      "firstName", "lastName", "phone", "profilePhoto", "title", "description",
+      "tarif", "tarifDemiJournee", "tarifHeure",
+      "disponibilite", "zone", "ville",
+      "experience", "langues", "permisCategorie", "vehiculePersonnel", "typeVehicule",
+      "images",
+    ];
+
+    const safeUpdate = {};
+    for (const key of EDITABLE) {
+      if (req.body[key] !== undefined) safeUpdate[key] = req.body[key];
+    }
+
+    // Cohérence photos si l'un des deux champs est modifié (voir createDriver)
+    const nextProfilePhoto = safeUpdate.profilePhoto !== undefined ? safeUpdate.profilePhoto : driver.profilePhoto;
+    const nextVehiculePersonnel = safeUpdate.vehiculePersonnel !== undefined ? safeUpdate.vehiculePersonnel : driver.vehiculePersonnel;
+    const nextImages = safeUpdate.images !== undefined ? safeUpdate.images : driver.images;
+    if (!nextProfilePhoto) {
+      return res.status(400).json({ message: "Photo de profil du chauffeur requise." });
+    }
+    if (nextVehiculePersonnel && (!nextImages || nextImages.length === 0)) {
+      return res.status(400).json({ message: "Au moins une photo du véhicule est requise pour un chauffeur avec véhicule." });
+    }
+    if (!nextVehiculePersonnel) safeUpdate.images = [];
+    const imagesError = validateDriverImages([nextProfilePhoto, ...(nextVehiculePersonnel ? nextImages : [])]);
+    if (imagesError) return res.status(400).json({ message: imagesError });
+
+    // Rattachement à une entreprise du même propriétaire — même logique que
+    // vehicleController.updateVehicle (déplacement du partenaire entre ses
+    // propres entreprises/villes, sans changer de compte).
+    if (req.body.businessId !== undefined) {
+      if (req.body.businessId === null) {
+        safeUpdate.business = null;
+      } else {
+        const business = await PartnerBusiness.findOne({ _id: req.body.businessId, owner: driver.owner }).lean();
+        if (!business) return res.status(400).json({ message: "Entreprise introuvable." });
+        safeUpdate.business = business._id;
+      }
+    }
+
+    const updated = await Driver.findByIdAndUpdate(req.params.id, safeUpdate, { new: true, runValidators: true });
+    res.json({ driver: updated });
+  } catch (err) {
+    logger.error("updateDriver:", err);
+    if (err.name === "ValidationError") {
+      return res.status(400).json({ message: "Données invalides : " + err.message });
+    }
+    res.status(500).json({ message: "Erreur mise à jour." });
+  }
+};
+
+// ── Transférer un profil chauffeur vers un autre compte/entreprise/ville/pays
+// (admin uniquement) ─────────────────────────────────────────────────────────
+// Un partenaire ne peut déplacer ses propres chauffeurs qu'entre SES entreprises
+// (voir updateDriver ci-dessus, businessId) — changer le compte propriétaire
+// (owner) reste un outil de support réservé à l'admin (annonce mal rattachée à
+// la création, transfert de portefeuille entre partenaires...).
+export const transferDriver = async (req, res) => {
+  try {
+    const driver = await Driver.findById(req.params.id);
+    if (!driver) return res.status(404).json({ message: "Chauffeur introuvable." });
+
+    const { ownerId, businessId, country, ville } = req.body;
+    const before = { owner: driver.owner, business: driver.business, country: driver.country, ville: driver.ville };
+    const update = {};
+
+    let resolvedOwnerId = driver.owner;
+    if (ownerId !== undefined) {
+      if (!mongoose.Types.ObjectId.isValid(ownerId)) {
+        return res.status(400).json({ message: "Compte propriétaire invalide." });
+      }
+      const newOwner = await User.findById(ownerId).select("role").lean();
+      if (!newOwner || !["partenaire", "admin"].includes(newOwner.role)) {
+        return res.status(400).json({ message: "Le compte destinataire doit être un partenaire." });
+      }
+      resolvedOwnerId = ownerId;
+      update.owner = ownerId;
+    }
+
+    if (businessId !== undefined) {
+      if (businessId === null) {
+        update.business = null;
+      } else {
+        const business = await PartnerBusiness.findOne({ _id: businessId, owner: resolvedOwnerId }).lean();
+        if (!business) return res.status(400).json({ message: "Entreprise introuvable pour ce propriétaire." });
+        update.business = business._id;
+        // Une entreprise choisie fait autorité sur le pays, sauf si un pays est
+        // explicitement fourni par ailleurs dans la même requête.
+        if (country === undefined) update.country = business.country;
+      }
+    }
+    if (country !== undefined) update.country = country ? String(country).toUpperCase() : null;
+    if (ville   !== undefined) update.ville   = ville || undefined;
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ message: "Aucun changement fourni (ownerId, businessId, country ou ville)." });
+    }
+
+    const updated = await Driver.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
+    await logAction(req, "driver.admin_transfer", "Driver", req.params.id, { before, after: update });
+
+    res.json({ driver: updated });
+  } catch (err) {
+    logger.error("transferDriver:", err);
+    res.status(500).json({ message: "Erreur lors du transfert." });
   }
 };

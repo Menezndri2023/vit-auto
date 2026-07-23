@@ -481,6 +481,20 @@ export default function VehicleDetails() {
             </div>
           )}
 
+          {/* Conditions particulières (texte libre partenaire) */}
+          {!isSale && vehicle.conditionsLocation && (
+            <div className={styles.card}>
+              <h3 className={styles.cardTitle}>{t("vd.rentalTerms")}</h3>
+              <p className={styles.description}>{vehicle.conditionsLocation}</p>
+            </div>
+          )}
+          {isSale && vehicle.conditionsVente && (
+            <div className={styles.card}>
+              <h3 className={styles.cardTitle}>{t("vd.saleTerms")}</h3>
+              <p className={styles.description}>{vehicle.conditionsVente}</p>
+            </div>
+          )}
+
           {/* ── Leasing Calculator (vente avec leasing) ── */}
           {isSale && vehicle.leasing?.disponible && (
             <LeasingCard leasing={vehicle.leasing} priceForSale={vehicle.buyPrice || vehicle.priceForSale} vehicleId={vehicle._id || vehicle.id} navigate={navigate} fmt={fmt} t={t} />
@@ -506,13 +520,8 @@ export default function VehicleDetails() {
                   {vehicle.ownerCity && (
                     <span className={styles.publisherMeta}>📍 {vehicle.ownerCity}</span>
                   )}
-                  {vehicle.ownerType && (
-                    <span className={styles.publisherMeta}>
-                      {vehicle.ownerType === "agency" ? t("vd.agency")
-                        : vehicle.ownerType === "dealer" ? t("vd.dealer")
-                        : vehicle.ownerType === "fleet" ? t("vd.fleet")
-                        : t("vd.partner")}
-                    </span>
+                  {vehicle.isConcessionnaire && (
+                    <span className={styles.publisherMeta}>🏬 {t("vd.dealer")}</span>
                   )}
                 </div>
                 <div className={styles.publisherActions}>

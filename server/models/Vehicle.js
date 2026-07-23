@@ -82,6 +82,12 @@ const vehicleSchema = new mongoose.Schema({
   ageMin:               { type: Number, default: 21 },
   permisRequis:         { type: Boolean, default: true },
   assuranceOptionnelle: { type: Boolean, default: true },
+  // Conditions particulières facultatives saisies librement par le partenaire
+  // (ex. kilométrage inclus/jour, pénalités retard, état des lieux, garantie
+  // reprise...) — affichées telles quelles au client, distinctes des champs
+  // structurés ci-dessus qui restent obligatoires/à valeur par défaut.
+  conditionsLocation: { type: String, trim: true, default: "" },
+  conditionsVente:    { type: String, trim: true, default: "" },
 
   // ── Contact de l'annonceur ────────────────────────────────
   contactNom: { type: String, trim: true },

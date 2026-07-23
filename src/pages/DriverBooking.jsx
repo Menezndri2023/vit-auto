@@ -79,7 +79,13 @@ const DriverBooking = () => {
     );
   }
 
-  const tarifHeure = driver.tarifHeure || driver.tarif || 0;
+  // Cette page ne facture qu'à l'heure (durée de mission en heures) — utiliser le
+  // tarif JOURNÉE en repli aurait multiplié la facture par ~24 pour une mission de
+  // quelques heures (bug réel : {tarifHeure || tarif} confondait les deux unités).
+  // Sans tarif horaire renseigné, on affiche le tarif journée/demi-journée à titre
+  // indicatif et on bloque la réservation en ligne (voir handleSubmit).
+  const hasHourlyRate = Number(driver.tarifHeure) > 0;
+  const tarifHeure = hasHourlyRate ? Number(driver.tarifHeure) : 0;
   const total = tarifHeure * (Number(heures) || 0);
 
   const isMobile = ["orange_money", "wave", "mtn", "moov"].includes(selectedMethod);
@@ -87,6 +93,10 @@ const DriverBooking = () => {
 
   const handleSubmit = async () => {
     if (submitting) return;
+    if (!hasHourlyRate) {
+      error("Ce chauffeur n'a pas de tarif horaire — contactez-le directement pour une mission à la journée ou demi-journée.");
+      return;
+    }
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) {
       error("Veuillez remplir toutes vos informations.");
       return;
@@ -198,6 +208,9 @@ const DriverBooking = () => {
             📍 {driver.zone || driver.ville || "—"} · {driver.experience || 0} ans d'expérience
             {driver.noteMoyenne > 0 && <> · ⭐ {driver.noteMoyenne.toFixed(1)} ({driver.nombreAvis || 0})</>}
           </p>
+          <p style={{ margin: "2px 0 0", color: "#94a3b8", fontSize: "0.82rem" }}>
+            {driver.vehiculePersonnel ? `🚗 Avec véhicule${driver.typeVehicule ? ` (${driver.typeVehicule})` : ""}` : "🚶 Sans véhicule — conduit votre véhicule"}
+          </p>
         </div>
         <div style={{ marginLeft: "auto" }}>
           <ReportButton targetType="driver" targetId={driver._id || driver.id} compact />
@@ -206,6 +219,18 @@ const DriverBooking = () => {
 
       {driver.description && (
         <p style={{ color: "#374151", fontSize: "0.92rem", marginBottom: 24 }}>{driver.description}</p>
+      )}
+
+      {/* Photos du véhicule (chauffeur avec véhicule) — distinctes de la photo de profil ci-dessus */}
+      {driver.vehiculePersonnel && Array.isArray(driver.images) && driver.images.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <h2 style={{ color: "#0f1b3f", fontSize: "1.05rem", marginBottom: 10 }}>Photos du véhicule</h2>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {driver.images.map((src, i) => (
+              <img key={i} src={src} alt={`Véhicule ${i + 1}`} style={{ width: 100, height: 75, borderRadius: 10, objectFit: "cover", border: "1.5px solid #e5e9f4" }} />
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Informations client */}
@@ -250,12 +275,21 @@ const DriverBooking = () => {
         <label style={{ fontWeight: 700, color: "#374151", fontSize: "0.85rem", display: "block", marginBottom: 6 }}>
           Nombre d'heures
         </label>
-        <input type="number" min="1" max="24" value={heures}
+        <input type="number" min="1" max="24" value={heures} disabled={!hasHourlyRate}
           onChange={(e) => setHeures(e.target.value)}
           style={{ width: "100%", padding: "12px 16px", borderRadius: 12, border: "1.5px solid #e5e9f4", fontSize: "0.95rem", boxSizing: "border-box" }} />
-        <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: "0.85rem" }}>
-          Tarif horaire : {fmt(tarifHeure)} / heure
-        </p>
+        {hasHourlyRate ? (
+          <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: "0.85rem" }}>
+            Tarif horaire : {fmt(tarifHeure)} / heure
+          </p>
+        ) : (
+          <div style={{ background: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: 10, padding: "10px 14px", marginTop: 8, color: "#92400e", fontSize: "0.85rem" }}>
+            ⚠️ Ce chauffeur ne propose pas de tarif horaire — réservation en ligne indisponible.
+            {(driver.tarif > 0 || driver.tarifDemiJournee > 0) && (
+              <> Contactez-le directement pour ses tarifs {driver.tarif > 0 && `journée (${fmt(driver.tarif)})`}{driver.tarif > 0 && driver.tarifDemiJournee > 0 && " / "}{driver.tarifDemiJournee > 0 && `demi-journée (${fmt(driver.tarifDemiJournee)})`}.</>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Paiement */}
@@ -315,11 +349,11 @@ const DriverBooking = () => {
         <strong style={{ color: "#0f1b3f", fontSize: "1.2rem" }}>{fmt(total)}</strong>
       </div>
 
-      <button onClick={handleSubmit} disabled={submitting || !missionStart || !!slotConflict}
+      <button onClick={handleSubmit} disabled={submitting || !missionStart || !!slotConflict || !hasHourlyRate}
         style={{
           width: "100%", padding: "15px", borderRadius: 14, border: "none",
-          cursor: (submitting || !missionStart || slotConflict) ? "not-allowed" : "pointer",
-          background: (submitting || !missionStart || slotConflict) ? "#94a3b8" : "linear-gradient(135deg, #ff4d2d, #e03519)",
+          cursor: (submitting || !missionStart || slotConflict || !hasHourlyRate) ? "not-allowed" : "pointer",
+          background: (submitting || !missionStart || slotConflict || !hasHourlyRate) ? "#94a3b8" : "linear-gradient(135deg, #ff4d2d, #e03519)",
           color: "#fff", fontWeight: 800, fontSize: "1rem",
         }}>
         {submitting ? "Envoi en cours…" : `Réserver ce chauffeur — ${fmt(total)}`}

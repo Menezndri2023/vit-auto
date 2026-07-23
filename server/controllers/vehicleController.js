@@ -353,7 +353,10 @@ export const getVehicleById = async (req, res) => {
     const ownerFields = req.user?.role === "admin"
       ? "firstName lastName email phone profilePhoto role isActive kycStatus certificationBadge createdAt ville"
       : "firstName lastName phone ville certificationBadge";
-    const vehicle = await Vehicle.findById(id).populate("owner", ownerFields).lean();
+    const vehicle = await Vehicle.findById(id)
+      .populate("owner", ownerFields)
+      .populate("business", "companyName isConcessionnaire")
+      .lean();
     if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable." });
     // Masquer les véhicules non approuvés aux non-admins
     if (vehicle.status !== "approved" && req.user?.role !== "admin" && vehicle.owner?._id?.toString() !== req.user?._id?.toString()) {
@@ -487,6 +490,7 @@ export const updateVehicle = async (req, res) => {
       "climatisation", "withDriver", "pricePerDay", "priceForSale", "caution",
       "rentalDurationType",
       "leasing", "credit", "ageMin", "permisRequis", "assuranceOptionnelle",
+      "conditionsLocation", "conditionsVente",
       "contactNom", "contactTel", "ville", "adresse", "coordonnees", "country",
       "images", "thumbnail", "description", "available", "type",
     ];
@@ -699,6 +703,66 @@ export const deleteVehicle = async (req, res) => {
   } catch (err) {
     logger.error("deleteVehicle:", err);
     res.status(500).json({ message: "Erreur suppression." });
+  }
+};
+
+// ── Transférer une annonce vers un autre compte/entreprise/ville/pays
+// (admin uniquement) ─────────────────────────────────────────────────────────
+// Un partenaire peut déjà déplacer ses propres annonces entre SES entreprises/
+// villes/pays via updateVehicle (businessId/ville/adresse/country, tous déjà
+// dans EDITABLE) — ce qui manquait était la capacité admin de réassigner une
+// annonce à un AUTRE compte propriétaire (owner), jamais modifiable jusqu'ici,
+// utile pour corriger une annonce mal rattachée à la création ou transférer un
+// portefeuille entre partenaires.
+export const transferVehicle = async (req, res) => {
+  try {
+    const vehicle = await Vehicle.findById(req.params.id);
+    if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable." });
+
+    const { ownerId, businessId, country, ville, adresse } = req.body;
+    const before = { owner: vehicle.owner, business: vehicle.business, country: vehicle.country, ville: vehicle.ville, adresse: vehicle.adresse };
+    const update = {};
+
+    let resolvedOwnerId = vehicle.owner;
+    if (ownerId !== undefined) {
+      if (!mongoose.Types.ObjectId.isValid(ownerId)) {
+        return res.status(400).json({ message: "Compte propriétaire invalide." });
+      }
+      const newOwner = await User.findById(ownerId).select("role").lean();
+      if (!newOwner || !["partenaire", "admin"].includes(newOwner.role)) {
+        return res.status(400).json({ message: "Le compte destinataire doit être un partenaire." });
+      }
+      resolvedOwnerId = ownerId;
+      update.owner = ownerId;
+    }
+
+    if (businessId !== undefined) {
+      if (businessId === null) {
+        update.business = null;
+      } else {
+        const business = await PartnerBusiness.findOne({ _id: businessId, owner: resolvedOwnerId }).lean();
+        if (!business) return res.status(400).json({ message: "Entreprise introuvable pour ce propriétaire." });
+        update.business = business._id;
+        // Une entreprise choisie fait autorité sur le pays, sauf si un pays est
+        // explicitement fourni par ailleurs dans la même requête.
+        if (country === undefined) update.country = business.country;
+      }
+    }
+    if (country !== undefined) update.country = country ? String(country).toUpperCase() : null;
+    if (ville   !== undefined) update.ville   = ville || undefined;
+    if (adresse !== undefined) update.adresse = adresse || undefined;
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ message: "Aucun changement fourni (ownerId, businessId, country, ville ou adresse)." });
+    }
+
+    const updated = await Vehicle.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
+    await logAction(req, "vehicle.admin_transfer", "Vehicle", req.params.id, { before, after: update });
+
+    res.json({ vehicle: updated });
+  } catch (err) {
+    logger.error("transferVehicle:", err);
+    res.status(500).json({ message: "Erreur lors du transfert." });
   }
 };
 

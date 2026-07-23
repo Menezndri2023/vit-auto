@@ -8287,6 +8287,52 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
   const [thumbBackfilling, setThumbBackfilling] = useState(false);
   const PAGE = 12;
 
+  // ── Transfert d'annonce (véhicule ou chauffeur) vers un autre compte/
+  // entreprise/ville/pays — outil de support admin (owner immuable jusqu'ici
+  // via l'édition normale, voir vehicleController.transferVehicle/driverController
+  // .transferDriver). Un seul modal partagé, discriminé par transferModal.type.
+  const [transferModal,  setTransferModal]  = useState(null); // { type: "vehicle"|"driver", id, label }
+  const [transferForm,   setTransferForm]   = useState({ ownerQuery: "", ownerResults: [], selectedOwner: null, country: "", ville: "", businessId: "" });
+  const [transferSaving, setTransferSaving] = useState(false);
+
+  const openTransfer = (type, id, label, currentCountry, currentVille) => {
+    setTransferModal({ type, id, label });
+    setTransferForm({ ownerQuery: "", ownerResults: [], selectedOwner: null, country: currentCountry || "", ville: currentVille || "", businessId: "" });
+  };
+
+  const searchTransferOwners = async (query) => {
+    setTransferForm((p) => ({ ...p, ownerQuery: query }));
+    if (query.trim().length < 2) { setTransferForm((p) => ({ ...p, ownerResults: [] })); return; }
+    try {
+      const r = await fetch(`/api/users?search=${encodeURIComponent(query.trim())}&role=partenaire&limit=6`, { headers });
+      if (r.ok) { const d = await r.json(); setTransferForm((p) => ({ ...p, ownerResults: d.users || [] })); }
+    } catch { /* ignore — recherche non bloquante */ }
+  };
+
+  const submitTransfer = async () => {
+    if (!transferModal) return;
+    const { selectedOwner, country, ville, businessId } = transferForm;
+    const body = {};
+    if (selectedOwner) body.ownerId = selectedOwner._id;
+    if (country) body.country = country;
+    if (ville.trim()) body.ville = ville.trim();
+    if (businessId.trim()) body.businessId = businessId.trim();
+    if (Object.keys(body).length === 0) { showToast("Choisissez au moins un changement à appliquer.", "error"); return; }
+
+    setTransferSaving(true);
+    try {
+      const url = transferModal.type === "vehicle" ? `/api/vehicles/${transferModal.id}/transfer` : `/api/drivers/${transferModal.id}/transfer`;
+      const r = await fetch(url, { method: "PATCH", headers, body: JSON.stringify(body) });
+      const d = await r.json().catch(() => null);
+      if (r.ok) {
+        showToast("✅ Annonce transférée.");
+        setTransferModal(null);
+        onRefresh();
+      } else showToast(d?.message || "Erreur lors du transfert.", "error");
+    } catch { showToast("Erreur réseau.", "error"); }
+    setTransferSaving(false);
+  };
+
   // ── Édition complète d'une annonce véhicule (admin) — même principe que
   // VendorDashboard.handleOpenEdit côté partenaire : getMyVehicles/getVehicles
   // (listes) ne renvoient qu'une image par véhicule (voir limitVehicleImages),
@@ -8578,6 +8624,11 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                               style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#f5f3ff", color: "#7c3aed", border: "1.5px solid #ddd6fe", borderRadius: 6, cursor: "pointer" }}>
                               ✏️
                             </button>
+                            <button title="Transférer vers un autre compte/entreprise/pays/ville"
+                              onClick={() => openTransfer("vehicle", vid, v.title || v.name, v.country, v.ville)}
+                              style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#fff7ed", color: "#c2410c", border: "1.5px solid #fed7aa", borderRadius: 6, cursor: "pointer" }}>
+                              🔀
+                            </button>
                             {v.status !== "approved" && (
                               <button className={styles.btnApprove} style={{ fontSize: ".75rem", padding: "4px 10px" }}
                                 onClick={() => setConfirm({ message: `Approuver "${v.title || v.name}" ?`, action: () => updateVehicleStatus(vid, "approved") })}>
@@ -8632,26 +8683,37 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                 </thead>
                 <tbody>
                   {drivers.map((d) => {
-                    const u = d.userId || {};
+                    // Le profil chauffeur (Driver) porte sa propre identité/photo — distincte
+                    // du compte partenaire qui publie (d.owner, peuplé par getPendingDrivers).
+                    // Correction : ce tableau lisait jusqu'ici des champs d'un ancien modèle
+                    // (userId/licenseNumber/yearsExperience/languages) qui n'existent plus sur
+                    // Driver — toujours vides/undefined en pratique, bug réel constaté en lisant
+                    // la réponse effective de /api/drivers/pending.
+                    const owner = d.owner || {};
                     return (
                       <tr key={d._id} className={styles.tr}>
                         <td>
                           <div style={{ display: "flex", gap: 9, alignItems: "center" }}>
-                            {u.profilePhoto ? <img src={u.profilePhoto} alt="" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} /> : <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center" }}>👤</div>}
+                            {d.profilePhoto ? <img src={d.profilePhoto} alt="" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} /> : <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center" }}>👤</div>}
                             <div>
-                              <strong style={{ fontSize: ".87rem" }}>{u.firstName} {u.lastName}</strong>
-                              <div style={{ fontSize: ".74rem", color: "#94a3b8" }}>{u.email}</div>
+                              <strong style={{ fontSize: ".87rem" }}>{d.firstName} {d.lastName}</strong>
+                              <div style={{ fontSize: ".74rem", color: "#94a3b8" }}>Publié par {owner.firstName} {owner.lastName} · {owner.email}</div>
                             </div>
                           </div>
                         </td>
-                        <td style={{ fontSize: ".82rem" }}>{d.licenseNumber || "—"} <span style={{ color: "#94a3b8" }}>({d.licenseCategory || "—"})</span></td>
-                        <td style={{ fontSize: ".82rem" }}>{d.yearsExperience ?? 0} an(s)</td>
-                        <td style={{ fontSize: ".78rem" }}>{d.languages?.join(", ") || "—"}</td>
+                        <td style={{ fontSize: ".82rem" }}>{d.permisCategorie || "—"} {d.vehiculePersonnel && <span style={{ color: "#94a3b8" }}>· 🚗 avec véhicule</span>}</td>
+                        <td style={{ fontSize: ".82rem" }}>{d.experience || "—"}</td>
+                        <td style={{ fontSize: ".78rem" }}>{d.langues?.join(", ") || "—"}</td>
                         <td style={{ fontSize: ".78rem", color: "#94a3b8" }}>{d.createdAt ? new Date(d.createdAt).toLocaleDateString("fr-FR") : "—"}</td>
                         <td>
                           <div style={{ display: "flex", gap: 5 }}>
                             <button className={styles.btnApprove} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => handleApproveDriver(d._id)}>✅ Valider</button>
-                            <button className={styles.btnReject} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => { setDriverRejectModal({ id: d._id, name: `${u.firstName} ${u.lastName}` }); setDriverRejectReason(""); }}>✕ Refuser</button>
+                            <button className={styles.btnReject} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => { setDriverRejectModal({ id: d._id, name: `${d.firstName} ${d.lastName}` }); setDriverRejectReason(""); }}>✕ Refuser</button>
+                            <button title="Transférer vers un autre compte/entreprise/pays/ville"
+                              onClick={() => openTransfer("driver", d._id, `${d.firstName} ${d.lastName}`, d.country, d.ville)}
+                              style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#fff7ed", color: "#c2410c", border: "1.5px solid #fed7aa", borderRadius: 6, cursor: "pointer" }}>
+                              🔀
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -8691,6 +8753,71 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
             <div className={styles.confirmActions}>
               <button className={styles.btnDanger} onClick={() => handleRejectDriver(driverRejectModal.id, driverRejectReason)}>Refuser</button>
               <button className={styles.btnGhost} onClick={() => setDriverRejectModal(null)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ MODAL TRANSFERT (véhicule ou chauffeur) ══ */}
+      {transferModal && (
+        <div className={styles.overlay} onClick={() => setTransferModal(null)}>
+          <div className={styles.confirmBox} onClick={e => e.stopPropagation()} style={{ width: "min(480px, 92vw)" }}>
+            <p className={styles.confirmMsg}>
+              🔀 Transférer « {transferModal.label} » ({transferModal.type === "vehicle" ? "véhicule" : "chauffeur"})
+            </p>
+
+            <div style={{ marginBottom: 12, position: "relative" }}>
+              <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#374151", display: "block", marginBottom: 4 }}>
+                Nouveau propriétaire (nom ou email) — laisser vide pour ne pas changer
+              </label>
+              <input type="text" value={transferForm.selectedOwner ? `${transferForm.selectedOwner.firstName} ${transferForm.selectedOwner.lastName} (${transferForm.selectedOwner.email})` : transferForm.ownerQuery}
+                onChange={(e) => { setTransferForm((p) => ({ ...p, selectedOwner: null })); searchTransferOwners(e.target.value); }}
+                placeholder="Ex : Jean Kouassi ou jean@exemple.com"
+                style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".88rem", boxSizing: "border-box" }} />
+              {transferForm.ownerResults.length > 0 && !transferForm.selectedOwner && (
+                <div style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, marginTop: 4, maxHeight: 160, overflowY: "auto", background: "#fff" }}>
+                  {transferForm.ownerResults.map((o) => (
+                    <div key={o._id} onClick={() => setTransferForm((p) => ({ ...p, selectedOwner: o, ownerResults: [] }))}
+                      style={{ padding: "6px 10px", fontSize: ".82rem", cursor: "pointer", borderBottom: "1px solid #f1f5f9" }}>
+                      {o.firstName} {o.lastName} — {o.email}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+              <div>
+                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#374151", display: "block", marginBottom: 4 }}>Pays</label>
+                <select value={transferForm.country} onChange={(e) => setTransferForm((p) => ({ ...p, country: e.target.value }))}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".88rem" }}>
+                  <option value="">— Ne pas changer —</option>
+                  {COUNTRIES_CONFIG.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#374151", display: "block", marginBottom: 4 }}>Ville</label>
+                <input type="text" value={transferForm.ville} onChange={(e) => setTransferForm((p) => ({ ...p, ville: e.target.value }))}
+                  placeholder="Ne pas changer"
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".88rem", boxSizing: "border-box" }} />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#374151", display: "block", marginBottom: 4 }}>
+                ID entreprise (PartnerBusiness) — optionnel, avancé
+              </label>
+              <input type="text" value={transferForm.businessId} onChange={(e) => setTransferForm((p) => ({ ...p, businessId: e.target.value }))}
+                placeholder="Laisser vide pour ne pas rattacher"
+                style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".88rem", boxSizing: "border-box" }} />
+              <p style={{ margin: "4px 0 0", fontSize: ".74rem", color: "#94a3b8" }}>
+                Doit appartenir au propriétaire final (nouveau ou actuel) — sinon rejeté par le serveur. Sinon, le nouveau propriétaire peut rattacher lui-même depuis son tableau de bord (Mes entreprises).
+              </p>
+            </div>
+
+            <div className={styles.confirmActions}>
+              <button className={styles.btnPrimary} onClick={submitTransfer} disabled={transferSaving}>{transferSaving ? "…" : "Transférer"}</button>
+              <button className={styles.btnGhost} onClick={() => setTransferModal(null)}>Annuler</button>
             </div>
           </div>
         </div>

@@ -26,6 +26,7 @@ router.get("/:id/availability", vid, optionalAuth, v.getVehicleAvailability);   
 router.get("/:id/inspection-report",  vid, optionalAuth,  getVehicleInspectionReport);   // rapport d'inspection (public)
 router.post("/:id/inspection-report", vid, authenticate,  createVehicleInspectionReport); // publié/mis à jour par le propriétaire
 router.patch("/:id/status",   vid, authenticate, authorizeAdmin, v.updateVehicleStatus); // approuver/rejeter
+router.patch("/:id/transfer", vid, authenticate, authorizeAdmin, v.transferVehicle);       // réassigner compte/entreprise/pays/ville (admin)
 router.patch("/:id/lifecycle",vid, authenticate, v.updateVehicleLifecycle);               // brouillon/vendu/archivé (partenaire)
 router.patch("/:id/promotion",vid, authenticate, v.updatePromotion);                      // activer/désactiver une promotion
 router.post("/:id/convert-to-export", vid, authenticate, v.convertVehicleToExport);       // transforme en annonce Import/Export

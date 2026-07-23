@@ -137,6 +137,7 @@ export const buildVehicleWhitelist = (data) => {
     nombrePlaces, nombrePortes, climatisation, withDriver,
     pricePerDay, priceForSale, caution, leasing, credit,
     ageMin, permisRequis, assuranceOptionnelle,
+    conditionsLocation, conditionsVente,
     contactNom, contactTel, ville, adresse, coordonnees,
     images, thumbnail, description, rentalDurationType,
   } = data;
@@ -147,6 +148,7 @@ export const buildVehicleWhitelist = (data) => {
     nombrePlaces, nombrePortes, climatisation, withDriver,
     pricePerDay, priceForSale, caution, leasing, credit,
     ageMin, permisRequis, assuranceOptionnelle,
+    conditionsLocation, conditionsVente,
     contactNom, contactTel, ville, adresse, coordonnees,
     images: images || [], thumbnail: thumbnail || null, description, rentalDurationType,
   };

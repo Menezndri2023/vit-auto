@@ -121,7 +121,10 @@ const normalizeVehicle = (v) => {
     ownerName,
     ownerPhone:   v.owner?.phone || v.contactTel || null,
     ownerCity:            v.owner?.city  || v.ville || null,
-    ownerType:            v.owner?.partnerType || null,
+    // Concessionnaire = attribut de l'ENTITÉ (PartnerBusiness.isConcessionnaire),
+    // pas du compte partenaire — seule getVehicleById peuple `business` (populate),
+    // absent en liste catalogue (v.business y reste un simple ObjectId ou absent).
+    isConcessionnaire:    !!(v.business && typeof v.business === "object" && v.business.isConcessionnaire),
     certificationBadge:  v.owner?.certificationBadge || null,
   };
 };

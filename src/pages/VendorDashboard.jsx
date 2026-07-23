@@ -1261,6 +1261,8 @@ export default function VendorDashboard() {
         ageMin:      v.ageMin || "",
         permisRequis: v.permisRequis !== false,
         assuranceOptionnelle: !!v.assuranceOptionnelle,
+        conditionsLocation: v.conditionsLocation || "",
+        conditionsVente:    v.conditionsVente || "",
         withDriver:  !!v.withDriver,
         available:   v.available !== false,
       });
@@ -1304,6 +1306,8 @@ export default function VendorDashboard() {
         ageMin:      Number(editForm.ageMin) || 0,
         permisRequis: editForm.permisRequis,
         assuranceOptionnelle: editForm.assuranceOptionnelle,
+        conditionsLocation: editForm.conditionsLocation,
+        conditionsVente:    editForm.conditionsVente,
         withDriver:  editForm.withDriver,
         available:   editForm.available,
         images,
@@ -2705,6 +2709,20 @@ export default function VendorDashboard() {
                   <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Description</label>
                   <textarea className={styles.rejectTextarea} rows={3}
                     value={editForm.description} onChange={(e) => setEditForm((p) => ({ ...p, description: e.target.value }))} />
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>
+                    {editForm.type === "vente" ? "Conditions de vente particulières — optionnel" : "Conditions de location particulières — optionnel"}
+                  </label>
+                  {editForm.type === "vente" ? (
+                    <textarea className={styles.rejectTextarea} rows={3}
+                      placeholder="Ex : garantie 3 mois pièces et main d'œuvre, contrôle technique fourni..."
+                      value={editForm.conditionsVente} onChange={(e) => setEditForm((p) => ({ ...p, conditionsVente: e.target.value }))} />
+                  ) : (
+                    <textarea className={styles.rejectTextarea} rows={3}
+                      placeholder="Ex : kilométrage inclus 200km/jour, pénalité retard 5000 USD/heure..."
+                      value={editForm.conditionsLocation} onChange={(e) => setEditForm((p) => ({ ...p, conditionsLocation: e.target.value }))} />
+                  )}
                 </div>
                 {editForm.type !== "vente" && (
                   <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>

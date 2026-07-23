@@ -5,7 +5,7 @@ import { useCurrency } from "../../context/CurrencyContext";
 import { geocodeAddress } from "../../utils/geo";
 import styles from "./PartnerBusinessManager.module.css";
 
-const EMPTY_FORM = { companyName: "", country: "", ville: "", adresse: "", contactNom: "", contactTel: "" };
+const EMPTY_FORM = { companyName: "", country: "", ville: "", adresse: "", contactNom: "", contactTel: "", isConcessionnaire: false };
 
 const PartnerBusinessManager = () => {
   const { success, error } = useToast();
@@ -42,6 +42,7 @@ const PartnerBusinessManager = () => {
     setForm({
       companyName: b.companyName || "", country: b.country || "", ville: b.ville || "",
       adresse: b.adresse || "", contactNom: b.contactNom || "", contactTel: b.contactTel || "",
+      isConcessionnaire: !!b.isConcessionnaire,
     });
     setShowForm(true);
   };
@@ -125,6 +126,7 @@ const PartnerBusinessManager = () => {
         {businesses.map((b) => (
           <div key={b._id} className={styles.card}>
             {b.isDefault && <span className={styles.defaultBadge}>Par défaut</span>}
+            {b.isConcessionnaire && <span className={styles.defaultBadge} style={{ background: "#eef2ff", color: "#4338ca" }}>🏬 Concessionnaire</span>}
             <h3 className={styles.cardTitle}>{b.companyName}</h3>
             <p className={styles.cardLine}>{flagFor(b.country)} {nameFor(b.country)}</p>
             <p className={styles.cardLine}>📍 {b.ville}{b.adresse ? `, ${b.adresse}` : ""}</p>
@@ -171,6 +173,12 @@ const PartnerBusinessManager = () => {
             <div className={styles.field}>
               <label>Contact — téléphone</label>
               <input value={form.contactTel} onChange={(e) => setF("contactTel", e.target.value)} placeholder="+221 77 000 00 00" />
+            </div>
+            <div className={`${styles.field} ${styles.colSpan2}`}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                <input type="checkbox" checked={form.isConcessionnaire} onChange={(e) => setF("isConcessionnaire", e.target.checked)} />
+                🏬 Cette entité est un concessionnaire (affiché comme badge sur ses annonces)
+              </label>
             </div>
           </div>
           <div className={styles.formActions}>

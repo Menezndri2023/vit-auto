@@ -20,9 +20,12 @@ const driverSchema = new mongoose.Schema({
 
   // ── Tarification (USD — voir server/scripts/migrate-vehicle-booking-to-usd.mjs
   // pour la migration des profils créés avant ce champ, implicitement en FCFA/XOF) ──
-  currency:    { type: String, default: "USD" },
-  tarif:       { type: Number, required: true }, // par jour
-  tarifHeure:  { type: Number },                 // à l'heure (optionnel)
+  // Facultative : le chauffeur fixe librement ses tarifs, aucun n'est obligatoire
+  // (contrairement à Vehicle.pricePerDay/priceForSale) — voir driverController.js.
+  currency:         { type: String, default: "USD" },
+  tarif:            { type: Number }, // par jour
+  tarifDemiJournee: { type: Number }, // demi-journée
+  tarifHeure:       { type: Number }, // à l'heure — pertinent surtout avec véhicule (vehiculePersonnel)
 
   // ── Disponibilité & zone ──────────────────────────────────
   disponibilite: {
@@ -36,14 +39,29 @@ const driverSchema = new mongoose.Schema({
   // usage que Vehicle.country pour le filtrage international du catalogue.
   country:     { type: String, uppercase: true, trim: true, default: null },
 
+  // ── Entreprise du partenaire (facultatif) — même principe que Vehicle.business :
+  // simple étiquette d'organisation, jamais source de vérité de ville/pays.
+  business: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "PartnerBusiness",
+    default: null,
+  },
+
   // ── Expérience & compétences ──────────────────────────────
   experience:     { type: String, required: true }, // ex: "5 ans"
   langues:        { type: [String], default: ["Français"] },
   permisCategorie:{ type: String, default: "B" },   // B, C, D...
+  // Avec véhicule (true) : le chauffeur propose aussi son propre véhicule —
+  // exige alors des photos du véhicule (`images`) en plus de `profilePhoto`.
+  // Sans véhicule (false) : seule `profilePhoto` est exigée, `images` reste vide
+  // (rien à photographier — le chauffeur conduit le véhicule du client).
   vehiculePersonnel: { type: Boolean, default: false },
   typeVehicule:   { type: String },                  // si véhicule perso
 
   // ── Médias ────────────────────────────────────────────────
+  // Photos du véhicule uniquement si vehiculePersonnel=true (voir driverController.js
+  // pour la validation). profilePhoto (photo du conducteur) est distincte et toujours
+  // exigée, que le chauffeur ait un véhicule ou non.
   images: { type: [String], default: [] },
 
   // ── Statistiques ──────────────────────────────────────────

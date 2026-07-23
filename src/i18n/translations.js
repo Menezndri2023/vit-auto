@@ -341,6 +341,8 @@ const translations = {
   "vd.specs":            { fr: "Caractéristiques",                    en: "Specifications",                ar: "المواصفات",             es: "Características",          zh: "规格"           },
   "vd.description":      { fr: "Description",                         en: "Description",                   ar: "الوصف",                 es: "Descripción",              zh: "描述"           },
   "vd.conditions":       { fr: "Conditions",                          en: "Conditions",                    ar: "الشروط",                es: "Condiciones",              zh: "条件"           },
+  "vd.rentalTerms":      { fr: "Conditions particulières de location", en: "Special rental terms",         ar: "شروط استئجار خاصة",     es: "Condiciones particulares de alquiler", zh: "特殊租赁条款" },
+  "vd.saleTerms":        { fr: "Conditions particulières de vente",   en: "Special sale terms",            ar: "شروط بيع خاصة",         es: "Condiciones particulares de venta",   zh: "特殊销售条款" },
   "vd.ageMin":           { fr: "Âge minimum :",                       en: "Minimum age:",                  ar: "الحد الأدنى للسن:",     es: "Edad mínima:",             zh: "最低年龄："     },
   "vd.ageUnit":          { fr: "ans",                                 en: "years",                         ar: "سنة",                   es: "años",                     zh: "岁"             },
   "vd.licenseRequired":  { fr: "Permis de conduire requis",           en: "Driver's license required",     ar: "رخصة القيادة مطلوبة",   es: "Carnet de conducir requerido", zh: "需要驾照"     },

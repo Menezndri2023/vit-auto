@@ -35,7 +35,7 @@ export const createBusiness = async (req, res) => {
   try {
     if (!requirePartnerRole(req, res)) return;
 
-    const { companyName, country, ville, adresse, coordonnees, contactNom, contactTel, isDefault } = req.body;
+    const { companyName, country, ville, adresse, coordonnees, contactNom, contactTel, isDefault, isConcessionnaire } = req.body;
     if (!companyName?.trim() || !country?.trim() || !ville?.trim()) {
       return res.status(400).json({ message: "Nom de l'entreprise, pays et ville sont requis." });
     }
@@ -63,6 +63,7 @@ export const createBusiness = async (req, res) => {
       contactNom: contactNom?.trim() || null,
       contactTel: contactTel?.trim() || null,
       isDefault: makeDefault,
+      isConcessionnaire: !!isConcessionnaire,
     });
 
     res.status(201).json({ business });
@@ -79,7 +80,7 @@ export const updateBusiness = async (req, res) => {
     const business = await PartnerBusiness.findOne({ _id: req.params.id, owner: req.user._id });
     if (!business) return res.status(404).json({ message: "Entreprise introuvable." });
 
-    const EDITABLE = ["companyName", "country", "ville", "adresse", "coordonnees", "contactNom", "contactTel"];
+    const EDITABLE = ["companyName", "country", "ville", "adresse", "coordonnees", "contactNom", "contactTel", "isConcessionnaire"];
     for (const key of EDITABLE) {
       if (req.body[key] !== undefined) business[key] = req.body[key];
     }

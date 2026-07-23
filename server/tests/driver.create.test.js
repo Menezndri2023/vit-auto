@@ -7,10 +7,21 @@ import { mockReqRes } from "./helpers/mockReqRes.js";
 // Même logique d'accès que vehicleController.createVehicle (voir
 // vehicle.create.test.js) — portes KYC/certification/suspension partagées,
 // pas de plafond "particulier" ni de détection de doublon ici en revanche.
+// profilePhoto est désormais toujours exigé (voir createDriver) — inclus par défaut.
 const minimalDriver = (overrides = {}) => ({
   firstName: "Chauffeur", lastName: "Test", title: "Chauffeur pro Abidjan",
   tarif: 30000, disponibilite: "Temps plein", zone: "Abidjan", experience: "5 ans",
+  profilePhoto: "https://cdn.example.test/driver-profile.jpg",
   ...overrides,
+});
+
+// Pièce d'identité (CNI/passeport) + permis vérifiés — exigence obligatoire à la
+// publication chauffeur (missingDriverDocs), indépendante du mur KYC/certification
+// classique testé plus bas (un partenaire peut avoir kycStatus VERIFIE sans que
+// ces deux champs distincts soient renseignés).
+const validDriverDocs = () => ({
+  identity: { type: "cni", status: "verified" },
+  driverLicenseOcr: { licenseNumber: "LIC12345", frontImage: "data:image/jpeg;base64,xx", isExpired: false },
 });
 
 describe("driverController.createDriver — contrôle d'accès à la publication", () => {
@@ -22,7 +33,7 @@ describe("driverController.createDriver — contrôle d'accès à la publication
   });
 
   it("autorise un Founding Partner sans KYC ni certification", async () => {
-    const founder = await createUser({ role: "partenaire", isFounder: true, sellerType: "particulier" });
+    const founder = await createUser({ role: "partenaire", isFounder: true, sellerType: "particulier", ...validDriverDocs() });
     const { req, res } = mockReqRes({ user: founder, body: minimalDriver() });
     await createDriver(req, res);
 
@@ -62,7 +73,7 @@ describe("driverController.createDriver — contrôle d'accès à la publication
   });
 
   it("les champs serveur (owner, status, country) ne sont jamais pris depuis req.body", async () => {
-    const founder = await createUser({ role: "partenaire", isFounder: true, country: "CI" });
+    const founder = await createUser({ role: "partenaire", isFounder: true, country: "CI", ...validDriverDocs() });
     const intruderId = (await createUser())._id.toString();
     const { req, res } = mockReqRes({
       user: founder,

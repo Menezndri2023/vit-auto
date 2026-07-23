@@ -31,6 +31,13 @@ const partnerBusinessSchema = new mongoose.Schema({
   // de publication quand aucune n'est explicitement choisie.
   isDefault: { type: Boolean, default: false },
 
+  // Marque cette entité comme concessionnaire (vs entreprise/local générique) —
+  // indépendant par entité : un même partenaire peut avoir plusieurs entreprises,
+  // certaines concessionnaires, d'autres non. Purement déclaratif (auto-toggle
+  // par le partenaire), affiché comme badge sur les annonces rattachées
+  // (Vehicle.business) — voir VehicleDetails.jsx.
+  isConcessionnaire: { type: Boolean, default: false },
+
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });

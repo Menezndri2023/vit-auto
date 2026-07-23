@@ -99,7 +99,13 @@ function IECard({ l }) {
 
 /* ── Carte Chauffeur ── */
 function DriverCard({ d, fmt }) {
-  const tarifHeure = d.tarifHeure || d.tarif || 0;
+  // Priorité à l'unité réellement renseignée — afficher un tarif jour avec un
+  // suffixe "/h" (bug précédent : tarifHeure||tarif sans jamais changer le
+  // libellé) induisait le client en erreur sur le prix réel du service.
+  const priceLabel = d.tarifHeure > 0 ? `${fmt(d.tarifHeure)}/h`
+    : d.tarif > 0 ? `${fmt(d.tarif)}/jour`
+    : d.tarifDemiJournee > 0 ? `${fmt(d.tarifDemiJournee)}/demi-j.`
+    : "Sur devis";
   return (
     <div className={styles.ieCard}>
       <div className={styles.ieCardImg}>
@@ -117,9 +123,12 @@ function DriverCard({ d, fmt }) {
           📍 {d.zone || d.ville || "—"}
           {d.noteMoyenne > 0 && <> · ⭐ {d.noteMoyenne.toFixed(1)} ({d.nombreAvis || 0})</>}
         </span>
+        <span className={styles.ieCardMeta}>
+          {d.vehiculePersonnel ? `🚗 Avec véhicule${d.typeVehicule ? ` (${d.typeVehicule})` : ""}` : "🚶 Sans véhicule"}
+        </span>
         <div className={styles.ieCardFooter}>
           <div>
-            <div className={styles.ieCardPrice}>{fmt(tarifHeure)}/h</div>
+            <div className={styles.ieCardPrice}>{priceLabel}</div>
           </div>
           <Link to={`/driver-booking/${d._id}`} className={styles.ieCardLink}>Réserver →</Link>
         </div>
@@ -275,8 +284,8 @@ const Catalogue = () => {
         || `${d.firstName} ${d.lastName}`.toLowerCase().includes(q)
         || (d.zone || d.ville || "").toLowerCase().includes(q)
         || (d.title || "").toLowerCase().includes(q)));
-    if (sortKey === "price_asc")  list = [...list].sort((a,b) => (a.tarifHeure||a.tarif||0) - (b.tarifHeure||b.tarif||0));
-    if (sortKey === "price_desc") list = [...list].sort((a,b) => (b.tarifHeure||b.tarif||0) - (a.tarifHeure||a.tarif||0));
+    if (sortKey === "price_asc")  list = [...list].sort((a,b) => (a.tarifHeure||a.tarif||a.tarifDemiJournee||0) - (b.tarifHeure||b.tarif||b.tarifDemiJournee||0));
+    if (sortKey === "price_desc") list = [...list].sort((a,b) => (b.tarifHeure||b.tarif||b.tarifDemiJournee||0) - (a.tarifHeure||a.tarif||a.tarifDemiJournee||0));
     if (sortKey === "newest")     list = [...list].sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
     return list;
   }, [drivers, isChauffeurMode, searchTerm, sortKey, catalogCountry, COUNTRY_INTERNATIONAL]);
