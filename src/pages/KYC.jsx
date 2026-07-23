@@ -42,31 +42,16 @@ export default function KYC() {
 
   /* ── STEP 1 ─────────────────────────────────────────────────────────── */
   const [emailVerified,   setEmailVerified]   = useState(user?.emailVerified || false);
+  // La vérification téléphone (OTP SMS) a été retirée du parcours KYC : la
+  // délivrabilité n'est pas fiable selon les pays (ex. numéros chinois +86,
+  // souvent filtrés par l'opérateur local) et bloquait certains utilisateurs
+  // à l'étape 1 sans aucune échappatoire. Seul l'email fait foi désormais ;
+  // phoneVerified reste lu/affiché (donnée existante du compte) mais ne
+  // conditionne plus rien ici.
   const [phoneVerified,   setPhoneVerified]   = useState(user?.phoneVerified || false);
-  const [phoneNumber,     setPhoneNumber]     = useState(user?.phone || "");
-  const [otpSent,         setOtpSent]         = useState(false);
-  const [otpCode,         setOtpCode]         = useState("");
-  const [otpBtnLoading,   setOtpBtnLoading]   = useState(false);
-  const [otpVerifLoading, setOtpVerifLoading] = useState(false);
-  const [otpError,        setOtpError]        = useState("");
-  const [otpSuccess,      setOtpSuccess]      = useState("");
-  const [devOtp,          setDevOtp]          = useState("");
-  // Échappatoire si le SMS ne parvient jamais (Twilio "configuré" globalement
-  // ne garantit pas la délivrabilité réelle par pays — ex. numéros chinois
-  // +86, souvent filtrés par les opérateurs locaux pour les SMS internationaux).
-  // Sans ça, un utilisateur dont l'OTP n'arrive jamais reste bloqué à l'étape 1
-  // pour toujours, incapable d'atteindre l'upload de documents (voir gating
-  // du bouton "Continuer" plus bas) — phoneVerified reste correctement à
-  // false (pas de triche sur le score), seul le blocage saute.
-  const [phoneSkipped,    setPhoneSkipped]    = useState(false);
   const [emailResent,     setEmailResent]     = useState(false);
   const [emailError,      setEmailError]      = useState("");
-  // Tant qu'aucun provider SMS réel n'est configuré côté serveur, la vérification
-  // téléphone ne doit pas bloquer la suite du KYC (voir smsAvailable dans la réponse
-  // de /api/kyc/status). Défaut à true pour ne pas relâcher la contrainte avant
-  // d'avoir la confirmation du serveur (évite un flash "autorisé" → "bloqué").
-  const [smsAvailable,    setSmsAvailable]    = useState(true);
-  // Idem pour l'email : tant que la délivrabilité en production n'est pas fiable,
+  // Tant que la délivrabilité en production n'est pas fiable,
   // la vérification email ne doit pas non plus bloquer le KYC (voir
   // emailVerificationRequired dans la réponse de /api/kyc/status).
   const [emailVerifRequired, setEmailVerifRequired] = useState(true);
@@ -121,7 +106,6 @@ export default function KYC() {
         if (!d) return;
         setEmailVerified(d.emailVerified);
         setPhoneVerified(d.phoneVerified);
-        if (typeof d.smsAvailable === "boolean") setSmsAvailable(d.smsAvailable);
         if (typeof d.emailVerificationRequired === "boolean") setEmailVerifRequired(d.emailVerificationRequired);
         if (typeof d.hasEmail === "boolean") setHasEmail(d.hasEmail);
         if (typeof d.hasPhone === "boolean") setHasPhone(d.hasPhone);
@@ -143,30 +127,6 @@ export default function KYC() {
       await api.post("/api/auth/resend-verification", { email: user?.email });
       setEmailResent(true);
     } catch (err) { setEmailError(err.message || "Erreur d'envoi."); }
-  };
-
-  const handleSendPhoneOtp = async () => {
-    if (!phoneNumber.trim()) { setOtpError("Saisissez votre numéro."); return; }
-    setOtpBtnLoading(true); setOtpError(""); setOtpSuccess(""); setDevOtp(""); setOtpSent(false); setOtpCode("");
-    try {
-      const d = await api.post("/api/auth/send-phone-otp", { phone: phoneNumber.trim(), userId: user?.id || user?._id });
-      if (d.alreadyVerified) { setPhoneVerified(true); setOtpSuccess("Téléphone déjà vérifié."); return; }
-      setOtpSent(true); setOtpSuccess(d.message || "Code envoyé par SMS.");
-      if (d.devOtp) setDevOtp(d.devOtp);
-    } catch (err) { setOtpError(err.message || "Erreur SMS."); }
-    finally { setOtpBtnLoading(false); }
-  };
-
-  const handleVerifyPhoneOtp = async () => {
-    if (otpCode.trim().length !== 6) { setOtpError("Code à 6 chiffres requis."); return; }
-    setOtpVerifLoading(true); setOtpError("");
-    try {
-      const d = await api.post("/api/auth/verify-phone-otp", { phone: phoneNumber.trim(), userId: user?.id || user?._id, otp: otpCode.trim() });
-      setPhoneVerified(true); setOtpSuccess("Téléphone vérifié !"); setDevOtp("");
-      if (d.token) updateUser({ ...(d.user || {}), phoneVerified: true, phone: phoneNumber });
-      else         updateUser({ phoneVerified: true, phone: phoneNumber });
-    } catch (err) { setOtpError(err.message || "Code incorrect ou expiré."); }
-    finally { setOtpVerifLoading(false); }
   };
 
   /* ════════ STEP 2 — Document + OCR ══════════════════════════════════════ */
@@ -385,7 +345,11 @@ export default function KYC() {
   const versoRequired = ["cni", "permis", "carte_sejour"].includes(docType);
   const canGoStep3 = docImageOk && (!versoRequired || docBackOk);
   const canSubmit  = selfieOk;
-  const completedCount = [emailVerified, phoneVerified, docImageOk, selfieOk].filter(Boolean).length;
+  // La vérification téléphone n'est plus requise (email uniquement, voir
+  // section "Téléphone" plus haut) — exclue du décompte pour que le dossier
+  // puisse honnêtement atteindre 100% sans elle.
+  const TOTAL_STEPS = 3;
+  const completedCount = [emailVerified, docImageOk, selfieOk].filter(Boolean).length;
 
   return (
     <div className={styles.page}>
@@ -400,12 +364,12 @@ export default function KYC() {
           <svg viewBox="0 0 44 44" className={styles.heroProgressCircle}>
             <circle cx="22" cy="22" r="18" fill="none" stroke="#e2e8f0" strokeWidth="4"/>
             <circle cx="22" cy="22" r="18" fill="none" stroke="#6366f1" strokeWidth="4"
-              strokeDasharray={`${(completedCount / 4) * 113} 113`}
+              strokeDasharray={`${(completedCount / TOTAL_STEPS) * 113} 113`}
               strokeLinecap="round" transform="rotate(-90 22 22)"/>
           </svg>
           <div className={styles.heroProgressText}>
             <span className={styles.heroProgressNum}>{completedCount}</span>
-            <span className={styles.heroProgressMax}>/4</span>
+            <span className={styles.heroProgressMax}>/{TOTAL_STEPS}</span>
           </div>
         </div>
       </div>
@@ -472,81 +436,38 @@ export default function KYC() {
             </div>
           )}
 
-          {/* Téléphone — uniquement pour les comptes inscrits par téléphone */}
+          {/* Téléphone — informatif uniquement. Sur demande explicite, le KYC ne
+              conditionne plus rien à une confirmation par SMS (délivrabilité
+              peu fiable selon les pays, ex. numéros chinois filtrés par
+              l'opérateur local) : seul l'email fait foi pour cette étape. */}
           {hasPhone && (
             <div className={styles.verifySection}>
               <div className={styles.verifyRow}>
-                <div className={[styles.verifyDot, phoneVerified ? styles.verifyDotOk : styles.verifyDotPending].join(" ")} />
+                <div className={styles.verifyDot} />
                 <div className={styles.verifyInfo}>
                   <span className={styles.verifyLabel}>Téléphone</span>
-                  <span className={styles.verifyValue}>{phoneVerified ? (phoneNumber || user.phone || "Vérifié") : "Non vérifié"}</span>
+                  <span className={styles.verifyValue}>{user.phone}</span>
                 </div>
-                {phoneVerified
-                  ? <span className={styles.badgeOk}>✓ Vérifié</span>
-                  : smsAvailable
-                    ? <span className={styles.badgePending}>Non vérifié</span>
-                    : <span className={styles.badgePending}>Facultatif pour l'instant</span>}
+                <span className={styles.badgePending}>Non requis pour l'instant</span>
               </div>
-              {!phoneVerified && !smsAvailable && (
-                <div className={styles.infoBox}>
-                  <strong>Vérification SMS momentanément indisponible.</strong>
-                  <p>Vous pouvez continuer votre dossier sans confirmer votre téléphone pour l'instant ; cette étape ne vous bloquera pas.</p>
-                </div>
-              )}
-              {!phoneVerified && smsAvailable && (
-                <div className={styles.verifyAction}>
-                  <div className={styles.phoneRow}>
-                    <input type="tel" className={styles.textInput} placeholder="+225 07 00 00 00 00"
-                      value={phoneNumber} onChange={(e) => { setPhoneNumber(e.target.value); setOtpSent(false); setOtpError(""); setOtpSuccess(""); }} />
-                    <button className={styles.actionBtn} onClick={handleSendPhoneOtp} disabled={otpBtnLoading || !phoneNumber.trim()}>
-                      {otpBtnLoading ? "Envoi…" : otpSent ? "Renvoyer" : "Envoyer le code"}
-                    </button>
-                  </div>
-                  {otpSent && (
-                    <div className={styles.otpBlock}>
-                      <p className={styles.otpHint}>Code à 6 chiffres envoyé au <strong>{phoneNumber}</strong></p>
-                      {devOtp && (
-                        <div className={styles.devOtpBox}>
-                          <span>Développement — Code :</span>
-                          <strong onClick={() => setOtpCode(devOtp)} title="Cliquez pour remplir">{devOtp}</strong>
-                        </div>
-                      )}
-                      <div className={styles.otpRow}>
-                        <input type="text" inputMode="numeric"
-                          className={[styles.otpInput, otpError ? styles.inputError : ""].join(" ")}
-                          placeholder="• • • • • •" value={otpCode} maxLength={6}
-                          onChange={(e) => { setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setOtpError(""); }} />
-                        <button className={styles.primaryBtn} onClick={handleVerifyPhoneOtp}
-                          disabled={otpVerifLoading || otpCode.length !== 6}>
-                          {otpVerifLoading ? "…" : "Vérifier"}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  {otpError   && <p className={styles.errorMsg}>{otpError}</p>}
-                  {otpSuccess && !otpError && <p className={styles.successMsg}>{otpSuccess}</p>}
-                  {!phoneSkipped && (
-                    <button type="button"
-                      style={{ background: "none", border: "none", color: "#6366f1", textDecoration: "underline", cursor: "pointer", fontSize: ".85rem", marginTop: 8, padding: 0 }}
-                      onClick={() => setPhoneSkipped(true)}>
-                      Vous ne recevez pas le code ? Continuer sans vérifier mon téléphone
-                    </button>
-                  )}
-                </div>
-              )}
+              <div className={styles.infoBox}>
+                <p>Seule votre adresse email doit être confirmée pour continuer — aucune confirmation par SMS n'est requise pour l'instant.</p>
+              </div>
             </div>
           )}
 
           <div className={styles.cardFooter}>
             <div />
+            {/* Seul l'email conditionne la suite — plus d'attente sur une
+                confirmation par SMS (voir section Téléphone ci-dessus). */}
             <button className={styles.primaryBtn} onClick={() => setStep(2)}
-              disabled={(hasEmail && emailVerifRequired && !emailVerified) || (hasPhone && smsAvailable && !phoneVerified && !phoneSkipped)}>
-              {((hasEmail && emailVerifRequired && !emailVerified) || (hasPhone && smsAvailable && !phoneVerified && !phoneSkipped)) ? "Complétez la vérification" : "Continuer →"}
+              disabled={hasEmail && emailVerifRequired && !emailVerified}>
+              {(hasEmail && emailVerifRequired && !emailVerified) ? "Complétez la vérification" : "Continuer →"}
             </button>
           </div>
-          {((hasEmail && emailVerifRequired && !emailVerified) || (hasPhone && smsAvailable && !phoneVerified && !phoneSkipped)) && (
+          {(hasEmail && emailVerifRequired && !emailVerified) && (
             <p className={styles.gateMsg}>
-              {hasEmail ? "Votre email doit être vérifié pour continuer." : "Votre téléphone doit être vérifié pour continuer."}
+              Votre email doit être vérifié pour continuer.
             </p>
           )}
         </div>
@@ -819,7 +740,6 @@ export default function KYC() {
                 <p className={styles.summaryTitle}>Récapitulatif du dossier</p>
                 <div className={styles.summaryGrid}>
                   <SummaryItem ok={emailVerified}  label="Email vérifié" />
-                  <SummaryItem ok={phoneVerified}  label="Téléphone vérifié" />
                   <SummaryItem ok={docImageOk}     label={`Document scanné (OCR ${ocrData?.ocrConfidence ?? 0}%)`} />
                   <SummaryItem ok={selfieOk}        label="Selfie enregistré" />
                   {faceMatchScore !== null && (
