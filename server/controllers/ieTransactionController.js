@@ -1021,7 +1021,11 @@ export const getTransactionById = async (req, res) => {
   try {
     const tx = await IETransaction.findById(req.params.id)
       .populate("listing", "title make model year mainPhoto photos vin price currency sourceCountry")
-      .populate("client",  "firstName lastName email profilePhoto phone")
+      // kycStatus/kycScore/kycBadge (jamais les données biométriques brutes) : même
+      // niveau d'exposition que getPartnerBookings — contrairement au flux Booking
+      // (location/essai), l'exportateur ne voyait ici que nom/téléphone/email de
+      // l'acheteur, sans aucune indication de vérification d'identité.
+      .populate("client",  "firstName lastName email profilePhoto phone kycStatus kycScore kycBadge")
       .populate("partner", "firstName lastName email profilePhoto phone business")
       .populate("independentInspection.assignedTo", "firstName lastName");
 
@@ -1078,7 +1082,8 @@ export const getPartnerTransactions = async (req, res) => {
     const [transactions, total] = await Promise.all([
       IETransaction.find(filter)
         .populate("listing", "title make model year mainPhoto price currency sourceCountry")
-        .populate("client",  "firstName lastName profilePhoto email phone")
+        // Voir le commentaire de getTransactionById — même parité KYC que Booking.
+        .populate("client",  "firstName lastName profilePhoto email phone kycStatus kycScore kycBadge")
         .sort({ createdAt: -1 })
         .skip((safePage - 1) * safeLimit)
         .limit(safeLimit),
@@ -1104,7 +1109,7 @@ export const getAllTransactions = async (req, res) => {
     const [transactions, total] = await Promise.all([
       IETransaction.find(filter)
         .populate("listing", "title make model year mainPhoto price currency")
-        .populate("client",  "firstName lastName email")
+        .populate("client",  "firstName lastName email kycStatus kycScore kycBadge")
         .populate("partner", "firstName lastName email business")
         .sort({ createdAt: -1 })
         .skip((safePage - 1) * safeLimit)

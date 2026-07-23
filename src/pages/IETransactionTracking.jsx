@@ -9,6 +9,18 @@ const fmtPrice = (p, c = "EUR") =>
 const fmtDate = (d) =>
   d ? new Date(d).toLocaleString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 
+// Contrairement aux réservations classiques (location/essai — voir
+// VendorDashboard.jsx), le partenaire ne voyait ici que nom/téléphone/email du
+// client, sans aucune indication de vérification d'identité — même champ
+// User.kycStatus pourtant déjà exposé côté location. Même config que
+// VendorDashboard.jsx pour un rendu cohérent entre les deux flux.
+const KYC_CFG = {
+  VERIFIE:               { label: "KYC Vérifié",    color: "#059669", bg: "#d1fae5", icon: "✅" },
+  EN_ATTENTE:            { label: "KYC En attente", color: "#d97706", bg: "#fef3c7", icon: "⏳" },
+  A_REVOIR_MANUELLEMENT: { label: "KYC En révision", color: "#2563eb", bg: "#dbeafe", icon: "🔍" },
+  REFUSE:                { label: "KYC Refusé",     color: "#dc2626", bg: "#fee2e2", icon: "❌" },
+};
+
 // ── Définition des 14 étapes ───────────────────────────────────────────────
 const STEPS = [
   { status: "reserved",             label: "Réservation",         icon: "📋", step: 4  },
@@ -917,6 +929,18 @@ export default function IETransactionTracking() {
                     <p className={styles.contactName}>{other.firstName} {other.lastName}</p>
                     {other.business?.name && <p className={styles.contactCo}>{other.business.name}</p>}
                     <p className={styles.contactRole}>{role === "client" ? "🏢 Importateur VIT AUTO" : "👤 Client"}</p>
+                    {role === "partner" && (() => {
+                      const kycCfg = KYC_CFG[other.kycStatus] || null;
+                      return kycCfg ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 6, padding: "3px 10px", borderRadius: 999, fontSize: ".75rem", fontWeight: 700, color: kycCfg.color, background: kycCfg.bg }}>
+                          {kycCfg.icon} {kycCfg.label}
+                        </span>
+                      ) : (
+                        <span style={{ display: "inline-block", marginTop: 6, padding: "3px 10px", borderRadius: 999, fontSize: ".75rem", fontWeight: 700, color: "#64748b", background: "#f1f5f9" }}>
+                          KYC non soumis
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
               );
