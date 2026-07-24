@@ -430,8 +430,13 @@ export const VehicleProvider = ({ children }) => {
     }
   }, [token]);
 
-  // Met à jour le statut d'une commande (localStorage + partnerBookings + backend)
-  const updateBookingStatus = useCallback((id, status, note = "") => {
+  // Met à jour le statut d'une commande (localStorage + partnerBookings + backend).
+  // Retourne { ok, message } — mise à jour optimiste annulée (rollback) si le
+  // backend refuse (ex: 409 "financement non accepté", voir bookingController
+  // updateBookingStatus) ; avant ce correctif l'échec était avalé en silence
+  // (fetch().catch(() => {})) et l'appelant affichait quand même un toast de
+  // succès, laissant le partenaire croire que le changement avait eu lieu.
+  const updateBookingStatus = useCallback(async (id, status, note = "") => {
     const sid = String(id);
     const validStatuses = [
       "pending", "confirmed", "preparing", "ready", "in_progress",
@@ -440,22 +445,42 @@ export const VehicleProvider = ({ children }) => {
       "waiting_client_validation",
       "completed", "cancelled", "disputed",
     ];
-    if (!validStatuses.includes(status)) return;
+    if (!validStatuses.includes(status)) return { ok: false, message: "Statut invalide." };
 
+    let prevBookings, prevPartnerBookings;
     setBookings((prev) => {
+      prevBookings = prev;
       const next = prev.map((b) => String(b.id) === sid ? { ...b, status, vendorNote: note } : b);
       saveBookings(next);
       return next;
     });
-    setPartnerBookings((prev) =>
-      prev.map((b) => String(b.id) === sid ? { ...b, status, vendorNote: note } : b)
-    );
-    if (token) {
-      fetch(`/api/bookings/${id}/status`, {
+    setPartnerBookings((prev) => {
+      prevPartnerBookings = prev;
+      return prev.map((b) => String(b.id) === sid ? { ...b, status, vendorNote: note } : b);
+    });
+
+    if (!token) return { ok: true };
+
+    const rollback = () => {
+      if (prevBookings) { setBookings(prevBookings); saveBookings(prevBookings); }
+      if (prevPartnerBookings) setPartnerBookings(prevPartnerBookings);
+    };
+
+    try {
+      const res = await fetch(`/api/bookings/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status, cancelReason: note }),
-      }).catch(() => {});
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        rollback();
+        return { ok: false, message: d.message || "Impossible de mettre à jour le statut." };
+      }
+      return { ok: true };
+    } catch {
+      rollback();
+      return { ok: false, message: "Erreur réseau — le statut n'a pas été mis à jour." };
     }
   }, [token]);
 

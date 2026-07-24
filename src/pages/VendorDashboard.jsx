@@ -1674,18 +1674,44 @@ export default function VendorDashboard() {
     setBulkDeleting(false);
   };
 
-  const doUpdateStatus = useCallback((id, status) => {
-    updateBookingStatus(id, status);
-    setTimeout(() => loadPartnerOrders(), 800);
+  const doUpdateStatus = useCallback(async (id, status) => {
+    const result = await updateBookingStatus(id, status);
+    if (result.ok) setTimeout(() => loadPartnerOrders(), 800);
+    return result;
   }, [updateBookingStatus, loadPartnerOrders]);
 
-  const handleConfirm     = useCallback((id) => { doUpdateStatus(id, "confirmed");    toastSuccess("✅ Commande acceptée."); }, [doUpdateStatus, toastSuccess]);
-  const handlePrepare     = useCallback((id) => { doUpdateStatus(id, "preparing");   toastSuccess("⚙️ En préparation."); }, [doUpdateStatus, toastSuccess]);
-  const handleReady       = useCallback((id) => { doUpdateStatus(id, "ready");        toastSuccess("🚗 Véhicule prêt."); }, [doUpdateStatus, toastSuccess]);
-  const handleInProgress  = useCallback((id) => { doUpdateStatus(id, "in_progress"); toastSuccess("🚀 En route !"); }, [doUpdateStatus, toastSuccess]);
-  const handleClientArrived = useCallback((id) => { doUpdateStatus(id, "client_arrived"); toastSuccess("📍 Client arrivé."); }, [doUpdateStatus, toastSuccess]);
-  const handleClientAbsent  = useCallback((id) => { doUpdateStatus(id, "client_absent");  toastError("🚫 Absence enregistrée."); }, [doUpdateStatus, toastError]);
-  const handleComplete    = useCallback((id) => { doUpdateStatus(id, "completed");    toastSuccess("🏁 Commande terminée."); }, [doUpdateStatus, toastSuccess]);
+  // Le toast de succès n'apparaît que si le backend a réellement accepté le
+  // changement — avant ce correctif il s'affichait inconditionnellement,
+  // masquant les refus (ex: 409 "financement non accepté", voir
+  // bookingController.updateBookingStatus) derrière un message de succès.
+  const handleConfirm = useCallback(async (id) => {
+    const r = await doUpdateStatus(id, "confirmed");
+    if (r.ok) toastSuccess("✅ Commande acceptée."); else toastError(r.message || "Impossible d'accepter la commande.");
+  }, [doUpdateStatus, toastSuccess, toastError]);
+  const handlePrepare = useCallback(async (id) => {
+    const r = await doUpdateStatus(id, "preparing");
+    if (r.ok) toastSuccess("⚙️ En préparation."); else toastError(r.message || "Impossible de passer en préparation.");
+  }, [doUpdateStatus, toastSuccess, toastError]);
+  const handleReady = useCallback(async (id) => {
+    const r = await doUpdateStatus(id, "ready");
+    if (r.ok) toastSuccess("🚗 Véhicule prêt."); else toastError(r.message || "Impossible de marquer le véhicule prêt.");
+  }, [doUpdateStatus, toastSuccess, toastError]);
+  const handleInProgress = useCallback(async (id) => {
+    const r = await doUpdateStatus(id, "in_progress");
+    if (r.ok) toastSuccess("🚀 En route !"); else toastError(r.message || "Impossible de démarrer la course.");
+  }, [doUpdateStatus, toastSuccess, toastError]);
+  const handleClientArrived = useCallback(async (id) => {
+    const r = await doUpdateStatus(id, "client_arrived");
+    if (r.ok) toastSuccess("📍 Client arrivé."); else toastError(r.message || "Impossible d'enregistrer l'arrivée du client.");
+  }, [doUpdateStatus, toastSuccess, toastError]);
+  const handleClientAbsent = useCallback(async (id) => {
+    const r = await doUpdateStatus(id, "client_absent");
+    toastError(r.ok ? "🚫 Absence enregistrée." : (r.message || "Impossible d'enregistrer l'absence."));
+  }, [doUpdateStatus, toastError]);
+  const handleComplete = useCallback(async (id) => {
+    const r = await doUpdateStatus(id, "completed");
+    if (r.ok) toastSuccess("🏁 Commande terminée."); else toastError(r.message || "Impossible de terminer la commande.");
+  }, [doUpdateStatus, toastSuccess, toastError]);
 
   const handleRecordTransaction = useCallback(async (id, txData) => {
     if (!token) return;
@@ -1814,12 +1840,14 @@ export default function VendorDashboard() {
     finally { setEmploymentDeclining(null); }
   }, [token, loadEmploymentRequests, toastSuccess, toastError]);
 
-  const handleReject = useCallback(() => {
+  const handleReject = useCallback(async () => {
     if (!rejectModal) return;
-    updateBookingStatus(rejectModal, "cancelled", rejectNote);
-    toastError("Commande refusée.");
-    setRejectModal(null); setRejectNote(""); setGererModalId(null);
-    setTimeout(() => loadPartnerOrders(), 800);
+    const r = await updateBookingStatus(rejectModal, "cancelled", rejectNote);
+    toastError(r.ok ? "Commande refusée." : (r.message || "Impossible de refuser la commande."));
+    if (r.ok) {
+      setRejectModal(null); setRejectNote(""); setGererModalId(null);
+      setTimeout(() => loadPartnerOrders(), 800);
+    }
   }, [rejectModal, rejectNote, updateBookingStatus, toastError, loadPartnerOrders]);
 
   const handleGerer = useCallback((order) => {

@@ -64,7 +64,7 @@ export function ListingForm({ onClose, onSaved, token, listing }) {
     estimatedDelay: listing.estimatedDelay || "", shippingType: listing.shippingType || "",
     exportDocumentsAvailable: listing.exportDocumentsAvailable || [], videoUrl: listing.videoUrl || "",
     acceptedPaymentMethods: listing.acceptedPaymentMethods || [],
-    incoterm: listing.incoterm || "",
+    incoterm: listing.incoterm || "", businessId: listing.business || "",
   } : {
     title: "", make: "", model: "", year: new Date().getFullYear(),
     mileage: 0, fuelType: "essence", transmission: "automatique",
@@ -74,7 +74,7 @@ export function ListingForm({ onClose, onSaved, token, listing }) {
     vin: "", vehicleHistory: "", priceIncludes: [],
     estimatedShippingCost: "", shippingCostCurrency: "EUR",
     estimatedDelay: "", shippingType: "", exportDocumentsAvailable: [], videoUrl: "",
-    acceptedPaymentMethods: [], incoterm: "",
+    acceptedPaymentMethods: [], incoterm: "", businessId: "",
   });
   const [photos, setPhotos]         = useState(() => listing?.photos || []);
   const [availText, setAvailText]   = useState("");
@@ -82,6 +82,25 @@ export function ListingForm({ onClose, onSaved, token, listing }) {
   const [docText, setDocText]         = useState("");
   const [saving, setSaving]         = useState(false);
   const [err, setErr]               = useState(null);
+
+  // Entreprise du partenaire (facultatif, multi-entité/multi-pays) —
+  // ImportExportListing accepte businessId depuis createListing/updateListing.
+  const [businesses, setBusinesses] = useState([]);
+
+  useEffect(() => {
+    fetch("/api/partner/businesses", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const list = d?.businesses || [];
+        setBusinesses(list);
+        if (!isEdit) {
+          const def = list.find((b) => b.isDefault);
+          if (def) set("businessId", def._id);
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
 
@@ -127,7 +146,10 @@ export function ListingForm({ onClose, onSaved, token, listing }) {
       const res = await fetch(url, {
         method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ ...f, photos, mainPhoto: photos[0] || null }),
+        // businessId="" veut dire "compte personnel" — updateListing distingue
+        // null (retirer l'entreprise) de undefined (ne pas toucher au champ),
+        // donc "" doit être envoyé comme null explicite, jamais tel quel.
+        body: JSON.stringify({ ...f, businessId: f.businessId || null, photos, mainPhoto: photos[0] || null }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
       onSaved();
@@ -153,6 +175,18 @@ export function ListingForm({ onClose, onSaved, token, listing }) {
             <label><span>Titre de l'annonce *</span><input value={f.title} onChange={(e) => set("title", e.target.value)} placeholder="Toyota Land Cruiser V8 Import Dubaï" /></label>
             <label><span>Pays d'origine *</span><input list="dl-dash-countries" value={f.sourceCountry} onChange={(e) => set("sourceCountry", e.target.value)} placeholder="Émirats Arabes Unis" /></label>
           </div>
+          {businesses.length > 0 && (
+            <div className={styles.fGrid2}>
+              <label><span>Entreprise</span>
+                <select value={f.businessId} onChange={(e) => set("businessId", e.target.value)}>
+                  <option value="">Compte personnel (aucune entreprise)</option>
+                  {businesses.map((b) => (
+                    <option key={b._id} value={b._id}>{b.companyName} — {b.ville}, {b.country}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
           <div className={styles.fGrid3}>
             <label><span>Marque *</span><input list="dl-dash-makes" value={f.make} onChange={(e) => set("make", e.target.value)} placeholder="Toyota" /></label>
             <label><span>Modèle *</span><input value={f.model} onChange={(e) => set("model", e.target.value)} placeholder="Land Cruiser" /></label>

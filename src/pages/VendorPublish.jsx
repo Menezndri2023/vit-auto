@@ -282,7 +282,7 @@ function IEListingForm({ onClose, onSaved, token }) {
     vin: "", vehicleHistory: "", priceIncludes: [],
     estimatedShippingCost: "", shippingCostCurrency: "EUR",
     estimatedDelay: "", shippingType: "", exportDocumentsAvailable: [], videoUrl: "",
-    acceptedPaymentMethods: [], incoterm: "",
+    acceptedPaymentMethods: [], incoterm: "", businessId: "",
   });
   const [photos, setPhotos]       = useState([]);
   const [availText, setAvailText] = useState("");
@@ -290,6 +290,24 @@ function IEListingForm({ onClose, onSaved, token }) {
   const [docText, setDocText]         = useState("");
   const [saving, setSaving]       = useState(false);
   const [err, setErr]             = useState(null);
+
+  // Entreprise du partenaire (facultatif, multi-entité/multi-pays — voir
+  // VendorSubmit.jsx et PartnerFleetImport.jsx pour le même pattern côté
+  // véhicules) : ImportExportListing accepte désormais businessId
+  // (server/controllers/importExportController.js createListing).
+  const [businesses, setBusinesses] = useState([]);
+
+  useEffect(() => {
+    fetch("/api/partner/businesses", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const list = d?.businesses || [];
+        setBusinesses(list);
+        const def = list.find((b) => b.isDefault);
+        if (def) set("businessId", def._id);
+      })
+      .catch(() => {});
+  }, [token]);
 
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
 
@@ -361,6 +379,18 @@ function IEListingForm({ onClose, onSaved, token }) {
             Pays d'origine * <input list="dl-vp-countries" style={iStyle} value={f.sourceCountry} onChange={(e) => set("sourceCountry", e.target.value)} placeholder="Émirats Arabes Unis" />
           </label>
         </div>
+        {businesses.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <label style={lStyle}>Entreprise
+              <select style={iStyle} value={f.businessId} onChange={(e) => set("businessId", e.target.value)}>
+                <option value="">Compte personnel (aucune entreprise)</option>
+                {businesses.map((b) => (
+                  <option key={b._id} value={b._id}>{b.companyName} — {b.ville}, {b.country}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px", gap: 12, marginBottom: 12 }}>
           <label style={lStyle}>Marque * <input list="dl-vp-makes" style={iStyle} value={f.make} onChange={(e) => set("make", e.target.value)} placeholder="Toyota" /></label>
           <label style={lStyle}>Modèle * <input style={iStyle} value={f.model} onChange={(e) => set("model", e.target.value)} placeholder="Land Cruiser" /></label>

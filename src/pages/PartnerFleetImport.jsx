@@ -76,8 +76,10 @@ const PartnerFleetImport = () => {
 
   // ── Entreprise du partenaire (facultatif, multi-entité/multi-pays — voir
   // VendorSubmit.jsx) : son pays prime alors sur celui du compte pour toutes
-  // les lignes de ce batch. Non pertinent pour l'export (ImportExportListing
-  // n'a pas de notion d'entreprise).
+  // les lignes de ce batch. Pas encore branché pour l'export en masse : bien
+  // qu'ImportExportListing supporte désormais businessId (voir VendorPublish.jsx
+  // / ImporterDashboard.jsx pour la création/édition unitaire), le pipeline de
+  // batch (vehicleImportService.js) ne le propage pas encore ligne par ligne.
   const [businesses, setBusinesses] = useState([]);
   const [selectedBusinessId, setSelectedBusinessId] = useState("");
 
