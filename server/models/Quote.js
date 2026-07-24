@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import crypto from "node:crypto";
 
 const quoteLineSchema = new mongoose.Schema({
   description: { type: String, required: true },
@@ -16,6 +17,13 @@ const quoteLineSchema = new mongoose.Schema({
 const quoteSchema = new mongoose.Schema({
   // Numéro de devis unique
   quoteNumber: { type: String, required: true, unique: true },
+
+  // Jeton d'accès public (voir PartnerOnboarding LOI/Agreement, même principe
+  // — crypto.randomBytes, jamais l'ID Mongo ni le quoteNumber, prévisible) :
+  // permet à l'acheteur de consulter/répondre au devis sans compte VIT AUTO,
+  // via le lien envoyé par email/SMS (voir pmsController.sendQuote). Manquait
+  // jusqu'ici — l'email n'était qu'un résumé texte sans aucun lien.
+  publicToken: { type: String, unique: true, sparse: true, index: true },
 
   // Partenaire émetteur
   partnerId: {
@@ -116,6 +124,9 @@ quoteSchema.pre("validate", function (next) {
     const m = String(new Date().getMonth() + 1).padStart(2, "0");
     const r = Math.random().toString(36).toUpperCase().slice(2, 6);
     this.quoteNumber = `VA-${y}${m}-${r}`;
+  }
+  if (!this.publicToken) {
+    this.publicToken = crypto.randomBytes(24).toString("hex");
   }
   // Calcul validUntil si non défini
   if (!this.validUntil && this.validityDays) {

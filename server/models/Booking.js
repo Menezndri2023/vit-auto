@@ -270,6 +270,18 @@ const bookingSchema = new mongoose.Schema({
   cancelledAt:  { type: Date, default: null },
   cancelReason: { type: String, default: null },
 
+  // ── Caution (dépôt de garantie) : traitement au retour ────────────────
+  // cautionAmount (ci-dessus) n'était qu'un montant à percevoir, affiché mais
+  // jamais réellement traité : le contrat promet "tout dommage sera prélevé
+  // sur la caution" mais rien ne permettait au partenaire de retenir/restituer
+  // quoi que ce soit après la location. Bug réel trouvé en audit.
+  cautionClaim: {
+    amountClaimed: { type: Number, default: null }, // 0 = caution intégralement restituée
+    reason:        { type: String, default: null }, // obligatoire si amountClaimed > 0
+    claimedAt:     { type: Date,   default: null },
+    claimedBy:     { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  },
+
   // ── Résolution de litige (Admin) ──────────────────────────
   disputeResolution: {
     resolution:   { type: String, enum: ["completed", "cancelled", "compensated", null], default: null },

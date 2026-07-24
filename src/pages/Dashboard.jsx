@@ -72,6 +72,8 @@ const normalizeBooking = (b) => {
     financingType:        b.leasing?.financingType,
     financingDecision:    b.leasing?.decision,
     financingDecisionNote: b.leasing?.decisionNote,
+    financingDecisionAt:  b.leasing?.decisionAt,
+    financingTauxInteret: b.leasing?.tauxInteret,
     // Finances
     total:         b.montantTotal,
     montantTotal:  b.montantTotal,
@@ -840,10 +842,38 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, onMis
   const [confirmCancel, setConfirmCancel] = useState(false);
   const { fmt } = useCurrency();
   const { openOrCreateChat } = useChat();
-  const { error: toastErr } = useToast();
+  const { error: toastErr, success: toastSuccessModify } = useToast();
   const { token } = useAuth();
   const [contacting, setContacting] = useState(false);
   const [payingNow, setPayingNow] = useState(false);
+
+  // ── Modification des dates (location uniquement) ──────────────────────────
+  // Jusqu'ici seule l'annulation était possible — un client devait tout annuler
+  // puis recommencer une nouvelle réservation pour changer ses dates.
+  const [showModify, setShowModify] = useState(false);
+  const [modifyForm, setModifyForm] = useState({ startDate: "", endDate: "" });
+  const [modifying, setModifying] = useState(false);
+  const [modifyError, setModifyError] = useState(null);
+
+  const handleModifyDates = async () => {
+    if (!modifyForm.startDate || !modifyForm.endDate) return;
+    setModifying(true);
+    setModifyError(null);
+    try {
+      const r = await fetch(`/api/bookings/${booking.id}/modify`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(modifyForm),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        toastSuccessModify("Dates modifiées avec succès.");
+        setShowModify(false);
+        window.location.reload();
+      } else setModifyError(d.message || "Erreur lors de la modification.");
+    } catch { setModifyError("Erreur réseau."); }
+    setModifying(false);
+  };
 
   const handleContactPartner = async () => {
     if (contacting) return;
@@ -994,6 +1024,28 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, onMis
                 {FINANCING_DECISION_CFG[booking.financingDecision || "en_etude"].label}
               </span>} />
             {booking.financingDecisionNote && <DetailRow icon="💬" label="Note" value={booking.financingDecisionNote} />}
+            {/* Échéancier indicatif — aucun paiement d'échéance n'est réellement suivi
+                par la plateforme (réglé directement au partenaire) : ce n'était jusqu'ici
+                affiché nulle part, le client ne pouvait pas savoir où il en était. Calculé
+                à partir de la date d'acceptation + mensualité, PAS d'un suivi réel des
+                versements — présenté comme indicatif pour cette raison. */}
+            {booking.financingDecision === "accepte" && booking.financingDecisionAt && booking.leasingDuree && (() => {
+              const monthsElapsed = Math.max(0, Math.min(
+                booking.leasingDuree,
+                Math.floor((Date.now() - new Date(booking.financingDecisionAt)) / (30.44 * 86400000))
+              ));
+              const remaining = booking.leasingDuree - monthsElapsed;
+              const nextDue = new Date(booking.financingDecisionAt);
+              nextDue.setMonth(nextDue.getMonth() + monthsElapsed + 1);
+              return (
+                <>
+                  <DetailRow icon="📊" label="Échéancier (indicatif)" value={`Mensualité ${Math.min(monthsElapsed + 1, booking.leasingDuree)} / ${booking.leasingDuree}`} />
+                  {remaining > 0 && <DetailRow icon="💵" label="Solde restant estimé" value={fmt((booking.leasingMensualite || 0) * remaining)} />}
+                  {remaining > 0 && <DetailRow icon="📅" label="Prochaine échéance estimée" value={nextDue.toLocaleDateString("fr-FR")} />}
+                  {remaining <= 0 && <DetailRow icon="✅" label="Échéancier" value="Durée théorique écoulée" />}
+                </>
+              );
+            })()}
           </>
         ) : (
           <>
@@ -1055,10 +1107,20 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, onMis
           <span>Total réglé</span>
           <strong>{fmt(booking.total || booking.serviceFeeFCFA || 1)}</strong>
         </div>
-        {booking.type === "location" && booking.cautionAmount > 0 && (
+        {booking.type === "location" && booking.cautionAmount > 0 && !booking.cautionClaim?.claimedAt && (
           <div className={styles.finRow} style={{ color: "#d97706" }}>
             <span>Caution à prévoir sur place</span>
             <span>{fmt(booking.cautionAmount)}</span>
+          </div>
+        )}
+        {booking.type === "location" && booking.cautionClaim?.claimedAt && (
+          <div className={styles.finRow} style={{ color: booking.cautionClaim.amountClaimed > 0 ? "#dc2626" : "#059669" }}>
+            <span>
+              {booking.cautionClaim.amountClaimed > 0
+                ? `Caution retenue (${booking.cautionClaim.reason || "voir partenaire"})`
+                : "Caution restituée intégralement"}
+            </span>
+            <span>{fmt(booking.cautionClaim.amountClaimed)}</span>
           </div>
         )}
       </div>
@@ -1121,14 +1183,39 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, onMis
             ✅ Avis publié
           </span>
         )}
+        {canCancel && booking.type === "location" && !showModify && (
+          <button className={styles.btnContract} onClick={() => { setShowModify(true); setModifyForm({ startDate: "", endDate: "" }); setModifyError(null); }}>
+            📅 Modifier les dates
+          </button>
+        )}
         {canCancel && !confirmCancel && (
           <button className={styles.btnDanger} onClick={() => setConfirmCancel(true)}>
             Annuler
           </button>
         )}
+        {showModify && (
+          <div className={styles.confirmBar} style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input type="date" value={modifyForm.startDate} onChange={(e) => setModifyForm((p) => ({ ...p, startDate: e.target.value }))} style={{ flex: 1 }} />
+              <input type="date" value={modifyForm.endDate} onChange={(e) => setModifyForm((p) => ({ ...p, endDate: e.target.value }))} style={{ flex: 1 }} />
+            </div>
+            {modifyError && <span style={{ color: "#dc2626", fontSize: ".82rem" }}>{modifyError}</span>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className={styles.btnDangerSm} disabled={modifying} onClick={handleModifyDates}>
+                {modifying ? "…" : "Confirmer les nouvelles dates"}
+              </button>
+              <button className={styles.btnGhost} onClick={() => setShowModify(false)}>Annuler</button>
+            </div>
+          </div>
+        )}
         {confirmCancel && (
           <div className={styles.confirmBar}>
-            <span>Confirmer l'annulation ?</span>
+            <span>
+              Confirmer l'annulation ?
+              {booking.isPaid && ONLINE_PAY_METHODS.includes(booking.paidWith)
+                ? " Un paiement en ligne a été effectué — le remboursement sera traité manuellement par notre équipe après confirmation."
+                : " Aucun paiement en ligne n'a été prélevé pour cette réservation."}
+            </span>
             <button className={styles.btnDangerSm} onClick={() => onCancel(booking.id)}>
               Oui, annuler
             </button>

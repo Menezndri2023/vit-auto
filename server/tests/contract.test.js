@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { createContract, getContract, signContract, getPartnerContracts } from "../controllers/contractController.js";
 import Contract from "../models/Contract.js";
 import Booking from "../models/Booking.js";
+import PartnerOnboarding from "../models/PartnerOnboarding.js";
 import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
@@ -223,5 +224,36 @@ describe("getPartnerContracts", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.contracts).toHaveLength(1);
     expect(res.body.contracts[0].booking._id.toString()).toBe(booking1._id.toString());
+  });
+
+  // "Mes contrats" ne montrait jusqu'ici que les contrats de réservation — la
+  // LOI/l'Accord Founding Partner en étaient absents, le partenaire devait
+  // savoir naviguer vers l'onboarding pour les retrouver. Manque réel trouvé
+  // en audit.
+  it("inclut la LOI et l'Accord Founding Partner dans le même répertoire", async () => {
+    const partner = await createUser({ role: "partenaire", isFounder: true });
+    await PartnerOnboarding.create({
+      userId: partner._id,
+      loi: { sentAt: new Date("2026-01-10"), signedAt: new Date("2026-01-12") },
+      agreement: { sentAt: new Date("2026-01-15") }, // pas encore signé
+    });
+
+    const { req, res } = mockReqRes({ user: partner });
+    await getPartnerContracts(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.legalDocuments).toHaveLength(2);
+
+    const loiDoc = res.body.legalDocuments.find((d) => d.key === "loi");
+    const agrDoc = res.body.legalDocuments.find((d) => d.key === "agreement");
+    expect(loiDoc.isSigned).toBe(true);
+    expect(agrDoc.isSigned).toBe(false);
+  });
+
+  it("ne renvoie aucun document légal si l'onboarding n'a pas commencé", async () => {
+    const partner = await createUser({ role: "partenaire" });
+    const { req, res } = mockReqRes({ user: partner });
+    await getPartnerContracts(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.legalDocuments).toEqual([]);
   });
 });

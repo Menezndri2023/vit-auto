@@ -2,10 +2,13 @@ import { describe, it, expect } from "vitest";
 import { createImportBatch, getImportBatch, listImportBatches } from "../controllers/vehicleImportController.js";
 import { MAX_IMPORT_ROWS } from "../services/vehicleImportService.js";
 import VehicleImportBatch from "../models/VehicleImportBatch.js";
+import PartnerBusiness from "../models/PartnerBusiness.js";
+import PartnerVerification from "../models/PartnerVerification.js";
 import { createUser } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
 const csvBase64 = (rows) => Buffer.from(rows.join("\n"), "utf-8").toString("base64");
+const validFleetRows = () => ["titre,TypeAnnonce", "Ligne 1,location", "Ligne 2,vente"];
 
 describe("createImportBatch — portes d'accès", () => {
   it("réservé aux partenaires/admin", async () => {
@@ -26,28 +29,28 @@ describe("createImportBatch — portes d'accès", () => {
   });
 
   it("rejette une méthode d'import invalide", async () => {
-    const partner = await createUser({ role: "partenaire" });
+    const partner = await createUser({ role: "partenaire", isFounder: true });
     const { req, res } = mockReqRes({ user: partner, body: { source: "ftp" } });
     await createImportBatch(req, res);
     expect(res.statusCode).toBe(400);
   });
 
   it("rejette l'absence de fichier pour source csv/excel", async () => {
-    const partner = await createUser({ role: "partenaire" });
+    const partner = await createUser({ role: "partenaire", isFounder: true });
     const { req, res } = mockReqRes({ user: partner, body: { source: "csv" } });
     await createImportBatch(req, res);
     expect(res.statusCode).toBe(400);
   });
 
   it("rejette l'absence de lien pour source google_sheet", async () => {
-    const partner = await createUser({ role: "partenaire" });
+    const partner = await createUser({ role: "partenaire", isFounder: true });
     const { req, res } = mockReqRes({ user: partner, body: { source: "google_sheet" } });
     await createImportBatch(req, res);
     expect(res.statusCode).toBe(400);
   });
 
   it("rejette un fichier vide (aucune ligne)", async () => {
-    const partner = await createUser({ role: "partenaire" });
+    const partner = await createUser({ role: "partenaire", isFounder: true });
     const { req, res } = mockReqRes({
       user: partner, body: { source: "csv", fileBase64: csvBase64(["titre"]), fileName: "f.csv" },
     });
@@ -56,7 +59,7 @@ describe("createImportBatch — portes d'accès", () => {
   });
 
   it(`rejette un fichier dépassant MAX_IMPORT_ROWS (${MAX_IMPORT_ROWS})`, async () => {
-    const partner = await createUser({ role: "partenaire" });
+    const partner = await createUser({ role: "partenaire", isFounder: true });
     const rows = ["titre", ...Array.from({ length: MAX_IMPORT_ROWS + 1 }, (_, i) => `Ligne ${i}`)];
     const { req, res } = mockReqRes({
       user: partner, body: { source: "csv", fileBase64: csvBase64(rows), fileName: "f.csv" },
@@ -67,7 +70,7 @@ describe("createImportBatch — portes d'accès", () => {
   });
 
   it("crée un batch pour un fichier valide sous la limite", async () => {
-    const partner = await createUser({ role: "partenaire" });
+    const partner = await createUser({ role: "partenaire", isFounder: true });
     // La colonne "type" (TypeAnnonce) doit être présente et reconnue, sinon le
     // batch est désormais rejeté à l'upload (voir isTypeColumnRecognized) plutôt
     // que créé pour échouer ligne par ligne au traitement.
@@ -84,6 +87,71 @@ describe("createImportBatch — portes d'accès", () => {
     expect(batch.owner.toString()).toBe(partner._id.toString());
     expect(batch.targetType).toBe("vehicle");
   }, 20000);
+
+  // ── Mêmes portes que createVehicle (vehicle.create.test.js) — l'import en
+  // masse contournait jusqu'ici totalement KYC/certification/suspension, un
+  // partenaire non vérifié pouvait publier des centaines de véhicules d'un
+  // coup via un simple upload de fichier. Bug réel trouvé en audit.
+  it("bloque un particulier non-fondateur sans KYC vérifié (KYC_REQUIRED)", async () => {
+    const seller = await createUser({ role: "partenaire", sellerType: "particulier", kycStatus: "EN_ATTENTE" });
+    const { req, res } = mockReqRes({
+      user: seller, body: { source: "csv", fileBase64: csvBase64(validFleetRows()), fileName: "f.csv" },
+    });
+    await createImportBatch(req, res);
+    expect(res.statusCode).toBe(403);
+    expect(res.body.code).toBe("KYC_REQUIRED");
+  });
+
+  it("bloque un professionnel/entreprise sans badge de certification (CERTIFICATION_REQUIRED)", async () => {
+    const seller = await createUser({ role: "partenaire", sellerType: "professionnel", certificationBadge: "none" });
+    const { req, res } = mockReqRes({
+      user: seller, body: { source: "csv", fileBase64: csvBase64(validFleetRows()), fileName: "f.csv" },
+    });
+    await createImportBatch(req, res);
+    expect(res.statusCode).toBe(403);
+    expect(res.body.code).toBe("CERTIFICATION_REQUIRED");
+  });
+
+  it("bloque un partenaire suspendu (PARTNER_SUSPENDED), même Founding Partner", async () => {
+    const founder = await createUser({ role: "partenaire", isFounder: true });
+    await PartnerVerification.create({ userId: founder._id, companyName: "Alpha Motors", status: "suspendu" });
+    const { req, res } = mockReqRes({
+      user: founder, body: { source: "csv", fileBase64: csvBase64(validFleetRows()), fileName: "f.csv" },
+    });
+    await createImportBatch(req, res);
+    expect(res.statusCode).toBe(403);
+    expect(res.body.code).toBe("PARTNER_SUSPENDED");
+  });
+
+  it("résout le pays depuis l'entreprise choisie (businessId) et l'enregistre sur le batch", async () => {
+    const founder = await createUser({ role: "partenaire", isFounder: true, country: "CI" });
+    const business = await PartnerBusiness.create({
+      owner: founder._id, companyName: "Alpha Motors", country: "SN", ville: "Dakar",
+    });
+    const { req, res } = mockReqRes({
+      user: founder,
+      body: { source: "csv", fileBase64: csvBase64(validFleetRows()), fileName: "f.csv", businessId: business._id.toString() },
+    });
+    await createImportBatch(req, res);
+    expect(res.statusCode).toBe(202);
+
+    const batch = await VehicleImportBatch.findById(res.body.batchId);
+    expect(batch.business.toString()).toBe(business._id.toString());
+  }, 20000);
+
+  it("refuse un businessId qui n'appartient pas au partenaire", async () => {
+    const founder = await createUser({ role: "partenaire", isFounder: true });
+    const stranger = await createUser({ role: "partenaire", isFounder: true });
+    const business = await PartnerBusiness.create({
+      owner: stranger._id, companyName: "Alpha Motors", country: "SN", ville: "Dakar",
+    });
+    const { req, res } = mockReqRes({
+      user: founder,
+      body: { source: "csv", fileBase64: csvBase64(validFleetRows()), fileName: "f.csv", businessId: business._id.toString() },
+    });
+    await createImportBatch(req, res);
+    expect(res.statusCode).toBe(400);
+  });
 });
 
 describe("getImportBatch", () => {

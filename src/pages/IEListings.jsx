@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { COUNTRIES_ALL, CAR_MAKES, getCountryFlag } from "../data/autocomplete";
 import { useCurrency } from "../context/CurrencyContext";
+import PriceTag from "../components/PriceTag/PriceTag";
 import styles from "./IEListings.module.css";
 import ieModalStyles from "./ImportExport.module.css";
 
@@ -104,7 +105,6 @@ function QuickRequestModal({ listing, onClose }) {
 // ── Carte annonce ──────────────────────────────────────────────────────────
 function ListingCard({ l, onContact }) {
   const badge = BADGE_CFG[l.importerProfile?.badgeLevel || "none"];
-  const { fmtFromCurrency } = useCurrency();
   return (
     <div className={styles.card}>
       <Link to={`/import-export/listings/${l._id}`} className={styles.cardImgLink}>
@@ -159,7 +159,7 @@ function ListingCard({ l, onContact }) {
 
         <div className={styles.cardFooter}>
           <div>
-            <span className={styles.cardPrice}>{fmtFromCurrency(l.price, l.currency)}</span>
+            <span className={styles.cardPrice}><PriceTag amount={l.price} sourceCurrency={l.currency} compact /></span>
             {l.negotiable && <span className={styles.cardNeg}>Négociable</span>}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>

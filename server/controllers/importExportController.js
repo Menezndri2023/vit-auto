@@ -6,6 +6,7 @@ import User                    from "../models/User.js";
 import Notification            from "../models/Notification.js";
 import PartnerVerification     from "../models/PartnerVerification.js";
 import PartnerOnboarding       from "../models/PartnerOnboarding.js";
+import PartnerBusiness         from "../models/PartnerBusiness.js";
 import { ensureImporterProfile } from "../utils/ensureImporterProfile.js";
 import { COUNTRY_CODE_TO_NAME } from "../utils/countries.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
@@ -528,11 +529,18 @@ export const createListing = async (req, res) => {
       photos, mainPhoto,
       vin, vehicleHistory, estimatedShippingCost, shippingCostCurrency,
       estimatedDelay, shippingType, exportDocumentsAvailable, videoUrl,
-      acceptedPaymentMethods, incoterm,
+      acceptedPaymentMethods, incoterm, businessId,
     } = req.body;
 
     if (!title || !make || !model || !year || !sourceCountry || !price) {
       return res.status(400).json({ message: "Champs obligatoires manquants." });
+    }
+
+    // ── Entreprise du partenaire (facultatif, comme Vehicle.business) ──────
+    let business = null;
+    if (businessId) {
+      business = await PartnerBusiness.findOne({ _id: businessId, owner: req.user._id }).lean();
+      if (!business) return res.status(400).json({ message: "Entreprise introuvable." });
     }
     if (incoterm && !isIncotermCompatible(incoterm, shippingType)) {
       return res.status(400).json({ message: "Cet Incoterm est réservé au transport maritime — choisissez FAS, FOB, CFR ou CIF uniquement avec un type de transport maritime." });
@@ -549,6 +557,7 @@ export const createListing = async (req, res) => {
 
     const listing = await ImportExportListing.create({
       partner: req.user._id,
+      business: business?._id || null,
       importerProfile: importerProfile._id,
       title, make, model, year: Number(year),
       mileage: Number(mileage) || 0,
@@ -622,8 +631,18 @@ export const updateListing = async (req, res) => {
       photos, mainPhoto,
       vin, vehicleHistory, estimatedShippingCost, shippingCostCurrency,
       estimatedDelay, shippingType, exportDocumentsAvailable, videoUrl,
-      acceptedPaymentMethods, incoterm,
+      acceptedPaymentMethods, incoterm, businessId,
     } = req.body;
+
+    let business = undefined;
+    if (businessId !== undefined) {
+      if (businessId === null) {
+        business = null;
+      } else {
+        business = await PartnerBusiness.findOne({ _id: businessId, owner: listing.partner }).lean();
+        if (!business) return res.status(400).json({ message: "Entreprise introuvable." });
+      }
+    }
 
     const imagesError = validateListingImages([...(photos || []), mainPhoto].filter(Boolean));
     if (imagesError) return res.status(400).json({ message: imagesError });
@@ -676,6 +695,7 @@ export const updateListing = async (req, res) => {
       videoUrl: videoUrl !== undefined ? videoUrl : listing.videoUrl,
       acceptedPaymentMethods: acceptedPaymentMethods || listing.acceptedPaymentMethods,
       incoterm: effectiveIncoterm || null,
+      business: business !== undefined ? (business?._id || null) : listing.business,
       // Une édition partenaire repasse l'annonce en modération (pas de
       // scoring automatique côté IE, contrairement aux véhicules) ; une
       // édition admin ne touche pas au statut qu'il a lui-même déjà décidé.

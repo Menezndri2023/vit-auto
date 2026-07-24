@@ -5,6 +5,7 @@ import { useCurrency } from "../context/CurrencyContext";
 import { getCountryFlag } from "../data/autocomplete";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import ReportButton from "../components/ReportButton/ReportButton";
+import PriceTag from "../components/PriceTag/PriceTag";
 import { INCOTERM_STAGES, getIncoterm } from "../constants/incoterms";
 import styles from "./IEListingDetail.module.css";
 
@@ -239,7 +240,7 @@ function ImportCostCalculator({ listingId, availableIn }) {
           ))}
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: "1rem", fontWeight: 900, paddingTop: 10, marginTop: 4, color: "#0f1b3f" }}>
             <span>Total à payer</span>
-            <span>{fmtFromCurrency(result.grandTotal, result.currency)}</span>
+            <span><PriceTag amount={result.grandTotal} sourceCurrency={result.currency} /></span>
           </div>
           {!result.laneConfigured && (
             <p style={{ fontSize: ".72rem", color: "#94a3b8", margin: "8px 0 0" }}>
@@ -362,7 +363,6 @@ export default function IEListingDetail() {
   const { id }        = useParams();
   const navigate      = useNavigate();
   const { user, token } = useAuth();
-  const { fmtFromCurrency } = useCurrency();
 
   const [listing,     setListing]     = useState(null);
   const [loading,     setLoading]     = useState(true);
@@ -467,7 +467,7 @@ export default function IEListingDetail() {
                 </div>
               </div>
               <div className={styles.priceBlock}>
-                <span className={styles.price}>{fmtFromCurrency(listing.price, listing.currency)}</span>
+                <span className={styles.price}><PriceTag amount={listing.price} sourceCurrency={listing.currency} /></span>
                 {listing.negotiable && <span className={styles.neg}>Négociable</span>}
               </div>
             </div>
@@ -588,7 +588,7 @@ export default function IEListingDetail() {
                     <span>💶</span>
                     <div>
                       <p>Coût de transport estimatif</p>
-                      <strong>{fmtFromCurrency(listing.estimatedShippingCost, listing.shippingCostCurrency)}</strong>
+                      <strong><PriceTag amount={listing.estimatedShippingCost} sourceCurrency={listing.shippingCostCurrency} /></strong>
                     </div>
                   </div>
                 )}
@@ -680,14 +680,14 @@ export default function IEListingDetail() {
           <div className={styles.stickyCard}>
             <div className={styles.sidePrice}>
               <span className={styles.sidePriceLabel}>Prix</span>
-              <span className={styles.sidePriceValue}>{fmtFromCurrency(listing.price, listing.currency)}</span>
+              <span className={styles.sidePriceValue}><PriceTag amount={listing.price} sourceCurrency={listing.currency} /></span>
               {listing.negotiable && <span className={styles.neg}>Négociable</span>}
             </div>
 
             {listing.estimatedShippingCost != null && (
               <div className={styles.sideShipping}>
                 <span>🚢 Transport estimé</span>
-                <strong>{fmtFromCurrency(listing.estimatedShippingCost, listing.shippingCostCurrency)}</strong>
+                <strong><PriceTag amount={listing.estimatedShippingCost} sourceCurrency={listing.shippingCostCurrency} /></strong>
               </div>
             )}
 

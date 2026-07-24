@@ -32,16 +32,20 @@ router.post("/", createBookingLimiter, optionalAuth, b.createBooking);
 router.get("/mine",                    authenticate, b.getMyBookings);
 router.patch("/:id/validate",          vid, authenticate, b.validateTransaction);
 router.patch("/:id/cancel",            vid, authenticate, b.cancelBookingByClient);
+router.patch("/:id/modify",            vid, authenticate, b.modifyBookingDates);
 router.patch("/:id/driver-arrived",    vid, authenticate, b.markDriverArrived);   // client confirme l'arrivée du chauffeur
 router.patch("/:id/complete-mission",  vid, authenticate, b.completeMission);      // client clôt la mission chauffeur
 
 // ── Partenaire connecté ───────────────────────────────────
 router.get("/partner",                    authenticate, b.getPartnerBookings);
 router.get("/partner/stats",              authenticate, b.getPartnerStats);
+router.get("/partner/analytics",          authenticate, b.getPartnerAnalytics);
+router.get("/partner/export",             authenticate, b.exportPartnerBookings);
 router.patch("/:id/status",              vid, authenticate, b.updateBookingStatus);
 router.patch("/:id/transaction",         vid, authenticate, b.recordTransaction);
 router.patch("/:id/partner-confirm",     vid, authenticate, b.partnerConfirm);
 router.patch("/:id/partner-kyc-verify",  vid, authenticate, b.partnerVerifyKyc);
+router.patch("/:id/caution",             vid, authenticate, b.claimCaution);
 
 // ── Détail commande ───────────────────────────────────────
 router.get("/:id/detail",             vid, authenticate, b.getBookingDetail);

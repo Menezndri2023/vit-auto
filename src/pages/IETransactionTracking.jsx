@@ -620,6 +620,37 @@ function DocsPanel({ docs, txId, token, role, status, onRefresh }) {
     finally { setLoading(false); }
   };
 
+  // ── Fichier réel du document (facture, connaissement, certificat...) ──────
+  // Le champ `url` existait sur le schéma mais aucune UI ne le renseignait
+  // jamais — seul un statut ("fourni") était déclaré, sans jamais joindre le
+  // document lui-même. Manque réel trouvé en audit.
+  const MAX_DOC_MB = 8;
+  const uploadDocFile = (docKey, file) => {
+    if (!file) return;
+    if (!["image/", "application/pdf"].some((p) => file.type.startsWith(p))) {
+      setError("Formats acceptés : image ou PDF."); return;
+    }
+    if (file.size > MAX_DOC_MB * 1024 * 1024) {
+      setError(`Fichier trop volumineux (max ${MAX_DOC_MB} Mo).`); return;
+    }
+    setLoading(true); setError(null);
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const res = await fetch(`/api/import-export/transactions/${txId}/documents`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ documents: { [docKey]: { url: e.target.result, status: "fourni", uploadedAt: new Date() } } }),
+        });
+        if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
+        onRefresh();
+      } catch (err) { setError(err.message); }
+      finally { setLoading(false); }
+    };
+    reader.onerror = () => { setError("Impossible de lire le fichier."); setLoading(false); };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div className={styles.section}>
       <div className={styles.sectionHeader}><span>📄</span><h3>Documents d'export</h3></div>
@@ -632,9 +663,17 @@ function DocsPanel({ docs, txId, token, role, status, onRefresh }) {
               <div className={styles.docLeft}>
                 <span className={styles.docLabel}>{label}</span>
                 {doc.uploadedAt && <span className={styles.docDate}>{fmtDate(doc.uploadedAt)}</span>}
+                {doc.url && <a href={doc.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: ".78rem", color: "#6366f1" }}>📎 Voir le document</a>}
               </div>
               <div className={styles.docRight}>
                 <span className={styles.docStatus} style={{ color: cfg.color, background: cfg.bg }}>{cfg.label}</span>
+                {(role === "partner" || role === "admin") && doc.status !== "valide" && (
+                  <label style={{ cursor: "pointer", fontSize: ".78rem", color: "#6366f1" }}>
+                    📤 {doc.url ? "Remplacer" : "Joindre"}
+                    <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} disabled={loading}
+                      onChange={(e) => uploadDocFile(key, e.target.files?.[0])} />
+                  </label>
+                )}
                 {role === "partner" && doc.status !== "valide" && (
                   <select className={styles.docSelect} value={doc.status || "en_attente"} disabled={loading}
                     onChange={(e) => updateDoc(key, e.target.value)}>
@@ -979,6 +1018,26 @@ export default function IETransactionTracking() {
               </div>
               {tx.payment?.escrowRef && (
                 <p className={styles.escrowRef}>🔒 Escrow : {tx.payment.escrowRef}</p>
+              )}
+              {/* Reçu de paiement — jusqu'ici aucun reçu n'existait pour un paiement
+                  Import/Export, contrairement aux bookings location/vente/essai. */}
+              {role === "client" && tx.payment?.paidAt && (
+                <button
+                  type="button"
+                  style={{ marginTop: 8, background: "none", border: "none", color: "#6366f1", cursor: "pointer", textDecoration: "underline", fontSize: ".85rem", padding: 0 }}
+                  onClick={async () => {
+                    const res = await fetch(`/api/import-export/transactions/${tx._id}/receipt`, { headers: { Authorization: `Bearer ${token}` } });
+                    if (!res.ok) return;
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url; a.download = `recu-ie-${tx._id}.pdf`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  📥 Télécharger le reçu
+                </button>
               )}
             </div>
           )}

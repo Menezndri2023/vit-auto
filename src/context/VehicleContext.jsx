@@ -66,6 +66,7 @@ const normalizeBackendBooking = (b) => {
     commissionAmount:  b.commissionAmount,
     partnerPayout:     b.partnerPayout,
     cautionAmount:     b.cautionAmount,
+    cautionClaim:      b.cautionClaim,
     pricePerDay:       veh?.pricePerDay,
     // Paiement & transaction
     paidWith:      b.payment?.method,

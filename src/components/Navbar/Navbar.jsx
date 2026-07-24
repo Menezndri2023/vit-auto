@@ -87,6 +87,13 @@ const Navbar = () => {
           <li><NavLink to="/favorites" className={navLink} onClick={() => setMenuOpen(false)}>❤️ Favoris</NavLink></li>
         )}
 
+        {/* Suivi des achats Import/Export (escrow, inspection, livraison) — jusqu'ici
+            accessible uniquement en tapant l'URL ou depuis une transaction déjà
+            ouverte, aucun lien de menu n'y menait. */}
+        {isAuthenticated && !isPartner && (
+          <li><NavLink to="/import-export/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>📦 Mes achats Import/Export</NavLink></li>
+        )}
+
         {/* ── Éléments additionnels dans le menu mobile (non connectés) ── */}
         {!isAuthenticated && (
           <>

@@ -233,9 +233,12 @@ const ORDER_WORKFLOWS = {
    MODAL GÉRER — Gestion complète, identité intégrée, workflow par type VIT-AUTO
    ══════════════════════════════════════════════════════════════════════════════ */
 function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onPrepare, onReady, onInProgress,
-  onClientArrived, onClientAbsent, onRecordTransaction, onPartnerConfirm, onComplete, onReject, onPartnerVerifyKyc, commRates = DEFAULT_COMM_RATE }) {
+  onClientArrived, onClientAbsent, onRecordTransaction, onPartnerConfirm, onComplete, onReject, onPartnerVerifyKyc,
+  onClaimCaution, commRates = DEFAULT_COMM_RATE }) {
   // Tous les hooks AVANT tout return conditionnel (règles des hooks React)
   const { fmt: fmtXOF } = useCurrency();
+  const [cautionForm, setCautionForm] = useState({ retain: false, amount: "", reason: "" });
+  const [cautionSubmitting, setCautionSubmitting] = useState(false);
   const [txForm, setTxForm] = useState({
     finalAmount:   order?.transaction?.finalAmount || order?.montantTotal || order?.total || "",
     paymentMethod: order?.transaction?.paymentMethod || "cash",
@@ -778,6 +781,63 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
                   </Link>
                 </div>
               )}
+
+              {/* ── Caution : à traiter une seule fois, après restitution ─────── */}
+              {(subType === "location_agence" || subType === "location_domicile") && order.cautionAmount > 0 && (
+                order.cautionClaim?.claimedAt ? (
+                  <div style={{ marginTop:12, padding:"10px 14px", background:"#fff", border:"1.5px solid #d1fae5", borderRadius:10 }}>
+                    <strong style={{ fontSize:".85rem", color:"#059669" }}>💳 Caution traitée</strong>
+                    <div style={{ fontSize:".82rem", color:"#334155", marginTop:4 }}>
+                      {order.cautionClaim.amountClaimed > 0
+                        ? <>Retenu : <strong>{fmtXOF(order.cautionClaim.amountClaimed)}</strong> — {order.cautionClaim.reason}</>
+                        : "Intégralement restituée au client."}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ marginTop:12, padding:"12px 14px", background:"#fff", border:"1.5px solid #fde68a", borderRadius:10 }}>
+                    <strong style={{ fontSize:".85rem", color:"#92400e" }}>💳 Caution perçue : {fmtXOF(order.cautionAmount)} — à traiter</strong>
+                    <div style={{ display:"flex", gap:14, marginTop:8, fontSize:".82rem" }}>
+                      <label style={{ display:"flex", alignItems:"center", gap:4 }}>
+                        <input type="radio" name={`caution-${order.id}`} checked={!cautionForm.retain} onChange={() => setCautionForm({ retain: false, amount: "", reason: "" })} />
+                        Restituer intégralement
+                      </label>
+                      <label style={{ display:"flex", alignItems:"center", gap:4 }}>
+                        <input type="radio" name={`caution-${order.id}`} checked={cautionForm.retain} onChange={() => setCautionForm((p) => ({ ...p, retain: true }))} />
+                        Retenir un montant (dommage)
+                      </label>
+                    </div>
+                    {cautionForm.retain && (
+                      <div style={{ marginTop:8, display:"flex", flexDirection:"column", gap:6 }}>
+                        <input
+                          type="number" min="0" max={order.cautionAmount} placeholder={`Montant retenu (max ${order.cautionAmount})`}
+                          value={cautionForm.amount} onChange={(e) => setCautionForm((p) => ({ ...p, amount: e.target.value }))}
+                          style={{ padding:"6px 10px", borderRadius:8, border:"1.5px solid #e2e8f0", fontSize:".82rem" }}
+                        />
+                        <input
+                          type="text" placeholder="Motif (obligatoire) — ex. pare-choc endommagé"
+                          value={cautionForm.reason} onChange={(e) => setCautionForm((p) => ({ ...p, reason: e.target.value }))}
+                          style={{ padding:"6px 10px", borderRadius:8, border:"1.5px solid #e2e8f0", fontSize:".82rem" }}
+                        />
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      disabled={cautionSubmitting || (cautionForm.retain && (!cautionForm.amount || !cautionForm.reason.trim()))}
+                      onClick={async () => {
+                        setCautionSubmitting(true);
+                        await onClaimCaution(order.id, {
+                          amountClaimed: cautionForm.retain ? Number(cautionForm.amount) : 0,
+                          reason: cautionForm.retain ? cautionForm.reason.trim() : undefined,
+                        });
+                        setCautionSubmitting(false);
+                      }}
+                      style={{ marginTop:10, padding:"7px 16px", borderRadius:8, border:"none", background:"#d97706", color:"#fff", fontWeight:700, fontSize:".82rem", cursor:"pointer" }}
+                    >
+                      {cautionSubmitting ? "Traitement..." : "Valider le traitement de la caution"}
+                    </button>
+                  </div>
+                )
+              )}
             </div>
           )}
 
@@ -905,7 +965,7 @@ export default function VendorDashboard() {
   const { success: toastSuccess, error: toastError } = useToast();
   const { on } = useSocket();
   const { openOrCreateChat } = useChat();
-  const { COUNTRIES_CONFIG, fmt: fmtXOF } = useCurrency();
+  const { COUNTRIES_CONFIG, fmt: fmtXOF, CURRENCIES, rateFromUSD } = useCurrency();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -919,12 +979,53 @@ export default function VendorDashboard() {
   const [txLoading,      setTxLoading]      = useState(false);
   const [contracts,      setContracts]      = useState([]);
   const [contractsLoading, setContractsLoading] = useState(false);
+  const [legalDocuments, setLegalDocuments] = useState([]); // LOI/Agreement — voir contractController.getPartnerContracts
   const [subscription,   setSubscription]   = useState(null);
   const [subLoading,     setSubLoading]     = useState(true);
   const [commRates,      setCommRates]      = useState(null); // { location, essai, chauffeur, leasing } — depuis /api/pricing/config
   const [partnerStats,   setPartnerStats]   = useState(null); // agrégation serveur — voir loadPartnerStats
+  const [analytics,      setAnalytics]      = useState(null); // tendance mensuelle, top véhicules, clientèle — voir loadAnalytics
   const [boostTarget,    setBoostTarget]    = useState(null);
   const [boostModal,     setBoostModal]     = useState(null); // { vehicleId, title } — véhicule en cours de sélection de palier boost
+
+  // ── Congés bloqués par chauffeur ──────────────────────────────────────────
+  const [blackoutModal, setBlackoutModal] = useState(null); // driver en cours d'édition
+  const [blackoutForm,  setBlackoutForm]  = useState({ start: "", end: "", reason: "" });
+  const [blackoutSaving, setBlackoutSaving] = useState(false);
+
+  const handleAddBlackout = async () => {
+    if (!blackoutModal || !token || !blackoutForm.start || !blackoutForm.end) return;
+    setBlackoutSaving(true);
+    try {
+      const r = await fetch(`/api/drivers/${blackoutModal._id}/blackout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(blackoutForm),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        toastSuccess("Période de congé ajoutée.");
+        setBlackoutModal(d.driver);
+        setMyDrivers((prev) => prev.map((drv) => (drv._id === d.driver._id ? d.driver : drv)));
+        setBlackoutForm({ start: "", end: "", reason: "" });
+      } else toastError(d.message || "Erreur.");
+    } catch { toastError("Erreur réseau."); }
+    setBlackoutSaving(false);
+  };
+
+  const handleRemoveBlackout = async (blackoutId) => {
+    if (!blackoutModal || !token) return;
+    try {
+      const r = await fetch(`/api/drivers/${blackoutModal._id}/blackout/${blackoutId}`, {
+        method: "DELETE", headers: { Authorization: `Bearer ${token}` },
+      });
+      const d = await r.json();
+      if (r.ok) {
+        setBlackoutModal(d.driver);
+        setMyDrivers((prev) => prev.map((drv) => (drv._id === d.driver._id ? d.driver : drv)));
+      } else toastError(d.message || "Erreur.");
+    } catch { toastError("Erreur réseau."); }
+  };
   const [boostTier,      setBoostTier]      = useState("30d");
   const [boostPromoCode, setBoostPromoCode] = useState("");
   const [boostPricing,   setBoostPricing]   = useState(null); // { "24h": priceUSD, ... } — depuis /api/subscriptions/me
@@ -942,8 +1043,21 @@ export default function VendorDashboard() {
   const [promoForm,      setPromoForm]      = useState({ active: false, discountPercent: 15, label: "", startDate: "", endDate: "" });
   const [promoSaving,    setPromoSaving]    = useState(false);
 
+  // ── Journal d'entretien/incident/dommage par véhicule ─────────────────────
+  const [maintenanceModal,       setMaintenanceModal]       = useState(null); // véhicule en cours de consultation
+  const [maintenanceLogs,        setMaintenanceLogs]        = useState([]);
+  const [maintenanceLoading,     setMaintenanceLoading]     = useState(false);
+  const [maintenanceForm,        setMaintenanceForm]        = useState({ type: "entretien", description: "", cost: "", kilometrage: "" });
+  const [maintenanceSubmitting,  setMaintenanceSubmitting]  = useState(false);
+
   const [editModal,  setEditModal]  = useState(null); // véhicule en cours d'édition
   const [editForm,   setEditForm]   = useState(null);
+  // Devise de saisie du prix en édition (affichage uniquement, voir même
+  // logique que VendorSubmit.jsx) — editForm.pricePerDay/priceForSale restent
+  // toujours en USD, seule la valeur brute affichée change de devise.
+  const [editPriceCurrency, setEditPriceCurrency] = useState("USD");
+  const [editPriceEntryPerDay, setEditPriceEntryPerDay] = useState("");
+  const [editPriceEntryForSale, setEditPriceEntryForSale] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [editPhotos, setEditPhotos] = useState([]); // [{ id, preview }] — photos actuelles + nouvelles
@@ -1137,6 +1251,12 @@ export default function VendorDashboard() {
     return { totalVehicles: myVehicles.length, approved: myVehicles.filter((v) => v.status === "approved").length, totalOrders: allOrders.length, pending: pending.length, active: active.length, waiting: waiting.length, completed: completed.length, revenue, netRevenue };
   }, [allOrders, myVehicles, partnerStats]);
 
+  // Un particulier vendant 1-2 véhicules personnels n'a aucun usage des outils
+  // multi-entités (Mes entreprises) ni de l'import de flotte en masse — ces
+  // sections lui étaient pourtant montrées comme à n'importe quel partenaire
+  // professionnel, sans distinction. Manque réel trouvé en audit.
+  const isIndividualSeller = user.sellerType === "particulier" && !user.isFounder;
+
   const PLAN_LABELS = { individuel_plus: "Individuel Plus", business: "Business", exportateur: "Exportateur" };
   const isPro   = subscription?.plan && subscription.plan !== "free" && subscription?.planDetails?.isActive;
   const planName = isPro ? (PLAN_LABELS[subscription.plan] || subscription.plan) : null;
@@ -1192,6 +1312,49 @@ export default function VendorDashboard() {
     finally { setPromoSaving(false); }
   };
 
+  const handleOpenMaintenance = async (vehicle) => {
+    setMaintenanceModal(vehicle);
+    setMaintenanceForm({ type: "entretien", description: "", cost: "", kilometrage: "" });
+    setMaintenanceLoading(true);
+    try {
+      const vidVal = vehicle.id || vehicle._id;
+      const r = await fetch(`/api/vehicles/${vidVal}/maintenance`, { headers: { Authorization: `Bearer ${token}` } });
+      const d = await r.json();
+      setMaintenanceLogs(r.ok ? (d.logs || []) : []);
+    } catch { setMaintenanceLogs([]); }
+    setMaintenanceLoading(false);
+  };
+
+  const handleAddMaintenanceLog = async () => {
+    if (!maintenanceModal || !token || !maintenanceForm.description.trim()) return;
+    const vidVal = maintenanceModal.id || maintenanceModal._id;
+    setMaintenanceSubmitting(true);
+    try {
+      const r = await fetch(`/api/vehicles/${vidVal}/maintenance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(maintenanceForm),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        toastSuccess("Entrée ajoutée au journal.");
+        setMaintenanceLogs((prev) => [d.log, ...prev]);
+        setMaintenanceForm({ type: "entretien", description: "", cost: "", kilometrage: "" });
+      } else toastError(d.message || "Erreur.");
+    } catch { toastError("Erreur réseau."); }
+    setMaintenanceSubmitting(false);
+  };
+
+  const handleDeleteMaintenanceLog = async (logId) => {
+    if (!token) return;
+    const vidVal = maintenanceModal.id || maintenanceModal._id;
+    try {
+      const r = await fetch(`/api/vehicles/${vidVal}/maintenance/${logId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) setMaintenanceLogs((prev) => prev.filter((l) => l._id !== logId));
+      else toastError("Erreur lors de la suppression.");
+    } catch { toastError("Erreur réseau."); }
+  };
+
   // Le bouton "Modifier" pointait auparavant vers /vendor?edit=<id>, une route
   // jamais lue par VendorSubmit.jsx (aucune donnée n'était jamais préremplie ni
   // sauvegardée) — un lien mort depuis toujours. Édition complète désormais :
@@ -1245,6 +1408,9 @@ export default function VendorDashboard() {
       const r = await fetch(`/api/vehicles/${vid}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       const d = await r.json().catch(() => null);
       const v = d?.vehicle || vehicle;
+      setEditPriceCurrency("USD");
+      setEditPriceEntryPerDay(v.pricePerDay ? String(v.pricePerDay) : "");
+      setEditPriceEntryForSale(v.priceForSale ? String(v.priceForSale) : "");
       setEditForm({
         type:        v.type || (vehicle.mode === "Acheter" ? "vente" : "location"),
         title:       v.title || vehicle.name || "",
@@ -1282,6 +1448,27 @@ export default function VendorDashboard() {
       setEditModal(null);
     } finally {
       setEditLoading(false);
+    }
+  };
+
+  const handleEditPriceEntryChange = (field, raw) => {
+    if (field === "pricePerDay") setEditPriceEntryPerDay(raw);
+    else setEditPriceEntryForSale(raw);
+    if (raw === "" || isNaN(Number(raw))) { setEditForm((p) => ({ ...p, [field]: "" })); return; }
+    const num = Number(raw);
+    const usd = editPriceCurrency === "USD" ? num : Math.round((num / rateFromUSD(editPriceCurrency)) * 100) / 100;
+    setEditForm((p) => ({ ...p, [field]: usd }));
+  };
+
+  const handleEditPriceCurrencyChange = (code) => {
+    setEditPriceCurrency(code);
+    if (editPriceEntryPerDay !== "" && !isNaN(Number(editPriceEntryPerDay))) {
+      const num = Number(editPriceEntryPerDay);
+      setEditForm((p) => ({ ...p, pricePerDay: code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100 }));
+    }
+    if (editPriceEntryForSale !== "" && !isNaN(Number(editPriceEntryForSale))) {
+      const num = Number(editPriceEntryForSale);
+      setEditForm((p) => ({ ...p, priceForSale: code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100 }));
     }
   };
 
@@ -1430,6 +1617,43 @@ export default function VendorDashboard() {
     setBulkDeleting(false);
   };
 
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+  const handleBulkAdjustPrice = async () => {
+    if (selectedVehicleIds.size === 0) return;
+    const input = prompt("Ajuster le prix de la sélection de quel pourcentage ? (ex : 10 pour +10%, -15 pour -15%)");
+    if (input === null) return;
+    const pct = Number(input);
+    if (!Number.isFinite(pct) || pct === 0) { toastError("Pourcentage invalide."); return; }
+    setBulkUpdating(true);
+    try {
+      const r = await fetch("/api/vehicles/bulk-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ids: [...selectedVehicleIds], priceAdjustPercent: pct }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) { toastSuccess(d.message || "Prix mis à jour."); setSelectedVehicleIds(new Set()); loadPartnerVehicles(); }
+      else toastError(d.message || "Erreur.");
+    } catch { toastError("Erreur réseau."); }
+    setBulkUpdating(false);
+  };
+
+  const handleBulkTogglePause = async (paused) => {
+    if (selectedVehicleIds.size === 0) return;
+    setBulkUpdating(true);
+    try {
+      const r = await fetch("/api/vehicles/bulk-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ids: [...selectedVehicleIds], manuallyPaused: paused }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) { toastSuccess(paused ? "Véhicules mis en pause." : "Disponibilité reprise."); setSelectedVehicleIds(new Set()); loadPartnerVehicles(); }
+      else toastError(d.message || "Erreur.");
+    } catch { toastError("Erreur réseau."); }
+    setBulkUpdating(false);
+  };
+
   const handleBulkDeleteDrivers = async () => {
     if (selectedDriverIds.size === 0) return;
     if (!confirm(`Supprimer définitivement ${selectedDriverIds.size} profil(s) sélectionné(s) ?`)) return;
@@ -1469,6 +1693,35 @@ export default function VendorDashboard() {
       const r = await fetch(`/api/bookings/${id}/transaction`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(txData) });
       const d = await r.json();
       if (r.ok) { toastSuccess("💰 Transaction enregistrée."); setGererModalId(null); setTimeout(() => { loadPartnerOrders(); loadTransactions(); }, 800); }
+      else toastError(d.message || "Erreur.");
+    } catch { toastError("Erreur réseau."); }
+  }, [token, toastSuccess, toastError, loadPartnerOrders]);
+
+  // Téléchargement PDF authentifié (Bearer) — le lien <a href="/api/contracts/:id/pdf">
+  // ne fonctionnait en réalité jamais : ces routes exigent un header
+  // Authorization que la navigation d'un simple <a> n'envoie jamais (pas de
+  // cookie de session dans cette architecture), donc le clic renvoyait un 401
+  // JSON au lieu d'un PDF. Bug réel trouvé en cours d'implémentation.
+  const downloadAuthPdf = async (url, filename) => {
+    if (!token) return;
+    try {
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) { toastError("Impossible de télécharger le document."); return; }
+      const blob = await r.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objUrl; a.download = filename;
+      a.click();
+      URL.revokeObjectURL(objUrl);
+    } catch { toastError("Erreur réseau."); }
+  };
+
+  const handleClaimCaution = useCallback(async (id, payload) => {
+    if (!token) return;
+    try {
+      const r = await fetch(`/api/bookings/${id}/caution`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
+      const d = await r.json();
+      if (r.ok) { toastSuccess("💳 Caution traitée."); setTimeout(() => loadPartnerOrders(), 500); }
       else toastError(d.message || "Erreur.");
     } catch { toastError("Erreur réseau."); }
   }, [token, toastSuccess, toastError, loadPartnerOrders]);
@@ -1516,7 +1769,10 @@ export default function VendorDashboard() {
   const loadContracts = useCallback(async () => {
     if (!token) return;
     setContractsLoading(true);
-    try { const r = await fetch("/api/contracts/mine", { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) { const d = await r.json(); setContracts(d.contracts || []); } }
+    try {
+      const r = await fetch("/api/contracts/mine", { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) { const d = await r.json(); setContracts(d.contracts || []); setLegalDocuments(d.legalDocuments || []); }
+    }
     catch { /* ignore */ }
     setContractsLoading(false);
   }, [token]);
@@ -1615,12 +1871,26 @@ export default function VendorDashboard() {
 
   useEffect(() => { loadPartnerStats(); }, [loadPartnerStats]);
 
+  // Tendance mensuelle, top véhicules et clientèle récurrente — voir
+  // bookingController.getPartnerAnalytics (n'existait pas jusqu'ici : le
+  // dashboard n'affichait que des totaux, jamais d'évolution dans le temps
+  // ni de vue par client, manque réel trouvé en audit).
+  const loadAnalytics = useCallback(async () => {
+    if (!token) return;
+    try {
+      const r = await fetch("/api/bookings/partner/analytics", { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) setAnalytics(await r.json());
+    } catch { /* non bloquant */ }
+  }, [token]);
+
+  useEffect(() => { loadAnalytics(); }, [loadAnalytics]);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadPartnerOrders(), loadPartnerVehicles(), loadMyDrivers(), loadInvoices(), loadTransactions(), loadContracts(), loadPartnerStats()]);
+    await Promise.all([loadPartnerOrders(), loadPartnerVehicles(), loadMyDrivers(), loadInvoices(), loadTransactions(), loadContracts(), loadPartnerStats(), loadAnalytics()]);
     setRefreshing(false);
     toastSuccess("Données actualisées.");
-  }, [loadPartnerOrders, loadPartnerVehicles, loadMyDrivers, loadInvoices, loadTransactions, loadPartnerStats, toastSuccess]);
+  }, [loadPartnerOrders, loadPartnerVehicles, loadMyDrivers, loadInvoices, loadTransactions, loadPartnerStats, loadAnalytics, toastSuccess]);
 
   useEffect(() => { loadMyDrivers(); }, [loadMyDrivers]);
   useEffect(() => { loadEmploymentRequests(); }, [loadEmploymentRequests]);
@@ -1706,12 +1976,39 @@ export default function VendorDashboard() {
           <button className={styles.refreshBtn} onClick={handleRefresh} disabled={refreshing}>
             <span style={{ display: "inline-block", animation: refreshing ? "spin .8s linear infinite" : "none" }}>↻</span>
           </button>
-          <Link to="/partner-fleet-import" style={{ display: "inline-flex", alignItems: "center", padding: "0 18px", background: "#6366f1", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem", whiteSpace: "nowrap" }}>
-            📦 Importer ma flotte
-          </Link>
+          {!isIndividualSeller && (
+            <Link to="/partner-fleet-import" style={{ display: "inline-flex", alignItems: "center", padding: "0 18px", background: "#6366f1", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem", whiteSpace: "nowrap" }}>
+              📦 Importer ma flotte
+            </Link>
+          )}
           <Link to="/vendor" className={styles.btnPrimary}>+ Nouvelle annonce</Link>
         </div>
       </header>
+
+      {/* ── Statut de vérification ────────────────────────────────────────────
+          Un partenaire bloqué par KYC/certification (voir createVehicle) n'avait
+          aucune indication proactive dans son propre espace — seulement une
+          erreur 403 au moment de publier. Manque réel trouvé en audit. */}
+      {!user.isFounder && isIndividualSeller && user.kycStatus !== "VERIFIE" && (
+        <div className={styles.freeBanner} style={{ borderColor: user.kycStatus === "REFUSE" ? "#fca5a5" : "#fde68a" }}>
+          <span className={styles.planBadge} style={{ background: user.kycStatus === "REFUSE" ? "#fee2e2" : "#fef3c7", color: user.kycStatus === "REFUSE" ? "#dc2626" : "#d97706" }}>
+            {user.kycStatus === "REFUSE" ? "❌ KYC refusé" : "⏳ KYC en attente"}
+          </span>
+          <span>
+            {user.kycStatus === "REFUSE"
+              ? "Votre vérification d'identité a été refusée — vous ne pouvez pas publier tant qu'elle n'est pas resoumise."
+              : "Complétez votre vérification d'identité (pièce + selfie) pour pouvoir publier vos annonces."}
+          </span>
+          <Link to="/kyc" className={styles.upgradeLink}>{user.kycStatus === "REFUSE" ? "Resoumettre →" : "Vérifier mon identité →"}</Link>
+        </div>
+      )}
+      {!user.isFounder && !isIndividualSeller && user.certificationBadge === "none" && (
+        <div className={styles.freeBanner} style={{ borderColor: "#fde68a" }}>
+          <span className={styles.planBadge} style={{ background: "#fef3c7", color: "#d97706" }}>⏳ Certification requise</span>
+          <span>Complétez votre vérification partenaire (entreprise/professionnel) pour pouvoir publier vos annonces.</span>
+          <Link to="/partner-certification" className={styles.upgradeLink}>Compléter mon dossier →</Link>
+        </div>
+      )}
 
       {/* ── Plan Banner ── */}
       {!subLoading && (
@@ -1728,11 +2025,12 @@ export default function VendorDashboard() {
           { id: "dashboard",    icon: "📊", label: "Dashboard" },
           { id: "commandes",    icon: "📋", label: "Commandes",       count: stats.totalOrders,    alert: newOrdersCount },
           { id: "annonces",     icon: "🚗", label: "Annonces",        count: stats.totalVehicles },
-          { id: "entreprises",  icon: "🏢", label: "Mes entreprises" },
+          !isIndividualSeller && { id: "entreprises",  icon: "🏢", label: "Mes entreprises" },
           { id: "calendrier",   icon: "📅", label: "Calendrier" },
+          { id: "clients",      icon: "👥", label: "Clients",         count: analytics?.topClients?.length || null },
           { id: "finances",     icon: "💰", label: "Finances",        count: invoices.filter((i) => i.status === "pending").length || null },
           { id: "reservations", icon: "🎫", label: "Mes réservations", alert: myPersonalBookings.filter((b) => b.status === "waiting_client_validation").length || null },
-        ].map(({ id, icon, label, count, alert }) => (
+        ].filter(Boolean).map(({ id, icon, label, count, alert }) => (
           <button key={id}
             className={[styles.navTab, activeTab === id ? styles.navTabActive : ""].join(" ")}
             onClick={() => setActiveTab(id)}>
@@ -1812,6 +2110,49 @@ export default function VendorDashboard() {
                 <p>Le client doit confirmer la transaction.</p>
               </div>
               <span className={styles.alertBoxArrow}>→</span>
+            </div>
+          )}
+
+          {/* Analytique : tendance mensuelle, occupation, top véhicules */}
+          {analytics && (analytics.monthlyRevenue.length > 0 || analytics.topVehicles.length > 0) && (
+            <div className={styles.dashSection}>
+              <div className={styles.dashSectionHeader}>
+                <h3>📈 Analytique</h3>
+                {analytics.fleetSize > 0 && (
+                  <span style={{ fontSize: ".8rem", fontWeight: 700, color: analytics.occupancyRate >= 60 ? "#059669" : analytics.occupancyRate >= 30 ? "#d97706" : "#dc2626" }}>
+                    Taux d'occupation (30j) : {analytics.occupancyRate}%
+                  </span>
+                )}
+              </div>
+
+              {analytics.monthlyRevenue.length > 0 && (
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 110, padding: "8px 4px 0", marginBottom: 8 }}>
+                  {(() => {
+                    const maxRev = Math.max(...analytics.monthlyRevenue.map((m) => m.revenue), 1);
+                    return analytics.monthlyRevenue.map((m) => (
+                      <div key={m.month} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                        <span style={{ fontSize: ".7rem", color: "#64748b", fontWeight: 700 }}>{fmtXOF(m.revenue)}</span>
+                        <div style={{ width: "100%", height: Math.max(4, Math.round((m.revenue / maxRev) * 70)), background: "linear-gradient(180deg,#6366f1,#4f46e5)", borderRadius: "6px 6px 0 0" }} />
+                        <span style={{ fontSize: ".68rem", color: "#94a3b8" }}>{m.month.slice(5)}/{m.month.slice(2, 4)}</span>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              )}
+
+              {analytics.topVehicles.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <strong style={{ fontSize: ".8rem", color: "#334155" }}>🏆 Véhicules les plus rentables</strong>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+                    {analytics.topVehicles.map((v, i) => (
+                      <div key={v.vehicleId} style={{ display: "flex", justifyContent: "space-between", fontSize: ".82rem", padding: "5px 0", borderBottom: i < analytics.topVehicles.length - 1 ? "1px solid #f1f5f9" : "none" }}>
+                        <span>{v.title}</span>
+                        <strong>{fmtXOF(v.revenue)} <span style={{ color: "#94a3b8", fontWeight: 500 }}>({v.count} location{v.count > 1 ? "s" : ""})</span></strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -2007,9 +2348,20 @@ export default function VendorDashboard() {
             <h2 className={styles.sectionTitle}>Mes véhicules ({filteredVehicles.length})</h2>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               {selectedVehicleIds.size > 0 && (
-                <button className={styles.btnDanger} disabled={bulkDeleting} onClick={handleBulkDeleteVehicles}>
-                  🗑️ Supprimer la sélection ({selectedVehicleIds.size})
-                </button>
+                <>
+                  <button className={styles.btnSecondary} disabled={bulkUpdating} onClick={handleBulkAdjustPrice}>
+                    💲 Ajuster le prix ({selectedVehicleIds.size})
+                  </button>
+                  <button className={styles.btnSecondary} disabled={bulkUpdating} onClick={() => handleBulkTogglePause(true)}>
+                    ⏸️ Mettre en pause
+                  </button>
+                  <button className={styles.btnSecondary} disabled={bulkUpdating} onClick={() => handleBulkTogglePause(false)}>
+                    ▶️ Reprendre
+                  </button>
+                  <button className={styles.btnDanger} disabled={bulkDeleting} onClick={handleBulkDeleteVehicles}>
+                    🗑️ Supprimer la sélection ({selectedVehicleIds.size})
+                  </button>
+                </>
               )}
               <select className={styles.selectFilter} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                 <option value="all">Tous les statuts</option>
@@ -2057,6 +2409,11 @@ export default function VendorDashboard() {
                         <h3 className={styles.vehicleName}>{vehicle.name}</h3>
                         <span className={styles.vehicleStatusBadge} style={{ background: sc.bg, color: sc.c }}>{sc.l}</span>
                       </div>
+                      {vehicle.manuallyPaused && (
+                        <span style={{ display: "inline-block", marginBottom: 6, background: "#f1f5f9", color: "#64748b", fontSize: ".72rem", fontWeight: 800, padding: "2px 8px", borderRadius: 999 }}>
+                          ⏸️ En pause — non visible au catalogue
+                        </span>
+                      )}
                       {vehicle.validationScore != null && (
                         <div className={styles.scoreBar}>
                           <div className={styles.scoreBarFill} style={{ width: `${vehicle.validationScore}%`, background: vehicle.validationScore >= 65 ? "#10b981" : vehicle.validationScore >= 40 ? "#f59e0b" : "#ef4444" }} />
@@ -2088,6 +2445,7 @@ export default function VendorDashboard() {
                       <button className={styles.btnSecondary} onClick={() => handleOpenPromo(vehicle)}>
                         {vehicle.promotion?.active ? "🏷️ Promo active" : "🏷️ Promo"}
                       </button>
+                      <button className={styles.btnSecondary} onClick={() => handleOpenMaintenance(vehicle)}>🔧 Journal</button>
                       {SUBSCRIPTIONS_ENABLED && !isBoosted && <button className={styles.btnBoost} onClick={() => { setBoostTier("30d"); setBoostPromoCode(""); setBoostModal({ vehicleId: vid, title: vehicle.name || vehicle.title }); }} disabled={boostTarget === vid}>{boostTarget === vid ? "…" : "⭐ Booster"}</button>}
                       <button className={styles.btnDanger} onClick={() => handleDeleteVehicle(vid)}>Suppr.</button>
                     </div>
@@ -2110,6 +2468,24 @@ export default function VendorDashboard() {
               <Link to="/vendor" className={styles.btnPrimary}>+ Ajouter</Link>
             </div>
           </div>
+
+          {/* Alerte expiration permis — vérifiée aux points de blocage (KYC,
+              réservation, publication) mais jamais signalée proactivement dans
+              le dashboard. Manque réel trouvé en audit. */}
+          {myDrivers.length > 0 && user.driverLicenseOcr?.expiryDate && (() => {
+            const expiry = new Date(user.driverLicenseOcr.expiryDate);
+            const daysLeft = Math.ceil((expiry - new Date()) / 86400000);
+            if (daysLeft > 30) return null;
+            const expired = daysLeft < 0;
+            return (
+              <div style={{ marginBottom: 14, padding: "10px 16px", background: expired ? "#fef2f2" : "#fffbeb", border: `1.5px solid ${expired ? "#fca5a5" : "#fde68a"}`, borderRadius: 10, fontSize: ".85rem", color: expired ? "#991b1b" : "#92400e" }}>
+                {expired
+                  ? `⚠️ Votre permis de conduire a expiré le ${expiry.toLocaleDateString("fr-FR")} — vos profils chauffeur peuvent devenir non réservables.`
+                  : `⚠️ Votre permis de conduire expire le ${expiry.toLocaleDateString("fr-FR")} (dans ${daysLeft} jour${daysLeft > 1 ? "s" : ""}) — pensez à le renouveler.`}
+              </div>
+            );
+          })()}
+
           {driverLoading ? <p className={styles.loadingMsg}>Chargement…</p> : myDrivers.length === 0 ? (
             <div className={styles.emptyFull} style={{ padding: "28px 20px" }}>
               <div className={styles.emptyIcon}>👨‍✈️</div>
@@ -2143,9 +2519,18 @@ export default function VendorDashboard() {
                         {drv.zone && <span className={styles.vTag}>{drv.zone}</span>}
                         {drv.permisCategorie && <span className={styles.vTag}>Permis {drv.permisCategorie}</span>}
                       </div>
+                      {drv.nombreAvis > 0 && (
+                        <div style={{ fontSize: ".82rem", color: "#d97706", fontWeight: 700, marginTop: 4 }}>
+                          ⭐ {drv.noteMoyenne?.toFixed(1)} <span style={{ color: "#94a3b8", fontWeight: 500 }}>({drv.nombreAvis} avis)</span>
+                        </div>
+                      )}
+                      {drv.missionsTotal > 0 && (
+                        <div style={{ fontSize: ".78rem", color: "#64748b", marginTop: 2 }}>{drv.missionsTotal} mission{drv.missionsTotal > 1 ? "s" : ""} terminée{drv.missionsTotal > 1 ? "s" : ""}</div>
+                      )}
                       <div className={styles.vehiclePrice}>{drv.tarif ? `${fmtXOF(drv.tarif)} / jour` : "Tarif non renseigné"}</div>
                     </div>
                     <div className={styles.vehicleCardActions}>
+                      <button className={styles.btnSecondary} onClick={() => { setBlackoutModal(drv); setBlackoutForm({ start: "", end: "", reason: "" }); }}>🚫 Congés</button>
                       <button className={styles.btnDanger} onClick={() => { if (confirm("Supprimer ce profil ?")) { fetch(`/api/drivers/${drv._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).then(() => setMyDrivers((p) => p.filter((d) => d._id !== drv._id))).catch(() => {}); } }}>Supprimer</button>
                     </div>
                   </div>
@@ -2224,6 +2609,45 @@ export default function VendorDashboard() {
         </div>
       )}
 
+      {/* ══ TAB : CLIENTS ═════════════════════════════════════════════════ */}
+      {activeTab === "clients" && (
+        <div className={styles.tabContent}>
+          <div style={{ marginBottom: 16 }}>
+            <h2 style={{ margin: "0 0 4px", fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f" }}>👥 Clientèle</h2>
+            <p style={{ margin: 0, fontSize: "0.84rem", color: "#64748b" }}>
+              Vos clients classés par nombre de commandes — repérez vos clients réguliers d'un coup d'œil.
+            </p>
+          </div>
+          {!analytics?.topClients?.length ? (
+            <div className={styles.emptyFull}>
+              <div className={styles.emptyIcon}>👥</div>
+              <h3>Aucun client pour le moment</h3>
+              <p>Vos clients apparaîtront ici dès votre première commande.</p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {analytics.topClients.map((c, i) => (
+                <div key={c.clientId || c.email || i} className={styles.sectionCard} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                  <div>
+                    <strong style={{ fontSize: ".9rem" }}>{c.firstName} {c.lastName}</strong>
+                    {c.totalBookings > 1 && <span style={{ marginLeft: 8, background: "#eef2ff", color: "#4f46e5", fontSize: ".72rem", fontWeight: 800, padding: "2px 8px", borderRadius: 999 }}>🔁 Client régulier</span>}
+                    <div style={{ display: "flex", gap: 14, marginTop: 4, fontSize: ".8rem", color: "#64748b" }}>
+                      {c.email && <a href={`mailto:${c.email}`} style={{ color: "#64748b" }}>✉️ {c.email}</a>}
+                      {c.phone && <a href={`tel:${c.phone}`} style={{ color: "#64748b" }}>📞 {c.phone}</a>}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: ".85rem", fontWeight: 800 }}>{c.totalBookings} commande{c.totalBookings > 1 ? "s" : ""}</div>
+                    <div style={{ fontSize: ".78rem", color: "#059669" }}>{fmtXOF(c.totalSpent)} de net cumulé</div>
+                    <div style={{ fontSize: ".72rem", color: "#94a3b8" }}>Dernière : {new Date(c.lastBookingAt).toLocaleDateString("fr-FR")}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ══ TAB : FINANCES ════════════════════════════════════════════════ */}
       {activeTab === "finances" && (
         <div className={styles.tabContent}>
@@ -2242,6 +2666,28 @@ export default function VendorDashboard() {
               <span className={styles.finSummaryValue} style={{ color: "#059669" }}>{fmtXOF(stats.netRevenue)}</span>
             </div>
           </div>
+
+          {/* Export comptable — jusqu'ici réservé à l'admin, aucun moyen pour un
+              partenaire de télécharger l'historique de ses commandes. */}
+          <button
+            type="button"
+            className={styles.btnSecondary}
+            style={{ marginBottom: 16 }}
+            onClick={async () => {
+              try {
+                const r = await fetch("/api/bookings/partner/export", { headers: { Authorization: `Bearer ${token}` } });
+                if (!r.ok) { toastError("Erreur lors de l'export."); return; }
+                const blob = await r.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url; a.download = `mes-commandes-${new Date().toISOString().slice(0, 10)}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              } catch { toastError("Erreur réseau."); }
+            }}
+          >
+            📥 Exporter mes commandes (CSV)
+          </button>
 
           {/* Transactions */}
           <div className={styles.dashSection}>
@@ -2384,16 +2830,47 @@ export default function VendorDashboard() {
                         </div>
                         <span className={styles.invoiceStatusBadge} style={{ background: cs.bg, color: cs.c }}>{cs.l}</span>
                       </div>
-                      <a href={`/api/contracts/${ct._id}/pdf`} target="_blank" rel="noopener noreferrer"
-                        style={{ display:"inline-flex", alignItems:"center", gap:6, marginTop:10, padding:"6px 14px", borderRadius:8, background:"#0f1b3f", color:"#fff", textDecoration:"none", fontSize:".8rem", fontWeight:700 }}>
+                      <button type="button" onClick={() => downloadAuthPdf(`/api/contracts/${ct._id}/pdf`, `contrat-${ct.booking?.reference || ct._id}.pdf`)}
+                        style={{ display:"inline-flex", alignItems:"center", gap:6, marginTop:10, padding:"6px 14px", borderRadius:8, border:"none", background:"#0f1b3f", color:"#fff", cursor:"pointer", fontSize:".8rem", fontWeight:700 }}>
                         ⬇️ Télécharger le contrat PDF
-                      </a>
+                      </button>
                     </div>
                   );
                 })}
               </div>
             )}
           </div>
+
+          {/* LOI / Accord Founding Partner — jusqu'ici absents de ce répertoire,
+              le partenaire devait savoir naviguer vers l'onboarding pour les
+              retrouver. Manque réel trouvé en audit. */}
+          {legalDocuments.length > 0 && (
+            <div className={styles.dashSection} style={{ marginTop: 24 }}>
+              <div className={styles.dashSectionHeader}><h3>Documents légaux Founding Partner</h3></div>
+              <div className={styles.invoiceList}>
+                {legalDocuments.map((doc) => {
+                  const cs = doc.isSigned
+                    ? { l: "✅ Signé", c: "#059669", bg: "#dcfce7" }
+                    : { l: "🕐 En attente de signature", c: "#d97706", bg: "#fef3c7" };
+                  return (
+                    <div key={doc.key} className={styles.invoiceCard}>
+                      <div className={styles.invoiceCardHeader}>
+                        <div>
+                          <div className={styles.invoiceRef}>{doc.label}</div>
+                          <div className={styles.invoicePeriod}>Envoyé le {new Date(doc.sentAt).toLocaleDateString("fr-FR")}</div>
+                        </div>
+                        <span className={styles.invoiceStatusBadge} style={{ background: cs.bg, color: cs.c }}>{cs.l}</span>
+                      </div>
+                      <button type="button" onClick={() => downloadAuthPdf(doc.pdfUrl, `${doc.key}.pdf`)}
+                        style={{ display:"inline-flex", alignItems:"center", gap:6, marginTop:10, padding:"6px 14px", borderRadius:8, border:"none", background:"#0f1b3f", color:"#fff", cursor:"pointer", fontSize:".8rem", fontWeight:700 }}>
+                        ⬇️ Télécharger le PDF
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -2416,6 +2893,7 @@ export default function VendorDashboard() {
           onComplete={handleComplete}
           onReject={(id) => { setRejectModal(id); setGererModalId(null); setOrderDetail(null); }}
           onPartnerVerifyKyc={handlePartnerVerifyKyc}
+          onClaimCaution={handleClaimCaution}
         />
       )}
 
@@ -2679,6 +3157,116 @@ export default function VendorDashboard() {
         </div>
       )}
 
+      {maintenanceModal && (
+        <div className={styles.modalBackdrop} onClick={() => setMaintenanceModal(null)}>
+          <div className={styles.rejectModal} style={{ maxWidth: 560, maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+            <h3>🔧 Journal du véhicule — {maintenanceModal.name}</h3>
+            <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "#64748b" }}>
+              Entretiens réalisés, incidents ou dommages constatés (utile pour justifier une retenue sur caution).
+            </p>
+
+            <div style={{ background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 10, padding: 12, marginBottom: 16 }}>
+              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                <select value={maintenanceForm.type} onChange={(e) => setMaintenanceForm((p) => ({ ...p, type: e.target.value }))}
+                  style={{ padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}>
+                  <option value="entretien">🛠️ Entretien</option>
+                  <option value="incident">⚠️ Incident</option>
+                  <option value="dommage">💥 Dommage</option>
+                </select>
+                <input type="number" placeholder="Kilométrage" value={maintenanceForm.kilometrage}
+                  onChange={(e) => setMaintenanceForm((p) => ({ ...p, kilometrage: e.target.value }))}
+                  style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }} />
+                <input type="number" placeholder="Coût (USD)" value={maintenanceForm.cost}
+                  onChange={(e) => setMaintenanceForm((p) => ({ ...p, cost: e.target.value }))}
+                  style={{ width: 110, padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }} />
+              </div>
+              <textarea placeholder="Description (obligatoire)" value={maintenanceForm.description}
+                onChange={(e) => setMaintenanceForm((p) => ({ ...p, description: e.target.value }))}
+                className={styles.rejectTextarea} style={{ width: "100%", boxSizing: "border-box", minHeight: 60 }} />
+              <button className={styles.btnAccept} disabled={maintenanceSubmitting || !maintenanceForm.description.trim()}
+                onClick={handleAddMaintenanceLog} style={{ marginTop: 8 }}>
+                {maintenanceSubmitting ? "Envoi…" : "+ Ajouter au journal"}
+              </button>
+            </div>
+
+            {maintenanceLoading ? (
+              <p style={{ fontSize: ".85rem", color: "#94a3b8" }}>⏳ Chargement…</p>
+            ) : maintenanceLogs.length === 0 ? (
+              <p style={{ fontSize: ".85rem", color: "#94a3b8" }}>Aucune entrée pour ce véhicule.</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {maintenanceLogs.map((log) => (
+                  <div key={log._id} style={{ padding: 10, border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".82rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <strong>
+                        {{ entretien: "🛠️ Entretien", incident: "⚠️ Incident", dommage: "💥 Dommage" }[log.type]} — {new Date(log.date).toLocaleDateString("fr-FR")}
+                      </strong>
+                      <button onClick={() => handleDeleteMaintenanceLog(log._id)} style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: ".8rem" }}>🗑️</button>
+                    </div>
+                    <p style={{ margin: "4px 0 0", color: "#334155" }}>{log.description}</p>
+                    <div style={{ display: "flex", gap: 12, marginTop: 4, color: "#64748b", fontSize: ".78rem" }}>
+                      {log.kilometrage != null && <span>{log.kilometrage.toLocaleString("fr-FR")} km</span>}
+                      {log.cost > 0 && <span>{fmtXOF(log.cost)}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className={styles.rejectActions} style={{ marginTop: 14 }}>
+              <button className={styles.btnSecondary} onClick={() => setMaintenanceModal(null)}>Fermer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {blackoutModal && (
+        <div className={styles.modalBackdrop} onClick={() => setBlackoutModal(null)}>
+          <div className={styles.rejectModal} style={{ maxWidth: 520, maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+            <h3>🚫 Congés — {blackoutModal.firstName} {blackoutModal.lastName}</h3>
+            <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "#64748b" }}>
+              Bloquez des dates pendant lesquelles ce chauffeur ne peut pas être réservé (congés, indisponibilité).
+            </p>
+
+            <div style={{ background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 10, padding: 12, marginBottom: 16 }}>
+              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                <input type="date" value={blackoutForm.start} onChange={(e) => setBlackoutForm((p) => ({ ...p, start: e.target.value }))}
+                  style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }} />
+                <input type="date" value={blackoutForm.end} onChange={(e) => setBlackoutForm((p) => ({ ...p, end: e.target.value }))}
+                  style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }} />
+              </div>
+              <input type="text" placeholder="Motif (optionnel)" value={blackoutForm.reason}
+                onChange={(e) => setBlackoutForm((p) => ({ ...p, reason: e.target.value }))}
+                style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }} />
+              <button className={styles.btnAccept} disabled={blackoutSaving || !blackoutForm.start || !blackoutForm.end}
+                onClick={handleAddBlackout} style={{ marginTop: 8 }}>
+                {blackoutSaving ? "Envoi…" : "+ Bloquer cette période"}
+              </button>
+            </div>
+
+            {(blackoutModal.blackoutDates || []).length === 0 ? (
+              <p style={{ fontSize: ".85rem", color: "#94a3b8" }}>Aucune période bloquée.</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {blackoutModal.blackoutDates.map((b) => (
+                  <div key={b._id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 10, border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".82rem" }}>
+                    <div>
+                      <strong>{new Date(b.start).toLocaleDateString("fr-FR")} → {new Date(b.end).toLocaleDateString("fr-FR")}</strong>
+                      {b.reason && <p style={{ margin: "2px 0 0", color: "#64748b" }}>{b.reason}</p>}
+                    </div>
+                    <button onClick={() => handleRemoveBlackout(b._id)} style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: ".8rem" }}>🗑️</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className={styles.rejectActions} style={{ marginTop: 14 }}>
+              <button className={styles.btnSecondary} onClick={() => setBlackoutModal(null)}>Fermer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editModal && (
         <div className={styles.modalBackdrop} onClick={() => { setEditModal(null); setEditPhotos([]); }}>
           <div className={styles.rejectModal} style={{ maxWidth: 640, maxHeight: "88vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
@@ -2874,11 +3462,22 @@ export default function VendorDashboard() {
                 <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                   <div style={{ flex: 1 }}>
                     <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>
-                      {editForm.type === "vente" ? "Prix de vente (USD)" : "Prix / jour (USD)"}
+                      {editForm.type === "vente" ? "Prix de vente" : "Prix / jour"}
                     </label>
-                    <input type="number" min="0" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
-                      value={editForm.type === "vente" ? editForm.priceForSale : editForm.pricePerDay}
-                      onChange={(e) => setEditForm((p) => ({ ...p, [editForm.type === "vente" ? "priceForSale" : "pricePerDay"]: e.target.value }))} />
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input type="number" min="0" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px", flex: 1 }}
+                        value={editForm.type === "vente" ? editPriceEntryForSale : editPriceEntryPerDay}
+                        onChange={(e) => handleEditPriceEntryChange(editForm.type === "vente" ? "priceForSale" : "pricePerDay", e.target.value)} />
+                      <select className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px", width: "auto" }}
+                        value={editPriceCurrency} onChange={(e) => handleEditPriceCurrencyChange(e.target.value)}>
+                        {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                      </select>
+                    </div>
+                    {editPriceCurrency !== "USD" && (
+                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
+                        ≈ {Number((editForm.type === "vente" ? editForm.priceForSale : editForm.pricePerDay) || 0).toLocaleString("fr-FR")} USD (converti automatiquement)
+                      </span>
+                    )}
                   </div>
                   {editForm.type !== "vente" && (
                     <div style={{ flex: 1 }}>

@@ -5,6 +5,7 @@ import { useCurrency } from "../context/CurrencyContext";
 import { useI18n } from "../context/I18nContext";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import ReportButton from "../components/ReportButton/ReportButton";
+import PriceTag from "../components/PriceTag/PriceTag";
 import styles from "./VehicleDetails.module.css";
 
 const fmtN = (n) => n != null ? Number(n).toLocaleString("fr-FR") : "—";
@@ -340,7 +341,7 @@ export default function VehicleDetails() {
       : [];
 
   const isSale = vehicle.mode === "Acheter" || vehicle.listingType === "vente";
-  const priceLabel = isSale ? fmt(vehicle.buyPrice || vehicle.priceForSale) : fmt(vehicle.pricePerDay);
+  const priceAmountUSD = isSale ? (vehicle.buyPrice || vehicle.priceForSale) : vehicle.pricePerDay;
   const priceSuffix = isSale ? "" : ` ${t("vd.perDay")}`;
 
   const shareUrl = window.location.href;
@@ -399,7 +400,7 @@ export default function VehicleDetails() {
           )}
         </div>
         <div className={styles.priceBlock}>
-          <span className={styles.price}>{priceLabel}</span>
+          <span className={styles.price}><PriceTag amountUSD={priceAmountUSD} /></span>
           {priceSuffix && <span className={styles.priceSuffix}>{priceSuffix}</span>}
           {vehicle.caution > 0 && !isSale && (
             <span className={styles.caution}>{t("vd.caution")} {fmt(vehicle.caution)}</span>

@@ -2,6 +2,7 @@ import logger from "../utils/logger.js";
 import InsuranceRequest from "../models/InsuranceRequest.js";
 import Notification from "../models/Notification.js";
 import { getServiceConfig } from "../services/pricingEngine.js";
+import { generateGenericReceiptPDF } from "../utils/pdfGenerator.js";
 
 async function notify(userId, titre, message) {
   try {
@@ -94,6 +95,34 @@ export const setDecision = async (req, res) => {
     res.json({ success: true, request });
   } catch (err) {
     logger.error("setInsuranceDecision:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── GET /api/insurance/:id/receipt — reçu PDF de la prime payée ─────────────
+// Aucun reçu n'existait pour un paiement d'assurance (contrairement aux
+// bookings, voir generateReceiptPDF) — manque réel trouvé en audit.
+export const getRequestReceipt = async (req, res) => {
+  try {
+    const request = await InsuranceRequest.findById(req.params.id).populate("client", "firstName lastName email");
+    if (!request) return res.status(404).json({ message: "Demande introuvable." });
+    if (req.user.role !== "admin" && request.client._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+    if (!request.isPaid) return res.status(409).json({ message: "Cette prime n'a pas encore été payée." });
+
+    generateGenericReceiptPDF({
+      reference:   `VIT-ASS-${request._id.toString().slice(-8).toUpperCase()}`,
+      title:       `Assurance — ${request.type === "auto" ? "Automobile" : request.type === "location" ? "Location" : "Import/Export"}`,
+      clientName:  `${request.client.firstName} ${request.client.lastName}`,
+      clientEmail: request.client.email,
+      amount:      request.premium,
+      currency:    request.devise,
+      paidAt:      request.paidAt,
+      method:      "Paiement en ligne",
+    }, res);
+  } catch (err) {
+    logger.error("getInsuranceReceipt:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

@@ -42,7 +42,10 @@ router.post  ("/listings/:id/inspection-report",  authenticate,        vid,     
 router.get   ("/transactions",          authenticate, authorizeAdmin, ieScope,            tx.getAllTransactions);
 router.get   ("/transactions/mine",     authenticate,                            tx.getClientTransactions);
 router.get   ("/transactions/partner",  authenticate,                            tx.getPartnerTransactions);
+router.get   ("/transactions/partner/analytics", authenticate,                   tx.getPartnerIEAnalytics);
+router.get   ("/transactions/partner/export",    authenticate,                   tx.exportPartnerIETransactions);
 router.get   ("/transactions/:id",      authenticate,                   vid,     tx.getTransactionById);
+router.get   ("/transactions/:id/receipt", authenticate,                vid,     tx.getTransactionReceipt);
 
 router.post  ("/transactions",          authenticate,                            tx.createReservation);
 router.patch ("/transactions/:id/confirm",          authenticate,       vid,     tx.confirmReservation);

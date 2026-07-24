@@ -1,5 +1,7 @@
 import logger from "../utils/logger.js";
 import VehicleImportBatch from "../models/VehicleImportBatch.js";
+import PartnerVerification from "../models/PartnerVerification.js";
+import PartnerBusiness from "../models/PartnerBusiness.js";
 import { dispatch } from "../queue/index.js";
 import {
   MAX_IMPORT_ROWS,
@@ -20,6 +22,53 @@ const requirePartnerRole = (req, res) => {
   }
   return true;
 };
+
+// ── Vérification requise avant import de flotte (même règles que
+// vehicleController.createVehicle — voir ce fichier pour l'explication
+// complète) ────────────────────────────────────────────────────────────────
+// L'import en masse contournait jusqu'ici totalement KYC/certification/
+// suspension : un partenaire non vérifié (ou suspendu par un admin) pouvait
+// publier des centaines de véhicules d'un coup via un simple upload de
+// fichier, alors que la même publication à l'unité (createVehicle) est
+// bloquée. Bug réel trouvé en audit — pas seulement un manque de garde-fou
+// théorique, un partenaire suspendu pouvait littéralement republier toute sa
+// flotte par ce détour tant que l'admin ne le savait pas.
+async function checkImportPublishGate(req, res) {
+  const isIndividualSeller = req.user.sellerType === "particulier";
+  if (req.user.role === "partenaire" && !req.user.isFounder) {
+    if (isIndividualSeller) {
+      if (req.user.kycStatus !== "VERIFIE") {
+        res.status(403).json({
+          code:    "KYC_REQUIRED",
+          message: "Complétez votre vérification d'identité (pièce d'identité + selfie) avant d'importer une flotte.",
+        });
+        return false;
+      }
+    } else if (req.user.certificationBadge === "none") {
+      res.status(403).json({
+        code:    "CERTIFICATION_REQUIRED",
+        message: "Complétez votre vérification partenaire avant d'importer une flotte.",
+      });
+      return false;
+    }
+  }
+
+  const suspendedVerif = await PartnerVerification.findOne({
+    userId: req.user._id,
+    status: { $in: ["suspendu", "rejete"] },
+  }).select("status").lean();
+  if (suspendedVerif) {
+    res.status(403).json({
+      code:    "PARTNER_SUSPENDED",
+      message: suspendedVerif.status === "suspendu"
+        ? "Votre dossier partenaire est suspendu. Contactez le support VIT AUTO."
+        : "Votre dossier partenaire a été rejeté. Contactez le support VIT AUTO.",
+    });
+    return false;
+  }
+
+  return true;
+}
 
 // ── Parsing partagé fichier/Google Sheet + validations communes ─────────────
 // Utilisé par previewImportFile ET createImportBatch — un seul endroit pour
@@ -76,6 +125,7 @@ export const previewImportFile = async (req, res) => {
         message: "Devenez Founding Partner pour importer des annonces d'export.",
       });
     }
+    if (!(await checkImportPublishGate(req, res))) return;
 
     let rawRows;
     try {
@@ -104,7 +154,7 @@ export const createImportBatch = async (req, res) => {
   try {
     if (!requirePartnerRole(req, res)) return;
 
-    const { source, fileName, googleSheetUrl, targetType, columnMapping, defaultType } = req.body;
+    const { source, fileName, googleSheetUrl, targetType, columnMapping, defaultType, businessId } = req.body;
     const isExport = targetType === "export";
     if (isExport && !req.user.isFounder) {
       return res.status(403).json({
@@ -112,8 +162,19 @@ export const createImportBatch = async (req, res) => {
         message: "Devenez Founding Partner pour importer des annonces d'export.",
       });
     }
+    if (!(await checkImportPublishGate(req, res))) return;
     if (defaultType !== undefined && defaultType !== null && !["location", "vente"].includes(defaultType)) {
       return res.status(400).json({ message: "Type par défaut invalide." });
+    }
+
+    // ── Entreprise du partenaire (facultatif, comme createVehicle) ─────────
+    // Un partenaire multi-entités/multi-pays importe une flotte pour l'une de
+    // ses entreprises : son pays prime alors sur celui du compte User pour
+    // toutes les lignes du batch (voir processImportBatch/vehicleImportService.js).
+    let business = null;
+    if (businessId) {
+      business = await PartnerBusiness.findOne({ _id: businessId, owner: req.user._id }).lean();
+      if (!business) return res.status(400).json({ message: "Entreprise introuvable." });
     }
 
     let rawRows;
@@ -156,6 +217,7 @@ export const createImportBatch = async (req, res) => {
 
     const batch = await VehicleImportBatch.create({
       owner: req.user._id,
+      business: business?._id || null,
       targetType: isExport ? "export" : "vehicle",
       source,
       originalFileName: fileName || "",

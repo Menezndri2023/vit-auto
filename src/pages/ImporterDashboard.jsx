@@ -381,6 +381,7 @@ export default function ImporterDashboard() {
   const [profile, setProfile]       = useState(null);
   const [listings, setListings]     = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [ieAnalytics, setIeAnalytics] = useState([]); // totaux par devise — voir getPartnerIEAnalytics
   const [loading, setLoading]       = useState(true);
   const [showForm, setShowForm]     = useState(false);
   const [editingListing, setEditingListing] = useState(null); // annonce complète en édition (getMyListings tronque `photos`)
@@ -397,14 +398,16 @@ export default function ImporterDashboard() {
     if (!token) return;
     setLoading(true);
     try {
-      const [pRes, lRes, txRes] = await Promise.all([
+      const [pRes, lRes, txRes, aRes] = await Promise.all([
         fetch("/api/import-export/importer-profile", { headers }),
         fetch("/api/import-export/listings/mine",    { headers }),
         fetch("/api/import-export/transactions/partner?limit=50", { headers }),
+        fetch("/api/import-export/transactions/partner/analytics", { headers }),
       ]);
       if (pRes.ok)  { const d = await pRes.json();  setProfile(d.profile); }
       if (lRes.ok)  { const d = await lRes.json();  setListings(d.listings || []); }
       if (txRes.ok) { const d = await txRes.json(); setTransactions(d.transactions || []); }
+      if (aRes.ok)  { const d = await aRes.json();  setIeAnalytics(d.byCurrency || []); }
     } catch {}
     setLoading(false);
   }, [token]);
@@ -553,6 +556,44 @@ export default function ImporterDashboard() {
                     </div>
                   ))}
                 </div>
+
+                {/* Totaux par devise — chaque transaction affichait sa propre devise
+                    isolément, aucun total agrégé n'existait jusqu'ici. */}
+                {ieAnalytics.length > 0 && (
+                  <div className={styles.recentCard}>
+                    <div className={styles.recentHeader}>
+                      <h3>💱 Totaux par devise</h3>
+                      <button
+                        className={styles.btnLink}
+                        onClick={async () => {
+                          try {
+                            const r = await fetch("/api/import-export/transactions/partner/export", { headers });
+                            if (!r.ok) { showMsg("Erreur lors de l'export.", "error"); return; }
+                            const blob = await r.blob();
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url; a.download = `mes-transactions-export-${new Date().toISOString().slice(0, 10)}.csv`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          } catch { showMsg("Erreur réseau.", "error"); }
+                        }}
+                      >
+                        📥 Exporter (CSV)
+                      </button>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {ieAnalytics.map((c) => (
+                        <div key={c.currency} style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, padding: "8px 0", borderBottom: "1px solid #f1f5f9", fontSize: ".85rem" }}>
+                          <strong>{c.currency} ({c.count} transaction{c.count > 1 ? "s" : ""})</strong>
+                          <span>Total : <strong>{c.totalAmount.toLocaleString("fr-FR")} {c.currency}</strong></span>
+                          {c.inEscrow > 0 && <span style={{ color: "#d97706" }}>En séquestre : {c.inEscrow.toLocaleString("fr-FR")} {c.currency}</span>}
+                          {c.totalPayout > 0 && <span style={{ color: "#059669" }}>Versé net : {c.totalPayout.toLocaleString("fr-FR")} {c.currency}</span>}
+                          {c.disputed > 0 && <span style={{ color: "#dc2626" }}>En litige : {c.disputed.toLocaleString("fr-FR")} {c.currency}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Dernières annonces */}
                 {listings.length > 0 && (

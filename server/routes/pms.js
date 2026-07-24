@@ -5,6 +5,7 @@ import {
   getPMSOverview,
   getLeads, createLead, getLead, updateLead, deleteLead, addLeadFollowUp, addLeadMessage,
   getQuotes, createQuote, getQuote, updateQuote, sendQuote, deleteQuote,
+  getPublicQuote, respondPublicQuote,
   getMyShowroom, upsertShowroom, publishShowroom,
   getPublicShowroom, getPublicShowrooms,
   getPerformanceScore,
@@ -16,6 +17,12 @@ const router = express.Router();
 // ── Routes publiques (annuaire showrooms) ─────────────────────────────────
 router.get("/showrooms",           getPublicShowrooms);
 router.get("/showrooms/:id",       getPublicShowroom);
+
+// ── Routes publiques (devis — acheteur sans compte, voir pmsController.sendQuote) ──
+// AVANT /quotes/:id (statique avant paramétré) : sinon "/quotes/public/xyz"
+// serait capté par :id="public".
+router.get  ("/quotes/public/:token",          getPublicQuote);
+router.patch("/quotes/public/:token/respond",  respondPublicQuote);
 
 // ── Middleware : partenaire ou admin ─────────────────────────────────────
 const requirePartner = (req, res, next) => {

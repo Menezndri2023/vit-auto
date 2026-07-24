@@ -7,7 +7,9 @@
       "Bash(railway logs *)",
       "Bash(npm run *)",
       "Bash(git stash *)",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "Bash(git commit -m ' *)",
+      "Bash(railway --help)"
     ]
   }
 }

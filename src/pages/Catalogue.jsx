@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import VehicleCard from "../components/VehicleCard/VehicleCard";
+import PriceTag from "../components/PriceTag/PriceTag";
 import { useVehicles } from "../context/VehicleContext";
 import { useCurrency } from "../context/CurrencyContext";
 import styles from "./Catalogue.module.css";
@@ -46,7 +47,6 @@ const BADGE_ICONS_MAP = { silver: "🥈", gold: "🥇", platinum: "💎" };
 
 /* ── Carte Import/Export ── */
 function IECard({ l }) {
-  const { fmtFromCurrency } = useCurrency();
   return (
     <div className={styles.ieCard}>
       <div className={styles.ieCardImg}>
@@ -87,7 +87,7 @@ function IECard({ l }) {
 
         <div className={styles.ieCardFooter}>
           <div>
-            <div className={styles.ieCardPrice}>{fmtFromCurrency(l.price, l.currency)}</div>
+            <div className={styles.ieCardPrice}><PriceTag amount={l.price} sourceCurrency={l.currency} compact /></div>
             {l.negotiable && <span className={styles.ieCardNeg}>Négociable</span>}
           </div>
           <Link to="/import-export/listings" className={styles.ieCardLink}>Voir →</Link>

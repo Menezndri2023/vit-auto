@@ -30,9 +30,11 @@ const INTL_CODES = ["EUR", "USD", "CAD", "CHF", "GBP"];
 export function CurrencyProvider({ children }) {
   const { user } = useAuth();
   const saved = localStorage.getItem("vit_currency");
-  // Devise par défaut : MAD (Maroc — siège social) — le temps que le fetch réponde.
-  const [currencyCode, setCurrencyState] = useState(saved || "MAD");
-  const [detectedCountry, setDetectedCountry] = useState(saved ? "MA" : null);
+  // Devise par défaut : USD — tant que la géolocalisation (IP/GPS) n'a pas
+  // répondu, et repli final si elle échoue totalement (voir effet de
+  // détection ci-dessous, qui ne bascule plus sur MAD/Maroc en cas d'échec).
+  const [currencyCode, setCurrencyState] = useState(saved || "USD");
+  const [detectedCountry, setDetectedCountry] = useState(null);
   const [detecting, setDetecting] = useState(!saved);
 
   // ── Référentiels devises/pays, chargés une fois au montage ────────────────
@@ -152,12 +154,13 @@ export function CurrencyProvider({ children }) {
         const r = await fetch("https://ipapi.co/json/", { signal: controller.signal });
         if (r.ok) {
           const d = await r.json();
-          applyCountry(d.country_code || "MA");
-        } else {
-          applyCountry("MA");
+          // Si même ce repli ne renvoie rien d'exploitable, on reste sur le
+          // défaut USD plutôt que de forcer un pays — voir décision produit :
+          // pas de biais Maroc pour un visiteur non localisable.
+          if (d.country_code) applyCountry(d.country_code);
         }
       } catch {
-        applyCountry("MA");
+        // Géolocalisation totalement indisponible — on reste sur USD par défaut.
       } finally {
         clearTimeout(timer);
         if (!cancelled) setDetecting(false);
@@ -264,6 +267,52 @@ export function CurrencyProvider({ children }) {
     [fmt, rateFromUSD]
   );
 
+  // Formate un montant tel quel (aucune conversion) dans une devise donnée —
+  // sert de "valeur réelle" pour l'affichage double ci-dessous (ex. le prix
+  // d'origine saisi par le partenaire, à côté du prix converti pour le
+  // visiteur).
+  const formatLiteral = useCallback(
+    (amount, code) => {
+      if (amount == null || isNaN(amount)) return "—";
+      const meta = CURRENCIES.find((c) => c.code === code);
+      const locale = meta?.locale || "fr-FR";
+      const symbol = meta?.symbol || code;
+      if (INTL_CODES.includes(code)) {
+        return new Intl.NumberFormat(locale, { style: "currency", currency: code, maximumFractionDigits: 2 }).format(amount);
+      }
+      return `${Number(Math.round(amount * 100) / 100).toLocaleString(locale)} ${symbol}`;
+    },
+    [CURRENCIES]
+  );
+
+  // Affichage double géolocalisé : prix converti dans la devise active du
+  // visiteur (détectée par IP/GPS) + prix réel (celui réellement stocké/facturé,
+  // toujours en USD pour Vehicle/Booking). `secondary` est null quand les deux
+  // devises coïncident (rien à ajouter). Retourne un objet {primary, secondary}
+  // pour laisser chaque composant styliser le prix réel en plus petit/discret.
+  const fmtDual = useCallback(
+    (amountUSD) => {
+      if (amountUSD == null || isNaN(amountUSD)) return { primary: "—", secondary: null };
+      const primary = fmtUSD(amountUSD);
+      if (currentCurrency.code === "USD") return { primary, secondary: null };
+      return { primary, secondary: formatLiteral(amountUSD, "USD") };
+    },
+    [fmtUSD, currentCurrency, formatLiteral]
+  );
+
+  // Même principe que fmtDual, mais pour un montant stocké dans une devise
+  // arbitraire choisie par le partenaire (annonces Import/Export) plutôt
+  // qu'en USD — le "réel" est alors la devise d'origine de l'annonce.
+  const fmtFromCurrencyDual = useCallback(
+    (amount, sourceCode) => {
+      if (amount == null || isNaN(amount)) return { primary: "—", secondary: null };
+      const primary = fmtFromCurrency(amount, sourceCode);
+      if (currentCurrency.code === sourceCode) return { primary, secondary: null };
+      return { primary, secondary: formatLiteral(amount, sourceCode) };
+    },
+    [fmtFromCurrency, currentCurrency, formatLiteral]
+  );
+
   // Convertit MAD → devise active (pour Plans, commissions)
   const fmtFromMAD = useCallback(
     (amountMAD) => {
@@ -294,10 +343,13 @@ export function CurrencyProvider({ children }) {
         currentCurrency,
         currency: currentCurrency,
         setCurrency,
+        rateFromUSD,
         convert,
         fmt,
         fmtUSD,
         fmtFromCurrency,
+        fmtDual,
+        fmtFromCurrencyDual,
         fmtFromMAD,
         fromMAD,
         detecting,

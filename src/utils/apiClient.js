@@ -102,14 +102,17 @@ async function parseResponse(res) {
   const ct = res.headers.get("content-type") || "";
   if (!res.ok) {
     let msg = `Erreur ${res.status}`;
+    let code;
     try {
       if (ct.includes("application/json")) {
         const err = await res.json();
-        msg = err.message || msg;
+        msg  = err.message || msg;
+        code = err.code;
       }
     } catch { /* ignore */ }
     const error  = new Error(msg);
     error.status = res.status;
+    error.code   = code;
     throw error;
   }
   if (ct.includes("application/json")) return res.json();

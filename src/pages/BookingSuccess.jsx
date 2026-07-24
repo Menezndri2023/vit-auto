@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useCurrency } from "../context/CurrencyContext";
+import PriceTag from "../components/PriceTag/PriceTag";
 import styles from "./BookingSuccess.module.css";
 
 const CONDITIONS = [
@@ -146,7 +147,7 @@ const BookingSuccess = () => {
               <div className={styles.infoItem}><span>Modèle</span><strong>{booking.vehicleName}</strong></div>
               <div className={styles.infoItem}><span>Type</span><strong>{booking.vehicleType || "—"}</strong></div>
               <div className={styles.infoItem}><span>Mode</span><strong>{booking.vehicleMode || "Location"}</strong></div>
-              <div className={styles.infoItem}><span>Tarif journalier</span><strong>{fmt(booking.pricePerDay || 0)}</strong></div>
+              <div className={styles.infoItem}><span>Tarif journalier</span><strong><PriceTag amountUSD={booking.pricePerDay || 0} /></strong></div>
             </div>
           </div>
 
@@ -189,7 +190,7 @@ const BookingSuccess = () => {
               <div className={`${styles.fRow} ${styles.fRowTotal}`}>
                 <span>Total à payer</span>
                 {/* montantTotal = champ backend, total = champ frontend booking */}
-                <span>{fmt(booking.montantTotal || booking.total || 0)}</span>
+                <span><PriceTag amountUSD={booking.montantTotal || booking.total || 0} /></span>
               </div>
               {!isEssai && (booking.cautionAmount > 0) && (
                 <div className={`${styles.fRow} ${styles.fRowCaution}`}>

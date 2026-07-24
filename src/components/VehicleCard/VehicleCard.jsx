@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCurrency } from "../../context/CurrencyContext";
 import { useFavorites } from "../../context/FavoritesContext";
+import PriceTag from "../PriceTag/PriceTag";
 import styles from "./VehicleCard.module.css";
 
 const VehicleCard = React.memo(({ car, compact }) => {
@@ -181,14 +182,14 @@ const VehicleCard = React.memo(({ car, compact }) => {
             <p className={styles.price}>
               <span style={{ textDecoration: "line-through", color: "#94a3b8", fontSize: "0.8em", marginRight: 8 }}>{fmt(basePrice)}</span>
               <span style={{ color: "#dc2626" }}>
-                {fmt(discountedPrice)}{!(car.mode === "Acheter" || car.listingType === "vente") ? " / jour" : ""}
+                <PriceTag amountUSD={discountedPrice} suffix={!(car.mode === "Acheter" || car.listingType === "vente") ? " / jour" : ""} compact />
               </span>
             </p>
           ) : (
             <p className={styles.price}>
               {(car.mode === "Acheter" || car.listingType === "vente")
-                ? fmt(car.buyPrice || car.priceForSale || 0)
-                : `${fmt(car.pricePerDay || 0)} / jour`}
+                ? <PriceTag amountUSD={car.buyPrice || car.priceForSale || 0} compact />
+                : <PriceTag amountUSD={car.pricePerDay || 0} suffix=" / jour" compact />}
             </p>
           )}
           {(car.ville || car.city) && (

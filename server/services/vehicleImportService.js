@@ -10,6 +10,8 @@ import ImportExportListing from "../models/ImportExportListing.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import VehicleImportBatch from "../models/VehicleImportBatch.js";
+import PartnerBusiness from "../models/PartnerBusiness.js";
+import PartnerVerification from "../models/PartnerVerification.js";
 import { scoreAnnonce, buildVehicleWhitelist } from "./vehicleScoring.js";
 import { dispatch } from "../queue/index.js";
 import { uploadImage, isAvailable as imageKitAvailable } from "../config/imagekit.js";
@@ -50,6 +52,9 @@ export const IMPORT_COLUMNS = [
   { key: "ville",                 header: "Ville",                 example: "Abidjan" },
   { key: "adresse",               header: "Adresse",                example: "Cocody, Riviera" },
   { key: "description",           header: "Description",           example: "Véhicule bien entretenu, révisions à jour, climatisation fonctionnelle." },
+  { key: "rentalDurationType",    header: "DureeLocation",         example: "les_deux" },
+  { key: "conditionsLocation",    header: "ConditionsLocation",    example: "Kilométrage illimité, plein essence requis au retour." },
+  { key: "conditionsVente",       header: "ConditionsVente",       example: "Garantie 3 mois pièces et main d'œuvre." },
   { key: "imageUrls",             header: "PhotosURLs",            example: "https://exemple.com/photo1.jpg,https://exemple.com/photo2.jpg" },
 ];
 
@@ -83,11 +88,12 @@ const HEADER_ALIASES = {
 // On normalise en comparaison insensible à la casse plutôt que de laisser
 // Vehicle.create() planter avec une erreur Mongoose brute.
 const ENUM_FIELDS = {
-  type:         ["location", "vente"],
-  etat:         ["Neuf", "Comme neuf", "Bon état", "À réparer"],
-  vehicleType:  ["SUV", "Berline", "Sportif", "Citadine", "Monospace", "Pick-up", "Cabriolet", "Utilitaire"],
-  carburant:    ["Essence", "Diesel", "Hybride", "Électrique", "GPL"],
-  transmission: ["Automatique", "Manuelle"],
+  type:               ["location", "vente"],
+  etat:               ["Neuf", "Comme neuf", "Bon état", "À réparer"],
+  vehicleType:        ["SUV", "Berline", "Sportif", "Citadine", "Monospace", "Pick-up", "Cabriolet", "Utilitaire"],
+  carburant:          ["Essence", "Diesel", "Hybride", "Électrique", "GPL"],
+  transmission:       ["Automatique", "Manuelle"],
+  rentalDurationType: ["courte", "longue", "les_deux"],
 };
 
 // ── Colonnes du template — Import/Export (Founding Partners) ────────────────
@@ -669,7 +675,7 @@ async function downloadImagesForRow(imageUrls, budgetDeadline, rowWarnings, file
 }
 
 // ── Traite une ligne du batch (véhicule catalogue) et retourne le résultat ───
-async function processVehicleImportRow(batch, rawRow, rowIndex, budgetDeadline, ownerUser) {
+async function processVehicleImportRow(batch, rawRow, rowIndex, budgetDeadline, ownerUser, business) {
   let vehicleLabel = "";
   try {
     const { data, imageUrls, rowWarnings } = mapRowToVehicleInput(rawRow, batch.columnMapping, batch.defaultType);
@@ -713,7 +719,8 @@ async function processVehicleImportRow(batch, rawRow, rowIndex, budgetDeadline, 
     const vehicle = await Vehicle.create({
       ...whitelisted,
       owner:              batch.owner,
-      country:            ownerUser?.country || null,
+      business:           business?._id || null,
+      country:            business?.country || ownerUser?.country || null,
       status:             validation.status,
       available:          validation.status === "approved",
       validationScore:    validation.score,
@@ -816,7 +823,7 @@ async function processImportRow(batch, rawRow, rowIndex, budgetDeadline, ctx) {
   if (batch.targetType === "export") {
     return processIEImportRow(batch, rawRow, rowIndex, budgetDeadline, ctx.ownerUser, ctx.importerProfile);
   }
-  return processVehicleImportRow(batch, rawRow, rowIndex, budgetDeadline, ctx.ownerUser);
+  return processVehicleImportRow(batch, rawRow, rowIndex, budgetDeadline, ctx.ownerUser, ctx.business);
 }
 
 // ── Traite un batch d'import — appelé par le worker ET en fallback synchrone ─
@@ -834,11 +841,28 @@ export async function processImportBatch(batchId) {
     // export si besoin) chargé une seule fois pour tout le batch, pas à chaque ligne.
     const ownerUser = await User.findById(batch.owner);
     let ctx = { ownerUser };
+
+    // ── Suspension/rejet Vérification Partenaire ──────────────────────────
+    // Vérifiée une seule fois pour tout le batch, comme le rôle/KYC/certification
+    // déjà bloqués en amont dans createImportBatch — mais createImportBatch ne
+    // couvre pas les anciens batches déjà en file (worker BullMQ) au moment où
+    // un admin suspend le partenaire après coup ; ce garde-fou reste donc utile
+    // ici aussi, sur les DEUX cibles (vehicle ET export), pas seulement l'export.
+    const suspendedVerif = await PartnerVerification.findOne({
+      userId: batch.owner,
+      status: { $in: ["suspendu", "rejete"] },
+    }).select("status").lean();
+    if (suspendedVerif) {
+      throw new Error("Votre dossier partenaire est suspendu ou rejeté — import annulé.");
+    }
+
     if (isExport) {
       if (!ownerUser?.isFounder) {
         throw new Error("Ce compte n'est plus Founding Partner — import export annulé.");
       }
       ctx.importerProfile = await ensureImporterProfile(ownerUser);
+    } else if (batch.business) {
+      ctx.business = await PartnerBusiness.findOne({ _id: batch.business, owner: batch.owner }).lean();
     }
 
     while (batch.pendingRows.length > 0) {

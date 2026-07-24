@@ -150,7 +150,13 @@ const vehicleSchema = new mongoose.Schema({
   },
 
   // ── Disponibilité ─────────────────────────────────────────
-  available: { type: Boolean, default: true },
+  // `available` reste entièrement recalculé depuis les réservations actives
+  // (voir bookingController.syncVehicleAvailability) — `manuallyPaused` est
+  // le seul levier permettant à un partenaire de le forcer à false (ex.
+  // véhicule en maintenance), sans quoi il n'existait aucun moyen de retirer
+  // un véhicule de la disponibilité en dehors d'une réservation en cours.
+  available:      { type: Boolean, default: true },
+  manuallyPaused: { type: Boolean, default: false },
 
   // ── Promotion partenaire (ex: "-15% aujourd'hui") ──────────
   // Gérée exclusivement via son propre endpoint (PATCH /:id/promotion) —

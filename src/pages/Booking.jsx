@@ -6,6 +6,7 @@ import { useCurrency } from "../context/CurrencyContext";
 import { useToast }    from "../context/ToastContext";
 import { haversineKm, geocodeAddress, getCurrentPosition } from "../utils/geo";
 import { getKycBadge, generateBookingRef } from "../utils/kycEngine.js";
+import PriceTag from "../components/PriceTag/PriceTag";
 import styles from "./Booking.module.css";
 
 /* ── Constantes financières (USD — voir PricingConfig.serviceFee/rentalOptions
@@ -1007,7 +1008,7 @@ export default function Booking() {
               <div className={styles.confirmRow}><span>Paiement</span><strong>{PAYMENT_METHODS.find((p) => p.value === payMethod)?.label || payMethod}</strong></div>
               <div className={`${styles.confirmRow} ${styles.confirmTotal}`}>
                 <span>Total à payer</span>
-                <strong>{fmt(totalToPay)}</strong>
+                <strong><PriceTag amountUSD={totalToPay} /></strong>
               </div>
             </div>
 
@@ -1054,7 +1055,7 @@ export default function Booking() {
               </>
             ) : (
               <>
-                {!isTrial && <div className={styles.sidebarRow}><span>Prix / jour</span><strong>{fmt(vehicle.pricePerDay || 0)}</strong></div>}
+                {!isTrial && <div className={styles.sidebarRow}><span>Prix / jour</span><strong><PriceTag amountUSD={vehicle.pricePerDay || 0} /></strong></div>}
                 {days > 0 && !isTrial && <div className={styles.sidebarRow}><span>Durée</span><strong>{days} j</strong></div>}
                 {baseTotal > 0 && !isTrial && <div className={styles.sidebarRow}><span>Base</span><strong>{fmt(baseTotal)}</strong></div>}
                 {optionsTotal > 0 && <div className={styles.sidebarRow}><span>Options</span><strong>{fmt(optionsTotal)}</strong></div>}
@@ -1072,7 +1073,7 @@ export default function Booking() {
             <div className={styles.sidebarRow}><span>Frais service</span><strong>{fmt(SERVICE_FEE)}</strong></div>
             <div className={`${styles.sidebarRow} ${styles.sidebarTotal}`}>
               <span>Total</span>
-              <strong>{fmt(totalToPay)}</strong>
+              <strong><PriceTag amountUSD={totalToPay} /></strong>
             </div>
           </div>
 

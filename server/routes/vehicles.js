@@ -6,6 +6,7 @@ import { validateObjectId } from "../middleware/validateObjectId.js";
 
 const router = express.Router();
 const vid = validateObjectId();
+const logVid = validateObjectId("logId");
 
 // ── IMPORTANT : routes statiques AVANT les routes paramétrées ────────────────
 
@@ -16,6 +17,7 @@ router.get("/", optionalAuth, v.getVehicles);                                // 
 router.get("/mine",    authenticate, v.getMyVehicles);                       // mes annonces
 router.post("/",       authenticate, v.createVehicle);                       // créer une annonce
 router.post("/bulk-delete", authenticate, v.bulkDeleteVehicles);             // supprimer plusieurs annonces (sélection)
+router.post("/bulk-update", authenticate, v.bulkUpdateVehicles);            // ajuster prix / pause dispo (sélection)
 
 // ── Admin — routes statiques ──────────────────────────────
 router.get("/pending", authenticate, authorizeAdmin, v.getPendingVehicles);  // annonces en attente
@@ -31,6 +33,9 @@ router.patch("/:id/transfer", vid, authenticate, authorizeAdmin, v.transferVehic
 router.patch("/:id/lifecycle",vid, authenticate, v.updateVehicleLifecycle);               // brouillon/vendu/archivé (partenaire)
 router.patch("/:id/promotion",vid, authenticate, v.updatePromotion);                      // activer/désactiver une promotion
 router.post("/:id/convert-to-export", vid, authenticate, v.convertVehicleToExport);       // transforme en annonce Import/Export
+router.get("/:id/maintenance",              vid, authenticate, v.getMaintenanceLogs);     // journal entretien/incident/dommage
+router.post("/:id/maintenance",             vid, authenticate, v.addMaintenanceLog);
+router.delete("/:id/maintenance/:logId", vid, logVid, authenticate, v.deleteMaintenanceLog);
 router.patch("/:id",          vid, authenticate, v.updateVehicle);                        // mise à jour partielle (featured, etc.)
 router.put("/:id",            vid, authenticate, v.updateVehicle);                        // modifier annonce (compat)
 router.delete("/:id", vid, authenticate, v.deleteVehicle);                        // supprimer annonce

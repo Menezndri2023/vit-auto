@@ -248,6 +248,24 @@ export default function ServiceRequest() {
                         {r.status === "approved" && r.quotedAmountUSD != null && (
                           <div className={styles.premium}>
                             Devis proposé : {fmtUSD(r.quotedAmountUSD)}{r.isPaid ? " — ✅ Payé" : ""}
+                            {r.isPaid && (
+                              <button
+                                type="button"
+                                style={{ marginLeft: 10, background: "none", border: "none", color: "#6366f1", cursor: "pointer", textDecoration: "underline", fontSize: ".82rem" }}
+                                onClick={async () => {
+                                  const res = await fetch(`/api/services/${r._id}/receipt`, { headers: { Authorization: `Bearer ${token}` } });
+                                  if (!res.ok) return;
+                                  const blob = await res.blob();
+                                  const url = URL.createObjectURL(blob);
+                                  const a = document.createElement("a");
+                                  a.href = url; a.download = `recu-service-${r._id}.pdf`;
+                                  a.click();
+                                  URL.revokeObjectURL(url);
+                                }}
+                              >
+                                📥 Reçu
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>

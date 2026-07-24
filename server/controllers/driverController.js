@@ -304,6 +304,56 @@ export const deleteDriver = async (req, res) => {
   }
 };
 
+// ── Bloquer des dates (congés/indisponibilité) — jusqu'ici seul le calendrier
+// en lecture seule (réservations existantes) était visible, aucun moyen pour
+// le partenaire de bloquer proactivement des dates pour un chauffeur.
+export const addDriverBlackout = async (req, res) => {
+  try {
+    const driver = await Driver.findById(req.params.id);
+    if (!driver) return res.status(404).json({ message: "Chauffeur introuvable." });
+
+    const isOwner = driver.owner.toString() === req.user._id.toString();
+    if (req.user.role !== "admin" && !isOwner) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+
+    const { start, end, reason } = req.body;
+    const startDate = start ? new Date(start) : null;
+    const endDate   = end   ? new Date(end)   : null;
+    if (!startDate || !endDate || isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || endDate <= startDate) {
+      return res.status(400).json({ message: "Période invalide (date de fin après la date de début requises)." });
+    }
+
+    driver.blackoutDates.push({ start: startDate, end: endDate, reason: (reason || "").slice(0, 200) });
+    await driver.save();
+
+    res.status(201).json({ driver });
+  } catch (err) {
+    logger.error("addDriverBlackout:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+export const removeDriverBlackout = async (req, res) => {
+  try {
+    const driver = await Driver.findById(req.params.id);
+    if (!driver) return res.status(404).json({ message: "Chauffeur introuvable." });
+
+    const isOwner = driver.owner.toString() === req.user._id.toString();
+    if (req.user.role !== "admin" && !isOwner) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+
+    driver.blackoutDates = driver.blackoutDates.filter((b) => b._id.toString() !== req.params.blackoutId);
+    await driver.save();
+
+    res.json({ driver });
+  } catch (err) {
+    logger.error("removeDriverBlackout:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
 // ── Supprimer plusieurs profils à la fois (sélection multiple) ──────────────
 // Même principe que vehicleController.bulkDeleteVehicles : un partenaire ne
 // peut supprimer que SES propres profils, même s'il envoie des IDs hors

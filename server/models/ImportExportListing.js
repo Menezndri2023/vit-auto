@@ -13,6 +13,16 @@ const importExportListingSchema = new mongoose.Schema({
     ref: "ImporterPartnerProfile",
     required: true,
   },
+  // Entreprise du partenaire concernée par cette annonce (facultatif,
+  // multi-entité/multi-pays — même principe que Vehicle.business). Absent
+  // jusqu'ici : un exportateur avec plusieurs PartnerBusiness ne pouvait
+  // attribuer aucune annonce export à une entité précise. Manque réel trouvé
+  // en audit.
+  business: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "PartnerBusiness",
+    default: null,
+  },
   // Renseigné uniquement quand cette annonce provient de la conversion d'une
   // annonce véhicule (location/vente) — voir vehicleController.convertVehicleToExport.
   convertedFromVehicle: {

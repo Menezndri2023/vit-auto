@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
+import { useCurrency } from "../context/CurrencyContext";
 import { useToast } from "../context/ToastContext";
 import { geocodeAddress, reverseGeocode, getCurrentPosition } from "../utils/geo";
 import { CALLING_CODES } from "../data/autocomplete";
@@ -34,6 +35,7 @@ const VendorSubmit = () => {
   const { user, token } = useAuth();
   const { success, error } = useToast();
   const { addVehicle, drivers } = useVehicles();
+  const { CURRENCIES, rateFromUSD } = useCurrency();
   const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
@@ -172,6 +174,39 @@ const VendorSubmit = () => {
     conditionsLocation: "", conditionsVente: "",
     description: "", images: [""],
   });
+
+  // ── Devise de saisie du prix (affichage uniquement) — le partenaire peut
+  // saisir son prix dans la devise de son choix, convertie en USD à la volée
+  // pour rester compatible avec le moteur de réservation/commission qui
+  // suppose vehicle.pricePerDay/priceForSale toujours en USD. `priceEntry*`
+  // garde le nombre brut tel que tapé (dans priceCurrency) pour l'affichage ;
+  // vehicle.pricePerDay/priceForSale restent la source de vérité en USD.
+  const [priceCurrency, setPriceCurrency] = useState("USD");
+  const [priceEntryPerDay, setPriceEntryPerDay] = useState("");
+  const [priceEntryForSale, setPriceEntryForSale] = useState("");
+
+  const handlePriceEntryChange = (field, raw) => {
+    if (field === "pricePerDay") setPriceEntryPerDay(raw);
+    else setPriceEntryForSale(raw);
+    if (raw === "" || isNaN(Number(raw))) { setVeh(field, ""); return; }
+    const num = Number(raw);
+    const usd = priceCurrency === "USD" ? num : Math.round((num / rateFromUSD(priceCurrency)) * 100) / 100;
+    setVeh(field, usd);
+  };
+
+  const handlePriceCurrencyChange = (code) => {
+    setPriceCurrency(code);
+    // Le nombre déjà saisi est réinterprété dans la nouvelle devise (comme un
+    // changement de devise avant validation, pas une reconversion du montant).
+    if (priceEntryPerDay !== "" && !isNaN(Number(priceEntryPerDay))) {
+      const num = Number(priceEntryPerDay);
+      setVeh("pricePerDay", code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100);
+    }
+    if (priceEntryForSale !== "" && !isNaN(Number(priceEntryForSale))) {
+      const num = Number(priceEntryForSale);
+      setVeh("priceForSale", code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100);
+    }
+  };
 
   // ── Données chauffeur
   const [driver, setDriver] = useState({
@@ -977,12 +1012,18 @@ const VendorSubmit = () => {
             <div className={styles.grid2}>
               {adType === "location" && <>
                 <div className={styles.field}>
-                  <label>Prix par jour (USD) *</label>
+                  <label>Prix par jour *</label>
                   <div className={styles.inputAffix}>
-                    <input type="number" name="pricePerDay" value={vehicle.pricePerDay}
-                      onChange={handleVehChange} placeholder="Ex : 50000" min="1000" />
-                    <span>USD / jour</span>
+                    <input type="number" value={priceEntryPerDay}
+                      onChange={(e) => handlePriceEntryChange("pricePerDay", e.target.value)}
+                      placeholder="Ex : 50000" min="0" />
+                    <select value={priceCurrency} onChange={(e) => handlePriceCurrencyChange(e.target.value)}>
+                      {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                    </select>
                   </div>
+                  {priceCurrency !== "USD" && vehicle.pricePerDay !== "" && (
+                    <span className={styles.hint}>≈ {fmt(vehicle.pricePerDay)} USD / jour (converti automatiquement)</span>
+                  )}
                   {errors.pricePerDay && <span className={styles.err}>{errors.pricePerDay}</span>}
                 </div>
                 <div className={styles.field}>
@@ -1032,12 +1073,18 @@ const VendorSubmit = () => {
               {adType === "vente" && (
                 <>
                   <div className={`${styles.field} ${styles.colSpan2}`}>
-                    <label>Prix de vente (USD) *</label>
+                    <label>Prix de vente *</label>
                     <div className={styles.inputAffix}>
-                      <input type="number" name="priceForSale" value={vehicle.priceForSale}
-                        onChange={handleVehChange} placeholder="Ex : 12000000" min="1000" />
-                      <span>USD</span>
+                      <input type="number" value={priceEntryForSale}
+                        onChange={(e) => handlePriceEntryChange("priceForSale", e.target.value)}
+                        placeholder="Ex : 12000000" min="0" />
+                      <select value={priceCurrency} onChange={(e) => handlePriceCurrencyChange(e.target.value)}>
+                        {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                      </select>
                     </div>
+                    {priceCurrency !== "USD" && vehicle.priceForSale !== "" && (
+                      <span className={styles.hint}>≈ {fmt(vehicle.priceForSale)} USD (converti automatiquement)</span>
+                    )}
                     {errors.priceForSale && <span className={styles.err}>{errors.priceForSale}</span>}
                   </div>
                   <div className={`${styles.field} ${styles.colSpan2}`}>

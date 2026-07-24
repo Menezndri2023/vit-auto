@@ -74,6 +74,25 @@ const PartnerFleetImport = () => {
   const [batchId, setBatchId] = useState(null);
   const [batch, setBatch] = useState(null);
 
+  // ── Entreprise du partenaire (facultatif, multi-entité/multi-pays — voir
+  // VendorSubmit.jsx) : son pays prime alors sur celui du compte pour toutes
+  // les lignes de ce batch. Non pertinent pour l'export (ImportExportListing
+  // n'a pas de notion d'entreprise).
+  const [businesses, setBusinesses] = useState([]);
+  const [selectedBusinessId, setSelectedBusinessId] = useState("");
+
+  useEffect(() => {
+    if (isExport) return;
+    api.get("/api/partner/businesses")
+      .then((res) => {
+        const list = res.businesses || [];
+        setBusinesses(list);
+        const def = list.find((b) => b.isDefault);
+        if (def) setSelectedBusinessId(def._id);
+      })
+      .catch(() => {});
+  }, [isExport]);
+
   const chooseMethod = (m) => {
     if (m.soon) return;
     setMethod(m.id);
@@ -117,15 +136,35 @@ const PartnerFleetImport = () => {
     handleFiles(e.dataTransfer.files);
   };
 
+  // Redirige vers l'écran de vérification manquant plutôt que d'afficher une
+  // simple erreur générique — même logique que VendorSubmit.jsx : un partenaire
+  // bloqué par KYC/certification doit être guidé vers la bonne page, pas
+  // laissé face à un message sans action possible.
+  const handleGateError = (e, fallback) => {
+    if (e.code === "KYC_REQUIRED") {
+      error("Vérifiez votre identité (pièce d'identité + selfie) pour importer une flotte. Redirection…");
+      setTimeout(() => navigate("/kyc"), 1500);
+    } else if (e.code === "CERTIFICATION_REQUIRED") {
+      error("Terminez votre vérification partenaire pour importer une flotte. Redirection…");
+      setTimeout(() => navigate("/partner-onboarding"), 1500);
+    } else {
+      error(e.message || fallback);
+    }
+  };
+
   const startImport = async (body) => {
     setSubmitting(true);
     try {
-      const res = await api.post("/api/vehicles/import", { ...body, targetType: isExport ? "export" : "vehicle" });
+      const res = await api.post("/api/vehicles/import", {
+        ...body,
+        targetType: isExport ? "export" : "vehicle",
+        businessId: !isExport ? (selectedBusinessId || undefined) : undefined,
+      });
       setBatchId(res.batchId);
       setBatch(null);
       setStep(3);
     } catch (e) {
-      error(e.message || "Erreur lors du démarrage de l'import.");
+      handleGateError(e, "Erreur lors du démarrage de l'import.");
     } finally {
       setSubmitting(false);
     }
@@ -143,7 +182,7 @@ const PartnerFleetImport = () => {
       setPendingBody(body);
       setStep("mapping");
     } catch (e) {
-      error(e.message || "Erreur lors de l'analyse du fichier.");
+      handleGateError(e, "Erreur lors de l'analyse du fichier.");
     } finally {
       setAnalyzing(false);
     }
@@ -403,6 +442,24 @@ const PartnerFleetImport = () => {
               </div>
             ))}
           </div>
+
+          {!isExport && businesses.length > 0 && (
+            <div style={{ marginTop: 18 }}>
+              <label style={{ display: "block", fontSize: ".85rem", fontWeight: 700, color: "#334155", marginBottom: 6 }}>
+                Quelle entreprise pour tous les véhicules de cet import ?
+              </label>
+              <select
+                value={selectedBusinessId}
+                onChange={(e) => setSelectedBusinessId(e.target.value)}
+                style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+              >
+                <option value="">Compte personnel (aucune entreprise)</option>
+                {businesses.map((b) => (
+                  <option key={b._id} value={b._id}>{b.companyName} — {b.ville}, {b.country}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {!isExport && !mapping.type && (
             <div style={{ marginTop: 18, padding: "14px 18px", background: "#eff6ff", border: "1.5px solid #93c5fd", borderRadius: 12 }}>

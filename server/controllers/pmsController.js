@@ -7,6 +7,8 @@ import Vehicle from "../models/Vehicle.js";
 import User from "../models/User.js";
 import { sendViaEmail, sendViaSms } from "../services/communication/CommunicationService.js";
 
+const APP_URL = process.env.APP_URL || "https://vit-auto.com";
+
 // Champs autorisés à la création d'un lead (sous-ensemble strict)
 const LEAD_CREATE_FIELDS = [
   "buyer", "vehicle", "budget", "destinationCountry", "destinationPort",
@@ -21,8 +23,11 @@ const LEAD_UPDATE_FIELDS = [
 ];
 
 // Champs autorisés pour la mise à jour d'un devis
+// "leadId" manquait jusqu'ici : un devis créé depuis un lead n'y était jamais
+// réellement rattaché (createQuote l'ignorait silencieusement), rendant tout
+// le suivi devis↔lead impossible malgré leadId existant sur le modèle Quote.
 const QUOTE_UPDATE_FIELDS = [
-  "buyer", "vehicles", "lines", "subtotal", "discount", "discountAmount",
+  "leadId", "buyer", "vehicles", "lines", "subtotal", "discount", "discountAmount",
   "taxRate", "taxAmount", "total", "currency", "incoterm", "paymentTerms",
   "paymentMethod", "portOfLoading", "portOfDischarge", "deliveryTime",
   "validityDays", "validUntil", "notes", "conditions", "status",
@@ -262,11 +267,63 @@ export async function getQuotes(req, res) {
   }
 }
 
+// ── Notifie l'acheteur (email/SMS + lien public) et synchronise le lead ─────
+// Extrait de sendQuote pour être aussi appelé depuis createQuote : le
+// constructeur de devis (PartnerPMSDashboard.jsx) peut créer ET envoyer en une
+// seule action ("Créer & Envoyer" → POST /quotes avec status="envoye"
+// directement, sans jamais appeler POST /quotes/:id/send) — sans ce partage,
+// la notification acheteur ne partait que si le devis passait d'abord par le
+// statut "brouillon" puis un envoi séparé.
+async function dispatchQuoteToBuyer(quote, partnerId) {
+  const partner = await User.findById(partnerId).select("firstName lastName business.name").lean();
+  const partnerName = partner?.business?.name || `${partner?.firstName || ""} ${partner?.lastName || ""}`.trim() || "VIT AUTO";
+  const totalFmt = `${Number(quote.total || 0).toLocaleString("fr-FR")} ${quote.currency}`;
+  const quoteLink = `${APP_URL}/quote/${quote.publicToken}`;
+
+  if (quote.buyer?.email) {
+    sendViaEmail({
+      to: quote.buyer.email,
+      subject: `Devis ${quote.quoteNumber} — ${partnerName}`,
+      html: `<p>Bonjour ${quote.buyer.name || ""},</p>
+        <p>${partnerName} vous a envoyé un devis pour votre projet d'importation :</p>
+        <p><strong>Devis n°${quote.quoteNumber}</strong><br/>Montant total : <strong>${totalFmt}</strong></p>
+        <p><a href="${quoteLink}">👉 Consulter le devis en détail et répondre</a></p>
+        <p>Vous pourrez accepter ou refuser directement en ligne, sans créer de compte.</p>`,
+    }).catch((err) => logger.error("dispatchQuoteToBuyer email:", err));
+  }
+  if (quote.buyer?.phone) {
+    sendViaSms({
+      to: quote.buyer.phone,
+      message: `VIT AUTO : ${partnerName} vous a envoyé le devis ${quote.quoteNumber} (${totalFmt}). Consultez-le et répondez ici : ${quoteLink}`,
+    }).catch((err) => logger.error("dispatchQuoteToBuyer sms:", err));
+  }
+
+  if (quote.leadId) {
+    await Lead.findByIdAndUpdate(quote.leadId, { status: "devis_envoye", quoteId: quote._id }).catch(() => {});
+  }
+}
+
 export async function createQuote(req, res) {
   try {
     const safe = pick(req.body, QUOTE_UPDATE_FIELDS);
+    // Un leadId hors périmètre (autre partenaire) ne doit jamais être accepté
+    // silencieusement — même garde que les autres endpoints partnerId-scopés.
+    if (safe.leadId) {
+      const lead = await Lead.findOne({ _id: safe.leadId, partnerId: req.user._id }).select("_id");
+      if (!lead) return res.status(400).json({ message: "Lead introuvable." });
+    }
     const data = calcTotals({ ...safe, partnerId: req.user._id });
     const quote = await Quote.create(data);
+
+    if (quote.leadId) {
+      await Lead.findByIdAndUpdate(quote.leadId, { quoteId: quote._id }).catch(() => {});
+    }
+    if (quote.status === "envoye") {
+      quote.sentAt = new Date();
+      await quote.save();
+      await dispatchQuoteToBuyer(quote, req.user._id);
+    }
+
     res.status(201).json(quote);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -299,6 +356,12 @@ export async function updateQuote(req, res) {
   }
 }
 
+// Le passage à "envoye" ne notifiait jamais réellement l'acheteur — le
+// partenaire croyait le devis transmis alors que rien ne partait jamais vers
+// buyer.email/buyer.phone (saisis au formulaire mais jamais utilisés). Le
+// message ne contenait qu'un résumé texte SANS AUCUN LIEN — l'acheteur
+// n'avait aucun moyen de consulter le détail ni de répondre en ligne. Manque
+// réel trouvé en audit, corrigé par dispatchQuoteToBuyer (lien public).
 export async function sendQuote(req, res) {
   try {
     const quote = await Quote.findOneAndUpdate(
@@ -308,29 +371,72 @@ export async function sendQuote(req, res) {
     );
     if (!quote) return res.status(404).json({ message: "Devis introuvable ou non modifiable" });
 
-    // Le passage à "envoye" ne notifiait jamais réellement l'acheteur — le
-    // partenaire croyait le devis transmis alors que rien ne partait jamais
-    // vers buyer.email/buyer.phone (saisis au formulaire mais jamais utilisés).
-    const partner = await User.findById(req.user._id).select("firstName lastName business.name").lean();
-    const partnerName = partner?.business?.name || `${partner?.firstName || ""} ${partner?.lastName || ""}`.trim() || "VIT AUTO";
-    const totalFmt = `${Number(quote.total || 0).toLocaleString("fr-FR")} ${quote.currency}`;
+    await dispatchQuoteToBuyer(quote, req.user._id);
 
-    if (quote.buyer?.email) {
-      sendViaEmail({
-        to: quote.buyer.email,
-        subject: `Devis ${quote.quoteNumber} — ${partnerName}`,
-        html: `<p>Bonjour ${quote.buyer.name || ""},</p>
-          <p>${partnerName} vous a envoyé un devis pour votre projet d'importation :</p>
-          <p><strong>Devis n°${quote.quoteNumber}</strong><br/>Montant total : <strong>${totalFmt}</strong></p>
-          <p>Connectez-vous à votre espace VIT AUTO ou contactez directement le partenaire pour toute question.</p>`,
-      }).catch((err) => logger.error("sendQuote email:", err));
+    res.json(quote);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+// ── Consultation publique d'un devis (acheteur, sans compte) ────────────────
+// Aucune route publique n'existait — le lien envoyé par email/SMS ci-dessus
+// menait nulle part avant cet ajout. Le statut passe à "vu" au premier accès
+// (viewedAt), jamais recalculé ensuite si déjà répondu/expiré.
+export async function getPublicQuote(req, res) {
+  try {
+    const quote = await Quote.findOne({ publicToken: req.params.token });
+    if (!quote) return res.status(404).json({ message: "Devis introuvable." });
+
+    if (quote.status === "envoye") {
+      quote.status = "vu";
+      quote.viewedAt = new Date();
+      await quote.save();
     }
-    if (quote.buyer?.phone) {
-      sendViaSms({
-        to: quote.buyer.phone,
-        message: `VIT AUTO : ${partnerName} vous a envoyé le devis ${quote.quoteNumber} (${totalFmt}). Consultez votre email pour le détail.`,
-      }).catch((err) => logger.error("sendQuote sms:", err));
+
+    res.json(quote);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+// ── Réponse publique de l'acheteur (accepter/refuser) ───────────────────────
+export async function respondPublicQuote(req, res) {
+  try {
+    const { action } = req.body;
+    if (!["accept", "refuse"].includes(action)) {
+      return res.status(400).json({ message: "Action invalide." });
     }
+
+    const quote = await Quote.findOne({ publicToken: req.params.token });
+    if (!quote) return res.status(404).json({ message: "Devis introuvable." });
+    if (!["envoye", "vu"].includes(quote.status)) {
+      return res.status(409).json({ message: "Ce devis a déjà reçu une réponse ou n'est plus disponible." });
+    }
+
+    quote.status = action === "accept" ? "accepte" : "refuse";
+    quote.answeredAt = new Date();
+    await quote.save();
+
+    if (quote.leadId) {
+      await Lead.findByIdAndUpdate(quote.leadId, {
+        status: action === "accept" ? "negociation" : "perdu",
+        ...(action === "refuse" ? { lostReason: "Devis refusé par l'acheteur" } : {}),
+      }).catch(() => {});
+    }
+
+    // Notifier le partenaire de la réponse — sans quoi il ne l'apprendrait
+    // qu'en revérifiant manuellement le statut du devis.
+    try {
+      const Notification = (await import("../models/Notification.js")).default;
+      await Notification.create({
+        user: quote.partnerId,
+        type: "system",
+        titre: action === "accept" ? "✅ Devis accepté" : "❌ Devis refusé",
+        message: `${quote.buyer?.name || "L'acheteur"} a ${action === "accept" ? "accepté" : "refusé"} le devis ${quote.quoteNumber}.`,
+        lien: "/partner-pms",
+      });
+    } catch { /* non-bloquant */ }
 
     res.json(quote);
   } catch (err) {

@@ -149,7 +149,27 @@ export default function InsuranceRequest() {
                         <strong>{TYPE_OPTIONS.find((o) => o.value === r.type)?.label || r.type}</strong>
                         <div className={styles.itemMeta}>{r.vehicleInfo || "—"} · {r.coveragePeriodMonths} mois</div>
                         {r.status === "approved" && r.premium != null && (
-                          <div className={styles.premium}>Prime proposée : {fmtUSD(r.premium)}{r.isPaid ? " — ✅ Payée" : ""}</div>
+                          <div className={styles.premium}>
+                            Prime proposée : {fmtUSD(r.premium)}{r.isPaid ? " — ✅ Payée" : ""}
+                            {r.isPaid && (
+                              <button
+                                type="button"
+                                style={{ marginLeft: 10, background: "none", border: "none", color: "#6366f1", cursor: "pointer", textDecoration: "underline", fontSize: ".82rem" }}
+                                onClick={async () => {
+                                  const res = await fetch(`/api/insurance/${r._id}/receipt`, { headers: { Authorization: `Bearer ${token}` } });
+                                  if (!res.ok) return;
+                                  const blob = await res.blob();
+                                  const url = URL.createObjectURL(blob);
+                                  const a = document.createElement("a");
+                                  a.href = url; a.download = `recu-assurance-${r._id}.pdf`;
+                                  a.click();
+                                  URL.revokeObjectURL(url);
+                                }}
+                              >
+                                📥 Reçu
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                       <span className={styles.badge} style={{ color: st.c, background: st.bg }}>{st.l}</span>

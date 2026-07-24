@@ -532,3 +532,47 @@ export function generateServiceInvoicePDF(invoice, res) {
 export function generateServiceInvoicePDFBuffer(invoice) {
   return buildPDFBuffer((doc) => drawServiceInvoice(doc, invoice));
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 6. REÇU GÉNÉRIQUE (assurance, service, Import/Export) — jusqu'ici seul un
+// Booking (location/vente/essai/chauffeur) produisait un reçu PDF téléchargeable
+// par le client. Un client payant une prime d'assurance, un devis de service, ou
+// un acompte/solde Import/Export n'avait aucun reçu — manque réel trouvé en audit.
+// ══════════════════════════════════════════════════════════════════════════════
+function drawGenericReceipt(doc, data) {
+  const ref = data.reference || `VIT-REC-${Date.now()}`;
+  header(doc, "REÇU DE PAIEMENT", ref);
+
+  section(doc, "Transaction");
+  row(doc, "Référence",       ref);
+  row(doc, "Date",            fmtDate(data.paidAt || new Date()));
+  row(doc, "Mode de paiement", data.method || "—");
+  doc.moveDown();
+
+  section(doc, "Client");
+  row(doc, "Nom",   data.clientName  || "—");
+  row(doc, "Email", data.clientEmail || "—");
+  doc.moveDown();
+
+  section(doc, "Prestation");
+  row(doc, "Type", data.title || "—");
+  if (data.description) row(doc, "Détail", data.description);
+  doc.moveDown();
+
+  doc.rect(40, doc.y, doc.page.width - 80, 40).fill(NAVY);
+  doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(14)
+    .text("MONTANT PAYÉ :", 50, doc.y - 36, { width: 300 })
+    .text(fmtAmount(data.amount, data.currency), 0, doc.y, { align: "right", width: doc.page.width - 50 });
+
+  footer(doc);
+}
+
+export function generateGenericReceiptPDF(data, res) {
+  const doc = new PDFDocument({ margin: 40, size: "A4" });
+  const ref = data.reference || `VIT-REC-${Date.now()}`;
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="recu-${ref}.pdf"`);
+  doc.pipe(res);
+  drawGenericReceipt(doc, data);
+  doc.end();
+}

@@ -1,31 +1,27 @@
 import { describe, it, expect } from "vitest";
 import { isValidCountryCode } from "../utils/countries.js";
-import CountryConfig from "../models/CountryConfig.js";
 
-// Régression : isValidCountryCode() comparait auparavant à une liste figée de
-// 13 pays (server/utils/countries.js), désynchronisée de CountryConfig (27
-// pays depuis la refonte du modèle économique) — un utilisateur choisissant
-// un pays présent dans le sélecteur (alimenté par CountryConfig) mais absent
-// de l'ancienne liste (ex: Chine, Ghana, Nigeria, Allemagne...) se voyait
-// rejeté à l'inscription avec "Pays invalide" alors que son pays était bien
-// supporté et actif.
+// Régression : isValidCountryCode() comparait auparavant à CountryConfig (la
+// trentaine de pays où VIT AUTO a configuré une offre commerciale active) —
+// un partenaire dans un pays réel mais pas encore dans CountryConfig (ex:
+// Kenya, Brésil, Afrique du Sud, Inde...) se voyait rejeté à l'inscription
+// avec "Pays invalide". La fonction valide maintenant contre la liste ISO
+// 3166-1 complète (249 codes), indépendante de tout déploiement commercial.
 describe("isValidCountryCode", () => {
-  it("accepte un pays présent et actif dans CountryConfig", async () => {
-    await CountryConfig.create({ code: "CN", name: "Chine", defaultCurrency: "CNY" });
+  it("accepte un pays présent dans CountryConfig (ex: Chine)", async () => {
     expect(await isValidCountryCode("cn")).toBe(true); // insensible à la casse
   });
 
-  it("accepte un pays qui n'était PAS dans l'ancienne liste figée (ex: Ghana)", async () => {
-    await CountryConfig.create({ code: "GH", name: "Ghana", defaultCurrency: "GHS" });
-    expect(await isValidCountryCode("GH")).toBe(true);
+  it("accepte un pays qui n'était PAS dans CountryConfig (ex: Kenya)", async () => {
+    expect(await isValidCountryCode("KE")).toBe(true);
   });
 
-  it("rejette un pays absent de CountryConfig", async () => {
+  it("accepte un pays qui n'était PAS dans CountryConfig (ex: Brésil)", async () => {
+    expect(await isValidCountryCode("BR")).toBe(true);
+  });
+
+  it("rejette un code qui n'est pas un pays ISO 3166-1 valide", async () => {
     expect(await isValidCountryCode("ZZ")).toBe(false);
-  });
-
-  it("rejette un pays désactivé (active: false)", async () => {
-    await CountryConfig.create({ code: "XX", name: "Pays test", defaultCurrency: "USD", active: false });
     expect(await isValidCountryCode("XX")).toBe(false);
   });
 

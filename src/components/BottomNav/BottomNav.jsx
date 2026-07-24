@@ -98,9 +98,14 @@ export default function BottomNav() {
                     </button>
                   </>
                 ) : (
-                  <button className={styles.sheetItem} onClick={() => { navigate("/dashboard"); setMoreOpen(false); }}>
-                    📊 Tableau de bord
-                  </button>
+                  <>
+                    <button className={styles.sheetItem} onClick={() => { navigate("/dashboard"); setMoreOpen(false); }}>
+                      📊 Tableau de bord
+                    </button>
+                    <button className={styles.sheetItem} onClick={() => { navigate("/import-export/dashboard"); setMoreOpen(false); }}>
+                      📦 Mes achats Import/Export
+                    </button>
+                  </>
                 )}
                 <button className={styles.sheetItem} onClick={() => { navigate("/help"); setMoreOpen(false); }}>
                   💬 Centre d'aide

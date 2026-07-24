@@ -2,6 +2,7 @@ import logger from "../utils/logger.js";
 import ServiceRequest, { SERVICE_REQUEST_CATEGORIES } from "../models/ServiceRequest.js";
 import Notification from "../models/Notification.js";
 import { getServiceConfig } from "../services/pricingEngine.js";
+import { generateGenericReceiptPDF } from "../utils/pdfGenerator.js";
 
 const CATEGORY_LABELS = {
   inspection:      "Inspection indépendante",
@@ -117,6 +118,34 @@ export const setDecision = async (req, res) => {
     res.json({ success: true, request });
   } catch (err) {
     logger.error("setServiceRequestDecision:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── GET /api/services/:id/receipt — reçu PDF du devis payé ──────────────────
+// Même manque que l'assurance : aucun reçu n'existait pour un devis de
+// service payé (inspection, transport, douanes...). Trouvé en audit.
+export const getRequestReceipt = async (req, res) => {
+  try {
+    const request = await ServiceRequest.findById(req.params.id).populate("client", "firstName lastName email");
+    if (!request) return res.status(404).json({ message: "Demande introuvable." });
+    if (req.user.role !== "admin" && request.client._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+    if (!request.isPaid) return res.status(409).json({ message: "Ce devis n'a pas encore été payé." });
+
+    generateGenericReceiptPDF({
+      reference:   `VIT-SRV-${request._id.toString().slice(-8).toUpperCase()}`,
+      title:       `Service — ${CATEGORY_LABELS[request.category] || request.category}`,
+      clientName:  `${request.client.firstName} ${request.client.lastName}`,
+      clientEmail: request.client.email,
+      amount:      request.quotedAmountUSD,
+      currency:    "USD",
+      paidAt:      request.paidAt,
+      method:      "Paiement en ligne",
+    }, res);
+  } catch (err) {
+    logger.error("getServiceRequestReceipt:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

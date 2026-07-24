@@ -7,6 +7,8 @@ import Booking from "../models/Booking.js";
 import PartnerVerification from "../models/PartnerVerification.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
 import ImportExportListing from "../models/ImportExportListing.js";
+import VehicleMaintenanceLog from "../models/VehicleMaintenanceLog.js";
+import { syncVehicleAvailability } from "./bookingController.js";
 import { dispatch } from "../queue/index.js";
 import { scoreAnnonce, buildVehicleWhitelist, limitVehicleImages } from "../services/vehicleScoring.js";
 import { logAction } from "../middleware/auditLog.js";
@@ -693,6 +695,84 @@ export const updatePromotion = async (req, res) => {
   }
 };
 
+// ── Journal d'entretien/incident/dommage ──────────────────────────────────────
+// Aucune trace n'existait jusqu'ici de l'entretien d'un véhicule ni des
+// dommages constatés au retour d'une location (Vehicle n'a qu'un simple
+// kilometrage) — bug/manque réel trouvé en audit.
+export const addMaintenanceLog = async (req, res) => {
+  try {
+    const vehicle = await Vehicle.findById(req.params.id);
+    if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable." });
+
+    const isOwner = vehicle.owner.toString() === req.user._id.toString();
+    if (req.user.role !== "admin" && !isOwner) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+
+    const { type, date, kilometrage, description, cost, photos, bookingId } = req.body;
+    if (!["entretien", "incident", "dommage"].includes(type)) {
+      return res.status(400).json({ message: "Type invalide (entretien, incident ou dommage)." });
+    }
+    if (!String(description || "").trim()) {
+      return res.status(400).json({ message: "Une description est requise." });
+    }
+
+    const log = await VehicleMaintenanceLog.create({
+      vehicle:     vehicle._id,
+      owner:       vehicle.owner,
+      type,
+      date:        date || new Date(),
+      kilometrage: Number.isFinite(Number(kilometrage)) ? Number(kilometrage) : null,
+      description: String(description).trim(),
+      cost:        Number(cost) || 0,
+      photos:      Array.isArray(photos) ? photos.slice(0, 8) : [],
+      booking:     mongoose.Types.ObjectId.isValid(bookingId) ? bookingId : null,
+      createdBy:   req.user._id,
+    });
+
+    res.status(201).json({ log });
+  } catch (err) {
+    logger.error("addMaintenanceLog:", err);
+    res.status(500).json({ message: "Erreur lors de l'ajout au journal." });
+  }
+};
+
+export const getMaintenanceLogs = async (req, res) => {
+  try {
+    const vehicle = await Vehicle.findById(req.params.id).select("owner");
+    if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable." });
+
+    const isOwner = vehicle.owner.toString() === req.user._id.toString();
+    if (req.user.role !== "admin" && !isOwner) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+
+    const logs = await VehicleMaintenanceLog.find({ vehicle: vehicle._id }).sort({ date: -1 });
+    res.json({ logs });
+  } catch (err) {
+    logger.error("getMaintenanceLogs:", err);
+    res.status(500).json({ message: "Erreur récupération du journal." });
+  }
+};
+
+export const deleteMaintenanceLog = async (req, res) => {
+  try {
+    const log = await VehicleMaintenanceLog.findById(req.params.logId);
+    if (!log) return res.status(404).json({ message: "Entrée introuvable." });
+
+    const isOwner = log.owner.toString() === req.user._id.toString();
+    if (req.user.role !== "admin" && !isOwner) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+
+    await log.deleteOne();
+    res.json({ message: "Entrée supprimée." });
+  } catch (err) {
+    logger.error("deleteMaintenanceLog:", err);
+    res.status(500).json({ message: "Erreur suppression." });
+  }
+};
+
 // ── Supprimer une annonce (propriétaire ou admin) ─────────────────────────────
 export const deleteVehicle = async (req, res) => {
   try {
@@ -757,6 +837,56 @@ export const bulkDeleteVehicles = async (req, res) => {
   } catch (err) {
     logger.error("bulkDeleteVehicles:", err);
     res.status(500).json({ message: "Erreur suppression multiple." });
+  }
+};
+
+// ── Actions en masse sur une sélection de véhicules : ajustement de prix
+// (pourcentage) et/ou pause/reprise manuelle de disponibilité ────────────────
+// Jusqu'ici la sélection multiple (voir bulkDeleteVehicles) ne permettait QUE
+// la suppression — aucun moyen de mettre plusieurs véhicules en promo/pause/
+// ajustement tarifaire d'un coup. Même filtrage silencieux par `owner` que
+// bulkDeleteVehicles : un partenaire ne peut agir que sur ses propres annonces.
+export const bulkUpdateVehicles = async (req, res) => {
+  try {
+    const { ids, priceAdjustPercent, manuallyPaused } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "Liste d'identifiants requise." });
+    }
+    if (ids.length > MAX_BULK_DELETE) {
+      return res.status(400).json({ message: `Maximum ${MAX_BULK_DELETE} annonces à la fois.` });
+    }
+    if (priceAdjustPercent === undefined && manuallyPaused === undefined) {
+      return res.status(400).json({ message: "Aucune action fournie (priceAdjustPercent ou manuallyPaused)." });
+    }
+    const pct = priceAdjustPercent !== undefined ? Number(priceAdjustPercent) : null;
+    if (pct !== null && (!Number.isFinite(pct) || pct <= -100 || pct > 500)) {
+      return res.status(400).json({ message: "Pourcentage d'ajustement invalide." });
+    }
+
+    const validIds = ids.filter((id) => mongoose.Types.ObjectId.isValid(id));
+    const filter = { _id: { $in: validIds } };
+    if (req.user.role !== "admin") filter.owner = req.user._id;
+
+    const vehicles = await Vehicle.find(filter).select("_id pricePerDay priceForSale");
+    if (vehicles.length === 0) {
+      return res.status(404).json({ message: "Aucune annonce trouvée ou accès refusé." });
+    }
+
+    for (const vehicle of vehicles) {
+      if (pct !== null) {
+        const factor = 1 + pct / 100;
+        if (vehicle.pricePerDay)  vehicle.pricePerDay  = Math.max(1, Math.round(vehicle.pricePerDay  * factor));
+        if (vehicle.priceForSale) vehicle.priceForSale = Math.max(1, Math.round(vehicle.priceForSale * factor));
+      }
+      if (manuallyPaused !== undefined) vehicle.manuallyPaused = !!manuallyPaused;
+      await vehicle.save();
+      if (manuallyPaused !== undefined) await syncVehicleAvailability(vehicle._id);
+    }
+
+    res.json({ message: `${vehicles.length} annonce(s) mise(s) à jour.`, updatedCount: vehicles.length });
+  } catch (err) {
+    logger.error("bulkUpdateVehicles:", err);
+    res.status(500).json({ message: "Erreur mise à jour multiple." });
   }
 };
 
@@ -829,7 +959,7 @@ export const getVehicleAvailability = async (req, res) => {
     const { id } = req.params;
     const { startDate, endDate } = req.query;
 
-    const vehicle = await Vehicle.findById(id).select("title type available owner");
+    const vehicle = await Vehicle.findById(id).select("title type available owner manuallyPaused");
     if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable." });
 
     const today = new Date();
@@ -852,15 +982,19 @@ export const getVehicleAvailability = async (req, res) => {
     }).select("reference status location.startDate location.endDate -_id");
 
     const isOccupied = !!conflict;
+    // Une pause manuelle (voir bulkUpdateVehicles) prime toujours sur le calcul
+    // par occupation — sans quoi cette synchro repasserait silencieusement le
+    // véhicule "disponible" dès qu'aucune réservation active ne le couvre.
+    const shouldBeAvailable = !vehicle.manuallyPaused && !isOccupied;
 
     // Synchroniser le champ available si nécessaire
-    if (vehicle.type === "location" && vehicle.available === isOccupied) {
-      await Vehicle.findByIdAndUpdate(id, { available: !isOccupied });
+    if (vehicle.type === "location" && vehicle.available !== shouldBeAvailable) {
+      await Vehicle.findByIdAndUpdate(id, { available: shouldBeAvailable });
     }
 
     res.json({
       vehicleId:   id,
-      available:   !isOccupied,
+      available:   shouldBeAvailable,
       isOccupied,
       conflict:    conflict ? {
         reference:  conflict.reference,
@@ -892,7 +1026,7 @@ export const syncAllAvailability = async (req, res) => {
     ];
 
     // Trouver tous les véhicules location
-    const vehicles = await Vehicle.find({ type: "location" }).select("_id available").lean();
+    const vehicles = await Vehicle.find({ type: "location" }).select("_id available manuallyPaused").lean();
 
     // Pour chaque véhicule, vérifier s'il a un booking actif aujourd'hui
     const activeBookings = await Booking.find({
@@ -905,9 +1039,12 @@ export const syncAllAvailability = async (req, res) => {
 
     // bulkWrite en un seul aller-retour Mongo au lieu d'un findByIdAndUpdate séquentiel
     // par véhicule — et on n'écrit que les documents dont la valeur change réellement.
+    // Une pause manuelle (bulkUpdateVehicles) prime toujours sur le calcul par
+    // occupation, sinon cette synchro globale annulerait silencieusement toute
+    // pause partenaire dès qu'aucune réservation active ne couvre le véhicule.
     const ops = [];
     for (const v of vehicles) {
-      const shouldBeAvailable = !occupiedIds.has(v._id.toString());
+      const shouldBeAvailable = !v.manuallyPaused && !occupiedIds.has(v._id.toString());
       if (v.available !== shouldBeAvailable) {
         ops.push({ updateOne: { filter: { _id: v._id }, update: { $set: { available: shouldBeAvailable } } } });
       }

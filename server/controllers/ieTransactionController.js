@@ -11,6 +11,10 @@ import { stripeProvider } from "../services/payment/gateway.js";
 import { resolveCommissionRate } from "../services/pricingEngine.js";
 import { computeImportCost } from "../services/importCostEngine.js";
 import { captureException } from "../config/sentry.js";
+import { generateGenericReceiptPDF } from "../utils/pdfGenerator.js";
+import { validateDocumentDataUri } from "../utils/imageValidation.js";
+
+const MAX_EXPORT_DOC_BYTES = 8 * 1024 * 1024; // 8 Mo — cohérent avec les autres documents (CV, KYC)
 
 // Commission VIT AUTO sur une transaction Import/Export — barème "import_export"
 // (PricingConfig), avec taux Founding Partner préférentiel puisque le partenaire
@@ -687,6 +691,14 @@ export const updateDocuments = async (req, res) => {
         // de Crédit (voir confirmEscrowPayment) : le partenaire ne peut pas
         // s'auto-valider.
         if (incoming.status === "valide" && !isAdmin) delete incoming.status;
+        // `url` existait sur le schéma mais n'était jamais réellement rempli
+        // par aucune UI — le partenaire ne pouvait que déclarer un statut
+        // ("fourni"), jamais fournir le fichier lui-même (facture, connaissement,
+        // certificat...). Manque réel trouvé en audit.
+        if (incoming.url !== undefined) {
+          const check = validateDocumentDataUri(incoming.url, MAX_EXPORT_DOC_BYTES);
+          if (!check.ok) return res.status(400).json({ message: `${key} : ${check.message}` });
+        }
         tx.documents[key] = { ...tx.documents[key].toObject?.() || {}, ...incoming };
       }
     }
@@ -1044,6 +1056,39 @@ export const getTransactionById = async (req, res) => {
   }
 };
 
+// GET /api/import-export/transactions/:id/receipt — reçu PDF du paiement escrow
+// Aucun reçu n'existait pour un paiement Import/Export (acompte ou solde) —
+// même manque que l'assurance/service. Trouvé en audit.
+export const getTransactionReceipt = async (req, res) => {
+  try {
+    const tx = await IETransaction.findById(req.params.id)
+      .populate("listing", "title make model year")
+      .populate("client", "firstName lastName email");
+    if (!tx) return res.status(404).json({ message: "Transaction introuvable." });
+
+    const isClient = tx.client._id.toString() === req.user._id.toString();
+    if (!isClient && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+    if (!tx.payment?.paidAt) return res.status(409).json({ message: "Aucun paiement confirmé pour cette transaction." });
+
+    generateGenericReceiptPDF({
+      reference:   `VIT-IE-${tx._id.toString().slice(-8).toUpperCase()}`,
+      title:       `Import/Export — ${tx.listing?.title || `${tx.listing?.make || ""} ${tx.listing?.model || ""}`.trim()}`,
+      clientName:  `${tx.client.firstName} ${tx.client.lastName}`,
+      clientEmail: tx.client.email,
+      amount:      tx.payment.amount,
+      currency:    tx.payment.currency,
+      paidAt:      tx.payment.paidAt,
+      method:      tx.payment.method || "Paiement en ligne",
+      description: tx.payment.installment?.enabled ? "Acompte + solde (paiement échelonné)" : "Paiement intégral",
+    }, res);
+  } catch (err) {
+    logger.error("getTransactionReceipt:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
 // GET /api/import-export/transactions/mine  (client)
 export const getClientTransactions = async (req, res) => {
   try {
@@ -1093,6 +1138,82 @@ export const getPartnerTransactions = async (req, res) => {
     res.json({ transactions, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {
     logger.error("getPartnerTransactions:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// GET /api/import-export/transactions/partner/analytics
+// Un exportateur transigeant en plusieurs devises (EUR, USD...) n'avait aucun
+// total agrégé — seulement chaque transaction affichée isolément dans sa
+// propre devise. Manque réel trouvé en audit.
+export const getPartnerIEAnalytics = async (req, res) => {
+  try {
+    const agg = await IETransaction.aggregate([
+      { $match: { partner: req.user._id } },
+      {
+        $group: {
+          _id:             "$payment.currency",
+          count:           { $sum: 1 },
+          totalAmount:     { $sum: { $ifNull: ["$payment.amount", 0] } },
+          totalCommission: { $sum: { $ifNull: ["$payment.commission.amount", 0] } },
+          totalPayout:     { $sum: { $ifNull: ["$payment.commission.payoutAmount", 0] } },
+          inEscrow:        { $sum: { $cond: [{ $eq: ["$status", "in_escrow"] }, { $ifNull: ["$payment.amount", 0] }, 0] } },
+          disputed:        { $sum: { $cond: [{ $eq: ["$status", "disputed"] }, { $ifNull: ["$payment.amount", 0] }, 0] } },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    const byCurrency = agg
+      .filter((g) => g._id)
+      .map((g) => ({
+        currency:        g._id,
+        count:           g.count,
+        totalAmount:     g.totalAmount,
+        totalCommission: g.totalCommission,
+        totalPayout:     g.totalPayout,
+        inEscrow:        g.inEscrow,
+        disputed:        g.disputed,
+      }));
+
+    res.json({ byCurrency });
+  } catch (err) {
+    logger.error("getPartnerIEAnalytics:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// GET /api/import-export/transactions/partner/export — CSV comptable partenaire
+// (même manque que exportPartnerBookings côté location/vente : aucun export
+// n'existait pour les transactions Import/Export d'un exportateur.)
+export const exportPartnerIETransactions = async (req, res) => {
+  try {
+    const transactions = await IETransaction.find({ partner: req.user._id })
+      .sort({ createdAt: -1 })
+      .limit(5000)
+      .populate("listing", "title make model year")
+      .lean();
+
+    const rows = [
+      "Reference,Annonce,Statut,Montant,Devise,Commission,Net verse,Methode,Date",
+      ...transactions.map((t) => [
+        t._id,
+        t.listing?.title || `${t.listing?.make || ""} ${t.listing?.model || ""}`.trim(),
+        t.status,
+        t.payment?.amount || 0,
+        t.payment?.currency || "EUR",
+        t.payment?.commission?.amount || 0,
+        t.payment?.commission?.payoutAmount || 0,
+        t.payment?.method || "",
+        t.createdAt?.toISOString().slice(0, 10) || "",
+      ].join(",")),
+    ].join("\n");
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="mes-transactions-export-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send("﻿" + rows);
+  } catch (err) {
+    logger.error("exportPartnerIETransactions:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

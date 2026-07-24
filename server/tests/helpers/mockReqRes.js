@@ -28,6 +28,7 @@ export function mockReqRes({ body = {}, params = {}, user = null, query = {} } =
       res.statusCode = code;
       return res;
     }),
+    setHeader: vi.fn(),
   };
   return { req, res };
 }

@@ -14,6 +14,8 @@ router.get("/mine", authenticate, d.getMyDrivers);
 router.post("/bulk-delete", authenticate, d.bulkDeleteDrivers); // supprimer plusieurs profils (sélection)
 router.patch("/:id", authenticate, validateObjectId(), d.updateDriver);
 router.delete("/:id", authenticate, validateObjectId(), d.deleteDriver);
+router.post("/:id/blackout", authenticate, validateObjectId(), d.addDriverBlackout);
+router.delete("/:id/blackout/:blackoutId", authenticate, validateObjectId(), validateObjectId("blackoutId"), d.removeDriverBlackout);
 
 // ── Admin ─────────────────────────────────────────────────
 router.get("/pending", authenticate, authorizeAdmin, d.getPendingDrivers);

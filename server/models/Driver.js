@@ -74,6 +74,21 @@ const driverSchema = new mongoose.Schema({
   nombreAvis:   { type: Number, default: 0 },
   missionsTotal:{ type: Number, default: 0 },
 
+  // ── Congés / indisponibilité bloquée manuellement ─────────────────────────
+  // `disponibilite` (ci-dessus) est un simple libellé fixé une fois à la
+  // création ("Temps plein"/"Weekends"...) — le partenaire n'avait jusqu'ici
+  // aucun moyen de bloquer proactivement des dates précises (congés, arrêt
+  // maladie) : seul l'historique des réservations existantes était visible
+  // (calendrier en lecture seule). Manque réel trouvé en audit.
+  blackoutDates: {
+    type: [{
+      start:  { type: Date, required: true },
+      end:    { type: Date, required: true },
+      reason: { type: String, default: "" },
+    }],
+    default: [],
+  },
+
   // ── Modération ────────────────────────────────────────────
   status: {
     type: String,

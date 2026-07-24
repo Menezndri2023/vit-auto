@@ -30,10 +30,10 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   mockVerifyIdToken.mockReset();
-  // isValidCountryCode() (server/utils/countries.js) vérifie désormais contre
-  // CountryConfig (source de vérité live) et non plus une liste figée — la
-  // base de test étant réinitialisée entre les tests (voir tests/setup.js),
-  // le pays utilisé ci-dessous doit être seedé explicitement.
+  // isValidCountryCode() (server/utils/countries.js) vérifie contre la liste
+  // ISO 3166-1 complète, pas contre CountryConfig — ce seed n'est plus requis
+  // pour la validation du pays, mais reste utile si d'autres tests du fichier
+  // s'appuient sur la config Côte d'Ivoire (devise, moyens de paiement).
   await CountryConfig.create({ code: "CI", name: "Côte d'Ivoire", defaultCurrency: "XOF" });
 });
 

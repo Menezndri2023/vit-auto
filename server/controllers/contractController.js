@@ -4,6 +4,7 @@ import Contract from "../models/Contract.js";
 import Booking from "../models/Booking.js";
 import Vehicle from "../models/Vehicle.js";
 import Driver from "../models/Driver.js";
+import PartnerOnboarding from "../models/PartnerOnboarding.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
 
 // ── Créer un contrat depuis une réservation ───────────────────────────────
@@ -221,7 +222,38 @@ export const getPartnerContracts = async (req, res) => {
       .populate("booking", "reference type status montantTotal")
       .sort({ createdAt: -1 });
 
-    res.json({ contracts });
+    // ── LOI / Founding Partner Agreement ──────────────────────────────────
+    // "Mes contrats" ne montrait jusqu'ici que les contrats de réservation —
+    // le partenaire devait savoir naviguer ailleurs (onboarding) pour
+    // retrouver sa LOI/son Agreement signés, absents de ce répertoire
+    // unique. Manque réel trouvé en audit.
+    const onboarding = await PartnerOnboarding.findOne({ userId: req.user._id })
+      .select("loi.sentAt loi.signedAt agreement.sentAt agreement.signedAt")
+      .lean();
+
+    const legalDocuments = [];
+    if (onboarding?.loi?.sentAt) {
+      legalDocuments.push({
+        key: "loi",
+        label: "Lettre d'intention (LOI)",
+        sentAt: onboarding.loi.sentAt,
+        signedAt: onboarding.loi.signedAt,
+        isSigned: !!onboarding.loi.signedAt,
+        pdfUrl: "/api/partner-onboarding/my/loi/pdf",
+      });
+    }
+    if (onboarding?.agreement?.sentAt) {
+      legalDocuments.push({
+        key: "agreement",
+        label: "Accord Founding Partner",
+        sentAt: onboarding.agreement.sentAt,
+        signedAt: onboarding.agreement.signedAt,
+        isSigned: !!onboarding.agreement.signedAt,
+        pdfUrl: "/api/partner-onboarding/my/agreement/pdf",
+      });
+    }
+
+    res.json({ contracts, legalDocuments });
   } catch (err) {
     logger.error("getPartnerContracts:", err);
     res.status(500).json({ message: "Erreur serveur." });

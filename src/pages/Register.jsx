@@ -4,12 +4,13 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../context/CurrencyContext";
 import GoogleAuthButton from "../components/GoogleAuthButton/GoogleAuthButton";
+import { WORLD_COUNTRIES } from "../data/worldCountries";
 import styles from "./Auth.module.css";
 
 const Register = () => {
   const { register, oauthGoogle } = useAuth();
   const { success, error } = useToast();
-  const { countryCode, COUNTRIES_CONFIG } = useCurrency();
+  const { countryCode } = useCurrency();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -184,7 +185,7 @@ const Register = () => {
 
           <select name="country" value={form.country} onChange={handleChange} autoComplete="country" required>
             <option value="" disabled>Pays *</option>
-            {COUNTRIES_CONFIG.map((c) => (
+            {WORLD_COUNTRIES.map((c) => (
               <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
             ))}
           </select>

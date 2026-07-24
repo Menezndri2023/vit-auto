@@ -42,7 +42,12 @@ function emitBookingUpdate(booking, eventName = "booking_updated", extra = {}) {
 }
 
 // ── Mettre à jour la disponibilité d'un véhicule après un changement de statut
-async function syncVehicleAvailability(vehicleId) {
+// Exportée pour vehicleController.js : un partenaire n'avait jusqu'ici AUCUN
+// moyen de retirer manuellement un véhicule de la disponibilité (ex. en
+// maintenance) — `available` était intégralement recalculé depuis les
+// réservations actives, sans possibilité de forcer une pause. Manque réel
+// trouvé en audit — voir Vehicle.manuallyPaused.
+export async function syncVehicleAvailability(vehicleId) {
   if (!vehicleId) return;
   try {
     const activeStatuses = [
@@ -53,14 +58,46 @@ async function syncVehicleAvailability(vehicleId) {
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today.getTime() + 86400000);
 
-    const hasActiveBooking = await Booking.exists({
-      vehicle: vehicleId,
-      status:  { $in: activeStatuses },
-      "location.startDate": { $lt: tomorrow },
-      "location.endDate":   { $gt: today },
-    });
+    const [hasActiveBooking, vehicle] = await Promise.all([
+      Booking.exists({
+        vehicle: vehicleId,
+        status:  { $in: activeStatuses },
+        "location.startDate": { $lt: tomorrow },
+        "location.endDate":   { $gt: today },
+      }),
+      Vehicle.findById(vehicleId).select("manuallyPaused status"),
+    ]);
+    // Un véhicule vendu (voir markVehicleSoldIfApplicable) ne doit plus jamais
+    // redevenir "disponible" via cette synchro, qui ne raisonne qu'en termes
+    // de réservations location actives.
+    if (vehicle?.status === "sold") return;
 
-    await Vehicle.findByIdAndUpdate(vehicleId, { available: !hasActiveBooking });
+    await Vehicle.findByIdAndUpdate(vehicleId, { available: !vehicle?.manuallyPaused && !hasActiveBooking });
+  } catch { /* non-bloquant */ }
+}
+
+// ── Retire un véhicule vendu de la disponibilité — bug réel trouvé en audit :
+// une vente (booking type "essai" sur un Vehicle.type "vente", conclue via
+// recordTransaction/validateTransaction) ne délistait jamais le véhicule.
+// syncVehicleAvailability ne se base QUE sur les réservations "location" en
+// cours ; sans ce check, un véhicule vendu redevenait "disponible" au prochain
+// appel de syncVehicleAvailability puisqu'aucune réservation location ne le
+// couvre. Appelé sur chaque chemin qui peut amener un booking "essai" à
+// "completed" (validateTransaction, adminForceComplete, resolveDispute,
+// updateBookingStatus).
+async function markVehicleSoldIfApplicable(booking) {
+  if (booking.type !== "essai") return;
+  try {
+    const vehicleId = booking.vehicle?._id || booking.vehicle;
+    if (!vehicleId) return;
+    const vehicle = await Vehicle.findById(vehicleId);
+    if (!vehicle || vehicle.type !== "vente" || vehicle.status === "sold") return;
+
+    vehicle.status = "sold";
+    vehicle.available = false;
+    vehicle.statusHistory = vehicle.statusHistory || [];
+    vehicle.statusHistory.push({ status: "sold", changedAt: new Date() });
+    await vehicle.save();
   } catch { /* non-bloquant */ }
 }
 
@@ -219,6 +256,16 @@ export const createBooking = async (req, res) => {
         cautionAmount = vehicle.caution || 0;
       }
       if (type === "leasing") {
+        // Un client pouvait demander un financement (leasing ou crédit) sur
+        // n'importe quel véhicule, même si le partenaire ne l'a jamais activé
+        // (Vehicle.leasing.disponible / Vehicle.credit.disponible, tous deux
+        // false par défaut) — seul le formulaire côté client vérifiait cela,
+        // jamais le serveur. Bug réel trouvé en audit.
+        const financingType = ["leasing", "credit"].includes(leasingData?.financingType) ? leasingData.financingType : "leasing";
+        const financingTerms = vehicle[financingType];
+        if (!financingTerms?.disponible) {
+          return res.status(400).json({ message: financingType === "credit" ? "Le crédit classique n'est pas proposé pour ce véhicule." : "Le leasing (LOA) n'est pas proposé pour ce véhicule." });
+        }
         montantBase = leasingData?.apportInitial || 0;
       }
       if (type === "essai") {
@@ -227,6 +274,11 @@ export const createBooking = async (req, res) => {
         // que le planning chauffeur (chauffeur.date/dateFin) : la date de fin
         // est calculée côté serveur (durée fixe d'un essai), jamais fournie
         // par le client.
+        // Un essai n'a de sens que sur un véhicule "vente" — jusqu'ici
+        // vérifié seulement côté UI, jamais côté serveur (bug réel trouvé en audit).
+        if (vehicle.type !== "vente") {
+          return res.status(400).json({ message: "Un essai ne peut être demandé que pour un véhicule à vendre." });
+        }
         const preferredDate = essai?.preferredDate ? new Date(essai.preferredDate) : null;
         if (!preferredDate || isNaN(preferredDate.getTime())) {
           return res.status(400).json({ message: "Date et heure souhaitées pour l'essai requises." });
@@ -295,6 +347,17 @@ export const createBooking = async (req, res) => {
           message: "Ce chauffeur est déjà réservé sur ce créneau.",
           conflict: { date: conflict.chauffeur.date, dateFin: conflict.chauffeur.dateFin },
         });
+      }
+
+      // ── Congés bloqués par le partenaire (voir driverController.addDriverBlackout) ─
+      // Sans ce contrôle, un client pouvait réserver un chauffeur pendant une
+      // période explicitement marquée indisponible — le blocage n'existait
+      // jusqu'ici que dans l'affichage calendrier, jamais appliqué à la réservation.
+      const onBlackout = (driver.blackoutDates || []).some(
+        (b) => new Date(b.start) < chauffeurDateFin && new Date(b.end) > chauffeurDate
+      );
+      if (onBlackout) {
+        return res.status(409).json({ message: "Ce chauffeur est indisponible sur cette période (congé)." });
       }
     }
 
@@ -715,6 +778,18 @@ export const updateBookingStatus = async (req, res) => {
       });
     }
 
+    // ── Financement (leasing/crédit) : aucune progression avant décision admin ──
+    // setFinancingDecision existait déjà mais n'était vérifié nulle part —
+    // un booking "leasing" pouvait avancer jusqu'à "completed" (apport collecté)
+    // avant même que l'admin n'ait approuvé le financement. Bug réel trouvé en audit.
+    if (booking.type === "leasing" && status !== "cancelled" && booking.leasing?.decision !== "accepte") {
+      return res.status(409).json({
+        message: booking.leasing?.decision === "refuse"
+          ? "Ce financement a été refusé — la commande ne peut plus progresser."
+          : "Cette demande de financement est encore en cours d'étude par notre équipe.",
+      });
+    }
+
     booking.status = status;
     if (status === "cancelled") {
       booking.cancelledAt  = new Date();
@@ -807,7 +882,7 @@ export const updateBookingStatus = async (req, res) => {
     if (n && booking.client) {
       await notify(booking.client, n.type, n.titre, n.msg, n.lien || "/dashboard");
     }
-    if (status === "completed") { schedulePostServiceSurvey(booking); issueServiceInvoice(booking); }
+    if (status === "completed") { await markVehicleSoldIfApplicable(booking); schedulePostServiceSurvey(booking); issueServiceInvoice(booking); }
 
     res.json({ booking });
   } catch (err) {
@@ -1018,6 +1093,7 @@ export const validateTransaction = async (req, res) => {
 
     // Sync disponibilité (quand terminée ou litige → véhicule peut redevenir dispo)
     if (action === "validate") {
+      await markVehicleSoldIfApplicable(booking);
       syncVehicleAvailability(booking.vehicle?._id || booking.vehicle);
     }
 
@@ -1095,12 +1171,15 @@ export const getDriverOccupiedSlots = async (req, res) => {
       "client_arrived", "transaction_concluded", "waiting_client_validation",
     ];
 
-    const bookings = await Booking.find({
-      driver:  driverId,
-      status:  { $in: activeStatuses },
-      "chauffeur.date":    { $exists: true },
-      "chauffeur.dateFin": { $exists: true },
-    }).select("chauffeur.date chauffeur.dateFin status reference -_id");
+    const [bookings, driver] = await Promise.all([
+      Booking.find({
+        driver:  driverId,
+        status:  { $in: activeStatuses },
+        "chauffeur.date":    { $exists: true },
+        "chauffeur.dateFin": { $exists: true },
+      }).select("chauffeur.date chauffeur.dateFin status reference -_id"),
+      Driver.findById(driverId).select("blackoutDates"),
+    ]);
 
     const occupied = bookings.map((b) => ({
       date:      b.chauffeur.date,
@@ -1109,7 +1188,17 @@ export const getDriverOccupiedSlots = async (req, res) => {
       reference: b.reference || "",
     }));
 
-    res.json({ driverId, occupied });
+    // Congés bloqués par le partenaire (voir driverController.addDriverBlackout)
+    // — jusqu'ici invisibles côté client, un créneau "congé" apparaissait
+    // comme disponible dans le calendrier de réservation.
+    const blackout = (driver?.blackoutDates || []).map((b) => ({
+      date:      b.start,
+      dateFin:   b.end,
+      status:    "conge",
+      reference: b.reason || "Indisponible",
+    }));
+
+    res.json({ driverId, occupied: [...occupied, ...blackout] });
   } catch (err) {
     logger.error("getDriverOccupiedSlots:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -1217,6 +1306,186 @@ export const getPartnerStats = async (req, res) => {
     });
   } catch (err) {
     logger.error("getPartnerStats:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 8b2. ANALYTIQUE PARTENAIRE — tendance mensuelle, top véhicules, occupation,
+//      clientèle récurrente (GET /partner/analytics)
+// ═══════════════════════════════════════════════════════════════════════════════
+// getPartnerStats (ci-dessus) ne renvoie que des totaux agrégés — un partenaire
+// gérant une flotte n'avait aucun moyen de voir l'évolution dans le temps, ses
+// véhicules les plus rentables, ni ses clients réguliers. Manque réel trouvé en audit.
+export const getPartnerAnalytics = async (req, res) => {
+  try {
+    const [myVehicles, myDrivers] = await Promise.all([
+      Vehicle.find({ owner: req.user._id }).select("_id title marque modele"),
+      Driver.find({ owner: req.user._id }).select("_id"),
+    ]);
+    const vehicleIds = myVehicles.map((v) => v._id);
+    const driverIds  = myDrivers.map((d) => d._id);
+    const scopeMatch = { $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }] };
+
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+    sixMonthsAgo.setDate(1);
+    sixMonthsAgo.setHours(0, 0, 0, 0);
+
+    const [monthlyAgg, topVehiclesAgg, clientsAgg] = await Promise.all([
+      // ── Tendance mensuelle (6 derniers mois, commandes terminées) ─────────
+      Booking.aggregate([
+        { $match: { ...scopeMatch, status: "completed", createdAt: { $gte: sixMonthsAgo } } },
+        {
+          $group: {
+            _id:     { y: { $year: "$createdAt" }, m: { $month: "$createdAt" } },
+            revenue: { $sum: { $ifNull: ["$partnerPayout", 0] } },
+            count:   { $sum: 1 },
+          },
+        },
+        { $sort: { "_id.y": 1, "_id.m": 1 } },
+      ]),
+      // ── Top véhicules par revenu net (commandes terminées, location/vente) ─
+      Booking.aggregate([
+        { $match: { vehicle: { $in: vehicleIds }, status: "completed" } },
+        {
+          $group: {
+            _id:     "$vehicle",
+            revenue: { $sum: { $ifNull: ["$partnerPayout", 0] } },
+            count:   { $sum: 1 },
+          },
+        },
+        { $sort: { revenue: -1 } },
+        { $limit: 5 },
+      ]),
+      // ── Clientèle : regroupée par client connecté, sinon par email (invité) ─
+      Booking.aggregate([
+        { $match: scopeMatch },
+        {
+          $group: {
+            _id:          { $ifNull: ["$client", "$clientInfo.email"] },
+            firstName:    { $last: "$clientInfo.firstName" },
+            lastName:     { $last: "$clientInfo.lastName" },
+            email:        { $last: "$clientInfo.email" },
+            phone:        { $last: "$clientInfo.phone" },
+            totalBookings:{ $sum: 1 },
+            completed:    { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } },
+            totalSpent:   { $sum: { $cond: [{ $eq: ["$status", "completed"] }, { $ifNull: ["$partnerPayout", 0] }, 0] } },
+            lastBookingAt:{ $max: "$createdAt" },
+          },
+        },
+        { $sort: { totalBookings: -1 } },
+        { $limit: 30 },
+      ]),
+    ]);
+
+    const monthlyRevenue = monthlyAgg.map((g) => ({
+      month:   `${g._id.y}-${String(g._id.m).padStart(2, "0")}`,
+      revenue: g.revenue,
+      count:   g.count,
+    }));
+
+    const vehicleById = new Map(myVehicles.map((v) => [v._id.toString(), v]));
+    const topVehicles = topVehiclesAgg.map((g) => {
+      const veh = vehicleById.get(g._id?.toString());
+      return {
+        vehicleId: g._id,
+        title:     veh ? [veh.title, veh.marque, veh.modele].filter(Boolean).join(" ") : "Véhicule",
+        revenue:   g.revenue,
+        count:     g.count,
+      };
+    });
+
+    const topClients = clientsAgg.map((g) => ({
+      clientId:      typeof g._id === "object" ? g._id : null,
+      firstName:     g.firstName,
+      lastName:      g.lastName,
+      email:         g.email,
+      phone:         g.phone,
+      totalBookings: g.totalBookings,
+      completed:     g.completed,
+      totalSpent:    g.totalSpent,
+      lastBookingAt: g.lastBookingAt,
+    }));
+
+    // ── Occupation approximative (30 derniers jours, location uniquement) ───
+    const periodStart = new Date();
+    periodStart.setDate(periodStart.getDate() - 30);
+    const occupancyAgg = await Booking.aggregate([
+      {
+        $match: {
+          vehicle: { $in: vehicleIds },
+          type:    "location",
+          status:  { $in: ["confirmed", "preparing", "ready", "in_progress", "client_arrived", "waiting_client_validation", "completed"] },
+          "location.startDate": { $gte: periodStart },
+        },
+      },
+      { $group: { _id: null, totalDays: { $sum: { $ifNull: ["$location.days", 0] } } } },
+    ]);
+    const fleetSize = myVehicles.length || 1;
+    const occupancyRate = Math.min(100, Math.round(((occupancyAgg[0]?.totalDays || 0) / (fleetSize * 30)) * 100));
+
+    res.json({ monthlyRevenue, topVehicles, topClients, occupancyRate, fleetSize });
+  } catch (err) {
+    logger.error("getPartnerAnalytics:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 8b3. EXPORT COMPTABLE PARTENAIRE (GET /partner/export) — CSV pour tenue de
+//      compte, jusqu'ici réservé à l'admin (exportBookings, /admin/export) :
+//      un partenaire n'avait strictement aucun moyen de télécharger l'historique
+//      de ses commandes pour sa propre comptabilité. Manque réel trouvé en audit.
+// ═══════════════════════════════════════════════════════════════════════════════
+export const exportPartnerBookings = async (req, res) => {
+  try {
+    const [myVehicles, myDrivers] = await Promise.all([
+      Vehicle.find({ owner: req.user._id }).select("_id"),
+      Driver.find({ owner: req.user._id }).select("_id"),
+    ]);
+    const vehicleIds = myVehicles.map((v) => v._id);
+    const driverIds  = myDrivers.map((d) => d._id);
+
+    const { dateFrom, dateTo } = req.query;
+    const filter = { $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }] };
+    if (dateFrom || dateTo) {
+      filter.createdAt = {};
+      if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
+      if (dateTo)   filter.createdAt.$lte = new Date(dateTo);
+    }
+
+    const bookings = await Booking.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(5000)
+      .populate("vehicle", "title marque modele")
+      .populate("driver",  "firstName lastName")
+      .lean();
+
+    const rows = [
+      "Reference,Type,Statut,Client,Email,Vehicule/Chauffeur,Montant,Commission,Net Partenaire,Caution retenue,Devise,Date,Paye",
+      ...bookings.map((b) => [
+        b.reference || b._id,
+        b.type,
+        b.status,
+        `${b.clientInfo?.firstName || ""} ${b.clientInfo?.lastName || ""}`.trim(),
+        b.clientInfo?.email || "",
+        b.vehicle?.title || (b.driver ? `${b.driver.firstName || ""} ${b.driver.lastName || ""}`.trim() : ""),
+        b.montantTotal || 0,
+        b.commissionAmount || 0,
+        b.partnerPayout || 0,
+        b.cautionClaim?.amountClaimed || 0,
+        b.devise || "USD",
+        b.createdAt?.toISOString().slice(0, 10) || "",
+        b.isPaid ? "Oui" : "Non",
+      ].join(",")),
+    ].join("\n");
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="mes-commandes-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send("﻿" + rows); // BOM UTF-8 pour Excel
+  } catch (err) {
+    logger.error("exportPartnerBookings:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -1481,6 +1750,89 @@ export const partnerVerifyKyc = async (req, res) => {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// 8e. MODIFICATION DES DATES PAR LE CLIENT — PATCH /:id/modify
+// ═══════════════════════════════════════════════════════════════════════════════
+// Jusqu'ici un client ne pouvait que tout annuler puis recommencer une nouvelle
+// réservation — aucun moyen de simplement changer les dates d'une location pas
+// encore commencée. Manque réel trouvé en audit.
+export const modifyBookingDates = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { startDate, endDate } = req.body;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Identifiant de réservation invalide." });
+    }
+
+    const booking = await Booking.findById(id).populate("vehicle");
+    if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
+    if (booking.type !== "location") {
+      return res.status(400).json({ message: "Seules les locations peuvent être modifiées." });
+    }
+
+    const userId = req.user?.id || req.user?._id;
+    const isOwnerById    = booking.client && booking.client.toString() === userId?.toString();
+    const isOwnerByEmail = !booking.client && req.user?.emailVerified === true
+      && booking.clientInfo?.email?.toLowerCase() === req.user?.email?.toLowerCase();
+    if (!isOwnerById && !isOwnerByEmail) {
+      return res.status(403).json({ message: "Accès refusé à cette réservation." });
+    }
+
+    if (!["pending", "confirmed"].includes(booking.status)) {
+      return res.status(409).json({ message: `Impossible de modifier une réservation avec le statut "${booking.status}".` });
+    }
+
+    const newStart = new Date(startDate);
+    const newEnd   = new Date(endDate);
+    if (isNaN(newStart.getTime()) || isNaN(newEnd.getTime()) || newEnd <= newStart) {
+      return res.status(400).json({ message: "Dates invalides (fin après début requis)." });
+    }
+    if (newStart < new Date()) {
+      return res.status(400).json({ message: "La nouvelle date de début ne peut pas être dans le passé." });
+    }
+
+    const conflict = await Booking.findOne({
+      _id:     { $ne: booking._id },
+      vehicle: booking.vehicle._id,
+      status:  { $in: ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "transaction_concluded", "waiting_client_validation"] },
+      "location.startDate": { $lt: newEnd },
+      "location.endDate":   { $gt: newStart },
+    });
+    if (conflict) {
+      return res.status(409).json({ message: "Le véhicule est déjà réservé sur ces nouvelles dates." });
+    }
+
+    const days = Math.max(1, Math.round((newEnd - newStart) / 86400000));
+    const effectivePricePerDay = applyPromotion(booking.vehicle.pricePerDay || 0, booking.vehicle.promotion);
+    const newMontantBase = effectivePricePerDay * days;
+    const priceDelta = newMontantBase - (booking.montantBase || 0);
+
+    booking.location.startDate = newStart;
+    booking.location.endDate   = newEnd;
+    booking.location.days      = days;
+    booking.montantBase  = newMontantBase;
+    booking.montantTotal = newMontantBase + (booking.montantOptions || 0) + (booking.location.deliveryFee || 0);
+    booking.commissionAmount = Math.round(booking.montantTotal * (booking.commissionRate || 0));
+    booking.partnerPayout    = Math.max(booking.montantTotal - booking.commissionAmount - (booking.serviceFeeFCFA || 0), 0);
+    await booking.save();
+
+    emitBookingUpdate(booking);
+    await syncVehicleAvailability(booking.vehicle._id);
+
+    const ownerId = booking.vehicle.owner;
+    if (ownerId) {
+      await notify(ownerId, "system", "📅 Dates de réservation modifiées",
+        `Le client a modifié les dates de la réservation ${booking.reference || ""} (${days} jour(s), du ${newStart.toLocaleDateString("fr-FR")} au ${newEnd.toLocaleDateString("fr-FR")}).`,
+        "/vendor/dashboard");
+    }
+
+    res.json({ booking, priceDelta });
+  } catch (err) {
+    logger.error("modifyBookingDates:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // 9. ANNULATION CLIENT — PATCH /:id/cancel
 // ═══════════════════════════════════════════════════════════════════════════════
 export const cancelBookingByClient = async (req, res) => {
@@ -1627,6 +1979,12 @@ export const completeMission = async (req, res) => {
     await booking.save();
     emitBookingUpdate(booking);
 
+    // Compteur affiché au partenaire (carte "Mes chauffeurs") — resté à 0 en
+    // permanence jusqu'ici, jamais incrémenté nulle part (bug réel trouvé en audit).
+    if (booking.driver?._id) {
+      await Driver.updateOne({ _id: booking.driver._id }, { $inc: { missionsTotal: 1 } });
+    }
+
     const driverOwnerId = booking.driver?.owner;
     if (driverOwnerId) {
       await notify(driverOwnerId, "driver_completed", "🏁 Mission terminée",
@@ -1638,6 +1996,77 @@ export const completeMission = async (req, res) => {
     res.json({ booking, message: "Mission terminée." });
   } catch (err) {
     logger.error("completeMission:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WORKFLOW PARTENAIRE : TRAITER LA CAUTION AU RETOUR (PATCH /:id/caution)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Réservé aux locations, une fois la commande terminée (le véhicule a été
+// restitué à ce stade dans le flux existant — voir validateTransaction/
+// adminForceComplete). Une seule décision par réservation : pas de correction
+// après coup pour éviter toute contestation sur un montant déjà notifié au client.
+export const claimCaution = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amountClaimed, reason } = req.body;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Identifiant de réservation invalide." });
+    }
+
+    const booking = await Booking.findById(id).populate("vehicle", "owner title");
+    if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
+    if (booking.type !== "location") {
+      return res.status(400).json({ message: "La caution ne s'applique qu'aux locations." });
+    }
+
+    const ownerId = booking.vehicle?.owner?._id?.toString() || booking.vehicle?.owner?.toString();
+    if (req.user.role !== "admin" && ownerId !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+    if (!["completed", "disputed"].includes(booking.status)) {
+      return res.status(409).json({ message: "La caution ne peut être traitée qu'une fois la location terminée." });
+    }
+    if (booking.cautionClaim?.claimedAt) {
+      return res.status(409).json({ message: "La caution a déjà été traitée pour cette réservation." });
+    }
+
+    const caution = Number(booking.cautionAmount) || 0;
+    const amount  = Number(amountClaimed) || 0;
+    if (amount < 0 || amount > caution) {
+      return res.status(400).json({ message: `Montant invalide (caution disponible : ${caution}).` });
+    }
+    if (amount > 0 && !String(reason || "").trim()) {
+      return res.status(400).json({ message: "Un motif est requis pour retenir tout ou partie de la caution." });
+    }
+
+    booking.cautionClaim = {
+      amountClaimed: amount,
+      reason:        amount > 0 ? String(reason).trim() : null,
+      claimedAt:     new Date(),
+      claimedBy:     req.user._id,
+    };
+    await booking.save();
+    emitBookingUpdate(booking);
+
+    if (booking.client) {
+      const devise   = booking.devise || "USD";
+      const returned = caution - amount;
+      await notify(
+        booking.client,
+        "system",
+        amount > 0 ? "💳 Caution partiellement retenue" : "💳 Caution restituée intégralement",
+        amount > 0
+          ? `Le partenaire a retenu ${amount} ${devise} sur votre caution pour ${booking.reference} (${reason}). Montant restitué : ${returned} ${devise}.`
+          : `Votre caution de ${caution} ${devise} pour ${booking.reference} vous a été intégralement restituée.`,
+        "/dashboard"
+      );
+    }
+
+    res.json({ booking, message: "Caution traitée." });
+  } catch (err) {
+    logger.error("claimCaution:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -1679,6 +2108,7 @@ export const resolveDispute = async (req, res) => {
 
     await booking.save();
     emitBookingUpdate(booking); // ← temps réel client + partenaire
+    if (booking.status === "completed") await markVehicleSoldIfApplicable(booking);
 
     // Notifier les deux parties
     const clientMsg = {
@@ -1751,6 +2181,7 @@ export const adminForceComplete = async (req, res) => {
 
     await booking.save();
     emitBookingUpdate(booking); // ← temps réel client + partenaire
+    await markVehicleSoldIfApplicable(booking);
     syncVehicleAvailability(booking.vehicle?._id);
 
     const forceCompleteOwnerId = booking.vehicle?.owner || booking.driver?.owner;

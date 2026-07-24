@@ -75,6 +75,7 @@ const PartnerFleetImport      = lazy(() => import("./pages/PartnerFleetImport"))
 const PartnerShowroomPublic   = lazy(() => import("./pages/PartnerShowroomPublic"));
 const PartnerOnboardingPortal = lazy(() => import("./pages/PartnerOnboardingPortal"));
 const PartnerSignByToken      = lazy(() => import("./pages/PartnerSignByToken"));
+const QuotePublicView         = lazy(() => import("./pages/QuotePublicView"));
 const FoundingPartnerLegal    = lazy(() => import("./pages/FoundingPartnerLegal"));
 const PaymentSimulate         = lazy(() => import("./pages/PaymentSimulate"));
 const PaymentResult           = lazy(() => import("./pages/PaymentResult"));
@@ -169,6 +170,7 @@ function AppRoutes() {
 
           {/* ── Signature par lien sécurisé (email link — sans connexion) ── */}
           <Route path="/sign/:token" element={<PartnerSignByToken />} />
+          <Route path="/quote/:token" element={<QuotePublicView />} />
 
           {/* ── Espace admin ────────────────────────────────── */}
           <Route path="/admin"  element={<AdminRoute><ErrorBoundary><AdminPanel /></ErrorBoundary></AdminRoute>} />

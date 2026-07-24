@@ -1,0 +1,21 @@
+.wrap {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.primary {
+  font-weight: inherit;
+}
+
+.secondary {
+  font-size: 0.72em;
+  font-weight: 500;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.compact .secondary {
+  font-size: 0.68em;
+}

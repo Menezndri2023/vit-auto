@@ -30,6 +30,15 @@ const vehicleImportBatchSchema = new mongoose.Schema({
     index: true,
   },
 
+  // Entreprise du partenaire concernée par ce batch (facultatif, multi-entité/
+  // multi-pays — voir vehicleController.createVehicle) : son pays prime sur
+  // celui du compte User pour toutes les lignes (targetType "vehicle" uniquement).
+  business: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "PartnerBusiness",
+    default: null,
+  },
+
   // "vehicle" = catalogue location/vente classique (Vehicle) ; "export" =
   // annonces Import/Export (ImportExportListing), réservées aux Founding
   // Partners — même pipeline d'import (fichier/Google Sheet), colonnes et
