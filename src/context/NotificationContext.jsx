@@ -14,28 +14,58 @@ export const useNotifications = () => {
   return ctx;
 };
 
-// Son de notification via Web Audio API
+// ── Signature sonore VIT AUTO ────────────────────────────────────────────────
+// Synthétisée en Web Audio API (aucun fichier audio à charger/héberger) pour
+// rester distinctive et reconnaissable, plutôt qu'un bip générique à deux
+// notes : un "thump" grave évoquant une portière/un contact moteur (clin
+// d'œil "auto"), suivi d'un arpège ascendant à 3 notes puis d'une note finale
+// tenue avec un léger harmonique en couche (effet "shimmer") — signature audio
+// propre à la marque, reconnaissable en quelques centaines de millisecondes.
 function playNotifSound() {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
     const now = ctx.currentTime;
-    const makeNote = (freq, start, duration) => {
+
+    const makeNote = (freq, start, duration, { type = "triangle", peak = 0.24, harmonic = false } = {}) => {
       const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, now + start);
       osc.connect(gain);
       gain.connect(ctx.destination);
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(freq, now + start);
       gain.gain.setValueAtTime(0, now + start);
-      gain.gain.linearRampToValueAtTime(0.22, now + start + 0.02);
+      gain.gain.linearRampToValueAtTime(peak, now + start + 0.015);
       gain.gain.exponentialRampToValueAtTime(0.001, now + start + duration);
       osc.start(now + start);
       osc.stop(now + start + duration);
+
+      // Harmonique discrète (octave supérieure, volume réduit) pour donner du
+      // corps à la note finale — évite le son "plat" d'un simple sinus isolé.
+      if (harmonic) {
+        const osc2  = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = "sine";
+        osc2.frequency.setValueAtTime(freq * 2, now + start);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        gain2.gain.setValueAtTime(0, now + start);
+        gain2.gain.linearRampToValueAtTime(peak * 0.35, now + start + 0.015);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + start + duration);
+        osc2.start(now + start);
+        osc2.stop(now + start + duration);
+      }
     };
-    makeNote(880, 0,    0.12);
-    makeNote(1100, 0.13, 0.18);
+
+    // Contact/portière — grave, très bref, quasi subsonique.
+    makeNote(130, 0, 0.09, { type: "sine", peak: 0.16 });
+    // Arpège ascendant (ré, fa#, la) — signature mélodique de la marque.
+    makeNote(587.33, 0.09, 0.10, { type: "triangle", peak: 0.20 });
+    makeNote(739.99, 0.17, 0.10, { type: "triangle", peak: 0.22 });
+    makeNote(880.00, 0.25, 0.12, { type: "triangle", peak: 0.24 });
+    // Résolution tenue (ré aigu) avec harmonique — la note qu'on reconnaît.
+    makeNote(1174.66, 0.36, 0.32, { type: "sine", peak: 0.26, harmonic: true });
   } catch { /* Audio non disponible */ }
 }
 
@@ -210,6 +240,7 @@ export const NotificationProvider = ({ children }) => {
     unreadCount,
     soundEnabled,
     toggleSound,
+    previewSound: playNotifSound, // écouter la signature sonore sans attendre une vraie notification
     markAsRead,
     markAllRead,
     markAllAsRead: markAllRead,

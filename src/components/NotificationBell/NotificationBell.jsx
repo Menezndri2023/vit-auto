@@ -30,7 +30,7 @@ const timeAgo = (dateStr) => {
 export default function NotificationBell() {
   const {
     notifications, unreadCount,
-    soundEnabled, toggleSound,
+    soundEnabled, toggleSound, previewSound,
     markAsRead, markAllAsRead, deleteNotification,
   } = useNotifications();
 
@@ -99,6 +99,13 @@ export default function NotificationBell() {
               )}
             </div>
             <div className={styles.panelHeaderRight}>
+              <button
+                className={styles.soundBtn}
+                onClick={(e) => { e.stopPropagation(); previewSound(); }}
+                title="Écouter la sonorité de notification VIT AUTO"
+              >
+                🔊
+              </button>
               <button
                 className={`${styles.soundBtn} ${soundEnabled ? styles.soundBtnOn : styles.soundBtnOff}`}
                 onClick={(e) => { e.stopPropagation(); toggleSound(); }}
