@@ -37,8 +37,8 @@ describe("getPerformanceScore", () => {
     await createLead(partner._id, { status: "perdu" });
     await createQuote(partner._id, { status: "accepte" });
     await createQuote(partner._id, { status: "envoye" });
-    await Booking.create({ type: "location", vehicle: vehicle._id, status: "completed", clientInfo: { firstName: "A", lastName: "B", email: "a@b.test" } });
-    await Booking.create({ type: "location", vehicle: vehicle._id, status: "cancelled", clientInfo: { firstName: "A", lastName: "B", email: "a@b.test" } });
+    await Booking.create({ type: "location", vehicle: vehicle._id, status: "completed", clientInfo: { firstName: "A", lastName: "B", email: "a@b.test" , passportNumber: "P1234567"} });
+    await Booking.create({ type: "location", vehicle: vehicle._id, status: "cancelled", clientInfo: { firstName: "A", lastName: "B", email: "a@b.test" , passportNumber: "P1234567"} });
     // Activité d'un autre partenaire — ne doit pas être comptée.
     await createLead(otherPartner._id, { status: "gagne" });
 
@@ -58,7 +58,7 @@ describe("getPerformanceScore", () => {
   it("répercute le score calculé sur le trustScore du showroom du partenaire", async () => {
     const partner = await createUser({ role: "partenaire" });
     const vehicle = await createVehicleDoc({ owner: partner._id });
-    await Booking.create({ type: "location", vehicle: vehicle._id, status: "completed", clientInfo: { firstName: "A", lastName: "B", email: "a@b.test" } });
+    await Booking.create({ type: "location", vehicle: vehicle._id, status: "completed", clientInfo: { firstName: "A", lastName: "B", email: "a@b.test" , passportNumber: "P1234567"} });
     await PartnerShowroom.create({ partnerId: partner._id });
 
     const { req, res } = mockReqRes({ user: partner });

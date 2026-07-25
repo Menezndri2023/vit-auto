@@ -12,7 +12,7 @@ const makeLocationBooking = async (overrides = {}) => {
   const vehicle = await createVehicleDoc({ pricePerDay: 10000 });
   const booking = await Booking.create({
     type: "location", status: "pending", client: client._id,
-    clientInfo: { firstName: "Jean", lastName: "Client", email: "jean@example.test" },
+    clientInfo: { firstName: "Jean", lastName: "Client", email: "jean@example.test" , passportNumber: "P1234567"},
     vehicle: vehicle._id,
     location: { startDate: new Date("2027-03-01"), endDate: new Date("2027-03-03"), days: 2 },
     montantBase: 20000, montantTotal: 20000, commissionRate: 0.15, commissionAmount: 3000, partnerPayout: 17000,
@@ -63,7 +63,7 @@ describe("bookingController.modifyBookingDates", () => {
     const { client, vehicle, booking } = await makeLocationBooking();
     await Booking.create({
       type: "location", status: "confirmed",
-      clientInfo: { firstName: "Autre", lastName: "Client", email: "autre@example.test" },
+      clientInfo: { firstName: "Autre", lastName: "Client", email: "autre@example.test" , passportNumber: "P1234567"},
       vehicle: vehicle._id,
       location: { startDate: new Date("2027-05-10"), endDate: new Date("2027-05-15"), days: 5 },
     });

@@ -10,7 +10,7 @@ import { mockReqRes } from "./helpers/mockReqRes.js";
 async function createBookingDoc(overrides = {}) {
   return Booking.create({
     type: "location",
-    clientInfo: { firstName: "Jean", lastName: "Client", email: "jean@example.test" },
+    clientInfo: { firstName: "Jean", lastName: "Client", email: "jean@example.test", passportNumber: "P1234567" },
     montantTotal: 45000,
     ...overrides,
   });

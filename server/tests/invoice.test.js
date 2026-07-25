@@ -13,7 +13,7 @@ import { mockReqRes } from "./helpers/mockReqRes.js";
 async function createInvoiceableBooking(vehicle, { year = 2026, month = 6, ...overrides } = {}) {
   return Booking.create({
     type: "location",
-    clientInfo: { firstName: "Client", lastName: "Test", email: "client@example.test" },
+    clientInfo: { firstName: "Client", lastName: "Test", email: "client@example.test" , passportNumber: "P1234567"},
     vehicle: vehicle._id,
     status: "completed",
     invoiced: false,

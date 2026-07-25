@@ -14,7 +14,7 @@ async function createBookingBetween(client, ownerId) {
   const vehicle = await Vehicle.create({ title: "Toyota Corolla", type: "location", owner: ownerId });
   return Booking.create({
     type: "location",
-    clientInfo: { firstName: client.firstName, lastName: client.lastName, email: client.email },
+    clientInfo: { firstName: client.firstName, lastName: client.lastName, email: client.email, passportNumber: "P1234567" },
     client: client._id,
     vehicle: vehicle._id,
   });

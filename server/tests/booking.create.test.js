@@ -5,7 +5,7 @@ import Driver from "../models/Driver.js";
 import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
-const clientInfo = { firstName: "Jean", lastName: "Client", email: "jean.client@example.test" };
+const clientInfo = { firstName: "Jean", lastName: "Client", email: "jean.client@example.test", passportNumber: "P1234567" };
 
 describe("bookingController.createBooking", () => {
   it("refuse une réservation sans informations client", async () => {

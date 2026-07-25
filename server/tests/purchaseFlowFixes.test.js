@@ -5,7 +5,7 @@ import Vehicle from "../models/Vehicle.js";
 import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
-const clientInfo = { firstName: "Jean", lastName: "Client", email: "jean.client@example.test" };
+const clientInfo = { firstName: "Jean", lastName: "Client", email: "jean.client@example.test", passportNumber: "P1234567" };
 
 // 4 bugs réels confirmés par audit du flux essai/achat/leasing :
 // 1. véhicule vendu jamais retiré de la disponibilité

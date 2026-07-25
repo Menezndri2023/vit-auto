@@ -68,7 +68,7 @@ describe("driverController — congés bloqués", () => {
     const { req, res } = mockReqRes({
       body: {
         type: "chauffeur",
-        clientInfo: { firstName: "Jean", lastName: "Client", email: "jean.client@example.test" },
+        clientInfo: { firstName: "Jean", lastName: "Client", email: "jean.client@example.test", passportNumber: "P1234567" },
         driverId: driver._id.toString(),
         chauffeur: { date: "2027-02-12T09:00:00.000Z", heures: 2 },
       },

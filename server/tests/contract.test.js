@@ -13,7 +13,7 @@ const VALID_SIGNATURE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABC
 async function createLocationBooking({ client, vehicle, overrides = {} }) {
   return Booking.create({
     type: "location",
-    clientInfo: { firstName: client.firstName, lastName: client.lastName, email: client.email },
+    clientInfo: { firstName: client.firstName, lastName: client.lastName, email: client.email , passportNumber: "P1234567"},
     client: client._id,
     vehicle: vehicle._id,
     status: "confirmed",
@@ -189,7 +189,7 @@ describe("signContract", () => {
     // Réservation invitée : pas de client._id, seulement clientInfo.email.
     const booking = await Booking.create({
       type: "location",
-      clientInfo: { firstName: "Invité", lastName: "Test", email: "invite@example.test" },
+      clientInfo: { firstName: "Invité", lastName: "Test", email: "invite@example.test" , passportNumber: "P1234567"},
       vehicle: vehicle._id,
       status: "confirmed",
       montantTotal: 100000,

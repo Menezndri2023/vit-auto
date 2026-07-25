@@ -16,7 +16,7 @@ const makeCompletedLocationBooking = async (overrides = {}) => {
     type: "location",
     status: "completed",
     client: client._id,
-    clientInfo: { firstName: "Jean", lastName: "Client", email: "jean@example.test" },
+    clientInfo: { firstName: "Jean", lastName: "Client", email: "jean@example.test" , passportNumber: "P1234567"},
     vehicle: vehicle._id,
     cautionAmount: 50000,
     devise: "USD",

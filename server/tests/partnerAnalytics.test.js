@@ -28,7 +28,7 @@ describe("bookingController.getPartnerAnalytics", () => {
       await Booking.create({
         type: "location", status: "completed",
         client: client._id,
-        clientInfo: { firstName: "Awa", lastName: "Koné", email: "awa@example.test" },
+        clientInfo: { firstName: "Awa", lastName: "Koné", email: "awa@example.test" , passportNumber: "P1234567"},
         vehicle: vehicle._id,
         partnerPayout: 10000,
         location: { days: 2, startDate: new Date(), endDate: new Date() },
@@ -53,7 +53,7 @@ describe("bookingController.getPartnerAnalytics", () => {
 
     await Booking.create({
       type: "location", status: "pending",
-      clientInfo: { firstName: "Invité", lastName: "Sans compte", email: "guest@example.test" },
+      clientInfo: { firstName: "Invité", lastName: "Sans compte", email: "guest@example.test" , passportNumber: "P1234567"},
       vehicle: vehicle._id,
       location: { days: 1 },
     });

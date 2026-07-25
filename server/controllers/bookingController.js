@@ -184,6 +184,9 @@ export const createBooking = async (req, res) => {
     if (!type || !clientInfo?.firstName || !clientInfo?.email) {
       return res.status(400).json({ message: "Type et informations client requis." });
     }
+    if (!clientInfo?.passportNumber || !String(clientInfo.passportNumber).trim()) {
+      return res.status(400).json({ message: "Numéro de passeport requis." });
+    }
 
     // ── Validation des quantités (évite montants négatifs/NaN en aval) ─────────
     if (type === "location" && location?.days !== undefined) {
@@ -651,12 +654,17 @@ export const createBookingsBatch = async (req, res) => {
     if (items.length > MAX_BATCH_ITEMS) {
       return res.status(400).json({ message: `Maximum ${MAX_BATCH_ITEMS} véhicules par panier.` });
     }
+    const passportNumber = req.body?.passportNumber;
+    if (!passportNumber || !String(passportNumber).trim()) {
+      return res.status(400).json({ message: "Numéro de passeport requis." });
+    }
 
     const clientInfo = {
       firstName: req.user.firstName,
       lastName:  req.user.lastName,
       email:     req.user.email,
       phone:     req.user.phone || null,
+      passportNumber,
     };
 
     // Snapshot KYC récupéré une seule fois (identique pour tous les véhicules
@@ -2655,7 +2663,7 @@ export const exportBookings = async (req, res) => {
 
     if (format === "csv") {
       const rows = [
-        "Reference,Type,Statut,Client,Email,Téléphone,Véhicule,Montant,Commission,Net Partenaire,Date,Payé",
+        "Reference,Type,Statut,Client,Email,Téléphone,Passeport,Véhicule,Montant,Commission,Net Partenaire,Date,Payé",
         ...bookings.map(b => [
           b.reference || b._id,
           b.type,
@@ -2663,6 +2671,7 @@ export const exportBookings = async (req, res) => {
           `${b.clientInfo?.firstName || ""} ${b.clientInfo?.lastName || ""}`.trim(),
           b.clientInfo?.email || "",
           b.clientInfo?.phone || "",
+          b.clientInfo?.passportNumber || "",
           b.vehicle?.title || "",
           b.montantTotal || 0,
           b.commissionAmount || 0,

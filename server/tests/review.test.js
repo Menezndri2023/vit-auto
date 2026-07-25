@@ -13,7 +13,7 @@ import { mockReqRes } from "./helpers/mockReqRes.js";
 async function createCompletedBooking(client, vehicle, overrides = {}) {
   return Booking.create({
     type: "location",
-    clientInfo: { firstName: client.firstName, lastName: client.lastName, email: client.email },
+    clientInfo: { firstName: client.firstName, lastName: client.lastName, email: client.email , passportNumber: "P1234567"},
     client: client._id,
     vehicle: vehicle._id,
     status: "completed",

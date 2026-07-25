@@ -39,7 +39,7 @@ describe("paymentController.stripeWebhook", () => {
   it("checkout.session.completed sur un Payment véhicule marque le paiement complété et la réservation payée", async () => {
     const booking = await Booking.create({
       type: "location",
-      clientInfo: { firstName: "Jean", lastName: "Client", email: "jean@example.test" },
+      clientInfo: { firstName: "Jean", lastName: "Client", email: "jean@example.test" , passportNumber: "P1234567"},
       montantTotal: 45000,
     });
     const payment = await Payment.create({ booking: booking._id, amount: 45000, method: "card", status: "pending" });
@@ -59,7 +59,7 @@ describe("paymentController.stripeWebhook", () => {
   it("est idempotent — un webhook rejoué ne recomplète pas un paiement déjà confirmé", async () => {
     const booking = await Booking.create({
       type: "location",
-      clientInfo: { firstName: "Jean", lastName: "Client", email: "jean@example.test" },
+      clientInfo: { firstName: "Jean", lastName: "Client", email: "jean@example.test" , passportNumber: "P1234567"},
       montantTotal: 45000,
     });
     const payment = await Payment.create({ booking: booking._id, amount: 45000, method: "card", status: "completed", transactionId: "cs_original" });
@@ -75,7 +75,7 @@ describe("paymentController.stripeWebhook", () => {
   it("checkout.session.expired marque le paiement échoué", async () => {
     const booking = await Booking.create({
       type: "location",
-      clientInfo: { firstName: "Jean", lastName: "Client", email: "jean@example.test" },
+      clientInfo: { firstName: "Jean", lastName: "Client", email: "jean@example.test" , passportNumber: "P1234567"},
       montantTotal: 45000,
     });
     const payment = await Payment.create({ booking: booking._id, amount: 45000, method: "card", status: "pending" });

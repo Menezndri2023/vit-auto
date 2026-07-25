@@ -145,6 +145,7 @@ export default function Booking() {
     lastName:      user?.lastName  || "",
     email:         user?.email     || "",
     phone:         user?.phone     || "",
+    passportNumber: "",
     startDate:     "",
     endDate:       "",
     preferredDate: "",
@@ -333,6 +334,7 @@ export default function Booking() {
         lastName:  form.lastName,
         email:     form.email,
         phone:     form.phone,
+        passportNumber: form.passportNumber,
       },
       kycVerified:    kycOk,
       kycScore:       kycScore,
@@ -674,6 +676,13 @@ export default function Booking() {
               <input className={styles.input} type="tel"   placeholder="Téléphone *" value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })} required />
             </div>
+            <div className={styles.row}>
+              <input className={styles.input} type="text"  placeholder="N° de passeport *" value={form.passportNumber}
+                onChange={(e) => setForm({ ...form, passportNumber: e.target.value })} required />
+            </div>
+            <p className={styles.optionsNote} style={{ marginTop: -8, marginBottom: 12 }}>
+              📔 Le passeport est obligatoire pour toute réservation — il sera transmis au partenaire.
+            </p>
 
             {/* Essai / Leasing / Location */}
             {isLeasing ? (
@@ -830,7 +839,7 @@ export default function Booking() {
                 className={styles.primaryBtn}
                 onClick={() => setStep(isLeasing ? 3 : 2)}
                 disabled={
-                  !form.firstName || !form.lastName || !form.email || !form.phone ||
+                  !form.firstName || !form.lastName || !form.email || !form.phone || !form.passportNumber.trim() ||
                   (isLeasing && !leasingAccepted) ||
                   (!isTrial && !isLeasing && (!form.startDate || !form.endDate || days <= 0)) ||
                   (isTrial && (!form.preferredDate || !form.preferredTime || !!essaiConflict)) ||

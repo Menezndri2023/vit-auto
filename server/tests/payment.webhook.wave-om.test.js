@@ -26,7 +26,7 @@ const { mockReqRes } = await import("./helpers/mockReqRes.js");
 async function createPendingPayment(montant = 45000, method = "wave", extra = {}) {
   const booking = await Booking.create({
     type: "location",
-    clientInfo: { firstName: "Jean", lastName: "Client", email: "jean@example.test" },
+    clientInfo: { firstName: "Jean", lastName: "Client", email: "jean@example.test" , passportNumber: "P1234567"},
     montantTotal: montant,
   });
   const payment = await Payment.create({ booking: booking._id, amount: montant, method, status: "pending", ...extra });

@@ -20,13 +20,13 @@ describe("getAnalytics", () => {
 
     await Booking.create({
       type: "location", client: client._id, vehicle: vehicle._id, status: "completed",
-      clientInfo: { firstName: client.firstName, lastName: client.lastName, email: client.email },
+      clientInfo: { firstName: client.firstName, lastName: client.lastName, email: client.email , passportNumber: "P1234567"},
       montantTotal: 100000, commissionAmount: 15000, devise: "XOF",
     });
     // Une commande non terminée ne doit pas compter dans byCurrency/byType/byCountry.
     await Booking.create({
       type: "location", client: client._id, vehicle: vehicle._id, status: "pending",
-      clientInfo: { firstName: client.firstName, lastName: client.lastName, email: client.email },
+      clientInfo: { firstName: client.firstName, lastName: client.lastName, email: client.email , passportNumber: "P1234567"},
       montantTotal: 999999, devise: "XOF",
     });
 

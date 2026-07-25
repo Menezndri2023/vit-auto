@@ -13,7 +13,7 @@ describe("exportPartnerBookings", () => {
     const vehicle = await createVehicleDoc({ owner: owner._id });
     await Booking.create({
       type: "location", status: "completed",
-      clientInfo: { firstName: "Awa", lastName: "Koné", email: "awa@example.test" },
+      clientInfo: { firstName: "Awa", lastName: "Koné", email: "awa@example.test" , passportNumber: "P1234567"},
       vehicle: vehicle._id, montantTotal: 30000, partnerPayout: 27000,
       reference: "VIT-LOC-CSV-001",
     });
@@ -34,7 +34,7 @@ describe("exportPartnerBookings", () => {
     const strangerVehicle = await createVehicleDoc({ owner: stranger._id });
     await Booking.create({
       type: "location", status: "completed",
-      clientInfo: { firstName: "X", lastName: "Y", email: "x@example.test" },
+      clientInfo: { firstName: "X", lastName: "Y", email: "x@example.test" , passportNumber: "P1234567"},
       vehicle: strangerVehicle._id, reference: "VIT-LOC-STRANGER",
     });
 

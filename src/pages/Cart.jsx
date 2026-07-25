@@ -19,6 +19,7 @@ export default function Cart() {
 
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState(null); // [{ vehicleId, ok, message, title }]
+  const [passportNumber, setPassportNumber] = useState("");
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: { pathname: "/cart" } }} replace />;
@@ -32,9 +33,10 @@ export default function Cart() {
   const estimate = (it) => days(it) * (it.pricePerDay || 0);
   const totalEstimate = items.reduce((s, it) => s + estimate(it), 0);
   const allDatesFilled = items.length > 0 && items.every((it) => days(it) > 0);
+  const canSubmit = allDatesFilled && passportNumber.trim().length > 0;
 
   const handleSubmit = async () => {
-    if (!allDatesFilled || submitting) return;
+    if (!canSubmit || submitting) return;
     setSubmitting(true);
     setResults(null);
     try {
@@ -42,6 +44,7 @@ export default function Cart() {
         method: "POST",
         body: JSON.stringify({
           items: items.map((it) => ({ vehicleId: it.vehicleId, startDate: it.startDate, endDate: it.endDate })),
+          passportNumber: passportNumber.trim(),
         }),
       });
       const d = await res.json().catch(() => ({}));
@@ -128,9 +131,15 @@ export default function Cart() {
               <span className={styles.summaryValue}>{fmt(totalEstimate)}</span>
               <span className={styles.summaryNote}>Le montant définitif est toujours recalculé et confirmé par chaque partenaire.</span>
             </div>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 12, fontWeight: 700, color: "#0f1b3f" }}>
+              N° de passeport * <span style={{ fontWeight: 400, fontSize: "0.85rem", color: "#64748b" }}>(obligatoire, transmis aux partenaires)</span>
+              <input type="text" value={passportNumber} onChange={(e) => setPassportNumber(e.target.value)}
+                placeholder="N° de passeport"
+                style={{ padding: "10px 14px", borderRadius: 10, border: "1.5px solid #e5e9f4" }} />
+            </label>
             <div className={styles.summaryActions}>
               <button type="button" className={styles.secondaryBtn} onClick={clear} disabled={submitting}>Vider le panier</button>
-              <button type="button" className={styles.primaryBtn} onClick={handleSubmit} disabled={!allDatesFilled || submitting}>
+              <button type="button" className={styles.primaryBtn} onClick={handleSubmit} disabled={!canSubmit || submitting}>
                 {submitting ? "Réservation en cours…" : `Réserver ${items.length} véhicule${items.length > 1 ? "s" : ""}`}
               </button>
             </div>

@@ -394,8 +394,16 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
                   {order.phone && <a href={`https://wa.me/${order.phone?.replace(/[\s\+\-]/g,"")}`} target="_blank" rel="noopener noreferrer" className={styles.contactItem}><span className={styles.contactIcon}>💬</span><span>WhatsApp</span><span className={styles.contactAction}>Chat</span></a>}
                 </div>
 
-                {/* ── Pièce d'identité ─────────────────────────────────────── */}
+                {/* ── Passeport (obligatoire à la réservation) ──────────────── */}
                 <div className={styles.idCardBlock}>
+                  <div className={styles.idCardHeader}>
+                    <span className={styles.idCardBadge}>📔 Passeport</span>
+                    <span className={styles.idCardNum}>{order.clientInfo?.passportNumber || "N° non renseigné"}</span>
+                  </div>
+                </div>
+
+                {/* ── Pièce d'identité ─────────────────────────────────────── */}
+                <div className={styles.idCardBlock} style={{ marginTop:10 }}>
                   <div className={styles.idCardHeader}>
                     <span className={styles.idCardBadge}>🪪 {idType ? idType.toUpperCase() : "Pièce d'identité"}</span>
                     <span className={styles.idCardNum}>{idNumber || "N° non renseigné"}</span>
