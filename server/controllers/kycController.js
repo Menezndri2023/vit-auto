@@ -6,7 +6,7 @@ import { dispatch } from "../queue/index.js";
 import { logAction } from "../middleware/auditLog.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
 import { smsConfigured } from "../utils/smsConfigured.js";
-import { emailVerificationRequired } from "../utils/emailVerificationRequired.js";
+import { emailVerificationRequiredForKyc } from "../utils/emailVerificationRequired.js";
 import { encryptField, decryptField, hmacIndex } from "../utils/fieldEncryption.js";
 import { captureException } from "../config/sentry.js";
 import { unpublishPartnerListings } from "../utils/partnerListings.js";
@@ -48,7 +48,7 @@ export const getKycStatus = async (req, res) => {
       // ne doit jamais bloquer le parcours KYC (voir smsConfigured() dans
       // authController.js — sinon aucun utilisateur ne pourrait jamais recevoir de code).
       smsAvailable:      smsConfigured(),
-      emailVerificationRequired: emailVerificationRequired(),
+      emailVerificationRequired: emailVerificationRequiredForKyc(),
     });
   } catch (err) {
     logger.error("getKycStatus:", err);

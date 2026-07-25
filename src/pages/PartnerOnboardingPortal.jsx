@@ -78,6 +78,23 @@ const PAYMENT_MODES = [
   { key: "escrow",        label: "Escrow" },
 ];
 
+// ── Visibilité des sections de StepBusiness selon l'activité choisie (voir
+// StepTypeInfo/onboarding.activity) — chaque étape doit rester pertinente pour
+// l'activité du partenaire : un chauffeur n'a ni inventaire véhicules, ni
+// capacités d'export/incoterms, ni conditions commerciales export (dépôt,
+// délai de livraison, inspection…), contrairement à un exportateur pour qui
+// tout le formulaire VA-FP-001 d'origine reste pertinent. Repli sur "tout
+// afficher" tant que l'activité n'est pas encore renseignée (dossiers créés
+// avant l'introduction de ce champ, ou StepTypeInfo pas encore rempli).
+const BUSINESS_STEP_VISIBILITY = {
+  loueur:      { brands: true,  exportInfo: false, entityTypes: false, vehicleInventory: true,  exportCapabilities: false, commercialTerms: false },
+  vendeur:     { brands: true,  exportInfo: false, entityTypes: true,  vehicleInventory: true,  exportCapabilities: false, commercialTerms: true  },
+  exportateur: { brands: true,  exportInfo: true,  entityTypes: true,  vehicleInventory: true,  exportCapabilities: true,  commercialTerms: true  },
+  chauffeur:   { brands: false, exportInfo: false, entityTypes: false, vehicleInventory: false, exportCapabilities: false, commercialTerms: false },
+};
+const DEFAULT_BUSINESS_VISIBILITY = { brands: true, exportInfo: true, entityTypes: true, vehicleInventory: true, exportCapabilities: true, commercialTerms: true };
+const businessVisibilityFor = (activity) => BUSINESS_STEP_VISIBILITY[activity] || DEFAULT_BUSINESS_VISIBILITY;
+
 const radioSt = { display: "flex", alignItems: "center", gap: 7, cursor: "pointer", fontSize: ".85rem", color: "#374151" };
 const inlineRow = { display: "flex", flexWrap: "wrap", gap: 10, marginTop: 6 };
 
@@ -323,7 +340,6 @@ export default function PartnerOnboardingPortal() {
       if (r.ok) {
         addToast(`Candidature soumise ! Réf: ${json.referenceNumber}`, "success");
         await load();
-        setActiveStep(1);
       } else {
         addToast(json.message || "Erreur lors de la soumission", "error");
       }
@@ -392,6 +408,14 @@ export default function PartnerOnboardingPortal() {
   // Écran succès si accord signé
   if (["accord_signe", "actif"].includes(status)) {
     return <SuccessScreen onboarding={onboarding} onNavigate={() => navigate("/partner-pms")} />;
+  }
+
+  // Écran d'accueil juste après soumission du dossier — rien à faire pour le
+  // partenaire tant que l'admin n'a pas statué, un simple accusé de réception
+  // est plus clair qu'un retour brut dans l'assistant (ex-comportement :
+  // setActiveStep(1) renvoyait vers l'étape Documents après avoir soumis).
+  if (["soumis", "en_review"].includes(status)) {
+    return <SubmittedScreen onboarding={onboarding} onNavigate={() => navigate("/dashboard")} />;
   }
 
   return (
@@ -816,10 +840,15 @@ function StepDocuments({ onboarding, saving, onSaveSection, onNext, onBack }) {
     if (ok) onNext();
   };
 
+  // La licence d'export n'a de sens que pour l'activité exportateur — inutile
+  // à afficher à un loueur/vendeur/chauffeur (voir "chaque étape propre à son
+  // entité").
   const DOC_FIELDS = [
     { key: "businessRegistration", label: "Certificat d'immatriculation",             hint: "RCCM, Kbis, Business Registration…" },
     { key: "businessLicense",      label: "Licence commerciale",                      hint: "Business License, Trade License…" },
-    { key: "exportLicense",        label: "Licence d'export (si applicable)",         hint: "Export License" },
+    ...(onboarding?.activity === "exportateur"
+      ? [{ key: "exportLicense", label: "Licence d'export (si applicable)", hint: "Export License" }]
+      : []),
     { key: "taxCertificate",       label: "Attestation fiscale (si applicable)",      hint: "Tax Registration Certificate" },
     { key: "proofOfAddress",       label: "Justificatif d'adresse",                   hint: "Facture, relevé bancaire avec adresse…" },
   ];
@@ -920,7 +949,9 @@ function StepBusiness({ onboarding, saving, onSaveSection, onNext, onBack }) {
   const ec = onboarding?.exportCapabilities || {};
   const pi = onboarding?.paymentInfo || {};
   const ct = onboarding?.commercialTerms || {};
+  const vis = businessVisibilityFor(onboarding?.activity);
 
+  const [presentation, setPresentation] = useState(bv.companyPresentation || "");
   const [brands, setBrands] = useState((bv.brands || []).join(", "));
   const [exportMarkets, setExportMarkets] = useState((bv.exportMarkets || []).join(", "));
   const [activities, setActivities] = useState((bv.mainActivities || []).join(", "));
@@ -952,6 +983,7 @@ function StepBusiness({ onboarding, saving, onSaveSection, onNext, onBack }) {
     const ec2 = onboarding?.exportCapabilities || {};
     const pi2 = onboarding?.paymentInfo || {};
     const ct2 = onboarding?.commercialTerms || {};
+    setPresentation(bv2.companyPresentation || "");
     setBrands((bv2.brands || []).join(", "));
     setExportMarkets((bv2.exportMarkets || []).join(", "));
     setActivities((bv2.mainActivities || []).join(", "));
@@ -975,6 +1007,7 @@ function StepBusiness({ onboarding, saving, onSaveSection, onNext, onBack }) {
 
   const handleSave = async () => {
     const bvData = {
+      companyPresentation: presentation,
       brands: split(brands),
       exportMarkets: split(exportMarkets),
       mainActivities: split(activities),
@@ -1023,47 +1056,60 @@ function StepBusiness({ onboarding, saving, onSaveSection, onNext, onBack }) {
       <div className={styles.sectionBlock}>
         <h3 className={styles.sectionTitle}>Vérification commerciale</h3>
         <div className={styles.formGrid}>
-          <FieldFull label="Marques représentées (séparées par virgule)" value={brands} onChange={(e) => setBrands(e.target.value)} placeholder="Toyota, BYD, Hyundai…" />
-          <FieldFull label="Marchés d'export (pays, séparés par virgule)" value={exportMarkets} onChange={(e) => setExportMarkets(e.target.value)} placeholder="Côte d'Ivoire, Sénégal, Mali…" />
-          <FieldFull label="Activités principales" value={activities} onChange={(e) => setActivities(e.target.value)} placeholder="Import, Export, Transit, Courtage…" />
+          <FieldFull
+            label="Présentation"
+            value={presentation}
+            onChange={(e) => setPresentation(e.target.value)}
+            placeholder={onboarding?.activity === "chauffeur"
+              ? "Présentez-vous : expérience, zones desservies, spécialités (VTC, transferts aéroport, tourisme…)"
+              : "Présentez votre activité en quelques lignes…"}
+          />
+          {vis.brands && <FieldFull label="Marques représentées (séparées par virgule)" value={brands} onChange={(e) => setBrands(e.target.value)} placeholder="Toyota, BYD, Hyundai…" />}
+          {vis.exportInfo && <FieldFull label="Marchés d'export (pays, séparés par virgule)" value={exportMarkets} onChange={(e) => setExportMarkets(e.target.value)} placeholder="Côte d'Ivoire, Sénégal, Mali…" />}
+          <FieldFull label="Activités principales" value={activities} onChange={(e) => setActivities(e.target.value)} placeholder={onboarding?.activity === "chauffeur" ? "VTC, transferts aéroport, tourisme…" : "Import, Export, Transit, Courtage…"} />
           <Field label="Années d'expérience" value={years} onChange={(e) => setYears(e.target.value)} type="number" min="0" />
-          <Field label="Capacité annuelle d'export" value={annualCap} onChange={(e) => setAnnualCap(e.target.value)} placeholder="Ex. 500 véhicules/an" />
+          {vis.exportInfo && <Field label="Capacité annuelle d'export" value={annualCap} onChange={(e) => setAnnualCap(e.target.value)} placeholder="Ex. 500 véhicules/an" />}
         </div>
-        <div style={{ marginTop: 14 }}>
-          <div className={styles.sectionSubtitle}>Type d'entité (cochez tout ce qui s'applique)</div>
+        {vis.entityTypes && (
+          <div style={{ marginTop: 14 }}>
+            <div className={styles.sectionSubtitle}>Type d'entité (cochez tout ce qui s'applique)</div>
+            <div className={styles.checkGrid}>
+              {ENTITY_TYPES.map(({ key, label }) => (
+                <label key={key} className={styles.checkItem}>
+                  <input
+                    type="checkbox"
+                    checked={entityTypes.includes(key)}
+                    onChange={() => toggleArr(entityTypes, setEntityTypes, key)}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Vehicle Inventory */}
+      {vis.vehicleInventory && (
+        <div className={styles.sectionBlock}>
+          <h3 className={styles.sectionTitle}>Inventaire véhicules</h3>
           <div className={styles.checkGrid}>
-            {ENTITY_TYPES.map(({ key, label }) => (
+            {VEHICLE_TYPES.map(({ key, label }) => (
               <label key={key} className={styles.checkItem}>
                 <input
                   type="checkbox"
-                  checked={entityTypes.includes(key)}
-                  onChange={() => toggleArr(entityTypes, setEntityTypes, key)}
+                  checked={!!vInv[key]}
+                  onChange={() => setVInv((v) => ({ ...v, [key]: !v[key] }))}
                 />
                 <span>{label}</span>
               </label>
             ))}
           </div>
         </div>
-      </div>
-
-      {/* Vehicle Inventory */}
-      <div className={styles.sectionBlock}>
-        <h3 className={styles.sectionTitle}>Inventaire véhicules</h3>
-        <div className={styles.checkGrid}>
-          {VEHICLE_TYPES.map(({ key, label }) => (
-            <label key={key} className={styles.checkItem}>
-              <input
-                type="checkbox"
-                checked={!!vInv[key]}
-                onChange={() => setVInv((v) => ({ ...v, [key]: !v[key] }))}
-              />
-              <span>{label}</span>
-            </label>
-          ))}
-        </div>
-      </div>
+      )}
 
       {/* Export Capabilities */}
+      {vis.exportCapabilities && (
       <div className={styles.sectionBlock}>
         <h3 className={styles.sectionTitle}>Capacités d'export</h3>
         <div className={styles.formGrid}>
@@ -1083,30 +1129,37 @@ function StepBusiness({ onboarding, saving, onSaveSection, onNext, onBack }) {
           ))}
         </div>
       </div>
+      )}
 
-      {/* Conditions commerciales structurées */}
+      {/* Modes de paiement — toujours pertinent, quelle que soit l'activité */}
+      <div className={styles.sectionBlock}>
+        <h3 className={styles.sectionTitle}>Modes de paiement acceptés</h3>
+        <div className={styles.checkGrid}>
+          {PAYMENT_MODES.map(({ key, label }) => (
+            <label key={key} className={styles.checkItem}>
+              <input
+                type="checkbox"
+                checked={paymentModes.includes(key)}
+                onChange={() => toggleArr(paymentModes, setPaymentModes, key)}
+              />
+              <span>{label}</span>
+            </label>
+          ))}
+        </div>
+        <div className={styles.formGrid} style={{ marginTop: 14 }}>
+          <Field label="Devise préférée" value={currency} onChange={(e) => setCurrency(e.target.value)} placeholder="USD, EUR, XOF…" />
+        </div>
+      </div>
+
+      {/* Conditions commerciales structurées — vente/export uniquement (dépôt,
+          délai de livraison, inspection, garantie, MOQ n'ont pas de sens pour
+          un loueur ou un chauffeur, voir BUSINESS_STEP_VISIBILITY). */}
+      {vis.commercialTerms && (
       <div className={styles.sectionBlock}>
         <h3 className={styles.sectionTitle}>Conditions commerciales</h3>
         <p style={{ fontSize: ".8rem", color: "#64748b", margin: "0 0 14px" }}>
           Ces informations seront affichées sur votre profil — comme Alibaba. Les acheteurs voient exactement vos conditions avant de vous contacter.
         </p>
-
-        {/* Modes de paiement */}
-        <div style={{ marginBottom: 18 }}>
-          <div className={styles.sectionSubtitle}>Modes de paiement acceptés</div>
-          <div className={styles.checkGrid}>
-            {PAYMENT_MODES.map(({ key, label }) => (
-              <label key={key} className={styles.checkItem}>
-                <input
-                  type="checkbox"
-                  checked={paymentModes.includes(key)}
-                  onChange={() => toggleArr(paymentModes, setPaymentModes, key)}
-                />
-                <span>{label}</span>
-              </label>
-            ))}
-          </div>
-        </div>
 
         {/* Acompte */}
         <div style={{ marginBottom: 18 }}>
@@ -1235,12 +1288,12 @@ function StepBusiness({ onboarding, saving, onSaveSection, onNext, onBack }) {
           )}
         </div>
 
-        {/* MOQ & Devise */}
+        {/* MOQ */}
         <div className={styles.formGrid} style={{ marginTop: 4 }}>
           <Field label="Quantité minimum (MOQ)" value={minQty} onChange={(e) => setMinQty(e.target.value)} placeholder="Ex. 1 véhicule" />
-          <Field label="Devise préférée" value={currency} onChange={(e) => setCurrency(e.target.value)} placeholder="USD, EUR, XOF…" />
         </div>
       </div>
+      )}
 
       <div className={styles.stepActions}>
         <button className={styles.btnSecondary} onClick={onBack}>← Retour</button>
@@ -1332,13 +1385,13 @@ function StepReview({ onboarding, saving, status, onSubmit, onBack, onEditStep, 
         }}>
           <input type="checkbox" checked={legalChecked} onChange={handleLegalCheck} style={{ marginTop: 3 }} />
           <span>
-            I have read and accept the Founding Partner{" "}
-            <Link to="/founding-partner-legal" target="_blank" rel="noopener noreferrer" style={{ color: "#ff4d2d", fontWeight: 700 }}>Letter of Intent</Link>,{" "}
-            the{" "}
-            <Link to="/founding-partner-legal" target="_blank" rel="noopener noreferrer" style={{ color: "#ff4d2d", fontWeight: 700 }}>Founding Partner Agreement</Link>,{" "}
-            and the{" "}
-            <Link to="/founding-partner-legal" target="_blank" rel="noopener noreferrer" style={{ color: "#ff4d2d", fontWeight: 700 }}>Partner Verification Policy</Link>{" "}
-            of VIT-AUTO.
+            J'ai lu et j'accepte la{" "}
+            <Link to="/founding-partner-legal?tab=loi" target="_blank" rel="noopener noreferrer" style={{ color: "#ff4d2d", fontWeight: 700 }}>Lettre d'Intention (LOI)</Link>,{" "}
+            l'{" "}
+            <Link to="/founding-partner-legal?tab=agreement" target="_blank" rel="noopener noreferrer" style={{ color: "#ff4d2d", fontWeight: 700 }}>Accord de Partenariat Fondateur</Link>{" "}
+            et la{" "}
+            <Link to="/founding-partner-legal?tab=policy" target="_blank" rel="noopener noreferrer" style={{ color: "#ff4d2d", fontWeight: 700 }}>Politique de Vérification Partenaire</Link>{" "}
+            de VIT-AUTO.
           </span>
         </label>
       )}
@@ -1524,9 +1577,15 @@ function SignatureModal({ type, onboarding, saving, onSign, onClose }) {
   const [signerName, setSignerName] = useState("");
   const [signerPosition, setSignerPosition] = useState("");
   const [accepted, setAccepted] = useState(false);
+  // Aperçu tronqué par défaut (document parfois long) — mais le partenaire doit
+  // pouvoir lire l'intégralité AVANT de cocher "j'accepte" et de signer, pas
+  // seulement un extrait.
+  const [showFullDoc, setShowFullDoc] = useState(false);
 
   const doc = type === "loi" ? onboarding?.loi : onboarding?.agreement;
   const title = type === "loi" ? "Signature — Lettre d'Intention" : "Signature — Accord de Partenariat Fondateur";
+  const PREVIEW_LENGTH = 1500;
+  const isTruncated = (doc?.content?.length || 0) > PREVIEW_LENGTH;
 
   return (
     <div className={styles.modalOverlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -1537,10 +1596,22 @@ function SignatureModal({ type, onboarding, saving, onSign, onClose }) {
         </div>
 
         <div className={styles.modalBody}>
-          {/* Document aperçu */}
+          {/* Document aperçu — voir le document complet avant d'accepter/signer */}
           {doc?.content && (
             <div className={styles.modalDocPreview}>
-              <pre className={styles.docTextSmall}>{doc.content.slice(0, 1500)}…</pre>
+              <pre className={styles.docTextSmall}>
+                {showFullDoc || !isTruncated ? doc.content : `${doc.content.slice(0, PREVIEW_LENGTH)}…`}
+              </pre>
+              {isTruncated && (
+                <button
+                  type="button"
+                  className={styles.btnSecondary}
+                  style={{ fontSize: ".78rem", padding: ".4rem .75rem", marginTop: 8 }}
+                  onClick={() => setShowFullDoc((v) => !v)}
+                >
+                  {showFullDoc ? "▲ Réduire" : "▼ Voir le document complet"}
+                </button>
+              )}
             </div>
           )}
 
@@ -1601,6 +1672,33 @@ function SuccessScreen({ onboarding, onNavigate }) {
 
         <button className={styles.btnPrimary} onClick={onNavigate}>
           → Accéder à mon espace Partenaire
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// ÉCRAN D'ACCUEIL — DOSSIER SOUMIS (en attente de décision admin)
+// ════════════════════════════════════════════════════════════════════════════════
+function SubmittedScreen({ onboarding, onNavigate }) {
+  return (
+    <div className={styles.successScreen}>
+      <div className={styles.successCard}>
+        <div className={styles.successBadge}>✅</div>
+        <h1>Candidature soumise !</h1>
+        <h2>Votre dossier Founding Partner est en cours d'examen</h2>
+        <p>
+          Notre équipe examine votre candidature et vous notifiera dès qu'une décision sera prise
+          (par email et notification). Aucune action supplémentaire n'est requise de votre part pour l'instant.
+        </p>
+
+        <div className={styles.successRef}>
+          Référence de candidature : <strong>{onboarding?.referenceNumber}</strong>
+        </div>
+
+        <button className={styles.btnPrimary} onClick={onNavigate}>
+          → Accéder à mon tableau de bord
         </button>
       </div>
     </div>
@@ -1744,9 +1842,9 @@ function PublicHero() {
           govern the Founding Partner relationship before applying.
         </p>
         <div className={styles.legalLinks}>
-          <Link to="/founding-partner-legal" className={styles.legalLinkCard}>📄 Letter of Intent</Link>
-          <Link to="/founding-partner-legal" className={styles.legalLinkCard}>🤝 Founding Partner Agreement</Link>
-          <Link to="/founding-partner-legal" className={styles.legalLinkCard}>🛡️ Partner Verification Policy</Link>
+          <Link to="/founding-partner-legal?tab=loi" className={styles.legalLinkCard}>📄 Letter of Intent</Link>
+          <Link to="/founding-partner-legal?tab=agreement" className={styles.legalLinkCard}>🤝 Founding Partner Agreement</Link>
+          <Link to="/founding-partner-legal?tab=policy" className={styles.legalLinkCard}>🛡️ Partner Verification Policy</Link>
         </div>
       </section>
 

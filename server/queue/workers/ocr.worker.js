@@ -15,7 +15,7 @@ import { captureException } from "../../config/sentry.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
 import { noteRedisError } from "../connection.js";
 import { smsConfigured } from "../../utils/smsConfigured.js";
-import { emailVerificationRequired } from "../../utils/emailVerificationRequired.js";
+import { emailVerificationRequiredForKyc } from "../../utils/emailVerificationRequired.js";
 
 // Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
 // Redis/BullMQ est indisponible.
@@ -53,9 +53,9 @@ export async function processOcrJob(job) {
       // l'auto-approbation, sinon AUCUN utilisateur ne serait jamais auto-approuvé
       // tant que l'équipe n'a pas de provider SMS réel — tout finirait en revue
       // manuelle admin. Même logique pour l'email tant que
-      // emailVerificationRequired() est désactivé.
+      // emailVerificationRequiredForKyc() est désactivé.
       const autoApprove = ocrConf >= 70 && faceConf >= 80
-        && (emailChannelOk || !emailVerificationRequired())
+        && (emailChannelOk || !emailVerificationRequiredForKyc())
         && (phoneChannelOk || !smsConfigured())
         && hasDoc;
       const newStatus = autoApprove ? "VERIFIE" : user.kycStatus;

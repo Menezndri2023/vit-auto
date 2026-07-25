@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 const Art = ({ n, title, children }) => (
   <div style={{ marginBottom: 32 }}>
@@ -33,8 +33,17 @@ const TABS = [
   { id: "policy",     label: "🛡️ Partner Verification Policy" },
 ];
 
+const VALID_TABS = TABS.map((t) => t.id);
+
 export default function FoundingPartnerLegal() {
-  const [tab, setTab] = useState("loi");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const [tab, setTab] = useState(VALID_TABS.includes(requestedTab) ? requestedTab : "loi");
+
+  const selectTab = (id) => {
+    setTab(id);
+    setSearchParams(id === "loi" ? {} : { tab: id }, { replace: true });
+  };
 
   return (
     <div style={{ maxWidth: 860, margin: "0 auto", padding: "48px 24px 96px" }}>
@@ -62,7 +71,7 @@ export default function FoundingPartnerLegal() {
       {/* Tabs */}
       <div style={{ display: "flex", gap: 8, marginBottom: 28, flexWrap: "wrap" }}>
         {TABS.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)}
+          <button key={t.id} onClick={() => selectTab(t.id)}
             style={{
               padding: "9px 16px", borderRadius: 10, border: tab === t.id ? "none" : "1.5px solid #e2e8f0",
               background: tab === t.id ? "#0f1b3f" : "#fff",

@@ -9,7 +9,7 @@ import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { serverValidateIdentity } from "../utils/idValidation.js";
 import { smsConfigured, twilioVerifyConfigured } from "../utils/smsConfigured.js";
-import { emailVerificationRequired } from "../utils/emailVerificationRequired.js";
+import { emailVerificationRequiredForLogin } from "../utils/emailVerificationRequired.js";
 import { dispatch } from "../queue/index.js";
 import { sendVerification, checkVerification } from "../services/twilioVerify.js";
 import { isValidCountryCode } from "../utils/countries.js";
@@ -332,10 +332,10 @@ export const login = async (req, res) => {
     }
 
     // Bloquer si email non vérifié (sauf admin, mode dev sans SMTP, ou tant que la
-    // vérification email n'est pas exigée — voir emailVerificationRequired()). Ne
-    // s'applique que si le compte a effectivement un email (comptes inscrits par
+    // vérification email n'est pas exigée — voir emailVerificationRequiredForLogin()).
+    // Ne s'applique que si le compte a effectivement un email (comptes inscrits par
     // téléphone uniquement : user.email est null, rien à vérifier de ce côté).
-    if (user.email && !user.emailVerified && user.role !== "admin" && !isDevNoSmtp() && emailVerificationRequired()) {
+    if (user.email && !user.emailVerified && user.role !== "admin" && !isDevNoSmtp() && emailVerificationRequiredForLogin()) {
       return res.status(403).json({
         code: "EMAIL_NOT_VERIFIED",
         message: "Veuillez vérifier votre adresse e-mail avant de vous connecter. Vérifiez votre boîte mail ou demandez un nouveau lien.",
