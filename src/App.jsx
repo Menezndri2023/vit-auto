@@ -12,6 +12,7 @@ import { ChatProvider } from "./context/ChatContext";
 import { I18nProvider } from "./context/I18nContext";
 import { CurrencyProvider } from "./context/CurrencyContext";
 import { FavoritesProvider } from "./context/FavoritesContext";
+import { CartProvider } from "./context/CartContext";
 import { LocationProvider } from "./context/LocationContext";
 import { VehicleProvider } from "./context/VehicleContext";
 import Layout from "./components/Layout/Layout";
@@ -25,6 +26,7 @@ import { SocketProvider } from "./context/SocketContext";
 const Home                  = lazy(() => import("./pages/Home"));
 const Catalogue             = lazy(() => import("./pages/Catalogue"));
 const VehicleDetails        = lazy(() => import("./pages/VehicleDetails"));
+const Cart                  = lazy(() => import("./pages/Cart"));
 const Booking               = lazy(() => import("./pages/Booking"));
 const DriverBooking         = lazy(() => import("./pages/DriverBooking"));
 const DriverEmployment      = lazy(() => import("./pages/DriverEmployment"));
@@ -89,12 +91,18 @@ function AppRoutes() {
 
   return (
     <Layout>
-      <Suspense fallback={<SplashScreen persistent />}>
+      {/* Filet de sécurité global : certaines pages listées ci-dessous ont leur
+          propre <ErrorBoundary> (comportement de repli spécifique), mais toute
+          page qui n'en a pas explicitement ne doit plus faire planter
+          l'application entière (écran blanc) — trouvé en audit. */}
+      <ErrorBoundary>
+        <Suspense fallback={<SplashScreen persistent />}>
         <Routes>
           {/* ── Pages publiques ─────────────────────────────── */}
           <Route path="/"                       element={<Home />} />
           <Route path="/catalogue"              element={<Catalogue />} />
-          <Route path="/vehicle/:id"            element={<VehicleDetails />} />
+          <Route path="/vehicle/:id"            element={<ErrorBoundary><VehicleDetails /></ErrorBoundary>} />
+          <Route path="/cart"                   element={<ErrorBoundary><Cart /></ErrorBoundary>} />
           <Route path="/login"                  element={<Login />} />
           <Route path="/register"               element={<Register />} />
           <Route path="/verify-email"           element={<VerifyEmail />} />
@@ -113,8 +121,8 @@ function AppRoutes() {
           <Route path="/import-export"                    element={<ImportExport />} />
           <Route path="/import-export/listings"          element={<IEListings />} />
           <Route path="/import-export/listings/:id"      element={<IEListingDetail />} />
-          <Route path="/import-export/transaction/:id"   element={<IETransactionTracking />} />
-          <Route path="/import-export/dashboard"         element={<IEClientDashboard />} />
+          <Route path="/import-export/transaction/:id"   element={<ErrorBoundary><IETransactionTracking /></ErrorBoundary>} />
+          <Route path="/import-export/dashboard"         element={<ErrorBoundary><IEClientDashboard /></ErrorBoundary>} />
 
           {/* ── Pages légales ──────────────────────────────── */}
           <Route path="/privacy"                element={<Privacy />} />
@@ -137,7 +145,7 @@ function AppRoutes() {
           <Route path="/driver-employment/:id"  element={
             <ErrorBoundary><DriverEmployment /></ErrorBoundary>
           } />
-          <Route path="/checkout"               element={<Checkout />} />
+          <Route path="/checkout"               element={<ErrorBoundary><Checkout /></ErrorBoundary>} />
 
           {/* ── Paiement (redirection fournisseur ou mode sandbox) ─── */}
           <Route path="/payment/simulate/:paymentId" element={<PaymentSimulate />} />
@@ -148,16 +156,16 @@ function AppRoutes() {
           <Route path="/dashboard"              element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
           <Route path="/favorites"              element={<ErrorBoundary><Favorites /></ErrorBoundary>} />
           <Route path="/profile"                element={<ErrorBoundary><Profile /></ErrorBoundary>} />
-          <Route path="/kyc"                    element={<KYC />} />
-          <Route path="/contract/:bookingId"    element={<ContractPage />} />
+          <Route path="/kyc"                    element={<ErrorBoundary><KYC /></ErrorBoundary>} />
+          <Route path="/contract/:bookingId"    element={<ErrorBoundary><ContractPage /></ErrorBoundary>} />
 
           {/* ── Espace partenaire (PartnerRoute = auth + rôle partenaire/admin) ── */}
-          <Route path="/vendor"           element={<PartnerRoute><VendorSubmit /></PartnerRoute>} />
+          <Route path="/vendor"           element={<PartnerRoute><ErrorBoundary><VendorSubmit /></ErrorBoundary></PartnerRoute>} />
           <Route path="/vendor/dashboard" element={<PartnerRoute><ErrorBoundary><VendorDashboard /></ErrorBoundary></PartnerRoute>} />
-          <Route path="/vendor/publish"   element={<PartnerRoute><VendorPublish /></PartnerRoute>} />
-          <Route path="/importer-apply"   element={<PartnerRoute><ImporterApply /></PartnerRoute>} />
-          <Route path="/importer-dashboard" element={<PartnerRoute><ImporterDashboard /></PartnerRoute>} />
-          <Route path="/partner-certification" element={<PartnerRoute><PartnerCertification /></PartnerRoute>} />
+          <Route path="/vendor/publish"   element={<PartnerRoute><ErrorBoundary><VendorPublish /></ErrorBoundary></PartnerRoute>} />
+          <Route path="/importer-apply"   element={<PartnerRoute><ErrorBoundary><ImporterApply /></ErrorBoundary></PartnerRoute>} />
+          <Route path="/importer-dashboard" element={<PartnerRoute><ErrorBoundary><ImporterDashboard /></ErrorBoundary></PartnerRoute>} />
+          <Route path="/partner-certification" element={<PartnerRoute><ErrorBoundary><PartnerCertification /></ErrorBoundary></PartnerRoute>} />
           <Route path="/partner-pms"      element={<PartnerRoute><ErrorBoundary><PartnerPMSDashboard /></ErrorBoundary></PartnerRoute>} />
           <Route path="/partner-fleet-import" element={<PartnerRoute><ErrorBoundary><PartnerFleetImport /></ErrorBoundary></PartnerRoute>} />
 
@@ -174,12 +182,13 @@ function AppRoutes() {
 
           {/* ── Espace admin ────────────────────────────────── */}
           <Route path="/admin"  element={<AdminRoute><ErrorBoundary><AdminPanel /></ErrorBoundary></AdminRoute>} />
-          <Route path="/stats"  element={<AdminRoute><DashboardStats /></AdminRoute>} />
+          <Route path="/stats"  element={<AdminRoute><ErrorBoundary><DashboardStats /></ErrorBoundary></AdminRoute>} />
 
           {/* ── 404 ─────────────────────────────────────────── */}
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </Suspense>
+        </Suspense>
+      </ErrorBoundary>
     </Layout>
   );
 }
@@ -211,10 +220,12 @@ function App() {
                       <LocationProvider>
                         <VehicleProvider>
                           <FavoritesProvider>
-                            <AppRoutes />
-                            <ToastContainer />
-                            <UpdateBanner />
-                            <Chat />
+                            <CartProvider>
+                              <AppRoutes />
+                              <ToastContainer />
+                              <UpdateBanner />
+                              <Chat />
+                            </CartProvider>
                           </FavoritesProvider>
                         </VehicleProvider>
                       </LocationProvider>

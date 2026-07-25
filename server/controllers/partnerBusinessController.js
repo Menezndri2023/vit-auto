@@ -1,6 +1,7 @@
 import logger from "../utils/logger.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
 import Vehicle from "../models/Vehicle.js";
+import ImportExportListing from "../models/ImportExportListing.js";
 
 // Au-delà, il s'agit probablement d'un abus (ou d'un vrai besoin qui mérite
 // une discussion avec VIT AUTO plutôt qu'un formulaire libre) — large marge
@@ -125,6 +126,7 @@ export const deleteBusiness = async (req, res) => {
     if (!business) return res.status(404).json({ message: "Entreprise introuvable." });
 
     await Vehicle.updateMany({ business: business._id }, { business: null });
+    await ImportExportListing.updateMany({ business: business._id }, { business: null });
     await business.deleteOne();
 
     if (business.isDefault) {

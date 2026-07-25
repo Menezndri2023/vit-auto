@@ -6,6 +6,7 @@ import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { logAction } from "../middleware/auditLog.js";
 import { decryptField } from "../utils/fieldEncryption.js";
+import { unpublishPartnerListings } from "../utils/partnerListings.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -21,8 +22,14 @@ async function addAudit(docId, action, criterion, performedBy, note) {
 // ── Notifier le partenaire ────────────────────────────────────────────────────
 async function notifyPartner(userId, title, message) {
   try {
-    await Notification.create({ user: userId, titre: title, message, type: "system" });
-    if (global._io) global._io.to(`user_${userId}`).emit("notification", { titre: title, message });
+    const notif = await Notification.create({ user: userId, titre: title, message, type: "system" });
+    // Voir insuranceController.notify — même correctif (mauvais nom d'événement
+    // + payload partiel, bug réel trouvé en audit).
+    if (global._io) {
+      global._io.to(`user_${userId}`).emit("notification_new", {
+        _id: notif._id, type: "system", titre: title, message, lien: null, lu: false, createdAt: notif.createdAt,
+      });
+    }
   } catch { /* non-bloquant */ }
 }
 
@@ -255,6 +262,13 @@ export const adminUpdateStatus = async (req, res) => {
       { new: true }
     );
     if (!doc) return res.status(404).json({ message: "Dossier introuvable." });
+
+    // Un partenaire suspendu/rejeté ne doit plus avoir aucune annonce visible
+    // en ligne — jusqu'ici seule la CRÉATION de nouvelles annonces était
+    // bloquée, les annonces déjà approuvées restaient publiées indéfiniment.
+    if (["suspendu", "rejete"].includes(status)) {
+      await unpublishPartnerListings(doc.userId);
+    }
 
     await addAudit(doc._id, "STATUT_CHANGE", null, req.user.id, `Statut → ${status}`);
     // Journal d'audit global (décision de vérification partenaire — action sensible)

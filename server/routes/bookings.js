@@ -27,12 +27,16 @@ router.get("/vehicle/:vehicleId/essai-slots",    b.getEssaiOccupiedSlots);
 
 // ── Création réservation (auth optionnelle — liaison user si connecté) ─
 router.post("/", createBookingLimiter, optionalAuth, b.createBooking);
+// ── Panier : plusieurs véhicules réservés en une fois (auth requise, pas de
+// panier invité) ──────────────────────────────────────────
+router.post("/batch", createBookingLimiter, authenticate, b.createBookingsBatch);
 
 // ── Client connecté ───────────────────────────────────────
 router.get("/mine",                    authenticate, b.getMyBookings);
 router.patch("/:id/validate",          vid, authenticate, b.validateTransaction);
 router.patch("/:id/cancel",            vid, authenticate, b.cancelBookingByClient);
 router.patch("/:id/modify",            vid, authenticate, b.modifyBookingDates);
+router.patch("/:id/extend",            vid, authenticate, b.extendBooking);
 router.patch("/:id/driver-arrived",    vid, authenticate, b.markDriverArrived);   // client confirme l'arrivée du chauffeur
 router.patch("/:id/complete-mission",  vid, authenticate, b.completeMission);      // client clôt la mission chauffeur
 

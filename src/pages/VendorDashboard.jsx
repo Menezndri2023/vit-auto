@@ -11,6 +11,7 @@ import { SUBSCRIPTIONS_ENABLED } from "../config/featureFlags";
 import PartnerCalendar from "../components/PartnerCalendar/PartnerCalendar";
 import PartnerBusinessManager from "../components/PartnerBusinessManager/PartnerBusinessManager";
 import { geocodeAddress } from "../utils/geo";
+import { PARTNER_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import styles from "./VendorDashboard.module.css";
 
 /* ── Utilitaires ────────────────────────────────────────────────────────── */
@@ -1039,6 +1040,7 @@ export default function VendorDashboard() {
   const [searchQuery,    setSearchQuery]    = useState("");
   const [rejectModal,    setRejectModal]    = useState(null);
   const [rejectNote,     setRejectNote]     = useState("");
+  const [rejectReasonCode, setRejectReasonCode] = useState("");
   const [promoModal,     setPromoModal]     = useState(null); // véhicule en cours d'édition promo
   const [promoForm,      setPromoForm]      = useState({ active: false, discountPercent: 15, label: "", startDate: "", endDate: "" });
   const [promoSaving,    setPromoSaving]    = useState(false);
@@ -1841,14 +1843,16 @@ export default function VendorDashboard() {
   }, [token, loadEmploymentRequests, toastSuccess, toastError]);
 
   const handleReject = useCallback(async () => {
-    if (!rejectModal) return;
-    const r = await updateBookingStatus(rejectModal, "cancelled", rejectNote);
-    toastError(r.ok ? "Commande refusée." : (r.message || "Impossible de refuser la commande."));
+    if (!rejectModal || !rejectReasonCode) return;
+    const r = await updateBookingStatus(rejectModal, "cancelled", rejectNote, rejectReasonCode);
     if (r.ok) {
-      setRejectModal(null); setRejectNote(""); setGererModalId(null);
+      toastSuccess("Commande refusée.");
+      setRejectModal(null); setRejectNote(""); setRejectReasonCode(""); setGererModalId(null);
       setTimeout(() => loadPartnerOrders(), 800);
+    } else {
+      toastError(r.message || "Impossible de refuser la commande.");
     }
-  }, [rejectModal, rejectNote, updateBookingStatus, toastError, loadPartnerOrders]);
+  }, [rejectModal, rejectNote, rejectReasonCode, updateBookingStatus, toastSuccess, toastError, loadPartnerOrders]);
 
   const handleGerer = useCallback((order) => {
     setGererModalId(order.id);
@@ -3086,15 +3090,22 @@ export default function VendorDashboard() {
 
       {/* ══ MODAL REFUS ═══════════════════════════════════════════════════ */}
       {rejectModal && (
-        <div className={styles.modalBackdrop} onClick={() => setRejectModal(null)}>
+        <div className={styles.modalBackdrop} onClick={() => { setRejectModal(null); setRejectReasonCode(""); setRejectNote(""); }}>
           <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()}>
             <h3>Refuser la commande</h3>
-            <p>Expliquez la raison du refus (optionnel — le client sera notifié) :</p>
+            <p>Motif du refus <span style={{ color: "#dc2626" }}>*</span> (le client sera notifié) :</p>
+            <select value={rejectReasonCode} onChange={(e) => setRejectReasonCode(e.target.value)} style={{ width: "100%", marginBottom: 10 }}>
+              <option value="">— Sélectionnez un motif —</option>
+              {PARTNER_CANCEL_REASONS.map(([code, label]) => (
+                <option key={code} value={code}>{label}</option>
+              ))}
+            </select>
+            <p>Précisions (optionnel) :</p>
             <textarea rows={3} className={styles.rejectTextarea} placeholder="Ex : Véhicule indisponible à ces dates…"
               value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} />
             <div className={styles.rejectActions}>
-              <button className={styles.btnRefuseModal} onClick={handleReject}>Confirmer le refus</button>
-              <button className={styles.btnSecondary} onClick={() => setRejectModal(null)}>Annuler</button>
+              <button className={styles.btnRefuseModal} disabled={!rejectReasonCode} onClick={handleReject}>Confirmer le refus</button>
+              <button className={styles.btnSecondary} onClick={() => { setRejectModal(null); setRejectReasonCode(""); setRejectNote(""); }}>Annuler</button>
             </div>
           </div>
         </div>

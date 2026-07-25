@@ -9,6 +9,7 @@ import { smsConfigured } from "../utils/smsConfigured.js";
 import { emailVerificationRequired } from "../utils/emailVerificationRequired.js";
 import { encryptField, decryptField, hmacIndex } from "../utils/fieldEncryption.js";
 import { captureException } from "../config/sentry.js";
+import { unpublishPartnerListings } from "../utils/partnerListings.js";
 
 const MAX_KYC_IMAGE_BYTES = 6 * 1024 * 1024; // 6 Mo — cohérent avec usersController/partnerOnboarding
 
@@ -480,6 +481,14 @@ export const adminReviewKyc = async (req, res) => {
     };
 
     await User.findByIdAndUpdate(req.params.userId, { $set: updateFields });
+
+    // Un dossier KYC refusé retire le droit de publier (voir createVehicle/
+    // createListing) — sans dépublier aussi les annonces déjà en ligne, un
+    // partenaire "particulier" (dont le KYC identité est la seule barrière)
+    // continuait d'en recevoir des réservations malgré le refus.
+    if (decision === "REFUSE") {
+      await unpublishPartnerListings(req.params.userId);
+    }
 
     const actionLabels = {
       VERIFIE:                "ADMIN_APPROVED",

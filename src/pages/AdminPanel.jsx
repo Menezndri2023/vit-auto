@@ -7,6 +7,7 @@ import styles from "./AdminPanel.module.css";
 import { ListingForm as IEListingEditForm } from "./ImporterDashboard";
 import { COUNTRIES_ALL, CURRENCIES as IE_CURRENCIES, getCountryFlag } from "../data/autocomplete";
 import { INCOTERMS as IE_LISTING_INCOTERMS } from "../constants/incoterms";
+import { PARTNER_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 
 // Drapeau pays — reconnaissance rapide du pays d'un partenaire/client par
 // l'admin, à partir du code ISO stocké sur User/Vehicle/Driver (voir
@@ -1431,6 +1432,7 @@ export default function AdminPanel() {
   // Booking action
   const [bkActionModal,   setBkActionModal]   = useState(null); // { id, name, action }
   const [bkCancelReason,  setBkCancelReason]  = useState("");
+  const [bkCancelReasonCode, setBkCancelReasonCode] = useState("");
   const [bkSearch,        setBkSearch]        = useState("");
   const [bkType,          setBkType]          = useState("all");
   // Dispute & Force complete modals
@@ -2616,10 +2618,10 @@ export default function AdminPanel() {
   }, [headers, showToast]);
 
   // ── Actions commandes (admin) ───────────────────────────────────────────────
-  const adminUpdateBooking = useCallback(async (bid, status, reason = "") => {
+  const adminUpdateBooking = useCallback(async (bid, status, reason = "", cancelReasonCode = null) => {
     try {
       const res = await fetch(`/api/bookings/${bid}/status`, {
-        method: "PATCH", headers, body: JSON.stringify({ status, cancelReason: reason }),
+        method: "PATCH", headers, body: JSON.stringify({ status, cancelReason: reason, cancelReasonCode }),
       });
       if (!res.ok) throw new Error();
       setBookings((prev) => prev.map((b) => b._id === bid ? { ...b, status } : b));
@@ -2912,18 +2914,33 @@ export default function AdminPanel() {
               {bkActionModal.action === "cancelled" ? `Annuler la commande de « ${bkActionModal.name} » ?` : `Confirmer la commande de « ${bkActionModal.name} » ?`}
             </p>
             {bkActionModal.action === "cancelled" && (
-              <textarea
-                style={{ width: "100%", borderRadius: 8, border: "1px solid #e2e8f0", padding: "0.6rem", fontSize: "0.9rem", marginBottom: "0.75rem", resize: "vertical" }}
-                rows={2} placeholder="Raison de l'annulation (optionnelle)..."
-                value={bkCancelReason} onChange={(e) => setBkCancelReason(e.target.value)}
-              />
+              <>
+                <select
+                  style={{ width: "100%", borderRadius: 8, border: "1px solid #e2e8f0", padding: "0.6rem", fontSize: "0.9rem", marginBottom: "0.5rem" }}
+                  value={bkCancelReasonCode} onChange={(e) => setBkCancelReasonCode(e.target.value)}
+                >
+                  <option value="">— Motif de l'annulation (obligatoire) —</option>
+                  {PARTNER_CANCEL_REASONS.map(([code, label]) => (
+                    <option key={code} value={code}>{label}</option>
+                  ))}
+                </select>
+                <textarea
+                  style={{ width: "100%", borderRadius: 8, border: "1px solid #e2e8f0", padding: "0.6rem", fontSize: "0.9rem", marginBottom: "0.75rem", resize: "vertical" }}
+                  rows={2} placeholder="Précisions (optionnel)..."
+                  value={bkCancelReason} onChange={(e) => setBkCancelReason(e.target.value)}
+                />
+              </>
             )}
             <div className={styles.confirmActions}>
-              <button className={bkActionModal.action === "cancelled" ? styles.btnDanger : styles.btnPrimary} onClick={() => {
-                adminUpdateBooking(bkActionModal.id, bkActionModal.action, bkCancelReason);
-                setBkActionModal(null); setBkCancelReason("");
-              }}>Confirmer</button>
-              <button className={styles.btnGhost} onClick={() => { setBkActionModal(null); setBkCancelReason(""); }}>Annuler</button>
+              <button
+                className={bkActionModal.action === "cancelled" ? styles.btnDanger : styles.btnPrimary}
+                disabled={bkActionModal.action === "cancelled" && !bkCancelReasonCode}
+                onClick={() => {
+                  adminUpdateBooking(bkActionModal.id, bkActionModal.action, bkCancelReason, bkCancelReasonCode);
+                  setBkActionModal(null); setBkCancelReason(""); setBkCancelReasonCode("");
+                }}
+              >Confirmer</button>
+              <button className={styles.btnGhost} onClick={() => { setBkActionModal(null); setBkCancelReason(""); setBkCancelReasonCode(""); }}>Annuler</button>
             </div>
           </div>
         </div>
@@ -9647,12 +9664,17 @@ function MarketingSection({ vehicles, token, onRefresh, adsList, adsLoading, adF
   const toggleFeatured = async (vid, isFeatured) => {
     setFeaturedLoading(vid);
     try {
-      const r = await fetch(`/api/vehicles/${vid}/feature`, {
+      // "featured" est un champ de mise à jour partielle géré par la route
+      // générique PATCH /:id (voir vehicleController.js, whitelist ADMIN_ONLY)
+      // — /:id/feature n'a jamais existé côté serveur, ce qui faisait échouer
+      // ce bouton en 404 silencieux (bug réel trouvé en audit).
+      const r = await fetch(`/api/vehicles/${vid}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ featured: !isFeatured }),
       });
       if (r.ok) { onRefresh(); flash(!isFeatured ? "Véhicule en vedette ⭐" : "Retiré de la vedette"); }
+      else flash("Erreur lors de la mise à jour.");
     } catch { flash("Erreur"); }
     setFeaturedLoading(null);
   };

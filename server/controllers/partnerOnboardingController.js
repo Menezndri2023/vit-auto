@@ -41,8 +41,14 @@ function applicantDisplayName(doc, user) {
 // ── Notification helper ───────────────────────────────────────────────────────
 async function notify(userId, title, message) {
   try {
-    await Notification.create({ user: userId, titre: title, message, type: "system" });
-    if (global._io) global._io.to(`user_${userId}`).emit("notification", { titre: title, message });
+    const notif = await Notification.create({ user: userId, titre: title, message, type: "system" });
+    // Voir insuranceController.notify — même correctif (mauvais nom d'événement
+    // + payload partiel, bug réel trouvé en audit).
+    if (global._io) {
+      global._io.to(`user_${userId}`).emit("notification_new", {
+        _id: notif._id, type: "system", titre: title, message, lien: null, lu: false, createdAt: notif.createdAt,
+      });
+    }
   } catch { /* non-bloquant */ }
 }
 
@@ -635,7 +641,10 @@ export const adminList = async (req, res) => {
   try {
     const { status, partnerType, crmStatus, search, page = 1, limit = 20 } = req.query;
     const VALID_STATUS      = ["brouillon","soumis","en_review","loi_envoyee","loi_signee","accord_envoye","accord_signe","actif","rejete","info_demandee"];
-    const VALID_PARTNER_TYPE = ["founding","standard"];
+    // Doit correspondre exactement à l'enum PartnerOnboarding.partnerType —
+    // "founding"/"standard" ne matchaient aucune valeur réelle, rendant ce
+    // filtre inopérant en silence (bug réel trouvé en audit).
+    const VALID_PARTNER_TYPE = ["agence_location","concessionnaire","importateur_exportateur","chauffeur_professionnel","expert_auto","transitaire_logistique","financement","assurance","inspecteur_vehicles"];
     const VALID_CRM_STATUS  = ["interested","reserved","verified","active","inactive"];
     const filter = {};
     if (status      && VALID_STATUS.includes(status))           filter.status = status;

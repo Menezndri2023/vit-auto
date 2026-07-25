@@ -649,9 +649,9 @@ const Profile = () => {
                             </p>
                           )}
                           {(kycStatus === "REFUSE" || kycStatus === "EN_ATTENTE") && (
-                            <a href="/kyc" style={{ display: "inline-block", marginTop: 6, fontSize: "0.75rem", color: kycCfg.color, fontWeight: 700, textDecoration: "underline" }}>
+                            <Link to="/kyc" style={{ display: "inline-block", marginTop: 6, fontSize: "0.75rem", color: kycCfg.color, fontWeight: 700, textDecoration: "underline" }}>
                               {kycStatus === "REFUSE" ? "Resoumettre mon dossier →" : "Suivre mon dossier →"}
-                            </a>
+                            </Link>
                           )}
                         </div>
                       )}

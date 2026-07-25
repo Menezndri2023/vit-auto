@@ -64,6 +64,12 @@ const paymentSchema = new mongoose.Schema({
   simulated: { type: Boolean, default: false },
   // Horodatage de la dernière notification webhook reçue (audit).
   webhookReceivedAt: { type: Date, default: null },
+  // Jeton secret à haute entropie généré côté serveur à la création du checkout
+  // (Orange Money uniquement — ne signe pas ses callbacks avec un HMAC standard,
+  // voir orangeMoneyProvider.js). Embarqué dans notif_url, jamais renvoyé au
+  // client : sans lui, n'importe qui connaissant/devinant un order_id pourrait
+  // simuler un paiement réussi en appelant directement le webhook.
+  webhookToken: { type: String, default: null, select: false },
 
   // ── Remboursement ─────────────────────────────────────────
   refundedAt:    { type: Date, default: null },

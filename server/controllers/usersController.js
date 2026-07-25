@@ -162,6 +162,15 @@ export const updateUserRole = async (req, res) => {
       return res.status(400).json({ message: "Rôle invalide." });
     }
     const previousRole = await User.findById(req.params.id).select("role").lean();
+    // Créer un admin (ou démettre un admin existant) équivaut à distribuer des
+    // permissions complètes (voir updateAdminScope — adminScope=[] = accès
+    // total) : réservé à un super admin, sinon cette route contournait
+    // entièrement la protection déjà en place sur /admin/:id/scope.
+    const actingScopes = req.user.adminScope || [];
+    const isSuperAdmin = actingScopes.length === 0 || actingScopes.includes("super_admin");
+    if ((role === "admin" || previousRole?.role === "admin") && !isSuperAdmin) {
+      return res.status(403).json({ message: "Seul un super admin peut créer ou modifier un compte admin." });
+    }
     const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true }).select("-password");
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
     // Journal d'audit global (changement de rôle — action sensible)
@@ -236,6 +245,16 @@ export const toggleUserActive = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
+    // Même protection que deleteUser ci-dessous : sans elle, un admin à accès
+    // restreint (ex: scope "moderation") pouvait désactiver le compte d'un
+    // super admin, neutralisant sa propre chaîne de contrôle.
+    if (user.role === "admin") {
+      const actingScopes = req.user.adminScope || [];
+      const isSuperAdmin = actingScopes.length === 0 || actingScopes.includes("super_admin");
+      if (!isSuperAdmin) {
+        return res.status(403).json({ message: "Seul un super admin peut activer/désactiver un compte admin." });
+      }
+    }
     const wasActive = user.isActive;
     user.isActive = !user.isActive;
     await user.save();

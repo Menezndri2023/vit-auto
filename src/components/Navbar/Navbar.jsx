@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useCart } from "../../context/CartContext";
 import NotificationBell from "../NotificationBell/NotificationBell";
 import LanguageSelector from "../LanguageSelector/LanguageSelector";
 import VitAutoLogo from "../Logo/VitAutoLogo";
@@ -9,6 +10,7 @@ import styles from "./Navbar.module.css";
 const Navbar = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
+  const { count: cartCount } = useCart();
   const [menuOpen, setMenuOpen]       = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -85,6 +87,14 @@ const Navbar = () => {
 
         {isAuthenticated && (
           <li><NavLink to="/favorites" className={navLink} onClick={() => setMenuOpen(false)}>❤️ Favoris</NavLink></li>
+        )}
+
+        {isAuthenticated && !isPartner && (
+          <li>
+            <NavLink to="/cart" className={navLink} onClick={() => setMenuOpen(false)}>
+              🛒 Panier{cartCount > 0 ? ` (${cartCount})` : ""}
+            </NavLink>
+          </li>
         )}
 
         {/* Suivi des achats Import/Export (escrow, inspection, livraison) — jusqu'ici

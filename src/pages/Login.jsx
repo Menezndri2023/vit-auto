@@ -181,7 +181,12 @@ const Login = () => {
           </div>
           <div className={styles.footerLink}>
             <span>{t("auth.noAccount") || "Pas encore de compte ? "}</span>
-            <Link to="/register">{t("auth.registerBtn")}</Link>
+            {/* Relaie la destination d'origine (page protégée qui a redirigé vers
+                /login) — sans ce state, Register.jsx la perdait entièrement,
+                renvoyant systématiquement vers /dashboard après inscription. */}
+            <Link to="/register" state={fromPage ? { from: { pathname: fromPage, search: fromSearch } } : undefined}>
+              {t("auth.registerBtn")}
+            </Link>
           </div>
         </form>
       </div>

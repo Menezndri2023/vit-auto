@@ -226,10 +226,13 @@ export const initiatePayment = async (req, res) => {
     // (avec repli sur l'ID) et `._id` du second argument — une réservation
     // réelle ou un objet minimal font également l'affaire pour un devis.
     const bookingArg = paymentField === "booking" ? target : { _id: target._id, reference: target._id.toString().slice(-8).toUpperCase() };
-    const { checkoutUrl, providerRef, simulated } = await initiateCheckout({ payment, booking: bookingArg });
+    const { checkoutUrl, providerRef, simulated, webhookToken } = await initiateCheckout({ payment, booking: bookingArg });
     payment.checkoutUrl   = checkoutUrl;
     payment.transactionId = providerRef;
     payment.simulated     = simulated;
+    // Uniquement renseigné par orangeMoneyProvider.createCheckout — voir sa
+    // vérification dans orangeMoneyWebhook ci-dessous.
+    if (webhookToken) payment.webhookToken = webhookToken;
     await payment.save();
 
     res.json({ checkoutUrl, paymentId: payment._id, simulated });
@@ -354,8 +357,18 @@ export const waveWebhook = async (req, res) => {
 export const orangeMoneyWebhook = async (req, res) => {
   try {
     const body = orangeMoneyProvider.verifyWebhookPayload(req.body);
-    const payment = await Payment.findById(body.order_id);
+    const payment = await Payment.findById(body.order_id).select("+webhookToken");
     if (payment) {
+      // Orange Money ne signe pas ses callbacks (voir orangeMoneyProvider.js) —
+      // sans cette vérification, quiconque connaît/devine un order_id peut
+      // simuler un paiement réussi en appelant directement ce webhook. Un
+      // paiement sans webhookToken (créé avant ce correctif, ou jamais passé
+      // par le vrai fournisseur) est rejeté par prudence.
+      const expectedToken = payment.webhookToken;
+      if (!expectedToken || req.query.wt !== expectedToken) {
+        logger.warn("[SECURITY] Webhook Orange Money rejeté (jeton invalide/absent)", { paymentId: payment._id.toString(), ip: req.ip });
+        return res.status(401).json({ message: "Jeton de notification invalide." });
+      }
       if (["SUCCESS", "SUCCESSFUL"].includes(String(body.status).toUpperCase())) {
         await completePayment(payment, { providerRef: body.txnid || body.order_id, source: "orange_money_webhook" });
       } else {

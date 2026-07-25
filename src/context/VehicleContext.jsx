@@ -409,10 +409,15 @@ export const VehicleProvider = ({ children }) => {
     if (token) setTimeout(() => loadMyOrders(), 1500);
   };
 
-  const removeBooking = useCallback(async (id, reason = "Annulé par le client") => {
-    // Mise à jour locale immédiate pour l'UX
+  // reasonCode obligatoire (voir constants/bookingCancelReasons.js — liste
+  // CLIENT_CANCEL_REASONS) ; reason = texte libre facultatif. Retourne
+  // { ok, message } — même pattern que updateBookingStatus ci-dessous (rollback
+  // si le backend refuse, jamais d'échec avalé en silence).
+  const removeBooking = useCallback(async (id, reasonCode, reason = "") => {
     const sid = String(id);
+    let prevBookings;
     setBookings((prev) => {
+      prevBookings = prev;
       const next = prev.map((b) =>
         String(b.id) === sid || String(b._id) === sid ? { ...b, status: "cancelled" } : b
       );
@@ -420,13 +425,23 @@ export const VehicleProvider = ({ children }) => {
       return next;
     });
 
-    // Synchronisation backend
-    if (token) {
-      fetch(`/api/bookings/${id}/cancel`, {
+    if (!token) return { ok: true };
+
+    try {
+      const res = await fetch(`/api/bookings/${id}/cancel`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ reason }),
-      }).catch(() => {});
+        body: JSON.stringify({ reasonCode, reason }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        if (prevBookings) { setBookings(prevBookings); saveBookings(prevBookings); }
+        return { ok: false, message: d.message || "Impossible d'annuler la réservation." };
+      }
+      return { ok: true };
+    } catch {
+      if (prevBookings) { setBookings(prevBookings); saveBookings(prevBookings); }
+      return { ok: false, message: "Erreur réseau — la réservation n'a pas été annulée." };
     }
   }, [token]);
 
@@ -436,7 +451,7 @@ export const VehicleProvider = ({ children }) => {
   // updateBookingStatus) ; avant ce correctif l'échec était avalé en silence
   // (fetch().catch(() => {})) et l'appelant affichait quand même un toast de
   // succès, laissant le partenaire croire que le changement avait eu lieu.
-  const updateBookingStatus = useCallback(async (id, status, note = "") => {
+  const updateBookingStatus = useCallback(async (id, status, note = "", cancelReasonCode = null) => {
     const sid = String(id);
     const validStatuses = [
       "pending", "confirmed", "preparing", "ready", "in_progress",
@@ -470,7 +485,7 @@ export const VehicleProvider = ({ children }) => {
       const res = await fetch(`/api/bookings/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status, cancelReason: note }),
+        body: JSON.stringify({ status, cancelReason: note, cancelReasonCode }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));

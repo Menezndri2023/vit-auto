@@ -6,8 +6,16 @@ import { generateGenericReceiptPDF } from "../utils/pdfGenerator.js";
 
 async function notify(userId, titre, message) {
   try {
-    await Notification.create({ user: userId, titre, message, type: "system" });
-    if (global._io) global._io.to(`user_${userId}`).emit("notification", { titre, message });
+    const notif = await Notification.create({ user: userId, titre, message, type: "system" });
+    // "notification_new" (pas "notification") : c'est le seul événement écouté
+    // côté client (NotificationContext.jsx) — payload complet requis, le
+    // dédoublonnage frontend compare payload._id (bug réel trouvé en audit :
+    // ce helper émettait le mauvais nom d'événement avec un payload partiel).
+    if (global._io) {
+      global._io.to(`user_${userId}`).emit("notification_new", {
+        _id: notif._id, type: "system", titre, message, lien: null, lu: false, createdAt: notif.createdAt,
+      });
+    }
   } catch { /* non-bloquant */ }
 }
 
@@ -71,6 +79,11 @@ export const setDecision = async (req, res) => {
     }
     const request = await InsuranceRequest.findById(req.params.id);
     if (!request) return res.status(404).json({ message: "Demande introuvable." });
+    // Une décision déjà payée ne doit jamais être rejouée — même raison que
+    // serviceRequestController.setDecision.
+    if (request.isPaid) {
+      return res.status(409).json({ message: "Cette demande est déjà payée — décision non modifiable." });
+    }
 
     request.status       = status;
     request.premium       = status === "approved" ? (Number(premium) || null) : null;

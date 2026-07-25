@@ -49,7 +49,15 @@ function pick(obj, fields) {
 
 // Calcule les totaux d'un devis à partir de ses lignes
 function calcTotals(data) {
-  if (!data.lines?.length) return data;
+  // Les montants ne sont jamais dérivés d'une valeur envoyée telle quelle par
+  // l'appelant — recalculés uniquement depuis `lines`. Sans lignes dans cette
+  // mise à jour, on retire les champs de total de `data` plutôt que de les
+  // laisser passer tels quels (sinon un appel direct à l'API, hors UI, peut
+  // fixer un total arbitraire — bug réel trouvé en audit).
+  if (!data.lines?.length) {
+    const { subtotal, discountAmount, taxAmount, total, ...rest } = data;
+    return rest;
+  }
   const subtotal      = data.lines.reduce((s, l) => s + (Number(l.qty) || 1) * (Number(l.unitPrice) || 0), 0);
   const discount      = Number(data.discount) || 0;
   const taxRate       = Number(data.taxRate) || 0;
@@ -299,7 +307,10 @@ async function dispatchQuoteToBuyer(quote, partnerId) {
   }
 
   if (quote.leadId) {
-    await Lead.findByIdAndUpdate(quote.leadId, { status: "devis_envoye", quoteId: quote._id }).catch(() => {});
+    // Filtré par partnerId en défense en profondeur (voir updateQuote — leadId
+    // est désormais validé à l'écriture, mais un devis créé avant ce correctif
+    // pourrait encore porter un leadId hors périmètre).
+    await Lead.findOneAndUpdate({ _id: quote.leadId, partnerId }, { status: "devis_envoye", quoteId: quote._id }).catch(() => {});
   }
 }
 
@@ -343,6 +354,13 @@ export async function getQuote(req, res) {
 export async function updateQuote(req, res) {
   try {
     const safe = pick(req.body, QUOTE_UPDATE_FIELDS);
+    // Même garde que createQuote — sans elle, un partenaire pouvait rattacher
+    // son devis au Lead d'UN AUTRE partenaire (IDOR), qui se retrouvait ensuite
+    // modifié en écriture par dispatchQuoteToBuyer/respondPublicQuote.
+    if (safe.leadId) {
+      const lead = await Lead.findOne({ _id: safe.leadId, partnerId: req.user._id }).select("_id");
+      if (!lead) return res.status(400).json({ message: "Lead introuvable." });
+    }
     const data = calcTotals({ ...safe, updatedAt: new Date() });
     const quote = await Quote.findOneAndUpdate(
       { _id: req.params.id, partnerId: req.user._id },
@@ -419,7 +437,9 @@ export async function respondPublicQuote(req, res) {
     await quote.save();
 
     if (quote.leadId) {
-      await Lead.findByIdAndUpdate(quote.leadId, {
+      // Filtré par partnerId (celui du devis lui-même) en défense en
+      // profondeur — route publique sans authentification, voir dispatchQuoteToBuyer.
+      await Lead.findOneAndUpdate({ _id: quote.leadId, partnerId: quote.partnerId }, {
         status: action === "accept" ? "negociation" : "perdu",
         ...(action === "refuse" ? { lostReason: "Devis refusé par l'acheteur" } : {}),
       }).catch(() => {});
@@ -508,8 +528,11 @@ export async function getPublicShowroom(req, res) {
     // Incrémenter les vues sans bloquer la réponse
     PartnerShowroom.findByIdAndUpdate(showroom._id, { $inc: { viewCount: 1 } }).exec();
 
+    // Route publique, sans authentification — subscription/kycStatus (plan,
+    // statut de facturation, vérification interne) ne doivent jamais y fuiter :
+    // seul isFounder est réellement exploité par PartnerShowroomPublic.jsx.
     const partner = await User.findById(showroom.partnerId)
-      .select("firstName lastName subscription kycStatus isFounder")
+      .select("firstName lastName isFounder")
       .lean();
 
     res.json({ ...showroom, partnerInfo: partner });

@@ -29,13 +29,16 @@ function isDue(lastReminderSentAt) {
 export async function sendReminder({ userId, companyName, missingDocs, portalPath }) {
   const user = await User.findById(userId).select("firstName email").lean();
   if (!user) return false;
-  await Notification.create({
-    user:    userId,
-    titre:   "📋 Dossier partenaire incomplet",
-    message: `Il manque des documents dans votre dossier : ${missingDocs.join(", ")}. Complétez-le pour accélérer sa vérification.`,
-    type:    "system",
-  }).catch(() => {});
-  if (global._io) global._io.to(`user_${userId}`).emit("notification", { titre: "📋 Dossier partenaire incomplet" });
+  const titre   = "📋 Dossier partenaire incomplet";
+  const message = `Il manque des documents dans votre dossier : ${missingDocs.join(", ")}. Complétez-le pour accélérer sa vérification.`;
+  const notif = await Notification.create({ user: userId, titre, message, type: "system" }).catch(() => null);
+  // "notification_new" (pas "notification") + payload complet — voir
+  // insuranceController.notify, même correctif (bug réel trouvé en audit).
+  if (notif && global._io) {
+    global._io.to(`user_${userId}`).emit("notification_new", {
+      _id: notif._id, type: "system", titre, message, lien: portalPath || null, lu: false, createdAt: notif.createdAt,
+    });
+  }
   if (user.email) {
     await dispatch.partnerDocumentsMissing(user.email, String(userId), {
       firstName: user.firstName, companyName, missingDocs, portalPath,

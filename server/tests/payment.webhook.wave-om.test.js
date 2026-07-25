@@ -23,13 +23,13 @@ const { default: Booking } = await import("../models/Booking.js");
 await import("../models/Vehicle.js");
 const { mockReqRes } = await import("./helpers/mockReqRes.js");
 
-async function createPendingPayment(montant = 45000) {
+async function createPendingPayment(montant = 45000, method = "wave", extra = {}) {
   const booking = await Booking.create({
     type: "location",
     clientInfo: { firstName: "Jean", lastName: "Client", email: "jean@example.test" },
     montantTotal: montant,
   });
-  const payment = await Payment.create({ booking: booking._id, amount: montant, method: "wave", status: "pending" });
+  const payment = await Payment.create({ booking: booking._id, amount: montant, method, status: "pending", ...extra });
   return { booking, payment };
 }
 
@@ -85,13 +85,14 @@ describe("paymentController.orangeMoneyWebhook", () => {
     expect(res.status).toHaveBeenCalledWith(400);
   });
 
-  it("status SUCCESS marque le paiement complété", async () => {
-    const { payment, booking } = await createPendingPayment();
+  it("status SUCCESS marque le paiement complété (jeton webhook valide)", async () => {
+    const webhookToken = "test-wt-secret-1";
+    const { payment, booking } = await createPendingPayment(45000, "orange_money", { webhookToken });
     orangeMoneyProvider.verifyWebhookPayload.mockImplementation(() => ({
       order_id: payment._id.toString(), txnid: "om_txn_1", status: "SUCCESS",
     }));
 
-    const { req, res } = mockReqRes({});
+    const { req, res } = mockReqRes({ query: { wt: webhookToken } });
     await orangeMoneyWebhook(req, res);
 
     const updated = await Payment.findById(payment._id);
@@ -99,15 +100,29 @@ describe("paymentController.orangeMoneyWebhook", () => {
     expect((await Booking.findById(booking._id)).isPaid).toBe(true);
   });
 
-  it("un statut différent de SUCCESS/SUCCESSFUL marque le paiement échoué", async () => {
-    const { payment } = await createPendingPayment();
+  it("un statut différent de SUCCESS/SUCCESSFUL marque le paiement échoué (jeton webhook valide)", async () => {
+    const webhookToken = "test-wt-secret-2";
+    const { payment } = await createPendingPayment(45000, "orange_money", { webhookToken });
     orangeMoneyProvider.verifyWebhookPayload.mockImplementation(() => ({
       order_id: payment._id.toString(), status: "FAILED",
     }));
 
-    const { req, res } = mockReqRes({});
+    const { req, res } = mockReqRes({ query: { wt: webhookToken } });
     await orangeMoneyWebhook(req, res);
 
     expect((await Payment.findById(payment._id)).status).toBe("failed");
+  });
+
+  it("rejette un jeton webhook invalide/absent (401, paiement non modifié) — sans quoi n'importe qui connaissant l'order_id pourrait simuler un paiement réussi", async () => {
+    const { payment } = await createPendingPayment(45000, "orange_money", { webhookToken: "real-secret" });
+    orangeMoneyProvider.verifyWebhookPayload.mockImplementation(() => ({
+      order_id: payment._id.toString(), txnid: "om_txn_forged", status: "SUCCESS",
+    }));
+
+    const { req, res } = mockReqRes({ query: { wt: "guessed-wrong-token" } });
+    await orangeMoneyWebhook(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect((await Payment.findById(payment._id)).status).toBe("pending");
   });
 });

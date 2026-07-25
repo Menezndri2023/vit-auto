@@ -36,7 +36,7 @@ function filterByPeriod(items, days, dateField = "createdAt") {
 }
 
 /* ── Barres mensuelles (CSS pur) ── */
-function MonthlyChart({ bookings, isAdmin }) {
+function MonthlyChart({ bookings, isAdmin, fmt }) {
   const months = useMemo(() => {
     const map = {};
     const now  = new Date();
@@ -69,7 +69,7 @@ function MonthlyChart({ bookings, isAdmin }) {
           const pct = Math.max((m.revenue / maxRev) * 100, m.count > 0 ? 4 : 0);
           return (
             <div key={m.label} className={styles.barCol}>
-              <span className={styles.barTooltip}>{fmtDH(m.revenue)}</span>
+              <span className={styles.barTooltip}>{fmt(m.revenue)}</span>
               <div className={styles.barOuter}>
                 <div className={styles.barInner} style={{ height: `${pct}%` }} />
               </div>
@@ -150,7 +150,7 @@ function StatusDonut({ bookings }) {
 }
 
 /* ── Top véhicules ── */
-function TopVehicles({ vehicles, bookings, isAdmin }) {
+function TopVehicles({ vehicles, bookings, isAdmin, fmt }) {
   const ranked = useMemo(() => {
     const map = {};
     bookings.forEach((b) => {
@@ -181,7 +181,7 @@ function TopVehicles({ vehicles, bookings, isAdmin }) {
           <div className={styles.topBody}>
             <div className={styles.topNameRow}>
               <span className={styles.topName}>{v.name}</span>
-              <span className={styles.topRevenue}>{fmtDH(v.revenue)}</span>
+              <span className={styles.topRevenue}>{fmt(v.revenue)}</span>
             </div>
             <div className={styles.topBar}>
               <div
@@ -344,7 +344,7 @@ const DashboardStats = () => {
             <span className={styles.chartSub}>6 derniers mois</span>
           </div>
           {chartData.length > 0
-            ? <MonthlyChart bookings={chartData} isAdmin={isAdmin} />
+            ? <MonthlyChart bookings={chartData} isAdmin={isAdmin} fmt={fmtDH} />
             : <p className={styles.noData}>Aucune donnée disponible.</p>
           }
         </div>
@@ -368,7 +368,7 @@ const DashboardStats = () => {
           <h3>🏆 Top véhicules</h3>
           <span className={styles.chartSub}>classés par revenu généré</span>
         </div>
-        <TopVehicles vehicles={allVehicles} bookings={periodBks} isAdmin={isAdmin} />
+        <TopVehicles vehicles={allVehicles} bookings={periodBks} isAdmin={isAdmin} fmt={fmtDH} />
       </div>
 
       {/* ── Métriques avancées ── */}

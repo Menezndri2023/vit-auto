@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import logger from "../../../utils/logger.js";
 
 /**
@@ -57,6 +58,14 @@ export async function createCheckout({ payment, booking, successUrl, cancelUrl }
   const accessToken = await getAccessToken();
   const env = process.env.ORANGE_MONEY_ENV || "mp"; // "mp" (production) vs sandbox selon doc remise à l'activation
 
+  // Jeton secret à haute entropie, généré côté serveur et jamais renvoyé au
+  // client (contrairement à checkoutUrl) — embarqué dans notif_url pour que le
+  // webhook puisse vérifier que l'appel provient bien d'une notification liée
+  // à CE paiement, faute de signature HMAC fournie par Orange Money. Sans lui,
+  // quiconque connaît/devine un order_id peut simuler un paiement réussi.
+  const webhookToken = crypto.randomBytes(24).toString("hex");
+  const notifUrl = `${(process.env.API_URL || process.env.APP_URL || "").replace(/\/$/, "")}/api/payments/webhook/orange-money?wt=${webhookToken}`;
+
   const res = await fetch(PAYMENT_URL(env), {
     method: "POST",
     headers: {
@@ -70,7 +79,7 @@ export async function createCheckout({ payment, booking, successUrl, cancelUrl }
       amount: Math.round(payment.amount),
       return_url: successUrl,
       cancel_url: cancelUrl,
-      notif_url: `${(process.env.API_URL || process.env.APP_URL || "").replace(/\/$/, "")}/api/payments/webhook/orange-money`,
+      notif_url: notifUrl,
       lang: "fr",
       reference: booking.reference || payment._id.toString(),
     }),
@@ -83,15 +92,15 @@ export async function createCheckout({ payment, booking, successUrl, cancelUrl }
 
   const data = await res.json();
   logger.info("[OrangeMoney] Paiement web créé", { paymentId: payment._id.toString(), payToken: data.pay_token });
-  return { checkoutUrl: data.payment_url, providerRef: data.pay_token };
+  return { checkoutUrl: data.payment_url, providerRef: data.pay_token, webhookToken };
 }
 
 /**
  * Orange Money ne signe pas systématiquement ses callbacks avec une signature
- * HMAC standard (contrairement à Stripe/Wave) — la vérification se fait
- * généralement en rapprochant le "notif_token" reçu de celui obtenu à la
- * création du paiement, voire en rappelant l'API de statut. À adapter selon
- * la documentation précise fournie par Orange à l'activation du compte.
+ * HMAC standard (contrairement à Stripe/Wave) — la vérification se fait donc
+ * via le jeton secret propre à VIT AUTO généré dans createCheckout ci-dessus
+ * (voir paymentController.orangeMoneyWebhook, qui compare `req.query.wt` au
+ * `payment.webhookToken` stocké en base avant de faire confiance au body).
  */
 export function verifyWebhookPayload(body) {
   if (!body?.order_id || !body?.status) throw new Error("Callback Orange Money malformé.");

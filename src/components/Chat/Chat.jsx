@@ -211,12 +211,37 @@ function ConversationView({ channel }) {
 // ══════════════════════════════════════════════════════════════════════════
 export default function Chat() {
   const { user, isAuthenticated } = useAuth();
-  const { open, setOpen, closeChat, openOrCreateChat, selectChat, unreadTotal, loading } = useChat();
+  const { open, setOpen, closeChat, openOrCreateChat, selectChat, activeChat, unreadTotal, loading } = useChat();
   const { error } = useToast();
   const location = useLocation();
 
   const [view, setView]             = useState("list"); // "list" | "convo"
   const [activeChannel, setActiveChannel] = useState(null);
+
+  // Dérive le libellé/icône d'un canal à partir d'une conversation — factorisé
+  // pour être partagé entre handleSelectChat (clic dans le widget) et l'effet
+  // ci-dessous (ouverture externe, ex: "Contacter le partenaire" depuis une
+  // réservation).
+  const deriveChannel = (chat) => {
+    const meta = CHAT_META[chat.type] || CHAT_META.client_partner;
+    const isSupport = chat.type === "client_support" || chat.type === "partner_support";
+    const name = isSupport
+      ? meta.label
+      : chat.other ? `${chat.other.firstName} ${chat.other.lastName}` : "Conversation";
+    return { name, icon: meta.icon, color: meta.color };
+  };
+
+  // openOrCreateChat peut être appelé depuis en dehors de ce composant (ex:
+  // Dashboard.jsx/VendorDashboard.jsx "Contacter le partenaire") — sans cet
+  // effet, activeChat changeait bien côté contexte mais la vue locale restait
+  // bloquée sur la liste des canaux (bug réel trouvé en audit).
+  useEffect(() => {
+    if (open && activeChat && activeChat._id !== activeChannel?._chatId) {
+      setActiveChannel({ ...deriveChannel(activeChat), _chatId: activeChat._id });
+      setView("convo");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, activeChat]);
 
   if (!isAuthenticated) return null;
 
@@ -249,12 +274,7 @@ export default function Chat() {
 
   const handleSelectChat = async (chat) => {
     await selectChat(chat);
-    const meta = CHAT_META[chat.type] || CHAT_META.client_partner;
-    const isSupport = chat.type === "client_support" || chat.type === "partner_support";
-    const name = isSupport
-      ? meta.label
-      : chat.other ? `${chat.other.firstName} ${chat.other.lastName}` : "Conversation";
-    setActiveChannel({ name, icon: meta.icon, color: meta.color });
+    setActiveChannel({ ...deriveChannel(chat), _chatId: chat._id });
     setView("convo");
   };
 

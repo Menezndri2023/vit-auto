@@ -14,6 +14,13 @@ import { applyPromotion } from "../utils/promotion.js";
 import { resolveCommissionRate, computeServiceFee, getRentalOptionPrice } from "../services/pricingEngine.js";
 import { convertAmount } from "../services/currencyEngine.js";
 import { issueServiceInvoice } from "./serviceInvoiceController.js";
+import {
+  CLIENT_CANCEL_REASONS, PARTNER_CANCEL_REASONS,
+  CLIENT_CANCEL_REASON_CODES, PARTNER_CANCEL_REASON_CODES,
+} from "../constants/bookingCancelReasons.js";
+
+const CLIENT_CANCEL_REASONS_MAP  = Object.fromEntries(CLIENT_CANCEL_REASONS);
+const PARTNER_CANCEL_REASONS_MAP = Object.fromEntries(PARTNER_CANCEL_REASONS);
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -52,7 +59,7 @@ export async function syncVehicleAvailability(vehicleId) {
   try {
     const activeStatuses = [
       "pending", "confirmed", "preparing", "ready", "in_progress",
-      "client_arrived", "transaction_concluded", "waiting_client_validation",
+      "client_arrived", "driver_arrived", "transaction_concluded", "waiting_client_validation",
     ];
     const today    = new Date();
     today.setHours(0, 0, 0, 0);
@@ -230,7 +237,7 @@ export const createBooking = async (req, res) => {
           }
           const conflict = await Booking.findOne({
             vehicle: vehicleId,
-            status:  { $in: ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "transaction_concluded", "waiting_client_validation"] },
+            status:  { $in: ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "driver_arrived", "transaction_concluded", "waiting_client_validation"] },
             "location.startDate": { $lt: endDate },
             "location.endDate":   { $gt: startDate },
           });
@@ -295,7 +302,7 @@ export const createBooking = async (req, res) => {
 
         const conflict = await Booking.findOne({
           vehicle: vehicleId,
-          status:  { $in: ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "transaction_concluded", "waiting_client_validation"] },
+          status:  { $in: ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "driver_arrived", "transaction_concluded", "waiting_client_validation"] },
           "essai.preferredDate": { $lt: essaiDateFin },
           "essai.dateFin":       { $gt: preferredDate },
         });
@@ -312,7 +319,8 @@ export const createBooking = async (req, res) => {
     }
 
     // ── Chauffeur ──────────────────────────────────────────────────────────────
-    let chauffeurDateFin = null;
+    let chauffeurDateFin   = null;
+    let chauffeurDateStart = null;
     if (type === "chauffeur") {
       if (!driverId) return res.status(400).json({ message: "driverId requis." });
       driver = await Driver.findById(driverId);
@@ -334,11 +342,12 @@ export const createBooking = async (req, res) => {
         return res.status(400).json({ message: "La date de la mission ne peut pas être dans le passé." });
       }
       const heures = Number(chauffeur?.heures) || 1;
-      chauffeurDateFin = new Date(chauffeurDate.getTime() + heures * 3600000);
+      chauffeurDateFin   = new Date(chauffeurDate.getTime() + heures * 3600000);
+      chauffeurDateStart = chauffeurDate;
 
       const conflict = await Booking.findOne({
         driver:  driverId,
-        status:  { $in: ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "transaction_concluded", "waiting_client_validation"] },
+        status:  { $in: ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "driver_arrived", "transaction_concluded", "waiting_client_validation"] },
         "chauffeur.date":    { $lt: chauffeurDateFin },
         "chauffeur.dateFin": { $gt: chauffeurDate },
       });
@@ -475,7 +484,7 @@ export const createBooking = async (req, res) => {
     // booking en cas de deux requêtes concurrentes sur le même véhicule/dates —
     // le contrôle plus haut est un simple "fail fast", pas une garantie) ───────
     let booking;
-    const activeStatuses = ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "transaction_concluded", "waiting_client_validation"];
+    const activeStatuses = ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "driver_arrived", "transaction_concluded", "waiting_client_validation"];
     if (type === "location" && vehicle && location?.startDate && location?.endDate) {
       const startDate = new Date(location.startDate);
       const endDate   = new Date(location.endDate);
@@ -499,6 +508,65 @@ export const createBooking = async (req, res) => {
           return res.status(409).json({
             message: "Ce véhicule est déjà réservé sur ces dates.",
             conflict: { startDate: txErr.conflict.location.startDate, endDate: txErr.conflict.location.endDate },
+          });
+        }
+        throw txErr;
+      } finally {
+        await session.endSession();
+      }
+    } else if (type === "essai" && vehicle && essaiPreferredDate && essaiDateFinComputed) {
+      // Même garantie que "location" ci-dessus — la pré-vérification plus haut
+      // (lignes ~296-307) n'était qu'un fail-fast, jamais une garantie contre
+      // deux essais concurrents créés au même instant (bug réel trouvé en audit).
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          const conflict = await Booking.findOne({
+            vehicle: vehicleId,
+            status:  { $in: activeStatuses },
+            "essai.preferredDate": { $lt: essaiDateFinComputed },
+            "essai.dateFin":       { $gt: essaiPreferredDate },
+          }).session(session);
+          if (conflict) {
+            throw Object.assign(new Error("ESSAI_CONFLICT"), { conflict });
+          }
+          const [created] = await Booking.create([bookingData], { session });
+          booking = created;
+        });
+      } catch (txErr) {
+        if (txErr.conflict) {
+          return res.status(409).json({
+            message: "Un essai est déjà prévu sur ce véhicule à ce créneau.",
+            conflict: { preferredDate: txErr.conflict.essai.preferredDate, dateFin: txErr.conflict.essai.dateFin },
+          });
+        }
+        throw txErr;
+      } finally {
+        await session.endSession();
+      }
+    } else if (type === "chauffeur" && driver && chauffeurDateStart && chauffeurDateFin) {
+      // Idem — la pré-vérification plus haut (lignes ~339-350) n'empêchait pas
+      // deux missions concurrentes créées au même instant sur le même chauffeur.
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          const conflict = await Booking.findOne({
+            driver:  driverId,
+            status:  { $in: activeStatuses },
+            "chauffeur.date":    { $lt: chauffeurDateFin },
+            "chauffeur.dateFin": { $gt: chauffeurDateStart },
+          }).session(session);
+          if (conflict) {
+            throw Object.assign(new Error("DRIVER_CONFLICT"), { conflict });
+          }
+          const [created] = await Booking.create([bookingData], { session });
+          booking = created;
+        });
+      } catch (txErr) {
+        if (txErr.conflict) {
+          return res.status(409).json({
+            message: "Ce chauffeur est déjà réservé sur ce créneau.",
+            conflict: { date: txErr.conflict.chauffeur.date, dateFin: txErr.conflict.chauffeur.dateFin },
           });
         }
         throw txErr;
@@ -558,6 +626,179 @@ export const createBooking = async (req, res) => {
     res.status(201).json({ booking });
   } catch (err) {
     logger.error("createBooking:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 1b. RÉSERVATION MULTIPLE (PANIER) — POST /bookings/batch
+// ═══════════════════════════════════════════════════════════════════════════════
+// Permet de réserver plusieurs véhicules en une seule action (retrait uniquement,
+// sans options ni financement — un client qui a besoin de ces réglages fins
+// repasse par le parcours détaillé /booking/:id véhicule par véhicule).
+// Traitement "au mieux" : chaque véhicule est indépendant, un conflit sur l'un
+// ne doit jamais annuler les autres. Authentification requise (pas de panier
+// invité) : simplifie clientInfo et évite la confusion "j'ai un compte mais
+// j'ai réservé en invité par erreur" sur un panier à plusieurs véhicules.
+const MAX_BATCH_ITEMS = 8;
+
+export const createBookingsBatch = async (req, res) => {
+  try {
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (items.length === 0) {
+      return res.status(400).json({ message: "Le panier est vide." });
+    }
+    if (items.length > MAX_BATCH_ITEMS) {
+      return res.status(400).json({ message: `Maximum ${MAX_BATCH_ITEMS} véhicules par panier.` });
+    }
+
+    const clientInfo = {
+      firstName: req.user.firstName,
+      lastName:  req.user.lastName,
+      email:     req.user.email,
+      phone:     req.user.phone || null,
+    };
+
+    // Snapshot KYC récupéré une seule fois (identique pour tous les véhicules
+    // du panier), même logique que createBooking ci-dessus.
+    const clientUser = await User.findById(req.user._id)
+      .select("kycStatus kycScore kycOcrData kycFaceMatchScore identity driverLicenseOcr")
+      .lean();
+    const clientKycStatus = clientUser?.kycStatus || null;
+    const clientKycScore  = clientUser?.kycScore  || 0;
+    const clientKycSnapshot = clientUser ? {
+      idType:            clientUser.identity?.type           || null,
+      idNumber:          clientUser.identity?.number         || null,
+      frontImage:        clientUser.identity?.frontImage     || null,
+      backImage:         clientUser.identity?.backImage      || null,
+      selfie:            clientUser.identity?.selfie         || null,
+      licenseFrontImage: clientUser.driverLicenseOcr?.frontImage  || null,
+      licenseBackImage:  clientUser.driverLicenseOcr?.backImage   || null,
+      licenseNumber:     clientUser.driverLicenseOcr?.licenseNumber || null,
+      licenseExpiry:     clientUser.driverLicenseOcr?.expiryDate   || null,
+      licenseCategories: clientUser.driverLicenseOcr?.categories   || null,
+      ocrData:           clientUser.kycOcrData        || null,
+      faceMatchScore:    clientUser.kycFaceMatchScore || null,
+      kycStatus:         clientKycStatus,
+      kycScore:          clientKycScore,
+      snapshotAt:        new Date(),
+    } : undefined;
+
+    const activeStatuses = ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "driver_arrived", "transaction_concluded", "waiting_client_validation"];
+    const results = [];
+
+    for (const item of items) {
+      const { vehicleId, startDate: startRaw, endDate: endRaw } = item || {};
+      try {
+        if (!mongoose.Types.ObjectId.isValid(vehicleId)) {
+          results.push({ vehicleId, ok: false, message: "Véhicule invalide." });
+          continue;
+        }
+        const vehicle = await Vehicle.findById(vehicleId);
+        if (!vehicle) {
+          results.push({ vehicleId, ok: false, message: "Véhicule introuvable." });
+          continue;
+        }
+        if (vehicle.type !== "location") {
+          results.push({ vehicleId, ok: false, message: "Ce véhicule n'est pas disponible à la location." });
+          continue;
+        }
+        if (!vehicle.available) {
+          results.push({ vehicleId, ok: false, message: "Véhicule non disponible.", title: vehicle.title });
+          continue;
+        }
+
+        const startDate = new Date(startRaw);
+        const endDate   = new Date(endRaw);
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || endDate <= startDate) {
+          results.push({ vehicleId, ok: false, message: "Dates invalides.", title: vehicle.title });
+          continue;
+        }
+        if (startDate < new Date()) {
+          results.push({ vehicleId, ok: false, message: "La date de début ne peut pas être dans le passé.", title: vehicle.title });
+          continue;
+        }
+
+        const days = Math.max(1, Math.round((endDate - startDate) / 86400000));
+        const effectivePricePerDay = applyPromotion(vehicle.pricePerDay || 0, vehicle.promotion);
+        const montantBase  = effectivePricePerDay * days;
+        const montantTotal = montantBase;
+        const commissionRate   = await resolveCommissionRate("location", vehicle.owner);
+        const commissionAmount = Math.round(montantTotal * commissionRate * 100) / 100;
+        const serviceFeeFCFA   = await computeServiceFee(montantTotal);
+        const partnerPayout    = Math.max(montantTotal - commissionAmount - serviceFeeFCFA, 0);
+        const reference = await generateReference("location");
+
+        const bookingData = {
+          type: "location",
+          reference,
+          clientInfo: { ...clientInfo, kycStatus: clientKycStatus, kycScore: clientKycScore },
+          client:  req.user._id,
+          vehicle: vehicle._id,
+          location: { startDate, endDate, days, pickupMethod: "retrait", deliveryFee: 0 },
+          montantBase, montantOptions: 0, montantTotal,
+          cautionAmount: vehicle.caution || 0,
+          devise: "USD",
+          commissionRate, commissionAmount, serviceFeeFCFA, partnerPayout,
+          clientVerification: {
+            idType: clientKycSnapshot?.idType || null,
+            idNumber: clientKycSnapshot?.idNumber || null,
+            isVerified: clientKycStatus === "VERIFIE",
+            verifiedAt: clientKycStatus === "VERIFIE" ? new Date() : null,
+          },
+          clientKycSnapshot,
+        };
+
+        // Même garantie transactionnelle que createBooking (fenêtre de course
+        // entre la pré-vérification et l'écriture) — un véhicule du panier ne
+        // doit jamais être double-réservé.
+        let booking;
+        const session = await mongoose.startSession();
+        try {
+          await session.withTransaction(async () => {
+            const conflict = await Booking.findOne({
+              vehicle: vehicle._id,
+              status:  { $in: activeStatuses },
+              "location.startDate": { $lt: endDate },
+              "location.endDate":   { $gt: startDate },
+            }).session(session);
+            if (conflict) throw Object.assign(new Error("VEHICLE_CONFLICT"), { conflict });
+            const [created] = await Booking.create([bookingData], { session });
+            booking = created;
+          });
+        } catch (txErr) {
+          if (txErr.conflict) {
+            results.push({ vehicleId, ok: false, message: "Ce véhicule est déjà réservé sur ces dates.", title: vehicle.title });
+            continue;
+          }
+          throw txErr;
+        } finally {
+          await session.endSession();
+        }
+
+        syncVehicleAvailability(vehicle._id).catch(() => {});
+        if (vehicle.owner) {
+          notify(vehicle.owner, "new_booking", "📋 Nouvelle commande reçue",
+            `${clientInfo.firstName} ${clientInfo.lastName} — Réservation ${reference}`, "/vendor/dashboard"
+          ).catch(() => {});
+        }
+        dispatch.bookingCreated(
+          { _id: booking._id, reference, type: "location", montantTotal, location: bookingData.location, status: booking.status },
+          { _id: req.user._id, email: req.user.email, phone: req.user.phone, firstName: req.user.firstName },
+          { _id: vehicle._id, title: vehicle.title, owner: { _id: vehicle.owner } }
+        ).catch((e) => logger.error("dispatch.bookingCreated (batch):", { error: e.message }));
+
+        results.push({ vehicleId, ok: true, booking, title: vehicle.title });
+      } catch (itemErr) {
+        logger.error("createBookingsBatch (item):", itemErr);
+        results.push({ vehicleId, ok: false, message: "Erreur lors de la réservation de ce véhicule." });
+      }
+    }
+
+    const createdCount = results.filter((r) => r.ok).length;
+    res.status(201).json({ results, createdCount, failedCount: results.length - createdCount });
+  } catch (err) {
+    logger.error("createBookingsBatch:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -709,7 +950,19 @@ export const getAllBookings = async (req, res) => {
 export const updateBookingStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, cancelReason } = req.body;
+    const { status, cancelReason, cancelReasonCode } = req.body;
+
+    // Motif catégorisé obligatoire pour toute annulation initiée par un
+    // partenaire (ou un admin, cette route sert aussi son panel) — le texte
+    // libre `cancelReason` reste facultatif. Avant ce correctif, un partenaire
+    // pouvait annuler n'importe quelle réservation sans laisser aucune trace
+    // exploitable du motif.
+    if (status === "cancelled" && !PARTNER_CANCEL_REASON_CODES.includes(cancelReasonCode)) {
+      return res.status(400).json({
+        message: "Veuillez sélectionner un motif d'annulation.",
+        allowedReasonCodes: PARTNER_CANCEL_REASON_CODES,
+      });
+    }
 
     const validStatuses = [
       "pending", "confirmed", "preparing", "ready", "in_progress", "completed", "cancelled",
@@ -790,12 +1043,25 @@ export const updateBookingStatus = async (req, res) => {
       });
     }
 
+    const wasPaidBeforeCancel = booking.isPaid;
+
     booking.status = status;
     if (status === "cancelled") {
-      booking.cancelledAt  = new Date();
-      booking.cancelReason = cancelReason || null;
+      booking.cancelledAt      = new Date();
+      booking.cancelReason     = cancelReason ? String(cancelReason).trim().slice(0, 500) : null;
+      booking.cancelReasonCode = cancelReasonCode;
+      booking.cancelledBy      = req.user.role === "admin" ? "admin" : "partenaire";
     }
     await booking.save();
+
+    if (status === "cancelled" && wasPaidBeforeCancel && global._io) {
+      // Voir cancelBookingByClient — même signalement, aucune automatisation
+      // de remboursement pour l'instant.
+      global._io.to("admins").emit("refund_needed", {
+        bookingId: booking._id.toString(), reference: booking.reference,
+        reason: "Réservation payée annulée par le partenaire — remboursement à traiter manuellement.",
+      });
+    }
 
     // ── Synchronisation temps réel (Socket.io) ─────────────────────────────
     emitBookingUpdate(booking);
@@ -875,7 +1141,7 @@ export const updateBookingStatus = async (req, res) => {
       transaction_not_concluded:  { type: "system",            titre: "❌ Transaction non conclue",   msg: "Le partenaire a signalé que la transaction n'a pas abouti." },
       waiting_client_validation:  { type: "system",            titre: "✋ Validation requise",        msg: `Confirmez la transaction pour ${ref}. Vérifiez les détails dans votre tableau de bord.`, lien: "/dashboard" },
       completed:                  { type: "booking_completed", titre: "🏁 Commande terminée",         msg: `Merci pour votre confiance ! (${ref}) Laissez un avis.` },
-      cancelled:                  { type: "booking_cancelled", titre: "❌ Réservation annulée",       msg: `Votre réservation ${ref} a été annulée.${cancelReason ? ` Raison : ${cancelReason}` : ""}` },
+      cancelled:                  { type: "booking_cancelled", titre: "❌ Réservation annulée",       msg: `Votre réservation ${ref} a été annulée. Motif : ${PARTNER_CANCEL_REASONS_MAP[cancelReasonCode] || cancelReasonCode}${cancelReason ? ` — ${cancelReason}` : ""}` },
       disputed:                   { type: "system",            titre: "⚠️ Litige signalé",            msg: `Un litige a été ouvert sur la commande ${ref}.`, lien: "/dashboard" },
     };
     const n = notifs[status];
@@ -1116,7 +1382,7 @@ export const getVehicleOccupiedDates = async (req, res) => {
 
     const activeStatuses = [
       "pending", "confirmed", "preparing", "ready", "in_progress",
-      "client_arrived", "transaction_concluded", "waiting_client_validation",
+      "client_arrived", "driver_arrived", "transaction_concluded", "waiting_client_validation",
     ];
 
     const bookings = await Booking.find({
@@ -1168,7 +1434,7 @@ export const getDriverOccupiedSlots = async (req, res) => {
 
     const activeStatuses = [
       "pending", "confirmed", "preparing", "ready", "in_progress",
-      "client_arrived", "transaction_concluded", "waiting_client_validation",
+      "client_arrived", "driver_arrived", "transaction_concluded", "waiting_client_validation",
     ];
 
     const [bookings, driver] = await Promise.all([
@@ -1217,7 +1483,7 @@ export const getEssaiOccupiedSlots = async (req, res) => {
 
     const activeStatuses = [
       "pending", "confirmed", "preparing", "ready", "in_progress",
-      "client_arrived", "transaction_concluded", "waiting_client_validation",
+      "client_arrived", "driver_arrived", "transaction_concluded", "waiting_client_validation",
     ];
 
     const bookings = await Booking.find({
@@ -1548,6 +1814,16 @@ export const partnerConfirm = async (req, res) => {
     if (!finalAmount || finalAmount <= 0) {
       return res.status(400).json({ message: "Le montant final est requis quand le client est présent." });
     }
+    // Mêmes plafonds anti-fraude que recordTransaction (même opération :
+    // enregistrer un montant final) — absents ici jusqu'à ce correctif, un
+    // partenaire pouvait imposer un montant final arbitraire sans aucun
+    // garde-fou (bug réel trouvé en audit).
+    if (finalAmount > 500_000_000) {
+      return res.status(400).json({ message: "Montant anormalement élevé — veuillez contacter le support." });
+    }
+    if (booking.montantTotal && finalAmount > booking.montantTotal * 10) {
+      return res.status(400).json({ message: "Montant final incohérent avec le devis initial. Contactez le support." });
+    }
     if (!paymentMethod || !allowedMethods.includes(paymentMethod)) {
       return res.status(400).json({ message: `Mode de paiement invalide. Acceptés : ${allowedMethods.join(", ")}` });
     }
@@ -1793,7 +2069,7 @@ export const modifyBookingDates = async (req, res) => {
     const conflict = await Booking.findOne({
       _id:     { $ne: booking._id },
       vehicle: booking.vehicle._id,
-      status:  { $in: ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "transaction_concluded", "waiting_client_validation"] },
+      status:  { $in: ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "driver_arrived", "transaction_concluded", "waiting_client_validation"] },
       "location.startDate": { $lt: newEnd },
       "location.endDate":   { $gt: newStart },
     });
@@ -1833,15 +2109,121 @@ export const modifyBookingDates = async (req, res) => {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// 8f. PROLONGATION DE LOCATION — PATCH /:id/extend
+// ═══════════════════════════════════════════════════════════════════════════════
+// Distinct de modifyBookingDates ci-dessus : celle-ci ne permet de changer les
+// dates qu'AVANT le début de la location ("pending"/"confirmed"). Un client qui
+// a déjà pris possession du véhicule (location en cours) n'avait jusqu'ici
+// aucun moyen de simplement ajouter des jours — seule option : contacter le
+// partenaire hors plateforme. extendBooking ne touche jamais la date de début,
+// uniquement la date de fin, et reste utilisable jusqu'à la remise du véhicule.
+const EXTENDABLE_STATUSES = [
+  "pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived",
+];
+
+export const extendBooking = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newEndDate } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Identifiant de réservation invalide." });
+    }
+
+    const booking = await Booking.findById(id).populate("vehicle");
+    if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
+    if (booking.type !== "location") {
+      return res.status(400).json({ message: "Seules les locations peuvent être prolongées." });
+    }
+
+    const userId = req.user?.id || req.user?._id;
+    const isOwnerById    = booking.client && booking.client.toString() === userId?.toString();
+    const isOwnerByEmail = !booking.client && req.user?.emailVerified === true
+      && booking.clientInfo?.email?.toLowerCase() === req.user?.email?.toLowerCase();
+    if (!isOwnerById && !isOwnerByEmail) {
+      return res.status(403).json({ message: "Accès refusé à cette réservation." });
+    }
+
+    if (!EXTENDABLE_STATUSES.includes(booking.status)) {
+      return res.status(409).json({ message: `Impossible de prolonger une réservation avec le statut "${booking.status}".` });
+    }
+
+    const currentEnd = new Date(booking.location.endDate);
+    const newEnd = new Date(newEndDate);
+    if (isNaN(newEnd.getTime()) || newEnd <= currentEnd) {
+      return res.status(400).json({ message: "La nouvelle date de fin doit être postérieure à la date de fin actuelle." });
+    }
+
+    // Un autre client pourrait déjà avoir réservé ce véhicule juste après la
+    // fin initiale prévue — la prolongation ne doit jamais l'écraser.
+    const conflict = await Booking.findOne({
+      _id:     { $ne: booking._id },
+      vehicle: booking.vehicle._id,
+      status:  { $in: ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "driver_arrived", "transaction_concluded", "waiting_client_validation"] },
+      "location.startDate": { $lt: newEnd },
+      "location.endDate":   { $gt: currentEnd },
+    });
+    if (conflict) {
+      return res.status(409).json({
+        message: "Le véhicule est déjà réservé juste après la fin actuelle de votre location — prolongation impossible sur cette période.",
+        conflict: { startDate: conflict.location.startDate, endDate: conflict.location.endDate },
+      });
+    }
+
+    const totalDays = Math.max(1, Math.round((newEnd - new Date(booking.location.startDate)) / 86400000));
+    const addedDays  = totalDays - (booking.location.days || 0);
+    const effectivePricePerDay = applyPromotion(booking.vehicle.pricePerDay || 0, booking.vehicle.promotion);
+    const newMontantBase = effectivePricePerDay * totalDays;
+    const priceDelta = newMontantBase - (booking.montantBase || 0);
+
+    booking.location.endDate = newEnd;
+    booking.location.days    = totalDays;
+    booking.montantBase  = newMontantBase;
+    booking.montantTotal = newMontantBase + (booking.montantOptions || 0) + (booking.location.deliveryFee || 0);
+    booking.commissionAmount = Math.round(booking.montantTotal * (booking.commissionRate || 0) * 100) / 100;
+    booking.partnerPayout    = Math.max(booking.montantTotal - booking.commissionAmount - (booking.serviceFeeFCFA || 0), 0);
+    // Un solde déjà réglé en ligne ne couvre pas les jours ajoutés — le supplément
+    // reste dû (encaissé au retrait/à la restitution, comme le reste de la
+    // plateforme le fait déjà pour les paiements en espèces).
+    if (booking.isPaid && priceDelta > 0) booking.isPaid = false;
+    await booking.save();
+
+    emitBookingUpdate(booking);
+    await syncVehicleAvailability(booking.vehicle._id);
+
+    const ownerId = booking.vehicle.owner;
+    if (ownerId) {
+      await notify(ownerId, "system", "📅 Location prolongée",
+        `Le client a prolongé la réservation ${booking.reference || ""} de ${addedDays} jour(s), nouvelle fin le ${newEnd.toLocaleDateString("fr-FR")}.`,
+        "/vendor/dashboard");
+    }
+
+    res.json({ booking, addedDays, priceDelta });
+  } catch (err) {
+    logger.error("extendBooking:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // 9. ANNULATION CLIENT — PATCH /:id/cancel
 // ═══════════════════════════════════════════════════════════════════════════════
 export const cancelBookingByClient = async (req, res) => {
   try {
     const { id } = req.params;
-    const { reason = "Annulé par le client" } = req.body;
+    const { reasonCode, reason } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Identifiant de réservation invalide." });
+    }
+    // Motif catégorisé obligatoire (le texte libre reste facultatif) — voir
+    // constants/bookingCancelReasons.js. Avant ce correctif, "reason" était un
+    // texte libre optionnel : aucune trace exploitable des motifs d'annulation.
+    if (!CLIENT_CANCEL_REASON_CODES.includes(reasonCode)) {
+      return res.status(400).json({
+        message: "Veuillez sélectionner un motif d'annulation.",
+        allowedReasonCodes: CLIENT_CANCEL_REASON_CODES,
+      });
     }
 
     const booking = await Booking.findById(id)
@@ -1871,12 +2253,19 @@ export const cancelBookingByClient = async (req, res) => {
       });
     }
 
+    const wasPaid = booking.isPaid;
+
     booking.status = "cancelled";
-    booking.cancelReason = reason;
+    booking.cancelledAt = new Date();
+    booking.cancelReasonCode = reasonCode;
+    booking.cancelReason = reason ? String(reason).trim().slice(0, 500) : null;
+    booking.cancelledBy = "client";
     await booking.save();
 
     emitBookingUpdate(booking); // ← temps réel partenaire
     await syncVehicleAvailability(booking.vehicle?._id || booking.vehicle);
+
+    const reasonLabel = CLIENT_CANCEL_REASONS_MAP[reasonCode] || reasonCode;
 
     // Notifier le partenaire (propriétaire véhicule OU chauffeur selon le type de commande)
     const cancelOwnerId = booking.vehicle?.owner || booking.driver?.owner;
@@ -1885,9 +2274,20 @@ export const cancelBookingByClient = async (req, res) => {
         cancelOwnerId,
         "warning",
         "Réservation annulée",
-        `Le client a annulé la réservation ${booking.reference || id}. Raison : ${reason}`,
+        `Le client a annulé la réservation ${booking.reference || id}. Motif : ${reasonLabel}${reason ? ` — ${reason}` : ""}`,
         "/vendor/dashboard"
       );
+    }
+
+    // Un paiement en ligne déjà réglé avant annulation nécessite un remboursement
+    // manuel (aucune automatisation de remboursement — hors périmètre de cette
+    // fonctionnalité) : signalé aux admins connectés en temps réel, même canal
+    // que emitBookingUpdate ci-dessus.
+    if (wasPaid && global._io) {
+      global._io.to("admins").emit("refund_needed", {
+        bookingId: booking._id.toString(), reference: booking.reference,
+        reason: "Réservation payée annulée par le client — remboursement à traiter manuellement.",
+      });
     }
 
     res.json({ success: true, message: "Réservation annulée.", status: "cancelled" });
@@ -2025,7 +2425,15 @@ export const claimCaution = async (req, res) => {
     if (req.user.role !== "admin" && ownerId !== req.user._id.toString()) {
       return res.status(403).json({ message: "Accès refusé." });
     }
-    if (!["completed", "disputed"].includes(booking.status)) {
+    // "cancelled" n'est éligible QUE s'il provient d'une résolution de litige
+    // (booking.disputeResolution posé par resolveDispute) : la caution a pu
+    // être physiquement encaissée par le partenaire AVANT le litige (prise en
+    // charge du véhicule), et sa restitution devait pouvoir être tracée même
+    // après une annulation décidée par l'admin (bug réel trouvé en audit). Une
+    // annulation client classique (cancelBookingByClient) ne passe jamais par
+    // "disputed" — pas de véhicule remis, donc jamais de caution à traiter.
+    const cancelledFromDispute = booking.status === "cancelled" && !!booking.disputeResolution;
+    if (!["completed", "disputed"].includes(booking.status) && !cancelledFromDispute) {
       return res.status(409).json({ message: "La caution ne peut être traitée qu'une fois la location terminée." });
     }
     if (booking.cautionClaim?.claimedAt) {
@@ -2364,6 +2772,13 @@ export const setFinancingDecision = async (req, res) => {
     if (!booking) return res.status(404).json({ message: "Demande introuvable." });
     if (booking.type !== "leasing") {
       return res.status(400).json({ message: "Cette commande n'est pas une demande de financement." });
+    }
+    // Une fois l'apport initial encaissé, la décision ne doit plus pouvoir être
+    // rejouée (ex: "accepté" → "refusé" après paiement, sans aucune procédure
+    // de remboursement associée) — même principe que setDecision (service/
+    // assurance) ci-dessus.
+    if (booking.isPaid) {
+      return res.status(409).json({ message: "L'apport initial est déjà réglé — décision de financement non modifiable." });
     }
 
     booking.leasing.decision     = decision;

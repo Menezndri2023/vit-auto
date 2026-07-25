@@ -62,13 +62,16 @@ async function processBatch() {
     const missing = missingItems(user);
     if (!missing.length) continue;
 
-    await Notification.create({
-      user:    user._id,
-      titre:   "📋 Complétez votre profil VIT AUTO",
-      message: `Quelques informations restent à renseigner : ${missing.join(", ")}.`,
-      type:    "system",
-    }).catch(() => {});
-    if (global._io) global._io.to(`user_${user._id}`).emit("notification", { titre: "📋 Complétez votre profil VIT AUTO" });
+    const titre   = "📋 Complétez votre profil VIT AUTO";
+    const message = `Quelques informations restent à renseigner : ${missing.join(", ")}.`;
+    const notif = await Notification.create({ user: user._id, titre, message, type: "system" }).catch(() => null);
+    // "notification_new" (pas "notification") + payload complet — voir
+    // insuranceController.notify, même correctif (bug réel trouvé en audit).
+    if (notif && global._io) {
+      global._io.to(`user_${user._id}`).emit("notification_new", {
+        _id: notif._id, type: "system", titre, message, lien: "/profile", lu: false, createdAt: notif.createdAt,
+      });
+    }
 
     if (user.email) {
       await dispatch.accountIncomplete(user.email, String(user._id), {

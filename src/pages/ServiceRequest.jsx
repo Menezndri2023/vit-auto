@@ -253,7 +253,9 @@ export default function ServiceRequest() {
                                 type="button"
                                 style={{ marginLeft: 10, background: "none", border: "none", color: "#6366f1", cursor: "pointer", textDecoration: "underline", fontSize: ".82rem" }}
                                 onClick={async () => {
-                                  const res = await fetch(`/api/services/${r._id}/receipt`, { headers: { Authorization: `Bearer ${token}` } });
+                                  // La route est montée sur /api/service-requests (server.js), pas /api/services —
+                                  // 404 silencieux jusqu'à ce correctif (bug réel trouvé en audit).
+                                  const res = await fetch(`/api/service-requests/${r._id}/receipt`, { headers: { Authorization: `Bearer ${token}` } });
                                   if (!res.ok) return;
                                   const blob = await res.blob();
                                   const url = URL.createObjectURL(blob);

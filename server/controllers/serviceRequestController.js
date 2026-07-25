@@ -18,8 +18,14 @@ const CATEGORY_LABELS = {
 
 async function notify(userId, titre, message) {
   try {
-    await Notification.create({ user: userId, titre, message, type: "system" });
-    if (global._io) global._io.to(`user_${userId}`).emit("notification", { titre, message });
+    const notif = await Notification.create({ user: userId, titre, message, type: "system" });
+    // Voir insuranceController.notify — même correctif (mauvais nom d'événement
+    // + payload partiel, bug réel trouvé en audit).
+    if (global._io) {
+      global._io.to(`user_${userId}`).emit("notification_new", {
+        _id: notif._id, type: "system", titre, message, lien: null, lu: false, createdAt: notif.createdAt,
+      });
+    }
   } catch { /* non-bloquant */ }
 }
 
@@ -84,6 +90,12 @@ export const setDecision = async (req, res) => {
     }
     const request = await ServiceRequest.findById(req.params.id);
     if (!request) return res.status(404).json({ message: "Demande introuvable." });
+    // Une décision déjà payée ne doit jamais être rejouée — sinon le montant/
+    // la commission peuvent être réécrits (voire annulés) après encaissement,
+    // sans que completePayment() (qui ne vérifie que isPaid) ne s'en aperçoive.
+    if (request.isPaid) {
+      return res.status(409).json({ message: "Cette demande est déjà payée — décision non modifiable." });
+    }
 
     request.status = status;
     if (status === "approved") {
@@ -122,7 +134,7 @@ export const setDecision = async (req, res) => {
   }
 };
 
-// ── GET /api/services/:id/receipt — reçu PDF du devis payé ──────────────────
+// ── GET /api/service-requests/:id/receipt — reçu PDF du devis payé ──────────
 // Même manque que l'assurance : aucun reçu n'existait pour un devis de
 // service payé (inspection, transport, douanes...). Trouvé en audit.
 export const getRequestReceipt = async (req, res) => {

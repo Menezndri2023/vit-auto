@@ -268,7 +268,13 @@ const bookingSchema = new mongoose.Schema({
 
   // ── Annulation ────────────────────────────────────────────
   cancelledAt:  { type: Date, default: null },
-  cancelReason: { type: String, default: null },
+  cancelReason: { type: String, default: null }, // motif libre, facultatif
+  // Motif catégorisé obligatoire (voir constants/bookingCancelReasons.js) —
+  // liste différente selon qui annule (CLIENT_CANCEL_REASONS / PARTNER_CANCEL_REASONS),
+  // validée par le contrôleur (pas d'enum Mongoose unique ici, les deux listes
+  // se chevauchent partiellement mais restent sémantiquement distinctes).
+  cancelReasonCode: { type: String, default: null },
+  cancelledBy: { type: String, enum: ["client", "partenaire", "admin", null], default: null },
 
   // ── Caution (dépôt de garantie) : traitement au retour ────────────────
   // cautionAmount (ci-dessus) n'était qu'un montant à percevoir, affiché mais

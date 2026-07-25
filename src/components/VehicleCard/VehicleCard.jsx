@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCurrency } from "../../context/CurrencyContext";
 import { useFavorites } from "../../context/FavoritesContext";
+import { useCart } from "../../context/CartContext";
+import { useToast } from "../../context/ToastContext";
 import PriceTag from "../PriceTag/PriceTag";
 import styles from "./VehicleCard.module.css";
 
@@ -9,8 +11,12 @@ const VehicleCard = React.memo(({ car, compact }) => {
   const navigate  = useNavigate();
   const { fmt }   = useCurrency();
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { isInCart, addItem } = useCart();
+  const { success: toastSuccess, error: toastError } = useToast();
   const carId = car._id || car.id;
   const favActive = isFavorite("vehicle", carId);
+  const isRental = !(car.mode === "Acheter" || car.listingType === "vente");
+  const inCart = isRental && isInCart(carId);
 
   const handleFavClick = useCallback((e) => {
     e.stopPropagation();
@@ -18,6 +24,14 @@ const VehicleCard = React.memo(({ car, compact }) => {
       if (r.needsAuth) navigate("/login");
     });
   }, [toggleFavorite, carId, navigate]);
+
+  const handleCartClick = useCallback((e) => {
+    e.stopPropagation();
+    if (inCart) { navigate("/cart"); return; }
+    const res = addItem(car);
+    if (res.ok) toastSuccess("Ajouté au panier.");
+    else toastError(res.message || "Impossible d'ajouter au panier.");
+  }, [inCart, addItem, car, navigate, toastSuccess, toastError]);
   const imgs = (() => {
     const arr = [];
     if (car.thumbnail) arr.push(car.thumbnail);
@@ -80,6 +94,17 @@ const VehicleCard = React.memo(({ car, compact }) => {
         >
           {favActive ? "❤️" : "🤍"}
         </button>
+        {isRental && (
+          <button
+            type="button"
+            className={`${styles.cartBtn} ${inCart ? styles.cartBtnActive : ""}`}
+            onClick={handleCartClick}
+            aria-label={inCart ? "Déjà dans le panier — voir le panier" : "Ajouter au panier"}
+            title={inCart ? "Déjà dans le panier — voir le panier" : "Ajouter au panier"}
+          >
+            🛒
+          </button>
+        )}
         {imgs ? (
           <>
             <img

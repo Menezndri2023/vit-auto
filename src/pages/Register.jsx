@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../context/CurrencyContext";
@@ -12,6 +12,7 @@ const Register = () => {
   const { success, error } = useToast();
   const { countryCode } = useCurrency();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
 
   const [form, setForm] = useState({
@@ -36,13 +37,20 @@ const Register = () => {
   const [submitting,   setSubmitting]   = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Destination post-inscription : ?redirect= explicite sinon prime toujours ;
-  // sinon, TOUT partenaire (particulier compris) passe désormais obligatoirement
-  // par le programme Founding Partner (LOI + Accord) avant de publier — ce
-  // n'est plus une offre optionnelle réservée aux sociétés.
+  // Destination post-inscription : ?redirect= explicite prime toujours, puis
+  // location.state.from (posé par PartnerRoute/AdminRoute lors d'une redirection
+  // /login → "S'inscrire" — voir Login.jsx, sans ce relais la destination
+  // d'origine était perdue et l'utilisateur atterrissait systématiquement sur
+  // /dashboard ou /partner-onboarding après inscription, bug réel trouvé en
+  // audit) ; sinon, TOUT partenaire (particulier compris) passe désormais
+  // obligatoirement par le programme Founding Partner (LOI + Accord) avant de
+  // publier — ce n'est plus une offre optionnelle réservée aux sociétés.
   const redirectParam = searchParams.get("redirect");
+  const stateFrom = location.state?.from;
+  const fromPage  = typeof stateFrom === "string" ? stateFrom : stateFrom?.pathname;
   const getDest = () => {
     if (redirectParam) return decodeURIComponent(redirectParam);
+    if (fromPage) return fromPage;
     return form.role === "partenaire" ? "/partner-onboarding" : "/dashboard";
   };
 

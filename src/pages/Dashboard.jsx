@@ -7,6 +7,7 @@ import { useCurrency } from "../context/CurrencyContext";
 import { useSocket } from "../context/SocketContext";
 import { useI18n } from "../context/I18nContext";
 import { useChat } from "../context/ChatContext";
+import { CLIENT_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import styles from "./Dashboard.module.css";
 
 // Cohérent avec FINANCING_DECISION_CFG (AdminPanel.jsx) — la décision admin sur
@@ -450,6 +451,38 @@ const Dashboard = () => {
     toastSuccess("Réservations actualisées");
   }, [fetchMyOrders, toastSuccess]);
 
+  // removeBooking (VehicleContext) met à jour un état séparé (bookings) que
+  // cette page n'affiche pas (myOrders, ci-dessus) — sans ce ré-appel, la
+  // réservation annulée restait affichée comme active jusqu'au prochain
+  // rafraîchissement manuel (bug réel trouvé en corrigeant cette fonctionnalité).
+  const handleCancelBooking = useCallback(async (id, reasonCode, reason) => {
+    const res = await removeBooking(id, reasonCode, reason);
+    if (res.ok) { toastSuccess("Réservation annulée."); fetchMyOrders(); }
+    else toastError(res.message || "Impossible d'annuler la réservation.");
+    return res;
+  }, [removeBooking, fetchMyOrders, toastSuccess, toastError]);
+
+  const handleExtendBooking = useCallback(async (id, newEndDate) => {
+    try {
+      const r = await fetch(`/api/bookings/${id}/extend`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ newEndDate }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) {
+        toastSuccess(`Location prolongée de ${d.addedDays} jour(s)${d.priceDelta > 0 ? ` (+${d.priceDelta.toFixed(2)} USD)` : ""}.`);
+        fetchMyOrders();
+        return { ok: true };
+      }
+      toastError(d.message || "Impossible de prolonger cette réservation.");
+      return { ok: false, message: d.message };
+    } catch {
+      toastError("Erreur réseau.");
+      return { ok: false };
+    }
+  }, [token, fetchMyOrders, toastSuccess, toastError]);
+
   const handleValidate = useCallback(async (bookingId, action, reason) => {
     if (!token || !bookingId) return;
     setValidating(bookingId);
@@ -736,7 +769,8 @@ const Dashboard = () => {
             <BookingCard
               key={booking.id}
               booking={booking}
-              onCancel={(id) => removeBooking(id, "Annulé par le client")}
+              onCancel={handleCancelBooking}
+              onExtend={handleExtendBooking}
               onReview={setReviewTarget}
               onValidate={(action) => handleValidate(booking.id, action)}
               onDispute={() => setDisputeTarget(booking.id)}
@@ -838,8 +872,11 @@ const Dashboard = () => {
 // ── Carte de réservation ──────────────────────────────────────────────────────
 const ONLINE_PAY_METHODS = ["card", "orange_money", "wave"];
 
-const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, onMissionAction, validating }) => {
+const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDispute, onMissionAction, validating }) => {
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelReasonCode, setCancelReasonCode] = useState("");
+  const [cancelReasonText, setCancelReasonText] = useState("");
+  const [cancelling, setCancelling] = useState(false);
   const { fmt } = useCurrency();
   const { openOrCreateChat } = useChat();
   const { error: toastErr, success: toastSuccessModify } = useToast();
@@ -875,6 +912,23 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, onMis
     setModifying(false);
   };
 
+  // ── Prolongation (location en cours ou à venir, jamais commencée par
+  // modifyBookingDates ci-dessus une fois la remise du véhicule effectuée) ──
+  const [showExtend, setShowExtend] = useState(false);
+  const [extendDate, setExtendDate] = useState("");
+  const [extending, setExtending] = useState(false);
+  const [extendError, setExtendError] = useState(null);
+
+  const handleExtend = async () => {
+    if (!extendDate || !onExtend) return;
+    setExtending(true);
+    setExtendError(null);
+    const res = await onExtend(booking.id, extendDate);
+    setExtending(false);
+    if (res.ok) { setShowExtend(false); setExtendDate(""); }
+    else setExtendError(res.message || "Impossible de prolonger cette réservation.");
+  };
+
   const handleContactPartner = async () => {
     if (contacting) return;
     setContacting(true);
@@ -907,6 +961,11 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, onMis
 
   const status         = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending;
   const canCancel      = ["À confirmer", "pending", "confirmed"].includes(booking.status) || !booking.status;
+  // Miroir de EXTENDABLE_STATUSES côté serveur (bookingController.extendBooking) —
+  // utilisable même une fois le véhicule pris en charge (contrairement à
+  // "Modifier les dates", réservé à avant le début de la location).
+  const canExtend      = booking.type === "location" &&
+    ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived"].includes(booking.status);
   const isCompleted    = booking.status === "completed";
   const isActive       = ["confirmed", "preparing", "ready", "in_progress", "client_arrived", "driver_arrived"].includes(booking.status);
   // Mission chauffeur pilotée par le client : "confirmer l'arrivée" tant que le
@@ -1188,8 +1247,13 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, onMis
             📅 Modifier les dates
           </button>
         )}
+        {canExtend && !showExtend && (
+          <button className={styles.btnContract} onClick={() => { setShowExtend(true); setExtendDate(""); setExtendError(null); }}>
+            ➕ Prolonger
+          </button>
+        )}
         {canCancel && !confirmCancel && (
-          <button className={styles.btnDanger} onClick={() => setConfirmCancel(true)}>
+          <button className={styles.btnDanger} onClick={() => { setConfirmCancel(true); setCancelReasonCode(""); setCancelReasonText(""); }}>
             Annuler
           </button>
         )}
@@ -1208,20 +1272,62 @@ const BookingCard = ({ booking, onCancel, onReview, onValidate, onDispute, onMis
             </div>
           </div>
         )}
+        {showExtend && (
+          <div className={styles.confirmBar} style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+            <label style={{ fontSize: ".82rem" }}>
+              Nouvelle date de fin (actuellement le {booking.endDate ? new Date(booking.endDate).toLocaleDateString("fr-FR") : "—"})
+            </label>
+            <input type="date" value={extendDate} onChange={(e) => setExtendDate(e.target.value)} />
+            {extendError && <span style={{ color: "#dc2626", fontSize: ".82rem" }}>{extendError}</span>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className={styles.btnDangerSm} disabled={extending || !extendDate} onClick={handleExtend}>
+                {extending ? "…" : "Confirmer la prolongation"}
+              </button>
+              <button className={styles.btnGhost} onClick={() => setShowExtend(false)}>Annuler</button>
+            </div>
+          </div>
+        )}
         {confirmCancel && (
-          <div className={styles.confirmBar}>
+          <div className={styles.confirmBar} style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
             <span>
               Confirmer l'annulation ?
               {booking.isPaid && ONLINE_PAY_METHODS.includes(booking.paidWith)
                 ? " Un paiement en ligne a été effectué — le remboursement sera traité manuellement par notre équipe après confirmation."
                 : " Aucun paiement en ligne n'a été prélevé pour cette réservation."}
             </span>
-            <button className={styles.btnDangerSm} onClick={() => onCancel(booking.id)}>
-              Oui, annuler
-            </button>
-            <button className={styles.btnGhost} onClick={() => setConfirmCancel(false)}>
-              Non
-            </button>
+            <label style={{ fontSize: ".82rem" }}>
+              Motif de l'annulation <span style={{ color: "#dc2626" }}>*</span>
+            </label>
+            <select value={cancelReasonCode} onChange={(e) => setCancelReasonCode(e.target.value)}>
+              <option value="">— Sélectionnez un motif —</option>
+              {CLIENT_CANCEL_REASONS.map(([code, label]) => (
+                <option key={code} value={code}>{label}</option>
+              ))}
+            </select>
+            <input
+              type="text"
+              placeholder="Précisions (facultatif)"
+              value={cancelReasonText}
+              onChange={(e) => setCancelReasonText(e.target.value)}
+              maxLength={500}
+            />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                className={styles.btnDangerSm}
+                disabled={cancelling || !cancelReasonCode}
+                onClick={async () => {
+                  setCancelling(true);
+                  const res = await onCancel(booking.id, cancelReasonCode, cancelReasonText);
+                  setCancelling(false);
+                  if (res?.ok !== false) setConfirmCancel(false);
+                }}
+              >
+                {cancelling ? "…" : "Oui, annuler"}
+              </button>
+              <button className={styles.btnGhost} onClick={() => setConfirmCancel(false)}>
+                Non
+              </button>
+            </div>
           </div>
         )}
       </div>
