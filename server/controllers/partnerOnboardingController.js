@@ -1,6 +1,7 @@
 import logger from "../utils/logger.js";
 import crypto from "crypto";
 import PartnerOnboarding from "../models/PartnerOnboarding.js";
+import PartnerBusiness from "../models/PartnerBusiness.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import PartnerCertification from "../models/PartnerCertification.js";
@@ -12,6 +13,8 @@ import { validateDocumentDataUri } from "../utils/imageValidation.js";
 import { computeScore, computeBadge, syncUserBadge } from "./partnerCertificationController.js";
 import { getConfig } from "../services/pricingEngine.js";
 import { decryptField } from "../utils/fieldEncryption.js";
+import { ensureDefaultPartnerBusiness } from "../utils/ensureDefaultPartnerBusiness.js";
+import { ACTIVITIES } from "../constants/partnerTaxonomy.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
 
@@ -25,6 +28,39 @@ const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // ses appelants (applyToProgram/getAvailability) si une limite devait revenir.
 async function checkFoundingCapacity() {
   return { ok: true };
+}
+
+// ── Résolution de l'entité (PartnerBusiness) ciblée par la requête ───────────
+// Le Founding Partner Program est désormais PAR ENTITÉ (voir
+// PartnerOnboarding.businessId) : un partenaire possédant plusieurs entités doit
+// préciser laquelle via ?businessId= (GET) ou businessId (body, POST/PATCH).
+// S'il n'en possède qu'une (le cas de la grande majorité des partenaires), elle
+// est résolue automatiquement — pas de sélecteur d'entité imposé inutilement
+// (voir PartnerOnboardingPortal.jsx).
+async function resolveBusinessIdForRead(req) {
+  const requested = req.query?.businessId || req.body?.businessId || null;
+  if (requested) {
+    const owned = await PartnerBusiness.exists({ _id: requested, owner: req.user.id });
+    return owned ? String(requested) : null;
+  }
+  const businesses = await PartnerBusiness.find({ owner: req.user.id })
+    .select("_id isDefault createdAt").sort({ createdAt: 1 }).lean();
+  if (businesses.length === 0) return null;
+  return String((businesses.find((b) => b.isDefault) || businesses[0])._id);
+}
+
+// Variante utilisée quand un dossier doit pouvoir être créé s'il n'existe pas
+// encore — crée une entité par défaut plutôt que de renvoyer null (voir
+// ensureDefaultPartnerBusiness.js), pour qu'un partenaire "particulier" n'ayant
+// jamais explicitement créé d'entité puisse quand même démarrer son dossier.
+async function resolveOrCreateBusinessId(req) {
+  const requested = req.query?.businessId || req.body?.businessId || null;
+  if (requested) {
+    const owned = await PartnerBusiness.exists({ _id: requested, owner: req.user.id });
+    if (owned) return String(requested);
+  }
+  const business = await ensureDefaultPartnerBusiness(req.user);
+  return String(business._id);
 }
 
 // ── Nom affiché dans les notifications admin ──────────────────────────────────
@@ -263,11 +299,30 @@ const SECTION_KEYS = {
 // désormais un clic explicite sur "Commencer ma candidature" (voir applyToProgram).
 export const getMyOnboarding = async (req, res) => {
   try {
-    const doc = await PartnerOnboarding.findOne({ userId: req.user.id });
+    const businessId = await resolveBusinessIdForRead(req);
+    if (!businessId) return res.status(404).json({ message: "Aucun dossier existant.", notStarted: true });
+    const doc = await PartnerOnboarding.findOne({ userId: req.user.id, businessId });
     if (!doc) return res.status(404).json({ message: "Aucun dossier existant.", notStarted: true });
     res.json({ onboarding: doc.toObject({ virtuals: true }) });
   } catch (err) {
     logger.error("getMyOnboarding:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── GET /api/partner-onboarding/my/all ───────────────────────────────────────
+// Liste tous les dossiers du partenaire (un par entité) — alimente le sélecteur
+// d'entité du portail (PartnerOnboardingPortal.jsx) quand il en possède plusieurs,
+// et le CTA de relance depuis la page KYC (voir KYC.jsx).
+export const getMyOnboardingAll = async (req, res) => {
+  try {
+    const docs = await PartnerOnboarding.find({ userId: req.user.id })
+      .populate("businessId", "companyName country ville isDefault")
+      .sort({ createdAt: 1 })
+      .lean({ virtuals: true });
+    res.json({ onboardings: docs });
+  } catch (err) {
+    logger.error("getMyOnboardingAll:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -278,7 +333,8 @@ export const getMyOnboarding = async (req, res) => {
 // contrairement à l'ancien comportement où un simple GET le faisait déjà.
 export const applyToProgram = async (req, res) => {
   try {
-    const existing = await PartnerOnboarding.findOne({ userId: req.user.id });
+    const businessId = await resolveOrCreateBusinessId(req);
+    const existing = await PartnerOnboarding.findOne({ userId: req.user.id, businessId });
     if (existing) return res.json({ onboarding: existing.toObject({ virtuals: true }) });
 
     const country = req.user.country || null;
@@ -298,7 +354,8 @@ export const applyToProgram = async (req, res) => {
     const legalEntityType = ["particulier", "professionnel", "entreprise"].includes(req.user.sellerType)
       ? req.user.sellerType
       : "entreprise";
-    const doc = await PartnerOnboarding.create({ userId: req.user.id, country, legalEntityType });
+    const activity = ACTIVITIES.includes(req.user.partnerActivity) ? req.user.partnerActivity : null;
+    const doc = await PartnerOnboarding.create({ userId: req.user.id, businessId, country, legalEntityType, activity });
     res.status(201).json({ onboarding: doc.toObject({ virtuals: true }) });
   } catch (err) {
     logger.error("applyToProgram:", err);
@@ -333,8 +390,9 @@ export const updateSection = async (req, res) => {
       return res.status(400).json({ message: "Section invalide." });
     }
 
-    let doc = await PartnerOnboarding.findOne({ userId: req.user.id });
-    if (!doc) doc = await PartnerOnboarding.create({ userId: req.user.id, country: req.user.country || null });
+    const businessId = await resolveOrCreateBusinessId(req);
+    let doc = await PartnerOnboarding.findOne({ userId: req.user.id, businessId });
+    if (!doc) doc = await PartnerOnboarding.create({ userId: req.user.id, businessId, country: req.user.country || null });
 
     if (["accord_signe", "actif"].includes(doc.status)) {
       return res.status(400).json({ message: "Dossier finalisé — modifications non autorisées." });
@@ -364,7 +422,7 @@ export const updateSection = async (req, res) => {
     update.updatedAt = new Date();
 
     const updated = await PartnerOnboarding.findOneAndUpdate(
-      { userId: req.user.id },
+      { userId: req.user.id, businessId },
       { $set: update },
       { new: true, runValidators: true }
     );
@@ -383,8 +441,9 @@ export const updatePartnerType = async (req, res) => {
     const { partnerType } = req.body;
     if (!VALID.includes(partnerType)) return res.status(400).json({ message: "Type partenaire invalide." });
 
-    let doc = await PartnerOnboarding.findOne({ userId: req.user.id });
-    if (!doc) doc = await PartnerOnboarding.create({ userId: req.user.id, country: req.user.country || null });
+    const businessId = await resolveOrCreateBusinessId(req);
+    let doc = await PartnerOnboarding.findOne({ userId: req.user.id, businessId });
+    if (!doc) doc = await PartnerOnboarding.create({ userId: req.user.id, businessId, country: req.user.country || null });
 
     doc.partnerType = partnerType;
     await doc.save();
@@ -406,14 +465,39 @@ export const updateLegalEntityType = async (req, res) => {
     const { legalEntityType } = req.body;
     if (!VALID.includes(legalEntityType)) return res.status(400).json({ message: "Statut partenaire invalide." });
 
-    let doc = await PartnerOnboarding.findOne({ userId: req.user.id });
-    if (!doc) doc = await PartnerOnboarding.create({ userId: req.user.id, country: req.user.country || null });
+    const businessId = await resolveOrCreateBusinessId(req);
+    let doc = await PartnerOnboarding.findOne({ userId: req.user.id, businessId });
+    if (!doc) doc = await PartnerOnboarding.create({ userId: req.user.id, businessId, country: req.user.country || null });
 
     doc.legalEntityType = legalEntityType;
     await doc.save();
     res.json({ success: true, onboarding: doc.toObject({ virtuals: true }) });
   } catch (err) {
     logger.error("updateLegalEntityType:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── PATCH /api/partner-onboarding/activity ───────────────────────────────────
+// Activité de l'entité pour ce dossier (loueur/vendeur/exportateur/chauffeur —
+// voir server/constants/partnerTaxonomy.js), distincte de `partnerType` (ancien
+// enum plus détaillé). Choisie normalement à l'inscription (Register.jsx) et
+// reprise à la création du dossier (applyToProgram), modifiable ici si le
+// partenaire change d'avis avant de soumettre.
+export const updateActivity = async (req, res) => {
+  try {
+    const { activity } = req.body;
+    if (!ACTIVITIES.includes(activity)) return res.status(400).json({ message: "Activité invalide." });
+
+    const businessId = await resolveOrCreateBusinessId(req);
+    let doc = await PartnerOnboarding.findOne({ userId: req.user.id, businessId });
+    if (!doc) doc = await PartnerOnboarding.create({ userId: req.user.id, businessId, country: req.user.country || null });
+
+    doc.activity = activity;
+    await doc.save();
+    res.json({ success: true, onboarding: doc.toObject({ virtuals: true }) });
+  } catch (err) {
+    logger.error("updateActivity:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -426,8 +510,9 @@ export const acceptLegalDocuments = async (req, res) => {
     if (!req.body.accepted) {
       return res.status(400).json({ message: "L'acceptation des documents légaux est requise." });
     }
-    let doc = await PartnerOnboarding.findOne({ userId: req.user.id });
-    if (!doc) doc = await PartnerOnboarding.create({ userId: req.user.id, country: req.user.country || null });
+    const businessId = await resolveOrCreateBusinessId(req);
+    let doc = await PartnerOnboarding.findOne({ userId: req.user.id, businessId });
+    if (!doc) doc = await PartnerOnboarding.create({ userId: req.user.id, businessId, country: req.user.country || null });
 
     doc.legalAcceptance = {
       accepted: true,
@@ -447,7 +532,8 @@ export const acceptLegalDocuments = async (req, res) => {
 // ── POST /api/partner-onboarding/submit ─────────────────────────────────────
 export const submitApplication = async (req, res) => {
   try {
-    const doc = await PartnerOnboarding.findOne({ userId: req.user.id });
+    const businessId = await resolveBusinessIdForRead(req);
+    const doc = businessId ? await PartnerOnboarding.findOne({ userId: req.user.id, businessId }) : null;
     if (!doc) return res.status(404).json({ message: "Dossier introuvable." });
 
     if (!["brouillon", "info_demandee"].includes(doc.status)) {
@@ -512,7 +598,8 @@ export const signLOI = async (req, res) => {
     const { signerName, signerPosition } = req.body;
     if (!signerName?.trim()) return res.status(400).json({ message: "Le nom du signataire est requis." });
 
-    const doc = await PartnerOnboarding.findOne({ userId: req.user.id });
+    const businessId = await resolveBusinessIdForRead(req);
+    const doc = businessId ? await PartnerOnboarding.findOne({ userId: req.user.id, businessId }) : null;
     if (!doc) return res.status(404).json({ message: "Dossier introuvable." });
     if (doc.status !== "loi_envoyee") {
       return res.status(400).json({ message: "La LOI n'est pas disponible pour signature." });
@@ -577,7 +664,8 @@ export const signAgreement = async (req, res) => {
     const { signerName, signerPosition } = req.body;
     if (!signerName?.trim()) return res.status(400).json({ message: "Le nom du signataire est requis." });
 
-    const doc = await PartnerOnboarding.findOne({ userId: req.user.id });
+    const businessId = await resolveBusinessIdForRead(req);
+    const doc = businessId ? await PartnerOnboarding.findOne({ userId: req.user.id, businessId }) : null;
     if (!doc) return res.status(404).json({ message: "Dossier introuvable." });
     if (doc.status !== "accord_envoye") {
       return res.status(400).json({ message: "L'accord n'est pas disponible pour signature." });
@@ -659,6 +747,7 @@ export const adminList = async (req, res) => {
     const [docs, total] = await Promise.all([
       PartnerOnboarding.find(filter)
         .populate("userId", "firstName lastName email phone profilePhoto certificationBadge country")
+        .populate("businessId", "companyName country ville")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(Math.min(Number(limit), 50))
@@ -699,6 +788,7 @@ export const adminGetOne = async (req, res) => {
   try {
     const doc = await PartnerOnboarding.findById(req.params.id)
       .populate("userId", "firstName lastName email phone profilePhoto certificationBadge kycStatus createdAt")
+      .populate("businessId", "companyName country ville isConcessionnaire")
       .populate("adminReview.reviewedBy", "firstName lastName email")
       .populate("auditLog.performedBy", "firstName lastName")
       .lean({ virtuals: true });
@@ -1156,7 +1246,8 @@ export const signByToken = async (req, res) => {
 // ── GET /api/partner-onboarding/my/loi/pdf ────────────────────────────────────
 export const downloadLOIPDF = async (req, res) => {
   try {
-    const doc = await PartnerOnboarding.findOne({ userId: req.user.id }).lean();
+    const businessId = await resolveBusinessIdForRead(req);
+    const doc = businessId ? await PartnerOnboarding.findOne({ userId: req.user.id, businessId }).lean() : null;
     if (!doc?.loi?.content) return res.status(404).json({ message: "LOI non disponible." });
 
     const signBlock = doc.loi.signedAt ? {
@@ -1184,7 +1275,8 @@ export const downloadLOIPDF = async (req, res) => {
 // ── GET /api/partner-onboarding/my/agreement/pdf ──────────────────────────────
 export const downloadAgreementPDF = async (req, res) => {
   try {
-    const doc = await PartnerOnboarding.findOne({ userId: req.user.id }).lean();
+    const businessId = await resolveBusinessIdForRead(req);
+    const doc = businessId ? await PartnerOnboarding.findOne({ userId: req.user.id, businessId }).lean() : null;
     if (!doc?.agreement?.content) return res.status(404).json({ message: "Accord non disponible." });
 
     const signBlock = doc.agreement.signedAt ? {

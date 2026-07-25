@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../context/CurrencyContext";
+import { ACTIVITIES, ACTIVITY_LABELS } from "../constants/partnerTaxonomy";
 import styles from "./PartnerOnboardingPortal.module.css";
 
 const API_BASE = "/api/partner-onboarding";
@@ -117,6 +118,32 @@ export default function PartnerOnboardingPortal() {
   // (évite de laisser quelqu'un remplir tout le wizard pour se le voir refuser à la fin).
   const [availability, setAvailability] = useState(null);
 
+  // ── Founding Partner Program PAR ENTITÉ ───────────────────────────────────
+  // Un partenaire possédant plusieurs PartnerBusiness a un dossier séparé par
+  // entité (voir server/models/PartnerOnboarding.js businessId). `businessId`
+  // reste `null` tant que le partenaire n'en possède pas plusieurs — le
+  // backend résout alors automatiquement l'entité unique/par défaut, sans
+  // imposer de sélecteur inutile à l'immense majorité des partenaires.
+  const [businessId, setBusinessId] = useState(null);
+  const [myOnboardings, setMyOnboardings] = useState(null); // null = pas encore chargé
+  const [entityChosen, setEntityChosen] = useState(false);
+
+  useEffect(() => {
+    if (!token) { setMyOnboardings([]); return; } // visiteur non connecté — pas de sélecteur à afficher
+    apiFetch("/my/all", token)
+      .then((r) => (r.ok ? r.json() : { onboardings: [] }))
+      .then((d) => setMyOnboardings(d.onboardings || []))
+      .catch(() => setMyOnboardings([]));
+  }, [token]);
+
+  // Ajoute businessId en query string si un choix explicite a été fait parmi
+  // plusieurs entités (voir EntitySelectorScreen) — sinon le path reste
+  // inchangé et le backend résout l'entité par défaut lui-même.
+  const withBiz = useCallback((path) => {
+    if (!businessId) return path;
+    return `${path}${path.includes("?") ? "&" : "?"}businessId=${encodeURIComponent(businessId)}`;
+  }, [businessId]);
+
   const load = useCallback(async () => {
     // Aucun dossier à charger pour un visiteur non connecté — sans ce retour anticipé,
     // `loading` (initialisé à true) ne repassait jamais à false et bloquait la page sur
@@ -127,7 +154,7 @@ export default function PartnerOnboardingPortal() {
     setOnboardingError(null);
     setNotStarted(false);
     try {
-      const r = await apiFetch("/my", token);
+      const r = await apiFetch(withBiz("/my"), token);
       if (r.ok) {
         const data = await r.json();
         setOnboarding(data.onboarding);
@@ -145,9 +172,18 @@ export default function PartnerOnboardingPortal() {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, withBiz]);
 
-  useEffect(() => { load(); }, [load]);
+  // N'attend le chargement du dossier que quand on sait déjà s'il faut
+  // afficher le sélecteur d'entité — sinon `load()` partirait sur l'entité par
+  // défaut avant même que l'utilisateur n'ait pu choisir la bonne (voir
+  // EntitySelectorScreen : cas ≥2 entités, aucune choisie pour l'instant).
+  const needsEntitySelector = (myOnboardings?.length || 0) >= 2 && !entityChosen;
+  useEffect(() => {
+    if (myOnboardings === null) return; // /my/all pas encore chargé
+    if (needsEntitySelector) { setLoading(false); return; }
+    load();
+  }, [load, myOnboardings, needsEntitySelector]);
 
   // Un utilisateur connecté qui atterrit sur cette page (lien direct, redirection
   // CERTIFICATION_REQUIRED depuis VendorSubmit.jsx, etc.) veut voir le vrai
@@ -166,7 +202,7 @@ export default function PartnerOnboardingPortal() {
   const applyToProgram = async () => {
     setApplying(true);
     try {
-      const r = await apiFetch("/apply", token, { method: "POST" });
+      const r = await apiFetch(withBiz("/apply"), token, { method: "POST" });
       const data = await r.json().catch(() => ({}));
       if (r.ok) {
         setOnboarding(data.onboarding);
@@ -199,7 +235,7 @@ export default function PartnerOnboardingPortal() {
   const saveSection = async (sectionName, data) => {
     setSaving(true);
     try {
-      const r = await apiFetch(`/section/${sectionName}`, token, {
+      const r = await apiFetch(withBiz(`/section/${sectionName}`), token, {
         method: "PATCH",
         body: JSON.stringify(data),
       });
@@ -223,9 +259,24 @@ export default function PartnerOnboardingPortal() {
   const setPartnerType = async (type) => {
     setSaving(true);
     try {
-      const r = await apiFetch("/partner-type", token, {
+      const r = await apiFetch(withBiz("/partner-type"), token, {
         method: "PATCH",
         body: JSON.stringify({ partnerType: type }),
+      });
+      const json = await r.json();
+      if (r.ok) setOnboarding(json.onboarding);
+      else addToast(json.message || "Erreur", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setActivity = async (activity) => {
+    setSaving(true);
+    try {
+      const r = await apiFetch(withBiz("/activity"), token, {
+        method: "PATCH",
+        body: JSON.stringify({ activity }),
       });
       const json = await r.json();
       if (r.ok) setOnboarding(json.onboarding);
@@ -238,7 +289,7 @@ export default function PartnerOnboardingPortal() {
   const setLegalEntityType = async (legalEntityType) => {
     setSaving(true);
     try {
-      const r = await apiFetch("/legal-entity-type", token, {
+      const r = await apiFetch(withBiz("/legal-entity-type"), token, {
         method: "PATCH",
         body: JSON.stringify({ legalEntityType }),
       });
@@ -252,7 +303,7 @@ export default function PartnerOnboardingPortal() {
 
   const acceptLegal = async () => {
     try {
-      const r = await apiFetch("/accept-legal", token, {
+      const r = await apiFetch(withBiz("/accept-legal"), token, {
         method: "PATCH",
         body: JSON.stringify({ accepted: true }),
       });
@@ -267,7 +318,7 @@ export default function PartnerOnboardingPortal() {
   const submitApplication = async () => {
     setSaving(true);
     try {
-      const r = await apiFetch("/submit", token, { method: "POST" });
+      const r = await apiFetch(withBiz("/submit"), token, { method: "POST" });
       const json = await r.json();
       if (r.ok) {
         addToast(`Candidature soumise ! Réf: ${json.referenceNumber}`, "success");
@@ -284,7 +335,7 @@ export default function PartnerOnboardingPortal() {
   const signDocument = async (type, signerName, signerPosition) => {
     setSaving(true);
     try {
-      const r = await apiFetch(`/sign-${type}`, token, {
+      const r = await apiFetch(withBiz(`/sign-${type}`), token, {
         method: "POST",
         body: JSON.stringify({ signerName, signerPosition }),
       });
@@ -302,6 +353,19 @@ export default function PartnerOnboardingPortal() {
   };
 
   if (loading) return <LoadingScreen />;
+
+  // Plusieurs entités (PartnerBusiness) et aucune choisie pour l'instant — un
+  // dossier Founding Partner distinct existe par entité (voir businessId sur
+  // PartnerOnboarding), on ne charge/crée rien tant que le partenaire n'a pas
+  // précisé laquelle il souhaite continuer ou compléter.
+  if (needsEntitySelector) {
+    return (
+      <EntitySelectorScreen
+        onboardings={myOnboardings}
+        onChoose={(id) => { setBusinessId(id); setEntityChosen(true); }}
+      />
+    );
+  }
 
   // Écran spécial si non connecté — attend d'abord de savoir s'il reste des places
   if (!token) {
@@ -445,6 +509,7 @@ export default function PartnerOnboardingPortal() {
               onSaveSection={saveSection}
               onSetType={setPartnerType}
               onSetLegalEntityType={setLegalEntityType}
+              onSetActivity={setActivity}
               onNext={() => setActiveStep(1)}
             />
           )}
@@ -482,6 +547,7 @@ export default function PartnerOnboardingPortal() {
               onboarding={onboarding}
               status={status}
               token={token}
+              businessId={businessId}
               onSign={(type) => setSignModal(type)}
             />
           )}
@@ -511,7 +577,7 @@ const LEGAL_ENTITY_TYPES = [
   { value: "entreprise",    label: "Entreprise",     icon: "🏢", desc: "Documents légaux d'entreprise (RCCM, immatriculation…)" },
 ];
 
-function StepTypeInfo({ onboarding, saving, onSaveSection, onSetType, onSetLegalEntityType, onNext }) {
+function StepTypeInfo({ onboarding, saving, onSaveSection, onSetType, onSetLegalEntityType, onSetActivity, onNext }) {
   const ci = onboarding?.companyInfo || {};
   const legalEntityType = onboarding?.legalEntityType || "entreprise";
   const isIndividual = legalEntityType === "particulier";
@@ -577,6 +643,25 @@ function StepTypeInfo({ onboarding, saving, onSaveSection, onSetType, onSetLegal
             >
               <span className={styles.typeIcon}>{lt.icon}</span>
               <span>{lt.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Activité — voir server/constants/partnerTaxonomy.js, détermine avec le
+          statut ci-dessus les documents exigés (StepDocuments) et le parcours
+          post-inscription (Register.jsx). */}
+      <div className={styles.sectionBlock}>
+        <h3 className={styles.sectionTitle}>Activité *</h3>
+        <div className={styles.typeGrid}>
+          {ACTIVITIES.map((a) => (
+            <button
+              key={a}
+              className={`${styles.typeCard} ${onboarding?.activity === a ? styles.typeCardActive : ""}`}
+              onClick={() => onSetActivity(a)}
+              disabled={saving}
+            >
+              <span>{ACTIVITY_LABELS[a]}</span>
             </button>
           ))}
         </div>
@@ -1277,12 +1362,13 @@ function StepReview({ onboarding, saving, status, onSubmit, onBack, onEditStep, 
 // ════════════════════════════════════════════════════════════════════════════════
 // ÉTAPE 4 : Signature LOI / Accord
 // ════════════════════════════════════════════════════════════════════════════════
-function StepDocumentSigning({ onboarding, status, token, onSign }) {
+function StepDocumentSigning({ onboarding, status, token, businessId, onSign }) {
   const statusCfg = STATUS_CONFIG[status] || {};
 
   const downloadPDF = async (type) => {
     try {
-      const path = type === "loi" ? "/my/loi/pdf" : "/my/agreement/pdf";
+      const base = type === "loi" ? "/my/loi/pdf" : "/my/agreement/pdf";
+      const path = businessId ? `${base}?businessId=${encodeURIComponent(businessId)}` : base;
       const r = await apiFetch(path, token);
       if (!r.ok) return;
       const blob = await r.blob();
@@ -1542,6 +1628,37 @@ const HOW_IT_WORKS = [
 
 // ── Écran affiché à un compte connecté qui n'a pas encore de dossier — la création
 // exige ce clic explicite (jamais un simple chargement de page, voir applyToProgram).
+// Affiché uniquement quand le partenaire possède ≥2 entités (PartnerBusiness)
+// avec chacune son propre dossier Founding Partner — le cas courant (0 ou 1
+// entité) ne passe jamais par cet écran (voir needsEntitySelector).
+function EntitySelectorScreen({ onboardings, onChoose }) {
+  return (
+    <div className={styles.publicHero}>
+      <div className={styles.publicHeroContent}>
+        <div className={styles.heroLabel}>VIT-AUTO · FOUNDING PARTNER PROGRAM</div>
+        <h1>Quelle entité souhaitez-vous<br /><span className={styles.heroAccent}>gérer ici ?</span></h1>
+        <p>Vous possédez plusieurs entités — chacune a son propre dossier Founding Partner (documents, LOI, Accord).</p>
+        <div className={styles.publicActions} style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+          {onboardings.map((o) => {
+            const cfg = STATUS_CONFIG[o.status] || STATUS_CONFIG.brouillon;
+            return (
+              <button
+                key={o._id}
+                className={styles.btnPrimary}
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", textAlign: "left" }}
+                onClick={() => onChoose(o.businessId?._id || o.businessId)}
+              >
+                <span>🏢 {o.businessId?.companyName || "Entité"}</span>
+                <span style={{ fontSize: ".8rem", opacity: 0.85 }}>{cfg.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StartApplicationScreen({ onStart, starting }) {
   return (
     <div className={styles.publicHero}>

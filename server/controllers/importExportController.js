@@ -12,6 +12,7 @@ import { COUNTRY_CODE_TO_NAME } from "../utils/countries.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
 import { isIncotermCompatible } from "../constants/incoterms.js";
+import { resolveDefaultPartnerBusinessId } from "../utils/ensureDefaultPartnerBusiness.js";
 
 const MAX_LISTING_IMAGE_BYTES = 6 * 1024 * 1024;
 const MAX_IMAGE_URL_LENGTH    = 2048;
@@ -503,12 +504,29 @@ export const createListing = async (req, res) => {
           : "Votre dossier partenaire a été rejeté. Contactez le support VIT AUTO.",
       });
     }
+    // ── Entreprise du partenaire (facultatif, comme Vehicle.business) ──────
+    // Résolue AVANT la vérification du dossier Founding Partner ci-dessous : le
+    // Programme est désormais PAR ENTITÉ (voir PartnerOnboarding.businessId), le
+    // dossier à vérifier est donc celui de l'entité utilisée pour CETTE annonce,
+    // pas un dossier arbitraire parmi ceux du partenaire.
+    const { businessId } = req.body;
+    let business = null;
+    if (businessId) {
+      business = await PartnerBusiness.findOne({ _id: businessId, owner: req.user._id }).lean();
+      if (!business) return res.status(400).json({ message: "Entreprise introuvable." });
+    }
+
     // Plafond annonces pour un Founding Partner "particulier" — même principe
     // que INDIVIDUAL_SELLER_MAX_ACTIVE (vehicleController.js), mais ce champ
     // vient de PartnerOnboarding.legalEntityType (pas User.sellerType, qui
     // concerne uniquement le marché local location/vente).
     const INDIVIDUAL_FOUNDER_MAX_ACTIVE = 10;
-    const onboarding = await PartnerOnboarding.findOne({ userId: req.user._id }).select("legalEntityType").lean();
+    // Si l'annonce ne précise pas d'entité, on retombe sur l'entité par défaut
+    // du partenaire (le cas courant pour un particulier n'ayant jamais choisi
+    // d'entité explicitement) plutôt que de chercher un dossier businessId:null,
+    // qui n'existe plus après la migration vers le Founding Partner par entité.
+    const onboardingBusinessId = business?._id || await resolveDefaultPartnerBusinessId(req.user._id);
+    const onboarding = await PartnerOnboarding.findOne({ userId: req.user._id, businessId: onboardingBusinessId }).select("legalEntityType").lean();
     if (onboarding?.legalEntityType === "particulier") {
       const activeCount = await ImportExportListing.countDocuments({ partner: req.user._id, status: { $ne: "rejected" } });
       if (activeCount >= INDIVIDUAL_FOUNDER_MAX_ACTIVE) {
@@ -529,18 +547,11 @@ export const createListing = async (req, res) => {
       photos, mainPhoto,
       vin, vehicleHistory, estimatedShippingCost, shippingCostCurrency,
       estimatedDelay, shippingType, exportDocumentsAvailable, videoUrl,
-      acceptedPaymentMethods, incoterm, businessId,
+      acceptedPaymentMethods, incoterm,
     } = req.body;
 
     if (!title || !make || !model || !year || !sourceCountry || !price) {
       return res.status(400).json({ message: "Champs obligatoires manquants." });
-    }
-
-    // ── Entreprise du partenaire (facultatif, comme Vehicle.business) ──────
-    let business = null;
-    if (businessId) {
-      business = await PartnerBusiness.findOne({ _id: businessId, owner: req.user._id }).lean();
-      if (!business) return res.status(400).json({ message: "Entreprise introuvable." });
     }
     if (incoterm && !isIncotermCompatible(incoterm, shippingType)) {
       return res.status(400).json({ message: "Cet Incoterm est réservé au transport maritime — choisissez FAS, FOB, CFR ou CIF uniquement avec un type de transport maritime." });

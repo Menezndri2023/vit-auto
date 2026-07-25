@@ -5,6 +5,8 @@ import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../context/CurrencyContext";
 import GoogleAuthButton from "../components/GoogleAuthButton/GoogleAuthButton";
 import { WORLD_COUNTRIES } from "../data/worldCountries";
+import { ACTIVITIES, ACTIVITY_LABELS, ENTITY_TYPES, ENTITY_TYPE_LABELS, requiresBusinessDocs } from "../constants/partnerTaxonomy";
+import { resolveRequirements } from "../utils/partnerRequirements";
 import styles from "./Auth.module.css";
 
 const Register = () => {
@@ -25,7 +27,8 @@ const Register = () => {
     confirmPassword: "",
     country: "",
     role: searchParams.get("role") === "partenaire" ? "partenaire" : "client",
-    sellerType: "particulier",
+    activity: "loueur",
+    entityType: "particulier",
   });
 
   // Pré-remplit avec le pays détecté par IP (CurrencyContext) dès qu'il est
@@ -41,17 +44,20 @@ const Register = () => {
   // location.state.from (posé par PartnerRoute/AdminRoute lors d'une redirection
   // /login → "S'inscrire" — voir Login.jsx, sans ce relais la destination
   // d'origine était perdue et l'utilisateur atterrissait systématiquement sur
-  // /dashboard ou /partner-onboarding après inscription, bug réel trouvé en
-  // audit) ; sinon, TOUT partenaire (particulier compris) passe désormais
-  // obligatoirement par le programme Founding Partner (LOI + Accord) avant de
-  // publier — ce n'est plus une offre optionnelle réservée aux sociétés.
+  // /dashboard après inscription, bug réel trouvé en audit) ; sinon, la
+  // redirection dépend du couple activité/type de compte choisi (voir
+  // src/utils/partnerRequirements.js) : un particulier loueur/vendeur/exportateur
+  // n'a besoin que du KYC identité, un chauffeur passe par ses documents propres
+  // (CV/permis), un professionnel/entreprise/concessionnaire est ensuite dirigé
+  // vers son dossier Founding Partner — plus de wizard imposé à tout le monde.
   const redirectParam = searchParams.get("redirect");
   const stateFrom = location.state?.from;
   const fromPage  = typeof stateFrom === "string" ? stateFrom : stateFrom?.pathname;
   const getDest = () => {
     if (redirectParam) return decodeURIComponent(redirectParam);
     if (fromPage) return fromPage;
-    return form.role === "partenaire" ? "/partner-onboarding" : "/dashboard";
+    if (form.role !== "partenaire") return "/dashboard";
+    return resolveRequirements({ activity: form.activity, entityType: form.entityType }).postRegistrationRedirect;
   };
 
   useEffect(() => {
@@ -88,7 +94,8 @@ const Register = () => {
         phone:      form.phone.trim() || undefined,
         country:    form.country,
         birthDate:  form.birthDate,
-        sellerType: form.role === "partenaire" ? form.sellerType : undefined,
+        activity:   form.role === "partenaire" ? form.activity : undefined,
+        entityType: form.role === "partenaire" ? form.entityType : undefined,
       });
 
       success("Inscription réussie ! Vérifiez votre boîte mail pour activer votre compte. Redirection…");
@@ -115,7 +122,8 @@ const Register = () => {
         birthDate:  form.birthDate,
         country:    form.country,
         role:       form.role,
-        sellerType: form.role === "partenaire" ? form.sellerType : undefined,
+        activity:   form.role === "partenaire" ? form.activity : undefined,
+        entityType: form.role === "partenaire" ? form.entityType : undefined,
       });
       if (result?.requiresTwoFactor) {
         error("Ce compte a la double authentification activée. Connectez-vous avec votre mot de passe.");
@@ -208,15 +216,22 @@ const Register = () => {
 
           {form.role === "partenaire" && (
             <>
-              <select name="sellerType" value={form.sellerType} onChange={handleChange} autoComplete="off">
-                <option value="particulier">🧑 Particulier — Je vends/loue mon propre véhicule</option>
-                <option value="professionnel">🏢 Professionnel — Agent, chauffeur indépendant...</option>
-                <option value="entreprise">🏛️ Entreprise — Société de location/vente</option>
+              <select name="activity" value={form.activity} onChange={handleChange} autoComplete="off">
+                {ACTIVITIES.map((a) => (
+                  <option key={a} value={a}>{ACTIVITY_LABELS[a]}</option>
+                ))}
+              </select>
+              <select name="entityType" value={form.entityType} onChange={handleChange} autoComplete="off">
+                {ENTITY_TYPES.map((t) => (
+                  <option key={t} value={t}>{ENTITY_TYPE_LABELS[t]}</option>
+                ))}
               </select>
               <small style={{ color: "#8493b0", fontSize: "0.78rem", display: "block", marginTop: -8, marginBottom: 4 }}>
-                {form.sellerType === "particulier"
-                  ? "📍 En tant que particulier, seule une vérification d'identité (pièce + selfie) vous sera demandée pour publier."
-                  : "📍 Une vérification entreprise (documents légaux) sera nécessaire pour publier."}
+                {form.activity === "chauffeur"
+                  ? "📍 En tant que chauffeur, une pièce d'identité, un permis de conduire vérifié et un CV vous seront demandés avant de publier."
+                  : requiresBusinessDocs(form.entityType)
+                    ? "📍 Une vérification entreprise (documents légaux) sera nécessaire pour publier, en plus de votre pièce d'identité."
+                    : "📍 En tant que particulier, seule une vérification d'identité (pièce + selfie) vous sera demandée pour publier."}
               </small>
             </>
           )}

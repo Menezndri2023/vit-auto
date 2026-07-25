@@ -31,6 +31,7 @@ const DriverBooking = () => {
   const [lastName,  setLastName]  = useState(user?.lastName  || "");
   const [email,     setEmail]     = useState(user?.email     || "");
   const [phone,     setPhone]     = useState(user?.phone     || "");
+  const [passportNumber, setPassportNumber] = useState("");
   const [missionDate, setMissionDate] = useState("");
   const [missionTime, setMissionTime] = useState("");
   const [lieuDepart,  setLieuDepart]  = useState("");
@@ -108,6 +109,10 @@ const DriverBooking = () => {
       error("Veuillez remplir toutes vos informations.");
       return;
     }
+    if (!passportNumber.trim()) {
+      error("Le numéro de passeport est obligatoire.");
+      return;
+    }
     if (!missionStart) {
       error("Veuillez choisir la date et l'heure de la mission.");
       return;
@@ -144,7 +149,7 @@ const DriverBooking = () => {
         body: JSON.stringify({
           type: "chauffeur",
           driverId: id,
-          clientInfo: { firstName, lastName, email, phone },
+          clientInfo: { firstName, lastName, email, phone, passportNumber },
           chauffeur: { date: missionStart.toISOString(), heures: Number(heures), lieuDepart: lieuDepart.trim() || undefined },
           payment: {
             method: selectedMethod,
@@ -227,6 +232,30 @@ const DriverBooking = () => {
         </div>
       </div>
 
+      {/* Badges de vérification — booléens calculés côté serveur (getDrivers),
+          jamais les documents/images bruts (identité, permis) qui restent
+          strictement privés et visibles uniquement par l'admin. */}
+      {(driver.identityVerified || driver.licenseVerified || driver.cv) && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+          {driver.identityVerified && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 99, background: "#d1fae5", color: "#059669", fontSize: "0.8rem", fontWeight: 700 }}>
+              ✓ Identité vérifiée
+            </span>
+          )}
+          {driver.licenseVerified && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 99, background: "#d1fae5", color: "#059669", fontSize: "0.8rem", fontWeight: 700 }}>
+              ✓ Permis vérifié
+            </span>
+          )}
+          {driver.cv && (
+            <a href={driver.cv} target="_blank" rel="noopener noreferrer"
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 99, background: "#eef2ff", color: "#4338ca", fontSize: "0.8rem", fontWeight: 700, textDecoration: "none" }}>
+              📄 Voir le CV
+            </a>
+          )}
+        </div>
+      )}
+
       {driver.description && (
         <p style={{ color: "#374151", fontSize: "0.92rem", marginBottom: 24 }}>{driver.description}</p>
       )}
@@ -256,6 +285,7 @@ const DriverBooking = () => {
         <input className={styles.input} placeholder="Nom *" value={lastName} onChange={(e) => setLastName(e.target.value)} />
         <input className={styles.input} type="email" placeholder="E-mail *" value={email} onChange={(e) => setEmail(e.target.value)} />
         <input className={styles.input} type="tel" placeholder="Téléphone *" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        <input className={styles.input} placeholder="N° de passeport *" value={passportNumber} onChange={(e) => setPassportNumber(e.target.value)} style={{ gridColumn: "1 / -1" }} />
       </div>
 
       {/* Date, heure & durée */}

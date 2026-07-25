@@ -5,12 +5,14 @@ import PartnerCertification from "../models/PartnerCertification.js";
 import PartnerVerification from "../models/PartnerVerification.js";
 import ImporterPartnerProfile from "../models/ImporterPartnerProfile.js";
 import User from "../models/User.js";
-import { createUser } from "./helpers/fixtures.js";
+import { createUser, makeTestPartnerBusiness } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
 async function createOnboardingReadyToSign(partner, overrides = {}) {
+  const business = await makeTestPartnerBusiness(partner._id);
   return PartnerOnboarding.create({
     userId: partner._id,
+    businessId: business._id,
     status: "accord_envoye",
     companyInfo: { legalName: "Test SARL", registrationCountry: "CI" },
     agreement: { content: "Contenu de l'accord de test" },

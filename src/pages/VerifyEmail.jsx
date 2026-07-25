@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { resolveRequirements } from "../utils/partnerRequirements";
 import styles from "./Auth.module.css";
 
 const VerifyEmail = () => {
@@ -32,10 +33,13 @@ const VerifyEmail = () => {
           if (data.user && data.token) {
             setSession(data.user, data.token);
           }
-          // Tout compte partenaire (particulier compris) passe désormais
-          // obligatoirement par le programme Founding Partner (LOI + Accord)
-          // avant de publier — voir Register.jsx pour la même règle à l'inscription.
-          const target = data.user?.role === "partenaire" ? "/partner-onboarding" : "/dashboard";
+          // La destination dépend du couple activité/type de compte choisi à
+          // l'inscription (voir Register.jsx et src/utils/partnerRequirements.js) —
+          // un particulier loueur/vendeur/exportateur n'a besoin que du KYC
+          // identité, pas du wizard Founding Partner complet.
+          const target = data.user?.role === "partenaire"
+            ? resolveRequirements({ activity: data.user.activity, entityType: data.user.entityType }).postRegistrationRedirect
+            : "/dashboard";
           setDest(target);
           setTimeout(() => navigate(target), 1800);
         } else {
@@ -67,13 +71,13 @@ const VerifyEmail = () => {
             <div style={{ fontSize: "3rem", marginBottom: "12px", textAlign: "center" }}>✅</div>
             <h1 style={{ textAlign: "center", color: "#0f1b3f", margin: "0 0 12px" }}>Vérification réussie !</h1>
             <p style={{ textAlign: "center", color: "#64748b", margin: 0 }}>
-              {dest === "/partner-onboarding"
-                ? "Votre adresse e-mail a été confirmée. Redirection vers le programme Founding Partner (LOI + Accord), obligatoire avant de publier…"
+              {dest.startsWith("/kyc")
+                ? "Votre adresse e-mail a été confirmée. Redirection vers la vérification d'identité (KYC), nécessaire avant de publier…"
                 : "Votre adresse e-mail a été confirmée. Redirection vers votre espace…"}
             </p>
             <Link to={dest} className={styles.submitBtn} style={{ display: "block", textAlign: "center", marginTop: "24px", textDecoration: "none" }}>
-              {dest === "/partner-onboarding"
-                ? "Continuer vers le programme Founding Partner →"
+              {dest.startsWith("/kyc")
+                ? "Continuer vers la vérification d'identité →"
                 : "Accéder à mon espace →"}
             </Link>
           </>

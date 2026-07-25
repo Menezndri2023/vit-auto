@@ -13,6 +13,7 @@ import { emailVerificationRequired } from "../utils/emailVerificationRequired.js
 import { dispatch } from "../queue/index.js";
 import { sendVerification, checkVerification } from "../services/twilioVerify.js";
 import { isValidCountryCode } from "../utils/countries.js";
+import { ACTIVITIES, ENTITY_TYPES, entityTypeToSellerType } from "../constants/partnerTaxonomy.js";
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_OAUTH_CLIENT_ID);
 
@@ -63,6 +64,8 @@ function safeUser(u) {
     country:          u.country || null,
     role:             u.role,
     sellerType:       u.sellerType || null,
+    activity:         u.partnerActivity || null,
+    entityType:       u.entityType || null,
     emailVerified:    u.emailVerified,
     phoneVerified:    u.phoneVerified,
     identityStatus:   u.identity?.status || "not_submitted",
@@ -100,16 +103,28 @@ export const register = async (req, res) => {
   const email   = sanitize(req.body.email)?.toLowerCase() || null;
   const phone   = sanitize(req.body.phone) || null;
   const country = sanitize(req.body.country)?.toUpperCase() || null;
-  // Précisé uniquement pour role="partenaire" (voir Register.jsx) — détermine le
-  // niveau de vérification exigé pour publier une annonce (particulier : KYC
-  // identité seul ; professionnel/entreprise : certification complète —
+  // Précisé uniquement pour role="partenaire" (voir Register.jsx) — activity
+  // (loueur/vendeur/exportateur/chauffeur) détermine le parcours documentaire
+  // (voir server/utils/partnerRequirements.js), entityType détermine le niveau
+  // de vérification exigé pour publier une annonce (particulier : KYC identité
+  // seul ; professionnel/entreprise/concessionnaire : certification complète —
   // voir vehicleController.js/driverController.js createVehicle/createDriver).
-  const SELLER_TYPES = ["particulier", "professionnel", "entreprise"];
-  const sellerTypeIn = sanitize(req.body.sellerType);
-  const sellerType   = SELLER_TYPES.includes(sellerTypeIn) ? sellerTypeIn : null;
+  // `sellerType` reste accepté pour compat avec un éventuel vieux client (déprécié) :
+  // s'il est envoyé sans entityType, il sert de repli pour dériver entityType.
+  const activityIn = sanitize(req.body.activity);
+  const entityTypeIn = sanitize(req.body.entityType);
+  const legacySellerTypeIn = sanitize(req.body.sellerType);
+  const activity = ACTIVITIES.includes(activityIn) ? activityIn : null;
+  let entityType = ENTITY_TYPES.includes(entityTypeIn) ? entityTypeIn : null;
+  if (!entityType && ["particulier", "professionnel", "entreprise"].includes(legacySellerTypeIn)) {
+    entityType = legacySellerTypeIn;
+  }
 
   if (!password || !firstName || !lastName) {
     return res.status(400).json({ message: "Données manquantes." });
+  }
+  if (role === "partenaire" && (!activity || !entityType)) {
+    return res.status(400).json({ message: "Activité et type de compte requis pour un partenaire." });
   }
   if (country && !(await isValidCountryCode(country))) {
     return res.status(400).json({ message: "Pays invalide." });
@@ -186,6 +201,8 @@ export const register = async (req, res) => {
 
     const allowedRoles = ["client", "partenaire"];
     const userRole = allowedRoles.includes(role) ? role : "client";
+    const isPartner = userRole === "partenaire";
+    const sellerType = isPartner && entityType ? entityTypeToSellerType(entityType) : null;
     const hash = await bcrypt.hash(password, 12);
 
     const token = makeToken();
@@ -199,7 +216,9 @@ export const register = async (req, res) => {
       birthDate,
       password: hash,
       role: userRole,
-      sellerType: userRole === "partenaire" ? sellerType : null,
+      sellerType,
+      partnerActivity: isPartner ? activity : null,
+      entityType: isPartner ? entityType : null,
       emailVerificationToken:   autoVerify ? null : token,
       emailVerificationExpires: autoVerify ? null : new Date(Date.now() + VERIFY_TTL),
       emailVerified:            autoVerify,
@@ -385,7 +404,10 @@ export const oauthGoogle = async (req, res) => {
     return res.status(503).json({ message: "La connexion Google n'est pas encore configurée." });
   }
 
-  const { credential, birthDate: birthDateRaw, country: countryRaw, role: roleRaw, sellerType: sellerTypeRaw } = req.body;
+  const {
+    credential, birthDate: birthDateRaw, country: countryRaw, role: roleRaw,
+    sellerType: sellerTypeRaw, activity: activityRaw, entityType: entityTypeRaw,
+  } = req.body;
   if (!credential) return res.status(400).json({ message: "Jeton Google manquant." });
 
   let payload;
@@ -437,8 +459,21 @@ export const oauthGoogle = async (req, res) => {
       }
 
       const allowedRoles = ["client", "partenaire"];
-      const role       = allowedRoles.includes(sanitize(roleRaw)) ? sanitize(roleRaw) : "client";
-      const sellerType = role === "partenaire" ? sanitize(sellerTypeRaw) : null;
+      const role = allowedRoles.includes(sanitize(roleRaw)) ? sanitize(roleRaw) : "client";
+      const isPartner = role === "partenaire";
+
+      const activityIn = sanitize(activityRaw);
+      const entityTypeIn = sanitize(entityTypeRaw);
+      const legacySellerTypeIn = sanitize(sellerTypeRaw);
+      const activity = ACTIVITIES.includes(activityIn) ? activityIn : null;
+      let entityType = ENTITY_TYPES.includes(entityTypeIn) ? entityTypeIn : null;
+      if (!entityType && ["particulier", "professionnel", "entreprise"].includes(legacySellerTypeIn)) {
+        entityType = legacySellerTypeIn;
+      }
+      if (isPartner && (!activity || !entityType)) {
+        return res.status(400).json({ message: "Activité et type de compte requis pour un partenaire." });
+      }
+      const sellerType = isPartner && entityType ? entityTypeToSellerType(entityType) : null;
       const randomPassword = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 12);
 
       user = await User.create({
@@ -451,6 +486,8 @@ export const oauthGoogle = async (req, res) => {
         country,
         role,
         sellerType,
+        partnerActivity: isPartner ? activity : null,
+        entityType: isPartner ? entityType : null,
         password:      randomPassword,
         emailVerified: true, // Google a déjà vérifié cette adresse
         profilePhoto:  payload.picture || null,

@@ -173,16 +173,17 @@ export const AuthProvider = ({ children }) => {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Méthodes publiques ─────────────────────────────────────────────────────
-  const register = async ({ firstName, lastName, email, password, phone, role, country, birthDate, sellerType }) => {
+  const register = async ({ firstName, lastName, email, password, phone, role, country, birthDate, activity, entityType }) => {
     // sellerType était silencieusement absent de ce payload depuis toujours : le
     // choix particulier/professionnel/entreprise fait à l'inscription (Register.jsx)
     // n'atteignait jamais le backend — createVehicle s'en sortait via un fallback
     // (amorçage au premier véhicule publié) qui masquait le vrai bug plutôt que de
-    // le corriger. birthDate ajouté le 2026-07-16 (vérification d'âge).
+    // le corriger. birthDate ajouté le 2026-07-16 (vérification d'âge). activity/
+    // entityType (voir src/constants/partnerTaxonomy.js) remplacent sellerType.
     const res  = await fetch("/api/auth/register", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ firstName, lastName, email, password, phone, role, country, birthDate, sellerType }),
+      body:    JSON.stringify({ firstName, lastName, email, password, phone, role, country, birthDate, activity, entityType }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || "Erreur d'inscription.");
@@ -215,14 +216,15 @@ export const AuthProvider = ({ children }) => {
     return data.user;
   };
 
-  // Connexion / inscription Google — `birthDate`/`country`/`role`/`sellerType`
-  // ne sont fournis que depuis Register.jsx (voir authController.js oauthGoogle :
-  // sans birthDate, un compte inexistant renvoie OAUTH_NO_ACCOUNT au lieu d'être créé).
-  const oauthGoogle = async ({ credential, birthDate, country, role, sellerType }) => {
+  // Connexion / inscription Google — `birthDate`/`country`/`role`/`activity`/
+  // `entityType` ne sont fournis que depuis Register.jsx (voir authController.js
+  // oauthGoogle : sans birthDate, un compte inexistant renvoie OAUTH_NO_ACCOUNT
+  // au lieu d'être créé).
+  const oauthGoogle = async ({ credential, birthDate, country, role, activity, entityType }) => {
     const res  = await fetch("/api/auth/oauth/google", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ credential, birthDate, country, role, sellerType }),
+      body:    JSON.stringify({ credential, birthDate, country, role, activity, entityType }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {

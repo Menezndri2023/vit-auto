@@ -4,10 +4,12 @@ import { authenticate as protect, authorizeAdmin } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 import {
   getMyOnboarding,
+  getMyOnboardingAll,
   applyToProgram,
   updateSection,
   updatePartnerType,
   updateLegalEntityType,
+  updateActivity,
   acceptLegalDocuments,
   submitApplication,
   signLOI,
@@ -61,11 +63,15 @@ router.get  ("/availability",                 getAvailability);
 // GET /my est en lecture seule (404 si aucun dossier) — la création (et la promotion
 // de rôle qui va avec) exige l'action explicite POST /apply, jamais un simple GET.
 router.get  ("/my",                           protect, getMyOnboarding);
+// Liste tous les dossiers du partenaire (un par entité) — alimente le
+// sélecteur d'entité du portail et le CTA de relance depuis KYC.jsx.
+router.get  ("/my/all",                       protect, getMyOnboardingAll);
 router.post ("/apply",                        protect, applyToProgram);
 router.get  ("/my/loi/pdf",                   isPartner, downloadLOIPDF);
 router.get  ("/my/agreement/pdf",             isPartner, downloadAgreementPDF);
 router.patch("/partner-type",                 isPartner, updatePartnerType);
 router.patch("/legal-entity-type",            isPartner, updateLegalEntityType);
+router.patch("/activity",                     isPartner, updateActivity);
 router.patch("/accept-legal",                 isPartner, acceptLegalDocuments);
 router.patch("/section/:sectionName",         isPartner, sectionUploadLimiter, updateSection);
 router.post ("/submit",                       isPartner, submitApplication);

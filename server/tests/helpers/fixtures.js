@@ -3,6 +3,7 @@ import ImporterPartnerProfile from "../../models/ImporterPartnerProfile.js";
 import ImportExportListing from "../../models/ImportExportListing.js";
 import IETransaction from "../../models/IETransaction.js";
 import Vehicle from "../../models/Vehicle.js";
+import PartnerBusiness from "../../models/PartnerBusiness.js";
 
 let counter = 0;
 const uniq = (prefix) => `${prefix}${++counter}`;
@@ -64,6 +65,21 @@ export async function createIETransaction(overrides = {}) {
     client,
     partner,
     ...rest,
+  });
+}
+
+// Le Founding Partner Program est désormais par entité (voir
+// PartnerOnboarding.businessId) — tout test créant un PartnerOnboarding "à la
+// main" doit rattacher une PartnerBusiness réelle pour que le contrôleur
+// (resolveBusinessIdForRead/resolveOrCreateBusinessId) la retrouve.
+export async function makeTestPartnerBusiness(ownerId, overrides = {}) {
+  return PartnerBusiness.create({
+    owner: ownerId,
+    companyName: uniq("Entreprise"),
+    country: "CI",
+    ville: "Abidjan",
+    isDefault: true,
+    ...overrides,
   });
 }
 

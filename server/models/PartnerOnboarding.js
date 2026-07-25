@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { ACTIVITIES } from "../constants/partnerTaxonomy.js";
 
 const auditEntrySchema = new mongoose.Schema({
   action:      { type: String, required: true },
@@ -12,16 +13,36 @@ const partnerOnboardingSchema = new mongoose.Schema({
   referenceNumber: { type: String, unique: true, sparse: true },
 
   // ── Lien utilisateur ──────────────────────────────────────────────────────
+  // Plus unique seul depuis l'introduction du Founding Partner Program PAR
+  // ENTITÉ (voir businessId ci-dessous) : un partenaire possédant plusieurs
+  // entités (PartnerBusiness) a un dossier séparé par entité, chacune avec son
+  // propre statut/documents/LOI/Accord. L'unicité réelle est désormais portée
+  // par l'index composé (userId, businessId) plus bas.
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
     required: true,
-    unique: true,
   },
 
+  // Entité (PartnerBusiness) à laquelle ce dossier Founding Partner est
+  // rattaché — jamais null en pratique après création (voir applyToProgram/
+  // ensureDefaultPartnerBusiness.js, qui crée une entité minimale même pour un
+  // partenaire "particulier" n'en ayant jamais explicitement créé une).
+  businessId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "PartnerBusiness",
+    default: null,
+  },
+
+  // Activité de l'entité pour ce dossier (loueur/vendeur/exportateur/chauffeur —
+  // voir server/constants/partnerTaxonomy.js), distincte de `partnerType`
+  // (ancien enum plus détaillé, conservé pour les LOI/Agreement déjà générés).
+  activity: { type: String, enum: [...ACTIVITIES, null], default: null },
+
   // Pays dénormalisé depuis User.country au moment de la candidature (voir
-  // applyToProgram) — la limite des 20 Founding Partners se compte PAR PAYS,
-  // pas globalement : dénormaliser évite un $lookup sur User à chaque comptage.
+  // applyToProgram) — utilisé pour le filtrage CRM admin par pays (l'ancien
+  // plafond des 20 Founding Partners par pays a été retiré, voir
+  // checkFoundingCapacity).
   country: { type: String, uppercase: true, default: null },
 
   // ── Statut du flux d'onboarding ───────────────────────────────────────────
@@ -332,6 +353,13 @@ partnerOnboardingSchema.set("toObject", {
   },
 });
 
+// Un utilisateur ne peut avoir qu'un seul dossier Founding Partner par entité
+// (remplace l'ancien `unique: true` sur userId seul, voir commentaire businessId
+// plus haut). Le script de migration (server/scripts/migratePartnerOnboardingToBusinessId.js)
+// doit avoir rattaché tous les dossiers existants à une entité AVANT que cet
+// index ne soit actif en production, sans quoi deux dossiers historiques
+// partageant temporairement businessId=null entreraient en collision.
+partnerOnboardingSchema.index({ userId: 1, businessId: 1 }, { unique: true });
 partnerOnboardingSchema.index({ status: 1 });
 partnerOnboardingSchema.index({ isFoundingPartner: 1 });
 partnerOnboardingSchema.index({ createdAt: -1 });

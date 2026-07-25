@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ACTIVITIES, ENTITY_TYPES } from "../constants/partnerTaxonomy.js";
 
 const password = z.string()
   .min(8, "Mot de passe : 8 caractères minimum")
@@ -21,7 +22,12 @@ export const registerSchema = z.object({
   // naissance requise" depuis l'ajout de la vérification d'âge (2026-07-16).
   // Le format/la plage d'âge restent validés dans le controller, pas ici.
   birthDate: z.string().optional(),
+  // sellerType : déprécié, toléré pour compat avec un éventuel vieux client —
+  // activity/entityType (voir server/constants/partnerTaxonomy.js) sont le
+  // nouveau couple canonique, requis côté controller si role==="partenaire".
   sellerType: z.enum(["particulier", "professionnel", "entreprise"]).optional(),
+  activity:   z.enum(ACTIVITIES).optional(),
+  entityType: z.enum(ENTITY_TYPES).optional(),
 }).refine((data) => !!data.email || !!data.phone, {
   message: "Un email ou un numéro de téléphone est requis.",
   path:    ["email"],
@@ -37,6 +43,8 @@ export const oauthGoogleSchema = z.object({
   country:    z.string().length(2).optional(),
   role:       z.enum(["client", "partenaire"]).optional(),
   sellerType: z.enum(["particulier", "professionnel", "entreprise"]).optional(),
+  activity:   z.enum(ACTIVITIES).optional(),
+  entityType: z.enum(ENTITY_TYPES).optional(),
 });
 
 // identifier : email OU téléphone, saisi dans un champ unique (Login.jsx) — le

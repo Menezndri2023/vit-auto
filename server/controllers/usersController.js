@@ -11,6 +11,7 @@ import { isValidCountryCode } from "../utils/countries.js";
 import PartnerVerification from "../models/PartnerVerification.js";
 import PartnerCertification from "../models/PartnerCertification.js";
 import PartnerOnboarding from "../models/PartnerOnboarding.js";
+import PartnerBusiness from "../models/PartnerBusiness.js";
 import ImporterPartnerProfile from "../models/ImporterPartnerProfile.js";
 import PartnerShowroom from "../models/PartnerShowroom.js";
 import Review from "../models/Review.js";
@@ -126,15 +127,34 @@ export const getUser = async (req, res) => {
 export const getUserTrustOverview = async (req, res) => {
   try {
     const userId = req.params.id;
-    const [user, verification, certification, onboarding, importerProfile, showroom] = await Promise.all([
-      User.findById(userId).select("sellerType certificationBadge kycStatus kycBadge isFounder role").lean(),
+    const [user, verification, certification, onboarding, importerProfile, showroom, businesses, onboardings, drivers] = await Promise.all([
+      User.findById(userId).select("sellerType certificationBadge kycStatus kycBadge isFounder role identity.frontImage identity.selfie").lean(),
       PartnerVerification.findOne({ userId }).select("status trustScore trustLevel").lean(),
       PartnerCertification.findOne({ userId }).select("overallStatus certificationBadge").lean(),
       PartnerOnboarding.findOne({ userId }).select("isFoundingPartner legalEntityType status commissions.lockedAt").lean(),
       ImporterPartnerProfile.findOne({ userId }).select("status badgeLevel").lean(),
       PartnerShowroom.findOne({ partnerId: userId }).select("trustScore.overall isPublished").lean(),
+      // ── Ajouts : détail par entité + présence de documents (drill-through) ──
+      // Le Founding Partner Program est désormais PAR ENTITÉ (voir
+      // PartnerOnboarding.businessId) : un même utilisateur peut avoir plusieurs
+      // entités, chacune avec son propre dossier. `foundingPartner` ci-dessus
+      // reste tel quel (rétrocompatibilité) ; `entities` donne le détail complet.
+      PartnerBusiness.find({ owner: userId }).select("companyName country ville isDefault").sort({ createdAt: 1 }).lean(),
+      PartnerOnboarding.find({ userId }).populate("businessId", "companyName country ville").select("businessId status referenceNumber isFoundingPartner").lean(),
+      Driver.find({ owner: userId }).select("firstName lastName status cv").lean(),
     ]);
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
+
+    const entities = businesses.map((b) => ({
+      business: { id: b._id, companyName: b.companyName, country: b.country, ville: b.ville, isDefault: b.isDefault },
+      onboarding: onboardings.find((o) => String(o.businessId?._id) === String(b._id)) || null,
+    }));
+    // Dossiers orphelins (businessId non résolu par le populate — ne devrait
+    // plus arriver après migration, gardé par prudence pour ne jamais en
+    // perdre un silencieusement dans la vue admin).
+    for (const o of onboardings) {
+      if (!o.businessId) entities.push({ business: null, onboarding: o });
+    }
 
     res.json({
       overview: {
@@ -146,6 +166,12 @@ export const getUserTrustOverview = async (req, res) => {
         foundingPartner:     onboarding ? { isFoundingPartner: onboarding.isFoundingPartner, legalEntityType: onboarding.legalEntityType, status: onboarding.status, lockedAt: onboarding.commissions?.lockedAt } : null,
         importerProfile:     importerProfile ? { status: importerProfile.status, badgeLevel: importerProfile.badgeLevel } : null,
         showroom:            showroom ? { trustScore: showroom.trustScore?.overall ?? null, isPublished: showroom.isPublished } : null,
+        entities,
+        documents: {
+          identityFront:   !!user.identity?.frontImage,
+          kycSelfie:       !!user.identity?.selfie,
+          driverProfiles:  drivers.map((d) => ({ id: d._id, name: `${d.firstName} ${d.lastName}`.trim(), status: d.status, hasCv: !!d.cv })),
+        },
       },
     });
   } catch (err) {

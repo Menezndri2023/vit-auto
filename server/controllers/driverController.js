@@ -8,6 +8,7 @@ import PartnerVerification from "../models/PartnerVerification.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 import { validateImageDataUri, validateDocumentDataUri } from "../utils/imageValidation.js";
 import { logAction } from "../middleware/auditLog.js";
+import { resolveRequirements } from "../utils/partnerRequirements.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -51,11 +52,15 @@ function validateDriverImages(images) {
 // vendeur (contrairement à Vehicle où un Founding Partner en est exempté) : un
 // chauffeur transporte des clients, l'identité et le permis doivent être fiables.
 // Réutilise les documents déjà vérifiés via /api/kyc (submit + submit-driver-license)
-// plutôt que de créer un nouveau circuit de vérification.
+// plutôt que de créer un nouveau circuit de vérification. La liste des documents
+// requis vient de server/utils/partnerRequirements.js (point de vérité unique,
+// partagé avec la redirection post-inscription et le wizard Founding Partner) —
+// le CV reste validé séparément par validateCv ci-dessus, pas ici.
 function missingDriverDocs(user) {
-  const hasIdentity = ["cni", "passport"].includes(user.identity?.type) && user.identity?.status === "verified";
+  const { docs } = resolveRequirements({ activity: "chauffeur", entityType: user.entityType }).driver;
+  const hasIdentity = docs.includes("identity") && ["cni", "passport"].includes(user.identity?.type) && user.identity?.status === "verified";
   const license = user.driverLicenseOcr;
-  const hasLicense = !!(license?.licenseNumber && license?.frontImage) && !license?.isExpired;
+  const hasLicense = docs.includes("driverLicense") && !!(license?.licenseNumber && license?.frontImage) && !license?.isExpired;
   if (!hasIdentity && !hasLicense) return "Pièce d'identité (CNI/passeport) et permis de conduire vérifiés requis pour publier un profil chauffeur.";
   if (!hasIdentity) return "Pièce d'identité (CNI/passeport) vérifiée requise pour publier un profil chauffeur.";
   if (!hasLicense) return "Permis de conduire vérifié (recto/verso, non expiré) requis pour publier un profil chauffeur.";
@@ -215,12 +220,31 @@ export const getDrivers = async (req, res) => {
       filter.$or = [{ country: String(country).toUpperCase() }, { country: null }];
     }
 
+    // owner.identity/driverLicenseOcr sont récupérés UNIQUEMENT pour calculer les
+    // deux booléens publics ci-dessous (identityVerified/licenseVerified) — jamais
+    // renvoyés tels quels : `owner` est reconstruit sans eux avant res.json (voir
+    // .map ci-dessous). Le CV (`cv`), lui, est déjà public par conception (voir
+    // Driver.js — "consultable par l'employeur potentiel").
     const drivers = await Driver.find(filter)
       .sort({ noteMoyenne: -1, createdAt: -1 })
-      .populate("owner", "firstName phone");
+      .populate("owner", "firstName phone identity.type identity.status driverLicenseOcr.licenseNumber driverLicenseOcr.isExpired")
+      .lean();
 
-    cacheSet(cacheKey, drivers);
-    res.json(drivers);
+    const publicDrivers = drivers.map((d) => {
+      const owner = d.owner || {};
+      const identityVerified = ["cni", "passport"].includes(owner.identity?.type) && owner.identity?.status === "verified";
+      const license = owner.driverLicenseOcr;
+      const licenseVerified = !!(license?.licenseNumber && !license?.isExpired);
+      return {
+        ...d,
+        owner: { _id: owner._id, firstName: owner.firstName, phone: owner.phone },
+        identityVerified,
+        licenseVerified,
+      };
+    });
+
+    cacheSet(cacheKey, publicDrivers);
+    res.json(publicDrivers);
   } catch (err) {
     logger.error("getDrivers:", err);
     res.status(500).json({ message: "Erreur récupération chauffeurs." });

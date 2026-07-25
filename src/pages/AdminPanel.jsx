@@ -3413,6 +3413,43 @@ export default function AdminPanel() {
                     <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
                       <span>Showroom PMS (trust score)</span><strong>{trustOverview.showroom ? `${trustOverview.showroom.trustScore ?? "—"}/100 — ${trustOverview.showroom.isPublished ? "publié" : "non publié"}` : "aucun showroom"}</strong>
                     </div>
+
+                    {/* Détail par entité — le Founding Partner Program est désormais
+                        PAR ENTITÉ (voir PartnerOnboarding.businessId) : un même
+                        partenaire peut avoir plusieurs entités, chacune avec son
+                        propre dossier. */}
+                    {trustOverview.entities?.length > 0 && (
+                      <div style={{ padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                        <div style={{ fontWeight: 700, marginBottom: 6 }}>🏢 Entités ({trustOverview.entities.length})</div>
+                        {trustOverview.entities.map((e, i) => (
+                          <div key={e.business?.id || i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: ".8rem", borderTop: i > 0 ? "1px solid #e2e8f0" : "none" }}>
+                            <span>{e.business?.companyName || "Entité inconnue"}</span>
+                            <strong>{e.onboarding ? `${e.onboarding.status}${e.onboarding.isFoundingPartner ? " 🌟" : ""}` : "aucun dossier"}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Drill-through documents — booléens de présence uniquement,
+                        jamais les images/fichiers bruts (voir usersController.js) ;
+                        l'ouverture des documents eux-mêmes reste dans les onglets
+                        KYC/Founding Partner existants. */}
+                    {trustOverview.documents && (
+                      <div style={{ padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                        <div style={{ fontWeight: 700, marginBottom: 6 }}>📄 Documents</div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: ".8rem", padding: "2px 0" }}>
+                          <span>Pièce d'identité (recto)</span><strong>{trustOverview.documents.identityFront ? "✓ fourni" : "—"}</strong>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: ".8rem", padding: "2px 0" }}>
+                          <span>Selfie KYC</span><strong>{trustOverview.documents.kycSelfie ? "✓ fourni" : "—"}</strong>
+                        </div>
+                        {trustOverview.documents.driverProfiles?.map((d) => (
+                          <div key={d.id} style={{ display: "flex", justifyContent: "space-between", fontSize: ".8rem", padding: "2px 0" }}>
+                            <span>Profil chauffeur — {d.name}</span><strong>{d.status} — CV {d.hasCv ? "✓" : "—"}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ) : <p style={{ color: "#dc2626" }}>Erreur de chargement.</p>}
                 <div className={styles.confirmActions} style={{ marginTop: 16 }}>
@@ -3496,6 +3533,7 @@ export default function AdminPanel() {
                             <div>
                               <strong style={{ fontSize:"0.82rem" }}>{clientName || "—"}</strong>
                               <span className={styles.vehMeta}>{b.clientInfo?.email}</span>
+                              <span className={styles.vehMeta} title="Numéro de passeport" style={{ fontFamily:"monospace" }}>📔 {b.clientInfo?.passportNumber || "—"}</span>
                               {kycStatus && (
                                 <span style={{ display:"inline-block", fontSize:"0.65rem", fontWeight:700, padding:"1px 6px", borderRadius:99, background: kycStatus==="VERIFIE"?"#d1fae5":"#fef3c7", color: kycColors[kycStatus]||"#d97706", marginTop:2 }}>
                                   {kycStatus==="VERIFIE"?"✅ KYC":kycStatus==="REFUSE"?"❌ KYC":"⏳ KYC"}
@@ -4557,13 +4595,23 @@ export default function AdminPanel() {
                     <span style={{ padding: "4px 14px", borderRadius: 20, background: kc.bg, color: kc.c, fontSize: ".8rem", fontWeight: 800, whiteSpace: "nowrap" }}>
                       {kc.emoji} {(u.kycStatus || "EN_ATTENTE").replace(/_/g, " ")}
                     </span>
-                    {/* Bouton examen */}
-                    <button
-                      style={{ padding: "8px 18px", borderRadius: 10, background: "#6366f1", color: "#fff", border: "none", fontWeight: 700, fontSize: ".85rem", cursor: "pointer", whiteSpace: "nowrap" }}
-                      onClick={() => openKycDetail(u)}
-                    >
-                      Examiner →
-                    </button>
+                    {/* Boutons — examen KYC + vue de confiance unifiée (croise
+                        KYC/Founding Partner/Certification/PMS sans changer d'onglet) */}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        title="Vue de confiance unifiée"
+                        style={{ padding: "8px 12px", borderRadius: 10, background: "#f1f5f9", color: "#0f1b3f", border: "none", fontWeight: 700, fontSize: ".85rem", cursor: "pointer", whiteSpace: "nowrap" }}
+                        onClick={() => openTrustOverview(u)}
+                      >
+                        🛡️
+                      </button>
+                      <button
+                        style={{ padding: "8px 18px", borderRadius: 10, background: "#6366f1", color: "#fff", border: "none", fontWeight: 700, fontSize: ".85rem", cursor: "pointer", whiteSpace: "nowrap" }}
+                        onClick={() => openKycDetail(u)}
+                      >
+                        Examiner →
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -6535,6 +6583,7 @@ export default function AdminPanel() {
           pvCriterionLoading={pvCriterionLoading}
           setPvCriterionLoading={setPvCriterionLoading}
           users={users}
+          onOpenTrustOverview={openTrustOverview}
           onRefresh={loadPartnerVerif}
           showToast={showToast}
         />
@@ -6661,6 +6710,17 @@ export default function AdminPanel() {
                                   fontSize:".75rem", textDecoration:"none" }}>
                                 Voir →
                               </a>
+                            )}
+                            {/* Vue de confiance unifiée — croise ce partenaire avec
+                                KYC/Founding Partner/Certification sans changer d'onglet. */}
+                            {p._id && (
+                              <button
+                                title="Vue de confiance unifiée"
+                                onClick={() => openTrustOverview(p)}
+                                style={{ padding:"4px 10px", borderRadius:6, border:"1.5px solid #e2e8f0",
+                                  background:"#f8fafc", color:"#0f1b3f", fontWeight:700, fontSize:".75rem", cursor:"pointer" }}>
+                                🛡️
+                              </button>
                             )}
                           </div>
                         </td>
@@ -7154,6 +7214,11 @@ export default function AdminPanel() {
                           <div style={{ fontSize:".76rem", color:"#64748b", marginTop:2 }}>
                             {user.firstName} {user.lastName}<CountryFlag code={user.country} countriesConfig={COUNTRIES_CONFIG} /> · {user.email}
                             <span style={{ marginLeft:8, color:"#94a3b8" }}>Réf: {o.referenceNumber || "—"}</span>
+                            {/* Le Founding Partner Program est par entité (PartnerBusiness) — un même
+                                partenaire peut avoir plusieurs dossiers, un par entité. */}
+                            {o.businessId?.companyName && (
+                              <span style={{ marginLeft:8, color:"#6366f1", fontWeight:700 }}>🏢 {o.businessId.companyName}</span>
+                            )}
                           </div>
                         </div>
                         <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
@@ -7189,6 +7254,16 @@ export default function AdminPanel() {
                           )}
                           {["accord_signe","actif"].includes(o.status) && (
                             <span style={{ fontSize:".75rem", color:"#16a34a", fontWeight:700 }}>🌟 Actif</span>
+                          )}
+                          {/* Vue de confiance unifiée — croise ce dossier avec KYC/
+                              Certification/PMS sans changer d'onglet. */}
+                          {user._id && (
+                            <button
+                              title="Vue de confiance unifiée"
+                              onClick={e => { e.stopPropagation(); openTrustOverview(user); }}
+                              style={{ padding:"6px 10px", borderRadius:8, border:"none", background:"#f1f5f9", color:"#0f1b3f", fontWeight:700, fontSize:".8rem", cursor:"pointer" }}>
+                              🛡️
+                            </button>
                           )}
                           <span style={{ color:"#94a3b8", fontSize:".9rem" }}>{isDetail ? "▲" : "▼"}</span>
                         </div>
@@ -7732,7 +7807,7 @@ function TrustScoreRing({ score }) {
   );
 }
 
-function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFilter, setPvFilter, pvDetail, setPvDetail, pvCreateModal, setPvCreateModal, pvCreateForm, setPvCreateForm, pvSaving, setPvSaving, pvCriterionLoading, setPvCriterionLoading, users, onRefresh, showToast }) {
+function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFilter, setPvFilter, pvDetail, setPvDetail, pvCreateModal, setPvCreateModal, pvCreateForm, setPvCreateForm, pvSaving, setPvSaving, pvCriterionLoading, setPvCriterionLoading, users, onOpenTrustOverview, onRefresh, showToast }) {
   const { COUNTRIES_CONFIG } = useCurrency();
   const [detailTab, setDetailTab] = useState("dossier");
   const [editInfoMode, setEditInfoMode] = useState(false);
@@ -7981,9 +8056,21 @@ function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFil
                   </td>
                   <td><span className={styles.badge} style={{ color: sl.color, background: sl.bg }}>{sl.label}</span></td>
                   <td>
-                    <button className={styles.btnSmall} onClick={(e) => { e.stopPropagation(); openDetail(pv.userId?._id || pv.userId); }}>
-                      Ouvrir →
-                    </button>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button className={styles.btnSmall} onClick={(e) => { e.stopPropagation(); openDetail(pv.userId?._id || pv.userId); }}>
+                        Ouvrir →
+                      </button>
+                      {/* Vue de confiance unifiée — croise ce partenaire avec KYC/
+                          Founding Partner/Certification sans changer d'onglet. */}
+                      {onOpenTrustOverview && pv.userId && (
+                        <button
+                          title="Vue de confiance unifiée"
+                          onClick={(e) => { e.stopPropagation(); onOpenTrustOverview(typeof pv.userId === "object" ? pv.userId : { _id: pv.userId }); }}
+                          style={{ padding: "4px 10px", borderRadius: 6, border: "1.5px solid #e2e8f0", background: "#f8fafc", color: "#0f1b3f", fontWeight: 700, fontSize: ".78rem", cursor: "pointer" }}>
+                          🛡️
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );

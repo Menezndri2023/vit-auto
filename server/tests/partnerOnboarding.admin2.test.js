@@ -5,7 +5,7 @@ import {
 } from "../controllers/partnerOnboardingController.js";
 import PartnerOnboarding from "../models/PartnerOnboarding.js";
 import User from "../models/User.js";
-import { createUser } from "./helpers/fixtures.js";
+import { createUser, makeTestPartnerBusiness } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
 describe("adminList", () => {
@@ -212,7 +212,8 @@ describe("signByToken", () => {
 describe("downloadLOIPDF / downloadAgreementPDF", () => {
   it("404 si le document n'est pas encore disponible", async () => {
     const partner = await createUser({ role: "partenaire" });
-    await PartnerOnboarding.create({ userId: partner._id, status: "soumis" });
+    const business = await makeTestPartnerBusiness(partner._id);
+    await PartnerOnboarding.create({ userId: partner._id, businessId: business._id, status: "soumis" });
     const { req, res } = mockReqRes({ user: { id: partner._id } });
     await downloadLOIPDF(req, res);
     expect(res.statusCode).toBe(404);
@@ -220,8 +221,9 @@ describe("downloadLOIPDF / downloadAgreementPDF", () => {
 
   it("génère un PDF quand le contenu de la LOI existe", async () => {
     const partner = await createUser({ role: "partenaire" });
+    const business = await makeTestPartnerBusiness(partner._id);
     await PartnerOnboarding.create({
-      userId: partner._id, status: "loi_envoyee", referenceNumber: "VA-FP-TEST-001",
+      userId: partner._id, businessId: business._id, status: "loi_envoyee", referenceNumber: "VA-FP-TEST-001",
       loi: { content: "Contenu LOI de test" },
     });
     const res = { setHeader: () => {}, send: (buf) => { res.sentBuffer = buf; res.statusCode = res.statusCode || 200; } };
@@ -233,7 +235,8 @@ describe("downloadLOIPDF / downloadAgreementPDF", () => {
 
   it("404 si l'accord n'est pas encore disponible", async () => {
     const partner = await createUser({ role: "partenaire" });
-    await PartnerOnboarding.create({ userId: partner._id, status: "loi_signee" });
+    const business = await makeTestPartnerBusiness(partner._id);
+    await PartnerOnboarding.create({ userId: partner._id, businessId: business._id, status: "loi_signee" });
     const { req, res } = mockReqRes({ user: { id: partner._id } });
     await downloadAgreementPDF(req, res);
     expect(res.statusCode).toBe(404);

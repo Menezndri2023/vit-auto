@@ -8,6 +8,7 @@ import { hashDocument } from "../utils/kycEngine.js";
 import { extractDocumentOcr, checkDocumentQuality, initOcrWorker } from "../utils/ocrEngine.js";
 import { compareFaces, checkSelfieQuality } from "../utils/faceAnalysis.js";
 import { validateExpiryDate } from "../utils/idValidation.js";
+import { requiresBusinessDocs } from "../constants/partnerTaxonomy";
 import styles from "./KYC.module.css";
 
 const DOC_TYPES = [
@@ -17,13 +18,15 @@ const DOC_TYPES = [
   { value: "carte_sejour", icon: "📋", label: "Titre de séjour" },
 ];
 
-/* ── 4 étapes (permis retiré du flux KYC) ───────────────────────────────── */
-const STEPS = [
+/* ── 4 étapes de base ; une 5e (permis de conduire) est ajoutée dynamiquement
+   pour l'activité chauffeur — voir isDriverFlow plus bas. ────────────────── */
+const BASE_STEPS = [
   { id: 1, label: "Contacts",  icon: "📧" },
   { id: 2, label: "Document",  icon: "📄" },
   { id: 3, label: "Selfie",    icon: "🤳" },
   { id: 4, label: "Résultat",  icon: "🛡️" },
 ];
+const DRIVER_STEP = { id: 5, label: "Permis",  icon: "🚘" };
 
 const KYC_STATUS = {
   VERIFIE:               { color: "#059669", bg: "#d1fae5", border: "#6ee7b7", emoji: "✅", label: "IDENTITÉ VÉRIFIÉE" },
@@ -37,6 +40,12 @@ export default function KYC() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const returnTo = searchParams.get("returnTo") || "/dashboard";
+  // Activité chauffeur (choisie à l'inscription — voir Register.jsx/authController.js)
+  // OU redirection explicite ?next=driver-docs (voir src/utils/partnerRequirements.js) :
+  // dans les deux cas, une 5e étape "Permis de conduire" s'ajoute, obligatoire
+  // avant de pouvoir publier un profil chauffeur (voir driverController.js missingDriverDocs).
+  const isDriverFlow = user?.activity === "chauffeur" || searchParams.get("next") === "driver-docs";
+  const STEPS = isDriverFlow ? [...BASE_STEPS, DRIVER_STEP] : BASE_STEPS;
 
   const [step, setStep] = useState(1);
 
@@ -97,6 +106,32 @@ export default function KYC() {
   const [submitError, setSubmitError] = useState("");
   const [kycResult,   setKycResult]   = useState(null);
 
+  /* ── STEP 5 — Permis de conduire (chauffeur uniquement) ───────────────── */
+  const [existingLicense,    setExistingLicense]    = useState(null); // driverLicenseOcr déjà en base (voir /api/kyc/status)
+  const [licenseFrontUrl,    setLicenseFrontUrl]    = useState(null);
+  const [licenseBackUrl,     setLicenseBackUrl]     = useState(null);
+  const [licenseOcrData,     setLicenseOcrData]     = useState(null);
+  const [licenseNumber,      setLicenseNumber]      = useState("");
+  const [licenseCategories,  setLicenseCategories]  = useState("");
+  const [licenseSubmitting,  setLicenseSubmitting]  = useState(false);
+  const [licenseSubmitted,   setLicenseSubmitted]   = useState(false);
+  const [licenseError,       setLicenseError]       = useState("");
+  const licenseFrontRef = useRef(null);
+  const licenseBackRef  = useRef(null);
+  const licenseAlreadyVerified = !!(existingLicense?.licenseNumber && !existingLicense?.isExpired);
+
+  // ── Relance du programme Founding Partner depuis le KYC ──────────────────
+  // null = pas encore chargé, [] = aucun dossier. Un dossier par entité (voir
+  // server/models/PartnerOnboarding.js businessId) — la plupart des partenaires
+  // n'en ont qu'un, mais le CTA doit rester correct même sans en avoir aucun.
+  const [myOnboardings, setMyOnboardings] = useState(null);
+  useEffect(() => {
+    if (!token || !requiresBusinessDocs(user?.entityType)) return;
+    api.get("/api/partner-onboarding/my/all")
+      .then((d) => setMyOnboardings(d?.onboardings || []))
+      .catch(() => setMyOnboardings([]));
+  }, [token, user?.entityType]);
+
   useEffect(() => { initOcrWorker().catch(() => {}); }, []);
 
   useEffect(() => {
@@ -109,6 +144,7 @@ export default function KYC() {
         if (typeof d.emailVerificationRequired === "boolean") setEmailVerifRequired(d.emailVerificationRequired);
         if (typeof d.hasEmail === "boolean") setHasEmail(d.hasEmail);
         if (typeof d.hasPhone === "boolean") setHasPhone(d.hasPhone);
+        if (d.driverLicenseOcr) setExistingLicense(d.driverLicenseOcr);
         if (d.kycStatus && d.kycStatus !== "EN_ATTENTE" && d.kycSubmittedAt) {
           setKycResult(d); setSubmitted(true); setStep(4);
         }
@@ -319,6 +355,66 @@ export default function KYC() {
       });
     } catch (err) { setSubmitError(err.message || "Connexion impossible. Vérifiez votre réseau."); }
     finally { setSubmitting(false); }
+  };
+
+  /* ════════ STEP 5 — Permis de conduire ═══════════════════════════════════ */
+  // OCR appliqué au permis (documentType="permis", même moteur que l'étape 2)
+  // à titre de pré-remplissage uniquement — le numéro reste modifiable et
+  // obligatoire à la saisie manuelle : un OCR raté ne doit jamais empêcher un
+  // chauffeur de soumettre son permis (contrairement à l'identité, driverController.js
+  // missingDriverDocs exige un licenseNumber non vide pour publier).
+  const processLicenseImageUrl = useCallback(async (url, side) => {
+    setLicenseError("");
+    if (side === "back") { setLicenseBackUrl(url); return; }
+    setLicenseFrontUrl(url);
+    try {
+      const extracted = await extractDocumentOcr(url, "permis", () => {});
+      setLicenseOcrData(extracted);
+      if (extracted?.documentNumber && !licenseNumber) setLicenseNumber(extracted.documentNumber);
+    } catch { /* non bloquant, voir commentaire ci-dessus */ }
+  }, [licenseNumber]);
+
+  const processLicenseImage = useCallback(async (file, side) => {
+    if (!file) return;
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowed.includes(file.type)) { setLicenseError("Format non autorisé. Utilisez JPG, PNG ou WebP."); return; }
+    if (file.size > 15 * 1024 * 1024) { setLicenseError("Fichier trop volumineux (max 15 Mo)."); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => processLicenseImageUrl(e.target.result, side);
+    reader.readAsDataURL(file);
+  }, [processLicenseImageUrl]);
+
+  const captureLicenseNative = useCallback(async (side) => {
+    try {
+      const photo = await Camera.getPhoto({ resultType: CameraResultType.DataUrl, source: CameraSource.Prompt, quality: 90 });
+      if (photo.dataUrl) await processLicenseImageUrl(photo.dataUrl, side);
+    } catch { /* utilisateur a annulé */ }
+  }, [processLicenseImageUrl]);
+
+  const handleSubmitLicense = async () => {
+    if (!licenseFrontUrl || !licenseBackUrl) { setLicenseError("Le recto et le verso du permis sont obligatoires."); return; }
+    if (!licenseNumber.trim()) { setLicenseError("Le numéro de permis est obligatoire."); return; }
+    setLicenseSubmitting(true); setLicenseError("");
+    try {
+      const frontHash = await hashDocument(licenseFrontUrl);
+      await api.post("/api/kyc/submit-driver-license", {
+        licenseOcrData: {
+          licenseNumber:  licenseNumber.trim(),
+          expiryDate:     licenseOcrData?.expiryDate || null,
+          issuingCountry: licenseOcrData?.issuingCountry || null,
+          categories:     licenseCategories.trim() || null,
+          rawOcrText:     licenseOcrData?.rawOcrText || null,
+        },
+        licenseImageHash: frontHash,
+        frontImageData: licenseFrontUrl,
+        backImageData:  licenseBackUrl,
+      });
+      setLicenseSubmitted(true);
+    } catch (err) {
+      setLicenseError(err.message || "Erreur lors de l'enregistrement du permis.");
+    } finally {
+      setLicenseSubmitting(false);
+    }
   };
 
   // Guards APRÈS tous les hooks (règle React) — redirige vers login si non connecté
@@ -795,9 +891,21 @@ export default function KYC() {
                 )}
               </div>
               <div className={styles.finalActions}>
-                {kycResult?.kycStatus === "VERIFIE" && (
+                {kycResult?.kycStatus === "VERIFIE" && isDriverFlow && !licenseAlreadyVerified && (
+                  <button className={styles.primaryBtn} onClick={() => setStep(5)}>
+                    🚘 Continuer → Permis de conduire
+                  </button>
+                )}
+                {kycResult?.kycStatus === "VERIFIE" && (!isDriverFlow || licenseAlreadyVerified) && (
                   <button className={styles.primaryBtn} onClick={() => navigate(returnTo)}>
                     🚗 Accéder aux réservations
+                  </button>
+                )}
+                {kycResult?.kycStatus === "VERIFIE" && requiresBusinessDocs(user?.entityType) && myOnboardings !== null && (
+                  <button className={styles.secondaryBtn} onClick={() => navigate("/partner-onboarding")}>
+                    🏢 {myOnboardings.length > 0
+                      ? "Reprendre mon dossier Founding Partner"
+                      : "Démarrer mon dossier Founding Partner"}
                   </button>
                 )}
                 {kycResult?.kycStatus === "REFUSE" && (
@@ -820,7 +928,131 @@ export default function KYC() {
                   <p>⏱ Délai habituel : <strong>24 à 48 heures</strong> ouvrables.</p>
                 </div>
               )}
+              {/* Dossier(s) Founding Partner nécessitant une action — le wizard
+                  (PartnerOnboardingPortal.jsx) positionne déjà l'étape correcte
+                  selon le statut (STATUS_CONFIG), aucune logique de reprise à
+                  dupliquer ici : le lien "Reprendre" ci-dessus suffit. */}
+              {myOnboardings?.some((o) => ["rejete", "info_demandee"].includes(o.status)) && (
+                <div className={styles.pendingInfo}>
+                  {myOnboardings.filter((o) => ["rejete", "info_demandee"].includes(o.status)).map((o) => (
+                    <p key={o._id}>
+                      {o.status === "rejete" ? "❌ Dossier rejeté" : "📝 Informations complémentaires requises"}
+                      {o.businessId?.companyName ? ` (${o.businessId.companyName})` : ""} :{" "}
+                      {o.adminReview?.note || o.adminReview?.infoRequested || "Voir votre dossier pour le détail."}
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ ÉTAPE 5 — PERMIS DE CONDUIRE (activité chauffeur) ══════════════ */}
+      {step === 5 && isDriverFlow && (
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <span className={styles.cardHeaderIcon}>🚘</span>
+            <div>
+              <h2 className={styles.cardTitle}>Permis de conduire</h2>
+              <p className={styles.cardDesc}>
+                Obligatoire pour publier un profil chauffeur — vérifié une seule fois, valable pour toutes vos annonces.
+              </p>
+            </div>
+          </div>
+
+          {(licenseAlreadyVerified || licenseSubmitted) ? (
+            <>
+              <div className={styles.finalCard} style={{ borderColor: "#6ee7b7", background: "#d1fae5" }}>
+                <div className={styles.finalEmoji}>✅</div>
+                <div className={styles.finalStatus} style={{ color: "#059669" }}>
+                  {licenseSubmitted ? "Permis enregistré" : "Permis déjà vérifié"}
+                </div>
+                <div className={styles.finalDesc}>
+                  {licenseSubmitted
+                    ? "Votre permis a été enregistré. Il sera pris en compte avec votre identité pour valider votre profil chauffeur."
+                    : "Votre permis de conduire est déjà enregistré et non expiré."}
+                </div>
+              </div>
+              <div className={styles.cardFooter}>
+                <div />
+                <button className={styles.primaryBtn} onClick={() => navigate("/vendor/dashboard")}>
+                  🚘 Créer mon profil chauffeur →
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className={[styles.uploadBlock, licenseFrontUrl ? styles.uploadBlockDone : ""].join(" ")}>
+                <div className={styles.uploadBlockHeader}>
+                  <span>📷 Recto du permis</span>
+                  {licenseFrontUrl && <span className={styles.uploadDoneTag}>✓ Ajouté</span>}
+                </div>
+                {!licenseFrontUrl ? (
+                  <div className={styles.uploadZone} onClick={() => Capacitor.isNativePlatform() ? captureLicenseNative("front") : licenseFrontRef.current?.click()}>
+                    <div className={styles.uploadZoneInner}>
+                      <span className={styles.uploadZoneIcon}>📷</span>
+                      <span className={styles.uploadZoneLabel}>Cliquez pour uploader le recto</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={styles.docPreviewBlock}>
+                    <img src={licenseFrontUrl} alt="Recto permis" className={styles.docPreview} />
+                    <button className={styles.retakeBtn} onClick={() => { setLicenseFrontUrl(null); setLicenseOcrData(null); }}>🔄 Changer</button>
+                  </div>
+                )}
+                <input ref={licenseFrontRef} type="file" accept=".jpg,.jpeg,.png,.webp" style={{ display: "none" }}
+                  onChange={(e) => processLicenseImage(e.target.files?.[0], "front")} />
+              </div>
+
+              <div className={[styles.uploadBlock, licenseBackUrl ? styles.uploadBlockDone : styles.uploadBlockRequired].join(" ")} style={{ marginTop: 12 }}>
+                <div className={styles.uploadBlockHeader}>
+                  <span>📷 Verso du permis <span className={styles.requiredTag}>Obligatoire</span></span>
+                  {licenseBackUrl && <span className={styles.uploadDoneTag}>✓ Ajouté</span>}
+                </div>
+                {!licenseBackUrl ? (
+                  <div className={styles.uploadZone} style={{ borderColor: "#fca5a5", background: "#fff7f7" }} onClick={() => Capacitor.isNativePlatform() ? captureLicenseNative("back") : licenseBackRef.current?.click()}>
+                    <div className={styles.uploadZoneInner}>
+                      <span className={styles.uploadZoneIcon}>📷</span>
+                      <span className={styles.uploadZoneLabel}>Cliquez pour uploader le verso</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={styles.docPreviewBlock}>
+                    <img src={licenseBackUrl} alt="Verso permis" className={styles.docPreview} style={{ maxHeight: 150 }} />
+                    <button className={styles.retakeBtn} onClick={() => setLicenseBackUrl(null)}>🔄 Changer</button>
+                  </div>
+                )}
+                <input ref={licenseBackRef} type="file" accept=".jpg,.jpeg,.png,.webp" style={{ display: "none" }}
+                  onChange={(e) => processLicenseImage(e.target.files?.[0], "back")} />
+              </div>
+
+              <div className={styles.fieldGroup} style={{ marginTop: 12 }}>
+                <label className={styles.fieldLabel}>Numéro de permis *</label>
+                <input type="text" value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)}
+                  placeholder="Ex : 123456789" className={styles.textInput} />
+                {licenseOcrData?.documentNumber && (
+                  <p style={{ fontSize: ".78rem", color: "#8493b0", margin: "4px 0 0" }}>
+                    Détecté automatiquement — vérifiez et corrigez si besoin.
+                  </p>
+                )}
+              </div>
+
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>Catégories (optionnel)</label>
+                <input type="text" value={licenseCategories} onChange={(e) => setLicenseCategories(e.target.value)}
+                  placeholder="Ex : B, D" className={styles.textInput} />
+              </div>
+
+              {licenseError && <p className={styles.errorMsg}>❌ {licenseError}</p>}
+
+              <div className={styles.cardFooter}>
+                <div />
+                <button className={styles.primaryBtn} onClick={handleSubmitLicense} disabled={licenseSubmitting}>
+                  {licenseSubmitting ? "Envoi en cours…" : "✅ Enregistrer mon permis"}
+                </button>
+              </div>
+            </>
           )}
         </div>
       )}

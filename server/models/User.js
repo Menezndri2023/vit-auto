@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { ACTIVITIES, ENTITY_TYPES, entityTypeToSellerType } from "../constants/partnerTaxonomy.js";
 
 const userSchema = new mongoose.Schema({
   firstName:  { type: String, required: true, trim: true },
@@ -64,6 +65,33 @@ const userSchema = new mongoose.Schema({
   partnerCategory: {
     type: String,
     enum: ["particulier", "professionnel", "exportateur", "entreprise", "concessionnaire", null],
+    default: null,
+  },
+
+  // ── Taxonomie partenaire canonique (voir server/constants/partnerTaxonomy.js) ──
+  // Remplace progressivement sellerType/partnerCategory ci-dessus sans les
+  // retirer : `entityType` devient la source de vérité pour la charge
+  // documentaire requise (KYC seul vs documents d'entité), `partnerActivity`
+  // pour l'activité choisie à l'inscription. Les anciens champs restent
+  // dérivés automatiquement (voir hook pre("validate") plus bas) pour que tout
+  // le code existant (vehicleController.js/driverController.js/VendorSubmit.jsx)
+  // continue de fonctionner sans modification.
+  partnerActivity: {
+    type: String,
+    enum: [...ACTIVITIES, null],
+    default: null,
+  },
+  // Activités additionnelles ajoutées après l'inscription depuis le dashboard
+  // partenaire (un compte n'est jamais limité à une seule activité à vie,
+  // seulement à l'inscription).
+  partnerActivities: {
+    type: [String],
+    enum: ACTIVITIES,
+    default: [],
+  },
+  entityType: {
+    type: String,
+    enum: [...ENTITY_TYPES, null],
     default: null,
   },
 
@@ -320,6 +348,12 @@ userSchema.pre("validate", function (next) {
   // système ("exportateur", qui n'a pas d'équivalent dans sellerType).
   if (!this.partnerCategory && this.sellerType) {
     this.partnerCategory = this.sellerType;
+  }
+  // entityType -> sellerType : ne backfill que si sellerType n'a jamais été
+  // renseigné (jamais d'écrasement d'une valeur déjà choisie explicitement,
+  // pour ne pas perturber un compte créé avant l'introduction d'entityType).
+  if (this.entityType && !this.sellerType) {
+    this.sellerType = entityTypeToSellerType(this.entityType);
   }
   next();
 });
