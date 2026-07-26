@@ -223,6 +223,26 @@ export async function schedule(queueName, jobName, data, delayMs) {
 
 export const dispatch = {
 
+  // ── Notification push native (iOS/Android) ──────────────────────────────────
+  // Résout les pushTokens de l'utilisateur puis enqueue vers le canal "push"
+  // déjà routé par notification.worker.js → CommunicationService.sendViaPush.
+  // No-op silencieux si l'utilisateur n'a aucun appareil natif enregistré (voir
+  // NotificationContext.jsx côté client) — ne bloque jamais l'appelant.
+  async pushNotification(userId, title, body, data = {}) {
+    if (!userId) return;
+    const User = (await import("../models/User.js")).default;
+    const user = await User.findById(userId).select("pushTokens").lean();
+    const tokens = user?.pushTokens || [];
+    if (!tokens.length) return;
+    await enqueue(QUEUE_NAMES.NOTIFICATION, "push_notification", {
+      channel: "push",
+      to:      tokens,
+      title,
+      body,
+      data,
+    });
+  },
+
   // ── Booking ────────────────────────────────────────────────────────────────
   async bookingCreated(booking, client, vehicle) {
     const bId  = booking._id?.toString() || booking.id;
