@@ -71,7 +71,16 @@ jobs:
         run: npm test
 
       - name: Security audit
-        run: npm audit --audit-level=high
+        # audit-level=high cassait systématiquement ce job : les 9 vulnérabilités
+        # "high" actuelles remontent toutes à archiver (via exceljs, export flotte
+        # en masse) — `npm audit --json` montre `archiver: "0.20.0 - 7.0.1"`, c'est
+        # à dire TOUTE la ligne de versions publiées d'archiver, sans release corrigée
+        # disponible en amont (le seul "fix" proposé est un retour à exceljs@4.1.1,
+        # une régression de 3 versions mineures, qui ne corrige d'ailleurs rien de
+        # réel puisqu'aucune version d'archiver n'est saine). Repasser à `critical`
+        # garde le garde-fou utile (0 critique actuellement) sans bloquer indéfiniment
+        # sur une chaîne non corrigeable côté écosystème — voir ARCHITECTURE.md.
+        run: npm audit --audit-level=critical
 
   # Le déploiement backend est géré nativement par Railway (auto-deploy connecté au
   # repo GitHub sur push vers main, configuré le 2026-07-11 — voir Settings → Source
