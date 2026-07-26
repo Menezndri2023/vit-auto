@@ -35,6 +35,7 @@ router.post("/register",             validate(registerSchema), auth.register);
 router.post("/login",                validate(loginSchema), auth.login);
 router.post("/oauth/google",         validate(oauthGoogleSchema), auth.oauthGoogle);
 router.get("/verify-email/:token",   auth.verifyEmail);
+router.get("/confirm-email-change/:token", auth.confirmEmailChange);
 router.post("/resend-verification",  strictLimiter, auth.resendVerification);
 router.post("/send-phone-otp",       strictLimiter, authenticate, auth.sendPhoneOtp);
 router.post("/verify-phone-otp",     strictLimiter, authenticate, auth.verifyPhoneOtp);
@@ -45,6 +46,7 @@ router.patch("/change-password",     authenticate, validate(changePasswordSchema
 router.post("/validate-identity",    identityLimiter, auth.validateIdentity);
 router.post("/refresh-token",        auth.refreshToken);
 router.post("/revoke-token",         authenticate, auth.revokeRefreshToken);
+router.post("/logout-others",        authenticate, auth.logoutOtherSessions);
 
 // ── 2FA — Authentification à deux facteurs ────────────────────────────────
 // NB: /2fa/verify n'est PAS branché sur twoFAVerifySchema — ce schéma impose

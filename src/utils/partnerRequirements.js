@@ -4,7 +4,7 @@
 // deux côtés (pas de dossier partagé entre server/ et src/ dans ce repo).
 import { requiresDriverDocs, requiresBusinessDocs } from "../constants/partnerTaxonomy.js";
 
-const BUSINESS_DOCS = ["businessRegistration", "businessLicense", "taxCertificate", "proofOfAddress"];
+const BUSINESS_DOCS = ["businessRegistration", "businessLicense", "exportLicense", "taxCertificate", "proofOfAddress"];
 const DRIVER_DOCS = ["cv", "identity", "driverLicense"];
 
 export function resolveRequirements({ activity, entityType }) {

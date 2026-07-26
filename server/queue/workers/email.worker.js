@@ -9,7 +9,7 @@
  *   kyc_submitted | kyc_approved | kyc_rejected
  *   welcome_partner | loi_ready | agreement_ready | loi_signed | agreement_signed
  *   invoice_ready | transaction_completed
- *   email_verification | password_reset | identity_rejected
+ *   email_verification | email_change_confirmation | password_reset | identity_rejected
  *   contract_ready | contract_signed
  *   reservation_created | reservation_confirmed
  */
@@ -95,6 +95,8 @@ async function resolveEmailTemplate(type, data) {
     // ── Auth ──────────────────────────────────────────────────────────────
     case "email_verification":
       return { subject: "VIT AUTO — Vérifiez votre e-mail", template: "email_verification", data };
+    case "email_change_confirmation":
+      return { subject: "VIT AUTO — Confirmez votre nouvelle adresse e-mail", template: "email_change_confirmation", data };
     case "password_reset":
       return { subject: "VIT AUTO — Réinitialisation de mot de passe", template: "password_reset", data };
     case "identity_rejected": {

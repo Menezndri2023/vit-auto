@@ -231,6 +231,14 @@ const userSchema = new mongoose.Schema({
   emailVerificationToken:   { type: String,  default: null },
   emailVerificationExpires: { type: Date,    default: null },
 
+  // ── Changement d'e-mail (self-service, page Profil) ──────────────
+  // L'adresse en cours n'est jamais modifiée tant que la nouvelle n'est pas
+  // confirmée via ce token (envoyé à la NOUVELLE adresse) — voir
+  // requestEmailChange/confirmEmailChange.
+  pendingEmail:        { type: String, default: null },
+  pendingEmailToken:   { type: String, default: null },
+  pendingEmailExpires: { type: Date,   default: null },
+
   // ── Vérification téléphone (OTP 6 chiffres) ───────────────────
   phoneVerified:   { type: Boolean, default: false },
   phoneOtp:        { type: String,  default: null },
@@ -373,6 +381,7 @@ const stripSensitive = (_doc, ret) => {
   delete ret.phoneOtp;
   delete ret.passwordResetToken;
   delete ret.emailVerificationToken;
+  delete ret.pendingEmailToken;
   if (ret.twoFactor) {
     delete ret.twoFactor.secret;
     delete ret.twoFactor.backupCodes;

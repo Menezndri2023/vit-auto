@@ -131,11 +131,11 @@ export default function Cart() {
               <span className={styles.summaryValue}>{fmt(totalEstimate)}</span>
               <span className={styles.summaryNote}>Le montant définitif est toujours recalculé et confirmé par chaque partenaire.</span>
             </div>
-            <label style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 12, fontWeight: 700, color: "#0f1b3f" }}>
-              N° de passeport * <span style={{ fontWeight: 400, fontSize: "0.85rem", color: "#64748b" }}>(obligatoire, transmis aux partenaires)</span>
+            <label className={styles.passportField}>
+              N° de passeport * <span className={styles.passportHint}>(obligatoire, transmis aux partenaires)</span>
               <input type="text" value={passportNumber} onChange={(e) => setPassportNumber(e.target.value)}
                 placeholder="N° de passeport"
-                style={{ padding: "10px 14px", borderRadius: 10, border: "1.5px solid #e5e9f4" }} />
+                className={styles.passportInput} />
             </label>
             <div className={styles.summaryActions}>
               <button type="button" className={styles.secondaryBtn} onClick={clear} disabled={submitting}>Vider le panier</button>

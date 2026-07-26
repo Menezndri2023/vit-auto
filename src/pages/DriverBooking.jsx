@@ -6,6 +6,7 @@ import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../context/CurrencyContext";
 import ReportButton from "../components/ReportButton/ReportButton";
 import styles from "./Booking.module.css";
+import dbStyles from "./DriverBooking.module.css";
 
 // Moyens de paiement disponibles au choix du client (voir Checkout.jsx).
 const METHOD_LABELS = {
@@ -73,9 +74,9 @@ const DriverBooking = () => {
   if (!driver) {
     return (
       <div className={styles.content} style={{ maxWidth: 560, margin: "40px auto" }}>
-        <h1 style={{ color: "#0f1b3f" }}>Chauffeur introuvable</h1>
-        <p style={{ color: "#64748b" }}>Ce chauffeur n'est plus disponible ou n'existe pas.</p>
-        <Link to="/catalogue?mode=Chauffeur" style={{ color: "#ff4d2d", fontWeight: 700 }}>← Retour aux chauffeurs</Link>
+        <h1 className={dbStyles.driverName}>Chauffeur introuvable</h1>
+        <p className={dbStyles.driverSubtitle}>Ce chauffeur n'est plus disponible ou n'existe pas.</p>
+        <Link to="/catalogue?mode=Chauffeur" className={dbStyles.notFoundLink}>← Retour aux chauffeurs</Link>
       </div>
     );
   }
@@ -205,29 +206,29 @@ const DriverBooking = () => {
 
   return (
     <div className={styles.content} style={{ maxWidth: 640, margin: "32px auto" }}>
-      <Link to="/catalogue?mode=Chauffeur" style={{ color: "#64748b", fontSize: "0.85rem", textDecoration: "none" }}>← Tous les chauffeurs</Link>
+      <Link to="/catalogue?mode=Chauffeur" className={dbStyles.backLink}>← Tous les chauffeurs</Link>
 
       {/* Résumé chauffeur */}
-      <div style={{ display: "flex", gap: 16, alignItems: "center", margin: "16px 0 24px", padding: 16, background: "#f8fafc", borderRadius: 14, border: "1.5px solid #e5e9f4" }}>
+      <div className={dbStyles.driverSummary}>
         {driver.profilePhoto || driver.images?.[0]
-          ? <img src={driver.profilePhoto || driver.images[0]} alt={`${driver.firstName} ${driver.lastName}`} style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover" }} />
-          : <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#e5e9f4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.8rem" }}>🧑‍✈️</div>
+          ? <img src={driver.profilePhoto || driver.images[0]} alt={`${driver.firstName} ${driver.lastName}`} className={dbStyles.driverAvatar} />
+          : <div className={dbStyles.driverAvatarFallback}>🧑‍✈️</div>
         }
         <div>
-          <strong style={{ color: "#0f1b3f", fontSize: "1.1rem" }}>{driver.firstName} {driver.lastName}</strong>
-          <p style={{ margin: "2px 0", color: "#64748b", fontSize: "0.9rem" }}>{driver.title || "Chauffeur professionnel"}</p>
-          <p style={{ margin: 0, color: "#94a3b8", fontSize: "0.82rem" }}>
+          <strong className={dbStyles.driverName}>{driver.firstName} {driver.lastName}</strong>
+          <p className={dbStyles.driverSubtitle}>{driver.title || "Chauffeur professionnel"}</p>
+          <p className={dbStyles.driverMeta}>
             📍 {driver.zone || driver.ville || "—"} · {driver.experience || 0} ans d'expérience
             {driver.noteMoyenne > 0 && <> · ⭐ {driver.noteMoyenne.toFixed(1)} ({driver.nombreAvis || 0})</>}
           </p>
-          <p style={{ margin: "2px 0 0", color: "#94a3b8", fontSize: "0.82rem" }}>
+          <p className={dbStyles.driverMetaTop}>
             {driver.vehiculePersonnel ? `🚗 Avec véhicule${driver.typeVehicule ? ` (${driver.typeVehicule})` : ""}` : "🚶 Sans véhicule — conduit votre véhicule"}
           </p>
           {driver.langues?.length > 0 && (
-            <p style={{ margin: "2px 0 0", color: "#94a3b8", fontSize: "0.82rem" }}>💬 {driver.langues.join(", ")}</p>
+            <p className={dbStyles.driverMetaTop}>💬 {driver.langues.join(", ")}</p>
           )}
         </div>
-        <div style={{ marginLeft: "auto" }}>
+        <div className={dbStyles.reportWrap}>
           <ReportButton targetType="driver" targetId={driver._id || driver.id} compact />
         </div>
       </div>
@@ -236,20 +237,15 @@ const DriverBooking = () => {
           jamais les documents/images bruts (identité, permis) qui restent
           strictement privés et visibles uniquement par l'admin. */}
       {(driver.identityVerified || driver.licenseVerified || driver.cv) && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+        <div className={dbStyles.badges}>
           {driver.identityVerified && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 99, background: "#d1fae5", color: "#059669", fontSize: "0.8rem", fontWeight: 700 }}>
-              ✓ Identité vérifiée
-            </span>
+            <span className={dbStyles.badgeVerified}>✓ Identité vérifiée</span>
           )}
           {driver.licenseVerified && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 99, background: "#d1fae5", color: "#059669", fontSize: "0.8rem", fontWeight: 700 }}>
-              ✓ Permis vérifié
-            </span>
+            <span className={dbStyles.badgeVerified}>✓ Permis vérifié</span>
           )}
           {driver.cv && (
-            <a href={driver.cv} target="_blank" rel="noopener noreferrer"
-              style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 99, background: "#eef2ff", color: "#4338ca", fontSize: "0.8rem", fontWeight: 700, textDecoration: "none" }}>
+            <a href={driver.cv} target="_blank" rel="noopener noreferrer" className={dbStyles.badgeCv}>
               📄 Voir le CV
             </a>
           )}
@@ -257,79 +253,74 @@ const DriverBooking = () => {
       )}
 
       {driver.description && (
-        <p style={{ color: "#374151", fontSize: "0.92rem", marginBottom: 24 }}>{driver.description}</p>
+        <p className={dbStyles.description}>{driver.description}</p>
       )}
 
       {/* Alternative à la mission ponctuelle ci-dessous : embauche durable CDD/CDI */}
-      <Link to={`/driver-employment/${driver._id || driver.id}`}
-        style={{ display: "block", textAlign: "center", padding: "12px 16px", marginBottom: 24, borderRadius: 12, border: "1.5px dashed #ff4d2d", color: "#ff4d2d", fontWeight: 700, textDecoration: "none", fontSize: "0.9rem" }}>
+      <Link to={`/driver-employment/${driver._id || driver.id}`} className={dbStyles.employLink}>
         💼 Employer ce chauffeur à temps plein (CDD / CDI)
       </Link>
 
       {/* Photos du véhicule (chauffeur avec véhicule) — distinctes de la photo de profil ci-dessus */}
       {driver.vehiculePersonnel && Array.isArray(driver.images) && driver.images.length > 0 && (
-        <div style={{ marginBottom: 24 }}>
-          <h2 style={{ color: "#0f1b3f", fontSize: "1.05rem", marginBottom: 10 }}>Photos du véhicule</h2>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div className={dbStyles.vehiclePhotos}>
+          <h2 className={dbStyles.vehiclePhotosTitle}>Photos du véhicule</h2>
+          <div className={dbStyles.vehiclePhotosGrid}>
             {driver.images.map((src, i) => (
-              <img key={i} src={src} alt={`Véhicule ${i + 1}`} style={{ width: 100, height: 75, borderRadius: 10, objectFit: "cover", border: "1.5px solid #e5e9f4" }} />
+              <img key={i} src={src} alt={`Véhicule ${i + 1}`} className={dbStyles.vehiclePhotoImg} />
             ))}
           </div>
         </div>
       )}
 
       {/* Informations client */}
-      <h2 style={{ color: "#0f1b3f", fontSize: "1.05rem", marginBottom: 12 }}>Vos informations</h2>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+      <h2 className={dbStyles.sectionTitle}>Vos informations</h2>
+      <div className={dbStyles.formGrid2}>
         <input className={styles.input} placeholder="Prénom *" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
         <input className={styles.input} placeholder="Nom *" value={lastName} onChange={(e) => setLastName(e.target.value)} />
         <input className={styles.input} type="email" placeholder="E-mail *" value={email} onChange={(e) => setEmail(e.target.value)} />
         <input className={styles.input} type="tel" placeholder="Téléphone *" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        <input className={styles.input} placeholder="N° de passeport *" value={passportNumber} onChange={(e) => setPassportNumber(e.target.value)} style={{ gridColumn: "1 / -1" }} />
+        <input className={`${styles.input} ${dbStyles.fieldFull}`} placeholder="N° de passeport *" value={passportNumber} onChange={(e) => setPassportNumber(e.target.value)} />
       </div>
 
       {/* Date, heure & durée */}
-      <h2 style={{ color: "#0f1b3f", fontSize: "1.05rem", marginBottom: 12 }}>Date et durée de la mission</h2>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={{ fontWeight: 700, color: "#374151", fontSize: "0.85rem" }}>Date *</span>
+      <h2 className={dbStyles.sectionTitle}>Date et durée de la mission</h2>
+      <div className={dbStyles.dateTimeGrid}>
+        <label className={dbStyles.fieldCol}>
+          <span className={dbStyles.fieldColLabel}>Date *</span>
           <input type="date" value={missionDate} min={new Date().toISOString().split("T")[0]}
             onChange={(e) => setMissionDate(e.target.value)}
-            style={{ padding: "12px 16px", borderRadius: 12, border: "1.5px solid #e5e9f4", fontSize: "0.95rem", boxSizing: "border-box" }} />
+            className={dbStyles.textInput} />
         </label>
-        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={{ fontWeight: 700, color: "#374151", fontSize: "0.85rem" }}>Heure de début *</span>
+        <label className={dbStyles.fieldCol}>
+          <span className={dbStyles.fieldColLabel}>Heure de début *</span>
           <input type="time" value={missionTime}
             onChange={(e) => setMissionTime(e.target.value)}
-            style={{ padding: "12px 16px", borderRadius: 12, border: "1.5px solid #e5e9f4", fontSize: "0.95rem", boxSizing: "border-box" }} />
+            className={dbStyles.textInput} />
         </label>
       </div>
       {slotConflict && (
-        <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 10, padding: "10px 14px", marginBottom: 12, color: "#991b1b", fontSize: "0.85rem", fontWeight: 600 }}>
+        <div className={dbStyles.conflictWarning}>
           ⛔ Ce chauffeur est déjà réservé sur ce créneau. Choisissez une autre date/heure.
         </div>
       )}
-      <div style={{ marginBottom: 12 }}>
-        <label style={{ fontWeight: 700, color: "#374151", fontSize: "0.85rem", display: "block", marginBottom: 6 }}>
-          Lieu de départ (optionnel)
-        </label>
+      <div className={dbStyles.fieldBlockTight}>
+        <label className={dbStyles.fieldLabel}>Lieu de départ (optionnel)</label>
         <input type="text" placeholder="Ex : Aéroport Félix-Houphouët-Boigny, Abidjan" value={lieuDepart}
           onChange={(e) => setLieuDepart(e.target.value)}
-          style={{ width: "100%", padding: "12px 16px", borderRadius: 12, border: "1.5px solid #e5e9f4", fontSize: "0.95rem", boxSizing: "border-box" }} />
+          className={dbStyles.textInput} />
       </div>
-      <div style={{ marginBottom: 20 }}>
-        <label style={{ fontWeight: 700, color: "#374151", fontSize: "0.85rem", display: "block", marginBottom: 6 }}>
-          Nombre d'heures
-        </label>
+      <div className={dbStyles.fieldBlock}>
+        <label className={dbStyles.fieldLabel}>Nombre d'heures</label>
         <input type="number" min="1" max="24" value={heures} disabled={!hasHourlyRate}
           onChange={(e) => setHeures(e.target.value)}
-          style={{ width: "100%", padding: "12px 16px", borderRadius: 12, border: "1.5px solid #e5e9f4", fontSize: "0.95rem", boxSizing: "border-box" }} />
+          className={dbStyles.textInput} />
         {hasHourlyRate ? (
-          <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: "0.85rem" }}>
+          <p className={dbStyles.hoursHint}>
             Tarif horaire : {fmt(tarifHeure)} / heure
           </p>
         ) : (
-          <div style={{ background: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: 10, padding: "10px 14px", marginTop: 8, color: "#92400e", fontSize: "0.85rem" }}>
+          <div className={dbStyles.noRateWarning}>
             ⚠️ Ce chauffeur ne propose pas de tarif horaire — réservation en ligne indisponible.
             {(driver.tarif > 0 || driver.tarifDemiJournee > 0) && (
               <> Contactez-le directement pour ses tarifs {driver.tarif > 0 && `journée (${fmt(driver.tarif)})`}{driver.tarif > 0 && driver.tarifDemiJournee > 0 && " / "}{driver.tarifDemiJournee > 0 && `demi-journée (${fmt(driver.tarifDemiJournee)})`}.</>
@@ -339,69 +330,51 @@ const DriverBooking = () => {
       </div>
 
       {/* Paiement */}
-      <h2 style={{ color: "#0f1b3f", fontSize: "1.05rem", marginBottom: 12 }}>Mode de paiement</h2>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
+      <h2 className={dbStyles.sectionTitle}>Mode de paiement</h2>
+      <div className={dbStyles.paymentGrid}>
         {Object.entries(visibleMethodLabels).map(([val, label]) => (
-          <label key={val} style={{
-            display: "flex", alignItems: "center", gap: 8,
-            padding: "12px 16px", borderRadius: 12, cursor: "pointer",
-            border: `1.5px solid ${selectedMethod === val ? "#ff4d2d" : "#e5e9f4"}`,
-            background: selectedMethod === val ? "#fff5f3" : "#fff",
-            fontWeight: selectedMethod === val ? 700 : 400,
-            color: selectedMethod === val ? "#ff4d2d" : "#374151",
-          }}>
+          <label key={val} className={`${dbStyles.paymentOption} ${selectedMethod === val ? dbStyles.paymentOptionActive : ""}`}>
             <input type="radio" name="method" value={val} checked={selectedMethod === val}
-              onChange={() => setSelectedMethod(val)} style={{ accentColor: "#ff4d2d" }} />
+              onChange={() => setSelectedMethod(val)} className={dbStyles.paymentRadio} />
             {label}
           </label>
         ))}
       </div>
 
       {isMobile && (
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ fontWeight: 700, color: "#374151", fontSize: "0.85rem", display: "block", marginBottom: 6 }}>
-            Numéro Mobile Money
-          </label>
+        <div className={dbStyles.fieldBlock}>
+          <label className={dbStyles.fieldLabel}>Numéro Mobile Money</label>
           <input type="tel" placeholder="Ex: +225 07 00 00 00 00" value={mobileNumber}
             onChange={(e) => setMobileNumber(e.target.value)}
-            style={{ width: "100%", padding: "12px 16px", borderRadius: 12, border: "1.5px solid #e5e9f4", fontSize: "0.95rem", boxSizing: "border-box" }} />
+            className={dbStyles.textInput} />
         </div>
       )}
 
       {isCard && (
-        <div style={{ marginBottom: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+        <div className={dbStyles.cardFieldsWrap}>
           <div>
-            <label style={{ fontWeight: 700, color: "#374151", fontSize: "0.85rem", display: "block", marginBottom: 6 }}>
-              Numéro de carte
-            </label>
+            <label className={dbStyles.fieldLabel}>Numéro de carte</label>
             <input type="text" placeholder="1234 5678 9012 3456" maxLength={19} value={cardNumber}
               onChange={(e) => setCardNumber(e.target.value)}
-              style={{ width: "100%", padding: "12px 16px", borderRadius: 12, border: "1.5px solid #e5e9f4", fontSize: "0.95rem", boxSizing: "border-box" }} />
+              className={dbStyles.textInput} />
           </div>
           <div>
-            <label style={{ fontWeight: 700, color: "#374151", fontSize: "0.85rem", display: "block", marginBottom: 6 }}>
-              Titulaire de la carte
-            </label>
+            <label className={dbStyles.fieldLabel}>Titulaire de la carte</label>
             <input type="text" placeholder="NOM PRÉNOM" value={cardHolder}
               onChange={(e) => setCardHolder(e.target.value)}
-              style={{ width: "100%", padding: "12px 16px", borderRadius: 12, border: "1.5px solid #e5e9f4", fontSize: "0.95rem", boxSizing: "border-box" }} />
+              className={dbStyles.textInput} />
           </div>
         </div>
       )}
 
       {/* Total + confirmation */}
-      <div style={{ background: "#f8fafc", borderRadius: 14, padding: "16px 20px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ color: "#64748b", fontWeight: 700 }}>Total estimé</span>
-        <strong style={{ color: "#0f1b3f", fontSize: "1.2rem" }}>{fmt(total)}</strong>
+      <div className={dbStyles.totalBar}>
+        <span className={dbStyles.totalLabel}>Total estimé</span>
+        <strong className={dbStyles.totalValue}>{fmt(total)}</strong>
       </div>
 
       <button onClick={handleSubmit} disabled={submitting || !missionStart || !!slotConflict || !hasHourlyRate}
-        style={{
-          width: "100%", padding: "15px", borderRadius: 14, border: "none",
-          cursor: (submitting || !missionStart || slotConflict || !hasHourlyRate) ? "not-allowed" : "pointer",
-          background: (submitting || !missionStart || slotConflict || !hasHourlyRate) ? "#94a3b8" : "linear-gradient(135deg, #ff4d2d, #e03519)",
-          color: "#fff", fontWeight: 800, fontSize: "1rem",
-        }}>
+        className={dbStyles.submitBtn}>
         {submitting ? "Envoi en cours…" : `Employer ce chauffeur — ${fmt(total)}`}
       </button>
     </div>

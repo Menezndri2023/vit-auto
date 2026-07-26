@@ -33,7 +33,9 @@ export default function Favorites() {
       </div>
 
       {loading ? (
-        <p className={styles.muted}>Chargement…</p>
+        <div className={styles.grid}>
+          {[...Array(4)].map((_, i) => <div key={i} className={styles.skeleton} />)}
+        </div>
       ) : favorites.length === 0 ? (
         <div className={styles.empty}>
           <div className={styles.emptyIcon}>🤍</div>

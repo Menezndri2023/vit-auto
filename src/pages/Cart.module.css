@@ -69,6 +69,10 @@
 .summaryValue { display: block; font-size: 1.5rem; font-weight: 900; color: #0f1b3f; }
 .summaryNote { display: block; font-size: 0.72rem; color: #94a3b8; max-width: 32ch; margin-top: 0.2rem; }
 
+.passportField { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; font-weight: 700; color: #0f1b3f; }
+.passportHint { font-weight: 400; font-size: 0.85rem; color: #64748b; }
+.passportInput { padding: 10px 14px; border-radius: 10px; border: 1.5px solid #e5e9f4; }
+
 .summaryActions { display: flex; gap: 0.6rem; }
 .primaryBtn, .secondaryBtn {
   border-radius: 10px; padding: 0.7rem 1.1rem; font-weight: 700; font-size: 0.88rem;

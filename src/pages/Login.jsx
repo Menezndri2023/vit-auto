@@ -7,7 +7,7 @@ import GoogleAuthButton from "../components/GoogleAuthButton/GoogleAuthButton";
 import styles from "./Auth.module.css";
 
 const Login = () => {
-  const { login, oauthGoogle } = useAuth();
+  const { login, oauthGoogle, verifyTwoFactor } = useAuth();
   const { success, error } = useToast();
   const { t } = useI18n();
   const navigate  = useNavigate();
@@ -28,6 +28,11 @@ const Login = () => {
   const [resendLoading,  setResendLoading]  = useState(false);
   const [resendDone,     setResendDone]     = useState(false);
 
+  // ── Challenge 2FA (compte avec le 2FA activé) ──────────────────
+  const [twoFaChallenge, setTwoFaChallenge] = useState(null); // { challengeToken }
+  const [twoFaCode,      setTwoFaCode]      = useState("");
+  const [twoFaVerifying, setTwoFaVerifying] = useState(false);
+
   const handleChange = (e) => setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
   const onSubmit = async (e) => {
@@ -36,9 +41,17 @@ const Login = () => {
     setLoading(true);
     setNotVerified(null);
     try {
-      const loggedUser = await login({ identifier: form.identifier, password: form.password });
+      const result = await login({ identifier: form.identifier, password: form.password });
+      // Bug réel corrigé ici : ce cas n'était jamais vérifié — un compte avec
+      // le 2FA activé recevait un message "Connexion réussie" trompeur sans
+      // qu'aucune session réelle ne soit ouverte, et sans aucun moyen de saisir
+      // son code (voir AuthContext.login/verifyTwoFactor).
+      if (result?.requiresTwoFactor) {
+        setTwoFaChallenge({ challengeToken: result.challengeToken });
+        return;
+      }
       success("Connexion réussie ! Redirection...");
-      redirectAfterAuth(loggedUser?.role);
+      redirectAfterAuth(result?.role);
     } catch (err) {
       if (err.code === "EMAIL_NOT_VERIFIED") {
         setNotVerified(err.email || form.identifier);
@@ -47,6 +60,21 @@ const Login = () => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onVerifyTwoFa = async (e) => {
+    e.preventDefault();
+    if (!twoFaCode.trim()) { error("Saisissez votre code 2FA ou un code de secours."); return; }
+    setTwoFaVerifying(true);
+    try {
+      const loggedUser = await verifyTwoFactor({ challengeToken: twoFaChallenge.challengeToken, token: twoFaCode.trim() });
+      success("Connexion réussie ! Redirection...");
+      redirectAfterAuth(loggedUser?.role);
+    } catch (err) {
+      error(err.message || "Code invalide.");
+    } finally {
+      setTwoFaVerifying(false);
     }
   };
 
@@ -143,52 +171,79 @@ const Login = () => {
           </div>
         )}
 
-        <form className={styles.form} onSubmit={onSubmit} autoComplete="on">
-          <input
-            type="text"
-            name="identifier"
-            autoComplete="username"
-            value={form.identifier}
-            onChange={handleChange}
-            placeholder="Email ou téléphone"
-            required
-          />
-          <div style={{ position: "relative" }}>
+        {twoFaChallenge ? (
+          <form className={styles.form} onSubmit={onVerifyTwoFa} autoComplete="off">
+            <p style={{ margin: "0 0 8px", fontSize: "0.9rem", color: "#4a5876" }}>
+              🔐 Ce compte est protégé par la double authentification. Saisissez le code de votre
+              application d'authentification, ou l'un de vos codes de secours.
+            </p>
             <input
-              type={showPassword ? "text" : "password"}
-              name="password"
-              autoComplete="current-password"
-              value={form.password}
-              onChange={handleChange}
-              placeholder={t("auth.password")}
+              type="text"
+              inputMode="text"
+              value={twoFaCode}
+              onChange={(e) => setTwoFaCode(e.target.value)}
+              placeholder="Code à 6 chiffres ou code de secours"
+              autoFocus
               required
-              minLength="8"
-              style={{ width: "100%", boxSizing: "border-box", paddingRight: 44 }}
             />
-            <button type="button" onClick={() => setShowPassword((p) => !p)}
-              aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-              style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem" }}>
-              {showPassword ? "🙈" : "👁️"}
+            <button type="submit" className={styles.submitBtn} disabled={twoFaVerifying}>
+              {twoFaVerifying ? `${t("common.loading")}` : "Vérifier"}
             </button>
-          </div>
-          <button type="submit" className={styles.submitBtn} disabled={loading}>
-            {loading ? `${t("common.loading")}` : t("auth.loginBtn")}
-          </button>
-          <div className={styles.divider}>OU</div>
-          <GoogleAuthButton onCredential={handleGoogleCredential} />
-          <div className={styles.footerLink}>
-            <Link to="/forgot-password">{t("auth.forgotPwd")}</Link>
-          </div>
-          <div className={styles.footerLink}>
-            <span>{t("auth.noAccount") || "Pas encore de compte ? "}</span>
-            {/* Relaie la destination d'origine (page protégée qui a redirigé vers
-                /login) — sans ce state, Register.jsx la perdait entièrement,
-                renvoyant systématiquement vers /dashboard après inscription. */}
-            <Link to="/register" state={fromPage ? { from: { pathname: fromPage, search: fromSearch } } : undefined}>
-              {t("auth.registerBtn")}
-            </Link>
-          </div>
-        </form>
+            <div className={styles.footerLink}>
+              <button type="button" onClick={() => { setTwoFaChallenge(null); setTwoFaCode(""); }}
+                style={{ background: "none", border: "none", color: "#4a5876", cursor: "pointer", textDecoration: "underline" }}>
+                ← Retour
+              </button>
+            </div>
+          </form>
+        ) : (
+          <form className={styles.form} onSubmit={onSubmit} autoComplete="on">
+            <input
+              type="text"
+              name="identifier"
+              autoComplete="username"
+              value={form.identifier}
+              onChange={handleChange}
+              placeholder="Email ou téléphone"
+              required
+            />
+            <div style={{ position: "relative" }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                name="password"
+                autoComplete="current-password"
+                value={form.password}
+                onChange={handleChange}
+                placeholder={t("auth.password")}
+                required
+                minLength="8"
+                style={{ width: "100%", boxSizing: "border-box", paddingRight: 44 }}
+              />
+              <button type="button" onClick={() => setShowPassword((p) => !p)}
+                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem" }}>
+                {showPassword ? "🙈" : "👁️"}
+              </button>
+            </div>
+            <button type="submit" className={styles.submitBtn} disabled={loading}>
+              {loading ? `${t("common.loading")}` : t("auth.loginBtn")}
+            </button>
+            <div className={styles.divider}>OU</div>
+            <GoogleAuthButton onCredential={handleGoogleCredential} />
+            <div className={styles.footerLink}>
+              <Link to="/forgot-password">{t("auth.forgotPwd")}</Link>
+            </div>
+            <div className={styles.footerLink}>
+              <span>{t("auth.noAccount") || "Pas encore de compte ? "}</span>
+              {/* Relaie la destination d'origine (page protégée qui a redirigé vers
+                  /login) — sans ce state, Register.jsx la perdait entièrement,
+                  renvoyant systématiquement vers /dashboard après inscription. */}
+              <Link to="/register" state={fromPage ? { from: { pathname: fromPage, search: fromSearch } } : undefined}>
+                {t("auth.registerBtn")}
+              </Link>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );

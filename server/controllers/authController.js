@@ -594,6 +594,59 @@ export const verifyEmail = async (req, res) => {
   }
 };
 
+// ── Confirmer un changement d'e-mail (lien envoyé à la NOUVELLE adresse) ──
+// Voir usersController.requestEmailChange — l'ancienne adresse n'est jamais
+// modifiée avant cette confirmation.
+export const confirmEmailChange = async (req, res) => {
+  const { token } = req.params;
+  if (!token) return res.status(400).json({ message: "Token manquant." });
+
+  try {
+    const user = await User.findOne({
+      pendingEmailToken:   token,
+      pendingEmailExpires: { $gt: new Date() },
+    });
+    if (!user) {
+      return res.status(400).json({
+        message: "Lien de confirmation invalide ou expiré. Relancez la demande de changement d'e-mail.",
+      });
+    }
+
+    user.email               = user.pendingEmail;
+    user.emailVerified        = true;
+    user.pendingEmail         = null;
+    user.pendingEmailToken    = null;
+    user.pendingEmailExpires  = null;
+    await user.save();
+
+    try {
+      await Notification.create({
+        user: user._id,
+        type: "success",
+        titre: "✅ Adresse e-mail mise à jour",
+        message: `Votre adresse e-mail de connexion est désormais ${user.email}.`,
+        lien: "/profile",
+      });
+    } catch (notifErr) {
+      logger.error("Notification changement email (non bloquant):", notifErr.message);
+    }
+
+    const jwtToken = signJWT(user);
+    res.json({
+      message: "Adresse e-mail mise à jour avec succès !",
+      success: true,
+      user:    safeUser(user),
+      token:   jwtToken,
+    });
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ message: "Cette adresse e-mail est déjà utilisée par un autre compte." });
+    }
+    logger.error("confirmEmailChange:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
 // ── Renvoyer l'e-mail de vérification ────────────────────────────────────
 export const resendVerification = async (req, res) => {
   const { email } = req.body;
@@ -657,6 +710,29 @@ export const changePassword = async (req, res) => {
     res.json({ message: "Mot de passe modifié avec succès.", token: signJWT(user) });
   } catch (err) {
     logger.error("changePassword:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Déconnecter tous les autres appareils (garde la session courante) ────
+// Réutilise le même mécanisme que changePassword (tokenVersion) — aucun
+// changement de schéma nécessaire. Contrairement à changePassword, aucune
+// donnée sensible n'est modifiée : pas de re-confirmation de mot de passe.
+export const logoutOtherSessions = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
+
+    user.refreshTokens = [];
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    await user.save();
+
+    // Réémet un token pour la session courante — sinon l'appelant se
+    // déconnecterait lui-même à sa prochaine requête (même mécanisme que
+    // changePassword ci-dessus).
+    res.json({ message: "Déconnecté de tous les autres appareils.", token: signJWT(user) });
+  } catch (err) {
+    logger.error("logoutOtherSessions:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -1034,7 +1110,12 @@ function buildTotp(secret, email) {
 // POST /api/auth/2fa/setup — Génère secret + QR code (sans activer)
 export const setup2FA = async (req, res) => {
   try {
-    const user = req.user;
+    // req.user (posé par le middleware authenticate) exclut volontairement
+    // twoFactor.secret et password de sa projection — on doit donc recharger
+    // l'utilisateur ici (même pattern que changePassword) pour pouvoir écrire
+    // ces champs sans les écraser par inadvertance à partir d'un objet où ils
+    // sont déjà `undefined`.
+    const user = await User.findById(req.user._id);
     if (user.twoFactor?.enabled) {
       return res.status(400).json({ message: "2FA déjà activé." });
     }
@@ -1063,7 +1144,11 @@ export const setup2FA = async (req, res) => {
 export const enable2FA = async (req, res) => {
   try {
     const { token } = req.body;
-    const user = req.user;
+    // Bug réel trouvé en test E2E : req.user n'a jamais twoFactor.secret (exclu
+    // par authenticate(), voir commentaire dans setup2FA) — avec `req.user`
+    // directement, cette vérification échouait TOUJOURS, même juste après un
+    // /2fa/setup réussi, rendant l'activation du 2FA impossible pour quiconque.
+    const user = await User.findById(req.user._id);
 
     if (!user.twoFactor?.secret) {
       return res.status(400).json({ message: "Lancez d'abord /2fa/setup." });
@@ -1156,7 +1241,9 @@ export const verify2FA = async (req, res) => {
 export const disable2FA = async (req, res) => {
   try {
     const { password } = req.body;
-    const user = req.user;
+    // req.user.password est aussi exclu par authenticate() (voir setup2FA) —
+    // bcrypt.compare(password, undefined) aurait toujours échoué.
+    const user = await User.findById(req.user._id);
 
     if (!user.twoFactor?.enabled) {
       return res.status(400).json({ message: "2FA non activé." });

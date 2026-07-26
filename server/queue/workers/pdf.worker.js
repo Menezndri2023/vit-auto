@@ -26,7 +26,13 @@ export async function processPdfJob(job) {
 
   switch (type) {
     case "loi": {
-      const { loiContent, referenceNumber, partnerEmail, partnerName } = data;
+      // ⚠️ loiReadyTemplate attend { firstName, companyName, loiUrl, expiresAt }
+      // (voir WelcomePartner.js) — un job envoyait auparavant loiNumber/signUrl,
+      // des clés que le template ne lit jamais : companyName restait undefined
+      // (affiché tel quel dans l'email) et le bouton de signature pointait vers
+      // un href="undefined" (bouton "Signer la LOI" cassé). Bug réel trouvé en
+      // audit suite au signalement d'un partenaire.
+      const { loiContent, referenceNumber, partnerEmail, partnerName, companyName, signLink, expiresAt } = data;
       const buffer = await buildOnboardingPDFBuffer(
         loiContent,
         "LETTRE D'INTENTION",
@@ -38,8 +44,9 @@ export async function processPdfJob(job) {
         const { loiReadyTemplate } = await import("../../services/communication/templates/email/WelcomePartner.js");
         const html = loiReadyTemplate({
           firstName:   partnerName,
-          loiNumber:   `VA-LOI-${referenceNumber}`,
-          signUrl:     data.signLink || `${process.env.APP_URL || "https://vit-auto.com"}/partner-onboarding?step=loi`,
+          companyName: companyName || partnerName,
+          loiUrl:      signLink || `${process.env.APP_URL || "https://vit-auto.com"}/partner-onboarding`,
+          expiresAt,
         });
         await sendViaEmail({
           to:          partnerEmail,
@@ -54,7 +61,9 @@ export async function processPdfJob(job) {
     }
 
     case "agreement": {
-      const { agreementContent, referenceNumber, partnerEmail, partnerName } = data;
+      // Voir le commentaire équivalent dans le case "loi" ci-dessus — même bug
+      // (paramètres mal nommés) pour l'email Accord.
+      const { agreementContent, referenceNumber, partnerEmail, partnerName, companyName, signLink, expiresAt } = data;
       const buffer = await buildOnboardingPDFBuffer(
         agreementContent,
         "ACCORD DE PARTENARIAT FONDATEUR",
@@ -65,9 +74,10 @@ export async function processPdfJob(job) {
         const { sendViaEmail } = await import("../../services/communication/CommunicationService.js");
         const { agreementReadyTemplate } = await import("../../services/communication/templates/email/WelcomePartner.js");
         const html = agreementReadyTemplate({
-          firstName:       partnerName,
-          agreementNumber: `VA-FPA-${referenceNumber}`,
-          signUrl:         data.signLink || `${process.env.APP_URL || "https://vit-auto.com"}/partner-onboarding?step=accord`,
+          firstName:   partnerName,
+          companyName: companyName || partnerName,
+          agreementUrl: signLink || `${process.env.APP_URL || "https://vit-auto.com"}/partner-onboarding`,
+          expiresAt,
         });
         await sendViaEmail({
           to:          partnerEmail,

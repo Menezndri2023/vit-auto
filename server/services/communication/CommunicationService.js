@@ -14,7 +14,7 @@ import { sendPush }     from "./channels/PushChannel.js";
 import { sendInternal, sendInternalBroadcast } from "./channels/InternalChannel.js";
 
 // ── Templates email ───────────────────────────────────────────────────────────
-import { emailVerificationTemplate, passwordResetTemplate } from "./templates/email/Verification.js";
+import { emailVerificationTemplate, passwordResetTemplate, emailChangeConfirmationTemplate } from "./templates/email/Verification.js";
 import { bookingConfirmationTemplate, newBookingPartnerTemplate, bookingAcceptedTemplate, paymentReceiptTemplate } from "./templates/email/Booking.js";
 import { reservationCreatedTemplate, reservationConfirmedTemplate, transactionCompletedTemplate } from "./templates/email/Reservation.js";
 import { invoiceTemplate }    from "./templates/email/Invoice.js";
@@ -25,6 +25,7 @@ import { kycSubmittedTemplate, kycApprovedTemplate, kycRejectedTemplate } from "
 
 const EMAIL_TEMPLATES = {
   email_verification:      emailVerificationTemplate,
+  email_change_confirmation: emailChangeConfirmationTemplate,
   password_reset:          passwordResetTemplate,
   booking_confirmation:    bookingConfirmationTemplate,
   new_booking_partner:     newBookingPartnerTemplate,

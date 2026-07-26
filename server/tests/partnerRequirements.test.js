@@ -35,7 +35,7 @@ describe("resolveRequirements", () => {
       for (const activity of ["loueur", "vendeur", "exportateur"]) {
         const req = resolveRequirements({ activity, entityType });
         expect(req.business.required).toBe(true);
-        expect(req.business.docs).toEqual(["businessRegistration", "businessLicense", "taxCertificate", "proofOfAddress"]);
+        expect(req.business.docs).toEqual(["businessRegistration", "businessLicense", "exportLicense", "taxCertificate", "proofOfAddress"]);
         expect(req.postRegistrationRedirect).toBe("/kyc?next=partner-onboarding");
       }
     }

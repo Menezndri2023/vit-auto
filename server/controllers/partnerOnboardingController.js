@@ -843,10 +843,12 @@ export const adminApprove = async (req, res) => {
     dispatch.loiReady(
       String(user._id || doc.userId),
       user.email,
-      user.firstName || doc.companyInfo?.legalName,
+      user.firstName,
+      applicantDisplayName(doc, user),
       loiContent,
       doc.referenceNumber,
       signLink,
+      doc.loi.signingTokenExpires,
     ).catch((e) => logger.error("dispatch.loiReady:", e.message));
 
     res.json({ success: true, status: "loi_envoyee", referenceNumber: doc.referenceNumber, signLink });
@@ -892,10 +894,12 @@ export const adminSendAgreement = async (req, res) => {
     dispatch.agreementReady(
       String(user._id || doc.userId),
       user.email,
-      user.firstName || doc.companyInfo?.legalName,
+      user.firstName,
+      applicantDisplayName(doc, user),
       agreementContent,
       doc.referenceNumber,
       signLink,
+      doc.agreement.signingTokenExpires,
     ).catch((e) => logger.error("dispatch.agreementReady:", e.message));
 
     res.json({ success: true, status: "accord_envoye", signLink });

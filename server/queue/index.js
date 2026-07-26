@@ -365,7 +365,7 @@ export const dispatch = {
     });
   },
 
-  async loiReady(userId, email, partnerName, loiContent, referenceNumber, signLink) {
+  async loiReady(userId, email, partnerName, companyName, loiContent, referenceNumber, signLink, expiresAt) {
     // PDF + email en un seul job PDF worker
     await enqueue(QUEUE_NAMES.PDF, "generate_loi", {
       type:      "loi",
@@ -374,14 +374,16 @@ export const dispatch = {
         userId,
         partnerEmail:    email,
         partnerName,
+        companyName,
         loiContent,
         referenceNumber,
         signLink,
+        expiresAt,
       },
     });
   },
 
-  async agreementReady(userId, email, partnerName, agreementContent, referenceNumber, signLink) {
+  async agreementReady(userId, email, partnerName, companyName, agreementContent, referenceNumber, signLink, expiresAt) {
     await enqueue(QUEUE_NAMES.PDF, "generate_agreement", {
       type:      "agreement",
       sendEmail: true,
@@ -389,9 +391,11 @@ export const dispatch = {
         userId,
         partnerEmail:    email,
         partnerName,
+        companyName,
         agreementContent,
         referenceNumber,
         signLink,
+        expiresAt,
       },
     });
   },
@@ -498,6 +502,18 @@ export const dispatch = {
       to,
       userId,
       data:   { verifyUrl, firstName },
+    }, { priority: PRIORITY.HIGH });
+  },
+
+  // Envoyé à la NOUVELLE adresse (voir usersController.requestEmailChange) —
+  // l'ancienne adresse n'est jamais notifiée, l'ancienne reste active tant que
+  // ce lien n'est pas confirmé.
+  async emailChangeConfirmation(to, userId, confirmUrl, firstName, newEmail) {
+    await enqueue(QUEUE_NAMES.EMAIL, "email_change_confirmation", {
+      type:   "email_change_confirmation",
+      to,
+      userId,
+      data:   { confirmUrl, firstName, newEmail },
     }, { priority: PRIORITY.HIGH });
   },
 

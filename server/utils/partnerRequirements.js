@@ -8,7 +8,7 @@ import { requiresDriverDocs, requiresBusinessDocs } from "../constants/partnerTa
 
 // Documents d'entité déjà modélisés dans PartnerOnboarding.legalDocs — la
 // liste ici sert d'affichage/validation, pas de nouveau schéma.
-const BUSINESS_DOCS = ["businessRegistration", "businessLicense", "taxCertificate", "proofOfAddress"];
+const BUSINESS_DOCS = ["businessRegistration", "businessLicense", "exportLicense", "taxCertificate", "proofOfAddress"];
 const DRIVER_DOCS = ["cv", "identity", "driverLicense"];
 
 export function resolveRequirements({ activity, entityType }) {

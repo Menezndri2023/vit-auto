@@ -31,14 +31,23 @@ const PARTNER_TYPES = [
   { value: "inspecteur_vehicles",     label: "Vehicle Inspector",             icon: "🔍" },
 ];
 
+// step correspond à l'index dans STEPS (0=Type&Info … 4=LOI/Sign) — sert à
+// positionner automatiquement le partenaire au bon endroit de l'assistant
+// quand il revient sur le portail. Bug réel corrigé ici : loi_envoyee/
+// loi_signee/accord_envoye pointaient vers les étapes Business(2)/Submit(3)
+// au lieu de LOI/Sign(4), renvoyant le partenaire vers un formulaire déjà
+// complété au lieu de l'écran de signature — la bannière de signature
+// (DocumentSigningBanner) restait visible mais l'étape active affichée en
+// dessous n'avait plus rien à voir avec la signature, ce qui donnait
+// l'impression qu'"il n'y a pas de suite" après approbation du dossier.
 const STATUS_CONFIG = {
   brouillon:     { label: "Draft",              color: "#64748b", bg: "#f8fafc", step: 0 },
   soumis:        { label: "Submitted",          color: "#3b82f6", bg: "#eff6ff", step: 1 },
   en_review:     { label: "Under Review",       color: "#f59e0b", bg: "#fffbeb", step: 1 },
   info_demandee: { label: "Info Required",      color: "#f97316", bg: "#fff7ed", step: 1 },
-  loi_envoyee:   { label: "LOI Ready to Sign",  color: "#8b5cf6", bg: "#f5f3ff", step: 2 },
-  loi_signee:    { label: "LOI Signed",         color: "#0891b2", bg: "#ecfeff", step: 3 },
-  accord_envoye: { label: "Agreement Ready",    color: "#8b5cf6", bg: "#f5f3ff", step: 3 },
+  loi_envoyee:   { label: "LOI Ready to Sign",  color: "#8b5cf6", bg: "#f5f3ff", step: 4 },
+  loi_signee:    { label: "LOI Signed",         color: "#0891b2", bg: "#ecfeff", step: 4 },
+  accord_envoye: { label: "Agreement Ready",    color: "#8b5cf6", bg: "#f5f3ff", step: 4 },
   accord_signe:  { label: "Agreement Signed",   color: "#059669", bg: "#ecfdf5", step: 4 },
   actif:         { label: "Active Partner",     color: "#059669", bg: "#ecfdf5", step: 4 },
   rejete:        { label: "Rejected",           color: "#dc2626", bg: "#fef2f2", step: -1 },
@@ -104,16 +113,19 @@ const toggleArr = (arr, setArr, val) =>
 // ── Helper: field change ──────────────────────────────────────────────────────
 function useFormState(initial = {}) {
   const [form, setForm] = useState(initial);
-  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
-  const setVal = (key, val) => setForm((f) => ({ ...f, [key]: val }));
-  const toggle = (key) => setForm((f) => ({ ...f, [key]: !f[key] }));
-  const reset = (data) => setForm(data);
+  // Références stables (useCallback) — nécessaire pour pouvoir déclarer `reset`
+  // en dépendance d'un useEffect sans provoquer une boucle de rendu (une
+  // fonction recréée à chaque render redéclencherait l'effet à l'infini).
+  const set = useCallback((key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value })), []);
+  const setVal = useCallback((key, val) => setForm((f) => ({ ...f, [key]: val })), []);
+  const toggle = useCallback((key) => setForm((f) => ({ ...f, [key]: !f[key] })), []);
+  const reset = useCallback((data) => setForm(data), []);
   return { form, set, setVal, toggle, reset };
 }
 
 // ── Composant principal ────────────────────────────────────────────────────────
 export default function PartnerOnboardingPortal() {
-  const { user, token } = useAuth();
+  const { token } = useAuth();
   const { addToast } = useToast();
   const { countryCode } = useCurrency();
   const navigate = useNavigate();
@@ -636,7 +648,7 @@ function StepTypeInfo({ onboarding, saving, onSaveSection, onSetType, onSetLegal
       mainContactPosition: ci.mainContactPosition || "",
       incorporationDate: ci.incorporationDate ? ci.incorporationDate.slice(0, 10) : "",
     });
-  }, [onboarding]);
+  }, [onboarding, reset]);
 
   const handleSave = async () => {
     const ok = await onSaveSection("company-info", form);
@@ -772,7 +784,13 @@ function StepDocuments({ onboarding, saving, onSaveSection, onNext, onBack }) {
   });
   const [fileError, setFileError] = useState("");
 
-  useEffect(() => {
+  // Resynchronise l'état local quand `onboarding` change (ex. après
+  // sauvegarde amont, le parent repasse un objet à jour) — état ajusté
+  // pendant le rendu plutôt que dans un useEffect (pattern recommandé React,
+  // évite un rendu supplémentaire et l'appel de setState synchrone en effet).
+  const [prevOnboarding, setPrevOnboarding] = useState(onboarding);
+  if (onboarding !== prevOnboarding) {
+    setPrevOnboarding(onboarding);
     const d = onboarding?.legalDocs || {};
     setFiles({
       businessRegistration: d.businessRegistration || null,
@@ -785,7 +803,7 @@ function StepDocuments({ onboarding, saving, onSaveSection, onNext, onBack }) {
       type: onboarding?.individualDoc?.type || "cni",
       file: onboarding?.individualDoc?.file || null,
     });
-  }, [onboarding]);
+  }
 
   const MAX_SIZE = 5 * 1024 * 1024; // 5 Mo
   const handleFile = (key) => (e) => {
@@ -977,7 +995,11 @@ function StepBusiness({ onboarding, saving, onSaveSection, onNext, onBack }) {
 
   const split = (val) => val.split(",").map((s) => s.trim()).filter(Boolean);
 
-  useEffect(() => {
+  // Même pattern que StepDocuments ci-dessus : resynchronise tout l'état
+  // local pendant le rendu (pas dans un useEffect) quand `onboarding` change.
+  const [prevOnboarding, setPrevOnboarding] = useState(onboarding);
+  if (onboarding !== prevOnboarding) {
+    setPrevOnboarding(onboarding);
     const bv2 = onboarding?.businessVerification || {};
     const vi2 = onboarding?.vehicleInventory || {};
     const ec2 = onboarding?.exportCapabilities || {};
@@ -1003,7 +1025,7 @@ function StepBusiness({ onboarding, saving, onSaveSection, onNext, onBack }) {
     setWarrantyMonths(ct2.warrantyMonths ?? "");
     setInspType(ct2.inspectionType || "");
     setInspAgency(ct2.inspectionAgency || "");
-  }, [onboarding]);
+  }
 
   const handleSave = async () => {
     const bvData = {
@@ -1416,8 +1438,6 @@ function StepReview({ onboarding, saving, status, onSubmit, onBack, onEditStep, 
 // ÉTAPE 4 : Signature LOI / Accord
 // ════════════════════════════════════════════════════════════════════════════════
 function StepDocumentSigning({ onboarding, status, token, businessId, onSign }) {
-  const statusCfg = STATUS_CONFIG[status] || {};
-
   const downloadPDF = async (type) => {
     try {
       const base = type === "loi" ? "/my/loi/pdf" : "/my/agreement/pdf";

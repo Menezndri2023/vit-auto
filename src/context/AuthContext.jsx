@@ -210,6 +210,13 @@ export const AuthProvider = ({ children }) => {
       if (data.email) err.email = data.email;
       throw err;
     }
+    // Bug réel trouvé en test E2E : cette fonction appelait setUser(data.user)
+    // sans jamais vérifier data.requiresTwoFactor — un compte avec le 2FA activé
+    // recevait donc un challengeToken (pas de session réelle) mais Login.jsx
+    // affichait quand même "Connexion réussie" et redirigeait, sans aucun moyen
+    // de saisir le code 2FA nulle part dans l'app. Voir oauthGoogle ci-dessous,
+    // qui gérait déjà ce cas correctement — même pattern appliqué ici.
+    if (data.requiresTwoFactor) return data; // { requiresTwoFactor, challengeToken }
     setUser(data.user);
     if (data.token)        setToken(data.token);
     if (data.refreshToken) saveRefreshToken(data.refreshToken);
@@ -233,6 +240,23 @@ export const AuthProvider = ({ children }) => {
       throw err;
     }
     if (data.requiresTwoFactor) return data; // { requiresTwoFactor, challengeToken }
+    setUser(data.user);
+    if (data.token)        setToken(data.token);
+    if (data.refreshToken) saveRefreshToken(data.refreshToken);
+    return data.user;
+  };
+
+  // Complète une connexion après le challenge 2FA (voir login/oauthGoogle
+  // ci-dessus, qui renvoient { requiresTwoFactor, challengeToken } au lieu
+  // d'ouvrir une session tant que ce code n'a pas été vérifié).
+  const verifyTwoFactor = async ({ challengeToken, token }) => {
+    const res  = await fetch("/api/auth/2fa/verify", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ challengeToken, token }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "Code invalide.");
     setUser(data.user);
     if (data.token)        setToken(data.token);
     if (data.refreshToken) saveRefreshToken(data.refreshToken);
@@ -267,7 +291,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const value = useMemo(
-    () => ({ user, token, isAuthenticated: !!user, authReady, authFetch, register, login, oauthGoogle, logout, updateUser, setSession }),
+    () => ({ user, token, isAuthenticated: !!user, authReady, authFetch, register, login, oauthGoogle, verifyTwoFactor, logout, updateUser, setSession }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [user, token, authReady]
   );

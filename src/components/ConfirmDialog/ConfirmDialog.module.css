@@ -1,0 +1,101 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 27, 63, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--sp-4);
+}
+
+.dialog {
+  background: var(--c-bg-card);
+  border-radius: 16px;
+  padding: var(--sp-6);
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(15, 27, 63, 0.25);
+}
+
+.title {
+  margin: 0 0 var(--sp-2);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--c-text-primary);
+}
+
+.description {
+  margin: 0 0 var(--sp-4);
+  font-size: 0.9rem;
+  color: var(--c-text-secondary);
+  line-height: 1.5;
+}
+
+.field {
+  margin-bottom: var(--sp-4);
+}
+
+.field label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--c-text-secondary);
+  margin-bottom: var(--sp-1);
+}
+
+.field input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: 10px;
+  font-size: 0.92rem;
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--c-primary);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+}
+
+.cancelBtn {
+  background: transparent;
+  border: 1px solid var(--c-border-strong);
+  color: var(--c-text-secondary);
+  border-radius: 10px;
+  padding: 9px 18px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.confirmBtn {
+  background: var(--c-primary);
+  border: none;
+  color: var(--c-text-white);
+  border-radius: 10px;
+  padding: 9px 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dangerConfirmBtn {
+  background: var(--c-error);
+  border: none;
+  color: var(--c-text-white);
+  border-radius: 10px;
+  padding: 9px 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dangerConfirmBtn:disabled,
+.confirmBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

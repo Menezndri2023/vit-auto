@@ -93,3 +93,12 @@ export const twoFADisableSchema = z.object({
   token:    z.string().length(6).optional(),
   password: z.string().min(1, "Mot de passe requis pour désactiver le 2FA"),
 });
+
+export const requestEmailChangeSchema = z.object({
+  newEmail:        z.string().email("Email invalide").toLowerCase().trim(),
+  currentPassword: z.string().min(1, "Mot de passe requis"),
+});
+
+export const deactivateAccountSchema = z.object({
+  password: z.string().min(1, "Mot de passe requis pour confirmer"),
+});

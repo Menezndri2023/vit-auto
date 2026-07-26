@@ -1,10 +1,12 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link, useNavigate, Navigate, useLocation } from "react-router-dom";
 import { useVehicles } from "../context/VehicleContext";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useI18n } from "../context/I18nContext";
+import TwoFactorSetup from "../components/TwoFactorSetup/TwoFactorSetup";
+import ConfirmDialog from "../components/ConfirmDialog/ConfirmDialog";
 import styles from "./Profile.module.css";
 
 // ── Statuts des réservations / commandes ───────────────────
@@ -153,7 +155,7 @@ const KYC_STATUS_CFG = {
 const Profile = () => {
   const navigate  = useNavigate();
   const location  = useLocation();
-  const { user, isAuthenticated, token, updateUser, setSession } = useAuth();
+  const { user, isAuthenticated, token, updateUser, setSession, logout } = useAuth();
   const { bookings, partnerVehicles, partnerBookings, removeBooking } = useVehicles();
   const { success: toastSuccess, error: toastError } = useToast();
   const { fmt, COUNTRIES_CONFIG } = useCurrency();
@@ -181,6 +183,18 @@ const Profile = () => {
   const [showOldPwd,     setShowOldPwd]     = useState(false);
   const [showNewPwd,     setShowNewPwd]     = useState(false);
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
+
+  // ── Changement d'e-mail ─────────────────────────────────────
+  const [showEmailChangeForm, setShowEmailChangeForm] = useState(false);
+  const [emailChangeForm, setEmailChangeForm] = useState({ newEmail: "", currentPassword: "" });
+  const [emailChanging, setEmailChanging] = useState(false);
+
+  // ── Auto-désactivation du compte ───────────────────────────
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
+
+  // ── Déconnexion des autres appareils ────────────────────────
+  const [loggingOutOthers, setLoggingOutOthers] = useState(false);
 
   const [profileData, setProfileData] = useState({
     firstName:     user?.firstName     || "",
@@ -311,6 +325,20 @@ const Profile = () => {
         { value: activeCount,         label: t("dash.status.active") || "En cours" },
       ];
 
+  // ── Rafraîchit le profil au chargement ─────────────────────
+  // AuthContext.user peut provenir de safeUser() (login/register), qui
+  // n'expose ni pendingEmail ni twoFactor — sans ce rechargement, un
+  // changement d'email en attente ou un 2FA déjà activé n'apparaîtrait pas
+  // tant que l'utilisateur n'aurait pas déclenché une autre sauvegarde.
+  useEffect(() => {
+    if (!token) return;
+    fetch("/api/users/me", { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => res.json())
+      .then((data) => { if (data?.user) updateUser(data.user); })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
   // ── Handlers ───────────────────────────────────────────────
   const handleProfileChange = (field, value) =>
     setProfileData((p) => ({ ...p, [field]: value }));
@@ -430,6 +458,79 @@ const Profile = () => {
       toastError(err.message || "Erreur.");
     } finally {
       setPwdChanging(false);
+    }
+  };
+
+  // ── Handler changement d'e-mail ────────────────────────────
+  const handleRequestEmailChange = async (e) => {
+    e.preventDefault();
+    setEmailChanging(true);
+    try {
+      const res  = await fetch("/api/users/me/email-change", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({
+          newEmail:        emailChangeForm.newEmail,
+          currentPassword: emailChangeForm.currentPassword,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Erreur.");
+      toastSuccess(data.message || "Vérifiez votre nouvelle adresse e-mail.");
+      // Optimiste — la valeur autoritaire sera de toute façon reconfirmée par
+      // /api/users/me au prochain chargement (voir useEffect ci-dessus).
+      updateUser({ ...user, pendingEmail: emailChangeForm.newEmail });
+      setEmailChangeForm({ newEmail: "", currentPassword: "" });
+      setShowEmailChangeForm(false);
+    } catch (err) {
+      toastError(err.message || "Erreur.");
+    } finally {
+      setEmailChanging(false);
+    }
+  };
+
+  // ── Handler auto-désactivation du compte ───────────────────
+  const handleDeactivateAccount = async (password) => {
+    setDeactivating(true);
+    try {
+      const res  = await fetch("/api/users/me/deactivate", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Erreur.");
+      toastSuccess(data.message || "Votre compte a été désactivé.");
+      // Le token courant est immédiatement invalide côté serveur (isActive:false
+      // + tokenVersion incrémenté) — déconnexion locale obligatoire. `logout()`
+      // tente aussi de révoquer le refresh token (non bloquant si déjà invalide).
+      await logout();
+      navigate("/login");
+    } catch (err) {
+      toastError(err.message || "Erreur.");
+      setDeactivating(false);
+    }
+  };
+
+  // ── Handler déconnexion des autres appareils ───────────────
+  const handleLogoutOtherSessions = async () => {
+    setLoggingOutOthers(true);
+    try {
+      const res  = await fetch("/api/auth/logout-others", {
+        method:  "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Erreur.");
+      // Nouveau token pour la session courante — sinon cette session se
+      // déconnecterait elle-même à sa prochaine requête (même logique que
+      // handleChangePassword ci-dessus).
+      if (data.token) setSession(user, data.token);
+      toastSuccess(data.message || "Déconnecté de tous les autres appareils.");
+    } catch (err) {
+      toastError(err.message || "Erreur.");
+    } finally {
+      setLoggingOutOthers(false);
     }
   };
 
@@ -555,9 +656,11 @@ const Profile = () => {
 
                 <div className={styles.field}>
                   <label>{t("profile.email")}</label>
-                  <input type="email" placeholder="votre@email.com"
-                    value={profileData.email}
-                    onChange={(e) => handleProfileChange("email", e.target.value)} />
+                  <input type="email" value={profileData.email} disabled
+                    style={{ background: "var(--c-bg-subtle)", color: "var(--c-text-muted)", cursor: "not-allowed" }} />
+                  <small style={{ color: "var(--c-text-muted)", fontSize: "0.78rem" }}>
+                    Pour changer votre adresse e-mail, rendez-vous dans l'onglet « {t("profile.security")} ».
+                  </small>
                 </div>
 
                 <div className={styles.field}>
@@ -928,26 +1031,88 @@ const Profile = () => {
                   <div>
                     <p className={styles.secTitle}>Adresse e-mail de connexion</p>
                     <p className={styles.secDesc}>{user?.email}</p>
+                    {user?.pendingEmail && (
+                      <p className={styles.secDesc} style={{ color: "var(--c-warning)" }}>
+                        📩 Changement en attente vers <strong>{user.pendingEmail}</strong> — vérifiez votre boîte de réception.
+                      </p>
+                    )}
                   </div>
-                  <span style={{ padding: "6px 14px", borderRadius: 20, fontSize: "0.78rem", fontWeight: 700,
-                    color: user?.emailVerified ? "#10b981" : "#f59e0b",
-                    background: user?.emailVerified ? "#ecfdf5" : "#fffbeb" }}>
-                    {user?.emailVerified ? "✓ Vérifié" : "Non vérifié"}
-                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ padding: "6px 14px", borderRadius: 20, fontSize: "0.78rem", fontWeight: 700,
+                      color: user?.emailVerified ? "#10b981" : "#f59e0b",
+                      background: user?.emailVerified ? "#ecfdf5" : "#fffbeb" }}>
+                      {user?.emailVerified ? "✓ Vérifié" : "Non vérifié"}
+                    </span>
+                    <button className={styles.secondaryBtn} onClick={() => setShowEmailChangeForm((v) => !v)}>
+                      {showEmailChangeForm ? t("profile.cancel") : "Changer"}
+                    </button>
+                  </div>
+                </div>
+
+                {showEmailChangeForm && (
+                  <form onSubmit={handleRequestEmailChange} className={styles.form} style={{ marginTop: 0, paddingTop: 0 }}>
+                    <div className={styles.field}>
+                      <label>Nouvelle adresse e-mail</label>
+                      <input type="email" placeholder="nouvelle@adresse.com" required
+                        value={emailChangeForm.newEmail}
+                        onChange={(e) => setEmailChangeForm((p) => ({ ...p, newEmail: e.target.value }))} />
+                    </div>
+                    <div className={styles.field}>
+                      <label>Mot de passe actuel</label>
+                      <input type="password" placeholder="Confirmez avec votre mot de passe" required
+                        value={emailChangeForm.currentPassword}
+                        onChange={(e) => setEmailChangeForm((p) => ({ ...p, currentPassword: e.target.value }))} />
+                    </div>
+                    <div className={styles.formFooter}>
+                      <button type="submit" className={styles.primaryBtn} disabled={emailChanging}>
+                        {emailChanging ? "Envoi…" : "Envoyer le lien de confirmation"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* 2FA */}
+                <TwoFactorSetup
+                  token={token}
+                  enabled={!!user?.twoFactor?.enabled}
+                  onEnabled={() => updateUser({ ...user, twoFactor: { ...user?.twoFactor, enabled: true } })}
+                  onDisabled={() => updateUser({ ...user, twoFactor: { ...user?.twoFactor, enabled: false } })}
+                />
+
+                {/* Déconnexion des autres appareils */}
+                <div className={styles.securityItem}>
+                  <div>
+                    <p className={styles.secTitle}>Déconnecter les autres appareils</p>
+                    <p className={styles.secDesc}>Met fin à toutes vos sessions actives, sauf celle-ci.</p>
+                  </div>
+                  <button className={styles.secondaryBtn} onClick={handleLogoutOtherSessions} disabled={loggingOutOthers}>
+                    {loggingOutOthers ? "…" : "Déconnecter"}
+                  </button>
                 </div>
 
                 {/* Supprimer le compte */}
                 <div className={`${styles.securityItem} ${styles.dangerZone}`}>
                   <div>
                     <p className={styles.secTitle}>Supprimer le compte</p>
-                    <p className={styles.secDesc}>Action irréversible — toutes vos données seront effacées.</p>
+                    <p className={styles.secDesc}>Désactive votre compte (réversible via le support) — vous serez déconnecté immédiatement.</p>
                   </div>
-                  <button className={styles.dangerBtn}
-                    onClick={() => window.confirm("Êtes-vous sûr ? Cette action est irréversible.") && toastError("Contactez le support pour supprimer votre compte.")}>
+                  <button className={styles.dangerBtn} onClick={() => setShowDeactivateConfirm(true)}>
                     Supprimer
                   </button>
                 </div>
               </div>
+
+              <ConfirmDialog
+                open={showDeactivateConfirm}
+                title="Supprimer votre compte ?"
+                description="Votre compte sera désactivé et vous serez immédiatement déconnecté. Contactez le support pour le réactiver."
+                confirmLabel="Supprimer mon compte"
+                danger
+                requirePassword
+                loading={deactivating}
+                onConfirm={handleDeactivateAccount}
+                onCancel={() => setShowDeactivateConfirm(false)}
+              />
             </section>
           )}
 

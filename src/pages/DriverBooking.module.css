@@ -1,0 +1,139 @@
+.backLink {
+  color: #64748b;
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.notFoundLink {
+  color: #ff4d2d;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.driverSummary {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin: 16px 0 24px;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 14px;
+  border: 1.5px solid #e5e9f4;
+}
+
+.driverAvatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.driverAvatarFallback {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #e5e9f4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+}
+
+.driverName { color: #0f1b3f; font-size: 1.1rem; }
+.driverSubtitle { margin: 2px 0; color: #64748b; font-size: 0.9rem; }
+.driverMeta { margin: 0; color: #94a3b8; font-size: 0.82rem; }
+.driverMetaTop { margin: 2px 0 0; color: #94a3b8; font-size: 0.82rem; }
+
+.reportWrap { margin-left: auto; }
+
+.badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.badgeVerified {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 5px 12px; border-radius: 99px;
+  background: #d1fae5; color: #059669; font-size: 0.8rem; font-weight: 700;
+}
+.badgeCv {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 5px 12px; border-radius: 99px;
+  background: #eef2ff; color: #4338ca; font-size: 0.8rem; font-weight: 700;
+  text-decoration: none;
+}
+
+.description { color: #374151; font-size: 0.92rem; margin-bottom: 24px; }
+
+.employLink {
+  display: block;
+  text-align: center;
+  padding: 12px 16px;
+  margin-bottom: 24px;
+  border-radius: 12px;
+  border: 1.5px dashed #ff4d2d;
+  color: #ff4d2d;
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.vehiclePhotos { margin-bottom: 24px; }
+.vehiclePhotosTitle { color: #0f1b3f; font-size: 1.05rem; margin-bottom: 10px; }
+.vehiclePhotosGrid { display: flex; gap: 8px; flex-wrap: wrap; }
+.vehiclePhotoImg { width: 100px; height: 75px; border-radius: 10px; object-fit: cover; border: 1.5px solid #e5e9f4; }
+
+.sectionTitle { color: #0f1b3f; font-size: 1.05rem; margin-bottom: 12px; }
+
+.formGrid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+.fieldFull { grid-column: 1 / -1; }
+
+.dateTimeGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.fieldCol { display: flex; flex-direction: column; gap: 6px; }
+.fieldColLabel { font-weight: 700; color: #374151; font-size: 0.85rem; }
+.textInput {
+  padding: 12px 16px; border-radius: 12px; border: 1.5px solid #e5e9f4;
+  font-size: 0.95rem; box-sizing: border-box; width: 100%;
+}
+
+.conflictWarning {
+  background: #fef2f2; border: 1.5px solid #fca5a5; border-radius: 10px;
+  padding: 10px 14px; margin-bottom: 12px; color: #991b1b; font-size: 0.85rem; font-weight: 600;
+}
+
+.fieldBlock { margin-bottom: 20px; }
+.fieldBlockTight { margin-bottom: 12px; }
+.fieldLabel { font-weight: 700; color: #374151; font-size: 0.85rem; display: block; margin-bottom: 6px; }
+.hoursHint { margin: 6px 0 0; color: #64748b; font-size: 0.85rem; }
+
+.noRateWarning {
+  background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 10px;
+  padding: 10px 14px; margin-top: 8px; color: #92400e; font-size: 0.85rem;
+}
+
+.paymentGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+.paymentOption {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px; border-radius: 12px; cursor: pointer;
+  border: 1.5px solid #e5e9f4; background: #fff; font-weight: 400; color: #374151;
+}
+.paymentOptionActive {
+  border-color: #ff4d2d; background: #fff5f3; font-weight: 700; color: #ff4d2d;
+}
+.paymentRadio { accent-color: #ff4d2d; }
+
+.cardFieldsWrap { margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px; }
+
+.totalBar {
+  background: #f8fafc; border-radius: 14px; padding: 16px 20px; margin-bottom: 20px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.totalLabel { color: #64748b; font-weight: 700; }
+.totalValue { color: #0f1b3f; font-size: 1.2rem; }
+
+.submitBtn {
+  width: 100%; padding: 15px; border-radius: 14px; border: none;
+  color: #fff; font-weight: 800; font-size: 1rem;
+  cursor: pointer;
+  background: linear-gradient(135deg, #ff4d2d, #e03519);
+}
+.submitBtn:disabled {
+  cursor: not-allowed;
+  background: #94a3b8;
+}

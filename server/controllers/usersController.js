@@ -1,4 +1,7 @@
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import logger from "../utils/logger.js";
+import { dispatch } from "../queue/index.js";
 import User from "../models/User.js";
 import Booking from "../models/Booking.js";
 import Vehicle from "../models/Vehicle.js";
@@ -598,6 +601,84 @@ export const updateMyProfile = async (req, res) => {
       return res.status(409).json({ message: "Ce numéro de téléphone est déjà utilisé par un autre compte." });
     }
     logger.error("updateMyProfile:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+const APP_URL = () => process.env.APP_URL || "https://vit-auto.com";
+const EMAIL_CHANGE_TTL = 24 * 60 * 60 * 1000; // 24h — même durée que la vérification à l'inscription
+
+// ── Demander un changement d'adresse e-mail (connecté) ────────────────────
+// N'écrit jamais directement `user.email` — l'ancienne adresse reste active
+// tant que la nouvelle n'est pas confirmée via le lien envoyé (voir
+// authController.confirmEmailChange). Corrige un bug réel : le champ email
+// du formulaire Profil était éditable côté UI mais absent de la liste
+// blanche `allowed` d'updateMyProfile ci-dessus — toute modification était
+// donc silencieusement ignorée par le serveur.
+export const requestEmailChange = async (req, res) => {
+  try {
+    const { newEmail, currentPassword } = req.body;
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
+
+    const isValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isValid) return res.status(401).json({ message: "Mot de passe incorrect." });
+
+    if (newEmail === user.email) {
+      return res.status(400).json({ message: "Cette adresse est déjà la vôtre." });
+    }
+    // Vérifie à la fois les emails déjà actifs ET les changements déjà en
+    // attente d'un autre compte — sans ce second contrôle, deux utilisateurs
+    // pourraient réclamer simultanément la même nouvelle adresse.
+    const taken = await User.findOne({
+      _id: { $ne: user._id },
+      $or: [{ email: newEmail }, { pendingEmail: newEmail }],
+    });
+    if (taken) return res.status(409).json({ message: "Cette adresse e-mail est déjà utilisée." });
+
+    const token = crypto.randomBytes(32).toString("hex");
+    user.pendingEmail        = newEmail;
+    user.pendingEmailToken   = token;
+    user.pendingEmailExpires = new Date(Date.now() + EMAIL_CHANGE_TTL);
+    await user.save();
+
+    const confirmUrl = `${APP_URL()}/confirm-email-change?token=${token}`;
+    await dispatch.emailChangeConfirmation(newEmail, user._id.toString(), confirmUrl, user.firstName, newEmail).catch(() => {});
+
+    res.json({ message: "Un e-mail de confirmation a été envoyé à votre nouvelle adresse.", pendingEmail: newEmail });
+  } catch (err) {
+    logger.error("requestEmailChange:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Auto-désactivation du compte (connecté) ───────────────────────────────
+// Désactivation réversible (contacter le support pour réactiver), pas une
+// suppression définitive — l'effacement RGPD/suppression dure des données
+// (réservations, factures, documents KYC liés) nécessite un arbitrage
+// produit/légal séparé, volontairement hors scope ici.
+export const deactivateMyAccount = async (req, res) => {
+  try {
+    const { password } = req.body;
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
+
+    const isValid = await bcrypt.compare(password, user.password);
+    if (!isValid) return res.status(401).json({ message: "Mot de passe incorrect." });
+
+    user.isActive = false;
+    user.refreshTokens = [];
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    await user.save();
+
+    await logAction(req, "user.self_deactivate", "User", user._id, {
+      before: { isActive: true },
+      after:  { isActive: false },
+    });
+
+    res.json({ message: "Votre compte a été désactivé. Contactez le support pour le réactiver." });
+  } catch (err) {
+    logger.error("deactivateMyAccount:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
