@@ -763,38 +763,65 @@ export const adminList = async (req, res) => {
     let allDocs  = docs;
     let allTotal = total;
 
-    // Entités partenaire SANS AUCUN dossier Founding Partner — invisibles
-    // autrement dans cette liste (aucun PartnerOnboarding n'existe pour
-    // elles, applyToProgram étant un clic explicite jamais automatique — voir
-    // checkPartnerBusinessesWithoutOnboarding). Fusionné uniquement en
-    // l'absence de filtre (aucun de status/partnerType/crmStatus/search n'a
-    // de sens pour une entité qui n'a pas encore de dossier), pour que la
-    // vue "tout voir" de l'admin les retrouve et puisse les relancer —
-    // demande explicite.
+    // Comptes partenaire SANS AUCUN dossier Founding Partner — invisibles
+    // autrement dans cette liste (aucun PartnerOnboarding n'existe pour eux,
+    // applyToProgram étant un clic explicite jamais automatique). Bug réel
+    // corrigé (audit) : la version précédente ne partait que des entités
+    // PartnerBusiness déjà créées, ratant tout partenaire n'ayant même jamais
+    // créé d'entité — ensureDefaultPartnerBusiness n'étant appelé qu'à la
+    // candidature (applyToProgram) ou depuis "Mes entités", un partenaire qui
+    // n'a fait ni l'un ni l'autre (ex: juste publié une annonce) n'a AUCUNE
+    // PartnerBusiness et restait invisible même après ce premier correctif.
+    // On part donc de User (role partenaire) directement, ce qui couvre aussi
+    // ce cas. Fusionné uniquement en l'absence de filtre (aucun de
+    // status/partnerType/crmStatus/search n'a de sens pour un compte qui n'a
+    // pas encore de dossier), pour que la vue "tout voir" de l'admin les
+    // retrouve et puisse les relancer — demande explicite.
     if (!status && !partnerType && !crmStatus && !search) {
-      const existingBusinessIds = await PartnerOnboarding.distinct("businessId");
-      const orphanBusinesses = await PartnerBusiness.find({ _id: { $nin: existingBusinessIds } })
-        .populate("owner", "firstName lastName email phone profilePhoto certificationBadge country role")
+      const existingUserIds = await PartnerOnboarding.distinct("userId");
+      const orphanUsers = await User.find({ role: "partenaire", _id: { $nin: existingUserIds } })
+        .select("firstName lastName email phone profilePhoto certificationBadge country createdAt")
         .sort({ createdAt: -1 })
         .lean();
-      const orphanRows = orphanBusinesses
-        .filter((b) => b.owner?.role === "partenaire")
-        .map((b) => ({
-          _id:              b._id,
-          noDossier:        true,
-          status:           "aucun_dossier",
-          referenceNumber:  null,
-          userId:           b.owner,
-          businessId:       { _id: b._id, companyName: b.companyName, country: b.country, ville: b.ville },
-          companyInfo:      { legalName: b.companyName, registrationCountry: b.country },
-          partnerType:      null,
-          activity:         null,
-          legalEntityType:  null,
-          isFoundingPartner: false,
-          commissions:      {},
-          createdAt:        b.createdAt,
-          updatedAt:        b.createdAt,
-        }));
+
+      let orphanRows = [];
+      if (orphanUsers.length) {
+        const orphanUserIds = orphanUsers.map((u) => u._id);
+        // Entité par défaut si elle existe déjà (créée via "Mes entités" sans
+        // jamais avoir candidaté) — sinon la ligne reste rattachée au User
+        // directement (voir adminRelaunchBusiness, qui gère les deux cas).
+        const businesses = await PartnerBusiness.find({ owner: { $in: orphanUserIds } })
+          .select("owner companyName country ville isDefault createdAt")
+          .sort({ isDefault: -1, createdAt: 1 })
+          .lean();
+        const businessByOwner = new Map();
+        for (const b of businesses) {
+          const key = b.owner.toString();
+          if (!businessByOwner.has(key)) businessByOwner.set(key, b);
+        }
+
+        orphanRows = orphanUsers.map((u) => {
+          const biz = businessByOwner.get(u._id.toString());
+          const companyName = biz?.companyName || `${u.firstName || ""} ${u.lastName || ""}`.trim() || "Partenaire VIT AUTO";
+          return {
+            _id:              biz?._id || u._id,
+            noDossier:        true,
+            hasBusiness:      !!biz,
+            status:           "aucun_dossier",
+            referenceNumber:  null,
+            userId:           { _id: u._id, firstName: u.firstName, lastName: u.lastName, email: u.email, phone: u.phone, profilePhoto: u.profilePhoto, certificationBadge: u.certificationBadge, country: u.country },
+            businessId:       biz ? { _id: biz._id, companyName: biz.companyName, country: biz.country, ville: biz.ville } : null,
+            companyInfo:      { legalName: companyName, registrationCountry: biz?.country || u.country || null },
+            partnerType:      null,
+            activity:         null,
+            legalEntityType:  null,
+            isFoundingPartner: false,
+            commissions:      {},
+            createdAt:        biz?.createdAt || u.createdAt,
+            updatedAt:        biz?.createdAt || u.createdAt,
+          };
+        });
+      }
       allDocs  = [...docs, ...orphanRows];
       allTotal = total + orphanRows.length;
     }
@@ -1018,15 +1045,32 @@ export const adminResendDocuments = async (req, res) => {
 };
 
 // ── POST /api/partner-onboarding/admin/relaunch-business/:businessId ─────────
-// Relance manuelle pour une entité SANS AUCUN dossier Founding Partner (voir
-// les lignes "orphanRows" de adminList) — équivalent déclenché par l'admin de
-// la relance automatique checkPartnerBusinessesWithoutOnboarding. Il n'existe
-// encore ni LOI ni Accord à renvoyer (rien n'a jamais été soumis) : la seule
-// action possible est d'inviter le partenaire à démarrer sa candidature.
+// Relance manuelle pour un compte partenaire SANS AUCUN dossier Founding
+// Partner (voir les lignes "orphanRows" de adminList) — équivalent déclenché
+// par l'admin de la relance automatique checkPartnerBusinessesWithoutOnboarding.
+// Il n'existe encore ni LOI ni Accord à renvoyer (rien n'a jamais été soumis) :
+// la seule action possible est d'inviter le partenaire à démarrer sa candidature.
 export const adminRelaunchBusiness = async (req, res) => {
   try {
-    const business = await PartnerBusiness.findById(req.params.businessId)
+    let business = await PartnerBusiness.findById(req.params.businessId)
       .populate("owner", "firstName lastName email role");
+
+    // Bug réel corrigé (audit) : adminList envoie désormais l'ID du User lui-
+    // même (pas d'une PartnerBusiness) pour un partenaire n'en ayant jamais
+    // créé une — le cas le plus dépourvu (ex: partenaire n'ayant que publié
+    // une annonce, sans jamais passer par "Mes entités" ni candidater). On
+    // lui crée sa fiche minimale à la volée (même utilitaire que
+    // applyToProgram, ensureDefaultPartnerBusiness) pour pouvoir envoyer la
+    // relance — jamais de création à la simple LISTE (adminList), seulement
+    // ici, sur une action explicite de l'admin.
+    if (!business) {
+      const user = await User.findById(req.params.businessId);
+      if (user?.role === "partenaire") {
+        const created = await ensureDefaultPartnerBusiness(user);
+        business = await PartnerBusiness.findById(created._id).populate("owner", "firstName lastName email role");
+      }
+    }
+
     if (!business) return res.status(404).json({ message: "Entité introuvable." });
     if (business.owner?.role !== "partenaire") {
       return res.status(400).json({ message: "Le propriétaire de cette entité n'est pas un compte partenaire." });

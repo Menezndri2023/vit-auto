@@ -58,6 +58,26 @@ describe("adminList — entités partenaire sans aucun dossier Founding Partner"
 
     expect(res.body.onboardings.every((o) => !o.noDossier)).toBe(true);
   });
+
+  // Bug réel corrigé (audit, remonté par l'utilisateur : un compte partenaire
+  // "cheng chen" invisible dans l'onglet Founding Partner) : la version
+  // précédente ne partait que des PartnerBusiness déjà créées — un partenaire
+  // n'ayant JAMAIS créé d'entité (ensureDefaultPartnerBusiness n'étant appelé
+  // qu'à la candidature ou depuis "Mes entités") restait invisible même après
+  // le premier correctif "orphanRows".
+  it("inclut un compte partenaire SANS AUCUNE entité PartnerBusiness", async () => {
+    const partner = await createUser({ role: "partenaire", firstName: "Cheng", lastName: "Chen" });
+
+    const { req, res } = mockReqRes({ query: { limit: "100" } });
+    await adminList(req, res);
+
+    expect(res.statusCode).toBe(200);
+    const orphan = res.body.onboardings.find((o) => String(o._id) === String(partner._id));
+    expect(orphan).toBeTruthy();
+    expect(orphan.noDossier).toBe(true);
+    expect(orphan.hasBusiness).toBe(false);
+    expect(orphan.companyInfo.legalName).toBe("Cheng Chen");
+  });
 });
 
 describe("adminRelaunchBusiness", () => {
@@ -88,5 +108,21 @@ describe("adminRelaunchBusiness", () => {
     expect(res.body.success).toBe(true);
     const reloaded = await PartnerBusiness.findById(biz._id);
     expect(reloaded.lastReminderSentAt).toBeTruthy();
+  });
+
+  // Cas "cheng chen" : adminList envoie l'ID du User lui-même quand il n'a
+  // aucune PartnerBusiness — l'entité minimale doit être créée à la volée.
+  it("crée l'entité minimale à la volée pour un partenaire sans aucune PartnerBusiness, puis envoie l'invitation", async () => {
+    const partner = await createUser({ role: "partenaire", firstName: "Cheng", lastName: "Chen" });
+    expect(await PartnerBusiness.exists({ owner: partner._id })).toBeNull();
+
+    const { req, res } = mockReqRes({ params: { businessId: partner._id.toString() } });
+    await adminRelaunchBusiness(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    const created = await PartnerBusiness.findOne({ owner: partner._id });
+    expect(created).toBeTruthy();
+    expect(created.lastReminderSentAt).toBeTruthy();
   });
 });
