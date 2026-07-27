@@ -122,4 +122,48 @@ describe("bookingController.createBooking", () => {
     await createBooking(second.req, second.res);
     expect(second.res.status).toHaveBeenCalledWith(409);
   });
+
+  // Alimente l'animation de félicitations "1ère réservation" côté front
+  // (voir BookingSuccess.jsx) — signalé directement dans la réponse plutôt
+  // que par notification, l'utilisateur étant déjà sur l'écran concerné.
+  describe("isFirstBooking", () => {
+    it("vrai pour la toute première réservation d'un client connecté", async () => {
+      const client = await createUser({ role: "client" });
+      const vehicle = await createVehicleDoc();
+      const { req, res } = mockReqRes({
+        user: client,
+        body: { type: "location", clientInfo, vehicleId: vehicle._id.toString(), location: { days: 2, startDate: "2027-04-01", endDate: "2027-04-03" } },
+      });
+      await createBooking(req, res);
+      expect(res.body.isFirstBooking).toBe(true);
+    });
+
+    it("faux à partir de la 2e réservation du même client", async () => {
+      const client = await createUser({ role: "client" });
+      const vehicle = await createVehicleDoc();
+
+      const first = mockReqRes({
+        user: client,
+        body: { type: "location", clientInfo, vehicleId: vehicle._id.toString(), location: { days: 2, startDate: "2027-05-01", endDate: "2027-05-03" } },
+      });
+      await createBooking(first.req, first.res);
+      expect(first.res.body.isFirstBooking).toBe(true);
+
+      const second = mockReqRes({
+        user: client,
+        body: { type: "location", clientInfo, vehicleId: vehicle._id.toString(), location: { days: 2, startDate: "2027-05-10", endDate: "2027-05-12" } },
+      });
+      await createBooking(second.req, second.res);
+      expect(second.res.body.isFirstBooking).toBe(false);
+    });
+
+    it("faux pour une réservation non connectée (pas de req.user)", async () => {
+      const vehicle = await createVehicleDoc();
+      const { req, res } = mockReqRes({
+        body: { type: "location", clientInfo, vehicleId: vehicle._id.toString(), location: { days: 2, startDate: "2027-06-01", endDate: "2027-06-03" } },
+      });
+      await createBooking(req, res);
+      expect(res.body.isFirstBooking).toBe(false);
+    });
+  });
 });

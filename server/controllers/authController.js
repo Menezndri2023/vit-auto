@@ -208,6 +208,14 @@ export const register = async (req, res) => {
     const token = makeToken();
     const autoVerify = isDevNoSmtp(); // En développement sans SMTP : auto-vérifier l'email
 
+    // Code court (6 chiffres) — voir commentaire User.emailVerificationCode :
+    // c'est ce code, saisi dans Register.jsx, qui rend la confirmation
+    // bloquante avant de pouvoir continuer l'inscription (même patron que
+    // phoneOtp : hashé en base, jamais stocké en clair).
+    const code     = autoVerify ? null : Math.floor(100000 + Math.random() * 900000).toString();
+    const codeHash = code ? await bcrypt.hash(code, 10) : null;
+    const CODE_TTL = 10 * 60 * 1000; // 10 min
+
     const user = await User.create({
       firstName, lastName,
       email,
@@ -219,9 +227,11 @@ export const register = async (req, res) => {
       sellerType,
       partnerActivity: isPartner ? activity : null,
       entityType: isPartner ? entityType : null,
-      emailVerificationToken:   autoVerify ? null : token,
-      emailVerificationExpires: autoVerify ? null : new Date(Date.now() + VERIFY_TTL),
-      emailVerified:            autoVerify,
+      emailVerificationToken:        autoVerify ? null : token,
+      emailVerificationExpires:      autoVerify ? null : new Date(Date.now() + VERIFY_TTL),
+      emailVerificationCode:         codeHash,
+      emailVerificationCodeExpires:  code ? new Date(Date.now() + CODE_TTL) : null,
+      emailVerified:                 autoVerify,
     });
 
     const jwtToken = signJWT(user);
@@ -247,7 +257,7 @@ export const register = async (req, res) => {
     }
 
     const verifyUrl = `${APP_URL()}/verify-email?token=${token}`;
-    dispatch.emailVerification(user.email, user._id.toString(), verifyUrl, user.firstName).catch(() => {});
+    dispatch.emailVerification(user.email, user._id.toString(), verifyUrl, user.firstName, code).catch(() => {});
 
     // Le JWT est délivré immédiatement (l'utilisateur navigue déjà connecté) — cette
     // notification in-app est donc visible tout de suite, en plus de l'email, au cas
@@ -258,7 +268,7 @@ export const register = async (req, res) => {
         user: user._id,
         type: "system",
         titre: "📧 Vérifiez votre adresse email",
-        message: `Un email de confirmation a été envoyé à ${user.email}. Cliquez sur le lien qu'il contient pour activer pleinement votre compte.`,
+        message: `Un code de confirmation a été envoyé à ${user.email}. Saisissez-le pour activer pleinement votre compte.`,
         lien: "/profile",
       });
     } catch (notifErr) {
@@ -270,7 +280,10 @@ export const register = async (req, res) => {
       token: jwtToken,
       refreshToken,
       emailVerificationSent: true,
-      message: "Compte créé ! Vérifiez votre boîte mail pour activer votre compte.",
+      // Front (Register.jsx) : bloque la suite du parcours tant que le code
+      // n'est pas confirmé via POST /api/auth/verify-email-code.
+      emailVerificationCodeRequired: true,
+      message: "Compte créé ! Saisissez le code reçu par email pour activer votre compte.",
     });
   } catch (err) {
     logger.error("register:", err);
@@ -590,6 +603,80 @@ export const verifyEmail = async (req, res) => {
     });
   } catch (err) {
     logger.error("verifyEmail:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Vérifier le code de confirmation e-mail (bloquant à l'inscription) ────
+// Contrepartie "code" de verifyEmail (lien) — voir Register.jsx : c'est cet
+// endpoint qui débloque la suite du parcours d'inscription. Route protégée
+// (req.user) car register() délivre déjà un JWT — même patron que
+// verifyPhoneOtp, jamais de userId pris depuis le corps de la requête.
+export const verifyEmailCode = async (req, res) => {
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ message: "Code requis." });
+
+  try {
+    const user = req.user;
+    if (user.emailVerified) {
+      return res.json({ message: "E-mail déjà vérifié.", success: true, user: safeUser(user) });
+    }
+    if (!user.emailVerificationCode) {
+      return res.status(400).json({ message: "Aucun code en attente. Demandez-en un nouveau." });
+    }
+    if (!user.emailVerificationCodeExpires || user.emailVerificationCodeExpires < new Date()) {
+      return res.status(400).json({ message: "Code expiré. Demandez un nouveau code." });
+    }
+    const valid = await bcrypt.compare(String(code).trim(), user.emailVerificationCode);
+    if (!valid) return res.status(400).json({ message: "Code incorrect." });
+
+    user.emailVerified                = true;
+    user.emailVerificationCode        = null;
+    user.emailVerificationCodeExpires = null;
+    user.emailVerificationToken       = null;
+    user.emailVerificationExpires     = null;
+    await user.save();
+
+    try {
+      await Notification.create({
+        user: user._id,
+        type: "success",
+        titre: "✅ Email vérifié",
+        message: "Votre adresse email a été vérifiée avec succès. Votre compte est maintenant pleinement actif.",
+        lien: "/profile",
+      });
+    } catch (notifErr) {
+      logger.error("Notification email vérifié (non bloquant):", notifErr.message);
+    }
+
+    const jwtToken = signJWT(user);
+    res.json({ message: "E-mail vérifié avec succès !", success: true, user: safeUser(user), token: jwtToken });
+  } catch (err) {
+    logger.error("verifyEmailCode:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Renvoyer un nouveau code de confirmation e-mail ────────────────────────
+export const resendEmailCode = async (req, res) => {
+  try {
+    const user = req.user;
+    if (user.emailVerified) {
+      return res.json({ message: "E-mail déjà vérifié.", alreadyVerified: true });
+    }
+    if (!user.email) return res.status(400).json({ message: "Aucune adresse e-mail sur ce compte." });
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    user.emailVerificationCode        = await bcrypt.hash(code, 10);
+    user.emailVerificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    const verifyUrl = `${APP_URL()}/verify-email?token=${user.emailVerificationToken || ""}`;
+    dispatch.emailVerification(user.email, user._id.toString(), verifyUrl, user.firstName, code).catch(() => {});
+
+    res.json({ message: `Nouveau code envoyé à ${user.email}.` });
+  } catch (err) {
+    logger.error("resendEmailCode:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

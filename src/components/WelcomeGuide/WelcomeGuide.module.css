@@ -1,0 +1,94 @@
+.card {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 900; /* sous Celebration (9999), au-dessus du contenu normal */
+  width: min(320px, calc(100vw - 36px));
+  background: var(--c-bg-card, #fff);
+  border: 1px solid var(--c-border, #e5eaf5);
+  border-radius: var(--r-lg, 18px);
+  box-shadow: var(--sh-md, 0 6px 20px rgba(15, 27, 63, 0.10));
+  padding: 18px 18px 16px;
+  animation: slideIn 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--c-text-muted, #8493b0);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--r-full, 9999px);
+}
+.close:hover { background: var(--c-bg-subtle, #f0f4ff); color: var(--c-text-primary, #0f1b3f); }
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-right: 20px;
+}
+
+.emoji { font-size: 1.3rem; }
+
+.title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--c-text-primary, #0f1b3f);
+}
+
+.tips {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--c-text-secondary, #4a5876);
+}
+
+.tipIcon { flex-shrink: 0; font-size: 0.95rem; }
+
+.cta {
+  display: inline-block;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+  background: var(--c-primary, #ff4d2d);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-decoration: none;
+  padding: 10px 14px;
+  border-radius: var(--r-sm, 10px);
+  transition: opacity 0.15s;
+}
+.cta:hover { opacity: 0.9; }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card { animation: none; }
+}
+
+@media (max-width: 480px) {
+  .card { right: 10px; bottom: 10px; left: 10px; width: auto; }
+}

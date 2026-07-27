@@ -420,6 +420,19 @@ export const dispatch = {
     });
   },
 
+  // Relance — regroupe LOI et/ou Accord encore en attente en UN seul email
+  // (renvoi manuel admin ou relance automatique sur dossier bloqué). Pas de PDF
+  // à regénérer : le document existe déjà (doc.loi.content / doc.agreement.content),
+  // seul le lien de signature change — direct sur la queue EMAIL (pas PDF).
+  async documentsReadyReminder(userId, email, { firstName, companyName, referenceNumber, loiUrl, agreementUrl, expiresAt }) {
+    await enqueue(QUEUE_NAMES.EMAIL, "documents_ready_reminder", {
+      type:   "documents_ready_reminder",
+      to:     email,
+      userId,
+      data: { firstName, companyName, referenceNumber, loiUrl, agreementUrl, expiresAt },
+    });
+  },
+
   // Confirmation email — LOI signée par le partenaire (pas de PDF à regénérer ici,
   // juste la confirmation ; le PDF signé reste consultable depuis le dossier).
   async loiSigned(to, userId, data) {
@@ -516,12 +529,12 @@ export const dispatch = {
   },
 
   // ── Authentification ─────────────────────────────────────────────────────
-  async emailVerification(to, userId, verifyUrl, firstName) {
+  async emailVerification(to, userId, verifyUrl, firstName, code = null) {
     await enqueue(QUEUE_NAMES.EMAIL, "email_verification", {
       type:   "email_verification",
       to,
       userId,
-      data:   { verifyUrl, firstName },
+      data:   { verifyUrl, firstName, code },
     }, { priority: PRIORITY.HIGH });
   },
 

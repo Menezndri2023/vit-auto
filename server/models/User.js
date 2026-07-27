@@ -230,6 +230,13 @@ const userSchema = new mongoose.Schema({
   emailVerified:            { type: Boolean, default: false },
   emailVerificationToken:   { type: String,  default: null },
   emailVerificationExpires: { type: Date,    default: null },
+  // Code court (6 chiffres, hashé — même patron que phoneOtp) envoyé en plus
+  // du lien ci-dessus : la confirmation par CODE, saisie directement dans le
+  // parcours d'inscription (voir Register.jsx), est désormais obligatoire
+  // avant de pouvoir continuer — contrairement au lien, qui restait ignorable
+  // indéfiniment sans jamais bloquer la suite de l'inscription.
+  emailVerificationCode:        { type: String, default: null },
+  emailVerificationCodeExpires: { type: Date,   default: null },
 
   // ── Changement d'e-mail (self-service, page Profil) ──────────────
   // L'adresse en cours n'est jamais modifiée tant que la nouvelle n'est pas

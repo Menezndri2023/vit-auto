@@ -18,7 +18,7 @@ import { emailVerificationTemplate, passwordResetTemplate, emailChangeConfirmati
 import { bookingConfirmationTemplate, newBookingPartnerTemplate, bookingAcceptedTemplate, paymentReceiptTemplate } from "./templates/email/Booking.js";
 import { reservationCreatedTemplate, reservationConfirmedTemplate, transactionCompletedTemplate } from "./templates/email/Reservation.js";
 import { invoiceTemplate }    from "./templates/email/Invoice.js";
-import { welcomePartnerTemplate, loiReadyTemplate, agreementReadyTemplate } from "./templates/email/WelcomePartner.js";
+import { welcomePartnerTemplate, loiReadyTemplate, agreementReadyTemplate, documentsReadyTemplate } from "./templates/email/WelcomePartner.js";
 import { loiSignedTemplate, agreementSignedTemplate } from "./templates/email/LOI.js";
 import { contractReadyTemplate, contractSignedTemplate } from "./templates/email/Contract.js";
 import { kycSubmittedTemplate, kycApprovedTemplate, kycRejectedTemplate } from "./templates/email/KYC.js";
@@ -38,6 +38,7 @@ const EMAIL_TEMPLATES = {
   welcome_partner:         welcomePartnerTemplate,
   loi_ready:               loiReadyTemplate,
   agreement_ready:         agreementReadyTemplate,
+  documents_ready_reminder: documentsReadyTemplate,
   loi_signed:              loiSignedTemplate,
   agreement_signed:        agreementSignedTemplate,
   contract_ready:          contractReadyTemplate,

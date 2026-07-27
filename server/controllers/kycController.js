@@ -511,32 +511,52 @@ export const adminReviewKyc = async (req, res) => {
     // `type` doit être une valeur existante de l'enum Notification.type — "kyc"
     // n'en fait pas partie et échouait silencieusement (avalé par le .catch ci-
     // dessous) pour CHAQUE décision admin, quel que soit son résultat.
+    // VERIFIE est différencié par rôle (même contrôleur pour client ET
+    // partenaire, voir commentaire de fonction) : un partenaire dont le profil
+    // est approuvé rejoint le réseau de partenaires VIT AUTO, un client voit
+    // simplement son identité confirmée — message et ton adaptés en conséquence.
+    const isPartner = user.role === "partenaire";
     const notifMap = {
-      VERIFIE:               { type: "kyc_approved", titre: "✅ Identité vérifiée",       message: "Votre dossier KYC a été approuvé. Vous pouvez effectuer des réservations en toute confiance." },
+      VERIFIE: isPartner
+        ? { type: "kyc_approved", titre: "🎉 Bienvenue parmi nos partenaires VIT-AUTO !", message: "Votre profil a été approuvé par notre équipe. Bienvenue parmi nos partenaires VIT-AUTO — vous pouvez dès maintenant publier vos annonces." }
+        : { type: "kyc_approved", titre: "✅ Profil vérifié",                              message: "Votre identité a été vérifiée avec succès. Vous pouvez effectuer des réservations en toute confiance." },
       REFUSE:                { type: "kyc_rejected", titre: "❌ Dossier KYC refusé",      message: `Votre dossier KYC a été refusé. Motif : ${note || "Documents insuffisants."}` },
       A_REVOIR_MANUELLEMENT: { type: "system",       titre: "🔍 Dossier en révision",     message: "Votre dossier KYC est en cours d'examen approfondi par notre équipe. Vous serez notifié sous 48h." },
       EN_ATTENTE:            { type: "system",       titre: "⏳ Dossier remis en attente", message: "Votre dossier KYC a été remis en file d'attente pour examen." },
     };
     const notif = notifMap[decision];
     if (notif) {
-      await Notification.create({
+      const celebrate = decision === "VERIFIE";
+      const notifDoc = await Notification.create({
         user:    user._id,
         titre:   notif.titre,
         message: notif.message,
         type:    notif.type,
         lu:      false,
-      }).catch(() => {}); // non-bloquant
+      }).catch(() => null); // non-bloquant
+
+      // Émission temps réel — manquait jusqu'ici (contrairement au patron
+      // `notify()` de partnerOnboardingController.js) : la notification n'était
+      // visible qu'au prochain polling (jusqu'à 20s de latence, voir
+      // NotificationContext.jsx), et surtout `celebrate` (déclenche l'animation
+      // de félicitations côté front) ne pouvait pas être transmis du tout.
+      if (notifDoc && global._io) {
+        global._io.to(`user_${user._id}`).emit("notification_new", {
+          _id: notifDoc._id, type: notif.type, titre: notif.titre, message: notif.message,
+          lien: null, lu: false, createdAt: notifDoc.createdAt, celebrate,
+        });
+      }
 
       // Notification email
       sendEmail({
         to:      user.email,
         subject: `VIT AUTO — ${notif.titre}`,
         html:    `<div style="font-family:Arial,sans-serif;padding:24px;max-width:560px;margin:0 auto">
-          <h2 style="color:#0f1b3f">🚗 VIT AUTO — Mise à jour KYC</h2>
+          <h2 style="color:#0f1b3f">${celebrate ? "🎉" : "🚗"} VIT AUTO — Mise à jour KYC</h2>
           <p>Bonjour <strong>${user.firstName}</strong>,</p>
           <p>${notif.message}</p>
           ${decision === "REFUSE" ? `<p>Pour resoumettre votre dossier, rendez-vous sur : <a href="${process.env.APP_URL || "http://localhost:5173"}/kyc">Ma vérification KYC</a></p>` : ""}
-          ${decision === "VERIFIE" ? `<p>Vous pouvez maintenant réserver des véhicules sur <a href="${process.env.APP_URL || "http://localhost:5173"}/catalogue">notre catalogue</a>.</p>` : ""}
+          ${decision === "VERIFIE" ? `<p>${isPartner ? `Rendez-vous sur votre <a href="${process.env.APP_URL || "http://localhost:5173"}/vendor/dashboard">tableau de bord partenaire</a> pour publier votre première annonce.` : `Vous pouvez maintenant réserver des véhicules sur <a href="${process.env.APP_URL || "http://localhost:5173"}/catalogue">notre catalogue</a>.`}</p>` : ""}
           <p style="color:#64748b;font-size:0.85rem">L'équipe VIT AUTO</p>
         </div>`,
       }).catch(() => {}); // non-bloquant

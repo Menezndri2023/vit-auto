@@ -82,6 +82,16 @@ export const NotificationProvider = ({ children }) => {
   const intervalRef   = useRef(null);
   const isFirstFetch  = useRef(true);
 
+  // ── Célébration (profil approuvé, 1ère transaction…) ─────────────────────
+  // { title, message, emoji? } | null — voir components/Celebration/Celebration.jsx,
+  // monté globalement dans Layout.jsx. Déclenchée soit par le backend (payload
+  // socket avec `celebrate: true`, ex: adminReviewKyc/notify Founding Partner),
+  // soit directement par une page (ex: 1ère réservation confirmée), sans
+  // attendre un aller-retour serveur.
+  const [celebration, setCelebration] = useState(null);
+  const dismissCelebration = useCallback(() => setCelebration(null), []);
+  const triggerCelebration = useCallback((c) => setCelebration(c), []);
+
   const toggleSound = useCallback(() => {
     setSoundEnabled((prev) => {
       const next = !prev;
@@ -145,6 +155,7 @@ export const NotificationProvider = ({ children }) => {
       setUnreadCount((prev) => prev + 1);
       prevUnreadRef.current += 1;
       if (soundEnabled) playNotifSound();
+      if (payload.celebrate) setCelebration({ title: payload.titre, message: payload.message });
     });
   }, [authReady, isAuthenticated, token, on, soundEnabled]);
 
@@ -246,6 +257,9 @@ export const NotificationProvider = ({ children }) => {
     markAllAsRead: markAllRead,
     deleteNotification,
     fetchNotifications: refresh,
+    celebration,
+    triggerCelebration,
+    dismissCelebration,
   };
 
   return (

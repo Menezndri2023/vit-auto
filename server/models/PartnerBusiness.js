@@ -38,6 +38,14 @@ const partnerBusinessSchema = new mongoose.Schema({
   // (Vehicle.business) — voir VehicleDetails.jsx.
   isConcessionnaire: { type: Boolean, default: false },
 
+  // Dernière relance envoyée pour "aucune candidature Founding Partner Program
+  // démarrée pour cette entité" — voir utils/partnerReminders.js
+  // checkPartnerBusinessesWithoutOnboarding. Le programme étant devenu
+  // obligatoire pour tout partenaire, une entité sans dossier du tout (jamais
+  // "Commencer ma candidature") est un cas à relancer au même titre qu'un
+  // dossier brouillon jamais soumis.
+  lastReminderSentAt: { type: Date, default: null },
+
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });

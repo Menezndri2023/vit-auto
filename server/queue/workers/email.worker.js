@@ -81,6 +81,8 @@ async function resolveEmailTemplate(type, data) {
       return { subject: "VIT AUTO — Votre Lettre d'Intention est prête", template: "loi_ready", data };
     case "agreement_ready":
       return { subject: "VIT AUTO — Votre Accord de Partenariat est prêt", template: "agreement_ready", data };
+    case "documents_ready_reminder":
+      return { subject: "VIT AUTO — Votre dossier Founding Partner attend votre signature", template: "documents_ready_reminder", data };
     case "loi_signed":
       return { subject: "VIT AUTO — LOI signée ✅", template: "loi_signed", data };
     case "agreement_signed":

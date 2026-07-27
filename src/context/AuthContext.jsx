@@ -194,7 +194,29 @@ export const AuthProvider = ({ children }) => {
     return {
       ...backendUser,
       emailVerificationSent: data.emailVerificationSent,
+      emailVerificationCodeRequired: data.emailVerificationCodeRequired,
     };
+  };
+
+  // Code de confirmation e-mail (voir Register.jsx) — bloquant : tant que ceci
+  // n'a pas réussi, l'inscription reste considérée comme incomplète côté UI.
+  const verifyEmailCode = async (code) => {
+    const res  = await authFetch("/api/auth/verify-email-code", {
+      method: "POST",
+      body:   JSON.stringify({ code }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "Code incorrect.");
+    if (data.user) setUser(data.user);
+    if (data.token) setToken(data.token);
+    return data;
+  };
+
+  const resendEmailCode = async () => {
+    const res  = await authFetch("/api/auth/resend-email-code", { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "Impossible d'envoyer un nouveau code.");
+    return data;
   };
 
   const login = async ({ identifier, email, password }) => {
@@ -291,7 +313,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const value = useMemo(
-    () => ({ user, token, isAuthenticated: !!user, authReady, authFetch, register, login, oauthGoogle, verifyTwoFactor, logout, updateUser, setSession }),
+    () => ({ user, token, isAuthenticated: !!user, authReady, authFetch, register, login, oauthGoogle, verifyTwoFactor, verifyEmailCode, resendEmailCode, logout, updateUser, setSession }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [user, token, authReady]
   );

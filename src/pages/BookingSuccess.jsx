@@ -1,5 +1,7 @@
+import { useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useCurrency } from "../context/CurrencyContext";
+import { useNotifications } from "../context/NotificationContext";
 import PriceTag from "../components/PriceTag/PriceTag";
 import styles from "./BookingSuccess.module.css";
 
@@ -37,6 +39,22 @@ const BookingSuccess = () => {
   const { fmt }  = useCurrency();
   const booking  = location.state?.booking;
   const paymentInitFailed = !!location.state?.payment?.initFailed;
+  const { triggerCelebration } = useNotifications();
+
+  // Déclenché une seule fois par visite de cette page (un remount via retour
+  // arrière/actualisation ne doit pas relancer l'animation — booking.isFirstBooking
+  // reste true dans le state mémorisé même après la 2e réservation du client).
+  const celebrated = useRef(false);
+  useEffect(() => {
+    if (booking?.isFirstBooking && !celebrated.current) {
+      celebrated.current = true;
+      triggerCelebration({
+        emoji:   "🥳",
+        title:   "Votre toute première réservation !",
+        message: "Merci de votre confiance — bienvenue chez VIT AUTO. Bonne route !",
+      });
+    }
+  }, [booking, triggerCelebration]);
 
   const contractNumber = `VIT-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 99999) + 1).padStart(5, "0")}`;
   const today = new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });

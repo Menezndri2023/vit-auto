@@ -631,7 +631,18 @@ export const createBooking = async (req, res) => {
       ).catch(() => {});
     }
 
-    res.status(201).json({ booking });
+    // 1ère réservation de ce client (tous types confondus) — signalée
+    // directement dans la réponse plutôt que via une notification/socket :
+    // l'utilisateur est déjà sur l'écran de confirmation au moment exact où
+    // ça se produit, pas besoin d'un aller-retour supplémentaire pour
+    // déclencher l'animation de félicitations côté front (voir BookingSuccess.jsx).
+    let isFirstBooking = false;
+    if (req.user?._id) {
+      const priorCount = await Booking.countDocuments({ client: req.user._id, _id: { $ne: booking._id } });
+      isFirstBooking = priorCount === 0;
+    }
+
+    res.status(201).json({ booking, isFirstBooking });
   } catch (err) {
     logger.error("createBooking:", err);
     res.status(500).json({ message: "Erreur serveur." });

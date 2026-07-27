@@ -35,6 +35,8 @@ router.post("/register",             validate(registerSchema), auth.register);
 router.post("/login",                validate(loginSchema), auth.login);
 router.post("/oauth/google",         validate(oauthGoogleSchema), auth.oauthGoogle);
 router.get("/verify-email/:token",   auth.verifyEmail);
+router.post("/verify-email-code",    strictLimiter, authenticate, auth.verifyEmailCode);
+router.post("/resend-email-code",    strictLimiter, authenticate, auth.resendEmailCode);
 router.get("/confirm-email-change/:token", auth.confirmEmailChange);
 router.post("/resend-verification",  strictLimiter, auth.resendVerification);
 router.post("/send-phone-otp",       strictLimiter, authenticate, auth.sendPhoneOtp);

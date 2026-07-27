@@ -1,27 +1,36 @@
 import { baseEmail, BRAND } from "../shared/base.js";
 import { btn, heroSection, greeting, signature, infoBox } from "../shared/components.js";
 
-export function emailVerificationTemplate({ firstName, verifyUrl }, trackingPixel = "") {
+// `code` (6 chiffres) est désormais le moyen principal de confirmation — saisi
+// directement dans le parcours d'inscription (voir Register.jsx), il rend la
+// vérification bloquante avant de pouvoir continuer, contrairement au lien
+// ci-dessous qui reste ignorable indéfiniment. Le lien est conservé en repli
+// (utile si l'email est ouvert sur un autre appareil que celui de l'inscription).
+export function emailVerificationTemplate({ firstName, verifyUrl, code }, trackingPixel = "") {
   const body = `
     ${heroSection("Vérifiez votre adresse e-mail", "Une étape rapide pour activer votre compte", "✉️")}
     ${greeting(firstName)}
     <p style="font-size:14px;color:${BRAND.muted};line-height:1.7;margin:0 0 20px">
       Merci de vous être inscrit sur <strong>VIT AUTO</strong> — la plateforme internationale de commerce automobile.
-      Cliquez sur le bouton ci-dessous pour activer votre compte.
+      Saisissez le code ci-dessous dans la page d'inscription pour activer votre compte.
     </p>
-    ${btn("Vérifier mon adresse e-mail", verifyUrl, "primary")}
+    ${code ? `
+    <div style="text-align:center;margin:24px 0">
+      <div style="display:inline-block;background:${BRAND.surface || "#f8fafc"};border:2px dashed ${BRAND.accent};border-radius:12px;padding:16px 32px;font-size:32px;font-weight:800;letter-spacing:8px;color:${BRAND.primary}">${code}</div>
+    </div>
+    ` : ""}
     ${infoBox(`
-      <strong>Ce lien expire dans 24 heures.</strong><br>
+      <strong>Ce code expire dans 10 minutes.</strong><br>
       Si vous n'avez pas créé de compte VIT AUTO, ignorez cet e-mail.
     `, "neutral")}
     <p style="font-size:13px;color:${BRAND.muted};margin:16px 0 0">
-      Ou copiez ce lien dans votre navigateur :<br>
+      Vous pouvez aussi cliquer directement sur ce lien :<br>
       <span style="color:${BRAND.accent};word-break:break-all;font-size:12px">${verifyUrl}</span>
     </p>
     ${signature()}
     ${trackingPixel}
   `;
-  return baseEmail({ title: "Vérification e-mail", preheader: "Activez votre compte VIT AUTO en un clic", body });
+  return baseEmail({ title: "Vérification e-mail", preheader: "Votre code de confirmation VIT AUTO", body });
 }
 
 export function emailChangeConfirmationTemplate({ firstName, newEmail, confirmUrl }, trackingPixel = "") {

@@ -10,10 +10,13 @@ export function btn(label, url, style = "primary") {
   };
   const c = colors[style] || colors.primary;
   const borderStyle = c.border ? `border:${c.border};` : "";
+  // Un `url` manquant produirait un href="undefined" cliquable — un bouton mort
+  // plutôt qu'une simple absence d'action. Repli sur le site plutôt que rien.
+  const safeUrl = url || BRAND.baseUrl;
   return `<table cellpadding="0" cellspacing="0" border="0" style="margin:20px 0">
     <tr>
       <td align="center">
-        <a href="${url}" class="btn"
+        <a href="${safeUrl}" class="btn"
           style="display:inline-block;background:${c.bg};color:${c.text};${borderStyle}text-decoration:none;
                  padding:14px 32px;border-radius:10px;font-weight:700;font-size:15px;
                  letter-spacing:.3px;mso-padding-alt:14px 32px;line-height:1"

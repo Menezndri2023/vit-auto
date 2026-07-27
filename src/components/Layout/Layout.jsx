@@ -8,8 +8,11 @@ import BackToTop from "./BackToTop";
 import ScrollToTop from "./ScrollToTop";
 import BottomNav from "../BottomNav/BottomNav";
 import OfflineBanner from "../OfflineBanner/OfflineBanner";
+import Celebration from "../Celebration/Celebration";
+import WelcomeGuide from "../WelcomeGuide/WelcomeGuide";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
+import { useNotifications } from "../../context/NotificationContext";
 import useIsMobile from "../../hooks/useIsMobile";
 import styles from "./Layout.module.css";
 
@@ -84,6 +87,7 @@ const Layout = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { info: toastInfo } = useToast();
+  const { celebration, dismissCelebration } = useNotifications();
   const bare = isBareRoute(location.pathname);
   const isMobile = useIsMobile();
   const lastBackPress = useRef(0);
@@ -121,6 +125,7 @@ const Layout = ({ children }) => {
         <OfflineBanner />
         {/* La bannière email s'affiche aussi en admin (important pour les admins non vérifiés) */}
         {showBanner && <EmailBanner email={user.email} />}
+        <Celebration celebration={celebration} onDismiss={dismissCelebration} />
         {children}
       </>
     );
@@ -132,6 +137,8 @@ const Layout = ({ children }) => {
       <OfflineBanner />
       <Navbar />
       {showBanner && <EmailBanner email={user.email} />}
+      <Celebration celebration={celebration} onDismiss={dismissCelebration} />
+      <WelcomeGuide />
       <main className={`${styles.main} ${isMobile ? styles.mainWithBottomNav : ""}`}>{children}</main>
       <Footer />
       <BackToTop />

@@ -1,23 +1,29 @@
 /**
  * VIT AUTO — Relance automatique des dossiers partenaire incomplets
  *
- * Couvre les 3 systèmes de vérification partenaire (Founding Partner
- * onboarding, Vérification Partenaire, Certification 7 niveaux) : un dossier
- * resté incomplet (documents manquants, brouillon jamais soumis) ne recevait
- * jusqu'ici aucune relance sauf action manuelle admin ponctuelle.
+ * Couvre les systèmes de vérification partenaire (Founding Partner
+ * onboarding — brouillon incomplet ET LOI/Accord envoyés mais jamais signés,
+ * Vérification Partenaire, Certification 7 niveaux) : un dossier resté
+ * incomplet ou bloqué (documents manquants, brouillon jamais soumis, lien de
+ * signature jamais utilisé) ne recevait jusqu'ici aucune relance sauf action
+ * manuelle admin ponctuelle.
  *
  * Volontairement PAS un job BullMQ : le quota Redis (Upstash) est déjà sous
  * tension (voir queue/connection.js) — un setInterval en mémoire suffit pour
  * un scan quotidien et n'ajoute aucune charge Redis. dispatch.* garde de
  * toute façon son repli synchrone si Redis est indisponible.
  */
+import crypto from "crypto";
 import logger from "./logger.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import PartnerOnboarding from "../models/PartnerOnboarding.js";
+import PartnerBusiness from "../models/PartnerBusiness.js";
 import PartnerVerification from "../models/PartnerVerification.js";
 import PartnerCertification from "../models/PartnerCertification.js";
 import { dispatch } from "../queue/index.js";
+
+const APP_URL = process.env.APP_URL || "https://vit-auto.com";
 
 const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours entre deux relances du même dossier
 const STALE_MS    = 3 * 24 * 60 * 60 * 1000; // ignore les dossiers créés il y a moins de 3 jours
@@ -117,6 +123,50 @@ async function checkPartnerCertification() {
   return sent;
 }
 
+// ── Entités partenaire SANS AUCUN dossier Founding Partner ─────────────────
+// checkFoundingPartnerDrafts ne relance que les dossiers qui EXISTENT déjà en
+// base (brouillon/info_demandee). Angle mort distinct et réel : une entité
+// (PartnerBusiness) appartenant à un partenaire peut n'avoir strictement
+// AUCUN PartnerOnboarding — le partenaire ne clique jamais "Commencer ma
+// candidature" (applyToProgram est un clic explicite, jamais automatique).
+// Le programme étant devenu obligatoire pour tout partenaire (voir
+// checkFoundingCapacity, no-op volontaire), une telle entité reste bloquée
+// indéfiniment sans qu'aucune relance existante ne la détecte jamais. On ne
+// peut pas encore renvoyer de lien de signature (rien n'a été soumis) — la
+// notification/email invite donc à démarrer/approuver la candidature de
+// cette entité avec le programme qui lui correspond.
+async function checkPartnerBusinessesWithoutOnboarding() {
+  const businesses = await PartnerBusiness.find({})
+    .populate("owner", "role")
+    .select("owner companyName lastReminderSentAt createdAt")
+    .lean();
+  const candidates = businesses.filter((b) => b.owner?.role === "partenaire");
+  if (!candidates.length) return 0;
+
+  const existing = await PartnerOnboarding.find({ businessId: { $in: candidates.map((b) => b._id) } })
+    .select("businessId").lean();
+  const withOnboarding = new Set(existing.map((o) => String(o.businessId)));
+
+  let sent = 0;
+  for (const biz of candidates) {
+    if (withOnboarding.has(String(biz._id))) continue;
+    if (Date.now() - new Date(biz.createdAt).getTime() < STALE_MS) continue;
+    if (!isDue(biz.lastReminderSentAt)) continue;
+
+    const ok = await sendReminder({
+      userId: biz.owner._id,
+      companyName: biz.companyName,
+      missingDocs: ["Candidature au Founding Partner Program (obligatoire, jamais démarrée pour cette entité)"],
+      portalPath: "/partner-onboarding",
+    });
+    if (ok) {
+      await PartnerBusiness.updateOne({ _id: biz._id }, { $set: { lastReminderSentAt: new Date() } });
+      sent++;
+    }
+  }
+  return sent;
+}
+
 // ── Founding Partner — brouillon jamais soumis ou infos demandées ─────────
 async function checkFoundingPartnerDrafts() {
   const docs = await PartnerOnboarding.find({ status: { $in: ["brouillon", "info_demandee"] } })
@@ -138,16 +188,74 @@ async function checkFoundingPartnerDrafts() {
   return sent;
 }
 
+// ── Founding Partner — LOI/Accord envoyés mais jamais signés ───────────────
+// Comble un angle mort réel : checkFoundingPartnerDrafts ne couvre que
+// brouillon/info_demandee — un dossier bloqué à loi_envoyee ou accord_envoye
+// (lien de signature expiré, cassé, ou simplement oublié) ne recevait
+// jusqu'ici AUCUNE relance automatique, alors que c'est précisément l'étape
+// qui empêche le dossier d'avancer. Régénère un token frais (l'ancien peut
+// avoir expiré) et renvoie un seul email via documentsReadyReminder.
+async function checkFoundingPartnerPendingSignature() {
+  const docs = await PartnerOnboarding.find({ status: { $in: ["loi_envoyee", "accord_envoye"] } })
+    .select("userId companyInfo status referenceNumber lastReminderSentAt updatedAt")
+    .populate("userId", "firstName email")
+    .lean();
+  let sent = 0;
+  for (const doc of docs) {
+    if (!doc.userId?.email) continue;
+    if (Date.now() - new Date(doc.updatedAt).getTime() < STALE_MS) continue;
+    if (!isDue(doc.lastReminderSentAt)) continue;
+
+    const isLoiStep = doc.status === "loi_envoyee";
+    const token = crypto.randomBytes(32).toString("hex");
+    const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const signLink = `${APP_URL}/sign/${token}`;
+    const field = isLoiStep ? "loi" : "agreement";
+
+    await PartnerOnboarding.updateOne({ _id: doc._id }, {
+      $set: {
+        [`${field}.signingToken`]: token,
+        [`${field}.signingTokenExpires`]: expires,
+        [`${field}.sentAt`]: new Date(),
+        lastReminderSentAt: new Date(),
+      },
+    });
+
+    const titre = "✍️ Signature en attente";
+    const message = `Votre ${isLoiStep ? "Lettre d'Intention" : "Accord de Partenariat Fondateur"} attend toujours votre signature — votre dossier Founding Partner ne peut pas avancer sans elle.`;
+    const notif = await Notification.create({ user: doc.userId._id, titre, message, type: "system" }).catch(() => null);
+    if (notif && global._io) {
+      global._io.to(`user_${doc.userId._id}`).emit("notification_new", {
+        _id: notif._id, type: "system", titre, message, lien: "/partner-onboarding", lu: false, createdAt: notif.createdAt,
+      });
+    }
+
+    await dispatch.documentsReadyReminder(String(doc.userId._id), doc.userId.email, {
+      firstName:       doc.userId.firstName,
+      companyName:     doc.companyInfo?.legalName || doc.userId.firstName,
+      referenceNumber: doc.referenceNumber,
+      loiUrl:          isLoiStep ? signLink : null,
+      agreementUrl:    isLoiStep ? null : signLink,
+      expiresAt:       expires,
+    }).catch((e) => logger.error("dispatch.documentsReadyReminder:", e.message));
+
+    sent++;
+  }
+  return sent;
+}
+
 export async function checkAndSendPartnerReminders() {
   try {
-    const [pv, cert, fp] = await Promise.all([
+    const [pv, cert, fp, fpSig, fpNone] = await Promise.all([
       checkPartnerVerification(),
       checkPartnerCertification(),
       checkFoundingPartnerDrafts(),
+      checkFoundingPartnerPendingSignature(),
+      checkPartnerBusinessesWithoutOnboarding(),
     ]);
-    const total = pv + cert + fp;
+    const total = pv + cert + fp + fpSig + fpNone;
     if (total > 0) {
-      logger.info("[PartnerReminders] Relances envoyées", { verification: pv, certification: cert, foundingPartner: fp });
+      logger.info("[PartnerReminders] Relances envoyées", { verification: pv, certification: cert, foundingPartner: fp, foundingPartnerSignature: fpSig, foundingPartnerNotStarted: fpNone });
     }
     return total;
   } catch (err) {

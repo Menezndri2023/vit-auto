@@ -82,6 +82,24 @@ describe("partnerOnboardingController.signAgreement — cascade Founding Partner
     expect(importer.badgeLevel).toBe("gold");
   });
 
+  it("émet la notification d'activation avec celebrate:true (animation de félicitations)", async () => {
+    const partner = await createUser({ role: "partenaire" });
+    await createOnboardingReadyToSign(partner);
+    const emitted = [];
+    global._io = { to: (room) => ({ emit: (event, payload) => emitted.push({ room, event, payload }) }) };
+    try {
+      const { req, res } = mockReqRes({ user: partner, body: { signerName: "Jean Dupont" } });
+      await signAgreement(req, res);
+
+      expect(emitted).toHaveLength(1);
+      expect(emitted[0].room).toBe(`user_${partner._id}`);
+      expect(emitted[0].payload.celebrate).toBe(true);
+      expect(emitted[0].payload.titre).toMatch(/Founding Partner/i);
+    } finally {
+      delete global._io;
+    }
+  });
+
   it("un badge de niveau 8 attribué avant la signature ne masque pas le badge 'fondateur' gagné par la cascade", async () => {
     const partner = await createUser({ role: "partenaire" });
     await createOnboardingReadyToSign(partner);

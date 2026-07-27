@@ -14,7 +14,7 @@ import { computeScore, computeBadge, syncUserBadge } from "./partnerCertificatio
 import { getConfig } from "../services/pricingEngine.js";
 import { decryptField } from "../utils/fieldEncryption.js";
 import { ensureDefaultPartnerBusiness } from "../utils/ensureDefaultPartnerBusiness.js";
-import { ACTIVITIES } from "../constants/partnerTaxonomy.js";
+import { ACTIVITIES, ACTIVITY_TO_PARTNER_TYPE } from "../constants/partnerTaxonomy.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
 
@@ -75,14 +75,14 @@ function applicantDisplayName(doc, user) {
 }
 
 // ── Notification helper ───────────────────────────────────────────────────────
-async function notify(userId, title, message) {
+async function notify(userId, title, message, lien = null, celebrate = false) {
   try {
     const notif = await Notification.create({ user: userId, titre: title, message, type: "system" });
     // Voir insuranceController.notify — même correctif (mauvais nom d'événement
     // + payload partiel, bug réel trouvé en audit).
     if (global._io) {
       global._io.to(`user_${userId}`).emit("notification_new", {
-        _id: notif._id, type: "system", titre: title, message, lien: null, lu: false, createdAt: notif.createdAt,
+        _id: notif._id, type: "system", titre: title, message, lien, lu: false, createdAt: notif.createdAt, celebrate,
       });
     }
   } catch { /* non-bloquant */ }
@@ -694,7 +694,8 @@ export const signAgreement = async (req, res) => {
 
     await notify(doc.userId,
       "🎉 Bienvenue dans le programme Founding Partner VIT-AUTO !",
-      `Félicitations ! Votre accord de partenariat fondateur a été signé. Votre badge exclusif "Founding Partner" est maintenant actif. Commissions : Location ${doc.commissions.location}% / Vente ${doc.commissions.vente}%.`
+      `Félicitations ! Votre accord de partenariat fondateur a été signé. Votre badge exclusif "Founding Partner" est maintenant actif. Commissions : Location ${doc.commissions.location}% / Vente ${doc.commissions.vente}%.`,
+      "/partner-pms", true,
     );
 
     dispatch.agreementSigned(req.user.email, req.user.id, {
@@ -905,6 +906,70 @@ export const adminSendAgreement = async (req, res) => {
     res.json({ success: true, status: "accord_envoye", signLink });
   } catch (err) {
     logger.error("adminSendAgreement:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── POST /api/partner-onboarding/admin/:id/resend-documents ──────────────────
+// Renvoie un lien de signature FRAIS pour le document actuellement en attente
+// (LOI si loi_envoyee, Accord si accord_envoye) dans UN seul email — corrige
+// deux angles morts réels : (1) aucune action n'existait pour renvoyer une LOI
+// dont le lien a expiré/cassé une fois l'email initial envoyé (adminApprove ne
+// peut pas être rejoué : il exige status "soumis"/"en_review") ; (2) le bouton
+// "Renvoyer l'accord" affiché à l'état accord_envoye appelait adminSendAgreement,
+// qui exige status "loi_signee" — donc échouait TOUJOURS une fois l'accord déjà
+// envoyé une première fois. Ne régénère pas le contenu du document (déjà stocké
+// en base), seulement le token/l'expiration — donc pas de PDF à reconstruire.
+export const adminResendDocuments = async (req, res) => {
+  try {
+    const doc = await PartnerOnboarding.findById(req.params.id)
+      .populate("userId", "firstName lastName email");
+    if (!doc) return res.status(404).json({ message: "Dossier introuvable." });
+    if (!["loi_envoyee", "accord_envoye"].includes(doc.status)) {
+      return res.status(400).json({ message: "Aucune signature en attente pour ce dossier." });
+    }
+
+    const user = doc.userId;
+    if (!user?.email) return res.status(400).json({ message: "Ce partenaire n'a pas d'email valide." });
+
+    const isLoiStep = doc.status === "loi_envoyee";
+    const token = crypto.randomBytes(32).toString("hex");
+    const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const signLink = `${APP_URL}/sign/${token}`;
+
+    if (isLoiStep) {
+      doc.loi.signingToken = token;
+      doc.loi.signingTokenExpires = expires;
+      doc.loi.sentAt = new Date();
+    } else {
+      doc.agreement.signingToken = token;
+      doc.agreement.signingTokenExpires = expires;
+      doc.agreement.sentAt = new Date();
+    }
+    await doc.save();
+
+    await addAudit(doc._id, "DOCUMENTS_RENVOYES", req.user.id,
+      `Lien de signature (${isLoiStep ? "LOI" : "Accord"}) régénéré et renvoyé par email`);
+
+    const partnerId = user._id || doc.userId;
+    await notify(partnerId,
+      "✍️ Signature en attente",
+      `Un nouveau lien sécurisé pour signer votre ${isLoiStep ? "Lettre d'Intention" : "Accord de Partenariat Fondateur"} vous a été envoyé par email.`,
+      "/partner-onboarding",
+    );
+
+    dispatch.documentsReadyReminder(String(partnerId), user.email, {
+      firstName:       user.firstName,
+      companyName:     applicantDisplayName(doc, user),
+      referenceNumber: doc.referenceNumber,
+      loiUrl:          isLoiStep ? signLink : null,
+      agreementUrl:    isLoiStep ? null : signLink,
+      expiresAt:       expires,
+    }).catch((e) => logger.error("dispatch.documentsReadyReminder:", e.message));
+
+    res.json({ success: true, status: doc.status, signLink });
+  } catch (err) {
+    logger.error("adminResendDocuments:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -1209,7 +1274,8 @@ export const signByToken = async (req, res) => {
       await addAudit(doc._id, "ACCORD_SIGNE_PAR_LIEN", null, `Via lien sécurisé — IP: ${ip}`);
 
       await notify(doc.userId, "🎉 Bienvenue dans le programme Founding Partner VIT-AUTO !",
-        `Votre accord a été signé. Badge "Founding Partner" activé ! Commissions : Location ${doc.commissions.location}% / Vente ${doc.commissions.vente}%.`);
+        `Votre accord a été signé. Badge "Founding Partner" activé ! Commissions : Location ${doc.commissions.location}% / Vente ${doc.commissions.vente}%.`,
+        "/partner-pms", true);
 
       const agreementSigner = await User.findById(doc.userId).select("email firstName").lean();
       if (agreementSigner) {
@@ -1321,13 +1387,36 @@ const PARTNER_TYPE_LABELS = {
   inspecteur_vehicles:     "Vehicle Inspector",
 };
 
+// ── Type de partenaire réellement affiché dans les documents légaux ──────────
+// `activity` (Loueur/Vendeur/Exportateur/Chauffeur — voir StepTypeInfo.jsx)
+// est le champ canonique choisi en premier dans l'assistant et marqué "*"
+// requis ; `partnerType` est l'ancien enum plus détaillé, dont la carte de
+// sélection dans l'assistant N'EST PAS marquée requise. Un partenaire ayant
+// choisi son activité sans jamais cliquer une carte "Type de partenaire" —
+// le cas le plus fréquent — se retrouvait donc avec le partnerType par
+// défaut du schéma ("concessionnaire") figé dans sa LOI/son Accord signés,
+// même s'il avait choisi "Chauffeur" ou "Exportateur". On dérive donc
+// l'affichage depuis l'activité en priorité (le mapping existe déjà,
+// ACTIVITY_TO_PARTNER_TYPE) ; seules les catégories spécialisées sans
+// équivalent dans ACTIVITIES (assurance, financement, expert auto...)
+// continuent de dépendre du partnerType choisi explicitement.
+function effectivePartnerType(doc) {
+  return (doc.activity && ACTIVITY_TO_PARTNER_TYPE[doc.activity]) || doc.partnerType;
+}
+
 export async function generateLOI(doc, user, date) {
   const company   = doc.companyInfo?.legalName   || "—";
   const contact   = doc.companyInfo?.mainContact || `${user.firstName || ""} ${user.lastName || ""}`.trim() || "—";
   const position  = doc.companyInfo?.mainContactPosition || "—";
-  const country   = doc.companyInfo?.registrationCountry || "—";
+  // Pour un "particulier", registrationCountry n'est jamais collecté (le
+  // formulaire cache ce champ — voir StepTypeInfo.jsx, réservé aux
+  // professionnel/entreprise) : sans repli, la LOI/l'Accord affichait "—"
+  // au lieu du pays réel du partenaire, déjà connu via doc.country
+  // (dénormalisé depuis User.country à la candidature).
+  const country   = doc.companyInfo?.registrationCountry || doc.country || "—";
   const email     = doc.companyInfo?.email || user.email || "—";
-  const typeLabel = PARTNER_TYPE_LABELS[doc.partnerType] || doc.partnerType;
+  const partnerTypeValue = effectivePartnerType(doc);
+  const typeLabel = PARTNER_TYPE_LABELS[partnerTypeValue] || partnerTypeValue;
   const loiTier   = doc.legalEntityType === "particulier" ? "particulier" : "entreprise";
 
   // Conditions commerciales lues live depuis PricingConfig (jamais figées dans
@@ -1422,10 +1511,16 @@ export async function generateAgreement(doc, user, date) {
   const company   = doc.companyInfo?.legalName   || "—";
   const contact   = doc.companyInfo?.mainContact || `${user.firstName || ""} ${user.lastName || ""}`.trim() || "—";
   const position  = doc.companyInfo?.mainContactPosition || "—";
-  const country   = doc.companyInfo?.registrationCountry || "—";
+  // Pour un "particulier", registrationCountry n'est jamais collecté (le
+  // formulaire cache ce champ — voir StepTypeInfo.jsx, réservé aux
+  // professionnel/entreprise) : sans repli, la LOI/l'Accord affichait "—"
+  // au lieu du pays réel du partenaire, déjà connu via doc.country
+  // (dénormalisé depuis User.country à la candidature).
+  const country   = doc.companyInfo?.registrationCountry || doc.country || "—";
   const regNum    = doc.companyInfo?.registrationNumber  || "—";
   const email     = doc.companyInfo?.email || user.email || "—";
-  const typeLabel = PARTNER_TYPE_LABELS[doc.partnerType] || doc.partnerType;
+  const partnerTypeValue = effectivePartnerType(doc);
+  const typeLabel = PARTNER_TYPE_LABELS[partnerTypeValue] || partnerTypeValue;
   const agrTier   = doc.legalEntityType === "particulier" ? "particulier" : "entreprise";
 
   // Conditions commerciales lues live depuis PricingConfig — voir generateLOI.

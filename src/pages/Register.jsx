@@ -10,7 +10,7 @@ import { resolveRequirements } from "../utils/partnerRequirements";
 import styles from "./Auth.module.css";
 
 const Register = () => {
-  const { register, oauthGoogle } = useAuth();
+  const { register, oauthGoogle, verifyEmailCode, resendEmailCode, user, isAuthenticated } = useAuth();
   const { success, error } = useToast();
   const { countryCode } = useCurrency();
   const navigate = useNavigate();
@@ -39,6 +39,26 @@ const Register = () => {
 
   const [submitting,   setSubmitting]   = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Étape de confirmation e-mail par code — bloquante : tant que le code n'est
+  // pas validé, l'inscription n'est pas considérée comme terminée (voir
+  // authController.verifyEmailCode côté serveur). Google OAuth ne passe jamais
+  // par cette étape (email déjà vérifié par Google — voir handleGoogleCredential).
+  const [step,          setStep]          = useState("form"); // "form" | "code"
+  const [emailCode,     setEmailCode]     = useState("");
+  const [codeSubmitting, setCodeSubmitting] = useState(false);
+  const [resending,     setResending]     = useState(false);
+
+  // Ferme la brèche "rechargement de page pendant l'étape code" : sans ce
+  // garde, un rafraîchissement juste après l'inscription (session déjà
+  // active — voir register() dans AuthContext, le JWT est délivré tout de
+  // suite) réinitialisait ce composant sur l'étape "form" et laissait
+  // l'utilisateur reprendre sa navigation ailleurs sans jamais confirmer.
+  useEffect(() => {
+    if (isAuthenticated && user && user.emailVerified === false) setStep("code");
+  }, [isAuthenticated, user]);
+
+  const pendingEmailDisplay = form.email.trim() || user?.email || "";
 
   // Destination post-inscription : ?redirect= explicite prime toujours, puis
   // location.state.from (posé par PartnerRoute/AdminRoute lors d'une redirection
@@ -85,7 +105,7 @@ const Register = () => {
     }
     setSubmitting(true);
     try {
-      await register({
+      const result = await register({
         firstName:  form.firstName,
         lastName:   form.lastName,
         password:   form.password,
@@ -98,12 +118,48 @@ const Register = () => {
         entityType: form.role === "partenaire" ? form.entityType : undefined,
       });
 
-      success("Inscription réussie ! Vérifiez votre boîte mail pour activer votre compte. Redirection…");
-      setTimeout(() => navigate(getDest()), 1500);
+      // Le compte existe déjà (session active) mais l'inscription n'est pas
+      // terminée tant que le code reçu par email n'est pas confirmé — on ne
+      // redirige jamais directement vers l'app depuis ce formulaire.
+      if (result?.emailVerificationCodeRequired) {
+        success(`Compte créé ! Un code de confirmation a été envoyé à ${form.email.trim()}.`);
+        setStep("code");
+      } else {
+        // Compte auto-vérifié (mode développement sans SMTP configuré).
+        success("Inscription réussie ! Redirection…");
+        setTimeout(() => navigate(getDest()), 1000);
+      }
     } catch (err) {
       error(err.message || "Impossible de créer votre compte.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const onVerifyCode = async (e) => {
+    e.preventDefault();
+    if (emailCode.trim().length !== 6) { error("Le code contient 6 chiffres."); return; }
+    setCodeSubmitting(true);
+    try {
+      await verifyEmailCode(emailCode.trim());
+      success("Adresse e-mail confirmée ! Redirection…");
+      setTimeout(() => navigate(getDest()), 1000);
+    } catch (err) {
+      error(err.message || "Code incorrect.");
+    } finally {
+      setCodeSubmitting(false);
+    }
+  };
+
+  const onResendCode = async () => {
+    setResending(true);
+    try {
+      await resendEmailCode();
+      success(`Nouveau code envoyé à ${pendingEmailDisplay}.`);
+    } catch (err) {
+      error(err.message || "Impossible d'envoyer un nouveau code.");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -137,6 +193,45 @@ const Register = () => {
       setSubmitting(false);
     }
   };
+
+  if (step === "code") {
+    return (
+      <div className={styles.page}>
+        <div className={styles.card}>
+          <div className={styles.logo}>
+            <div className={styles.logoIcon}>✉️</div>
+            <h1>Confirmez votre e-mail</h1>
+            <p>Code envoyé à <strong>{pendingEmailDisplay}</strong> — valable 10 minutes</p>
+          </div>
+
+          <form className={styles.form} onSubmit={onVerifyCode}>
+            <input
+              name="emailCode"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={emailCode}
+              onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="Code à 6 chiffres"
+              style={{ textAlign: "center", letterSpacing: "8px", fontSize: "1.3rem", fontWeight: 700 }}
+              autoFocus
+              required
+            />
+
+            <button type="submit" className={styles.submitBtn} disabled={codeSubmitting || emailCode.length !== 6}>
+              {codeSubmitting ? "Vérification…" : "Confirmer mon e-mail"}
+            </button>
+
+            <div className={styles.footerLink}>
+              <button type="button" onClick={onResendCode} disabled={resending} style={{ background: "none", border: "none", color: "inherit", cursor: resending ? "not-allowed" : "pointer", textDecoration: "underline", padding: 0, font: "inherit" }}>
+                {resending ? "Envoi…" : "Renvoyer le code"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.page}>

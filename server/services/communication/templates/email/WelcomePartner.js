@@ -114,3 +114,43 @@ export function agreementReadyTemplate({ firstName, companyName, agreementUrl, e
     body,
   });
 }
+
+// Email de relance — regroupe en UN seul envoi tous les documents encore en
+// attente de signature (LOI et/ou Accord), au lieu de deux emails séparés à
+// des moments différents. Utilisé par le renvoi manuel admin
+// (adminResendDocuments) et par la relance automatique
+// (checkFoundingPartnerPendingSignature) quand un dossier reste bloqué à
+// l'étape loi_envoyee/accord_envoye sans signature.
+export function documentsReadyTemplate({ firstName, companyName, loiUrl, agreementUrl, expiresAt }, trackingPixel = "") {
+  const pending = [
+    loiUrl       && { label: "Lettre d'Intention (LOI)",              url: loiUrl,       cta: "Signer la LOI" },
+    agreementUrl && { label: "Accord de Partenariat Fondateur",       url: agreementUrl, cta: "Signer l'Accord Partenaire" },
+  ].filter(Boolean);
+
+  const body = `
+    ${heroSection("Votre dossier Founding Partner vous attend", "Un ou plusieurs documents restent à signer pour continuer", "✍️")}
+    ${greeting(firstName)}
+    <p style="font-size:14px;color:${BRAND.muted};line-height:1.7;margin:0 0 20px">
+      Votre dossier partenaire pour <strong>${companyName}</strong> ne peut pas avancer tant que le document ci-dessous
+      n'est pas signé. Voici un nouveau lien sécurisé — le précédent lien peut ne plus fonctionner.
+    </p>
+
+    ${infoBox(`
+      <strong>Ce lien est valable jusqu'au ${expiresAt ? new Date(expiresAt).toLocaleDateString("fr-FR") : "—"}.</strong><br>
+      En cas de nouveau souci pour signer, répondez simplement à cet email — notre équipe vous aidera directement.
+    `, "warning")}
+
+    ${pending.map(p => btn(p.cta, p.url, "primary")).join("")}
+
+    <p style="font-size:13px;color:${BRAND.muted};margin:16px 0 0">
+      Signer votre LOI vous amène automatiquement à l'Accord juste après, sur la même page — aucun autre email n'est nécessaire.
+    </p>
+    ${signature("L'équipe VIT AUTO Partenaires")}
+    ${trackingPixel}
+  `;
+  return baseEmail({
+    title: "Documents à signer — Founding Partner",
+    preheader: `Votre dossier ${companyName} attend votre signature`,
+    body,
+  });
+}

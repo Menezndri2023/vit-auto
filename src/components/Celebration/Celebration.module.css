@@ -1,0 +1,89 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 14vh;
+  /* Pas de fond assombri : la confetti + la carte suffisent, la page en
+     dessous reste visible et utilisable — voir canvas/carte ci-dessous pour
+     les seuls éléments qui interceptent les clics. */
+  pointer-events: none;
+}
+
+.canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+}
+
+.card {
+  pointer-events: auto;
+  position: relative;
+  max-width: 380px;
+  width: calc(100% - 32px);
+  background: var(--c-bg-card, #fff);
+  border-radius: var(--r-xl, 24px);
+  box-shadow: var(--sh-lg, 0 20px 50px rgba(15, 27, 63, 0.25));
+  padding: 32px 28px 28px;
+  text-align: center;
+  animation: pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border: 1px solid var(--c-border, #e5eaf5);
+}
+
+.close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--c-text-muted, #8493b0);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--r-full, 9999px);
+}
+.close:hover {
+  background: var(--c-bg-subtle, #f0f4ff);
+  color: var(--c-text-primary, #0f1b3f);
+}
+
+.emoji {
+  font-size: 2.8rem;
+  line-height: 1;
+  margin-bottom: 12px;
+  animation: bounce 1.2s ease-in-out 0.3s 2;
+}
+
+.title {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--c-text-primary, #0f1b3f);
+}
+
+.message {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--c-text-secondary, #4a5876);
+  line-height: 1.5;
+}
+
+@keyframes pop {
+  0%   { opacity: 0; transform: scale(0.7) translateY(-10px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card { animation: none; }
+  .emoji { animation: none; }
+}

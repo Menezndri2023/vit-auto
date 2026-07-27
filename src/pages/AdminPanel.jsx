@@ -2376,6 +2376,28 @@ export default function AdminPanel() {
     finally { setFoundingSubmitting(false); }
   };
 
+  // Renvoie un lien de signature FRAIS (LOI ou Accord, selon le statut actuel)
+  // dans un seul email — remplace l'ancien bouton "Renvoyer l'accord" qui
+  // appelait send-agreement (lequel exige status "loi_signee" et échouait donc
+  // systématiquement une fois l'accord déjà envoyé), et comble l'absence totale
+  // de moyen de renvoyer une LOI dont le lien a expiré ou ne s'est pas ouvert.
+  const foundingResendDocuments = async (id) => {
+    if (foundingSubmitting) return;
+    setFoundingSubmitting(true);
+    try {
+      const r = await fetch(`/api/partner-onboarding/admin/${id}/resend-documents`, {
+        method: "POST", headers,
+      });
+      const data = await r.json();
+      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
+      const company = foundingList.find(o => o._id === id)?.companyInfo?.legalName || "Partenaire";
+      setFoundingSignLink({ id, link: data.signLink, type: data.status === "loi_envoyee" ? "loi" : "agreement", companyName: company });
+      showToast("Nouveau lien de signature envoyé par email", "success");
+      loadFoundingPartners();
+    } catch { showToast("Erreur réseau", "error"); }
+    finally { setFoundingSubmitting(false); }
+  };
+
   // Relance un dossier resté incomplet (brouillon jamais soumis, ou déjà relancé
   // une première fois) — endpoint backend existant depuis longtemps
   // (adminRequestInfo) mais jusqu'ici jamais appelé depuis cette interface : un
@@ -3422,9 +3444,24 @@ export default function AdminPanel() {
                       <div style={{ padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
                         <div style={{ fontWeight: 700, marginBottom: 6 }}>🏢 Entités ({trustOverview.entities.length})</div>
                         {trustOverview.entities.map((e, i) => (
-                          <div key={e.business?.id || i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: ".8rem", borderTop: i > 0 ? "1px solid #e2e8f0" : "none" }}>
+                          <div key={e.business?.id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", fontSize: ".8rem", borderTop: i > 0 ? "1px solid #e2e8f0" : "none" }}>
                             <span>{e.business?.companyName || "Entité inconnue"}</span>
-                            <strong>{e.onboarding ? `${e.onboarding.status}${e.onboarding.isFoundingPartner ? " 🌟" : ""}` : "aucun dossier"}</strong>
+                            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <strong>{e.onboarding ? `${e.onboarding.status}${e.onboarding.isFoundingPartner ? " 🌟" : ""}` : "aucun dossier"}</strong>
+                              {/* Renvoi du Founding Partner Program dédié à cette entité, sans
+                                  quitter la vue de confiance (accessible depuis Comptes ET
+                                  KYC/Vérification Partenaire) — évite d'aller chercher le
+                                  dossier dans l'onglet Founding Partner pour cette action. */}
+                              {["loi_envoyee", "accord_envoye"].includes(e.onboarding?.status) && (
+                                <button
+                                  onClick={() => foundingResendDocuments(e.onboarding._id)}
+                                  disabled={foundingSubmitting}
+                                  title="Renvoyer le lien de signature en attente"
+                                  style={{ padding: "2px 8px", borderRadius: 6, border: "none", background: "#7c3aed", color: "#fff", fontWeight: 700, fontSize: ".7rem", cursor: foundingSubmitting ? "not-allowed" : "pointer", opacity: foundingSubmitting ? 0.6 : 1 }}>
+                                  🔄 Renvoyer
+                                </button>
+                              )}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -7307,14 +7344,20 @@ export default function AdminPanel() {
                           {o.status === "loi_envoyee" && (
                             <div style={{ background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:10, padding:"10px 14px", marginTop:8 }}>
                               <p style={{ margin:"0 0 8px", fontSize:".8rem", color:"#4c1d95", fontWeight:700 }}>🔐 Partenaire n'a pas encore signé la LOI</p>
-                              <p style={{ margin:"0 0 10px", fontSize:".77rem", color:"#6d28d9" }}>Vous pouvez re-générer et re-partager un nouveau lien en approuvant à nouveau si nécessaire.</p>
+                              <p style={{ margin:"0 0 10px", fontSize:".77rem", color:"#6d28d9" }}>Le lien envoyé peut avoir expiré ou ne pas s'être ouvert correctement.</p>
+                              <button
+                                onClick={() => { foundingResendDocuments(o._id); }}
+                                disabled={foundingSubmitting}
+                                style={{ padding:"6px 14px", borderRadius:8, border:"none", background:"#7c3aed", color:"#fff", fontWeight:700, fontSize:".78rem", cursor: foundingSubmitting ? "not-allowed" : "pointer", opacity: foundingSubmitting ? 0.6 : 1 }}>
+                                🔄 Renvoyer la LOI
+                              </button>
                             </div>
                           )}
                           {o.status === "accord_envoye" && (
                             <div style={{ background:"#fff7ed", border:"1px solid #fed7aa", borderRadius:10, padding:"10px 14px", marginTop:8 }}>
                               <p style={{ margin:"0 0 8px", fontSize:".8rem", color:"#92400e", fontWeight:700 }}>⏳ En attente de signature de l'accord</p>
                               <button
-                                onClick={() => { foundingSendAgreement(o._id); }}
+                                onClick={() => { foundingResendDocuments(o._id); }}
                                 disabled={foundingSubmitting}
                                 style={{ padding:"6px 14px", borderRadius:8, border:"none", background:"#f59e0b", color:"#fff", fontWeight:700, fontSize:".78rem", cursor: foundingSubmitting ? "not-allowed" : "pointer", opacity: foundingSubmitting ? 0.6 : 1 }}>
                                 🔄 Renvoyer l'accord

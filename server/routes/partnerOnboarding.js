@@ -24,6 +24,7 @@ import {
   adminGetOne,
   adminApprove,
   adminSendAgreement,
+  adminResendDocuments,
   adminReject,
   adminRequestInfo,
   adminUpdateStatus,
@@ -84,6 +85,7 @@ router.get  ("/admin/stats",                  isAdmin, adminStats);
 router.get  ("/admin/:id",                    isAdmin, validateObjectId(), adminGetOne);
 router.post ("/admin/:id/approve",            isAdmin, validateObjectId(), adminApprove);
 router.post ("/admin/:id/send-agreement",     isAdmin, validateObjectId(), adminSendAgreement);
+router.post ("/admin/:id/resend-documents",   isAdmin, validateObjectId(), adminResendDocuments);
 router.post ("/admin/:id/reject",             isAdmin, validateObjectId(), adminReject);
 router.post ("/admin/:id/request-info",       isAdmin, validateObjectId(), adminRequestInfo);
 router.patch("/admin/:id/status",             isAdmin, validateObjectId(), adminUpdateStatus);

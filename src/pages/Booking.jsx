@@ -479,6 +479,7 @@ export default function Booking() {
         if (apiData.booking.location?.deliveryFee != null) bookingData.deliveryFee = apiData.booking.location.deliveryFee;
         if (apiData.booking.commissionAmount != null) bookingData.commissionAmount = apiData.booking.commissionAmount;
         if (apiData.booking.partnerPayout    != null) bookingData.partnerPayout    = apiData.booking.partnerPayout;
+        bookingData.isFirstBooking = !!apiData.isFirstBooking;
 
         // Paiement en ligne (carte/Orange Money/Wave) : redirection vers la
         // page de paiement hébergée par le fournisseur (ou le mode simulé si
