@@ -30,6 +30,18 @@ describe("usersController.deactivateMyAccount", () => {
     expect(reloaded.isActive).toBe(true);
   });
 
+  // Bug réel corrigé (audit) : un compte créé via Google a un mot de passe
+  // aléatoire jamais connu de l'utilisateur — message dédié plutôt que
+  // l'erreur générique "mot de passe incorrect" qui le piégeait sans recours
+  // évident (mot de passe oublié).
+  it("indique explicitement le contournement (mot de passe oublié) pour un compte Google", async () => {
+    const user = await createUser({ authProvider: "google", password: await bcrypt.hash("random-unknown", 12) });
+    const { req, res } = mockReqRes({ body: { password: "n-importe-quoi" }, user });
+    await deactivateMyAccount(req, res);
+    expect(res.statusCode).toBe(401);
+    expect(res.body.code).toBe("GOOGLE_ACCOUNT_NO_PASSWORD");
+  });
+
   it("désactive le compte, incrémente tokenVersion et vide refreshTokens", async () => {
     const user = await withPassword({ refreshTokens: ["some-old-hash"], tokenVersion: 1 });
     const oldToken = signOldToken(user);

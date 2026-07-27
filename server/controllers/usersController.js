@@ -646,7 +646,17 @@ export const requestEmailChange = async (req, res) => {
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
 
     const isValid = await bcrypt.compare(currentPassword, user.password);
-    if (!isValid) return res.status(401).json({ message: "Mot de passe incorrect." });
+    if (!isValid) {
+      // Même correctif que changePassword (authController.js) : un compte
+      // Google a un mot de passe aléatoire jamais connu de l'utilisateur.
+      if (user.authProvider === "google") {
+        return res.status(401).json({
+          message: "Ce compte a été créé via Google et n'a pas de mot de passe classique. Utilisez « Mot de passe oublié » sur la page de connexion pour en définir un, puis réessayez.",
+          code: "GOOGLE_ACCOUNT_NO_PASSWORD",
+        });
+      }
+      return res.status(401).json({ message: "Mot de passe incorrect." });
+    }
 
     if (newEmail === user.email) {
       return res.status(400).json({ message: "Cette adresse est déjà la vôtre." });
@@ -688,7 +698,17 @@ export const deactivateMyAccount = async (req, res) => {
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
 
     const isValid = await bcrypt.compare(password, user.password);
-    if (!isValid) return res.status(401).json({ message: "Mot de passe incorrect." });
+    if (!isValid) {
+      // Même correctif que changePassword (authController.js) : un compte
+      // Google a un mot de passe aléatoire jamais connu de l'utilisateur.
+      if (user.authProvider === "google") {
+        return res.status(401).json({
+          message: "Ce compte a été créé via Google et n'a pas de mot de passe classique. Utilisez « Mot de passe oublié » sur la page de connexion pour en définir un, puis réessayez.",
+          code: "GOOGLE_ACCOUNT_NO_PASSWORD",
+        });
+      }
+      return res.status(401).json({ message: "Mot de passe incorrect." });
+    }
 
     user.isActive = false;
     user.refreshTokens = [];

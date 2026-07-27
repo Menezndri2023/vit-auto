@@ -24,6 +24,22 @@ describe("usersController.requestEmailChange", () => {
     expect(reloaded.pendingEmail).toBeNull();
   });
 
+  // Bug réel corrigé (audit) : un compte créé via Google a un mot de passe
+  // aléatoire jamais connu de l'utilisateur — cette route restait bloquée
+  // avec un message identique à un vrai mauvais mot de passe, sans indiquer
+  // le contournement existant (mot de passe oublié).
+  it("indique explicitement le contournement (mot de passe oublié) pour un compte Google", async () => {
+    const user = await createUser({ authProvider: "google", password: await bcrypt.hash("random-unknown", 12) });
+    const { req, res } = mockReqRes({
+      body: { newEmail: "nouveau@example.test", currentPassword: "n-importe-quoi" },
+      user,
+    });
+    await requestEmailChange(req, res);
+    expect(res.statusCode).toBe(401);
+    expect(res.body.code).toBe("GOOGLE_ACCOUNT_NO_PASSWORD");
+    expect(res.body.message).toMatch(/mot de passe oublié/i);
+  });
+
   it("refuse une adresse déjà utilisée par un autre compte", async () => {
     const other = await createUser({ email: "deja-pris@example.test" });
     const user = await withPassword();

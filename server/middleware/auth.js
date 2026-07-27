@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import logger from "../utils/logger.js";
+import { isAccessTokenRevoked } from "../utils/tokenRevocation.js";
 
 // ── Authentification JWT ────────────────────────────────────────────────────
 export const authenticate = async (req, res, next) => {
@@ -9,6 +10,15 @@ export const authenticate = async (req, res, next) => {
     if (!token) return res.status(401).json({ message: "Non autorisé" });
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Faille réelle corrigée (audit) : une déconnexion volontaire (revokeRefreshToken)
+    // ne révoquait que le refresh token — ce JWT d'accès restait valide jusqu'à
+    // 7 jours. Vérification par jti, no-op silencieux si Redis indisponible
+    // (voir tokenRevocation.js — dégradé, jamais bloquant pour l'authentification).
+    if (decoded.jti && await isAccessTokenRevoked(decoded.jti)) {
+      return res.status(401).json({ message: "Session déconnectée. Reconnectez-vous." });
+    }
+
     const user = await User.findById(decoded.id)
       .select("-password -phoneOtp -passwordResetToken -emailVerificationToken -twoFactor.secret -refreshTokens");
 
@@ -41,6 +51,7 @@ export const optionalAuth = async (req, res, next) => {
   if (!token) return next();
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.jti && await isAccessTokenRevoked(decoded.jti)) return next(); // mode invité, pas d'erreur ici
     const user = await User.findById(decoded.id)
       .select("-password -phoneOtp -passwordResetToken -emailVerificationToken -twoFactor.secret -refreshTokens");
     if (user && user.isActive && (decoded.tokenVersion || 0) === (user.tokenVersion || 0)) req.user = user;

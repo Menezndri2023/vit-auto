@@ -1,12 +1,25 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import bcrypt from "bcryptjs";
 import * as OTPAuth from "otpauth";
-import {
+import { createFakeRedisClient } from "./helpers/fakeRedis.js";
+
+// config/redis.js dégrade en no-op si REDIS_URL est absente (voir tests/setup.js,
+// vidée volontairement) — la révocation de token à la déconnexion (voir plus
+// bas) a donc besoin d'un Redis simulé "disponible" pour être exercée ici.
+let redisAvailable = true;
+const fakeRedis = createFakeRedisClient();
+vi.mock("../config/redis.js", () => ({
+  isRedisAvailable: () => redisAvailable,
+  getRedisClient:   () => fakeRedis,
+}));
+
+const {
   login, changePassword, forgotPassword, resetPassword,
-  refreshToken as refreshTokenCtrl, revokeRefreshToken,
+  refreshToken: refreshTokenCtrl, revokeRefreshToken,
   setup2FA, enable2FA, verify2FA, disable2FA,
   sendPhoneOtp, verifyPhoneOtp,
-} from "../controllers/authController.js";
+} = await import("../controllers/authController.js");
+const { authenticate } = await import("../middleware/auth.js");
 import User from "../models/User.js";
 import { createUser } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
@@ -136,6 +149,20 @@ describe("2FA — setup → enable → verify → disable", () => {
     await verify2FA(req, res);
     expect(res.statusCode).toBe(401);
   });
+
+  // Bug réel corrigé (audit) : même piège que changePassword pour un compte
+  // Google (mot de passe aléatoire jamais connu) — voir ce describe plus bas.
+  it("disable2FA indique explicitement le contournement (mot de passe oublié) pour un compte Google", async () => {
+    const user = await createUser({
+      authProvider: "google",
+      password: await bcrypt.hash("random-unknown", 12),
+      twoFactor: { enabled: true, secret: "JBSWY3DPEHPK3PXP" },
+    });
+    const { req, res } = mockReqRes({ user, body: { password: "n-importe-quoi" } });
+    await disable2FA(req, res);
+    expect(res.statusCode).toBe(401);
+    expect(res.body.code).toBe("GOOGLE_ACCOUNT_NO_PASSWORD");
+  });
 });
 
 describe("changePassword", () => {
@@ -157,6 +184,19 @@ describe("changePassword", () => {
     expect(reloaded.tokenVersion).toBe(3);
     expect(reloaded.refreshTokens).toEqual([]);
     expect(await bcrypt.compare("newpassword123", reloaded.password)).toBe(true);
+  });
+
+  // Bug réel corrigé (audit) : un compte créé via Google a un mot de passe
+  // aléatoire jamais connu de l'utilisateur — cette vérification échouait
+  // TOUJOURS pour lui, avec un message identique à un vrai mauvais mot de
+  // passe, sans indiquer le contournement existant (mot de passe oublié).
+  it("indique explicitement le contournement (mot de passe oublié) pour un compte Google", async () => {
+    const user = await createUser({ authProvider: "google", password: await bcrypt.hash("random-unknown", 12) });
+    const { req, res } = mockReqRes({ user, body: { currentPassword: "n-importe-quoi", newPassword: "newpassword123" } });
+    await changePassword(req, res);
+    expect(res.statusCode).toBe(401);
+    expect(res.body.code).toBe("GOOGLE_ACCOUNT_NO_PASSWORD");
+    expect(res.body.message).toMatch(/mot de passe oublié/i);
   });
 });
 
@@ -256,6 +296,75 @@ describe("refreshToken / revokeRefreshToken", () => {
     const { req, res } = mockReqRes({ body: { refreshToken: token } });
     await refreshTokenCtrl(req, res);
     expect(res.statusCode).toBe(401);
+  });
+
+  // Faille réelle corrigée (audit) : revokeRefreshToken ne révoquait que le
+  // refresh token — le JWT d'accès en cours (jusqu'à 7 jours de validité)
+  // restait pleinement utilisable après une déconnexion volontaire. Le jti du
+  // token présenté à la déconnexion est désormais révoqué (voir
+  // tokenRevocation.js, middleware/auth.js).
+  it("revokeRefreshToken révoque aussi le JWT d'accès courant (déconnexion réelle)", async () => {
+    redisAvailable = true;
+    fakeRedis.store.clear();
+
+    const user = await withPassword();
+    const { req: loginReq, res: loginRes } = mockReqRes({ body: { identifier: user.email, password: PASSWORD } });
+    await login(loginReq, loginRes);
+    const { token: accessToken, refreshToken: refresh } = loginRes.body;
+
+    // Avant déconnexion : le token d'accès est valide.
+    const beforeReq  = { headers: { authorization: `Bearer ${accessToken}` } };
+    const beforeRes   = mockReqRes({}).res;
+    const beforeNext = vi.fn();
+    await authenticate(beforeReq, beforeRes, beforeNext);
+    expect(beforeNext).toHaveBeenCalledTimes(1);
+
+    // Déconnexion : envoie le refresh token dans le body ET le token d'accès
+    // dans l'en-tête Authorization, exactement comme le fait le frontend.
+    const revokeReq  = { headers: { authorization: `Bearer ${accessToken}` }, body: { refreshToken: refresh } };
+    const { res: revokeRes } = mockReqRes({});
+    await revokeRefreshToken(revokeReq, revokeRes);
+    expect(revokeRes.statusCode).toBe(200);
+
+    // Après déconnexion : ce MÊME token d'accès est désormais rejeté.
+    const afterReq  = { headers: { authorization: `Bearer ${accessToken}` } };
+    const afterRes  = mockReqRes({}).res;
+    const afterNext = vi.fn();
+    await authenticate(afterReq, afterRes, afterNext);
+    expect(afterNext).not.toHaveBeenCalled();
+    expect(afterRes.statusCode).toBe(401);
+  });
+
+  it("ne révoque PAS le token d'accès d'un autre appareil du même utilisateur", async () => {
+    redisAvailable = true;
+    fakeRedis.store.clear();
+
+    const user = await withPassword();
+
+    // Deux connexions distinctes (deux "appareils") — décalées d'1s pour que
+    // les jti (aléatoires, mais on vérifie ici l'un n'affecte pas l'autre)
+    // et surtout les tokens soient bien deux sessions indépendantes.
+    const { req: login1Req, res: login1Res } = mockReqRes({ body: { identifier: user.email, password: PASSWORD } });
+    await login(login1Req, login1Res);
+    const device1Token = login1Res.body.token;
+
+    const { req: login2Req, res: login2Res } = mockReqRes({ body: { identifier: user.email, password: PASSWORD } });
+    await login(login2Req, login2Res);
+    const device2Token   = login2Res.body.token;
+    const device2Refresh = login2Res.body.refreshToken;
+
+    // L'appareil 2 se déconnecte.
+    const revokeReq = { headers: { authorization: `Bearer ${device2Token}` }, body: { refreshToken: device2Refresh } };
+    const { res: revokeRes } = mockReqRes({});
+    await revokeRefreshToken(revokeReq, revokeRes);
+    expect(revokeRes.statusCode).toBe(200);
+
+    // Le token de l'appareil 1 reste parfaitement valide.
+    const device1Req  = { headers: { authorization: `Bearer ${device1Token}` } };
+    const device1Res  = mockReqRes({}).res;
+    const device1Next = vi.fn();
+    await authenticate(device1Req, device1Res, device1Next);
+    expect(device1Next).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -14,6 +14,7 @@ import { dispatch } from "../queue/index.js";
 import { sendVerification, checkVerification } from "../services/twilioVerify.js";
 import { isValidCountryCode } from "../utils/countries.js";
 import { encryptField, decryptField } from "../utils/fieldEncryption.js";
+import { revokeAccessToken } from "../utils/tokenRevocation.js";
 import { ACTIVITIES, ENTITY_TYPES, entityTypeToSellerType } from "../constants/partnerTaxonomy.js";
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_OAUTH_CLIENT_ID);
@@ -33,7 +34,10 @@ function makeToken() {
 
 function signJWT(user) {
   return jwt.sign(
-    { id: user._id, email: user.email, role: user.role, tokenVersion: user.tokenVersion || 0 },
+    // jti unique par token émis — permet de révoquer CE token précis à la
+    // déconnexion (voir revokeRefreshToken) sans affecter les autres sessions
+    // de l'utilisateur, contrairement à tokenVersion (global, toutes sessions).
+    { id: user._id, email: user.email, role: user.role, tokenVersion: user.tokenVersion || 0, jti: makeToken() },
     JWT_SECRET(),
     { expiresIn: "7d" }
   );
@@ -792,7 +796,21 @@ export const changePassword = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
     const isValid = await bcrypt.compare(currentPassword, user.password);
-    if (!isValid) return res.status(401).json({ message: "Mot de passe actuel incorrect." });
+    if (!isValid) {
+      // Bug réel corrigé (audit) : un compte créé via Google (authController.oauthGoogle)
+      // a un mot de passe aléatoire, jamais connu de l'utilisateur — cette
+      // vérification échoue alors TOUJOURS, le piégeant sans qu'il comprenne
+      // pourquoi (message générique identique à un vrai mauvais mot de passe).
+      // Le chemin de contournement existe déjà (mot de passe oublié, voir
+      // User.js) mais n'était pas mentionné ici.
+      if (user.authProvider === "google") {
+        return res.status(401).json({
+          message: "Ce compte a été créé via Google et n'a pas de mot de passe classique. Utilisez « Mot de passe oublié » sur la page de connexion pour en définir un, puis réessayez.",
+          code: "GOOGLE_ACCOUNT_NO_PASSWORD",
+        });
+      }
+      return res.status(401).json({ message: "Mot de passe actuel incorrect." });
+    }
 
     user.password = await bcrypt.hash(newPassword, 12);
     user.refreshTokens = [];
@@ -1125,6 +1143,21 @@ export const revokeRefreshToken = async (req, res) => {
   const { refreshToken: token } = req.body;
   if (!token) return res.status(400).json({ message: "Token requis." });
 
+  // Faille réelle corrigée (audit) : seul le refresh token était révoqué ici —
+  // le JWT d'accès en cours (jusqu'à 7 jours de validité) restait pleinement
+  // utilisable après une déconnexion volontaire, y compris s'il avait fuité
+  // (poste public, XSS). On révoque en plus CE token précis (par jti, voir
+  // tokenRevocation.js) sans toucher aux autres appareils de l'utilisateur.
+  const accessToken = req.headers.authorization?.split(" ")[1];
+  if (accessToken) {
+    try {
+      const decodedAccess = jwt.decode(accessToken);
+      if (decodedAccess?.jti && decodedAccess?.exp) {
+        await revokeAccessToken(decodedAccess.jti, decodedAccess.exp);
+      }
+    } catch { /* best-effort — ne bloque jamais la déconnexion */ }
+  }
+
   try {
     const decoded = jwt.verify(token, REFRESH_SECRET());
     await User.findByIdAndUpdate(decoded.id, {
@@ -1350,7 +1383,16 @@ export const disable2FA = async (req, res) => {
     }
 
     const isValid = await bcrypt.compare(password, user.password);
-    if (!isValid) return res.status(401).json({ message: "Mot de passe incorrect." });
+    if (!isValid) {
+      // Même correctif que changePassword — voir le commentaire là-bas.
+      if (user.authProvider === "google") {
+        return res.status(401).json({
+          message: "Ce compte a été créé via Google et n'a pas de mot de passe classique. Utilisez « Mot de passe oublié » sur la page de connexion pour en définir un, puis réessayez.",
+          code: "GOOGLE_ACCOUNT_NO_PASSWORD",
+        });
+      }
+      return res.status(401).json({ message: "Mot de passe incorrect." });
+    }
 
     user.twoFactor = { enabled: false, secret: null, backupCodes: [], enabledAt: null };
     await user.save();
