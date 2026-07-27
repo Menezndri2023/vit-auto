@@ -878,13 +878,24 @@ export const getMyBookings = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 export const getPartnerBookings = async (req, res) => {
   try {
-    const { page = 1, limit = 30 } = req.query;
+    const { page = 1, limit = 30, businessId } = req.query;
     const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 200);
     const safePage  = Math.max(Number(page) || 1, 1);
 
+    // Segmentation par entité (PartnerBusiness) — un partenaire à plusieurs
+    // entités filtre ses commandes par entité via la même jointure
+    // Vehicle.business/Driver.business que dans pmsController.getPartnerBookings
+    // (Booking lui-même ne porte pas cette info, une commande n'appartenant
+    // qu'à un seul véhicule/chauffeur qui, lui, appartient à une entité).
+    const vehicleFilter = { owner: req.user._id };
+    const driverFilter  = { owner: req.user._id };
+    if (businessId && mongoose.Types.ObjectId.isValid(businessId)) {
+      vehicleFilter.business = businessId;
+      driverFilter.business  = businessId;
+    }
     const [myVehicles, myDrivers] = await Promise.all([
-      Vehicle.find({ owner: req.user._id }).select("_id"),
-      Driver.find({ owner: req.user._id }).select("_id"),
+      Vehicle.find(vehicleFilter).select("_id"),
+      Driver.find(driverFilter).select("_id"),
     ]);
     const vehicleIds = myVehicles.map((v) => v._id);
     const driverIds  = myDrivers.map((d) => d._id);
@@ -1565,15 +1576,21 @@ export const getEssaiOccupiedSlots = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 export const getPartnerStats = async (req, res) => {
   try {
+    const { year, month, businessId } = req.query;
+    const vehicleFilter = { owner: req.user._id };
+    const driverFilter  = { owner: req.user._id };
+    if (businessId && mongoose.Types.ObjectId.isValid(businessId)) {
+      vehicleFilter.business = businessId;
+      driverFilter.business  = businessId;
+    }
     const [myVehicles, myDrivers] = await Promise.all([
-      Vehicle.find({ owner: req.user._id }).select("_id"),
-      Driver.find({ owner: req.user._id }).select("_id"),
+      Vehicle.find(vehicleFilter).select("_id"),
+      Driver.find(driverFilter).select("_id"),
     ]);
     const vehicleIds = myVehicles.map((v) => v._id);
     const driverIds  = myDrivers.map((d) => d._id);
 
     // Filtre optionnel par mois/année pour les rapports mensuels
-    const { year, month } = req.query;
     let dateFilter = {};
     if (year && /^\d{4}$/.test(year)) {
       const y = Number(year);
@@ -1637,9 +1654,16 @@ export const getPartnerStats = async (req, res) => {
 // véhicules les plus rentables, ni ses clients réguliers. Manque réel trouvé en audit.
 export const getPartnerAnalytics = async (req, res) => {
   try {
+    const { businessId } = req.query;
+    const vehicleFilter = { owner: req.user._id };
+    const driverFilter  = { owner: req.user._id };
+    if (businessId && mongoose.Types.ObjectId.isValid(businessId)) {
+      vehicleFilter.business = businessId;
+      driverFilter.business  = businessId;
+    }
     const [myVehicles, myDrivers] = await Promise.all([
-      Vehicle.find({ owner: req.user._id }).select("_id title marque modele"),
-      Driver.find({ owner: req.user._id }).select("_id"),
+      Vehicle.find(vehicleFilter).select("_id title marque modele"),
+      Driver.find(driverFilter).select("_id"),
     ]);
     const vehicleIds = myVehicles.map((v) => v._id);
     const driverIds  = myDrivers.map((d) => d._id);
@@ -1758,14 +1782,20 @@ export const getPartnerAnalytics = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 export const exportPartnerBookings = async (req, res) => {
   try {
+    const { dateFrom, dateTo, businessId } = req.query;
+    const vehicleFilter = { owner: req.user._id };
+    const driverFilter  = { owner: req.user._id };
+    if (businessId && mongoose.Types.ObjectId.isValid(businessId)) {
+      vehicleFilter.business = businessId;
+      driverFilter.business  = businessId;
+    }
     const [myVehicles, myDrivers] = await Promise.all([
-      Vehicle.find({ owner: req.user._id }).select("_id"),
-      Driver.find({ owner: req.user._id }).select("_id"),
+      Vehicle.find(vehicleFilter).select("_id"),
+      Driver.find(driverFilter).select("_id"),
     ]);
     const vehicleIds = myVehicles.map((v) => v._id);
     const driverIds  = myDrivers.map((d) => d._id);
 
-    const { dateFrom, dateTo } = req.query;
     const filter = { $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }] };
     if (dateFrom || dateTo) {
       filter.createdAt = {};

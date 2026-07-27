@@ -1,10 +1,13 @@
+import mongoose from "mongoose";
 import logger from "../utils/logger.js";
 import Lead from "../models/Lead.js";
 import Quote from "../models/Quote.js";
 import PartnerShowroom from "../models/PartnerShowroom.js";
 import Booking from "../models/Booking.js";
 import Vehicle from "../models/Vehicle.js";
+import Driver from "../models/Driver.js";
 import User from "../models/User.js";
+import PartnerBusiness from "../models/PartnerBusiness.js";
 import { sendViaEmail, sendViaSms } from "../services/communication/CommunicationService.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
@@ -12,14 +15,14 @@ const APP_URL = process.env.APP_URL || "https://vit-auto.com";
 // Champs autorisés à la création d'un lead (sous-ensemble strict)
 const LEAD_CREATE_FIELDS = [
   "buyer", "vehicle", "budget", "destinationCountry", "destinationPort",
-  "source", "status", "urgency", "internalNotes",
+  "source", "status", "urgency", "internalNotes", "businessId",
 ];
 
 // Champs autorisés pour la mise à jour d'un lead (empêche l'injection de partnerId)
 const LEAD_UPDATE_FIELDS = [
   "buyer", "vehicle", "budget", "destinationCountry", "destinationPort",
   "source", "status", "urgency", "score", "assignedTo",
-  "internalNotes", "lostReason", "nextFollowUpAt", "firstContactAt", "closedAt",
+  "internalNotes", "lostReason", "nextFollowUpAt", "firstContactAt", "closedAt", "businessId",
 ];
 
 // Champs autorisés pour la mise à jour d'un devis
@@ -30,7 +33,7 @@ const QUOTE_UPDATE_FIELDS = [
   "leadId", "buyer", "vehicles", "lines", "subtotal", "discount", "discountAmount",
   "taxRate", "taxAmount", "total", "currency", "incoterm", "paymentTerms",
   "paymentMethod", "portOfLoading", "portOfDischarge", "deliveryTime",
-  "validityDays", "validUntil", "notes", "conditions", "status",
+  "validityDays", "validUntil", "notes", "conditions", "status", "businessId",
 ];
 
 // Champs autorisés pour l'upsert showroom
@@ -44,7 +47,11 @@ const SHOWROOM_SAFE_FIELDS = [
 ];
 
 function pick(obj, fields) {
-  return Object.fromEntries(fields.filter((k) => k in obj).map((k) => [k, obj[k]]));
+  const picked = Object.fromEntries(fields.filter((k) => k in obj).map((k) => [k, obj[k]]));
+  // "" (option "— Non rattaché —" du sélecteur d'entité) doit désenregistrer
+  // le rattachement, pas être castée comme ObjectId (CastError sinon).
+  if (picked.businessId === "") picked.businessId = null;
+  return picked;
 }
 
 // Calcule les totaux d'un devis à partir de ses lignes
@@ -67,17 +74,56 @@ function calcTotals(data) {
   return { ...data, subtotal, discountAmount, taxAmount, total: afterDiscount + taxAmount };
 }
 
-// Requête bookings pour un partenaire (via ses véhicules et chauffeurs)
-async function getPartnerBookings(partnerId) {
-  const vehicles = await Vehicle.find({ owner: partnerId }).select("_id");
+// Requête bookings pour un partenaire (via ses véhicules et chauffeurs).
+// businessId optionnel : Booking n'a pas de champ business propre (les
+// commandes ne sont pas dupliquées par entité), donc la segmentation passe
+// par une jointure sur Vehicle.business / Driver.business — la même entité
+// que celle choisie à la publication (voir vehicleController.createVehicle).
+async function getPartnerBookings(partnerId, businessId) {
+  const vehicleFilter = { owner: partnerId };
+  const driverFilter   = { owner: partnerId };
+  if (businessId) {
+    vehicleFilter.business = businessId;
+    driverFilter.business  = businessId;
+  }
+  const [vehicles, drivers] = await Promise.all([
+    Vehicle.find(vehicleFilter).select("_id"),
+    Driver.find(driverFilter).select("_id"),
+  ]);
   const vehicleIds = vehicles.map((v) => v._id);
-  if (vehicleIds.length === 0) return [];
-  return Booking.find({ vehicle: { $in: vehicleIds } }).lean();
+  const driverIds  = drivers.map((d) => d._id);
+  if (vehicleIds.length === 0 && driverIds.length === 0) return [];
+  return Booking.find({
+    $or: [
+      ...(vehicleIds.length ? [{ vehicle: { $in: vehicleIds } }] : []),
+      ...(driverIds.length  ? [{ driver:  { $in: driverIds } }]  : []),
+    ],
+  }).lean();
 }
 
 // Échappe les caractères spéciaux pour une regex sûre
 function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Un businessId n'est accepté que s'il appartient bien au partenaire courant
+// (IDOR sinon : n'importe quel partenaire pourrait rattacher son lead/devis à
+// l'entité d'un autre partenaire, ou l'utiliser comme filtre pour lire les
+// données d'un autre partenaire).
+async function assertOwnBusiness(businessId, partnerId) {
+  if (!businessId) return true;
+  if (!mongoose.Types.ObjectId.isValid(businessId)) return false;
+  const business = await PartnerBusiness.findOne({ _id: businessId, owner: partnerId }).select("_id").lean();
+  return !!business;
+}
+
+// Filtre businessId sûr pour les listes (GET) — ignoré silencieusement si
+// invalide ou hors périmètre plutôt que de faire échouer la requête, puisque
+// c'est un simple filtre optionnel de confort.
+async function safeBusinessFilter(rawBusinessId, partnerId) {
+  if (!rawBusinessId || !mongoose.Types.ObjectId.isValid(rawBusinessId)) return undefined;
+  const owned = await assertOwnBusiness(rawBusinessId, partnerId);
+  return owned ? rawBusinessId : undefined;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -86,12 +132,16 @@ function escapeRegex(str) {
 export async function getPMSOverview(req, res) {
   try {
     const partnerId = req.user._id;
+    const businessId = await safeBusinessFilter(req.query.businessId, partnerId);
+    const leadFilter  = { partnerId, ...(businessId ? { businessId } : {}) };
+    const quoteFilter = { partnerId, ...(businessId ? { businessId } : {}) };
+    const vehicleFilter = { owner: partnerId, ...(businessId ? { business: businessId } : {}) };
 
     const [leads, quotes, bookings, vehicles, showroom] = await Promise.all([
-      Lead.find({ partnerId }).lean(),
-      Quote.find({ partnerId }).lean(),
-      getPartnerBookings(partnerId),
-      Vehicle.find({ owner: partnerId }).select("-images").lean(),
+      Lead.find(leadFilter).lean(),
+      Quote.find(quoteFilter).lean(),
+      getPartnerBookings(partnerId, businessId),
+      Vehicle.find(vehicleFilter).select("-images").lean(),
       PartnerShowroom.findOne({ partnerId }).lean(),
     ]);
 
@@ -165,6 +215,8 @@ export async function getLeads(req, res) {
     const limit = Math.min(Number(req.query.limit) || 20, 100);
     const filter = { partnerId: req.user._id };
     if (status) filter.status = status;
+    const businessId = await safeBusinessFilter(req.query.businessId, req.user._id);
+    if (businessId) filter.businessId = businessId;
 
     const [leads, total] = await Promise.all([
       Lead.find(filter)
@@ -184,6 +236,15 @@ export async function getLeads(req, res) {
 export async function createLead(req, res) {
   try {
     const safe = pick(req.body, LEAD_CREATE_FIELDS);
+    if (safe.businessId && !(await assertOwnBusiness(safe.businessId, req.user._id))) {
+      return res.status(400).json({ message: "Entreprise introuvable." });
+    }
+    // Sans entité explicitement choisie, hérite de celle du véhicule ciblé —
+    // même logique que Vehicle.business à la publication (voir vehicleController).
+    if (!safe.businessId && safe.vehicle?.listingId) {
+      const targetVehicle = await Vehicle.findOne({ _id: safe.vehicle.listingId, owner: req.user._id }).select("business").lean();
+      if (targetVehicle?.business) safe.businessId = targetVehicle.business;
+    }
     const lead = await Lead.create({ ...safe, partnerId: req.user._id });
     res.status(201).json(lead);
   } catch (err) {
@@ -205,6 +266,9 @@ export async function getLead(req, res) {
 export async function updateLead(req, res) {
   try {
     const safe = pick(req.body, LEAD_UPDATE_FIELDS);
+    if (safe.businessId && !(await assertOwnBusiness(safe.businessId, req.user._id))) {
+      return res.status(400).json({ message: "Entreprise introuvable." });
+    }
     const lead = await Lead.findOneAndUpdate(
       { _id: req.params.id, partnerId: req.user._id },
       { $set: { ...safe, updatedAt: new Date() } },
@@ -267,6 +331,8 @@ export async function getQuotes(req, res) {
     const limit = Math.min(Number(req.query.limit) || 20, 100);
     const filter = { partnerId: req.user._id };
     if (status) filter.status = status;
+    const businessId = await safeBusinessFilter(req.query.businessId, req.user._id);
+    if (businessId) filter.businessId = businessId;
 
     const [quotes, total] = await Promise.all([
       Quote.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
@@ -323,9 +389,17 @@ export async function createQuote(req, res) {
     const safe = pick(req.body, QUOTE_UPDATE_FIELDS);
     // Un leadId hors périmètre (autre partenaire) ne doit jamais être accepté
     // silencieusement — même garde que les autres endpoints partnerId-scopés.
+    let leadForBusiness = null;
     if (safe.leadId) {
-      const lead = await Lead.findOne({ _id: safe.leadId, partnerId: req.user._id }).select("_id");
-      if (!lead) return res.status(400).json({ message: "Lead introuvable." });
+      leadForBusiness = await Lead.findOne({ _id: safe.leadId, partnerId: req.user._id }).select("_id businessId");
+      if (!leadForBusiness) return res.status(400).json({ message: "Lead introuvable." });
+    }
+    if (safe.businessId && !(await assertOwnBusiness(safe.businessId, req.user._id))) {
+      return res.status(400).json({ message: "Entreprise introuvable." });
+    }
+    // Sans entité explicitement choisie, hérite de celle du lead d'origine.
+    if (!safe.businessId && leadForBusiness?.businessId) {
+      safe.businessId = leadForBusiness.businessId;
     }
     const data = calcTotals({ ...safe, partnerId: req.user._id });
     const quote = await Quote.create(data);
@@ -364,6 +438,9 @@ export async function updateQuote(req, res) {
     if (safe.leadId) {
       const lead = await Lead.findOne({ _id: safe.leadId, partnerId: req.user._id }).select("_id");
       if (!lead) return res.status(400).json({ message: "Lead introuvable." });
+    }
+    if (safe.businessId && !(await assertOwnBusiness(safe.businessId, req.user._id))) {
+      return res.status(400).json({ message: "Entreprise introuvable." });
     }
     const data = calcTotals({ ...safe, updatedAt: new Date() });
     const quote = await Quote.findOneAndUpdate(

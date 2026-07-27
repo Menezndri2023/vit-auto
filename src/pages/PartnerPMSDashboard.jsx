@@ -57,17 +57,19 @@ const StatusBadge = ({ cfg, val }) => {
 // ══════════════════════════════════════════════════════════════════════════════
 // SECTION: VUE ACCUEIL (Dashboard home)
 // ══════════════════════════════════════════════════════════════════════════════
-function HomeSection({ token, user, onNav }) {
+function HomeSection({ token, user, onNav, businessId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     setError(false);
-    API("/overview", token).then((r) => r.ok ? r.json() : null).then(setData)
+    setLoading(true);
+    const qs = businessId ? `?businessId=${businessId}` : "";
+    API(`/overview${qs}`, token).then((r) => r.ok ? r.json() : null).then(setData)
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, businessId]);
 
   const kpiCards = data ? [
     { icon:"🎯", label:"Leads totaux",    value:data.leadsStats?.total || 0,  sub:`${data.leadsStats?.nouveau || 0} nouveaux`, color:"#3b82f6" },
@@ -194,14 +196,14 @@ function HomeSection({ token, user, onNav }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // SECTION: LEADS
 // ══════════════════════════════════════════════════════════════════════════════
-function LeadsSection({ token, showToast }) {
+function LeadsSection({ token, showToast, businessId, businesses = [] }) {
   const [leads, setLeads]     = useState([]);
   const [total, setTotal]     = useState(0);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState("");
   const [selected, setSelected] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ buyer: {}, vehicle: {}, budget: {}, status: "nouveau", urgency: "moyen", source: "website" });
+  const [form, setForm] = useState({ buyer: {}, vehicle: {}, budget: {}, status: "nouveau", urgency: "moyen", source: "website", businessId: "" });
   const [saving, setSaving]   = useState(false);
   const [followUpNote, setFollowUpNote] = useState("");
   // Bug réel corrigé (audit) : ce composant n'envoyait jamais `page`/`limit` —
@@ -215,14 +217,15 @@ function LeadsSection({ token, showToast }) {
     setLoading(true);
     const params = new URLSearchParams({ limit: String(limit) });
     if (filterStatus) params.set("status", filterStatus);
+    if (businessId) params.set("businessId", businessId);
     API(`/leads?${params}`, token)
       .then((r) => r.ok ? r.json() : { leads: [], total: 0 })
       .then((d) => { setLeads(d.leads || []); setTotal(d.total || 0); })
       .finally(() => setLoading(false));
-  }, [token, filterStatus, limit]);
+  }, [token, filterStatus, limit, businessId]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setLimit(20); }, [filterStatus]);
+  useEffect(() => { setLimit(20); }, [filterStatus, businessId]);
 
   const setF = (path, val) => {
     setForm((prev) => {
@@ -243,6 +246,11 @@ function LeadsSection({ token, showToast }) {
       load();
     } catch (e) { showToast(e.message, "error"); }
     finally { setSaving(false); }
+  };
+
+  const openNewLeadForm = () => {
+    setForm({ buyer: {}, vehicle: {}, budget: {}, status: "nouveau", urgency: "moyen", source: "website", businessId: businessId || "" });
+    setShowForm(true);
   };
 
   const updateStatus = async (id, status) => {
@@ -284,7 +292,7 @@ function LeadsSection({ token, showToast }) {
           <h2 className={styles.sectionTitle}>🎯 Gestion des Leads</h2>
           <p className={styles.sectionSub}>{fmtNum(total)} prospect{total > 1 ? "s" : ""}</p>
         </div>
-        <button className={styles.btnPrimary} onClick={() => setShowForm(true)}>+ Nouveau lead</button>
+        <button className={styles.btnPrimary} onClick={() => openNewLeadForm()}>+ Nouveau lead</button>
       </div>
 
       {/* Filtres */}
@@ -310,7 +318,7 @@ function LeadsSection({ token, showToast }) {
             <div className={styles.emptyState}>
               <span>🎯</span>
               <p>Aucun lead</p>
-              <button className={styles.btnPrimary} onClick={() => setShowForm(true)}>Créer le premier lead</button>
+              <button className={styles.btnPrimary} onClick={() => openNewLeadForm()}>Créer le premier lead</button>
             </div>
           ) : leads.map((l) => (
             <div
@@ -454,6 +462,15 @@ function LeadsSection({ token, showToast }) {
               <button onClick={() => setShowForm(false)}>✕</button>
             </div>
             <div className={styles.modalBody}>
+              {businesses.length > 1 && (
+                <label style={{ display: "block", marginBottom: 12 }}>
+                  Entreprise
+                  <select value={form.businessId || ""} onChange={(e) => setF("businessId", e.target.value)}>
+                    <option value="">— Non rattaché —</option>
+                    {businesses.map((b) => <option key={b._id} value={b._id}>{b.companyName}</option>)}
+                  </select>
+                </label>
+              )}
               <p className={styles.fieldGroupLabel}>Acheteur</p>
               <div className={styles.formGrid2}>
                 <label>Nom<input value={form.buyer.name || ""} onChange={(e) => setF("buyer.name", e.target.value)} placeholder="Jean Dupont" /></label>
@@ -509,7 +526,7 @@ function LeadsSection({ token, showToast }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // SECTION: DEVIS (Quotation Builder)
 // ══════════════════════════════════════════════════════════════════════════════
-function QuotesSection({ token, showToast }) {
+function QuotesSection({ token, showToast, businessId, businesses = [] }) {
   const [quotes, setQuotes]   = useState([]);
   // Bug réel corrigé (audit) : ce composant n'envoyait jamais `page`/`limit` —
   // le backend (pmsController.getQuotes) plafonne alors à 20 résultats, page 1
@@ -535,22 +552,30 @@ function QuotesSection({ token, showToast }) {
     deliveryTime:"30-45 jours après paiement",
     validityDays:30,
     portOfLoading:"", portOfDischarge:"",
-    notes:"",
+    notes:"", businessId:"",
   });
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
-    API(`/quotes?limit=${quotesLimit}`, token)
+    const params = new URLSearchParams({ limit: String(quotesLimit) });
+    if (businessId) params.set("businessId", businessId);
+    API(`/quotes?${params}`, token)
       .then((r) => r.ok ? r.json() : { quotes: [], total: 0 })
       .then((d) => { setQuotes(d.quotes || []); setQuotesTotal(d.total || 0); })
       .finally(() => setLoading(false));
-  }, [token, quotesLimit]);
+  }, [token, quotesLimit, businessId]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { setQuotesLimit(20); }, [businessId]);
 
   const setF = (key, val) => setForm((p) => ({ ...p, [key]: val }));
   const setFNested = (key, subkey, val) => setForm((p) => ({ ...p, [key]: { ...p[key], [subkey]: val } }));
+
+  const openBuilder = () => {
+    setForm((p) => ({ ...p, businessId: businessId || "" }));
+    setShowBuilder(true);
+  };
 
   const updateLine = (i, field, val) => {
     const newLines = [...form.lines];
@@ -604,7 +629,7 @@ function QuotesSection({ token, showToast }) {
           <h2 className={styles.sectionTitle}>📄 Générateur de Devis</h2>
           <p className={styles.sectionSub}>{quotesTotal || quotes.length} devis créés</p>
         </div>
-        <button className={styles.btnPrimary} onClick={() => setShowBuilder(true)}>+ Nouveau devis</button>
+        <button className={styles.btnPrimary} onClick={openBuilder}>+ Nouveau devis</button>
       </div>
 
       {/* Liste devis */}
@@ -614,7 +639,7 @@ function QuotesSection({ token, showToast }) {
         <div className={styles.emptyState}>
           <span>📄</span>
           <p>Aucun devis créé</p>
-          <button className={styles.btnPrimary} onClick={() => setShowBuilder(true)}>Créer mon premier devis</button>
+          <button className={styles.btnPrimary} onClick={openBuilder}>Créer mon premier devis</button>
         </div>
       ) : (
         <div className={styles.quoteGrid}>
@@ -657,6 +682,15 @@ function QuotesSection({ token, showToast }) {
               <button onClick={() => setShowBuilder(false)}>✕</button>
             </div>
             <div className={styles.modalBody}>
+              {businesses.length > 1 && (
+                <label style={{ display: "block", marginBottom: 12 }}>
+                  Entreprise émettrice
+                  <select value={form.businessId || ""} onChange={(e) => setF("businessId", e.target.value)}>
+                    <option value="">— Non rattaché —</option>
+                    {businesses.map((b) => <option key={b._id} value={b._id}>{b.companyName}</option>)}
+                  </select>
+                </label>
+              )}
               {/* Acheteur */}
               <p className={styles.fieldGroupLabel}>Informations acheteur</p>
               <div className={styles.formGrid3}>
@@ -1539,6 +1573,21 @@ export default function PartnerPMSDashboard() {
   const [activeSection, setActiveSection] = useState(searchParams.get("section") || "home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // ── Entités (PartnerBusiness) — un partenaire opérant plusieurs entreprises
+  // (voir PartnerBusinessManager) doit pouvoir cloisonner ses leads/devis/
+  // commandes par entité au lieu de tout voir mélangé. Le sélecteur ne
+  // s'affiche que s'il y a au moins 2 entités — inutile sinon.
+  const [businesses, setBusinesses] = useState([]);
+  const [businessId, setBusinessId] = useState("");
+
+  useEffect(() => {
+    if (!token) return;
+    fetch("/api/partner/businesses", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.ok ? r.json() : { businesses: [] })
+      .then((d) => setBusinesses(d.businesses || []))
+      .catch(() => {});
+  }, [token]);
+
   const showToast = (msg, type = "info") => addToast?.(msg, type);
 
   const onNav = (section) => {
@@ -1554,16 +1603,16 @@ export default function PartnerPMSDashboard() {
 
   const renderSection = () => {
     switch (activeSection) {
-      case "home":        return <HomeSection token={token} user={user} onNav={onNav} />;
+      case "home":        return <HomeSection token={token} user={user} onNav={onNav} businessId={businessId} />;
       case "onboarding":  return <OnboardingSection token={token} />;
       case "company":     return <CompanySection user={user} />;
       case "showroom":    return <ShowroomSection token={token} showToast={showToast} />;
       case "fleet":       return <FleetSection />;
-      case "leads":       return <LeadsSection token={token} showToast={showToast} />;
-      case "quotes":      return <QuotesSection token={token} showToast={showToast} />;
+      case "leads":       return <LeadsSection token={token} showToast={showToast} businessId={businessId} businesses={businesses} />;
+      case "quotes":      return <QuotesSection token={token} showToast={showToast} businessId={businessId} businesses={businesses} />;
       case "analytics":   return <AnalyticsSection token={token} />;
       case "performance": return <PerformanceSection token={token} user={user} />;
-      default:            return <HomeSection token={token} user={user} onNav={onNav} />;
+      default:            return <HomeSection token={token} user={user} onNav={onNav} businessId={businessId} />;
     }
   };
 
@@ -1632,6 +1681,19 @@ export default function PartnerPMSDashboard() {
           <button className={styles.menuBtn} onClick={() => setSidebarOpen(true)}>☰</button>
           <span className={styles.topBarTitle}>{activeLabel}</span>
           <div className={styles.topBarRight}>
+            {businesses.length > 1 && (
+              <select
+                value={businessId}
+                onChange={(e) => setBusinessId(e.target.value)}
+                title="Filtrer par entreprise"
+                style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: ".82rem", marginRight: 8 }}
+              >
+                <option value="">Toutes les entités</option>
+                {businesses.map((b) => (
+                  <option key={b._id} value={b._id}>{b.companyName}</option>
+                ))}
+              </select>
+            )}
             <Link to="/vendor/publish" className={styles.topBarAction}>+ Véhicule</Link>
           </div>
         </div>

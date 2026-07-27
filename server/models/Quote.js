@@ -36,6 +36,14 @@ const quoteSchema = new mongoose.Schema({
   // Lead associé (optionnel)
   leadId: { type: mongoose.Schema.Types.ObjectId, ref: "Lead", default: null },
 
+  // Entreprise (PartnerBusiness) émettrice — même principe que Lead.businessId.
+  businessId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "PartnerBusiness",
+    default: null,
+    index: true,
+  },
+
   // Acheteur
   buyer: {
     name:    { type: String, trim: true },
@@ -109,6 +117,7 @@ const quoteSchema = new mongoose.Schema({
 
 quoteSchema.index({ partnerId: 1, status: 1 });
 quoteSchema.index({ partnerId: 1, createdAt: -1 });
+quoteSchema.index({ partnerId: 1, businessId: 1 });
 
 // Auto-génération numéro de devis — doit tourner en pre("validate"), pas
 // pre("save") : Mongoose exécute la validation (donc le check `required`

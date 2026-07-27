@@ -9,6 +9,17 @@ const leadSchema = new mongoose.Schema({
     index: true,
   },
 
+  // Entreprise (PartnerBusiness) à laquelle rattacher ce lead — un partenaire
+  // opérant plusieurs entités (voir PartnerBusiness.js) doit pouvoir séparer
+  // son pipeline par entité. Optionnel : null = non rattaché (ancien lead, ou
+  // partenaire mono-entité) et reste visible dans "Toutes les entités".
+  businessId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "PartnerBusiness",
+    default: null,
+    index: true,
+  },
+
   // Acheteur (optionnel si non inscrit)
   buyerId:   { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
 
@@ -115,6 +126,7 @@ const leadSchema = new mongoose.Schema({
 
 leadSchema.index({ partnerId: 1, status: 1 });
 leadSchema.index({ partnerId: 1, createdAt: -1 });
+leadSchema.index({ partnerId: 1, businessId: 1 });
 leadSchema.index({ "buyer.email": 1 });
 
 leadSchema.pre("save", function (next) {
