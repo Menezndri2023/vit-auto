@@ -17,6 +17,20 @@ import { resolveDefaultPartnerBusinessId } from "../utils/ensureDefaultPartnerBu
 const MAX_LISTING_IMAGE_BYTES = 6 * 1024 * 1024;
 const MAX_IMAGE_URL_LENGTH    = 2048;
 
+// Bug réel corrigé (audit) : les 3 Notification.create() de ce fichier ne
+// déclenchaient jamais d'émission socket temps réel (contrairement au
+// patron déjà utilisé dans bookingController.js/partnerOnboardingController.js) —
+// le client/partenaire ne voyait la mise à jour qu'au prochain polling (20s).
+async function notify(userId, data) {
+  if (!userId) return;
+  const notif = await Notification.create({ user: userId, ...data }).catch(() => null);
+  if (notif && global._io) {
+    global._io.to(`user_${userId}`).emit("notification_new", {
+      _id: notif._id, ...data, lu: false, createdAt: notif.createdAt,
+    });
+  }
+}
+
 // Même garde que vehicleController.js (validateVehicleImages) — absente ici
 // jusqu'à présent : un partenaire pouvait soumettre un blob base64 énorme ou
 // une chaîne arbitraire directement dans photos/mainPhoto, avec un risque
@@ -135,8 +149,7 @@ export const updateRequestStatus = async (req, res) => {
         contacted:  "notre équipe vous a contacté",
       };
       if (labels[status]) {
-        await Notification.create({
-          user:    request.userId,
+        await notify(request.userId, {
           type:    status === "rejected" ? "error" : "success",
           titre:   "Import / Export",
           message: `Bonjour ${request.firstName}, ${labels[status]}.${adminNote ? " Note : " + adminNote : ""}`,
@@ -325,8 +338,7 @@ export const reviewImporterProfile = async (req, res) => {
     });
 
     // Notifier le partenaire
-    await Notification.create({
-      user:    profile.userId._id,
+    await notify(profile.userId._id, {
       type:    status === "verified" ? "success" : "error",
       titre:   status === "verified" ? "Candidature importateur approuvée !" : "Candidature importateur refusée",
       message: status === "verified"
@@ -744,8 +756,7 @@ export const updateListingStatus = async (req, res) => {
     if (!listing) return res.status(404).json({ message: "Annonce introuvable." });
 
     // Notifier le partenaire
-    await Notification.create({
-      user:    listing.partner._id,
+    await notify(listing.partner._id, {
       type:    status === "approved" ? "success" : "error",
       titre:   status === "approved" ? "Annonce import/export publiée !" : "Annonce import/export refusée",
       message: status === "approved"

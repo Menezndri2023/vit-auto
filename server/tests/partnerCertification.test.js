@@ -119,6 +119,35 @@ describe("partnerCertificationController.adminReviewLevel — boucle jusqu'au ba
     const updatedUser = await User.findById(partner._id);
     expect(updatedUser.certificationBadge).toBe("none");
   });
+
+  // Bug réel corrigé (audit) : sans branche `else`, rejeter un niveau 1-3
+  // APRÈS que overallStatus soit passé à "approved" ne le faisait jamais
+  // redescendre — le dossier restait affiché "approved" partout (Vue de
+  // confiance admin, profil public) alors qu'il n'est plus valide.
+  it("rejeter un niveau APRÈS approbation complète fait redescendre overallStatus (pas figé sur 'approved')", async () => {
+    const partner = await createUser({ role: "partenaire" });
+    const admin = await createUser({ role: "admin" });
+    await PartnerCertification.create({ userId: partner._id, ...approvedLevelsSubmitted(1, 2, 3) });
+
+    for (const level of [1, 2, 3]) {
+      const { req, res } = mockReqRes({ user: admin, params: { userId: partner._id.toString(), level: String(level) }, body: { decision: "approved" } });
+      await adminReviewLevel(req, res);
+    }
+    const approvedCert = await PartnerCertification.findOne({ userId: partner._id });
+    expect(approvedCert.overallStatus).toBe("approved");
+
+    // L'admin revient sur sa décision pour le niveau 2 — aucun autre niveau
+    // n'est "submitted" en attente à ce moment-là.
+    const { req, res } = mockReqRes({
+      user: admin, params: { userId: partner._id.toString(), level: "2" },
+      body: { decision: "rejected", note: "Document finalement invalide" },
+    });
+    await adminReviewLevel(req, res);
+
+    const reloadedCert = await PartnerCertification.findOne({ userId: partner._id });
+    expect(reloadedCert.overallStatus).not.toBe("approved");
+    expect(reloadedCert.overallStatus).toBe("in_progress");
+  });
 });
 
 function approvedLevelsSubmitted(...levels) {

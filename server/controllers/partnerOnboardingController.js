@@ -745,18 +745,61 @@ export const adminList = async (req, res) => {
     }
 
     const skip = (Number(page) - 1) * Number(limit);
+    // Le tableau de bord Founding Partner (AdminPanel.jsx) demande limit=100
+    // pour tout charger d'un coup (pas de pagination dans cet onglet) — le
+    // plafond à 50 le coupait silencieusement en deux, cachant la moitié des
+    // dossiers à l'admin dès que leur nombre dépassait 50 (bug réel).
     const [docs, total] = await Promise.all([
       PartnerOnboarding.find(filter)
         .populate("userId", "firstName lastName email phone profilePhoto certificationBadge country")
         .populate("businessId", "companyName country ville")
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(Math.min(Number(limit), 50))
+        .limit(Math.min(Number(limit), 200))
         .lean({ virtuals: true }),
       PartnerOnboarding.countDocuments(filter),
     ]);
 
-    res.json({ onboardings: docs, total, page: Number(page), limit: Number(limit) });
+    let allDocs  = docs;
+    let allTotal = total;
+
+    // Entités partenaire SANS AUCUN dossier Founding Partner — invisibles
+    // autrement dans cette liste (aucun PartnerOnboarding n'existe pour
+    // elles, applyToProgram étant un clic explicite jamais automatique — voir
+    // checkPartnerBusinessesWithoutOnboarding). Fusionné uniquement en
+    // l'absence de filtre (aucun de status/partnerType/crmStatus/search n'a
+    // de sens pour une entité qui n'a pas encore de dossier), pour que la
+    // vue "tout voir" de l'admin les retrouve et puisse les relancer —
+    // demande explicite.
+    if (!status && !partnerType && !crmStatus && !search) {
+      const existingBusinessIds = await PartnerOnboarding.distinct("businessId");
+      const orphanBusinesses = await PartnerBusiness.find({ _id: { $nin: existingBusinessIds } })
+        .populate("owner", "firstName lastName email phone profilePhoto certificationBadge country role")
+        .sort({ createdAt: -1 })
+        .lean();
+      const orphanRows = orphanBusinesses
+        .filter((b) => b.owner?.role === "partenaire")
+        .map((b) => ({
+          _id:              b._id,
+          noDossier:        true,
+          status:           "aucun_dossier",
+          referenceNumber:  null,
+          userId:           b.owner,
+          businessId:       { _id: b._id, companyName: b.companyName, country: b.country, ville: b.ville },
+          companyInfo:      { legalName: b.companyName, registrationCountry: b.country },
+          partnerType:      null,
+          activity:         null,
+          legalEntityType:  null,
+          isFoundingPartner: false,
+          commissions:      {},
+          createdAt:        b.createdAt,
+          updatedAt:        b.createdAt,
+        }));
+      allDocs  = [...docs, ...orphanRows];
+      allTotal = total + orphanRows.length;
+    }
+
+    res.json({ onboardings: allDocs, total: allTotal, page: Number(page), limit: Number(limit) });
   } catch (err) {
     logger.error("adminList:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -970,6 +1013,44 @@ export const adminResendDocuments = async (req, res) => {
     res.json({ success: true, status: doc.status, signLink });
   } catch (err) {
     logger.error("adminResendDocuments:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── POST /api/partner-onboarding/admin/relaunch-business/:businessId ─────────
+// Relance manuelle pour une entité SANS AUCUN dossier Founding Partner (voir
+// les lignes "orphanRows" de adminList) — équivalent déclenché par l'admin de
+// la relance automatique checkPartnerBusinessesWithoutOnboarding. Il n'existe
+// encore ni LOI ni Accord à renvoyer (rien n'a jamais été soumis) : la seule
+// action possible est d'inviter le partenaire à démarrer sa candidature.
+export const adminRelaunchBusiness = async (req, res) => {
+  try {
+    const business = await PartnerBusiness.findById(req.params.businessId)
+      .populate("owner", "firstName lastName email role");
+    if (!business) return res.status(404).json({ message: "Entité introuvable." });
+    if (business.owner?.role !== "partenaire") {
+      return res.status(400).json({ message: "Le propriétaire de cette entité n'est pas un compte partenaire." });
+    }
+    const alreadyStarted = await PartnerOnboarding.exists({ businessId: business._id });
+    if (alreadyStarted) {
+      return res.status(400).json({ message: "Cette entité a déjà un dossier Founding Partner — utilisez le renvoi de documents." });
+    }
+    if (!business.owner.email) {
+      return res.status(400).json({ message: "Ce partenaire n'a pas d'email valide." });
+    }
+
+    const { sendReminder } = await import("../utils/partnerReminders.js");
+    await sendReminder({
+      userId:      business.owner._id,
+      companyName: business.companyName,
+      missingDocs: ["Candidature au Founding Partner Program (obligatoire, jamais démarrée pour cette entité)"],
+      portalPath:  "/partner-onboarding",
+    });
+    await PartnerBusiness.updateOne({ _id: business._id }, { $set: { lastReminderSentAt: new Date() } });
+
+    res.json({ success: true });
+  } catch (err) {
+    logger.error("adminRelaunchBusiness:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

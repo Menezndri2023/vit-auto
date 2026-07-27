@@ -365,7 +365,10 @@ export const getKycList = async (req, res) => {
     }
 
     const { status, page = 1, limit = 20 } = req.query;
-    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    // Plafond relevé (bug réel trouvé en audit) : 100 coupait silencieusement
+    // les dossiers au-delà, sans que rien côté front n'indique la troncature
+    // ni ne permette de voir la suite — voir loadMoreKyc (AdminPanel.jsx).
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 500);
     const filter = {};
     // "ALL" : aucun filtre de statut — sinon un compte déjà vérifié/refusé (donc
     // absent des deux statuts par défaut ci-dessous) devient introuvable pour
@@ -418,8 +421,12 @@ export const getKycDetail = async (req, res) => {
       return res.status(403).json({ message: "Accès réservé aux administrateurs." });
     }
 
+    // "business" ajouté (bug réel trouvé en audit) : le modal admin affiche
+    // un bloc entier "Entreprise partenaire" (RCCM/NIF/adresse) conditionné
+    // sur kycDetailUser.business?.companyName — jamais sélectionné ici, donc
+    // toujours undefined et le bloc ne s'affichait jamais, pour aucun dossier.
     const user = await User.findById(req.params.userId).select(
-      "firstName lastName email phone role kycStatus kycScore kycBadge kycSubmittedAt kycOcrData kycFaceMatchScore kycAuditLog kycReviewNote kycRejectionReason kycDocumentHash identity driverLicenseOcr emailVerified phoneVerified createdAt"
+      "firstName lastName email phone role kycStatus kycScore kycBadge kycSubmittedAt kycOcrData kycFaceMatchScore kycAuditLog kycReviewNote kycRejectionReason kycDocumentHash identity driverLicenseOcr emailVerified phoneVerified createdAt business"
     ).lean();
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
 

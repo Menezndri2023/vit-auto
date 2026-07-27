@@ -191,7 +191,16 @@ export const createVehicle = async (req, res) => {
           message: `Votre annonce "${vehicle.title}" est en cours de vérification. Score actuel : ${validation.score}/100.`,
         },
       };
-      await Notification.create({ user: req.user._id, lien: "/vendor/dashboard", ...notifMap[validation.status] });
+      const notifData = notifMap[validation.status];
+      const notifDoc = await Notification.create({ user: req.user._id, lien: "/vendor/dashboard", ...notifData });
+      // Bug réel corrigé (audit) : jamais d'émission socket temps réel ici —
+      // le partenaire ne voyait le résultat de la modération qu'au prochain
+      // polling (jusqu'à 20s, voir NotificationContext.jsx).
+      if (global._io) {
+        global._io.to(`user_${req.user._id}`).emit("notification_new", {
+          _id: notifDoc._id, ...notifData, lien: "/vendor/dashboard", lu: false, createdAt: notifDoc.createdAt,
+        });
+      }
     } catch (notifErr) {
       logger.error("Notification (non bloquant) :", notifErr.message);
     }
@@ -430,15 +439,22 @@ export const updateVehicleStatus = async (req, res) => {
 
     if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable." });
 
-    await Notification.create({
-      user:    vehicle.owner._id,
+    const vehStatusNotif = {
       type:    status === "approved" ? "listing_approved" : "listing_rejected",
       titre:   status === "approved" ? "Annonce approuvée ✅" : "Annonce rejetée ❌",
       message: status === "approved"
         ? `Votre annonce "${vehicle.title}" est maintenant en ligne.`
         : `Votre annonce "${vehicle.title}" a été rejetée. ${rejectionReason || ""}`,
       lien: "/vendor/dashboard",
-    });
+    };
+    const vehNotifDoc = await Notification.create({ user: vehicle.owner._id, ...vehStatusNotif });
+    // Bug réel corrigé (audit) : même angle mort, aucune émission temps réel
+    // à l'approbation/rejet admin d'une annonce.
+    if (global._io) {
+      global._io.to(`user_${vehicle.owner._id}`).emit("notification_new", {
+        _id: vehNotifDoc._id, ...vehStatusNotif, lu: false, createdAt: vehNotifDoc.createdAt,
+      });
+    }
 
     res.json({ vehicle });
   } catch (err) {

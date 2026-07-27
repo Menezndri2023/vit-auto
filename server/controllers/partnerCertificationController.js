@@ -337,11 +337,19 @@ export const adminReviewLevel = async (req, res) => {
     cert.certificationScore = computeScore(cert);
     cert.certificationBadge = computeBadge(cert);
 
+    // Bug réel corrigé (audit) : sans ce `else`, rejeter un niveau 1-3 APRÈS
+    // que overallStatus soit déjà passé à "approved" ne le faisait jamais
+    // redescendre (ni "anyPending" ni "tous 1-3 approuvés" n'est vrai dans ce
+    // cas) — le dossier restait affiché "approved" partout (Vue de confiance
+    // admin, profil public, exclu de la relance automatique qui ne cible que
+    // not_started/in_progress) alors qu'il n'est plus valide.
     const anyPending = ["level1","level2","level3","level4","level5","level6","level7"]
       .some((l) => cert[l]?.status === "submitted");
     if (anyPending) cert.overallStatus = "in_progress";
     else if (["level1","level2","level3"].every((l) => cert[l]?.status === "approved")) {
       cert.overallStatus = "approved";
+    } else {
+      cert.overallStatus = "in_progress";
     }
 
     await cert.save();
@@ -362,13 +370,24 @@ export const adminReviewLevel = async (req, res) => {
       ? `✅ Niveau ${lvlNum} de certification approuvé. Continuez vers le niveau suivant !`
       : `❌ Niveau ${lvlNum} refusé. Motif : ${note || "Documents insuffisants."}`;
 
-    await Notification.create({
-      user:    req.params.userId,
-      titre:   decision === "approved" ? `✅ Certification niveau ${lvlNum} approuvée` : `❌ Certification niveau ${lvlNum} refusée`,
-      message: notifMsg,
-      type:    "system", // "certification" n'existe pas dans l'enum Notification.type
-      lu:      false,
-    }).catch(() => {});
+    {
+      const certTitre = decision === "approved" ? `✅ Certification niveau ${lvlNum} approuvée` : `❌ Certification niveau ${lvlNum} refusée`;
+      const certNotifDoc = await Notification.create({
+        user:    req.params.userId,
+        titre:   certTitre,
+        message: notifMsg,
+        type:    "system", // "certification" n'existe pas dans l'enum Notification.type
+        lu:      false,
+      }).catch(() => null);
+      // Bug réel corrigé (audit) : aucune émission socket temps réel — le
+      // partenaire ne voyait la décision qu'au prochain polling (20s).
+      if (certNotifDoc && global._io) {
+        global._io.to(`user_${req.params.userId}`).emit("notification_new", {
+          _id: certNotifDoc._id, type: "system", titre: certTitre, message: notifMsg,
+          lien: null, lu: false, createdAt: certNotifDoc.createdAt,
+        });
+      }
+    }
 
     sendEmail({
       to:      user?.email,
@@ -433,13 +452,24 @@ export const adminAssignBadge = async (req, res) => {
       none:      "Badge retiré",
     };
 
-    await Notification.create({
-      user:    req.params.userId,
-      titre:   `🏆 Badge VIT AUTO : ${badgeLabels[badge]}`,
-      message: `Félicitations ! Vous avez obtenu le badge "${badgeLabels[badge]}" sur VIT AUTO. ${publicStatement || ""}`,
-      type:    "system", // "certification" n'existe pas dans l'enum Notification.type
-      lu:      false,
-    }).catch(() => {});
+    {
+      const badgeTitre = `🏆 Badge VIT AUTO : ${badgeLabels[badge]}`;
+      const badgeMsg   = `Félicitations ! Vous avez obtenu le badge "${badgeLabels[badge]}" sur VIT AUTO. ${publicStatement || ""}`;
+      const badgeNotifDoc = await Notification.create({
+        user:    req.params.userId,
+        titre:   badgeTitre,
+        message: badgeMsg,
+        type:    "system", // "certification" n'existe pas dans l'enum Notification.type
+        lu:      false,
+      }).catch(() => null);
+      // Bug réel corrigé (audit) : même angle mort, aucune émission temps réel.
+      if (badgeNotifDoc && global._io) {
+        global._io.to(`user_${req.params.userId}`).emit("notification_new", {
+          _id: badgeNotifDoc._id, type: "system", titre: badgeTitre, message: badgeMsg,
+          lien: null, lu: false, createdAt: badgeNotifDoc.createdAt,
+        });
+      }
+    }
 
     sendEmail({
       to:      user?.email,

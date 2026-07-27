@@ -25,7 +25,12 @@ const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export const getUsers = async (req, res) => {
   try {
     const { role, page = 1, limit = 20, search } = req.query;
-    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 200);
+    // Plafond relevé (bug réel trouvé en audit) : AdminPanel.jsx charge tout
+    // l'onglet Comptes en un seul appel puis "pagine" côté client sur ces
+    // résultats déjà tronqués — au-delà de 200 comptes, les plus anciens
+    // devenaient invisibles sans aucun indice de troncature. Voir
+    // loadMoreUsers (AdminPanel.jsx) pour le "Charger plus" côté front.
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 1000);
     const filter = {};
     if (role) filter.role = role;
     if (search) {
@@ -256,7 +261,26 @@ export const updateAdminScope = async (req, res) => {
       return res.status(403).json({ message: "Seul un super admin peut modifier les permissions." });
     }
 
-    const before = target.adminScope;
+    const before = target.adminScope || [];
+    // Filet de sécurité final (voir aussi la confirmation ajoutée côté
+    // AdminPanel.jsx, toggleAdminScope) : sans ce garde, retirer l'accès
+    // complet au DERNIER admin qui l'a encore rendait la plateforme
+    // impossible à administrer depuis l'UI — updateAdminScope exige déjà un
+    // accès complet ou super_admin pour modifier des scopes, donc plus
+    // personne n'aurait pu se le rendre.
+    const wasFullAccess = before.length === 0 || before.includes("super_admin");
+    const willBeFullAccess = scope.length === 0 || scope.includes("super_admin");
+    if (wasFullAccess && !willBeFullAccess) {
+      const otherFullAccess = await User.countDocuments({
+        role: "admin",
+        _id: { $ne: target._id },
+        $or: [{ adminScope: { $size: 0 } }, { adminScope: "super_admin" }],
+      });
+      if (otherFullAccess === 0) {
+        return res.status(400).json({ message: "Impossible : au moins un administrateur doit conserver l'accès complet sur la plateforme." });
+      }
+    }
+
     target.adminScope = scope;
     await target.save();
 

@@ -95,6 +95,58 @@ describe("chatController.getOrCreateChat", () => {
   });
 });
 
+// Faille de sécurité réelle corrigée (audit) : seule la route de LISTING
+// (GET /api/chats/support) était protégée par requireAdminScope("support") —
+// getMessages/sendMessage (via findAccessibleChat) ajoutaient N'IMPORTE QUEL
+// admin comme participant d'une conversation support dès qu'il en connaissait
+// l'ID, quel que soit son adminScope.
+describe("chatController — scope 'support' sur les conversations support (sécurité)", () => {
+  it("un admin SANS le scope 'support' ne peut pas lire une conversation support qu'il ne connaît pas déjà", async () => {
+    await createUser({ role: "admin", isActive: true }); // getOrCreateChat exige un admin actif disponible
+    const client = await createUser();
+    const { req: cReq, res: cRes } = mockReqRes({ user: client, body: { type: "client_support" } });
+    await getOrCreateChat(cReq, cRes);
+    const chatId = cRes.body.chat._id.toString();
+
+    const kycAdmin = await createUser({ role: "admin", adminScope: ["kyc"] });
+    const { req, res } = mockReqRes({ user: kycAdmin, params: { id: chatId } });
+    await getMessages(req, res);
+    expect(res.statusCode).toBe(404);
+
+    const chat = await Chat.findById(chatId);
+    expect(chat.participants.map(String)).not.toContain(kycAdmin._id.toString());
+  });
+
+  it("un admin avec le scope 'support' explicite peut accéder à une conversation support inconnue", async () => {
+    await createUser({ role: "admin", isActive: true });
+    const client = await createUser();
+    const { req: cReq, res: cRes } = mockReqRes({ user: client, body: { type: "client_support" } });
+    await getOrCreateChat(cReq, cRes);
+    const chatId = cRes.body.chat._id.toString();
+
+    const supportAdmin = await createUser({ role: "admin", adminScope: ["support"] });
+    const { req, res } = mockReqRes({ user: supportAdmin, params: { id: chatId } });
+    await getMessages(req, res);
+    expect(res.statusCode).not.toBe(404);
+
+    const chat = await Chat.findById(chatId);
+    expect(chat.participants.map(String)).toContain(supportAdmin._id.toString());
+  });
+
+  it("un admin à accès complet (adminScope=[]) garde l'accès (comportement historique)", async () => {
+    await createUser({ role: "admin", isActive: true });
+    const client = await createUser();
+    const { req: cReq, res: cRes } = mockReqRes({ user: client, body: { type: "client_support" } });
+    await getOrCreateChat(cReq, cRes);
+    const chatId = cRes.body.chat._id.toString();
+
+    const fullAccessAdmin = await createUser({ role: "admin", adminScope: [] });
+    const { req, res } = mockReqRes({ user: fullAccessAdmin, params: { id: chatId } });
+    await getMessages(req, res);
+    expect(res.statusCode).not.toBe(404);
+  });
+});
+
 describe("chatController.sendMessage / getMessages / getUnreadCount", () => {
   it("refuse un message vide ou trop long", async () => {
     const client = await createUser();

@@ -17,6 +17,19 @@ async function findAccessibleChat(id, user) {
   if (chat) return chat;
 
   if (user.role === "admin") {
+    // Bug de sécurité réel corrigé (audit) : seule la route de LISTING
+    // (GET /api/chats/support) était protégée par requireAdminScope("support")
+    // — cette fonction, elle, ajoutait N'IMPORTE QUEL admin (quel que soit son
+    // adminScope) comme participant dès qu'il connaissait l'ID d'une
+    // conversation support, contournant entièrement la restriction de scope
+    // (un admin "kyc" pouvait lire/répondre à une conversation support s'il
+    // en obtenait l'ID par un autre biais). Même contrôle que
+    // requireAdminScope("support") : accès complet (scope vide/super_admin)
+    // ou scope "support" explicite.
+    const scopes = user.adminScope || [];
+    const hasSupportScope = scopes.length === 0 || scopes.includes("super_admin") || scopes.includes("support");
+    if (!hasSupportScope) return null;
+
     // $addToSet est atomique côté MongoDB — contrairement à un push() en mémoire
     // suivi d'un save(), deux admins qui ouvrent la même conversation au même
     // instant ne peuvent pas s'écraser mutuellement (avec l'ancienne approche

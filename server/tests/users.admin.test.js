@@ -129,6 +129,31 @@ describe("updateAdminScope", () => {
     expect(res.statusCode).toBe(403);
   });
 
+  // Faille réelle corrigée (audit) : retirer l'accès complet au DERNIER admin
+  // qui l'avait encore rendait la plateforme impossible à administrer depuis
+  // l'UI (updateAdminScope exige déjà un accès complet ou super_admin pour
+  // modifier des scopes — plus personne n'aurait pu se le rendre).
+  it("refuse de retirer l'accès complet au DERNIER admin qui l'a encore", async () => {
+    const onlyFullAccessAdmin = await createUser({ role: "admin", adminScope: [] });
+    const { req, res } = mockReqRes({
+      user: onlyFullAccessAdmin, params: { id: onlyFullAccessAdmin._id.toString() }, body: { scope: ["kyc"] },
+    });
+    await updateAdminScope(req, res);
+    expect(res.statusCode).toBe(400);
+    const reloaded = await User.findById(onlyFullAccessAdmin._id);
+    expect(reloaded.adminScope).toEqual([]); // inchangé
+  });
+
+  it("autorise de restreindre un admin à accès complet s'il en reste un AUTRE", async () => {
+    const admin1 = await createUser({ role: "admin", adminScope: [] });
+    const admin2 = await createUser({ role: "admin", adminScope: [] });
+    const { req, res } = mockReqRes({
+      user: admin1, params: { id: admin2._id.toString() }, body: { scope: ["kyc"] },
+    });
+    await updateAdminScope(req, res);
+    expect(res.statusCode).toBe(200);
+  });
+
   it("un admin non scopé (adminScope=[], accès complet historique) peut modifier les permissions", async () => {
     const legacyAdmin = await createUser({ role: "admin", adminScope: [] });
     const target = await createUser({ role: "admin", adminScope: [] });

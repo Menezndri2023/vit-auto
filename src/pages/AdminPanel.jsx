@@ -1187,7 +1187,10 @@ export default function AdminPanel() {
     return () => mq.removeEventListener("change", handler);
   }, []);
   const [ieRequests, setIeRequests]       = useState([]);
+  const [ieRequestsTotal, setIeRequestsTotal] = useState(0);
+  const [ieRequestsLimit, setIeRequestsLimit] = useState(100);
   const [ieLoading,  setIeLoading]        = useState(false);
+  const [ieActionSaving, setIeActionSaving] = useState(false);
   // Transactions IE réelles (pipeline escrow 14 étapes) — distinctes des
   // "requests" ci-dessus (demandes initiales étapes 1-3). Aucune interface
   // admin n'exposait auparavant les litiges ou l'inspection indépendante de
@@ -1318,6 +1321,8 @@ export default function AdminPanel() {
   const [exporterDetail,     setExporterDetail]     = useState(null);
   // KYC Admin
   const [kycList,       setKycList]       = useState([]);
+  const [kycTotal,      setKycTotal]      = useState(0);
+  const [kycLimit,      setKycLimit]      = useState(50);
   const [kycLoading,    setKycLoading]    = useState(false);
   // "ALL" par défaut — un défaut sur "EN_ATTENTE" rendait un compte déjà
   // vérifié/refusé introuvable dans cet onglet tant que l'admin ne pensait pas
@@ -1378,8 +1383,12 @@ export default function AdminPanel() {
 
   const [stats,     setStats]     = useState(null);
   const [users,     setUsers]     = useState([]);
+  const [usersTotal, setUsersTotal] = useState(0);
+  const [usersLimit, setUsersLimit] = useState(200);
   const [vehicles,  setVehicles]  = useState([]);
   const [bookings,  setBookings]  = useState([]);
+  const [bookingsTotal, setBookingsTotal] = useState(0);
+  const [bookingsLimit, setBookingsLimit] = useState(200);
   const [drivers,   setDrivers]   = useState([]);
   const [activeDrivers, setActiveDrivers] = useState([]); // Driver.status==="approved" — remplace l'ancien filtre User.role==="chauffeur" (jamais assignable, voir Register.jsx)
   const [loading,   setLoading]   = useState(true);
@@ -1461,46 +1470,90 @@ export default function AdminPanel() {
   }), [token]);
 
   // ── Chargement données ──────────────────────────────────────────────────────
+  // usersLimit/bookingsLimit paramétrables (bug réel corrigé — voir
+  // loadMoreUsers/loadMoreBookings) : un plafond fixe à 200 rendait tout ce
+  // qui dépassait ce nombre invisible en silence, la fausse "pagination" de
+  // l'UI ne faisant que découper côté client ces 200 résultats déjà tronqués.
   const loadAll = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     try {
       const [sRes, uRes, vRes, bRes, dRes, adRes] = await Promise.all([
         fetch("/api/users/stats",    { headers }),
-        fetch("/api/users?limit=200", { headers }),
+        fetch(`/api/users?limit=${usersLimit}`, { headers }),
         fetch("/api/vehicles?limit=200&status=all", { headers }),
-        fetch("/api/bookings?limit=200", { headers }),
+        fetch(`/api/bookings?limit=${bookingsLimit}`, { headers }),
         fetch("/api/drivers/pending", { headers }),
         fetch("/api/drivers", { headers }),
       ]);
       if (sRes.ok) setStats((await sRes.json()));
-      if (uRes.ok) setUsers((await uRes.json()).users || []);
+      if (uRes.ok) { const d = await uRes.json(); setUsers(d.users || []); setUsersTotal(d.total || 0); }
       if (vRes.ok) {
         const d = await vRes.json();
         setVehicles(Array.isArray(d) ? d : d.vehicles || []);
       }
-      if (bRes.ok) setBookings((await bRes.json()).bookings || []);
+      if (bRes.ok) { const d = await bRes.json(); setBookings(d.bookings || []); setBookingsTotal(d.total || 0); }
       if (dRes.ok) setDrivers((await dRes.json()).drivers || []);
       if (adRes.ok) { const ad = await adRes.json(); setActiveDrivers(Array.isArray(ad) ? ad : ad.drivers || []); }
     } catch { /* ignore */ }
     setLoading(false);
-  }, [token, headers]);
+  }, [token, headers, usersLimit, bookingsLimit]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  const loadMoreUsers = useCallback(() => setUsersLimit((l) => l + 200), []);
+  const loadMoreBookings = useCallback(() => setBookingsLimit((l) => l + 200), []);
 
   // ── Demandes Import/Export ──────────────────────────────────────────────────
   const loadImportExport = useCallback(async () => {
     if (!token) return;
     setIeLoading(true);
     try {
-      const res = await fetch("/api/import-export/requests?limit=100", { headers });
+      const res = await fetch(`/api/import-export/requests?limit=${ieRequestsLimit}`, { headers });
       if (res.ok) {
         const d = await res.json();
         setIeRequests(Array.isArray(d) ? d : d.requests || []);
+        setIeRequestsTotal(Array.isArray(d) ? d.length : d.total || 0);
       }
     } catch { /* endpoint optionnel */ }
     setIeLoading(false);
-  }, [token, headers]);
+  }, [token, headers, ieRequestsLimit]);
+
+  const loadMoreIeRequests = useCallback(() => setIeRequestsLimit((l) => l + 200), []);
+
+  // Bug réel corrigé (audit) : ce tableau était 100% en lecture seule côté
+  // admin alors que le backend expose déjà un workflow complet (approuver/
+  // rejeter/marquer contacté/supprimer, avec notification au client — voir
+  // updateRequestStatus/deleteRequest, importExportController.js). Le badge
+  // de navigation "Transactions I/E" affichait un compteur "en attente" comme
+  // si ces demandes étaient actionnables depuis cet onglet — elles ne
+  // l'étaient pas.
+  const updateIeRequestStatus = useCallback(async (id, status) => {
+    if (ieActionSaving) return;
+    setIeActionSaving(true);
+    try {
+      const r = await fetch(`/api/import-export/requests/${id}/status`, {
+        method: "PATCH", headers, body: JSON.stringify({ status }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
+      showToast("Demande mise à jour", "success");
+      loadImportExport();
+    } catch { showToast("Erreur réseau", "error"); }
+    finally { setIeActionSaving(false); }
+  }, [headers, showToast, loadImportExport, ieActionSaving]);
+
+  const deleteIeRequest = useCallback(async (id) => {
+    if (ieActionSaving) return;
+    setIeActionSaving(true);
+    try {
+      const r = await fetch(`/api/import-export/requests/${id}`, { method: "DELETE", headers });
+      if (!r.ok) { const data = await r.json().catch(() => ({})); showToast(data.message || "Erreur", "error"); return; }
+      setIeRequests((prev) => prev.filter((r2) => r2._id !== id));
+      showToast("Demande supprimée", "success");
+    } catch { showToast("Erreur réseau", "error"); }
+    finally { setIeActionSaving(false); }
+  }, [headers, showToast, ieActionSaving]);
 
   const loadIeTransactions = useCallback(async () => {
     if (!token) return;
@@ -1739,10 +1792,7 @@ export default function AdminPanel() {
     setRolesLoading(false);
   }, [token, headers]);
 
-  const toggleAdminScope = async (adminId, currentScope, scopeKey) => {
-    const next = currentScope.includes(scopeKey)
-      ? currentScope.filter((s) => s !== scopeKey)
-      : [...currentScope, scopeKey];
+  const applyAdminScope = async (adminId, next) => {
     setRolesSavingId(adminId);
     try {
       const r = await fetch(`/api/users/admin/${adminId}/scope`, {
@@ -1755,6 +1805,35 @@ export default function AdminPanel() {
       loadAdminAccounts();
     } catch { showToast("Erreur réseau", "error"); }
     finally { setRolesSavingId(null); }
+  };
+
+  // Bug réel corrigé (audit) : cliquer une SEULE permission sur un admin à
+  // "accès complet" (adminScope=[]) le restreignait immédiatement et
+  // silencieusement à CETTE seule permission (next = [...[], scopeKey]),
+  // sans aucune confirmation. Risque concret : un admin unique à accès
+  // complet se retire lui-même l'accès complet par erreur, puis ne peut plus
+  // se le rendre depuis l'UI (updateAdminScope exige déjà un accès complet
+  // ou super_admin pour modifier des scopes — voir usersController.js) —
+  // auto-verrouillage irréversible sans intervention directe en base. Le
+  // backend (updateAdminScope) refuse désormais aussi toute modification qui
+  // laisserait 0 admin à accès complet sur toute la plateforme, en filet de
+  // sécurité final si cette confirmation était contournée.
+  const toggleAdminScope = (adminId, currentScope, scopeKey) => {
+    const wasFullAccess = currentScope.length === 0;
+    const next = currentScope.includes(scopeKey)
+      ? currentScope.filter((s) => s !== scopeKey)
+      : [...currentScope, scopeKey];
+
+    if (wasFullAccess) {
+      const label = ADMIN_SCOPE_CFG.find((s) => s.key === scopeKey)?.label || scopeKey;
+      setConfirm({
+        message: `Ce compte a actuellement un ACCÈS COMPLET. Cette action va le restreindre uniquement à "${label}" — il perdra l'accès à tout le reste. Continuer ?`,
+        danger: true,
+        action: () => applyAdminScope(adminId, next),
+      });
+      return;
+    }
+    applyAdminScope(adminId, next);
   };
 
   // ── Publicités & Campagnes ───────────────────────────────────────────────────
@@ -2180,17 +2259,29 @@ export default function AdminPanel() {
     setSupportSending(false);
   }, [headers, supportReply, supportActive, showToast]);
 
-  const loadKycList = useCallback(async (status = "") => {
+  // Bug réel corrigé (audit) : plafonné à 50, trié du plus récent au plus
+  // ancien, sans aucune pagination — les dossiers les plus ANCIENS (donc les
+  // plus en retard de traitement) disparaissaient silencieusement en premier
+  // dès que le nombre de dossiers dépassait 50. `limit` paramétrable +
+  // `kycTotal` renvoyé par le backend permettent désormais un "Charger plus"
+  // réel plutôt qu'un plafond invisible.
+  const loadKycList = useCallback(async (status = "", limit = kycLimit) => {
     if (!token) return;
     setKycLoading(true);
     try {
-      const params = new URLSearchParams({ limit: 50 });
+      const params = new URLSearchParams({ limit: String(limit) });
       if (status) params.set("status", status);
       const r = await fetch(`/api/kyc/admin/list?${params}`, { headers });
-      if (r.ok) { const d = await r.json(); setKycList(d.users || []); }
+      if (r.ok) { const d = await r.json(); setKycList(d.users || []); setKycTotal(d.total || 0); }
     } catch { /* ignore */ }
     setKycLoading(false);
-  }, [token, headers]);
+  }, [token, headers, kycLimit]);
+
+  const loadMoreKyc = useCallback(() => {
+    const next = kycLimit + 100;
+    setKycLimit(next);
+    loadKycList(kycFilter === "ALL" ? "" : kycFilter, next);
+  }, [kycLimit, kycFilter, loadKycList]);
 
   // Compteur "en attente" — toujours interrogé SANS filtre de statut (le backend
   // applique alors son défaut EN_ATTENTE + A_REVOIR_MANUELLEMENT, voir
@@ -2398,6 +2489,25 @@ export default function AdminPanel() {
     finally { setFoundingSubmitting(false); }
   };
 
+  // Relance une entité SANS AUCUN dossier Founding Partner (voir adminList,
+  // lignes "orphanRows" — un partenaire ayant une entité PartnerBusiness mais
+  // n'ayant jamais cliqué "Commencer ma candidature"). `id` est ici l'ID de
+  // l'entité (PartnerBusiness), pas d'un PartnerOnboarding — il n'en existe pas.
+  const foundingRelaunchBusiness = async (businessId) => {
+    if (foundingSubmitting) return;
+    setFoundingSubmitting(true);
+    try {
+      const r = await fetch(`/api/partner-onboarding/admin/relaunch-business/${businessId}`, {
+        method: "POST", headers,
+      });
+      const data = await r.json();
+      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
+      showToast("Invitation à démarrer sa candidature envoyée par email", "success");
+      loadFoundingPartners();
+    } catch { showToast("Erreur réseau", "error"); }
+    finally { setFoundingSubmitting(false); }
+  };
+
   // Relance un dossier resté incomplet (brouillon jamais soumis, ou déjà relancé
   // une première fois) — endpoint backend existant depuis longtemps
   // (adminRequestInfo) mais jusqu'ici jamais appelé depuis cette interface : un
@@ -2540,6 +2650,17 @@ export default function AdminPanel() {
       if (activeTab === "support") loadSupportChats();
     });
   }, [onSocket, supportActive, activeTab, loadSupportChats]);
+
+  // Bug réel corrigé (audit) : le backend émettait déjà "refund_needed" à
+  // plusieurs endroits (annulation payée par le client/partenaire, litige
+  // résolu en compensation) mais AUCUN écouteur n'existait côté front — le
+  // signal se perdait silencieusement, sans aucune trace exploitable pour
+  // l'admin qui doit traiter le remboursement manuellement.
+  useEffect(() => {
+    return onSocket("refund_needed", ({ reference, reason }) => {
+      showToast(`💸 Remboursement à traiter — ${reference || ""} : ${reason || ""}`, "error");
+    });
+  }, [onSocket, showToast]);
 
   // Ferme tous les modals au changement d'onglet pour éviter les états résiduels
   useEffect(() => {
@@ -2742,7 +2863,13 @@ export default function AdminPanel() {
 
   const filteredBookings = useMemo(() => {
     let list = bookings;
-    if (bkStatus !== "all") list = list.filter((b) => b.status === bkStatus);
+    if (bkStatus !== "all") {
+      // Le KPI "En cours" agrège plusieurs statuts (voir bkStatus="confirmed,preparing,...")
+      // — sans ce split, cliquer dessus ne filtrait jamais rien (aucune
+      // réservation n'a littéralement ce statut composé), bug réel corrigé.
+      const wanted = bkStatus.split(",");
+      list = list.filter((b) => wanted.includes(b.status));
+    }
     if (bkType   !== "all") list = list.filter((b) => b.type   === bkType);
     if (bkSearch.trim()) {
       const q = bkSearch.toLowerCase();
@@ -2812,6 +2939,11 @@ export default function AdminPanel() {
     financement:      "finance",
     service_requests: "finance",
     business_config:  "finance",
+    // Bug réel corrigé (audit) : server/routes/importCost.js protège tous ses
+    // endpoints admin avec requireAdminScope("finance"), mais cette entrée
+    // manquait ici — un admin sans ce scope voyait l'onglet dans le menu et
+    // n'obtenait que des 403 en boucle (tableau vide, aucune action possible).
+    import_cost:      "finance",
   };
   const canSeeTab = (key) => {
     const scope = TAB_SCOPES[key];
@@ -2991,7 +3123,7 @@ export default function AdminPanel() {
             </div>
             <div className={styles.confirmActions}>
               <button className={disputeResol==="cancelled"?styles.btnDanger:styles.btnPrimary}
-                onClick={() => { adminResolveDispute(disputeModal.booking._id, disputeResol, disputeNote); setDisputeModal(null); }}>
+                onClick={() => { adminResolveDispute(disputeModal.booking._id, disputeResol, disputeNote, disputeResol === "compensated"); setDisputeModal(null); }}>
                 ⚖️ Confirmer la résolution
               </button>
               <button className={styles.btnGhost} onClick={() => setDisputeModal(null)}>Fermer</button>
@@ -3222,7 +3354,7 @@ export default function AdminPanel() {
                   sub={`Ce mois : ${fmtUSD(stats?.revenue?.thisMonth || 0)}`}
                   color="#ef4444" />
                 <StatCard icon="🌍" label="Import/Export"
-                  value={ieRequests.length || stats?.importExport?.total || "—"}
+                  value={ieRequestsTotal || ieRequests.length || "—"}
                   sub="Demandes reçues"
                   color="#ff4d2d" />
               </div>
@@ -3396,6 +3528,17 @@ export default function AdminPanel() {
                 </table>
               </div>
               <Pagination page={userPage} total={totalPages(filteredUsers)} onChange={setUserPage} />
+              {/* Bug réel corrigé (audit) : plafond de 200 comptes chargés,
+                  invisible pour l'admin — voir loadMoreUsers. */}
+              {users.length < usersTotal && (
+                <div style={{ textAlign: "center", marginTop: 10 }}>
+                  <p style={{ fontSize: ".8rem", color: "#94a3b8", marginBottom: 6 }}>{users.length} chargés sur {usersTotal} au total</p>
+                  <button onClick={loadMoreUsers}
+                    style={{ padding: "6px 16px", borderRadius: 10, border: "1.5px solid #6366f1", background: "#fff", color: "#6366f1", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
+                    Charger plus
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -3503,7 +3646,7 @@ export default function AdminPanel() {
                 {[
                   { l:"Toutes",    v: bookings.length,                                                                              c:"#6366f1", s:"all" },
                   { l:"Nouvelles", v: bookings.filter(b=>b.status==="pending").length,                                              c:"#f59e0b", s:"pending" },
-                  { l:"En cours",  v: bookings.filter(b=>["confirmed","preparing","ready","in_progress","client_arrived"].includes(b.status)).length, c:"#2563eb", s:"confirmed" },
+                  { l:"En cours",  v: bookings.filter(b=>["confirmed","preparing","ready","in_progress","client_arrived"].includes(b.status)).length, c:"#2563eb", s:"confirmed,preparing,ready,in_progress,client_arrived" },
                   { l:"À valider", v: bookings.filter(b=>b.status==="waiting_client_validation").length,                            c:"#d97706", s:"waiting_client_validation" },
                   { l:"Terminées", v: bookings.filter(b=>b.status==="completed").length,                                            c:"#059669", s:"completed" },
                   { l:"Litiges",   v: bookings.filter(b=>b.status==="disputed").length,                                             c:"#dc2626", s:"disputed" },
@@ -3627,6 +3770,17 @@ export default function AdminPanel() {
                 </table>
               </div>
               <Pagination page={bkPage} total={totalPages(filteredBookings)} onChange={setBkPage} />
+              {/* Bug réel corrigé (audit) : plafond de 200 réservations
+                  chargées, invisible pour l'admin — voir loadMoreBookings. */}
+              {bookings.length < bookingsTotal && (
+                <div style={{ textAlign: "center", marginTop: 10 }}>
+                  <p style={{ fontSize: ".8rem", color: "#94a3b8", marginBottom: 6 }}>{bookings.length} chargées sur {bookingsTotal} au total</p>
+                  <button onClick={loadMoreBookings}
+                    style={{ padding: "6px 16px", borderRadius: 10, border: "1.5px solid #6366f1", background: "#fff", color: "#6366f1", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
+                    Charger plus
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -4656,6 +4810,21 @@ export default function AdminPanel() {
             );
           })()}
 
+          {/* "Charger plus" — voir loadMoreKyc : le plafond était auparavant
+              invisible (bug réel corrigé), les dossiers au-delà disparaissaient
+              silencieusement sans aucun indice qu'il en restait. */}
+          {!kycLoading && kycList.length < kycTotal && !kycSearch.trim() && (
+            <div style={{ textAlign: "center", marginTop: 16 }}>
+              <p style={{ fontSize: ".8rem", color: "#94a3b8", marginBottom: 8 }}>
+                {kycList.length} affichés sur {kycTotal} au total
+              </p>
+              <button onClick={loadMoreKyc}
+                style={{ padding: "8px 20px", borderRadius: 10, border: "1.5px solid #6366f1", background: "#fff", color: "#6366f1", fontWeight: 700, fontSize: ".85rem", cursor: "pointer" }}>
+                Charger plus
+              </button>
+            </div>
+          )}
+
           {/* Modal détail + décision KYC */}
           {kycDetailUser && (
             <div className={styles.overlay} onClick={() => setKycDetailUser(null)}>
@@ -5157,11 +5326,11 @@ export default function AdminPanel() {
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
-                  <tr><th>Référence</th><th>Type</th><th>Client</th><th>Montant</th><th>Statut</th><th>Date</th></tr>
+                  <tr><th>Référence</th><th>Type</th><th>Client</th><th>Montant</th><th>Statut</th><th>Date</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
                   {ieRequests.map((r) => {
-                    const ST = { pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, approved: { l: "Approuvée", c: "#16a34a", bg: "#dcfce7" }, rejected: { l: "Rejetée", c: "#dc2626", bg: "#fee2e2" }, in_progress: { l: "En cours", c: "#3b82f6", bg: "#eff6ff" }, completed: { l: "Terminée", c: "#6366f1", bg: "#eef2ff" } };
+                    const ST = { pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, approved: { l: "Approuvée", c: "#16a34a", bg: "#dcfce7" }, rejected: { l: "Rejetée", c: "#dc2626", bg: "#fee2e2" }, in_progress: { l: "En cours", c: "#3b82f6", bg: "#eff6ff" }, completed: { l: "Terminée", c: "#6366f1", bg: "#eef2ff" }, processing: { l: "En traitement", c: "#3b82f6", bg: "#eff6ff" }, contacted: { l: "Contacté", c: "#6366f1", bg: "#eef2ff" } };
                     const st = ST[r.status] || ST.pending;
                     return (
                       <tr key={r._id} className={styles.tr}>
@@ -5176,11 +5345,39 @@ export default function AdminPanel() {
                         <td className={styles.tdPrice}>{r.totalAmount ? `${Number(r.totalAmount).toLocaleString("fr-FR")} ${r.currency || "EUR"}` : "—"}</td>
                         <td><Badge label={st.l} color={st.c} bg={st.bg} /></td>
                         <td className={styles.tdDate}>{fmtDate(r.createdAt)}</td>
+                        <td>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            {["pending", "processing"].includes(r.status) && (
+                              <>
+                                <button disabled={ieActionSaving} onClick={() => updateIeRequestStatus(r._id, "approved")}
+                                  title="Approuver" style={{ padding: "4px 8px", borderRadius: 6, border: "none", background: "#16a34a", color: "#fff", fontWeight: 700, fontSize: ".72rem", cursor: ieActionSaving ? "not-allowed" : "pointer" }}>✅</button>
+                                <button disabled={ieActionSaving} onClick={() => updateIeRequestStatus(r._id, "rejected")}
+                                  title="Rejeter" style={{ padding: "4px 8px", borderRadius: 6, border: "none", background: "#dc2626", color: "#fff", fontWeight: 700, fontSize: ".72rem", cursor: ieActionSaving ? "not-allowed" : "pointer" }}>❌</button>
+                                <button disabled={ieActionSaving} onClick={() => updateIeRequestStatus(r._id, "contacted")}
+                                  title="Marquer contacté" style={{ padding: "4px 8px", borderRadius: 6, border: "none", background: "#6366f1", color: "#fff", fontWeight: 700, fontSize: ".72rem", cursor: ieActionSaving ? "not-allowed" : "pointer" }}>📞</button>
+                              </>
+                            )}
+                            <button disabled={ieActionSaving}
+                              onClick={() => setConfirm({ message: `Supprimer définitivement la demande ${r.reference || ""} ?`, danger: true, action: () => deleteIeRequest(r._id) })}
+                              title="Supprimer" style={{ padding: "4px 8px", borderRadius: 6, border: "none", background: "#f1f5f9", color: "#64748b", fontWeight: 700, fontSize: ".72rem", cursor: ieActionSaving ? "not-allowed" : "pointer" }}>🗑️</button>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+          {/* Bug réel corrigé (audit) : plafond de 100 demandes chargées,
+              invisible pour l'admin — voir loadMoreIeRequests. */}
+          {ieRequests.length < ieRequestsTotal && (
+            <div style={{ textAlign: "center", margin: "10px 0" }}>
+              <p style={{ fontSize: ".8rem", color: "#94a3b8", marginBottom: 6 }}>{ieRequests.length} chargées sur {ieRequestsTotal} au total</p>
+              <button onClick={loadMoreIeRequests}
+                style={{ padding: "6px 16px", borderRadius: 10, border: "1.5px solid #6366f1", background: "#fff", color: "#6366f1", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
+                Charger plus
+              </button>
             </div>
           )}
 
@@ -5339,7 +5536,12 @@ export default function AdminPanel() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))", gap: 12, marginBottom: "1.5rem" }}>
             {[
               { icon: "⚖️", label: "Litiges ouverts",  value: bookings.filter(b => b.status === "disputed").length, color: "#dc2626" },
-              { icon: "✅", label: "Résolus ce mois",   value: bookings.filter(b => ["completed","compensated"].includes(b.status) && b.disputeResolvedAt).length, color: "#10b981" },
+              { icon: "✅", label: "Résolus ce mois",   value: bookings.filter(b => {
+                const d = b.disputeResolution?.resolvedAt;
+                if (!d) return false;
+                const now = new Date(); const rd = new Date(d);
+                return rd.getMonth() === now.getMonth() && rd.getFullYear() === now.getFullYear();
+              }).length, color: "#10b981" },
               { icon: "💰", label: "Montant en jeu",    value: fmtUSD(bookings.filter(b=>b.status==="disputed").reduce((s,b)=>s+(b.montantTotal||0),0)), color: "#f59e0b" },
             ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
           </div>
@@ -6783,6 +6985,7 @@ export default function AdminPanel() {
           actif:        { l: "Actif 🌟",       c: "#16a34a", bg: "#dcfce7" },
           rejete:       { l: "Rejeté",         c: "#dc2626", bg: "#fee2e2" },
           info_demandee:{ l: "Info Requise",   c: "#d97706", bg: "#fef3c7" },
+          aucun_dossier:{ l: "Sans dossier ⚠️", c: "#dc2626", bg: "#fee2e2" },
         };
         return (
           <div className={styles.tabContent}>
@@ -6816,6 +7019,7 @@ export default function AdminPanel() {
                 { icon:"📜", label:"Accords envoyés",    value: foundingStats?.byStatus?.accord_envoye || 0, color:"#f59e0b" },
                 { icon:"🌟", label:"Fondateurs actifs",  value: foundingStats?.activeFounders || 0, color:"#16a34a" },
                 { icon:"❌", label:"Rejetés",             value: foundingStats?.byStatus?.rejete || 0, color:"#dc2626" },
+                { icon:"⚠️", label:"Sans dossier",        value: foundingList.filter(o => o.noDossier).length, color:"#dc2626" },
               ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
             </div>
 
@@ -7276,6 +7480,17 @@ export default function AdminPanel() {
                             <button onClick={e => { e.stopPropagation(); setFoundingAction({ id: o._id, type:"request-info" }); setFoundingNote(""); }}
                               style={{ padding:"6px 12px", borderRadius:8, border:"none", background:"#f59e0b", color:"#fff", fontWeight:700, fontSize:".76rem", cursor:"pointer" }}
                               title="Dossier incomplet — notifier le partenaire pour qu'il le complète">
+                              🔔 Relancer
+                            </button>
+                          )}
+                          {/* Entité SANS AUCUN dossier — le partenaire n'a jamais cliqué
+                              "Commencer ma candidature" (voir adminList, orphanRows) : rien à
+                              approuver/renvoyer, seulement à inviter à démarrer. */}
+                          {o.noDossier && (
+                            <button onClick={e => { e.stopPropagation(); foundingRelaunchBusiness(o._id); }}
+                              disabled={foundingSubmitting}
+                              style={{ padding:"6px 12px", borderRadius:8, border:"none", background:"#dc2626", color:"#fff", fontWeight:700, fontSize:".76rem", cursor: foundingSubmitting ? "not-allowed" : "pointer", opacity: foundingSubmitting ? 0.6 : 1 }}
+                              title="Aucune candidature démarrée pour cette entité — envoyer une invitation à démarrer">
                               🔔 Relancer
                             </button>
                           )}
@@ -9749,24 +9964,45 @@ function MarketingSection({ vehicles, token, onRefresh, adsList, adsLoading, adF
   const [subTab, setSubTab] = useState("accueil");
 
   // ── Accueil / Hero ──────────────────────────────────────────────────────────
-  const [spotlightIds, setSpotlightIds] = useState(() => {
-    try {
-      const saved = localStorage.getItem("vit_hero_spotlights");
-      if (saved) return JSON.parse(saved);
-      const legacy = localStorage.getItem("vit_hero_spotlight");
-      return legacy ? [legacy] : [];
-    } catch { return []; }
-  });
-  const [heroText, setHeroText] = useState(() => localStorage.getItem("vit_hero_title") || "");
-  const [heroSub,  setHeroSub]  = useState(() => localStorage.getItem("vit_hero_sub")   || "");
+  // Bug réel corrigé (audit) : ce bloc n'écrivait qu'en localStorage du
+  // navigateur admin — aucun visiteur réel du site ne voyait jamais ces
+  // changements (le titre/sous-titre n'étaient même pas lus par
+  // HeroSection.jsx). Persisté désormais côté serveur (SiteContent) via
+  // GET/PATCH /api/site-content/hero.
+  const [spotlightIds, setSpotlightIds] = useState([]);
+  const [heroText, setHeroText] = useState("");
+  const [heroSub,  setHeroSub]  = useState("");
   const [savedMsg, setSavedMsg] = useState("");
+  const [heroLoading, setHeroLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/site-content/hero")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return;
+        setHeroText(d.heroTitle || "");
+        setHeroSub(d.heroSubtitle || "");
+        setSpotlightIds((d.heroSpotlights || []).map((v) => String(v?._id || v)));
+      })
+      .catch(() => {})
+      .finally(() => setHeroLoading(false));
+  }, []);
 
   const flash = (msg) => { setSavedMsg(msg); setTimeout(() => setSavedMsg(""), 2800); };
 
-  const saveSpotlights = (ids) => {
-    localStorage.setItem("vit_hero_spotlights", JSON.stringify(ids));
-    localStorage.setItem("vit_hero_spotlight", ids[0] || "");
+  const patchHero = async (body) => {
+    const r = await fetch("/api/site-content/hero", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    return r.ok;
+  };
+
+  const saveSpotlights = async (ids) => {
     setSpotlightIds(ids);
+    const ok = await patchHero({ heroSpotlights: ids });
+    if (!ok) flash("Erreur — non sauvegardé côté serveur");
   };
 
   const toggleSpotlight = (vid) => {
@@ -9782,10 +10018,9 @@ function MarketingSection({ vehicles, token, onRefresh, adsList, adsLoading, adF
     }
   };
 
-  const saveHero = () => {
-    localStorage.setItem("vit_hero_title", heroText);
-    localStorage.setItem("vit_hero_sub", heroSub);
-    flash("Texte héro sauvegardé ✅");
+  const saveHero = async () => {
+    const ok = await patchHero({ heroTitle: heroText, heroSubtitle: heroSub });
+    flash(ok ? "Texte héro sauvegardé ✅ (visible par tous les visiteurs)" : "Erreur lors de la sauvegarde");
   };
 
   // ── Vedette ─────────────────────────────────────────────────────────────────
@@ -9858,7 +10093,9 @@ function MarketingSection({ vehicles, token, onRefresh, adsList, adsLoading, adF
               <div><label className={styles.pvLabel}>Sous-titre</label>
                 <input className={styles.pvInput} value={heroSub} onChange={e => setHeroSub(e.target.value)} placeholder="Ex : Location, vente et import/export dans 14 pays" />
               </div>
-              <button className={styles.btnPrimary} style={{ alignSelf: "flex-start" }} onClick={saveHero}>Sauvegarder</button>
+              <button className={styles.btnPrimary} style={{ alignSelf: "flex-start" }} onClick={saveHero} disabled={heroLoading}>
+                {heroLoading ? "Chargement…" : "Sauvegarder"}
+              </button>
             </div>
           </div>
 

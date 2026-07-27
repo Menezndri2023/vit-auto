@@ -158,6 +158,16 @@ async function notify(userId, type, titre, message, lien = "/dashboard") {
   dispatch.pushNotification(userId, titre, message, { lien, type }).catch(() => {});
 }
 
+// ── Notifier tous les admins ────────────────────────────────────────────────
+// Bug réel corrigé (audit) : le commentaire de validateTransaction affirmait
+// "Notifier partenaire et admin" à l'ouverture d'un litige, mais seul le
+// partenaire était réellement notifié — l'admin ne découvrait un litige qu'en
+// rechargeant manuellement l'onglet Litiges.
+async function notifyAdmins(type, titre, message, lien = "/admin") {
+  const admins = await User.find({ role: "admin" }).select("_id").lean();
+  await Promise.all(admins.map((a) => notify(a._id, type, titre, message, lien)));
+}
+
 // ── Sondage post-service (client) ──────────────────────────────────────────────
 // Une commande peut passer à "completed" depuis 4 endroits distincts
 // (updateBookingStatus, validateTransaction, resolveDispute, adminForceComplete) —
@@ -913,13 +923,15 @@ export const getAllBookings = async (req, res) => {
       sortBy = "createdAt", sortDir = "desc",
     } = req.query;
 
-    const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 200);
+    // Plafond relevé (bug réel trouvé en audit) : même angle mort que
+    // getUsers — voir loadMoreBookings (AdminPanel.jsx).
+    const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 1000);
     const ALLOWED_SORT = ["createdAt", "updatedAt", "montantTotal", "status", "reference"];
     const safeSortBy  = ALLOWED_SORT.includes(sortBy) ? sortBy : "createdAt";
     const safeSortDir = sortDir === "asc" ? 1 : -1;
 
     const filter = {};
-    if (status)  filter.status = status;
+    if (status)  filter.status = status.includes(",") ? { $in: status.split(",") } : status;
     if (type)    filter.type   = type;
     if (dateFrom || dateTo) {
       filter.createdAt = {};
@@ -1047,8 +1059,16 @@ export const updateBookingStatus = async (req, res) => {
     }
 
     // ── Vérifier la validité de la transition d'état ──────────────────────────
+    // Bug réel corrigé (audit) : "cancelled" n'était pas une transition
+    // autorisée depuis client_arrived/waiting_client_validation — une
+    // réservation bloquée dans ces deux états ne pouvait alors JAMAIS être
+    // annulée, ni par le partenaire ni par l'admin (aucun bouton de secours
+    // dans AdminPanel.jsx). Un admin garde donc un droit d'annulation
+    // d'urgence même hors machine à états, réservé à ce rôle (pas au
+    // partenaire, pour ne pas contourner le workflow transaction/litige).
+    const isAdminEmergencyCancel = req.user.role === "admin" && status === "cancelled";
     const allowed = VALID_TRANSITIONS[booking.status] ?? [];
-    if (!allowed.includes(status)) {
+    if (!allowed.includes(status) && !isAdminEmergencyCancel) {
       return res.status(409).json({
         message: `Transition invalide : ${booking.status} → ${status}.`,
         allowedTransitions: allowed,
@@ -1374,6 +1394,12 @@ export const validateTransaction = async (req, res) => {
         `Le client a signalé un problème sur la commande ${booking.reference} : ${disputeReason || "Aucun détail fourni."}`,
         "/vendor/dashboard"
       );
+      await notifyAdmins(
+        "system",
+        "⚠️ Nouveau litige à traiter",
+        `Litige ouvert sur la commande ${booking.reference} : ${disputeReason || "Aucun détail fourni."}`,
+        "/admin"
+      ).catch(() => {});
     }
 
     await booking.save();
@@ -2542,6 +2568,18 @@ export const resolveDispute = async (req, res) => {
     emitBookingUpdate(booking); // ← temps réel client + partenaire
     if (booking.status === "completed") await markVehicleSoldIfApplicable(booking);
 
+    // Bug réel corrigé (audit) : une résolution "Compensation" promettait un
+    // remboursement partiel au client (voir clientMsg ci-dessous) sans que
+    // rien ne le signale nulle part — même signal que les autres cas de
+    // remboursement manuel de ce fichier (ex: cancelBookingByClient), pour
+    // qu'un admin voie qu'un versement reste dû.
+    if (refundClient && global._io) {
+      global._io.to("admins").emit("refund_needed", {
+        bookingId: booking._id.toString(), reference: booking.reference,
+        reason: `Litige résolu en "${resolution}" — remboursement/compensation partielle à traiter manuellement.`,
+      });
+    }
+
     // Notifier les deux parties
     const clientMsg = {
       completed:    "✅ Le litige sur votre commande a été résolu en votre faveur.",
@@ -2662,7 +2700,11 @@ export const exportBookings = async (req, res) => {
   try {
     const { status, type, dateFrom, dateTo, format = "json" } = req.query;
     const filter = {};
-    if (status) filter.status = status;
+    // Le KPI "En cours" de l'admin (AdminPanel.jsx) agrège plusieurs statuts
+    // et envoie une liste séparée par des virgules (ex: "confirmed,preparing,...")
+    // — sans ce split, un export déclenché depuis ce filtre ne retournait
+    // jamais aucune ligne (aucune réservation n'a ce statut composé).
+    if (status) filter.status = status.includes(",") ? { $in: status.split(",") } : status;
     if (type)   filter.type   = type;
     if (dateFrom || dateTo) {
       filter.createdAt = {};

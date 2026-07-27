@@ -94,7 +94,14 @@ export const sendAdminNotification = async (req, res) => {
     }
 
     const filter = { isActive: true };
-    if (targetRole && targetRole !== "all") filter.role = targetRole;
+    // Bug réel corrigé (audit) : "importateur" est proposé dans le sélecteur
+    // de diffusion (AdminPanel.jsx) mais ne correspond à AUCUNE valeur réelle
+    // de User.role (enum: client/partenaire/chauffeur/admin) — "importateur"
+    // n'existe que comme statut du sous-document User.importerProfile. Ce
+    // filtre renvoyait donc toujours 404 "Aucun utilisateur trouvé", quel que
+    // soit le nombre réel d'importateurs sur la plateforme.
+    if (targetRole === "importateur") filter["importerProfile.status"] = { $ne: "none" };
+    else if (targetRole && targetRole !== "all") filter.role = targetRole;
 
     const users = await User.find(filter).select("_id");
     if (!users.length) return res.status(404).json({ message: "Aucun utilisateur trouvé." });

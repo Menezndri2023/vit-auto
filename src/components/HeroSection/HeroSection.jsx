@@ -67,15 +67,23 @@ export default function HeroSection() {
   const [current, setCurrent] = useState(0);
   const [fading, setFading]   = useState(false);
 
-  // Lire les IDs admin depuis localStorage (multi-spotlight)
-  const adminIds = useMemo(() => {
-    try {
-      const raw = localStorage.getItem("vit_hero_spotlights");
-      if (raw) return JSON.parse(raw);
-      const legacy = localStorage.getItem("vit_hero_spotlight");
-      return legacy ? [legacy] : [];
-    } catch { return []; }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Contenu piloté par l'admin (titre/sous-titre/carrousel) — bug réel
+  // corrigé (audit) : auparavant stocké en localStorage du navigateur admin
+  // uniquement (aucun visiteur réel ne le voyait jamais), et le titre/sous-
+  // titre n'étaient de toute façon lus nulle part dans ce composant (JSX
+  // figé). Voir server/models/SiteContent.js + MarketingSection (AdminPanel.jsx).
+  const [heroContent, setHeroContent] = useState({ heroTitle: "", heroSubtitle: "", heroSpotlights: [] });
+  useEffect(() => {
+    fetch("/api/site-content/hero")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setHeroContent(d); })
+      .catch(() => {});
+  }, []);
+
+  const adminIds = useMemo(
+    () => (heroContent.heroSpotlights || []).map((v) => (v?._id || v)?.toString()).filter(Boolean),
+    [heroContent.heroSpotlights]
+  );
 
   const defaultSlides = useMemo(() => DEFAULT_SLIDES.map((s) => ({
     ...s,
@@ -149,13 +157,13 @@ export default function HeroSection() {
         <span className={styles.intlBadge}>🌍 Plateforme automobile internationale • 20+ pays</span>
 
         <h1 className={styles.title}>
-          Achetez, louez, importez<br />
-          <span className={styles.titleAccent}>depuis n'importe où</span>
+          {heroContent.heroTitle
+            ? heroContent.heroTitle
+            : <>Achetez, louez, importez<br /><span className={styles.titleAccent}>depuis n'importe où</span></>}
         </h1>
 
         <p className={styles.subtitle}>
-          Afrique, Europe, Chine, Dubaï — VIT AUTO connecte acheteurs et vendeurs
-          à travers le monde. Livraison GPS, contrat digital, paiement sécurisé.
+          {heroContent.heroSubtitle || "Afrique, Europe, Chine, Dubaï — VIT AUTO connecte acheteurs et vendeurs à travers le monde. Livraison GPS, contrat digital, paiement sécurisé."}
         </p>
 
         <div className={styles.ctas}>

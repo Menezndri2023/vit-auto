@@ -36,14 +36,32 @@ const pushHistory = (tx, status, userId, note = null) => {
   tx.statusHistory.push({ status, changedAt: new Date(), changedBy: userId, note });
 };
 
+// Bug réel corrigé (audit) : ces deux helpers ne créaient qu'un document
+// Notification en base, sans jamais émettre l'event socket "notification_new"
+// (contrairement à l'équivalent dans bookingController.js) — chaque
+// vérification de paiement, résolution de litige ou étape franchie sur une
+// transaction Import/Export restait invisible jusqu'à 20s de polling côté
+// client/partenaire/admin (voir NotificationContext.jsx).
 const notify = async (userId, type, titre, message, lien) => {
-  await Notification.create({ user: userId, type, titre, message, lien });
+  if (!userId) return;
+  const notif = await Notification.create({ user: userId, type, titre, message, lien }).catch(() => null);
+  if (notif && global._io) {
+    global._io.to(`user_${userId}`).emit("notification_new", {
+      _id: notif._id, type, titre, message, lien, lu: false, createdAt: notif.createdAt,
+    });
+  }
 };
 
 const notifyAdmins = async (type, titre, message, lien) => {
   const admins = await User.find({ role: "admin" }).select("_id");
-  if (admins.length > 0) {
-    await Notification.insertMany(admins.map((a) => ({ user: a._id, type, titre, message, lien })));
+  if (!admins.length) return;
+  const docs = await Notification.insertMany(admins.map((a) => ({ user: a._id, type, titre, message, lien })));
+  if (global._io) {
+    for (const doc of docs) {
+      global._io.to(`user_${doc.user}`).emit("notification_new", {
+        _id: doc._id, type, titre, message, lien, lu: false, createdAt: doc.createdAt,
+      });
+    }
   }
 };
 
