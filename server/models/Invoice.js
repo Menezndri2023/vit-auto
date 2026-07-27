@@ -14,6 +14,17 @@ const invoiceLineSchema = new mongoose.Schema({
 const invoiceSchema = new mongoose.Schema({
   reference:       { type: String, unique: true },
   partner:         { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+
+  // Entreprise (PartnerBusiness) facturée — null = facture "historique"
+  // regroupant tous les véhicules/chauffeurs SANS entité assignée (voir
+  // Vehicle.business/Driver.business), ce qui reproduit exactement l'ancien
+  // comportement (une facture par partenaire/mois) pour tout partenaire
+  // n'utilisant pas le multi-entité. Un partenaire à plusieurs entités reçoit
+  // une facture PAR ENTITÉ et par mois (voir invoiceController — le champ
+  // null compte comme une valeur à part entière dans l'index unique
+  // ci-dessous, donc un seul "bucket sans entité" par mois, et un par entité).
+  businessId:      { type: mongoose.Schema.Types.ObjectId, ref: "PartnerBusiness", default: null },
+
   month:           { type: Number, required: true, min: 1, max: 12 },
   year:            { type: Number, required: true },
   lines:           [invoiceLineSchema],
@@ -32,7 +43,12 @@ const invoiceSchema = new mongoose.Schema({
   updatedAt:     { type: Date, default: Date.now },
 });
 
-invoiceSchema.index({ partner: 1, year: 1, month: 1 }, { unique: true });
+// Remplace l'ancien index unique { partner, year, month } (voir
+// scripts/migrateInvoiceBusinessIndex.js — à lancer manuellement en
+// production après déploiement de ce schéma pour supprimer l'ancien index,
+// qui sinon continuerait à bloquer la création d'une 2e facture pour le même
+// partenaire/mois dès qu'une entité distincte est facturée séparément).
+invoiceSchema.index({ partner: 1, businessId: 1, year: 1, month: 1 }, { unique: true });
 invoiceSchema.index({ status: 1 });
 
 invoiceSchema.pre("save", function (next) {

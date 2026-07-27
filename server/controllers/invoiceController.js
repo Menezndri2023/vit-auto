@@ -6,7 +6,16 @@ import Vehicle from "../models/Vehicle.js";
 import Driver  from "../models/Driver.js";
 import User    from "../models/User.js";
 import Notification from "../models/Notification.js";
+import PartnerBusiness from "../models/PartnerBusiness.js";
 import { dispatch } from "../queue/index.js";
+
+// Clé de regroupement stable pour un couple (partenaire, entité) — "none" sert
+// de bucket pour les véhicules/chauffeurs sans entité assignée (voir
+// Invoice.businessId : null est une valeur d'index à part entière, mais ne
+// peut pas servir de clé de Map JS de façon fiable mêlée à des ObjectId).
+function groupKey(ownerId, businessId) {
+  return `${ownerId}::${businessId || "none"}`;
+}
 
 // ── Génération référence facture ───────────────────────────────────────────────
 async function generateInvoiceReference(year) {
@@ -20,13 +29,16 @@ async function generateInvoiceReference(year) {
 // ═══════════════════════════════════════════════════════════════════════════════
 export const generatePartnerInvoice = async (req, res) => {
   try {
-    const { partnerId, month, year } = req.body;
+    const { partnerId, month, year, businessId } = req.body;
 
     if (!partnerId || !month || !year) {
       return res.status(400).json({ message: "partnerId, month et year requis." });
     }
     if (!mongoose.Types.ObjectId.isValid(partnerId)) {
       return res.status(400).json({ message: "partnerId invalide." });
+    }
+    if (businessId && !mongoose.Types.ObjectId.isValid(businessId)) {
+      return res.status(400).json({ message: "businessId invalide." });
     }
 
     // Vérifier que le partnerId correspond à un utilisateur partenaire réel
@@ -38,16 +50,29 @@ export const generatePartnerInvoice = async (req, res) => {
       return res.status(403).json({ message: "Ce compte partenaire est inactif." });
     }
 
-    // Vérifier si une facture existe déjà
-    const existing = await Invoice.findOne({ partner: partnerId, month, year });
-    if (existing) {
-      return res.status(409).json({ message: "Une facture existe déjà pour ce partenaire et cette période.", invoice: existing });
+    // businessId optionnel — s'il est fourni, doit appartenir à ce partenaire
+    // (IDOR sinon). S'il est omis, la facture couvre uniquement les
+    // véhicules/chauffeurs SANS entité assignée (voir vehicleFilter plus bas) —
+    // pas "tous les véhicules du partenaire" comme avant l'introduction du
+    // multi-entité, sinon une transaction rattachée à une entité serait
+    // facturée deux fois (une fois ici, une fois via sa propre entité).
+    if (businessId) {
+      const business = await PartnerBusiness.findOne({ _id: businessId, owner: partnerId }).select("_id").lean();
+      if (!business) return res.status(400).json({ message: "Entreprise introuvable pour ce partenaire." });
     }
 
-    // Récupérer les véhicules et chauffeurs du partenaire
+    // Vérifier si une facture existe déjà pour ce partenaire, cette entité et cette période
+    const existing = await Invoice.findOne({ partner: partnerId, businessId: businessId || null, month, year });
+    if (existing) {
+      return res.status(409).json({ message: "Une facture existe déjà pour ce partenaire (et cette entité) sur cette période.", invoice: existing });
+    }
+
+    // Récupérer les véhicules et chauffeurs du partenaire, scopés à l'entité
+    const vehicleFilter = { owner: partnerId, business: businessId || null };
+    const driverFilter  = { owner: partnerId, business: businessId || null };
     const [myVehicles, myDrivers] = await Promise.all([
-      Vehicle.find({ owner: partnerId }).select("_id"),
-      Driver.find({ owner: partnerId }).select("_id"),
+      Vehicle.find(vehicleFilter).select("_id"),
+      Driver.find(driverFilter).select("_id"),
     ]);
     const vehicleIds = myVehicles.map((v) => v._id);
     const driverIds  = myDrivers.map((d) => d._id);
@@ -87,6 +112,7 @@ export const generatePartnerInvoice = async (req, res) => {
     const invoice = await Invoice.create({
       reference,
       partner: partnerId,
+      businessId: businessId || null,
       month,
       year,
       lines,
@@ -140,22 +166,29 @@ export const generateAllMonthlyInvoices = async (req, res) => {
       invoiced: false,
       paidAt:   { $gte: startOfMonth, $lt: endOfMonth },
     })
-      .populate("vehicle", "owner")
-      .populate("driver",  "owner");
+      .populate("vehicle", "owner business")
+      .populate("driver",  "owner business");
 
-    // Grouper par partenaire
-    const byPartner = new Map();
+    // Grouper par (partenaire, entité) — un partenaire multi-entités reçoit
+    // une facture PAR ENTITÉ (voir Invoice.businessId), pas une seule facture
+    // mélangeant toutes ses entités. "none" regroupe les véhicules/chauffeurs
+    // sans entité assignée, exactement comme l'ancien comportement global
+    // pour un partenaire n'utilisant pas le multi-entité.
+    const byGroup = new Map();
     for (const b of bookings) {
-      const ownerId = (b.vehicle?.owner || b.driver?.owner)?.toString();
+      const source = b.vehicle || b.driver;
+      const ownerId = source?.owner?.toString();
       if (!ownerId) continue;
-      if (!byPartner.has(ownerId)) byPartner.set(ownerId, []);
-      byPartner.get(ownerId).push(b);
+      const businessId = source?.business?.toString() || null;
+      const key = groupKey(ownerId, businessId);
+      if (!byGroup.has(key)) byGroup.set(key, { partnerId: ownerId, businessId, bookings: [] });
+      byGroup.get(key).bookings.push(b);
     }
 
     const results = [];
-    for (const [partnerId, pBookings] of byPartner) {
-      const existing = await Invoice.findOne({ partner: partnerId, month, year });
-      if (existing) { results.push({ partnerId, status: "already_exists", reference: existing.reference }); continue; }
+    for (const { partnerId, businessId, bookings: pBookings } of byGroup.values()) {
+      const existing = await Invoice.findOne({ partner: partnerId, businessId, month, year });
+      if (existing) { results.push({ partnerId, businessId, status: "already_exists", reference: existing.reference }); continue; }
 
       const lines = pBookings.map((b) => ({
         booking:            b._id,
@@ -175,6 +208,7 @@ export const generateAllMonthlyInvoices = async (req, res) => {
       const invoice = await Invoice.create({
         reference,
         partner: partnerId,
+        businessId,
         month,
         year,
         lines,
@@ -203,7 +237,7 @@ export const generateAllMonthlyInvoices = async (req, res) => {
         dispatch.partnerInvoiceReady(invoice, partner.email, partnerId, partner.firstName).catch(() => {});
       }
 
-      results.push({ partnerId, status: "created", reference, totalCommission, lines: lines.length });
+      results.push({ partnerId, businessId, status: "created", reference, totalCommission, lines: lines.length });
     }
 
     res.json({ generated: results.filter((r) => r.status === "created").length, results });
@@ -218,8 +252,13 @@ export const generateAllMonthlyInvoices = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 export const getMyInvoices = async (req, res) => {
   try {
-    const invoices = await Invoice.find({ partner: req.user._id })
+    const filter = { partner: req.user._id };
+    if (req.query.businessId && mongoose.Types.ObjectId.isValid(req.query.businessId)) {
+      filter.businessId = req.query.businessId;
+    }
+    const invoices = await Invoice.find(filter)
       .sort({ year: -1, month: -1 })
+      .populate("businessId", "companyName")
       .lean();
     res.json({ invoices });
   } catch (err) {
@@ -233,18 +272,20 @@ export const getMyInvoices = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 export const getAllInvoices = async (req, res) => {
   try {
-    const { status, year, month, page = 1, limit = 30 } = req.query;
+    const { status, year, month, businessId, page = 1, limit = 30 } = req.query;
     const filter = {};
     if (status) filter.status = status;
     if (year)   filter.year   = Number(year);
     if (month)  filter.month  = Number(month);
+    if (businessId && mongoose.Types.ObjectId.isValid(businessId)) filter.businessId = businessId;
 
     const [invoices, total] = await Promise.all([
       Invoice.find(filter)
         .sort({ year: -1, month: -1, createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(Number(limit))
-        .populate("partner", "firstName lastName email phone"),
+        .populate("partner", "firstName lastName email phone")
+        .populate("businessId", "companyName"),
       Invoice.countDocuments(filter),
     ]);
 

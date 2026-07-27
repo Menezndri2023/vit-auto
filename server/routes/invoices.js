@@ -16,7 +16,8 @@ router.get("/transactions",  authenticate,               inv.getPartnerTransacti
 router.get("/:id",           vid, authenticate,               async (req, res) => {
   try {
     const invoice = await Invoice.findById(req.params.id)
-      .populate("partner", "firstName lastName email phone");
+      .populate("partner", "firstName lastName email phone")
+      .populate("businessId", "companyName");
     if (!invoice) return res.status(404).json({ message: "Facture introuvable." });
     const isOwner = invoice.partner?._id?.toString() === req.user._id.toString();
     if (req.user.role !== "admin" && !isOwner) {
@@ -32,7 +33,8 @@ router.get("/:id",           vid, authenticate,               async (req, res) =
 router.get("/:id/pdf",       vid, authenticate,               async (req, res) => {
   try {
     const invoice = await Invoice.findById(req.params.id)
-      .populate("partner", "firstName lastName email phone");
+      .populate("partner", "firstName lastName email phone")
+      .populate("businessId", "companyName");
     if (!invoice) return res.status(404).json({ message: "Facture introuvable." });
     const isOwner = invoice.partner?._id?.toString() === req.user._id.toString();
     if (req.user.role !== "admin" && !isOwner) return res.status(403).json({ message: "Accès refusé." });

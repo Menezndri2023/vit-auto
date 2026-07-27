@@ -4645,6 +4645,12 @@ export default function AdminPanel() {
                         <td style={{ fontSize: "0.85rem" }}>
                           <div style={{ fontWeight: 700 }}>{inv.partner?.firstName} {inv.partner?.lastName}</div>
                           <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{inv.partner?.email}</div>
+                          {/* Un partenaire multi-entités reçoit une facture par entité (voir
+                              Invoice.businessId) — sans ce libellé, deux factures du même mois
+                              pour le même partenaire seraient indiscernables dans ce tableau. */}
+                          {inv.businessId?.companyName && (
+                            <div style={{ fontSize: "0.72rem", color: "#8b5cf6", fontWeight: 600 }}>🏢 {inv.businessId.companyName}</div>
+                          )}
                         </td>
                         <td style={{ fontSize: "0.85rem" }}>
                           {MOIS[(inv.month || 1) - 1]} {inv.year}

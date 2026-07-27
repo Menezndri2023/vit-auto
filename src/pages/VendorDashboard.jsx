@@ -1052,6 +1052,19 @@ export default function VendorDashboard() {
   const [commRates,      setCommRates]      = useState(null); // { location, essai, chauffeur, leasing } — depuis /api/pricing/config
   const [partnerStats,   setPartnerStats]   = useState(null); // agrégation serveur — voir loadPartnerStats
   const [analytics,      setAnalytics]      = useState(null); // tendance mensuelle, top véhicules, clientèle — voir loadAnalytics
+
+  // ── Entités (PartnerBusiness) — un partenaire opérant plusieurs entreprises
+  // filtre ses commandes/stats par entité (même principe que PartnerPMSDashboard).
+  // Le sélecteur ne s'affiche que s'il y a au moins 2 entités.
+  const [businesses, setBusinesses] = useState([]);
+  const [filterBusinessId, setFilterBusinessId] = useState("");
+  useEffect(() => {
+    if (!token) return;
+    fetch("/api/partner/businesses", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.ok ? r.json() : { businesses: [] })
+      .then((d) => setBusinesses(d.businesses || []))
+      .catch(() => {});
+  }, [token]);
   const [boostTarget,    setBoostTarget]    = useState(null);
   const [boostModal,     setBoostModal]     = useState(null); // { vehicleId, title } — véhicule en cours de sélection de palier boost
 
@@ -1996,10 +2009,11 @@ export default function VendorDashboard() {
   const loadPartnerStats = useCallback(async () => {
     if (!token) return;
     try {
-      const r = await fetch("/api/bookings/partner/stats", { headers: { Authorization: `Bearer ${token}` } });
+      const qs = filterBusinessId ? `?businessId=${filterBusinessId}` : "";
+      const r = await fetch(`/api/bookings/partner/stats${qs}`, { headers: { Authorization: `Bearer ${token}` } });
       if (r.ok) setPartnerStats(await r.json());
     } catch { /* repli sur le calcul client approximatif ci-dessous */ }
-  }, [token]);
+  }, [token, filterBusinessId]);
 
   useEffect(() => { loadPartnerStats(); }, [loadPartnerStats]);
 
@@ -2010,12 +2024,17 @@ export default function VendorDashboard() {
   const loadAnalytics = useCallback(async () => {
     if (!token) return;
     try {
-      const r = await fetch("/api/bookings/partner/analytics", { headers: { Authorization: `Bearer ${token}` } });
+      const qs = filterBusinessId ? `?businessId=${filterBusinessId}` : "";
+      const r = await fetch(`/api/bookings/partner/analytics${qs}`, { headers: { Authorization: `Bearer ${token}` } });
       if (r.ok) setAnalytics(await r.json());
     } catch { /* non bloquant */ }
-  }, [token]);
+  }, [token, filterBusinessId]);
 
   useEffect(() => { loadAnalytics(); }, [loadAnalytics]);
+
+  // Recharge la liste des commandes quand le filtre d'entité change (le
+  // chargement initial est déjà déclenché par VehicleContext lui-même).
+  useEffect(() => { loadPartnerOrders(filterBusinessId || undefined); }, [filterBusinessId, loadPartnerOrders]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -2336,6 +2355,17 @@ export default function VendorDashboard() {
                 </button>
               ))}
             </div>
+            {businesses.length > 1 && (
+              <select
+                value={filterBusinessId}
+                onChange={(e) => setFilterBusinessId(e.target.value)}
+                title="Filtrer par entreprise"
+                style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: ".82rem" }}
+              >
+                <option value="">Toutes les entités</option>
+                {businesses.map((b) => <option key={b._id} value={b._id}>{b.companyName}</option>)}
+              </select>
+            )}
             <input type="search" className={styles.searchInput} placeholder="Rechercher référence, client, véhicule…"
               value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
           </div>
@@ -2783,6 +2813,19 @@ export default function VendorDashboard() {
       {/* ══ TAB : FINANCES ════════════════════════════════════════════════ */}
       {activeTab === "finances" && (
         <div className={styles.tabContent}>
+          {businesses.length > 1 && (
+            <div style={{ marginBottom: 14 }}>
+              <select
+                value={filterBusinessId}
+                onChange={(e) => setFilterBusinessId(e.target.value)}
+                title="Filtrer par entreprise"
+                style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: ".82rem" }}
+              >
+                <option value="">Toutes les entités</option>
+                {businesses.map((b) => <option key={b._id} value={b._id}>{b.companyName}</option>)}
+              </select>
+            </div>
+          )}
           {/* Résumé financier */}
           <div className={styles.finSummary}>
             <div className={styles.finSummaryCard}>
@@ -2841,7 +2884,8 @@ export default function VendorDashboard() {
             style={{ marginBottom: 16 }}
             onClick={async () => {
               try {
-                const r = await fetch("/api/bookings/partner/export", { headers: { Authorization: `Bearer ${token}` } });
+                const qs = filterBusinessId ? `?businessId=${filterBusinessId}` : "";
+                const r = await fetch(`/api/bookings/partner/export${qs}`, { headers: { Authorization: `Bearer ${token}` } });
                 if (!r.ok) { toastError("Erreur lors de l'export."); return; }
                 const blob = await r.blob();
                 const url = URL.createObjectURL(blob);
@@ -2909,6 +2953,12 @@ export default function VendorDashboard() {
                         <div>
                           <div className={styles.invoiceRef}>{inv.reference}</div>
                           <div className={styles.invoicePeriod}>{MOIS[(inv.month || 1) - 1]} {inv.year}</div>
+                          {/* Facture par entité (voir Invoice.businessId) — un partenaire
+                              multi-entités reçoit plusieurs factures le même mois, sans ce
+                              libellé elles seraient indiscernables. */}
+                          {inv.businessId?.companyName && (
+                            <div style={{ fontSize: ".78rem", color: "#8b5cf6", fontWeight: 600 }}>🏢 {inv.businessId.companyName}</div>
+                          )}
                         </div>
                         <span className={styles.invoiceStatusBadge} style={{ background: sc.bg, color: sc.c }}>{sc.l}</span>
                       </div>

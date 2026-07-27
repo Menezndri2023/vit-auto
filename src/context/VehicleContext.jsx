@@ -209,10 +209,13 @@ export const VehicleProvider = ({ children }) => {
   }, [token]);
 
   // Commandes reçues par le partenaire (depuis le backend — inclut les coords GPS)
-  const loadPartnerOrders = useCallback(async () => {
+  // businessId optionnel : segmente par entité (PartnerBusiness) pour un
+  // partenaire qui en gère plusieurs — voir bookingController.getPartnerBookings.
+  const loadPartnerOrders = useCallback(async (businessId) => {
     if (!token) return;
     try {
-      const res = await fetch("/api/bookings/partner", {
+      const qs = businessId ? `?businessId=${businessId}` : "";
+      const res = await fetch(`/api/bookings/partner${qs}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return;
