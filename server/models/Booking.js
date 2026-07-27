@@ -301,6 +301,16 @@ const bookingSchema = new mongoose.Schema({
     refundClient: { type: Boolean, default: false },
   },
 
+  // ── Réponse du partenaire à un litige (Bug réel corrigé, audit) ───────────
+  // Un partenaire notifié d'un litige (voir validateTransaction) n'avait
+  // strictement aucun moyen d'apporter des éléments avant que l'admin ne
+  // tranche (resolveDispute) — simple spectateur passif, renvoyé vers
+  // "contactez le support" hors plateforme.
+  partnerDisputeResponse: {
+    message:     { type: String, default: null },
+    respondedAt: { type: Date,   default: null },
+  },
+
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });

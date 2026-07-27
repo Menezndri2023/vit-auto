@@ -1252,6 +1252,13 @@ export default function AdminPanel() {
   const [laneForm,        setLaneForm]          = useState(null);
   const [insuranceLoading, setInsuranceLoading] = useState(false);
   const [insuranceModal,   setInsuranceModal]   = useState(null); // { id, status }
+  // Reversements partenaire (suivi dû vs déjà versé — voir commissionLedger.js)
+  const [payoutsList,      setPayoutsList]      = useState([]);
+  const [payoutsTotal,     setPayoutsTotal]     = useState(0);
+  const [payoutsPendingCount, setPayoutsPendingCount] = useState(0);
+  const [payoutsLoading,   setPayoutsLoading]   = useState(false);
+  const [payoutsFilter,    setPayoutsFilter]    = useState("pending");
+  const [payoutMarkingId,  setPayoutMarkingId]  = useState(null);
   const [insurancePremium, setInsurancePremium] = useState("");
   const [insuranceNote,    setInsuranceNote]    = useState("");
 
@@ -1890,6 +1897,38 @@ export default function AdminPanel() {
       const r = await fetch(`/api/ads/${id}`, { method: "DELETE", headers });
       if (r.ok) { showToast("Annonce supprimée.", "success"); loadAds(); }
     } catch { showToast("Erreur réseau", "error"); }
+  };
+
+  // ── Reversements partenaire ────────────────────────────────────────────────
+  const loadPayouts = useCallback(async () => {
+    if (!token) return;
+    setPayoutsLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: "100" });
+      if (payoutsFilter) params.set("status", payoutsFilter);
+      const r = await fetch(`/api/commission-ledger/admin?${params}`, { headers });
+      if (r.ok) { const d = await r.json(); setPayoutsList(d.entries || []); setPayoutsTotal(d.total || 0); }
+      const rPending = await fetch(`/api/commission-ledger/admin?status=pending&limit=1`, { headers });
+      if (rPending.ok) setPayoutsPendingCount((await rPending.json()).total || 0);
+    } catch { /* ignore */ }
+    setPayoutsLoading(false);
+  }, [token, headers, payoutsFilter]);
+
+  const markPayoutPaid = async (id) => {
+    if (payoutMarkingId) return;
+    const paidViaTxId = window.prompt("Référence du virement (optionnel — banque/mobile money) :", "");
+    if (paidViaTxId === null) return; // annulé
+    setPayoutMarkingId(id);
+    try {
+      const r = await fetch(`/api/commission-ledger/admin/${id}/mark-paid`, {
+        method: "PATCH", headers, body: JSON.stringify({ paidViaTxId: paidViaTxId || undefined }),
+      });
+      const data = await r.json();
+      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
+      showToast("Reversement marqué comme payé", "success");
+      loadPayouts();
+    } catch { showToast("Erreur réseau", "error"); }
+    finally { setPayoutMarkingId(null); }
   };
 
   // ── Assurance ────────────────────────────────────────────────────────────────
@@ -2631,7 +2670,8 @@ export default function AdminPanel() {
     if (activeTab === "reports")           loadReports();
     if (activeTab === "whatsapp")          loadWaConversations();
     if (activeTab === "business_config")   loadBusinessConfig();
-  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds, loadInsurance, loadServiceRequests, loadImportCostData, loadReports, loadWaConversations, loadBusinessConfig]);
+    if (activeTab === "reversements")      loadPayouts();
+  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds, loadInsurance, loadServiceRequests, loadImportCostData, loadReports, loadWaConversations, loadBusinessConfig, loadPayouts]);
 
   // Chargé indépendamment de l'onglet actif (contrairement au bloc ci-dessus,
   // conditionné par activeTab === "business_config") : le message d'invitation
@@ -2953,6 +2993,7 @@ export default function AdminPanel() {
     // manquait ici — un admin sans ce scope voyait l'onglet dans le menu et
     // n'obtenait que des 403 en boucle (tableau vide, aucune action possible).
     import_cost:      "finance",
+    reversements:     "finance",
   };
   const canSeeTab = (key) => {
     const scope = TAB_SCOPES[key];
@@ -3001,6 +3042,7 @@ export default function AdminPanel() {
         { key: "import_cost",   icon: "🧮", label: "Coûts Import" },
         { key: "financement",   icon: "🏦", label: "Financement" },
         { key: "assurance",     icon: "🔒", label: "Assurance" },
+        { key: "reversements",  icon: "💸", label: "Reversements", badge: payoutsPendingCount || undefined },
         { key: "service_requests", icon: "🧰", label: "Autres services", badge: pendingSvcReq || undefined },
       ],
     },
@@ -3118,6 +3160,15 @@ export default function AdminPanel() {
               Client : <strong>{disputeModal.booking.clientInfo?.firstName} {disputeModal.booking.clientInfo?.lastName}</strong><br/>
               Raison : {disputeModal.booking.clientValidation?.disputeReason || "Non précisée"}
             </p>
+            {/* Bug réel corrigé (audit) : le partenaire peut désormais répondre à
+                un litige (VendorDashboard) — sans ça, l'admin tranchait sans
+                jamais voir ses éventuels éléments de réponse. */}
+            {disputeModal.booking.partnerDisputeResponse?.respondedAt && (
+              <div style={{ background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:8, padding:"8px 12px", marginBottom:12 }}>
+                <p style={{ margin:0, fontSize:".78rem", fontWeight:700, color:"#0f1b3f" }}>💬 Réponse du partenaire :</p>
+                <p style={{ margin:"4px 0 0", fontSize:".83rem", color:"#334155" }}>{disputeModal.booking.partnerDisputeResponse.message}</p>
+              </div>
+            )}
             <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:14 }}>
               <label style={{ fontSize:".85rem", fontWeight:600 }}>Décision :</label>
               <select value={disputeResol} onChange={e=>setDisputeResol(e.target.value)}
@@ -6643,6 +6694,71 @@ export default function AdminPanel() {
               <button className={styles.btnSecondary} onClick={() => setInsuranceModal(null)}>Annuler</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {activeTab === "reversements" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>💸 Reversements partenaire ({payoutsTotal})</h2>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>
+                Ce que VIT AUTO doit à chaque partenaire (généré automatiquement à la complétion d'une commande) — aucun virement n'est exécuté automatiquement, "Marquer payé" trace seulement qu'il a été fait manuellement (banque/mobile money).
+              </p>
+            </div>
+            <button className={styles.btnRefresh} onClick={loadPayouts}>↻ Actualiser</button>
+          </div>
+
+          <div className={styles.filterRow} style={{ marginBottom: 16 }}>
+            {["pending", "paid", ""].map((s) => (
+              <button key={s || "all"}
+                className={`${styles.filterBtn} ${payoutsFilter === s ? styles.filterActive : ""}`}
+                onClick={() => setPayoutsFilter(s)}>
+                {s === "pending" ? "En attente" : s === "paid" ? "Payés" : "Tous"}
+              </button>
+            ))}
+          </div>
+
+          {payoutsLoading ? (
+            <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>
+          ) : payoutsList.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Aucun reversement pour ce filtre.</div>
+          ) : (
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead><tr><th>Partenaire</th><th>Référence</th><th>Montant</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>
+                <tbody>
+                  {payoutsList.map((p) => (
+                    <tr key={p._id}>
+                      <td>
+                        <div style={{ fontWeight: 700 }}>{p.partnerId?.firstName} {p.partnerId?.lastName}</div>
+                        <div style={{ fontSize: ".78rem", color: "#64748b" }}>{p.partnerId?.email}</div>
+                      </td>
+                      <td style={{ fontSize: ".82rem" }}>{p.notes || p.transactionId}</td>
+                      <td className={styles.tdPrice}>{fmtUSD(p.commissionAmount)}</td>
+                      <td>
+                        {p.status === "paid"
+                          ? <Badge label="✅ Payé" color="#16a34a" bg="#dcfce7" />
+                          : <Badge label="🕐 En attente" color="#d97706" bg="#fef3c7" />}
+                        {p.status === "paid" && p.paidViaTxId && (
+                          <div style={{ fontSize: ".72rem", color: "#94a3b8", marginTop: 2 }}>Réf : {p.paidViaTxId}</div>
+                        )}
+                      </td>
+                      <td className={styles.tdDate}>{fmtDate(p.createdAt)}</td>
+                      <td>
+                        {p.status !== "paid" && (
+                          <button disabled={payoutMarkingId === p._id} onClick={() => markPayoutPaid(p._id)}
+                            style={{ padding: "5px 12px", borderRadius: 8, border: "none", background: "#16a34a", color: "#fff", fontWeight: 700, fontSize: ".78rem", cursor: payoutMarkingId === p._id ? "not-allowed" : "pointer", opacity: payoutMarkingId === p._id ? 0.6 : 1 }}>
+                            {payoutMarkingId === p._id ? "…" : "✅ Marquer payé"}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

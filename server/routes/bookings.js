@@ -50,6 +50,7 @@ router.patch("/:id/transaction",         vid, authenticate, b.recordTransaction)
 router.patch("/:id/partner-confirm",     vid, authenticate, b.partnerConfirm);
 router.patch("/:id/partner-kyc-verify",  vid, authenticate, b.partnerVerifyKyc);
 router.patch("/:id/caution",             vid, authenticate, b.claimCaution);
+router.post("/:id/dispute-response",     vid, authenticate, b.respondToDispute);
 
 // ── Détail commande ───────────────────────────────────────
 router.get("/:id/detail",             vid, authenticate, b.getBookingDetail);

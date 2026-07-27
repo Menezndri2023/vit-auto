@@ -234,7 +234,7 @@ const ORDER_WORKFLOWS = {
    MODAL GÉRER — Gestion complète, identité intégrée, workflow par type VIT-AUTO
    ══════════════════════════════════════════════════════════════════════════════ */
 function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onPrepare, onReady, onInProgress,
-  onClientArrived, onClientAbsent, onRecordTransaction, onPartnerConfirm, onComplete, onReject, onTransactionNotConcluded, onPartnerVerifyKyc,
+  onClientArrived, onClientAbsent, onRecordTransaction, onPartnerConfirm, onComplete, onReject, onTransactionNotConcluded, onRespondToDispute, onPartnerVerifyKyc,
   onClaimCaution, commRates = DEFAULT_COMM_RATE }) {
   // Tous les hooks AVANT tout return conditionnel (règles des hooks React)
   const { fmt: fmtXOF } = useCurrency();
@@ -257,6 +257,8 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
   const [txSubmitting, setTxSubmitting] = useState(false);
   const [txError, setTxError]           = useState("");
   const [fastMode, setFastMode]         = useState(null);
+  const [disputeMsg, setDisputeMsg]           = useState("");
+  const [disputeSubmitting, setDisputeSubmitting] = useState(false);
 
   if (!order) return null;
 
@@ -878,9 +880,39 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
           )}
           {ACTION === "disputed" && (
             <div className={styles.disputedBlock}>
-              ⚠️ Litige ouvert — contactez le support VIT AUTO pour résolution.
+              ⚠️ Litige ouvert — un administrateur VIT AUTO va trancher.
               {order.clientValidation?.disputeReason && (
                 <p style={{ margin:"6px 0 0", fontSize:".82rem" }}>Raison : {order.clientValidation.disputeReason}</p>
+              )}
+              {/* Bug réel corrigé (audit) : jusqu'ici aucun moyen d'apporter des
+                  éléments avant que l'admin ne tranche — simple spectateur passif. */}
+              {order.partnerDisputeResponse?.respondedAt ? (
+                <div style={{ marginTop:10, padding:"8px 12px", background:"#fff", border:"1px solid #fca5a5", borderRadius:8 }}>
+                  <p style={{ margin:0, fontSize:".78rem", fontWeight:700, color:"#991b1b" }}>Votre réponse envoyée :</p>
+                  <p style={{ margin:"4px 0 0", fontSize:".82rem" }}>{order.partnerDisputeResponse.message}</p>
+                </div>
+              ) : (
+                <div style={{ marginTop:10 }}>
+                  <textarea
+                    rows={3}
+                    placeholder="Apportez des précisions ou des éléments avant la décision de l'admin (facultatif mais recommandé)…"
+                    value={disputeMsg}
+                    onChange={(e) => setDisputeMsg(e.target.value)}
+                    style={{ width:"100%", boxSizing:"border-box", padding:8, borderRadius:8, border:"1.5px solid #fca5a5", fontSize:".85rem", fontFamily:"inherit", resize:"vertical" }}
+                  />
+                  <button
+                    className={styles.btnAccept}
+                    style={{ marginTop:8 }}
+                    disabled={disputeSubmitting || !disputeMsg.trim()}
+                    onClick={async () => {
+                      setDisputeSubmitting(true);
+                      const r = await onRespondToDispute(order.id, disputeMsg.trim());
+                      setDisputeSubmitting(false);
+                      if (r?.ok) setDisputeMsg("");
+                    }}>
+                    {disputeSubmitting ? "Envoi…" : "💬 Envoyer ma réponse"}
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -1005,6 +1037,13 @@ export default function VendorDashboard() {
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [transactions,   setTransactions]   = useState([]);
   const [txLoading,      setTxLoading]      = useState(false);
+  // Bug réel corrigé (audit) : aucune notion de virement réellement exécuté —
+  // partnerPayout restait compté indéfiniment sur les commandes "completed"
+  // sans distinguer ce qui est dû de ce qui a déjà été versé (voir
+  // server/utils/commissionLedger.js).
+  const [payoutTotals,   setPayoutTotals]   = useState(null);
+  const [payoutEntries,  setPayoutEntries]  = useState([]);
+  const [payoutLoading,  setPayoutLoading]  = useState(false);
   const [contracts,      setContracts]      = useState([]);
   const [contractsLoading, setContractsLoading] = useState(false);
   const [legalDocuments, setLegalDocuments] = useState([]); // LOI/Agreement — voir contractController.getPartnerContracts
@@ -1781,6 +1820,20 @@ export default function VendorDashboard() {
     } catch { toastError("Erreur réseau."); }
   };
 
+  // Bug réel corrigé (audit) : un partenaire en litige était un simple
+  // spectateur passif ("contactez le support VIT AUTO"), sans aucun moyen
+  // d'apporter des éléments avant que l'admin ne tranche.
+  const handleRespondToDispute = useCallback(async (id, message) => {
+    if (!token) return;
+    try {
+      const r = await fetch(`/api/bookings/${id}/dispute-response`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ message }) });
+      const d = await r.json();
+      if (r.ok) { toastSuccess("💬 Réponse envoyée à l'administration."); setTimeout(() => loadPartnerOrders(), 500); }
+      else toastError(d.message || "Erreur.");
+      return { ok: r.ok, message: d.message };
+    } catch { toastError("Erreur réseau."); return { ok: false }; }
+  }, [token, toastSuccess, toastError, loadPartnerOrders]);
+
   const handleClaimCaution = useCallback(async (id, payload) => {
     if (!token) return;
     try {
@@ -1829,6 +1882,16 @@ export default function VendorDashboard() {
     try { const r = await fetch("/api/invoices/transactions", { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) { const d = await r.json(); setTransactions(d.transactions || []); } }
     catch { /* ignore */ }
     setTxLoading(false);
+  }, [token]);
+
+  const loadPayouts = useCallback(async () => {
+    if (!token) return;
+    setPayoutLoading(true);
+    try {
+      const r = await fetch("/api/commission-ledger/mine", { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) { const d = await r.json(); setPayoutTotals(d.totals || null); setPayoutEntries(d.entries || []); }
+    } catch { /* ignore */ }
+    setPayoutLoading(false);
   }, [token]);
 
   const loadContracts = useCallback(async () => {
@@ -1963,7 +2026,7 @@ export default function VendorDashboard() {
 
   useEffect(() => { loadMyDrivers(); }, [loadMyDrivers]);
   useEffect(() => { loadEmploymentRequests(); }, [loadEmploymentRequests]);
-  useEffect(() => { loadInvoices(); loadTransactions(); loadContracts(); loadServiceInvoices(); }, [loadInvoices, loadTransactions, loadContracts, loadServiceInvoices]);
+  useEffect(() => { loadInvoices(); loadTransactions(); loadContracts(); loadServiceInvoices(); loadPayouts(); }, [loadInvoices, loadTransactions, loadContracts, loadServiceInvoices, loadPayouts]);
 
   // ── Temps réel : Socket.io + polling de secours (60s) ─────────────────────
   const prevCountRef = useRef(0);
@@ -2736,6 +2799,40 @@ export default function VendorDashboard() {
             </div>
           </div>
 
+          {/* Reversements — dû vs déjà versé (voir commissionLedger.js). Aucune
+              intégration bancaire n'existe : le virement reste initié
+              manuellement par la finance VIT AUTO, ceci n'affiche que le suivi. */}
+          {payoutTotals && (payoutTotals.pending > 0 || payoutTotals.paid > 0) && (
+            <div className={styles.dashSection} style={{ marginBottom: 20 }}>
+              <div className={styles.dashSectionHeader}><h3>💸 Reversements</h3></div>
+              <div className={styles.finSummary}>
+                <div className={styles.finSummaryCard} style={{ borderColor: "#d97706" }}>
+                  <span className={styles.finSummaryLabel}>En attente de virement</span>
+                  <span className={styles.finSummaryValue} style={{ color: "#d97706" }}>{fmtXOF(payoutTotals.pending)}</span>
+                </div>
+                <div className={styles.finSummaryCard} style={{ borderColor: "#059669" }}>
+                  <span className={styles.finSummaryLabel}>Déjà versé</span>
+                  <span className={styles.finSummaryValue} style={{ color: "#059669" }}>{fmtXOF(payoutTotals.paid)}</span>
+                </div>
+              </div>
+              {!payoutLoading && payoutEntries.length > 0 && (
+                <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {payoutEntries.slice(0, 10).map((p) => (
+                    <div key={p._id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: ".82rem", padding: "6px 10px", background: "#f8fafc", borderRadius: 8 }}>
+                      <span style={{ color: "#64748b" }}>{p.notes || p.transactionId} · {fmtDate(p.createdAt)}</span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <strong>{fmtXOF(p.commissionAmount)}</strong>
+                        <span style={{ fontSize: ".72rem", fontWeight: 700, color: p.status === "paid" ? "#059669" : "#d97706" }}>
+                          {p.status === "paid" ? "✅ Versé" : "🕐 En attente"}
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Export comptable — jusqu'ici réservé à l'admin, aucun moyen pour un
               partenaire de télécharger l'historique de ses commandes. */}
           <button
@@ -2962,6 +3059,7 @@ export default function VendorDashboard() {
           onComplete={handleComplete}
           onReject={(id) => { setRejectModal(id); setGererModalId(null); setOrderDetail(null); }}
           onTransactionNotConcluded={handleTransactionNotConcluded}
+          onRespondToDispute={handleRespondToDispute}
           onPartnerVerifyKyc={handlePartnerVerifyKyc}
           onClaimCaution={handleClaimCaution}
         />

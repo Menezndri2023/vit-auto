@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { updateBookingStatus, validateTransaction, resolveDispute } from "../controllers/bookingController.js";
+import { updateBookingStatus, validateTransaction, resolveDispute, respondToDispute } from "../controllers/bookingController.js";
 import { getHero, updateHero } from "../controllers/siteContentController.js";
 import Booking from "../models/Booking.js";
 import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
@@ -119,6 +119,61 @@ describe("resolveDispute — signal refund_needed sur compensation", () => {
     } finally {
       delete global._io;
     }
+  });
+});
+
+// Bug réel corrigé (audit) : un partenaire en litige n'avait strictement
+// aucun moyen d'apporter des éléments avant que l'admin ne tranche
+// (resolveDispute) — simple spectateur passif, renvoyé vers "contactez le
+// support" hors plateforme.
+describe("respondToDispute — le partenaire peut répondre avant la décision admin", () => {
+  it("un partenaire peut répondre à un litige sur SA commande", async () => {
+    const { booking, partner } = await makeBooking({ status: "disputed" });
+    const { req, res } = mockReqRes({
+      user: partner, params: { id: booking._id.toString() },
+      body: { message: "Le véhicule était en parfait état à la remise, voici mon explication." },
+    });
+    await respondToDispute(req, res);
+    expect(res.statusCode).toBe(200);
+
+    const reloaded = await Booking.findById(booking._id);
+    expect(reloaded.partnerDisputeResponse.message).toMatch(/parfait état/);
+    expect(reloaded.partnerDisputeResponse.respondedAt).toBeTruthy();
+  });
+
+  it("refuse un message vide", async () => {
+    const { booking, partner } = await makeBooking({ status: "disputed" });
+    const { req, res } = mockReqRes({ user: partner, params: { id: booking._id.toString() }, body: { message: "  " } });
+    await respondToDispute(req, res);
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("refuse un autre partenaire que le propriétaire de la commande", async () => {
+    const { booking } = await makeBooking({ status: "disputed" });
+    const other = await createUser({ role: "partenaire" });
+    const { req, res } = mockReqRes({ user: other, params: { id: booking._id.toString() }, body: { message: "Réponse" } });
+    await respondToDispute(req, res);
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("refuse si la commande n'est pas en litige", async () => {
+    const { booking, partner } = await makeBooking({ status: "confirmed" });
+    const { req, res } = mockReqRes({ user: partner, params: { id: booking._id.toString() }, body: { message: "Réponse" } });
+    await respondToDispute(req, res);
+    expect(res.statusCode).toBe(409);
+  });
+
+  it("notifie tous les admins de la réponse", async () => {
+    const admin1 = await createUser({ role: "admin" });
+    const admin2 = await createUser({ role: "admin" });
+    const { booking, partner } = await makeBooking({ status: "disputed" });
+    const { req, res } = mockReqRes({ user: partner, params: { id: booking._id.toString() }, body: { message: "Ma réponse" } });
+    await respondToDispute(req, res);
+    expect(res.statusCode).toBe(200);
+
+    const Notification = (await import("../models/Notification.js")).default;
+    const adminNotifs = await Notification.find({ user: { $in: [admin1._id, admin2._id] } });
+    expect(adminNotifs).toHaveLength(2);
   });
 });
 

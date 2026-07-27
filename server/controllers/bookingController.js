@@ -14,6 +14,7 @@ import { applyPromotion } from "../utils/promotion.js";
 import { resolveCommissionRate, computeServiceFee, getRentalOptionPrice } from "../services/pricingEngine.js";
 import { convertAmount } from "../services/currencyEngine.js";
 import { issueServiceInvoice } from "./serviceInvoiceController.js";
+import { recordPartnerPayout } from "../utils/commissionLedger.js";
 import {
   CLIENT_CANCEL_REASONS, PARTNER_CANCEL_REASONS,
   CLIENT_CANCEL_REASON_CODES, PARTNER_CANCEL_REASON_CODES,
@@ -1192,7 +1193,7 @@ export const updateBookingStatus = async (req, res) => {
     if (n && booking.client) {
       await notify(booking.client, n.type, n.titre, n.msg, n.lien || "/dashboard");
     }
-    if (status === "completed") { await markVehicleSoldIfApplicable(booking); schedulePostServiceSurvey(booking); issueServiceInvoice(booking); }
+    if (status === "completed") { await markVehicleSoldIfApplicable(booking); schedulePostServiceSurvey(booking); issueServiceInvoice(booking); await recordPartnerPayout(booking); }
 
     res.json({ booking });
   } catch (err) {
@@ -1378,6 +1379,7 @@ export const validateTransaction = async (req, res) => {
       dispatch.transactionReceiptReady(booking, booking.clientInfo?.email, booking.client).catch(() => {});
       schedulePostServiceSurvey(booking);
       issueServiceInvoice(booking);
+      await recordPartnerPayout(booking);
     } else {
       booking.status = "disputed";
       booking.clientValidation = {
@@ -2447,6 +2449,7 @@ export const completeMission = async (req, res) => {
     }
     schedulePostServiceSurvey(booking);
     issueServiceInvoice(booking);
+    await recordPartnerPayout(booking);
 
     res.json({ booking, message: "Mission terminée." });
   } catch (err) {
@@ -2596,11 +2599,64 @@ export const resolveDispute = async (req, res) => {
     if (booking.client?._id) await notify(booking.client._id, "system", "Litige résolu", clientMsg, "/dashboard");
     if (disputeOwnerId) await notify(disputeOwnerId, "system", "Litige résolu",
       `Le litige sur la commande ${booking.reference} a été résolu par l'administration.`, "/vendor/dashboard");
-    if (booking.status === "completed") { schedulePostServiceSurvey(booking); issueServiceInvoice(booking); }
+    if (booking.status === "completed") { schedulePostServiceSurvey(booking); issueServiceInvoice(booking); await recordPartnerPayout(booking); }
 
     res.json({ booking, message: "Litige résolu.", resolution });
   } catch (err) {
     logger.error("resolveDispute:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PARTENAIRE — Répondre à un litige (POST /:id/dispute-response)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Bug réel corrigé (audit) : un partenaire notifié d'un litige (voir
+// validateTransaction) n'avait strictement aucun moyen d'apporter des
+// éléments avant que l'admin ne tranche (resolveDispute) — simple spectateur
+// passif, renvoyé vers "contactez le support" hors plateforme. N'affecte
+// jamais le statut ni la résolution elle-même (toujours exclusivement admin,
+// voir resolveDispute) — juste de la visibilité pour éclairer sa décision.
+export const respondToDispute = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { message } = req.body;
+    if (!message?.trim()) {
+      return res.status(400).json({ message: "Réponse requise." });
+    }
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(404).json({ message: "Commande introuvable." });
+    }
+
+    const booking = await Booking.findById(id)
+      .populate("vehicle", "owner")
+      .populate("driver",  "owner");
+    if (!booking) return res.status(404).json({ message: "Commande introuvable." });
+    if (booking.status !== "disputed") {
+      return res.status(409).json({ message: "Cette commande n'est pas en litige." });
+    }
+
+    const vehicleOwnerId = booking.vehicle?.owner?.toString();
+    const driverOwnerId  = booking.driver?.owner?.toString();
+    const userId         = req.user._id.toString();
+    const isOwner = (vehicleOwnerId && vehicleOwnerId === userId) || (driverOwnerId && driverOwnerId === userId);
+    if (req.user.role !== "admin" && !isOwner) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+
+    booking.partnerDisputeResponse = { message: message.trim().slice(0, 2000), respondedAt: new Date() };
+    await booking.save();
+
+    await notifyAdmins(
+      "system",
+      "💬 Réponse du partenaire au litige",
+      `Le partenaire a répondu au litige sur la commande ${booking.reference}.`,
+      "/admin"
+    ).catch(() => {});
+
+    res.json({ booking, message: "Réponse envoyée à l'administration." });
+  } catch (err) {
+    logger.error("respondToDispute:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -2664,6 +2720,7 @@ export const adminForceComplete = async (req, res) => {
     if (forceCompleteOwnerId) await notify(forceCompleteOwnerId, "system", "✅ Commande finalisée", `La commande ${booking.reference} a été finalisée.`, "/vendor/dashboard");
     schedulePostServiceSurvey(booking);
     issueServiceInvoice(booking);
+    await recordPartnerPayout(booking);
 
     res.json({ booking, message: "Commande finalisée avec succès." });
   } catch (err) {

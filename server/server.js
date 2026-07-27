@@ -50,6 +50,7 @@ import businessConfigRoutes   from "./routes/businessConfig.js";
 import siteContentRoutes      from "./routes/siteContent.js";
 import driverEmploymentRoutes from "./routes/driverEmployment.js";
 import serviceInvoiceRoutes   from "./routes/serviceInvoices.js";
+import commissionLedgerRoutes from "./routes/commissionLedger.js";
 import { authenticate, authorizeAdmin } from "./middleware/auth.js";
 
 dotenv.config();
@@ -346,6 +347,7 @@ app.use("/api/site-content",          catalogueLimiter, siteContentRoutes); // C
 app.use("/api/partner/businesses",    apiLimiter, partnerBusinessRoutes);  // Entreprises gérées par un même partenaire (localisations multiples)
 app.use("/api/driver-employment",     apiLimiter, driverEmploymentRoutes); // Embauche chauffeur temps plein (CDD/CDI)
 app.use("/api/service-invoices",      apiLimiter, serviceInvoiceRoutes);   // Facture de prestation au partenaire après service
+app.use("/api/commission-ledger",     apiLimiter, commissionLedgerRoutes); // Suivi des reversements partenaire (dû vs déjà versé)
 
 // ── Communication tracking (pixel ouverture + clic email) ────────────────────
 const TRANSPARENT_GIF = Buffer.from(
