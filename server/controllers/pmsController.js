@@ -111,7 +111,11 @@ export async function getPMSOverview(req, res) {
 
     const quotesStats = {
       total:     quotes.length,
-      envoye:    quotes.filter((q) => q.status === "envoye").length,
+      // Bug réel corrigé (audit) : "vu" (acheteur ayant ouvert le lien public,
+      // voir respondPublicQuote) sortait un devis de ce compteur alors qu'il a
+      // bien été envoyé — la carte "Devis envoyés" retombait à 0 dès que tous
+      // les destinataires avaient ouvert leur devis, ce qui est trompeur.
+      envoye:    quotes.filter((q) => ["envoye", "vu"].includes(q.status)).length,
       accepte:   quotes.filter((q) => q.status === "accepte").length,
       brouillon: quotes.filter((q) => q.status === "brouillon").length,
     };

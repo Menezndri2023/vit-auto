@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeScore, computeBadge, submitLevel, adminReviewLevel } from "../controllers/partnerCertificationController.js";
+import { computeScore, computeBadge, submitLevel, adminReviewLevel, adminList, adminDetail } from "../controllers/partnerCertificationController.js";
 import PartnerCertification from "../models/PartnerCertification.js";
 import User from "../models/User.js";
 import { createUser } from "./helpers/fixtures.js";
@@ -155,3 +155,64 @@ function approvedLevelsSubmitted(...levels) {
   for (const l of levels) cert[`level${l}`] = { status: "submitted" };
   return cert;
 }
+
+// Bug réel corrigé (audit, même famille que le Founding Partner) : adminList
+// ne partait que de PartnerCertification, jamais de User — un partenaire
+// n'ayant jamais visité /partner-certification (upsert, getStatus) ni signé
+// d'accord Founding Partner (cascade) était totalement invisible.
+describe("partnerCertificationController.adminList — comptes sans aucun dossier", () => {
+  it("inclut un partenaire sans PartnerCertification, marqué noDossier", async () => {
+    const partner = await createUser({ role: "partenaire", firstName: "Cheng", lastName: "Chen" });
+    const { req, res } = mockReqRes({ query: {} });
+    await adminList(req, res);
+
+    expect(res.statusCode).toBe(200);
+    const orphan = res.body.certifications.find((c) => String(c._id) === String(partner._id));
+    expect(orphan).toBeTruthy();
+    expect(orphan.noDossier).toBe(true);
+    expect(orphan.certificationBadge).toBe("none");
+  });
+
+  it("n'inclut pas un partenaire ayant déjà un dossier", async () => {
+    const partner = await createUser({ role: "partenaire" });
+    await PartnerCertification.create({ userId: partner._id });
+    const { req, res } = mockReqRes({ query: {} });
+    await adminList(req, res);
+
+    const orphan = res.body.certifications.find((c) => String(c._id) === String(partner._id) && c.noDossier);
+    expect(orphan).toBeUndefined();
+  });
+
+  it("ne fusionne pas si un filtre de statut/badge est actif", async () => {
+    await createUser({ role: "partenaire" });
+    const { req, res } = mockReqRes({ query: { badge: "verifie" } });
+    await adminList(req, res);
+    expect(res.body.certifications.every((c) => !c.noDossier)).toBe(true);
+  });
+});
+
+describe("partnerCertificationController.adminDetail — création à la volée", () => {
+  it("crée le dossier à la volée pour un partenaire sans aucun dossier (au lieu de 404)", async () => {
+    const partner = await createUser({ role: "partenaire" });
+    const { req, res } = mockReqRes({ params: { userId: partner._id.toString() } });
+    await adminDetail(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.certification.userId._id.toString()).toBe(partner._id.toString());
+    const created = await PartnerCertification.findOne({ userId: partner._id });
+    expect(created).toBeTruthy();
+  });
+
+  it("404 pour un utilisateur inexistant", async () => {
+    const { req, res } = mockReqRes({ params: { userId: "000000000000000000000000" } });
+    await adminDetail(req, res);
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("404 pour un utilisateur qui n'est pas partenaire", async () => {
+    const client = await createUser({ role: "client" });
+    const { req, res } = mockReqRes({ params: { userId: client._id.toString() } });
+    await adminDetail(req, res);
+    expect(res.statusCode).toBe(404);
+  });
+});

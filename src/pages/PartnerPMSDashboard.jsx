@@ -204,17 +204,25 @@ function LeadsSection({ token, showToast }) {
   const [form, setForm] = useState({ buyer: {}, vehicle: {}, budget: {}, status: "nouveau", urgency: "moyen", source: "website" });
   const [saving, setSaving]   = useState(false);
   const [followUpNote, setFollowUpNote] = useState("");
+  // Bug réel corrigé (audit) : ce composant n'envoyait jamais `page`/`limit` —
+  // le backend (pmsController.getLeads) plafonne alors à 20 résultats, page 1,
+  // sans qu'aucun contrôle ("Charger plus") n'existe ici pour voir la suite.
+  // Un partenaire avec plus de 20 leads ne voyait jamais que les 20 plus
+  // récents, malgré un total correct affiché en en-tête.
+  const [limit, setLimit] = useState(20);
 
   const load = useCallback(() => {
     setLoading(true);
-    const qs = filterStatus ? `?status=${filterStatus}` : "";
-    API(`/leads${qs}`, token)
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (filterStatus) params.set("status", filterStatus);
+    API(`/leads?${params}`, token)
       .then((r) => r.ok ? r.json() : { leads: [], total: 0 })
       .then((d) => { setLeads(d.leads || []); setTotal(d.total || 0); })
       .finally(() => setLoading(false));
-  }, [token, filterStatus]);
+  }, [token, filterStatus, limit]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { setLimit(20); }, [filterStatus]);
 
   const setF = (path, val) => {
     setForm((prev) => {
@@ -322,6 +330,12 @@ function LeadsSection({ token, showToast }) {
               <div className={styles.leadCardDate}>{fmtDate(l.createdAt)}</div>
             </div>
           ))}
+          {!loading && leads.length < total && (
+            <div style={{ textAlign: "center", padding: "12px 0" }}>
+              <p style={{ fontSize: ".78rem", color: "#94a3b8", marginBottom: 6 }}>{leads.length} sur {total} au total</p>
+              <button className={styles.btnSecondary} onClick={() => setLimit((l) => l + 20)}>Charger plus</button>
+            </div>
+          )}
         </div>
 
         {/* Détail lead */}
@@ -497,6 +511,12 @@ function LeadsSection({ token, showToast }) {
 // ══════════════════════════════════════════════════════════════════════════════
 function QuotesSection({ token, showToast }) {
   const [quotes, setQuotes]   = useState([]);
+  // Bug réel corrigé (audit) : ce composant n'envoyait jamais `page`/`limit` —
+  // le backend (pmsController.getQuotes) plafonne alors à 20 résultats, page 1
+  // — un devis ancien (déjà "vu"/"accepté") sortait de cette fenêtre et
+  // devenait invisible dès que le partenaire dépassait 20 devis actifs.
+  const [quotesTotal, setQuotesTotal] = useState(0);
+  const [quotesLimit, setQuotesLimit] = useState(20);
   const [loading, setLoading] = useState(true);
   const [showBuilder, setShowBuilder] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -521,11 +541,11 @@ function QuotesSection({ token, showToast }) {
 
   const load = useCallback(() => {
     setLoading(true);
-    API("/quotes", token)
-      .then((r) => r.ok ? r.json() : { quotes: [] })
-      .then((d) => setQuotes(d.quotes || []))
+    API(`/quotes?limit=${quotesLimit}`, token)
+      .then((r) => r.ok ? r.json() : { quotes: [], total: 0 })
+      .then((d) => { setQuotes(d.quotes || []); setQuotesTotal(d.total || 0); })
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, quotesLimit]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -582,7 +602,7 @@ function QuotesSection({ token, showToast }) {
       <div className={styles.sectionHeader}>
         <div>
           <h2 className={styles.sectionTitle}>📄 Générateur de Devis</h2>
-          <p className={styles.sectionSub}>{quotes.length} devis créés</p>
+          <p className={styles.sectionSub}>{quotesTotal || quotes.length} devis créés</p>
         </div>
         <button className={styles.btnPrimary} onClick={() => setShowBuilder(true)}>+ Nouveau devis</button>
       </div>
@@ -619,6 +639,12 @@ function QuotesSection({ token, showToast }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {!loading && quotes.length < quotesTotal && (
+        <div style={{ textAlign: "center", padding: "12px 0" }}>
+          <p style={{ fontSize: ".78rem", color: "#94a3b8", marginBottom: 6 }}>{quotes.length} sur {quotesTotal} au total</p>
+          <button className={styles.btnSecondary} onClick={() => setQuotesLimit((l) => l + 20)}>Charger plus</button>
         </div>
       )}
 

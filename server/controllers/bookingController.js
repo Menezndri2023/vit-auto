@@ -2137,7 +2137,12 @@ export const modifyBookingDates = async (req, res) => {
     booking.location.days      = days;
     booking.montantBase  = newMontantBase;
     booking.montantTotal = newMontantBase + (booking.montantOptions || 0) + (booking.location.deliveryFee || 0);
-    booking.commissionAmount = Math.round(booking.montantTotal * (booking.commissionRate || 0));
+    // Bug réel corrigé (audit) : seule fonction du fichier à arrondir la
+    // commission sans le `* 100) / 100` utilisé partout ailleurs (création,
+    // recordTransaction, partnerConfirm, extendBooking, resolveDispute...) —
+    // négligeable en XOF (pas de sous-unité) mais source de divergence dès
+    // qu'une devise à centimes serait utilisée ici.
+    booking.commissionAmount = Math.round(booking.montantTotal * (booking.commissionRate || 0) * 100) / 100;
     booking.partnerPayout    = Math.max(booking.montantTotal - booking.commissionAmount - (booking.serviceFeeFCFA || 0), 0);
     await booking.save();
 

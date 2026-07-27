@@ -886,13 +886,23 @@ export async function processImportBatch(batchId) {
       const skipped = batch.results.filter((r) => r.status === "skipped_duplicate").length;
       const errored = batch.results.filter((r) => r.status === "error").length;
       const noun = isExport ? "annonce(s) export" : "véhicule(s)";
-      await Notification.create({
-        user: batch.owner,
+      const notifData = {
         type: "system",
         titre: isExport ? "📦 Import d'annonces export terminé" : "📦 Import de flotte terminé",
         message: `${created} ${noun} créé(s), ${skipped} doublon(s) ignoré(s), ${errored} erreur(s).`,
         lien: isExport ? "/vendor/publish?tab=import-export" : "/vendor/dashboard",
-      });
+      };
+      const notifDoc = await Notification.create({ user: batch.owner, ...notifData });
+      // Bug réel corrigé (audit) : jamais d'émission socket temps réel ici,
+      // contrairement au reste du code déjà audité pour ce même point (voir
+      // vehicleController.createVehicle/updateVehicleStatus) — un partenaire
+      // qui importe une flotte volumineuse (traitée en tâche de fond par le
+      // worker) ne voyait "Import terminé" qu'au prochain polling (jusqu'à 20s).
+      if (global._io) {
+        global._io.to(`user_${batch.owner}`).emit("notification_new", {
+          _id: notifDoc._id, ...notifData, lu: false, createdAt: notifDoc.createdAt,
+        });
+      }
     } catch (notifErr) {
       logger.error("Notification import (non bloquant) :", notifErr.message);
     }

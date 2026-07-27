@@ -62,7 +62,37 @@ export const adminList = async (req, res) => {
       PartnerVerification.countDocuments(filter),
     ]);
 
-    res.json({ verifications: docs, total, page: Number(page), limit: Number(limit) });
+    let allDocs  = docs;
+    let allTotal = total;
+
+    // Comptes partenaire SANS AUCUN dossier de vérification — invisibles
+    // autrement dans cette liste (bug réel corrigé, audit — même famille que
+    // adminList Founding Partner/Certification déjà corrigés). PartnerVerification
+    // n'est créé que via adminCreate (bouton manuel) ou la cascade Founding
+    // Partner — aucune auto-création côté partenaire ici, contrairement à la
+    // certification. Fusionné uniquement en l'absence de filtre.
+    if (!status && !trustLevel && !companyType && !search) {
+      const existingUserIds = await PartnerVerification.distinct("userId");
+      const orphanUsers = await User.find({ role: "partenaire", _id: { $nin: existingUserIds } })
+        .select("firstName lastName email phone profilePhoto role createdAt")
+        .sort({ createdAt: -1 })
+        .lean();
+      const orphanRows = orphanUsers.map((u) => ({
+        _id:        u._id,
+        noDossier:  true,
+        userId:     u,
+        status:     "not_started",
+        trustScore: 0,
+        trustLevel: null,
+        companyName: `${u.firstName || ""} ${u.lastName || ""}`.trim() || "Partenaire VIT AUTO",
+        createdAt:  u.createdAt,
+        updatedAt:  u.createdAt,
+      }));
+      allDocs  = [...docs, ...orphanRows];
+      allTotal = total + orphanRows.length;
+    }
+
+    res.json({ verifications: allDocs, total: allTotal, page: Number(page), limit: Number(limit) });
   } catch (err) {
     logger.error("partnerVerif adminList:", err);
     res.status(500).json({ message: "Erreur serveur." });

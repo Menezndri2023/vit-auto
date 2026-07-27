@@ -240,7 +240,39 @@ export const adminList = async (req, res) => {
       PartnerCertification.countDocuments(filter),
     ]);
 
-    res.json({ certifications: certs, total, page: Number(page), limit: Number(limit) });
+    let allCerts = certs;
+    let allTotal = total;
+
+    // Comptes partenaire SANS AUCUN dossier de certification — invisibles
+    // autrement dans cette liste (bug réel corrigé, audit). PartnerCertification
+    // n'est créé que quand le partenaire visite lui-même /partner-certification
+    // (upsert, voir getStatus) ou par la cascade Founding Partner à la signature
+    // de l'accord — un partenaire fraîchement inscrit n'ayant fait ni l'un ni
+    // l'autre était totalement absent de cet onglet, même mémoire pattern que
+    // adminList (Founding Partner) déjà corrigé. Fusionné uniquement en
+    // l'absence de filtre (aucun statut/badge n'a de sens pour un dossier qui
+    // n'existe pas).
+    if (!status && !badge) {
+      const existingUserIds = await PartnerCertification.distinct("userId");
+      const orphanUsers = await User.find({ role: "partenaire", _id: { $nin: existingUserIds } })
+        .select("firstName lastName email phone role profilePhoto createdAt")
+        .sort({ createdAt: -1 })
+        .lean();
+      const orphanRows = orphanUsers.map((u) => ({
+        _id:                u._id,
+        noDossier:          true,
+        userId:             u,
+        certificationBadge: "none",
+        certificationScore: 0,
+        overallStatus:      "not_started",
+        createdAt:          u.createdAt,
+        updatedAt:          u.createdAt,
+      }));
+      allCerts = [...certs, ...orphanRows];
+      allTotal = total + orphanRows.length;
+    }
+
+    res.json({ certifications: allCerts, total: allTotal, page: Number(page), limit: Number(limit) });
   } catch (err) {
     logger.error("certification adminList:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -250,9 +282,29 @@ export const adminList = async (req, res) => {
 // ── GET /api/certification/admin/:userId ─────────────────────────────────────
 export const adminDetail = async (req, res) => {
   try {
-    const cert = await PartnerCertification.findOne({ userId: req.params.userId })
+    let cert = await PartnerCertification.findOne({ userId: req.params.userId })
       .populate("userId", "firstName lastName email phone role profilePhoto business")
       .lean();
+
+    // Bug réel corrigé (audit) : un partenaire sans AUCUN dossier (voir
+    // orphanRows, adminList) faisait 404 ici — l'admin ne pouvait même pas
+    // ouvrir "Examiner" pour un compte qu'il vient tout juste de retrouver.
+    // Même upsert atomique que getStatus (côté partenaire), réservé aux
+    // comptes réellement partenaire.
+    if (!cert) {
+      const user = await User.findById(req.params.userId).select("role").lean();
+      if (!user || user.role !== "partenaire") {
+        return res.status(404).json({ message: "Certification introuvable." });
+      }
+      await PartnerCertification.findOneAndUpdate(
+        { userId: req.params.userId },
+        { $setOnInsert: { userId: req.params.userId } },
+        { upsert: true, setDefaultsOnInsert: true }
+      );
+      cert = await PartnerCertification.findOne({ userId: req.params.userId })
+        .populate("userId", "firstName lastName email phone role profilePhoto business")
+        .lean();
+    }
     if (!cert) return res.status(404).json({ message: "Certification introuvable." });
 
     // Enrichissement en LECTURE SEULE (jamais persisté) : un Founding Partner passé

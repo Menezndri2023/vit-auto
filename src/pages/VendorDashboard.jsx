@@ -234,7 +234,7 @@ const ORDER_WORKFLOWS = {
    MODAL GÉRER — Gestion complète, identité intégrée, workflow par type VIT-AUTO
    ══════════════════════════════════════════════════════════════════════════════ */
 function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onPrepare, onReady, onInProgress,
-  onClientArrived, onClientAbsent, onRecordTransaction, onPartnerConfirm, onComplete, onReject, onPartnerVerifyKyc,
+  onClientArrived, onClientAbsent, onRecordTransaction, onPartnerConfirm, onComplete, onReject, onTransactionNotConcluded, onPartnerVerifyKyc,
   onClaimCaution, commRates = DEFAULT_COMM_RATE }) {
   // Tous les hooks AVANT tout return conditionnel (règles des hooks React)
   const { fmt: fmtXOF } = useCurrency();
@@ -276,6 +276,7 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
     isNew                                                      ? "decision"
     : order.status === "client_absent"                         ? "client_absent"
     : order.status === "client_arrived"                        ? "transaction"
+    : order.status === "transaction_not_concluded"              ? "transaction_failed"
     : order.status === "waiting_client_validation"             ? "waiting"
     : order.status === "completed"                             ? "done"
     : order.status === "cancelled"                             ? "cancelled"
@@ -716,8 +717,26 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
                   });
                   setTxSubmitting(false);
                 }}
-                onCancel={() => onReject(order.id)} cancelLabel="Transaction non conclue"
+                onCancel={() => onTransactionNotConcluded(order.id)} cancelLabel="Transaction non conclue"
               />
+            </div>
+          )}
+
+          {/* ── Transaction non conclue ───────────────────────────────────── */}
+          {ACTION === "transaction_failed" && (
+            <div className={styles.sectionCard} style={{ background:"#fff5f5", border:"1.5px solid #fca5a5" }}>
+              <div className={styles.sectionCardTitle} style={{ color:"#dc2626" }}>❌ Transaction non conclue</div>
+              <p className={styles.decisionHelp} style={{ color:"#991b1b" }}>
+                La transaction n'a pas abouti au rendez-vous. Vous pouvez retenter (le client est toujours là ou revient) ou annuler définitivement.
+              </p>
+              <div className={styles.decisionBtns}>
+                <button className={styles.btnAccept} onClick={() => onInProgress(order.id)}>
+                  <span>🔄</span><div><strong>Retenter la transaction</strong><span>Reprendre depuis "En route"</span></div>
+                </button>
+                <button className={styles.btnRefuse} onClick={() => onReject(order.id)}>
+                  <span>❌</span><div><strong>Annuler définitivement</strong><span>Clore cette commande</span></div>
+                </button>
+              </div>
             </div>
           )}
 
@@ -1722,6 +1741,16 @@ export default function VendorDashboard() {
     const r = await doUpdateStatus(id, "completed");
     if (r.ok) toastSuccess("🏁 Commande terminée."); else toastError(r.message || "Impossible de terminer la commande.");
   }, [doUpdateStatus, toastSuccess, toastError]);
+  // Bug réel corrigé (audit) : le bouton "Transaction non conclue" du formulaire
+  // de transaction appelait onReject (→ status "cancelled", motif catégorisé
+  // obligatoire) au lieu du statut dédié transaction_not_concluded que le
+  // backend expose précisément pour ce cas (voir bookingController.js) — la
+  // commande était annulée avec la mauvaise sémantique, et le client recevait
+  // la notification "réservation annulée" au lieu de "transaction non conclue".
+  const handleTransactionNotConcluded = useCallback(async (id) => {
+    const r = await doUpdateStatus(id, "transaction_not_concluded");
+    if (r.ok) toastError("❌ Transaction non conclue enregistrée."); else toastError(r.message || "Impossible d'enregistrer.");
+  }, [doUpdateStatus, toastError]);
 
   const handleRecordTransaction = useCallback(async (id, txData) => {
     if (!token) return;
@@ -2932,6 +2961,7 @@ export default function VendorDashboard() {
           onPartnerConfirm={handlePartnerConfirm}
           onComplete={handleComplete}
           onReject={(id) => { setRejectModal(id); setGererModalId(null); setOrderDetail(null); }}
+          onTransactionNotConcluded={handleTransactionNotConcluded}
           onPartnerVerifyKyc={handlePartnerVerifyKyc}
           onClaimCaution={handleClaimCaution}
         />

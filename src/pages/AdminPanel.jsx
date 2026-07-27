@@ -1408,7 +1408,16 @@ export default function AdminPanel() {
   const [foundingSignLink,  setFoundingSignLink] = useState(null); // { id, link, type, companyName }
   const [foundingNote,      setFoundingNote]     = useState("");
   const [foundingAction,    setFoundingAction]   = useState(null); // { id, type: 'approve'|'reject'|'agreement' }
-  const [foundingSubmitting, setFoundingSubmitting] = useState(false); // évite le double-clic (envoi LOI/accord/rejet en double)
+  const [foundingSubmitting, setFoundingSubmitting] = useState(false); // évite le double-clic (envoi LOI/accord/rejet en double) — utilisé uniquement par le MODAL (une seule cible à la fois)
+  // Bug réel corrigé (audit — remonté par l'utilisateur) : les boutons "Relancer"/
+  // "Envoyer Accord"/"Renvoyer la LOI"/"Renvoyer l'accord" de CHAQUE ligne du
+  // tableau Founding Partner partageaient tous le même booléen foundingSubmitting
+  // — cliquer "Relancer" sur UN partenaire désactivait/grisait visuellement les
+  // boutons de TOUS les autres partenaires de la liste pendant l'appel réseau
+  // (aucun mauvais envoi ne partait réellement, mais l'admin le percevait comme
+  // "le bouton s'active pour tous"). Un id précis (plutôt qu'un booléen global)
+  // permet de ne griser que le bouton de la ligne réellement concernée.
+  const [foundingRowActionId, setFoundingRowActionId] = useState(null);
   // CRM Directory
   const [foundingView,      setFoundingView]     = useState("onboarding"); // "onboarding" | "crm"
   const [foundingCRMFilter, setFoundingCRMFilter]= useState("");           // crmStatus filter
@@ -2451,8 +2460,8 @@ export default function AdminPanel() {
   };
 
   const foundingSendAgreement = async (id) => {
-    if (foundingSubmitting) return; // évite le double-clic (double envoi de l'accord)
-    setFoundingSubmitting(true);
+    if (foundingRowActionId) return; // évite le double-clic (double envoi de l'accord)
+    setFoundingRowActionId(id);
     try {
       const r = await fetch(`/api/partner-onboarding/admin/${id}/send-agreement`, {
         method: "POST", headers,
@@ -2464,7 +2473,7 @@ export default function AdminPanel() {
       showToast("Accord envoyé par email", "success");
       loadFoundingPartners();
     } catch { showToast("Erreur réseau", "error"); }
-    finally { setFoundingSubmitting(false); }
+    finally { setFoundingRowActionId(null); }
   };
 
   // Renvoie un lien de signature FRAIS (LOI ou Accord, selon le statut actuel)
@@ -2473,8 +2482,8 @@ export default function AdminPanel() {
   // systématiquement une fois l'accord déjà envoyé), et comble l'absence totale
   // de moyen de renvoyer une LOI dont le lien a expiré ou ne s'est pas ouvert.
   const foundingResendDocuments = async (id) => {
-    if (foundingSubmitting) return;
-    setFoundingSubmitting(true);
+    if (foundingRowActionId) return;
+    setFoundingRowActionId(id);
     try {
       const r = await fetch(`/api/partner-onboarding/admin/${id}/resend-documents`, {
         method: "POST", headers,
@@ -2486,7 +2495,7 @@ export default function AdminPanel() {
       showToast("Nouveau lien de signature envoyé par email", "success");
       loadFoundingPartners();
     } catch { showToast("Erreur réseau", "error"); }
-    finally { setFoundingSubmitting(false); }
+    finally { setFoundingRowActionId(null); }
   };
 
   // Relance une entité SANS AUCUN dossier Founding Partner (voir adminList,
@@ -2494,8 +2503,8 @@ export default function AdminPanel() {
   // n'ayant jamais cliqué "Commencer ma candidature"). `id` est ici l'ID de
   // l'entité (PartnerBusiness), pas d'un PartnerOnboarding — il n'en existe pas.
   const foundingRelaunchBusiness = async (businessId) => {
-    if (foundingSubmitting) return;
-    setFoundingSubmitting(true);
+    if (foundingRowActionId) return;
+    setFoundingRowActionId(businessId);
     try {
       const r = await fetch(`/api/partner-onboarding/admin/relaunch-business/${businessId}`, {
         method: "POST", headers,
@@ -2505,7 +2514,7 @@ export default function AdminPanel() {
       showToast("Invitation à démarrer sa candidature envoyée par email", "success");
       loadFoundingPartners();
     } catch { showToast("Erreur réseau", "error"); }
-    finally { setFoundingSubmitting(false); }
+    finally { setFoundingRowActionId(null); }
   };
 
   // Relance un dossier resté incomplet (brouillon jamais soumis, ou déjà relancé
@@ -3598,9 +3607,9 @@ export default function AdminPanel() {
                               {["loi_envoyee", "accord_envoye"].includes(e.onboarding?.status) && (
                                 <button
                                   onClick={() => foundingResendDocuments(e.onboarding._id)}
-                                  disabled={foundingSubmitting}
+                                  disabled={foundingRowActionId === e.onboarding._id}
                                   title="Renvoyer le lien de signature en attente"
-                                  style={{ padding: "2px 8px", borderRadius: 6, border: "none", background: "#7c3aed", color: "#fff", fontWeight: 700, fontSize: ".7rem", cursor: foundingSubmitting ? "not-allowed" : "pointer", opacity: foundingSubmitting ? 0.6 : 1 }}>
+                                  style={{ padding: "2px 8px", borderRadius: 6, border: "none", background: "#7c3aed", color: "#fff", fontWeight: 700, fontSize: ".7rem", cursor: foundingRowActionId === e.onboarding._id ? "not-allowed" : "pointer", opacity: foundingRowActionId === e.onboarding._id ? 0.6 : 1 }}>
                                   🔄 Renvoyer
                                 </button>
                               )}
@@ -7488,16 +7497,16 @@ export default function AdminPanel() {
                               approuver/renvoyer, seulement à inviter à démarrer. */}
                           {o.noDossier && (
                             <button onClick={e => { e.stopPropagation(); foundingRelaunchBusiness(o._id); }}
-                              disabled={foundingSubmitting}
-                              style={{ padding:"6px 12px", borderRadius:8, border:"none", background:"#dc2626", color:"#fff", fontWeight:700, fontSize:".76rem", cursor: foundingSubmitting ? "not-allowed" : "pointer", opacity: foundingSubmitting ? 0.6 : 1 }}
+                              disabled={foundingRowActionId === o._id}
+                              style={{ padding:"6px 12px", borderRadius:8, border:"none", background:"#dc2626", color:"#fff", fontWeight:700, fontSize:".76rem", cursor: foundingRowActionId === o._id ? "not-allowed" : "pointer", opacity: foundingRowActionId === o._id ? 0.6 : 1 }}
                               title="Aucune candidature démarrée pour cette entité — envoyer une invitation à démarrer">
                               🔔 Relancer
                             </button>
                           )}
                           {o.status === "loi_signee" && (
                             <button onClick={e => { e.stopPropagation(); foundingSendAgreement(o._id); }}
-                              disabled={foundingSubmitting}
-                              style={{ padding:"6px 14px", borderRadius:8, border:"none", background:"#7c3aed", color:"#fff", fontWeight:700, fontSize:".76rem", cursor: foundingSubmitting ? "not-allowed" : "pointer", opacity: foundingSubmitting ? 0.6 : 1 }}>
+                              disabled={foundingRowActionId === o._id}
+                              style={{ padding:"6px 14px", borderRadius:8, border:"none", background:"#7c3aed", color:"#fff", fontWeight:700, fontSize:".76rem", cursor: foundingRowActionId === o._id ? "not-allowed" : "pointer", opacity: foundingRowActionId === o._id ? 0.6 : 1 }}>
                               📜 Envoyer Accord
                             </button>
                           )}
@@ -7562,8 +7571,8 @@ export default function AdminPanel() {
                               <p style={{ margin:"0 0 10px", fontSize:".77rem", color:"#6d28d9" }}>Le lien envoyé peut avoir expiré ou ne pas s'être ouvert correctement.</p>
                               <button
                                 onClick={() => { foundingResendDocuments(o._id); }}
-                                disabled={foundingSubmitting}
-                                style={{ padding:"6px 14px", borderRadius:8, border:"none", background:"#7c3aed", color:"#fff", fontWeight:700, fontSize:".78rem", cursor: foundingSubmitting ? "not-allowed" : "pointer", opacity: foundingSubmitting ? 0.6 : 1 }}>
+                                disabled={foundingRowActionId === o._id}
+                                style={{ padding:"6px 14px", borderRadius:8, border:"none", background:"#7c3aed", color:"#fff", fontWeight:700, fontSize:".78rem", cursor: foundingRowActionId === o._id ? "not-allowed" : "pointer", opacity: foundingRowActionId === o._id ? 0.6 : 1 }}>
                                 🔄 Renvoyer la LOI
                               </button>
                             </div>
@@ -7573,8 +7582,8 @@ export default function AdminPanel() {
                               <p style={{ margin:"0 0 8px", fontSize:".8rem", color:"#92400e", fontWeight:700 }}>⏳ En attente de signature de l'accord</p>
                               <button
                                 onClick={() => { foundingResendDocuments(o._id); }}
-                                disabled={foundingSubmitting}
-                                style={{ padding:"6px 14px", borderRadius:8, border:"none", background:"#f59e0b", color:"#fff", fontWeight:700, fontSize:".78rem", cursor: foundingSubmitting ? "not-allowed" : "pointer", opacity: foundingSubmitting ? 0.6 : 1 }}>
+                                disabled={foundingRowActionId === o._id}
+                                style={{ padding:"6px 14px", borderRadius:8, border:"none", background:"#f59e0b", color:"#fff", fontWeight:700, fontSize:".78rem", cursor: foundingRowActionId === o._id ? "not-allowed" : "pointer", opacity: foundingRowActionId === o._id ? 0.6 : 1 }}>
                                 🔄 Renvoyer l'accord
                               </button>
                             </div>
@@ -8025,11 +8034,15 @@ const TRUST_LEVEL_CONFIG = {
 };
 
 const STATUS_PV_CONFIG = {
-  en_cours:   { label: "En cours",    color: "#0284c7", bg: "#e0f2fe" },
-  en_attente: { label: "En attente",  color: "#d97706", bg: "#fef3c7" },
-  verifie:    { label: "Vérifié",     color: "#16a34a", bg: "#dcfce7" },
-  suspendu:   { label: "Suspendu",    color: "#dc2626", bg: "#fef2f2" },
-  rejete:     { label: "Rejeté",      color: "#64748b", bg: "#f8fafc" },
+  en_cours:    { label: "En cours",       color: "#0284c7", bg: "#e0f2fe" },
+  en_attente:  { label: "En attente",     color: "#d97706", bg: "#fef3c7" },
+  verifie:     { label: "Vérifié",        color: "#16a34a", bg: "#dcfce7" },
+  suspendu:    { label: "Suspendu",       color: "#dc2626", bg: "#fef2f2" },
+  rejete:      { label: "Rejeté",         color: "#64748b", bg: "#f8fafc" },
+  // Compte partenaire sans aucun dossier de vérification (voir orphanRows,
+  // partnerVerificationController.adminList) — distinct de "en_cours" pour ne
+  // pas laisser croire qu'un examen est déjà en route.
+  not_started: { label: "Sans dossier ⚠️", color: "#dc2626", bg: "#fee2e2" },
 };
 
 const COMPANY_TYPES = [

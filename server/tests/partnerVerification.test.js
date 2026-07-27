@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { computeTrustScore, computeTrustLevel } from "../models/PartnerVerification.js";
 import PartnerVerification from "../models/PartnerVerification.js";
-import { adminToggleCriterion, adminUpdateStatus, getMine } from "../controllers/partnerVerificationController.js";
+import { adminToggleCriterion, adminUpdateStatus, getMine, adminList } from "../controllers/partnerVerificationController.js";
 import { createVehicle } from "../controllers/vehicleController.js";
 import { createUser } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
@@ -127,5 +127,40 @@ describe("getMine — vue de confiance personnelle du partenaire", () => {
     expect(res.body.verification.criteria.addressVerified.note).toBe("Adresse introuvable sur la facture fournie");
     // Champs internes admin non exposés au partenaire.
     expect(res.body.verification.adminNote).toBeUndefined();
+  });
+});
+
+// Bug réel corrigé (audit, même famille que le Founding Partner) : adminList
+// ne partait que de PartnerVerification, jamais de User — un partenaire pour
+// qui aucun admin n'a encore cliqué "+ Nouveau dossier" (et qui n'est pas
+// Founding Partner) était totalement invisible dans cet onglet.
+describe("partnerVerificationController.adminList — comptes sans aucun dossier", () => {
+  it("inclut un partenaire sans PartnerVerification, marqué noDossier", async () => {
+    const partner = await createUser({ role: "partenaire", firstName: "Cheng", lastName: "Chen" });
+    const { req, res } = mockReqRes({ query: {} });
+    await adminList(req, res);
+
+    expect(res.statusCode).toBe(200);
+    const orphan = res.body.verifications.find((v) => String(v._id) === String(partner._id));
+    expect(orphan).toBeTruthy();
+    expect(orphan.noDossier).toBe(true);
+    expect(orphan.companyName).toBe("Cheng Chen");
+  });
+
+  it("n'inclut pas un partenaire ayant déjà un dossier", async () => {
+    const partner = await createUser({ role: "partenaire" });
+    await PartnerVerification.create({ userId: partner._id, companyName: "Test SARL" });
+    const { req, res } = mockReqRes({ query: {} });
+    await adminList(req, res);
+
+    const orphan = res.body.verifications.find((v) => String(v._id) === String(partner._id) && v.noDossier);
+    expect(orphan).toBeUndefined();
+  });
+
+  it("ne fusionne pas si un filtre est actif", async () => {
+    await createUser({ role: "partenaire" });
+    const { req, res } = mockReqRes({ query: { status: "verifie" } });
+    await adminList(req, res);
+    expect(res.body.verifications.every((v) => !v.noDossier)).toBe(true);
   });
 });

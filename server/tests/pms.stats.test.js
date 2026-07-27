@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getPerformanceScore, getAdminPMSStats, getAdminShowrooms } from "../controllers/pmsController.js";
+import { getPerformanceScore, getAdminPMSStats, getAdminShowrooms, getPMSOverview } from "../controllers/pmsController.js";
 import Lead from "../models/Lead.js";
 import Quote from "../models/Quote.js";
 import PartnerShowroom from "../models/PartnerShowroom.js";
@@ -105,5 +105,27 @@ describe("getAdminShowrooms", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.showrooms).toHaveLength(1);
     expect(res.body.showrooms[0].partnerId._id.toString()).toBe(partner1._id.toString());
+  });
+});
+
+// Bug réel corrigé (audit) : quotesStats.envoye ne comptait que le statut
+// "envoye" — dès qu'un acheteur ouvre le lien public d'un devis (respondPublicQuote),
+// son statut passe à "vu" et il disparaissait du compteur "Devis envoyés",
+// pourtant bien envoyé.
+describe("getPMSOverview — quotesStats", () => {
+  it("compte les devis 'vu' comme envoyés (pas seulement 'envoye')", async () => {
+    const partner = await createUser({ role: "partenaire" });
+    await createQuote(partner._id, { status: "envoye" });
+    await createQuote(partner._id, { status: "vu" });
+    await createQuote(partner._id, { status: "vu" });
+    await createQuote(partner._id, { status: "brouillon" });
+
+    const { req, res } = mockReqRes({ user: partner });
+    await getPMSOverview(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.quotesStats.envoye).toBe(3);
+    expect(res.body.quotesStats.brouillon).toBe(1);
+    expect(res.body.quotesStats.total).toBe(4);
   });
 });
