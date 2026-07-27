@@ -13,6 +13,7 @@ import { emailVerificationRequiredForLogin } from "../utils/emailVerificationReq
 import { dispatch } from "../queue/index.js";
 import { sendVerification, checkVerification } from "../services/twilioVerify.js";
 import { isValidCountryCode } from "../utils/countries.js";
+import { encryptField, decryptField } from "../utils/fieldEncryption.js";
 import { ACTIVITIES, ENTITY_TYPES, entityTypeToSellerType } from "../constants/partnerTaxonomy.js";
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_OAUTH_CLIENT_ID);
@@ -594,12 +595,19 @@ export const verifyEmail = async (req, res) => {
       }
     }
 
-    const jwtToken = signJWT(user);
+    // Faille réelle corrigée (audit) : le token de vérification n'est jamais
+    // supprimé (voir commentaire plus haut — préchargement des liens), donc le
+    // repli "déjà vérifié" ci-dessus continue de matcher CE MÊME token
+    // indéfiniment, même des mois après expiration. Renvoyer un JWT à CHAQUE
+    // hit répété transformait ce lien en identifiant d'accès permanent, sans
+    // mot de passe. On ne délivre donc un token que lors de la vérification
+    // réelle (première fois) ; les hits suivants restent idempotents (succès)
+    // mais sans ouvrir de session.
     res.json({
       message: "E-mail vérifié avec succès !",
       success: true,
       user:    safeUser(user),
-      token:   jwtToken,
+      token:   alreadyWasVerified ? undefined : signJWT(user),
     });
   } catch (err) {
     logger.error("verifyEmail:", err);
@@ -1212,8 +1220,13 @@ export const setup2FA = async (req, res) => {
     const totp   = buildTotp(secret, user.email);
     const qrUrl  = await QRCode.toDataURL(totp.toString());
 
-    // Stocker temporairement (non encore activé)
-    user.twoFactor = { ...user.twoFactor, secret, enabled: false };
+    // Stocker temporairement (non encore activé) — chiffré au repos (même
+    // utilitaire que les données KYC, voir fieldEncryption.js). Bug de
+    // sécurité réel corrigé (audit) : ce secret TOTP était écrit en clair en
+    // base malgré le commentaire du schéma (User.js) affirmant le contraire
+    // — une fuite de base aurait permis de régénérer les codes 2FA de tout
+    // compte, contournant entièrement le second facteur.
+    user.twoFactor = { ...user.twoFactor, secret: encryptField(secret), enabled: false };
     await user.save();
 
     res.json({
@@ -1244,7 +1257,7 @@ export const enable2FA = async (req, res) => {
       return res.status(400).json({ message: "2FA déjà activé." });
     }
 
-    const totp  = buildTotp(user.twoFactor.secret, user.email);
+    const totp  = buildTotp(decryptField(user.twoFactor.secret), user.email);
     const delta = totp.validate({ token, window: 1 });
     if (delta === null) {
       return res.status(400).json({ message: "Code invalide. Réessayez." });
@@ -1287,7 +1300,7 @@ export const verify2FA = async (req, res) => {
     if (!user || !user.isActive) return res.status(401).json({ message: "Utilisateur introuvable." });
     if (!user.twoFactor?.enabled) return res.status(400).json({ message: "2FA non activé." });
 
-    const totp  = buildTotp(user.twoFactor.secret, user.email);
+    const totp  = buildTotp(decryptField(user.twoFactor.secret), user.email);
     const delta = totp.validate({ token, window: 1 });
 
     // Tenter les codes de secours si TOTP échoue — Array.prototype.findIndex n'attend

@@ -77,6 +77,26 @@ describe("authController — notifications inscription/vérification email", () 
     expect(count2).toBe(1);
   });
 
+  // Faille réelle corrigée (audit) : le token de vérification n'étant jamais
+  // supprimé (préchargement des liens par certains clients mail), renvoyer un
+  // JWT à CHAQUE hit répété transformait ce lien en identifiant d'accès
+  // permanent, sans mot de passe — y compris longtemps après son expiration.
+  it("ne renvoie un token de session QUE lors de la vérification réelle (premier clic), pas sur les clics suivants", async () => {
+    const body = validBody();
+    const { req, res } = mockReqRes({ body });
+    await register(req, res);
+    const user = await User.findOne({ email: body.email });
+
+    const first = mockReqRes({ params: { token: user.emailVerificationToken } });
+    await verifyEmail(first.req, first.res);
+    expect(first.res.body.token).toBeTruthy();
+
+    const second = mockReqRes({ params: { token: user.emailVerificationToken } });
+    await verifyEmail(second.req, second.res);
+    expect(second.res.body.success).toBe(true);
+    expect(second.res.body.token).toBeFalsy();
+  });
+
   it("verifyEmail rejette un token invalide sans créer de notification", async () => {
     const { req, res } = mockReqRes({ params: { token: "token-inexistant" } });
     await verifyEmail(req, res);

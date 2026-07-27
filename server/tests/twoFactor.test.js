@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import bcrypt from "bcryptjs";
 import * as OTPAuth from "otpauth";
 import { setup2FA, enable2FA, disable2FA } from "../controllers/authController.js";
+import { decryptField } from "../utils/fieldEncryption.js";
 import User from "../models/User.js";
 import { createUser } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
@@ -29,8 +30,11 @@ describe("2FA — setup / enable / disable (couverture manquante, comportement p
     expect(res.body.secret).toBeTruthy();
     expect(res.body.qrCode).toMatch(/^data:image\/png;base64,/);
 
+    // Chiffré au repos (audit sécurité) : jamais stocké tel quel en base,
+    // mais bien déchiffrable vers la valeur renvoyée au client.
     const reloaded = await User.findById(user._id);
-    expect(reloaded.twoFactor.secret).toBe(res.body.secret);
+    expect(reloaded.twoFactor.secret).not.toBe(res.body.secret);
+    expect(decryptField(reloaded.twoFactor.secret)).toBe(res.body.secret);
     expect(reloaded.twoFactor.enabled).toBe(false);
   });
 
@@ -58,7 +62,7 @@ describe("2FA — setup / enable / disable (couverture manquante, comportement p
     await setup2FA(setupReq, setupRes);
     const afterSetup = await User.findById(user._id);
 
-    const validCode = totpFor(afterSetup.twoFactor.secret, user.email).generate();
+    const validCode = totpFor(decryptField(afterSetup.twoFactor.secret), user.email).generate();
     const { req, res } = mockReqRes({ user: afterSetup, body: { token: validCode } });
     await enable2FA(req, res);
 
