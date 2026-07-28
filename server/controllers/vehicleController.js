@@ -557,28 +557,42 @@ export const updateVehicle = async (req, res) => {
       }
     }
 
-    // Si un partenaire modifie, re-valider et recalculer le statut — mais
-    // SEULEMENT si l'annonce est encore dans le cycle de modération
-    // (pending/approved/rejected). Bug réel corrigé (audit) : sans ce garde,
-    // corriger la moindre coquille (kilométrage, description...) sur une
-    // annonce déjà marquée "sold"/"draft"/"archived" (via updateVehicleLifecycle)
-    // la faisait recalculer un statut "approved" et repasser available:true —
-    // un véhicule DÉJÀ VENDU redevenait réservable au catalogue public. Faire
-    // ressortir une annonce de draft/archived reste exclusivement le rôle de
-    // updateVehicleLifecycle ("Remettre en vente"), jamais d'une simple édition.
+    // Le score/erreurs/avertissements de validation sont TOUJOURS recalculés
+    // après une édition, quel que soit l'auteur (partenaire OU admin) — purement
+    // informationnel, n'affecte jamais à lui seul le statut/la disponibilité.
+    // Bug réel corrigé (audit) : une édition ADMIN (ex: corriger le téléphone/
+    // prix/ville manquants signalés par la Prévisualisation) ne recalculait
+    // RIEN — validationErrors/Warnings restaient figés sur leur toute première
+    // valeur pour toujours, affichant des erreurs "téléphone manquant" ou "prix
+    // manquant" alors que l'admin venait justement de les renseigner, donnant
+    // l'impression trompeuse que la modification n'avait pas été prise en
+    // compte alors que les champs eux-mêmes étaient bien enregistrés.
+    const validation = scoreAnnonce({ ...vehicle.toObject(), ...safeUpdate });
+    safeUpdate.validationScore    = validation.score;
+    safeUpdate.validationErrors   = validation.errors;
+    safeUpdate.validationWarnings = validation.warnings;
+
+    // Changer le STATUT/la DISPONIBILITÉ reste en revanche strictement limité
+    // au partenaire propriétaire, et SEULEMENT si l'annonce est encore dans le
+    // cycle de modération (pending/approved/rejected). Bug réel corrigé
+    // (audit) : sans ce garde, corriger la moindre coquille (kilométrage,
+    // description...) sur une annonce déjà marquée "sold"/"draft"/"archived"
+    // (via updateVehicleLifecycle) la faisait recalculer un statut "approved"
+    // et repasser available:true — un véhicule DÉJÀ VENDU redevenait
+    // réservable au catalogue public. Faire ressortir une annonce de
+    // draft/archived reste exclusivement le rôle de updateVehicleLifecycle
+    // ("Remettre en vente"), jamais d'une simple édition — et un admin ne doit
+    // jamais approuver/rejeter silencieusement via une simple édition non plus,
+    // ces actions ayant leurs propres boutons dédiés.
     const MODERATION_CYCLE = ["pending", "approved", "rejected"];
     if (isOwner && req.user.role !== "admin") {
       if (MODERATION_CYCLE.includes(vehicle.status)) {
-        const validation = scoreAnnonce({ ...vehicle.toObject(), ...safeUpdate });
-        safeUpdate.status             = validation.status;
+        safeUpdate.status    = validation.status;
         // Un partenaire peut mettre en pause (available:false) une annonce déjà
         // approuvée sans repasser par le cycle de modération — mais ne peut
         // jamais forcer available:true si la validation ne le permet pas.
-        safeUpdate.available          = validation.status === "approved" && req.body.available !== false;
-        safeUpdate.validationScore    = validation.score;
-        safeUpdate.validationErrors   = validation.errors;
-        safeUpdate.validationWarnings = validation.warnings;
-        safeUpdate.rejectionReason    = validation.status === "rejected"
+        safeUpdate.available = validation.status === "approved" && req.body.available !== false;
+        safeUpdate.rejectionReason = validation.status === "rejected"
           ? validation.errors.join(". ")
           : null;
       } else {
@@ -588,6 +602,9 @@ export const updateVehicle = async (req, res) => {
         delete safeUpdate.available;
       }
     }
+    // Édition admin : status jamais recalculé implicitement (voir plus haut) —
+    // mais `available` reste un champ EDITABLE normal, l'admin garde son
+    // action existante de mise en pause/réactivation manuelle d'une annonce.
 
     const updated = await Vehicle.findByIdAndUpdate(req.params.id, safeUpdate, { new: true, runValidators: true });
     res.json({ vehicle: updated });
