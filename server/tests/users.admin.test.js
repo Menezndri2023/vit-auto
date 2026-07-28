@@ -6,7 +6,10 @@ import {
 } from "../controllers/usersController.js";
 import User from "../models/User.js";
 import AuditLog from "../models/AuditLog.js";
-import { createUser } from "./helpers/fixtures.js";
+import Vehicle from "../models/Vehicle.js";
+import Driver from "../models/Driver.js";
+import Booking from "../models/Booking.js";
+import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
 describe("getUsers — aucune fuite de champ sensible via .lean()", () => {
@@ -286,6 +289,89 @@ describe("toggleUserActive / deleteUser", () => {
     await deleteUser(req, res);
     expect(res.statusCode).toBe(200);
     expect(await User.findById(client._id)).toBeNull();
+  });
+
+  // Bug réel corrigé (audit) : supprimer un partenaire ne touchait QUE son
+  // compte User — ses annonces véhicule/profils chauffeur restaient
+  // visibles dans le catalogue public avec un `owner` inexistant ("annonces
+  // fantômes"). Nettoyage réel demandé : supprimées pour de bon SAUF si une
+  // réservation existe déjà dessus (Booking ne stocke aucune copie des
+  // détails véhicule/chauffeur — les supprimer casserait l'historique de
+  // réservation d'un AUTRE utilisateur), auquel cas elles sont archivées.
+  it("supprime réellement une annonce véhicule sans réservation", async () => {
+    const partner = await createUser({ role: "partenaire" });
+    const vehicle = await createVehicleDoc({ owner: partner._id, status: "approved", available: true });
+
+    const { req, res } = mockReqRes({ params: { id: partner._id.toString() } });
+    await deleteUser(req, res);
+    expect(res.statusCode).toBe(200);
+
+    expect(await Vehicle.findById(vehicle._id)).toBeNull();
+  });
+
+  it("archive (sans la supprimer) une annonce véhicule qui a déjà une réservation", async () => {
+    const partner = await createUser({ role: "partenaire" });
+    const client = await createUser({ role: "client" });
+    const vehicle = await createVehicleDoc({ owner: partner._id, status: "approved", available: true });
+    await Booking.create({
+      type: "location", vehicle: vehicle._id, client: client._id, status: "completed",
+      clientInfo: { firstName: "A", lastName: "B", email: "a@b.test", passportNumber: "P1234567" },
+    });
+
+    const { req, res } = mockReqRes({ params: { id: partner._id.toString() } });
+    await deleteUser(req, res);
+    expect(res.statusCode).toBe(200);
+
+    const reloaded = await Vehicle.findById(vehicle._id);
+    expect(reloaded).not.toBeNull(); // jamais supprimé — casserait l'historique du client
+    expect(reloaded.status).toBe("archived");
+    expect(reloaded.available).toBe(false);
+  });
+
+  it("supprime réellement un profil chauffeur sans réservation", async () => {
+    const partner = await createUser({ role: "partenaire" });
+    const driver = await Driver.create({ owner: partner._id, firstName: "Amara", lastName: "Koné", title: "Chauffeur pro", experience: "5 ans", disponibilite: "Temps plein", zone: "Abidjan", status: "approved" });
+
+    const { req, res } = mockReqRes({ params: { id: partner._id.toString() } });
+    await deleteUser(req, res);
+    expect(res.statusCode).toBe(200);
+
+    expect(await Driver.findById(driver._id)).toBeNull();
+  });
+
+  it("archive un profil chauffeur qui a déjà une réservation", async () => {
+    const partner = await createUser({ role: "partenaire" });
+    const client = await createUser({ role: "client" });
+    const driver = await Driver.create({ owner: partner._id, firstName: "Amara", lastName: "Koné", title: "Chauffeur pro", experience: "5 ans", disponibilite: "Temps plein", zone: "Abidjan", status: "approved" });
+    await Booking.create({
+      type: "chauffeur", driver: driver._id, client: client._id, status: "completed",
+      clientInfo: { firstName: "A", lastName: "B", email: "a@b.test", passportNumber: "P1234567" },
+    });
+
+    const { req, res } = mockReqRes({ params: { id: partner._id.toString() } });
+    await deleteUser(req, res);
+    expect(res.statusCode).toBe(200);
+
+    const reloaded = await Driver.findById(driver._id);
+    expect(reloaded).not.toBeNull();
+    expect(reloaded.status).toBe("archived");
+  });
+
+  it("n'affecte jamais les annonces/chauffeurs d'un AUTRE partenaire", async () => {
+    const partner = await createUser({ role: "partenaire" });
+    const other = await createUser({ role: "partenaire" });
+    const otherVehicle = await createVehicleDoc({ owner: other._id, status: "approved", available: true });
+    const otherDriver = await Driver.create({ owner: other._id, firstName: "Fatou", lastName: "Diop", title: "Chauffeur pro", experience: "5 ans", disponibilite: "Temps plein", zone: "Abidjan", status: "approved" });
+
+    const { req, res } = mockReqRes({ params: { id: partner._id.toString() } });
+    await deleteUser(req, res);
+    expect(res.statusCode).toBe(200);
+
+    const reloadedVehicle = await Vehicle.findById(otherVehicle._id);
+    const reloadedDriver  = await Driver.findById(otherDriver._id);
+    expect(reloadedVehicle.status).toBe("approved");
+    expect(reloadedVehicle.available).toBe(true);
+    expect(reloadedDriver.status).toBe("approved");
   });
 });
 

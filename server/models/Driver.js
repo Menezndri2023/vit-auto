@@ -90,9 +90,14 @@ const driverSchema = new mongoose.Schema({
   },
 
   // ── Modération ────────────────────────────────────────────
+  // "archived" : profil retiré du catalogue public sans le supprimer — utilisé
+  // quand le compte propriétaire est supprimé par un admin (voir
+  // usersController.deleteUser), pour ne jamais laisser un profil chauffeur
+  // "fantôme" (owner inexistant) visible publiquement. Distinct de "rejected"
+  // (refus qualité/vétting), qui reste un jugement sur le profil lui-même.
   status: {
     type: String,
-    enum: ["pending", "approved", "rejected"],
+    enum: ["pending", "approved", "rejected", "archived"],
     default: "pending",
   },
   rejectionReason: { type: String, default: null },

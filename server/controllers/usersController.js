@@ -375,9 +375,53 @@ export const deleteUser = async (req, res) => {
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
     if (user.role === "admin") return res.status(403).json({ message: "Impossible de supprimer un admin." });
     await User.findByIdAndDelete(req.params.id);
+
+    // Bug réel corrigé (audit) : la suppression ne touchait QUE le compte
+    // User lui-même — ses annonces véhicule/profils chauffeur restaient
+    // visibles dans le catalogue public avec un `owner` pointant vers un
+    // compte qui n'existe plus ("annonces fantômes"), et l'email/téléphone
+    // du compte supprimé redevenait bien libre pour une réinscription (voir
+    // tests/reRegisterAfterDelete.test.js) mais laissait ces données
+    // orphelines traîner indéfiniment. Nettoyage réel demandé — supprimées
+    // pour de bon, SAUF celles ayant déjà au moins une réservation
+    // (Booking.vehicle/driver) : Booking ne stocke aucune copie des détails
+    // du véhicule/chauffeur (juste une référence), donc les supprimer
+    // casserait l'historique de réservation d'un AUTRE utilisateur (le
+    // client qui a réservé) — dans ce seul cas, on archive à la place
+    // (retiré du catalogue public, jamais supprimé).
+    const [ownedVehicles, ownedDrivers] = await Promise.all([
+      Vehicle.find({ owner: req.params.id }).select("_id").lean(),
+      Driver.find({ owner: req.params.id }).select("_id").lean(),
+    ]);
+    const vehicleIds = ownedVehicles.map((v) => v._id);
+    const driverIds  = ownedDrivers.map((d) => d._id);
+
+    const [vehiclesWithBookings, driversWithBookings] = await Promise.all([
+      vehicleIds.length ? Booking.distinct("vehicle", { vehicle: { $in: vehicleIds } }) : [],
+      driverIds.length  ? Booking.distinct("driver",  { driver:  { $in: driverIds } })  : [],
+    ]);
+    const bookedVehicleIds = new Set(vehiclesWithBookings.map(String));
+    const bookedDriverIds  = new Set(driversWithBookings.map(String));
+
+    const vehiclesToDelete  = vehicleIds.filter((id) => !bookedVehicleIds.has(String(id)));
+    const vehiclesToArchive = vehicleIds.filter((id) => bookedVehicleIds.has(String(id)));
+    const driversToDelete   = driverIds.filter((id) => !bookedDriverIds.has(String(id)));
+    const driversToArchive  = driverIds.filter((id) => bookedDriverIds.has(String(id)));
+
+    const [vehiclesDeleted, vehiclesArchived, driversDeleted, driversArchived] = await Promise.all([
+      vehiclesToDelete.length  ? Vehicle.deleteMany({ _id: { $in: vehiclesToDelete } })  : Promise.resolve({ deletedCount: 0 }),
+      vehiclesToArchive.length ? Vehicle.updateMany({ _id: { $in: vehiclesToArchive } }, { $set: { available: false, status: "archived" } }) : Promise.resolve({ modifiedCount: 0 }),
+      driversToDelete.length   ? Driver.deleteMany({ _id: { $in: driversToDelete } })    : Promise.resolve({ deletedCount: 0 }),
+      driversToArchive.length  ? Driver.updateMany({ _id: { $in: driversToArchive } }, { $set: { status: "archived" } }) : Promise.resolve({ modifiedCount: 0 }),
+    ]);
+
     // Journal d'audit global (suppression de compte — action sensible et irréversible)
     await logAction(req, "user.delete", "User", req.params.id, {
       before: { email: user.email, role: user.role },
+      cleanup: {
+        vehiclesDeleted: vehiclesDeleted.deletedCount, vehiclesArchived: vehiclesArchived.modifiedCount,
+        driversDeleted: driversDeleted.deletedCount, driversArchived: driversArchived.modifiedCount,
+      },
     });
     res.json({ message: "Utilisateur supprimé." });
   } catch (err) {
