@@ -1531,6 +1531,8 @@ export default function VendorDashboard() {
         country:     v.country || "",
         ville:       v.ville || "",
         adresse:     v.adresse || "",
+        contactNom:  v.contactNom || "",
+        contactTel:  v.contactTel || "",
         description: v.description || "",
         ageMin:      v.ageMin || "",
         permisRequis: v.permisRequis !== false,
@@ -1598,6 +1600,8 @@ export default function VendorDashboard() {
         country:     editForm.country || null,
         ville:       editForm.ville,
         adresse:     editForm.adresse,
+        contactNom:  editForm.contactNom,
+        contactTel:  editForm.contactTel,
         ageMin:      Number(editForm.ageMin) || 0,
         permisRequis: editForm.permisRequis,
         assuranceOptionnelle: editForm.assuranceOptionnelle,
@@ -3761,6 +3765,25 @@ export default function VendorDashboard() {
                   <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Adresse</label>
                   <input type="text" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
                     value={editForm.adresse} onChange={(e) => setEditForm((p) => ({ ...p, adresse: e.target.value }))} />
+                </div>
+
+                {/* Bug réel corrigé (audit) : contactNom/contactTel sont saisis
+                    une seule fois à la publication (identity.telephone, voir
+                    VendorSubmit.jsx) et n'apparaissaient ensuite NULLE PART en
+                    édition — aucun moyen de corriger un numéro faux ou de le
+                    mettre à jour, alors que le backend l'accepte déjà (EDITABLE,
+                    vehicleController.updateVehicle). */}
+                <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Nom du contact</label>
+                    <input type="text" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                      value={editForm.contactNom} onChange={(e) => setEditForm((p) => ({ ...p, contactNom: e.target.value }))} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Téléphone du contact</label>
+                    <input type="tel" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                      value={editForm.contactTel} onChange={(e) => setEditForm((p) => ({ ...p, contactTel: e.target.value }))} />
+                  </div>
                 </div>
 
                 <div style={{ marginBottom: 12 }}>

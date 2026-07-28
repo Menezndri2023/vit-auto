@@ -9059,6 +9059,7 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
         pricePerDay: v.pricePerDay || "", priceForSale: v.priceForSale || "",
         caution: v.caution || "", country: v.country || "",
         ville: v.ville || "", adresse: v.adresse || "", description: v.description || "",
+        contactNom: v.contactNom || "", contactTel: v.contactTel || "",
         ageMin: v.ageMin || "", permisRequis: v.permisRequis !== false,
         assuranceOptionnelle: !!v.assuranceOptionnelle, withDriver: !!v.withDriver,
         available: v.available !== false,
@@ -9109,6 +9110,7 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
         rentalDurationType: editForm.rentalDurationType, caution: Number(editForm.caution) || 0,
         description: editForm.description, country: editForm.country || null,
         ville: editForm.ville, adresse: editForm.adresse, ageMin: Number(editForm.ageMin) || 0,
+        contactNom: editForm.contactNom, contactTel: editForm.contactTel,
         permisRequis: editForm.permisRequis, assuranceOptionnelle: editForm.assuranceOptionnelle,
         withDriver: editForm.withDriver, available: editForm.available, images,
       };
@@ -10083,6 +10085,25 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                     <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Adresse</label>
                     <input type="text" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                       value={editForm.adresse} onChange={(e) => setEditForm((p) => ({ ...p, adresse: e.target.value }))} />
+                  </div>
+
+                  {/* Bug réel corrigé (audit) : contactNom/contactTel sont saisis
+                      une seule fois à la publication (identity.telephone, voir
+                      VendorSubmit.jsx) et n'apparaissaient ensuite NULLE PART en
+                      édition, même côté admin — aucun moyen de corriger un
+                      numéro faux ou obsolète, alors que le backend l'accepte
+                      déjà (EDITABLE, vehicleController.updateVehicle). */}
+                  <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Nom du contact</label>
+                      <input type="text" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                        value={editForm.contactNom} onChange={(e) => setEditForm((p) => ({ ...p, contactNom: e.target.value }))} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Téléphone du contact</label>
+                      <input type="tel" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                        value={editForm.contactTel} onChange={(e) => setEditForm((p) => ({ ...p, contactTel: e.target.value }))} />
+                    </div>
                   </div>
 
                   <div style={{ marginBottom: 12 }}>
