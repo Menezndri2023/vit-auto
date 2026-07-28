@@ -8830,7 +8830,7 @@ function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFil
 // CATALOGUE SECTION — Annonces & Validations (combiné)
 // ═══════════════════════════════════════════════════════════════════════════════
 function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefresh, showToast, setConfirm, rejectModal, setRejectModal, rejectReason, setRejectReason, driverRejectModal, setDriverRejectModal, driverRejectReason, setDriverRejectReason, updateVehicleStatus, deleteVehicle }) {
-  const { COUNTRIES_CONFIG, fmtUSD } = useCurrency();
+  const { COUNTRIES_CONFIG, fmtUSD, CURRENCIES, rateFromUSD } = useCurrency();
   const [subTab,         setSubTab]         = useState("pending");
   const [vehSearch,      setVehSearch]      = useState("");
   const [vehPage,        setVehPage]        = useState(1);
@@ -8840,6 +8840,13 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
   const [editVehicle,  setEditVehicle]  = useState(null); // véhicule brut en édition admin
   const [editForm,     setEditForm]     = useState(null);
   const [editPhotos,   setEditPhotos]   = useState([]);
+  // Devise de saisie du prix à l'édition — même principe que VendorSubmit.jsx/
+  // VendorDashboard.jsx (partenaire) : l'admin pouvait jusqu'ici seulement
+  // modifier un prix déjà supposé en USD, sans jamais pouvoir raisonner dans
+  // la devise locale du partenaire (bug/lacune réelle trouvée en audit).
+  const [editPriceCurrency,    setEditPriceCurrency]    = useState("USD");
+  const [editPriceEntryPerDay, setEditPriceEntryPerDay] = useState("");
+  const [editPriceEntryForSale, setEditPriceEntryForSale] = useState("");
   const [editLoading,  setEditLoading]  = useState(false);
   const [editSaving,   setEditSaving]   = useState(false);
   const [exportMode, setExportMode] = useState(false);
@@ -9037,6 +9044,9 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
       if (!r.ok) throw new Error();
       const v = d.vehicle;
       setEditVehicle(v);
+      setEditPriceCurrency("USD");
+      setEditPriceEntryPerDay(v.pricePerDay ? String(v.pricePerDay) : "");
+      setEditPriceEntryForSale(v.priceForSale ? String(v.priceForSale) : "");
       setEditForm({
         type: v.type || "location",
         title: v.title || "", marque: v.marque || "", modele: v.modele || "",
@@ -9056,6 +9066,32 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
       setEditPhotos((v.images || []).map((preview, i) => ({ id: `existing-${i}`, preview })));
     } catch { showToast("Impossible de charger l'annonce", "error"); setEditVehicle(null); }
     setEditLoading(false);
+  };
+
+  // Même logique que VendorDashboard.jsx/VendorSubmit.jsx (partenaire) : le
+  // champ affiché reste dans la devise choisie, editForm.pricePerDay/
+  // priceForSale reçoit toujours la valeur CONVERTIE en USD (jamais la valeur
+  // brute tapée) — c'est ce dernier qui part au serveur, le schéma Vehicle
+  // n'ayant qu'un seul champ de prix, toujours en USD.
+  const handleEditPriceEntryChange = (field, raw) => {
+    if (field === "pricePerDay") setEditPriceEntryPerDay(raw);
+    else setEditPriceEntryForSale(raw);
+    if (raw === "" || isNaN(Number(raw))) { setEditForm((p) => ({ ...p, [field]: "" })); return; }
+    const num = Number(raw);
+    const usd = editPriceCurrency === "USD" ? num : Math.round((num / rateFromUSD(editPriceCurrency)) * 100) / 100;
+    setEditForm((p) => ({ ...p, [field]: usd }));
+  };
+
+  const handleEditPriceCurrencyChange = (code) => {
+    setEditPriceCurrency(code);
+    if (editPriceEntryPerDay !== "" && !isNaN(Number(editPriceEntryPerDay))) {
+      const num = Number(editPriceEntryPerDay);
+      setEditForm((p) => ({ ...p, pricePerDay: code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100 }));
+    }
+    if (editPriceEntryForSale !== "" && !isNaN(Number(editPriceEntryForSale))) {
+      const num = Number(editPriceEntryForSale);
+      setEditForm((p) => ({ ...p, priceForSale: code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100 }));
+    }
   };
 
   const handleSaveEditVehicle = async () => {
@@ -9990,11 +10026,22 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                   <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                     <div style={{ flex: 1 }}>
                       <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>
-                        {editForm.type === "vente" ? "Prix de vente (USD)" : "Prix / jour (USD)"}
+                        {editForm.type === "vente" ? "Prix de vente" : "Prix / jour"}
                       </label>
-                      <input type="number" min="0" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
-                        value={editForm.type === "vente" ? editForm.priceForSale : editForm.pricePerDay}
-                        onChange={(e) => setEditForm((p) => ({ ...p, [editForm.type === "vente" ? "priceForSale" : "pricePerDay"]: e.target.value }))} />
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <input type="number" min="0" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                          value={editForm.type === "vente" ? editPriceEntryForSale : editPriceEntryPerDay}
+                          onChange={(e) => handleEditPriceEntryChange(editForm.type === "vente" ? "priceForSale" : "pricePerDay", e.target.value)} />
+                        <select style={{ width: "auto", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                          value={editPriceCurrency} onChange={(e) => handleEditPriceCurrencyChange(e.target.value)}>
+                          {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                        </select>
+                      </div>
+                      {editPriceCurrency !== "USD" && (
+                        <span style={{ fontSize: ".75rem", color: "#94a3b8" }}>
+                          ≈ {Number((editForm.type === "vente" ? editForm.priceForSale : editForm.pricePerDay) || 0).toLocaleString("fr-FR")} USD (converti automatiquement)
+                        </span>
+                      )}
                     </div>
                     {editForm.type !== "vente" && (
                       <div style={{ flex: 1 }}>
