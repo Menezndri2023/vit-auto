@@ -70,11 +70,27 @@ export const getDeliveryFee = async (req, res) => {
  * quel visiteur, y compris ceux d'Afrique de l'Ouest (marché principal). Le
  * frontend garde ipapi.co comme repli si jamais cet endpoint échoue aussi.
  */
+// Bug réel corrigé (audit) : `req.ip` dépend du nombre exact de sauts
+// configuré via `trust proxy` (voir server.js, "trust proxy" à 1) — correct
+// pour Railway (mort, voir mémoire projet) mais jamais revérifié pour Render,
+// dont le domaine personnalisé vit-auto.com peut ajouter un saut CDN/DNS
+// supplémentaire devant l'edge de Render lui-même. Un saut de trop et
+// `req.ip` résout systématiquement l'IP du PROXY (toujours le même pays,
+// souvent celui de l'infra du CDN) au lieu de celle du visiteur — la
+// détection semble alors "ne jamais fonctionner", pour TOUS les visiteurs,
+// peu importe leur pays réel. Pour un simple affichage de devise (pas un
+// contrôle de sécurité comme le rate-limiting), on peut se permettre de lire
+// directement le premier maillon de X-Forwarded-For — toujours l'IP d'origine
+// réelle, quel que soit le nombre de proxys de confiance entre elle et nous —
+// plutôt que de dépendre d'un réglage "trust proxy" qui doit rester exact.
+function resolveClientIp(req) {
+  const xff = req.headers["x-forwarded-for"];
+  const first = xff ? xff.split(",")[0].trim() : null;
+  return (first || req.ip || "").replace(/^::ffff:/, "");
+}
+
 export const getMyCountry = (req, res) => {
-  // req.ip respecte déjà "trust proxy" (voir server.js) — c'est la vraie IP du
-  // visiteur, pas celle du proxy Railway. Le préfixe IPv4-mapped IPv6 doit être
-  // retiré avant le lookup (geoip-lite ne le fait pas lui-même).
-  const ip = (req.ip || "").replace(/^::ffff:/, "");
+  const ip = resolveClientIp(req);
   const info = geoip.lookup(ip);
   if (!info?.country) {
     // IP locale/privée (dev) ou introuvable dans la base — pas une erreur,

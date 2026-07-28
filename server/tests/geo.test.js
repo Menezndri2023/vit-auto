@@ -76,6 +76,28 @@ describe("getMyCountry", () => {
     // Ne doit pas planter et doit répondre un objet cohérent (country null ou un code réel).
     expect(res.body).toHaveProperty("country");
   });
+
+  // Bug réel corrigé (audit) : `req.ip` seul dépend d'un réglage exact du
+  // nombre de sauts "trust proxy" — un saut CDN/DNS de plus (probable sur un
+  // domaine personnalisé comme vit-auto.com) et req.ip résout systématiquement
+  // le proxy, jamais le vrai visiteur, pour TOUT LE MONDE. Le premier maillon
+  // de X-Forwarded-For reste la vraie IP d'origine quel que soit ce réglage.
+  it("préfère le premier maillon de X-Forwarded-For à req.ip s'il est présent", () => {
+    const { req, res } = mockReqRes({});
+    req.ip = "10.0.0.5"; // IP du proxy interne, jamais celle du visiteur
+    req.headers["x-forwarded-for"] = "8.8.8.8, 10.0.0.5";
+    getMyCountry(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.country).toBe("US"); // 8.8.8.8 (Google DNS, US) — pas 10.0.0.5
+  });
+
+  it("retombe sur req.ip si X-Forwarded-For est absent", () => {
+    const { req, res } = mockReqRes({});
+    req.ip = "127.0.0.1";
+    getMyCountry(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.country).toBeNull();
+  });
 });
 
 describe("getCountries", () => {

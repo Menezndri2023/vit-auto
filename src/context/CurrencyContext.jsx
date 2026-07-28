@@ -30,9 +30,23 @@ const INTL_CODES = ["EUR", "USD", "CAD", "CHF", "GBP"];
 export function CurrencyProvider({ children }) {
   const { user } = useAuth();
   const saved = localStorage.getItem("vit_currency");
+  // Distingue un choix EXPLICITE (futur sélecteur manuel, voir setCurrency)
+  // d'une simple valeur mise en cache par la détection automatique — bug réel
+  // corrigé (audit) : `saved` seul servait à la fois de cache d'affichage ET
+  // de verrou empêchant TOUTE re-détection IP future, y compris quand la
+  // valeur ne vient que d'une détection automatique passée (jamais d'un choix
+  // utilisateur réel, puisqu'aucun sélecteur de devise n'existe encore dans
+  // l'UI). Résultat : une détection IP erronée une seule fois (VPN, proxy,
+  // base geoip-lite imprécise ce jour-là) restait bloquée indéfiniment sur ce
+  // navigateur, donnant l'impression que "la devise par IP ne fonctionne pas"
+  // alors que le mécanisme lui-même était sain.
+  const isManualChoice = localStorage.getItem("vit_currency_manual") === "true";
   // Devise par défaut : USD — tant que la géolocalisation (IP/GPS) n'a pas
   // répondu, et repli final si elle échoue totalement (voir effet de
   // détection ci-dessous, qui ne bascule plus sur MAD/Maroc en cas d'échec).
+  // `saved` sert uniquement à éviter un flash "USD" à l'affichage initial
+  // pour un visiteur déjà détecté par le passé — jamais à bloquer une
+  // nouvelle détection (voir isManualChoice ci-dessus).
   const [currencyCode, setCurrencyState] = useState(saved || "USD");
   const [detectedCountry, setDetectedCountry] = useState(null);
   const [detecting, setDetecting] = useState(!saved);
@@ -128,7 +142,11 @@ export function CurrencyProvider({ children }) {
   // TOUJOURS sur le Maroc par défaut, y compris pour des visiteurs d'Afrique
   // de l'Ouest (marché principal). Gardé uniquement en second repli.
   useEffect(() => {
-    if (saved) { setDetecting(false); return; }
+    // Seul un choix EXPLICITE (isManualChoice) empêche la re-détection —
+    // une valeur simplement mise en cache par une détection automatique
+    // précédente ne doit jamais bloquer une nouvelle tentative à chaque
+    // chargement (voir commentaire sur isManualChoice plus haut).
+    if (isManualChoice) { setDetecting(false); return; }
     let cancelled = false;
 
     const applyCountry = (cc) => {
