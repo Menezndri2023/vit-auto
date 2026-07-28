@@ -97,7 +97,7 @@ export default function Cart() {
             {items.map((it) => (
               <div key={it.vehicleId} className={styles.item}>
                 {it.image
-                  ? <img src={it.image} alt={it.title} className={styles.itemImg} />
+                  ? <img src={it.image} alt={it.title} className={styles.itemImg} loading="lazy" decoding="async" />
                   : <div className={styles.itemImgPlaceholder}>🚗</div>}
                 <div className={styles.itemBody}>
                   <div className={styles.itemTitleRow}>

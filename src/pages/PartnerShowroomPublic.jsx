@@ -268,7 +268,7 @@ export default function PartnerShowroomPublic() {
               ) : showroom.team.map((m, i) => (
                 <div key={i} style={{ background:"#fff", border:"1.5px solid #e2e8f0", borderRadius:14, padding:20, textAlign:"center" }}>
                   {m.photo ? (
-                    <img src={m.photo} alt={m.name} style={{ width:64, height:64, borderRadius:"50%", objectFit:"cover", marginBottom:12 }} />
+                    <img src={m.photo} alt={m.name} loading="lazy" decoding="async" style={{ width:64, height:64, borderRadius:"50%", objectFit:"cover", marginBottom:12 }} />
                   ) : (
                     <div style={{ width:64, height:64, borderRadius:"50%", background:"linear-gradient(135deg,#0f1b3f,#1e3a6e)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 12px", fontSize:"1.5rem", color:"#fff" }}>
                       {m.name?.[0] || "?"}
@@ -386,7 +386,7 @@ export default function PartnerShowroomPublic() {
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
                 {showroom.photos.slice(0, 4).map((p, i) => (
                   <div key={i} style={{ borderRadius:8, overflow:"hidden", aspectRatio:"4/3", background:"#f8fafc" }}>
-                    <img src={p.url} alt={p.caption || `Photo ${i+1}`} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                    <img src={p.url} alt={p.caption || `Photo ${i+1}`} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
                   </div>
                 ))}
               </div>

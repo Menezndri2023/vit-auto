@@ -82,10 +82,14 @@ jobs:
         # sur une chaîne non corrigeable côté écosystème — voir ARCHITECTURE.md.
         run: npm audit --audit-level=critical
 
-  # Le déploiement backend est géré nativement par Railway (auto-deploy connecté au
-  # repo GitHub sur push vers main, configuré le 2026-07-11 — voir Settings → Source
-  # du service "ideal-learning" sur le dashboard Railway). L'ancien job CI ici ciblait
-  # un service "backend" inexistant (le vrai nom est "ideal-learning") et masquait son
-  # propre échec via `continue-on-error: true` — un second chemin de déploiement, en
-  # plus d'être cassé, aurait aussi risqué de créer des déploiements concurrents à
-  # chaque push.
+  # ⚠️ Cible de déploiement backend incertaine — à vérifier sur les dashboards
+  # avant de s'y fier. Ce commentaire affirmait initialement (2026-07-11) que
+  # Railway ("ideal-learning", auto-deploy sur push main) était la cible réelle
+  # et que l'ancien job CI Render ci-dessus ciblait un service mort. Or
+  # render.yaml (racine) et vercel.json (rewrite /api/* vers
+  # vit-auto-api.onrender.com) pointent tous les deux vers Render, et une
+  # vérification ultérieure (audit du 2026-07-23) a confirmé Render comme
+  # backend de production réellement actif. Les deux configs (Railway et
+  # Render) coexistent toujours dans ce dépôt sans qu'aucune n'ait été retirée
+  # — ne pas supposer laquelle reçoit le trafic réel sans vérifier directement
+  # les dashboards Railway et Render.

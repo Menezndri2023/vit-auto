@@ -267,7 +267,7 @@ const DriverBooking = () => {
           <h2 className={dbStyles.vehiclePhotosTitle}>Photos du véhicule</h2>
           <div className={dbStyles.vehiclePhotosGrid}>
             {driver.images.map((src, i) => (
-              <img key={i} src={src} alt={`Véhicule ${i + 1}`} className={dbStyles.vehiclePhotoImg} />
+              <img key={i} src={src} alt={`Véhicule ${i + 1}`} className={dbStyles.vehiclePhotoImg} loading="lazy" decoding="async" />
             ))}
           </div>
         </div>

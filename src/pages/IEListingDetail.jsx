@@ -59,7 +59,7 @@ function Gallery({ photos, mainPhoto, title }) {
           {all.map((src, i) => (
             <button key={i} className={`${styles.galleryThumb} ${i === active ? styles.galleryThumbActive : ""}`}
               onClick={() => setActive(i)}>
-              <img src={src} alt="" />
+              <img src={src} alt="" loading="lazy" decoding="async" />
             </button>
           ))}
         </div>
@@ -155,7 +155,7 @@ function InspectionSection({ listingId }) {
                     {d.severity === "majeur" ? "🔴" : d.severity === "modere" ? "🟡" : "🟢"} {d.severity}
                   </span>
                   <p>{d.description}</p>
-                  {d.photo && <img src={d.photo} alt="défaut" className={styles.defectPhoto} />}
+                  {d.photo && <img src={d.photo} alt="défaut" className={styles.defectPhoto} loading="lazy" decoding="async" />}
                 </div>
               ))}
             </div>
@@ -166,7 +166,7 @@ function InspectionSection({ listingId }) {
       {report.photos?.length > 0 && (
         <div className={styles.inspPhotos}>
           {report.photos.map((src, i) => (
-            <img key={i} src={src} alt={`Inspection ${i + 1}`} />
+            <img key={i} src={src} alt={`Inspection ${i + 1}`} loading="lazy" decoding="async" />
           ))}
         </div>
       )}

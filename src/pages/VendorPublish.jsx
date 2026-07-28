@@ -106,7 +106,7 @@ const VehicleCard = ({ v, bookings, onDelete, onBoost, onLifecycle }) => {
     <div className={styles.card}>
       <div className={styles.cardThumb}>
         {v.image
-          ? <img src={v.image} alt={v.name} />
+          ? <img src={v.image} alt={v.name} loading="lazy" decoding="async" />
           : <span className={styles.cardThumbFallback}>🚗</span>
         }
         <span className={styles.statusDot} style={{ background: st.dot }} title={st.label} />
@@ -964,7 +964,7 @@ const VendorPublish = () => {
                   <div key={l._id} className={styles.card}>
                     <div className={styles.cardThumb}>
                       {l.mainPhoto
-                        ? <img src={l.mainPhoto} alt={l.title} />
+                        ? <img src={l.mainPhoto} alt={l.title} loading="lazy" decoding="async" />
                         : <span className={styles.cardThumbFallback}>🚗</span>
                       }
                       <span className={styles.statusDot} style={{ background: st.color }} title={st.label} />

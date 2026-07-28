@@ -110,7 +110,7 @@ function ListingCard({ l, onContact }) {
       <Link to={`/import-export/listings/${l._id}`} className={styles.cardImgLink}>
         <div className={styles.cardImg}>
           {l.mainPhoto
-            ? <img src={l.mainPhoto} alt={l.title} />
+            ? <img src={l.mainPhoto} alt={l.title} loading="lazy" decoding="async" />
             : <div className={styles.cardImgFallback}>🚗</div>
           }
           <div className={styles.cardOrigin}>{getCountryFlag(l.sourceCountry)} {l.sourceCountry}</div>

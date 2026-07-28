@@ -641,7 +641,7 @@ export default function ImporterDashboard() {
                       return (
                         <div key={l._id} className={styles.recentRow}>
                           {l.mainPhoto
-                            ? <img src={l.mainPhoto} className={styles.recentThumb} alt={l.title} />
+                            ? <img src={l.mainPhoto} className={styles.recentThumb} alt={l.title} loading="lazy" decoding="async" />
                             : <div className={styles.recentThumbEmpty}>🚗</div>
                           }
                           <div className={styles.recentInfo}>
@@ -684,7 +684,7 @@ export default function ImporterDashboard() {
                         >
                           <div className={styles.txRowImg}>
                             {tx.listing?.mainPhoto
-                              ? <img src={tx.listing.mainPhoto} alt="" />
+                              ? <img src={tx.listing.mainPhoto} alt="" loading="lazy" decoding="async" />
                               : <span>🚗</span>
                             }
                           </div>
@@ -740,7 +740,7 @@ export default function ImporterDashboard() {
                       return (
                         <div key={l._id} className={styles.listingCard}>
                           <div className={styles.listingImg}>
-                            {l.mainPhoto ? <img src={l.mainPhoto} alt={l.title} /> : <span>🚗</span>}
+                            {l.mainPhoto ? <img src={l.mainPhoto} alt={l.title} loading="lazy" decoding="async" /> : <span>🚗</span>}
                             <span className={styles.listingBadge} style={{ color: st.color, background: st.bg }}>{st.label}</span>
                           </div>
                           <div className={styles.listingBody}>

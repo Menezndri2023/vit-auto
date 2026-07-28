@@ -39,7 +39,7 @@ function TxCard({ tx }) {
     <Link to={`/import-export/transaction/${tx._id}`} className={`${styles.txCard} ${isUrgent ? styles.txCardUrgent : ""}`}>
       <div className={styles.txImg}>
         {tx.listing?.mainPhoto
-          ? <img src={tx.listing.mainPhoto} alt="" />
+          ? <img src={tx.listing.mainPhoto} alt="" loading="lazy" decoding="async" />
           : <span>🚗</span>
         }
         {isUrgent && <div className={styles.urgentBadge}>Action requise</div>}
@@ -62,7 +62,7 @@ function TxCard({ tx }) {
         <div className={styles.txFooter}>
           <div className={styles.txPartner}>
             {tx.partner?.profilePhoto
-              ? <img src={tx.partner.profilePhoto} alt="" />
+              ? <img src={tx.partner.profilePhoto} alt="" loading="lazy" decoding="async" />
               : <span>{tx.partner?.firstName?.[0] || ""}{tx.partner?.lastName?.[0] || ""}</span>
             }
             <p>{tx.partner?.firstName} {tx.partner?.lastName}</p>

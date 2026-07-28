@@ -58,7 +58,7 @@ export default function Favorites() {
               <div className={styles.grid}>
                 {listings.map((f) => (
                   <Link key={f.favoriteId} to={`/import-export/listings/${f.item._id}`} className={styles.ieCard}>
-                    {f.item.mainPhoto && <img src={f.item.mainPhoto} alt={f.item.title} />}
+                    {f.item.mainPhoto && <img src={f.item.mainPhoto} alt={f.item.title} loading="lazy" decoding="async" />}
                     <div className={styles.ieCardBody}>
                       <strong>{f.item.title}</strong>
                       <span>{f.item.make} {f.item.model} — {f.item.year}</span>

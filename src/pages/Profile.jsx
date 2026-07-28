@@ -92,7 +92,7 @@ const PublicationCard = ({ vehicle }) => {
     <div className={styles.pubCard}>
       <div className={styles.pubCardLeft}>
         {vehicle.image
-          ? <img src={vehicle.image} alt={vehicle.name} className={styles.pubThumb} />
+          ? <img src={vehicle.image} alt={vehicle.name} className={styles.pubThumb} loading="lazy" decoding="async" />
           : <div className={styles.pubThumbFallback}>🚗</div>
         }
       </div>

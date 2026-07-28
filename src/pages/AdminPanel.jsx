@@ -215,7 +215,7 @@ function CertLevelDocs({ level, lv }) {
                 <div style={{ fontSize: ".68rem", fontWeight: 700, color: "#64748b", padding: "5px 8px", background: "#f1f5f9", textTransform: "uppercase", letterSpacing: ".03em" }}>{label}</div>
                 {doc?.data ? (
                   <a href={safeImgHref(doc.data)} target="_blank" rel="noreferrer noopener">
-                    <img src={doc.data} alt={label} style={{ width: "100%", height: 90, objectFit: "cover", display: "block" }}
+                    <img src={doc.data} alt={label} loading="lazy" decoding="async" style={{ width: "100%", height: 90, objectFit: "cover", display: "block" }}
                       onError={(e) => { e.target.parentElement.innerHTML = '<div style="height:90px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:.72rem;padding:6px;text-align:center">Aperçu indisponible</div>'; }} />
                   </a>
                 ) : (
@@ -272,7 +272,7 @@ function FoundingDocs({ o }) {
               {INDIVIDUAL_DOC_TYPE_LABELS[individualDoc.type] || "Pièce justificative"}
             </div>
             <a href={safeImgHref(individualDoc.file)} target="_blank" rel="noreferrer noopener">
-              <img src={individualDoc.file} alt="Pièce justificative" style={{ width: "100%", height: 120, objectFit: "cover", display: "block" }}
+              <img src={individualDoc.file} alt="Pièce justificative" loading="lazy" decoding="async" style={{ width: "100%", height: 120, objectFit: "cover", display: "block" }}
                 onError={(e) => { e.target.parentElement.innerHTML = '<div style="height:120px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:.72rem;padding:6px;text-align:center">Aperçu indisponible</div>'; }} />
             </a>
           </div>
@@ -304,7 +304,7 @@ function FoundingDocs({ o }) {
                 <div style={{ fontSize: ".68rem", fontWeight: 700, color: "#64748b", padding: "5px 8px", background: "#f1f5f9", textTransform: "uppercase", letterSpacing: ".03em" }}>{label}</div>
                 {legal[key] ? (
                   <a href={safeImgHref(legal[key])} target="_blank" rel="noreferrer noopener">
-                    <img src={legal[key]} alt={label} style={{ width: "100%", height: 90, objectFit: "cover", display: "block" }}
+                    <img src={legal[key]} alt={label} loading="lazy" decoding="async" style={{ width: "100%", height: 90, objectFit: "cover", display: "block" }}
                       onError={(e) => { e.target.parentElement.innerHTML = '<div style="height:90px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:.72rem;padding:6px;text-align:center">Aperçu indisponible</div>'; }} />
                   </a>
                 ) : (
@@ -321,13 +321,13 @@ function FoundingDocs({ o }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px,1fr))", gap: 8 }}>
             {media.logo && (
               <a href={safeImgHref(media.logo)} target="_blank" rel="noreferrer noopener" title="Logo">
-                <img src={media.logo} alt="Logo" style={{ width: "100%", height: 70, objectFit: "contain", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }} />
+                <img src={media.logo} alt="Logo" loading="lazy" decoding="async" style={{ width: "100%", height: 70, objectFit: "contain", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }} />
               </a>
             )}
             {FOUNDING_PHOTO_GROUPS.flatMap(({ key, label }) =>
               (media[key] || []).map((url, i) => (
                 <a key={`${key}-${i}`} href={safeImgHref(url)} target="_blank" rel="noreferrer noopener" title={label}>
-                  <img src={url} alt={label} style={{ width: "100%", height: 70, objectFit: "cover", borderRadius: 8, border: "1px solid #e2e8f0" }} />
+                  <img src={url} alt={label} loading="lazy" decoding="async" style={{ width: "100%", height: 70, objectFit: "cover", borderRadius: 8, border: "1px solid #e2e8f0" }} />
                 </a>
               ))
             )}
@@ -885,7 +885,7 @@ function AdsSection({ ads, loading, form, setForm, saving, onSave, onToggle, onD
           {ads.map((ad) => (
             <div key={ad._id} style={{ border: `2px solid ${ad.active ? "#10b981" : "#e2e8f0"}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
               {ad.image
-                ? <img src={ad.image} alt="" style={{ width: "100%", height: 100, objectFit: "cover" }} onError={(e) => { e.target.style.display = "none"; }} />
+                ? <img src={ad.image} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: 100, objectFit: "cover" }} onError={(e) => { e.target.style.display = "none"; }} />
                 : <div style={{ height: 100, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem" }}>📢</div>}
               <div style={{ padding: "10px 12px" }}>
                 <div style={{ fontSize: ".85rem", fontWeight: 700, color: "#0f1b3f" }}>{ad.title}</div>
@@ -1393,6 +1393,12 @@ export default function AdminPanel() {
   const [usersTotal, setUsersTotal] = useState(0);
   const [usersLimit, setUsersLimit] = useState(200);
   const [vehicles,  setVehicles]  = useState([]);
+  const [vehiclesTotal, setVehiclesTotal] = useState(0);
+  // Défaut au plafond admin réel du backend (getVehicles maxLimit=500, voir
+  // vehicleController.js) plutôt que 200 : avec le volume actuel d'annonces,
+  // 200 laissait déjà les plus anciennes invisibles dès le premier chargement,
+  // sans même attendre un futur "Charger plus".
+  const [vehiclesLimit, setVehiclesLimit] = useState(500);
   const [bookings,  setBookings]  = useState([]);
   const [bookingsTotal, setBookingsTotal] = useState(0);
   const [bookingsLimit, setBookingsLimit] = useState(200);
@@ -1486,10 +1492,18 @@ export default function AdminPanel() {
   }), [token]);
 
   // ── Chargement données ──────────────────────────────────────────────────────
-  // usersLimit/bookingsLimit paramétrables (bug réel corrigé — voir
-  // loadMoreUsers/loadMoreBookings) : un plafond fixe à 200 rendait tout ce
-  // qui dépassait ce nombre invisible en silence, la fausse "pagination" de
-  // l'UI ne faisant que découper côté client ces 200 résultats déjà tronqués.
+  // usersLimit/bookingsLimit/vehiclesLimit paramétrables (bug réel corrigé —
+  // voir loadMoreUsers/loadMoreBookings/loadMoreVehicles) : un plafond fixe
+  // rendait tout ce qui dépassait ce nombre invisible en silence, la fausse
+  // "pagination" de l'UI ne faisant que découper côté client ces résultats
+  // déjà tronqués. Le plafond vehicles était resté à 200 en dur (jamais
+  // corrigé en même temps que users/bookings) alors que le tri est
+  // `createdAt desc` : au-delà de 200 annonces au total, les plus anciennes
+  // (annonces déjà publiées ou rejetées de longue date) disparaissaient de
+  // l'onglet "Annonces & Validations", et les compteurs "En attente"/
+  // "Publiées" de cet onglet (calculés sur ce même tableau tronqué) pouvaient
+  // diverger silencieusement des vrais totaux (stats.vehicles.*, eux corrects
+  // car agrégés côté serveur sans pagination).
   const loadAll = useCallback(async () => {
     if (!token) return;
     setLoading(true);
@@ -1497,7 +1511,7 @@ export default function AdminPanel() {
       const [sRes, uRes, vRes, bRes, dRes, adRes] = await Promise.all([
         fetch("/api/users/stats",    { headers }),
         fetch(`/api/users?limit=${usersLimit}`, { headers }),
-        fetch("/api/vehicles?limit=200&status=all", { headers }),
+        fetch(`/api/vehicles?limit=${vehiclesLimit}&status=all`, { headers }),
         fetch(`/api/bookings?limit=${bookingsLimit}`, { headers }),
         fetch("/api/drivers/pending", { headers }),
         fetch("/api/drivers", { headers }),
@@ -1507,18 +1521,20 @@ export default function AdminPanel() {
       if (vRes.ok) {
         const d = await vRes.json();
         setVehicles(Array.isArray(d) ? d : d.vehicles || []);
+        setVehiclesTotal(d.total || 0);
       }
       if (bRes.ok) { const d = await bRes.json(); setBookings(d.bookings || []); setBookingsTotal(d.total || 0); }
       if (dRes.ok) setDrivers((await dRes.json()).drivers || []);
       if (adRes.ok) { const ad = await adRes.json(); setActiveDrivers(Array.isArray(ad) ? ad : ad.drivers || []); }
     } catch { /* ignore */ }
     setLoading(false);
-  }, [token, headers, usersLimit, bookingsLimit]);
+  }, [token, headers, usersLimit, bookingsLimit, vehiclesLimit]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
   const loadMoreUsers = useCallback(() => setUsersLimit((l) => l + 200), []);
   const loadMoreBookings = useCallback(() => setBookingsLimit((l) => l + 200), []);
+  const loadMoreVehicles = useCallback(() => setVehiclesLimit((l) => l + 200), []);
 
   // ── Demandes Import/Export ──────────────────────────────────────────────────
   const loadImportExport = useCallback(async () => {
@@ -3397,6 +3413,7 @@ export default function AdminPanel() {
           {activeTab === "catalogue" && (
             <CatalogueSection
               vehicles={vehicles} drivers={drivers} bookings={bookings}
+              vehiclesTotal={vehiclesTotal} loadMoreVehicles={loadMoreVehicles}
               headers={headers} token={token}
               onRefresh={loadAll}
               showToast={showToast}
@@ -3554,7 +3571,7 @@ export default function AdminPanel() {
                           <td>
                             <div className={styles.userCell}>
                               <div className={styles.avatar}>
-                                {u.profilePhoto ? <img src={u.profilePhoto} alt="" /> : <span>{(u.firstName?.[0] || "?").toUpperCase()}</span>}
+                                {u.profilePhoto ? <img src={u.profilePhoto} alt="" loading="lazy" decoding="async" /> : <span>{(u.firstName?.[0] || "?").toUpperCase()}</span>}
                               </div>
                               <div>
                                 <strong>{u.firstName} {u.lastName}<CountryFlag code={u.country} countriesConfig={COUNTRIES_CONFIG} /></strong>
@@ -4431,7 +4448,7 @@ export default function AdminPanel() {
                             <div key={key} style={{ border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
                               <div style={{ fontSize: ".7rem", fontWeight: 700, color: "#64748b", padding: "5px 10px", background: "#f1f5f9", textTransform: "uppercase", letterSpacing: ".04em" }}>{label}</div>
                               <a href={safeImgHref(p.documents[key])} target="_blank" rel="noreferrer noopener">
-                                <img src={p.documents[key]} alt={label}
+                                <img src={p.documents[key]} alt={label} loading="lazy" decoding="async"
                                   style={{ width: "100%", height: 110, objectFit: "cover", display: "block" }}
                                   onError={(e) => { e.target.parentElement.innerHTML = `<div style="height:110px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:.8rem;padding:8px;text-align:center">Aperçu indisponible</div>`; }} />
                               </a>
@@ -5009,7 +5026,7 @@ export default function AdminPanel() {
                             <div style={{ fontSize: ".72rem", fontWeight: 700, color: "#64748b", padding: "6px 10px", background: "#f1f5f9", textTransform: "uppercase", letterSpacing: ".04em" }}>{label}</div>
                             {img ? (
                               <a href={safeImgHref(img)} target="_blank" rel="noreferrer noopener">
-                                <img src={img} alt={label} style={{ width: "100%", maxHeight: 120, objectFit: "cover", display: "block" }}
+                                <img src={img} alt={label} loading="lazy" decoding="async" style={{ width: "100%", maxHeight: 120, objectFit: "cover", display: "block" }}
                                   onError={(e) => { e.target.style.display = "none"; }} />
                               </a>
                             ) : (
@@ -5038,7 +5055,7 @@ export default function AdminPanel() {
                           <div key={label} style={{ border: "1.5px solid #e2e8f0", borderRadius: 10, overflow: "hidden" }}>
                             <div style={{ fontSize: ".72rem", fontWeight: 700, color: "#64748b", padding: "6px 10px", background: "#f1f5f9" }}>{label}</div>
                             <a href={img} target="_blank" rel="noreferrer">
-                              <img src={img} alt={label} style={{ width: "100%", maxHeight: 100, objectFit: "cover", display: "block" }} />
+                              <img src={img} alt={label} loading="lazy" decoding="async" style={{ width: "100%", maxHeight: 100, objectFit: "cover", display: "block" }} />
                             </a>
                           </div>
                         ))}
@@ -5717,7 +5734,7 @@ export default function AdminPanel() {
                       <tr key={d._id} className={styles.tr}>
                         <td>
                           <div className={styles.vehicleCell}>
-                            {d.profilePhoto || d.images?.[0] ? <img src={d.profilePhoto || d.images[0]} alt="" className={styles.vehThumb} style={{ borderRadius:"50%" }} /> : <div className={styles.vehThumbPlaceholder}>👤</div>}
+                            {d.profilePhoto || d.images?.[0] ? <img src={d.profilePhoto || d.images[0]} alt="" className={styles.vehThumb} loading="lazy" decoding="async" style={{ borderRadius:"50%" }} /> : <div className={styles.vehThumbPlaceholder}>👤</div>}
                             <div>
                               <strong>{d.firstName} {d.lastName}</strong>
                               <span className={styles.vehMeta}>{d.title}</span>
@@ -8438,7 +8455,7 @@ function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFil
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                       {pv.logoUrl
-                        ? <img src={pv.logoUrl} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover" }} />
+                        ? <img src={pv.logoUrl} alt="" loading="lazy" decoding="async" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover" }} />
                         : <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 800, color: "#64748b" }}>{pv.companyName?.[0]?.toUpperCase()}</div>
                       }
                       <div>
@@ -8787,7 +8804,7 @@ function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFil
                         <div style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 700 }}>{label}</div>
                         {pvDetail.documents?.[key] ? (
                           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                            <img src={pvDetail.documents[key]} alt={label} style={{ width: "100%", maxHeight: 100, objectFit: "cover", borderRadius: 6, border: "1px solid #e2e8f0" }} onError={(e) => { e.target.style.display = "none"; }} />
+                            <img src={pvDetail.documents[key]} alt={label} loading="lazy" decoding="async" style={{ width: "100%", maxHeight: 100, objectFit: "cover", borderRadius: 6, border: "1px solid #e2e8f0" }} onError={(e) => { e.target.style.display = "none"; }} />
                             {/* safeHref (pas safeImgHref) laissait ce lien toujours pointer vers "#" pour un
                                 document stocké en base64 (data:image/...) — l'aperçu s'affichait mais le
                                 clic "Voir le document" ne faisait jamais rien, contrairement à tous les
@@ -8853,7 +8870,7 @@ function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFil
 // ═══════════════════════════════════════════════════════════════════════════════
 // CATALOGUE SECTION — Annonces & Validations (combiné)
 // ═══════════════════════════════════════════════════════════════════════════════
-function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefresh, showToast, setConfirm, rejectModal, setRejectModal, rejectReason, setRejectReason, driverRejectModal, setDriverRejectModal, driverRejectReason, setDriverRejectReason, updateVehicleStatus, deleteVehicle }) {
+function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMoreVehicles, headers, token, onRefresh, showToast, setConfirm, rejectModal, setRejectModal, rejectReason, setRejectReason, driverRejectModal, setDriverRejectModal, driverRejectReason, setDriverRejectReason, updateVehicleStatus, deleteVehicle }) {
   const { COUNTRIES_CONFIG, fmtUSD, fmtPinned, CURRENCIES, rateFromUSD } = useCurrency();
   const [subTab,         setSubTab]         = useState("pending");
   const [vehSearch,      setVehSearch]      = useState("");
@@ -9327,7 +9344,7 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                         <td>
                           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                             {(v.images?.[0] || v.image)
-                              ? <img src={v.images?.[0] || v.image} alt="" style={{ width: 46, height: 36, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
+                              ? <img src={v.images?.[0] || v.image} alt="" loading="lazy" decoding="async" style={{ width: 46, height: 36, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
                               : <div style={{ width: 46, height: 36, borderRadius: 6, background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem" }}>🚗</div>
                             }
                             <div>
@@ -9408,6 +9425,18 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
               <button className={styles.pageBtn} onClick={() => setVehPage(p => Math.min(totalPages, p+1))} disabled={vehPage === totalPages}>›</button>
             </div>
           )}
+
+          {/* Bug réel corrigé (audit) : plafond de 200 annonces chargées,
+              invisible pour l'admin — voir loadMoreVehicles (AdminPanel). */}
+          {vehicles.length < vehiclesTotal && (
+            <div style={{ textAlign: "center", marginTop: 10 }}>
+              <p style={{ fontSize: ".8rem", color: "#94a3b8", marginBottom: 6 }}>{vehicles.length} chargées sur {vehiclesTotal} au total</p>
+              <button onClick={loadMoreVehicles}
+                style={{ padding: "6px 16px", borderRadius: 10, border: "1.5px solid #6366f1", background: "#fff", color: "#6366f1", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
+                Charger plus
+              </button>
+            </div>
+          )}
         </>
       )}
 
@@ -9456,7 +9485,7 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                         </td>
                         <td>
                           <div style={{ display: "flex", gap: 9, alignItems: "center" }}>
-                            {d.profilePhoto ? <img src={d.profilePhoto} alt="" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} /> : <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center" }}>👤</div>}
+                            {d.profilePhoto ? <img src={d.profilePhoto} alt="" loading="lazy" decoding="async" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} /> : <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center" }}>👤</div>}
                             <div>
                               <strong style={{ fontSize: ".87rem" }}>{d.firstName} {d.lastName}</strong>
                               <div style={{ fontSize: ".74rem", color: "#94a3b8" }}>Publié par {owner.firstName} {owner.lastName} · {owner.email}</div>
@@ -9727,7 +9756,7 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                         {imgs.length > 1 && (
                           <div style={{ display: "flex", gap: 6, marginTop: 8, overflowX: "auto", paddingBottom: 4 }}>
                             {imgs.map((img, i) => (
-                              <img key={i} src={img} alt="" onClick={() => setPreviewImgIdx(i)}
+                              <img key={i} src={img} alt="" loading="lazy" decoding="async" onClick={() => setPreviewImgIdx(i)}
                                 style={{ width: 64, height: 48, objectFit: "cover", borderRadius: 6, cursor: "pointer", border: i === previewImgIdx ? "2.5px solid #2563eb" : "2px solid #e2e8f0", flexShrink: 0 }} />
                             ))}
                           </div>
@@ -9789,7 +9818,7 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                         <h3 style={{ margin: "0 0 14px", fontSize: ".9rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}>👤 Annonceur</h3>
                         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
                           {o.profilePhoto
-                            ? <img src={o.profilePhoto} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "3px solid #e2e8f0" }} />
+                            ? <img src={o.profilePhoto} alt="" loading="lazy" decoding="async" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "3px solid #e2e8f0" }} />
                             : <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem" }}>👤</div>}
                           <div>
                             <div style={{ fontWeight: 800, fontSize: ".95rem", color: "#0f1b3f" }}>{o.firstName} {o.lastName}</div>
@@ -10362,7 +10391,7 @@ function MarketingSection({ vehicles, token, onRefresh, adsList, adsLoading, adF
                 return (
                   <div key={vid} style={{ border: `2px solid ${inSpotlight ? "#6366f1" : "#e2e8f0"}`, borderRadius: 10, overflow: "hidden", transition: "border-color .2s" }}>
                     {(v.images?.[0] || v.image)
-                      ? <img src={v.images?.[0] || v.image} alt="" style={{ width: "100%", height: 90, objectFit: "cover" }} />
+                      ? <img src={v.images?.[0] || v.image} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: 90, objectFit: "cover" }} />
                       : <div style={{ height: 90, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.8rem" }}>🚗</div>
                     }
                     <div style={{ padding: "8px 10px" }}>
@@ -10394,7 +10423,7 @@ function MarketingSection({ vehicles, token, onRefresh, adsList, adsLoading, adF
               return (
                 <div key={vid} style={{ border: `2px solid ${v.featured ? "#f59e0b" : "#e2e8f0"}`, borderRadius: 12, overflow: "hidden", transition: "border-color .2s" }}>
                   {(v.images?.[0] || v.image)
-                    ? <img src={v.images?.[0] || v.image} alt="" style={{ width: "100%", height: 100, objectFit: "cover" }} />
+                    ? <img src={v.images?.[0] || v.image} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: 100, objectFit: "cover" }} />
                     : <div style={{ height: 100, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem" }}>🚗</div>
                   }
                   <div style={{ padding: "10px 12px" }}>
