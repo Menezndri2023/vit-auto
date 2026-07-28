@@ -42,10 +42,20 @@ const vehicleSchema = new mongoose.Schema({
   // ── Tarification (USD — voir server/scripts/migrate-vehicle-booking-to-usd.mjs
   // pour la migration des annonces créées avant ce champ, qui étaient toutes
   // implicitement en FCFA/XOF) ───────────────────────────────
-  currency:     { type: String, default: "USD" },
   pricePerDay:  { type: Number }, // location
   priceForSale: { type: Number }, // vente
   caution:      { type: Number }, // caution location — toujours optionnelle
+
+  // Devise D'AFFICHAGE choisie par le partenaire/admin pour CETTE annonce
+  // (voir vehicleController.createVehicle/updateVehicle) — `null` (par
+  // défaut) = pas de préférence, chaque visiteur voit le prix converti dans
+  // SA PROPRE devise détectée par IP/GPS (voir CurrencyContext.jsx). Une
+  // valeur explicite FIGE l'affichage dans cette devise pour TOUS les
+  // visiteurs, quel que soit leur pays (ex : le partenaire veut afficher en
+  // EUR pour cibler une clientèle européenne). N'affecte JAMAIS le stockage
+  // interne (pricePerDay/priceForSale restent toujours en USD, seule la
+  // présentation change) — voir PriceTag `pinnedCurrency`.
+  currency: { type: String, default: null },
 
   // Durée de location proposée (uniquement pertinent pour type "location") —
   // permet de distinguer "Location courte durée" / "Location longue durée"

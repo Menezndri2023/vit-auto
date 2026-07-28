@@ -17,6 +17,7 @@ import { validateImageDataUri } from "../utils/imageValidation.js";
 import { ensureImporterProfile } from "../utils/ensureImporterProfile.js";
 import { COUNTRY_CODE_TO_NAME } from "../utils/countries.js";
 import { isIncotermCompatible } from "../constants/incoterms.js";
+import { getActiveRates } from "../services/currencyEngine.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -145,6 +146,19 @@ export const createVehicle = async (req, res) => {
     }
     const imagesError = validateVehicleImages([...(req.body.images || []), req.body.thumbnail].filter(Boolean));
     if (imagesError) return res.status(400).json({ message: imagesError });
+
+    // ── Devise d'affichage (facultative) ────────────────────────────────────
+    // null = pas de préférence, chaque visiteur voit sa propre devise détectée
+    // par IP (comportement par défaut) — une valeur doit être une devise
+    // active réelle (ExchangeRate), jamais acceptée telle quelle (un code
+    // inventé casserait silencieusement l'affichage catalogue pour tous les
+    // visiteurs, voir PriceTag `pinnedCurrency`).
+    if (req.body.currency) {
+      const activeRates = await getActiveRates();
+      if (!activeRates.some((r) => r.code === req.body.currency)) {
+        return res.status(400).json({ message: "Devise d'affichage invalide." });
+      }
+    }
 
     // ── Validation automatique ──────────────────────────────────────────────
     const validation = scoreAnnonce(req.body);
@@ -523,7 +537,7 @@ export const updateVehicle = async (req, res) => {
       "leasing", "credit", "ageMin", "permisRequis", "assuranceOptionnelle",
       "conditionsLocation", "conditionsVente",
       "contactNom", "contactTel", "ville", "adresse", "coordonnees", "country",
-      "images", "thumbnail", "description", "available", "type",
+      "images", "thumbnail", "description", "available", "type", "currency",
     ];
     // Champs réservés admin
     const ADMIN_ONLY = ["featured", "sponsoredUntil", "boostLevel"];
@@ -531,6 +545,14 @@ export const updateVehicle = async (req, res) => {
     if (req.body.images || req.body.thumbnail) {
       const imagesError = validateVehicleImages([...(req.body.images || []), req.body.thumbnail].filter(Boolean));
       if (imagesError) return res.status(400).json({ message: imagesError });
+    }
+    // null = revenir à "devise du visiteur" (comportement par défaut) — voir
+    // createVehicle pour le même principe et la même raison de validation.
+    if (req.body.currency) {
+      const activeRates = await getActiveRates();
+      if (!activeRates.some((r) => r.code === req.body.currency)) {
+        return res.status(400).json({ message: "Devise d'affichage invalide." });
+      }
     }
 
     const safeUpdate = {};

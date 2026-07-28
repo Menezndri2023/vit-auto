@@ -9,7 +9,7 @@ import styles from "./VehicleCard.module.css";
 
 const VehicleCard = React.memo(({ car, compact }) => {
   const navigate  = useNavigate();
-  const { fmt }   = useCurrency();
+  const { fmt, fmtPinned } = useCurrency();
   const { isFavorite, toggleFavorite } = useFavorites();
   const { isInCart, addItem } = useCart();
   const { success: toastSuccess, error: toastError } = useToast();
@@ -205,16 +205,18 @@ const VehicleCard = React.memo(({ car, compact }) => {
         <div className={styles.priceBlock}>
           {promoActive ? (
             <p className={styles.price}>
-              <span style={{ textDecoration: "line-through", color: "#94a3b8", fontSize: "0.8em", marginRight: 8 }}>{fmt(basePrice)}</span>
+              <span style={{ textDecoration: "line-through", color: "#94a3b8", fontSize: "0.8em", marginRight: 8 }}>
+                {car.currency ? fmtPinned(basePrice, car.currency) : fmt(basePrice)}
+              </span>
               <span style={{ color: "#dc2626" }}>
-                <PriceTag amountUSD={discountedPrice} suffix={!(car.mode === "Acheter" || car.listingType === "vente") ? " / jour" : ""} compact />
+                <PriceTag amountUSD={discountedPrice} pinnedCurrency={car.currency} suffix={!(car.mode === "Acheter" || car.listingType === "vente") ? " / jour" : ""} compact />
               </span>
             </p>
           ) : (
             <p className={styles.price}>
               {(car.mode === "Acheter" || car.listingType === "vente")
-                ? <PriceTag amountUSD={car.buyPrice || car.priceForSale || 0} compact />
-                : <PriceTag amountUSD={car.pricePerDay || 0} suffix=" / jour" compact />}
+                ? <PriceTag amountUSD={car.buyPrice || car.priceForSale || 0} pinnedCurrency={car.currency} compact />
+                : <PriceTag amountUSD={car.pricePerDay || 0} pinnedCurrency={car.currency} suffix=" / jour" compact />}
             </p>
           )}
           {(car.ville || car.city) && (

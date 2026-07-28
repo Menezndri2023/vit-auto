@@ -16,6 +16,7 @@ import { scoreAnnonce, buildVehicleWhitelist } from "./vehicleScoring.js";
 import { dispatch } from "../queue/index.js";
 import { uploadImage, isAvailable as imageKitAvailable } from "../config/imagekit.js";
 import { ensureImporterProfile } from "../utils/ensureImporterProfile.js";
+import { getActiveRates } from "./currencyEngine.js";
 
 // Demande explicite : plus de limite significative par import. On garde un
 // plafond technique très large (jamais business) plutôt qu'un nombre
@@ -715,6 +716,22 @@ async function processVehicleImportRow(batch, rawRow, rowIndex, budgetDeadline, 
     const validation = scoreAnnonce(data);
     validation.warnings = [...rowWarnings, ...validation.warnings];
     const whitelisted = buildVehicleWhitelist(data);
+
+    // Devise d'affichage (facultative, colonne CSV/Excel "currency") — même
+    // garde qu'une publication manuelle (vehicleController.createVehicle) :
+    // un code inventé ou inactif ne doit jamais s'enregistrer tel quel (bug
+    // réel évité en audit — buildVehicleWhitelist ne valide jamais rien,
+    // seule la publication manuelle passait par une vérification explicite
+    // avant l'ajout de ce contrôle ici). Non bloquant pour la ligne entière :
+    // on retombe sur "automatique" (null) avec un avertissement, comme les
+    // autres champs de cette pipeline tolérante aux erreurs.
+    if (whitelisted.currency) {
+      const activeRates = await getActiveRates();
+      if (!activeRates.some((r) => r.code === whitelisted.currency)) {
+        validation.warnings.push(`Devise d'affichage "${whitelisted.currency}" inconnue — ignorée (affichage automatique).`);
+        whitelisted.currency = null;
+      }
+    }
 
     const vehicle = await Vehicle.create({
       ...whitelisted,

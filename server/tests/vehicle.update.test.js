@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { updateVehicle } from "../controllers/vehicleController.js";
 import Vehicle from "../models/Vehicle.js";
+import ExchangeRate from "../models/ExchangeRate.js";
 import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
@@ -169,5 +170,49 @@ describe("vehicleController.updateVehicle — ne republie jamais hors cycle de m
 
     const reloaded = await Vehicle.findById(vehicle._id);
     expect(reloaded.available).toBe(false);
+  });
+});
+
+// Le partenaire/admin peut choisir de FIGER l'affichage de son annonce dans
+// une devise précise pour tous les visiteurs — voir même feature côté
+// createVehicle (tests/vehicle.create.test.js).
+describe("vehicleController.updateVehicle — devise d'affichage (Vehicle.currency)", () => {
+  it("le partenaire peut fixer une devise d'affichage", async () => {
+    await ExchangeRate.create({ code: "EUR", name: "Euro", symbol: "€", rateFromUSD: 0.91, active: true });
+    const partner = await createUser({ role: "partenaire" });
+    const vehicle = await createVehicleDoc({ owner: partner._id, currency: null });
+
+    const { req, res } = mockReqRes({ user: partner, params: { id: vehicle._id.toString() }, body: { currency: "EUR" } });
+    await updateVehicle(req, res);
+    expect(res.statusCode).toBe(200);
+
+    const reloaded = await Vehicle.findById(vehicle._id);
+    expect(reloaded.currency).toBe("EUR");
+  });
+
+  it("l'admin peut revenir à l'automatique (currency: null)", async () => {
+    await ExchangeRate.create({ code: "EUR", name: "Euro", symbol: "€", rateFromUSD: 0.91, active: true });
+    const partner = await createUser({ role: "partenaire" });
+    const admin = await createUser({ role: "admin" });
+    const vehicle = await createVehicleDoc({ owner: partner._id, currency: "EUR" });
+
+    const { req, res } = mockReqRes({ user: admin, params: { id: vehicle._id.toString() }, body: { currency: null } });
+    await updateVehicle(req, res);
+    expect(res.statusCode).toBe(200);
+
+    const reloaded = await Vehicle.findById(vehicle._id);
+    expect(reloaded.currency).toBeNull();
+  });
+
+  it("refuse une devise inconnue/inactive (400)", async () => {
+    const partner = await createUser({ role: "partenaire" });
+    const vehicle = await createVehicleDoc({ owner: partner._id });
+
+    const { req, res } = mockReqRes({ user: partner, params: { id: vehicle._id.toString() }, body: { currency: "ZZZ" } });
+    await updateVehicle(req, res);
+    expect(res.statusCode).toBe(400);
+
+    const reloaded = await Vehicle.findById(vehicle._id);
+    expect(reloaded.currency).toBeNull(); // inchangé
   });
 });

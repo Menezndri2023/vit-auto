@@ -8854,7 +8854,7 @@ function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFil
 // CATALOGUE SECTION — Annonces & Validations (combiné)
 // ═══════════════════════════════════════════════════════════════════════════════
 function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefresh, showToast, setConfirm, rejectModal, setRejectModal, rejectReason, setRejectReason, driverRejectModal, setDriverRejectModal, driverRejectReason, setDriverRejectReason, updateVehicleStatus, deleteVehicle }) {
-  const { COUNTRIES_CONFIG, fmtUSD, CURRENCIES, rateFromUSD } = useCurrency();
+  const { COUNTRIES_CONFIG, fmtUSD, fmtPinned, CURRENCIES, rateFromUSD } = useCurrency();
   const [subTab,         setSubTab]         = useState("pending");
   const [vehSearch,      setVehSearch]      = useState("");
   const [vehPage,        setVehPage]        = useState(1);
@@ -9084,6 +9084,7 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
         caution: v.caution || "", country: v.country || "",
         ville: v.ville || "", adresse: v.adresse || "", description: v.description || "",
         contactNom: v.contactNom || "", contactTel: v.contactTel || "",
+        currency: v.currency || "", // "" = automatique (devise du visiteur)
         ageMin: v.ageMin || "", permisRequis: v.permisRequis !== false,
         assuranceOptionnelle: !!v.assuranceOptionnelle, withDriver: !!v.withDriver,
         available: v.available !== false,
@@ -9135,6 +9136,7 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
         description: editForm.description, country: editForm.country || null,
         ville: editForm.ville, adresse: editForm.adresse, ageMin: Number(editForm.ageMin) || 0,
         contactNom: editForm.contactNom, contactTel: editForm.contactTel,
+        currency: editForm.currency || null,
         permisRequis: editForm.permisRequis, assuranceOptionnelle: editForm.assuranceOptionnelle,
         withDriver: editForm.withDriver, available: editForm.available, images,
       };
@@ -9757,7 +9759,9 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                             ["Portes", v.nombrePortes],
                             ["Climatisation", v.climatisation ? "✅ Oui" : "❌ Non"],
                             ["Avec chauffeur", v.withDriver ? "✅ Oui" : "Non"],
-                            v.type === "location" ? ["Prix / jour", v.pricePerDay ? fmtUSD(v.pricePerDay) : "—"] : ["Prix vente", v.priceForSale ? fmtUSD(v.priceForSale) : "—"],
+                            v.type === "location"
+                              ? ["Prix / jour", v.pricePerDay ? (v.currency ? fmtPinned(v.pricePerDay, v.currency) : fmtUSD(v.pricePerDay)) : "—"]
+                              : ["Prix vente", v.priceForSale ? (v.currency ? fmtPinned(v.priceForSale, v.currency) : fmtUSD(v.priceForSale)) : "—"],
                             v.type === "location" && v.caution ? ["Caution", fmtUSD(v.caution)] : null,
                             ["Ville", v.ville || "—"],
                             ["Adresse", v.adresse || "—"],
@@ -10076,6 +10080,20 @@ function CatalogueSection({ vehicles, drivers, bookings, headers, token, onRefre
                           value={editForm.caution} onChange={(e) => setEditForm((p) => ({ ...p, caution: e.target.value }))} />
                       </div>
                     )}
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Devise d'affichage de l'annonce</label>
+                    <select style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                      value={editForm.currency || ""} onChange={(e) => setEditForm((p) => ({ ...p, currency: e.target.value }))}>
+                      <option value="">Automatique (devise du visiteur)</option>
+                      {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                    </select>
+                    <span style={{ fontSize: ".75rem", color: "#94a3b8" }}>
+                      {editForm.currency
+                        ? `Tous les visiteurs verront le prix en ${editForm.currency}, quel que soit leur pays.`
+                        : "Par défaut : chaque visiteur voit le prix converti dans sa propre devise détectée."}
+                    </span>
                   </div>
 
                   {editForm.type !== "vente" && (

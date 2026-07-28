@@ -173,6 +173,12 @@ const VendorSubmit = () => {
     ageMin: 21, permisRequis: true, assuranceOptionnelle: true,
     conditionsLocation: "", conditionsVente: "",
     description: "", images: [""],
+    // "" = automatique (chaque visiteur voit sa propre devise détectée par
+    // IP/GPS, comportement par défaut) — une valeur explicite fige
+    // l'affichage de CETTE annonce dans cette devise pour tous les visiteurs,
+    // quel que soit leur pays (voir Vehicle.currency, PriceTag pinnedCurrency).
+    // Distinct de `priceCurrency` ci-dessous, qui ne sert qu'à la saisie.
+    currency: "",
   });
 
   // ── Devise de saisie du prix (affichage uniquement) — le partenaire peut
@@ -1010,6 +1016,18 @@ const VendorSubmit = () => {
           <div className={styles.card}>
             <h2 className={styles.cardTitle}>💰 Tarification</h2>
             <div className={styles.grid2}>
+              <div className={`${styles.field} ${styles.colSpan2}`}>
+                <label>Devise d'affichage de l'annonce</label>
+                <select name="currency" value={vehicle.currency} onChange={handleVehChange}>
+                  <option value="">Automatique (devise du visiteur)</option>
+                  {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                </select>
+                <span className={styles.hint}>
+                  {vehicle.currency
+                    ? `Tous les visiteurs verront le prix en ${vehicle.currency}, quel que soit leur pays.`
+                    : "Par défaut : chaque visiteur voit le prix converti dans sa propre devise (détectée automatiquement)."}
+                </span>
+              </div>
               {adType === "location" && <>
                 <div className={styles.field}>
                   <label>Prix par jour *</label>

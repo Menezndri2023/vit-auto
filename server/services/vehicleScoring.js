@@ -140,6 +140,7 @@ export const buildVehicleWhitelist = (data) => {
     conditionsLocation, conditionsVente,
     contactNom, contactTel, ville, adresse, coordonnees,
     images, thumbnail, description, rentalDurationType,
+    currency,
   } = data;
 
   return {
@@ -151,5 +152,9 @@ export const buildVehicleWhitelist = (data) => {
     conditionsLocation, conditionsVente,
     contactNom, contactTel, ville, adresse, coordonnees,
     images: images || [], thumbnail: thumbnail || null, description, rentalDurationType,
+    // Devise d'AFFICHAGE choisie par le partenaire pour cette annonce — validée
+    // (currency active réelle ou null) par l'appelant (createVehicle), pas ici :
+    // cette fonction reste synchrone et partagée avec l'import en masse.
+    currency: currency || null,
   };
 };

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { createVehicle } from "../controllers/vehicleController.js";
 import Vehicle from "../models/Vehicle.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
+import ExchangeRate from "../models/ExchangeRate.js";
 import { createUser } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
@@ -116,6 +117,41 @@ describe("vehicleController.createVehicle — contrôle d'accès à la publicati
     });
 
     const { req, res } = mockReqRes({ user: founder, body: minimalVehicle({ businessId: business._id.toString() }) });
+    await createVehicle(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+});
+
+// Le partenaire/admin peut choisir de FIGER l'affichage de son annonce dans
+// une devise précise, quel que soit le pays du visiteur — sinon (par défaut,
+// currency=null), chaque visiteur voit sa propre devise détectée par IP (voir
+// PriceTag pinnedCurrency, CurrencyContext.jsx fmtPinned).
+describe("vehicleController.createVehicle — devise d'affichage (Vehicle.currency)", () => {
+  it("par défaut, aucune devise d'affichage n'est fixée (null = automatique)", async () => {
+    const founder = await createUser({ role: "partenaire", isFounder: true });
+    const { req, res } = mockReqRes({ user: founder, body: minimalVehicle() });
+    await createVehicle(req, res);
+
+    expect(res.status).not.toHaveBeenCalledWith(400);
+    const saved = await Vehicle.findById(res.body.vehicle._id);
+    expect(saved.currency).toBeNull();
+  });
+
+  it("accepte une devise active réelle et la persiste", async () => {
+    await ExchangeRate.create({ code: "XOF", name: "Franc CFA", symbol: "FCFA", rateFromUSD: 600, active: true });
+    const founder = await createUser({ role: "partenaire", isFounder: true });
+    const { req, res } = mockReqRes({ user: founder, body: minimalVehicle({ currency: "XOF" }) });
+    await createVehicle(req, res);
+
+    expect(res.status).not.toHaveBeenCalledWith(400);
+    const saved = await Vehicle.findById(res.body.vehicle._id);
+    expect(saved.currency).toBe("XOF");
+  });
+
+  it("refuse une devise inconnue/inactive (400)", async () => {
+    const founder = await createUser({ role: "partenaire", isFounder: true });
+    const { req, res } = mockReqRes({ user: founder, body: minimalVehicle({ currency: "ZZZ" }) });
     await createVehicle(req, res);
 
     expect(res.status).toHaveBeenCalledWith(400);

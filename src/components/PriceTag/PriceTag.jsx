@@ -6,11 +6,24 @@ import styles from "./PriceTag.module.css";
 // prix réel d'origine quand il diffère — soit le montant USD stocké
 // (Vehicle/Booking), soit la devise choisie par le partenaire (annonces
 // Import/Export via `sourceCurrency`).
-export default function PriceTag({ amountUSD, amount, sourceCurrency, suffix = "", compact = false, className = "" }) {
-  const { fmtDual, fmtFromCurrencyDual } = useCurrency();
-  const { primary, secondary } = sourceCurrency
-    ? fmtFromCurrencyDual(amount, sourceCurrency)
-    : fmtDual(amountUSD);
+//
+// `pinnedCurrency` (Vehicle.currency) prend le pas sur tout le reste : le
+// partenaire/admin a explicitement choisi d'afficher CETTE annonce dans une
+// devise fixe pour tous les visiteurs, quel que soit leur pays détecté — pas
+// de double affichage dans ce cas, la devise est un choix assumé, pas une
+// conversion informative.
+export default function PriceTag({ amountUSD, amount, sourceCurrency, pinnedCurrency, suffix = "", compact = false, className = "" }) {
+  const { fmtDual, fmtPinned, fmtFromCurrencyDual } = useCurrency();
+
+  let primary, secondary;
+  if (pinnedCurrency) {
+    primary = fmtPinned(amountUSD, pinnedCurrency);
+    secondary = null;
+  } else if (sourceCurrency) {
+    ({ primary, secondary } = fmtFromCurrencyDual(amount, sourceCurrency));
+  } else {
+    ({ primary, secondary } = fmtDual(amountUSD));
+  }
 
   return (
     <span className={`${styles.wrap} ${compact ? styles.compact : ""} ${className}`}>

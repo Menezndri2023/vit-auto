@@ -303,6 +303,23 @@ export function CurrencyProvider({ children }) {
     [CURRENCIES]
   );
 
+  // Devise FIGÉE par le partenaire/admin pour une annonce précise (voir
+  // Vehicle.currency) — ignore volontairement la devise active du visiteur :
+  // contrairement à fmtDual/fmtFromCurrencyDual (qui convertissent TOUJOURS
+  // vers ce que le visiteur a détecté/choisi), ici le partenaire a exprimé une
+  // préférence explicite ("afficher mon annonce en EUR pour tout le monde"),
+  // qui doit primer. Le montant stocké reste toujours en USD en interne —
+  // seule la conversion d'AFFICHAGE change.
+  const fmtPinned = useCallback(
+    (amountUSD, pinnedCode) => {
+      if (amountUSD == null || isNaN(amountUSD)) return "—";
+      if (!pinnedCode || pinnedCode === "USD") return formatLiteral(amountUSD, "USD");
+      const converted = amountUSD * rateFromUSD(pinnedCode);
+      return formatLiteral(converted, pinnedCode);
+    },
+    [formatLiteral, rateFromUSD]
+  );
+
   // Affichage double géolocalisé : prix converti dans la devise active du
   // visiteur (détectée par IP/GPS) + prix réel (celui réellement stocké/facturé,
   // toujours en USD pour Vehicle/Booking). `secondary` est null quand les deux
@@ -367,6 +384,7 @@ export function CurrencyProvider({ children }) {
         fmtUSD,
         fmtFromCurrency,
         fmtDual,
+        fmtPinned,
         fmtFromCurrencyDual,
         fmtFromMAD,
         fromMAD,

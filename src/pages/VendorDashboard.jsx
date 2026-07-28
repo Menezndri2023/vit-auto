@@ -1533,6 +1533,8 @@ export default function VendorDashboard() {
         adresse:     v.adresse || "",
         contactNom:  v.contactNom || "",
         contactTel:  v.contactTel || "",
+        // "" = automatique (devise du visiteur) — voir Vehicle.currency.
+        currency:    v.currency || "",
         description: v.description || "",
         ageMin:      v.ageMin || "",
         permisRequis: v.permisRequis !== false,
@@ -1602,6 +1604,7 @@ export default function VendorDashboard() {
         adresse:     editForm.adresse,
         contactNom:  editForm.contactNom,
         contactTel:  editForm.contactTel,
+        currency:    editForm.currency || null,
         ageMin:      Number(editForm.ageMin) || 0,
         permisRequis: editForm.permisRequis,
         assuranceOptionnelle: editForm.assuranceOptionnelle,
@@ -3732,6 +3735,20 @@ export default function VendorDashboard() {
                         value={editForm.caution} onChange={(e) => setEditForm((p) => ({ ...p, caution: e.target.value }))} />
                     </div>
                   )}
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Devise d'affichage de l'annonce</label>
+                  <select className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                    value={editForm.currency || ""} onChange={(e) => setEditForm((p) => ({ ...p, currency: e.target.value }))}>
+                    <option value="">Automatique (devise du visiteur)</option>
+                    {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                  </select>
+                  <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
+                    {editForm.currency
+                      ? `Tous les visiteurs verront le prix en ${editForm.currency}, quel que soit leur pays.`
+                      : "Par défaut : chaque visiteur voit le prix converti dans sa propre devise détectée."}
+                  </span>
                 </div>
 
                 {editForm.type !== "vente" && (
