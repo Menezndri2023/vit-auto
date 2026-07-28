@@ -39,6 +39,13 @@ const Register = () => {
 
   const [submitting,   setSubmitting]   = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // Affiche un CTA direct vers /login au lieu d'un simple message d'erreur
+  // quand le compte existe déjà (email OU téléphone actif) — un compte
+  // SUPPRIMÉ par un admin n'entre jamais dans ce cas (l'e-mail/le téléphone
+  // redevient libre, voir authController.deleteUser : suppression réelle,
+  // pas un simple drapeau) : cette étape ne peut se déclencher qu'à cause
+  // d'un compte réellement encore actif.
+  const [duplicateAccount, setDuplicateAccount] = useState(false);
 
   // Étape de confirmation e-mail par code — bloquante : tant que le code n'est
   // pas validé, l'inscription n'est pas considérée comme terminée (voir
@@ -104,6 +111,7 @@ const Register = () => {
       error("Vous devez avoir au moins 18 ans pour créer un compte VIT AUTO."); return;
     }
     setSubmitting(true);
+    setDuplicateAccount(false);
     try {
       const result = await register({
         firstName:  form.firstName,
@@ -131,6 +139,9 @@ const Register = () => {
       }
     } catch (err) {
       error(err.message || "Impossible de créer votre compte.");
+      if (err.code === "EMAIL_ALREADY_USED" || err.code === "PHONE_ALREADY_USED") {
+        setDuplicateAccount(true);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -395,6 +406,22 @@ const Register = () => {
                   </div>
                 );
               })()}
+            </div>
+          )}
+
+          {duplicateAccount && (
+            <div style={{
+              background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10,
+              padding: "12px 16px", marginBottom: 12, fontSize: ".88rem", color: "#1e3a8a",
+              display: "flex", flexDirection: "column", gap: 8,
+            }}>
+              <span>Un compte existe déjà avec ces informations.</span>
+              <Link
+                to={redirectParam ? `/login?redirect=${encodeURIComponent(redirectParam)}` : "/login"}
+                style={{ fontWeight: 700, color: "#1d4ed8", alignSelf: "flex-start" }}
+              >
+                Se connecter →
+              </Link>
             </div>
           )}
 

@@ -201,7 +201,19 @@ export const register = async (req, res) => {
           message: "[DEV] Compte existant auto-vérifié. Vous pouvez vous connecter.",
         });
       }
-      return res.status(409).json({ message: "Adresse e-mail déjà utilisée." });
+      return res.status(409).json({ message: "Adresse e-mail déjà utilisée.", code: "EMAIL_ALREADY_USED" });
+    }
+
+    // Bug réel corrigé (audit) : le téléphone n'avait jusqu'ici AUCUNE
+    // vérification préalable — une collision (numéro déjà utilisé par un
+    // compte actif) ne surgissait qu'en erreur brute E11000 depuis
+    // User.create() plus bas, remontant en 500 générique ("Erreur serveur")
+    // au lieu d'un message clair, contrairement au cas email (409 propre).
+    if (phone) {
+      const existingPhone = await User.findOne({ phone });
+      if (existingPhone) {
+        return res.status(409).json({ message: "Ce numéro de téléphone est déjà utilisé.", code: "PHONE_ALREADY_USED" });
+      }
     }
 
     const allowedRoles = ["client", "partenaire"];

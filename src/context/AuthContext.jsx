@@ -186,7 +186,15 @@ export const AuthProvider = ({ children }) => {
       body:    JSON.stringify({ firstName, lastName, email, password, phone, role, country, birthDate, activity, entityType }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.message || "Erreur d'inscription.");
+    if (!res.ok) {
+      // `code` (ex: EMAIL_ALREADY_USED/PHONE_ALREADY_USED) propagé pour que
+      // Register.jsx puisse proposer un lien direct vers /login plutôt qu'un
+      // simple message d'erreur — perdu auparavant, `throw new Error(...)`
+      // ne conservait que le texte.
+      const err = new Error(data.message || "Erreur d'inscription.");
+      err.code = data.code;
+      throw err;
+    }
     const backendUser = { ...data.user };
     setUser(backendUser);
     if (data.token)        setToken(data.token);
