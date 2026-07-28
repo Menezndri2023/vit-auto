@@ -219,6 +219,46 @@ export const updateUserRole = async (req, res) => {
   }
 };
 
+// ── PATCH /api/users/:id/phone — un admin corrige/renseigne le numéro d'un
+// compte (bug réel trouvé en audit : aucun formulaire n'exposait ce champ en
+// écriture côté admin — le numéro n'était éditable que par l'utilisateur
+// lui-même via /me, voir updateMyProfile — un partenaire inscrit par email
+// sans jamais renseigner de téléphone, ou avec un numéro faux/périmé,
+// n'avait aucun moyen d'être corrigé par le support). Même garde-fous que
+// updateMyProfile : phoneVerified retombe à false si la valeur change (un
+// numéro modifié par un tiers ne doit jamais hériter du statut "vérifié" d'un
+// ancien OTP), et un doublon (index unique sparse) répond 409, pas 500.
+export const adminUpdatePhone = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    const target = await User.findById(req.params.id).select("phone email");
+    if (!target) return res.status(404).json({ message: "Utilisateur introuvable." });
+
+    const next = phone == null ? null : String(phone).trim();
+    if (!next && !target.email) {
+      return res.status(400).json({ message: "Ce compte n'a pas d'email — impossible de retirer son seul moyen de connexion." });
+    }
+
+    const changed = (target.phone || null) !== (next || null);
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { $set: { phone: next || null, ...(changed ? { phoneVerified: false } : {}) } },
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    await logAction(req, "user.phone_change", "User", req.params.id, {
+      before: { phone: target.phone || null }, after: { phone: next || null },
+    });
+    res.json({ user });
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ message: "Ce numéro de téléphone est déjà utilisé par un autre compte." });
+    }
+    logger.error("adminUpdatePhone:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
 // ── Rôles & Permissions — comptes admin et leurs permissions fines ────────
 // (voir middleware/auth.js requireAdminScope). adminScope=[] = accès complet
 // (comportement historique, avant l'ajout de ce champ) — n'affiche donc pas

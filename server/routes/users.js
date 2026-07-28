@@ -34,6 +34,7 @@ router.patch("/admin/:id/scope", authenticate, authorizeAdmin, validateObjectId(
 router.get("/:id",             authenticate, authorizeAdmin, validateObjectId(), u.getUser);
 router.get("/:id/trust-overview", authenticate, authorizeAdmin, validateObjectId(), u.getUserTrustOverview);
 router.patch("/:id/role",      authenticate, authorizeAdmin, validateObjectId(), u.updateUserRole);
+router.patch("/:id/phone",     authenticate, authorizeAdmin, validateObjectId(), u.adminUpdatePhone);
 router.patch("/:id/toggle",    authenticate, authorizeAdmin, validateObjectId(), u.toggleUserActive);
 router.patch("/:id/verify-identity", authenticate, authorizeAdmin, validateObjectId(), u.adminVerifyIdentity);
 router.delete("/:id",          authenticate, authorizeAdmin, validateObjectId(), u.deleteUser);

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   getUsers, getPublicProfile, updateUserRole, updateAdminScope,
   toggleUserActive, deleteUser, adminVerifyIdentity, updateMyProfile,
+  adminUpdatePhone,
 } from "../controllers/usersController.js";
 import User from "../models/User.js";
 import AuditLog from "../models/AuditLog.js";
@@ -95,6 +96,70 @@ describe("updateUserRole", () => {
     expect(logs).toHaveLength(1);
     expect(logs[0].changes.before.role).toBe("client");
     expect(logs[0].changes.after.role).toBe("partenaire");
+  });
+});
+
+// Bug réel corrigé (audit) : aucun formulaire n'exposait ce champ en écriture
+// côté admin — un partenaire inscrit sans téléphone, ou avec un numéro faux,
+// n'avait aucun moyen d'être corrigé par le support (affiché en lecture
+// seule uniquement dans l'onglet Utilisateurs de AdminPanel.jsx).
+describe("adminUpdatePhone", () => {
+  it("renseigne un numéro et journalise l'action dans AuditLog", async () => {
+    const admin = await createUser({ role: "admin" });
+    const target = await createUser({ role: "partenaire", phone: null });
+    const { req, res } = mockReqRes({ user: admin, params: { id: target._id.toString() }, body: { phone: "+225 07 00 00 00 01" } });
+    await adminUpdatePhone(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.user.phone).toBe("+225 07 00 00 00 01");
+
+    const logs = await AuditLog.find({ resourceId: target._id.toString(), action: "user.phone_change" });
+    expect(logs).toHaveLength(1);
+    expect(logs[0].changes.before.phone).toBeNull();
+    expect(logs[0].changes.after.phone).toBe("+225 07 00 00 00 01");
+  });
+
+  it("réinitialise phoneVerified quand le numéro change réellement", async () => {
+    const admin = await createUser({ role: "admin" });
+    const target = await createUser({ role: "partenaire", phone: "+225000", phoneVerified: true });
+    const { req, res } = mockReqRes({ user: admin, params: { id: target._id.toString() }, body: { phone: "+225111" } });
+    await adminUpdatePhone(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.user.phoneVerified).toBe(false);
+  });
+
+  it("ne réinitialise pas phoneVerified si la valeur ne change pas réellement", async () => {
+    const admin = await createUser({ role: "admin" });
+    const target = await createUser({ role: "partenaire", phone: "+225000", phoneVerified: true });
+    const { req, res } = mockReqRes({ user: admin, params: { id: target._id.toString() }, body: { phone: "+225000" } });
+    await adminUpdatePhone(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.user.phoneVerified).toBe(true);
+  });
+
+  it("409 si le numéro est déjà utilisé par un autre compte", async () => {
+    // L'index unique sparse sur `phone` n'est réellement actif qu'une fois sa
+    // construction terminée (autoIndex est asynchrone, non bloquant pour les
+    // écritures — voir server.js démarrage et le même correctif appliqué à
+    // Invoice/CommissionLedger) : sans ce .init(), l'update ci-dessous peut
+    // réussir dans un environnement de test tout frais où l'index n'a pas
+    // encore fini de se construire.
+    await User.init();
+    const admin = await createUser({ role: "admin" });
+    await createUser({ role: "client", phone: "+225999" });
+    const target = await createUser({ role: "partenaire", phone: null });
+    const { req, res } = mockReqRes({ user: admin, params: { id: target._id.toString() }, body: { phone: "+225999" } });
+    await adminUpdatePhone(req, res);
+    expect(res.statusCode).toBe(409);
+  });
+
+  it("refuse de retirer le seul moyen de connexion (téléphone sans email)", async () => {
+    const admin = await createUser({ role: "admin" });
+    const target = await createUser({ role: "partenaire", email: undefined, phone: "+225000" });
+    const { req, res } = mockReqRes({ user: admin, params: { id: target._id.toString() }, body: { phone: "" } });
+    await adminUpdatePhone(req, res);
+    expect(res.statusCode).toBe(400);
+    const reloaded = await User.findById(target._id);
+    expect(reloaded.phone).toBe("+225000"); // inchangé
   });
 });
 

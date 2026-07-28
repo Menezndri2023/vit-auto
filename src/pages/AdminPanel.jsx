@@ -2762,6 +2762,24 @@ export default function AdminPanel() {
     } catch (e) { showToast(e.message || "Erreur lors de la suppression", "error"); }
   }, [headers, showToast]);
 
+  // Bug réel corrigé (audit) : aucun formulaire n'exposait le numéro de
+  // téléphone d'un compte en écriture côté admin (affiché en lecture seule
+  // uniquement) — un partenaire inscrit sans téléphone, ou avec un numéro
+  // faux/périmé, n'avait aucun moyen d'être corrigé par le support.
+  const updatePhone = useCallback(async (uid, currentPhone) => {
+    const next = window.prompt("Numéro de téléphone (laisser vide pour retirer) :", currentPhone || "");
+    if (next === null) return; // annulé
+    try {
+      const res = await fetch(`/api/users/${uid}/phone`, {
+        method: "PATCH", headers, body: JSON.stringify({ phone: next.trim() || null }),
+      });
+      const d = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(d?.message || "Erreur lors de la mise à jour.");
+      setUsers((prev) => prev.map((u) => u._id === uid ? { ...u, phone: d.user.phone, phoneVerified: d.user.phoneVerified } : u));
+      showToast("Téléphone mis à jour");
+    } catch (e) { showToast(e.message || "Erreur lors de la mise à jour", "error"); }
+  }, [headers, showToast]);
+
   // ── Actions véhicules ───────────────────────────────────────────────────────
   const updateVehicleStatus = useCallback(async (vid, status, reason = "") => {
     try {
@@ -3541,7 +3559,13 @@ export default function AdminPanel() {
                               <div>
                                 <strong>{u.firstName} {u.lastName}<CountryFlag code={u.country} countriesConfig={COUNTRIES_CONFIG} /></strong>
                                 {isSelf && <span className={styles.selfTag}>Vous</span>}
-                                {u.phone && <div style={{ fontSize:".72rem", color:"#94a3b8" }}>{u.phone}</div>}
+                                <div style={{ fontSize:".72rem", color: u.phone ? "#94a3b8" : "#cbd5e1", display: "flex", alignItems: "center", gap: 4 }}>
+                                  {u.phone || "— aucun numéro —"}
+                                  <button type="button" onClick={() => updatePhone(u._id, u.phone)} title="Modifier le téléphone"
+                                    style={{ border: "none", background: "none", cursor: "pointer", padding: 0, fontSize: ".78rem", lineHeight: 1 }}>
+                                    ✏️
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           </td>
