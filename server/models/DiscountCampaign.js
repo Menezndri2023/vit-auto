@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 // Campagnes de réduction configurables depuis l'admin (cahier des charges
 // "discount campaigns") — appliquées via un code promo optionnel à
 // l'activation d'un abonnement ou d'un boost (voir subscriptionController.js
-// activatePlan/purchaseBoost). Distinct de Vehicle.promotion (remise
+// activatePlan/purchaseBoost). Distinct de Vehicle.promotions (remises
 // vendeur sur un véhicule précis, voir server/utils/promotion.js).
 const discountCampaignSchema = new mongoose.Schema({
   code:  { type: String, required: true, unique: true, uppercase: true, trim: true },

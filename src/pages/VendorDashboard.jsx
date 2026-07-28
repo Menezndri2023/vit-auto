@@ -1138,8 +1138,12 @@ export default function VendorDashboard() {
   const [rejectNote,     setRejectNote]     = useState("");
   const [rejectReasonCode, setRejectReasonCode] = useState("");
   const [promoModal,     setPromoModal]     = useState(null); // véhicule en cours d'édition promo
-  const [promoForm,      setPromoForm]      = useState({ active: false, discountPercent: 15, label: "", startDate: "", endDate: "" });
+  // Plusieurs règles simultanées possibles (ex. "-15% dès 3 jours" ET "-25%
+  // dès 7 jours" ET "-10000 dès 2 jours pour un règlement comptant") — voir
+  // Vehicle.promotions et server/utils/promotion.js.
+  const [promoRules,     setPromoRules]     = useState([]);
   const [promoSaving,    setPromoSaving]    = useState(false);
+  const emptyPromoRule = () => ({ type: "percent", value: 15, minDays: 1, label: "", active: true, startDate: "", endDate: "" });
 
   // ── Journal d'entretien/incident/dommage par véhicule ─────────────────────
   const [maintenanceModal,       setMaintenanceModal]       = useState(null); // véhicule en cours de consultation
@@ -1379,16 +1383,22 @@ export default function VendorDashboard() {
   const BOOST_TIER_LABELS = { "24h": "24 heures", "7d": "7 jours", "30d": "30 jours", international: "Internationale" };
 
   const handleOpenPromo = (vehicle) => {
-    const p = vehicle.promotion || {};
-    setPromoForm({
-      active:          !!p.active,
-      discountPercent: p.discountPercent || 15,
-      label:           p.label || "",
-      startDate:       p.startDate ? new Date(p.startDate).toISOString().split("T")[0] : "",
-      endDate:         p.endDate   ? new Date(p.endDate).toISOString().split("T")[0]   : "",
-    });
+    const existing = Array.isArray(vehicle.promotions) ? vehicle.promotions : [];
+    setPromoRules(existing.map((r) => ({
+      type:      r.type === "fixed" ? "fixed" : "percent",
+      value:     r.value ?? 15,
+      minDays:   r.minDays || 1,
+      label:     r.label || "",
+      active:    r.active !== false,
+      startDate: r.startDate ? new Date(r.startDate).toISOString().split("T")[0] : "",
+      endDate:   r.endDate   ? new Date(r.endDate).toISOString().split("T")[0]   : "",
+    })));
     setPromoModal(vehicle);
   };
+
+  const addPromoRule    = () => setPromoRules((rules) => [...rules, emptyPromoRule()]);
+  const removePromoRule = (i) => setPromoRules((rules) => rules.filter((_, idx) => idx !== i));
+  const updatePromoRule = (i, patch) => setPromoRules((rules) => rules.map((r, idx) => idx === i ? { ...r, ...patch } : r));
 
   const handleSavePromo = async () => {
     if (!promoModal || !token) return;
@@ -1398,11 +1408,11 @@ export default function VendorDashboard() {
       const r = await fetch(`/api/vehicles/${vid}/promotion`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(promoForm),
+        body: JSON.stringify({ rules: promoRules }),
       });
       const d = await r.json();
       if (r.ok) {
-        toastSuccess(promoForm.active ? "🏷️ Promotion activée." : "Promotion désactivée.");
+        toastSuccess(promoRules.length > 0 ? "🏷️ Promotions enregistrées." : "Promotions supprimées.");
         setPromoModal(null);
         loadPartnerVehicles();
       } else toastError(d.message || "Erreur.");
@@ -2613,11 +2623,11 @@ export default function VendorDashboard() {
                       </div>
                       <div className={styles.vehiclePrice}>
                         {vehicle.pricePerDay ? `${fmtXOF(vehicle.pricePerDay)} / jour` : vehicle.buyPrice ? fmtXOF(vehicle.buyPrice) : "—"}
-                        {vehicle.promotion?.active && (
-                          <span style={{ marginLeft: 8, background: "#fee2e2", color: "#dc2626", fontSize: "0.72rem", fontWeight: 800, padding: "2px 8px", borderRadius: 999 }}>
-                            -{vehicle.promotion.discountPercent}%
+                        {(vehicle.promotions || []).filter((r) => r.active).map((r, i) => (
+                          <span key={i} style={{ marginLeft: 8, background: "#fee2e2", color: "#dc2626", fontSize: "0.72rem", fontWeight: 800, padding: "2px 8px", borderRadius: 999 }}>
+                            {r.type === "percent" ? `-${r.value}%` : `-${fmtXOF(r.value)}`}{r.minDays > 1 ? ` dès ${r.minDays}j` : ""}
                           </span>
-                        )}
+                        ))}
                       </div>
                       {orderCount > 0 && (
                         <button className={styles.vehicleOrderCount} onClick={() => { setActiveTab("commandes"); setOrderFilter("all"); setSearchQuery(vehicle.name || ""); }}>
@@ -2629,7 +2639,7 @@ export default function VendorDashboard() {
                       <button className={styles.btnSecondary} onClick={() => handleOpenEdit(vehicle)}>✏️ Modifier</button>
                       <Link to={`/vehicle/${vid}`} className={styles.btnSecondary}>Voir</Link>
                       <button className={styles.btnSecondary} onClick={() => handleOpenPromo(vehicle)}>
-                        {vehicle.promotion?.active ? "🏷️ Promo active" : "🏷️ Promo"}
+                        {(vehicle.promotions || []).some((r) => r.active) ? "🏷️ Promos actives" : "🏷️ Promo"}
                       </button>
                       <button className={styles.btnSecondary} onClick={() => handleOpenMaintenance(vehicle)}>🔧 Journal</button>
                       {SUBSCRIPTIONS_ENABLED && !isBoosted && <button className={styles.btnBoost} onClick={() => { setBoostTier("30d"); setBoostPromoCode(""); setBoostModal({ vehicleId: vid, title: vehicle.name || vehicle.title }); }} disabled={boostTarget === vid}>{boostTarget === vid ? "…" : "⭐ Booster"}</button>}
@@ -3353,49 +3363,89 @@ export default function VendorDashboard() {
 
       {promoModal && (
         <div className={styles.modalBackdrop} onClick={() => setPromoModal(null)}>
-          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()}>
-            <h3>🏷️ Promotion — {promoModal.name}</h3>
+          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
+            <h3>🏷️ Promotions — {promoModal.name}</h3>
             <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "#64748b" }}>
-              Affiche un badge de remise sur l'annonce (catalogue public) et applique automatiquement la réduction au prix de location.
+              Configurez autant de règles que vous voulez (ex. "-15% dès 3 jours de location" ET "-25% dès 7 jours" ET
+              "-10&nbsp;000 dès 2 jours pour un règlement comptant"). Au moment de la réservation, la règle la plus
+              avantageuse pour la durée choisie par le client est appliquée automatiquement au prix.
             </p>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, marginBottom: 14, cursor: "pointer" }}>
-              <input type="checkbox" checked={promoForm.active}
-                onChange={(e) => setPromoForm((p) => ({ ...p, active: e.target.checked }))} />
-              Activer la promotion
-            </label>
-            {promoForm.active && (
-              <>
-                <div style={{ marginBottom: 12 }}>
-                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Pourcentage de remise (%)</label>
-                  <input type="number" min="1" max="90" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
-                    value={promoForm.discountPercent}
-                    onChange={(e) => setPromoForm((p) => ({ ...p, discountPercent: Number(e.target.value) }))} />
+
+            {promoRules.length === 0 && (
+              <p style={{ fontSize: "0.85rem", color: "#94a3b8", margin: "0 0 14px" }}>Aucune règle configurée pour ce véhicule.</p>
+            )}
+
+            {promoRules.map((rule, i) => (
+              <div key={i} style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, cursor: "pointer" }}>
+                    <input type="checkbox" checked={rule.active}
+                      onChange={(e) => updatePromoRule(i, { active: e.target.checked })} />
+                    Règle {i + 1} active
+                  </label>
+                  <button type="button" className={styles.btnDanger} style={{ padding: "3px 10px", fontSize: "0.78rem" }}
+                    onClick={() => removePromoRule(i)}>Supprimer</button>
                 </div>
-                <div style={{ marginBottom: 12 }}>
+
+                <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Type de remise</label>
+                    <select className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px", width: "100%" }}
+                      value={rule.type}
+                      onChange={(e) => updatePromoRule(i, { type: e.target.value })}>
+                      <option value="percent">Pourcentage (%)</option>
+                      <option value="fixed">Montant fixe</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>
+                      {rule.type === "percent" ? "Remise (%)" : "Montant fixe déduit"}
+                    </label>
+                    <input type="number" min="1" max={rule.type === "percent" ? 90 : undefined}
+                      className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                      value={rule.value}
+                      onChange={(e) => updatePromoRule(i, { value: Number(e.target.value) })} />
+                    {rule.type === "fixed" && (
+                      <p style={{ fontSize: "0.72rem", color: "#94a3b8", margin: "4px 0 0" }}>≈ {fmtXOF(rule.value || 0)} déduit du prix total du séjour</p>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>À partir de combien de jours de location ?</label>
+                  <input type="number" min="1" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                    value={rule.minDays}
+                    onChange={(e) => updatePromoRule(i, { minDays: Math.max(1, Number(e.target.value)) })} />
+                </div>
+
+                <div style={{ marginBottom: 10 }}>
                   <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Libellé (optionnel)</label>
-                  <input type="text" placeholder="Ex : Offre du jour" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
-                    value={promoForm.label}
-                    onChange={(e) => setPromoForm((p) => ({ ...p, label: e.target.value }))} />
+                  <input type="text" placeholder="Ex : Offre du week-end" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                    value={rule.label}
+                    onChange={(e) => updatePromoRule(i, { label: e.target.value })} />
                 </div>
-                <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
+
+                <div style={{ display: "flex", gap: 10 }}>
                   <div style={{ flex: 1 }}>
                     <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Début (optionnel)</label>
                     <input type="date" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px", width: "100%" }}
-                      value={promoForm.startDate}
-                      onChange={(e) => setPromoForm((p) => ({ ...p, startDate: e.target.value }))} />
+                      value={rule.startDate}
+                      onChange={(e) => updatePromoRule(i, { startDate: e.target.value })} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Fin (optionnel)</label>
                     <input type="date" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px", width: "100%" }}
-                      value={promoForm.endDate}
-                      onChange={(e) => setPromoForm((p) => ({ ...p, endDate: e.target.value }))} />
+                      value={rule.endDate}
+                      onChange={(e) => updatePromoRule(i, { endDate: e.target.value })} />
                   </div>
                 </div>
-                <p style={{ fontSize: "0.78rem", color: "#94a3b8", margin: "0 0 14px" }}>
-                  Sans dates, la promotion reste active jusqu'à sa désactivation manuelle.
-                </p>
-              </>
-            )}
+              </div>
+            ))}
+
+            <button type="button" className={styles.btnSecondary} style={{ marginBottom: 14 }} onClick={addPromoRule}>
+              ➕ Ajouter une règle
+            </button>
+
             <div className={styles.rejectActions}>
               <button className={styles.btnAccept} onClick={handleSavePromo} disabled={promoSaving}>
                 {promoSaving ? "Envoi…" : "✅ Enregistrer"}

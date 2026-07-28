@@ -150,8 +150,22 @@ export async function applyDiscountCode(code, productType, baseUSD) {
   return { priceUSD, campaign };
 }
 
-// Incrémente le compteur d'utilisation — appelé uniquement après une
-// activation réellement enregistrée (pas à la simple prévisualisation du prix).
+// Incrémente le compteur d'utilisation — appelé UNIQUEMENT au moment de la
+// confirmation admin d'un paiement réellement reçu (adminApprovePlanPayment/
+// adminApproveBoost), jamais à la simple soumission "pending" d'une demande.
+// Bug réel corrigé en audit : appelé auparavant dès activatePlan/purchaseBoost
+// (avant toute vérification de paiement, aucun des deux endpoints ne débitant
+// réellement une carte) — un utilisateur pouvait épuiser `maxRedemptions`
+// d'une campagne limitée avec des demandes jamais payées/jamais confirmées,
+// privant les vrais clients de la promotion.
 export async function redeemDiscountCode(campaignId) {
   await DiscountCampaign.findByIdAndUpdate(campaignId, { $inc: { redemptionCount: 1 } });
+}
+
+// Variante par code — utilisée à la confirmation admin, quand on ne dispose
+// que du code stocké sur la demande (paymentHistory.promoCode/boost.promoCode),
+// pas de l'ObjectId de la campagne.
+export async function redeemDiscountCodeByCode(code) {
+  if (!code) return;
+  await DiscountCampaign.findOneAndUpdate({ code: code.trim().toUpperCase() }, { $inc: { redemptionCount: 1 } });
 }

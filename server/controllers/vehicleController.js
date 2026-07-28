@@ -738,9 +738,13 @@ export const convertVehicleToExport = async (req, res) => {
   }
 };
 
-// ── Promotion partenaire (ex: "-15% aujourd'hui") ─────────────────────────────
+// ── Promotions partenaire (paliers configurables) ─────────────────────────────
 // Endpoint dédié, séparé de updateVehicle : une promotion ne doit jamais
-// déclencher une re-validation/re-modération de l'annonce.
+// déclencher une re-validation/re-modération de l'annonce. Remplace l'annonce
+// entière des règles à chaque appel (le partenaire soumet la liste complète
+// depuis le formulaire), comme le faisait l'ancien champ `promotion` unique.
+const MAX_PROMOTION_RULES = 20;
+
 export const updatePromotion = async (req, res) => {
   try {
     const vehicle = await Vehicle.findById(req.params.id);
@@ -751,23 +755,43 @@ export const updatePromotion = async (req, res) => {
       return res.status(403).json({ message: "Accès refusé." });
     }
 
-    const { active, discountPercent, label, startDate, endDate } = req.body;
-
-    const pct = Number(discountPercent);
-    if (active && (!Number.isFinite(pct) || pct <= 0 || pct > 90)) {
-      return res.status(400).json({ message: "Le pourcentage de remise doit être compris entre 1 et 90." });
-    }
-    if (startDate && endDate && new Date(endDate) <= new Date(startDate)) {
-      return res.status(400).json({ message: "La date de fin doit être postérieure à la date de début." });
+    const rawRules = Array.isArray(req.body.rules) ? req.body.rules : [];
+    if (rawRules.length > MAX_PROMOTION_RULES) {
+      return res.status(400).json({ message: `Maximum ${MAX_PROMOTION_RULES} règles de promotion par véhicule.` });
     }
 
-    vehicle.promotion = {
-      active:          !!active,
-      discountPercent: active ? pct : 0,
-      label:           (label || "").slice(0, 60),
-      startDate:       startDate || null,
-      endDate:         endDate   || null,
-    };
+    const rules = [];
+    for (const [i, r] of rawRules.entries()) {
+      const type = r?.type === "fixed" ? "fixed" : r?.type === "percent" ? "percent" : null;
+      if (!type) {
+        return res.status(400).json({ message: `Règle ${i + 1} : type invalide (pourcentage ou montant fixe).` });
+      }
+      const value = Number(r.value);
+      if (!Number.isFinite(value) || value <= 0 || (type === "percent" && value > 90)) {
+        return res.status(400).json({
+          message: type === "percent"
+            ? `Règle ${i + 1} : le pourcentage de remise doit être compris entre 1 et 90.`
+            : `Règle ${i + 1} : le montant fixe de remise doit être positif.`,
+        });
+      }
+      const minDays = Math.max(1, Math.round(Number(r.minDays) || 1));
+      const startDate = r.startDate || null;
+      const endDate   = r.endDate   || null;
+      if (startDate && endDate && new Date(endDate) <= new Date(startDate)) {
+        return res.status(400).json({ message: `Règle ${i + 1} : la date de fin doit être postérieure à la date de début.` });
+      }
+      rules.push({
+        type,
+        value,
+        minDays,
+        label:     (r.label || "").slice(0, 60),
+        active:    r.active !== false,
+        startDate,
+        endDate,
+      });
+    }
+
+    vehicle.promotions = rules;
     await vehicle.save();
 
     res.json({ vehicle });

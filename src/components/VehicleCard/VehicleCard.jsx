@@ -2,21 +2,16 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCurrency } from "../../context/CurrencyContext";
 import { useFavorites } from "../../context/FavoritesContext";
-import { useCart } from "../../context/CartContext";
-import { useToast } from "../../context/ToastContext";
 import PriceTag from "../PriceTag/PriceTag";
+import { getDisplayRule } from "../../utils/promotion";
 import styles from "./VehicleCard.module.css";
 
 const VehicleCard = React.memo(({ car, compact }) => {
   const navigate  = useNavigate();
-  const { fmt, fmtPinned } = useCurrency();
+  const { fmt } = useCurrency();
   const { isFavorite, toggleFavorite } = useFavorites();
-  const { isInCart, addItem } = useCart();
-  const { success: toastSuccess, error: toastError } = useToast();
   const carId = car._id || car.id;
   const favActive = isFavorite("vehicle", carId);
-  const isRental = !(car.mode === "Acheter" || car.listingType === "vente");
-  const inCart = isRental && isInCart(carId);
 
   const handleFavClick = useCallback((e) => {
     e.stopPropagation();
@@ -24,14 +19,6 @@ const VehicleCard = React.memo(({ car, compact }) => {
       if (r.needsAuth) navigate("/login");
     });
   }, [toggleFavorite, carId, navigate]);
-
-  const handleCartClick = useCallback((e) => {
-    e.stopPropagation();
-    if (inCart) { navigate("/cart"); return; }
-    const res = addItem(car);
-    if (res.ok) toastSuccess("Ajouté au panier.");
-    else toastError(res.message || "Impossible d'ajouter au panier.");
-  }, [inCart, addItem, car, navigate, toastSuccess, toastError]);
   const imgs = (() => {
     const arr = [];
     if (car.thumbnail) arr.push(car.thumbnail);
@@ -43,21 +30,14 @@ const VehicleCard = React.memo(({ car, compact }) => {
   const [imgIdx, setImgIdx] = useState(0);
   const [fading, setFading] = useState(false);
 
-  // Une promotion active nécessite un pourcentage renseigné + être dans la
-  // fenêtre de dates éventuelle (voir server/utils/promotion.js — même
-  // logique, dupliquée ici pour l'affichage uniquement ; le serveur reste
-  // seul autoritaire pour le calcul du prix réellement facturé).
-  const promo = car.promotion;
-  const now = Date.now();
-  const promoActive = !!(
-    promo?.active && promo.discountPercent > 0 &&
-    (!promo.startDate || new Date(promo.startDate).getTime() <= now) &&
-    (!promo.endDate   || new Date(promo.endDate).getTime()   >= now)
-  );
-  const basePrice = (car.mode === "Acheter" || car.listingType === "vente")
-    ? (car.buyPrice || car.priceForSale || 0)
-    : (car.pricePerDay || 0);
-  const discountedPrice = promoActive ? Math.round(basePrice * (1 - promo.discountPercent / 100)) : basePrice;
+  // Meilleure règle affichable "maintenant" (fenêtre de dates valide), sans
+  // connaître la durée réelle d'une future location — badge informatif
+  // uniquement. Le prix affiché sur la carte reste TOUJOURS le prix exact
+  // fixé par le partenaire, sans aucune déduction : la remise n'est calculée
+  // et appliquée qu'au moment de la réservation (voir Booking.jsx et
+  // server/utils/promotion.js, seul autoritaire pour le montant facturé).
+  const promo = getDisplayRule(car.promotions);
+  const promoActive = !!promo;
 
   // Rotation automatique des images toutes les 3s (si plusieurs)
   useEffect(() => {
@@ -94,17 +74,6 @@ const VehicleCard = React.memo(({ car, compact }) => {
         >
           {favActive ? "❤️" : "🤍"}
         </button>
-        {isRental && (
-          <button
-            type="button"
-            className={`${styles.cartBtn} ${inCart ? styles.cartBtnActive : ""}`}
-            onClick={handleCartClick}
-            aria-label={inCart ? "Déjà dans le panier — voir le panier" : "Ajouter au panier"}
-            title={inCart ? "Déjà dans le panier — voir le panier" : "Ajouter au panier"}
-          >
-            🛒
-          </button>
-        )}
         {imgs ? (
           <>
             <img
@@ -142,7 +111,8 @@ const VehicleCard = React.memo(({ car, compact }) => {
           </span>
           {promoActive && (
             <span className={styles.badge} style={{ background: "#dc2626", color: "#fff" }}>
-              🏷️ -{promo.discountPercent}% {promo.label || ""}
+              🏷️ {promo.type === "percent" ? `-${promo.value}%` : `-${fmt(promo.value)}`}
+              {promo.minDays > 1 ? ` dès ${promo.minDays}j` : ""} {promo.label || ""}
             </span>
           )}
         </div>
@@ -203,22 +173,14 @@ const VehicleCard = React.memo(({ car, compact }) => {
         </div>
 
         <div className={styles.priceBlock}>
-          {promoActive ? (
-            <p className={styles.price}>
-              <span style={{ textDecoration: "line-through", color: "#94a3b8", fontSize: "0.8em", marginRight: 8 }}>
-                {car.currency ? fmtPinned(basePrice, car.currency) : fmt(basePrice)}
-              </span>
-              <span style={{ color: "#dc2626" }}>
-                <PriceTag amountUSD={discountedPrice} pinnedCurrency={car.currency} suffix={!(car.mode === "Acheter" || car.listingType === "vente") ? " / jour" : ""} compact />
-              </span>
-            </p>
-          ) : (
-            <p className={styles.price}>
-              {(car.mode === "Acheter" || car.listingType === "vente")
-                ? <PriceTag amountUSD={car.buyPrice || car.priceForSale || 0} pinnedCurrency={car.currency} compact />
-                : <PriceTag amountUSD={car.pricePerDay || 0} pinnedCurrency={car.currency} suffix=" / jour" compact />}
-            </p>
-          )}
+          {/* Prix exact fixé par le partenaire, toujours affiché tel quel —
+              aucune déduction ici, même si une promotion existe (voir badge
+              ci-dessus). La remise n'est calculée qu'à la réservation. */}
+          <p className={styles.price}>
+            {(car.mode === "Acheter" || car.listingType === "vente")
+              ? <PriceTag amountUSD={car.buyPrice || car.priceForSale || 0} pinnedCurrency={car.currency} compact />
+              : <PriceTag amountUSD={car.pricePerDay || 0} pinnedCurrency={car.currency} suffix=" / jour" compact />}
+          </p>
           {(car.ville || car.city) && (
             <p className={styles.ville}>📍 {car.ville || car.city}</p>
           )}

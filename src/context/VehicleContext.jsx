@@ -116,7 +116,7 @@ const normalizeVehicle = (v) => {
     listingType:  v.type,
     leasing:      v.leasing || null,
     credit:       v.credit  || null,
-    promotion:    v.promotion || null,
+    promotions:   v.promotions || [],
     // Partenaire — pour affichage et lien profil
     ownerId,
     ownerName,

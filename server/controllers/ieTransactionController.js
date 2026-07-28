@@ -13,6 +13,7 @@ import { computeImportCost } from "../services/importCostEngine.js";
 import { captureException } from "../config/sentry.js";
 import { generateGenericReceiptPDF } from "../utils/pdfGenerator.js";
 import { validateDocumentDataUri } from "../utils/imageValidation.js";
+import { recordIEPartnerPayout } from "../utils/commissionLedger.js";
 
 const MAX_EXPORT_DOC_BYTES = 8 * 1024 * 1024; // 8 Mo — cohérent avec les autres documents (CV, KYC)
 
@@ -846,25 +847,43 @@ export const confirmDelivery = async (req, res) => {
 
 export const releaseFunds = async (req, res) => {
   try {
-    const tx = await IETransaction.findOne({
+    const existing = await IETransaction.findOne({
       _id: req.params.id,
       status: "delivered",
     });
-    if (!tx) return res.status(404).json({ message: "Transaction introuvable ou statut incompatible." });
+    if (!existing) return res.status(404).json({ message: "Transaction introuvable ou statut incompatible." });
 
     // Seul le client ou un admin peut libérer les fonds
     const isAdmin  = req.user.role === "admin";
-    const isClient = tx.client.toString() === req.user._id.toString();
+    const isClient = existing.client.toString() === req.user._id.toString();
     if (!isAdmin && !isClient) {
       return res.status(403).json({ message: "Accès refusé." });
     }
 
-    const { rate, amount, payoutAmount } = await computeIeCommission(tx);
-    tx.payment.commission = { rate, amount, payoutAmount, computedAt: new Date() };
-    tx.payment.releasedAt = new Date();
-    tx.status = "funds_released";
-    pushHistory(tx, "funds_released", req.user._id, `Fonds libérés vers le fournisseur par ${isAdmin ? "l'admin" : "le client"} — commission VIT AUTO ${(rate * 100).toFixed(0)}% (${amount.toLocaleString("fr-FR")} ${tx.payment.currency}).`);
-    await tx.save();
+    const { rate, amount, payoutAmount } = await computeIeCommission(existing);
+    const note = `Fonds libérés vers le fournisseur par ${isAdmin ? "l'admin" : "le client"} — commission VIT AUTO ${(rate * 100).toFixed(0)}% (${amount.toLocaleString("fr-FR")} ${existing.payment.currency}).`;
+
+    // Transition atomique "delivered" → "funds_released" : le statut fait
+    // partie du filtre de l'update lui-même, jamais d'un simple findOne+save
+    // (bug réel corrigé en audit) — deux requêtes concurrentes (double clic,
+    // requête rejouée) pouvaient toutes deux passer le contrôle de statut
+    // ci-dessus avant qu'aucune n'ait sauvegardé, dupliquant l'historique/la
+    // notification de libération de fonds. Ici, seule la première requête
+    // matche encore status:"delivered" au moment de l'écriture.
+    const tx = await IETransaction.findOneAndUpdate(
+      { _id: req.params.id, status: "delivered" },
+      {
+        $set: {
+          "payment.commission": { rate, amount, payoutAmount, computedAt: new Date() },
+          "payment.releasedAt": new Date(),
+          status: "funds_released",
+        },
+        $push: { statusHistory: { status: "funds_released", changedAt: new Date(), changedBy: req.user._id, note } },
+      },
+      { new: true }
+    );
+    if (!tx) return res.status(409).json({ message: "Les fonds ont déjà été libérés entre-temps." });
+    await recordIEPartnerPayout(tx);
 
     await notify(tx.partner, "success", "Fonds libérés !", `${payoutAmount.toLocaleString("fr-FR")} ${tx.payment.currency} ont été versés sur votre compte (commission VIT AUTO ${(rate * 100).toFixed(0)}% déduite, sur un total de ${tx.payment.amount?.toLocaleString("fr-FR")} ${tx.payment.currency}).`, `/importer-dashboard`);
     await notify(tx.client,  "info",    "Fonds libérés", "Les fonds ont été versés au fournisseur. N'oubliez pas de laisser votre évaluation.", `/import-export/transaction/${tx._id}`);
@@ -996,6 +1015,7 @@ export const resolveDispute = async (req, res) => {
       pushHistory(tx, "cancelled", req.user._id, `Litige résolu — transaction annulée. ${resolution || ""}`);
     }
     await tx.save();
+    if (releaseToPartner) await recordIEPartnerPayout(tx);
 
     await notify(tx.client,  releaseToPartner ? "info" : "success", "Litige résolu", `VIT AUTO a tranché : ${resolution || ""}`, `/import-export/transaction/${tx._id}`);
     await notify(tx.partner, releaseToPartner ? "success" : "error", "Litige résolu", `VIT AUTO a tranché : ${resolution || ""}`, `/importer-dashboard`);

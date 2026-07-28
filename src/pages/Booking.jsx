@@ -6,6 +6,7 @@ import { useCurrency } from "../context/CurrencyContext";
 import { useToast }    from "../context/ToastContext";
 import { haversineKm, geocodeAddress, getCurrentPosition } from "../utils/geo";
 import { getKycBadge, generateBookingRef } from "../utils/kycEngine.js";
+import { selectBestPromotionRule, effectivePricePerDay as computeEffectivePricePerDay } from "../utils/promotion";
 import PriceTag from "../components/PriceTag/PriceTag";
 import styles from "./Booking.module.css";
 
@@ -222,18 +223,14 @@ export default function Booking() {
   // l'apport initial fixé par le partenaire (financingTerms), jamais un prix/jour
   // (qui n'existe pas pour un véhicule en mode "Acheter") — voir bookingController.js
   // createBooking, qui calcule montantBase de la même façon côté serveur.
-  // Promotion active du véhicule (affichage uniquement — même logique que
-  // VehicleCard.jsx/server/utils/promotion.js ; le prix réellement facturé
-  // reste toujours recalculé et autoritaire côté serveur dans createBooking).
-  const promo = vehicle?.promotion;
-  const promoActive = !!(
-    promo?.active && promo.discountPercent > 0 &&
-    (!promo.startDate || new Date(promo.startDate) <= new Date()) &&
-    (!promo.endDate   || new Date(promo.endDate)   >= new Date())
-  );
-  const effectivePricePerDay = promoActive
-    ? Math.round((vehicle?.pricePerDay || 0) * (1 - promo.discountPercent / 100))
-    : (vehicle?.pricePerDay || 0);
+  // Meilleure règle de promotion pour la durée réellement sélectionnée
+  // (affichage uniquement — même logique que VehicleCard.jsx/
+  // server/utils/promotion.js ; le prix réellement facturé reste toujours
+  // recalculé et autoritaire côté serveur dans createBooking).
+  const promoBaseTotal = (vehicle?.pricePerDay || 0) * Math.max(days, 1);
+  const activePromo = selectBestPromotionRule(vehicle?.promotions, Math.max(days, 1), promoBaseTotal);
+  const promoActive = !!activePromo;
+  const effectivePricePerDay = Math.round(computeEffectivePricePerDay(vehicle?.pricePerDay || 0, Math.max(days, 1), vehicle?.promotions));
   const baseTotal    = isLeasing
     ? (financingTerms?.apportInitial || 0)
     : effectivePricePerDay * Math.max(days, 1);
@@ -997,6 +994,12 @@ export default function Booking() {
                   <div className={styles.confirmRow}><span>Durée</span><strong>{days} jour{days > 1 ? "s" : ""}</strong></div>
                   <div className={styles.confirmRow}><span>Prise en charge</span><strong>{pickupMethod === "retrait" ? `Retrait — ${agencyFull || "Agence"}` : `Livraison — ${pickupAddress.slice(0, 50)}`}</strong></div>
                   {baseTotal > 0 && <div className={styles.confirmRow}><span>Base</span><strong>{fmt(baseTotal)}</strong></div>}
+                  {promoActive && (
+                    <div className={styles.confirmRow} style={{ color: "#dc2626" }}>
+                      <span>🏷️ Promotion{activePromo.label ? ` (${activePromo.label})` : ""}</span>
+                      <strong>{activePromo.type === "percent" ? `-${activePromo.value}%` : `-${fmt(activePromo.value)}`}</strong>
+                    </div>
+                  )}
                   {optionsTotal > 0 && <div className={styles.confirmRow}><span>Options</span><strong>{fmt(optionsTotal)}</strong></div>}
                   {pickupMethod === "livraison" && <div className={styles.confirmRow}><span>Livraison</span><strong>{fmt(deliveryFee)}</strong></div>}
                 </>
@@ -1068,6 +1071,12 @@ export default function Booking() {
                 {!isTrial && <div className={styles.sidebarRow}><span>Prix / jour</span><strong><PriceTag amountUSD={vehicle.pricePerDay || 0} /></strong></div>}
                 {days > 0 && !isTrial && <div className={styles.sidebarRow}><span>Durée</span><strong>{days} j</strong></div>}
                 {baseTotal > 0 && !isTrial && <div className={styles.sidebarRow}><span>Base</span><strong>{fmt(baseTotal)}</strong></div>}
+                {promoActive && !isTrial && (
+                  <div className={styles.sidebarRow} style={{ color: "#dc2626" }}>
+                    <span>🏷️ Promotion</span>
+                    <strong>{activePromo.type === "percent" ? `-${activePromo.value}%` : `-${fmt(activePromo.value)}`}</strong>
+                  </div>
+                )}
                 {optionsTotal > 0 && <div className={styles.sidebarRow}><span>Options</span><strong>{fmt(optionsTotal)}</strong></div>}
                 {pickupMethod === "livraison" && !isTrial && (
                   <div className={styles.sidebarRow}>

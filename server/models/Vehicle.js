@@ -168,16 +168,48 @@ const vehicleSchema = new mongoose.Schema({
   available:      { type: Boolean, default: true },
   manuallyPaused: { type: Boolean, default: false },
 
-  // ── Promotion partenaire (ex: "-15% aujourd'hui") ──────────
+  // ── Promotions partenaire (paliers configurables) ──────────
+  // Remplace l'ancien champ unique `promotion` (un seul pourcentage, sans
+  // condition de durée) — un partenaire peut désormais déclarer plusieurs
+  // règles simultanées (ex. "-15% dès 3 jours" ET "-25% dès 7 jours" ET
+  // "-10000 FCFA dès 2 jours" pour un règlement comptant) ; la règle la plus
+  // avantageuse pour la durée réellement réservée est retenue au calcul
+  // (voir server/utils/promotion.js selectBestPromotionRule). Ancien champ
+  // `promotion` migré automatiquement vers `promotions[0]` puis supprimé
+  // (voir server.js runOnceMigration "vehicle-promotion-rules-2026-07-28").
   // Gérée exclusivement via son propre endpoint (PATCH /:id/promotion) —
   // jamais mêlée à la création/modification générale de l'annonce, pour
   // garder la logique d'activation/expiration à un seul endroit.
-  promotion: {
-    active:          { type: Boolean, default: false },
-    discountPercent: { type: Number,  default: 0, min: 0, max: 90 },
-    label:           { type: String,  default: "" },
-    startDate:       { type: Date,    default: null },
-    endDate:         { type: Date,    default: null },
+  promotions: {
+    type: [{
+      // "percent" = remise en % du prix total du séjour ; "fixed" = montant
+      // fixe déduit du prix total (jamais un prix/jour — n'a de sens qu'au
+      // niveau du séjour complet, ex. "10000 FCFA de moins à partir de 3 jours").
+      type: {
+        type: String,
+        enum: ["percent", "fixed"],
+        required: true,
+      },
+      value: {
+        type: Number,
+        required: true,
+        min: 0,
+        validate: {
+          validator: function (v) {
+            return this.type === "percent" ? (v > 0 && v <= 90) : v > 0;
+          },
+          message: "Valeur de remise invalide (pourcentage entre 1 et 90, ou montant fixe positif).",
+        },
+      },
+      // Durée minimale de location (en jours) pour que la règle s'applique —
+      // c'est ce qui permet des paliers ("25% dès 5 jours", "15% dès 3 jours").
+      minDays:   { type: Number, default: 1, min: 1 },
+      label:     { type: String, default: "" },
+      active:    { type: Boolean, default: true },
+      startDate: { type: Date, default: null },
+      endDate:   { type: Date, default: null },
+    }],
+    default: [],
   },
 
   // ── Mise en avant (carousel d'accueil / "Véhicules en vedette") ──────────

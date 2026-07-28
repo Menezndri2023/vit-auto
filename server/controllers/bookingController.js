@@ -268,9 +268,9 @@ export const createBooking = async (req, res) => {
           }
         }
         // Prix/jour toujours recalculé côté serveur (jamais confiance dans un
-        // prix déjà remisé envoyé par le client) — applique la promotion
-        // active du véhicule si présente (voir Vehicle.promotion).
-        const effectivePricePerDay = applyPromotion(vehicle.pricePerDay || 0, vehicle.promotion);
+        // prix déjà remisé envoyé par le client) — applique la meilleure règle
+        // de promotion éligible pour la durée réservée (voir Vehicle.promotions).
+        const effectivePricePerDay = applyPromotion(vehicle.pricePerDay || 0, location?.days || 1, vehicle.promotions);
         montantBase = effectivePricePerDay * (location?.days || 1);
       }
       // Caution toujours dérivée de la configuration réelle du véhicule
@@ -755,7 +755,7 @@ export const createBookingsBatch = async (req, res) => {
         }
 
         const days = Math.max(1, Math.round((endDate - startDate) / 86400000));
-        const effectivePricePerDay = applyPromotion(vehicle.pricePerDay || 0, vehicle.promotion);
+        const effectivePricePerDay = applyPromotion(vehicle.pricePerDay || 0, days, vehicle.promotions);
         const montantBase  = effectivePricePerDay * days;
         const montantTotal = montantBase;
         const commissionRate   = await resolveCommissionRate("location", vehicle.owner);
@@ -1266,10 +1266,12 @@ export const recordTransaction = async (req, res) => {
       return res.status(409).json({ message: `Impossible d'enregistrer la transaction depuis le statut "${booking.status}". Le client doit d'abord être marqué comme arrivé.` });
     }
 
-    // Recalcul commission sur montant final réel
+    // Recalcul commission sur montant final réel — `?? 0` (jamais `|| 1`,
+    // bug réel corrigé en audit) : un serviceFeeFCFA légitimement à 0 aurait
+    // sinon été remplacé par 1, grignotant 1 USD sur le partnerPayout.
     const commissionRate   = await resolveCommissionRate(booking.type, _vOwnerId || _dOwnerId);
     const commissionAmount = Math.round(finalAmount * commissionRate * 100) / 100;
-    const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA || 1), 0);
+    const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA ?? 0), 0);
 
     booking.transaction = {
       finalAmount,
@@ -1917,7 +1919,7 @@ export const partnerConfirm = async (req, res) => {
 
     const commissionRate   = await resolveCommissionRate(booking.type, _vOwnerId || _dOwnerId);
     const commissionAmount = Math.round(finalAmount * commissionRate * 100) / 100;
-    const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA || 1), 0);
+    const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA ?? 0), 0);
 
     booking.status = "waiting_client_validation";
     booking.transaction = {
@@ -2160,7 +2162,7 @@ export const modifyBookingDates = async (req, res) => {
     }
 
     const days = Math.max(1, Math.round((newEnd - newStart) / 86400000));
-    const effectivePricePerDay = applyPromotion(booking.vehicle.pricePerDay || 0, booking.vehicle.promotion);
+    const effectivePricePerDay = applyPromotion(booking.vehicle.pricePerDay || 0, days, booking.vehicle.promotions);
     const newMontantBase = effectivePricePerDay * days;
     const priceDelta = newMontantBase - (booking.montantBase || 0);
 
@@ -2259,7 +2261,7 @@ export const extendBooking = async (req, res) => {
 
     const totalDays = Math.max(1, Math.round((newEnd - new Date(booking.location.startDate)) / 86400000));
     const addedDays  = totalDays - (booking.location.days || 0);
-    const effectivePricePerDay = applyPromotion(booking.vehicle.pricePerDay || 0, booking.vehicle.promotion);
+    const effectivePricePerDay = applyPromotion(booking.vehicle.pricePerDay || 0, totalDays, booking.vehicle.promotions);
     const newMontantBase = effectivePricePerDay * totalDays;
     const priceDelta = newMontantBase - (booking.montantBase || 0);
 
@@ -2733,7 +2735,7 @@ export const adminForceComplete = async (req, res) => {
     booking.montantTotal     = amount;
     booking.commissionRate   = commRate;
     booking.commissionAmount = Math.round(amount * commRate * 100) / 100;
-    booking.partnerPayout    = Math.max(amount - booking.commissionAmount - (booking.serviceFeeFCFA || 1), 0);
+    booking.partnerPayout    = Math.max(amount - booking.commissionAmount - (booking.serviceFeeFCFA ?? 0), 0);
 
     if (!booking.transaction?.finalAmount) {
       booking.transaction = { finalAmount: amount, paymentMethod: "cash", comment: `Force-complete admin: ${note || ""}`, recordedAt: new Date(), recordedBy: req.user._id };
@@ -2864,7 +2866,16 @@ export const getAdminBookingStats = async (req, res) => {
       ]),
       Booking.aggregate([
         { $match: { createdAt: { $gte: start, $lt: end } } },
-        { $group: { _id: "$type", count: { $sum: 1 }, revenue: { $sum: "$montantTotal" }, commission: { $sum: "$commissionAmount" } } },
+        // count = toutes réservations créées sur la période (volume, y compris
+        // pending/cancelled) ; revenue/commission = "completed" UNIQUEMENT,
+        // sinon ces deux chiffres divergeaient de "revenue" ci-dessous (même
+        // période, filtré correctement) — bug réel corrigé en audit.
+        { $group: {
+          _id:        "$type",
+          count:      { $sum: 1 },
+          revenue:    { $sum: { $cond: [{ $eq: ["$status", "completed"] }, "$montantTotal", 0] } },
+          commission: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, "$commissionAmount", 0] } },
+        } },
       ]),
       Booking.aggregate([
         { $match: { status: "completed", paidAt: { $gte: start, $lt: end } } },

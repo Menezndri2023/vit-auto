@@ -5,8 +5,11 @@
   "bundledWebRuntime": false,
   "server": {
     "androidScheme": "https",
+    "hostname": "vit-auto.com",
+    "url": "https://vit-auto.com",
+    "cleartext": false,
     "allowNavigation": [
-      "*.vitauto.com",
+      "*.vit-auto.com",
       "*.openstreetmap.org"
     ]
   },

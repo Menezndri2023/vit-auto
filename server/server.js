@@ -487,6 +487,40 @@ const startServer = async () => {
       await Vehicle.updateMany({ currency: "USD" }, { $set: { currency: null } });
     });
 
+    // Le champ unique `Vehicle.promotion` (un seul pourcentage, sans notion
+    // de durée) est remplacé par `promotions[]` (paliers configurables — voir
+    // models/Vehicle.js). Les annonces ayant déjà une promo active migrent
+    // automatiquement vers une règle équivalente (percent, minDays:1) plutôt
+    // que de perdre silencieusement leur promotion en cours ; `promotion` est
+    // ensuite retiré du document (déjà absent du schéma).
+    await runOnceMigration("vehicle-promotion-rules-2026-07-28", async () => {
+      const { default: Vehicle } = await import("./models/Vehicle.js");
+      const legacy = await Vehicle.collection.find(
+        { "promotion.discountPercent": { $gt: 0 } },
+        { projection: { promotion: 1 } }
+      ).toArray();
+      for (const doc of legacy) {
+        const p = doc.promotion;
+        await Vehicle.collection.updateOne(
+          { _id: doc._id },
+          {
+            $set: {
+              promotions: [{
+                type:      "percent",
+                value:     p.discountPercent,
+                minDays:   1,
+                label:     p.label || "",
+                active:    !!p.active,
+                startDate: p.startDate || null,
+                endDate:   p.endDate || null,
+              }],
+            },
+            $unset: { promotion: "" },
+          }
+        );
+      }
+    });
+
     // ── BullMQ : queues + workers (si Redis configuré) ───────────────────
     await initQueues();
 

@@ -1,7 +1,7 @@
 import Subscription from "../models/Subscription.js";
 import User from "../models/User.js";
 import Vehicle from "../models/Vehicle.js";
-import { getSubscriptionPrice, getBoostPrice, applyDiscountCode, redeemDiscountCode } from "../services/pricingEngine.js";
+import { getSubscriptionPrice, getBoostPrice, applyDiscountCode, redeemDiscountCodeByCode } from "../services/pricingEngine.js";
 
 const PLAN_TIERS  = ["individuel_plus", "business", "exportateur"];
 const BOOST_TIERS = ["24h", "7d", "30d", "international"];
@@ -68,8 +68,10 @@ export const activatePlan = async (req, res) => {
       promoCode: campaign?.code || null,
     });
 
+    // Le code n'est décompté qu'à la confirmation admin d'un paiement
+    // réellement reçu (adminApprovePlanPayment) — jamais ici, une simple
+    // demande "pending" ne doit jamais consommer une utilisation limitée.
     await sub.save();
-    if (campaign) await redeemDiscountCode(campaign._id);
 
     res.status(202).json({
       message: "Demande d'activation enregistrée, en attente de confirmation du paiement par un administrateur.",
@@ -116,8 +118,9 @@ export const purchaseBoost = async (req, res) => {
       promoCode: campaign?.code || null,
     });
 
+    // Le code n'est décompté qu'à la confirmation admin (adminApproveBoost) —
+    // jamais ici (voir activatePlan ci-dessus pour la même correction).
     await sub.save();
-    if (campaign) await redeemDiscountCode(campaign._id);
 
     res.status(202).json({
       message: "Demande de mise en avant enregistrée, en attente de confirmation du paiement.",
@@ -163,6 +166,9 @@ export const adminApprovePlanPayment = async (req, res) => {
     sub.planDetails = { startDate, endDate, isActive: true, priceUSD: entry.amount };
 
     await sub.save();
+    // Paiement réellement confirmé — c'est le seul moment où un code promo
+    // éventuel est décompté (voir redeemDiscountCode/pricingEngine.js).
+    if (entry.promoCode) await redeemDiscountCodeByCode(entry.promoCode);
     res.json({ message: "Plan activé.", subscription: sub });
   } catch (err) {
     res.status(500).json({ message: "Erreur confirmation du plan.", error: err.message });
@@ -203,6 +209,9 @@ export const adminApproveBoost = async (req, res) => {
     boost.paidAt    = new Date();
 
     await sub.save();
+    // Paiement réellement confirmé — c'est le seul moment où un code promo
+    // éventuel est décompté (voir redeemDiscountCode/pricingEngine.js).
+    if (boost.promoCode) await redeemDiscountCodeByCode(boost.promoCode);
     res.json({ message: "Mise en avant activée.", subscription: sub });
   } catch (err) {
     res.status(500).json({ message: "Erreur confirmation boost.", error: err.message });

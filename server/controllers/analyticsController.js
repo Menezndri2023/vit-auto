@@ -13,14 +13,18 @@ export const getAnalytics = async (req, res) => {
     const since = new Date(now.getFullYear(), now.getMonth() - 11, 1); // 12 mois glissants
 
     const [monthlyBookings, byCurrency, byType, byCountry, monthlyUsers, ieByStatus, ieMonthly] = await Promise.all([
-      // Tendance mensuelle réservations : volume + CA + commission
+      // Tendance mensuelle réservations : volume (toutes réservations créées,
+      // reflète l'activité commerciale) + CA/commission (réservations
+      // "completed" UNIQUEMENT — jamais pending/cancelled/disputed, sinon le
+      // CA affiché ici divergeait du panneau "par devise" ci-dessous, qui lui
+      // filtre déjà correctement sur "completed" ; bug réel corrigé en audit).
       Booking.aggregate([
         { $match: { createdAt: { $gte: since } } },
         { $group: {
           _id:        { y: { $year: "$createdAt" }, m: { $month: "$createdAt" } },
           count:      { $sum: 1 },
-          revenue:    { $sum: "$montantTotal" },
-          commission: { $sum: "$commissionAmount" },
+          revenue:    { $sum: { $cond: [{ $eq: ["$status", "completed"] }, "$montantTotal", 0] } },
+          commission: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, "$commissionAmount", 0] } },
         } },
         { $sort: { "_id.y": 1, "_id.m": 1 } },
       ]),
