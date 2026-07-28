@@ -195,6 +195,37 @@ export const VehicleProvider = ({ children }) => {
     return () => cancelIdle(id);
   }, [loadVehicles]);
 
+  // Véhicules mis en avant par un admin (carousel d'accueil/"Véhicules en
+  // vedette") — bug réel corrigé (audit) : ce n'était jusqu'ici JAMAIS une
+  // vraie sélection admin (featured n'existait même pas sur le schéma), juste
+  // les premiers véhicules disponibles de la page 1 du catalogue général,
+  // qui aurait aussi pu en manquer des vrais si le catalogue dépasse 50
+  // annonces. Requête backend dédiée, filtrée strictement sur featured:true.
+  const [featuredVehicles, setFeaturedVehicles] = useState([]);
+  const [featuredLoading, setFeaturedLoading] = useState(false);
+  const loadFeaturedVehicles = useCallback(async () => {
+    setFeaturedLoading(true);
+    try {
+      const response = await fetch("/api/vehicles?featured=true&limit=12");
+      if (!response.ok) return;
+      const data = await response.json();
+      const list = Array.isArray(data) ? data : (data.vehicles || []);
+      setFeaturedVehicles(list.map(normalizeVehicle));
+    } catch {
+      // Section vide si le backend est indisponible — jamais de repli sur
+      // des véhicules non curatés par un admin.
+    } finally {
+      setFeaturedLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 200));
+    const cancelIdle = window.cancelIdleCallback || clearTimeout;
+    const id = idle(() => loadFeaturedVehicles());
+    return () => cancelIdle(id);
+  }, [loadFeaturedVehicles]);
+
   // Load the partner's own vehicles (pending + approved + rejected)
   const loadPartnerVehicles = useCallback(async () => {
     if (!token) return;
@@ -506,6 +537,8 @@ export const VehicleProvider = ({ children }) => {
     () => ({
       vehicles,
       vehiclesLoading,
+      featuredVehicles,
+      featuredLoading,
       partnerVehicles,
       partnerBookings,
       drivers,
@@ -525,7 +558,7 @@ export const VehicleProvider = ({ children }) => {
       refreshVehicles: loadVehicles,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [vehicles, vehiclesLoading, partnerVehicles, partnerBookings, drivers, bookings, loadPartnerVehicles, loadPartnerOrders, loadMyOrders, updateBookingStatus, loadVehicles]
+    [vehicles, vehiclesLoading, featuredVehicles, featuredLoading, partnerVehicles, partnerBookings, drivers, bookings, loadPartnerVehicles, loadPartnerOrders, loadMyOrders, updateBookingStatus, loadVehicles]
   );
 
   return <VehicleContext.Provider value={value}>{children}</VehicleContext.Provider>;

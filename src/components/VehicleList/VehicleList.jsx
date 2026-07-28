@@ -7,8 +7,14 @@ import styles from "../VehicleList/VehicleList.module.css";
 const VISIBLE = 4; // cartes visibles à la fois sur desktop
 
 const VehicleList = () => {
-  const { vehicles } = useVehicles();
-  const featured = vehicles.filter((car) => car.available).slice(0, 8);
+  // Bug réel corrigé (audit) : cette section affichait jusqu'ici les
+  // premiers véhicules disponibles du catalogue général (page 1, triés par
+  // date), jamais une vraie sélection admin — n'importe quelle annonce
+  // approuvée pouvait s'y retrouver sans validation explicite. `featured`
+  // (voir VehicleContext.loadFeaturedVehicles) ne contient QUE les annonces
+  // explicitement marquées par un admin (bouton "⭐", AdminPanel.jsx).
+  const { featuredVehicles } = useVehicles();
+  const featured = featuredVehicles.slice(0, 8);
   const total = featured.length;
 
   const [start, setStart]       = useState(0);
@@ -44,6 +50,10 @@ const VehicleList = () => {
 
   const pageCount = Math.ceil(total / VISIBLE);
   const currentPage = Math.floor(start / VISIBLE);
+
+  // Rien à afficher tant qu'aucun admin n'a mis d'annonce en avant — jamais
+  // de repli sur des véhicules non curatés (voir commentaire ci-dessus).
+  if (total === 0) return null;
 
   return (
     <section className={styles.container}>

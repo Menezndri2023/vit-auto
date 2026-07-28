@@ -239,6 +239,7 @@ export const getVehicles = async (req, res) => {
       page  = 1,
       limit = 20,
       status,    // admin uniquement
+      featured,  // "true" = uniquement les annonces mises en avant par un admin (carousel/vedette)
     } = req.query;
 
     const isAdmin = req.user?.role === "admin";
@@ -250,7 +251,7 @@ export const getVehicles = async (req, res) => {
     // le catalogue est haute-lecture, une fraîcheur de quelques secondes est
     // largement acceptable et évite de re-taper Mongo à chaque requête identique.
     const cacheKey = !isAdmin && !hasGeo
-      ? buildCacheKey("vehicles", { type, ville, carburant, transmission, minPrice, maxPrice, vehicleType, search, owner, country, dureeLocation, page, limit })
+      ? buildCacheKey("vehicles", { type, ville, carburant, transmission, minPrice, maxPrice, vehicleType, search, owner, country, dureeLocation, page, limit, featured })
       : null;
     if (cacheKey) {
       const cached = cacheGet(cacheKey);
@@ -291,6 +292,13 @@ export const getVehicles = async (req, res) => {
     }
     // Filtre par propriétaire (showroom public partenaire) — validé ObjectId uniquement
     if (owner && /^[0-9a-f]{24}$/i.test(String(owner))) filter.owner = owner;
+
+    // Mise en avant (carousel d'accueil/"Véhicules en vedette") — STRICTEMENT
+    // réservé aux annonces qu'un admin a explicitement marquées `featured`
+    // (voir toggleFeatured, AdminPanel.jsx) : jamais dérivé de available/
+    // boostLevel seuls, pour garantir qu'aucune annonce n'apparaisse dans ces
+    // emplacements sans validation admin explicite.
+    if (featured === "true") filter.featured = true;
 
     // Filtre pays (International/"INTL" ou absent = aucune restriction). Les
     // annonces sans pays renseigné (créées avant cette fonctionnalité) restent

@@ -180,6 +180,23 @@ const vehicleSchema = new mongoose.Schema({
     endDate:         { type: Date,    default: null },
   },
 
+  // ── Mise en avant (carousel d'accueil / "Véhicules en vedette") ──────────
+  // Bug réel corrigé (audit) : ces 3 champs étaient déjà référencés partout
+  // (updateVehicle.ADMIN_ONLY, le bouton "⭐" de AdminPanel.jsx) mais jamais
+  // déclarés sur ce schéma — en mode `strict` (défaut Mongoose), toute
+  // écriture sur un chemin non déclaré est silencieusement ignorée : le
+  // bouton "Mettre en vedette" de l'admin ne faisait donc RIEN depuis sa
+  // création, malgré une réponse 200 OK trompeuse. `featured` est le SEUL
+  // levier de mise en avant — jamais dérivé de `available`/`boostLevel`
+  // seuls (voir HeroSection.jsx/VehicleList.jsx) : un partenaire achetant un
+  // boost (voir subscriptionController.purchaseBoost, qui n'écrit que sur
+  // Subscription.boosts[], jamais ici) obtient une visibilité accrue dans le
+  // CATALOGUE normal, jamais une entrée automatique dans le carousel/vedette
+  // sans validation explicite d'un admin.
+  featured:       { type: Boolean, default: false },
+  boostLevel:     { type: Number,  default: 0 },    // informationnel — n'influence jamais featured
+  sponsoredUntil: { type: Date,    default: null },
+
   // ── Statistiques ──────────────────────────────────────────
   vues:          { type: Number, default: 0 },
   noteMoyenne:   { type: Number, default: 0, min: 0, max: 5 },
@@ -215,6 +232,7 @@ const vehicleSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now },
 });
 
+vehicleSchema.index({ status: 1, available: 1, featured: 1, createdAt: -1 });
 vehicleSchema.index({ owner: 1 });
 vehicleSchema.index({ type: 1 });
 vehicleSchema.index({ ville: 1 });

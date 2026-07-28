@@ -60,7 +60,7 @@ const DEFAULT_SLIDES = [
 ];
 
 export default function HeroSection() {
-  const { vehicles } = useVehicles();
+  const { vehicles, featuredVehicles } = useVehicles();
   const { fmt }      = useCurrency();
   const navigate     = useNavigate();
 
@@ -80,10 +80,25 @@ export default function HeroSection() {
       .catch(() => {});
   }, []);
 
-  const adminIds = useMemo(
-    () => (heroContent.heroSpotlights || []).map((v) => (v?._id || v)?.toString()).filter(Boolean),
-    [heroContent.heroSpotlights]
-  );
+  // heroSpotlights est déjà peuplé par le backend (voir siteContentController
+  // .populate) avec les champs nécessaires à l'affichage — un index par id
+  // permet de retrouver la version la PLUS complète (celle du catalogue
+  // général, avec nom du partenaire/carburant) quand elle est disponible,
+  // tout en gardant en repli la version peuplée renvoyée par cet endpoint.
+  // Bug réel corrigé (audit) : sans ce repli, un véhicule choisi par l'admin
+  // pour le carousel mais absent des 50 premiers résultats du catalogue
+  // général (VehicleContext.loadVehicles, trié par date) disparaissait
+  // silencieusement du carousel malgré le choix explicite de l'admin.
+  const adminSpotlightVehicles = useMemo(() => {
+    const byId = new Map(vehicles.map((v) => [(v._id || v.id)?.toString(), v]));
+    return (heroContent.heroSpotlights || [])
+      .map((spot) => {
+        const id = (spot?._id || spot)?.toString();
+        if (!id) return null;
+        return byId.get(id) || spot; // repli sur la version peuplée par l'API hero
+      })
+      .filter(Boolean);
+  }, [heroContent.heroSpotlights, vehicles]);
 
   const defaultSlides = useMemo(() => DEFAULT_SLIDES.map((s) => ({
     ...s,
@@ -106,26 +121,32 @@ export default function HeroSection() {
     };
   }, [fmt]);
 
-  // Construire les slides : admin > featured > all > défauts
+  // Construire les slides : sélection admin (ordre choisi) > featured > défauts
+  // — JAMAIS de repli sur des annonces non validées par un admin (bug réel
+  // corrigé, audit).
   const slides = useMemo(() => {
-    if (vehicles.length === 0) return defaultSlides;
-
-    // 1. Slides sélectionnées par l'admin (dans l'ordre choisi)
-    if (adminIds.length > 0) {
-      const adminSlides = adminIds
-        .map((id) => vehicles.find((v) => (v._id || v.id)?.toString() === id))
-        .filter(Boolean)
-        .map(vehicleToSlide);
-      if (adminSlides.length > 0) return adminSlides;
+    // 1. Slides choisies explicitement par l'admin, dans l'ordre choisi —
+    // vérifiée en premier, indépendamment du chargement du catalogue général
+    // (bug réel corrigé : un `vehicles.length === 0` transitoire au tout
+    // premier rendu masquait sinon un vrai choix admin déjà disponible).
+    if (adminSpotlightVehicles.length > 0) {
+      return adminSpotlightVehicles.map(vehicleToSlide);
     }
 
-    // 2. Fallback : véhicules featured
-    const pool = vehicles.filter((v) => v.available || v.featured).slice(0, 5);
-    if (pool.length > 0) return pool.map(vehicleToSlide);
+    // 2. Repli : véhicules marqués "en vedette" par un admin (bouton ⭐,
+    // AdminPanel.jsx) — bug réel corrigé (audit) : ce filtre incluait aussi
+    // `v.available` seul, laissant N'IMPORTE QUELLE annonce approuvée
+    // apparaître dans le carousel d'accueil sans validation admin explicite.
+    // Uniquement `featuredVehicles` désormais (déjà filtré featured:true
+    // côté backend) — jamais de repli non curaté.
+    if (featuredVehicles.length > 0) {
+      return featuredVehicles.slice(0, 5).map(vehicleToSlide);
+    }
 
-    // 3. Fallback absolu
+    // 3. Fallback absolu (aucune sélection admin configurée) — slides
+    // statiques génériques, jamais des annonces non validées.
     return defaultSlides;
-  }, [vehicles, adminIds, vehicleToSlide, defaultSlides]);
+  }, [adminSpotlightVehicles, featuredVehicles, vehicleToSlide, defaultSlides]);
 
   const total = slides.length;
 
