@@ -1,23 +1,20 @@
 /**
- * Script : réinitialise Vehicle.currency à null pour toutes les annonces existantes
+ * Script : réinitialise Vehicle.currency à null pour les annonces existantes
  * Usage  : cd server && node scripts/migrate-vehicle-currency-reset.mjs [--execute]
  *
- * Contexte : `currency` existait déjà sur le schéma (default "USD") mais
- * n'était encore utilisé PAR AUCUN code — ni pour l'affichage catalogue
- * (toujours converti dans la devise détectée par IP du visiteur), ni comme
- * un vrai choix du partenaire. Chaque annonce existante porte donc "USD" en
- * base uniquement parce que c'était la valeur par défaut du schéma au moment
- * de sa création (Mongoose écrit les defaults sur disque), jamais parce que
- * quelqu'un l'a réellement choisi.
+ * REDONDANT depuis l'ajout de runOnceMigration("vehicle-currency-reset-2026-07-28")
+ * dans server.js — cette même réinitialisation s'applique désormais TOUTE
+ * SEULE au premier démarrage du serveur après déploiement, sans dépendre
+ * qu'un opérateur se souvienne de lancer ce script (l'oubli de cette étape a
+ * causé un incident réel : toutes les annonces existantes gelées en USD).
+ * Gardé uniquement comme filet de secours manuel si besoin de le relancer
+ * explicitement (ex: diagnostic, environnement où runOnceMigration aurait
+ * échoué silencieusement).
  *
- * `currency` prend maintenant un sens réel : null = "devise du visiteur"
- * (comportement automatique, par défaut), une valeur explicite = "toujours
- * afficher cette annonce dans cette devise, quel que soit le visiteur"
- * (choix du partenaire/admin, voir vehicleController). Sans cette
- * réinitialisation, TOUTES les annonces existantes se retrouveraient
- * silencieusement "figées en USD" pour tout le monde dès le déploiement de
- * cette fonctionnalité — une régression pour les visiteurs qui voyaient
- * jusqu'ici leur propre devise détectée.
+ * Ne cible QUE currency==="USD" (pas "tout non-null") — un partenaire ayant
+ * déjà fait un choix réel via la nouvelle fonctionnalité (ex: EUR) ne doit
+ * jamais être annulé par ce script, seule l'ancienne valeur par défaut de
+ * schéma (jamais un vrai choix) doit être réinitialisée.
  *
  * Dry-run par défaut (aucune écriture) — ajouter --execute pour appliquer.
  */
@@ -33,10 +30,10 @@ dotenv.config();
 
 export async function resetVehicleCurrency({ dryRun = true } = {}) {
   const { default: Vehicle } = await import("../models/Vehicle.js");
-  const count = await Vehicle.countDocuments({ currency: { $ne: null } });
+  const count = await Vehicle.countDocuments({ currency: "USD" });
   if (dryRun) return { total: count, updated: 0 };
 
-  const result = await Vehicle.updateMany({ currency: { $ne: null } }, { $set: { currency: null } });
+  const result = await Vehicle.updateMany({ currency: "USD" }, { $set: { currency: null } });
   return { total: count, updated: result.modifiedCount };
 }
 
@@ -46,8 +43,8 @@ async function run() {
   console.log("Connecté à MongoDB.", EXECUTE ? "MODE EXÉCUTION RÉELLE" : "MODE DRY-RUN (aucune écriture)");
 
   const report = await resetVehicleCurrency({ dryRun: !EXECUTE });
-  console.log(`\n${EXECUTE ? "── EXÉCUTION" : "── DRY-RUN"} — Vehicle.currency → null ──`);
-  console.log(`Annonces avec currency !== null trouvées : ${report.total}`);
+  console.log(`\n${EXECUTE ? "── EXÉCUTION" : "── DRY-RUN"} — Vehicle.currency "USD" → null ──`);
+  console.log(`Annonces avec currency==="USD" trouvées : ${report.total}`);
   if (EXECUTE) console.log(`Réinitialisées : ${report.updated}`);
   else console.log("Relancer avec --execute pour appliquer.");
 

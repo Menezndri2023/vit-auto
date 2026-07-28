@@ -8,6 +8,7 @@ import { rateLimit } from "express-rate-limit";
 import mongoSanitize from "express-mongo-sanitize";
 import connectDB from "./config/db.js";
 import logger from "./utils/logger.js";
+import { runOnceMigration } from "./utils/runOnceMigration.js";
 import { initSentry, sentryRequestHandler, sentryTracingHandler, sentryErrorHandler, captureException } from "./config/sentry.js";
 import { initQueues, isReady as isQueuesReady, getQueueStats } from "./queue/index.js";
 import { startPartnerReminderScheduler } from "./utils/partnerReminders.js";
@@ -468,6 +469,23 @@ const startServer = async () => {
     } catch (err) {
       logger.error("Construction des index critiques échouée (non bloquant) :", err.message);
     }
+
+    // ── Migrations à usage unique (auto, jamais rejouées) ─────────────────
+    // Vehicle.currency avait pour défaut de schéma "USD" bien avant d'avoir
+    // un sens réel (voir models/Vehicle.js) — chaque annonce déjà publiée
+    // porte donc littéralement "USD" en base. Depuis que ce champ pilote
+    // l'affichage (PriceTag pinnedCurrency), laisser cette valeur telle
+    // quelle FIGERAIT l'affichage de TOUTES les annonces existantes en USD
+    // pour tout le monde au lieu de garder la conversion automatique par
+    // pays du visiteur — un script de migration manuel existe
+    // (scripts/migrate-vehicle-currency-reset.mjs) mais dépendre qu'un
+    // opérateur se souvienne de le lancer après déploiement est justement ce
+    // qui a causé l'incident. Rendu automatique et sans risque de répétition
+    // (voir runOnceMigration.js).
+    await runOnceMigration("vehicle-currency-reset-2026-07-28", async () => {
+      const { default: Vehicle } = await import("./models/Vehicle.js");
+      await Vehicle.updateMany({ currency: "USD" }, { $set: { currency: null } });
+    });
 
     // ── BullMQ : queues + workers (si Redis configuré) ───────────────────
     await initQueues();
