@@ -4878,8 +4878,13 @@ export default function AdminPanel() {
 
           {/* "Charger plus" — voir loadMoreKyc : le plafond était auparavant
               invisible (bug réel corrigé), les dossiers au-delà disparaissaient
-              silencieusement sans aucun indice qu'il en restait. */}
-          {!kycLoading && kycList.length < kycTotal && !kycSearch.trim() && (
+              silencieusement sans aucun indice qu'il en restait. Volontairement
+              PAS masqué pendant une recherche (bug réel corrigé, audit) — la
+              recherche filtre côté client sur les kycLimit dossiers déjà
+              chargés (comme les onglets Users/Bookings) ; masquer ce bouton
+              en tapant rendait impossible de charger un dossier situé au-delà
+              de kycLimit tant que le champ de recherche n'était pas vidé. */}
+          {!kycLoading && kycList.length < kycTotal && (
             <div style={{ textAlign: "center", marginTop: 16 }}>
               <p style={{ fontSize: ".8rem", color: "#94a3b8", marginBottom: 8 }}>
                 {kycList.length} affichés sur {kycTotal} au total

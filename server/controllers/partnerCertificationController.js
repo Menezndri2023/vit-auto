@@ -6,6 +6,7 @@ import Notification from "../models/Notification.js";
 import { sendEmail } from "../config/email.js";
 import { validateDocumentDataUri } from "../utils/imageValidation.js";
 import { decryptField } from "../utils/fieldEncryption.js";
+import { combinePaginated } from "../utils/paginateWithOrphans.js";
 
 // ── Champs autorisés par niveau (whitelist anti mass-assignment) ──────────────
 const LEVEL_ALLOWED_FIELDS = {
@@ -228,21 +229,6 @@ export const adminList = async (req, res) => {
     if (status) filter.overallStatus = status;
     if (badge)  filter.certificationBadge = badge;
 
-    const skip  = (Number(page) - 1) * Number(limit);
-    const [certs, total] = await Promise.all([
-      PartnerCertification.find(filter)
-        .select(CERT_LIST_EXCLUDE_DOCS)
-        .populate("userId", "firstName lastName email phone role profilePhoto")
-        .sort({ updatedAt: -1 })
-        .skip(skip)
-        .limit(Number(limit))
-        .lean(),
-      PartnerCertification.countDocuments(filter),
-    ]);
-
-    let allCerts = certs;
-    let allTotal = total;
-
     // Comptes partenaire SANS AUCUN dossier de certification — invisibles
     // autrement dans cette liste (bug réel corrigé, audit). PartnerCertification
     // n'est créé que quand le partenaire visite lui-même /partner-certification
@@ -251,26 +237,47 @@ export const adminList = async (req, res) => {
     // l'autre était totalement absent de cet onglet, même mémoire pattern que
     // adminList (Founding Partner) déjà corrigé. Fusionné uniquement en
     // l'absence de filtre (aucun statut/badge n'a de sens pour un dossier qui
-    // n'existe pas).
-    if (!status && !badge) {
-      const existingUserIds = await PartnerCertification.distinct("userId");
-      const orphanUsers = await User.find({ role: "partenaire", _id: { $nin: existingUserIds } })
-        .select("firstName lastName email phone role profilePhoto createdAt")
-        .sort({ createdAt: -1 })
-        .lean();
-      const orphanRows = orphanUsers.map((u) => ({
-        _id:                u._id,
-        noDossier:          true,
-        userId:             u,
-        certificationBadge: "none",
-        certificationScore: 0,
-        overallStatus:      "not_started",
-        createdAt:          u.createdAt,
-        updatedAt:          u.createdAt,
-      }));
-      allCerts = [...certs, ...orphanRows];
-      allTotal = total + orphanRows.length;
+    // n'existe pas) — voir combinePaginated pour la pagination correcte à
+    // travers les deux sources (bug réel trouvé en audit : les orphelins
+    // n'étaient jamais paginés et se répétaient identiques sur chaque page).
+    const includeOrphans = !status && !badge;
+    let existingUserIds = null;
+
+    const primaryTotal = await PartnerCertification.countDocuments(filter);
+    let orphanTotal = 0;
+    if (includeOrphans) {
+      existingUserIds = await PartnerCertification.distinct("userId");
+      orphanTotal = await User.countDocuments({ role: "partenaire", _id: { $nin: existingUserIds } });
     }
+
+    const { items: allCerts, total: allTotal } = await combinePaginated({
+      page, limit, primaryTotal, orphanTotal,
+      fetchPrimaryPage: (skip, lim) => PartnerCertification.find(filter)
+        .select(CERT_LIST_EXCLUDE_DOCS)
+        .populate("userId", "firstName lastName email phone role profilePhoto")
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(lim)
+        .lean(),
+      fetchOrphanPage: includeOrphans ? async (skip, lim) => {
+        const orphanUsers = await User.find({ role: "partenaire", _id: { $nin: existingUserIds } })
+          .select("firstName lastName email phone role profilePhoto createdAt")
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(lim)
+          .lean();
+        return orphanUsers.map((u) => ({
+          _id:                u._id,
+          noDossier:          true,
+          userId:             u,
+          certificationBadge: "none",
+          certificationScore: 0,
+          overallStatus:      "not_started",
+          createdAt:          u.createdAt,
+          updatedAt:          u.createdAt,
+        }));
+      } : undefined,
+    });
 
     res.json({ certifications: allCerts, total: allTotal, page: Number(page), limit: Number(limit) });
   } catch (err) {

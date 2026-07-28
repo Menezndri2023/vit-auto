@@ -13,6 +13,7 @@ import { validateDocumentDataUri } from "../utils/imageValidation.js";
 import { computeScore, computeBadge, syncUserBadge } from "./partnerCertificationController.js";
 import { getConfig } from "../services/pricingEngine.js";
 import { decryptField } from "../utils/fieldEncryption.js";
+import { combinePaginated } from "../utils/paginateWithOrphans.js";
 import { ensureDefaultPartnerBusiness } from "../utils/ensureDefaultPartnerBusiness.js";
 import { ACTIVITIES, ACTIVITY_TO_PARTNER_TYPE } from "../constants/partnerTaxonomy.js";
 
@@ -744,25 +745,6 @@ export const adminList = async (req, res) => {
       filter["companyInfo.legalName"] = { $regex: safe, $options: "i" };
     }
 
-    const skip = (Number(page) - 1) * Number(limit);
-    // Le tableau de bord Founding Partner (AdminPanel.jsx) demande limit=100
-    // pour tout charger d'un coup (pas de pagination dans cet onglet) — le
-    // plafond à 50 le coupait silencieusement en deux, cachant la moitié des
-    // dossiers à l'admin dès que leur nombre dépassait 50 (bug réel).
-    const [docs, total] = await Promise.all([
-      PartnerOnboarding.find(filter)
-        .populate("userId", "firstName lastName email phone profilePhoto certificationBadge country")
-        .populate("businessId", "companyName country ville")
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(Math.min(Number(limit), 200))
-        .lean({ virtuals: true }),
-      PartnerOnboarding.countDocuments(filter),
-    ]);
-
-    let allDocs  = docs;
-    let allTotal = total;
-
     // Comptes partenaire SANS AUCUN dossier Founding Partner — invisibles
     // autrement dans cette liste (aucun PartnerOnboarding n'existe pour eux,
     // applyToProgram étant un clic explicite jamais automatique). Bug réel
@@ -776,16 +758,43 @@ export const adminList = async (req, res) => {
     // ce cas. Fusionné uniquement en l'absence de filtre (aucun de
     // status/partnerType/crmStatus/search n'a de sens pour un compte qui n'a
     // pas encore de dossier), pour que la vue "tout voir" de l'admin les
-    // retrouve et puisse les relancer — demande explicite.
-    if (!status && !partnerType && !crmStatus && !search) {
-      const existingUserIds = await PartnerOnboarding.distinct("userId");
-      const orphanUsers = await User.find({ role: "partenaire", _id: { $nin: existingUserIds } })
-        .select("firstName lastName email phone profilePhoto certificationBadge country createdAt")
-        .sort({ createdAt: -1 })
-        .lean();
+    // retrouve et puisse les relancer — demande explicite. Voir
+    // combinePaginated pour la pagination correcte à travers les deux sources
+    // (bug réel trouvé en audit : les orphelins n'étaient jamais paginés et se
+    // répétaient identiques sur chaque page, "Charger plus" ne montrant jamais
+    // les dossiers réels suivants).
+    const includeOrphans = !status && !partnerType && !crmStatus && !search;
+    let existingUserIds = null;
 
-      let orphanRows = [];
-      if (orphanUsers.length) {
+    const primaryTotal = await PartnerOnboarding.countDocuments(filter);
+    let orphanTotal = 0;
+    if (includeOrphans) {
+      existingUserIds = await PartnerOnboarding.distinct("userId");
+      orphanTotal = await User.countDocuments({ role: "partenaire", _id: { $nin: existingUserIds } });
+    }
+
+    const { items: allDocs, total: allTotal } = await combinePaginated({
+      page, limit, primaryTotal, orphanTotal,
+      // Le tableau de bord Founding Partner (AdminPanel.jsx) demande limit=100
+      // pour tout charger d'un coup (pas de pagination dans cet onglet) — le
+      // plafond à 50 le coupait silencieusement en deux, cachant la moitié des
+      // dossiers à l'admin dès que leur nombre dépassait 50 (bug réel).
+      fetchPrimaryPage: (skip, lim) => PartnerOnboarding.find(filter)
+        .populate("userId", "firstName lastName email phone profilePhoto certificationBadge country")
+        .populate("businessId", "companyName country ville")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Math.min(lim, 200))
+        .lean({ virtuals: true }),
+      fetchOrphanPage: includeOrphans ? async (skip, lim) => {
+        const orphanUsers = await User.find({ role: "partenaire", _id: { $nin: existingUserIds } })
+          .select("firstName lastName email phone profilePhoto certificationBadge country createdAt")
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(lim)
+          .lean();
+        if (!orphanUsers.length) return [];
+
         const orphanUserIds = orphanUsers.map((u) => u._id);
         // Entité par défaut si elle existe déjà (créée via "Mes entités" sans
         // jamais avoir candidaté) — sinon la ligne reste rattachée au User
@@ -800,7 +809,7 @@ export const adminList = async (req, res) => {
           if (!businessByOwner.has(key)) businessByOwner.set(key, b);
         }
 
-        orphanRows = orphanUsers.map((u) => {
+        return orphanUsers.map((u) => {
           const biz = businessByOwner.get(u._id.toString());
           const companyName = biz?.companyName || `${u.firstName || ""} ${u.lastName || ""}`.trim() || "Partenaire VIT AUTO";
           return {
@@ -821,10 +830,8 @@ export const adminList = async (req, res) => {
             updatedAt:        biz?.createdAt || u.createdAt,
           };
         });
-      }
-      allDocs  = [...docs, ...orphanRows];
-      allTotal = total + orphanRows.length;
-    }
+      } : undefined,
+    });
 
     res.json({ onboardings: allDocs, total: allTotal, page: Number(page), limit: Number(limit) });
   } catch (err) {

@@ -271,8 +271,13 @@ export const updateAdminScope = async (req, res) => {
     const wasFullAccess = before.length === 0 || before.includes("super_admin");
     const willBeFullAccess = scope.length === 0 || scope.includes("super_admin");
     if (wasFullAccess && !willBeFullAccess) {
+      // isActive:true est indispensable ici (bug réel trouvé en audit) — sans
+      // lui, un admin à accès complet mais DÉSACTIVÉ compte quand même comme
+      // un filet de sécurité valide, ce qui permet de retirer l'accès complet
+      // au dernier admin réellement actif et donc de verrouiller la plateforme.
       const otherFullAccess = await User.countDocuments({
         role: "admin",
+        isActive: true,
         _id: { $ne: target._id },
         $or: [{ adminScope: { $size: 0 } }, { adminScope: "super_admin" }],
       });

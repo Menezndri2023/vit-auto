@@ -53,7 +53,15 @@ commissionLedgerSchema.pre("save", function (next) {
 });
 
 commissionLedgerSchema.index({ partnerId: 1, status: 1, createdAt: -1 });
-commissionLedgerSchema.index({ transactionId: 1 });
+// Unique — recordPartnerPayout (utils/commissionLedger.js) fait un upsert
+// findOneAndUpdate({transactionId, transactionType}, ..., {upsert:true}) en
+// s'appuyant sur cette paire pour ne jamais créer deux entrées pour la même
+// commande. Sans contrainte unique en base, deux complétions concurrentes de
+// la même réservation (double clic, requête rejouée) peuvent toutes deux
+// passer le "not found" avant qu'aucune n'ait terminé d'écrire, créant deux
+// entrées de reversement pour un seul montant réellement dû (bug réel trouvé
+// en audit) — l'upsert seul ne garantit l'atomicité qu'avec cet index.
+commissionLedgerSchema.index({ transactionId: 1, transactionType: 1 }, { unique: true });
 commissionLedgerSchema.index({ status: 1, createdAt: -1 });
 
 const CommissionLedger = mongoose.models.CommissionLedger || mongoose.model("CommissionLedger", commissionLedgerSchema);

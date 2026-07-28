@@ -7,6 +7,7 @@ import Notification from "../models/Notification.js";
 import { logAction } from "../middleware/auditLog.js";
 import { decryptField } from "../utils/fieldEncryption.js";
 import { unpublishPartnerListings } from "../utils/partnerListings.js";
+import { combinePaginated } from "../utils/paginateWithOrphans.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -50,47 +51,54 @@ export const adminList = async (req, res) => {
       ];
     }
 
-    const skip = (Number(page) - 1) * Number(limit);
-    const [docs, total] = await Promise.all([
-      PartnerVerification.find(filter)
-        .populate("userId", "firstName lastName email phone profilePhoto role")
-        .populate("assignedTo", "firstName lastName")
-        .sort({ trustScore: -1, updatedAt: -1 })
-        .skip(skip)
-        .limit(Number(limit))
-        .lean(),
-      PartnerVerification.countDocuments(filter),
-    ]);
-
-    let allDocs  = docs;
-    let allTotal = total;
-
     // Comptes partenaire SANS AUCUN dossier de vérification — invisibles
     // autrement dans cette liste (bug réel corrigé, audit — même famille que
     // adminList Founding Partner/Certification déjà corrigés). PartnerVerification
     // n'est créé que via adminCreate (bouton manuel) ou la cascade Founding
     // Partner — aucune auto-création côté partenaire ici, contrairement à la
-    // certification. Fusionné uniquement en l'absence de filtre.
-    if (!status && !trustLevel && !companyType && !search) {
-      const existingUserIds = await PartnerVerification.distinct("userId");
-      const orphanUsers = await User.find({ role: "partenaire", _id: { $nin: existingUserIds } })
-        .select("firstName lastName email phone profilePhoto role createdAt")
-        .sort({ createdAt: -1 })
-        .lean();
-      const orphanRows = orphanUsers.map((u) => ({
-        _id:        u._id,
-        noDossier:  true,
-        userId:     u,
-        status:     "not_started",
-        trustScore: 0,
-        trustLevel: null,
-        companyName: `${u.firstName || ""} ${u.lastName || ""}`.trim() || "Partenaire VIT AUTO",
-        createdAt:  u.createdAt,
-        updatedAt:  u.createdAt,
-      }));
-      allDocs  = [...docs, ...orphanRows];
-      allTotal = total + orphanRows.length;
+    // certification. Fusionné uniquement en l'absence de filtre — voir
+    // combinePaginated pour la pagination correcte à travers les deux sources
+    // (bug réel trouvé en audit : les orphelins n'étaient jamais paginés et se
+    // répétaient identiques sur chaque page).
+    const includeOrphans = !status && !trustLevel && !companyType && !search;
+    let existingUserIds = null;
+
+    const primaryTotal = await PartnerVerification.countDocuments(filter);
+    let orphanTotal = 0;
+    if (includeOrphans) {
+      existingUserIds = await PartnerVerification.distinct("userId");
+      orphanTotal = await User.countDocuments({ role: "partenaire", _id: { $nin: existingUserIds } });
     }
+
+    const { items: allDocs, total: allTotal } = await combinePaginated({
+      page, limit, primaryTotal, orphanTotal,
+      fetchPrimaryPage: (skip, lim) => PartnerVerification.find(filter)
+        .populate("userId", "firstName lastName email phone profilePhoto role")
+        .populate("assignedTo", "firstName lastName")
+        .sort({ trustScore: -1, updatedAt: -1 })
+        .skip(skip)
+        .limit(lim)
+        .lean(),
+      fetchOrphanPage: includeOrphans ? async (skip, lim) => {
+        const orphanUsers = await User.find({ role: "partenaire", _id: { $nin: existingUserIds } })
+          .select("firstName lastName email phone profilePhoto role createdAt")
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(lim)
+          .lean();
+        return orphanUsers.map((u) => ({
+          _id:        u._id,
+          noDossier:  true,
+          userId:     u,
+          status:     "not_started",
+          trustScore: 0,
+          trustLevel: null,
+          companyName: `${u.firstName || ""} ${u.lastName || ""}`.trim() || "Partenaire VIT AUTO",
+          createdAt:  u.createdAt,
+          updatedAt:  u.createdAt,
+        }));
+      } : undefined,
+    });
 
     res.json({ verifications: allDocs, total: allTotal, page: Number(page), limit: Number(limit) });
   } catch (err) {

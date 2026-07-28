@@ -17,6 +17,15 @@ function groupKey(ownerId, businessId) {
   return `${ownerId}::${businessId || "none"}`;
 }
 
+// Une facture existe déjà (index unique {partner, businessId, year, month})
+// pour cette combinaison — même situation que le check applicatif juste avant
+// (race entre deux requêtes concurrentes, ou ancien index legacy encore
+// présent en production tant que scripts/migrateInvoiceBusinessIndex.js n'a
+// pas été exécuté). Distingue ce cas d'une vraie panne serveur : 409, pas 500.
+function isDuplicateInvoiceError(err) {
+  return err?.code === 11000;
+}
+
 // ── Génération référence facture ───────────────────────────────────────────────
 async function generateInvoiceReference(year) {
   const pattern = new RegExp(`^FACT-${year}-`);
@@ -144,6 +153,9 @@ export const generatePartnerInvoice = async (req, res) => {
 
     res.status(201).json({ invoice, message: `Facture ${reference} générée avec ${lines.length} transaction(s).` });
   } catch (err) {
+    if (isDuplicateInvoiceError(err)) {
+      return res.status(409).json({ message: "Une facture existe déjà pour ce partenaire (et cette entité) sur cette période." });
+    }
     logger.error("generatePartnerInvoice:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
@@ -205,18 +217,33 @@ export const generateAllMonthlyInvoices = async (req, res) => {
       const reference       = await generateInvoiceReference(year);
       const dueDate         = new Date(year, month, 15);
 
-      const invoice = await Invoice.create({
-        reference,
-        partner: partnerId,
-        businessId,
-        month,
-        year,
-        lines,
-        totalCommission,
-        devise: "USD",
-        status: "pending",
-        dueDate,
-      });
+      // Isolé dans son propre try/catch : une erreur sur UN groupe (partenaire,
+      // entité) — notamment un doublon E11000 en cas de course avec une autre
+      // requête concurrente — ne doit jamais interrompre la génération des
+      // factures des autres groupes déjà en file.
+      let invoice;
+      try {
+        invoice = await Invoice.create({
+          reference,
+          partner: partnerId,
+          businessId,
+          month,
+          year,
+          lines,
+          totalCommission,
+          devise: "USD",
+          status: "pending",
+          dueDate,
+        });
+      } catch (err) {
+        if (isDuplicateInvoiceError(err)) {
+          results.push({ partnerId, businessId, status: "already_exists" });
+          continue;
+        }
+        logger.error("generateAllMonthlyInvoices (groupe):", err);
+        results.push({ partnerId, businessId, status: "error", message: err.message });
+        continue;
+      }
 
       await Booking.updateMany(
         { _id: { $in: pBookings.map((b) => b._id) } },

@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import logger from "../utils/logger.js";
 import CommissionLedger from "../models/CommissionLedger.js";
 
@@ -41,8 +42,16 @@ export const adminListPayouts = async (req, res) => {
   try {
     const { status, partnerId, page = 1, limit = 30 } = req.query;
     const filter = {};
-    if (status)    filter.status    = status;
-    if (partnerId) filter.partnerId = partnerId;
+    if (status) filter.status = status;
+    // Un id invalide déclenchait un CastError non intercepté (500 opaque au
+    // lieu d'un filtre simplement ignoré/rejeté) — même garde que les autres
+    // paramètres businessId de cette session (voir pmsController.safeBusinessFilter).
+    if (partnerId) {
+      if (!mongoose.Types.ObjectId.isValid(partnerId)) {
+        return res.status(400).json({ message: "partnerId invalide." });
+      }
+      filter.partnerId = partnerId;
+    }
 
     const skip = (Number(page) - 1) * Number(limit);
     const [entries, total] = await Promise.all([

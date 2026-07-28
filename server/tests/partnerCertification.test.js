@@ -189,6 +189,37 @@ describe("partnerCertificationController.adminList — comptes sans aucun dossie
     await adminList(req, res);
     expect(res.body.certifications.every((c) => !c.noDossier)).toBe(true);
   });
+
+  // Bug réel corrigé (audit) : les orphelins étaient chargés en entier (sans
+  // skip/limit) et recopiés identiques sur CHAQUE page — la page 2 réaffichait
+  // les mêmes orphelins que la page 1 au lieu des dossiers réels suivants.
+  it("pagine correctement à travers dossiers réels ET orphelins, sans doublon ni trou", async () => {
+    const realPartners = [];
+    for (let i = 0; i < 3; i++) {
+      const p = await createUser({ role: "partenaire" });
+      await PartnerCertification.create({ userId: p._id, updatedAt: new Date(Date.now() + i * 1000) });
+      realPartners.push(p);
+    }
+    const orphans = [];
+    for (let i = 0; i < 3; i++) {
+      orphans.push(await createUser({ role: "partenaire" }));
+    }
+
+    const seenIds = new Set();
+    let allRows = [];
+    for (let page = 1; page <= 3; page++) {
+      const { req, res } = mockReqRes({ query: { page: String(page), limit: "2" } });
+      await adminList(req, res);
+      expect(res.statusCode).toBe(200);
+      expect(res.body.total).toBe(6);
+      for (const row of res.body.certifications) {
+        expect(seenIds.has(String(row._id))).toBe(false); // aucun doublon entre pages
+        seenIds.add(String(row._id));
+      }
+      allRows = allRows.concat(res.body.certifications);
+    }
+    expect(allRows).toHaveLength(6); // tout vu, rien de manquant
+  });
 });
 
 describe("partnerCertificationController.adminDetail — création à la volée", () => {

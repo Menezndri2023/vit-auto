@@ -157,4 +157,14 @@ describe("adminListPayouts — filtre par partenaire et statut", () => {
     expect(res.body.entries).toHaveLength(1);
     expect(res.body.entries[0].status).toBe("paid");
   });
+
+  // Bug réel corrigé (audit) : partnerId venait directement de req.query sans
+  // validation — un id malformé déclenchait un CastError non intercepté (500
+  // opaque) au lieu d'un 400 clair, seul paramètre id de ce controller à ne
+  // pas être gardé alors que tous les autres (businessId ailleurs) le sont.
+  it("400 sur un partnerId malformé au lieu d'un CastError non intercepté", async () => {
+    const { req, res } = mockReqRes({ query: { partnerId: "not-an-object-id" } });
+    await adminListPayouts(req, res);
+    expect(res.statusCode).toBe(400);
+  });
 });

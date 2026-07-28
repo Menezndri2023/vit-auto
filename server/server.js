@@ -447,6 +447,28 @@ const startServer = async () => {
   try {
     await connectDB();
 
+    // ── Contraintes d'unicité critiques : garanties construites AVANT
+    // d'accepter du trafic ────────────────────────────────────────────────
+    // Mongoose déclare les index dès la définition du schéma, mais leur
+    // construction réelle en base (autoIndex) est asynchrone et non
+    // bloquante par défaut — une écriture peut donc théoriquement arriver
+    // avant que l'index ne soit prêt, juste après un déploiement qui
+    // introduit un nouvel index unique (fenêtre de course étroite mais
+    // réelle, trouvée en audit lors de l'ajout de l'index unique
+    // CommissionLedger {transactionId, transactionType} et Invoice
+    // {partner, businessId, year, month}). `Model.init()` attend la fin de
+    // la construction avant de résoudre — appelé ici une seule fois au
+    // démarrage, jamais réévalué en boucle ensuite.
+    try {
+      const [{ default: Invoice }, { default: CommissionLedger }] = await Promise.all([
+        import("./models/Invoice.js"),
+        import("./models/CommissionLedger.js"),
+      ]);
+      await Promise.all([Invoice.init(), CommissionLedger.init()]);
+    } catch (err) {
+      logger.error("Construction des index critiques échouée (non bloquant) :", err.message);
+    }
+
     // ── BullMQ : queues + workers (si Redis configuré) ───────────────────
     await initQueues();
 

@@ -1065,6 +1065,23 @@ export default function VendorDashboard() {
       .then((d) => setBusinesses(d.businesses || []))
       .catch(() => {});
   }, [token]);
+
+  // Bug réel corrigé (audit) : les nombreux rechargements de la liste des
+  // commandes déclenchés après une action (confirmer, enregistrer une
+  // transaction, répondre à un litige…), par le bouton "Actualiser", par
+  // Socket.io ou par le polling de secours appelaient tous `loadPartnerOrders()`
+  // SANS filtre — le filtre d'entité sélectionné dans le menu déroulant
+  // redevenait silencieusement "toutes les entités" au tout premier
+  // rafraîchissement suivant, alors que le menu affichait toujours l'entité
+  // choisie. `filterBusinessIdRef` évite d'avoir à répercuter `filterBusinessId`
+  // dans la liste de dépendances de chacun de ces handlers.
+  const filterBusinessIdRef = useRef(filterBusinessId);
+  useEffect(() => { filterBusinessIdRef.current = filterBusinessId; }, [filterBusinessId]);
+  const refreshOrders = useCallback(
+    () => loadPartnerOrders(filterBusinessIdRef.current || undefined),
+    [loadPartnerOrders]
+  );
+
   const [boostTarget,    setBoostTarget]    = useState(null);
   const [boostModal,     setBoostModal]     = useState(null); // { vehicleId, title } — véhicule en cours de sélection de palier boost
 
@@ -1757,9 +1774,9 @@ export default function VendorDashboard() {
 
   const doUpdateStatus = useCallback(async (id, status) => {
     const result = await updateBookingStatus(id, status);
-    if (result.ok) setTimeout(() => loadPartnerOrders(), 800);
+    if (result.ok) setTimeout(() => refreshOrders(), 800);
     return result;
-  }, [updateBookingStatus, loadPartnerOrders]);
+  }, [updateBookingStatus, refreshOrders]);
 
   // Le toast de succès n'apparaît que si le backend a réellement accepté le
   // changement — avant ce correctif il s'affichait inconditionnellement,
@@ -1809,10 +1826,10 @@ export default function VendorDashboard() {
     try {
       const r = await fetch(`/api/bookings/${id}/transaction`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(txData) });
       const d = await r.json();
-      if (r.ok) { toastSuccess("💰 Transaction enregistrée."); setGererModalId(null); setTimeout(() => { loadPartnerOrders(); loadTransactions(); }, 800); }
+      if (r.ok) { toastSuccess("💰 Transaction enregistrée."); setGererModalId(null); setTimeout(() => { refreshOrders(); loadTransactions(); }, 800); }
       else toastError(d.message || "Erreur.");
     } catch { toastError("Erreur réseau."); }
-  }, [token, toastSuccess, toastError, loadPartnerOrders]);
+  }, [token, toastSuccess, toastError, refreshOrders]);
 
   // Téléchargement PDF authentifié (Bearer) — le lien <a href="/api/contracts/:id/pdf">
   // ne fonctionnait en réalité jamais : ces routes exigent un header
@@ -1841,21 +1858,21 @@ export default function VendorDashboard() {
     try {
       const r = await fetch(`/api/bookings/${id}/dispute-response`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ message }) });
       const d = await r.json();
-      if (r.ok) { toastSuccess("💬 Réponse envoyée à l'administration."); setTimeout(() => loadPartnerOrders(), 500); }
+      if (r.ok) { toastSuccess("💬 Réponse envoyée à l'administration."); setTimeout(() => refreshOrders(), 500); }
       else toastError(d.message || "Erreur.");
       return { ok: r.ok, message: d.message };
     } catch { toastError("Erreur réseau."); return { ok: false }; }
-  }, [token, toastSuccess, toastError, loadPartnerOrders]);
+  }, [token, toastSuccess, toastError, refreshOrders]);
 
   const handleClaimCaution = useCallback(async (id, payload) => {
     if (!token) return;
     try {
       const r = await fetch(`/api/bookings/${id}/caution`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
       const d = await r.json();
-      if (r.ok) { toastSuccess("💳 Caution traitée."); setTimeout(() => loadPartnerOrders(), 500); }
+      if (r.ok) { toastSuccess("💳 Caution traitée."); setTimeout(() => refreshOrders(), 500); }
       else toastError(d.message || "Erreur.");
     } catch { toastError("Erreur réseau."); }
-  }, [token, toastSuccess, toastError, loadPartnerOrders]);
+  }, [token, toastSuccess, toastError, refreshOrders]);
 
   const handlePartnerConfirm = useCallback(async (id, payload) => {
     if (!token) return;
@@ -1866,10 +1883,10 @@ export default function VendorDashboard() {
         if (!payload.clientPresent) toastError("🚫 Absence enregistrée.");
         else toastSuccess(`✅ Transaction enregistrée — ${Number(payload.finalAmount).toLocaleString("fr-FR")} USD. Attente validation client.`);
         setGererModalId(null);
-        setTimeout(() => { loadPartnerOrders(); loadTransactions(); }, 800);
+        setTimeout(() => { refreshOrders(); loadTransactions(); }, 800);
       } else toastError(d.message || "Erreur.");
     } catch { toastError("Erreur réseau."); }
-  }, [token, toastSuccess, toastError, loadPartnerOrders]);
+  }, [token, toastSuccess, toastError, refreshOrders]);
 
   const loadInvoices = useCallback(async () => {
     if (!token) return;
@@ -1961,11 +1978,11 @@ export default function VendorDashboard() {
     if (r.ok) {
       toastSuccess("Commande refusée.");
       setRejectModal(null); setRejectNote(""); setRejectReasonCode(""); setGererModalId(null);
-      setTimeout(() => loadPartnerOrders(), 800);
+      setTimeout(() => refreshOrders(), 800);
     } else {
       toastError(r.message || "Impossible de refuser la commande.");
     }
-  }, [rejectModal, rejectNote, rejectReasonCode, updateBookingStatus, toastSuccess, toastError, loadPartnerOrders]);
+  }, [rejectModal, rejectNote, rejectReasonCode, updateBookingStatus, toastSuccess, toastError, refreshOrders]);
 
   const handleGerer = useCallback((order) => {
     setGererModalId(order.id);
@@ -1996,12 +2013,12 @@ export default function VendorDashboard() {
         if (decision === "verifie") toastSuccess("✅ Identité client vérifiée en présentiel.");
         else toastError("🚫 Document rejeté. Client notifié.");
         setOrderDetail((prev) => prev ? { ...prev, partnerKycVerification: d.booking?.partnerKycVerification } : prev);
-        setTimeout(() => loadPartnerOrders(), 600);
+        setTimeout(() => refreshOrders(), 600);
       } else {
         toastError(d.message || "Erreur lors de la vérification.");
       }
     } catch { toastError("Erreur réseau."); }
-  }, [token, toastSuccess, toastError, loadPartnerOrders]);
+  }, [token, toastSuccess, toastError, refreshOrders]);
 
   // Agrégation serveur (server/controllers/bookingController.getPartnerStats)
   // — source de vérité pour revenu/commission/reversement, jamais recalculée
@@ -2038,10 +2055,10 @@ export default function VendorDashboard() {
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadPartnerOrders(), loadPartnerVehicles(), loadMyDrivers(), loadInvoices(), loadTransactions(), loadContracts(), loadPartnerStats(), loadAnalytics()]);
+    await Promise.all([refreshOrders(), loadPartnerVehicles(), loadMyDrivers(), loadInvoices(), loadTransactions(), loadContracts(), loadPartnerStats(), loadAnalytics()]);
     setRefreshing(false);
     toastSuccess("Données actualisées.");
-  }, [loadPartnerOrders, loadPartnerVehicles, loadMyDrivers, loadInvoices, loadTransactions, loadPartnerStats, loadAnalytics, toastSuccess]);
+  }, [refreshOrders, loadPartnerVehicles, loadMyDrivers, loadInvoices, loadTransactions, loadPartnerStats, loadAnalytics, toastSuccess]);
 
   useEffect(() => { loadMyDrivers(); }, [loadMyDrivers]);
   useEffect(() => { loadEmploymentRequests(); }, [loadEmploymentRequests]);
@@ -2057,7 +2074,7 @@ export default function VendorDashboard() {
 
     // Socket.io : mise à jour instantanée
     const handleBookingUpdate = async (payload) => {
-      await loadPartnerOrders();
+      await refreshOrders();
       // Toast selon le nouveau statut
       const label = payload.status === "cancelled"           ? `❌ Le client a annulé la commande ${payload.reference || ""}`
                   : payload.status === "waiting_client_validation" ? `⏳ Transaction en attente de validation (${payload.reference || ""})`
@@ -2072,7 +2089,7 @@ export default function VendorDashboard() {
     // Polling de secours toutes les 60s (en cas de coupure socket)
     const iv = setInterval(async () => {
       try {
-        await loadPartnerOrders();
+        await refreshOrders();
         const nc = allOrdersRef.current.filter((b) => ["pending","À confirmer"].includes(b.status)).length;
         if (nc > prevCountRef.current) toastSuccess(`🔔 ${nc - prevCountRef.current} nouvelle(s) commande(s) !`);
         prevCountRef.current = nc;
@@ -2083,7 +2100,7 @@ export default function VendorDashboard() {
       cleanupSocket();
       clearInterval(iv);
     };
-  }, [isAuthenticated, token, loadPartnerOrders, toastSuccess, on]);
+  }, [isAuthenticated, token, refreshOrders, toastSuccess, on]);
 
   if (!isAuthenticated) {
     return (

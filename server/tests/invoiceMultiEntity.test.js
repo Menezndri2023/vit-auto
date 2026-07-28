@@ -135,4 +135,51 @@ describe("Segmentation multi-entité (PartnerBusiness) — facturation", () => {
     expect(res.body.total).toBe(1);
     expect(res.body.invoices[0].reference).toBe("FACT-2026-100002");
   });
+
+  // Bug réel corrigé (audit) : deux requêtes concurrentes (double clic admin)
+  // pouvaient toutes deux passer le pré-check applicatif ("existing = await
+  // Invoice.findOne(...)") avant qu'aucune n'ait fini d'écrire, créant deux
+  // factures pour le même partenaire/entité/mois. L'index unique
+  // {partner, businessId, year, month} est le VRAI filet de sécurité — le
+  // controller doit intercepter le E11000 qui en résulte et répondre 409 au
+  // lieu de laisser planter en 500.
+  it("une seule facture survit à deux générations concurrentes pour le même partenaire/entité/mois", async () => {
+    // L'index unique n'est réellement actif qu'une fois sa construction
+    // terminée (autoIndex est asynchrone, non bloquant pour les écritures —
+    // voir server.js démarrage) : sans ce .init(), les deux écritures
+    // concurrentes ci-dessous peuvent toutes deux réussir dans un
+    // environnement de test tout frais où l'index n'a pas encore fini de se
+    // construire, ce qui ne teste alors plus la garantie réelle de
+    // production (où l'index existe déjà en régime établi).
+    const { default: Invoice } = await import("../models/Invoice.js");
+    await Invoice.init();
+
+    const partner = await createUser({ role: "partenaire" });
+    const vehicle = await createVehicleDoc({ owner: partner._id });
+    // Deux réservations distinctes — chaque coureur doit trouver au moins une
+    // transaction facturable, peu importe l'ordre d'exécution, pour que le
+    // test exerce vraiment la collision sur Invoice.create (pas seulement le
+    // 404 "rien à facturer" si l'autre a déjà tout pris).
+    await createInvoiceableBooking(vehicle);
+    await createInvoiceableBooking(vehicle);
+
+    const first  = mockReqRes({ body: { partnerId: partner._id.toString(), month: 6, year: 2026 } });
+    const second = mockReqRes({ body: { partnerId: partner._id.toString(), month: 6, year: 2026 } });
+    await Promise.all([
+      generatePartnerInvoice(first.req, first.res),
+      generatePartnerInvoice(second.req, second.res),
+    ]);
+
+    const codes = [first.res.statusCode, second.res.statusCode].sort();
+    // L'un des deux réussit (201), l'autre est rejeté proprement — soit par le
+    // pré-check applicatif (409, aucune transaction disponible car déjà prise
+    // par le gagnant → 404 est aussi un résultat valide de la course), soit
+    // par l'index unique (409). Ce qui ne doit JAMAIS arriver : un 500, ou
+    // deux 201.
+    expect(codes.filter((c) => c === 201)).toHaveLength(1);
+    expect(codes.every((c) => [201, 404, 409].includes(c))).toBe(true);
+
+    const count = await Invoice.countDocuments({ partner: partner._id, month: 6, year: 2026 });
+    expect(count).toBe(1);
+  });
 });

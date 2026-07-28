@@ -144,6 +144,23 @@ describe("updateAdminScope", () => {
     expect(reloaded.adminScope).toEqual([]); // inchangé
   });
 
+  // Bug réel corrigé (audit) : le comptage des "autres admins à accès complet"
+  // ne filtrait pas isActive — un admin à accès complet mais DÉSACTIVÉ
+  // comptait quand même comme filet de sécurité valide, permettant de
+  // verrouiller la plateforme en retirant l'accès complet au dernier admin
+  // réellement actif.
+  it("refuse de retirer l'accès complet si le SEUL autre admin à accès complet est désactivé", async () => {
+    const target = await createUser({ role: "admin", adminScope: [] });
+    await createUser({ role: "admin", adminScope: [], isActive: false });
+    const { req, res } = mockReqRes({
+      user: target, params: { id: target._id.toString() }, body: { scope: ["kyc"] },
+    });
+    await updateAdminScope(req, res);
+    expect(res.statusCode).toBe(400);
+    const reloaded = await User.findById(target._id);
+    expect(reloaded.adminScope).toEqual([]); // inchangé
+  });
+
   it("autorise de restreindre un admin à accès complet s'il en reste un AUTRE", async () => {
     const admin1 = await createUser({ role: "admin", adminScope: [] });
     const admin2 = await createUser({ role: "admin", adminScope: [] });
