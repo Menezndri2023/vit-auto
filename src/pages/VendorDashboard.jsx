@@ -1516,9 +1516,16 @@ export default function VendorDashboard() {
       const r = await fetch(`/api/vehicles/${vid}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       const d = await r.json().catch(() => null);
       const v = d?.vehicle || vehicle;
-      setEditPriceCurrency("USD");
-      setEditPriceEntryPerDay(v.pricePerDay ? String(v.pricePerDay) : "");
-      setEditPriceEntryForSale(v.priceForSale ? String(v.priceForSale) : "");
+      // Si un montant exact a déjà été saisi (voir Vehicle.js pricePerDayEntered),
+      // le réafficher tel quel avec sa devise d'origine plutôt que de retomber
+      // sur le prix USD stocké (arrondi) affiché comme si c'était de l'USD.
+      setEditPriceCurrency(v.priceEntryCurrency || "USD");
+      setEditPriceEntryPerDay(
+        v.pricePerDayEntered != null ? String(v.pricePerDayEntered) : (v.pricePerDay ? String(v.pricePerDay) : "")
+      );
+      setEditPriceEntryForSale(
+        v.priceForSaleEntered != null ? String(v.priceForSaleEntered) : (v.priceForSale ? String(v.priceForSale) : "")
+      );
       setEditForm({
         type:        v.type || (vehicle.mode === "Acheter" ? "vente" : "location"),
         title:       v.title || vehicle.name || "",
@@ -1624,8 +1631,16 @@ export default function VendorDashboard() {
         available:   editForm.available,
         images,
       };
-      if (editForm.type === "vente") patch.priceForSale = Number(editForm.priceForSale) || 0;
-      else patch.pricePerDay = Number(editForm.pricePerDay) || 0;
+      // Montant exact tel que tapé (évite la perte de précision de l'aller-
+      // retour de conversion via l'USD stocké — voir Vehicle.js pricePerDayEntered).
+      if (editForm.type === "vente") {
+        patch.priceForSale = Number(editForm.priceForSale) || 0;
+        patch.priceForSaleEntered = editPriceEntryForSale !== "" && !isNaN(Number(editPriceEntryForSale)) ? Number(editPriceEntryForSale) : null;
+      } else {
+        patch.pricePerDay = Number(editForm.pricePerDay) || 0;
+        patch.pricePerDayEntered = editPriceEntryPerDay !== "" && !isNaN(Number(editPriceEntryPerDay)) ? Number(editPriceEntryPerDay) : null;
+      }
+      patch.priceEntryCurrency = editPriceCurrency;
 
       // Régénère la vignette dédiée à partir de la photo de couverture actuelle
       // (vues liste — voir vehicleScoring.limitVehicleImages / VendorSubmit.jsx).

@@ -546,6 +546,9 @@ export const updateVehicle = async (req, res) => {
       "conditionsLocation", "conditionsVente",
       "contactNom", "contactTel", "ville", "adresse", "coordonnees", "country",
       "images", "thumbnail", "description", "available", "type", "currency",
+      // Montant exact saisi (voir Vehicle.js / buildVehicleWhitelist) — évite
+      // la perte de précision de l'aller-retour de conversion via l'USD stocké.
+      "pricePerDayEntered", "priceForSaleEntered", "priceEntryCurrency",
     ];
     // Champs réservés admin
     const ADMIN_ONLY = ["featured", "sponsoredUntil", "boostLevel"];
@@ -572,6 +575,17 @@ export const updateVehicle = async (req, res) => {
       for (const key of ADMIN_ONLY) {
         if (req.body[key] !== undefined) safeUpdate[key] = req.body[key];
       }
+    }
+    // Le montant exact saisi (pricePerDayEntered/priceForSaleEntered, voir
+    // Vehicle.js) devient obsolète dès que le prix change SANS être fourni en
+    // même temps — sinon l'affichage garderait l'ancien montant "exact",
+    // désormais incohérent avec le nouveau prix (ex: modification du prix
+    // depuis l'admin, qui n'envoie pas ce champ).
+    if (safeUpdate.pricePerDay !== undefined && req.body.pricePerDayEntered === undefined) {
+      safeUpdate.pricePerDayEntered = null;
+    }
+    if (safeUpdate.priceForSale !== undefined && req.body.priceForSaleEntered === undefined) {
+      safeUpdate.priceForSaleEntered = null;
     }
 
     // Rattacher/détacher l'annonce à une entreprise (voir createVehicle) — juste
@@ -981,8 +995,13 @@ export const bulkUpdateVehicles = async (req, res) => {
     for (const vehicle of vehicles) {
       if (pct !== null) {
         const factor = 1 + pct / 100;
-        if (vehicle.pricePerDay)  vehicle.pricePerDay  = Math.max(1, Math.round(vehicle.pricePerDay  * factor));
-        if (vehicle.priceForSale) vehicle.priceForSale = Math.max(1, Math.round(vehicle.priceForSale * factor));
+        // Le montant exact saisi par le partenaire (pricePerDayEntered, voir
+        // Vehicle.js) devient obsolète dès qu'un ajustement automatique change
+        // le prix réel — sans ce nettoyage, l'affichage continuerait de
+        // montrer l'ancien montant "exact" (plus rond mais désormais faux)
+        // au lieu du nouveau prix ajusté.
+        if (vehicle.pricePerDay)  { vehicle.pricePerDay  = Math.max(1, Math.round(vehicle.pricePerDay  * factor)); vehicle.pricePerDayEntered  = null; }
+        if (vehicle.priceForSale) { vehicle.priceForSale = Math.max(1, Math.round(vehicle.priceForSale * factor)); vehicle.priceForSaleEntered = null; }
       }
       if (manuallyPaused !== undefined) vehicle.manuallyPaused = !!manuallyPaused;
       await vehicle.save();

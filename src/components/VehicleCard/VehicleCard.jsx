@@ -178,8 +178,10 @@ const VehicleCard = React.memo(({ car, compact }) => {
               ci-dessus). La remise n'est calculée qu'à la réservation. */}
           <p className={styles.price}>
             {(car.mode === "Acheter" || car.listingType === "vente")
-              ? <PriceTag amountUSD={car.buyPrice || car.priceForSale || 0} pinnedCurrency={car.currency} compact />
-              : <PriceTag amountUSD={car.pricePerDay || 0} pinnedCurrency={car.currency} suffix=" / jour" compact />}
+              ? <PriceTag amountUSD={car.buyPrice || car.priceForSale || 0} pinnedCurrency={car.currency}
+                  enteredAmount={car.priceForSaleEntered} enteredCurrency={car.priceEntryCurrency} compact />
+              : <PriceTag amountUSD={car.pricePerDay || 0} pinnedCurrency={car.currency}
+                  enteredAmount={car.pricePerDayEntered} enteredCurrency={car.priceEntryCurrency} suffix=" / jour" compact />}
           </p>
           {(car.ville || car.city) && (
             <p className={styles.ville}>📍 {car.ville || car.city}</p>

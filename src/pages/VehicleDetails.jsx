@@ -400,7 +400,8 @@ export default function VehicleDetails() {
           )}
         </div>
         <div className={styles.priceBlock}>
-          <span className={styles.price}><PriceTag amountUSD={priceAmountUSD} pinnedCurrency={vehicle.currency} /></span>
+          <span className={styles.price}><PriceTag amountUSD={priceAmountUSD} pinnedCurrency={vehicle.currency}
+            enteredAmount={isSale ? vehicle.priceForSaleEntered : vehicle.pricePerDayEntered} enteredCurrency={vehicle.priceEntryCurrency} /></span>
           {priceSuffix && <span className={styles.priceSuffix}>{priceSuffix}</span>}
           {vehicle.caution > 0 && !isSale && (
             <span className={styles.caution}>{t("vd.caution")} {fmt(vehicle.caution)}</span>

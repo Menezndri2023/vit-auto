@@ -1068,7 +1068,7 @@ export default function Booking() {
               </>
             ) : (
               <>
-                {!isTrial && <div className={styles.sidebarRow}><span>Prix / jour</span><strong><PriceTag amountUSD={vehicle.pricePerDay || 0} /></strong></div>}
+                {!isTrial && <div className={styles.sidebarRow}><span>Prix / jour</span><strong><PriceTag amountUSD={vehicle.pricePerDay || 0} enteredAmount={vehicle.pricePerDayEntered} enteredCurrency={vehicle.priceEntryCurrency} /></strong></div>}
                 {days > 0 && !isTrial && <div className={styles.sidebarRow}><span>Durée</span><strong>{days} j</strong></div>}
                 {baseTotal > 0 && !isTrial && <div className={styles.sidebarRow}><span>Base</span><strong>{fmt(baseTotal)}</strong></div>}
                 {promoActive && !isTrial && (

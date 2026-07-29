@@ -140,7 +140,7 @@ export const buildVehicleWhitelist = (data) => {
     conditionsLocation, conditionsVente,
     contactNom, contactTel, ville, adresse, coordonnees,
     images, thumbnail, description, rentalDurationType,
-    currency,
+    currency, pricePerDayEntered, priceForSaleEntered, priceEntryCurrency,
   } = data;
 
   return {
@@ -156,5 +156,11 @@ export const buildVehicleWhitelist = (data) => {
     // (currency active réelle ou null) par l'appelant (createVehicle), pas ici :
     // cette fonction reste synchrone et partagée avec l'import en masse.
     currency: currency || null,
+    // Montant exact saisi par le partenaire (voir Vehicle.js) — évite la perte
+    // de précision de l'aller-retour de conversion via l'USD stocké. `null` si
+    // absent (import en masse, ou saisie directement en USD sans conversion).
+    pricePerDayEntered:  pricePerDayEntered  ?? null,
+    priceForSaleEntered: priceForSaleEntered ?? null,
+    priceEntryCurrency:  priceEntryCurrency  || null,
   };
 };

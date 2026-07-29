@@ -57,6 +57,18 @@ const vehicleSchema = new mongoose.Schema({
   // présentation change) — voir PriceTag `pinnedCurrency`.
   currency: { type: String, default: null },
 
+  // Montant EXACT tel que tapé par le partenaire (dans `priceEntryCurrency`),
+  // conservé à côté de pricePerDay/priceForSale (toujours en USD, arrondis à
+  // 2 décimales) — bug réel corrigé (audit) : sans ce champ, l'aller-retour
+  // de conversion (saisie → USD arrondi → reconversion pour l'affichage)
+  // perdait systématiquement de la précision (ex: 350 MAD saisis devenaient
+  // 35.29 USD stockés, puis ré-affichés à 349,99 MAD au lieu de 350 pile).
+  // `null` tant que le prix n'a jamais été ressaisi depuis ce correctif —
+  // l'affichage retombe alors sur l'ancien calcul (PriceTag).
+  pricePerDayEntered:  { type: Number, default: null },
+  priceForSaleEntered: { type: Number, default: null },
+  priceEntryCurrency:  { type: String, default: null },
+
   // Durée de location proposée (uniquement pertinent pour type "location") —
   // permet de distinguer "Location courte durée" / "Location longue durée"
   // (voir Services.jsx), qui pointaient jusqu'ici vers le même catalogue sans

@@ -559,6 +559,12 @@ const VendorSubmit = () => {
           ...contactInfo,
           images: imageUrls,
           thumbnail,
+          // Montant exact tel que tapé (voir handlePriceEntryChange plus haut)
+          // — évite la perte de précision de l'aller-retour de conversion via
+          // l'USD stocké (voir Vehicle.js pricePerDayEntered).
+          pricePerDayEntered:  priceEntryPerDay  !== "" && !isNaN(Number(priceEntryPerDay))  ? Number(priceEntryPerDay)  : null,
+          priceForSaleEntered: priceEntryForSale !== "" && !isNaN(Number(priceEntryForSale)) ? Number(priceEntryForSale) : null,
+          priceEntryCurrency:  priceCurrency,
           leasing: adType === "vente" ? {
             disponible:    leasing.disponible,
             apportInitial: Number(leasing.apportInitial) || 0,

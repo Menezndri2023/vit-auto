@@ -386,6 +386,7 @@ export function CurrencyProvider({ children }) {
         fmtDual,
         fmtPinned,
         fmtFromCurrencyDual,
+        formatLiteral,
         fmtFromMAD,
         fromMAD,
         detecting,
