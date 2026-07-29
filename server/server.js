@@ -307,6 +307,17 @@ app.get("/api/health", async (_req, res) => {
       whatsapp: process.env.WHATSAPP_TOKEN ? "configured" : "disabled",
       push:     process.env.FCM_SERVER_KEY ? "configured" : "disabled",
       sentry:   process.env.SENTRY_DSN ? "configured" : "disabled",
+      // Chiffrement KYC/permis (voir utils/fieldEncryption.js) — n'était vérifié
+      // nulle part au démarrage ni ici : une clé absente ou mal formée (doit
+      // faire 64 caractères hex = 32 octets) ne provoquait aucune erreur au
+      // déploiement, seulement un 500 générique au premier envoi KYC/permis
+      // (bug réel remonté par un chauffeur qui n'arrivait pas à soumettre son
+      // permis — cette entrée permet de diagnostiquer ça en un coup d'œil).
+      fieldEncryption: !process.env.FIELD_ENCRYPTION_KEY
+        ? "missing"
+        : /^[0-9a-f]{64}$/i.test(process.env.FIELD_ENCRYPTION_KEY)
+          ? "configured"
+          : "invalid_format",
     },
     memory:    {
       used:  Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + "MB",

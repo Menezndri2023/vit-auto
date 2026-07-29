@@ -352,6 +352,18 @@ export const submitDriverLicense = async (req, res) => {
     });
   } catch (err) {
     logger.error("submitDriverLicense:", err);
+    // Contrairement à submitKyc ci-dessus, cette route n'envoyait jamais
+    // l'erreur à Sentry — un chauffeur bloqué en boucle sur "Erreur serveur."
+    // ne laissait donc aucune trace exploitable pour comprendre pourquoi.
+    captureException(err, { controller: "kycController.submitDriverLicense", userId: req.user?._id });
+    // FIELD_ENCRYPTION_KEY absente/mal formée fait échouer TOUT chiffrement
+    // (encryptField ci-dessus) avec un message précis — le distinguer d'une
+    // panne serveur générique évite de faire chercher le chauffeur/le support
+    // du mauvais côté (son permis, son réseau) alors que c'est une
+    // configuration serveur manquante (voir /api/health → services.fieldEncryption).
+    if (err.message?.includes("FIELD_ENCRYPTION_KEY")) {
+      return res.status(503).json({ message: "Le service de vérification est temporairement indisponible (configuration serveur). Réessayez plus tard ou contactez le support." });
+    }
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
