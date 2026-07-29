@@ -236,6 +236,126 @@ export const createReservation = async (req, res) => {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ACHAT DIRECT — au prix affiché de l'annonce, sans négociation
+// POST /api/import-export/transactions/direct-purchase
+// ═══════════════════════════════════════════════════════════════════════════
+// Le pipeline standard (createReservation → confirmReservation → discussion →
+// inspection → sendFinalOffer → acceptOffer) force TOUJOURS une négociation
+// avant tout paiement — aucun chemin ne permettait d'acheter directement au
+// prix affiché de l'annonce (listing.price), contrairement à un véhicule
+// classique en vente. Cet endpoint saute directement à "payment_pending" avec
+// `finalOffer` déjà rempli à partir du devis réel Import Cost Engine (jamais
+// le prix brut de l'annonce seul — les frais d'export/transport/douane font
+// partie intégrante du montant réellement dû). Le prix est TOUJOURS
+// recalculé ici, jamais accepté depuis le corps de la requête.
+export const createDirectPurchase = async (req, res) => {
+  try {
+    const { listingId, destCountry, destCity, notes } = req.body;
+
+    if (!listingId) return res.status(400).json({ message: "listingId requis." });
+    if (!destCountry) return res.status(400).json({ message: "Pays de destination requis pour un achat direct." });
+
+    const listing = await ImportExportListing.findOne({ _id: listingId, status: "approved" });
+    if (!listing) return res.status(404).json({ message: "Annonce introuvable ou non disponible." });
+    if ((listing.stockQty || 0) <= 0) {
+      return res.status(409).json({ message: "Cette annonce n'est plus en stock." });
+    }
+
+    if (listing.partner.toString() === req.user._id.toString()) {
+      return res.status(400).json({ message: "Vous ne pouvez pas acheter votre propre annonce." });
+    }
+
+    const existing = await IETransaction.findOne({
+      listing: listingId,
+      client:  req.user._id,
+      status:  { $nin: ["cancelled", "completed"] },
+    });
+    if (existing) {
+      return res.status(409).json({ message: "Vous avez déjà une transaction active sur cette annonce.", txId: existing._id });
+    }
+
+    // Devis réel (jamais optionnel ici, contrairement à createReservation) —
+    // sans barème configuré pour cette destination, impossible de fixer un
+    // montant ferme : on redirige vers la réservation classique (négociation)
+    // plutôt que de facturer un prix incomplet (véhicule seul, sans transport/
+    // douane/assurance).
+    const est = await computeImportCost({
+      vehiclePrice: listing.price, currency: listing.currency,
+      sourceCountry: listing.sourceCountry, vehicleYear: listing.year,
+      destCountry, destCity,
+    });
+    if (!est.available) {
+      return res.status(400).json({
+        message: "Achat direct indisponible pour cette destination (aucun barème configuré) — utilisez \"Réserver\" pour négocier directement avec le fournisseur.",
+      });
+    }
+
+    const chatId = await createTransactionChat(req.user._id, listing.partner, null);
+
+    const now = new Date();
+    const tx = await IETransaction.create({
+      listing: listingId,
+      client:  req.user._id,
+      partner: listing.partner,
+      incoterm: listing.incoterm || null,
+      destCountry, destCity: destCity || null,
+      notes:    notes || null,
+      status:   "payment_pending",
+      directPurchase: true,
+      chat:     chatId,
+      costEstimate: {
+        available: true, breakdown: est.breakdown, totalServices: est.totalServices,
+        grandTotal: est.grandTotal, currency: est.currency, computedAt: est.computedAt,
+      },
+      // Répartition dans les 4 champs existants de finalOffer (vehiclePrice/
+      // exportFees/shippingCost/insurance) — la somme reste exactement
+      // est.grandTotal, seul le regroupement des lignes du devis diffère.
+      finalOffer: {
+        vehiclePrice: est.breakdown.vehiclePrice,
+        shippingCost: est.breakdown.inlandTransport + est.breakdown.seaFreight + est.breakdown.delivery,
+        insurance:    est.breakdown.insurance,
+        exportFees:   est.breakdown.portFees + est.breakdown.customs + est.breakdown.commission,
+        totalAmount:  est.grandTotal,
+        currency:     est.currency,
+        notes:        "Achat direct — prix affiché de l'annonce accepté sans négociation.",
+        sentAt:       now,
+        acceptedAt:   now,
+      },
+      statusHistory: [
+        { status: "reserved",        changedAt: now, changedBy: req.user._id, note: "Achat direct initié." },
+        { status: "payment_pending", changedAt: now, changedBy: req.user._id, note: `Prix accepté sans négociation : ${est.grandTotal.toLocaleString("fr-FR")} ${est.currency}.` },
+      ],
+    });
+
+    await ImportExportListing.findByIdAndUpdate(listingId, { $inc: { inquiries: 1 } });
+
+    await notify(
+      listing.partner,
+      "ie_reservation",
+      "🛒 Achat direct !",
+      `${req.user.firstName} ${req.user.lastName} a acheté directement votre annonce "${listing.title}" au prix affiché (${est.grandTotal.toLocaleString("fr-FR")} ${est.currency}). En attente de paiement.`,
+      `/importer-dashboard`
+    );
+    await notify(
+      req.user._id,
+      "ie_reservation",
+      "Achat direct confirmé !",
+      `Votre achat pour "${listing.title}" est enregistré. Procédez au paiement (${est.grandTotal.toLocaleString("fr-FR")} ${est.currency}).`,
+      `/import-export/transaction/${tx._id}`
+    );
+
+    res.status(201).json({
+      message: "Achat direct enregistré. Procédez au paiement.",
+      transaction: tx,
+    });
+  } catch (err) {
+    logger.error("createDirectPurchase:", err);
+    captureException(err, { controller: "ieTransactionController.createDirectPurchase" });
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
 // ÉTAPE 5 — CONFIRMATION DU FOURNISSEUR
 // PATCH /api/import-export/transactions/:id/confirm
 // ═══════════════════════════════════════════════════════════════════════════

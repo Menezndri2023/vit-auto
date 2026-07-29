@@ -357,6 +357,136 @@ function ReservationModal({ listing, onClose, onSuccess }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ACHAT DIRECT — au prix affiché, sans négociation (voir
+// ieTransactionController.createDirectPurchase). Distinct de la réservation
+// gratuite ci-dessus : le client voit le total réel (véhicule + transport/
+// douane/assurance calculés par l'Import Cost Engine) avant de confirmer, et
+// la transaction saute directement à "payment_pending" — pas de discussion,
+// pas d'offre du fournisseur à attendre.
+// ═══════════════════════════════════════════════════════════════════════════
+function DirectPurchaseModal({ listing, onClose, onSuccess }) {
+  const { token } = useAuth();
+  const [destCountry, setDestCountry] = useState(listing.availableIn?.[0] || "");
+  const [destCity, setDestCity]       = useState("");
+  const [notes, setNotes]             = useState("");
+  const [estimate, setEstimate]       = useState(null);
+  const [estimating, setEstimating]   = useState(false);
+  const [purchasing, setPurchasing]   = useState(false);
+  const [error, setError]             = useState(null);
+
+  const fetchEstimate = async () => {
+    if (!destCountry) return;
+    setEstimating(true); setError(null); setEstimate(null);
+    try {
+      const params = new URLSearchParams({ destCountry });
+      if (destCity) params.set("destCity", destCity);
+      const res = await fetch(`/api/import-cost/listings/${listing._id}/estimate?${params}`);
+      const d = await res.json();
+      if (!res.ok || !d.available) { setError(d.message || "Estimation indisponible pour cette destination."); return; }
+      setEstimate(d);
+    } catch { setError("Erreur réseau."); }
+    finally { setEstimating(false); }
+  };
+
+  const confirmPurchase = async () => {
+    setPurchasing(true); setError(null);
+    try {
+      const res = await fetch("/api/import-export/transactions/direct-purchase", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ listingId: listing._id, destCountry, destCity, notes }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      onSuccess(data.transaction);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
+  return (
+    <div className={styles.overlay} onClick={onClose}>
+      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <button className={styles.modalClose} onClick={onClose}>✕</button>
+
+        <div className={styles.modalHeader}>
+          <span className={styles.modalBadge}>🛒 ACHAT DIRECT</span>
+          <h2>Acheter maintenant</h2>
+          <p className={styles.modalSub}>{listing.title}</p>
+        </div>
+
+        <div className={styles.modalInfo}>
+          <div className={styles.infoBox}>
+            <span>⚡</span>
+            <div>
+              <strong>Prix affiché, sans négociation</strong>
+              <p>Vous achetez immédiatement au prix de l'annonce + frais d'export réels (transport, douane, assurance) — pas d'étape de discussion ni d'attente d'offre.</p>
+            </div>
+          </div>
+        </div>
+
+        {!listing.availableIn?.length ? (
+          <p className={styles.formError}>Aucune destination de livraison configurée pour cette annonce — utilisez "Réserver" pour négocier avec le fournisseur.</p>
+        ) : (
+          <>
+            <div className={styles.formRow}>
+              <label>
+                <span>Pays de destination *</span>
+                <select value={destCountry} onChange={(e) => { setDestCountry(e.target.value); setEstimate(null); }}>
+                  {listing.availableIn.map((c) => <option key={c} value={c}>{getCountryFlag(c)} {c}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Ville</span>
+                <input value={destCity} onChange={(e) => { setDestCity(e.target.value); setEstimate(null); }} placeholder="Ex : Abidjan, Dakar…" />
+              </label>
+            </div>
+
+            {!estimate ? (
+              <button type="button" className={styles.btnPrimary} onClick={fetchEstimate} disabled={estimating || !destCountry}>
+                {estimating ? "Calcul…" : "Calculer le prix total →"}
+              </button>
+            ) : (
+              <>
+                <div style={{ background: "#f8fafc", borderRadius: 10, padding: "14px 16px", border: "1.5px solid #e2e8f0", margin: "10px 0" }}>
+                  {Object.entries(estimate.breakdown).map(([key, value]) => (
+                    <div key={key} style={{ display: "flex", justifyContent: "space-between", fontSize: ".82rem", padding: "4px 0", color: "#475569" }}>
+                      <span>{COST_LINE_LABELS[key] || key}</span>
+                      <span>{Number(value).toLocaleString("fr-FR")} {estimate.currency}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "1rem", fontWeight: 900, paddingTop: 10, marginTop: 4, borderTop: "1px solid #e2e8f0", color: "#0f1b3f" }}>
+                    <span>Total à payer</span>
+                    <strong>{estimate.grandTotal.toLocaleString("fr-FR")} {estimate.currency}</strong>
+                  </div>
+                </div>
+                <label className={styles.formFull}>
+                  <span>Message au fournisseur (optionnel)</span>
+                  <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Précisions éventuelles…" />
+                </label>
+              </>
+            )}
+
+            {error && <p className={styles.formError}>❌ {error}</p>}
+
+            <div className={styles.modalActions}>
+              <button type="button" className={styles.btnGhost} onClick={onClose}>Annuler</button>
+              {estimate && (
+                <button type="button" className={styles.btnPrimary} onClick={confirmPurchase} disabled={purchasing}>
+                  {purchasing ? "Achat en cours…" : `Confirmer l'achat — ${estimate.grandTotal.toLocaleString("fr-FR")} ${estimate.currency}`}
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // PAGE PRINCIPALE
 // ═══════════════════════════════════════════════════════════════════════════
 export default function IEListingDetail() {
@@ -368,6 +498,7 @@ export default function IEListingDetail() {
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState(null);
   const [showReserve, setShowReserve] = useState(false);
+  const [showDirectPurchase, setShowDirectPurchase] = useState(false);
   const [activeTab,   setActiveTab]   = useState("details");
 
   const load = useCallback(async () => {
@@ -403,6 +534,16 @@ export default function IEListingDetail() {
   const handleReserveClick = () => {
     if (!user) { navigate("/login", { state: { from: { pathname: `/import-export/listings/${id}` } } }); return; }
     setShowReserve(true);
+  };
+
+  const handleDirectPurchaseSuccess = (transaction) => {
+    setShowDirectPurchase(false);
+    navigate(`/import-export/transaction/${transaction._id}`);
+  };
+
+  const handleDirectPurchaseClick = () => {
+    if (!user) { navigate("/login", { state: { from: { pathname: `/import-export/listings/${id}` } } }); return; }
+    setShowDirectPurchase(true);
   };
 
   if (loading) return (
@@ -700,15 +841,23 @@ export default function IEListingDetail() {
 
             <button
               className={styles.btnReserve}
+              onClick={handleDirectPurchaseClick}
+              disabled={listing.status !== "approved" || listing.stockQty <= 0 || !listing.availableIn?.length}
+            >
+              {listing.stockQty <= 0 ? "Épuisé" : "🛒 Achat direct"}
+            </button>
+
+            <button
+              className={styles.btnGhost}
+              style={{ width: "100%", marginTop: 8 }}
               onClick={handleReserveClick}
               disabled={listing.status !== "approved" || listing.stockQty <= 0}
             >
-              {listing.stockQty <= 0 ? "Épuisé" : "🆓 Réserver gratuitement"}
+              {listing.stockQty <= 0 ? "Épuisé" : "🆓 Réserver gratuitement (négocier)"}
             </button>
 
             <p className={styles.reserveNote}>
-              Réservation gratuite · Sans engagement de paiement<br />
-              Le fournisseur confirme sous 48h
+              Achat direct : prix affiché + frais réels, payable immédiatement · Réservation : sans engagement, prix négocié avec le fournisseur
             </p>
 
             <div className={styles.sideSteps}>
@@ -726,6 +875,9 @@ export default function IEListingDetail() {
                   <p>{step}</p>
                 </div>
               ))}
+              <p style={{ fontSize: ".76rem", color: "#94a3b8", marginTop: 8, fontStyle: "italic" }}>
+                Avec "Achat direct", les étapes 1 à 4 sont sautées : paiement immédiat au prix affiché, directement à l'étape "Suivi de l'expédition".
+              </p>
             </div>
 
             <div className={styles.sideContact}>
@@ -740,6 +892,13 @@ export default function IEListingDetail() {
           listing={listing}
           onClose={() => setShowReserve(false)}
           onSuccess={handleReservationSuccess}
+        />
+      )}
+      {showDirectPurchase && (
+        <DirectPurchaseModal
+          listing={listing}
+          onClose={() => setShowDirectPurchase(false)}
+          onSuccess={handleDirectPurchaseSuccess}
         />
       )}
     </div>

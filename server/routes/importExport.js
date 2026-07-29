@@ -48,6 +48,7 @@ router.get   ("/transactions/:id",      authenticate,                   vid,    
 router.get   ("/transactions/:id/receipt", authenticate,                vid,     tx.getTransactionReceipt);
 
 router.post  ("/transactions",          authenticate,                            tx.createReservation);
+router.post  ("/transactions/direct-purchase", authenticate,                     tx.createDirectPurchase);
 router.patch ("/transactions/:id/confirm",          authenticate,       vid,     tx.confirmReservation);
 router.patch ("/transactions/:id/request-inspection", authenticate,     vid,     tx.requestIndependentInspection);
 router.patch ("/transactions/:id/complete-inspection", authenticate, authorizeAdmin, ieScope, vid, tx.completeIndependentInspection);

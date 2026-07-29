@@ -70,6 +70,15 @@ const ieTransactionSchema = new mongoose.Schema({
   // modifie l'annonce ensuite, pour préserver la clause contractuelle.
   incoterm: { type: String, default: null },
 
+  // Achat direct au prix affiché (voir ieTransactionController.createDirectPurchase) —
+  // saute la négociation (confirmed/in_discussion/inspection/offer_*) : le
+  // client accepte immédiatement le devis Import Cost Engine calculé sur
+  // listing.price, `finalOffer` est déjà rempli et `status` démarre à
+  // "payment_pending". Sert à distinguer ce chemin de l'achat négocié classique
+  // (ex: filtrage analytics/admin), et à masquer les actions de négociation
+  // (offre, inspection) côté UI pour ces transactions.
+  directPurchase: { type: Boolean, default: false },
+
   // ── Destination client ─────────────────────────────────────────────────────
   destCountry: { type: String, trim: true },
   destCity:    { type: String, trim: true },
