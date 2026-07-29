@@ -140,7 +140,7 @@ export const buildVehicleWhitelist = (data) => {
     conditionsLocation, conditionsVente,
     contactNom, contactTel, ville, adresse, coordonnees,
     images, thumbnail, description, rentalDurationType,
-    currency, pricePerDayEntered, priceForSaleEntered, priceEntryCurrency,
+    currency, pricePerDayEntered, priceForSaleEntered, cautionEntered, priceEntryCurrency,
   } = data;
 
   return {
@@ -161,6 +161,7 @@ export const buildVehicleWhitelist = (data) => {
     // absent (import en masse, ou saisie directement en USD sans conversion).
     pricePerDayEntered:  pricePerDayEntered  ?? null,
     priceForSaleEntered: priceForSaleEntered ?? null,
+    cautionEntered:      cautionEntered      ?? null,
     priceEntryCurrency:  priceEntryCurrency  || null,
   };
 };

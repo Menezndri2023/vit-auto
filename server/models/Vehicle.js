@@ -44,7 +44,15 @@ const vehicleSchema = new mongoose.Schema({
   // implicitement en FCFA/XOF) ───────────────────────────────
   pricePerDay:  { type: Number }, // location
   priceForSale: { type: Number }, // vente
-  caution:      { type: Number }, // caution location — toujours optionnelle
+  // Bug réel corrigé (audit) : le formulaire de saisie affichait "Caution
+  // (USD)" mais n'appliquait JAMAIS la conversion de devise appliquée à
+  // pricePerDay/priceForSale — un partenaire tapant sa caution dans sa devise
+  // locale (ex: 8000 MAD) la voyait stockée telle quelle, traitée ensuite
+  // comme 8000 USD partout (affichage ET Booking.cautionAmount, un vrai
+  // montant financier). `caution` est désormais TOUJOURS en USD comme les
+  // autres champs de tarification — voir cautionEntered ci-dessous pour
+  // l'affichage exact.
+  caution:      { type: Number }, // caution location — toujours optionnelle, toujours USD
 
   // Devise D'AFFICHAGE choisie par le partenaire/admin pour CETTE annonce
   // (voir vehicleController.createVehicle/updateVehicle) — `null` (par
@@ -67,6 +75,7 @@ const vehicleSchema = new mongoose.Schema({
   // l'affichage retombe alors sur l'ancien calcul (PriceTag).
   pricePerDayEntered:  { type: Number, default: null },
   priceForSaleEntered: { type: Number, default: null },
+  cautionEntered:      { type: Number, default: null },
   priceEntryCurrency:  { type: String, default: null },
 
   // Durée de location proposée (uniquement pertinent pour type "location") —

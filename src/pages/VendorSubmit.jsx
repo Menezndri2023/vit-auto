@@ -190,10 +190,20 @@ const VendorSubmit = () => {
   const [priceCurrency, setPriceCurrency] = useState("USD");
   const [priceEntryPerDay, setPriceEntryPerDay] = useState("");
   const [priceEntryForSale, setPriceEntryForSale] = useState("");
+  // Bug réel corrigé (audit) : la caution était étiquetée "USD" dans le
+  // formulaire mais n'appliquait jamais la même conversion que pricePerDay/
+  // priceForSale — un partenaire tapant sa caution dans sa devise locale (ex:
+  // 8000 MAD) la voyait stockée telle quelle, traitée ensuite comme 8000 USD
+  // partout (affichage ET Booking.cautionAmount, un vrai montant financier).
+  // Même mécanique que le prix désormais : `cautionEntry` garde le nombre
+  // brut tapé (dans priceCurrency, partagée avec le prix), vehicle.caution
+  // reste la source de vérité en USD.
+  const [cautionEntry, setCautionEntry] = useState("");
 
   const handlePriceEntryChange = (field, raw) => {
     if (field === "pricePerDay") setPriceEntryPerDay(raw);
-    else setPriceEntryForSale(raw);
+    else if (field === "priceForSale") setPriceEntryForSale(raw);
+    else setCautionEntry(raw);
     if (raw === "" || isNaN(Number(raw))) { setVeh(field, ""); return; }
     const num = Number(raw);
     const usd = priceCurrency === "USD" ? num : Math.round((num / rateFromUSD(priceCurrency)) * 100) / 100;
@@ -211,6 +221,10 @@ const VendorSubmit = () => {
     if (priceEntryForSale !== "" && !isNaN(Number(priceEntryForSale))) {
       const num = Number(priceEntryForSale);
       setVeh("priceForSale", code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100);
+    }
+    if (cautionEntry !== "" && !isNaN(Number(cautionEntry))) {
+      const num = Number(cautionEntry);
+      setVeh("caution", code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100);
     }
   };
 
@@ -564,6 +578,7 @@ const VendorSubmit = () => {
           // l'USD stocké (voir Vehicle.js pricePerDayEntered).
           pricePerDayEntered:  priceEntryPerDay  !== "" && !isNaN(Number(priceEntryPerDay))  ? Number(priceEntryPerDay)  : null,
           priceForSaleEntered: priceEntryForSale !== "" && !isNaN(Number(priceEntryForSale)) ? Number(priceEntryForSale) : null,
+          cautionEntered:      cautionEntry      !== "" && !isNaN(Number(cautionEntry))      ? Number(cautionEntry)      : null,
           priceEntryCurrency:  priceCurrency,
           leasing: adType === "vente" ? {
             disponible:    leasing.disponible,
@@ -1060,12 +1075,16 @@ const VendorSubmit = () => {
                   {errors.pricePerDay && <span className={styles.err}>{errors.pricePerDay}</span>}
                 </div>
                 <div className={styles.field}>
-                  <label>Caution (USD) — optionnelle</label>
+                  <label>Caution — optionnelle</label>
                   <div className={styles.inputAffix}>
-                    <input type="number" name="caution" value={vehicle.caution}
-                      onChange={handleVehChange} placeholder="Ex : 100000" />
-                    <span>USD</span>
+                    <input type="number" value={cautionEntry}
+                      onChange={(e) => handlePriceEntryChange("caution", e.target.value)}
+                      placeholder="Ex : 100000" min="0" />
+                    <span>{priceCurrency}</span>
                   </div>
+                  {priceCurrency !== "USD" && vehicle.caution !== "" && (
+                    <span className={styles.hint}>≈ {fmt(vehicle.caution)} USD (converti automatiquement)</span>
+                  )}
                 </div>
                 <div className={styles.field}>
                   <label>Durée de location proposée</label>

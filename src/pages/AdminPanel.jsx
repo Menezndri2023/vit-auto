@@ -9118,6 +9118,9 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
   const [editPriceCurrency,    setEditPriceCurrency]    = useState("USD");
   const [editPriceEntryPerDay, setEditPriceEntryPerDay] = useState("");
   const [editPriceEntryForSale, setEditPriceEntryForSale] = useState("");
+  // Bug réel corrigé (audit) : la caution était étiquetée "USD" ici aussi mais
+  // n'avait aucune conversion (même bug que VendorSubmit.jsx/VendorDashboard.jsx).
+  const [editCautionEntry, setEditCautionEntry] = useState("");
   const [editLoading,  setEditLoading]  = useState(false);
   const [editSaving,   setEditSaving]   = useState(false);
   const [exportMode, setExportMode] = useState(false);
@@ -9315,9 +9318,20 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
       if (!r.ok) throw new Error();
       const v = d.vehicle;
       setEditVehicle(v);
-      setEditPriceCurrency("USD");
-      setEditPriceEntryPerDay(v.pricePerDay ? String(v.pricePerDay) : "");
-      setEditPriceEntryForSale(v.priceForSale ? String(v.priceForSale) : "");
+      // Si un montant exact a déjà été saisi (voir Vehicle.js pricePerDayEntered/
+      // cautionEntered), le réafficher tel quel avec sa devise d'origine plutôt
+      // que de retomber sur le prix USD stocké (arrondi) affiché comme si
+      // c'était de l'USD (même correctif que VendorDashboard.jsx).
+      setEditPriceCurrency(v.priceEntryCurrency || "USD");
+      setEditPriceEntryPerDay(
+        v.pricePerDayEntered != null ? String(v.pricePerDayEntered) : (v.pricePerDay ? String(v.pricePerDay) : "")
+      );
+      setEditPriceEntryForSale(
+        v.priceForSaleEntered != null ? String(v.priceForSaleEntered) : (v.priceForSale ? String(v.priceForSale) : "")
+      );
+      setEditCautionEntry(
+        v.cautionEntered != null ? String(v.cautionEntered) : (v.caution ? String(v.caution) : "")
+      );
       setEditForm({
         type: v.type || "location",
         title: v.title || "", marque: v.marque || "", modele: v.modele || "",
@@ -9348,7 +9362,8 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
   // n'ayant qu'un seul champ de prix, toujours en USD.
   const handleEditPriceEntryChange = (field, raw) => {
     if (field === "pricePerDay") setEditPriceEntryPerDay(raw);
-    else setEditPriceEntryForSale(raw);
+    else if (field === "priceForSale") setEditPriceEntryForSale(raw);
+    else setEditCautionEntry(raw);
     if (raw === "" || isNaN(Number(raw))) { setEditForm((p) => ({ ...p, [field]: "" })); return; }
     const num = Number(raw);
     const usd = editPriceCurrency === "USD" ? num : Math.round((num / rateFromUSD(editPriceCurrency)) * 100) / 100;
@@ -9364,6 +9379,10 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
     if (editPriceEntryForSale !== "" && !isNaN(Number(editPriceEntryForSale))) {
       const num = Number(editPriceEntryForSale);
       setEditForm((p) => ({ ...p, priceForSale: code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100 }));
+    }
+    if (editCautionEntry !== "" && !isNaN(Number(editCautionEntry))) {
+      const num = Number(editCautionEntry);
+      setEditForm((p) => ({ ...p, caution: code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100 }));
     }
   };
 
@@ -9387,8 +9406,19 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
         permisRequis: editForm.permisRequis, assuranceOptionnelle: editForm.assuranceOptionnelle,
         withDriver: editForm.withDriver, available: editForm.available, images,
       };
-      if (editForm.type === "vente") patch.priceForSale = Number(editForm.priceForSale) || 0;
-      else patch.pricePerDay = Number(editForm.pricePerDay) || 0;
+      // Montant exact tel que tapé (évite la perte de précision de l'aller-
+      // retour de conversion via l'USD stocké — voir Vehicle.js
+      // pricePerDayEntered/cautionEntered ; même correctif que
+      // VendorDashboard.jsx, manquant ici jusqu'ici — bug réel trouvé en audit).
+      if (editForm.type === "vente") {
+        patch.priceForSale = Number(editForm.priceForSale) || 0;
+        patch.priceForSaleEntered = editPriceEntryForSale !== "" && !isNaN(Number(editPriceEntryForSale)) ? Number(editPriceEntryForSale) : null;
+      } else {
+        patch.pricePerDay = Number(editForm.pricePerDay) || 0;
+        patch.pricePerDayEntered = editPriceEntryPerDay !== "" && !isNaN(Number(editPriceEntryPerDay)) ? Number(editPriceEntryPerDay) : null;
+      }
+      patch.cautionEntered = editCautionEntry !== "" && !isNaN(Number(editCautionEntry)) ? Number(editCautionEntry) : null;
+      patch.priceEntryCurrency = editPriceCurrency;
       if (images[0]) patch.thumbnail = await compressImageAdmin(images[0], 480, 0.6);
 
       const r = await fetch(`/api/vehicles/${editVehicle._id}`, { method: "PATCH", headers, body: JSON.stringify(patch) });
@@ -10334,9 +10364,15 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
                     </div>
                     {editForm.type !== "vente" && (
                       <div style={{ flex: 1 }}>
-                        <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Caution (USD)</label>
-                        <input type="number" min="0" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
-                          value={editForm.caution} onChange={(e) => setEditForm((p) => ({ ...p, caution: e.target.value }))} />
+                        <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Caution</label>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <input type="number" min="0" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                            value={editCautionEntry} onChange={(e) => handleEditPriceEntryChange("caution", e.target.value)} />
+                          <span style={{ display: "flex", alignItems: "center", padding: "0 8px", fontSize: ".82rem", color: "#64748b" }}>{editPriceCurrency}</span>
+                        </div>
+                        {editPriceCurrency !== "USD" && (
+                          <span style={{ fontSize: ".75rem", color: "#94a3b8" }}>≈ {Number(editForm.caution || 0).toLocaleString("fr-FR")} USD (converti automatiquement)</span>
+                        )}
                       </div>
                     )}
                   </div>

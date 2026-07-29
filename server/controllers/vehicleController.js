@@ -548,7 +548,7 @@ export const updateVehicle = async (req, res) => {
       "images", "thumbnail", "description", "available", "type", "currency",
       // Montant exact saisi (voir Vehicle.js / buildVehicleWhitelist) — évite
       // la perte de précision de l'aller-retour de conversion via l'USD stocké.
-      "pricePerDayEntered", "priceForSaleEntered", "priceEntryCurrency",
+      "pricePerDayEntered", "priceForSaleEntered", "cautionEntered", "priceEntryCurrency",
     ];
     // Champs réservés admin
     const ADMIN_ONLY = ["featured", "sponsoredUntil", "boostLevel"];
@@ -586,6 +586,9 @@ export const updateVehicle = async (req, res) => {
     }
     if (safeUpdate.priceForSale !== undefined && req.body.priceForSaleEntered === undefined) {
       safeUpdate.priceForSaleEntered = null;
+    }
+    if (safeUpdate.caution !== undefined && req.body.cautionEntered === undefined) {
+      safeUpdate.cautionEntered = null;
     }
 
     // Rattacher/détacher l'annonce à une entreprise (voir createVehicle) — juste

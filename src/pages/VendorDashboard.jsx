@@ -1160,6 +1160,10 @@ export default function VendorDashboard() {
   const [editPriceCurrency, setEditPriceCurrency] = useState("USD");
   const [editPriceEntryPerDay, setEditPriceEntryPerDay] = useState("");
   const [editPriceEntryForSale, setEditPriceEntryForSale] = useState("");
+  // Bug réel corrigé (audit) : la caution était étiquetée "USD" mais n'avait
+  // aucune conversion (contrairement au prix) — voir VendorSubmit.jsx pour le
+  // même correctif à la création.
+  const [editCautionEntry, setEditCautionEntry] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [editPhotos, setEditPhotos] = useState([]); // [{ id, preview }] — photos actuelles + nouvelles
@@ -1526,6 +1530,9 @@ export default function VendorDashboard() {
       setEditPriceEntryForSale(
         v.priceForSaleEntered != null ? String(v.priceForSaleEntered) : (v.priceForSale ? String(v.priceForSale) : "")
       );
+      setEditCautionEntry(
+        v.cautionEntered != null ? String(v.cautionEntered) : (v.caution ? String(v.caution) : "")
+      );
       setEditForm({
         type:        v.type || (vehicle.mode === "Acheter" ? "vente" : "location"),
         title:       v.title || vehicle.name || "",
@@ -1572,7 +1579,8 @@ export default function VendorDashboard() {
 
   const handleEditPriceEntryChange = (field, raw) => {
     if (field === "pricePerDay") setEditPriceEntryPerDay(raw);
-    else setEditPriceEntryForSale(raw);
+    else if (field === "priceForSale") setEditPriceEntryForSale(raw);
+    else setEditCautionEntry(raw);
     if (raw === "" || isNaN(Number(raw))) { setEditForm((p) => ({ ...p, [field]: "" })); return; }
     const num = Number(raw);
     const usd = editPriceCurrency === "USD" ? num : Math.round((num / rateFromUSD(editPriceCurrency)) * 100) / 100;
@@ -1588,6 +1596,10 @@ export default function VendorDashboard() {
     if (editPriceEntryForSale !== "" && !isNaN(Number(editPriceEntryForSale))) {
       const num = Number(editPriceEntryForSale);
       setEditForm((p) => ({ ...p, priceForSale: code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100 }));
+    }
+    if (editCautionEntry !== "" && !isNaN(Number(editCautionEntry))) {
+      const num = Number(editCautionEntry);
+      setEditForm((p) => ({ ...p, caution: code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100 }));
     }
   };
 
@@ -1615,6 +1627,7 @@ export default function VendorDashboard() {
         climatisation: editForm.climatisation,
         rentalDurationType: editForm.rentalDurationType,
         caution:     Number(editForm.caution) || 0,
+        cautionEntered: editCautionEntry !== "" && !isNaN(Number(editCautionEntry)) ? Number(editCautionEntry) : null,
         description: editForm.description,
         country:     editForm.country || null,
         ville:       editForm.ville,
@@ -3795,9 +3808,15 @@ export default function VendorDashboard() {
                   </div>
                   {editForm.type !== "vente" && (
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Caution (USD)</label>
-                      <input type="number" min="0" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
-                        value={editForm.caution} onChange={(e) => setEditForm((p) => ({ ...p, caution: e.target.value }))} />
+                      <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Caution</label>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <input type="number" min="0" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px", flex: 1 }}
+                          value={editCautionEntry} onChange={(e) => handleEditPriceEntryChange("caution", e.target.value)} />
+                        <span style={{ display: "flex", alignItems: "center", padding: "0 8px", fontSize: "0.82rem", color: "#64748b" }}>{editPriceCurrency}</span>
+                      </div>
+                      {editPriceCurrency !== "USD" && (
+                        <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>≈ {Number(editForm.caution || 0).toLocaleString("fr-FR")} USD (converti automatiquement)</span>
+                      )}
                     </div>
                   )}
                 </div>
