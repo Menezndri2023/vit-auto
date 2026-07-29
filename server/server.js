@@ -46,6 +46,7 @@ import serviceRequestRoutes   from "./routes/serviceRequests.js";
 import favoritesRoutes        from "./routes/favorites.js";
 import whatsappRoutes         from "./routes/whatsapp.js";
 import * as whatsappController from "./controllers/whatsappController.js";
+import * as commWebhookController from "./controllers/commWebhookController.js";
 import pricingRoutes          from "./routes/pricing.js";
 import businessConfigRoutes   from "./routes/businessConfig.js";
 import siteContentRoutes      from "./routes/siteContent.js";
@@ -214,6 +215,11 @@ app.post("/api/payments/webhook/wave",   express.raw({ type: "application/json" 
 // vérifiée sur le corps brut. Le challenge GET n'a besoin d'aucun body parsing.
 app.get ("/api/whatsapp/webhook", whatsappController.verifyWebhook);
 app.post("/api/whatsapp/webhook", express.raw({ type: "application/json" }), whatsappController.receiveWebhook);
+
+// ── Webhook Resend (bounce/complaint/delivered) — même raison : signature
+// svix-signature vérifiée sur le corps brut (voir commWebhookController.js
+// pour la configuration requise côté dashboard Resend).
+app.post("/api/comm/webhook/resend", express.raw({ type: "application/json" }), commWebhookController.resendWebhook);
 
 // ── Body parsing — 20 MB pour couvrir jusqu'à 6 photos véhicule (VendorSubmit.jsx,
 // recompressées côté client mais avec marge) en plus des photos base64 KYC ──
@@ -389,6 +395,19 @@ app.get("/api/comm/stats", apiLimiter, authenticate, authorizeAdmin, async (req,
     res.json({ stats });
   } catch (err) {
     logger.error("comm/stats error:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+});
+
+// Liste exploitable des envois en échec/bounce (voir resendWebhook) — permet à
+// l'admin de savoir précisément à qui renvoyer un document non délivré.
+app.get("/api/comm/failures", apiLimiter, authenticate, authorizeAdmin, async (req, res) => {
+  try {
+    const { getRecentFailures } = await import("./services/communication/analytics/CommunicationAnalytics.js");
+    const failures = await getRecentFailures(req.query.limit);
+    res.json({ failures });
+  } catch (err) {
+    logger.error("comm/failures error:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 });

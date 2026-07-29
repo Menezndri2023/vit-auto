@@ -108,6 +108,25 @@ export async function getStats({ from, to: toDate, channel, template } = {}) {
   }
 }
 
+// ── Envois récents en échec/bounce (admin) ────────────────────────────────────
+// Contrairement à getStats (agrégats), ceci donne la liste exploitable :
+// à qui renvoyer manuellement un document LOI/Accord non délivré, par exemple.
+export async function getRecentFailures(limit = 50) {
+  try {
+    const Log = await getLog();
+    const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
+    return Log.find({ status: { $in: ["failed", "bounced", "complained"] } })
+      .sort({ createdAt: -1 })
+      .limit(safeLimit)
+      .select("to channel template subject status errorMessage createdAt userId")
+      .populate("userId", "firstName lastName email")
+      .lean();
+  } catch (err) {
+    logger.error("[Analytics] getRecentFailures error", { error: err.message });
+    return [];
+  }
+}
+
 // ── Top templates les plus utilisés ──────────────────────────────────────────
 export async function getTopTemplates(limit = 10) {
   try {

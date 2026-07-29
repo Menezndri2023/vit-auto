@@ -531,7 +531,16 @@ const VendorSubmit = () => {
           const data = await res.json().catch(() => null);
           if (data?.code === "KYC_REQUIRED" || data?.code === "DRIVER_DOCS_REQUIRED") {
             error(data?.message || "Vérifiez votre identité et votre permis de conduire pour publier votre annonce. Redirection…");
-            setTimeout(() => navigate("/kyc"), 1500);
+            // Bug réel corrigé (audit) : KYC.jsx n'affiche l'étape "permis de
+            // conduire" que si user.activity==="chauffeur" OU ?next=driver-docs
+            // est présent dans l'URL. Un partenaire dont l'activité principale
+            // enregistrée n'est pas "chauffeur" (ex. déjà partenaire location/
+            // vente qui publie AUSSI une annonce chauffeur) atterrissait donc
+            // sur un KYC identité seul, sans aucun moyen d'uploader son permis
+            // — bloqué indéfiniment par missingDriverDocs côté serveur
+            // (driverController.js) sans jamais pouvoir créer son profil
+            // chauffeur, malgré une redirection "pour le guider".
+            setTimeout(() => navigate("/kyc?next=driver-docs"), 1500);
           } else if (data?.code === "CERTIFICATION_REQUIRED") {
             error("Terminez votre vérification partenaire pour publier une annonce. Redirection…");
             setTimeout(() => navigate("/partner-onboarding"), 1500);

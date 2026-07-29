@@ -27,9 +27,21 @@ export async function processEmail(job) {
 
   const { sendViaEmail } = await import("../../services/communication/CommunicationService.js");
 
+  // Bug réel corrigé (audit) : sendViaEmail() n'expose jamais ses échecs en
+  // levant une exception, seulement via son résultat ({sent:false, error}) —
+  // en le renvoyant tel quel comme résultat du job, BullMQ marquait
+  // "completed" même quand Resend/SMTP avait rejeté l'envoi, empêchant tout
+  // retry automatique (attempts/backoff déjà configurés en pure perte).
+  const throwIfFailed = (result, template) => {
+    if (!result.sent) {
+      throw new Error(`Envoi email échoué (${template || "html brut"}) : ${result.error || "raison inconnue"}`);
+    }
+    return result;
+  };
+
   // HTML brut (ex: reset password depuis auth controller)
   if (html && !type) {
-    return sendViaEmail({ to, subject, html, userId });
+    return throwIfFailed(await sendViaEmail({ to, subject, html, userId }));
   }
 
   // Résoudre le template email
@@ -40,7 +52,7 @@ export async function processEmail(job) {
     throw new Error(`Template email "${type}" introuvable : ${err.message}`);
   }
 
-  return sendViaEmail({
+  const result = await sendViaEmail({
     to,
     subject:  templateData.subject || subject,
     template: templateData.template,
@@ -50,6 +62,7 @@ export async function processEmail(job) {
     tags:     [type],
     context:  { jobId: job.id, jobType: type },
   });
+  return throwIfFailed(result, templateData.template);
 }
 
 async function resolveEmailTemplate(type, data) {

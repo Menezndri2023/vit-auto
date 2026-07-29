@@ -17,6 +17,23 @@ import { captureException } from "../../config/sentry.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
 import { noteRedisError } from "../connection.js";
 
+// Bug réel corrigé (audit) : sendViaEmail() n'expose jamais ses échecs en
+// levant une exception, seulement via son résultat ({sent:false, error}) —
+// voir CommunicationService.js. Sans ce contrôle explicite, BullMQ marquait
+// le job "completed" même quand Resend/SMTP avait rejeté l'envoi (ex. domaine
+// non vérifié), empêchant tout retry automatique alors que attempts/backoff
+// sont déjà configurés (queue/definitions.js) — ils ne se déclenchaient
+// jamais pour un vrai échec d'envoi, uniquement pour une exception ailleurs
+// dans le job (ex. template introuvable).
+async function sendEmailOrThrow(payload) {
+  const { sendViaEmail } = await import("../../services/communication/CommunicationService.js");
+  const result = await sendViaEmail(payload);
+  if (!result.sent) {
+    throw new Error(`Envoi email échoué (${payload.template || "html brut"}) : ${result.error || "raison inconnue"}`);
+  }
+  return result;
+}
+
 // Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
 // Redis/BullMQ est indisponible.
 export async function processPdfJob(job) {
@@ -40,18 +57,23 @@ export async function processPdfJob(job) {
       );
 
       if (sendEmail && partnerEmail) {
-        const { sendViaEmail } = await import("../../services/communication/CommunicationService.js");
-        const { loiReadyTemplate } = await import("../../services/communication/templates/email/WelcomePartner.js");
-        const html = loiReadyTemplate({
-          firstName:   partnerName,
-          companyName: companyName || partnerName,
-          loiUrl:      signLink || `${process.env.APP_URL || "https://vit-auto.com"}/partner-onboarding`,
-          expiresAt,
-        });
-        await sendViaEmail({
+        // Bug réel corrigé (audit) : `html` était construit à la main en
+        // appelant loiReadyTemplate() directement, sans jamais passer
+        // `template:` à sendViaEmail — CommunicationLog enregistrait donc ces
+        // envois avec template:null (indiscernables de n'importe quel autre
+        // email), rendant impossible tout suivi/diagnostic ciblé ("combien de
+        // LOI envoyées ? combien échouées ?"). Ça sautait aussi le pixel de
+        // tracking d'ouverture (buildTrackingPixel n'était jamais appelé).
+        await sendEmailOrThrow({
           to:          partnerEmail,
           subject:     `VIT AUTO — Votre Lettre d'Intention VA-LOI-${referenceNumber}`,
-          html,
+          template:    "loi_ready",
+          data: {
+            firstName:   partnerName,
+            companyName: companyName || partnerName,
+            loiUrl:      signLink || `${process.env.APP_URL || "https://vit-auto.com"}/partner-onboarding`,
+            expiresAt,
+          },
           userId:      data.userId,
           attachments: [{ filename: `LOI-${referenceNumber}.pdf`, content: buffer, contentType: "application/pdf" }],
         });
@@ -71,18 +93,18 @@ export async function processPdfJob(job) {
       );
 
       if (sendEmail && partnerEmail) {
-        const { sendViaEmail } = await import("../../services/communication/CommunicationService.js");
-        const { agreementReadyTemplate } = await import("../../services/communication/templates/email/WelcomePartner.js");
-        const html = agreementReadyTemplate({
-          firstName:   partnerName,
-          companyName: companyName || partnerName,
-          agreementUrl: signLink || `${process.env.APP_URL || "https://vit-auto.com"}/partner-onboarding`,
-          expiresAt,
-        });
-        await sendViaEmail({
+        // Voir le commentaire équivalent dans le case "loi" ci-dessus — même
+        // bug (template jamais attribué, pixel de tracking jamais injecté).
+        await sendEmailOrThrow({
           to:          partnerEmail,
           subject:     `VIT AUTO — Votre Accord VA-FPA-${referenceNumber}`,
-          html,
+          template:    "agreement_ready",
+          data: {
+            firstName:   partnerName,
+            companyName: companyName || partnerName,
+            agreementUrl: signLink || `${process.env.APP_URL || "https://vit-auto.com"}/partner-onboarding`,
+            expiresAt,
+          },
           userId:      data.userId,
           attachments: [{ filename: `Accord-${referenceNumber}.pdf`, content: buffer, contentType: "application/pdf" }],
         });
@@ -100,8 +122,7 @@ export async function processPdfJob(job) {
       const buffer = await generateReceiptPDFBuffer(booking);
 
       if (sendEmail && clientEmail) {
-        const { sendViaEmail } = await import("../../services/communication/CommunicationService.js");
-        await sendViaEmail({
+        await sendEmailOrThrow({
           to: clientEmail,
           subject: `VIT AUTO — Reçu de paiement ${booking?.reference || ""}`,
           template: "payment_receipt",
@@ -131,8 +152,7 @@ export async function processPdfJob(job) {
       const buffer = await generateInvoicePDFBuffer(invoice);
 
       if (sendEmail && partnerEmail) {
-        const { sendViaEmail } = await import("../../services/communication/CommunicationService.js");
-        await sendViaEmail({
+        await sendEmailOrThrow({
           to: partnerEmail,
           subject: `VIT AUTO — Facture #${invoice?.reference || ""}`,
           template: "invoice",

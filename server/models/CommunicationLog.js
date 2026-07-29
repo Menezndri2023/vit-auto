@@ -21,14 +21,22 @@ const communicationLogSchema = new mongoose.Schema({
     enum: ["resend", "smtp", "africastalking", "twilio", "whatsapp_api", "fcm", "socket", "console"],
     default: "console",
   },
-  messageId:  { type: String, default: null },         // ID retourné par le provider
+  messageId:  { type: String, default: null },         // ID retourné par le provider (Resend email_id)
+  // "bounced"/"complained" distincts de "failed" (échec immédiat à l'appel
+  // API) — voir server/controllers/commWebhookController.js resendWebhook :
+  // un email peut être accepté par Resend (status "sent") puis rejeté de
+  // façon asynchrone par le serveur destinataire, ce que seul le webhook
+  // Resend révèle. "delivered" reste positionné soit par ce webhook
+  // (email.delivered), soit en repli par l'ouverture du pixel de tracking.
   status: {
     type: String,
-    enum: ["queued", "sent", "delivered", "failed", "simulated"],
+    enum: ["queued", "sent", "delivered", "bounced", "complained", "failed", "simulated"],
     default: "queued",
   },
   errorMessage: { type: String, default: null },
   attempts:   { type: Number, default: 1 },
+  deliveredAt: { type: Date, default: null },
+  bouncedAt:   { type: Date, default: null },
 
   // ── Tracking ──────────────────────────────────────────────────────────────
   trackingId: { type: String, unique: true, sparse: true }, // UUID pour pixel/click
@@ -52,6 +60,10 @@ communicationLogSchema.index({ userId: 1, createdAt: -1 });
 communicationLogSchema.index({ channel: 1, status: 1 });
 communicationLogSchema.index({ template: 1, createdAt: -1 });
 communicationLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 180 * 24 * 3600 }); // 6 mois TTL
+// Corrélation avec les événements webhook Resend (email.delivered/bounced/...),
+// qui n'identifient l'email que par son messageId (Resend email_id) — jamais
+// par trackingId (propre à VIT AUTO, absent des payloads Resend).
+communicationLogSchema.index({ messageId: 1 }, { sparse: true });
 
 export default mongoose.models.CommunicationLog ||
   mongoose.model("CommunicationLog", communicationLogSchema);

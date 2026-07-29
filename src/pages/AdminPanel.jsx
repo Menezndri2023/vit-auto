@@ -1224,6 +1224,13 @@ export default function AdminPanel() {
   // Analytics avancé
   const [analytics,        setAnalytics]        = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  // Emails & livraison — voir commWebhookController.js pour l'origine des
+  // statuts "bounced"/"complained" (webhook Resend, sans lequel un email
+  // rejeté par le serveur destinataire restait indiscernable d'un email
+  // réellement livré).
+  const [emailStats,           setEmailStats]           = useState(null);
+  const [emailFailures,        setEmailFailures]        = useState([]);
+  const [emailDeliveryLoading, setEmailDeliveryLoading] = useState(false);
 
   // Financement (leasing/crédit)
   const [financingRequests, setFinancingRequests] = useState([]);
@@ -1303,6 +1310,12 @@ export default function AdminPanel() {
   const [generating,       setGenerating]       = useState(false);
   const [importerProfiles, setImporterProfiles] = useState([]);
   const [importerListings, setImporterListings] = useState([]);
+  const [importerListingsTotal, setImporterListingsTotal] = useState(0);
+  // Bug réel corrigé (audit) : plafond fixe à 100 (comme pour les véhicules
+  // avant correctif) — 211 annonces Import/Export réelles en base au moment
+  // de l'audit, toutes "pending", dont 111 invisibles ici. Défaut au plafond
+  // admin réel du backend (getAdminListings maxLimit=500) au lieu de 100.
+  const [importerListingsLimit, setImporterListingsLimit] = useState(500);
   const [importerLoading,  setImporterLoading]  = useState(false);
   // "" = Tous (par défaut) — un défaut sur "pending" cachait silencieusement les
   // dossiers déjà vérifiés/refusés dès l'ouverture de l'onglet (voir loadImporters).
@@ -1485,6 +1498,41 @@ export default function AdminPanel() {
     setTimeout(() => setToast(null), 3500);
   }, []);
 
+  // ── Recherche globale classée par entité ────────────────────────────────────
+  // Bug réel corrigé (audit) : chaque type d'annonce (véhicule, chauffeur,
+  // Import/Export) vit dans un onglet séparé avec sa propre recherche locale —
+  // un admin qui cherche "Kouassi" ne sait pas d'avance dans quel onglet
+  // regarder, et une annonce chauffeur en particulier était rapportée comme
+  // introuvable. Cette recherche interroge les 3 entités en une seule fois,
+  // classées par type, accessible depuis n'importe quel onglet (barre du haut).
+  const [globalSearch, setGlobalSearch] = useState("");
+  const globalSearchResults = useMemo(() => {
+    const q = globalSearch.trim().toLowerCase();
+    if (q.length < 2) return null;
+    const matchesAny = (fields) => fields.some((f) => f && String(f).toLowerCase().includes(q));
+
+    const matchVehicles = vehicles.filter((v) =>
+      matchesAny([v.title, v.name, v.marque, v.modele, v.owner?.firstName, v.owner?.lastName])
+    ).slice(0, 8);
+
+    const matchDrivers = [
+      ...drivers.map((d) => ({ ...d, _searchStatus: d.status || "pending" })),
+      ...activeDrivers.map((d) => ({ ...d, _searchStatus: d.status || "approved" })),
+    ].filter((d) =>
+      matchesAny([d.firstName, d.lastName, d.title, d.owner?.firstName, d.owner?.lastName])
+    ).slice(0, 8);
+
+    const matchListings = importerListings.filter((l) =>
+      matchesAny([l.title, l.make, l.model, l.partner?.firstName, l.partner?.lastName])
+    ).slice(0, 8);
+
+    return { vehicles: matchVehicles, drivers: matchDrivers, listings: matchListings };
+  }, [globalSearch, vehicles, drivers, activeDrivers, importerListings]);
+
+  const globalSearchTotal = globalSearchResults
+    ? globalSearchResults.vehicles.length + globalSearchResults.drivers.length + globalSearchResults.listings.length
+    : 0;
+
   // ── Headers API ─────────────────────────────────────────────────────────────
   const headers = useMemo(() => ({
     "Content-Type": "application/json",
@@ -1535,6 +1583,12 @@ export default function AdminPanel() {
   const loadMoreUsers = useCallback(() => setUsersLimit((l) => l + 200), []);
   const loadMoreBookings = useCallback(() => setBookingsLimit((l) => l + 200), []);
   const loadMoreVehicles = useCallback(() => setVehiclesLimit((l) => l + 200), []);
+
+  const handleGlobalApproveDriver = useCallback(async (id) => {
+    const r = await fetch(`/api/drivers/${id}/status`, { method: "PATCH", headers, body: JSON.stringify({ status: "approved" }) });
+    if (r.ok) { showToast("Chauffeur approuvé"); setGlobalSearch(""); loadAll(); }
+    else showToast("Erreur approbation", "error");
+  }, [headers, showToast, loadAll]);
 
   // ── Demandes Import/Export ──────────────────────────────────────────────────
   const loadImportExport = useCallback(async () => {
@@ -1661,13 +1715,15 @@ export default function AdminPanel() {
     try {
       const [pRes, lRes] = await Promise.all([
         fetch(`/api/import-export/importer-profiles?limit=100`, { headers }),
-        fetch(`/api/import-export/listings/admin?limit=100`,     { headers }),
+        fetch(`/api/import-export/listings/admin?limit=${importerListingsLimit}`, { headers }),
       ]);
       if (pRes.ok) { const d = await pRes.json(); setImporterProfiles(d.profiles || []); }
-      if (lRes.ok) { const d = await lRes.json(); setImporterListings(d.listings || []); }
+      if (lRes.ok) { const d = await lRes.json(); setImporterListings(d.listings || []); setImporterListingsTotal(d.total || 0); }
     } catch {}
     setImporterLoading(false);
-  }, [token, headers]);
+  }, [token, headers, importerListingsLimit]);
+
+  const loadMoreImporterListings = useCallback(() => setImporterListingsLimit((l) => l + 200), []);
 
   // /listings/admin (liste) ne renvoie plus le tableau `photos` complet — voir
   // importExportController.getAdminListings (optimisation payload liste). Il
@@ -1782,6 +1838,21 @@ export default function AdminPanel() {
       if (r.ok) setAnalytics(await r.json());
     } catch { /* ignore */ }
     setAnalyticsLoading(false);
+  }, [token, headers]);
+
+  // ── Emails & livraison (bounces/échecs Resend) ───────────────────────────────
+  const loadEmailDelivery = useCallback(async () => {
+    if (!token) return;
+    setEmailDeliveryLoading(true);
+    try {
+      const [sRes, fRes] = await Promise.all([
+        fetch("/api/comm/stats", { headers }),
+        fetch("/api/comm/failures?limit=100", { headers }),
+      ]);
+      if (sRes.ok) setEmailStats((await sRes.json()).stats);
+      if (fRes.ok) setEmailFailures((await fRes.json()).failures || []);
+    } catch { /* ignore */ }
+    setEmailDeliveryLoading(false);
   }, [token, headers]);
 
   // ── Financement ──────────────────────────────────────────────────────────────
@@ -2677,6 +2748,7 @@ export default function AdminPanel() {
     if (activeTab === "reviews")           loadReviews();
     if (activeTab === "audit")             loadAuditLog();
     if (activeTab === "analytics")         loadAnalytics();
+    if (activeTab === "email_delivery")    loadEmailDelivery();
     if (activeTab === "financement")       loadFinancing();
     if (activeTab === "roles")             loadAdminAccounts();
     if (activeTab === "ads" || activeTab === "marketing") loadAds();
@@ -3107,6 +3179,7 @@ export default function AdminPanel() {
         { key: "support",       icon: "🎧", label: "Support Client",           badge: pendingSupport || undefined },
         { key: "reports",       icon: "🚩", label: "Signalements",             badge: pendingReports || undefined },
         { key: "whatsapp",      icon: "💬", label: "Bot WhatsApp partenaires", badge: pendingWa || undefined },
+        { key: "email_delivery",icon: "📧", label: "Emails & Livraison",       badge: emailFailures.length || undefined },
       ],
     },
     {
@@ -3344,6 +3417,76 @@ export default function AdminPanel() {
             {NAV_GROUPS.flatMap((g) => g.items).find((i) => i.key === activeTab)?.icon || "⚙️"}{" "}
             {activeLabel}
           </span>
+
+          {/* Recherche globale — cherche véhicules/chauffeurs/annonces Import-Export
+              en une fois, classés par entité, quel que soit l'onglet actif. */}
+          <div style={{ position: "relative", flex: "1 1 260px", maxWidth: 360, margin: "0 12px" }}>
+            <input
+              type="text"
+              value={globalSearch}
+              onChange={(e) => setGlobalSearch(e.target.value)}
+              placeholder="🔎 Rechercher une annonce (tous types)…"
+              style={{ width: "100%", padding: "7px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}
+            />
+            {globalSearchResults && (
+              <div style={{
+                position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 200,
+                background: "#fff", border: "1.5px solid #e2e8f0", borderRadius: 10,
+                boxShadow: "0 8px 24px rgba(0,0,0,.12)", maxHeight: 420, overflowY: "auto", padding: 10,
+              }}>
+                {globalSearchTotal === 0 ? (
+                  <p style={{ margin: 0, padding: 8, fontSize: ".82rem", color: "#94a3b8" }}>Aucune annonce ne correspond, quelle que soit l'entité.</p>
+                ) : (
+                  <>
+                    {globalSearchResults.vehicles.length > 0 && (
+                      <div style={{ marginBottom: 10 }}>
+                        <p style={{ margin: "0 0 4px", fontSize: ".72rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>🚗 Véhicules ({globalSearchResults.vehicles.length})</p>
+                        {globalSearchResults.vehicles.map((v) => (
+                          <div key={v._id || v.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 8px", borderRadius: 8, cursor: "pointer" }}
+                            onClick={() => { setActiveTab("catalogue"); setGlobalSearch(""); }}>
+                            <span style={{ fontSize: ".82rem" }}>{v.title || v.name} <span style={{ color: "#94a3b8" }}>— {v.owner?.firstName || ""}</span></span>
+                            <Badge label={v.status === "approved" ? "Publiée" : v.status === "pending" ? "En attente" : v.status} color={v.status === "approved" ? "#10b981" : v.status === "pending" ? "#f59e0b" : "#94a3b8"} bg="#f8fafc" />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {globalSearchResults.drivers.length > 0 && (
+                      <div style={{ marginBottom: 10 }}>
+                        <p style={{ margin: "0 0 4px", fontSize: ".72rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>👨‍✈️ Chauffeurs ({globalSearchResults.drivers.length})</p>
+                        {globalSearchResults.drivers.map((d) => (
+                          <div key={d._id || d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 8px", borderRadius: 8 }}>
+                            <span style={{ fontSize: ".82rem" }}>{d.firstName} {d.lastName} <span style={{ color: "#94a3b8" }}>— {d.title || ""}</span></span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <Badge label={d._searchStatus === "approved" ? "Publié" : d._searchStatus === "pending" ? "En attente" : d._searchStatus} color={d._searchStatus === "approved" ? "#10b981" : d._searchStatus === "pending" ? "#f59e0b" : "#94a3b8"} bg="#f8fafc" />
+                              {d._searchStatus === "pending" && (
+                                <button onClick={() => handleGlobalApproveDriver(d._id)}
+                                  style={{ fontSize: ".72rem", fontWeight: 700, padding: "3px 8px", borderRadius: 6, border: "1.5px solid #10b981", background: "#ecfdf5", color: "#10b981", cursor: "pointer" }}>
+                                  ✅ Approuver
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {globalSearchResults.listings.length > 0 && (
+                      <div>
+                        <p style={{ margin: "0 0 4px", fontSize: ".72rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>🌍 Import/Export ({globalSearchResults.listings.length})</p>
+                        {globalSearchResults.listings.map((l) => (
+                          <div key={l._id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 8px", borderRadius: 8, cursor: "pointer" }}
+                            onClick={() => { setActiveTab("exportateurs"); setGlobalSearch(""); }}>
+                            <span style={{ fontSize: ".82rem" }}>{l.title} <span style={{ color: "#94a3b8" }}>— {l.partner?.firstName || ""}</span></span>
+                            <Badge label={l.status === "approved" ? "Publiée" : l.status === "pending" ? "En attente" : l.status} color={l.status === "approved" ? "#10b981" : l.status === "pending" ? "#f59e0b" : "#94a3b8"} bg="#f8fafc" />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className={styles.topbarRight}>
             <button
               className={styles.adminBadge}
@@ -4119,6 +4262,17 @@ export default function AdminPanel() {
                         })}
                       </tbody>
                     </table>
+                  </div>
+                )}
+                {/* Bug réel corrigé (audit) : plafond de 100 annonces IE
+                    chargées, invisible pour l'admin — voir loadMoreImporterListings. */}
+                {importerListings.length < importerListingsTotal && (
+                  <div style={{ textAlign: "center", marginTop: 10 }}>
+                    <p style={{ fontSize: ".8rem", color: "#94a3b8", marginBottom: 6 }}>{importerListings.length} chargées sur {importerListingsTotal} au total</p>
+                    <button onClick={loadMoreImporterListings}
+                      style={{ padding: "6px 16px", borderRadius: 10, border: "1.5px solid #6366f1", background: "#fff", color: "#6366f1", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
+                      Charger plus
+                    </button>
                   </div>
                 )}
               </div>
@@ -8093,6 +8247,82 @@ export default function AdminPanel() {
                 </div>
               )}
             </div>
+          )}
+        </div>
+      )}
+      {activeTab === "email_delivery" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>📧 Emails & Livraison</h2>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>
+                Suivi réel des envois (Resend) — LOI, Accords, factures, confirmations... Un email "envoyé" n'est confirmé "livré" que via le webhook Resend
+                (ou l'ouverture du message) ; "Rejeté/Signalé spam" signifie que le serveur destinataire a explicitement refusé l'email.
+              </p>
+            </div>
+            <button className={styles.btnRefresh} onClick={loadEmailDelivery}>↻ Actualiser</button>
+          </div>
+
+          {emailDeliveryLoading ? (
+            <div className={styles.loadingBox}><div className={styles.spinner} /></div>
+          ) : (
+            <>
+              <div style={{ background: "#fffbeb", border: "1.5px solid #fcd34d", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: ".82rem", color: "#92400e" }}>
+                ⚠️ Si "Rejetés/Signalés spam" reste élevé : vérifiez dans le dashboard Resend (Domains) que <code>vit-auto.com</code> est bien "Verified"
+                (SPF/DKIM/DMARC) — un domaine non vérifié fait rejeter une grande partie des emails par Gmail/Outlook. Le webhook Resend doit aussi être
+                configuré (Webhooks → email.delivered/bounced/complained/delivery_delayed → <code>RESEND_WEBHOOK_SECRET</code> côté serveur) pour que ce
+                tableau reflète la réalité plutôt que de rester bloqué sur "Envoyé".
+              </div>
+
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+                <StatCard icon="📤" label="Envoyés (email)" value={emailStats?.email?.totalSent || 0} color="#6366f1" />
+                <StatCard icon="✅" label="Livrés/Ouverts" value={emailStats?.email?.totalOpened || 0} sub={`${emailStats?.email?.openRate || 0}% de taux d'ouverture`} color="#10b981" />
+                <StatCard icon="🚫" label="Rejetés / Signalés spam" value={(emailStats?.byStatus?.bounced || 0) + (emailStats?.byStatus?.complained || 0)} color="#ef4444" />
+                <StatCard icon="⚠️" label="Échecs immédiats" value={emailStats?.byStatus?.failed || 0} color="#f59e0b" />
+              </div>
+
+              <h3 style={{ fontSize: ".95rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 10px" }}>Envois en échec récents</h3>
+              {emailFailures.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "20px 0", color: "#94a3b8" }}>
+                  <p style={{ margin: 0 }}>Aucun échec/bounce enregistré récemment.</p>
+                </div>
+              ) : (
+                <div className={styles.tableWrap}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Destinataire</th>
+                        <th>Type de document</th>
+                        <th>Statut</th>
+                        <th>Raison</th>
+                        <th>Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {emailFailures.map((f) => {
+                        const stCfg = {
+                          bounced:    { label: "Rejeté",        color: "#ef4444", bg: "#fef2f2" },
+                          complained: { label: "Signalé spam",  color: "#dc2626", bg: "#fef2f2" },
+                          failed:     { label: "Échec immédiat", color: "#f59e0b", bg: "#fffbeb" },
+                        }[f.status] || { label: f.status, color: "#94a3b8", bg: "#f8fafc" };
+                        return (
+                          <tr key={f._id} className={styles.tr}>
+                            <td style={{ fontSize: ".82rem" }}>
+                              {f.to}
+                              {f.userId && <span className={styles.vehMeta}>{f.userId.firstName} {f.userId.lastName}</span>}
+                            </td>
+                            <td style={{ fontSize: ".82rem" }}>{f.template || f.subject || "—"}</td>
+                            <td><Badge label={stCfg.label} color={stCfg.color} bg={stCfg.bg} /></td>
+                            <td style={{ fontSize: ".78rem", color: "#64748b", maxWidth: 320 }}>{f.errorMessage || "—"}</td>
+                            <td className={styles.tdDate}>{fmtDate(f.createdAt)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
