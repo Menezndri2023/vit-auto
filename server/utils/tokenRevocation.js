@@ -15,19 +15,34 @@ import logger from "./logger.js";
 const PREFIX = "revoked_jwt:";
 
 export async function revokeAccessToken(jti, exp) {
-  if (!jti || !isRedisAvailable()) return;
+  if (!jti) return;
+  // Bug réel corrigé (audit) : isRedisAvailable() était vérifié AVANT tout
+  // appel à getRedisClient() — qui est pourtant la seule fonction créant
+  // réellement le client (voir config/redis.js, _client lazy). Comme rien
+  // d'autre dans le projet n'appelle getRedisClient() sans passer par ce
+  // garde-fou, le client n'était JAMAIS instancié : isRedisAvailable()
+  // restait bloqué à `false` pour toujours, même avec un Redis parfaitement
+  // sain (confirmé par la connexion BullMQ séparée, elle bien "ready"). La
+  // révocation d'un token d'accès à la déconnexion était donc un no-op
+  // silencieux permanent en production, jamais seulement en cas de vraie
+  // panne Redis. getRedisClient() doit être appelé EN PREMIER pour amorcer
+  // la connexion, avant de vérifier isRedisAvailable().
+  const client = getRedisClient();
+  if (!client || !isRedisAvailable()) return;
   const ttlSeconds = Math.max(1, Math.floor(exp - Date.now() / 1000));
   try {
-    await getRedisClient().set(`${PREFIX}${jti}`, "1", "EX", ttlSeconds);
+    await client.set(`${PREFIX}${jti}`, "1", "EX", ttlSeconds);
   } catch (err) {
     logger.warn("revokeAccessToken (non bloquant) :", err.message);
   }
 }
 
 export async function isAccessTokenRevoked(jti) {
-  if (!jti || !isRedisAvailable()) return false;
+  if (!jti) return false;
+  const client = getRedisClient(); // amorce la connexion si pas déjà fait — voir revokeAccessToken
+  if (!client || !isRedisAvailable()) return false;
   try {
-    return (await getRedisClient().exists(`${PREFIX}${jti}`)) === 1;
+    return (await client.exists(`${PREFIX}${jti}`)) === 1;
   } catch {
     return false; // Redis en panne : on ne bloque jamais l'authentification pour ça
   }

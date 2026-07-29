@@ -554,6 +554,14 @@ const startServer = async () => {
     // ── BullMQ : queues + workers (si Redis configuré) ───────────────────
     await initQueues();
 
+    // Amorce la connexion Redis générale (cache/révocation token — distincte
+    // de la connexion BullMQ ci-dessus) dès le démarrage plutôt que d'attendre
+    // le premier appel réel (voir utils/tokenRevocation.js pour le bug corrigé
+    // que ceci accélère la résorption de : sans cet appel, isRedisAvailable()
+    // restait "false" jusqu'à la première requête authentifiée).
+    const { getRedisClient } = await import("./config/redis.js");
+    getRedisClient();
+
     // ── Relance automatique des dossiers partenaire incomplets ───────────
     // En mémoire (pas de job Redis) — voir utils/partnerReminders.js.
     startPartnerReminderScheduler();
