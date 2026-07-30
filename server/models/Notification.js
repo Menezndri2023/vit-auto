@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { notifyAdminByEmail, notifyAdminsByEmailBulk } from "../utils/adminAlertEmail.js";
 
 const notificationSchema = new mongoose.Schema({
   // ── Destinataire ──────────────────────────────────────────
@@ -94,6 +95,18 @@ const notificationSchema = new mongoose.Schema({
 notificationSchema.index({ user: 1, lu: 1 });
 notificationSchema.index({ user: 1, createdAt: -1 });
 notificationSchema.index({ createdAt: -1 });
+
+// ── Copie email des notifications admin (voir utils/adminAlertEmail.js) ──────
+// Centralisé ici (plutôt que dans chacun des ~50 appels Notification.create/
+// insertMany à travers le projet) : couvre tous les points d'appel actuels ET
+// futurs sans avoir à modifier chacun d'eux. insertMany() ne déclenche pas les
+// hooks "save" par défaut dans Mongoose, d'où le second hook dédié ci-dessous.
+notificationSchema.post("save", function (doc) {
+  notifyAdminByEmail(doc).catch(() => {});
+});
+notificationSchema.post("insertMany", function (docs) {
+  notifyAdminsByEmailBulk(docs).catch(() => {});
+});
 
 const Notification = mongoose.models.Notification || mongoose.model("Notification", notificationSchema);
 export default Notification;
