@@ -152,7 +152,7 @@ const SORT_OPTIONS  = [
 ];
 
 const Catalogue = () => {
-  const { vehicles, drivers, refreshVehicles } = useVehicles();
+  const { vehicles, drivers, refreshVehicles, vehiclesLoading } = useVehicles();
   const { fmt, catalogCountry, setCatalogCountry, COUNTRIES_CONFIG, COUNTRY_INTERNATIONAL, detectPreciseCountry } = useCurrency();
   const { success: toastSuccess, error: toastError } = useToast();
   const [detectingCountry, setDetectingCountry] = useState(false);
@@ -625,7 +625,9 @@ const Catalogue = () => {
             </aside>
 
             <main className={styles.grid}>
-              {filtered.length === 0 ? (
+              {vehiclesLoading && vehicles.length === 0 ? (
+                Array.from({ length: 8 }).map((_, i) => <div key={i} className={styles.ieSkeleton} />)
+              ) : filtered.length === 0 ? (
                 <div className={styles.empty}>
                   <div className={styles.emptyIcon}>🔍</div>
                   <h3>Aucun véhicule trouvé</h3>

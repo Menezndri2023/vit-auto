@@ -161,7 +161,13 @@ const saveBookings = (bookings) => {
 
 export const VehicleProvider = ({ children }) => {
   const { token, user, authReady } = useAuth();
-  const [vehicles, setVehicles] = useState(initialVehicles);
+  // Vide au départ (pas la fixture démo BMW X5/Tesla Model 3 ci-dessous) — sinon
+  // chaque visiteur voyait ces véhicules fictifs s'afficher puis se faire
+  // remplacer par le vrai catalogue dès que loadVehicles() aboutit (quelques
+  // centaines de ms à plusieurs secondes selon la connexion Mongo), ce qui
+  // ressemblait à un bug plutôt qu'à un chargement. La fixture ne sert plus
+  // que de repli si le chargement réel échoue (voir loadVehicles ci-dessous).
+  const [vehicles, setVehicles] = useState([]);
   const [partnerVehicles, setPartnerVehicles] = useState([]);
   const [partnerBookings, setPartnerBookings] = useState([]); // Commandes reçues (partenaire) — depuis backend
   const [drivers, setDrivers] = useState([]);
@@ -179,7 +185,10 @@ export const VehicleProvider = ({ children }) => {
       const normalized = list.map(normalizeVehicle);
       setVehicles((prev) => append ? [...prev, ...normalized] : normalized);
     } catch {
-      // Keep local fixture when backend is unavailable
+      // Repli sur la fixture démo uniquement si le chargement initial échoue
+      // et qu'on n'a jamais reçu de vraies données — jamais lors d'un échec de
+      // pagination "load more", qui écraserait un catalogue réel déjà affiché.
+      setVehicles((prev) => (prev.length === 0 ? initialVehicles : prev));
     } finally {
       setVehiclesLoading(false);
     }
