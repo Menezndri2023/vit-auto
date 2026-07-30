@@ -318,6 +318,7 @@ app.get("/api/health", async (_req, res) => {
         : /^[0-9a-f]{64}$/i.test(process.env.FIELD_ENCRYPTION_KEY)
           ? "configured"
           : "invalid_format",
+      adminAlertEmail: process.env.ADMIN_ALERT_EMAIL ? "configured" : "disabled",
     },
     memory:    {
       used:  Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + "MB",
