@@ -4,6 +4,7 @@ import { useCurrency } from "../../context/CurrencyContext";
 import { useFavorites } from "../../context/FavoritesContext";
 import PriceTag from "../PriceTag/PriceTag";
 import { getDisplayRule } from "../../utils/promotion";
+import { optimizedImageUrl } from "../../utils/imageOptim";
 import styles from "./VehicleCard.module.css";
 
 const VehicleCard = React.memo(({ car, compact }) => {
@@ -77,7 +78,7 @@ const VehicleCard = React.memo(({ car, compact }) => {
         {imgs ? (
           <>
             <img
-              src={imgs[imgIdx]}
+              src={optimizedImageUrl(imgs[imgIdx], { width: 480 })}
               alt={car.title || car.name}
               loading="lazy"
               className={fading ? styles.imgFading : ""}

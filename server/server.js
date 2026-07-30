@@ -551,6 +551,31 @@ const startServer = async () => {
       }
     });
 
+    // Les annonces véhicule existantes stockaient leurs photos en base64 brut
+    // dans MongoDB (voir uploadBase64Images/config/imagekit.js pour le
+    // correctif du flux de création/édition) — mesuré en production :
+    // /api/vehicles?limit=20 pesait 1,37 Mo, retransmis en entier à chaque
+    // chargement du catalogue, jamais mis en cache par le navigateur. Migre
+    // les photos déjà stockées vers des URLs ImageKit hébergées ; une annonce
+    // dont l'upload échoue (ImageKit indisponible, etc.) garde son base64
+    // actuel et sera retentée au prochain démarrage (voir runOnceMigration).
+    await runOnceMigration("vehicle-images-to-imagekit-2026-07-30", async () => {
+      const { default: Vehicle } = await import("./models/Vehicle.js");
+      const { uploadBase64Images } = await import("./config/imagekit.js");
+      const legacy = await Vehicle.find({
+        $or: [{ images: { $regex: "^data:" } }, { thumbnail: { $regex: "^data:" } }],
+      }).select("images thumbnail");
+      for (const v of legacy) {
+        if (v.images?.length) v.images = await uploadBase64Images(v.images);
+        if (v.thumbnail?.startsWith("data:")) {
+          const [uploaded] = await uploadBase64Images([v.thumbnail]);
+          v.thumbnail = uploaded;
+        }
+        await v.save();
+      }
+      logger.info(`[Migration] vehicle-images-to-imagekit : ${legacy.length} annonce(s) traitée(s).`);
+    });
+
     // ── BullMQ : queues + workers (si Redis configuré) ───────────────────
     await initQueues();
 

@@ -109,3 +109,27 @@ export function getAuthToken() {
 export function isAvailable() {
   return !!getIK();
 }
+
+// ── Convertit des images base64 (data URI) en URLs ImageKit hébergées ────────
+// Bug réel corrigé (audit performance) : les annonces véhicule stockaient les
+// photos en base64 BRUT dans MongoDB (validateVehicleImages acceptait déjà les
+// deux formats, mais rien ne convertissait jamais le base64 reçu — le flux
+// "upload ImageKit" documenté dans les commentaires n'était en réalité jamais
+// déclenché). Conséquence mesurée en production : /api/vehicles?limit=20
+// pesait 1,37 Mo (quasi entièrement des photos en base64), retransmis en
+// entier à CHAQUE chargement du catalogue, jamais mis en cache par le
+// navigateur (contrairement à une URL d'image classique). Convertit chaque
+// entrée base64 en URL ImageKit hébergée ; une URL déjà présente ou un échec
+// d'upload individuel sont conservés tels quels (jamais bloquant pour la
+// création/modification d'une annonce — dégradation gracieuse, comme le reste
+// des intégrations ImageKit du projet).
+export async function uploadBase64Images(images, folder = FOLDERS.vehicles) {
+  if (!Array.isArray(images) || !images.length) return images;
+  const ik = getIK();
+  if (!ik) return images;
+  return Promise.all(images.map(async (img) => {
+    if (typeof img !== "string" || !img.startsWith("data:")) return img;
+    const result = await uploadImage(img, { folder });
+    return result?.url || img;
+  }));
+}

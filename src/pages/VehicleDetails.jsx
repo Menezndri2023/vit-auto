@@ -6,6 +6,7 @@ import { useI18n } from "../context/I18nContext";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import ReportButton from "../components/ReportButton/ReportButton";
 import PriceTag from "../components/PriceTag/PriceTag";
+import { optimizedImageUrl } from "../utils/imageOptim";
 import styles from "./VehicleDetails.module.css";
 
 const fmtN = (n) => n != null ? Number(n).toLocaleString("fr-FR") : "—";
@@ -421,7 +422,7 @@ export default function VehicleDetails() {
         <div className={styles.gallery}>
           <div className={styles.mainImg}>
             {images.length > 0
-              ? <img src={images[imgIdx]} alt={vehicle.name} />
+              ? <img src={optimizedImageUrl(images[imgIdx], { width: 1024 })} alt={vehicle.name} />
               : <div className={styles.noImg}>🚗</div>}
           </div>
           {images.length > 1 && (
@@ -432,7 +433,7 @@ export default function VehicleDetails() {
                   className={`${styles.thumb} ${i === imgIdx ? styles.thumbActive : ""}`}
                   onClick={() => setImgIdx(i)}
                 >
-                  <img src={src} alt={`vue ${i + 1}`} loading="lazy" decoding="async" />
+                  <img src={optimizedImageUrl(src, { width: 150 })} alt={`vue ${i + 1}`} loading="lazy" decoding="async" />
                 </button>
               ))}
             </div>

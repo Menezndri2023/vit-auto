@@ -18,6 +18,7 @@ import { ensureImporterProfile } from "../utils/ensureImporterProfile.js";
 import { COUNTRY_CODE_TO_NAME } from "../utils/countries.js";
 import { isIncotermCompatible } from "../constants/incoterms.js";
 import { getActiveRates } from "../services/currencyEngine.js";
+import { uploadBase64Images } from "../config/imagekit.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -165,6 +166,14 @@ export const createVehicle = async (req, res) => {
 
     // Extraire uniquement les champs légitimes du formulaire (pas de mass assignment sur stats/owner)
     const whitelisted = buildVehicleWhitelist(req.body);
+
+    // Convertit les photos base64 en URLs ImageKit hébergées avant stockage
+    // (voir uploadBase64Images) — jamais bloquant si ImageKit est indisponible.
+    if (whitelisted.images?.length) whitelisted.images = await uploadBase64Images(whitelisted.images);
+    if (whitelisted.thumbnail) {
+      const [uploadedThumb] = await uploadBase64Images([whitelisted.thumbnail]);
+      whitelisted.thumbnail = uploadedThumb;
+    }
 
     const vehicle = await Vehicle.create({
       ...whitelisted,
@@ -556,6 +565,14 @@ export const updateVehicle = async (req, res) => {
     if (req.body.images || req.body.thumbnail) {
       const imagesError = validateVehicleImages([...(req.body.images || []), req.body.thumbnail].filter(Boolean));
       if (imagesError) return res.status(400).json({ message: imagesError });
+    }
+    // Convertit les photos base64 en URLs ImageKit hébergées avant stockage
+    // (voir createVehicle / uploadBase64Images) — jamais bloquant si ImageKit
+    // est indisponible.
+    if (req.body.images?.length) req.body.images = await uploadBase64Images(req.body.images);
+    if (req.body.thumbnail) {
+      const [uploadedThumb] = await uploadBase64Images([req.body.thumbnail]);
+      req.body.thumbnail = uploadedThumb;
     }
     // null = revenir à "devise du visiteur" (comportement par défaut) — voir
     // createVehicle pour le même principe et la même raison de validation.
