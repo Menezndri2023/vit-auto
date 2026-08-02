@@ -9,6 +9,7 @@ import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 import { validateImageDataUri, validateDocumentDataUri } from "../utils/imageValidation.js";
 import { logAction } from "../middleware/auditLog.js";
 import { resolveRequirements } from "../utils/partnerRequirements.js";
+import { notifyAdmins } from "../utils/notifyAdmins.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -195,6 +196,17 @@ export const createDriver = async (req, res) => {
     } catch (notifErr) {
       logger.error("Notification (non bloquant) :", notifErr.message);
     }
+
+    // ── Notifier les admins (non bloquant) ───────────────────────────────
+    // Bug réel corrigé (audit) : createDriver ne notifiait jamais les admins
+    // d'un nouveau profil chauffeur en attente — ils ne le découvraient
+    // qu'en rechargeant manuellement l'onglet Annonces & Validations.
+    notifyAdmins(
+      "new_driver",
+      "🧑‍✈️ Nouveau profil chauffeur à valider",
+      `${driver.firstName} ${driver.lastName} a soumis un profil chauffeur publié par ${req.user.firstName || ""} ${req.user.lastName || ""}.`,
+      "/admin",
+    ).catch((err) => logger.error("notifyAdmins createDriver (non bloquant) :", err.message));
 
     res.status(201).json({ driver });
   } catch (err) {

@@ -19,6 +19,7 @@ import { COUNTRY_CODE_TO_NAME } from "../utils/countries.js";
 import { isIncotermCompatible } from "../constants/incoterms.js";
 import { getActiveRates } from "../services/currencyEngine.js";
 import { uploadBase64Images } from "../config/imagekit.js";
+import { notifyAdmins } from "../utils/notifyAdmins.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -226,6 +227,19 @@ export const createVehicle = async (req, res) => {
       }
     } catch (notifErr) {
       logger.error("Notification (non bloquant) :", notifErr.message);
+    }
+
+    // ── Notifier les admins si validation manuelle requise (non bloquant) ───
+    // Bug réel corrigé (audit) : createVehicle ne notifiait jamais les admins
+    // d'une nouvelle annonce en attente — ils ne la découvraient qu'en
+    // rechargeant manuellement l'onglet Annonces & Validations.
+    if (validation.status === "pending") {
+      notifyAdmins(
+        "new_vehicle",
+        "🚗 Nouvelle annonce à valider",
+        `"${vehicle.title}" publiée par ${req.user.firstName || ""} ${req.user.lastName || ""} attend une validation manuelle. Score : ${validation.score}/100.`,
+        "/admin",
+      ).catch((err) => logger.error("notifyAdmins createVehicle (non bloquant) :", err.message));
     }
 
     // Calcul du score AI en arrière-plan

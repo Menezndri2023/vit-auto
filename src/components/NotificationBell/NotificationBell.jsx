@@ -12,6 +12,8 @@ const TYPE_ICONS = {
   payment_received:  "💰",
   listing_approved:  "✔️",
   listing_rejected:  "🚫",
+  new_vehicle:       "🚗",
+  new_driver:        "🧑‍✈️",
   new_message:       "💬",
   system:            "ℹ️",
 };
