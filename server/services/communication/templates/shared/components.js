@@ -1,5 +1,17 @@
 import { BRAND } from "./base.js";
 
+// Bug réel corrigé (audit sécurité) : aucun template email n'échappait les
+// champs utilisateur (firstName, nom de véhicule, raison de rejet...) avant
+// interpolation dans le HTML envoyé — un client/partenaire malveillant
+// pouvait injecter des balises (faux bouton/lien de phishing) dans un email
+// signé VIT AUTO, reçu par un AUTRE utilisateur (ex: son nom apparaît dans
+// l'email du partenaire à qui il envoie une demande de réservation). Même
+// fonction que utils/adminAlertEmail.js (dupliquée volontairement — pas de
+// dépendance croisée entre services/ et utils/ pour un utilitaire aussi petit).
+export function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 export function btn(label, url, style = "primary") {
   const colors = {
     primary: { bg: BRAND.accent,   text: "#000000" },
@@ -81,7 +93,10 @@ export function heroSection(title, subtitle, emoji = "") {
 }
 
 export function greeting(firstName) {
-  return `<p style="font-size:16px;color:${BRAND.text};margin:0 0 20px">Bonjour <strong>${firstName}</strong>,</p>`;
+  // firstName n'est jamais du HTML légitime (contrairement à dataRow/dataTable,
+  // parfois utilisés avec un badge() volontairement non échappé) — échappable
+  // sans risque de casser un usage existant.
+  return `<p style="font-size:16px;color:${BRAND.text};margin:0 0 20px">Bonjour <strong>${escapeHtml(firstName)}</strong>,</p>`;
 }
 
 export function signature(name = "L'équipe VIT AUTO") {

@@ -1,7 +1,7 @@
 import express from "express";
 import { rateLimit } from "express-rate-limit";
 import * as u from "../controllers/usersController.js";
-import { authenticate, authorizeAdmin } from "../middleware/auth.js";
+import { authenticate, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 import { validate } from "../middleware/validate.js";
 import { requestEmailChangeSchema, deactivateAccountSchema } from "../validators/auth.validators.js";
@@ -29,7 +29,12 @@ router.get("/:id/public",      validateObjectId(), u.getPublicProfile);
 router.get("/",                authenticate, authorizeAdmin, u.getUsers);
 router.get("/stats",           authenticate, authorizeAdmin, u.getAdminStats);
 router.get("/pending-identity",authenticate, authorizeAdmin, u.getPendingIdentities);
-router.get("/admin/accounts",  authenticate, authorizeAdmin, u.getAdminAccounts);
+// Bug réel corrigé (audit sécurité) : aucune vérification de scope — un admin
+// scopé uniquement "support"/"moderation" pouvait lister tous les comptes
+// admin (emails, scopes). requireAdminScope("super_admin") reproduit
+// exactement la garde déjà appliquée manuellement ailleurs dans ce contrôleur
+// (adminScope=[] = accès complet, comportement historique inchangé).
+router.get("/admin/accounts",  authenticate, authorizeAdmin, requireAdminScope("super_admin"), u.getAdminAccounts);
 router.patch("/admin/:id/scope", authenticate, authorizeAdmin, validateObjectId(), u.updateAdminScope);
 router.get("/:id",             authenticate, authorizeAdmin, validateObjectId(), u.getUser);
 router.get("/:id/trust-overview", authenticate, authorizeAdmin, validateObjectId(), u.getUserTrustOverview);
