@@ -629,10 +629,24 @@ export const createBooking = async (req, res) => {
     }
 
     // ── Notifications + Email + SMS → Queue BullMQ (non-bloquant) ───────────────
+    // Bug réel corrigé (audit) : pour type "chauffeur", `vehicle` reste null
+    // (seul `driver` est peuplé) — la notification interne partenaire mise en
+    // queue BullMQ (queue/index.js bookingCreated, branche vehicle?.owner._id)
+    // et le nom affiché dans l'email de confirmation client (vehicleTitle)
+    // sautaient silencieusement. Le seul filet de sécurité restant était
+    // l'appel direct notify() ci-dessous, dont les erreurs sont avalées
+    // (.catch(() => {})) sans retry BullMQ, contrairement aux autres types de
+    // booking. On construit un objet "vehicle"-compatible à partir du
+    // chauffeur pour réutiliser exactement le même chemin que les autres types.
+    const vehicleOrDriverForDispatch = vehicle
+      ? { _id: vehicle._id, title: vehicle.title, owner: { _id: ownerId } }
+      : driver
+        ? { _id: driver._id, title: driver.title || `${driver.firstName} ${driver.lastName}`, owner: { _id: ownerId } }
+        : null;
     dispatch.bookingCreated(
       { _id: booking._id, reference, type, montantTotal, location, status: booking.status },
       req.user ? { _id: req.user._id, email: req.user.email, phone: req.user.phone, firstName: req.user.firstName } : null,
-      vehicle ? { _id: vehicle._id, title: vehicle.title, owner: { _id: ownerId } } : null
+      vehicleOrDriverForDispatch
     ).catch((e) => logger.error("dispatch.bookingCreated:", { error: e.message }));
 
     // Notification temps réel Socket.io immédiate (partenaire propriétaire)

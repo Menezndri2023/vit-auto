@@ -10,6 +10,7 @@ import { validateImageDataUri, validateDocumentDataUri } from "../utils/imageVal
 import { logAction } from "../middleware/auditLog.js";
 import { resolveRequirements } from "../utils/partnerRequirements.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
+import { uploadBase64Images, FOLDERS } from "../config/imagekit.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -162,10 +163,20 @@ export const createDriver = async (req, res) => {
       if (!business) return res.status(400).json({ message: "Entreprise introuvable." });
     }
 
+    // Bug réel corrigé (audit) : contrairement à vehicleController.createVehicle,
+    // les photos chauffeur n'étaient jamais envoyées vers ImageKit — stockées en
+    // base64 brut, gonflant chaque réponse /api/drivers (catalogue public,
+    // aucune exclusion de champ contrairement à limitVehicleImages côté
+    // véhicules) — même goulot d'étranglement déjà corrigé pour les véhicules
+    // (voir imagekit.js uploadBase64Images). Jamais bloquant si ImageKit est
+    // indisponible : reste en base64 en dégradation gracieuse.
+    const [uploadedProfilePhoto] = await uploadBase64Images([profilePhoto], FOLDERS.drivers);
+    const uploadedVehicleImages = vehicleImages.length ? await uploadBase64Images(vehicleImages, FOLDERS.drivers) : [];
+
     const driver = await Driver.create({
       firstName, lastName, title, description,
       ...(phone ? { phone } : {}),
-      profilePhoto, cv,
+      profilePhoto: uploadedProfilePhoto, cv,
       tarif: tarif || undefined, tarifDemiJournee: tarifDemiJournee || undefined, tarifHeure: tarifHeure || undefined,
       disponibilite, zone, ville,
       experience,
@@ -173,7 +184,7 @@ export const createDriver = async (req, res) => {
       permisCategorie: permisCategorie || "B",
       vehiculePersonnel: !!vehiculePersonnel,
       typeVehicule,
-      images: vehicleImages,
+      images: uploadedVehicleImages,
       // Champs serveur — jamais depuis req.body
       owner:         req.user._id,
       business:      business?._id || null,
@@ -470,6 +481,16 @@ export const updateDriver = async (req, res) => {
     if (!nextVehiculePersonnel) safeUpdate.images = [];
     const imagesError = validateDriverImages([nextProfilePhoto, ...(nextVehiculePersonnel ? nextImages : [])]);
     if (imagesError) return res.status(400).json({ message: imagesError });
+
+    // uploadBase64Images ignore déjà toute valeur qui n'est pas un data URI
+    // (une URL ImageKit déjà hébergée passe donc inchangée) — voir createDriver
+    // pour le même correctif à la création.
+    if (safeUpdate.profilePhoto !== undefined) {
+      [safeUpdate.profilePhoto] = await uploadBase64Images([safeUpdate.profilePhoto], FOLDERS.drivers);
+    }
+    if (safeUpdate.images?.length) {
+      safeUpdate.images = await uploadBase64Images(safeUpdate.images, FOLDERS.drivers);
+    }
 
     // ── CV : requis en permanence (déjà exigé à la création) ────────────────
     const nextCv = safeUpdate.cv !== undefined ? safeUpdate.cv : driver.cv;

@@ -27,6 +27,7 @@ export const FOLDERS = {
   avatars:   "vit-auto/avatars",
   showrooms: "vit-auto/showrooms",
   docs:      "vit-auto/docs",
+  drivers:   "vit-auto/drivers",
 };
 
 export async function uploadImage(source, options = {}) {

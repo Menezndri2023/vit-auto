@@ -1668,6 +1668,27 @@ export default function VendorDashboard() {
         conditionsVente:    v.conditionsVente || "",
         withDriver:  !!v.withDriver,
         available:   v.available !== false,
+        // Bug réel corrigé (audit) : le backend acceptait déjà leasing/credit
+        // en édition (EDITABLE inclut ces deux clés), mais editForm ne les
+        // reprenait jamais — impossible de corriger un taux erroné ou de
+        // désactiver l'option après publication (pattern "modale d'édition
+        // en retard sur la création", voir VendorSubmit.jsx pour l'original).
+        leasing: {
+          disponible:    !!v.leasing?.disponible,
+          apportInitial: v.leasing?.apportInitial ?? "",
+          mensualite:    v.leasing?.mensualite ?? "",
+          duree:         v.leasing?.duree ?? 36,
+          tauxInteret:   v.leasing?.tauxInteret ?? 8,
+          description:   v.leasing?.description ?? "",
+        },
+        credit: {
+          disponible:    !!v.credit?.disponible,
+          apportInitial: v.credit?.apportInitial ?? "",
+          mensualite:    v.credit?.mensualite ?? "",
+          duree:         v.credit?.duree ?? 36,
+          tauxInteret:   v.credit?.tauxInteret ?? 8,
+          description:   v.credit?.description ?? "",
+        },
       });
       setEditPhotos((v.images || []).map((preview, i) => ({ id: `existing-${i}`, preview })));
     } catch {
@@ -1750,6 +1771,22 @@ export default function VendorDashboard() {
       if (editForm.type === "vente") {
         patch.priceForSale = Number(editForm.priceForSale) || 0;
         patch.priceForSaleEntered = editPriceEntryForSale !== "" && !isNaN(Number(editPriceEntryForSale)) ? Number(editPriceEntryForSale) : null;
+        patch.leasing = {
+          disponible:    editForm.leasing.disponible,
+          apportInitial: Number(editForm.leasing.apportInitial) || 0,
+          mensualite:    Number(editForm.leasing.mensualite) || 0,
+          duree:         Number(editForm.leasing.duree) || 36,
+          tauxInteret:   Number(editForm.leasing.tauxInteret) || 8,
+          description:   editForm.leasing.description,
+        };
+        patch.credit = {
+          disponible:    editForm.credit.disponible,
+          apportInitial: Number(editForm.credit.apportInitial) || 0,
+          mensualite:    Number(editForm.credit.mensualite) || 0,
+          duree:         Number(editForm.credit.duree) || 36,
+          tauxInteret:   Number(editForm.credit.tauxInteret) || 8,
+          description:   editForm.credit.description,
+        };
       } else {
         patch.pricePerDay = Number(editForm.pricePerDay) || 0;
         patch.pricePerDayEntered = editPriceEntryPerDay !== "" && !isNaN(Number(editPriceEntryPerDay)) ? Number(editPriceEntryPerDay) : null;
@@ -4145,6 +4182,86 @@ export default function VendorDashboard() {
                       value={editForm.conditionsLocation} onChange={(e) => setEditForm((p) => ({ ...p, conditionsLocation: e.target.value }))} />
                   )}
                 </div>
+                {editForm.type === "vente" && (
+                  <div style={{ marginBottom: 14, padding: 12, background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 10 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: "0.85rem", fontWeight: 700, marginBottom: editForm.leasing.disponible ? 10 : 0 }}>
+                      <input type="checkbox" checked={editForm.leasing.disponible}
+                        onChange={(e) => setEditForm((p) => ({ ...p, leasing: { ...p.leasing, disponible: e.target.checked } }))} />
+                      🏦 Option Leasing
+                    </label>
+                    {editForm.leasing.disponible && (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                        <div>
+                          <label style={{ fontSize: ".76rem", color: "#64748b" }}>Apport initial (USD)</label>
+                          <input type="number" min="0" value={editForm.leasing.apportInitial}
+                            onChange={(e) => setEditForm((p) => ({ ...p, leasing: { ...p.leasing, apportInitial: e.target.value } }))}
+                            style={{ width: "100%", boxSizing: "border-box", padding: "6px 9px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: ".76rem", color: "#64748b" }}>Mensualité (USD/mois)</label>
+                          <input type="number" min="0" value={editForm.leasing.mensualite}
+                            onChange={(e) => setEditForm((p) => ({ ...p, leasing: { ...p.leasing, mensualite: e.target.value } }))}
+                            style={{ width: "100%", boxSizing: "border-box", padding: "6px 9px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: ".76rem", color: "#64748b" }}>Durée</label>
+                          <select value={editForm.leasing.duree}
+                            onChange={(e) => setEditForm((p) => ({ ...p, leasing: { ...p.leasing, duree: Number(e.target.value) } }))}
+                            style={{ width: "100%", padding: "6px 9px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}>
+                            {[12, 24, 36, 48, 60].map((m) => <option key={m} value={m}>{m} mois</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: ".76rem", color: "#64748b" }}>Taux d'intérêt (%/an)</label>
+                          <input type="number" min="0" max="30" step="0.5" value={editForm.leasing.tauxInteret}
+                            onChange={(e) => setEditForm((p) => ({ ...p, leasing: { ...p.leasing, tauxInteret: e.target.value } }))}
+                            style={{ width: "100%", boxSizing: "border-box", padding: "6px 9px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {editForm.type === "vente" && (
+                  <div style={{ marginBottom: 14, padding: 12, background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 10 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: "0.85rem", fontWeight: 700, marginBottom: editForm.credit.disponible ? 10 : 0 }}>
+                      <input type="checkbox" checked={editForm.credit.disponible}
+                        onChange={(e) => setEditForm((p) => ({ ...p, credit: { ...p.credit, disponible: e.target.checked } }))} />
+                      💳 Option Crédit classique
+                    </label>
+                    {editForm.credit.disponible && (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                        <div>
+                          <label style={{ fontSize: ".76rem", color: "#64748b" }}>Apport initial (USD)</label>
+                          <input type="number" min="0" value={editForm.credit.apportInitial}
+                            onChange={(e) => setEditForm((p) => ({ ...p, credit: { ...p.credit, apportInitial: e.target.value } }))}
+                            style={{ width: "100%", boxSizing: "border-box", padding: "6px 9px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: ".76rem", color: "#64748b" }}>Mensualité (USD/mois)</label>
+                          <input type="number" min="0" value={editForm.credit.mensualite}
+                            onChange={(e) => setEditForm((p) => ({ ...p, credit: { ...p.credit, mensualite: e.target.value } }))}
+                            style={{ width: "100%", boxSizing: "border-box", padding: "6px 9px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: ".76rem", color: "#64748b" }}>Durée</label>
+                          <select value={editForm.credit.duree}
+                            onChange={(e) => setEditForm((p) => ({ ...p, credit: { ...p.credit, duree: Number(e.target.value) } }))}
+                            style={{ width: "100%", padding: "6px 9px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}>
+                            {[12, 24, 36, 48, 60].map((m) => <option key={m} value={m}>{m} mois</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: ".76rem", color: "#64748b" }}>Taux d'intérêt (%/an)</label>
+                          <input type="number" min="0" max="30" step="0.5" value={editForm.credit.tauxInteret}
+                            onChange={(e) => setEditForm((p) => ({ ...p, credit: { ...p.credit, tauxInteret: e.target.value } }))}
+                            style={{ width: "100%", boxSizing: "border-box", padding: "6px 9px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {editForm.type !== "vente" && (
                   <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                     <div style={{ flex: 1 }}>

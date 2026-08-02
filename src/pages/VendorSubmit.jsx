@@ -248,6 +248,58 @@ const VendorSubmit = () => {
 
   const [errors, setErrors] = useState({});
 
+  // ── Brouillon (sauvegarde automatique) ──────────────────────────────────
+  // Bug réel corrigé (audit) : aucune persistance en cours de saisie — une
+  // fermeture d'onglet/rafraîchissement accidentel pendant les 7 étapes
+  // faisait tout perdre. Les photos (base64, potentiellement plusieurs Mo)
+  // et driverProfilePhoto/driverCv sont volontairement EXCLUS du brouillon
+  // pour ne pas saturer le quota localStorage (~5-10 Mo) — seuls les champs
+  // texte/nombre sont restaurés, l'utilisateur ré-ajoute ses photos.
+  const DRAFT_KEY = `vit_vendor_draft_v1_${user?._id || "anon"}`;
+  const draftRestoredRef = useRef(false);
+
+  useEffect(() => {
+    if (!user?._id || draftRestoredRef.current) return;
+    draftRestoredRef.current = true;
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (!d || typeof d !== "object") return;
+      if (d.step) setStep(d.step);
+      if (d.adType !== undefined) setAdType(d.adType);
+      if (d.identity) setIdentity((p) => ({ ...p, ...d.identity }));
+      if (d.selectedBusinessId) setSelectedBusinessId(d.selectedBusinessId);
+      if (d.leasing) setLeasing((p) => ({ ...p, ...d.leasing }));
+      if (d.credit) setCredit((p) => ({ ...p, ...d.credit }));
+      if (d.vehicle) setVehicle((p) => ({ ...p, ...d.vehicle }));
+      if (d.priceCurrency) setPriceCurrency(d.priceCurrency);
+      if (d.priceEntryPerDay !== undefined) setPriceEntryPerDay(d.priceEntryPerDay);
+      if (d.priceEntryForSale !== undefined) setPriceEntryForSale(d.priceEntryForSale);
+      if (d.cautionEntry !== undefined) setCautionEntry(d.cautionEntry);
+      if (d.driver) setDriver((p) => ({ ...p, ...d.driver }));
+      success("📝 Brouillon restauré — pensez à réajouter vos photos.");
+    } catch { /* brouillon corrompu — ignoré silencieusement */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?._id]);
+
+  useEffect(() => {
+    if (!user?._id) return;
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({
+          step, adType, identity, selectedBusinessId, leasing, credit, vehicle,
+          priceCurrency, priceEntryPerDay, priceEntryForSale, cautionEntry, driver,
+        }));
+      } catch { /* quota plein — tant pis, brouillon simplement pas sauvegardé */ }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [user?._id, step, adType, identity, selectedBusinessId, leasing, credit, vehicle, priceCurrency, priceEntryPerDay, priceEntryForSale, cautionEntry, driver]);
+
+  const clearDraft = () => {
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+  };
+
   const isPartner = !!user && ["partenaire", "admin"].includes(user.role);
 
   // Redirections via effect — jamais pendant le render (évite removeChild en StrictMode)
@@ -540,6 +592,7 @@ const VendorSubmit = () => {
           }),
         });
         if (res.ok) {
+          clearDraft();
           success("Votre profil chauffeur est soumis pour vérification !");
         } else {
           const data = await res.json().catch(() => null);
@@ -599,6 +652,7 @@ const VendorSubmit = () => {
         });
 
         // Afficher le résultat de validation
+        clearDraft();
         setResult({
           status:      saved?.status,
           score:       saved?.validationScore,
@@ -1669,6 +1723,13 @@ const VendorSubmit = () => {
       <div className={styles.header}>
         <h1>Publier une annonce</h1>
         <p>Étape {step} sur {STEPS.length} — {STEPS[step - 1].label}</p>
+        <button
+          type="button"
+          onClick={() => { clearDraft(); window.location.reload(); }}
+          style={{ background: "none", border: "none", color: "#94a3b8", fontSize: ".78rem", textDecoration: "underline", cursor: "pointer", padding: 0 }}
+        >
+          Vider le brouillon et recommencer
+        </button>
       </div>
 
       {/* Bannière Import/Export — visible uniquement à l'étape 1 */}

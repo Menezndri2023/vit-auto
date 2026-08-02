@@ -1420,6 +1420,17 @@ export default function AdminPanel() {
   const [loading,   setLoading]   = useState(true);
   const [toast,     setToast]     = useState(null);
 
+  // Bug réel corrigé (audit) : les badges "Annonces & Validations" et
+  // "Litiges" ne se mettaient jamais à jour en temps réel — la clochette
+  // générale (NotificationContext) reçoit bien le push socket
+  // "notification_new" (notifyAdmins() côté serveur), mais rien dans
+  // AdminPanel ne l'écoutait, forçant un rechargement manuel pour voir une
+  // nouvelle annonce/un nouveau litige. Compteurs "live" ajoutés à l'affichage
+  // sans re-fetch complet (évite un flash de chargement sur tout le panel) —
+  // remis à zéro dès que loadAll() rafraîchit les vraies listes.
+  const [liveNewListings, setLiveNewListings] = useState(0);
+  const [liveDisputes,    setLiveDisputes]    = useState(0);
+
   // PMS Admin
   const [pmsStats,    setPmsStats]    = useState(null);
   const [pmsShowrooms,setPmsShowrooms]= useState([]);
@@ -1574,6 +1585,8 @@ export default function AdminPanel() {
       if (bRes.ok) { const d = await bRes.json(); setBookings(d.bookings || []); setBookingsTotal(d.total || 0); }
       if (dRes.ok) setDrivers((await dRes.json()).drivers || []);
       if (adRes.ok) { const ad = await adRes.json(); setActiveDrivers(Array.isArray(ad) ? ad : ad.drivers || []); }
+      setLiveNewListings(0);
+      setLiveDisputes(0);
     } catch { /* ignore */ }
     setLoading(false);
   }, [token, headers, usersLimit, bookingsLimit, vehiclesLimit]);
@@ -2799,6 +2812,18 @@ export default function AdminPanel() {
     });
   }, [onSocket, showToast]);
 
+  useEffect(() => {
+    return onSocket("notification_new", (payload) => {
+      if (payload?.type === "new_vehicle" || payload?.type === "new_driver") {
+        setLiveNewListings((n) => n + 1);
+        showToast(payload.titre || "🚗 Nouvelle annonce à valider", "info");
+      } else if (payload?.type === "system" && /litige/i.test(payload?.titre || "")) {
+        setLiveDisputes((n) => n + 1);
+        showToast(payload.titre || "⚖️ Nouveau litige", "info");
+      }
+    });
+  }, [onSocket, showToast]);
+
   // Ferme tous les modals au changement d'onglet pour éviter les états résiduels
   useEffect(() => {
     setConfirm(null);
@@ -3127,7 +3152,7 @@ export default function AdminPanel() {
     {
       label: "CATALOGUE",
       items: [
-        { key: "catalogue", icon: "🚗", label: "Annonces & Validations", badge: pendingVeh + drivers.length },
+        { key: "catalogue", icon: "🚗", label: "Annonces & Validations", badge: pendingVeh + drivers.length + liveNewListings },
       ],
     },
     {
@@ -3140,7 +3165,7 @@ export default function AdminPanel() {
       label: "SERVICES",
       items: [
         { key: "bookings",      icon: "📋", label: "Réservations",          badge: pendingBk },
-        { key: "litiges",       icon: "⚖️",  label: "Litiges",              badge: disputedBk },
+        { key: "litiges",       icon: "⚖️",  label: "Litiges",              badge: disputedBk + liveDisputes },
         { key: "chauffeurs",    icon: "👨‍✈️", label: "Chauffeurs",           badge: drivers.length },
         { key: "import_export", icon: "🌍", label: "Transactions I/E",      badge: pendingIe },
         { key: "exportateurs",  icon: "📦", label: "Partenaires Export",    badge: pendingImp },

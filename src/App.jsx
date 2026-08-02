@@ -41,7 +41,6 @@ const VendorPublish         = lazy(() => import("./pages/VendorPublish"));
 const Plans                 = lazy(() => import("./pages/Plans"));
 const AdminPanel            = lazy(() => import("./pages/AdminPanel"));
 const DashboardStats        = lazy(() => import("./pages/DashboardStats"));
-const Checkout              = lazy(() => import("./pages/Checkout"));
 const Services              = lazy(() => import("./pages/Services"));
 const InsuranceRequest      = lazy(() => import("./pages/InsuranceRequest"));
 const ServiceRequest        = lazy(() => import("./pages/ServiceRequest"));
@@ -145,8 +144,6 @@ function AppRoutes() {
           <Route path="/driver-employment/:id"  element={
             <ErrorBoundary><DriverEmployment /></ErrorBoundary>
           } />
-          <Route path="/checkout"               element={<ErrorBoundary><Checkout /></ErrorBoundary>} />
-
           {/* ── Paiement (redirection fournisseur ou mode sandbox) ─── */}
           <Route path="/payment/simulate/:paymentId" element={<PaymentSimulate />} />
           <Route path="/payment/success"        element={<PaymentResult />} />
