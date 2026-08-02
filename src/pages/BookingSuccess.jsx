@@ -83,6 +83,14 @@ const BookingSuccess = () => {
   }
 
   const isEssai = booking.type === "essai";
+  // Bug réel corrigé (audit conversion) : le bandeau affichait "Réservation
+  // confirmée !" de façon inconditionnelle, alors que le statut réel à ce
+  // stade est TOUJOURS "pending" (Booking.js default — le partenaire dispose
+  // de 24h pour accepter, voir newBookingPartnerTemplate côté email). Le
+  // client croyait sa réservation actée alors qu'elle ne l'était pas encore
+  // — message trompeur, contraire à "chaque utilisateur doit comprendre ce
+  // qui se passe après son action".
+  const isPendingConfirmation = !isEssai && booking.status === "pending";
   const activeOptions = Object.entries(booking.selectedOptions || {})
     .filter(([, v]) => v)
     .map(([k]) => OPTION_LABELS[k] || k);
@@ -93,12 +101,28 @@ const BookingSuccess = () => {
     <div className={styles.page}>
       {/* ── Bandeau succès ─────────────────────── */}
       <div className={styles.successBanner}>
-        <span className={styles.successIcon}>✓</span>
+        <span className={styles.successIcon}>{isPendingConfirmation ? "⏳" : "✓"}</span>
         <div>
-          <h1>{isEssai ? "Demande d'essai envoyée !" : "Réservation confirmée !"}</h1>
+          <h1>
+            {isEssai ? "Demande d'essai envoyée !"
+              : isPendingConfirmation ? "Réservation enregistrée !"
+              : "Réservation confirmée !"}
+          </h1>
           <p>Merci {booking.firstName || booking.clientInfo?.firstName || ""} {booking.lastName || booking.clientInfo?.lastName || ""}. Votre contrat numérique est généré ci-dessous.</p>
         </div>
       </div>
+
+      {/* ── Prochaines étapes — en attente de confirmation partenaire ───── */}
+      {isPendingConfirmation && (
+        <div style={{ background: "#eff6ff", border: "1.5px solid #bfdbfe", borderRadius: 12, padding: "16px 18px", margin: "0 auto 1.5rem", maxWidth: 900 }}>
+          <strong style={{ color: "#1e3a8a", display: "block", marginBottom: 8 }}>📋 Ce qui se passe maintenant</strong>
+          <ol style={{ margin: 0, paddingLeft: 20, color: "#1e3a8a", fontSize: ".88rem", lineHeight: 1.7 }}>
+            <li>Le partenaire dispose de <strong>24 heures</strong> pour confirmer votre réservation.</li>
+            <li>Vous recevrez un e-mail et une notification dès qu'il aura répondu.</li>
+            <li>Une fois confirmée, retrouvez tous les détails depuis votre <Link to="/dashboard" style={{ color: "#1d4ed8", fontWeight: 700 }}>tableau de bord</Link>.</li>
+          </ol>
+        </div>
+      )}
 
       {/* ── Avertissement paiement en ligne non initié ─────────────────── */}
       {paymentInitFailed && (
