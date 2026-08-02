@@ -255,11 +255,16 @@ const VendorSubmit = () => {
   // et driverProfilePhoto/driverCv sont volontairement EXCLUS du brouillon
   // pour ne pas saturer le quota localStorage (~5-10 Mo) — seuls les champs
   // texte/nombre sont restaurés, l'utilisateur ré-ajoute ses photos.
-  const DRAFT_KEY = `vit_vendor_draft_v1_${user?._id || "anon"}`;
+  // AuthContext stocke tel quel ce que renvoie l'API (`user.id`, pas `user._id`
+  // comme le document Mongo brut) — bug trouvé en test E2E réel : la première
+  // version de ce correctif utilisait user?._id, toujours undefined ici,
+  // désactivant silencieusement toute la fonctionnalité.
+  const userId = user?.id || user?._id;
+  const DRAFT_KEY = `vit_vendor_draft_v1_${userId || "anon"}`;
   const draftRestoredRef = useRef(false);
 
   useEffect(() => {
-    if (!user?._id || draftRestoredRef.current) return;
+    if (!userId || draftRestoredRef.current) return;
     draftRestoredRef.current = true;
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
@@ -281,10 +286,10 @@ const VendorSubmit = () => {
       success("📝 Brouillon restauré — pensez à réajouter vos photos.");
     } catch { /* brouillon corrompu — ignoré silencieusement */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?._id]);
+  }, [userId]);
 
   useEffect(() => {
-    if (!user?._id) return;
+    if (!userId) return;
     const t = setTimeout(() => {
       try {
         localStorage.setItem(DRAFT_KEY, JSON.stringify({
@@ -294,7 +299,7 @@ const VendorSubmit = () => {
       } catch { /* quota plein — tant pis, brouillon simplement pas sauvegardé */ }
     }, 600);
     return () => clearTimeout(t);
-  }, [user?._id, step, adType, identity, selectedBusinessId, leasing, credit, vehicle, priceCurrency, priceEntryPerDay, priceEntryForSale, cautionEntry, driver]);
+  }, [userId, step, adType, identity, selectedBusinessId, leasing, credit, vehicle, priceCurrency, priceEntryPerDay, priceEntryForSale, cautionEntry, driver]);
 
   const clearDraft = () => {
     try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
