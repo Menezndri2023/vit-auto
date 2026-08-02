@@ -583,6 +583,31 @@ export async function upsertShowroom(req, res) {
 
 export async function publishShowroom(req, res) {
   try {
+    // Bug réel corrigé (audit) : contrairement à toute autre annonce publique
+    // du site (véhicule, chauffeur, Import/Export), publier un showroom ne
+    // vérifiait AUCUNE identité/certification — un compte "partenaire" tout
+    // juste inscrit (email+téléphone vérifiés, rien d'autre) pouvait publier
+    // instantanément une page publique dans l'annuaire showrooms, visible de
+    // tous. Même garde que vehicleController.createVehicle/driverController
+    // .createDriver : Founding Partner toujours exempté, sinon KYC identité
+    // pour un particulier, certification pour une entreprise.
+    if (req.user.role === "partenaire" && !req.user.isFounder) {
+      const isIndividual = req.user.sellerType === "particulier";
+      if (isIndividual) {
+        if (req.user.kycStatus !== "VERIFIE") {
+          return res.status(403).json({
+            code: "KYC_REQUIRED",
+            message: "Complétez votre vérification d'identité (pièce d'identité + selfie) avant de publier votre showroom.",
+          });
+        }
+      } else if (req.user.certificationBadge === "none") {
+        return res.status(403).json({
+          code: "CERTIFICATION_REQUIRED",
+          message: "Complétez votre vérification partenaire avant de publier votre showroom.",
+        });
+      }
+    }
+
     // Upsert : crée le showroom s'il n'existe pas encore, puis publie
     const showroom = await PartnerShowroom.findOneAndUpdate(
       { partnerId: req.user._id },
