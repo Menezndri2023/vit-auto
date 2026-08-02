@@ -59,7 +59,7 @@ export default function Booking() {
   const navigate        = useNavigate();
   const location        = useLocation();
   const { fmt, getPaymentMethodsForCountry, catalogCountry, countryCode } = useCurrency();
-  const { vehicles, addBooking, getItemById } = useVehicles();
+  const { vehicles, addBooking, removeLocalBooking, getItemById } = useVehicles();
   const { token, user } = useAuth();
   const { error: toastError } = useToast();
 
@@ -510,12 +510,20 @@ export default function Booking() {
             return;
           }
         }
+      } else {
+        // Le serveur a répondu mais a refusé la création (véhicule indisponible,
+        // KYC insuffisant, créneau déjà pris, etc.) — ne jamais afficher l'écran
+        // "Réservation confirmée" tant qu'aucune réservation n'existe en base.
+        removeLocalBooking(bookingRef);
+        toastError(apiData.message || "Votre réservation n'a pas pu être enregistrée. Veuillez réessayer.");
+        setSubmitting(false);
+        return;
       }
     } catch { /* mode hors-ligne — réservation locale uniquement */ }
 
     setSubmitting(false);
     navigate("/booking/success", { state: { booking: bookingData, trial: isTrial, payment: { paymentMethod: payMethod, mobileNumber } } });
-  }, [form, pickupMethod, pickupAddress, pickupPosition, selectedOptions, payMethod, mobileNumber, cardNumber, cardHolder, days, deliveryFee, geoDistance, baseTotal, optionsTotal, totalToPay, kycOk, kycScore, kycBadge, bookingRef, isTrial, isLeasing, financingType, financingTerms, vehicle, token, user, addBooking, navigate, agencyFull, toastError]);
+  }, [form, pickupMethod, pickupAddress, pickupPosition, selectedOptions, payMethod, mobileNumber, cardNumber, cardHolder, days, deliveryFee, geoDistance, baseTotal, optionsTotal, totalToPay, kycOk, kycScore, kycBadge, bookingRef, isTrial, isLeasing, financingType, financingTerms, vehicle, token, user, addBooking, removeLocalBooking, navigate, agencyFull, toastError]);
 
   /* ════════════════════════════════════════════════════════════════
      RENDU

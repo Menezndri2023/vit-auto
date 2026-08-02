@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import logger from "../utils/logger.js";
 import Payment from "../models/Payment.js";
 import Booking from "../models/Booking.js";
@@ -77,13 +78,16 @@ async function completePayment(payment, { providerRef, source = payment.method }
     booking.paidAt = new Date();
     await booking.save();
     if (booking.client) {
-      await Notification.create({
-        user: booking.client,
-        type: "payment_received",
-        titre: "💳 Paiement confirmé",
-        message: `Votre paiement pour la réservation ${booking.reference || ""} a été confirmé.`,
-        lien: `/bookings/${booking._id}`,
-      }).catch(() => {});
+      const titre   = "💳 Paiement confirmé";
+      const message = `Votre paiement pour la réservation ${booking.reference || ""} a été confirmé.`;
+      const notifDoc = await Notification.create({
+        user: booking.client, type: "payment_received", titre, message, lien: `/dashboard`,
+      }).catch(() => null);
+      if (notifDoc && global._io) {
+        global._io.to(`user_${booking.client}`).emit("notification_new", {
+          _id: notifDoc._id, type: "payment_received", titre, message, lien: "/dashboard", lu: false, createdAt: notifDoc.createdAt,
+        });
+      }
     }
 
     // Reçu PDF automatique par email — même mécanisme que pour le règlement
@@ -99,24 +103,32 @@ async function completePayment(payment, { providerRef, source = payment.method }
     doc.isPaid = true;
     doc.paidAt = new Date();
     await doc.save();
-    await Notification.create({
-      user: doc.client,
-      type: "payment_received",
-      titre: "💳 Paiement confirmé",
-      message: `Votre paiement pour la demande de service (${doc.category}) a été confirmé.`,
-      lien: `/services/${doc.category}`,
-    }).catch(() => {});
+    const titre   = "💳 Paiement confirmé";
+    const message = `Votre paiement pour la demande de service (${doc.category}) a été confirmé.`;
+    const lien    = `/services/${doc.category}`;
+    const notifDoc = await Notification.create({
+      user: doc.client, type: "payment_received", titre, message, lien,
+    }).catch(() => null);
+    if (notifDoc && global._io) {
+      global._io.to(`user_${doc.client}`).emit("notification_new", {
+        _id: notifDoc._id, type: "payment_received", titre, message, lien, lu: false, createdAt: notifDoc.createdAt,
+      });
+    }
   } else if (type === "insuranceRequest" && doc && !doc.isPaid) {
     doc.isPaid = true;
     doc.paidAt = new Date();
     await doc.save();
-    await Notification.create({
-      user: doc.client,
-      type: "payment_received",
-      titre: "💳 Paiement confirmé",
-      message: "Votre paiement de la prime d'assurance a été confirmé.",
-      lien: "/insurance-request",
-    }).catch(() => {});
+    const titre   = "💳 Paiement confirmé";
+    const message = "Votre paiement de la prime d'assurance a été confirmé.";
+    const lien    = "/insurance-request";
+    const notifDoc = await Notification.create({
+      user: doc.client, type: "payment_received", titre, message, lien,
+    }).catch(() => null);
+    if (notifDoc && global._io) {
+      global._io.to(`user_${doc.client}`).emit("notification_new", {
+        _id: notifDoc._id, type: "payment_received", titre, message, lien, lu: false, createdAt: notifDoc.createdAt,
+      });
+    }
   }
   return payment;
 }
@@ -131,15 +143,18 @@ async function failPayment(payment, reason) {
   const { doc } = await resolvePaymentTarget(payment);
   if (doc?.client) {
     const isBooking = !!payment.booking;
-    await Notification.create({
-      user: doc.client,
-      type: "payment_failed",
-      titre: "❌ Paiement échoué",
-      message: isBooking
-        ? `Le paiement pour la réservation ${doc.reference || ""} a échoué${reason ? ` (${reason})` : ""}. Vous pouvez réessayer.`
-        : `Le paiement de votre devis a échoué${reason ? ` (${reason})` : ""}. Vous pouvez réessayer.`,
-      lien: isBooking ? `/bookings/${doc._id}` : "/dashboard",
-    }).catch(() => {});
+    const titre   = "❌ Paiement échoué";
+    const message = isBooking
+      ? `Le paiement pour la réservation ${doc.reference || ""} a échoué${reason ? ` (${reason})` : ""}. Vous pouvez réessayer.`
+      : `Le paiement de votre devis a échoué${reason ? ` (${reason})` : ""}. Vous pouvez réessayer.`;
+    const notifDoc = await Notification.create({
+      user: doc.client, type: "payment_failed", titre, message, lien: "/dashboard",
+    }).catch(() => null);
+    if (notifDoc && global._io) {
+      global._io.to(`user_${doc.client}`).emit("notification_new", {
+        _id: notifDoc._id, type: "payment_failed", titre, message, lien: "/dashboard", lu: false, createdAt: notifDoc.createdAt,
+      });
+    }
   }
   return payment;
 }
@@ -365,7 +380,11 @@ export const orangeMoneyWebhook = async (req, res) => {
       // paiement sans webhookToken (créé avant ce correctif, ou jamais passé
       // par le vrai fournisseur) est rejeté par prudence.
       const expectedToken = payment.webhookToken;
-      if (!expectedToken || req.query.wt !== expectedToken) {
+      const providedToken = String(req.query.wt || "");
+      const a = Buffer.from(expectedToken || "");
+      const b = Buffer.from(providedToken);
+      const tokenValid = !!expectedToken && a.length === b.length && crypto.timingSafeEqual(a, b);
+      if (!tokenValid) {
         logger.warn("[SECURITY] Webhook Orange Money rejeté (jeton invalide/absent)", { paymentId: payment._id.toString(), ip: req.ip });
         return res.status(401).json({ message: "Jeton de notification invalide." });
       }

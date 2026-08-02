@@ -3776,7 +3776,7 @@ export default function AdminPanel() {
                   <tbody>
                     {paginate(filteredUsers, userPage).map((u) => {
                       const rc = ROLE_CONFIG[u.role] || ROLE_CONFIG.client;
-                      const isSelf = u._id === user._id;
+                      const isSelf = String(u._id) === String(user?.id ?? user?._id);
                       const kyc    = KYC_CFG[u.kycStatus] || { label: "—", color: "#94a3b8", bg: "#f8fafc" };
                       const certif = CERTIF_CFG[u.certificationBadge];
                       return (

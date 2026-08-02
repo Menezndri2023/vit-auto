@@ -280,7 +280,7 @@ export const dispatch = {
         type:    "new_booking",   // "booking" n'existe pas dans l'enum Notification.type — échec silencieux sinon
         titre:   "🚗 Réservation créée",
         message: `Votre réservation ${ref} a été enregistrée. En attente de confirmation du partenaire.`,
-        lien:    `/bookings/${bId}`,
+        lien:    `/dashboard`,
       }),
 
       // Notification interne partenaire
@@ -290,7 +290,7 @@ export const dispatch = {
         type:    "new_booking",
         titre:   "📋 Nouvelle réservation",
         message: `Nouvelle réservation ${ref} — ${client?.firstName || "Client"} — À confirmer.`,
-        lien:    `/partner/bookings`,
+        lien:    `/vendor/dashboard`,
       }),
 
       // AI : analyse risque
@@ -329,7 +329,7 @@ export const dispatch = {
         type:    notif.type,
         titre:   notif.titre,
         message: notif.message,
-        lien:    `/bookings/${bId}`,
+        lien:    `/dashboard`,
       });
     }
 

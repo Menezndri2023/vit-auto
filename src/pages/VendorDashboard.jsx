@@ -1865,8 +1865,18 @@ export default function VendorDashboard() {
 
   const handleDeleteVehicle = async (id) => {
     if (!confirm("Supprimer définitivement cette annonce ?")) return;
-    try { await fetch(`/api/vehicles/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }); }
-    catch { /* ignore */ }
+    try {
+      const res = await fetch(`/api/vehicles/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toastError(data.message || "Impossible de supprimer cette annonce.");
+        return;
+      }
+      toastSuccess("Annonce supprimée.");
+    } catch {
+      toastError("Erreur réseau — l'annonce n'a pas été supprimée.");
+      return;
+    }
     loadPartnerVehicles();
   };
 
@@ -2901,7 +2911,7 @@ export default function VendorDashboard() {
                     <div className={styles.vehicleCardActions}>
                       <button className={styles.btnSecondary} onClick={() => openDriverEdit(drv)}>✏️ Modifier</button>
                       <button className={styles.btnSecondary} onClick={() => { setBlackoutModal(drv); setBlackoutForm({ start: "", end: "", reason: "" }); }}>🚫 Congés</button>
-                      <button className={styles.btnDanger} onClick={() => { if (confirm("Supprimer ce profil ?")) { fetch(`/api/drivers/${drv._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).then(() => setMyDrivers((p) => p.filter((d) => d._id !== drv._id))).catch(() => {}); } }}>Supprimer</button>
+                      <button className={styles.btnDanger} onClick={() => { if (confirm("Supprimer ce profil ?")) { fetch(`/api/drivers/${drv._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).then(async (res) => { if (!res.ok) { const data = await res.json().catch(() => ({})); toastError(data.message || "Impossible de supprimer ce profil."); return; } toastSuccess("Profil chauffeur supprimé."); setMyDrivers((p) => p.filter((d) => d._id !== drv._id)); }).catch(() => toastError("Erreur réseau — le profil n'a pas été supprimé.")); } }}>Supprimer</button>
                     </div>
                   </div>
                 );

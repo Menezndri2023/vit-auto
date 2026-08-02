@@ -162,7 +162,7 @@ export function ListingForm({ onClose, onSaved, token, listing }) {
       <div className={styles.formModal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.formModalHeader}>
           <h3>{isEdit ? "Modifier l'annonce" : "Nouvelle annonce Import/Export"}</h3>
-          <button className={styles.closeBtn} onClick={onClose}>✕</button>
+          <button className={styles.closeBtn} onClick={onClose} aria-label="Fermer">✕</button>
         </div>
         <div className={styles.formScroll}>
           {/* Datalists autocomplete */}
@@ -450,7 +450,12 @@ export default function ImporterDashboard() {
 
   const deleteListing = async (id) => {
     if (!confirm("Supprimer cette annonce ?")) return;
-    await fetch(`/api/import-export/listings/${id}`, { method: "DELETE", headers });
+    const res = await fetch(`/api/import-export/listings/${id}`, { method: "DELETE", headers });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      showMsg(data.message || "Impossible de supprimer cette annonce.", "error");
+      return;
+    }
     showMsg("Annonce supprimée.");
     load();
   };

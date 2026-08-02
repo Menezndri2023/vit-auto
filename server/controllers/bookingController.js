@@ -1335,7 +1335,7 @@ export const recordTransaction = async (req, res) => {
         booking.client,
         "system",
         "✋ Validation requise",
-        `Le partenaire a enregistré votre transaction de ${Number(finalAmount).toLocaleString("fr-FR")} XOF. Veuillez valider dans votre tableau de bord.`,
+        `Le partenaire a enregistré votre transaction de ${Number(finalAmount).toLocaleString("fr-FR")} ${booking.devise || "USD"}. Veuillez valider dans votre tableau de bord.`,
         "/dashboard"
       );
     }
@@ -1397,7 +1397,7 @@ export const validateTransaction = async (req, res) => {
         ownerId,
         "booking_completed",
         "✅ Transaction validée",
-        `Le client a validé la transaction ${booking.reference}. Commission VIT-AUTO : ${Number(booking.commissionAmount).toLocaleString("fr-FR")} XOF.`,
+        `Le client a validé la transaction ${booking.reference}. Commission VIT-AUTO : ${Number(booking.commissionAmount).toLocaleString("fr-FR")} ${booking.devise || "USD"}.`,
         "/vendor/dashboard"
       );
 
@@ -1974,7 +1974,7 @@ export const partnerConfirm = async (req, res) => {
         booking.client,
         "system",
         "✋ Confirmez votre transaction",
-        `Le partenaire a enregistré votre transaction de ${Number(finalAmount).toLocaleString("fr-FR")} XOF (${paymentMethod}). Confirmez dans votre tableau de bord.`,
+        `Le partenaire a enregistré votre transaction de ${Number(finalAmount).toLocaleString("fr-FR")} ${booking.devise || "USD"} (${paymentMethod}). Confirmez dans votre tableau de bord.`,
         "/dashboard"
       );
     }

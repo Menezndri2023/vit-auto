@@ -424,17 +424,6 @@ app.get("/api/comm/failures", apiLimiter, authenticate, authorizeAdmin, async (r
   }
 });
 
-// ── ImageKit auth token (frontend upload direct) ──────────────────────────────
-// Authentifié + rate-limité : sans cela, n'importe quel visiteur anonyme pouvait
-// obtenir en boucle des jetons d'upload direct vers ImageKit (abus de quota/stockage).
-app.get("/api/imagekit/auth", apiLimiter, authenticate, (req, res) => {
-  import("./config/imagekit.js").then(({ getAuthToken }) => {
-    const token = getAuthToken();
-    if (!token) return res.status(503).json({ message: "ImageKit non configuré." });
-    res.json(token);
-  }).catch(() => res.status(500).json({ message: "Erreur." }));
-});
-
 // ── Queue stats (admin) ────────────────────────────────────────────────────────
 app.get("/api/queue/stats", apiLimiter, authenticate, authorizeAdmin, async (req, res) => {
   try {
@@ -500,6 +489,20 @@ const startServer = async () => {
     } catch (err) {
       logger.error("Construction des index critiques échouée (non bloquant) :", err.message);
     }
+
+    // Invoice.init() ci-dessus construit le nouvel index {partner, businessId,
+    // year, month} mais ne supprime jamais l'ancien index unique
+    // {partner, year, month} — tant qu'il reste en place, il bloque en 409 la
+    // facturation d'une 2e entité pour le même partenaire/mois (voir
+    // scripts/migrateInvoiceBusinessIndex.js, qui dépendait jusqu'ici d'un
+    // opérateur pour être lancé manuellement après déploiement — même piège
+    // que l'incident Vehicle.currency ci-dessous, désormais évité de la même façon).
+    await runOnceMigration("invoice-drop-legacy-unique-index-2026-08-02", async () => {
+      const { dropLegacyInvoiceIndex } = await import("./scripts/migrateInvoiceBusinessIndex.js");
+      const { default: Invoice } = await import("./models/Invoice.js");
+      await dropLegacyInvoiceIndex();
+      await Invoice.syncIndexes();
+    });
 
     // ── Migrations à usage unique (auto, jamais rejouées) ─────────────────
     // Vehicle.currency avait pour défaut de schéma "USD" bien avant d'avoir

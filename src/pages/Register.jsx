@@ -255,7 +255,9 @@ const Register = () => {
 
         <form className={styles.form} onSubmit={onSubmit} autoComplete="on">
           <div className={styles.row}>
+            <label htmlFor="register-firstName" className={styles.srOnly}>Prénom</label>
             <input
+              id="register-firstName"
               name="firstName"
               autoComplete="given-name"
               value={form.firstName}
@@ -263,7 +265,9 @@ const Register = () => {
               placeholder="Prénom *"
               required
             />
+            <label htmlFor="register-lastName" className={styles.srOnly}>Nom</label>
             <input
+              id="register-lastName"
               name="lastName"
               autoComplete="family-name"
               value={form.lastName}
@@ -273,7 +277,9 @@ const Register = () => {
             />
           </div>
 
+          <label htmlFor="register-email" className={styles.srOnly}>Adresse e-mail</label>
           <input
+            id="register-email"
             type="email"
             name="email"
             autoComplete="email"
@@ -283,7 +289,9 @@ const Register = () => {
             required
           />
 
+          <label htmlFor="register-phone" className={styles.srOnly}>Téléphone</label>
           <input
+            id="register-phone"
             type="tel"
             name="phone"
             autoComplete="tel"
@@ -351,7 +359,9 @@ const Register = () => {
 
           <div className={styles.row}>
             <div style={{ position: "relative" }}>
+              <label htmlFor="register-password" className={styles.srOnly}>Mot de passe</label>
               <input
+                id="register-password"
                 type={showPassword ? "text" : "password"}
                 name="password"
                 autoComplete="new-password"
@@ -369,7 +379,9 @@ const Register = () => {
               </button>
             </div>
             <div style={{ position: "relative" }}>
+              <label htmlFor="register-confirmPassword" className={styles.srOnly}>Confirmer le mot de passe</label>
               <input
+                id="register-confirmPassword"
                 type={showPassword ? "text" : "password"}
                 name="confirmPassword"
                 autoComplete="new-password"

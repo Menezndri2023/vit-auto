@@ -58,7 +58,7 @@ export default function MentionsLegales() {
 
       <Section title="2. Hébergement">
         <Row label="Frontend" value="Vercel Inc. — 340 Pine Street, Suite 701, San Francisco, CA 94104, USA" />
-        <Row label="Backend / API" value="Railway Corp. — San Francisco, CA, USA" />
+        <Row label="Backend / API" value="Render Services, Inc. — San Francisco, CA, USA" />
         <Row label="Base de données" value="MongoDB Atlas — MongoDB Inc., New York, USA" />
         <p style={{ marginTop: 14 }}>
           Les serveurs sont hébergés dans des datacenters certifiés ISO 27001 avec chiffrement TLS 1.3.

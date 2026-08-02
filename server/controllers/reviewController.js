@@ -59,13 +59,18 @@ export const createReview = async (req, res) => {
 
     // Notifier le partenaire
     if (ownerId) {
-      await Notification.create({
-        user: ownerId,
+      const reviewNotif = {
         type: "new_review",
         titre: "Nouvel avis reçu ⭐",
         message: `${req.user.firstName} a laissé un avis ${note}/5 sur votre annonce.`,
         lien: "/vendor/dashboard",
-      });
+      };
+      const reviewNotifDoc = await Notification.create({ user: ownerId, ...reviewNotif });
+      if (global._io) {
+        global._io.to(`user_${ownerId}`).emit("notification_new", {
+          _id: reviewNotifDoc._id, ...reviewNotif, lu: false, createdAt: reviewNotifDoc.createdAt,
+        });
+      }
     }
 
     res.status(201).json({ review });

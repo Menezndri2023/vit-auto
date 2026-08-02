@@ -217,6 +217,22 @@
   color: #c73012;
 }
 
+/* ─── Accessibilité ─────────────────────────────────────── */
+/* Label associé à un champ mais masqué visuellement — le placeholder reste
+   l'indice visuel, ce label existe pour les lecteurs d'écran (formulaires
+   sans <label> = champ annoncé sans nom pour un utilisateur non-voyant). */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ─── Responsive ────────────────────────────────────────── */
 @media (max-width: 520px) {
   .card {

@@ -1,5 +1,5 @@
 import { baseEmail, BRAND } from "../shared/base.js";
-import { btn, heroSection, greeting, signature, infoBox, dataTable, divider, badge, stepTimeline } from "../shared/components.js";
+import { btn, heroSection, greeting, signature, infoBox, dataTable, divider, badge, stepTimeline, escapeHtml } from "../shared/components.js";
 
 export function welcomePartnerTemplate({ firstName, companyName, partnerType, dashboardUrl, refNumber }, trackingPixel = "") {
   const typeLabel = {
@@ -26,7 +26,7 @@ export function welcomePartnerTemplate({ firstName, companyName, partnerType, da
     ${heroSection("Bienvenue dans le programme Founding Partner", "Votre candidature a bien été reçue — nous vous recontacterons sous 48h", "🎉")}
     ${greeting(firstName)}
     <p style="font-size:14px;color:${BRAND.muted};line-height:1.7;margin:0 0 20px">
-      Votre dossier partenaire pour <strong>${companyName}</strong> a été reçu avec succès.
+      Votre dossier partenaire pour <strong>${escapeHtml(companyName)}</strong> a été reçu avec succès.
       Notre équipe procède actuellement à la vérification de vos informations.
     </p>
 
@@ -51,7 +51,7 @@ export function welcomePartnerTemplate({ firstName, companyName, partnerType, da
   `;
   return baseEmail({
     title: "Bienvenue Partenaire",
-    preheader: `Votre dossier ${companyName} a été reçu — bienvenue dans VIT AUTO`,
+    preheader: `Votre dossier ${escapeHtml(companyName)} a été reçu — bienvenue dans VIT AUTO`,
     body,
   });
 }
@@ -61,7 +61,7 @@ export function loiReadyTemplate({ firstName, companyName, loiUrl, expiresAt }, 
     ${heroSection("Votre Lettre d'Intention (LOI) est prête", "Signez pour passer à l'étape suivante", "📝")}
     ${greeting(firstName)}
     <p style="font-size:14px;color:${BRAND.muted};line-height:1.7;margin:0 0 20px">
-      Votre dossier partenaire pour <strong>${companyName}</strong> a été examiné avec succès.
+      Votre dossier partenaire pour <strong>${escapeHtml(companyName)}</strong> a été examiné avec succès.
       Votre Lettre d'Intention officielle est maintenant disponible pour signature.
     </p>
 
@@ -95,7 +95,7 @@ export function agreementReadyTemplate({ firstName, companyName, agreementUrl, e
     ${greeting(firstName)}
     <p style="font-size:14px;color:${BRAND.muted};line-height:1.7;margin:0 0 20px">
       Félicitations ! Votre Lettre d'Intention a été validée.
-      L'Accord Partenaire officiel pour <strong>${companyName}</strong> est maintenant disponible.
+      L'Accord Partenaire officiel pour <strong>${escapeHtml(companyName)}</strong> est maintenant disponible.
     </p>
 
     ${infoBox(`
@@ -131,7 +131,7 @@ export function documentsReadyTemplate({ firstName, companyName, loiUrl, agreeme
     ${heroSection("Votre dossier Founding Partner vous attend", "Un ou plusieurs documents restent à signer pour continuer", "✍️")}
     ${greeting(firstName)}
     <p style="font-size:14px;color:${BRAND.muted};line-height:1.7;margin:0 0 20px">
-      Votre dossier partenaire pour <strong>${companyName}</strong> ne peut pas avancer tant que le document ci-dessous
+      Votre dossier partenaire pour <strong>${escapeHtml(companyName)}</strong> ne peut pas avancer tant que le document ci-dessous
       n'est pas signé. Voici un nouveau lien sécurisé — le précédent lien peut ne plus fonctionner.
     </p>
 
@@ -150,7 +150,7 @@ export function documentsReadyTemplate({ firstName, companyName, loiUrl, agreeme
   `;
   return baseEmail({
     title: "Documents à signer — Founding Partner",
-    preheader: `Votre dossier ${companyName} attend votre signature`,
+    preheader: `Votre dossier ${escapeHtml(companyName)} attend votre signature`,
     body,
   });
 }

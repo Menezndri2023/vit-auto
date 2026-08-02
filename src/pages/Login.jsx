@@ -118,8 +118,12 @@ const Login = () => {
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ email: notVerified }),
       });
-      await res.json();
-      setResendDone(true);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        error(data.message || "Erreur lors de l'envoi. Réessayez.");
+      } else {
+        setResendDone(true);
+      }
     } catch {
       error("Erreur lors de l'envoi. Réessayez.");
     } finally {
@@ -198,7 +202,9 @@ const Login = () => {
           </form>
         ) : (
           <form className={styles.form} onSubmit={onSubmit} autoComplete="on">
+            <label htmlFor="login-identifier" className={styles.srOnly}>Email ou téléphone</label>
             <input
+              id="login-identifier"
               type="text"
               name="identifier"
               autoComplete="username"
@@ -208,7 +214,9 @@ const Login = () => {
               required
             />
             <div style={{ position: "relative" }}>
+              <label htmlFor="login-password" className={styles.srOnly}>{t("auth.password")}</label>
               <input
+                id="login-password"
                 type={showPassword ? "text" : "password"}
                 name="password"
                 autoComplete="current-password"

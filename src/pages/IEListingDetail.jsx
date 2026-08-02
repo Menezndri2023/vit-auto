@@ -265,6 +265,13 @@ function ReservationModal({ listing, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
 
+  // Un utilisateur clavier doit pouvoir fermer la modale sans souris.
+  useEffect(() => {
+    const onKeyDown = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const submit = async (e) => {
@@ -289,7 +296,7 @@ function ReservationModal({ listing, onClose, onSuccess }) {
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <button className={styles.modalClose} onClick={onClose}>✕</button>
+        <button className={styles.modalClose} onClick={onClose} aria-label="Fermer">✕</button>
 
         <div className={styles.modalHeader}>
           <span className={styles.modalBadge}>🆓 RÉSERVATION GRATUITE</span>
@@ -374,6 +381,13 @@ function DirectPurchaseModal({ listing, onClose, onSuccess }) {
   const [purchasing, setPurchasing]   = useState(false);
   const [error, setError]             = useState(null);
 
+  // Un utilisateur clavier doit pouvoir fermer la modale sans souris.
+  useEffect(() => {
+    const onKeyDown = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
   const fetchEstimate = async () => {
     if (!destCountry) return;
     setEstimating(true); setError(null); setEstimate(null);
@@ -409,7 +423,7 @@ function DirectPurchaseModal({ listing, onClose, onSuccess }) {
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <button className={styles.modalClose} onClick={onClose}>✕</button>
+        <button className={styles.modalClose} onClick={onClose} aria-label="Fermer">✕</button>
 
         <div className={styles.modalHeader}>
           <span className={styles.modalBadge}>🛒 ACHAT DIRECT</span>

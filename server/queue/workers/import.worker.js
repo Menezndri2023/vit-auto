@@ -60,7 +60,7 @@ export async function processImportJob(job) {
           type:    "system",
           titre:   `📦 Étape ${newStep}/14 — ${stepLabel}`,
           message: note || `Votre transaction est passée à l'étape "${stepLabel}".`,
-          lien:    `/ie/transaction/${transactionId}`,
+          lien:    `/import-export/transaction/${transactionId}`,
         })
       ));
 
@@ -104,14 +104,14 @@ export async function processImportJob(job) {
           type:    "system",
           titre:   "⭐ Évaluez votre expérience",
           message: "Votre transaction est terminée. Partagez votre avis sur le vendeur/partenaire.",
-          lien:    `/ie/transaction/${transactionId}`,
+          lien:    `/import-export/transaction/${transactionId}`,
         }),
         tx.partner && sendViaInternal({
           userId:  tx.partner.toString(),
           type:    "system",
           titre:   "⭐ Évaluez l'acheteur",
           message: "La transaction est clôturée. Évaluez l'acheteur pour améliorer la communauté.",
-          lien:    `/ie/transaction/${transactionId}`,
+          lien:    `/import-export/transaction/${transactionId}`,
         }),
       ]);
 

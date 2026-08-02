@@ -530,13 +530,18 @@ export async function respondPublicQuote(req, res) {
     // qu'en revérifiant manuellement le statut du devis.
     try {
       const Notification = (await import("../models/Notification.js")).default;
-      await Notification.create({
-        user: quote.partnerId,
+      const quoteRespNotif = {
         type: "system",
         titre: action === "accept" ? "✅ Devis accepté" : "❌ Devis refusé",
         message: `${quote.buyer?.name || "L'acheteur"} a ${action === "accept" ? "accepté" : "refusé"} le devis ${quote.quoteNumber}.`,
         lien: "/partner-pms",
-      });
+      };
+      const quoteRespNotifDoc = await Notification.create({ user: quote.partnerId, ...quoteRespNotif });
+      if (global._io) {
+        global._io.to(`user_${quote.partnerId}`).emit("notification_new", {
+          _id: quoteRespNotifDoc._id, ...quoteRespNotif, lu: false, createdAt: quoteRespNotifDoc.createdAt,
+        });
+      }
     } catch { /* non-bloquant */ }
 
     res.json(quote);

@@ -1,5 +1,5 @@
 import { baseEmail, BRAND } from "../shared/base.js";
-import { btn, heroSection, greeting, signature, dataTable, infoBox, badge } from "../shared/components.js";
+import { btn, heroSection, greeting, signature, dataTable, infoBox, badge, escapeHtml } from "../shared/components.js";
 
 function fmt(d) {
   return d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" }) : "—";
@@ -7,9 +7,10 @@ function fmt(d) {
 
 export function reservationCreatedTemplate({ firstName, reservation, vehicleName, destCountry, dashboardUrl }, trackingPixel = "") {
   const { reference, createdAt, status } = reservation || {};
+  const safeVehicleName = escapeHtml(vehicleName);
 
   const body = `
-    ${heroSection("Demande de réservation envoyée", `Import/Export — ${vehicleName || "Véhicule"}`, "📦")}
+    ${heroSection("Demande de réservation envoyée", `Import/Export — ${safeVehicleName || "Véhicule"}`, "📦")}
     ${greeting(firstName)}
     <p style="font-size:14px;color:${BRAND.muted};line-height:1.7;margin:0 0 20px">
       Votre demande de réservation a été transmise au partenaire exportateur.
@@ -17,9 +18,9 @@ export function reservationCreatedTemplate({ firstName, reservation, vehicleName
     </p>
 
     ${dataTable([
-      ["Référence", `<strong>${reference || "—"}</strong>`, true],
-      ["Véhicule",  vehicleName || "—"],
-      ["Destination", destCountry || "—"],
+      ["Référence", `<strong>${escapeHtml(reference) || "—"}</strong>`, true],
+      ["Véhicule",  safeVehicleName || "—"],
+      ["Destination", escapeHtml(destCountry) || "—"],
       ["Date de demande", fmt(createdAt)],
       ["Statut", badge("En attente", BRAND.warning)],
     ])}
@@ -35,55 +36,58 @@ export function reservationCreatedTemplate({ firstName, reservation, vehicleName
   `;
   return baseEmail({
     title: "Demande de réservation",
-    preheader: `Votre demande pour ${vehicleName} a été envoyée — en attente de confirmation`,
+    preheader: `Votre demande pour ${safeVehicleName} a été envoyée — en attente de confirmation`,
     body,
   });
 }
 
 export function reservationConfirmedTemplate({ firstName, reservation, vehicleName, partnerName, nextSteps, dashboardUrl }, trackingPixel = "") {
   const { reference } = reservation || {};
+  const safeVehicleName = escapeHtml(vehicleName);
+  const safePartnerName = escapeHtml(partnerName);
 
   const body = `
-    ${heroSection("Réservation confirmée par le partenaire ✅", vehicleName || "Votre véhicule", "🚢")}
+    ${heroSection("Réservation confirmée par le partenaire ✅", safeVehicleName || "Votre véhicule", "🚢")}
     ${greeting(firstName)}
     <p style="font-size:14px;color:${BRAND.muted};line-height:1.7;margin:0 0 20px">
-      <strong>${partnerName}</strong> a confirmé votre réservation. Le processus d'importation peut maintenant débuter.
+      <strong>${safePartnerName}</strong> a confirmé votre réservation. Le processus d'importation peut maintenant débuter.
     </p>
 
     ${dataTable([
-      ["Référence", `<strong>${reference || "—"}</strong>`, true],
-      ["Partenaire", partnerName || "—"],
-      ["Véhicule",  vehicleName || "—"],
+      ["Référence", `<strong>${escapeHtml(reference) || "—"}</strong>`, true],
+      ["Partenaire", safePartnerName || "—"],
+      ["Véhicule",  safeVehicleName || "—"],
       ["Statut", badge("Confirmée", BRAND.success)],
     ])}
 
-    ${nextSteps ? infoBox(`<strong>Prochaine étape :</strong><br>${nextSteps}`, "success") : ""}
+    ${nextSteps ? infoBox(`<strong>Prochaine étape :</strong><br>${escapeHtml(nextSteps)}`, "success") : ""}
     ${btn("Continuer le processus", dashboardUrl || BRAND.baseUrl + "/dashboard", "primary")}
     ${signature()}
     ${trackingPixel}
   `;
   return baseEmail({
     title: "Réservation confirmée",
-    preheader: `${partnerName} a confirmé votre réservation — le processus démarre`,
+    preheader: `${safePartnerName} a confirmé votre réservation — le processus démarre`,
     body,
   });
 }
 
 export function transactionCompletedTemplate({ firstName, vehicleName, transaction, reviewUrl }, trackingPixel = "") {
-  const { reference, totalAmount, devise = "XOF" } = transaction || {};
+  const { reference, totalAmount, devise = "USD" } = transaction || {};
+  const safeVehicleName = escapeHtml(vehicleName);
 
   const body = `
     ${heroSection("Transaction complétée avec succès 🎉", "Les fonds ont été libérés au partenaire", "✅")}
     ${greeting(firstName)}
     <p style="font-size:14px;color:${BRAND.muted};line-height:1.7;margin:0 0 20px">
-      Votre transaction pour le véhicule <strong>${vehicleName}</strong> est maintenant finalisée.
+      Votre transaction pour le véhicule <strong>${safeVehicleName}</strong> est maintenant finalisée.
       Merci de nous avoir fait confiance pour ce processus d'importation.
     </p>
 
     ${dataTable([
-      ["Référence", `<strong>${reference || "—"}</strong>`, true],
-      ["Véhicule", vehicleName || "—"],
-      ["Montant total", `${Number(totalAmount || 0).toLocaleString("fr-FR")} ${devise}`, true],
+      ["Référence", `<strong>${escapeHtml(reference) || "—"}</strong>`, true],
+      ["Véhicule", safeVehicleName || "—"],
+      ["Montant total", `${Number(totalAmount || 0).toLocaleString("fr-FR")} ${escapeHtml(devise)}`, true],
       ["Statut", badge("Complétée", BRAND.success)],
     ])}
 

@@ -46,13 +46,18 @@ export async function issueServiceInvoice(booking) {
       sentAt: new Date(),
     });
 
-    await Notification.create({
-      user: ownerId,
+    const svcInvoiceNotif = {
       type: "invoice_available",
       titre: "🧾 Facture de prestation disponible",
       message: `Facture ${reference} pour la commande ${booking.reference || ""} — net à percevoir : ${Number(invoice.netPayout).toLocaleString("fr-FR")} ${invoice.currency}.`,
       lien: "/vendor/dashboard?tab=finances",
-    }).catch(() => {});
+    };
+    const svcInvoiceNotifDoc = await Notification.create({ user: ownerId, ...svcInvoiceNotif }).catch(() => null);
+    if (svcInvoiceNotifDoc && global._io) {
+      global._io.to(`user_${ownerId}`).emit("notification_new", {
+        _id: svcInvoiceNotifDoc._id, ...svcInvoiceNotif, lu: false, createdAt: svcInvoiceNotifDoc.createdAt,
+      });
+    }
   } catch (err) {
     logger.error("issueServiceInvoice (non bloquant):", err.message);
   }

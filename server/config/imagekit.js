@@ -101,12 +101,6 @@ export function getOptimizedUrl(src, opts = {}) {
   return ik.url({ src, transformation: tr });
 }
 
-export function getAuthToken() {
-  const ik = getIK();
-  if (!ik) return null;
-  return ik.getAuthenticationParameters();
-}
-
 export function isAvailable() {
   return !!getIK();
 }

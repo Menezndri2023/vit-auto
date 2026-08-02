@@ -31,16 +31,20 @@ export function selectBestPromotionRule(promotions, days, baseTotal) {
 }
 
 // Prix/jour effectif affiché pour une location de `days` jours.
+// Arrondi identique à server/utils/promotion.js (applyPromotion) — sans ça le
+// prix affiché ici diverge de quelques centimes du prix réellement facturé
+// par bookingController.createBooking (même famille de bug que l'arrondi de
+// conversion devise déjà corrigé ailleurs).
 export function effectivePricePerDay(pricePerDay, days, promotions) {
   const perDay  = Number(pricePerDay) || 0;
   const nbJours = Math.max(Number(days) || 1, 1);
-  const baseTotal = perDay * nbJours;
+  const baseTotal = Math.round(perDay * nbJours * 100) / 100;
   const rule = selectBestPromotionRule(promotions, nbJours, baseTotal);
   if (!rule) return perDay;
   const discountedTotal = rule.type === "percent"
     ? baseTotal * (1 - Math.min(Number(rule.value), 90) / 100)
     : Math.max(baseTotal - Number(rule.value), 0);
-  return discountedTotal / nbJours;
+  return Math.round((discountedTotal / nbJours) * 100) / 100;
 }
 
 // Règle "active maintenant" (fenêtre de dates valide) indépendamment de toute

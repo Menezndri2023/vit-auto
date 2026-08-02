@@ -625,15 +625,28 @@ export const adminVerifyIdentity = async (req, res) => {
     });
 
     // Notifier l'utilisateur
-    await Notification.create({
+    const identityNotifType  = status === "verified" ? "listing_approved" : "listing_rejected";
+    const identityNotifTitre = status === "verified" ? "✅ Identité vérifiée" : "❌ Identité refusée";
+    const identityNotifMsg   = status === "verified"
+      ? "Votre pièce d'identité a été vérifiée avec succès."
+      : `Votre pièce a été refusée. ${rejectionReason || ""}`;
+    const identityNotifDoc = await Notification.create({
       user:    user._id,
-      type:    status === "verified" ? "listing_approved" : "listing_rejected",
-      titre:   status === "verified" ? "✅ Identité vérifiée" : "❌ Identité refusée",
-      message: status === "verified"
-        ? "Votre pièce d'identité a été vérifiée avec succès."
-        : `Votre pièce a été refusée. ${rejectionReason || ""}`,
+      type:    identityNotifType,
+      titre:   identityNotifTitre,
+      message: identityNotifMsg,
       lien: "/profile",
     });
+
+    // Émission temps réel — même correctif que kycController.js (voie de
+    // vérification d'identité principale) : sans ça la décision admin n'est
+    // visible côté client qu'au prochain polling de notifications.
+    if (global._io) {
+      global._io.to(`user_${user._id}`).emit("notification_new", {
+        _id: identityNotifDoc._id, type: identityNotifType, titre: identityNotifTitre,
+        message: identityNotifMsg, lien: "/profile", lu: false, createdAt: identityNotifDoc.createdAt,
+      });
+    }
 
     if (status === "rejected") {
       sendEmail({

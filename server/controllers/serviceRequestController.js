@@ -3,6 +3,7 @@ import ServiceRequest, { SERVICE_REQUEST_CATEGORIES } from "../models/ServiceReq
 import Notification from "../models/Notification.js";
 import { getServiceConfig } from "../services/pricingEngine.js";
 import { generateGenericReceiptPDF } from "../utils/pdfGenerator.js";
+import { notifyAdmins } from "../utils/notifyAdmins.js";
 
 const CATEGORY_LABELS = {
   inspection:      "Inspection indépendante",
@@ -44,6 +45,19 @@ export const createRequest = async (req, res) => {
       details: details && typeof details === "object" && !Array.isArray(details) ? details : {},
       notes: (notes || "").slice(0, 1000),
     });
+
+    // ── Notifier les admins (non bloquant) ───────────────────────────────
+    // Bug réel corrigé (audit) : aucune notification admin n'existait à la
+    // création d'une demande de service — contrairement à tous les autres
+    // flux de soumission (véhicule, chauffeur, KYC, certification...), l'admin
+    // ne découvrait la demande qu'en rechargeant manuellement l'onglet dédié.
+    notifyAdmins(
+      "system",
+      "🛠️ Nouvelle demande de service",
+      `${req.user.firstName || ""} ${req.user.lastName || ""} a soumis une demande "${CATEGORY_LABELS[category] || category}".`,
+      "/admin",
+    ).catch((err) => logger.error("notifyAdmins createServiceRequest (non bloquant) :", err.message));
+
     res.status(201).json({ request });
   } catch (err) {
     logger.error("createServiceRequest:", err);

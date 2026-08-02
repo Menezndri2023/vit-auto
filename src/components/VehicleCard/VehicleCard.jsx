@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useCurrency } from "../../context/CurrencyContext";
 import { useFavorites } from "../../context/FavoritesContext";
 import PriceTag from "../PriceTag/PriceTag";
@@ -9,6 +9,7 @@ import styles from "./VehicleCard.module.css";
 
 const VehicleCard = React.memo(({ car, compact }) => {
   const navigate  = useNavigate();
+  const location  = useLocation();
   const { fmt } = useCurrency();
   const { isFavorite, toggleFavorite } = useFavorites();
   const carId = car._id || car.id;
@@ -17,9 +18,9 @@ const VehicleCard = React.memo(({ car, compact }) => {
   const handleFavClick = useCallback((e) => {
     e.stopPropagation();
     toggleFavorite("vehicle", carId).then((r) => {
-      if (r.needsAuth) navigate("/login");
+      if (r.needsAuth) navigate("/login", { state: { from: { pathname: location.pathname, search: location.search } } });
     });
-  }, [toggleFavorite, carId, navigate]);
+  }, [toggleFavorite, carId, navigate, location]);
   const imgs = (() => {
     const arr = [];
     if (car.thumbnail) arr.push(car.thumbnail);

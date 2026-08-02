@@ -315,15 +315,22 @@ export const updateDriverStatus = async (req, res) => {
 
     if (!driver) return res.status(404).json({ message: "Chauffeur introuvable." });
 
-    await Notification.create({
-      user: driver.owner._id,
+    const driverStatusNotif = {
       type: status === "approved" ? "listing_approved" : "listing_rejected",
       titre: status === "approved" ? "Profil chauffeur approuvé ✅" : "Profil chauffeur rejeté ❌",
       message: status === "approved"
         ? `Votre profil "${driver.title}" est maintenant visible.`
         : `Votre profil "${driver.title}" a été rejeté. ${rejectionReason || ""}`,
       lien: "/vendor/dashboard",
-    });
+    };
+    const driverNotifDoc = await Notification.create({ user: driver.owner._id, ...driverStatusNotif });
+    // Même angle mort que vehicleController.js corrigé précédemment : aucune
+    // émission temps réel à l'approbation/rejet admin d'un profil chauffeur.
+    if (global._io) {
+      global._io.to(`user_${driver.owner._id}`).emit("notification_new", {
+        _id: driverNotifDoc._id, ...driverStatusNotif, lu: false, createdAt: driverNotifDoc.createdAt,
+      });
+    }
 
     res.json({ driver });
   } catch (err) {

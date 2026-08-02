@@ -3,6 +3,7 @@ import InsuranceRequest from "../models/InsuranceRequest.js";
 import Notification from "../models/Notification.js";
 import { getServiceConfig } from "../services/pricingEngine.js";
 import { generateGenericReceiptPDF } from "../utils/pdfGenerator.js";
+import { notifyAdmins } from "../utils/notifyAdmins.js";
 
 async function notify(userId, titre, message) {
   try {
@@ -34,6 +35,18 @@ export const createRequest = async (req, res) => {
       coveragePeriodMonths: Number(coveragePeriodMonths) || 12,
       notes: (notes || "").slice(0, 1000),
     });
+
+    // ── Notifier les admins (non bloquant) ───────────────────────────────
+    // Bug réel corrigé (audit) : aucune notification admin n'existait à la
+    // création d'une demande d'assurance — même angle mort que
+    // serviceRequestController.createRequest.
+    notifyAdmins(
+      "system",
+      "🛡️ Nouvelle demande d'assurance",
+      `${req.user.firstName || ""} ${req.user.lastName || ""} a soumis une demande d'assurance (${type}).`,
+      "/admin",
+    ).catch((err) => logger.error("notifyAdmins createInsuranceRequest (non bloquant) :", err.message));
+
     res.status(201).json({ request });
   } catch (err) {
     logger.error("createInsuranceRequest:", err);

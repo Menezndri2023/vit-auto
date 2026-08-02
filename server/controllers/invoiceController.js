@@ -138,13 +138,18 @@ export const generatePartnerInvoice = async (req, res) => {
     );
 
     // Notifier le partenaire
-    await Notification.create({
-      user:    partnerId,
+    const invoiceNotif = {
       type:    "system",
       titre:   "📄 Nouvelle facture disponible",
-      message: `Votre facture ${reference} de ${Number(totalCommission).toLocaleString("fr-FR")} XOF est disponible. Échéance : ${dueDate.toLocaleDateString("fr-FR")}.`,
+      message: `Votre facture ${reference} de ${Number(totalCommission).toLocaleString("fr-FR")} ${invoice.devise} est disponible. Échéance : ${dueDate.toLocaleDateString("fr-FR")}.`,
       lien:    "/vendor/dashboard",
-    }).catch(() => {});
+    };
+    const invoiceNotifDoc = await Notification.create({ user: partnerId, ...invoiceNotif }).catch(() => null);
+    if (invoiceNotifDoc && global._io) {
+      global._io.to(`user_${partnerId}`).emit("notification_new", {
+        _id: invoiceNotifDoc._id, ...invoiceNotif, lu: false, createdAt: invoiceNotifDoc.createdAt,
+      });
+    }
 
     // Envoi email de la facture PDF en pièce jointe
     if (partner.email) {
@@ -250,13 +255,18 @@ export const generateAllMonthlyInvoices = async (req, res) => {
         { invoiced: true, invoice: invoice._id }
       );
 
-      await Notification.create({
-        user:    partnerId,
+      const batchInvoiceNotif = {
         type:    "system",
         titre:   "📄 Nouvelle facture disponible",
-        message: `Votre facture ${reference} de ${Number(totalCommission).toLocaleString("fr-FR")} XOF est disponible.`,
+        message: `Votre facture ${reference} de ${Number(totalCommission).toLocaleString("fr-FR")} ${invoice.devise} est disponible.`,
         lien:    "/vendor/dashboard",
-      }).catch(() => {});
+      };
+      const batchInvoiceNotifDoc = await Notification.create({ user: partnerId, ...batchInvoiceNotif }).catch(() => null);
+      if (batchInvoiceNotifDoc && global._io) {
+        global._io.to(`user_${partnerId}`).emit("notification_new", {
+          _id: batchInvoiceNotifDoc._id, ...batchInvoiceNotif, lu: false, createdAt: batchInvoiceNotifDoc.createdAt,
+        });
+      }
 
       // Envoi email de la facture PDF en pièce jointe
       const partner = await User.findById(partnerId).select("email firstName");
@@ -352,13 +362,18 @@ export const markInvoicePaid = async (req, res) => {
     await invoice.save();
 
     // Notifier le partenaire
-    await Notification.create({
-      user:    invoice.partner._id,
+    const paidNotif = {
       type:    "system",
       titre:   "✅ Facture réglée",
       message: `Votre facture ${invoice.reference} a été marquée comme payée.`,
       lien:    "/vendor/dashboard",
-    }).catch(() => {});
+    };
+    const paidNotifDoc = await Notification.create({ user: invoice.partner._id, ...paidNotif }).catch(() => null);
+    if (paidNotifDoc && global._io) {
+      global._io.to(`user_${invoice.partner._id}`).emit("notification_new", {
+        _id: paidNotifDoc._id, ...paidNotif, lu: false, createdAt: paidNotifDoc.createdAt,
+      });
+    }
 
     res.json({ invoice, message: "Facture marquée comme payée." });
   } catch (err) {

@@ -452,6 +452,19 @@ export const VehicleProvider = ({ children }) => {
     if (token) setTimeout(() => loadMyOrders(), 1500);
   };
 
+  // Retire une réservation ajoutée de façon optimiste (addBooking) quand le
+  // serveur a explicitement refusé sa création (véhicule indisponible, KYC
+  // insuffisant, etc.) — évite qu'une réservation fantôme (jamais enregistrée
+  // en base) reste visible localStorage/écran, notamment pour un visiteur
+  // sans token (pas de resync loadMyOrders possible dans ce cas).
+  const removeLocalBooking = (bookingRef) => {
+    setBookings((prev) => {
+      const next = prev.filter((b) => b.reference !== bookingRef);
+      saveBookings(next);
+      return next;
+    });
+  };
+
   // reasonCode obligatoire (voir constants/bookingCancelReasons.js — liste
   // CLIENT_CANCEL_REASONS) ; reason = texte libre facultatif. Retourne
   // { ok, message } — même pattern que updateBookingStatus ci-dessous (rollback
@@ -557,6 +570,7 @@ export const VehicleProvider = ({ children }) => {
       updateVehicle,
       addDriver,
       addBooking,
+      removeLocalBooking,
       removeBooking,
       updateBookingStatus,
       approveVehicle,

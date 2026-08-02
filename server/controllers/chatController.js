@@ -211,13 +211,21 @@ export const sendMessage = async (req, res) => {
     const senderName = `${req.user.firstName} ${req.user.lastName}`;
     for (const otherId of others) {
       try {
-        await Notification.create({
-          user:    otherId,
+        const msgNotif = {
           type:    "new_message",
           titre:   `Nouveau message de ${senderName}`,
           message: content.trim().substring(0, 80),
           lien:    "/dashboard",
-        });
+        };
+        const msgNotifDoc = await Notification.create({ user: otherId, ...msgNotif });
+        // Bug réel corrigé (audit) : "chat:message" (ci-dessous) met à jour la
+        // conversation ouverte, mais si le destinataire est sur une autre page,
+        // sa cloche de notification ne se mettait à jour qu'au prochain polling.
+        if (global._io) {
+          global._io.to(`user_${otherId}`).emit("notification_new", {
+            _id: msgNotifDoc._id, ...msgNotif, lu: false, createdAt: msgNotifDoc.createdAt,
+          });
+        }
       } catch { /* non bloquant */ }
     }
 
