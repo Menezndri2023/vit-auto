@@ -192,7 +192,20 @@ function AppRoutes() {
 
 // ── Composant racine ────────────────────────────────────────────────────────
 function App() {
-  const [splashDone, setSplashDone] = useState(false);
+  // Bug réel corrigé (audit design) : l'écran de démarrage (3,5s, non
+  // interruptible) s'affichait à CHAQUE chargement de page, pas seulement à
+  // la première visite — aucun sessionStorage/localStorage ne le désactivait
+  // ensuite. Un visiteur qui recharge, arrive via un lien direct (WhatsApp,
+  // pub, résultat de recherche) ou revient sur un onglet se retapait la
+  // même animation à chaque fois. Affiché une seule fois par session de
+  // navigation désormais (sessionStorage, effacé à la fermeture de l'onglet).
+  const [splashDone, setSplashDone] = useState(() => {
+    try { return sessionStorage.getItem("vit_splash_shown") === "1"; } catch { return false; }
+  });
+  const handleSplashDone = () => {
+    try { sessionStorage.setItem("vit_splash_shown", "1"); } catch { /* ignore */ }
+    setSplashDone(true);
+  };
 
   // launchAutoHide=false dans capacitor.config.json : le splash natif reste
   // affiché jusqu'à ce que ce composant JS ait pris le relais visuellement,
@@ -205,7 +218,7 @@ function App() {
 
   return (
     <>
-      {!splashDone && <SplashScreen onDone={() => setSplashDone(true)} />}
+      {!splashDone && <SplashScreen onDone={handleSplashDone} />}
       <BrowserRouter>
         <ToastProvider>
           <AuthProvider>

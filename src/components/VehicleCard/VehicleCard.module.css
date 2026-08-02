@@ -489,6 +489,16 @@
     font-size: .8rem;
     min-height: 44px;
   }
+
+  /* Bug réel corrigé (audit design) : la règle .compact .actions button
+     (36px, non conditionnelle) est plus spécifique que .actions button
+     ci-dessus (2 classes vs 1) — elle gagnait donc silencieusement sur
+     mobile malgré cette règle, empêchant les boutons "Détails"/"Réserver"
+     du carousel vedette (accueil) d'atteindre la cible tactile confortable
+     de 44px, contrairement aux mêmes boutons dans la grille catalogue. */
+  .compact .actions button {
+    min-height: 44px;
+  }
 }
 
 /* ── Très petit ── */
