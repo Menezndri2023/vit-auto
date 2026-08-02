@@ -2,10 +2,9 @@ import crypto from "crypto";
 import logger from "../utils/logger.js";
 import { captureException } from "../config/sentry.js";
 import WhatsAppConversation from "../models/WhatsAppConversation.js";
-import User from "../models/User.js";
-import Notification from "../models/Notification.js";
 import { generateBotReply } from "../services/whatsappBotService.js";
 import { sendViaWhatsApp } from "../services/communication/CommunicationService.js";
+import { notifyAdmins } from "../utils/notifyAdmins.js";
 
 // ── GET /api/whatsapp/webhook — challenge de vérification Meta ───────────────
 // Meta appelle cet endpoint une seule fois, à la configuration du webhook
@@ -38,15 +37,17 @@ function isValidSignature(rawBody, signatureHeader) {
 
 async function notifyAdminsEscalation(conversation, reason) {
   try {
-    const admins = await User.find({ role: "admin", isActive: true }).select("_id");
-    const docs = admins.map((a) => ({
-      user: a._id,
-      type: "system",
-      titre: "🚩 Conversation WhatsApp à reprendre",
-      message: `${conversation.contactName || conversation.phone} (${conversation.phone}) — ${reason || "besoin d'un conseiller"}.`,
-      lien: "/admin?tab=whatsapp",
-    }));
-    if (docs.length) await Notification.insertMany(docs);
+    // Bug réel corrigé (audit) : Notification.insertMany ne pousse jamais
+    // l'événement socket temps réel — un client WhatsApp attendant un
+    // conseiller ne devrait pas dépendre d'un polling jusqu'à 20s pour que
+    // l'admin le voie (même trou déjà comblé pour vehicle/driver/KYC/
+    // showroom/Import-Export/signalements).
+    await notifyAdmins(
+      "system",
+      "🚩 Conversation WhatsApp à reprendre",
+      `${conversation.contactName || conversation.phone} (${conversation.phone}) — ${reason || "besoin d'un conseiller"}.`,
+      "/admin?tab=whatsapp",
+    );
   } catch (err) {
     logger.error("[WhatsApp] notifyAdminsEscalation:", err.message);
   }

@@ -18,6 +18,7 @@ import PartnerBusiness from "../models/PartnerBusiness.js";
 import ImporterPartnerProfile from "../models/ImporterPartnerProfile.js";
 import PartnerShowroom from "../models/PartnerShowroom.js";
 import Review from "../models/Review.js";
+import { notifyAdmins } from "../utils/notifyAdmins.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -574,16 +575,16 @@ export const submitIdentity = async (req, res) => {
     };
     await user.save();
 
-    // Notifier l'admin
-    const admins = await User.find({ role: "admin", isActive: true }).select("_id");
-    const notifs = admins.map((a) => ({
-      user:    a._id,
-      type:    "system",
-      titre:   "📋 Nouvelle pièce d'identité soumise",
-      message: `${user.firstName} ${user.lastName} a soumis sa pièce d'identité.`,
-      lien:    "/admin",
-    }));
-    if (notifs.length) await Notification.insertMany(notifs);
+    // Notifier l'admin — bug réel corrigé (audit) : Notification.insertMany
+    // ne pousse jamais l'événement socket temps réel (même trou déjà comblé
+    // pour vehicle/driver/KYC/showroom/Import-Export) — basculé sur
+    // notifyAdmins() (email + in-app + socket, un seul mécanisme partout).
+    notifyAdmins(
+      "system",
+      "📋 Nouvelle pièce d'identité soumise",
+      `${user.firstName} ${user.lastName} a soumis sa pièce d'identité.`,
+      "/admin",
+    ).catch((e) => logger.error("notifyAdmins submitIdentity (non bloquant) :", e.message));
 
     res.json({ message: "Pièce d'identité soumise. En attente de vérification.", status: "pending" });
   } catch (err) {

@@ -1,7 +1,6 @@
 import logger from "../utils/logger.js";
 import Report from "../models/Report.js";
-import Notification from "../models/Notification.js";
-import User from "../models/User.js";
+import { notifyAdmins } from "../utils/notifyAdmins.js";
 
 const TARGET_MODELS = {
   vehicle:    "Vehicle",
@@ -25,17 +24,16 @@ export const createReport = async (req, res) => {
       description: description || null,
     });
 
-    // Notifier les admins (file d'attente commune, comme le support) — sans
-    // bloquer la réponse si l'un des envois échoue.
-    User.find({ role: "admin" }).select("_id").lean()
-      .then((admins) => Notification.insertMany(admins.map((a) => ({
-        user: a._id,
-        type: "system",
-        titre: "🚩 Nouveau signalement",
-        message: `Signalement (${reason}) sur ${targetType} — à examiner.`,
-        lien: "/admin?tab=reports",
-      }))))
-      .catch((e) => logger.error("createReport notify admins:", e));
+    // Notifier les admins — bug réel corrigé (audit) : Notification.insertMany
+    // ne pousse jamais l'événement socket temps réel (même trou déjà comblé
+    // pour vehicle/driver/KYC/showroom/Import-Export) — basculé sur
+    // notifyAdmins() (email + in-app + socket, un seul mécanisme partout).
+    notifyAdmins(
+      "system",
+      "🚩 Nouveau signalement",
+      `Signalement (${reason}) sur ${targetType} — à examiner.`,
+      "/admin?tab=reports",
+    ).catch((e) => logger.error("createReport notify admins:", e.message));
 
     res.status(201).json({ message: "Signalement envoyé — notre équipe va l'examiner.", report });
   } catch (err) {

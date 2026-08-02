@@ -114,7 +114,23 @@ export const sendAdminNotification = async (req, res) => {
       lien:  lien || null,
     }));
 
-    await Notification.insertMany(docs);
+    const created = await Notification.insertMany(docs);
+    // Bug réel corrigé (audit) : insertMany ne pousse jamais l'événement
+    // socket temps réel (contrairement à Notification.create — voir le hook
+    // post-save de models/Notification.js, jamais déclenché par insertMany)
+    // — un destinataire ne voyait cette diffusion admin qu'au prochain
+    // polling (jusqu'à 20s). insertMany reste volontairement utilisé ici
+    // (potentiellement des milliers de destinataires, un seul aller-retour
+    // base) — seule l'émission socket est ajoutée après coup, comme déjà
+    // fait pour commWebhookController.js/ieTransactionController.js.
+    if (global._io) {
+      for (const doc of created) {
+        global._io.to(`user_${doc.user}`).emit("notification_new", {
+          _id: doc._id, type: doc.type, titre: doc.titre, message: doc.message,
+          lien: doc.lien, lu: false, createdAt: doc.createdAt,
+        });
+      }
+    }
     res.json({ sent: docs.length, message: `Notification envoyée à ${docs.length} utilisateur(s).` });
   } catch (err) {
     logger.error("sendAdminNotification:", err);
