@@ -409,6 +409,20 @@ const Register = () => {
             </div>
           )}
 
+          {/* Correspondance des mots de passe — feedback instantané, même
+              principe que l'indicateur de force ci-dessus. Bug UX corrigé
+              (audit) : jusqu'ici la seule façon de savoir que les deux
+              mots de passe ne correspondaient pas était de soumettre le
+              formulaire et de lire un toast générique. */}
+          {form.confirmPassword && (
+            <p style={{
+              margin: "-8px 0 4px", fontSize: ".78rem", fontWeight: 700,
+              color: form.password === form.confirmPassword ? "#10b981" : "#ef4444",
+            }}>
+              {form.password === form.confirmPassword ? "✓ Les mots de passe correspondent" : "✗ Les mots de passe ne correspondent pas"}
+            </p>
+          )}
+
           {duplicateAccount && (
             <div style={{
               background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10,

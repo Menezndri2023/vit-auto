@@ -598,7 +598,20 @@ const VendorSubmit = () => {
         });
         if (res.ok) {
           clearDraft();
-          success("Votre profil chauffeur est soumis pour vérification !");
+          const data = await res.json();
+          // Bug réel corrigé (audit UX) : le profil chauffeur retombait sur un
+          // simple toast + redirection automatique, contrairement à l'annonce
+          // véhicule qui affiche un écran de confirmation complet (statut,
+          // numéro d'annonce, prochaine étape) — incohérence entre les deux
+          // types d'annonce alors que les deux passent par la même validation
+          // manuelle admin. Unifié sur le même écran résultat.
+          setResult({
+            status: data.driver?.status || "pending",
+            score: null, errors: [], warnings: [],
+            vehicleName: driver.title || `${driver.firstName} ${driver.lastName}`.trim(),
+            id: data.driver?._id,
+          });
+          return;
         } else {
           const data = await res.json().catch(() => null);
           if (data?.code === "KYC_REQUIRED" || data?.code === "DRIVER_DOCS_REQUIRED") {
@@ -664,10 +677,10 @@ const VendorSubmit = () => {
           errors:      saved?.validationErrors   || [],
           warnings:    saved?.validationWarnings || [],
           vehicleName: saved?.name || saved?.title || vehicle.title,
+          id:          saved?._id,
         });
         return; // ne pas naviguer ici, on affiche l'écran résultat
       }
-      setTimeout(() => navigate("/vendor/dashboard"), 2000);
     } catch (err) {
       if (err.code === "KYC_REQUIRED") {
         error("Vérifiez votre identité (pièce d'identité + selfie) pour publier votre annonce. Redirection…");
@@ -1656,6 +1669,13 @@ const VendorSubmit = () => {
           {/* Nom de l'annonce */}
           {result.vehicleName && (
             <div className={styles.resultVehicle}>"{result.vehicleName}"</div>
+          )}
+
+          {/* N° annonce — demandé explicitement (repère pour le support/suivi) */}
+          {result.id && (
+            <p className={styles.resultRef} style={{ textAlign: "center", fontSize: ".8rem", color: "#64748b", margin: "4px 0 0" }}>
+              N° annonce : <strong>#{String(result.id).slice(-8).toUpperCase()}</strong>
+            </p>
           )}
 
           {/* Score de qualité */}
