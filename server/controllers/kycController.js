@@ -10,6 +10,7 @@ import { emailVerificationRequiredForKyc } from "../utils/emailVerificationRequi
 import { encryptField, decryptField, hmacIndex } from "../utils/fieldEncryption.js";
 import { captureException } from "../config/sentry.js";
 import { unpublishPartnerListings } from "../utils/partnerListings.js";
+import { notifyAdmins } from "../utils/notifyAdmins.js";
 
 const MAX_KYC_IMAGE_BYTES = 6 * 1024 * 1024; // 6 Mo — cohérent avec usersController/partnerOnboarding
 
@@ -265,6 +266,20 @@ export const submitKyc = async (req, res) => {
     const userForDispatch = await User.findById(req.user.id).select("email firstName").lean();
     dispatch.kycSubmitted(req.user.id, userForDispatch?.email, userForDispatch?.firstName)
       .catch((e) => logger.error("dispatch.kycSubmitted:", { error: e.message }));
+
+    // ── Notifier les admins (non bloquant) ───────────────────────────────
+    // Bug réel corrigé (audit) : aucune soumission KYC n'est jamais
+    // auto-validée (voir commentaire plus haut — un admin doit toujours
+    // confirmer via reviewKyc()), pourtant les admins n'étaient jamais
+    // alertés d'une nouvelle soumission. Le message "vous serez notifié
+    // sous 24h" suppose une file de traitement active côté admin qui, en
+    // réalité, ne l'était jamais.
+    notifyAdmins(
+      "kyc_submitted",
+      "🪪 Nouvelle vérification d'identité à examiner",
+      `${userForDispatch?.firstName || "Un utilisateur"} a soumis son KYC (statut : ${newKycStatus}, score ${newKycScore}/100).`,
+      "/admin",
+    ).catch((e) => logger.error("notifyAdmins submitKyc (non bloquant) :", e.message));
 
     res.json({
       success:      true,

@@ -17,6 +17,7 @@ import { dispatch } from "../queue/index.js";
 import { uploadImage, isAvailable as imageKitAvailable } from "../config/imagekit.js";
 import { ensureImporterProfile } from "../utils/ensureImporterProfile.js";
 import { getActiveRates } from "./currencyEngine.js";
+import { notifyAdmins } from "../utils/notifyAdmins.js";
 
 // Demande explicite : plus de limite significative par import. On garde un
 // plafond technique très large (jamais business) plutôt qu'un nombre
@@ -922,6 +923,37 @@ export async function processImportBatch(batchId) {
       }
     } catch (notifErr) {
       logger.error("Notification import (non bloquant) :", notifErr.message);
+    }
+
+    // ── Notifier les admins si des annonces importées attendent une validation
+    // manuelle (non bloquant) ────────────────────────────────────────────────
+    // Bug réel corrigé (audit) : un import de flotte pouvait créer des
+    // centaines d'annonces "pending" d'un coup sans jamais alerter l'admin,
+    // qui ne les découvrait qu'en allant chercher manuellement dans le
+    // dashboard (même trou que createVehicle/createDriver, voir commit
+    // 3e4bb39, mais avec un volume potentiellement bien plus grand).
+    try {
+      const createdResults = batch.results.filter((r) => r.status === "created");
+      let pendingCount = 0;
+      if (isExport) {
+        pendingCount = createdResults.length; // ImportExportListing importé = toujours "pending"
+      } else {
+        const vehicleIds = createdResults.map((r) => r.vehicleId).filter(Boolean);
+        pendingCount = vehicleIds.length
+          ? await Vehicle.countDocuments({ _id: { $in: vehicleIds }, status: "pending" })
+          : 0;
+      }
+      if (pendingCount > 0) {
+        const noun = isExport ? "annonce(s) export" : "véhicule(s)";
+        notifyAdmins(
+          "new_vehicle",
+          isExport ? "📦 Import export : annonces à valider" : "📦 Import de flotte : annonces à valider",
+          `${pendingCount} ${noun} importé(s) par ${ownerUser?.firstName || ""} ${ownerUser?.lastName || ""} attend(ent) une validation manuelle.`,
+          "/admin",
+        ).catch((err) => logger.error("notifyAdmins import batch (non bloquant) :", err.message));
+      }
+    } catch (notifAdminErr) {
+      logger.error("notifyAdmins import batch (non bloquant) :", notifAdminErr.message);
     }
   } catch (fatalErr) {
     logger.error("Import véhicule — échec fatal du batch", { batchId, error: fatalErr.message });

@@ -7,6 +7,7 @@ import { sendEmail } from "../config/email.js";
 import { validateDocumentDataUri } from "../utils/imageValidation.js";
 import { decryptField } from "../utils/fieldEncryption.js";
 import { combinePaginated } from "../utils/paginateWithOrphans.js";
+import { notifyAdmins } from "../utils/notifyAdmins.js";
 
 // ── Champs autorisés par niveau (whitelist anti mass-assignment) ──────────────
 const LEVEL_ALLOWED_FIELDS = {
@@ -196,6 +197,21 @@ export const submitLevel = async (req, res) => {
         userId: req.user.id, level: lvlNum, certificationId: cert._id,
       });
     }
+
+    // ── Notifier les admins (non bloquant) ───────────────────────────────
+    // Bug réel corrigé (audit) : l'émission socket ci-dessus est volatile —
+    // si aucun admin n'est connecté au moment de la soumission (cas fréquent
+    // hors heures ouvrées), l'événement est perdu et rien n'est jamais
+    // persisté (pas de badge, pas d'email d'alerte). notifyAdmins() crée une
+    // vraie Notification en base + pousse en temps réel si un admin est
+    // connecté — les deux mécanismes coexistent, celui-ci garantit qu'un
+    // admin déconnecté au moment T la retrouve quand même à sa prochaine connexion.
+    notifyAdmins(
+      "system",
+      `📋 Certification partenaire — niveau ${lvlNum} soumis`,
+      `${req.user.firstName || ""} ${req.user.lastName || ""} a soumis le niveau ${lvlNum} de sa certification partenaire.`,
+      "/admin",
+    ).catch((e) => logger.error("notifyAdmins submitLevel (non bloquant) :", e.message));
 
     res.json({
       success: true,
