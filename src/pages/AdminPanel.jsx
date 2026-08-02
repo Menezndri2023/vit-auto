@@ -1593,6 +1593,36 @@ export default function AdminPanel() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
+  // Bug réel corrigé (audit) : à l'arrivée d'une notification new_vehicle/
+  // new_driver/litige, seul le badge du compteur était mis à jour (voir
+  // liveNewListings/liveDisputes plus haut) — jamais la vraie liste
+  // (vehicles/drivers/bookings). L'admin voyait donc le badge bouger mais
+  // ne trouvait rien de nouveau dans l'onglet tant qu'il ne cliquait pas
+  // manuellement sur "↻ Actualiser" ou ne rechargeait la page — confirmé
+  // par test réel en production (l'annonce existait bien côté serveur,
+  // /api/drivers/pending la renvoyait, mais l'UI déjà ouverte ne la
+  // récupérait jamais). Rafraîchit les listes concernées sans le flash de
+  // chargement complet de loadAll() (pas de setLoading ici).
+  const refreshPendingListings = useCallback(async () => {
+    if (!token) return;
+    try {
+      const [vRes, dRes, bRes] = await Promise.all([
+        fetch(`/api/vehicles?limit=${vehiclesLimit}&status=all`, { headers }),
+        fetch("/api/drivers/pending", { headers }),
+        fetch(`/api/bookings?limit=${bookingsLimit}`, { headers }),
+      ]);
+      if (vRes.ok) {
+        const d = await vRes.json();
+        setVehicles(Array.isArray(d) ? d : d.vehicles || []);
+        setVehiclesTotal(d.total || 0);
+      }
+      if (dRes.ok) setDrivers((await dRes.json()).drivers || []);
+      if (bRes.ok) { const d = await bRes.json(); setBookings(d.bookings || []); setBookingsTotal(d.total || 0); }
+      setLiveNewListings(0);
+      setLiveDisputes(0);
+    } catch { /* ignore — le badge live reste affiché, l'admin peut réessayer via Actualiser */ }
+  }, [token, headers, vehiclesLimit, bookingsLimit]);
+
   const loadMoreUsers = useCallback(() => setUsersLimit((l) => l + 200), []);
   const loadMoreBookings = useCallback(() => setBookingsLimit((l) => l + 200), []);
   const loadMoreVehicles = useCallback(() => setVehiclesLimit((l) => l + 200), []);
@@ -2815,14 +2845,19 @@ export default function AdminPanel() {
   useEffect(() => {
     return onSocket("notification_new", (payload) => {
       if (payload?.type === "new_vehicle" || payload?.type === "new_driver") {
+        // Bump immédiat du badge (feedback instantané) + rechargement réel de
+        // la liste juste après (l'admin voit l'annonce elle-même, pas
+        // seulement un chiffre qui bouge — voir refreshPendingListings).
         setLiveNewListings((n) => n + 1);
         showToast(payload.titre || "🚗 Nouvelle annonce à valider", "info");
+        refreshPendingListings();
       } else if (payload?.type === "system" && /litige/i.test(payload?.titre || "")) {
         setLiveDisputes((n) => n + 1);
         showToast(payload.titre || "⚖️ Nouveau litige", "info");
+        refreshPendingListings();
       }
     });
-  }, [onSocket, showToast]);
+  }, [onSocket, showToast, refreshPendingListings]);
 
   // Ferme tous les modals au changement d'onglet pour éviter les états résiduels
   useEffect(() => {
