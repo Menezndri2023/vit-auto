@@ -30,12 +30,33 @@ describe("pmsController — showroom", () => {
   });
 
   it("publishShowroom fonctionne même si le showroom n'existe pas encore (upsert)", async () => {
-    const partner = await createUser({ role: "partenaire" });
+    // isFounder:true contourne la garde de vérification (voir tests dédiés
+    // ci-dessous) — ce test isole le comportement d'upsert, pas la garde.
+    const partner = await createUser({ role: "partenaire", isFounder: true });
     const { req, res } = mockReqRes({ user: partner, body: {} });
     await publishShowroom(req, res);
 
     expect(res.body.isPublished).toBe(true);
     expect(res.body.publishedAt).toBeTruthy();
+  });
+
+  it("publishShowroom refuse un particulier non vérifié KYC (403 KYC_REQUIRED)", async () => {
+    const partner = await createUser({ role: "partenaire", sellerType: "particulier", kycStatus: "EN_ATTENTE" });
+    const { req, res } = mockReqRes({ user: partner, body: {} });
+    await publishShowroom(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.body.code).toBe("KYC_REQUIRED");
+    expect(await PartnerShowroom.countDocuments({ partnerId: partner._id })).toBe(0);
+  });
+
+  it("publishShowroom refuse une entreprise non certifiée (403 CERTIFICATION_REQUIRED)", async () => {
+    const partner = await createUser({ role: "partenaire", sellerType: "entreprise", certificationBadge: "none" });
+    const { req, res } = mockReqRes({ user: partner, body: {} });
+    await publishShowroom(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.body.code).toBe("CERTIFICATION_REQUIRED");
   });
 
   it("getPublicShowroom refuse un showroom non publié (404, pas une fuite de données)", async () => {
