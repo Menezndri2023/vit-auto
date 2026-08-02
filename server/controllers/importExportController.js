@@ -13,6 +13,7 @@ import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
 import { isIncotermCompatible } from "../constants/incoterms.js";
 import { resolveDefaultPartnerBusinessId } from "../utils/ensureDefaultPartnerBusiness.js";
+import { notifyAdmins } from "../utils/notifyAdmins.js";
 
 const MAX_LISTING_IMAGE_BYTES = 6 * 1024 * 1024;
 const MAX_IMAGE_URL_LENGTH    = 2048;
@@ -80,17 +81,17 @@ export const createRequest = async (req, res) => {
       message,
     });
 
-    // Notifier les admins
-    const admins = await User.find({ role: "admin" }).select("_id");
-    if (admins.length > 0) {
-      await Notification.insertMany(admins.map((a) => ({
-        user: a._id,
-        type: "ie_request",
-        titre: "Nouvelle demande Import/Export",
-        message: `${firstName} ${lastName} — Pack ${pack || "Silver"} — ${sourceCountry || "?"} → ${destCountry || "?"}`,
-        lien: "/admin",
-      })));
-    }
+    // Notifier les admins — bug réel corrigé (audit) : Notification.insertMany
+    // ne pousse jamais l'événement socket temps réel (contrairement à
+    // notifyAdmins(), déjà utilisé partout ailleurs sur le site) — l'admin ne
+    // découvrait cette demande qu'au prochain rechargement/poll, comme le
+    // trou déjà comblé pour vehicle/driver/KYC/showroom.
+    notifyAdmins(
+      "ie_request",
+      "Nouvelle demande Import/Export",
+      `${firstName} ${lastName} — Pack ${pack || "Silver"} — ${sourceCountry || "?"} → ${destCountry || "?"}`,
+      "/admin",
+    ).catch((e) => logger.error("notifyAdmins createRequest (non bloquant) :", e.message));
 
     res.status(201).json({ message: "Demande envoyée avec succès.", request });
   } catch (err) {
@@ -237,15 +238,13 @@ export const submitImporterProfile = async (req, res) => {
       });
       await existing.save();
 
-      // Notifier admins
-      const admins = await User.find({ role: "admin" }).select("_id");
-      await Notification.insertMany(admins.map((a) => ({
-        user:    a._id,
-        type:    "ie_profile",
-        titre:   "Candidature importateur re-soumise",
-        message: `${req.user.firstName} ${req.user.lastName} a re-soumis sa candidature importateur.`,
-        lien:    "/admin",
-      })));
+      // Notifier admins (temps réel — voir notifyAdmins.js)
+      notifyAdmins(
+        "ie_profile",
+        "Candidature importateur re-soumise",
+        `${req.user.firstName} ${req.user.lastName} a re-soumis sa candidature importateur.`,
+        "/admin",
+      ).catch((e) => logger.error("notifyAdmins submitImporterProfile (non bloquant) :", e.message));
 
       return res.json({ message: "Candidature mise à jour.", profile: existing });
     }
@@ -264,15 +263,13 @@ export const submitImporterProfile = async (req, res) => {
       submittedAt: new Date(),
     });
 
-    // Notifier admins
-    const admins = await User.find({ role: "admin" }).select("_id");
-    await Notification.insertMany(admins.map((a) => ({
-      user:    a._id,
-      type:    "ie_profile",
-      titre:   "Nouvelle candidature importateur",
-      message: `${req.user.firstName} ${req.user.lastName} (${companyName}) a soumis sa candidature.`,
-      lien:    "/admin",
-    })));
+    // Notifier admins (temps réel — voir notifyAdmins.js)
+    notifyAdmins(
+      "ie_profile",
+      "Nouvelle candidature importateur",
+      `${req.user.firstName} ${req.user.lastName} (${companyName}) a soumis sa candidature.`,
+      "/admin",
+    ).catch((e) => logger.error("notifyAdmins submitImporterProfile (non bloquant) :", e.message));
 
     res.status(201).json({ message: "Candidature soumise avec succès.", profile });
   } catch (err) {
@@ -608,15 +605,13 @@ export const createListing = async (req, res) => {
       status: "pending",
     });
 
-    // Notifier admins
-    const admins = await User.find({ role: "admin" }).select("_id");
-    await Notification.insertMany(admins.map((a) => ({
-      user:    a._id,
-      type:    "ie_listing",
-      titre:   "Nouvelle annonce import/export",
-      message: `${req.user.firstName} ${req.user.lastName} — ${title} (${sourceCountry})`,
-      lien:    "/admin",
-    })));
+    // Notifier admins (temps réel — voir notifyAdmins.js)
+    notifyAdmins(
+      "ie_listing",
+      "Nouvelle annonce import/export",
+      `${req.user.firstName} ${req.user.lastName} — ${title} (${sourceCountry})`,
+      "/admin",
+    ).catch((e) => logger.error("notifyAdmins createListing (non bloquant) :", e.message));
 
     res.status(201).json({ message: "Annonce soumise pour validation.", listing });
   } catch (err) {

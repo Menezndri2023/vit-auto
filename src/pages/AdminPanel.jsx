@@ -2855,9 +2855,19 @@ export default function AdminPanel() {
         setLiveDisputes((n) => n + 1);
         showToast(payload.titre || "⚖️ Nouveau litige", "info");
         refreshPendingListings();
+      } else if (payload?.type === "ie_request") {
+        // Bug réel corrigé (audit) : createRequest (Import/Export) notifiait
+        // déjà l'admin via Notification.insertMany, mais sans émission socket
+        // — jamais de rafraîchissement temps réel de l'onglet "Demandes
+        // Import/Export", même trou que vehicle/driver comblé plus tôt.
+        showToast(payload.titre || "🌍 Nouvelle demande Import/Export", "info");
+        loadImportExport();
+      } else if (payload?.type === "ie_profile" || payload?.type === "ie_listing") {
+        showToast(payload.titre || "📦 Nouveauté Import/Export à examiner", "info");
+        loadImporters();
       }
     });
-  }, [onSocket, showToast, refreshPendingListings]);
+  }, [onSocket, showToast, refreshPendingListings, loadImportExport, loadImporters]);
 
   // Ferme tous les modals au changement d'onglet pour éviter les états résiduels
   useEffect(() => {
