@@ -98,6 +98,18 @@ const userSchema = new mongoose.Schema({
   profilePhoto: { type: String, default: null },
   address:      { type: String, default: null },
 
+  // ── Permis de conduire (client, saisie manuelle, page Profil) ────────────
+  // Bug réel corrigé (audit) : updateMyProfile whitelistait déjà ces deux
+  // clés, mais elles n'existaient pas au niveau racine du schéma — Mongoose
+  // (strict par défaut) les ignorait silencieusement en $set, alors que le
+  // front affichait "Profil mis à jour avec succès". Distinct de
+  // driverLicenseOcr.licenseNumber (extrait par OCR lors du KYC, seul utilisé
+  // pour valider une réservation) et de driver.licenseNumber (profil
+  // chauffeur professionnel) : ce champ reste une saisie manuelle informative
+  // côté client, jamais lue côté serveur pour bloquer une action.
+  licenseNumber: { type: String, default: null },
+  licenseExpiry: { type: Date,   default: null },
+
   // Pays de résidence/d'opération (code ISO-2, ex: "MA", "CI", "FR", "CN") —
   // sert au filtrage international du catalogue (véhicules/IE) et au drapeau
   // de reconnaissance admin. `null` = comptes créés avant cette fonctionnalité

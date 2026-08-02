@@ -1123,6 +1123,107 @@ export default function VendorDashboard() {
       } else toastError(d.message || "Erreur.");
     } catch { toastError("Erreur réseau."); }
   };
+
+  // ── Édition profil chauffeur ────────────────────────────────────────────
+  // Bug réel corrigé (audit) : PATCH /api/drivers/:id fonctionnait déjà
+  // parfaitement côté serveur (updateDriver, whitelist complète), mais aucun
+  // bouton "Modifier" ni aucun appel à cette route n'existait côté frontend —
+  // seule option pour corriger une faute de frappe/un tarif/une photo était
+  // de supprimer le profil et le recréer (perte des avis/missionsTotal, retour
+  // à "pending").
+  const [driverEditModal,   setDriverEditModal]   = useState(null); // driver en cours d'édition
+  const [driverEditForm,    setDriverEditForm]    = useState(null);
+  const [driverEditSaving,  setDriverEditSaving]  = useState(false);
+  const [driverEditCvName,  setDriverEditCvName]  = useState("");
+
+  const openDriverEdit = (drv) => {
+    setDriverEditModal(drv);
+    setDriverEditForm({
+      firstName: drv.firstName || "", lastName: drv.lastName || "", phone: drv.phone || "",
+      title: drv.title || "", description: drv.description || "",
+      tarif: drv.tarif ?? "", tarifDemiJournee: drv.tarifDemiJournee ?? "", tarifHeure: drv.tarifHeure ?? "",
+      disponibilite: drv.disponibilite || "", zone: drv.zone || "", ville: drv.ville || "",
+      experience: drv.experience ?? "", permisCategorie: drv.permisCategorie || "B",
+      vehiculePersonnel: !!drv.vehiculePersonnel, typeVehicule: drv.typeVehicule || "",
+      profilePhoto: drv.profilePhoto || null, cv: drv.cv || null,
+      images: Array.isArray(drv.images) ? drv.images : [],
+    });
+    setDriverEditCvName("");
+  };
+
+  const handleDriverEditPhotoFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const compressed = await compressImageEdit(ev.target.result, 800, 0.8);
+      setDriverEditForm((p) => ({ ...p, profilePhoto: compressed }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDriverEditCvFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const isPdf = file.type === "application/pdf";
+    const isImg = file.type.startsWith("image/");
+    if (!isPdf && !isImg) { toastError("CV : PDF ou image uniquement."); return; }
+    if (file.size > 8 * 1024 * 1024) { toastError("CV trop volumineux (max 8 Mo)."); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => { setDriverEditForm((p) => ({ ...p, cv: ev.target.result })); setDriverEditCvName(file.name); };
+    reader.readAsDataURL(file);
+  };
+
+  const addDriverEditVehiclePhotos = async (files) => {
+    const remaining = 6 - driverEditForm.images.length;
+    if (remaining <= 0) return;
+    const results = await Promise.all(Array.from(files).slice(0, remaining).map(readFileEdit));
+    const valid = results.filter(Boolean);
+    setDriverEditForm((p) => ({ ...p, images: [...p.images, ...valid] }));
+  };
+
+  const removeDriverEditVehiclePhoto = (idx) => {
+    setDriverEditForm((p) => ({ ...p, images: p.images.filter((_, i) => i !== idx) }));
+  };
+
+  const handleSaveDriverEdit = async () => {
+    if (!driverEditModal || !driverEditForm || !token) return;
+    if (!driverEditForm.profilePhoto) { toastError("Photo de profil requise."); return; }
+    if (driverEditForm.vehiculePersonnel && driverEditForm.images.length === 0) {
+      toastError("Au moins une photo du véhicule est requise."); return;
+    }
+    setDriverEditSaving(true);
+    try {
+      const patch = {
+        firstName: driverEditForm.firstName, lastName: driverEditForm.lastName, phone: driverEditForm.phone,
+        title: driverEditForm.title, description: driverEditForm.description,
+        tarif: Number(driverEditForm.tarif) || undefined,
+        tarifDemiJournee: Number(driverEditForm.tarifDemiJournee) || undefined,
+        tarifHeure: Number(driverEditForm.tarifHeure) || undefined,
+        disponibilite: driverEditForm.disponibilite, zone: driverEditForm.zone, ville: driverEditForm.ville,
+        experience: Number(driverEditForm.experience) || undefined,
+        permisCategorie: driverEditForm.permisCategorie,
+        vehiculePersonnel: driverEditForm.vehiculePersonnel,
+        typeVehicule: driverEditForm.typeVehicule,
+        profilePhoto: driverEditForm.profilePhoto,
+        cv: driverEditForm.cv,
+        images: driverEditForm.vehiculePersonnel ? driverEditForm.images : [],
+      };
+      const r = await fetch(`/api/drivers/${driverEditModal._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(patch),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        toastSuccess("✅ Profil chauffeur mis à jour.");
+        setMyDrivers((prev) => prev.map((drv) => (drv._id === d.driver._id ? d.driver : drv)));
+        setDriverEditModal(null);
+        setDriverEditForm(null);
+      } else toastError(d.message || "Erreur lors de la mise à jour.");
+    } catch { toastError("Erreur réseau."); }
+    setDriverEditSaving(false);
+  };
   const [boostTier,      setBoostTier]      = useState("30d");
   const [boostPromoCode, setBoostPromoCode] = useState("");
   const [boostPricing,   setBoostPricing]   = useState(null); // { "24h": priceUSD, ... } — depuis /api/subscriptions/me
@@ -2726,7 +2827,11 @@ export default function VendorDashboard() {
               </label>
               <div className={styles.vehicleGrid}>
               {myDrivers.map((drv) => {
-                const sc = { approved: { l: "Validé", c: "#059669", bg: "#d1fae5" }, pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, rejected: { l: "Rejeté", c: "#dc2626", bg: "#fee2e2" } }[drv.status || "pending"];
+                // Fallback nécessaire : "archived" (statut posé lors de la suppression
+                // du compte propriétaire, Driver.js enum) n'était mappé nulle part —
+                // bug de fragilité trouvé en audit, aurait fait planter tout l'onglet.
+                const sc = { approved: { l: "Validé", c: "#059669", bg: "#d1fae5" }, pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, rejected: { l: "Rejeté", c: "#dc2626", bg: "#fee2e2" } }[drv.status || "pending"]
+                  || { l: drv.status || "—", c: "#64748b", bg: "#f1f5f9" };
                 return (
                   <div key={drv._id} className={styles.vehicleCard} style={{ position: "relative" }}>
                     <input type="checkbox" checked={selectedDriverIds.has(drv._id)} onChange={() => toggleDriverSelect(drv._id)}
@@ -2752,8 +2857,12 @@ export default function VendorDashboard() {
                         <div style={{ fontSize: ".78rem", color: "#64748b", marginTop: 2 }}>{drv.missionsTotal} mission{drv.missionsTotal > 1 ? "s" : ""} terminée{drv.missionsTotal > 1 ? "s" : ""}</div>
                       )}
                       <div className={styles.vehiclePrice}>{drv.tarif ? `${fmtXOF(drv.tarif)} / jour` : "Tarif non renseigné"}</div>
+                      {drv.status === "rejected" && drv.rejectionReason && (
+                        <div style={{ fontSize: ".78rem", color: "#dc2626", marginTop: 4 }}>Motif : {drv.rejectionReason}</div>
+                      )}
                     </div>
                     <div className={styles.vehicleCardActions}>
+                      <button className={styles.btnSecondary} onClick={() => openDriverEdit(drv)}>✏️ Modifier</button>
                       <button className={styles.btnSecondary} onClick={() => { setBlackoutModal(drv); setBlackoutForm({ start: "", end: "", reason: "" }); }}>🚫 Congés</button>
                       <button className={styles.btnDanger} onClick={() => { if (confirm("Supprimer ce profil ?")) { fetch(`/api/drivers/${drv._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).then(() => setMyDrivers((p) => p.filter((d) => d._id !== drv._id))).catch(() => {}); } }}>Supprimer</button>
                     </div>
@@ -3542,6 +3651,136 @@ export default function VendorDashboard() {
 
             <div className={styles.rejectActions} style={{ marginTop: 14 }}>
               <button className={styles.btnSecondary} onClick={() => setMaintenanceModal(null)}>Fermer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {driverEditModal && driverEditForm && (
+        <div className={styles.modalBackdrop} onClick={() => setDriverEditModal(null)}>
+          <div className={styles.rejectModal} style={{ maxWidth: 560, maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+            <h3>✏️ Modifier — {driverEditModal.firstName} {driverEditModal.lastName}</h3>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 14, margin: "10px 0 16px" }}>
+              {driverEditForm.profilePhoto
+                ? <img src={driverEditForm.profilePhoto} alt="" style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover" }} />
+                : <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.6rem" }}>👨‍✈️</div>}
+              <label className={styles.btnSecondary} style={{ cursor: "pointer" }}>
+                Changer la photo
+                <input type="file" accept="image/*" hidden onChange={handleDriverEditPhotoFile} />
+              </label>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Prénom</label>
+                <input type="text" value={driverEditForm.firstName} onChange={(e) => setDriverEditForm((p) => ({ ...p, firstName: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Nom</label>
+                <input type="text" value={driverEditForm.lastName} onChange={(e) => setDriverEditForm((p) => ({ ...p, lastName: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: ".78rem", color: "#64748b" }}>Téléphone</label>
+              <input type="text" value={driverEditForm.phone} onChange={(e) => setDriverEditForm((p) => ({ ...p, phone: e.target.value }))}
+                style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+            </div>
+
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: ".78rem", color: "#64748b" }}>Titre du profil</label>
+              <input type="text" value={driverEditForm.title} onChange={(e) => setDriverEditForm((p) => ({ ...p, title: e.target.value }))}
+                style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+            </div>
+
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: ".78rem", color: "#64748b" }}>Description</label>
+              <textarea rows={3} value={driverEditForm.description} onChange={(e) => setDriverEditForm((p) => ({ ...p, description: e.target.value }))}
+                style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem", resize: "vertical" }} />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Tarif / jour</label>
+                <input type="number" value={driverEditForm.tarif} onChange={(e) => setDriverEditForm((p) => ({ ...p, tarif: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Tarif / demi-journée</label>
+                <input type="number" value={driverEditForm.tarifDemiJournee} onChange={(e) => setDriverEditForm((p) => ({ ...p, tarifDemiJournee: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Tarif / heure</label>
+                <input type="number" value={driverEditForm.tarifHeure} onChange={(e) => setDriverEditForm((p) => ({ ...p, tarifHeure: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Zone</label>
+                <input type="text" value={driverEditForm.zone} onChange={(e) => setDriverEditForm((p) => ({ ...p, zone: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Ville</label>
+                <input type="text" value={driverEditForm.ville} onChange={(e) => setDriverEditForm((p) => ({ ...p, ville: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: ".78rem", color: "#64748b" }}>Disponibilité</label>
+              <input type="text" placeholder="ex : Lun-Ven 8h-18h" value={driverEditForm.disponibilite} onChange={(e) => setDriverEditForm((p) => ({ ...p, disponibilite: e.target.value }))}
+                style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: ".78rem", color: "#64748b", display: "block", marginBottom: 4 }}>CV</label>
+              <label className={styles.btnSecondary} style={{ cursor: "pointer", display: "inline-block" }}>
+                {driverEditCvName || (driverEditForm.cv ? "Changer le CV" : "Ajouter un CV")}
+                <input type="file" accept="application/pdf,image/*" hidden onChange={handleDriverEditCvFile} />
+              </label>
+            </div>
+
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14, fontSize: ".85rem", cursor: "pointer" }}>
+              <input type="checkbox" checked={driverEditForm.vehiculePersonnel}
+                onChange={(e) => setDriverEditForm((p) => ({ ...p, vehiculePersonnel: e.target.checked }))} />
+              Chauffeur avec véhicule personnel
+            </label>
+
+            {driverEditForm.vehiculePersonnel && (
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Type de véhicule</label>
+                <input type="text" value={driverEditForm.typeVehicule} onChange={(e) => setDriverEditForm((p) => ({ ...p, typeVehicule: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem", marginBottom: 8 }} />
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {driverEditForm.images.map((img, i) => (
+                    <div key={i} style={{ position: "relative" }}>
+                      <img src={img} alt="" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8 }} />
+                      <button type="button" onClick={() => removeDriverEditVehiclePhoto(i)}
+                        style={{ position: "absolute", top: -6, right: -6, background: "#dc2626", color: "#fff", border: "none", borderRadius: "50%", width: 20, height: 20, fontSize: ".7rem", cursor: "pointer" }}>×</button>
+                    </div>
+                  ))}
+                  {driverEditForm.images.length < 6 && (
+                    <label style={{ width: 64, height: 64, border: "1.5px dashed #cbd5e1", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: "1.3rem", color: "#94a3b8" }}>
+                      +
+                      <input type="file" accept="image/*" multiple hidden onChange={(e) => addDriverEditVehiclePhotos(e.target.files)} />
+                    </label>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button className={styles.btnSecondary} onClick={() => setDriverEditModal(null)}>Annuler</button>
+              <button className={styles.btnAccept} disabled={driverEditSaving} onClick={handleSaveDriverEdit}>
+                {driverEditSaving ? "Enregistrement…" : "Enregistrer"}
+              </button>
             </div>
           </div>
         </div>

@@ -3,6 +3,8 @@ import { useState, useEffect } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useI18n } from "../context/I18nContext";
+import { useCart } from "../context/CartContext";
+import { useToast } from "../context/ToastContext";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import ReportButton from "../components/ReportButton/ReportButton";
 import PriceTag from "../components/PriceTag/PriceTag";
@@ -252,6 +254,8 @@ export default function VehicleDetails() {
   const vehiclesCtx = useVehicles();
   const { fmt } = useCurrency();
   const { t } = useI18n();
+  const { addItem, isInCart } = useCart();
+  const { success, error: toastError } = useToast();
 
   // Recherche dans le contexte d'abord, puis fallback API
   const getFromCtx = vehiclesCtx.getItemById || ((vid) =>
@@ -570,6 +574,24 @@ export default function VehicleDetails() {
                 >
                   {isSale ? t("vd.testDriveBtn") : t("vd.bookBtn")}
                 </button>
+                {/* Panier multi-véhicules — uniquement location (le panier ne
+                    gère que des réservations "retrait" simples avec
+                    pricePerDay, voir CartContext.jsx). Volontairement absent
+                    des cartes catalogue (retiré le 2026-07-28, gênait
+                    l'affichage) — la page détail reste le seul point d'entrée. */}
+                {!isSale && (
+                  <button
+                    className={styles.leasingBtn}
+                    disabled={isInCart(vehicle._id || vehicle.id)}
+                    onClick={() => {
+                      const result = addItem(vehicle);
+                      if (result.ok) success("Véhicule ajouté au panier.");
+                      else toastError(result.message);
+                    }}
+                  >
+                    {isInCart(vehicle._id || vehicle.id) ? "🛒 Déjà dans le panier" : "🛒 Ajouter au panier"}
+                  </button>
+                )}
                 {isSale && vehicle.leasing?.disponible && (
                   <button
                     className={styles.leasingBtn}

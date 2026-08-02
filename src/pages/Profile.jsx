@@ -204,7 +204,9 @@ const Profile = () => {
     address:       user?.address       || "",
     country:       user?.country       || "",
     licenseNumber: user?.licenseNumber || "",
-    licenseExpiry: user?.licenseExpiry || "",
+    // Le serveur renvoie un ISO datetime (ex: "2027-01-01T00:00:00.000Z") —
+    // <input type="date"> exige strictement "YYYY-MM-DD", sinon reste vide.
+    licenseExpiry: user?.licenseExpiry ? String(user.licenseExpiry).slice(0, 10) : "",
     profilePhoto:  user?.profilePhoto  || "",
   });
 
