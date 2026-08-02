@@ -598,6 +598,7 @@ const VendorSubmit = () => {
         });
         if (res.ok) {
           clearDraft();
+          try { localStorage.removeItem("vit_driver_intent"); } catch { /* ignore */ }
           const data = await res.json();
           // Bug réel corrigé (audit UX) : le profil chauffeur retombait sur un
           // simple toast + redirection automatique, contrairement à l'annonce
@@ -625,6 +626,15 @@ const VendorSubmit = () => {
             // — bloqué indéfiniment par missingDriverDocs côté serveur
             // (driverController.js) sans jamais pouvoir créer son profil
             // chauffeur, malgré une redirection "pour le guider".
+            //
+            // Bug réel confirmé (base réelle, 2026-08-02) : quand l'identité
+            // nécessite une revue manuelle admin (cas courant), le partenaire
+            // quitte KYC.jsx en attente puis revient PLUS TARD sans ce
+            // paramètre d'URL (perdu dès qu'il navigue ailleurs) — l'étape
+            // "Permis de conduire" ne réapparaît alors jamais, malgré une
+            // identité désormais vérifiée. Flag localStorage posé ici, lu par
+            // KYC.jsx en plus du paramètre d'URL, pour survivre à l'attente.
+            try { localStorage.setItem("vit_driver_intent", "1"); } catch { /* ignore */ }
             setTimeout(() => navigate("/kyc?next=driver-docs"), 1500);
           } else if (data?.code === "CERTIFICATION_REQUIRED") {
             error("Terminez votre vérification partenaire pour publier une annonce. Redirection…");

@@ -44,7 +44,23 @@ export default function KYC() {
   // OU redirection explicite ?next=driver-docs (voir src/utils/partnerRequirements.js) :
   // dans les deux cas, une 5e étape "Permis de conduire" s'ajoute, obligatoire
   // avant de pouvoir publier un profil chauffeur (voir driverController.js missingDriverDocs).
-  const isDriverFlow = user?.activity === "chauffeur" || searchParams.get("next") === "driver-docs";
+  //
+  // Bug réel confirmé (base réelle Atlas, 2026-08-02) : ce paramètre d'URL est
+  // transitoire — quand l'identité nécessite une revue manuelle admin (le cas
+  // courant, pas l'auto-approbation instantanée), le partenaire quitte cette
+  // page en attente puis revient PLUS TARD (notification "Identité vérifiée"
+  // qui pointe vers /profile, pas vers cette URL avec le paramètre). isDriverFlow
+  // redevenait alors faux pour tout partenaire dont l'activité principale
+  // n'est pas "chauffeur" — l'étape 5 ne réapparaissait jamais, bloquant la
+  // création du profil chauffeur indéfiniment malgré une identité désormais
+  // vérifiée (confirmé : plusieurs comptes avec identity.status=verified mais
+  // driverLicenseOcr jamais rempli). Flag localStorage posé au moment de la
+  // redirection initiale (VendorSubmit.jsx) et lu ici en plus du paramètre
+  // d'URL, pour survivre à l'aller-retour KYC admin.
+  const driverIntent = (() => {
+    try { return localStorage.getItem("vit_driver_intent") === "1"; } catch { return false; }
+  })();
+  const isDriverFlow = user?.activity === "chauffeur" || searchParams.get("next") === "driver-docs" || driverIntent;
   const STEPS = isDriverFlow ? [...BASE_STEPS, DRIVER_STEP] : BASE_STEPS;
 
   const [step, setStep] = useState(1);
@@ -410,6 +426,7 @@ export default function KYC() {
         backImageData:  licenseBackUrl,
       });
       setLicenseSubmitted(true);
+      try { localStorage.removeItem("vit_driver_intent"); } catch { /* ignore */ }
     } catch (err) {
       setLicenseError(err.message || "Erreur lors de l'enregistrement du permis.");
     } finally {
