@@ -176,7 +176,7 @@ function ReviewsSection({ vehicleId, t }) {
     <div className={styles.card}>
       <h3 className={styles.cardTitle}>{t("vd.reviews") || "Avis"} {reviews.length > 0 && `(${reviews.length})`}</h3>
       {reviews.length === 0 ? (
-        <p className={styles.reviewsEmpty}>{t("vd.noReviews") || "Aucun avis pour le moment."}</p>
+        <p className={styles.reviewsEmpty}>{t("vd.noReviews")}</p>
       ) : (
         <div className={styles.reviewsList}>
           {reviews.map((rv) => (

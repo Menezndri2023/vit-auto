@@ -337,6 +337,7 @@ const translations = {
   "vd.unavailable":      { fr: "Indisponible",                        en: "Unavailable",                   ar: "غير متاح",              es: "No disponible",            zh: "不可用"         },
   "vd.caution":          { fr: "Caution :",                           en: "Deposit:",                      ar: "التأمين:",              es: "Depósito:",                zh: "押金："         },
   "vd.reviews":          { fr: "avis",                                en: "reviews",                       ar: "تقييم",                 es: "reseñas",                  zh: "评价"           },
+  "vd.noReviews":        { fr: "Aucun avis pour le moment.",          en: "No reviews yet.",               ar: "لا توجد تقييمات بعد.",  es: "Sin reseñas por el momento.", zh: "暂无评价。"   },
   "vd.perDay":           { fr: "/ jour",                              en: "/ day",                         ar: "/ يوم",                 es: "/ día",                    zh: "/ 天"           },
   "vd.specs":            { fr: "Caractéristiques",                    en: "Specifications",                ar: "المواصفات",             es: "Características",          zh: "规格"           },
   "vd.description":      { fr: "Description",                         en: "Description",                   ar: "الوصف",                 es: "Descripción",              zh: "描述"           },
