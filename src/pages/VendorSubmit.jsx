@@ -280,6 +280,13 @@ const VendorSubmit = () => {
   // désactivant silencieusement toute la fonctionnalité.
   const userId = user?.id || user?._id;
   const DRAFT_KEY = `vit_vendor_draft_v1_${userId || "anon"}`;
+  // Bug réel corrigé (audit régression) : ce flag n'était pas scopé par
+  // compte comme DRAFT_KEY ci-dessus — sur un poste partagé, un utilisateur B
+  // qui se connecte après qu'un utilisateur A a entamé (puis abandonné) une
+  // publication chauffeur héritait du flag de A, se retrouvant bloqué sur
+  // l'étape "permis de conduire" en KYC.jsx après une simple vérification
+  // d'identité sans aucun rapport avec un profil chauffeur.
+  const DRIVER_INTENT_KEY = `vit_driver_intent_${userId || "anon"}`;
   const draftRestoredRef = useRef(false);
 
   useEffect(() => {
@@ -568,6 +575,11 @@ const VendorSubmit = () => {
 
   // ─── Soumission finale ───────────────────────────────────────────────────────
   const handleSubmit = async () => {
+    // Bug réel corrigé (audit) : aucune garde de ré-entrance — un double-clic
+    // sur "Publier l'annonce" pouvait créer deux annonces véhicule ou deux
+    // profils chauffeur pour une seule soumission (seul disabled={submitting}
+    // protégeait, insuffisant avant le rendu suivant).
+    if (submitting) return;
     // Double-check token before API call
     if (!token) {
       error("Session invalide. Rechargez la page ou reconnectez-vous.");
@@ -617,7 +629,7 @@ const VendorSubmit = () => {
         });
         if (res.ok) {
           clearDraft();
-          try { localStorage.removeItem("vit_driver_intent"); } catch { /* ignore */ }
+          try { localStorage.removeItem(DRIVER_INTENT_KEY); } catch { /* ignore */ }
           const data = await res.json();
           // Bug réel corrigé (audit UX) : le profil chauffeur retombait sur un
           // simple toast + redirection automatique, contrairement à l'annonce
@@ -653,7 +665,7 @@ const VendorSubmit = () => {
             // "Permis de conduire" ne réapparaît alors jamais, malgré une
             // identité désormais vérifiée. Flag localStorage posé ici, lu par
             // KYC.jsx en plus du paramètre d'URL, pour survivre à l'attente.
-            try { localStorage.setItem("vit_driver_intent", "1"); } catch { /* ignore */ }
+            try { localStorage.setItem(DRIVER_INTENT_KEY, "1"); } catch { /* ignore */ }
             setTimeout(() => navigate("/kyc?next=driver-docs"), 1500);
           } else if (data?.code === "CERTIFICATION_REQUIRED") {
             error("Terminez votre vérification partenaire pour publier une annonce. Redirection…");
@@ -888,7 +900,7 @@ const VendorSubmit = () => {
                   que si ces deux étapes sont validées.
                 </p>
                 <button type="button" className={styles.secondaryBtn}
-                  onClick={() => { try { localStorage.setItem("vit_driver_intent", "1"); } catch { /* ignore */ } navigate("/kyc?next=driver-docs"); }}>
+                  onClick={() => { try { localStorage.setItem(DRIVER_INTENT_KEY, "1"); } catch { /* ignore */ } navigate("/kyc?next=driver-docs"); }}>
                   Compléter maintenant →
                 </button>
               </div>

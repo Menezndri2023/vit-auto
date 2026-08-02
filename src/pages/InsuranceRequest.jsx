@@ -45,6 +45,7 @@ export default function InsuranceRequest() {
   // Paie une prime approuvée — même passerelle que Booking.jsx (Stripe/Orange
   // Money/Wave, voir server/controllers/paymentController.initiatePayment).
   const handlePayQuote = async (requestId) => {
+    if (paySubmitting) return;
     setPaySubmitting(true);
     setPayError(null);
     try {
@@ -66,6 +67,7 @@ export default function InsuranceRequest() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isAuthenticated) { navigate("/login", { state: { from: { pathname: "/insurance-request" } } }); return; }
+    if (submitting) return;
     setSubmitting(true);
     setError(null);
     try {

@@ -126,6 +126,7 @@ export default function ServiceRequest() {
   // Paie un devis approuvé — même passerelle que Booking.jsx (Stripe/Orange
   // Money/Wave, voir server/controllers/paymentController.initiatePayment).
   const handlePayQuote = async (requestId) => {
+    if (paySubmitting) return;
     setPaySubmitting(true);
     setPayError(null);
     try {
@@ -158,6 +159,7 @@ export default function ServiceRequest() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isAuthenticated) { navigate("/login", { state: { from: { pathname: `/services/${category}` } } }); return; }
+    if (submitting) return;
     setSubmitting(true);
     setError(null);
     try {

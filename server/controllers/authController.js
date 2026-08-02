@@ -281,13 +281,14 @@ export const register = async (req, res) => {
     // où celui-ci tarde ou finisse en indésirables (aucune garantie de délivrabilité
     // ici : l'envoi est fire-and-forget, voir dispatch.emailVerification ci-dessus).
     try {
-      await Notification.create({
-        user: user._id,
-        type: "system",
-        titre: "📧 Vérifiez votre adresse email",
-        message: `Un code de confirmation a été envoyé à ${user.email}. Saisissez-le pour activer pleinement votre compte.`,
-        lien: "/profile",
-      });
+      const titre   = "📧 Vérifiez votre adresse email";
+      const message = `Un code de confirmation a été envoyé à ${user.email}. Saisissez-le pour activer pleinement votre compte.`;
+      const notifDoc = await Notification.create({ user: user._id, type: "system", titre, message, lien: "/profile" });
+      if (global._io) {
+        global._io.to(`user_${user._id}`).emit("notification_new", {
+          _id: notifDoc._id, type: "system", titre, message, lien: "/profile", lu: false, createdAt: notifDoc.createdAt,
+        });
+      }
     } catch (notifErr) {
       logger.error("Notification inscription (non bloquant):", notifErr.message);
     }
@@ -599,13 +600,14 @@ export const verifyEmail = async (req, res) => {
 
     if (!alreadyWasVerified) {
       try {
-        await Notification.create({
-          user: user._id,
-          type: "success",
-          titre: "✅ Email vérifié",
-          message: "Votre adresse email a été vérifiée avec succès. Votre compte est maintenant pleinement actif.",
-          lien: "/profile",
-        });
+        const titre   = "✅ Email vérifié";
+        const message = "Votre adresse email a été vérifiée avec succès. Votre compte est maintenant pleinement actif.";
+        const notifDoc = await Notification.create({ user: user._id, type: "success", titre, message, lien: "/profile" });
+        if (global._io) {
+          global._io.to(`user_${user._id}`).emit("notification_new", {
+            _id: notifDoc._id, type: "success", titre, message, lien: "/profile", lu: false, createdAt: notifDoc.createdAt,
+          });
+        }
       } catch (notifErr) {
         logger.error("Notification email vérifié (non bloquant):", notifErr.message);
       }
@@ -662,13 +664,14 @@ export const verifyEmailCode = async (req, res) => {
     await user.save();
 
     try {
-      await Notification.create({
-        user: user._id,
-        type: "success",
-        titre: "✅ Email vérifié",
-        message: "Votre adresse email a été vérifiée avec succès. Votre compte est maintenant pleinement actif.",
-        lien: "/profile",
-      });
+      const titre   = "✅ Email vérifié";
+      const message = "Votre adresse email a été vérifiée avec succès. Votre compte est maintenant pleinement actif.";
+      const notifDoc = await Notification.create({ user: user._id, type: "success", titre, message, lien: "/profile" });
+      if (global._io) {
+        global._io.to(`user_${user._id}`).emit("notification_new", {
+          _id: notifDoc._id, type: "success", titre, message, lien: "/profile", lu: false, createdAt: notifDoc.createdAt,
+        });
+      }
     } catch (notifErr) {
       logger.error("Notification email vérifié (non bloquant):", notifErr.message);
     }
@@ -731,13 +734,14 @@ export const confirmEmailChange = async (req, res) => {
     await user.save();
 
     try {
-      await Notification.create({
-        user: user._id,
-        type: "success",
-        titre: "✅ Adresse e-mail mise à jour",
-        message: `Votre adresse e-mail de connexion est désormais ${user.email}.`,
-        lien: "/profile",
-      });
+      const titre   = "✅ Adresse e-mail mise à jour";
+      const message = `Votre adresse e-mail de connexion est désormais ${user.email}.`;
+      const notifDoc = await Notification.create({ user: user._id, type: "success", titre, message, lien: "/profile" });
+      if (global._io) {
+        global._io.to(`user_${user._id}`).emit("notification_new", {
+          _id: notifDoc._id, type: "success", titre, message, lien: "/profile", lu: false, createdAt: notifDoc.createdAt,
+        });
+      }
     } catch (notifErr) {
       logger.error("Notification changement email (non bloquant):", notifErr.message);
     }

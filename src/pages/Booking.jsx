@@ -299,6 +299,13 @@ export default function Booking() {
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = useCallback(async () => {
+    // Bug réel corrigé (audit) : rien n'empêchait un double-clic/double-tap
+    // rapide (fréquent en fin de tunnel de paiement mobile) de déclencher deux
+    // POST /api/bookings pour la même réservation — seul l'attribut
+    // disabled={submitting} du bouton protégeait, mais React ne le reflète à
+    // l'écran qu'au rendu suivant, laissant une fenêtre réelle pour un double
+    // appel avant que le bouton ne soit visuellement désactivé.
+    if (submitting) return;
     setSubmitting(true);
 
     const finalPickup = pickupMethod === "retrait"
@@ -519,11 +526,22 @@ export default function Booking() {
         setSubmitting(false);
         return;
       }
-    } catch { /* mode hors-ligne — réservation locale uniquement */ }
+    } catch {
+      // Bug réel corrigé (audit) : ce catch était vide et l'exécution retombait
+      // sur la navigation de succès juste en dessous — une vraie panne réseau
+      // (pas juste un refus serveur) affichait quand même "Réservation
+      // confirmée" alors qu'aucune requête n'avait jamais abouti. Même
+      // traitement que le refus serveur explicite ci-dessus : jamais de faux
+      // succès, retrait de la réservation optimiste fantôme.
+      removeLocalBooking(bookingRef);
+      toastError("Connexion perdue — votre réservation n'a pas pu être transmise. Vérifiez votre connexion et réessayez.");
+      setSubmitting(false);
+      return;
+    }
 
     setSubmitting(false);
     navigate("/booking/success", { state: { booking: bookingData, trial: isTrial, payment: { paymentMethod: payMethod, mobileNumber } } });
-  }, [form, pickupMethod, pickupAddress, pickupPosition, selectedOptions, payMethod, mobileNumber, cardNumber, cardHolder, days, deliveryFee, geoDistance, baseTotal, optionsTotal, totalToPay, kycOk, kycScore, kycBadge, bookingRef, isTrial, isLeasing, financingType, financingTerms, vehicle, token, user, addBooking, removeLocalBooking, navigate, agencyFull, toastError]);
+  }, [submitting, form, pickupMethod, pickupAddress, pickupPosition, selectedOptions, payMethod, mobileNumber, cardNumber, cardHolder, days, deliveryFee, geoDistance, baseTotal, optionsTotal, totalToPay, kycOk, kycScore, kycBadge, bookingRef, isTrial, isLeasing, financingType, financingTerms, vehicle, token, user, addBooking, removeLocalBooking, navigate, agencyFull, toastError]);
 
   /* ════════════════════════════════════════════════════════════════
      RENDU

@@ -57,8 +57,14 @@ export default function KYC() {
   // driverLicenseOcr jamais rempli). Flag localStorage posé au moment de la
   // redirection initiale (VendorSubmit.jsx) et lu ici en plus du paramètre
   // d'URL, pour survivre à l'aller-retour KYC admin.
+  // Bug réel corrigé (audit régression) : cette clé n'était pas scopée par
+  // compte — sur un poste partagé, un utilisateur B qui se connecte après
+  // qu'un utilisateur A a entamé (puis abandonné) une publication chauffeur
+  // héritait du flag de A. Scopée sur user.id, à l'identique de VendorSubmit.jsx.
+  const driverIntentUserId = user?.id || user?._id;
   const driverIntent = (() => {
-    try { return localStorage.getItem("vit_driver_intent") === "1"; } catch { return false; }
+    if (!driverIntentUserId) return false;
+    try { return localStorage.getItem(`vit_driver_intent_${driverIntentUserId}`) === "1"; } catch { return false; }
   })();
   const isDriverFlow = user?.activity === "chauffeur" || searchParams.get("next") === "driver-docs" || driverIntent;
   const STEPS = isDriverFlow ? [...BASE_STEPS, DRIVER_STEP] : BASE_STEPS;
@@ -346,6 +352,7 @@ export default function KYC() {
 
   /* ════════ STEP 4 — Soumission ═══════════════════════════════════════════ */
   const handleSubmitKyc = async () => {
+    if (submitting) return;
     setSubmitting(true); setSubmitError("");
     try {
       const data = await api.post("/api/kyc/submit", {
@@ -426,7 +433,7 @@ export default function KYC() {
         backImageData:  licenseBackUrl,
       });
       setLicenseSubmitted(true);
-      try { localStorage.removeItem("vit_driver_intent"); } catch { /* ignore */ }
+      try { localStorage.removeItem(`vit_driver_intent_${driverIntentUserId}`); } catch { /* ignore */ }
     } catch (err) {
       setLicenseError(err.message || "Erreur lors de l'enregistrement du permis.");
     } finally {
@@ -908,13 +915,19 @@ export default function KYC() {
                 )}
               </div>
               <div className={styles.finalActions}>
+                {/* Bug réel corrigé (audit) : ces deux boutons étaient mutuellement
+                    exclusifs (isDriverFlow tranchait lequel afficher). Si isDriverFlow
+                    est vrai par erreur (flag résiduel — voir vit_driver_intent plus
+                    bas), un client/partenaire sans aucune intention chauffeur perdait
+                    tout accès à ses réservations depuis cet écran. L'échappatoire vers
+                    le tableau de bord doit toujours rester disponible. */}
                 {kycResult?.kycStatus === "VERIFIE" && isDriverFlow && !licenseAlreadyVerified && (
                   <button className={styles.primaryBtn} onClick={() => setStep(5)}>
                     🚘 Continuer → Permis de conduire
                   </button>
                 )}
-                {kycResult?.kycStatus === "VERIFIE" && (!isDriverFlow || licenseAlreadyVerified) && (
-                  <button className={styles.primaryBtn} onClick={() => navigate(returnTo)}>
+                {kycResult?.kycStatus === "VERIFIE" && (
+                  <button className={(!isDriverFlow || licenseAlreadyVerified) ? styles.primaryBtn : styles.secondaryBtn} onClick={() => navigate(returnTo)}>
                     🚗 Accéder aux réservations
                   </button>
                 )}

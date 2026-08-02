@@ -403,6 +403,10 @@ function DirectPurchaseModal({ listing, onClose, onSuccess }) {
   };
 
   const confirmPurchase = async () => {
+    // Bug réel corrigé (audit) : pas de garde de ré-entrance sur un achat
+    // direct réel (création de transaction) — un double-clic pouvait créer
+    // deux transactions pour le même achat.
+    if (purchasing) return;
     setPurchasing(true); setError(null);
     try {
       const res = await fetch("/api/import-export/transactions/direct-purchase", {

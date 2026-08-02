@@ -690,16 +690,28 @@ export const payInstallmentBalance = async (req, res) => {
 // Appelée par le webhook Stripe (paymentController.js) une fois le paiement
 // carte réellement confirmé — jamais par une déclaration client.
 export async function completeIEEscrowPayment(tx, providerRef) {
-  if (tx.status !== "payment_pending" && tx.status !== "payment_submitted") return;
-  tx.payment.paidAt     = new Date();
-  tx.payment.escrowRef  = `ESCROW-${tx._id.toString().slice(-8).toUpperCase()}-${Date.now()}`;
-  if (providerRef) tx.payment.transactionRef = providerRef;
-  tx.status = "in_escrow";
-  pushHistory(tx, "in_escrow", null, "Paiement carte confirmé par Stripe — entiercement sécurisé.");
-  await tx.save();
+  // Transition atomique (bug réel corrigé en audit, même classe que
+  // paymentController.completePayment) : appelée par le webhook Stripe, deux
+  // livraisons concurrentes du même événement pouvaient toutes deux passer le
+  // contrôle de statut avant qu'aucune n'ait écrit, doublant les notifications
+  // "fonds sécurisés" au partenaire/client.
+  const updated = await IETransaction.findOneAndUpdate(
+    { _id: tx._id, status: { $in: ["payment_pending", "payment_submitted"] } },
+    {
+      $set: {
+        "payment.paidAt": new Date(),
+        "payment.escrowRef": `ESCROW-${tx._id.toString().slice(-8).toUpperCase()}-${Date.now()}`,
+        ...(providerRef ? { "payment.transactionRef": providerRef } : {}),
+        status: "in_escrow",
+      },
+      $push: { statusHistory: { status: "in_escrow", changedAt: new Date(), changedBy: null, note: "Paiement carte confirmé par Stripe — entiercement sécurisé." } },
+    },
+    { new: true }
+  );
+  if (!updated) return;
 
-  await notify(tx.partner, "success", "Fonds sécurisés en entiercement !", `Le paiement de ${tx.payment.amount?.toLocaleString("fr-FR")} ${tx.payment.currency} est confirmé et sécurisé. Procédez à la préparation de l'export.`, `/importer-dashboard`);
-  await notify(tx.client, "success", "Paiement confirmé", "Votre paiement carte a été confirmé et sécurisé en entiercement.", `/import-export/transaction/${tx._id}`);
+  await notify(updated.partner, "success", "Fonds sécurisés en entiercement !", `Le paiement de ${updated.payment.amount?.toLocaleString("fr-FR")} ${updated.payment.currency} est confirmé et sécurisé. Procédez à la préparation de l'export.`, `/importer-dashboard`);
+  await notify(updated.client, "success", "Paiement confirmé", "Votre paiement carte a été confirmé et sécurisé en entiercement.", `/import-export/transaction/${updated._id}`);
 }
 
 // ── Admin : vérifier/rejeter un paiement manuel déclaré (virement, mobile
@@ -1114,27 +1126,47 @@ export const openDispute = async (req, res) => {
 // PATCH /api/import-export/transactions/:id/dispute/resolve  — admin
 export const resolveDispute = async (req, res) => {
   try {
-    const tx = await IETransaction.findOne({ _id: req.params.id, status: "disputed" });
-    if (!tx) return res.status(404).json({ message: "Transaction introuvable." });
+    const existing = await IETransaction.findOne({ _id: req.params.id, status: "disputed" });
+    if (!existing) return res.status(404).json({ message: "Transaction introuvable." });
 
     const { resolution, releaseToPartner } = req.body;
 
-    tx.dispute.resolution = resolution || null;
-    tx.dispute.resolvedAt = new Date();
-    tx.dispute.resolvedBy = req.user._id;
+    // Transition atomique "disputed" → statut final : le statut source fait
+    // partie du filtre de l'update lui-même, jamais d'un simple findOne+save
+    // (bug réel corrigé en audit, même classe que releaseFunds ci-dessus).
+    // Sur une transaction IE à plusieurs milliers de dollars, deux admins qui
+    // résolvent le même litige presque simultanément avec des décisions
+    // différentes (l'un "libérer", l'autre "annuler") voyaient tous deux
+    // status:"disputed" avant qu'aucun n'ait écrit — le dernier save()
+    // écrasait silencieusement l'autre, créant potentiellement une entrée
+    // CommissionLedger "à verser" pour une transaction finalement annulée.
+    const dispute = {
+      resolution: resolution || null,
+      resolvedAt: new Date(),
+      resolvedBy: req.user._id,
+    };
 
+    let update;
     if (releaseToPartner) {
-      const { rate, amount, payoutAmount } = await computeIeCommission(tx);
-      tx.payment.commission = { rate, amount, payoutAmount, computedAt: new Date() };
-      tx.payment.releasedAt = new Date();
-      tx.status = "funds_released";
-      pushHistory(tx, "funds_released", req.user._id, `Litige résolu — fonds libérés au fournisseur (commission VIT AUTO ${(rate * 100).toFixed(0)}%). ${resolution || ""}`);
+      const { rate, amount, payoutAmount } = await computeIeCommission(existing);
+      update = {
+        $set: {
+          dispute,
+          "payment.commission": { rate, amount, payoutAmount, computedAt: new Date() },
+          "payment.releasedAt": new Date(),
+          status: "funds_released",
+        },
+        $push: { statusHistory: { status: "funds_released", changedAt: new Date(), changedBy: req.user._id, note: `Litige résolu — fonds libérés au fournisseur (commission VIT AUTO ${(rate * 100).toFixed(0)}%). ${resolution || ""}` } },
+      };
     } else {
-      // Remboursement ou annulation
-      tx.status = "cancelled";
-      pushHistory(tx, "cancelled", req.user._id, `Litige résolu — transaction annulée. ${resolution || ""}`);
+      update = {
+        $set: { dispute, status: "cancelled" },
+        $push: { statusHistory: { status: "cancelled", changedAt: new Date(), changedBy: req.user._id, note: `Litige résolu — transaction annulée. ${resolution || ""}` } },
+      };
     }
-    await tx.save();
+
+    const tx = await IETransaction.findOneAndUpdate({ _id: req.params.id, status: "disputed" }, update, { new: true });
+    if (!tx) return res.status(409).json({ message: "Ce litige a déjà été résolu entre-temps." });
     if (releaseToPartner) await recordIEPartnerPayout(tx);
 
     await notify(tx.client,  releaseToPartner ? "info" : "success", "Litige résolu", `VIT AUTO a tranché : ${resolution || ""}`, `/import-export/transaction/${tx._id}`);

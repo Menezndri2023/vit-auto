@@ -43,6 +43,7 @@ export default function PaymentSimulate() {
   }, [paymentId]);
 
   const handleOutcome = useCallback(async (outcome) => {
+    if (acting) return;
     setActing(true);
     try {
       const headers = { "Content-Type": "application/json" };
@@ -54,7 +55,7 @@ export default function PaymentSimulate() {
       });
     } catch { /* la page de résultat re-vérifiera le statut */ }
     navigate(outcome === "success" ? `/payment/success?paymentId=${paymentId}` : `/payment/cancel?paymentId=${paymentId}`);
-  }, [paymentId, navigate, token]);
+  }, [paymentId, navigate, token, acting]);
 
   if (loading) {
     return (

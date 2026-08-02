@@ -63,11 +63,27 @@ async function getTargetOwnerId(payment) {
 }
 
 async function completePayment(payment, { providerRef, source = payment.method } = {}) {
-  if (payment.status === "completed") return payment; // idempotent — un webhook peut être renvoyé plusieurs fois
-  payment.status = "completed";
-  if (providerRef) payment.transactionId = providerRef;
-  payment.webhookReceivedAt = new Date();
-  await payment.save();
+  // Vérification + écriture atomiques (bug réel corrigé en audit) : un simple
+  // check en mémoire (if payment.status === "completed") puis save() séparés
+  // laissait une fenêtre où deux livraisons concurrentes du même webhook
+  // (retry fournisseur classique) passaient toutes deux le contrôle avant
+  // qu'aucune n'ait écrit — pas de double paiement (le statut final converge
+  // bien), mais l'email de reçu PDF et la notification "paiement confirmé"
+  // partaient deux fois au client. findOneAndUpdate sur un seul document est
+  // nativement atomique, aucune transaction nécessaire ici.
+  const updated = await Payment.findOneAndUpdate(
+    { _id: payment._id, status: { $ne: "completed" } },
+    { $set: { status: "completed", ...(providerRef ? { transactionId: providerRef } : {}), webhookReceivedAt: new Date() } },
+    { new: true }
+  );
+  if (!updated) return payment; // déjà complété entre-temps — idempotent, effets de bord non rejoués
+  // Bug réel corrigé (audit régression) : réassigner le paramètre local
+  // `payment = updated` ne mettait à jour QUE la référence locale à cette
+  // fonction — l'appelant (ex. simulatePayment, qui lit payment.status après
+  // l'appel pour construire sa réponse HTTP) gardait l'ancien objet en
+  // mémoire, jamais muté. `.set()` applique les nouveaux champs sur le MÊME
+  // objet Mongoose que l'appelant référence déjà.
+  payment.set(updated.toObject());
   logPaymentEvent("payment.completed", payment, source);
 
   const { type, doc } = await resolvePaymentTarget(payment);
@@ -134,10 +150,18 @@ async function completePayment(payment, { providerRef, source = payment.method }
 }
 
 async function failPayment(payment, reason) {
-  if (payment.status === "completed") return payment; // ne jamais rétrograder un paiement déjà confirmé
-  payment.status = "failed";
-  payment.webhookReceivedAt = new Date();
-  await payment.save();
+  // Même correctif atomique que completePayment ci-dessus — ne jamais
+  // rétrograder un paiement déjà confirmé, et ne jamais renvoyer deux fois la
+  // notification d'échec sur un webhook rejoué.
+  const updated = await Payment.findOneAndUpdate(
+    { _id: payment._id, status: { $nin: ["completed", "failed"] } },
+    { $set: { status: "failed", webhookReceivedAt: new Date() } },
+    { new: true }
+  );
+  if (!updated) return payment;
+  // Même correctif que completePayment ci-dessus — muter le même objet
+  // Mongoose que l'appelant référence déjà, pas seulement la variable locale.
+  payment.set(updated.toObject());
   logPaymentEvent("payment.failed", payment, reason);
 
   const { doc } = await resolvePaymentTarget(payment);

@@ -211,6 +211,7 @@ export default function PartnerCertification() {
   };
 
   const submitLevel = async (lvl, data) => {
+    if (submitting) return;
     setSubmitting(true);
     try {
       const r = await api.post(`/api/certification/level/${lvl}`, filterPayload(data));

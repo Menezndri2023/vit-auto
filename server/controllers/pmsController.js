@@ -12,6 +12,22 @@ import { sendViaEmail, sendViaSms } from "../services/communication/Communicatio
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
 
+// Bug réel corrigé (audit exhaustif routes) : getLead/updateLead/
+// addLeadFollowUp/addLeadMessage/deleteLead et getQuote/updateQuote/
+// deleteQuote filtraient tous par {_id, partnerId: req.user._id} — or
+// routes/pms.js autorise explicitement role==="admin" à passer le middleware
+// isPartner. L'ID d'un admin ne correspond jamais au partnerId propriétaire
+// d'un lead/devis : ces routes renvoyaient donc systématiquement 404 pour un
+// admin, malgré l'intention de lui donner accès (même classe de bug déjà
+// corrigée dans importExportController.updateListing). Pas un trou de
+// sécurité (l'admin était sous-provisionné, pas sur-exposé) mais une gestion
+// admin des leads/devis PMS non fonctionnelle.
+function pmsOwnerFilter(req) {
+  return req.user.role === "admin"
+    ? { _id: req.params.id }
+    : { _id: req.params.id, partnerId: req.user._id };
+}
+
 // Champs autorisés à la création d'un lead (sous-ensemble strict)
 const LEAD_CREATE_FIELDS = [
   "buyer", "vehicle", "budget", "destinationCountry", "destinationPort",
@@ -254,7 +270,7 @@ export async function createLead(req, res) {
 
 export async function getLead(req, res) {
   try {
-    const lead = await Lead.findOne({ _id: req.params.id, partnerId: req.user._id })
+    const lead = await Lead.findOne(pmsOwnerFilter(req))
       .populate("assignedTo", "firstName lastName email");
     if (!lead) return res.status(404).json({ message: "Lead introuvable" });
     res.json(lead);
@@ -270,7 +286,7 @@ export async function updateLead(req, res) {
       return res.status(400).json({ message: "Entreprise introuvable." });
     }
     const lead = await Lead.findOneAndUpdate(
-      { _id: req.params.id, partnerId: req.user._id },
+      pmsOwnerFilter(req),
       { $set: { ...safe, updatedAt: new Date() } },
       { new: true, runValidators: true }
     );
@@ -284,7 +300,7 @@ export async function updateLead(req, res) {
 export async function addLeadFollowUp(req, res) {
   try {
     const { note, method, outcome, nextAction } = req.body;
-    const lead = await Lead.findOne({ _id: req.params.id, partnerId: req.user._id });
+    const lead = await Lead.findOne(pmsOwnerFilter(req));
     if (!lead) return res.status(404).json({ message: "Lead introuvable" });
     lead.followUps.push({ note, method, outcome, date: new Date(),
       nextAction: nextAction ? new Date(nextAction) : undefined });
@@ -300,7 +316,7 @@ export async function addLeadMessage(req, res) {
   try {
     const { text, channel } = req.body;
     if (!text?.trim()) return res.status(400).json({ message: "Message vide" });
-    const lead = await Lead.findOne({ _id: req.params.id, partnerId: req.user._id });
+    const lead = await Lead.findOne(pmsOwnerFilter(req));
     if (!lead) return res.status(404).json({ message: "Lead introuvable" });
     lead.messages.push({ from: "partner", text: text.trim(), channel: channel || "platform" });
     if (!lead.firstContactAt) lead.firstContactAt = new Date();
@@ -314,7 +330,7 @@ export async function addLeadMessage(req, res) {
 
 export async function deleteLead(req, res) {
   try {
-    const lead = await Lead.findOneAndDelete({ _id: req.params.id, partnerId: req.user._id });
+    const lead = await Lead.findOneAndDelete(pmsOwnerFilter(req));
     if (!lead) return res.status(404).json({ message: "Lead introuvable" });
     res.json({ message: "Lead supprimé" });
   } catch (err) {
@@ -421,7 +437,7 @@ export async function createQuote(req, res) {
 
 export async function getQuote(req, res) {
   try {
-    const quote = await Quote.findOne({ _id: req.params.id, partnerId: req.user._id });
+    const quote = await Quote.findOne(pmsOwnerFilter(req));
     if (!quote) return res.status(404).json({ message: "Devis introuvable" });
     res.json(quote);
   } catch (err) {
@@ -444,7 +460,7 @@ export async function updateQuote(req, res) {
     }
     const data = calcTotals({ ...safe, updatedAt: new Date() });
     const quote = await Quote.findOneAndUpdate(
-      { _id: req.params.id, partnerId: req.user._id },
+      pmsOwnerFilter(req),
       { $set: data },
       { new: true, runValidators: true }
     );
@@ -552,7 +568,7 @@ export async function respondPublicQuote(req, res) {
 
 export async function deleteQuote(req, res) {
   try {
-    const quote = await Quote.findOneAndDelete({ _id: req.params.id, partnerId: req.user._id });
+    const quote = await Quote.findOneAndDelete(pmsOwnerFilter(req));
     if (!quote) return res.status(404).json({ message: "Devis introuvable" });
     res.json({ message: "Devis supprimé" });
   } catch (err) {

@@ -1229,13 +1229,25 @@ export const syncAllAvailability = async (req, res) => {
 // masse (vehicleImportService.js) utilisent des URLs déjà légères et n'ont pas
 // besoin de ce traitement, seules les photos base64 (publication manuelle) le
 // nécessitent.
+// Bug réel corrigé (audit résilience) : requête sans .limit() + décodage/
+// redimensionnement Jimp (pur JS, gourmand en mémoire) séquentiel pour CHAQUE
+// véhicule, dans le contexte d'une seule requête HTTP. Sur une base avec
+// beaucoup d'annonces legacy en base64 (exactement le cas que ce rattrapage
+// sert à traiter), ça peut charger plusieurs centaines de Mo d'un coup — avec
+// --max-old-space-size=400 (Dockerfile, plan gratuit Render), un OOM kill
+// silencieux est possible. Plafonné par lot ; l'admin relance simplement le
+// bouton pour traiter le lot suivant (le filtre thumbnail:null exclut déjà
+// ceux traités).
+const BACKFILL_BATCH_SIZE = 40;
+
 export const backfillThumbnails = async (req, res) => {
   try {
     const { generateThumbnailFromDataUri } = await import("../utils/imageThumbnail.js");
     const vehicles = await Vehicle.find({
       thumbnail: null,
       images: { $exists: true, $ne: [] },
-    }).select("images");
+    }).select("images").limit(BACKFILL_BATCH_SIZE);
+    const remaining = await Vehicle.countDocuments({ thumbnail: null, images: { $exists: true, $ne: [] } });
 
     let updated = 0, skipped = 0;
     for (const v of vehicles) {
@@ -1255,7 +1267,11 @@ export const backfillThumbnails = async (req, res) => {
       }
     }
 
-    res.json({ message: `Rattrapage terminé : ${updated} vignette(s) générée(s), ${skipped} ignorée(s).`, total: vehicles.length, updated, skipped });
+    const stillRemaining = Math.max(remaining - vehicles.length, 0);
+    res.json({
+      message: `Lot traité : ${updated} vignette(s) générée(s), ${skipped} ignorée(s).` + (stillRemaining > 0 ? ` ${stillRemaining} véhicule(s) restant(s) — relancez pour continuer.` : " Terminé."),
+      total: vehicles.length, updated, skipped, remaining: stillRemaining,
+    });
   } catch (err) {
     logger.error("backfillThumbnails:", err);
     res.status(500).json({ message: "Erreur serveur." });

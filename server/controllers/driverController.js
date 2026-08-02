@@ -197,13 +197,14 @@ export const createDriver = async (req, res) => {
 
     // Notification non bloquante
     try {
-      await Notification.create({
-        user: req.user._id,
-        type: "system",
-        titre: "Profil chauffeur soumis",
-        message: "Votre profil chauffeur est en cours de vérification.",
-        lien: "/vendor/dashboard",
-      });
+      const titre   = "Profil chauffeur soumis";
+      const message = "Votre profil chauffeur est en cours de vérification.";
+      const notifDoc = await Notification.create({ user: req.user._id, type: "system", titre, message, lien: "/vendor/dashboard" });
+      if (global._io) {
+        global._io.to(`user_${req.user._id}`).emit("notification_new", {
+          _id: notifDoc._id, type: "system", titre, message, lien: "/vendor/dashboard", lu: false, createdAt: notifDoc.createdAt,
+        });
+      }
     } catch (notifErr) {
       logger.error("Notification (non bloquant) :", notifErr.message);
     }

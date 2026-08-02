@@ -67,6 +67,20 @@ if (missingEnv.length > 0) {
   process.exit(1);
 }
 
+// FIELD_ENCRYPTION_KEY n'est volontairement PAS dans REQUIRED_ENV ci-dessus —
+// contrairement à JWT_SECRET/MONGO_URI, son absence ne doit pas empêcher tout
+// le service de démarrer (la plateforme reste utilisable sans KYC/permis).
+// Mais avant ce correctif (audit résilience), rien ne signalait cette absence
+// au démarrage : seul /api/health la rapporte, or Render ne consulte pas cet
+// endpoint pour son propre healthcheck — un déploiement sans cette variable
+// pouvait tourner des jours avant qu'un chauffeur ne remonte l'échec (503) au
+// premier envoi KYC/permis. Avertissement bruyant mais non bloquant.
+if (!process.env.FIELD_ENCRYPTION_KEY) {
+  console.error("⚠️  FIELD_ENCRYPTION_KEY absente — la soumission KYC/permis de conduire échouera (503) tant qu'elle n'est pas configurée. Le reste du service démarre normalement.");
+} else if (!/^[0-9a-f]{64}$/i.test(process.env.FIELD_ENCRYPTION_KEY)) {
+  console.error("⚠️  FIELD_ENCRYPTION_KEY mal formée (attendu : 64 caractères hexadécimaux) — même impact que si elle était absente.");
+}
+
 if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 64) {
   console.error("❌ JWT_SECRET trop court (minimum 64 caractères / 512 bits requis pour la sécurité cryptographique)");
   if (process.env.NODE_ENV === "production") process.exit(1);

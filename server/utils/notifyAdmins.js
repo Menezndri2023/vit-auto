@@ -10,7 +10,14 @@ import logger from "./logger.js";
 // être réutilisable ailleurs. La copie email est automatique via le hook
 // post-save de models/Notification.js (voir utils/adminAlertEmail.js).
 export async function notifyAdmins(type, titre, message, lien = "/admin") {
-  const admins = await User.find({ role: "admin" }).select("_id").lean();
+  // Bug réel corrigé (audit régression) : deux call sites (usersController.js
+  // submitIdentity, whatsappController.js notifyAdminsEscalation) filtraient
+  // explicitement isActive:true avant d'être basculés sur ce helper partagé —
+  // un compte admin désactivé/suspendu se remettait à recevoir des
+  // notifications in-app + temps réel qu'il ne recevait plus avant. Corrigé
+  // ici plutôt que par site d'appel : un admin désactivé ne doit jamais être
+  // notifié, quel que soit le chemin.
+  const admins = await User.find({ role: "admin", isActive: true }).select("_id").lean();
   await Promise.all(admins.map(async (a) => {
     const notif = await Notification.create({ user: a._id, type, titre, message, lien }).catch((err) => {
       logger.error("notifyAdmins (non bloquant) :", err.message);

@@ -5,7 +5,12 @@ services:
     dockerfilePath: server/Dockerfile
     dockerContext: server
     plan: free
-    healthCheckPath: /api/ping
+    # Bug réel corrigé (audit résilience) : /api/ping répond toujours 200 sans
+    # jamais vérifier Mongo — si la base se déconnecte en prod (cluster en
+    # pause, IP whitelist expirée...), Render croyait le service en bonne
+    # santé indéfiniment, ne le redémarrait jamais. /api/health renvoie 503
+    # dès que mongoose.connection.readyState n'est pas "connected".
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production

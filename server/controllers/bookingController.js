@@ -2164,35 +2164,49 @@ export const modifyBookingDates = async (req, res) => {
       return res.status(400).json({ message: "La nouvelle date de début ne peut pas être dans le passé." });
     }
 
-    const conflict = await Booking.findOne({
-      _id:     { $ne: booking._id },
-      vehicle: booking.vehicle._id,
-      status:  { $in: ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "driver_arrived", "transaction_concluded", "waiting_client_validation"] },
-      "location.startDate": { $lt: newEnd },
-      "location.endDate":   { $gt: newStart },
-    });
-    if (conflict) {
-      return res.status(409).json({ message: "Le véhicule est déjà réservé sur ces nouvelles dates." });
-    }
-
     const days = Math.max(1, Math.round((newEnd - newStart) / 86400000));
     const effectivePricePerDay = applyPromotion(booking.vehicle.pricePerDay || 0, days, booking.vehicle.promotions);
     const newMontantBase = effectivePricePerDay * days;
     const priceDelta = newMontantBase - (booking.montantBase || 0);
+    const newCommissionAmount = Math.round((newMontantBase + (booking.montantOptions || 0) + (booking.location.deliveryFee || 0)) * (booking.commissionRate || 0) * 100) / 100;
+    const newMontantTotal = newMontantBase + (booking.montantOptions || 0) + (booking.location.deliveryFee || 0);
 
-    booking.location.startDate = newStart;
-    booking.location.endDate   = newEnd;
-    booking.location.days      = days;
-    booking.montantBase  = newMontantBase;
-    booking.montantTotal = newMontantBase + (booking.montantOptions || 0) + (booking.location.deliveryFee || 0);
-    // Bug réel corrigé (audit) : seule fonction du fichier à arrondir la
-    // commission sans le `* 100) / 100` utilisé partout ailleurs (création,
-    // recordTransaction, partnerConfirm, extendBooking, resolveDispute...) —
-    // négligeable en XOF (pas de sous-unité) mais source de divergence dès
-    // qu'une devise à centimes serait utilisée ici.
-    booking.commissionAmount = Math.round(booking.montantTotal * (booking.commissionRate || 0) * 100) / 100;
-    booking.partnerPayout    = Math.max(booking.montantTotal - booking.commissionAmount - (booking.serviceFeeFCFA || 0), 0);
-    await booking.save();
+    // Contrôle de chevauchement + écriture dans une transaction — même pattern
+    // que createBooking (bug réel corrigé en audit) : le contrôle précédent
+    // (findOne puis booking.save() séparés) laissait une fenêtre où deux
+    // requêtes concurrentes (modification + nouvelle réservation sur la
+    // période juste après) passaient toutes deux le contrôle avant qu'aucune
+    // n'ait écrit, aboutissant à une double occupation du même véhicule.
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const conflict = await Booking.findOne({
+          _id:     { $ne: booking._id },
+          vehicle: booking.vehicle._id,
+          status:  { $in: ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "driver_arrived", "transaction_concluded", "waiting_client_validation"] },
+          "location.startDate": { $lt: newEnd },
+          "location.endDate":   { $gt: newStart },
+        }).session(session);
+        if (conflict) {
+          throw Object.assign(new Error("VEHICLE_CONFLICT"), { conflict });
+        }
+        booking.location.startDate = newStart;
+        booking.location.endDate   = newEnd;
+        booking.location.days      = days;
+        booking.montantBase  = newMontantBase;
+        booking.montantTotal = newMontantTotal;
+        booking.commissionAmount = newCommissionAmount;
+        booking.partnerPayout    = Math.max(newMontantTotal - newCommissionAmount - (booking.serviceFeeFCFA || 0), 0);
+        await booking.save({ session });
+      });
+    } catch (txErr) {
+      if (txErr.conflict) {
+        return res.status(409).json({ message: "Le véhicule est déjà réservé sur ces nouvelles dates." });
+      }
+      throw txErr;
+    } finally {
+      await session.endSession();
+    }
 
     emitBookingUpdate(booking);
     await syncVehicleAvailability(booking.vehicle._id);
@@ -2257,39 +2271,55 @@ export const extendBooking = async (req, res) => {
       return res.status(400).json({ message: "La nouvelle date de fin doit être postérieure à la date de fin actuelle." });
     }
 
-    // Un autre client pourrait déjà avoir réservé ce véhicule juste après la
-    // fin initiale prévue — la prolongation ne doit jamais l'écraser.
-    const conflict = await Booking.findOne({
-      _id:     { $ne: booking._id },
-      vehicle: booking.vehicle._id,
-      status:  { $in: ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "driver_arrived", "transaction_concluded", "waiting_client_validation"] },
-      "location.startDate": { $lt: newEnd },
-      "location.endDate":   { $gt: currentEnd },
-    });
-    if (conflict) {
-      return res.status(409).json({
-        message: "Le véhicule est déjà réservé juste après la fin actuelle de votre location — prolongation impossible sur cette période.",
-        conflict: { startDate: conflict.location.startDate, endDate: conflict.location.endDate },
-      });
-    }
-
     const totalDays = Math.max(1, Math.round((newEnd - new Date(booking.location.startDate)) / 86400000));
     const addedDays  = totalDays - (booking.location.days || 0);
     const effectivePricePerDay = applyPromotion(booking.vehicle.pricePerDay || 0, totalDays, booking.vehicle.promotions);
     const newMontantBase = effectivePricePerDay * totalDays;
     const priceDelta = newMontantBase - (booking.montantBase || 0);
+    const newMontantTotal = newMontantBase + (booking.montantOptions || 0) + (booking.location.deliveryFee || 0);
+    const newCommissionAmount = Math.round(newMontantTotal * (booking.commissionRate || 0) * 100) / 100;
 
-    booking.location.endDate = newEnd;
-    booking.location.days    = totalDays;
-    booking.montantBase  = newMontantBase;
-    booking.montantTotal = newMontantBase + (booking.montantOptions || 0) + (booking.location.deliveryFee || 0);
-    booking.commissionAmount = Math.round(booking.montantTotal * (booking.commissionRate || 0) * 100) / 100;
-    booking.partnerPayout    = Math.max(booking.montantTotal - booking.commissionAmount - (booking.serviceFeeFCFA || 0), 0);
-    // Un solde déjà réglé en ligne ne couvre pas les jours ajoutés — le supplément
-    // reste dû (encaissé au retrait/à la restitution, comme le reste de la
-    // plateforme le fait déjà pour les paiements en espèces).
-    if (booking.isPaid && priceDelta > 0) booking.isPaid = false;
-    await booking.save();
+    // Contrôle de chevauchement + écriture dans une transaction — même
+    // correctif que modifyBookingDates ci-dessus (bug réel corrigé en audit) :
+    // un autre client pourrait déjà avoir réservé ce véhicule juste après la
+    // fin initiale prévue, la prolongation ne doit jamais l'écraser, y compris
+    // sous requêtes concurrentes.
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const conflict = await Booking.findOne({
+          _id:     { $ne: booking._id },
+          vehicle: booking.vehicle._id,
+          status:  { $in: ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "driver_arrived", "transaction_concluded", "waiting_client_validation"] },
+          "location.startDate": { $lt: newEnd },
+          "location.endDate":   { $gt: currentEnd },
+        }).session(session);
+        if (conflict) {
+          throw Object.assign(new Error("VEHICLE_CONFLICT"), { conflict });
+        }
+        booking.location.endDate = newEnd;
+        booking.location.days    = totalDays;
+        booking.montantBase  = newMontantBase;
+        booking.montantTotal = newMontantTotal;
+        booking.commissionAmount = newCommissionAmount;
+        booking.partnerPayout    = Math.max(newMontantTotal - newCommissionAmount - (booking.serviceFeeFCFA || 0), 0);
+        // Un solde déjà réglé en ligne ne couvre pas les jours ajoutés — le
+        // supplément reste dû (encaissé au retrait/à la restitution, comme le
+        // reste de la plateforme le fait déjà pour les paiements en espèces).
+        if (booking.isPaid && priceDelta > 0) booking.isPaid = false;
+        await booking.save({ session });
+      });
+    } catch (txErr) {
+      if (txErr.conflict) {
+        return res.status(409).json({
+          message: "Le véhicule est déjà réservé juste après la fin actuelle de votre location — prolongation impossible sur cette période.",
+          conflict: { startDate: txErr.conflict.location.startDate, endDate: txErr.conflict.location.endDate },
+        });
+      }
+      throw txErr;
+    } finally {
+      await session.endSession();
+    }
 
     emitBookingUpdate(booking);
     await syncVehicleAvailability(booking.vehicle._id);
@@ -2358,12 +2388,30 @@ export const cancelBookingByClient = async (req, res) => {
 
     const wasPaid = booking.isPaid;
 
-    booking.status = "cancelled";
-    booking.cancelledAt = new Date();
-    booking.cancelReasonCode = reasonCode;
-    booking.cancelReason = reason ? String(reason).trim().slice(0, 500) : null;
-    booking.cancelledBy = "client";
-    await booking.save();
+    // Transition atomique — le statut source fait partie du filtre de l'update
+    // lui-même (bug réel corrigé en audit) : sans ça, un client qui annule au
+    // moment exact où le partenaire confirme/modifie la même réservation
+    // (deux lectures passant chacune leur contrôle de statut avant qu'aucune
+    // n'ait écrit) pouvait produire un état final incohérent avec ce qui a
+    // été notifié à l'une des deux parties.
+    const updated = await Booking.findOneAndUpdate(
+      { _id: booking._id, status: { $in: cancellableStatuses } },
+      {
+        $set: {
+          status: "cancelled",
+          cancelledAt: new Date(),
+          cancelReasonCode: reasonCode,
+          cancelReason: reason ? String(reason).trim().slice(0, 500) : null,
+          cancelledBy: "client",
+        },
+      },
+      { new: true }
+    );
+    if (!updated) {
+      return res.status(409).json({ message: "Cette réservation a déjà changé de statut entre-temps." });
+    }
+    booking.status = updated.status;
+    booking.cancelledAt = updated.cancelledAt;
 
     emitBookingUpdate(booking); // ← temps réel partenaire
     await syncVehicleAvailability(booking.vehicle?._id || booking.vehicle);
@@ -2553,13 +2601,29 @@ export const claimCaution = async (req, res) => {
       return res.status(400).json({ message: "Un motif est requis pour retenir tout ou partie de la caution." });
     }
 
-    booking.cautionClaim = {
-      amountClaimed: amount,
-      reason:        amount > 0 ? String(reason).trim() : null,
-      claimedAt:     new Date(),
-      claimedBy:     req.user._id,
-    };
-    await booking.save();
+    // Écriture atomique — "cautionClaim.claimedAt" absent fait partie du
+    // filtre lui-même (bug réel corrigé en audit) : sans ça, un partenaire qui
+    // double-soumet (double-clic, requête rejouée) pouvait faire passer deux
+    // décisions de caution différentes, la seconde écrasant silencieusement
+    // la première déjà notifiée au client.
+    const updated = await Booking.findOneAndUpdate(
+      { _id: booking._id, "cautionClaim.claimedAt": null },
+      {
+        $set: {
+          cautionClaim: {
+            amountClaimed: amount,
+            reason:        amount > 0 ? String(reason).trim() : null,
+            claimedAt:     new Date(),
+            claimedBy:     req.user._id,
+          },
+        },
+      },
+      { new: true }
+    );
+    if (!updated) {
+      return res.status(409).json({ message: "La caution a déjà été traitée pour cette réservation." });
+    }
+    booking.cautionClaim = updated.cautionClaim;
     emitBookingUpdate(booking);
 
     if (booking.client) {
