@@ -141,6 +141,25 @@ const VendorSubmit = () => {
   // ── Étape 2 : Type d'annonce
   const [adType, setAdType] = useState(""); // "location" | "vente" | "chauffeur"
 
+  // Vérification en amont des prérequis chauffeur (identité + permis) — avant
+  // ce correctif, un partenaire ne découvrait le blocage qu'après avoir rempli
+  // les 8 étapes du formulaire (photos, CV, tarifs…), au moment du clic final
+  // sur "Publier" (voir DRIVER_DOCS_REQUIRED plus bas). Un compte réel est
+  // resté bloqué 5 jours sans jamais republier après avoir complété son KYC,
+  // faute d'indication claire de ce qu'il restait à faire. Récapitulatif
+  // affiché dès le choix "Service chauffeur", avec lien direct vers ce qui
+  // manque encore.
+  const [driverReq, setDriverReq] = useState(null);
+  useEffect(() => {
+    if (adType !== "chauffeur" || !token || driverReq) return;
+    api.get("/api/kyc/status")
+      .then((d) => setDriverReq({
+        identityOk: d?.identityStatus === "verified",
+        licenseOk:  !!(d?.driverLicenseOcr?.licenseNumber && !d?.driverLicenseOcr?.isExpired),
+      }))
+      .catch(() => {});
+  }, [adType, token, driverReq]);
+
   // ── Leasing (LOA — pour vente uniquement)
   const [leasing, setLeasing] = useState({
     disponible:    false,
@@ -854,6 +873,31 @@ const VendorSubmit = () => {
                 </ul>
               </button>
             </div>
+
+            {adType === "chauffeur" && driverReq && (!driverReq.identityOk || !driverReq.licenseOk) && (
+              <div className={styles.infoBanner} style={{ marginTop: 16, borderColor: "#f59e0b", background: "#fffbeb" }}>
+                <p style={{ margin: "0 0 8px", fontWeight: 700, color: "#92400e" }}>
+                  ⚠️ Avant de continuer : deux vérifications sont nécessaires pour publier un profil chauffeur
+                </p>
+                <ul style={{ margin: "0 0 10px", paddingLeft: 20, fontSize: ".88rem", color: "#78350f" }}>
+                  <li>{driverReq.identityOk ? "✅" : "❌"} Pièce d'identité vérifiée</li>
+                  <li>{driverReq.licenseOk ? "✅" : "❌"} Permis de conduire enregistré</li>
+                </ul>
+                <p style={{ margin: "0 0 10px", fontSize: ".82rem", color: "#78350f" }}>
+                  Autant les compléter maintenant — le formulaire suivant (photos, tarifs…) ne sera utile
+                  que si ces deux étapes sont validées.
+                </p>
+                <button type="button" className={styles.secondaryBtn}
+                  onClick={() => { try { localStorage.setItem("vit_driver_intent", "1"); } catch { /* ignore */ } navigate("/kyc?next=driver-docs"); }}>
+                  Compléter maintenant →
+                </button>
+              </div>
+            )}
+            {adType === "chauffeur" && driverReq && driverReq.identityOk && driverReq.licenseOk && (
+              <p style={{ marginTop: 16, fontSize: ".85rem", color: "#059669", fontWeight: 600 }}>
+                ✅ Identité et permis déjà vérifiés — vous pouvez publier directement.
+              </p>
+            )}
           </div>
         );
 

@@ -908,6 +908,12 @@
 
 .secondaryBtn:hover { background: #f4f6fb; border-color: #c5d0e6; }
 
+.infoBanner {
+  border: 1.5px solid #e2e8f0;
+  border-radius: 13px;
+  padding: 16px 18px;
+}
+
 /* ─── Écran résultat de validation ─────────────────────────── */
 .resultCard {
   max-width: 640px;

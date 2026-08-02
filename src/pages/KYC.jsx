@@ -993,7 +993,14 @@ export default function KYC() {
               </div>
               <div className={styles.cardFooter}>
                 <div />
-                <button className={styles.primaryBtn} onClick={() => navigate("/vendor/dashboard")}>
+                {/* Bug réel confirmé (compte réel bloqué 5 jours) : ce bouton
+                    promettait "Créer mon profil chauffeur" mais renvoyait vers
+                    /vendor/dashboard (gestion des annonces déjà publiées), pas
+                    vers /vendor (le formulaire de publication qui restaure
+                    automatiquement le brouillon chauffeur en attente). Le
+                    partenaire atterrissait sur un tableau de bord vide sans
+                    que rien ne se publie jamais. */}
+                <button className={styles.primaryBtn} onClick={() => navigate("/vendor")}>
                   🚘 Créer mon profil chauffeur →
                 </button>
               </div>
