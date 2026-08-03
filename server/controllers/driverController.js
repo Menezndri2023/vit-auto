@@ -60,11 +60,15 @@ function validateDriverImages(images) {
 // le CV reste validé séparément par validateCv ci-dessus, pas ici.
 function missingDriverDocs(user) {
   const { docs } = resolveRequirements({ activity: "chauffeur", entityType: user.entityType }).driver;
-  const hasIdentity = docs.includes("identity") && ["cni", "passport"].includes(user.identity?.type) && user.identity?.status === "verified";
+  // Les 4 types acceptés par le KYC (User.identity.type enum — voir models/User.js
+  // et KYC.jsx DOC_TYPES) sont tous vérifiés par le même circuit admin ; restreindre
+  // ici à cni/passport bloquait silencieusement et définitivement tout chauffeur
+  // ayant soumis un titre de séjour ou son permis comme pièce d'identité (bug réel).
+  const hasIdentity = docs.includes("identity") && ["cni", "passport", "permis", "carte_sejour"].includes(user.identity?.type) && user.identity?.status === "verified";
   const license = user.driverLicenseOcr;
   const hasLicense = docs.includes("driverLicense") && !!(license?.licenseNumber && license?.frontImage) && !license?.isExpired;
-  if (!hasIdentity && !hasLicense) return "Pièce d'identité (CNI/passeport) et permis de conduire vérifiés requis pour publier un profil chauffeur.";
-  if (!hasIdentity) return "Pièce d'identité (CNI/passeport) vérifiée requise pour publier un profil chauffeur.";
+  if (!hasIdentity && !hasLicense) return "Pièce d'identité vérifiée et permis de conduire vérifié requis pour publier un profil chauffeur.";
+  if (!hasIdentity) return "Pièce d'identité vérifiée requise pour publier un profil chauffeur.";
   if (!hasLicense) return "Permis de conduire vérifié (recto/verso, non expiré) requis pour publier un profil chauffeur.";
   return null;
 }
@@ -256,7 +260,10 @@ export const getDrivers = async (req, res) => {
 
     const publicDrivers = drivers.map((d) => {
       const owner = d.owner || {};
-      const identityVerified = ["cni", "passport"].includes(owner.identity?.type) && owner.identity?.status === "verified";
+      // Mêmes 4 types acceptés que missingDriverDocs() ci-dessus — sinon un
+      // chauffeur avec un titre de séjour/permis vérifié affichait publiquement
+      // un badge "identité non vérifiée" malgré une vérification admin réelle.
+      const identityVerified = ["cni", "passport", "permis", "carte_sejour"].includes(owner.identity?.type) && owner.identity?.status === "verified";
       const license = owner.driverLicenseOcr;
       const licenseVerified = !!(license?.licenseNumber && !license?.isExpired);
       return {
@@ -286,11 +293,21 @@ export const getMyDrivers = async (req, res) => {
   }
 };
 
-// ── Chauffeurs en attente (admin) ─────────────────────────────────────────
+// ── Chauffeurs (admin) — même pattern que vehicleController.getVehicles :
+// `status` par défaut "pending" (comportement historique de cette route,
+// conservé pour ne rien casser côté appelants existants), ou "approved"/
+// "rejected"/"all" pour couvrir toute la gestion admin (l'UI n'affichait
+// jusqu'ici QUE les chauffeurs en attente, impossible de gérer/filtrer les
+// profils déjà publiés ou rejetés sans repasser par la base directement).
 export const getPendingDrivers = async (req, res) => {
   try {
-    const drivers = await Driver.find({ status: "pending" })
-      .sort({ createdAt: 1 })
+    const { status = "pending" } = req.query;
+    const filter = status && status !== "all" ? { status } : {};
+    // File d'attente pending triée du plus ancien au plus récent (ordre de
+    // traitement FIFO déjà en place) ; les autres vues (approved/rejected/all)
+    // en plus récent d'abord, comme vehicleController.getVehicles.
+    const drivers = await Driver.find(filter)
+      .sort({ createdAt: status === "pending" ? 1 : -1 })
       .populate("owner", "firstName lastName email");
     res.json({ drivers });
   } catch (err) {

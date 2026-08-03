@@ -1330,9 +1330,26 @@ export default function AdminPanel() {
     () => importerFilter ? importerProfiles.filter((p) => p.status === importerFilter) : importerProfiles,
     [importerProfiles, importerFilter]
   );
+  const [listingCountryFilter, setListingCountryFilter] = useState("");
+  const [listingVilleFilter,   setListingVilleFilter]   = useState("");
   const filteredImporterListings = useMemo(
-    () => listingFilter ? importerListings.filter((l) => l.status === listingFilter) : importerListings,
-    [importerListings, listingFilter]
+    () => importerListings
+      .filter((l) => !listingFilter || l.status === listingFilter)
+      .filter((l) => !listingCountryFilter || l.sourceCountry === listingCountryFilter)
+      .filter((l) => !listingVilleFilter || l.sourceCity === listingVilleFilter),
+    [importerListings, listingFilter, listingCountryFilter, listingVilleFilter]
+  );
+  const importerListingVilleOptions = useMemo(
+    () => [...new Set(importerListings.map((l) => l.sourceCity).filter(Boolean))].sort(),
+    [importerListings]
+  );
+  // sourceCountry est une saisie libre (pas un code ISO — voir ImporterDashboard.jsx
+  // "Pays d'origine", placeholder "Émirats Arabes Unis"), donc pas de correspondance
+  // possible avec COUNTRIES_CONFIG (codes ISO-2) : liste construite depuis les
+  // valeurs distinctes réellement présentes, comme pour la ville.
+  const importerListingCountryOptions = useMemo(
+    () => [...new Set(importerListings.map((l) => l.sourceCountry).filter(Boolean))].sort(),
+    [importerListings]
   );
   const [reviewModal,      setReviewModal]       = useState(null);
   const [reviewDecision,   setReviewDecision]    = useState({ status: "verified", rejectionReason: "", badgeLevel: "silver" });
@@ -1526,9 +1543,14 @@ export default function AdminPanel() {
       matchesAny([v.title, v.name, v.marque, v.modele, v.owner?.firstName, v.owner?.lastName])
     ).slice(0, 8);
 
+    // `drivers` couvre désormais tous les statuts (voir loadAll) — recouvre déjà
+    // ce que fournissait `activeDrivers` (approved uniquement), n'ajouter ce
+    // dernier que pour les profils qu'il serait seul à connaître (dédoublonné
+    // par _id, sinon un chauffeur publié apparaissait deux fois dans les résultats).
+    const knownDriverIds = new Set(drivers.map((d) => d._id));
     const matchDrivers = [
       ...drivers.map((d) => ({ ...d, _searchStatus: d.status || "pending" })),
-      ...activeDrivers.map((d) => ({ ...d, _searchStatus: d.status || "approved" })),
+      ...activeDrivers.filter((d) => !knownDriverIds.has(d._id)).map((d) => ({ ...d, _searchStatus: d.status || "approved" })),
     ].filter((d) =>
       matchesAny([d.firstName, d.lastName, d.title, d.owner?.firstName, d.owner?.lastName])
     ).slice(0, 8);
@@ -1572,7 +1594,7 @@ export default function AdminPanel() {
         fetch(`/api/users?limit=${usersLimit}`, { headers }),
         fetch(`/api/vehicles?limit=${vehiclesLimit}&status=all`, { headers }),
         fetch(`/api/bookings?limit=${bookingsLimit}`, { headers }),
-        fetch("/api/drivers/pending", { headers }),
+        fetch("/api/drivers/pending?status=all", { headers }),
         fetch("/api/drivers", { headers }),
       ]);
       if (sRes.ok) setStats((await sRes.json()));
@@ -1608,7 +1630,7 @@ export default function AdminPanel() {
     try {
       const [vRes, dRes, bRes] = await Promise.all([
         fetch(`/api/vehicles?limit=${vehiclesLimit}&status=all`, { headers }),
-        fetch("/api/drivers/pending", { headers }),
+        fetch("/api/drivers/pending?status=all", { headers }),
         fetch(`/api/bookings?limit=${bookingsLimit}`, { headers }),
       ]);
       if (vRes.ok) {
@@ -3123,6 +3145,12 @@ export default function AdminPanel() {
   const pendingVeh = vehicles.filter((v) => v.status === "pending").length;
   const pendingBk  = bookings.filter((b) => b.status === "pending").length;
   const disputedBk = bookings.filter((b) => b.status === "disputed").length;
+  // `drivers` couvre désormais tous les statuts (voir loadAll, /api/drivers/pending
+  // ?status=all — auparavant "pending" uniquement) : les badges de compteur "à
+  // traiter" doivent explicitement filtrer sur pending pour ne pas gonfler avec
+  // les profils déjà publiés/rejetés.
+  const pendingDriversList = drivers.filter((d) => d.status === "pending");
+  const pendingDrivers = pendingDriversList.length;
   // Ne PAS dériver ce badge de kycList : cette liste est filtrée par kycFilter
   // (statut choisi dans l'UI) et change de contenu selon l'onglet affiché — un
   // badge basé dessus retomberait trompeusement à 0 dès qu'un autre filtre est
@@ -3197,7 +3225,7 @@ export default function AdminPanel() {
     {
       label: "CATALOGUE",
       items: [
-        { key: "catalogue", icon: "🚗", label: "Annonces & Validations", badge: pendingVeh + drivers.length + liveNewListings },
+        { key: "catalogue", icon: "🚗", label: "Annonces & Validations", badge: pendingVeh + pendingDrivers + liveNewListings },
       ],
     },
     {
@@ -3211,7 +3239,7 @@ export default function AdminPanel() {
       items: [
         { key: "bookings",      icon: "📋", label: "Réservations",          badge: pendingBk },
         { key: "litiges",       icon: "⚖️",  label: "Litiges",              badge: disputedBk + liveDisputes },
-        { key: "chauffeurs",    icon: "👨‍✈️", label: "Chauffeurs",           badge: drivers.length },
+        { key: "chauffeurs",    icon: "👨‍✈️", label: "Chauffeurs",           badge: pendingDrivers },
         { key: "import_export", icon: "🌍", label: "Transactions I/E",      badge: pendingIe },
         { key: "exportateurs",  icon: "📦", label: "Partenaires Export",    badge: pendingImp },
         { key: "transport",     icon: "🚢", label: "Transport Intl." },
@@ -4234,16 +4262,38 @@ export default function AdminPanel() {
               <div className={styles.chartCard}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
                   <h3 className={styles.chartTitle} style={{ margin: 0 }}>📢 Annonces Import/Export</h3>
-                  <select
-                    value={listingFilter}
-                    onChange={(e) => setListingFilter(e.target.value)}
-                    style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}
-                  >
-                    <option value="">Toutes</option>
-                    <option value="pending">En attente</option>
-                    <option value="approved">Publiées</option>
-                    <option value="rejected">Refusées</option>
-                  </select>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <select
+                      value={listingFilter}
+                      onChange={(e) => setListingFilter(e.target.value)}
+                      style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}
+                    >
+                      <option value="">Toutes</option>
+                      <option value="pending">En attente</option>
+                      <option value="approved">Publiées</option>
+                      <option value="rejected">Refusées</option>
+                    </select>
+                    <select
+                      value={listingCountryFilter}
+                      onChange={(e) => setListingCountryFilter(e.target.value)}
+                      style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}
+                    >
+                      <option value="">🌍 Tous les pays</option>
+                      {importerListingCountryOptions.map((country) => (
+                        <option key={country} value={country}>{country}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={listingVilleFilter}
+                      onChange={(e) => setListingVilleFilter(e.target.value)}
+                      style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}
+                    >
+                      <option value="">📍 Toutes les villes</option>
+                      {importerListingVilleOptions.map((ville) => (
+                        <option key={ville} value={ville}>{ville}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 {importerLoading ? (
                   <div className={styles.loadingBox} style={{ minHeight: 80 }}><div className={styles.spinner} /></div>
@@ -5935,7 +5985,7 @@ export default function AdminPanel() {
           {/* KPIs chauffeurs */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12, marginBottom: "1.5rem" }}>
             {[
-              { icon:"👨‍✈️", label:"En attente validation", value: drivers.length,                                                  color:"#f59e0b" },
+              { icon:"👨‍✈️", label:"En attente validation", value: pendingDrivers,                                                  color:"#f59e0b" },
               { icon:"✅",   label:"Chauffeurs actifs",      value: activeDrivers.length,       color:"#10b981" },
               { icon:"🚗",   label:"Missions terminées",     value: bookings.filter(b=>b.type==="chauffeur"&&b.status==="completed").length, color:"#3b82f6" },
               { icon:"💰",   label:"Revenue chauffeurs",     value: fmtUSD(bookings.filter(b=>b.type==="chauffeur"&&b.status==="completed").reduce((s,b)=>s+(b.montantTotal||0),0)), color:"#6366f1" },
@@ -5944,8 +5994,8 @@ export default function AdminPanel() {
 
           {/* Dossiers en attente */}
           <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
-            <h3 className={styles.chartTitle}>⏳ Dossiers en attente de validation ({drivers.length})</h3>
-            {drivers.length === 0 ? (
+            <h3 className={styles.chartTitle}>⏳ Dossiers en attente de validation ({pendingDrivers})</h3>
+            {pendingDrivers === 0 ? (
               <p style={{ color: "#64748b", fontSize: "0.9rem" }}>Aucun profil chauffeur en attente.</p>
             ) : (
               <div className={styles.tableWrap}>
@@ -5954,7 +6004,7 @@ export default function AdminPanel() {
                     <tr><th>Chauffeur</th><th>Disponibilité</th><th>Tarif</th><th>Zone</th><th>Soumis le</th><th>Actions</th></tr>
                   </thead>
                   <tbody>
-                    {drivers.map((d) => (
+                    {pendingDriversList.map((d) => (
                       <tr key={d._id} className={styles.tr}>
                         <td>
                           <div className={styles.vehicleCell}>
@@ -9175,6 +9225,21 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
   const [subTab,         setSubTab]         = useState("pending");
   const [vehSearch,      setVehSearch]      = useState("");
   const [vehPage,        setVehPage]        = useState(1);
+  // Filtres pays/ville/type — purement côté client (comme vehSearch), le
+  // backend GET /api/vehicles supporte déjà country/ville/type mais l'admin
+  // charge tout le lot (vehiclesLimit) et filtrait jusqu'ici seulement par
+  // statut/texte, rendant la gestion difficile sur un volume important.
+  const [vehCountryFilter, setVehCountryFilter] = useState("");
+  const [vehVilleFilter,   setVehVilleFilter]   = useState("");
+  const [vehTypeFilter,    setVehTypeFilter]    = useState("");
+  // Filtres onglet Chauffeurs — `drivers` contient désormais tous les statuts
+  // (voir loadAll, /api/drivers/pending?status=all) et non plus seulement
+  // "pending" comme avant ; ce sous-filtre de statut remplace la restriction
+  // qui était jusqu'ici imposée côté serveur.
+  const [driverStatusFilter,  setDriverStatusFilter]  = useState("pending");
+  const [driverSearch,        setDriverSearch]        = useState("");
+  const [driverCountryFilter, setDriverCountryFilter] = useState("");
+  const [driverVilleFilter,   setDriverVilleFilter]   = useState("");
   const [previewVehicle, setPreviewVehicle] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewImgIdx,  setPreviewImgIdx]  = useState(0);
@@ -9553,7 +9618,23 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
     if (!vehSearch) return true;
     const q = vehSearch.toLowerCase();
     return [v.title, v.name, v.marque, v.modele].some((f) => f?.toLowerCase().includes(q));
-  });
+  }).filter((v) => !vehCountryFilter || v.country === vehCountryFilter)
+    .filter((v) => !vehVilleFilter || v.ville === vehVilleFilter)
+    .filter((v) => !vehTypeFilter || v.type === vehTypeFilter);
+
+  const filteredDrivers = drivers.filter((d) => driverStatusFilter === "all" || d.status === driverStatusFilter)
+    .filter((d) => {
+      if (!driverSearch) return true;
+      const q = driverSearch.toLowerCase();
+      return [d.firstName, d.lastName, d.title, d.zone].some((f) => f?.toLowerCase().includes(q));
+    })
+    .filter((d) => !driverCountryFilter || d.country === driverCountryFilter)
+    .filter((d) => !driverVilleFilter || d.ville === driverVilleFilter);
+  const driverVilleOptions = [...new Set(drivers.map((d) => d.ville).filter(Boolean))].sort();
+
+  // Villes distinctes présentes dans le lot actuellement chargé — `ville` est
+  // du texte libre côté modèle (pas d'enum), donc pas de liste fixe possible.
+  const vehVilleOptions = [...new Set(vehicles.map((v) => v.ville).filter(Boolean))].sort();
 
   const paginated = filtered.slice((vehPage - 1) * PAGE, vehPage * PAGE);
   const totalPages = Math.ceil(filtered.length / PAGE);
@@ -9562,7 +9643,7 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
     { k: "pending",  l: "En attente",  icon: "⏳", count: vehicles.filter(v => v.status === "pending").length, color: "#f59e0b" },
     { k: "approved", l: "Publiées",    icon: "✅", count: vehicles.filter(v => v.status === "approved").length, color: "#16a34a" },
     { k: "rejected", l: "Rejetées",    icon: "❌", count: vehicles.filter(v => v.status === "rejected").length, color: "#ef4444" },
-    { k: "drivers",  l: "Chauffeurs",  icon: "👨‍✈️", count: drivers.length, color: "#8b5cf6" },
+    { k: "drivers",  l: "Chauffeurs",  icon: "👨‍✈️", count: drivers.filter(d => d.status === "pending").length, color: "#8b5cf6" },
     { k: "all",      l: "Toutes",      icon: "📋", count: vehicles.length, color: "#64748b" },
   ];
 
@@ -9612,6 +9693,35 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
             <input className={styles.searchInput} placeholder="Rechercher une annonce…" value={vehSearch}
               onChange={(e) => { setVehSearch(e.target.value); setVehPage(1); }}
               style={{ flex: 1, minWidth: 200 }} />
+            <select className={styles.searchInput} value={vehCountryFilter}
+              onChange={(e) => { setVehCountryFilter(e.target.value); setVehPage(1); }}
+              style={{ minWidth: 150 }}>
+              <option value="">🌍 Tous les pays</option>
+              {COUNTRIES_CONFIG.map((c) => (
+                <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
+              ))}
+            </select>
+            <select className={styles.searchInput} value={vehVilleFilter}
+              onChange={(e) => { setVehVilleFilter(e.target.value); setVehPage(1); }}
+              style={{ minWidth: 150 }}>
+              <option value="">📍 Toutes les villes</option>
+              {vehVilleOptions.map((ville) => (
+                <option key={ville} value={ville}>{ville}</option>
+              ))}
+            </select>
+            <select className={styles.searchInput} value={vehTypeFilter}
+              onChange={(e) => { setVehTypeFilter(e.target.value); setVehPage(1); }}
+              style={{ minWidth: 130 }}>
+              <option value="">🏷️ Tous types</option>
+              <option value="location">Location</option>
+              <option value="vente">Vente</option>
+            </select>
+            {(vehCountryFilter || vehVilleFilter || vehTypeFilter) && (
+              <button className={styles.btnSmall}
+                onClick={() => { setVehCountryFilter(""); setVehVilleFilter(""); setVehTypeFilter(""); setVehPage(1); }}>
+                ✕ Réinitialiser les filtres
+              </button>
+            )}
             <button className={styles.btnSmall} onClick={onRefresh}>↻ Actualiser</button>
             {selectedVehicleIds.size > 0 && (
               <button className={styles.btnDanger} disabled={bulkDeleting} onClick={handleBulkDeleteVehicles}>
@@ -9773,10 +9883,51 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
       {/* Contenu Chauffeurs */}
       {subTab === "drivers" && (
         <div>
-          {drivers.length === 0 ? (
+          {/* Sous-filtres statut — `drivers` couvre désormais tous les statuts
+              (voir loadAll), ce sous-filtre remplace la restriction "pending
+              uniquement" qui était jusqu'ici imposée côté serveur. */}
+          <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+            {[
+              { k: "pending",  l: "En attente", color: "#f59e0b" },
+              { k: "approved", l: "Publiés",    color: "#16a34a" },
+              { k: "rejected", l: "Rejetés",    color: "#ef4444" },
+              { k: "all",      l: "Tous",       color: "#64748b" },
+            ].map((t) => (
+              <button key={t.k} onClick={() => setDriverStatusFilter(t.k)}
+                style={{ padding: "5px 12px", borderRadius: 14, border: `1.5px solid ${driverStatusFilter === t.k ? t.color : "#e2e8f0"}`, background: driverStatusFilter === t.k ? t.color : "#fff", color: driverStatusFilter === t.k ? "#fff" : "#64748b", fontWeight: 700, fontSize: ".76rem", cursor: "pointer" }}>
+                {t.l} ({drivers.filter((d) => t.k === "all" || d.status === t.k).length})
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+            <input className={styles.searchInput} placeholder="Rechercher un chauffeur…" value={driverSearch}
+              onChange={(e) => setDriverSearch(e.target.value)} style={{ flex: 1, minWidth: 200 }} />
+            <select className={styles.searchInput} value={driverCountryFilter}
+              onChange={(e) => setDriverCountryFilter(e.target.value)} style={{ minWidth: 150 }}>
+              <option value="">🌍 Tous les pays</option>
+              {COUNTRIES_CONFIG.map((c) => (
+                <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
+              ))}
+            </select>
+            <select className={styles.searchInput} value={driverVilleFilter}
+              onChange={(e) => setDriverVilleFilter(e.target.value)} style={{ minWidth: 150 }}>
+              <option value="">📍 Toutes les villes</option>
+              {driverVilleOptions.map((ville) => (
+                <option key={ville} value={ville}>{ville}</option>
+              ))}
+            </select>
+            {(driverCountryFilter || driverVilleFilter || driverSearch) && (
+              <button className={styles.btnSmall}
+                onClick={() => { setDriverSearch(""); setDriverCountryFilter(""); setDriverVilleFilter(""); }}>
+                ✕ Réinitialiser les filtres
+              </button>
+            )}
+          </div>
+
+          {filteredDrivers.length === 0 ? (
             <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
               <div style={{ fontSize: "3rem", marginBottom: 12 }}>👨‍✈️</div>
-              <p style={{ fontWeight: 600 }}>Aucun profil chauffeur en attente</p>
+              <p style={{ fontWeight: 600 }}>Aucun profil chauffeur dans cette catégorie</p>
             </div>
           ) : (
             <>
@@ -9793,14 +9944,14 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
                   <tr>
                     <th style={{ width: 32 }}>
                       <input type="checkbox"
-                        checked={drivers.length > 0 && drivers.every((d) => selectedDriverIds.has(d._id))}
-                        onChange={(e) => setSelectedDriverIds(e.target.checked ? new Set(drivers.map((d) => d._id)) : new Set())} />
+                        checked={filteredDrivers.length > 0 && filteredDrivers.every((d) => selectedDriverIds.has(d._id))}
+                        onChange={(e) => setSelectedDriverIds(e.target.checked ? new Set(filteredDrivers.map((d) => d._id)) : new Set())} />
                     </th>
-                    <th>Chauffeur</th><th>Permis</th><th>Expérience</th><th>Langues</th><th>CV</th><th>Soumis le</th><th>Actions</th>
+                    <th>Chauffeur</th><th>Ville / Pays</th><th>Statut</th><th>Permis</th><th>Expérience</th><th>Langues</th><th>CV</th><th>Soumis le</th><th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {drivers.map((d) => {
+                  {filteredDrivers.map((d) => {
                     // Le profil chauffeur (Driver) porte sa propre identité/photo — distincte
                     // du compte partenaire qui publie (d.owner, peuplé par getPendingDrivers).
                     // Correction : ce tableau lisait jusqu'ici des champs d'un ancien modèle
@@ -9822,6 +9973,13 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
                             </div>
                           </div>
                         </td>
+                        <td style={{ fontSize: ".8rem" }}>{d.ville || "—"}{d.country ? ` · ${d.country}` : ""}</td>
+                        <td>
+                          {(() => {
+                            const sc = { pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, approved: { l: "Publié", c: "#16a34a", bg: "#d1fae5" }, rejected: { l: "Rejeté", c: "#dc2626", bg: "#fee2e2" } }[d.status] || { l: d.status, c: "#64748b", bg: "#f1f5f9" };
+                            return <span className={styles.badge} style={{ color: sc.c, background: sc.bg }}>{sc.l}</span>;
+                          })()}
+                        </td>
                         <td style={{ fontSize: ".82rem" }}>{d.permisCategorie || "—"} {d.vehiculePersonnel && <span style={{ color: "#94a3b8" }}>· 🚗 avec véhicule</span>}</td>
                         <td style={{ fontSize: ".82rem" }}>{d.experience || "—"}</td>
                         <td style={{ fontSize: ".78rem" }}>{d.langues?.join(", ") || "—"}</td>
@@ -9831,8 +9989,16 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
                         <td style={{ fontSize: ".78rem", color: "#94a3b8" }}>{d.createdAt ? new Date(d.createdAt).toLocaleDateString("fr-FR") : "—"}</td>
                         <td>
                           <div style={{ display: "flex", gap: 5 }}>
-                            <button className={styles.btnApprove} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => handleApproveDriver(d._id)}>✅ Valider</button>
-                            <button className={styles.btnReject} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => { setDriverRejectModal({ id: d._id, name: `${d.firstName} ${d.lastName}` }); setDriverRejectReason(""); }}>✕ Refuser</button>
+                            {d.status === "pending" ? (
+                              <>
+                                <button className={styles.btnApprove} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => handleApproveDriver(d._id)}>✅ Valider</button>
+                                <button className={styles.btnReject} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => { setDriverRejectModal({ id: d._id, name: `${d.firstName} ${d.lastName}` }); setDriverRejectReason(""); }}>✕ Refuser</button>
+                              </>
+                            ) : d.status === "rejected" ? (
+                              <button className={styles.btnApprove} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => handleApproveDriver(d._id)}>✅ Republier</button>
+                            ) : (
+                              <button className={styles.btnReject} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => { setDriverRejectModal({ id: d._id, name: `${d.firstName} ${d.lastName}` }); setDriverRejectReason(""); }}>✕ Dépublier</button>
+                            )}
                             <button title="Transférer vers un autre compte/entreprise/pays/ville"
                               onClick={() => openTransfer("driver", d._id, `${d.firstName} ${d.lastName}`, d.country, d.ville)}
                               style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#fff7ed", color: "#c2410c", border: "1.5px solid #fed7aa", borderRadius: 6, cursor: "pointer" }}>
