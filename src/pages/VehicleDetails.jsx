@@ -493,6 +493,25 @@ export default function VehicleDetails() {
             </div>
           )}
 
+          {/* Politiques carburant/annulation/assurance — champs dédiés, distincts
+              du texte libre conditionsLocation ci-dessous. */}
+          {!isSale && (vehicle.fuelPolicy || vehicle.cancellationPolicy || vehicle.insuranceIncluded) && (
+            <div className={styles.card}>
+              <h3 className={styles.cardTitle}>{t("vd.rentalPolicies")}</h3>
+              <div className={styles.condList}>
+                {vehicle.fuelPolicy && (
+                  <span className={styles.condItem}>⛽ {t("vd.fuelPolicy")} : {vehicle.fuelPolicy}</span>
+                )}
+                {vehicle.cancellationPolicy && (
+                  <span className={styles.condItem}>🔄 {t("vd.cancellationPolicy")} : {vehicle.cancellationPolicy}</span>
+                )}
+                {vehicle.insuranceIncluded && (
+                  <span className={styles.condItem}>🛡️ {t("vd.insuranceIncluded")}</span>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Conditions particulières (texte libre partenaire) */}
           {!isSale && vehicle.conditionsLocation && (
             <div className={styles.card}>
@@ -554,6 +573,17 @@ export default function VehicleDetails() {
                     </Link>
                   )}
                 </div>
+              </div>
+              {/* Numéro vert service client VIT AUTO — affiché juste à côté du
+                  contact partenaire, indépendant de l'annonce/partenaire. */}
+              <div className={styles.publisherMeta} style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 3 }}>
+                <strong style={{ fontSize: ".78rem" }}>{t("vd.customerService")}</strong>
+                <a href="tel:+2120607742672" style={{ color: "#ff4d2d", fontWeight: 700, textDecoration: "none", fontSize: ".85rem" }}>
+                  🇲🇦 +212 06 07 74 26 72
+                </a>
+                <a href="tel:+2250748124635" style={{ color: "#ff4d2d", fontWeight: 700, textDecoration: "none", fontSize: ".85rem" }}>
+                  🇨🇮 +225 07 48 12 46 35
+                </a>
               </div>
             </div>
           )}

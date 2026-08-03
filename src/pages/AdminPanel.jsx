@@ -2981,6 +2981,24 @@ export default function AdminPanel() {
     } catch { showToast("Erreur lors de la suppression", "error"); }
   }, [headers, showToast]);
 
+  // Même endpoint que updateDriverStatus ci-dessous, mais met à jour le
+  // statut EN PLACE (map) au lieu de retirer le chauffeur de la liste — pour
+  // CatalogueSection, qui affiche désormais tous les statuts (voir sous-
+  // filtres pending/approved/rejected/all) : filtrer ferait disparaître la
+  // ligne au lieu de simplement changer son badge de statut. `updateDriverStatus`
+  // (filter) reste utilisé tel quel par l'onglet "Chauffeurs" dédié, dont la
+  // liste pending-only doit bien voir la ligne disparaître une fois traitée.
+  const updateDriverStatusInPlace = useCallback(async (did, status, reason = "") => {
+    try {
+      const res = await fetch(`/api/drivers/${did}/status`, {
+        method: "PATCH", headers, body: JSON.stringify({ status, rejectionReason: reason }),
+      });
+      if (!res.ok) throw new Error();
+      setDrivers((prev) => prev.map((d) => (d._id === did ? { ...d, status, rejectionReason: reason || d.rejectionReason } : d)));
+      showToast(`Chauffeur ${status === "approved" ? "approuvé" : "rejeté"}`);
+    } catch { showToast("Erreur lors de la mise à jour", "error"); }
+  }, [headers, showToast]);
+
   // ── Actions chauffeurs ──────────────────────────────────────────────────────
   const updateDriverStatus = useCallback(async (did, status, reason = "") => {
     try {
@@ -3665,6 +3683,7 @@ export default function AdminPanel() {
               driverRejectReason={driverRejectReason} setDriverRejectReason={setDriverRejectReason}
               updateVehicleStatus={updateVehicleStatus}
               deleteVehicle={deleteVehicle}
+              updateDriverStatusInPlace={updateDriverStatusInPlace}
             />
           )}
 
@@ -9220,7 +9239,7 @@ function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFil
 // ═══════════════════════════════════════════════════════════════════════════════
 // CATALOGUE SECTION — Annonces & Validations (combiné)
 // ═══════════════════════════════════════════════════════════════════════════════
-function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMoreVehicles, headers, token, onRefresh, showToast, setConfirm, rejectModal, setRejectModal, rejectReason, setRejectReason, driverRejectModal, setDriverRejectModal, driverRejectReason, setDriverRejectReason, updateVehicleStatus, deleteVehicle }) {
+function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMoreVehicles, headers, token, onRefresh, showToast, setConfirm, rejectModal, setRejectModal, rejectReason, setRejectReason, driverRejectModal, setDriverRejectModal, driverRejectReason, setDriverRejectReason, updateVehicleStatus, deleteVehicle, updateDriverStatusInPlace }) {
   const { COUNTRIES_CONFIG, fmtUSD, fmtPinned, CURRENCIES, rateFromUSD } = useCurrency();
   const [subTab,         setSubTab]         = useState("pending");
   const [vehSearch,      setVehSearch]      = useState("");
@@ -9263,6 +9282,7 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
   const [exportAvailText, setExportAvailText] = useState("");
   const [exportSaving, setExportSaving] = useState(false);
   const [thumbBackfilling, setThumbBackfilling] = useState(false);
+  const [descBackfilling, setDescBackfilling] = useState(false);
   const PAGE = 12;
 
   // Suppression par sélection (annonces véhicules ET profils chauffeur) —
@@ -9271,6 +9291,11 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
   const [selectedVehicleIds, setSelectedVehicleIds] = useState(new Set());
   const [selectedDriverIds,  setSelectedDriverIds]  = useState(new Set());
   const [bulkDeleting,       setBulkDeleting]        = useState(false);
+  // Garde anti-double-clic sur Valider/Refuser chauffeur — ce bouton n'a pas de
+  // modale de confirmation intermédiaire (contrairement à l'approbation véhicule,
+  // gated par setConfirm) donc rien n'empêchait un double clic pendant le fetch
+  // (~0,3-0,9s) avant ce correctif (constat d'audit fluidité).
+  const [busyDriverIds, setBusyDriverIds] = useState(new Set());
 
   const toggleVehicleSelect = (id) => setSelectedVehicleIds((prev) => {
     const next = new Set(prev);
@@ -9647,20 +9672,26 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
     { k: "all",      l: "Toutes",      icon: "📋", count: vehicles.length, color: "#64748b" },
   ];
 
+  // Mise à jour optimiste en place (updateDriverStatusInPlace/updateVehicleStatus,
+  // voir leur définition au niveau du composant parent) au lieu d'un rechargement
+  // complet (onRefresh=loadAll) — celui-ci remplaçait tout l'écran par un spinner
+  // plein écran et réinitialisait les filtres/sélection le temps de refetch 6
+  // endpoints, alors qu'approuver un véhicule était déjà instantané (incohérence
+  // d'UX constatée en audit).
   const handleApproveDriver = async (id) => {
-    const r = await fetch(`/api/drivers/${id}/status`, { method: "PATCH", headers, body: JSON.stringify({ status: "approved" }) });
-    if (r.ok) { showToast("Chauffeur approuvé"); onRefresh(); }
-    else showToast("Erreur approbation", "error");
+    setBusyDriverIds((prev) => new Set(prev).add(id));
+    await updateDriverStatusInPlace(id, "approved");
+    setBusyDriverIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
   };
   const handleRejectDriver = async (id, reason) => {
-    const r = await fetch(`/api/drivers/${id}/status`, { method: "PATCH", headers, body: JSON.stringify({ status: "rejected", rejectionReason: reason }) });
-    if (r.ok) { showToast("Chauffeur refusé"); setDriverRejectModal(null); setDriverRejectReason(""); onRefresh(); }
-    else showToast("Erreur refus", "error");
+    setBusyDriverIds((prev) => new Set(prev).add(id));
+    await updateDriverStatusInPlace(id, "rejected", reason);
+    setBusyDriverIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    setDriverRejectModal(null); setDriverRejectReason("");
   };
   const handleRejectVehicle = async () => {
-    const r = await fetch(`/api/vehicles/${rejectModal.vid}/status`, { method: "PATCH", headers, body: JSON.stringify({ status: "rejected", rejectionReason: rejectReason }) });
-    if (r.ok) { showToast("Annonce rejetée"); setRejectModal(null); setRejectReason(""); onRefresh(); }
-    else showToast("Erreur", "error");
+    await updateVehicleStatus(rejectModal.vid, "rejected", rejectReason);
+    setRejectModal(null); setRejectReason("");
   };
 
   return (
@@ -9740,6 +9771,19 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
                 setThumbBackfilling(false);
               }}>
               {thumbBackfilling ? "Génération…" : "🖼️ Générer les vignettes manquantes"}
+            </button>
+            <button className={styles.btnSmall} disabled={descBackfilling}
+              onClick={async () => {
+                setDescBackfilling(true);
+                try {
+                  const r = await fetch("/api/vehicles/backfill-descriptions", { method: "POST", headers });
+                  const d = await r.json();
+                  showToast(r.ok ? d.message : (d.message || "Erreur"), r.ok ? "success" : "error");
+                  if (r.ok) onRefresh();
+                } catch { showToast("Erreur réseau", "error"); }
+                setDescBackfilling(false);
+              }}>
+              {descBackfilling ? "Génération…" : "✨ Générer les descriptions manquantes"}
             </button>
           </div>
 
@@ -9991,13 +10035,13 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
                           <div style={{ display: "flex", gap: 5 }}>
                             {d.status === "pending" ? (
                               <>
-                                <button className={styles.btnApprove} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => handleApproveDriver(d._id)}>✅ Valider</button>
-                                <button className={styles.btnReject} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => { setDriverRejectModal({ id: d._id, name: `${d.firstName} ${d.lastName}` }); setDriverRejectReason(""); }}>✕ Refuser</button>
+                                <button className={styles.btnApprove} disabled={busyDriverIds.has(d._id)} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => handleApproveDriver(d._id)}>✅ Valider</button>
+                                <button className={styles.btnReject} disabled={busyDriverIds.has(d._id)} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => { setDriverRejectModal({ id: d._id, name: `${d.firstName} ${d.lastName}` }); setDriverRejectReason(""); }}>✕ Refuser</button>
                               </>
                             ) : d.status === "rejected" ? (
-                              <button className={styles.btnApprove} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => handleApproveDriver(d._id)}>✅ Republier</button>
+                              <button className={styles.btnApprove} disabled={busyDriverIds.has(d._id)} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => handleApproveDriver(d._id)}>✅ Republier</button>
                             ) : (
-                              <button className={styles.btnReject} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => { setDriverRejectModal({ id: d._id, name: `${d.firstName} ${d.lastName}` }); setDriverRejectReason(""); }}>✕ Dépublier</button>
+                              <button className={styles.btnReject} disabled={busyDriverIds.has(d._id)} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => { setDriverRejectModal({ id: d._id, name: `${d.firstName} ${d.lastName}` }); setDriverRejectReason(""); }}>✕ Dépublier</button>
                             )}
                             <button title="Transférer vers un autre compte/entreprise/pays/ville"
                               onClick={() => openTransfer("driver", d._id, `${d.firstName} ${d.lastName}`, d.country, d.ville)}

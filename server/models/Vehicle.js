@@ -120,6 +120,16 @@ const vehicleSchema = new mongoose.Schema({
   conditionsLocation: { type: String, trim: true, default: "" },
   conditionsVente:    { type: String, trim: true, default: "" },
 
+  // Politique de carburant/annulation/assurance — jusqu'ici uniquement
+  // couvertes par le texte libre `conditionsLocation`, sans champ dédié
+  // affichable/filtrable séparément (demande explicite : afficher ces 3
+  // informations distinctement dans le détail de l'annonce). Texte libre
+  // (pas d'enum) pour rester compatible avec des formulations différentes
+  // selon les partenaires (ex. "Plein/Plein" vs "Identique").
+  fuelPolicy:         { type: String, trim: true, default: null },
+  cancellationPolicy: { type: String, trim: true, default: null },
+  insuranceIncluded:  { type: Boolean, default: false },
+
   // ── Contact de l'annonceur ────────────────────────────────
   contactNom: { type: String, trim: true },
   contactTel: { type: String, trim: true },

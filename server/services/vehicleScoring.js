@@ -138,6 +138,7 @@ export const buildVehicleWhitelist = (data) => {
     pricePerDay, priceForSale, caution, leasing, credit,
     ageMin, permisRequis, assuranceOptionnelle,
     conditionsLocation, conditionsVente,
+    fuelPolicy, cancellationPolicy, insuranceIncluded,
     contactNom, contactTel, ville, adresse, coordonnees,
     images, thumbnail, description, rentalDurationType,
     currency, pricePerDayEntered, priceForSaleEntered, cautionEntered, priceEntryCurrency,
@@ -150,6 +151,7 @@ export const buildVehicleWhitelist = (data) => {
     pricePerDay, priceForSale, caution, leasing, credit,
     ageMin, permisRequis, assuranceOptionnelle,
     conditionsLocation, conditionsVente,
+    fuelPolicy: fuelPolicy || null, cancellationPolicy: cancellationPolicy || null, insuranceIncluded: !!insuranceIncluded,
     contactNom, contactTel, ville, adresse, coordonnees,
     images: images || [], thumbnail: thumbnail || null, description, rentalDurationType,
     // Devise d'AFFICHAGE choisie par le partenaire pour cette annonce — validée

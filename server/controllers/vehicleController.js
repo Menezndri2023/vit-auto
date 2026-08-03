@@ -567,6 +567,7 @@ export const updateVehicle = async (req, res) => {
       "rentalDurationType",
       "leasing", "credit", "ageMin", "permisRequis", "assuranceOptionnelle",
       "conditionsLocation", "conditionsVente",
+      "fuelPolicy", "cancellationPolicy", "insuranceIncluded",
       "contactNom", "contactTel", "ville", "adresse", "coordonnees", "country",
       "images", "thumbnail", "description", "available", "type", "currency",
       // Montant exact saisi (voir Vehicle.js / buildVehicleWhitelist) — évite
@@ -1274,6 +1275,61 @@ export const backfillThumbnails = async (req, res) => {
     });
   } catch (err) {
     logger.error("backfillThumbnails:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Génération automatique de description (rattrapage, admin) ────────────
+// Même pattern que backfillThumbnails ci-dessus (par lot, bouton relançable) —
+// certaines annonces (import en masse, saisie rapide partenaire) n'ont jamais
+// de description ; ce rattrapage est optionnel et ne touche jamais une
+// description déjà saisie (filtre description vide/absente uniquement).
+export const backfillDescriptions = async (req, res) => {
+  try {
+    const { generateVehicleDescription } = await import("../utils/vehicleDescription.js");
+    const filter = { $or: [{ description: null }, { description: "" }, { description: { $exists: false } }] };
+    const vehicles = await Vehicle.find(filter).limit(BACKFILL_BATCH_SIZE);
+    const remaining = await Vehicle.countDocuments(filter);
+
+    let updated = 0;
+    for (const v of vehicles) {
+      v.description = generateVehicleDescription(v);
+      await v.save();
+      updated++;
+    }
+
+    const stillRemaining = Math.max(remaining - vehicles.length, 0);
+    res.json({
+      message: `Lot traité : ${updated} description(s) générée(s).` + (stillRemaining > 0 ? ` ${stillRemaining} véhicule(s) restant(s) — relancez pour continuer.` : " Terminé."),
+      total: vehicles.length, updated, remaining: stillRemaining,
+    });
+  } catch (err) {
+    logger.error("backfillDescriptions:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Génération de description pour une seule annonce (admin ou propriétaire) ──
+// Action ponctuelle depuis la modale d'édition — n'écrase jamais une
+// description déjà présente sauf si `force: true` est explicitement envoyé
+// (ex. l'utilisateur veut régénérer après avoir modifié marque/modèle).
+export const generateDescription = async (req, res) => {
+  try {
+    const vehicle = await Vehicle.findById(req.params.id);
+    if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable." });
+    const isOwner = vehicle.owner.toString() === req.user._id.toString();
+    if (req.user.role !== "admin" && !isOwner) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+    if (vehicle.description && !req.body?.force) {
+      return res.status(409).json({ message: "Cette annonce a déjà une description. Utilisez force=true pour la régénérer." });
+    }
+    const { generateVehicleDescription } = await import("../utils/vehicleDescription.js");
+    vehicle.description = generateVehicleDescription(vehicle);
+    await vehicle.save();
+    res.json({ message: "Description générée.", description: vehicle.description });
+  } catch (err) {
+    logger.error("generateDescription:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

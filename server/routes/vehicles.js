@@ -23,6 +23,7 @@ router.post("/bulk-update", authenticate, v.bulkUpdateVehicles);            // a
 router.get("/pending", authenticate, authorizeAdmin, v.getPendingVehicles);  // annonces en attente
 router.post("/sync-availability", authenticate, authorizeAdmin, v.syncAllAvailability);
 router.post("/backfill-thumbnails", authenticate, authorizeAdmin, v.backfillThumbnails);
+router.post("/backfill-descriptions", authenticate, authorizeAdmin, v.backfillDescriptions);
 
 // ── Routes paramétrées (viennent APRÈS les routes statiques) ─────────────────
 router.get("/:id/availability", vid, optionalAuth, v.getVehicleAvailability);    // disponibilité dates
@@ -33,6 +34,7 @@ router.patch("/:id/transfer", vid, authenticate, authorizeAdmin, v.transferVehic
 router.patch("/:id/lifecycle",vid, authenticate, v.updateVehicleLifecycle);               // brouillon/vendu/archivé (partenaire)
 router.patch("/:id/promotion",vid, authenticate, v.updatePromotion);                      // activer/désactiver une promotion
 router.post("/:id/convert-to-export", vid, authenticate, v.convertVehicleToExport);       // transforme en annonce Import/Export
+router.post("/:id/generate-description", vid, authenticate, v.generateDescription);       // description automatique (propriétaire/admin)
 router.get("/:id/maintenance",              vid, authenticate, v.getMaintenanceLogs);     // journal entretien/incident/dommage
 router.post("/:id/maintenance",             vid, authenticate, v.addMaintenanceLog);
 router.delete("/:id/maintenance/:logId", vid, logVid, authenticate, v.deleteMaintenanceLog);
