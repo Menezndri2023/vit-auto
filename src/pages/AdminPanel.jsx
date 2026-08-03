@@ -9437,16 +9437,33 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
   // VendorDashboard.handleOpenEdit côté partenaire : getMyVehicles/getVehicles
   // (listes) ne renvoient qu'une image par véhicule (voir limitVehicleImages),
   // il faut recharger le véhicule en entier (getVehicleById, jamais tronqué).
+  // Bug réel corrigé (audit) : pour une image chargée depuis une URL externe
+  // (ex. Wikimedia, ImageKit — cas de `images[0]` déjà existant en édition,
+  // pas seulement un nouvel upload en data URI), `img.onload` dessinait sur un
+  // <canvas> puis appelait toDataURL() sans jamais définir `img.crossOrigin` —
+  // le canvas devient "tainted" et toDataURL() lève une SecurityError
+  // SYNCHRONE dans le handler onload. Cette exception n'était jamais catchée
+  // et la Promise (resolve-only, pas de reject) ne se réglait alors JAMAIS :
+  // tout appelant `await`-ant cette fonction restait bloqué indéfiniment
+  // (ex. handleSaveEditVehicle → bouton "Envoi…" figé pour toujours).
   const compressImageAdmin = (dataUrl, maxDim, quality) =>
     new Promise((resolve) => {
       const img = new Image();
+      img.crossOrigin = "anonymous";
       img.onload = () => {
-        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-        const canvas = document.createElement("canvas");
-        canvas.width  = Math.round(img.width  * scale);
-        canvas.height = Math.round(img.height * scale);
-        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", quality));
+        try {
+          const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+          const canvas = document.createElement("canvas");
+          canvas.width  = Math.round(img.width  * scale);
+          canvas.height = Math.round(img.height * scale);
+          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        } catch {
+          // Canvas tainted (hôte sans CORS) ou toute autre erreur de rendu —
+          // on retombe sur l'URL/donnée d'origine plutôt que de bloquer
+          // indéfiniment l'appelant.
+          resolve(dataUrl);
+        }
       };
       img.onerror = () => resolve(dataUrl);
       img.src = dataUrl;

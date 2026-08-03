@@ -419,17 +419,28 @@ const VendorSubmit = () => {
   // ce qui se manifestait comme une erreur "impossible de joindre le serveur"
   // totalement opaque pour l'utilisateur.
   const MAX_DIMENSION = 1600;
+  // Bug réel corrigé (audit, voir AdminPanel.jsx/VendorDashboard.jsx) : un
+  // canvas "tainted" (image chargée depuis une URL externe sans CORS) fait
+  // lever toDataURL() une SecurityError SYNCHRONE dans img.onload, jamais
+  // catchée — la Promise ne se réglait alors JAMAIS, bloquant indéfiniment
+  // l'appelant. Latent ici (dataUrl vient normalement d'un FileReader, donc
+  // toujours same-origin) mais corrigé par cohérence/défense en profondeur.
   const compressImage = (dataUrl) =>
     new Promise((resolve) => {
       const img = new Image();
+      img.crossOrigin = "anonymous";
       img.onload = () => {
-        const scale = Math.min(1, MAX_DIMENSION / Math.max(img.width, img.height));
-        const canvas = document.createElement("canvas");
-        canvas.width  = Math.round(img.width  * scale);
-        canvas.height = Math.round(img.height * scale);
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", 0.78));
+        try {
+          const scale = Math.min(1, MAX_DIMENSION / Math.max(img.width, img.height));
+          const canvas = document.createElement("canvas");
+          canvas.width  = Math.round(img.width  * scale);
+          canvas.height = Math.round(img.height * scale);
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", 0.78));
+        } catch {
+          resolve(dataUrl);
+        }
       };
       img.onerror = () => resolve(dataUrl); // recompression impossible → garder l'original
       img.src = dataUrl;
@@ -444,14 +455,19 @@ const VendorSubmit = () => {
   const compressThumbnail = (dataUrl) =>
     new Promise((resolve) => {
       const img = new Image();
+      img.crossOrigin = "anonymous";
       img.onload = () => {
-        const scale = Math.min(1, THUMB_MAX_DIMENSION / Math.max(img.width, img.height));
-        const canvas = document.createElement("canvas");
-        canvas.width  = Math.round(img.width  * scale);
-        canvas.height = Math.round(img.height * scale);
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", 0.6));
+        try {
+          const scale = Math.min(1, THUMB_MAX_DIMENSION / Math.max(img.width, img.height));
+          const canvas = document.createElement("canvas");
+          canvas.width  = Math.round(img.width  * scale);
+          canvas.height = Math.round(img.height * scale);
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", 0.6));
+        } catch {
+          resolve(null);
+        }
       };
       img.onerror = () => resolve(null);
       img.src = dataUrl;

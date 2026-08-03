@@ -1578,16 +1578,27 @@ export default function VendorDashboard() {
   // faut recharger le véhicule en entier (getVehicleById, jamais tronqué) pour
   // éditer la galerie complète.
   const MAX_PHOTOS_EDIT = 6;
+  // Bug réel corrigé (audit) : appelée aussi sur `images[0]` déjà existant
+  // (URL externe — ImageKit ou autre), pas seulement un nouvel upload en data
+  // URI. Sans `crossOrigin` ni try/catch, un canvas "tainted" (hôte sans CORS)
+  // fait lever toDataURL() une SecurityError SYNCHRONE dans img.onload, jamais
+  // catchée — la Promise (resolve-only) ne se réglait alors JAMAIS : le
+  // formulaire d'édition restait bloqué sur "Enregistrement…" indéfiniment.
   const compressImageEdit = (dataUrl, maxDim, quality) =>
     new Promise((resolve) => {
       const img = new Image();
+      img.crossOrigin = "anonymous";
       img.onload = () => {
-        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-        const canvas = document.createElement("canvas");
-        canvas.width  = Math.round(img.width  * scale);
-        canvas.height = Math.round(img.height * scale);
-        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", quality));
+        try {
+          const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+          const canvas = document.createElement("canvas");
+          canvas.width  = Math.round(img.width  * scale);
+          canvas.height = Math.round(img.height * scale);
+          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        } catch {
+          resolve(dataUrl);
+        }
       };
       img.onerror = () => resolve(dataUrl);
       img.src = dataUrl;
