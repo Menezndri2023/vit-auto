@@ -113,6 +113,11 @@ const vehicleSchema = new mongoose.Schema({
   ageMin:               { type: Number, default: 21 },
   permisRequis:         { type: Boolean, default: true },
   assuranceOptionnelle: { type: Boolean, default: true },
+  // Durée minimale de location (jours) — distincte de `promotions[].minDays`
+  // (seuil d'application d'une remise) : ici c'est une contrainte de
+  // réservation, appliquée côté serveur dans bookingController.createBooking
+  // (voir "location.days < vehicle.dureeMinLocation" → 400).
+  dureeMinLocation:     { type: Number, default: 1, min: 1 },
   // Conditions particulières facultatives saisies librement par le partenaire
   // (ex. kilométrage inclus/jour, pénalités retard, état des lieux, garantie
   // reprise...) — affichées telles quelles au client, distinctes des champs

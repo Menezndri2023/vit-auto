@@ -256,6 +256,15 @@ export const createBooking = async (req, res) => {
       ownerId = vehicle.owner;
 
       if (type === "location") {
+        // Durée minimale de location (Vehicle.dureeMinLocation, ex. "à partir
+        // de 3 jours" pour HO RENT) — condition fixée par le partenaire à la
+        // publication, vérifiée ici côté serveur (jamais confiance dans une
+        // validation uniquement côté formulaire client).
+        const minDays = vehicle.dureeMinLocation || 1;
+        const requestedDays = Number(location?.days) || 1;
+        if (requestedDays < minDays) {
+          return res.status(400).json({ message: `Ce véhicule nécessite une location d'au moins ${minDays} jour(s).` });
+        }
         const startDate = location?.startDate ? new Date(location.startDate) : null;
         const endDate   = location?.endDate   ? new Date(location.endDate)   : null;
         if (startDate && endDate) {
@@ -781,6 +790,11 @@ export const createBookingsBatch = async (req, res) => {
         }
 
         const days = Math.max(1, Math.round((endDate - startDate) / 86400000));
+        const minDays = vehicle.dureeMinLocation || 1;
+        if (days < minDays) {
+          results.push({ vehicleId, ok: false, message: `Ce véhicule nécessite une location d'au moins ${minDays} jour(s).`, title: vehicle.title });
+          continue;
+        }
         const effectivePricePerDay = applyPromotion(vehicle.pricePerDay || 0, days, vehicle.promotions);
         const montantBase  = effectivePricePerDay * days;
         const montantTotal = montantBase;

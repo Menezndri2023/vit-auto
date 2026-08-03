@@ -189,7 +189,7 @@ const VendorSubmit = () => {
     kilometrage: "",
     pricePerDay: "", priceForSale: "", caution: "",
     rentalDurationType: "les_deux", // courte | longue | les_deux — location uniquement
-    ageMin: 21, permisRequis: true, assuranceOptionnelle: true,
+    ageMin: 21, permisRequis: true, assuranceOptionnelle: true, dureeMinLocation: 1,
     conditionsLocation: "", conditionsVente: "",
     description: "", images: [""],
     // "" = automatique (chaque visiteur voit sa propre devise détectée par
@@ -387,7 +387,7 @@ const VendorSubmit = () => {
     setVehicle(p => ({
       ...p,
       [name]: type === "checkbox" ? checked
-        : ["nombrePlaces","nombrePortes","annee","ageMin","pricePerDay","priceForSale","caution","kilometrage"].includes(name)
+        : ["nombrePlaces","nombrePortes","annee","ageMin","dureeMinLocation","pricePerDay","priceForSale","caution","kilometrage"].includes(name)
           ? value === "" ? "" : Number(value)
           : value,
     }));
@@ -1238,6 +1238,14 @@ const VendorSubmit = () => {
                     <input type="number" name="ageMin" value={vehicle.ageMin}
                       onChange={handleVehChange} min="18" max="99" />
                     <span>ans</span>
+                  </div>
+                </div>
+                <div className={styles.field}>
+                  <label>Durée minimale de location</label>
+                  <div className={styles.inputAffix}>
+                    <input type="number" name="dureeMinLocation" value={vehicle.dureeMinLocation}
+                      onChange={handleVehChange} min="1" max="30" />
+                    <span>jour{Number(vehicle.dureeMinLocation) > 1 ? "s" : ""}</span>
                   </div>
                 </div>
                 <div className={styles.field}>

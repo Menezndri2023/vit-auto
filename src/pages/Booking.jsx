@@ -783,6 +783,9 @@ export default function Booking() {
                   </label>
                 </div>
                 {days > 0 && <p className={styles.daysLabel}>📅 {days} jour{days > 1 ? "s" : ""} de location</p>}
+                {days > 0 && days < (vehicle?.dureeMinLocation || 1) && (
+                  <p className={styles.errorMsg}>⚠️ Ce véhicule nécessite une location d'au moins {vehicle.dureeMinLocation} jours.</p>
+                )}
 
                 {/* Mode prise en charge */}
                 <h3 className={styles.sectionTitle}>Mode de prise en charge</h3>
@@ -865,7 +868,7 @@ export default function Booking() {
                 disabled={
                   !form.firstName || !form.lastName || !form.email || !form.phone || !form.passportNumber.trim() ||
                   (isLeasing && !leasingAccepted) ||
-                  (!isTrial && !isLeasing && (!form.startDate || !form.endDate || days <= 0)) ||
+                  (!isTrial && !isLeasing && (!form.startDate || !form.endDate || days <= 0 || days < (vehicle?.dureeMinLocation || 1))) ||
                   (isTrial && (!form.preferredDate || !form.preferredTime || !!essaiConflict)) ||
                   (!isLeasing && pickupMethod === "livraison" && !pickupAddress.trim())
                 }

@@ -9506,7 +9506,7 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
         ville: v.ville || "", adresse: v.adresse || "", description: v.description || "",
         contactNom: v.contactNom || "", contactTel: v.contactTel || "",
         currency: v.currency || "", // "" = automatique (devise du visiteur)
-        ageMin: v.ageMin || "", permisRequis: v.permisRequis !== false,
+        ageMin: v.ageMin || "", dureeMinLocation: v.dureeMinLocation || 1, permisRequis: v.permisRequis !== false,
         assuranceOptionnelle: !!v.assuranceOptionnelle, withDriver: !!v.withDriver,
         available: v.available !== false,
       });
@@ -9561,6 +9561,7 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
         rentalDurationType: editForm.rentalDurationType, caution: Number(editForm.caution) || 0,
         description: editForm.description, country: editForm.country || null,
         ville: editForm.ville, adresse: editForm.adresse, ageMin: Number(editForm.ageMin) || 0,
+        dureeMinLocation: Math.max(1, Number(editForm.dureeMinLocation) || 1),
         contactNom: editForm.contactNom, contactTel: editForm.contactTel,
         currency: editForm.currency || null,
         permisRequis: editForm.permisRequis, assuranceOptionnelle: editForm.assuranceOptionnelle,
@@ -10730,10 +10731,17 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
                   </div>
 
                   {editForm.type !== "vente" && (
-                    <div style={{ marginBottom: 12 }}>
-                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Âge minimum requis</label>
-                      <input type="number" min="0" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
-                        value={editForm.ageMin} onChange={(e) => setEditForm((p) => ({ ...p, ageMin: e.target.value }))} />
+                    <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Âge minimum requis</label>
+                        <input type="number" min="0" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                          value={editForm.ageMin} onChange={(e) => setEditForm((p) => ({ ...p, ageMin: e.target.value }))} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Durée minimale de location (jours)</label>
+                        <input type="number" min="1" max="30" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                          value={editForm.dureeMinLocation} onChange={(e) => setEditForm((p) => ({ ...p, dureeMinLocation: e.target.value }))} />
+                      </div>
                     </div>
                   )}
 

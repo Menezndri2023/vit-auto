@@ -349,6 +349,8 @@ const translations = {
   "vd.licenseRequired":  { fr: "Permis de conduire requis",           en: "Driver's license required",     ar: "رخصة القيادة مطلوبة",   es: "Carnet de conducir requerido", zh: "需要驾照"     },
   "vd.ac":               { fr: "Climatisation incluse",               en: "Air conditioning included",     ar: "تكييف مشمول",           es: "Aire acondicionado incluido", zh: "含空调"        },
   "vd.withDriver":       { fr: "Option avec chauffeur disponible",    en: "Chauffeur option available",    ar: "خيار مع سائق متاح",     es: "Opción con chófer disponible", zh: "含司机选项"   },
+  "vd.minDuration":      { fr: "Location minimum :",                  en: "Minimum rental:",                ar: "الحد الأدنى للإيجار:",  es: "Alquiler mínimo:",         zh: "最短租期："     },
+  "vd.daysUnit":         { fr: "jours",                               en: "days",                            ar: "أيام",                  es: "días",                     zh: "天"             },
   "vd.leasing.badge":    { fr: "🏦 Leasing disponible",               en: "🏦 Leasing available",          ar: "🏦 تمويل متاح",         es: "🏦 Leasing disponible",    zh: "🏦 分期付款"   },
   "vd.leasing.subtitle": { fr: "Achetez en mensualités",              en: "Buy in monthly instalments",   ar: "اشتر بأقساط شهرية",    es: "Compra en cuotas mensuales", zh: "按月分期购买"  },
   "vd.leasing.deposit":  { fr: "Apport initial",                      en: "Initial deposit",               ar: "الدفعة الأولى",         es: "Aporte inicial",           zh: "首付"           },

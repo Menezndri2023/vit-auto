@@ -473,7 +473,7 @@ export default function VehicleDetails() {
           )}
 
           {/* Options location */}
-          {!isSale && (vehicle.climatisation || vehicle.withDriver || vehicle.ageMin) && (
+          {!isSale && (vehicle.climatisation || vehicle.withDriver || vehicle.ageMin || vehicle.dureeMinLocation > 1) && (
             <div className={styles.card}>
               <h3 className={styles.cardTitle}>{t("vd.conditions")}</h3>
               <div className={styles.condList}>
@@ -488,6 +488,9 @@ export default function VehicleDetails() {
                 )}
                 {vehicle.withDriver && (
                   <span className={styles.condItem}>👤 {t("vd.withDriver")}</span>
+                )}
+                {vehicle.dureeMinLocation > 1 && (
+                  <span className={styles.condItem}>📅 {t("vd.minDuration")} {vehicle.dureeMinLocation} {t("vd.daysUnit")}</span>
                 )}
               </div>
             </div>

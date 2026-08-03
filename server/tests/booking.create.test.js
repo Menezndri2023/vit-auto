@@ -23,6 +23,30 @@ describe("bookingController.createBooking", () => {
     expect(res.status).toHaveBeenCalledWith(400);
   });
 
+  it("refuse une location sous la durée minimale fixée par le partenaire (dureeMinLocation)", async () => {
+    const vehicle = await createVehicleDoc({ dureeMinLocation: 3 });
+    const { req, res } = mockReqRes({
+      body: {
+        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        location: { days: 2, startDate: "2027-03-10", endDate: "2027-03-12" },
+      },
+    });
+    await createBooking(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it("accepte une location qui atteint exactement la durée minimale", async () => {
+    const vehicle = await createVehicleDoc({ dureeMinLocation: 3, pricePerDay: 1000 });
+    const { req, res } = mockReqRes({
+      body: {
+        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        location: { days: 3, startDate: "2027-03-15", endDate: "2027-03-18" },
+      },
+    });
+    await createBooking(req, res);
+    expect(res.status).not.toHaveBeenCalledWith(400);
+  });
+
   it("crée une réservation location et calcule prix/caution côté serveur (jamais depuis le client)", async () => {
     const vehicle = await createVehicleDoc({ pricePerDay: 15000, caution: 50000 });
     const { req, res } = mockReqRes({

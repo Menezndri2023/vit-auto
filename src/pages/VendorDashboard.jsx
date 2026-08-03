@@ -1662,6 +1662,7 @@ export default function VendorDashboard() {
         currency:    v.currency || "",
         description: v.description || "",
         ageMin:      v.ageMin || "",
+        dureeMinLocation: v.dureeMinLocation || 1,
         permisRequis: v.permisRequis !== false,
         assuranceOptionnelle: !!v.assuranceOptionnelle,
         conditionsLocation: v.conditionsLocation || "",
@@ -1758,6 +1759,7 @@ export default function VendorDashboard() {
         contactTel:  editForm.contactTel,
         currency:    editForm.currency || null,
         ageMin:      Number(editForm.ageMin) || 0,
+        dureeMinLocation: Math.max(1, Number(editForm.dureeMinLocation) || 1),
         permisRequis: editForm.permisRequis,
         assuranceOptionnelle: editForm.assuranceOptionnelle,
         conditionsLocation: editForm.conditionsLocation,
@@ -4278,6 +4280,11 @@ export default function VendorDashboard() {
                       <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Âge minimum requis</label>
                       <input type="number" min="0" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
                         value={editForm.ageMin} onChange={(e) => setEditForm((p) => ({ ...p, ageMin: e.target.value }))} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Durée minimale de location (jours)</label>
+                      <input type="number" min="1" max="30" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                        value={editForm.dureeMinLocation} onChange={(e) => setEditForm((p) => ({ ...p, dureeMinLocation: e.target.value }))} />
                     </div>
                   </div>
                 )}
