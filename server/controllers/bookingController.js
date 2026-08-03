@@ -242,6 +242,14 @@ export const createBooking = async (req, res) => {
       if (!vehicleId) return res.status(400).json({ message: "vehicleId requis." });
       vehicle = await Vehicle.findById(vehicleId);
       if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable." });
+      // `available` est recalculé automatiquement (occupation/pause manuelle,
+      // voir syncVehicleAvailability/getVehicleAvailability) sans jamais revérifier
+      // `status` — un appel public sur GET /api/vehicles/:id/availability peut donc
+      // repasser `available:true` un véhicule encore pending/rejected/draft. Seul
+      // `status` fait foi de la modération admin, pour location/essai/leasing.
+      if (vehicle.status !== "approved") {
+        return res.status(409).json({ message: "Véhicule non disponible." });
+      }
       if (!vehicle.available && type === "location") {
         return res.status(409).json({ message: "Véhicule non disponible." });
       }
@@ -750,6 +758,10 @@ export const createBookingsBatch = async (req, res) => {
         }
         if (vehicle.type !== "location") {
           results.push({ vehicleId, ok: false, message: "Ce véhicule n'est pas disponible à la location." });
+          continue;
+        }
+        if (vehicle.status !== "approved") {
+          results.push({ vehicleId, ok: false, message: "Véhicule non disponible.", title: vehicle.title });
           continue;
         }
         if (!vehicle.available) {
