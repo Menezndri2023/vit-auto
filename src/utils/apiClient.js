@@ -13,40 +13,17 @@
  * - Returns parsed JSON or throws Error with server message
  */
 
+import { refreshAccessTokenOnce } from "./tokenRefreshLock.js";
+
 const KEY_TOKEN   = "vit-auto-token";
 const KEY_REFRESH = "vit-auto-refresh";
 
-let isRefreshing = false;
-let refreshQueue = [];
-
-function getToken()        { try { return localStorage.getItem(KEY_TOKEN)   || ""; } catch { return ""; } }
-function getRefreshToken() { try { return localStorage.getItem(KEY_REFRESH) || ""; } catch { return ""; } }
-function setToken(t)       { try { t ? localStorage.setItem(KEY_TOKEN, t)   : localStorage.removeItem(KEY_TOKEN);   } catch { /* ignore */ } }
-function setRefreshTok(rt) { try { rt ? localStorage.setItem(KEY_REFRESH, rt) : localStorage.removeItem(KEY_REFRESH); } catch { /* ignore */ } }
-
-async function doRefresh() {
-  const rt = getRefreshToken();
-  if (!rt) return null;
-  try {
-    const res  = await fetch("/api/auth/refresh-token", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ refreshToken: rt }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data.token) {
-      setToken(data.token);
-      if (data.refreshToken) setRefreshTok(data.refreshToken);
-      return data.token;
-    }
-    return null;
-  } catch { return null; }
-}
+function getToken() { try { return localStorage.getItem(KEY_TOKEN) || ""; } catch { return ""; } }
+function setToken(t) { try { t ? localStorage.setItem(KEY_TOKEN, t) : localStorage.removeItem(KEY_TOKEN); } catch { /* ignore */ } }
 
 function forceLogout() {
   setToken(null);
-  setRefreshTok(null);
+  try { localStorage.removeItem(KEY_REFRESH); } catch { /* ignore */ }
   try { localStorage.removeItem("vit-auto-user"); } catch { /* ignore */ }
   window.dispatchEvent(new Event("vit:logout"));
 }
@@ -65,26 +42,10 @@ async function request(url, { method = "GET", body, headers = {}, signal } = {})
   let res = await fetch(url, opts);
 
   if (res.status === 401) {
-    if (isRefreshing) {
-      // Mettre en queue et attendre le refresh en cours
-      return new Promise((resolve, reject) => {
-        refreshQueue.push(async (newToken) => {
-          try {
-            const retryHeaders = { ...reqHeaders, Authorization: `Bearer ${newToken}` };
-            resolve(await fetch(url, { ...opts, headers: retryHeaders }));
-          } catch (e) { reject(e); }
-        });
-      }).then(parseResponse);
-    }
-
-    isRefreshing = true;
-    const newToken = await doRefresh();
-    isRefreshing  = false;
-
-    // Résoudre la queue
-    const queue = refreshQueue;
-    refreshQueue = [];
-    queue.forEach((cb) => cb(newToken));
+    // refreshAccessTokenOnce() coalesce tout appelant concurrent (ce module,
+    // AuthContext.jsx) sur le MÊME appel HTTP en vol — plus de verrou local
+    // à gérer ici, voir tokenRefreshLock.js.
+    const newToken = await refreshAccessTokenOnce();
 
     if (newToken) {
       const retryHeaders = { ...reqHeaders, Authorization: `Bearer ${newToken}` };

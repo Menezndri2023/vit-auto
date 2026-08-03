@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { refreshAccessTokenOnce } from "../utils/tokenRefreshLock.js";
 
 const AuthContext = createContext(null);
 
@@ -40,36 +41,22 @@ export const AuthProvider = ({ children }) => {
   const [token,     setToken]     = useState(loadToken);
   const [authReady, setAuthReady] = useState(!loadToken());
 
-  // Éviter plusieurs refreshes simultanés
-  const refreshingRef = useRef(false);
-  const refreshQueue  = useRef([]);
-
   useEffect(() => { saveUser(user);   }, [user]);
   useEffect(() => { saveToken(token); }, [token]);
 
   // ── Rotation du refresh token ──────────────────────────────────────────────
+  // Bug réel corrigé (audit) : délègue désormais à refreshAccessTokenOnce()
+  // (tokenRefreshLock.js), verrou VRAIMENT global partagé avec apiClient.js —
+  // avant ce correctif, AuthContext avait son propre verrou local
+  // (refreshingRef, par instance) totalement indépendant de celui
+  // d'apiClient.js, et le contrôle de démarrage ci-dessous ne le respectait
+  // même pas. Le refresh token étant à usage unique côté serveur (rotation
+  // stricte), deux appels concurrents provoquaient une déconnexion/erreur
+  // pourtant juste après une (re)connexion réussie.
   const doRefresh = async () => {
-    const rt = loadRefreshToken();
-    if (!rt) return null;
-
-    try {
-      const res  = await fetch("/api/auth/refresh-token", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ refreshToken: rt }),
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      if (data.token) {
-        setToken(data.token);
-        saveToken(data.token);
-        if (data.refreshToken) saveRefreshToken(data.refreshToken);
-        return data.token;
-      }
-      return null;
-    } catch {
-      return null;
-    }
+    const newToken = await refreshAccessTokenOnce();
+    if (newToken) setToken(newToken);
+    return newToken;
   };
 
   // ── fetch avec intercepteur automatique 401 → refresh → retry ─────────────
@@ -84,23 +71,7 @@ export const AuthProvider = ({ children }) => {
     let res = await fetch(url, { ...options, headers });
 
     if (res.status === 401) {
-      // Si un refresh est déjà en cours, attendre qu'il finisse
-      if (refreshingRef.current) {
-        return new Promise((resolve) => {
-          refreshQueue.current.push(async (newToken) => {
-            const retryHeaders = { ...headers, Authorization: `Bearer ${newToken}` };
-            resolve(fetch(url, { ...options, headers: retryHeaders }));
-          });
-        });
-      }
-
-      refreshingRef.current = true;
       const newToken = await doRefresh();
-      refreshingRef.current = false;
-
-      // Vider la queue des requêtes en attente
-      refreshQueue.current.forEach((cb) => cb(newToken));
-      refreshQueue.current = [];
 
       if (newToken) {
         const retryHeaders = { ...headers, Authorization: `Bearer ${newToken}` };

@@ -82,6 +82,22 @@ function safeUser(u) {
     createdAt:        u.createdAt,
     lastLogin:        u.lastLogin,
     importerProfile:  u.importerProfile  || null,
+    // Bug réel corrigé (audit) : ces 3 champs sont lus directement sur l'objet
+    // `user` d'AuthContext par VendorDashboard.jsx (isFounder pour les portes
+    // KYC/certification, certificationBadge pour la bannière "Certification
+    // requise", driverLicenseOcr.expiryDate pour l'alerte de péremption du
+    // permis) mais n'étaient jamais renvoyés par safeUser() — toujours
+    // `undefined` côté client, rendant ces fonctionnalités silencieusement
+    // invisibles/mortes pour TOUS les partenaires, pas seulement les
+    // nouveaux. Sous-ensemble minimal exposé pour driverLicenseOcr (jamais
+    // les images recto/verso ni le texte OCR brut, comme `identity` déjà
+    // limité à `.status` ci-dessus).
+    isFounder:          !!u.isFounder,
+    certificationBadge: u.certificationBadge || "none",
+    driverLicenseOcr: u.driverLicenseOcr ? {
+      expiryDate: u.driverLicenseOcr.expiryDate || null,
+      isExpired:  !!u.driverLicenseOcr.isExpired,
+    } : null,
   };
 }
 

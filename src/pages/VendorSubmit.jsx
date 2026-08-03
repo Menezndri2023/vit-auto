@@ -684,8 +684,17 @@ const VendorSubmit = () => {
             try { localStorage.setItem(DRIVER_INTENT_KEY, "1"); } catch { /* ignore */ }
             setTimeout(() => navigate("/kyc?next=driver-docs"), 1500);
           } else if (data?.code === "CERTIFICATION_REQUIRED") {
-            error("Terminez votre vérification partenaire pour publier une annonce. Redirection…");
-            setTimeout(() => navigate("/partner-onboarding"), 1500);
+            // Bug réel corrigé (audit) : redirigeait vers /partner-onboarding,
+            // le portail Founding Partner (5 étapes lourdes dont signature LOI
+            // + Accord) — alors que la condition réellement vérifiée côté
+            // serveur (certificationBadge !== "none") s'obtient via le parcours
+            // de certification standard, bien plus léger (niveaux 1-3, voir
+            // partnerCertificationController.computeBadge). Un partenaire
+            // professionnel/entreprise qui veut juste publier une annonce
+            // chauffeur se retrouvait engagé, sans le comprendre, dans le
+            // processus le plus lourd du site — abandon quasi certain.
+            error("Terminez votre certification partenaire pour publier une annonce. Redirection…");
+            setTimeout(() => navigate("/partner-certification"), 1500);
           } else {
             error(data?.message || "Erreur lors de la publication.");
           }
@@ -743,8 +752,8 @@ const VendorSubmit = () => {
         error("Vérifiez votre identité (pièce d'identité + selfie) pour publier votre annonce. Redirection…");
         setTimeout(() => navigate("/kyc"), 1500);
       } else if (err.code === "CERTIFICATION_REQUIRED") {
-        error("Terminez votre vérification partenaire pour publier une annonce. Redirection…");
-        setTimeout(() => navigate("/partner-onboarding"), 1500);
+        error("Terminez votre certification partenaire pour publier une annonce. Redirection…");
+        setTimeout(() => navigate("/partner-certification"), 1500);
       } else {
         error(err.message || "Erreur lors de la publication. Réessayez.");
       }

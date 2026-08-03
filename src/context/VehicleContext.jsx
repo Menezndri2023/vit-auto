@@ -177,13 +177,27 @@ export const VehicleProvider = ({ children }) => {
   const loadVehicles = useCallback(async (page = 1, append = false) => {
     setVehiclesLoading(true);
     try {
-      const response = await fetch(`/api/vehicles?limit=50&page=${page}`);
+      // Bug réel corrigé (audit) : ne chargeait jamais que les 50 véhicules
+      // les plus récents (limit fixe, `page` jamais incrémenté malgré le
+      // paramètre existant) — tous les filtres du catalogue public (pays,
+      // type, carburant, transmission, prix...) semblaient "ne rien trouver"
+      // pour tout ce qui existait au-delà de cette première page, alors que
+      // le catalogue réel pouvait en contenir bien plus (même schéma que le
+      // bug admin "plafonné à 200" déjà corrigé, jamais appliqué ici). Charge
+      // désormais automatiquement les pages suivantes tant qu'il en reste
+      // (limit=100, max backend public), plafonné à 20 pages (2000 annonces)
+      // pour éviter un cas pathologique.
+      const response = await fetch(`/api/vehicles?limit=100&page=${page}`);
       if (!response.ok) throw new Error("Failed to fetch vehicles");
       const data = await response.json();
-      // Gère l'ancien format (tableau) et le nouveau format paginé ({ vehicles, total })
+      // Gère l'ancien format (tableau) et le nouveau format paginé ({ vehicles, total, pages })
       const list = Array.isArray(data) ? data : (data.vehicles || []);
       const normalized = list.map(normalizeVehicle);
       setVehicles((prev) => append ? [...prev, ...normalized] : normalized);
+      const totalPages = Array.isArray(data) ? 1 : (data.pages || 1);
+      if (totalPages > page && page < 20) {
+        await loadVehicles(page + 1, true);
+      }
     } catch {
       // Repli sur la fixture démo uniquement si le chargement initial échoue
       // et qu'on n'a jamais reçu de vraies données — jamais lors d'un échec de
