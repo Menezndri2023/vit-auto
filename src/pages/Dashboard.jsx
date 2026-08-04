@@ -92,6 +92,7 @@ const normalizeBooking = (b) => {
     // Partenaire
     partnerPhone:  veh?.contactTel || drv?.phone || null,
     partnerName:   veh?.contactNom || (drv ? `${drv.firstName} ${drv.lastName}` : null),
+    country:       veh?.country || drv?.country || null,
     // Contrat
     contract:      b.contract?._id || b.contract,
     // Annulation
@@ -1212,9 +1213,13 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
             🧾 Reçu
           </a>
         )}
+        {/* Refonte (demande explicite) : l'appel ne passe plus jamais
+            directement chez le partenaire — uniquement sur le service client
+            VIT AUTO dédié au pays de l'annonce/du chauffeur, pour que l'admin
+            puisse gérer la demande à la place du partenaire si besoin. */}
         {isActive && booking.partnerPhone && (
-          <a href={`tel:${booking.partnerPhone}`} className={styles.btnContact}>
-            📞 Appeler le partenaire
+          <a href={`tel:${booking.country === "CI" ? "+2250748124635" : "+2120607742672"}`} className={styles.btnContact}>
+            📞 Appeler le service client
           </a>
         )}
         {isActive && booking.id && (

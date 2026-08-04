@@ -899,8 +899,8 @@ export const getMyBookings = async (req, res) => {
         .sort({ createdAt: -1 })
         .skip((safePage - 1) * safeLimit)
         .limit(safeLimit)
-        .populate("vehicle", "title marque modele pricePerDay ville contactTel contactNom owner")
-        .populate("driver",  "firstName lastName profilePhoto tarif zone phone owner")
+        .populate("vehicle", "title marque modele pricePerDay ville contactTel contactNom owner country")
+        .populate("driver",  "firstName lastName profilePhoto tarif zone phone owner country")
         .populate("payment", "method status amount devise")
         .lean(),
       Booking.countDocuments(filter),
@@ -2173,7 +2173,13 @@ export const modifyBookingDates = async (req, res) => {
     const isOwnerById    = booking.client && booking.client.toString() === userId?.toString();
     const isOwnerByEmail = !booking.client && req.user?.emailVerified === true
       && booking.clientInfo?.email?.toLowerCase() === req.user?.email?.toLowerCase();
-    if (!isOwnerById && !isOwnerByEmail) {
+    // Bug réel corrigé (audit) : réservé au client uniquement, aucune branche
+    // admin — depuis que les appels client passent par le service client VIT
+    // AUTO centralisé (plus jamais directement chez le partenaire), l'admin
+    // doit pouvoir agir à la place d'un client qui appelle pour modifier sa
+    // réservation. Même pattern que isOwner||admin déjà utilisé partout
+    // ailleurs dans ce fichier (updateBookingStatus, claimCaution...).
+    if (!isOwnerById && !isOwnerByEmail && req.user?.role !== "admin") {
       return res.status(403).json({ message: "Accès refusé à cette réservation." });
     }
 
@@ -2283,7 +2289,9 @@ export const extendBooking = async (req, res) => {
     const isOwnerById    = booking.client && booking.client.toString() === userId?.toString();
     const isOwnerByEmail = !booking.client && req.user?.emailVerified === true
       && booking.clientInfo?.email?.toLowerCase() === req.user?.email?.toLowerCase();
-    if (!isOwnerById && !isOwnerByEmail) {
+    // Admin peut agir à la place d'un client qui appelle le service client
+    // centralisé — voir modifyBookingDates ci-dessus pour le même correctif.
+    if (!isOwnerById && !isOwnerByEmail && req.user?.role !== "admin") {
       return res.status(403).json({ message: "Accès refusé à cette réservation." });
     }
 
@@ -2400,7 +2408,9 @@ export const cancelBookingByClient = async (req, res) => {
     const isOwnerById    = booking.client && booking.client.toString() === userId?.toString();
     const isOwnerByEmail = !booking.client && req.user?.emailVerified === true
       && booking.clientInfo?.email?.toLowerCase() === req.user?.email?.toLowerCase();
-    if (!isOwnerById && !isOwnerByEmail) {
+    // Admin peut agir à la place d'un client qui appelle le service client
+    // centralisé — voir modifyBookingDates ci-dessus pour le même correctif.
+    if (!isOwnerById && !isOwnerByEmail && req.user?.role !== "admin") {
       return res.status(403).json({ message: "Accès refusé à cette réservation." });
     }
 
@@ -2487,6 +2497,7 @@ export const cancelBookingByClient = async (req, res) => {
 // objet pour une location/vente/essai.
 
 const requireClientOwnership = (booking, req) => {
+  if (req.user?.role === "admin") return true; // service client centralisé, voir modifyBookingDates
   const userId = req.user?.id || req.user?._id;
   const isOwnerById    = booking.client && booking.client.toString() === userId?.toString();
   const isOwnerByEmail = !booking.client && booking.clientInfo?.email?.toLowerCase() === req.user?.email?.toLowerCase();

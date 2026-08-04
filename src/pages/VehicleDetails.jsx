@@ -540,56 +540,65 @@ export default function VehicleDetails() {
           )}
 
           {/* ── Carte annonceur ── */}
-          {(vehicle.ownerName || vehicle.contactNom || vehicle.partnerName || vehicle.ownerPhone || vehicle.contactTel) && (
-            <div className={styles.card}>
-              <h3 className={styles.cardTitle}>{t("vd.publisher")}</h3>
-              <div className={styles.publisherCard}>
-                <div className={styles.publisherAvatar}>
-                  {(vehicle.ownerName || vehicle.contactNom || "P").charAt(0).toUpperCase()}
-                </div>
-                <div className={styles.publisherInfo}>
-                  <strong className={styles.publisherName}>
-                    {vehicle.ownerName || vehicle.contactNom || vehicle.partnerName || "Partenaire VIT AUTO"}
-                  </strong>
-                  {vehicle.ownerCity && (
-                    <span className={styles.publisherMeta}>📍 {vehicle.ownerCity}</span>
-                  )}
-                  {vehicle.isConcessionnaire && (
-                    <span className={styles.publisherMeta}>🏬 {t("vd.dealer")}</span>
-                  )}
-                </div>
-                <div className={styles.publisherActions}>
-                  {(vehicle.ownerPhone || vehicle.contactTel) && (
-                    <a
-                      href={`tel:${vehicle.ownerPhone || vehicle.contactTel}`}
-                      className={styles.publisherCall}
-                    >
+          {/* Refonte (demande explicite) : les appels ne passent plus jamais
+              directement chez le partenaire — uniquement sur le numéro de
+              service client VIT AUTO dédié au pays de l'annonce (Maroc ou
+              Côte d'Ivoire, un seul des deux affiché/appelé selon
+              vehicle.country). Le numéro du partenaire reste visible à titre
+              informatif (texte, pas de lien tel:) ; l'appel réel est
+              centralisé pour que l'admin puisse gérer la demande à la place
+              du partenaire si besoin (voir bookingController — admin a
+              désormais les mêmes actions que le propriétaire sur toute
+              réservation/essai). */}
+          {(vehicle.ownerName || vehicle.contactNom || vehicle.partnerName || vehicle.ownerPhone || vehicle.contactTel) && (() => {
+            const isCI = vehicle.country === "CI";
+            const serviceTel     = isCI ? "+2250748124635" : "+2120607742672";
+            const serviceDisplay = isCI ? "🇨🇮 +225 07 48 12 46 35" : "🇲🇦 +212 06 07 74 26 72";
+            const partnerPhone = vehicle.ownerPhone || vehicle.contactTel;
+            return (
+              <div className={styles.card}>
+                <h3 className={styles.cardTitle}>{t("vd.publisher")}</h3>
+                <div className={styles.publisherCard}>
+                  <div className={styles.publisherAvatar}>
+                    {(vehicle.ownerName || vehicle.contactNom || "P").charAt(0).toUpperCase()}
+                  </div>
+                  <div className={styles.publisherInfo}>
+                    <strong className={styles.publisherName}>
+                      {vehicle.ownerName || vehicle.contactNom || vehicle.partnerName || "Partenaire VIT AUTO"}
+                    </strong>
+                    {vehicle.ownerCity && (
+                      <span className={styles.publisherMeta}>📍 {vehicle.ownerCity}</span>
+                    )}
+                    {vehicle.isConcessionnaire && (
+                      <span className={styles.publisherMeta}>🏬 {t("vd.dealer")}</span>
+                    )}
+                    {partnerPhone && (
+                      <span className={styles.publisherMeta}>👤 {t("vd.partnerPhoneInfo")} {partnerPhone}</span>
+                    )}
+                  </div>
+                  <div className={styles.publisherActions}>
+                    <a href={`tel:${serviceTel}`} className={styles.publisherCall}>
                       {t("vd.call")}
                     </a>
-                  )}
-                  {vehicle.ownerId && (
-                    <Link
-                      to={`/partner/${vehicle.ownerId}`}
-                      className={styles.publisherProfile}
-                    >
-                      {t("vd.publisherProfile")}
-                    </Link>
-                  )}
+                    {vehicle.ownerId && (
+                      <Link
+                        to={`/partner/${vehicle.ownerId}`}
+                        className={styles.publisherProfile}
+                      >
+                        {t("vd.publisherProfile")}
+                      </Link>
+                    )}
+                  </div>
+                </div>
+                <div className={styles.publisherMeta} style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 3 }}>
+                  <strong style={{ fontSize: ".78rem" }}>{t("vd.customerService")}</strong>
+                  <a href={`tel:${serviceTel}`} style={{ color: "#ff4d2d", fontWeight: 700, textDecoration: "none", fontSize: ".85rem" }}>
+                    {serviceDisplay}
+                  </a>
                 </div>
               </div>
-              {/* Numéro vert service client VIT AUTO — affiché juste à côté du
-                  contact partenaire, indépendant de l'annonce/partenaire. */}
-              <div className={styles.publisherMeta} style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 3 }}>
-                <strong style={{ fontSize: ".78rem" }}>{t("vd.customerService")}</strong>
-                <a href="tel:+2120607742672" style={{ color: "#ff4d2d", fontWeight: 700, textDecoration: "none", fontSize: ".85rem" }}>
-                  🇲🇦 +212 06 07 74 26 72
-                </a>
-                <a href="tel:+2250748124635" style={{ color: "#ff4d2d", fontWeight: 700, textDecoration: "none", fontSize: ".85rem" }}>
-                  🇨🇮 +225 07 48 12 46 35
-                </a>
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* ── Rapport d'inspection ── */}
           <InspectionSection vehicleId={vehicle._id || vehicle.id} />

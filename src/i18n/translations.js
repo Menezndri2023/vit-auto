@@ -365,6 +365,7 @@ const translations = {
   "vd.cancellationPolicy": { fr: "Annulation",                        en: "Cancellation",                  ar: "الإلغاء",               es: "Cancelación",              zh: "取消政策"       },
   "vd.insuranceIncluded": { fr: "Assurance complète incluse",         en: "Full insurance included",       ar: "تأمين شامل مشمول",      es: "Seguro completo incluido", zh: "含全险"         },
   "vd.customerService":  { fr: "Service client VIT AUTO",             en: "VIT AUTO customer service",     ar: "خدمة عملاء VIT AUTO",   es: "Servicio al cliente VIT AUTO", zh: "VIT AUTO 客服" },
+  "vd.partnerPhoneInfo": { fr: "Tél. partenaire (info) :",             en: "Partner phone (info):",         ar: "هاتف الشريك (معلومة):", es: "Tel. socio (info):",       zh: "合作伙伴电话（信息）：" },
   "vd.publisher":        { fr: "À propos de l'annonceur",             en: "About the seller",              ar: "عن المُعلن",            es: "Sobre el anunciante",      zh: "关于卖家"       },
   "vd.publisherProfile": { fr: "Voir le profil →",                    en: "View profile →",                ar: "عرض الملف الشخصي →",    es: "Ver perfil →",             zh: "查看主页 →"    },
   "vd.call":             { fr: "📞 Appeler",                           en: "📞 Call",                       ar: "📞 اتصل",               es: "📞 Llamar",                zh: "📞 致电"        },

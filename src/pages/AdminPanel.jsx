@@ -2864,6 +2864,22 @@ export default function AdminPanel() {
     });
   }, [onSocket, showToast]);
 
+  // Bug réel corrigé (audit) : le backend émet déjà "booking_updated" vers la
+  // room `admins` à chaque changement de statut (partenaire OU admin), et
+  // VendorDashboard.jsx/Dashboard.jsx l'exploitent déjà pour se rafraîchir en
+  // temps réel — mais AdminPanel.jsx n'avait AUCUN écouteur dessus. L'admin
+  // ne voyait donc jamais en direct qu'un partenaire avait fait progresser une
+  // réservation (préparation, prêt, transaction...), seulement après clic
+  // manuel sur "Actualiser" ou rechargement de page — la synchronisation à 3
+  // voies (client/admin/partenaire) demandée n'était donc réelle que dans 2
+  // des 3 sens.
+  useEffect(() => {
+    return onSocket("booking_updated", (payload) => {
+      refreshPendingListings();
+      if (payload?.reference) showToast(`🔄 Commande ${payload.reference} mise à jour (${payload.status || ""})`, "info");
+    });
+  }, [onSocket, showToast, refreshPendingListings]);
+
   useEffect(() => {
     return onSocket("notification_new", (payload) => {
       if (payload?.type === "new_vehicle" || payload?.type === "new_driver") {
@@ -4106,6 +4122,29 @@ export default function AdminPanel() {
                                 <button style={{ padding:"0.2rem 0.5rem", fontSize:"0.72rem", background:"#e0f2fe", color:"#0369a1", border:"none", borderRadius:6, cursor:"pointer", fontWeight:700 }}
                                   onClick={() => { setForceModal({ booking:b }); setForceAmount(b.montantTotal||""); setForceNote(""); }}
                                   title="Forcer complétion">⚡</button>
+                              )}
+                              {/* Refonte (demande explicite) : parité admin/partenaire sur les
+                                  réservations — le partenaire fait progresser une commande étape
+                                  par étape (préparation, prêt, en cours, client arrivé...) via
+                                  VendorDashboard, l'admin n'avait jusqu'ici que confirmer/annuler/
+                                  forcer/litige. Le backend valide déjà la transition (machine à
+                                  états, isOwner||admin), ce select réutilise adminUpdateBooking
+                                  tel quel — une étape invalide est simplement rejetée par le
+                                  serveur avec un message d'erreur. */}
+                              {isActive && b.status !== "pending" && (
+                                <select value="" onChange={(e) => { if (e.target.value) adminUpdateBooking(b._id, e.target.value); }}
+                                  title="Changer l'étape (comme le partenaire)"
+                                  style={{ fontSize:"0.7rem", padding:"2px 4px", borderRadius:6, border:"1.5px solid #e2e8f0", color:"#0f1b3f", fontWeight:600 }}>
+                                  <option value="">Étape…</option>
+                                  <option value="preparing">⚙️ Préparation</option>
+                                  <option value="ready">✅ Prêt</option>
+                                  <option value="in_progress">🚗 En cours</option>
+                                  <option value="client_arrived">🤝 Client présent</option>
+                                  <option value="driver_arrived">📍 Chauffeur arrivé</option>
+                                  <option value="waiting_client_validation">💰 Transaction</option>
+                                  <option value="transaction_concluded">✔️ Transaction conclue</option>
+                                  <option value="completed">🏁 Terminée</option>
+                                </select>
                               )}
                               {isDisputed && (
                                 <button style={{ padding:"0.2rem 0.5rem", fontSize:"0.72rem", background:"#fee2e2", color:"#dc2626", border:"1px solid #fca5a5", borderRadius:6, cursor:"pointer", fontWeight:700 }}
