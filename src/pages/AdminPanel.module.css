@@ -708,6 +708,24 @@
 }
 .pvInput:focus { border-color: #6d28d9; }
 
+/* Barre de filtres (recherche/pays/type) des pickers carrousel/vedette
+   (MarketingSection, AdminPanel.jsx) — colonne unique en dessous de 480px
+   pour rester utilisable depuis un téléphone plutôt que des champs écrasés
+   côte à côte. */
+.pvFilterBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.pvFilterBar .pvInput { width: auto; }
+@media (max-width: 480px) {
+  .pvFilterBar {
+    flex-direction: column;
+  }
+  .pvFilterBar .pvInput { width: 100%; flex: none !important; }
+}
+
 @media (max-width: 900px) {
   .pvDrawer {
     border-radius: 16px 16px 0 0;

@@ -61,7 +61,7 @@ const DEFAULT_SLIDES = [
 
 export default function HeroSection() {
   const { vehicles, featuredVehicles } = useVehicles();
-  const { fmt }      = useCurrency();
+  const { fmt, catalogCountry } = useCurrency();
   const navigate     = useNavigate();
 
   const [current, setCurrent] = useState(0);
@@ -72,13 +72,21 @@ export default function HeroSection() {
   // uniquement (aucun visiteur réel ne le voyait jamais), et le titre/sous-
   // titre n'étaient de toute façon lus nulle part dans ce composant (JSX
   // figé). Voir server/models/SiteContent.js + MarketingSection (AdminPanel.jsx).
-  const [heroContent, setHeroContent] = useState({ heroTitle: "", heroSubtitle: "", heroSpotlights: [] });
+  const [heroContent, setHeroContent] = useState({ heroTitle: "", heroSubtitle: "", heroSpotlights: [], heroSpotlightsByCountry: [] });
   useEffect(() => {
     fetch("/api/site-content/hero")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (d) setHeroContent(d); })
       .catch(() => {});
   }, []);
+
+  // Sélection par pays si l'admin en a configuré une pour le pays de catalogue
+  // du visiteur (voir catalogCountry/CurrencyContext) — sinon repli sur la
+  // sélection par défaut (heroSpotlights globale, voir SiteContent.js).
+  const activeSpotlights = useMemo(() => {
+    const byCountry = (heroContent.heroSpotlightsByCountry || []).find((c) => c.country === catalogCountry);
+    return byCountry?.vehicles?.length ? byCountry.vehicles : (heroContent.heroSpotlights || []);
+  }, [heroContent.heroSpotlightsByCountry, heroContent.heroSpotlights, catalogCountry]);
 
   // heroSpotlights est déjà peuplé par le backend (voir siteContentController
   // .populate) avec les champs nécessaires à l'affichage — un index par id
@@ -91,14 +99,14 @@ export default function HeroSection() {
   // silencieusement du carousel malgré le choix explicite de l'admin.
   const adminSpotlightVehicles = useMemo(() => {
     const byId = new Map(vehicles.map((v) => [(v._id || v.id)?.toString(), v]));
-    return (heroContent.heroSpotlights || [])
+    return activeSpotlights
       .map((spot) => {
         const id = (spot?._id || spot)?.toString();
         if (!id) return null;
         return byId.get(id) || spot; // repli sur la version peuplée par l'API hero
       })
       .filter(Boolean);
-  }, [heroContent.heroSpotlights, vehicles]);
+  }, [activeSpotlights, vehicles]);
 
   const defaultSlides = useMemo(() => DEFAULT_SLIDES.map((s) => ({
     ...s,

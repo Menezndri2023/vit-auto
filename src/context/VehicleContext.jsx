@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import { useAuth } from "./AuthContext";
+import { useCurrency } from "./CurrencyContext";
 import { vehicles as initialVehicles } from "../data/vehicles";
 
 // Convertit une commande MongoDB (backend) en format plat utilisé par les dashboards
@@ -168,6 +169,7 @@ const saveBookings = (bookings) => {
 
 export const VehicleProvider = ({ children }) => {
   const { token, user, authReady } = useAuth();
+  const { catalogCountry } = useCurrency();
   // Vide au départ (pas la fixture démo BMW X5/Tesla Model 3 ci-dessous) — sinon
   // chaque visiteur voyait ces véhicules fictifs s'afficher puis se faire
   // remplacer par le vrai catalogue dès que loadVehicles() aboutit (quelques
@@ -234,13 +236,30 @@ export const VehicleProvider = ({ children }) => {
   // annonces. Requête backend dédiée, filtrée strictement sur featured:true.
   const [featuredVehicles, setFeaturedVehicles] = useState([]);
   const [featuredLoading, setFeaturedLoading] = useState(false);
+  // Filtré par pays de catalogue du visiteur quand connu (voir
+  // catalogCountry/CurrencyContext) — demande explicite : la mise en avant
+  // doit pouvoir différer par pays. Un pays sans aucune annonce `featured`
+  // (admin n'a pas encore curaté CE pays précis) retombe sur la sélection
+  // globale plutôt que d'afficher une section vide, le filtre pays reste donc
+  // un raffinement, jamais un risque de "vedette" invisible pour un pays.
   const loadFeaturedVehicles = useCallback(async () => {
     setFeaturedLoading(true);
     try {
-      const response = await fetch("/api/vehicles?featured=true&limit=12");
-      if (!response.ok) return;
-      const data = await response.json();
-      const list = Array.isArray(data) ? data : (data.vehicles || []);
+      const byCountry = catalogCountry
+        ? await fetch(`/api/vehicles?featured=true&limit=12&country=${encodeURIComponent(catalogCountry)}`)
+        : null;
+      let list = [];
+      if (byCountry?.ok) {
+        const data = await byCountry.json();
+        list = Array.isArray(data) ? data : (data.vehicles || []);
+      }
+      if (!list.length) {
+        const response = await fetch("/api/vehicles?featured=true&limit=12");
+        if (response.ok) {
+          const data = await response.json();
+          list = Array.isArray(data) ? data : (data.vehicles || []);
+        }
+      }
       setFeaturedVehicles(list.map(normalizeVehicle));
     } catch {
       // Section vide si le backend est indisponible — jamais de repli sur
@@ -248,7 +267,7 @@ export const VehicleProvider = ({ children }) => {
     } finally {
       setFeaturedLoading(false);
     }
-  }, []);
+  }, [catalogCountry]);
 
   useEffect(() => {
     const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 200));
