@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { LICENSE_CATEGORIES } from "../constants/licenseCategories.js";
 
 const driverSchema = new mongoose.Schema({
   // ── Propriétaire du profil (partenaire) ───────────────────
@@ -23,14 +24,37 @@ const driverSchema = new mongoose.Schema({
   title:       { type: String, required: true, trim: true },
   description: { type: String, trim: true },
 
-  // ── Tarification (USD — voir server/scripts/migrate-vehicle-booking-to-usd.mjs
-  // pour la migration des profils créés avant ce champ, implicitement en FCFA/XOF) ──
+  // ── Tarification (stockage toujours en USD — voir
+  // server/scripts/migrate-vehicle-booking-to-usd.mjs pour la migration des
+  // profils créés avant ce champ, implicitement en FCFA/XOF) ────────────────
   // Facultative : le chauffeur fixe librement ses tarifs, aucun n'est obligatoire
   // (contrairement à Vehicle.pricePerDay/priceForSale) — voir driverController.js.
-  currency:         { type: String, default: "USD" },
+  //
+  // Devise D'AFFICHAGE choisie par le partenaire/admin pour CE profil — même
+  // principe que Vehicle.currency (voir son commentaire pour l'explication
+  // complète) : `null` = pas de préférence, chaque visiteur voit le tarif
+  // converti dans SA PROPRE devise détectée ; une valeur explicite fige
+  // l'affichage dans cette devise pour tous les visiteurs. Bug réel corrigé
+  // (audit) : ce champ existait déjà mais restait à "USD" par défaut sans
+  // jamais être lu nulle part — aucun moyen pour un chauffeur de choisir sa
+  // devise d'affichage, contrairement aux véhicules. Voir migration
+  // "driver-currency-reset-2026-08-04" (server.js) pour la remise à null des
+  // profils déjà en base (l'ancien défaut "USD" n'était jamais un choix réel).
+  currency: { type: String, default: null },
+
   tarif:            { type: Number }, // par jour
   tarifDemiJournee: { type: Number }, // demi-journée
   tarifHeure:       { type: Number }, // à l'heure — pertinent surtout avec véhicule (vehiculePersonnel)
+
+  // Montant EXACT tel que tapé par le partenaire (dans `priceEntryCurrency`),
+  // conservé à côté de tarif/tarifDemiJournee/tarifHeure (toujours en USD) —
+  // même principe que Vehicle.pricePerDayEntered : sans ça, l'aller-retour de
+  // conversion (saisie → USD arrondi → reconversion pour l'affichage) perd de
+  // la précision (ex: 350 MAD saisis deviennent 349,99 MAD ré-affichés).
+  tarifEntered:            { type: Number, default: null },
+  tarifDemiJourneeEntered: { type: Number, default: null },
+  tarifHeureEntered:       { type: Number, default: null },
+  priceEntryCurrency:      { type: String, default: null },
 
   // ── Disponibilité & zone ──────────────────────────────────
   disponibilite: {
@@ -55,7 +79,19 @@ const driverSchema = new mongoose.Schema({
   // ── Expérience & compétences ──────────────────────────────
   experience:     { type: String, required: true }, // ex: "5 ans"
   langues:        { type: [String], default: ["Français"] },
-  permisCategorie:{ type: String, default: "B" },   // B, C, D...
+  // Un chauffeur détient couramment plusieurs catégories à la fois (ex: B+D
+  // pour VTC ET transport en commun) — tableau plutôt qu'une seule valeur.
+  // Bug réel corrigé (audit) : le sélecteur ne proposait avant que 5 valeurs
+  // ("B","C","D","E","B+C", "E" seul n'étant même pas une catégorie réelle),
+  // ne couvrant ni la gamme complète (AM/A1/A2/A/B1/BE/C1/C1E/CE/D1/D1E/DE)
+  // ni la possibilité d'en cumuler plusieurs. Voir constants/licenseCategories.js
+  // pour la liste de référence (dupliquée côté src/) et
+  // utils/runOnceMigration.js pour la conversion des anciennes valeurs texte
+  // ("B", "B+C"...) déjà en base.
+  permisCategorie: {
+    type: [{ type: String, enum: LICENSE_CATEGORIES }],
+    default: ["B"],
+  },
   // Avec véhicule (true) : le chauffeur propose aussi son propre véhicule —
   // exige alors des photos du véhicule (`images`) en plus de `profilePhoto`.
   // Sans véhicule (false) : seule `profilePhoto` est exigée, `images` reste vide

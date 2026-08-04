@@ -59,7 +59,7 @@ const ModeToggle = memo(({ mode, setMode, goToCatalogue }) => {
           data-label="Autres"
         >
           <span className={styles.icon}>🎈</span>
-          <span>OTHERS</span>
+          <span>Autres</span>
         </button>
       </div>
     </div>

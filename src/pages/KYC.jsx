@@ -9,6 +9,8 @@ import { extractDocumentOcr, checkDocumentQuality, initOcrWorker } from "../util
 import { compareFaces, checkSelfieQuality } from "../utils/faceAnalysis.js";
 import { validateExpiryDate } from "../utils/idValidation.js";
 import { requiresBusinessDocs } from "../constants/partnerTaxonomy";
+import { LICENSE_CATEGORIES, LICENSE_CATEGORY_LABELS, INTERNATIONAL_LICENSE_CODE, INTERNATIONAL_LICENSE_LABEL } from "../constants/licenseCategories";
+import { WORLD_COUNTRIES } from "../data/worldCountries";
 import styles from "./KYC.module.css";
 
 const DOC_TYPES = [
@@ -134,7 +136,17 @@ export default function KYC() {
   const [licenseBackUrl,     setLicenseBackUrl]     = useState(null);
   const [licenseOcrData,     setLicenseOcrData]     = useState(null);
   const [licenseNumber,      setLicenseNumber]      = useState("");
-  const [licenseCategories,  setLicenseCategories]  = useState("");
+  // Sélection multiple plutôt qu'un champ texte libre — un permis réel
+  // combine souvent plusieurs catégories (voir constants/licenseCategories.js,
+  // même liste que Driver.permisCategorie côté profil chauffeur pro).
+  const [licenseCategories,  setLicenseCategories]  = useState([]);
+  // Pays de délivrance saisi manuellement — jusqu'ici uniquement déduit de
+  // l'OCR (licenseOcrData.issuingCountry) sans aucun moyen de le corriger ou
+  // de le renseigner si l'OCR n'y arrive pas. "International" = Permis de
+  // Conduire International (Convention de Vienne 1968), pas rattaché à un
+  // pays précis. Pré-rempli depuis l'OCR dès qu'il aboutit (voir useEffect
+  // plus bas), reste modifiable par l'utilisateur.
+  const [licenseIssuingCountry, setLicenseIssuingCountry] = useState("");
   const [licenseSubmitting,  setLicenseSubmitting]  = useState(false);
   const [licenseSubmitted,   setLicenseSubmitted]   = useState(false);
   const [licenseError,       setLicenseError]       = useState("");
@@ -394,8 +406,9 @@ export default function KYC() {
       const extracted = await extractDocumentOcr(url, "permis", () => {});
       setLicenseOcrData(extracted);
       if (extracted?.documentNumber && !licenseNumber) setLicenseNumber(extracted.documentNumber);
+      if (extracted?.issuingCountry && !licenseIssuingCountry) setLicenseIssuingCountry(extracted.issuingCountry);
     } catch { /* non bloquant, voir commentaire ci-dessus */ }
-  }, [licenseNumber]);
+  }, [licenseNumber, licenseIssuingCountry]);
 
   const processLicenseImage = useCallback(async (file, side) => {
     if (!file) return;
@@ -424,8 +437,11 @@ export default function KYC() {
         licenseOcrData: {
           licenseNumber:  licenseNumber.trim(),
           expiryDate:     licenseOcrData?.expiryDate || null,
-          issuingCountry: licenseOcrData?.issuingCountry || null,
-          categories:     licenseCategories.trim() || null,
+          // Le choix manuel prime toujours sur la détection OCR — voir
+          // licenseIssuingCountry ci-dessus (pré-rempli par l'OCR mais
+          // modifiable, notamment pour choisir "International").
+          issuingCountry: licenseIssuingCountry || licenseOcrData?.issuingCountry || null,
+          categories:     licenseCategories.length ? licenseCategories.join(", ") : null,
           rawOcrText:     licenseOcrData?.rawOcrText || null,
         },
         licenseImageHash: frontHash,
@@ -1076,9 +1092,35 @@ export default function KYC() {
               </div>
 
               <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>Pays de délivrance</label>
+                <select value={licenseIssuingCountry} onChange={(e) => setLicenseIssuingCountry(e.target.value)}
+                  className={styles.textInput}>
+                  <option value="">— Sélectionner —</option>
+                  <option value={INTERNATIONAL_LICENSE_CODE}>{INTERNATIONAL_LICENSE_LABEL}</option>
+                  {WORLD_COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.name}>{c.flag} {c.name}</option>
+                  ))}
+                </select>
+                {licenseOcrData?.issuingCountry && (
+                  <p style={{ fontSize: ".78rem", color: "#8493b0", margin: "4px 0 0" }}>
+                    Détecté automatiquement ({licenseOcrData.issuingCountry}) — vérifiez et corrigez si besoin.
+                  </p>
+                )}
+              </div>
+
+              <div className={styles.fieldGroup}>
                 <label className={styles.fieldLabel}>Catégories (optionnel)</label>
-                <input type="text" value={licenseCategories} onChange={(e) => setLicenseCategories(e.target.value)}
-                  placeholder="Ex : B, D" className={styles.textInput} />
+                <div className={styles.docTypeGrid} style={{ gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))" }}>
+                  {LICENSE_CATEGORIES.map((c) => (
+                    <label key={c} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: ".82rem", cursor: "pointer" }}>
+                      <input type="checkbox" checked={licenseCategories.includes(c)}
+                        onChange={(e) => setLicenseCategories((prev) => e.target.checked
+                          ? [...prev, c]
+                          : prev.filter((x) => x !== c))} />
+                      {LICENSE_CATEGORY_LABELS[c] || c}
+                    </label>
+                  ))}
+                </div>
               </div>
 
               {licenseError && <p className={styles.errorMsg}>❌ {licenseError}</p>}

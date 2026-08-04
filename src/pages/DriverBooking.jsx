@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../context/CurrencyContext";
 import ReportButton from "../components/ReportButton/ReportButton";
+import PriceTag from "../components/PriceTag/PriceTag";
 import styles from "./Booking.module.css";
 import dbStyles from "./DriverBooking.module.css";
 
@@ -24,7 +25,7 @@ const DriverBooking = () => {
   const { getItemById } = useVehicles();
   const { user, token } = useAuth();
   const { success, error } = useToast();
-  const { fmt, getPaymentMethodsForCountry, catalogCountry, countryCode } = useCurrency();
+  const { getPaymentMethodsForCountry, catalogCountry, countryCode } = useCurrency();
 
   const driver = getItemById(id);
 
@@ -89,6 +90,9 @@ const DriverBooking = () => {
   const hasHourlyRate = Number(driver.tarifHeure) > 0;
   const tarifHeure = hasHourlyRate ? Number(driver.tarifHeure) : 0;
   const total = tarifHeure * (Number(heures) || 0);
+  // Multiplier le montant SAISI (pas l'USD reconverti) préserve l'exactitude —
+  // même principe que PriceTag (voir son commentaire) appliqué à un total calculé.
+  const enteredTotal = driver.tarifHeureEntered != null ? driver.tarifHeureEntered * (Number(heures) || 0) : null;
 
   const isMobile = ["orange_money", "wave", "mtn", "moov"].includes(selectedMethod);
   const isCard   = selectedMethod === "card";
@@ -317,13 +321,18 @@ const DriverBooking = () => {
           className={dbStyles.textInput} />
         {hasHourlyRate ? (
           <p className={dbStyles.hoursHint}>
-            Tarif horaire : {fmt(tarifHeure)} / heure
+            Tarif horaire : <PriceTag amountUSD={tarifHeure} pinnedCurrency={driver.currency} enteredAmount={driver.tarifHeureEntered} enteredCurrency={driver.priceEntryCurrency} compact /> / heure
           </p>
         ) : (
           <div className={dbStyles.noRateWarning}>
             ⚠️ Ce chauffeur ne propose pas de tarif horaire — réservation en ligne indisponible.
             {(driver.tarif > 0 || driver.tarifDemiJournee > 0) && (
-              <> Contactez-le directement pour ses tarifs {driver.tarif > 0 && `journée (${fmt(driver.tarif)})`}{driver.tarif > 0 && driver.tarifDemiJournee > 0 && " / "}{driver.tarifDemiJournee > 0 && `demi-journée (${fmt(driver.tarifDemiJournee)})`}.</>
+              <>
+                {" "}Contactez-le directement pour ses tarifs
+                {driver.tarif > 0 && <> journée (<PriceTag amountUSD={driver.tarif} pinnedCurrency={driver.currency} enteredAmount={driver.tarifEntered} enteredCurrency={driver.priceEntryCurrency} compact />)</>}
+                {driver.tarif > 0 && driver.tarifDemiJournee > 0 && " / "}
+                {driver.tarifDemiJournee > 0 && <> demi-journée (<PriceTag amountUSD={driver.tarifDemiJournee} pinnedCurrency={driver.currency} enteredAmount={driver.tarifDemiJourneeEntered} enteredCurrency={driver.priceEntryCurrency} compact />)</>}.
+              </>
             )}
           </div>
         )}
@@ -370,12 +379,14 @@ const DriverBooking = () => {
       {/* Total + confirmation */}
       <div className={dbStyles.totalBar}>
         <span className={dbStyles.totalLabel}>Total estimé</span>
-        <strong className={dbStyles.totalValue}>{fmt(total)}</strong>
+        <strong className={dbStyles.totalValue}>
+          <PriceTag amountUSD={total} pinnedCurrency={driver.currency} enteredAmount={enteredTotal} enteredCurrency={driver.priceEntryCurrency} />
+        </strong>
       </div>
 
       <button onClick={handleSubmit} disabled={submitting || !missionStart || !!slotConflict || !hasHourlyRate}
         className={dbStyles.submitBtn}>
-        {submitting ? "Envoi en cours…" : `Employer ce chauffeur — ${fmt(total)}`}
+        {submitting ? "Envoi en cours…" : "Employer ce chauffeur"}
       </button>
     </div>
   );

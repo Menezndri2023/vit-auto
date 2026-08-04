@@ -12,6 +12,7 @@ import PartnerCalendar from "../components/PartnerCalendar/PartnerCalendar";
 import PartnerBusinessManager from "../components/PartnerBusinessManager/PartnerBusinessManager";
 import { geocodeAddress } from "../utils/geo";
 import { PARTNER_CANCEL_REASONS } from "../constants/bookingCancelReasons";
+import { LICENSE_CATEGORIES, LICENSE_CATEGORY_LABELS } from "../constants/licenseCategories";
 import styles from "./VendorDashboard.module.css";
 
 /* ── Utilitaires ────────────────────────────────────────────────────────── */
@@ -1182,8 +1183,19 @@ export default function VendorDashboard() {
       firstName: drv.firstName || "", lastName: drv.lastName || "", phone: drv.phone || "",
       title: drv.title || "", description: drv.description || "",
       tarif: drv.tarif ?? "", tarifDemiJournee: drv.tarifDemiJournee ?? "", tarifHeure: drv.tarifHeure ?? "",
+      currency: drv.currency || "",
       disponibilite: drv.disponibilite || "", zone: drv.zone || "", ville: drv.ville || "",
-      experience: drv.experience ?? "", permisCategorie: drv.permisCategorie || "B",
+      experience: drv.experience ?? "",
+      // Anciens profils : permisCategorie pouvait encore être une chaîne
+      // ("B", "B+C") avant la migration en tableau — voir
+      // server.js "driver-license-categories-array-2026-08-04" et
+      // constants/licenseCategories.js. Normalisé ici en filet de sécurité
+      // si jamais un profil n'a pas encore été rechargé depuis la migration.
+      permisCategorie: Array.isArray(drv.permisCategorie)
+        ? drv.permisCategorie
+        : (typeof drv.permisCategorie === "string" && drv.permisCategorie
+          ? drv.permisCategorie.toUpperCase().split(/[+/,\s]+/).filter((c) => LICENSE_CATEGORIES.includes(c))
+          : ["B"]),
       vehiculePersonnel: !!drv.vehiculePersonnel, typeVehicule: drv.typeVehicule || "",
       profilePhoto: drv.profilePhoto || null, cv: drv.cv || null,
       images: Array.isArray(drv.images) ? drv.images : [],
@@ -1240,6 +1252,7 @@ export default function VendorDashboard() {
         tarif: Number(driverEditForm.tarif) || undefined,
         tarifDemiJournee: Number(driverEditForm.tarifDemiJournee) || undefined,
         tarifHeure: Number(driverEditForm.tarifHeure) || undefined,
+        currency: driverEditForm.currency || null,
         disponibilite: driverEditForm.disponibilite, zone: driverEditForm.zone, ville: driverEditForm.ville,
         experience: Number(driverEditForm.experience) || undefined,
         permisCategorie: driverEditForm.permisCategorie,
@@ -2961,7 +2974,7 @@ export default function VendorDashboard() {
                       </div>
                       <div className={styles.vehicleTags}>
                         {drv.zone && <span className={styles.vTag}>{drv.zone}</span>}
-                        {drv.permisCategorie && <span className={styles.vTag}>Permis {drv.permisCategorie}</span>}
+                        {drv.permisCategorie?.length > 0 && <span className={styles.vTag}>Permis {(Array.isArray(drv.permisCategorie) ? drv.permisCategorie : [drv.permisCategorie]).join(", ")}</span>}
                       </div>
                       {drv.nombreAvis > 0 && (
                         <div style={{ fontSize: ".82rem", color: "#d97706", fontWeight: 700, marginTop: 4 }}>
@@ -3899,6 +3912,20 @@ export default function VendorDashboard() {
               </div>
             </div>
 
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: ".78rem", color: "#64748b" }}>Devise d'affichage de l'annonce</label>
+              <select value={driverEditForm.currency || ""} onChange={(e) => setDriverEditForm((p) => ({ ...p, currency: e.target.value }))}
+                style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}>
+                <option value="">Automatique (devise du visiteur)</option>
+                {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+              </select>
+              <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
+                {driverEditForm.currency
+                  ? `Tous les visiteurs verront les tarifs en ${driverEditForm.currency}, quel que soit leur pays.`
+                  : "Par défaut : chaque visiteur voit les tarifs convertis dans sa propre devise détectée."}
+              </span>
+            </div>
+
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
               <div>
                 <label style={{ fontSize: ".78rem", color: "#64748b" }}>Zone</label>
@@ -3916,6 +3943,24 @@ export default function VendorDashboard() {
               <label style={{ fontSize: ".78rem", color: "#64748b" }}>Disponibilité</label>
               <input type="text" placeholder="ex : Lun-Ven 8h-18h" value={driverEditForm.disponibilite} onChange={(e) => setDriverEditForm((p) => ({ ...p, disponibilite: e.target.value }))}
                 style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: ".78rem", color: "#64748b", display: "block", marginBottom: 6 }}>Catégorie(s) de permis</label>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 6 }}>
+                {LICENSE_CATEGORIES.map((c) => (
+                  <label key={c} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: ".78rem", cursor: "pointer" }}>
+                    <input type="checkbox" checked={driverEditForm.permisCategorie.includes(c)}
+                      onChange={(e) => setDriverEditForm((p) => ({
+                        ...p,
+                        permisCategorie: e.target.checked
+                          ? [...p.permisCategorie, c]
+                          : p.permisCategorie.filter((x) => x !== c),
+                      }))} />
+                    {LICENSE_CATEGORY_LABELS[c] || c}
+                  </label>
+                ))}
+              </div>
             </div>
 
             <div style={{ marginBottom: 14 }}>

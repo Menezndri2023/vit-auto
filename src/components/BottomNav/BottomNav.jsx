@@ -50,7 +50,7 @@ export default function BottomNav() {
             tous, parcourir le catalogue ne nécessite jamais de compte. */}
         <button className={styles.item} onClick={() => navigate("/catalogue?mode=Autres")}>
           <span className={styles.icon}>🎈</span>
-          <span className={styles.label}>OTHERS</span>
+          <span className={styles.label}>Autres</span>
         </button>
 
         <button

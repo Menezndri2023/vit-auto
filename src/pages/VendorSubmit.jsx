@@ -7,6 +7,7 @@ import { useToast } from "../context/ToastContext";
 import { geocodeAddress, reverseGeocode, getCurrentPosition } from "../utils/geo";
 import { CALLING_CODES } from "../data/autocomplete";
 import { api } from "../utils/apiClient";
+import { LICENSE_CATEGORIES, LICENSE_CATEGORY_LABELS } from "../constants/licenseCategories";
 import styles from "./VendorSubmit.module.css";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -218,15 +219,25 @@ const VendorSubmit = () => {
   // brut tapé (dans priceCurrency, partagée avec le prix), vehicle.caution
   // reste la source de vérité en USD.
   const [cautionEntry, setCautionEntry] = useState("");
+  // Tarifs chauffeur — même mécanique que pricePerDay/priceForSale/caution
+  // ci-dessus (aucune n'existait pour le chauffeur avant ce correctif : les
+  // 3 tarifs étaient jusqu'ici imposés en USD, sans sélecteur de devise).
+  const [tarifEntry,            setTarifEntry]            = useState("");
+  const [tarifDemiJourneeEntry, setTarifDemiJourneeEntry]  = useState("");
+  const [tarifHeureEntry,       setTarifHeureEntry]        = useState("");
+
+  const DRIVER_ENTRY_FIELDS = { tarif: setTarifEntry, tarifDemiJournee: setTarifDemiJourneeEntry, tarifHeure: setTarifHeureEntry };
 
   const handlePriceEntryChange = (field, raw) => {
     if (field === "pricePerDay") setPriceEntryPerDay(raw);
     else if (field === "priceForSale") setPriceEntryForSale(raw);
-    else setCautionEntry(raw);
-    if (raw === "" || isNaN(Number(raw))) { setVeh(field, ""); return; }
+    else if (field === "caution") setCautionEntry(raw);
+    else if (DRIVER_ENTRY_FIELDS[field]) DRIVER_ENTRY_FIELDS[field](raw);
+    const setTarget = DRIVER_ENTRY_FIELDS[field] ? setDrv : setVeh;
+    if (raw === "" || isNaN(Number(raw))) { setTarget(field, ""); return; }
     const num = Number(raw);
     const usd = priceCurrency === "USD" ? num : Math.round((num / rateFromUSD(priceCurrency)) * 100) / 100;
-    setVeh(field, usd);
+    setTarget(field, usd);
   };
 
   const handlePriceCurrencyChange = (code) => {
@@ -245,6 +256,18 @@ const VendorSubmit = () => {
       const num = Number(cautionEntry);
       setVeh("caution", code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100);
     }
+    if (tarifEntry !== "" && !isNaN(Number(tarifEntry))) {
+      const num = Number(tarifEntry);
+      setDrv("tarif", code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100);
+    }
+    if (tarifDemiJourneeEntry !== "" && !isNaN(Number(tarifDemiJourneeEntry))) {
+      const num = Number(tarifDemiJourneeEntry);
+      setDrv("tarifDemiJournee", code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100);
+    }
+    if (tarifHeureEntry !== "" && !isNaN(Number(tarifHeureEntry))) {
+      const num = Number(tarifHeureEntry);
+      setDrv("tarifHeure", code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100);
+    }
   };
 
   // ── Données chauffeur
@@ -253,8 +276,11 @@ const VendorSubmit = () => {
     tarif: "", tarifDemiJournee: "", tarifHeure: "",
     disponibilite: "Temps plein", zone: "", ville: "",
     experience: "", langues: ["Français"],
-    permisCategorie: "B", vehiculePersonnel: false, typeVehicule: "",
+    permisCategorie: ["B"], vehiculePersonnel: false, typeVehicule: "",
     description: "", images: [""],
+    // "" = automatique (chaque visiteur voit sa propre devise détectée par
+    // IP/GPS) — même principe que vehicle.currency ci-dessus, voir Driver.js.
+    currency: "",
   });
 
   // Photo de profil du chauffeur — distincte des photos du véhicule (`photos`
@@ -556,6 +582,7 @@ const VendorSubmit = () => {
         if (!driver.lastName.trim())  e.lastName  = "Nom requis";
         if (!driver.title.trim())     e.title     = "Titre du service requis";
         if (!driver.experience.trim())e.experience= "Expérience requise";
+        if (!driver.permisCategorie.length) e.permisCategorie = "Sélectionnez au moins une catégorie de permis";
       }
     }
     if (step === 4 && adType === "chauffeur") {
@@ -641,6 +668,13 @@ const VendorSubmit = () => {
             cv: driverCv,
             // Photos véhicule uniquement si "avec véhicule" — sinon rien à photographier.
             images: driver.vehiculePersonnel ? imageUrls : [],
+            // Montant exact tel que tapé (voir Driver.js tarifEntered — même
+            // principe que Vehicle.pricePerDayEntered pour ne jamais perdre de
+            // précision à l'aller-retour de conversion).
+            tarifEntered:            tarifEntry            !== "" && !isNaN(Number(tarifEntry))            ? Number(tarifEntry)            : null,
+            tarifDemiJourneeEntered: tarifDemiJourneeEntry !== "" && !isNaN(Number(tarifDemiJourneeEntry)) ? Number(tarifDemiJourneeEntry) : null,
+            tarifHeureEntered:       tarifHeureEntry       !== "" && !isNaN(Number(tarifHeureEntry))       ? Number(tarifHeureEntry)       : null,
+            priceEntryCurrency: priceCurrency,
           }),
         });
         if (res.ok) {
@@ -917,7 +951,7 @@ const VendorSubmit = () => {
               <button type="button" className={styles.adTypeCard}
                 onClick={() => navigate("/vendor/submit-activity")}>
                 <div className={styles.adTypeIcon}>🎈</div>
-                <h3>Activité (OTHERS)</h3>
+                <h3>Activité (Autres)</h3>
                 <p>Quad, Surf, Montgolfière, Jetski, Jet privé, Bateau... proposez une activité réservable, avec essai en option.</p>
                 <ul className={styles.adTypeList}>
                   <li>✓ Prix par personne ou par sortie</li>
@@ -989,11 +1023,21 @@ const VendorSubmit = () => {
                   placeholder="Ex : 5 ans, 10 ans..." />
                 {errors.experience && <span className={styles.err}>{errors.experience}</span>}
               </div>
-              <div className={styles.field}>
-                <label>Catégorie de permis</label>
-                <select name="permisCategorie" value={driver.permisCategorie} onChange={handleDrvChange}>
-                  {["B", "C", "D", "E", "B+C"].map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+              <div className={`${styles.field} ${styles.colSpan2}`}>
+                <label>Catégorie(s) de permis *</label>
+                <div className={styles.checkboxGrid}>
+                  {LICENSE_CATEGORIES.map((c) => (
+                    <label key={c} className={styles.checkboxRow}>
+                      <input type="checkbox"
+                        checked={driver.permisCategorie.includes(c)}
+                        onChange={(e) => setDrv("permisCategorie", e.target.checked
+                          ? [...driver.permisCategorie, c]
+                          : driver.permisCategorie.filter((x) => x !== c))} />
+                      {LICENSE_CATEGORY_LABELS[c] || c}
+                    </label>
+                  ))}
+                </div>
+                {errors.permisCategorie && <span className={styles.err}>{errors.permisCategorie}</span>}
               </div>
             </div>
           </div>
@@ -1183,30 +1227,56 @@ const VendorSubmit = () => {
                 </div>
               )}
               <div className={styles.grid2}>
-                <div className={styles.field}>
-                  <label>Tarif à la journée (USD) — optionnel</label>
-                  <div className={styles.inputAffix}>
-                    <input type="number" name="tarif" value={driver.tarif} onChange={handleDrvChange}
-                      placeholder="Ex : 50000" min="0" />
-                    <span>USD / jour</span>
-                  </div>
+                <div className={`${styles.field} ${styles.colSpan2}`}>
+                  <label>Devise d'affichage de l'annonce</label>
+                  <select name="currency" value={driver.currency} onChange={handleDrvChange}>
+                    <option value="">Automatique (devise du visiteur)</option>
+                    {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                  </select>
+                  <span className={styles.hint}>
+                    {driver.currency
+                      ? `Tous les visiteurs verront les tarifs en ${driver.currency}, quel que soit leur pays.`
+                      : "Par défaut : chaque visiteur voit les tarifs convertis dans sa propre devise (détectée automatiquement)."}
+                  </span>
                 </div>
                 <div className={styles.field}>
-                  <label>Tarif à la demi-journée (USD) — optionnel</label>
+                  <label>Tarif à la journée — optionnel</label>
                   <div className={styles.inputAffix}>
-                    <input type="number" name="tarifDemiJournee" value={driver.tarifDemiJournee} onChange={handleDrvChange}
-                      placeholder="Ex : 28000" min="0" />
-                    <span>USD / demi-j.</span>
+                    <input type="number" value={tarifEntry}
+                      onChange={(e) => handlePriceEntryChange("tarif", e.target.value)}
+                      placeholder="Ex : 50000" min="0" />
+                    <select value={priceCurrency} onChange={(e) => handlePriceCurrencyChange(e.target.value)}>
+                      {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                    </select>
                   </div>
+                  {priceCurrency !== "USD" && driver.tarif !== "" && (
+                    <span className={styles.hint}>≈ {fmt(driver.tarif)} USD / jour (converti automatiquement)</span>
+                  )}
+                </div>
+                <div className={styles.field}>
+                  <label>Tarif à la demi-journée — optionnel</label>
+                  <div className={styles.inputAffix}>
+                    <input type="number" value={tarifDemiJourneeEntry}
+                      onChange={(e) => handlePriceEntryChange("tarifDemiJournee", e.target.value)}
+                      placeholder="Ex : 28000" min="0" />
+                    <span>{priceCurrency}</span>
+                  </div>
+                  {priceCurrency !== "USD" && driver.tarifDemiJournee !== "" && (
+                    <span className={styles.hint}>≈ {fmt(driver.tarifDemiJournee)} USD / demi-j. (converti automatiquement)</span>
+                  )}
                 </div>
                 {driver.vehiculePersonnel && (
                   <div className={styles.field}>
-                    <label>Tarif à l'heure (USD) — optionnel, avec véhicule</label>
+                    <label>Tarif à l'heure — optionnel, avec véhicule</label>
                     <div className={styles.inputAffix}>
-                      <input type="number" name="tarifHeure" value={driver.tarifHeure} onChange={handleDrvChange}
+                      <input type="number" value={tarifHeureEntry}
+                        onChange={(e) => handlePriceEntryChange("tarifHeure", e.target.value)}
                         placeholder="Ex : 8000" min="0" />
-                      <span>USD / h</span>
+                      <span>{priceCurrency}</span>
                     </div>
+                    {priceCurrency !== "USD" && driver.tarifHeure !== "" && (
+                      <span className={styles.hint}>≈ {fmt(driver.tarifHeure)} USD / h (converti automatiquement)</span>
+                    )}
                   </div>
                 )}
               </div>

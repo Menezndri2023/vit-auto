@@ -125,7 +125,7 @@ const Navbar = () => {
             className={`${styles.activitiesTrigger} ${activitiesOpen ? styles.activitiesTriggerOpen : ""}`}
             onClick={() => setActivitiesOpen((o) => !o)}
           >
-            🎈 OTHERS
+            🎈 Autres
           </button>
           {activitiesOpen && (
             <>

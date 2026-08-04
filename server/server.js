@@ -572,6 +572,47 @@ const startServer = async () => {
       }
     });
 
+    // Driver.permisCategorie passe d'une valeur texte libre unique ("B",
+    // "B+C"...) à un tableau validé contre la liste standard (voir
+    // constants/licenseCategories.js) — un chauffeur détient souvent
+    // plusieurs catégories à la fois, et le sélecteur précédent ne proposait
+    // que 5 valeurs dont une ("E" seul) qui n'est même pas une vraie
+    // catégorie. Découpe les anciennes valeurs combinées (séparateurs +, /,
+    // virgule, espace) et ne garde que les catégories réellement valides ;
+    // "E" seul (invalide) et toute valeur vide retombent sur ["B"], comme le
+    // défaut du schéma pour les profils qui n'avaient jamais renseigné ce champ.
+    await runOnceMigration("driver-license-categories-array-2026-08-04", async () => {
+      const { LICENSE_CATEGORIES } = await import("./constants/licenseCategories.js");
+      const { default: Driver } = await import("./models/Driver.js");
+      const legacy = await Driver.collection.find(
+        { permisCategorie: { $type: "string" } },
+        { projection: { permisCategorie: 1 } }
+      ).toArray();
+      for (const doc of legacy) {
+        const parsed = String(doc.permisCategorie || "")
+          .toUpperCase()
+          .split(/[+/,\s]+/)
+          .filter((c) => LICENSE_CATEGORIES.includes(c));
+        const categories = [...new Set(parsed)];
+        await Driver.collection.updateOne(
+          { _id: doc._id },
+          { $set: { permisCategorie: categories.length ? categories : ["B"] } }
+        );
+      }
+    });
+
+    // Driver.currency passe d'un défaut "USD" (jamais un vrai choix — champ
+    // déclaré mais jamais lu nulle part avant ce correctif, voir Driver.js)
+    // à `null` = automatique, cohérent avec Vehicle.currency. Sans cette
+    // remise à zéro, tous les profils chauffeur déjà en base se
+    // retrouveraient figés en USD pour tous les visiteurs dès l'activation
+    // du sélecteur de devise, au lieu de garder la conversion automatique
+    // par pays du visiteur (même incident que "vehicle-currency-reset-2026-07-28").
+    await runOnceMigration("driver-currency-reset-2026-08-04", async () => {
+      const { default: Driver } = await import("./models/Driver.js");
+      await Driver.updateMany({ currency: "USD" }, { $set: { currency: null } });
+    });
+
     // Les annonces véhicule existantes stockaient leurs photos en base64 brut
     // dans MongoDB (voir uploadBase64Images/config/imagekit.js pour le
     // correctif du flux de création/édition) — mesuré en production :

@@ -3368,7 +3368,7 @@ export default function AdminPanel() {
         { key: "bookings",      icon: "📋", label: "Réservations",          badge: pendingBk },
         { key: "litiges",       icon: "⚖️",  label: "Litiges",              badge: disputedBk + liveDisputes },
         { key: "chauffeurs",    icon: "👨‍✈️", label: "Chauffeurs",           badge: pendingDrivers },
-        { key: "activites",     icon: "🎈", label: "Activités (OTHERS)",     badge: pendingActivities },
+        { key: "activites",     icon: "🎈", label: "Activités (Autres)",     badge: pendingActivities },
         { key: "import_export", icon: "🌍", label: "Transactions I/E",      badge: pendingIe },
         { key: "exportateurs",  icon: "📦", label: "Partenaires Export",    badge: pendingImp },
         { key: "transport",     icon: "🚢", label: "Transport Intl." },
@@ -6232,7 +6232,7 @@ export default function AdminPanel() {
         <div className={styles.tabContent}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
             <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🎈 Activités (section OTHERS)</h2>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🎈 Activités (section Autres)</h2>
               <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Validez les annonces (Quad, Surf, Montgolfière, Jetski, Jet privé, Bateau...) et gérez les activités actives.</p>
             </div>
             <button className={styles.btnRefresh} style={{ background: "#f1f5f9", color: "#0f1b3f", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 14px" }} onClick={loadAll}>↻ Actualiser</button>
@@ -10355,7 +10355,7 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
                             return <span className={styles.badge} style={{ color: sc.c, background: sc.bg }}>{sc.l}</span>;
                           })()}
                         </td>
-                        <td style={{ fontSize: ".82rem" }}>{d.permisCategorie || "—"} {d.vehiculePersonnel && <span style={{ color: "#94a3b8" }}>· 🚗 avec véhicule</span>}</td>
+                        <td style={{ fontSize: ".82rem" }}>{(Array.isArray(d.permisCategorie) ? d.permisCategorie.join(", ") : d.permisCategorie) || "—"} {d.vehiculePersonnel && <span style={{ color: "#94a3b8" }}>· 🚗 avec véhicule</span>}</td>
                         <td style={{ fontSize: ".82rem" }}>{d.experience || "—"}</td>
                         <td style={{ fontSize: ".78rem" }}>{d.langues?.join(", ") || "—"}</td>
                         <td style={{ fontSize: ".78rem" }}>

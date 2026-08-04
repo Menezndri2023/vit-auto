@@ -18,7 +18,7 @@ const MODES = [
   { key: "Import",    icon: "🌍", label: "Import/Export" },
   // Section OTHERS — activités culturelles/loisir (Quad, Surf, Montgolfière,
   // Jetski, Jet privé, Bateau...) — voir Activity.js/activityController.js.
-  { key: "Autres",    icon: "🎈", label: "OTHERS"       },
+  { key: "Autres",    icon: "🎈", label: "Autres"       },
 ];
 
 const ACTIVITY_TYPE_PILLS = ["Tous", ...ACTIVITY_TYPES];
@@ -104,14 +104,18 @@ function IECard({ l }) {
 }
 
 /* ── Carte Chauffeur ── */
-function DriverCard({ d, fmt }) {
+function DriverCard({ d }) {
   // Priorité à l'unité réellement renseignée — afficher un tarif jour avec un
   // suffixe "/h" (bug précédent : tarifHeure||tarif sans jamais changer le
   // libellé) induisait le client en erreur sur le prix réel du service.
-  const priceLabel = d.tarifHeure > 0 ? `${fmt(d.tarifHeure)}/h`
-    : d.tarif > 0 ? `${fmt(d.tarif)}/jour`
-    : d.tarifDemiJournee > 0 ? `${fmt(d.tarifDemiJournee)}/demi-j.`
-    : "Sur devis";
+  // Devise figée (d.currency) + montant exact saisi (d.tarif*Entered) — voir
+  // PriceTag / Driver.js, même principe que les véhicules (bug réel corrigé
+  // en audit : aucun des deux n'existait pour les chauffeurs jusqu'ici, tarif
+  // toujours imposé en USD sans possibilité de figer une devise d'affichage).
+  const priceUnit = d.tarifHeure > 0 ? { amount: d.tarifHeure, entered: d.tarifHeureEntered, suffix: "/h" }
+    : d.tarif > 0 ? { amount: d.tarif, entered: d.tarifEntered, suffix: "/jour" }
+    : d.tarifDemiJournee > 0 ? { amount: d.tarifDemiJournee, entered: d.tarifDemiJourneeEntered, suffix: "/demi-j." }
+    : null;
   return (
     <div className={styles.ieCard}>
       <div className={styles.ieCardImg}>
@@ -137,7 +141,11 @@ function DriverCard({ d, fmt }) {
         )}
         <div className={styles.ieCardFooter}>
           <div>
-            <div className={styles.ieCardPrice}>{priceLabel}</div>
+            <div className={styles.ieCardPrice}>
+              {priceUnit
+                ? <PriceTag amountUSD={priceUnit.amount} pinnedCurrency={d.currency} enteredAmount={priceUnit.entered} enteredCurrency={d.priceEntryCurrency} suffix={priceUnit.suffix} />
+                : "Sur devis"}
+            </div>
           </div>
           <Link to={`/driver-booking/${d._id}`} className={styles.ieCardLink}>Employer →</Link>
         </div>
@@ -147,10 +155,8 @@ function DriverCard({ d, fmt }) {
 }
 
 /* ── Carte Activité (section OTHERS) ── */
-function ActivityCard({ a, fmt }) {
-  const priceLabel = a.priceUnit === "per_session"
-    ? `${fmt(a.price)} / sortie`
-    : `${fmt(a.price)} / pers.`;
+function ActivityCard({ a }) {
+  const suffix = a.priceUnit === "per_session" ? " / sortie" : " / pers.";
   return (
     <div className={styles.ieCard}>
       <div className={styles.ieCardImg}>
@@ -172,7 +178,9 @@ function ActivityCard({ a, fmt }) {
         </span>
         <div className={styles.ieCardFooter}>
           <div>
-            <div className={styles.ieCardPrice}>{priceLabel}</div>
+            <div className={styles.ieCardPrice}>
+              <PriceTag amountUSD={a.price} pinnedCurrency={a.currency} enteredAmount={a.priceEntered} enteredCurrency={a.priceEntryCurrency} suffix={suffix} />
+            </div>
           </div>
           <Link to={`/activity-booking/${a._id}`} className={styles.ieCardLink}>Réserver →</Link>
         </div>
@@ -458,7 +466,7 @@ const Catalogue = () => {
           <div className={styles.headerRow}>
             <div>
               <span className={styles.headerTag}>{isImportMode ? "🌍 VIT AUTO" : isChauffeurMode ? "🧑‍✈️ VIT AUTO" : isOthersMode ? "🎈 VIT AUTO" : "🚗 VIT AUTO"}</span>
-              <h1 className={styles.headerTitle}>{isImportMode ? "Import / Export" : isChauffeurMode ? "Chauffeurs" : isOthersMode ? "OTHERS — Activités" : "Catalogue"}</h1>
+              <h1 className={styles.headerTitle}>{isImportMode ? "Import / Export" : isChauffeurMode ? "Chauffeurs" : isOthersMode ? "Autres — Activités" : "Catalogue"}</h1>
             </div>
             <button
               type="button"
@@ -792,7 +800,7 @@ const Catalogue = () => {
               </div>
             ) : (
               <div className={styles.ieGrid}>
-                {chauffeursFiltered.map((d) => <DriverCard key={d._id} d={d} fmt={fmt} />)}
+                {chauffeursFiltered.map((d) => <DriverCard key={d._id} d={d} />)}
               </div>
             )}
           </div>
@@ -876,7 +884,7 @@ const Catalogue = () => {
               </div>
             ) : (
               <div className={styles.ieGrid}>
-                {activitiesFiltered.map((a) => <ActivityCard key={a._id} a={a} fmt={fmt} />)}
+                {activitiesFiltered.map((a) => <ActivityCard key={a._id} a={a} />)}
               </div>
             )}
           </div>

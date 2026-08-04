@@ -11,6 +11,7 @@ import { logAction } from "../middleware/auditLog.js";
 import { resolveRequirements } from "../utils/partnerRequirements.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 import { uploadBase64Images, FOLDERS } from "../config/imagekit.js";
+import { getActiveRates } from "../services/currencyEngine.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -138,12 +139,24 @@ export const createDriver = async (req, res) => {
       firstName, lastName, telephone, contactTel, phone: phoneRaw,
       profilePhoto, cv, title, description,
       tarif, tarifDemiJournee, tarifHeure,
+      tarifEntered, tarifDemiJourneeEntered, tarifHeureEntered, priceEntryCurrency,
       disponibilite, zone, ville,
       experience, langues, permisCategorie, vehiculePersonnel, typeVehicule,
       images,
     } = req.body;
 
     const phone = telephone || contactTel || phoneRaw;
+
+    // ── Devise d'affichage (facultative) — même validation que
+    // vehicleController.createVehicle : null = pas de préférence, sinon doit
+    // être une devise active réelle (ExchangeRate), jamais acceptée telle
+    // quelle (un code inventé casserait silencieusement l'affichage public).
+    if (req.body.currency) {
+      const activeRates = await getActiveRates();
+      if (!activeRates.some((r) => r.code === req.body.currency)) {
+        return res.status(400).json({ message: "Devise d'affichage invalide." });
+      }
+    }
 
     // ── Photos : profil toujours requis ; véhicule requis seulement "avec véhicule" ──
     if (!profilePhoto) {
@@ -182,10 +195,15 @@ export const createDriver = async (req, res) => {
       ...(phone ? { phone } : {}),
       profilePhoto: uploadedProfilePhoto, cv,
       tarif: tarif || undefined, tarifDemiJournee: tarifDemiJournee || undefined, tarifHeure: tarifHeure || undefined,
+      tarifEntered: tarifEntered != null && tarifEntered !== "" ? Number(tarifEntered) : null,
+      tarifDemiJourneeEntered: tarifDemiJourneeEntered != null && tarifDemiJourneeEntered !== "" ? Number(tarifDemiJourneeEntered) : null,
+      tarifHeureEntered: tarifHeureEntered != null && tarifHeureEntered !== "" ? Number(tarifHeureEntered) : null,
+      priceEntryCurrency: priceEntryCurrency || null,
+      currency: req.body.currency || null,
       disponibilite, zone, ville,
       experience,
       langues: langues || ["Français"],
-      permisCategorie: permisCategorie || "B",
+      permisCategorie: Array.isArray(permisCategorie) && permisCategorie.length ? permisCategorie : ["B"],
       vehiculePersonnel: !!vehiculePersonnel,
       typeVehicule,
       images: uploadedVehicleImages,
@@ -483,10 +501,18 @@ export const updateDriver = async (req, res) => {
     const EDITABLE = [
       "firstName", "lastName", "phone", "profilePhoto", "cv", "title", "description",
       "tarif", "tarifDemiJournee", "tarifHeure",
+      "tarifEntered", "tarifDemiJourneeEntered", "tarifHeureEntered", "priceEntryCurrency", "currency",
       "disponibilite", "zone", "ville",
       "experience", "langues", "permisCategorie", "vehiculePersonnel", "typeVehicule",
       "images",
     ];
+
+    if (req.body.currency) {
+      const activeRates = await getActiveRates();
+      if (!activeRates.some((r) => r.code === req.body.currency)) {
+        return res.status(400).json({ message: "Devise d'affichage invalide." });
+      }
+    }
 
     const safeUpdate = {};
     for (const key of EDITABLE) {

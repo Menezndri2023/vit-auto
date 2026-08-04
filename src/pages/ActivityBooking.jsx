@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../context/CurrencyContext";
 import ReportButton from "../components/ReportButton/ReportButton";
+import PriceTag from "../components/PriceTag/PriceTag";
 import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "../constants/activityTypes";
 import styles from "./Booking.module.css";
 import dbStyles from "./DriverBooking.module.css";
@@ -25,7 +26,7 @@ const ActivityBooking = () => {
   const { getItemById } = useVehicles();
   const { user, token } = useAuth();
   const { success, error } = useToast();
-  const { fmt, getPaymentMethodsForCountry, catalogCountry, countryCode } = useCurrency();
+  const { getPaymentMethodsForCountry, catalogCountry, countryCode } = useCurrency();
 
   const activity = getItemById(id);
 
@@ -97,6 +98,12 @@ const ActivityBooking = () => {
 
   const unitPrice = wantEssai ? (activity.essaiPrice ?? activity.price) : activity.price;
   const total = activity.priceUnit === "per_person" ? unitPrice * (Number(participants) || 1) : unitPrice;
+  // essaiPrice ne conserve pas de montant saisi exact (voir Activity.js) —
+  // seul le tarif normal (price/priceEntered) préserve la précision d'origine.
+  const enteredUnitPrice = wantEssai ? null : activity.priceEntered;
+  const enteredTotal = enteredUnitPrice != null
+    ? (activity.priceUnit === "per_person" ? enteredUnitPrice * (Number(participants) || 1) : enteredUnitPrice)
+    : null;
 
   const isMobile = ["orange_money", "wave", "mtn", "moov"].includes(selectedMethod);
   const isCard   = selectedMethod === "card";
@@ -245,7 +252,7 @@ const ActivityBooking = () => {
         <div className={dbStyles.fieldBlockTight}>
           <label className={dbStyles.fieldLabel} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
             <input type="checkbox" checked={wantEssai} onChange={(e) => setWantEssai(e.target.checked)} />
-            🔰 Réserver un essai/découverte ({activity.essaiDurationMinutes || 30} min{activity.essaiPrice != null ? `, ${fmt(activity.essaiPrice)}` : ""}) au lieu de la session complète
+            🔰 Réserver un essai/découverte ({activity.essaiDurationMinutes || 30} min{activity.essaiPrice != null && <>, <PriceTag amountUSD={activity.essaiPrice} pinnedCurrency={activity.currency} compact /></>}) au lieu de la session complète
           </label>
         </div>
       )}
@@ -276,7 +283,9 @@ const ActivityBooking = () => {
           onChange={(e) => setParticipants(e.target.value)}
           className={dbStyles.textInput} />
         <p className={dbStyles.hoursHint}>
-          {activity.priceUnit === "per_session" ? "Prix forfaitaire, quel que soit le nombre de participants." : `${fmt(unitPrice)} par personne.`}
+          {activity.priceUnit === "per_session"
+            ? "Prix forfaitaire, quel que soit le nombre de participants."
+            : <><PriceTag amountUSD={unitPrice} pinnedCurrency={activity.currency} enteredAmount={enteredUnitPrice} enteredCurrency={activity.priceEntryCurrency} compact /> par personne.</>}
         </p>
       </div>
       <div className={dbStyles.fieldBlockTight}>
@@ -325,12 +334,14 @@ const ActivityBooking = () => {
 
       <div className={dbStyles.totalBar}>
         <span className={dbStyles.totalLabel}>Total estimé</span>
-        <strong className={dbStyles.totalValue}>{fmt(total)}</strong>
+        <strong className={dbStyles.totalValue}>
+          <PriceTag amountUSD={total} pinnedCurrency={activity.currency} enteredAmount={enteredTotal} enteredCurrency={activity.priceEntryCurrency} />
+        </strong>
       </div>
 
       <button onClick={handleSubmit} disabled={submitting || !activityStart || capacityExceeded}
         className={dbStyles.submitBtn}>
-        {submitting ? "Envoi en cours…" : `${wantEssai ? "Réserver l'essai" : "Réserver"} — ${fmt(total)}`}
+        {submitting ? "Envoi en cours…" : wantEssai ? "Réserver l'essai" : "Réserver"}
       </button>
     </div>
   );
