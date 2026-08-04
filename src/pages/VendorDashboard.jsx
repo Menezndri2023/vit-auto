@@ -1124,6 +1124,46 @@ export default function VendorDashboard() {
     } catch { toastError("Erreur réseau."); }
   };
 
+  // ── Congés bloqués par activité (section OTHERS) — même principe que
+  // blackoutModal/blackoutForm ci-dessus, pour Activity plutôt que Driver.
+  const [activityBlackoutModal, setActivityBlackoutModal] = useState(null);
+  const [activityBlackoutForm,  setActivityBlackoutForm]  = useState({ start: "", end: "", reason: "" });
+  const [activityBlackoutSaving, setActivityBlackoutSaving] = useState(false);
+
+  const handleAddActivityBlackout = async () => {
+    if (!activityBlackoutModal || !token || !activityBlackoutForm.start || !activityBlackoutForm.end) return;
+    setActivityBlackoutSaving(true);
+    try {
+      const r = await fetch(`/api/activities/${activityBlackoutModal._id}/blackout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(activityBlackoutForm),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        toastSuccess("Période de congé ajoutée.");
+        setActivityBlackoutModal(d.activity);
+        setMyActivities((prev) => prev.map((act) => (act._id === d.activity._id ? d.activity : act)));
+        setActivityBlackoutForm({ start: "", end: "", reason: "" });
+      } else toastError(d.message || "Erreur.");
+    } catch { toastError("Erreur réseau."); }
+    setActivityBlackoutSaving(false);
+  };
+
+  const handleRemoveActivityBlackout = async (blackoutId) => {
+    if (!activityBlackoutModal || !token) return;
+    try {
+      const r = await fetch(`/api/activities/${activityBlackoutModal._id}/blackout/${blackoutId}`, {
+        method: "DELETE", headers: { Authorization: `Bearer ${token}` },
+      });
+      const d = await r.json();
+      if (r.ok) {
+        setActivityBlackoutModal(d.activity);
+        setMyActivities((prev) => prev.map((act) => (act._id === d.activity._id ? d.activity : act)));
+      } else toastError(d.message || "Erreur.");
+    } catch { toastError("Erreur réseau."); }
+  };
+
   // ── Édition profil chauffeur ────────────────────────────────────────────
   // Bug réel corrigé (audit) : PATCH /api/drivers/:id fonctionnait déjà
   // parfaitement côté serveur (updateDriver, whitelist complète), mais aucun
@@ -1279,6 +1319,10 @@ export default function VendorDashboard() {
   const [detailLoading,  setDetailLoading]  = useState(false);
   const [myDrivers,      setMyDrivers]      = useState([]);
   const [driverLoading,  setDriverLoading]  = useState(false);
+  // Activités (section OTHERS — Quad, Surf, Montgolfière, Jetski, Jet privé,
+  // Bateau...) — même principe que myDrivers/driverLoading ci-dessus.
+  const [myActivities,      setMyActivities]      = useState([]);
+  const [activityLoading,   setActivityLoading]   = useState(false);
   const [employmentRequests, setEmploymentRequests] = useState([]);
   const [employmentLoading,  setEmploymentLoading]  = useState(false);
   const [employmentDeclining, setEmploymentDeclining] = useState(null); // id en cours de refus
@@ -1674,6 +1718,7 @@ export default function VendorDashboard() {
         description: v.description || "",
         ageMin:      v.ageMin || "",
         dureeMinLocation: v.dureeMinLocation || 1,
+        instantBook: !!v.instantBook,
         permisRequis: v.permisRequis !== false,
         assuranceOptionnelle: !!v.assuranceOptionnelle,
         conditionsLocation: v.conditionsLocation || "",
@@ -1771,6 +1816,7 @@ export default function VendorDashboard() {
         currency:    editForm.currency || null,
         ageMin:      Number(editForm.ageMin) || 0,
         dureeMinLocation: Math.max(1, Number(editForm.dureeMinLocation) || 1),
+        instantBook: !!editForm.instantBook,
         permisRequis: editForm.permisRequis,
         assuranceOptionnelle: editForm.assuranceOptionnelle,
         conditionsLocation: editForm.conditionsLocation,
@@ -2149,6 +2195,14 @@ export default function VendorDashboard() {
     finally { setDriverLoading(false); }
   }, [token]);
 
+  const loadMyActivities = useCallback(async () => {
+    if (!token) return;
+    setActivityLoading(true);
+    try { const r = await fetch("/api/activities/mine", { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) { const d = await r.json(); setMyActivities(d.activities || []); } }
+    catch { /* ignore */ }
+    finally { setActivityLoading(false); }
+  }, [token]);
+
   // Propositions d'embauche CDD/CDI reçues pour mes chauffeurs (voir DriverEmployment.jsx côté client)
   const loadEmploymentRequests = useCallback(async () => {
     if (!token) return;
@@ -2261,12 +2315,13 @@ export default function VendorDashboard() {
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refreshOrders(), loadPartnerVehicles(), loadMyDrivers(), loadInvoices(), loadTransactions(), loadContracts(), loadPartnerStats(), loadAnalytics()]);
+    await Promise.all([refreshOrders(), loadPartnerVehicles(), loadMyDrivers(), loadMyActivities(), loadInvoices(), loadTransactions(), loadContracts(), loadPartnerStats(), loadAnalytics()]);
     setRefreshing(false);
     toastSuccess("Données actualisées.");
   }, [refreshOrders, loadPartnerVehicles, loadMyDrivers, loadInvoices, loadTransactions, loadPartnerStats, loadAnalytics, toastSuccess]);
 
   useEffect(() => { loadMyDrivers(); }, [loadMyDrivers]);
+  useEffect(() => { loadMyActivities(); }, [loadMyActivities]);
   useEffect(() => { loadEmploymentRequests(); }, [loadEmploymentRequests]);
   useEffect(() => { loadInvoices(); loadTransactions(); loadContracts(); loadServiceInvoices(); loadPayouts(); }, [loadInvoices, loadTransactions, loadContracts, loadServiceInvoices, loadPayouts]);
 
@@ -2931,6 +2986,70 @@ export default function VendorDashboard() {
               })}
               </div>
             </>
+          )}
+
+          {/* Activités (section OTHERS — Quad, Surf, Montgolfière, Jetski, Jet
+              privé, Bateau...) */}
+          <div className={styles.sectionToolbar} style={{ marginTop: 32 }}>
+            <h2 className={styles.sectionTitle}>🎈 Mes activités ({myActivities.length})</h2>
+            <Link to="/vendor" className={styles.btnPrimary}>+ Ajouter</Link>
+          </div>
+
+          {activityLoading ? <p className={styles.loadingMsg}>Chargement…</p> : myActivities.length === 0 ? (
+            <div className={styles.emptyFull} style={{ padding: "28px 20px" }}>
+              <div className={styles.emptyIcon}>🎈</div>
+              <h3>Aucune activité</h3>
+              <p>Publiez une activité (Quad, Surf, Montgolfière, Jetski, Jet privé, Bateau...) depuis "Nouvelle annonce".</p>
+            </div>
+          ) : (
+            <div className={styles.vehicleGrid}>
+              {myActivities.map((act) => {
+                const sc = { approved: { l: "Validée", c: "#059669", bg: "#d1fae5" }, pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, rejected: { l: "Rejetée", c: "#dc2626", bg: "#fee2e2" }, archived: { l: "Archivée", c: "#64748b", bg: "#f1f5f9" } }[act.status || "pending"]
+                  || { l: act.status || "—", c: "#64748b", bg: "#f1f5f9" };
+                return (
+                  <div key={act._id} className={styles.vehicleCard}>
+                    <div className={styles.vehicleImgWrap} style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", fontSize: "3rem", height: 120 }}>
+                      {act.thumbnail || act.images?.[0] ? <img src={act.thumbnail || act.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "🎈"}
+                    </div>
+                    <div className={styles.vehicleCardBody}>
+                      <div className={styles.vehicleCardTop}>
+                        <h3 className={styles.vehicleName}>{act.title}</h3>
+                        <span className={styles.vehicleStatusBadge} style={{ background: sc.bg, color: sc.c }}>{sc.l}</span>
+                      </div>
+                      <div className={styles.vehicleTags}>
+                        <span className={styles.vTag}>{act.activityType}</span>
+                        {act.ville && <span className={styles.vTag}>{act.ville}</span>}
+                        {act.essaiDisponible && <span className={styles.vTag}>🔰 Essai activable</span>}
+                      </div>
+                      <div className={styles.vehiclePrice}>
+                        {act.price ? `${fmtXOF(act.price)}${act.priceUnit === "per_session" ? " / sortie" : " / pers."}` : "Prix non renseigné"}
+                      </div>
+                      {act.status === "rejected" && act.rejectionReason && (
+                        <div style={{ fontSize: ".78rem", color: "#dc2626", marginTop: 4 }}>Motif : {act.rejectionReason}</div>
+                      )}
+                    </div>
+                    <div className={styles.vehicleCardActions}>
+                      <button className={styles.btnSecondary}
+                        onClick={() => {
+                          fetch(`/api/activities/${act._id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                            body: JSON.stringify({ manuallyPaused: !act.manuallyPaused }),
+                          }).then(async (res) => {
+                            if (!res.ok) { toastError("Impossible de mettre à jour."); return; }
+                            const data = await res.json();
+                            setMyActivities((p) => p.map((a) => (a._id === act._id ? (data.activity || data) : a)));
+                          }).catch(() => toastError("Erreur réseau."));
+                        }}>
+                        {act.manuallyPaused ? "▶️ Réactiver" : "⏸️ Mettre en pause"}
+                      </button>
+                      <button className={styles.btnSecondary} onClick={() => { setActivityBlackoutModal(act); setActivityBlackoutForm({ start: "", end: "", reason: "" }); }}>🚫 Congés</button>
+                      <button className={styles.btnDanger} onClick={() => { if (confirm("Supprimer cette annonce ?")) { fetch(`/api/activities/${act._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).then(async (res) => { if (!res.ok) { const data = await res.json().catch(() => ({})); toastError(data.message || "Impossible de supprimer cette annonce."); return; } toastSuccess("Annonce activité supprimée."); setMyActivities((p) => p.filter((a) => a._id !== act._id)); }).catch(() => toastError("Erreur réseau — l'annonce n'a pas été supprimée.")); } }}>Supprimer</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
 
           {/* Propositions d'embauche CDD/CDI reçues (voir DriverEmployment.jsx côté client) */}
@@ -3893,6 +4012,53 @@ export default function VendorDashboard() {
         </div>
       )}
 
+      {activityBlackoutModal && (
+        <div className={styles.modalBackdrop} onClick={() => setActivityBlackoutModal(null)}>
+          <div className={styles.rejectModal} style={{ maxWidth: 520, maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+            <h3>🚫 Congés — {activityBlackoutModal.title}</h3>
+            <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "#64748b" }}>
+              Bloquez des dates pendant lesquelles cette activité ne peut pas être réservée (maintenance, indisponibilité).
+            </p>
+
+            <div style={{ background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 10, padding: 12, marginBottom: 16 }}>
+              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                <input type="date" value={activityBlackoutForm.start} onChange={(e) => setActivityBlackoutForm((p) => ({ ...p, start: e.target.value }))}
+                  style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }} />
+                <input type="date" value={activityBlackoutForm.end} onChange={(e) => setActivityBlackoutForm((p) => ({ ...p, end: e.target.value }))}
+                  style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }} />
+              </div>
+              <input type="text" placeholder="Motif (optionnel)" value={activityBlackoutForm.reason}
+                onChange={(e) => setActivityBlackoutForm((p) => ({ ...p, reason: e.target.value }))}
+                style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }} />
+              <button className={styles.btnAccept} disabled={activityBlackoutSaving || !activityBlackoutForm.start || !activityBlackoutForm.end}
+                onClick={handleAddActivityBlackout} style={{ marginTop: 8 }}>
+                {activityBlackoutSaving ? "Envoi…" : "+ Bloquer cette période"}
+              </button>
+            </div>
+
+            {(activityBlackoutModal.blackoutDates || []).length === 0 ? (
+              <p style={{ fontSize: ".85rem", color: "#94a3b8" }}>Aucune période bloquée.</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {activityBlackoutModal.blackoutDates.map((b) => (
+                  <div key={b._id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 10, border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".82rem" }}>
+                    <div>
+                      <strong>{new Date(b.start).toLocaleDateString("fr-FR")} → {new Date(b.end).toLocaleDateString("fr-FR")}</strong>
+                      {b.reason && <p style={{ margin: "2px 0 0", color: "#64748b" }}>{b.reason}</p>}
+                    </div>
+                    <button onClick={() => handleRemoveActivityBlackout(b._id)} style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: ".8rem" }}>🗑️</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className={styles.rejectActions} style={{ marginTop: 14 }}>
+              <button className={styles.btnSecondary} onClick={() => setActivityBlackoutModal(null)}>Fermer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editModal && (
         <div className={styles.modalBackdrop} onClick={() => { setEditModal(null); setEditPhotos([]); }}>
           <div className={styles.rejectModal} style={{ maxWidth: 640, maxHeight: "88vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
@@ -4310,6 +4476,16 @@ export default function VendorDashboard() {
                         <input type="checkbox" checked={editForm.assuranceOptionnelle} onChange={(e) => setEditForm((p) => ({ ...p, assuranceOptionnelle: e.target.checked }))} />
                         Assurance optionnelle proposée
                       </label>
+                      {(user?.isFounder || (user?.certificationBadge && user.certificationBadge !== "none")) ? (
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: "0.85rem" }}>
+                          <input type="checkbox" checked={editForm.instantBook} onChange={(e) => setEditForm((p) => ({ ...p, instantBook: e.target.checked }))} />
+                          ⚡ Réservation instantanée (confirmée automatiquement)
+                        </label>
+                      ) : (
+                        <p style={{ margin: 0, fontSize: ".78rem", color: "#94a3b8" }}>
+                          ⚡ Réservation instantanée réservée aux comptes certifiés.
+                        </p>
+                      )}
                       <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: "0.85rem" }}>
                         <input type="checkbox" checked={editForm.withDriver} onChange={(e) => setEditForm((p) => ({ ...p, withDriver: e.target.checked }))} />
                         Disponible avec chauffeur

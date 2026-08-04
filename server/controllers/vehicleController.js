@@ -565,7 +565,7 @@ export const updateVehicle = async (req, res) => {
       "vehicleType", "carburant", "transmission", "nombrePlaces", "nombrePortes",
       "climatisation", "withDriver", "pricePerDay", "priceForSale", "caution",
       "rentalDurationType",
-      "leasing", "credit", "ageMin", "permisRequis", "assuranceOptionnelle", "dureeMinLocation",
+      "leasing", "credit", "ageMin", "permisRequis", "assuranceOptionnelle", "dureeMinLocation", "instantBook",
       "conditionsLocation", "conditionsVente",
       "fuelPolicy", "cancellationPolicy", "insuranceIncluded",
       "contactNom", "contactTel", "ville", "adresse", "coordonnees", "country",

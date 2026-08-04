@@ -127,6 +127,13 @@ const normalizeVehicle = (v) => {
     // absent en liste catalogue (v.business y reste un simple ObjectId ou absent).
     isConcessionnaire:    !!(v.business && typeof v.business === "object" && v.business.isConcessionnaire),
     certificationBadge:  v.owner?.certificationBadge || null,
+    // Bug réel corrigé (audit) : VehicleCard.jsx lit `car.rating`/`car.reviews`
+    // depuis toujours, mais ces champs n'existaient nulle part côté backend
+    // (le vrai modèle utilise `noteMoyenne`/`nombreAvis`, voir Vehicle.js) —
+    // la note moyenne n'apparaissait donc JAMAIS sur les cartes du catalogue,
+    // alors qu'elle sert justement à aider la décision avant de cliquer.
+    rating:  v.noteMoyenne || null,
+    reviews: v.nombreAvis  || 0,
   };
 };
 
@@ -171,6 +178,7 @@ export const VehicleProvider = ({ children }) => {
   const [partnerVehicles, setPartnerVehicles] = useState([]);
   const [partnerBookings, setPartnerBookings] = useState([]); // Commandes reçues (partenaire) — depuis backend
   const [drivers, setDrivers] = useState([]);
+  const [activities, setActivities] = useState([]);
   const [bookings, setBookings] = useState(() => loadBookings());
   const [vehiclesLoading, setVehiclesLoading] = useState(false);
 
@@ -346,12 +354,35 @@ export const VehicleProvider = ({ children }) => {
     return () => cancelIdle(id);
   }, []);
 
+  // Activités (section OTHERS — Quad, Surf, Montgolfière, Jetski, Jet privé,
+  // Bateau...) — même chargement différé que drivers ci-dessus.
+  useEffect(() => {
+    const loadActivities = async () => {
+      try {
+        const response = await fetch("/api/activities");
+        if (!response.ok) {
+          setActivities([]);
+          return;
+        }
+        const data = await response.json();
+        if (Array.isArray(data)) setActivities(data);
+      } catch {
+        setActivities([]);
+      }
+    };
+    const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 200));
+    const cancelIdle = window.cancelIdleCallback || clearTimeout;
+    const id = idle(loadActivities);
+    return () => cancelIdle(id);
+  }, []);
+
   const getItemById = (id) => {
     const sid = String(id);
     return (
       vehicles.find((v) => v._id === sid || String(v.id) === sid) ||
       partnerVehicles.find((v) => v._id === sid || String(v.id) === sid) ||
-      drivers.find((d) => d._id === sid || String(d.id) === sid)
+      drivers.find((d) => d._id === sid || String(d.id) === sid) ||
+      activities.find((a) => a._id === sid || String(a.id) === sid)
     );
   };
 
@@ -419,6 +450,85 @@ export const VehicleProvider = ({ children }) => {
       // fallback
     }
   };
+
+  // Publier une annonce activité (partenaire) — même pattern que addVehicle
+  // (endpoint dédié, jamais de fallback silencieux : une erreur remonte au
+  // formulaire avec le vrai message/code backend, ex: CERTIFICATION_REQUIRED).
+  const addActivity = async (newActivity) => {
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch("/api/activities", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(newActivity),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      const err = new Error(data?.message || `Erreur serveur (${response.status}).`);
+      if (data?.code) err.code = data.code;
+      throw err;
+    }
+    const data = await response.json();
+    const saved = data.activity || data;
+    setActivities((prev) => [saved, ...prev]);
+    return saved;
+  };
+
+  const updateActivity = async (id, patch) => {
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch(`/api/activities/${id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify(patch),
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(data?.message || `Erreur serveur (${response.status}).`);
+    const saved = data.activity || data;
+    setActivities((prev) => prev.map((a) => (a._id === saved._id ? saved : a)));
+    return saved;
+  };
+
+  const deleteActivity = async (id) => {
+    const headers = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch(`/api/activities/${id}`, { method: "DELETE", headers });
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      throw new Error(data?.message || `Erreur serveur (${response.status}).`);
+    }
+    setActivities((prev) => prev.filter((a) => a._id !== id));
+  };
+
+  const getMyActivities = useCallback(async () => {
+    if (!token) return [];
+    try {
+      const res = await fetch("/api/activities/mine", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.activities || [];
+    } catch {
+      return [];
+    }
+  }, [token]);
+
+  const approveActivity = useCallback(async (id, status = "approved") => {
+    try {
+      if (!token) return null;
+      const res = await fetch(`/api/activities/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      const updated = data.activity || data;
+      setActivities((prev) => prev.map((a) => (a._id === updated._id ? { ...a, status } : a)));
+      return updated;
+    } catch {
+      return null;
+    }
+  }, [token]);
 
   const approveVehicle = async (id) => {
     try {
@@ -578,24 +688,30 @@ export const VehicleProvider = ({ children }) => {
       partnerVehicles,
       partnerBookings,
       drivers,
+      activities,
       bookings,
       getItemById,
       addVehicle,
       updateVehicle,
       addDriver,
+      addActivity,
+      updateActivity,
+      deleteActivity,
+      getMyActivities,
       addBooking,
       removeLocalBooking,
       removeBooking,
       updateBookingStatus,
       approveVehicle,
       approveDriver,
+      approveActivity,
       loadPartnerVehicles,
       loadPartnerOrders,
       loadMyOrders,
       refreshVehicles: loadVehicles,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [vehicles, vehiclesLoading, featuredVehicles, featuredLoading, partnerVehicles, partnerBookings, drivers, bookings, loadPartnerVehicles, loadPartnerOrders, loadMyOrders, updateBookingStatus, loadVehicles]
+    [vehicles, vehiclesLoading, featuredVehicles, featuredLoading, partnerVehicles, partnerBookings, drivers, activities, bookings, loadPartnerVehicles, loadPartnerOrders, loadMyOrders, updateBookingStatus, loadVehicles, getMyActivities, approveActivity]
   );
 
   return <VehicleContext.Provider value={value}>{children}</VehicleContext.Provider>;

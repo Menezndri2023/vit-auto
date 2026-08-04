@@ -168,6 +168,7 @@ const VehicleCard = React.memo(({ car, compact }) => {
         )}
 
         <div className={styles.meta}>
+          {car.instantBook && <span title="Confirmée automatiquement, sans attendre le partenaire">⚡ Instantanée</span>}
           {car.rating    != null && <span>⭐ {car.rating} ({car.reviews || 0})</span>}
           {(car.nombrePlaces || car.seats) != null && <span>🧍 {car.nombrePlaces || car.seats} pl.</span>}
           {(car.transmission) && <span>⚙️ {car.transmission}</span>}

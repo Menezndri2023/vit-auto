@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import Booking from "../models/Booking.js";
 import Vehicle from "../models/Vehicle.js";
 import Driver from "../models/Driver.js";
+import Activity from "../models/Activity.js";
 import Payment from "../models/Payment.js";
 import Notification from "../models/Notification.js";
 import Contract from "../models/Contract.js";
@@ -40,11 +41,13 @@ function emitBookingUpdate(booking, eventName = "booking_updated", extra = {}) {
   if (booking.client) {
     io.to(`user_${booking.client}`).emit(eventName, payload);
   }
-  // → Partenaire (propriétaire véhicule ou chauffeur)
-  const vOwner = booking.vehicle?.owner?._id?.toString() || booking.vehicle?.owner?.toString();
-  const dOwner = booking.driver?.owner?._id?.toString()  || booking.driver?.owner?.toString();
+  // → Partenaire (propriétaire véhicule, chauffeur ou activité)
+  const vOwner = booking.vehicle?.owner?._id?.toString()   || booking.vehicle?.owner?.toString();
+  const dOwner = booking.driver?.owner?._id?.toString()    || booking.driver?.owner?.toString();
+  const aOwner = booking.activity?.owner?._id?.toString()  || booking.activity?.owner?.toString();
   if (vOwner) io.to(`partner_${vOwner}`).emit(eventName, payload);
   if (dOwner && dOwner !== vOwner) io.to(`partner_${dOwner}`).emit(eventName, payload);
+  if (aOwner && aOwner !== vOwner && aOwner !== dOwner) io.to(`partner_${aOwner}`).emit(eventName, payload);
   // → Admins
   io.to("admins").emit(eventName, payload);
 }
@@ -126,7 +129,7 @@ const ESSAI_DURATION_MS = 60 * 60 * 1000;
 // server/models/PricingConfig.js), éditable admin sans redéploiement.
 
 // ── Génération référence unique ────────────────────────────────────────────────
-const REF_PREFIX = { location: "LOC", essai: "VENTE", chauffeur: "CHAUFF", leasing: "LEAS" };
+const REF_PREFIX = { location: "LOC", essai: "VENTE", chauffeur: "CHAUFF", leasing: "LEAS", activite: "ACT" };
 
 async function generateReference(type) {
   const year   = new Date().getFullYear();
@@ -190,12 +193,38 @@ function schedulePostServiceSurvey(booking) {
   }, 24 * 3600 * 1000).catch(() => {});
 }
 
+// ── Fidélité client (Bug produit corrigé — audit) ───────────────────────────
+// Aucun programme de fidélité n'existait avant ce correctif. 1 point par USD
+// dépensé (montantTotal), crédité sur User.loyaltyPoints quand une commande
+// atteint "completed" — appelée aux 4 mêmes points de sortie que
+// schedulePostServiceSurvey ci-dessus (voir son commentaire pour la liste).
+// Best-effort volontaire (jamais bloquant pour la complétion de la commande
+// elle-même) : erreur avalée, jamais remontée à l'appelant.
+async function awardLoyaltyPoints(booking) {
+  if (!booking?.client) return; // réservation invité sans compte — rien à créditer
+  const points = Math.floor(Number(booking.montantTotal) || 0);
+  if (points <= 0) return;
+  try {
+    await User.findByIdAndUpdate(booking.client, { $inc: { loyaltyPoints: points } });
+    await notify(booking.client, "system", "🎁 Points de fidélité crédités",
+      `+${points} points pour votre commande ${booking.reference || ""} — 100 points = 1 USD de remise sur votre prochaine réservation.`,
+      "/dashboard");
+  } catch (err) {
+    logger.error("awardLoyaltyPoints:", err);
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1. CRÉER UNE COMMANDE
 // ═══════════════════════════════════════════════════════════════════════════════
 export const createBooking = async (req, res) => {
+  // Déclaré hors du try — le filet de sécurité fidélité dans le catch (voir
+  // plus bas) doit pouvoir y accéder même si l'échec survient après le débit
+  // des points ; une déclaration `let` à l'intérieur du try ne serait pas
+  // visible dans le catch (scope de bloc).
+  let loyaltyPointsRedeemed = 0;
   try {
-    const { type, clientInfo, vehicleId, driverId, location, essai, chauffeur, leasing: leasingData, payment: paymentData } = req.body;
+    const { type, clientInfo, vehicleId, driverId, activityId, location, essai, chauffeur, activite, leasing: leasingData, payment: paymentData } = req.body;
 
     if (!type || !clientInfo?.firstName || !clientInfo?.email) {
       return res.status(400).json({ message: "Type et informations client requis." });
@@ -217,6 +246,12 @@ export const createBooking = async (req, res) => {
         return res.status(400).json({ message: "Nombre d'heures invalide." });
       }
     }
+    if (type === "activite" && activite?.participants !== undefined) {
+      const participants = Number(activite.participants);
+      if (!Number.isFinite(participants) || participants <= 0) {
+        return res.status(400).json({ message: "Nombre de participants invalide." });
+      }
+    }
     if (type === "leasing" && leasingData?.apportInitial !== undefined) {
       const apport = Number(leasingData.apportInitial);
       if (!Number.isFinite(apport) || apport < 0) {
@@ -236,6 +271,10 @@ export const createBooking = async (req, res) => {
     let ownerId = null;
     let essaiPreferredDate   = null;
     let essaiDateFinComputed = null;
+    // Réservation instantanée — voir plus bas (bloc "location") pour le calcul,
+    // toujours re-vérifié côté serveur (jamais confiance dans Vehicle.instantBook
+    // seul, un partenaire suspendu/déclassé après coup ne doit jamais en bénéficier).
+    let instantConfirm = false;
 
     // ── Véhicule ───────────────────────────────────────────────────────────────
     if (["location", "essai", "leasing"].includes(type)) {
@@ -289,6 +328,18 @@ export const createBooking = async (req, res) => {
         // de promotion éligible pour la durée réservée (voir Vehicle.promotions).
         const effectivePricePerDay = applyPromotion(vehicle.pricePerDay || 0, location?.days || 1, vehicle.promotions);
         montantBase = effectivePricePerDay * (location?.days || 1);
+
+        // Réservation instantanée : le partenaire a activé Vehicle.instantBook,
+        // mais ça ne suffit jamais seul — re-vérifié à chaque réservation que le
+        // partenaire est toujours certifié/Founding Partner (pas figé à l'activation
+        // du booléen, un partenaire déclassé/suspendu depuis ne doit plus en
+        // bénéficier même si le champ est resté à true sur l'annonce).
+        if (vehicle.instantBook) {
+          const ownerUser = await User.findById(vehicle.owner).select("certificationBadge isFounder").lean();
+          if (ownerUser?.isFounder || (ownerUser?.certificationBadge && ownerUser.certificationBadge !== "none")) {
+            instantConfirm = true;
+          }
+        }
       }
       // Caution toujours dérivée de la configuration réelle du véhicule
       // (vehicle.caution, fixée par le partenaire à la publication), jamais
@@ -406,6 +457,88 @@ export const createBooking = async (req, res) => {
       }
     }
 
+    // ── Activité (section OTHERS — Quad, Surf, Montgolfière, Jetski, Jet
+    // privé, Bateau...) ──────────────────────────────────────────────────────
+    const activeStatusesGeneric = ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "driver_arrived", "transaction_concluded", "waiting_client_validation"];
+    let activityObj          = null;
+    let activityDateStart    = null;
+    let activityDateFin      = null;
+    let activityParticipants = 1;
+    let activityIsEssai      = false;
+    if (type === "activite") {
+      if (!activityId) return res.status(400).json({ message: "activityId requis." });
+      activityObj = await Activity.findById(activityId);
+      if (!activityObj) return res.status(404).json({ message: "Activité introuvable." });
+      if (activityObj.status !== "approved") {
+        return res.status(409).json({ message: "Activité non disponible." });
+      }
+      if (!activityObj.available || activityObj.manuallyPaused) {
+        return res.status(409).json({ message: "Activité temporairement indisponible." });
+      }
+      ownerId = activityObj.owner;
+
+      // "Essai" (découverte courte) — seulement si activé par le partenaire
+      // sur CETTE annonce (voir Activity.essaiDisponible), jamais présumé
+      // depuis le type d'activité seul.
+      activityIsEssai = !!activite?.essai;
+      if (activityIsEssai && !activityObj.essaiDisponible) {
+        return res.status(400).json({ message: "Cette activité ne propose pas d'essai." });
+      }
+
+      const activityDate = activite?.date ? new Date(activite.date) : null;
+      if (!activityDate || isNaN(activityDate.getTime())) {
+        return res.status(400).json({ message: "Date et heure de l'activité requises." });
+      }
+      if (activityDate < new Date()) {
+        return res.status(400).json({ message: "La date de l'activité ne peut pas être dans le passé." });
+      }
+
+      activityParticipants = Math.max(1, Math.floor(Number(activite?.participants) || 1));
+      if (activityParticipants > activityObj.capacity) {
+        return res.status(400).json({ message: `Cette activité accepte au maximum ${activityObj.capacity} participant(s).` });
+      }
+
+      const durationMinutes = activityIsEssai
+        ? (activityObj.essaiDurationMinutes || 30)
+        : (activityObj.durationMinutes || 60);
+      activityDateStart = activityDate;
+      activityDateFin   = new Date(activityDate.getTime() + durationMinutes * 60000);
+
+      // Capacité partagée sur un même créneau (ex: flotte de 5 quads) : la
+      // somme des participants déjà réservés + ceux-ci ne doit jamais dépasser
+      // Activity.capacity — contrairement au chauffeur/véhicule (exclusivité
+      // stricte), plusieurs réservations peuvent coexister sur le même créneau
+      // tant que la capacité totale n'est pas dépassée.
+      const overlapping = await Booking.find({
+        activity: activityId,
+        status:   { $in: activeStatusesGeneric },
+        "activite.date":    { $lt: activityDateFin },
+        "activite.dateFin": { $gt: activityDateStart },
+      }).select("activite.participants");
+      const alreadyBooked = overlapping.reduce((sum, b) => sum + (b.activite?.participants || 1), 0);
+      if (alreadyBooked + activityParticipants > activityObj.capacity) {
+        return res.status(409).json({ message: "Capacité insuffisante sur ce créneau pour ce nombre de participants." });
+      }
+
+      // ── Congés bloqués par le partenaire (voir activityController
+      // .addActivityBlackout) — même principe que Driver.blackoutDates : sans
+      // ce contrôle, un client pouvait réserver une activité pendant une
+      // période explicitement marquée indisponible (maintenance matériel...).
+      const onActivityBlackout = (activityObj.blackoutDates || []).some(
+        (b) => new Date(b.start) < activityDateFin && new Date(b.end) > activityDateStart
+      );
+      if (onActivityBlackout) {
+        return res.status(409).json({ message: "Cette activité est indisponible sur cette période." });
+      }
+
+      // Prix toujours recalculé côté serveur (jamais confiance dans un montant
+      // envoyé par le client) — "per_person" multiplie par le nombre de
+      // participants, "per_session" reste forfaitaire quel que soit ce nombre
+      // (voir Activity.priceUnit).
+      const unitPrice = activityIsEssai ? (activityObj.essaiPrice ?? activityObj.price) : activityObj.price;
+      montantBase = activityObj.priceUnit === "per_person" ? unitPrice * activityParticipants : unitPrice;
+    }
+
     // ── Options location ───────────────────────────────────────────────────────
     let montantOptions = 0;
     if (type === "location" && location?.options) {
@@ -439,7 +572,32 @@ export const createBooking = async (req, res) => {
       }
     }
 
-    const montantTotal    = montantBase + montantOptions + deliveryFee;
+    // ── Remise fidélité (voir awardLoyaltyPoints ci-dessus) ────────────────────
+    // 100 points = 1 USD, plafonné à 20% de montantBase pour ne jamais réduire
+    // une réservation à un montant quasi nul. Débit atomique conditionnel
+    // (jamais de solde négatif même sous requêtes concurrentes) — le montant
+    // réellement débité (loyaltyPointsRedeemed) est celui qui compte, jamais
+    // celui demandé par le client si le débit échoue ou est partiellement
+    // plafonné.
+    let loyaltyDiscount = 0;
+    if (type === "location" && req.user?._id && Number(req.body?.pointsToRedeem) > 0) {
+      const requestedPoints = Math.floor(Number(req.body.pointsToRedeem));
+      const maxDiscountUSD  = montantBase * 0.2;
+      const maxPointsByCap  = Math.floor(maxDiscountUSD * 100);
+      const pointsToTry     = Math.min(requestedPoints, maxPointsByCap);
+      if (pointsToTry > 0) {
+        const debited = await User.updateOne(
+          { _id: req.user._id, loyaltyPoints: { $gte: pointsToTry } },
+          { $inc: { loyaltyPoints: -pointsToTry } }
+        );
+        if (debited.modifiedCount > 0) {
+          loyaltyPointsRedeemed = pointsToTry;
+          loyaltyDiscount = pointsToTry / 100;
+        }
+      }
+    }
+
+    const montantTotal    = Math.max(montantBase + montantOptions + deliveryFee - loyaltyDiscount, 0);
     const commissionRate  = await resolveCommissionRate(type, ownerId);
     const commissionAmount = Math.round(montantTotal * commissionRate * 100) / 100;
     const serviceFeeFCFA  = await computeServiceFee(montantTotal);
@@ -481,6 +639,9 @@ export const createBooking = async (req, res) => {
     const bookingData = {
       type,
       reference,
+      // Réservation instantanée (voir bloc "location" plus haut) — sinon
+      // laissé absent pour que le schéma applique son défaut ("pending").
+      ...(instantConfirm ? { status: "confirmed" } : {}),
       clientInfo: {
         ...clientInfo,
         kycStatus:  clientKycStatus,
@@ -489,6 +650,7 @@ export const createBooking = async (req, res) => {
       client:   req.user?._id || null,
       vehicle:  vehicle?._id  || null,
       driver:   driver?._id   || null,
+      activity: activityObj?._id || null,
       // deliveryFee toujours écrasé par la valeur calculée serveur ci-dessus, jamais celle du client
       location: type === "location" && location ? { ...location, deliveryFee } : (type === "location" ? location : undefined),
       // preferredDate/dateFin toujours écrasés par les valeurs calculées serveur
@@ -497,10 +659,19 @@ export const createBooking = async (req, res) => {
       essai:    type === "essai"    ? { ...essai, preferredDate: essaiPreferredDate, dateFin: essaiDateFinComputed } : undefined,
       // dateFin toujours écrasé par la valeur calculée serveur ci-dessus, jamais celle du client
       chauffeur: type === "chauffeur" ? { ...chauffeur, dateFin: chauffeurDateFin } : undefined,
+      // date/dateFin/participants toujours écrasés par les valeurs calculées
+      // serveur ci-dessus, jamais celles envoyées brutes par le client.
+      activite: type === "activite" ? {
+        ...activite,
+        date: activityDateStart, dateFin: activityDateFin,
+        participants: activityParticipants, essai: activityIsEssai,
+      } : undefined,
       leasing:  type === "leasing"  ? leasingData : undefined,
       montantBase,
       montantOptions,
       montantTotal,
+      loyaltyPointsRedeemed,
+      loyaltyDiscount,
       cautionAmount,
       devise: "USD",
       commissionRate,
@@ -609,6 +780,34 @@ export const createBooking = async (req, res) => {
       } finally {
         await session.endSession();
       }
+    } else if (type === "activite" && activityObj && activityDateStart && activityDateFin) {
+      // Même garantie que "chauffeur" ci-dessus — la pré-vérification plus
+      // haut n'empêchait pas deux réservations concurrentes créées au même
+      // instant de dépasser ensemble la capacité du créneau.
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          const overlapping = await Booking.find({
+            activity: activityId,
+            status:   { $in: activeStatuses },
+            "activite.date":    { $lt: activityDateFin },
+            "activite.dateFin": { $gt: activityDateStart },
+          }).select("activite.participants").session(session);
+          const alreadyBooked = overlapping.reduce((sum, b) => sum + (b.activite?.participants || 1), 0);
+          if (alreadyBooked + activityParticipants > activityObj.capacity) {
+            throw Object.assign(new Error("ACTIVITY_CAPACITY"), {});
+          }
+          const [created] = await Booking.create([bookingData], { session });
+          booking = created;
+        });
+      } catch (txErr) {
+        if (txErr.message === "ACTIVITY_CAPACITY") {
+          return res.status(409).json({ message: "Capacité insuffisante sur ce créneau pour ce nombre de participants." });
+        }
+        throw txErr;
+      } finally {
+        await session.endSession();
+      }
     } else {
       booking = await Booking.create(bookingData);
     }
@@ -659,7 +858,9 @@ export const createBooking = async (req, res) => {
       ? { _id: vehicle._id, title: vehicle.title, owner: { _id: ownerId } }
       : driver
         ? { _id: driver._id, title: driver.title || `${driver.firstName} ${driver.lastName}`, owner: { _id: ownerId } }
-        : null;
+        : activityObj
+          ? { _id: activityObj._id, title: activityObj.title, owner: { _id: ownerId } }
+          : null;
     dispatch.bookingCreated(
       { _id: booking._id, reference, type, montantTotal, location, status: booking.status },
       req.user ? { _id: req.user._id, email: req.user.email, phone: req.user.phone, firstName: req.user.firstName } : null,
@@ -687,6 +888,14 @@ export const createBooking = async (req, res) => {
     res.status(201).json({ booking, isFirstBooking });
   } catch (err) {
     logger.error("createBooking:", err);
+    // Filet de sécurité fidélité : les points sont débités AVANT la création
+    // du Booking (voir plus haut) pour rester dans le même flux synchrone que
+    // le calcul de montantTotal — si la création échoue après ce débit
+    // (erreur inattendue plus bas), les points sont recrédités plutôt que
+    // perdus silencieusement.
+    if (typeof loyaltyPointsRedeemed === "number" && loyaltyPointsRedeemed > 0 && req.user?._id) {
+      await User.updateOne({ _id: req.user._id }, { $inc: { loyaltyPoints: loyaltyPointsRedeemed } }).catch(() => {});
+    }
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -901,6 +1110,7 @@ export const getMyBookings = async (req, res) => {
         .limit(safeLimit)
         .populate("vehicle", "title marque modele pricePerDay ville contactTel contactNom owner country")
         .populate("driver",  "firstName lastName profilePhoto tarif zone phone owner country")
+        .populate("activity", "title activityType price priceUnit owner country ville")
         .populate("payment", "method status amount devise")
         .lean(),
       Booking.countDocuments(filter),
@@ -927,19 +1137,23 @@ export const getPartnerBookings = async (req, res) => {
     // Vehicle.business/Driver.business que dans pmsController.getPartnerBookings
     // (Booking lui-même ne porte pas cette info, une commande n'appartenant
     // qu'à un seul véhicule/chauffeur qui, lui, appartient à une entité).
-    const vehicleFilter = { owner: req.user._id };
-    const driverFilter  = { owner: req.user._id };
+    const vehicleFilter  = { owner: req.user._id };
+    const driverFilter   = { owner: req.user._id };
+    const activityFilter = { owner: req.user._id };
     if (businessId && mongoose.Types.ObjectId.isValid(businessId)) {
-      vehicleFilter.business = businessId;
-      driverFilter.business  = businessId;
+      vehicleFilter.business  = businessId;
+      driverFilter.business   = businessId;
+      activityFilter.business = businessId;
     }
-    const [myVehicles, myDrivers] = await Promise.all([
+    const [myVehicles, myDrivers, myActivities] = await Promise.all([
       Vehicle.find(vehicleFilter).select("_id"),
       Driver.find(driverFilter).select("_id"),
+      Activity.find(activityFilter).select("_id"),
     ]);
-    const vehicleIds = myVehicles.map((v) => v._id);
-    const driverIds  = myDrivers.map((d) => d._id);
-    const filter = { $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }] };
+    const vehicleIds  = myVehicles.map((v) => v._id);
+    const driverIds   = myDrivers.map((d) => d._id);
+    const activityIds = myActivities.map((a) => a._id);
+    const filter = { $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }, { activity: { $in: activityIds } }] };
 
     const [bookings, total] = await Promise.all([
       Booking.find(filter)
@@ -948,6 +1162,7 @@ export const getPartnerBookings = async (req, res) => {
         .limit(safeLimit)
         .populate("vehicle", "title marque modele owner pricePerDay contactNom contactTel")
         .populate("driver",  "firstName lastName owner tarif phone")
+        .populate("activity", "title activityType owner price")
         .populate("payment", "method status amount")
         // Données KYC limitées : le partenaire voit le statut et le score, pas les données biométriques brutes
         .populate("client",  "firstName lastName email phone kycStatus kycScore kycBadge emailVerified phoneVerified")
@@ -1010,6 +1225,7 @@ export const getAllBookings = async (req, res) => {
         .populate("client",  "firstName lastName email phone kycStatus kycScore")
         .populate("vehicle", "title marque modele owner ville")
         .populate("driver",  "firstName lastName owner")
+        .populate("activity", "title activityType owner")
         .lean(),
       Booking.countDocuments(filter),
     ]);
@@ -1094,17 +1310,20 @@ export const updateBookingStatus = async (req, res) => {
 
     const booking = await Booking.findById(id)
       .populate("vehicle", "owner title marque modele contactNom contactTel pricePerDay")
-      .populate("driver",  "owner firstName lastName");
+      .populate("driver",  "owner firstName lastName")
+      .populate("activity", "owner title activityType price");
 
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
 
     // Ownership robuste : vérifier que l'ID propriétaire est bien défini avant comparaison
-    const vehicleOwnerId = booking.vehicle?.owner?._id?.toString() || booking.vehicle?.owner?.toString();
-    const driverOwnerId  = booking.driver?.owner?._id?.toString()  || booking.driver?.owner?.toString();
-    const userId         = req.user._id.toString();
+    const vehicleOwnerId  = booking.vehicle?.owner?._id?.toString()  || booking.vehicle?.owner?.toString();
+    const driverOwnerId   = booking.driver?.owner?._id?.toString()   || booking.driver?.owner?.toString();
+    const activityOwnerId = booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString();
+    const userId          = req.user._id.toString();
 
     const isOwner = (vehicleOwnerId && vehicleOwnerId === userId) ||
-                    (driverOwnerId  && driverOwnerId  === userId);
+                    (driverOwnerId  && driverOwnerId  === userId) ||
+                    (activityOwnerId && activityOwnerId === userId);
 
     if (req.user.role !== "admin" && !isOwner) {
       return res.status(403).json({ message: "Accès refusé." });
@@ -1244,7 +1463,7 @@ export const updateBookingStatus = async (req, res) => {
     if (n && booking.client) {
       await notify(booking.client, n.type, n.titre, n.msg, n.lien || "/dashboard");
     }
-    if (status === "completed") { await markVehicleSoldIfApplicable(booking); schedulePostServiceSurvey(booking); issueServiceInvoice(booking); await recordPartnerPayout(booking); }
+    if (status === "completed") { await markVehicleSoldIfApplicable(booking); schedulePostServiceSurvey(booking); issueServiceInvoice(booking); await recordPartnerPayout(booking); await awardLoyaltyPoints(booking); }
 
     res.json({ booking });
   } catch (err) {
@@ -1284,7 +1503,8 @@ export const recordTransaction = async (req, res) => {
 
     const booking = await Booking.findById(id)
       .populate("vehicle", "owner")
-      .populate("driver",  "owner");
+      .populate("driver",  "owner")
+      .populate("activity", "owner");
 
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
 
@@ -1295,8 +1515,9 @@ export const recordTransaction = async (req, res) => {
 
     const _vOwnerId = booking.vehicle?.owner?._id?.toString() || booking.vehicle?.owner?.toString();
     const _dOwnerId  = booking.driver?.owner?._id?.toString()  || booking.driver?.owner?.toString();
+    const _aOwnerId  = booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString();
     const _userId    = req.user._id.toString();
-    const isOwner = (_vOwnerId && _vOwnerId === _userId) || (_dOwnerId && _dOwnerId === _userId);
+    const isOwner = (_vOwnerId && _vOwnerId === _userId) || (_dOwnerId && _dOwnerId === _userId) || (_aOwnerId && _aOwnerId === _userId);
 
     if (req.user.role !== "admin" && !isOwner) {
       return res.status(403).json({ message: "Accès refusé." });
@@ -1309,7 +1530,7 @@ export const recordTransaction = async (req, res) => {
     // Recalcul commission sur montant final réel — `?? 0` (jamais `|| 1`,
     // bug réel corrigé en audit) : un serviceFeeFCFA légitimement à 0 aurait
     // sinon été remplacé par 1, grignotant 1 USD sur le partnerPayout.
-    const commissionRate   = await resolveCommissionRate(booking.type, _vOwnerId || _dOwnerId);
+    const commissionRate   = await resolveCommissionRate(booking.type, _vOwnerId || _dOwnerId || _aOwnerId);
     const commissionAmount = Math.round(finalAmount * commissionRate * 100) / 100;
     const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA ?? 0), 0);
 
@@ -1390,7 +1611,8 @@ export const validateTransaction = async (req, res) => {
 
     const booking = await Booking.findById(id)
       .populate("vehicle", "owner title marque modele")
-      .populate("driver",  "owner firstName lastName");
+      .populate("driver",  "owner firstName lastName")
+      .populate("activity", "owner title activityType");
 
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
 
@@ -1433,6 +1655,7 @@ export const validateTransaction = async (req, res) => {
       schedulePostServiceSurvey(booking);
       issueServiceInvoice(booking);
       await recordPartnerPayout(booking);
+      await awardLoyaltyPoints(booking);
     } else {
       booking.status = "disputed";
       booking.clientValidation = {
@@ -1572,6 +1795,60 @@ export const getDriverOccupiedSlots = async (req, res) => {
     res.json({ driverId, occupied: [...occupied, ...blackout] });
   } catch (err) {
     logger.error("getDriverOccupiedSlots:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 8c-bis. CRÉNEAUX OCCUPÉS D'UNE ACTIVITÉ (section OTHERS — participants déjà
+// réservés par créneau, pour afficher la capacité restante côté client avant
+// soumission ; le serveur reste seul garant, voir createBooking)
+// ═══════════════════════════════════════════════════════════════════════════════
+export const getActivityOccupiedSlots = async (req, res) => {
+  try {
+    const { activityId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(activityId)) {
+      return res.status(400).json({ message: "activityId invalide." });
+    }
+
+    const activeStatuses = [
+      "pending", "confirmed", "preparing", "ready", "in_progress",
+      "client_arrived", "driver_arrived", "transaction_concluded", "waiting_client_validation",
+    ];
+
+    const [bookings, activity] = await Promise.all([
+      Booking.find({
+        activity: activityId,
+        status:   { $in: activeStatuses },
+        "activite.date":    { $exists: true },
+        "activite.dateFin": { $exists: true },
+      }).select("activite.date activite.dateFin activite.participants status reference -_id"),
+      Activity.findById(activityId).select("blackoutDates capacity"),
+    ]);
+
+    const occupied = bookings.map((b) => ({
+      date:         b.activite.date,
+      dateFin:      b.activite.dateFin,
+      participants: b.activite.participants || 1,
+      status:       b.status,
+      reference:    b.reference || "",
+    }));
+
+    // Congés bloqués par le partenaire (voir activityController
+    // .addActivityBlackout) — même principe que getDriverOccupiedSlots :
+    // un créneau "congé" doit apparaître comme indisponible côté client,
+    // pas seulement en base.
+    const blackout = (activity?.blackoutDates || []).map((b) => ({
+      date:         b.start,
+      dateFin:      b.end,
+      participants: activity.capacity || 1,
+      status:       "conge",
+      reference:    b.reason || "Indisponible",
+    }));
+
+    res.json({ activityId, occupied: [...occupied, ...blackout] });
+  } catch (err) {
+    logger.error("getActivityOccupiedSlots:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -1825,20 +2102,24 @@ export const getPartnerAnalytics = async (req, res) => {
 export const exportPartnerBookings = async (req, res) => {
   try {
     const { dateFrom, dateTo, businessId } = req.query;
-    const vehicleFilter = { owner: req.user._id };
-    const driverFilter  = { owner: req.user._id };
+    const vehicleFilter  = { owner: req.user._id };
+    const driverFilter   = { owner: req.user._id };
+    const activityFilter = { owner: req.user._id };
     if (businessId && mongoose.Types.ObjectId.isValid(businessId)) {
-      vehicleFilter.business = businessId;
-      driverFilter.business  = businessId;
+      vehicleFilter.business  = businessId;
+      driverFilter.business   = businessId;
+      activityFilter.business = businessId;
     }
-    const [myVehicles, myDrivers] = await Promise.all([
+    const [myVehicles, myDrivers, myActivities] = await Promise.all([
       Vehicle.find(vehicleFilter).select("_id"),
       Driver.find(driverFilter).select("_id"),
+      Activity.find(activityFilter).select("_id"),
     ]);
-    const vehicleIds = myVehicles.map((v) => v._id);
-    const driverIds  = myDrivers.map((d) => d._id);
+    const vehicleIds  = myVehicles.map((v) => v._id);
+    const driverIds   = myDrivers.map((d) => d._id);
+    const activityIds = myActivities.map((a) => a._id);
 
-    const filter = { $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }] };
+    const filter = { $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }, { activity: { $in: activityIds } }] };
     if (dateFrom || dateTo) {
       filter.createdAt = {};
       if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
@@ -1850,6 +2131,7 @@ export const exportPartnerBookings = async (req, res) => {
       .limit(5000)
       .populate("vehicle", "title marque modele")
       .populate("driver",  "firstName lastName")
+      .populate("activity", "title activityType")
       .lean();
 
     const rows = [
@@ -1860,7 +2142,7 @@ export const exportPartnerBookings = async (req, res) => {
         b.status,
         `${b.clientInfo?.firstName || ""} ${b.clientInfo?.lastName || ""}`.trim(),
         b.clientInfo?.email || "",
-        b.vehicle?.title || (b.driver ? `${b.driver.firstName || ""} ${b.driver.lastName || ""}`.trim() : ""),
+        b.vehicle?.title || b.activity?.title || (b.driver ? `${b.driver.firstName || ""} ${b.driver.lastName || ""}`.trim() : ""),
         b.montantTotal || 0,
         b.commissionAmount || 0,
         b.partnerPayout || 0,
@@ -1904,14 +2186,16 @@ export const partnerConfirm = async (req, res) => {
 
     const booking = await Booking.findById(id)
       .populate("vehicle", "owner title")
-      .populate("driver",  "owner firstName lastName");
+      .populate("driver",  "owner firstName lastName")
+      .populate("activity", "owner title");
 
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
 
     const _vOwnerId = booking.vehicle?.owner?._id?.toString() || booking.vehicle?.owner?.toString();
     const _dOwnerId  = booking.driver?.owner?._id?.toString()  || booking.driver?.owner?.toString();
+    const _aOwnerId  = booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString();
     const _userId    = req.user._id.toString();
-    const isOwner = (_vOwnerId && _vOwnerId === _userId) || (_dOwnerId && _dOwnerId === _userId);
+    const isOwner = (_vOwnerId && _vOwnerId === _userId) || (_dOwnerId && _dOwnerId === _userId) || (_aOwnerId && _aOwnerId === _userId);
 
     if (req.user.role !== "admin" && !isOwner) {
       return res.status(403).json({ message: "Accès refusé." });
@@ -1957,7 +2241,7 @@ export const partnerConfirm = async (req, res) => {
       return res.status(400).json({ message: "Mensualité requise pour un financement leasing/crédit." });
     }
 
-    const commissionRate   = await resolveCommissionRate(booking.type, _vOwnerId || _dOwnerId);
+    const commissionRate   = await resolveCommissionRate(booking.type, _vOwnerId || _dOwnerId || _aOwnerId);
     const commissionAmount = Math.round(finalAmount * commissionRate * 100) / 100;
     const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA ?? 0), 0);
 
@@ -2047,9 +2331,10 @@ export const getBookingDetail = async (req, res) => {
 
     // Vérification d'autorisation AVANT de charger les données sensibles
     const rawBooking = await Booking.findById(id)
-      .select("vehicle driver client")
+      .select("vehicle driver activity client")
       .populate("vehicle", "owner")
-      .populate("driver",  "owner");
+      .populate("driver",  "owner")
+      .populate("activity", "owner");
 
     if (!rawBooking) return res.status(404).json({ message: "Commande introuvable." });
 
@@ -2057,8 +2342,9 @@ export const getBookingDetail = async (req, res) => {
       const uid      = req.user._id.toString();
       const vOwner   = rawBooking.vehicle?.owner?._id?.toString() || rawBooking.vehicle?.owner?.toString();
       const dOwner   = rawBooking.driver?.owner?._id?.toString()  || rawBooking.driver?.owner?.toString();
+      const aOwner   = rawBooking.activity?.owner?._id?.toString() || rawBooking.activity?.owner?.toString();
       const clientId = rawBooking.client?.toString();
-      const hasAccess = (vOwner && vOwner === uid) || (dOwner && dOwner === uid) || (clientId && clientId === uid);
+      const hasAccess = (vOwner && vOwner === uid) || (dOwner && dOwner === uid) || (aOwner && aOwner === uid) || (clientId && clientId === uid);
       if (!hasAccess) return res.status(403).json({ message: "Accès refusé." });
     }
 
@@ -2068,7 +2354,8 @@ export const getBookingDetail = async (req, res) => {
     const uid = req.user._id.toString();
     const vOwner = rawBooking.vehicle?.owner?._id?.toString() || rawBooking.vehicle?.owner?.toString();
     const dOwner = rawBooking.driver?.owner?._id?.toString()  || rawBooking.driver?.owner?.toString();
-    const isPartnerOwner = (vOwner && vOwner === uid) || (dOwner && dOwner === uid);
+    const aOwner = rawBooking.activity?.owner?._id?.toString() || rawBooking.activity?.owner?.toString();
+    const isPartnerOwner = (vOwner && vOwner === uid) || (dOwner && dOwner === uid) || (aOwner && aOwner === uid);
 
     const clientFields = isAdmin
       ? "firstName lastName email phone kycStatus kycScore kycBadge kycOcrData kycFaceMatchScore driverLicenseOcr emailVerified phoneVerified"
@@ -2080,6 +2367,7 @@ export const getBookingDetail = async (req, res) => {
       .populate("client",   clientFields)
       .populate("vehicle",  "title marque modele owner images pricePerDay contactNom contactTel")
       .populate("driver",   "firstName lastName phone owner tarif")
+      .populate("activity", "title activityType owner images price priceUnit")
       .populate("payment",  "method status amount devise createdAt")
       .populate("contract", "reference status createdAt");
 
@@ -2107,13 +2395,15 @@ export const partnerVerifyKyc = async (req, res) => {
 
     const booking = await Booking.findById(id)
       .populate("vehicle", "owner")
-      .populate("driver",  "owner");
+      .populate("driver",  "owner")
+      .populate("activity", "owner");
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
 
     const _vOwnerId = booking.vehicle?.owner?._id?.toString() || booking.vehicle?.owner?.toString();
     const _dOwnerId  = booking.driver?.owner?._id?.toString()  || booking.driver?.owner?.toString();
+    const _aOwnerId  = booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString();
     const _userId    = req.user._id.toString();
-    const isOwner = (_vOwnerId && _vOwnerId === _userId) || (_dOwnerId && _dOwnerId === _userId);
+    const isOwner = (_vOwnerId && _vOwnerId === _userId) || (_dOwnerId && _dOwnerId === _userId) || (_aOwnerId && _aOwnerId === _userId);
 
     if (req.user.role !== "admin" && !isOwner) {
       return res.status(403).json({ message: "Accès refusé." });
@@ -2395,7 +2685,8 @@ export const cancelBookingByClient = async (req, res) => {
 
     const booking = await Booking.findById(id)
       .populate("vehicle", "title owner")
-      .populate("driver",  "firstName lastName owner");
+      .populate("driver",  "firstName lastName owner")
+      .populate("activity", "title owner");
     if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
 
     // Vérifie que c'est bien le client de cette réservation
@@ -2454,8 +2745,8 @@ export const cancelBookingByClient = async (req, res) => {
 
     const reasonLabel = CLIENT_CANCEL_REASONS_MAP[reasonCode] || reasonCode;
 
-    // Notifier le partenaire (propriétaire véhicule OU chauffeur selon le type de commande)
-    const cancelOwnerId = booking.vehicle?.owner || booking.driver?.owner;
+    // Notifier le partenaire (propriétaire véhicule, chauffeur OU activité selon le type de commande)
+    const cancelOwnerId = booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner;
     if (cancelOwnerId) {
       await notify(
         cancelOwnerId,
@@ -2581,6 +2872,7 @@ export const completeMission = async (req, res) => {
     schedulePostServiceSurvey(booking);
     issueServiceInvoice(booking);
     await recordPartnerPayout(booking);
+    await awardLoyaltyPoints(booking);
 
     res.json({ booking, message: "Mission terminée." });
   } catch (err) {
@@ -2704,7 +2996,8 @@ export const resolveDispute = async (req, res) => {
     const booking = await Booking.findById(id)
       .populate("client",  "firstName lastName email")
       .populate("vehicle", "title owner")
-      .populate("driver",  "firstName lastName owner");
+      .populate("driver",  "firstName lastName owner")
+      .populate("activity", "title owner");
 
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
     if (booking.status !== "disputed") {
@@ -2746,7 +3039,7 @@ export const resolveDispute = async (req, res) => {
     if (booking.client?._id) await notify(booking.client._id, "system", "Litige résolu", clientMsg, "/dashboard");
     if (disputeOwnerId) await notify(disputeOwnerId, "system", "Litige résolu",
       `Le litige sur la commande ${booking.reference} a été résolu par l'administration.`, "/vendor/dashboard");
-    if (booking.status === "completed") { schedulePostServiceSurvey(booking); issueServiceInvoice(booking); await recordPartnerPayout(booking); }
+    if (booking.status === "completed") { schedulePostServiceSurvey(booking); issueServiceInvoice(booking); await recordPartnerPayout(booking); await awardLoyaltyPoints(booking); }
 
     res.json({ booking, message: "Litige résolu.", resolution });
   } catch (err) {
@@ -2777,16 +3070,18 @@ export const respondToDispute = async (req, res) => {
 
     const booking = await Booking.findById(id)
       .populate("vehicle", "owner")
-      .populate("driver",  "owner");
+      .populate("driver",  "owner")
+      .populate("activity", "owner");
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
     if (booking.status !== "disputed") {
       return res.status(409).json({ message: "Cette commande n'est pas en litige." });
     }
 
-    const vehicleOwnerId = booking.vehicle?.owner?.toString();
-    const driverOwnerId  = booking.driver?.owner?.toString();
-    const userId         = req.user._id.toString();
-    const isOwner = (vehicleOwnerId && vehicleOwnerId === userId) || (driverOwnerId && driverOwnerId === userId);
+    const vehicleOwnerId  = booking.vehicle?.owner?.toString();
+    const driverOwnerId   = booking.driver?.owner?.toString();
+    const activityOwnerId = booking.activity?.owner?.toString();
+    const userId          = req.user._id.toString();
+    const isOwner = (vehicleOwnerId && vehicleOwnerId === userId) || (driverOwnerId && driverOwnerId === userId) || (activityOwnerId && activityOwnerId === userId);
     if (req.user.role !== "admin" && !isOwner) {
       return res.status(403).json({ message: "Accès refusé." });
     }
@@ -2823,7 +3118,8 @@ export const adminForceComplete = async (req, res) => {
     const booking = await Booking.findById(id)
       .populate("client",  "firstName lastName")
       .populate("vehicle", "owner title")
-      .populate("driver",  "firstName lastName owner");
+      .populate("driver",  "firstName lastName owner")
+      .populate("activity", "owner title");
 
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
     if (["completed", "cancelled"].includes(booking.status)) {
@@ -2868,6 +3164,7 @@ export const adminForceComplete = async (req, res) => {
     schedulePostServiceSurvey(booking);
     issueServiceInvoice(booking);
     await recordPartnerPayout(booking);
+    await awardLoyaltyPoints(booking);
 
     res.json({ booking, message: "Commande finalisée avec succès." });
   } catch (err) {
@@ -2926,11 +3223,13 @@ export const exportBookings = async (req, res) => {
       .limit(5000)
       .populate("client",  "firstName lastName email phone")
       .populate("vehicle", "title marque modele ville")
+      .populate("driver",  "firstName lastName")
+      .populate("activity", "title activityType")
       .lean();
 
     if (format === "csv") {
       const rows = [
-        "Reference,Type,Statut,Client,Email,Téléphone,Passeport,Véhicule,Montant,Commission,Net Partenaire,Date,Payé",
+        "Reference,Type,Statut,Client,Email,Téléphone,Passeport,Véhicule/Chauffeur/Activité,Montant,Commission,Net Partenaire,Date,Payé",
         ...bookings.map(b => [
           b.reference || b._id,
           b.type,
@@ -2939,7 +3238,7 @@ export const exportBookings = async (req, res) => {
           b.clientInfo?.email || "",
           b.clientInfo?.phone || "",
           b.clientInfo?.passportNumber || "",
-          b.vehicle?.title || "",
+          b.vehicle?.title || b.activity?.title || (b.driver ? `${b.driver.firstName || ""} ${b.driver.lastName || ""}`.trim() : ""),
           b.montantTotal || 0,
           b.commissionAmount || 0,
           b.partnerPayout || 0,
@@ -3126,6 +3425,7 @@ export const getAllBookingsEnhanced = async (req, res) => {
         .populate("client",  "firstName lastName email phone kycStatus kycScore")
         .populate("vehicle", "title marque modele owner ville")
         .populate("driver",  "firstName lastName owner")
+        .populate("activity", "title activityType owner")
         .lean(),
       Booking.countDocuments(filter),
     ]);

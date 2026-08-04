@@ -13,7 +13,7 @@ const REASONS = [
 ];
 
 // Bouton + modale de signalement réutilisable — voir la Politique de
-// signalement (/politiques). targetType : "vehicle" | "ie_listing" | "review" | "driver" | "user".
+// signalement (/politiques). targetType : "vehicle" | "ie_listing" | "review" | "driver" | "user" | "activity".
 export default function ReportButton({ targetType, targetId, compact = false }) {
   const { isAuthenticated, token } = useAuth();
   const { success, error } = useToast();

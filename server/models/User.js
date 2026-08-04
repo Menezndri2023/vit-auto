@@ -298,6 +298,16 @@ const userSchema = new mongoose.Schema({
   // ── Statut Founding Partner ─────────────────────────────────────────────────
   isFounder: { type: Boolean, default: false },
 
+  // ── Fidélité client ──────────────────────────────────────────────────────────
+  // N'existait pas du tout jusqu'ici. 1 point = 1 USD dépensé sur une commande
+  // menée à "completed" (voir bookingController — awardLoyaltyPoints, appelée
+  // aux 4 points de sortie déjà identifiés dans ce fichier pour le sondage
+  // post-service : updateBookingStatus/validateTransaction/resolveDispute/
+  // adminForceComplete). 100 points = 1 USD de remise à la réservation
+  // suivante (voir createBooking, paramètre pointsToRedeem), plafonné à 20%
+  // du montant de base pour éviter une réservation quasi gratuite.
+  loyaltyPoints: { type: Number, default: 0, min: 0 },
+
   // ── Certification Partenaire Vérifié Vit-Auto ──────────────────────────────
   certificationBadge: {
     type: String,

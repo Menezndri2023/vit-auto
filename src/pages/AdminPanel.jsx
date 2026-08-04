@@ -8,6 +8,7 @@ import { ListingForm as IEListingEditForm } from "./ImporterDashboard";
 import { COUNTRIES_ALL, CURRENCIES as IE_CURRENCIES, getCountryFlag } from "../data/autocomplete";
 import { INCOTERMS as IE_LISTING_INCOTERMS } from "../constants/incoterms";
 import { PARTNER_CANCEL_REASONS } from "../constants/bookingCancelReasons";
+import { ACTIVITY_TYPE_LABELS } from "../constants/activityTypes";
 
 // Drapeau pays — reconnaissance rapide du pays d'un partenaire/client par
 // l'admin, à partir du code ISO stocké sur User/Vehicle/Driver (voir
@@ -1434,6 +1435,10 @@ export default function AdminPanel() {
   const [bookingsLimit, setBookingsLimit] = useState(200);
   const [drivers,   setDrivers]   = useState([]);
   const [activeDrivers, setActiveDrivers] = useState([]); // Driver.status==="approved" — remplace l'ancien filtre User.role==="chauffeur" (jamais assignable, voir Register.jsx)
+  // Activités (section OTHERS — Quad, Surf, Montgolfière, Jetski, Jet privé,
+  // Bateau...) — même principe que drivers/activeDrivers ci-dessus.
+  const [pendingActivitiesList, setPendingActivitiesList] = useState([]);
+  const [activeActivities, setActiveActivities] = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [toast,     setToast]     = useState(null);
 
@@ -1500,6 +1505,57 @@ export default function AdminPanel() {
   // Rejection reason (drivers) — utilisé dans le modal + la section Validations
   const [driverRejectModal,  setDriverRejectModal]  = useState(null);
   const [driverRejectReason, setDriverRejectReason] = useState("");
+
+  // Rejection reason (activités) — modal auto-contenu dans l'onglet dédié
+  // (pas de dépendance sur CatalogueSection, contrairement à driverRejectModal
+  // ci-dessus qui ne se rendait que si l'admin était sur l'onglet "catalogue").
+  const [activityRejectModal,  setActivityRejectModal]  = useState(null);
+  const [activityRejectReason, setActivityRejectReason] = useState("");
+
+  // Transfert d'annonce activité vers un autre compte/entreprise/ville/pays —
+  // même outil de support admin que CatalogueSection.transferModal (véhicule/
+  // chauffeur), auto-contenu ici pour la même raison que activityRejectModal
+  // ci-dessus (l'onglet "activites" n'est pas dans l'arbre de CatalogueSection).
+  const [activityTransferModal,  setActivityTransferModal]  = useState(null); // { id, label }
+  const [activityTransferForm,   setActivityTransferForm]   = useState({ ownerQuery: "", ownerResults: [], selectedOwner: null, country: "", ville: "", businessId: "" });
+  const [activityTransferSaving, setActivityTransferSaving] = useState(false);
+
+  const openActivityTransfer = (id, label, currentCountry, currentVille) => {
+    setActivityTransferModal({ id, label });
+    setActivityTransferForm({ ownerQuery: "", ownerResults: [], selectedOwner: null, country: currentCountry || "", ville: currentVille || "", businessId: "" });
+  };
+
+  const searchActivityTransferOwners = async (query) => {
+    setActivityTransferForm((p) => ({ ...p, ownerQuery: query }));
+    if (query.trim().length < 2) { setActivityTransferForm((p) => ({ ...p, ownerResults: [] })); return; }
+    try {
+      const r = await fetch(`/api/users?search=${encodeURIComponent(query.trim())}&role=partenaire&limit=6`, { headers });
+      if (r.ok) { const d = await r.json(); setActivityTransferForm((p) => ({ ...p, ownerResults: d.users || [] })); }
+    } catch { /* ignore — recherche non bloquante */ }
+  };
+
+  const submitActivityTransfer = async () => {
+    if (!activityTransferModal) return;
+    const { selectedOwner, country, ville, businessId } = activityTransferForm;
+    const body = {};
+    if (selectedOwner) body.ownerId = selectedOwner._id;
+    if (country) body.country = country;
+    if (ville.trim()) body.ville = ville.trim();
+    if (businessId.trim()) body.businessId = businessId.trim();
+    if (Object.keys(body).length === 0) { showToast("Choisissez au moins un changement à appliquer.", "error"); return; }
+
+    setActivityTransferSaving(true);
+    try {
+      const r = await fetch(`/api/activities/${activityTransferModal.id}/transfer`, { method: "PATCH", headers, body: JSON.stringify(body) });
+      const d = await r.json().catch(() => null);
+      if (r.ok) {
+        showToast("✅ Annonce transférée.");
+        setActivityTransferModal(null);
+        setActiveActivities((prev) => prev.map((a) => (a._id === activityTransferModal.id ? d.activity : a)));
+      } else showToast(d?.message || "Erreur lors du transfert.", "error");
+    } catch { showToast("Erreur réseau.", "error"); }
+    setActivityTransferSaving(false);
+  };
 
   // Booking action
   const [bkActionModal,   setBkActionModal]   = useState(null); // { id, name, action }
@@ -1589,13 +1645,15 @@ export default function AdminPanel() {
     if (!token) return;
     setLoading(true);
     try {
-      const [sRes, uRes, vRes, bRes, dRes, adRes] = await Promise.all([
+      const [sRes, uRes, vRes, bRes, dRes, adRes, paRes, aaRes] = await Promise.all([
         fetch("/api/users/stats",    { headers }),
         fetch(`/api/users?limit=${usersLimit}`, { headers }),
         fetch(`/api/vehicles?limit=${vehiclesLimit}&status=all`, { headers }),
         fetch(`/api/bookings?limit=${bookingsLimit}`, { headers }),
         fetch("/api/drivers/pending?status=all", { headers }),
         fetch("/api/drivers", { headers }),
+        fetch("/api/activities/pending?status=all", { headers }),
+        fetch("/api/activities", { headers }),
       ]);
       if (sRes.ok) setStats((await sRes.json()));
       if (uRes.ok) { const d = await uRes.json(); setUsers(d.users || []); setUsersTotal(d.total || 0); }
@@ -1607,6 +1665,8 @@ export default function AdminPanel() {
       if (bRes.ok) { const d = await bRes.json(); setBookings(d.bookings || []); setBookingsTotal(d.total || 0); }
       if (dRes.ok) setDrivers((await dRes.json()).drivers || []);
       if (adRes.ok) { const ad = await adRes.json(); setActiveDrivers(Array.isArray(ad) ? ad : ad.drivers || []); }
+      if (paRes.ok) setPendingActivitiesList((await paRes.json()).activities || []);
+      if (aaRes.ok) { const aa = await aaRes.json(); setActiveActivities(Array.isArray(aa) ? aa : aa.activities || []); }
       setLiveNewListings(0);
       setLiveDisputes(0);
     } catch { /* ignore */ }
@@ -3041,6 +3101,35 @@ export default function AdminPanel() {
     } catch { showToast("Erreur lors de la mise à jour", "error"); }
   }, [headers, showToast]);
 
+  // ── Actions activités (section OTHERS) — même principe que chauffeurs ───────
+  const updateActivityStatus = useCallback(async (aid, status, reason = "") => {
+    try {
+      const res = await fetch(`/api/activities/${aid}/status`, {
+        method: "PATCH", headers, body: JSON.stringify({ status, rejectionReason: reason }),
+      });
+      if (!res.ok) throw new Error();
+      setPendingActivitiesList((prev) => prev.filter((a) => a._id !== aid));
+      showToast(`Activité ${status === "approved" ? "approuvée" : "rejetée"}`);
+    } catch { showToast("Erreur lors de la mise à jour", "error"); }
+  }, [headers, showToast]);
+
+  const handleRejectActivity = useCallback(async (aid, reason) => {
+    await updateActivityStatus(aid, "rejected", reason);
+    setActivityRejectModal(null);
+    setActivityRejectReason("");
+  }, [updateActivityStatus]);
+
+  const deactivateActiveActivity = useCallback(async (aid) => {
+    try {
+      const res = await fetch(`/api/activities/${aid}/status`, {
+        method: "PATCH", headers, body: JSON.stringify({ status: "rejected", rejectionReason: "Désactivée par l'administration" }),
+      });
+      if (!res.ok) throw new Error();
+      setActiveActivities((prev) => prev.filter((a) => a._id !== aid));
+      showToast("Activité retirée du catalogue.");
+    } catch { showToast("Erreur lors de la mise à jour", "error"); }
+  }, [headers, showToast]);
+
   // ── Actions commandes (admin) ───────────────────────────────────────────────
   const adminUpdateBooking = useCallback(async (bid, status, reason = "", cancelReasonCode = null) => {
     try {
@@ -3185,6 +3274,7 @@ export default function AdminPanel() {
   // les profils déjà publiés/rejetés.
   const pendingDriversList = drivers.filter((d) => d.status === "pending");
   const pendingDrivers = pendingDriversList.length;
+  const pendingActivities = pendingActivitiesList.length;
   // Ne PAS dériver ce badge de kycList : cette liste est filtrée par kycFilter
   // (statut choisi dans l'UI) et change de contenu selon l'onglet affiché — un
   // badge basé dessus retomberait trompeusement à 0 dès qu'un autre filtre est
@@ -3274,6 +3364,7 @@ export default function AdminPanel() {
         { key: "bookings",      icon: "📋", label: "Réservations",          badge: pendingBk },
         { key: "litiges",       icon: "⚖️",  label: "Litiges",              badge: disputedBk + liveDisputes },
         { key: "chauffeurs",    icon: "👨‍✈️", label: "Chauffeurs",           badge: pendingDrivers },
+        { key: "activites",     icon: "🎈", label: "Activités (OTHERS)",     badge: pendingActivities },
         { key: "import_export", icon: "🌍", label: "Transactions I/E",      badge: pendingIe },
         { key: "exportateurs",  icon: "📦", label: "Partenaires Export",    badge: pendingImp },
         { key: "transport",     icon: "🚢", label: "Transport Intl." },
@@ -6129,6 +6220,184 @@ export default function AdminPanel() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ══════════════════════ TAB ACTIVITÉS (OTHERS) ══════════════════════ */}
+      {activeTab === "activites" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🎈 Activités (section OTHERS)</h2>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Validez les annonces (Quad, Surf, Montgolfière, Jetski, Jet privé, Bateau...) et gérez les activités actives.</p>
+            </div>
+            <button className={styles.btnRefresh} style={{ background: "#f1f5f9", color: "#0f1b3f", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 14px" }} onClick={loadAll}>↻ Actualiser</button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12, marginBottom: "1.5rem" }}>
+            {[
+              { icon:"🎈", label:"En attente validation", value: pendingActivities,                                                        color:"#f59e0b" },
+              { icon:"✅", label:"Activités actives",      value: activeActivities.length,     color:"#10b981" },
+              { icon:"📅", label:"Réservations terminées", value: bookings.filter(b=>b.type==="activite"&&b.status==="completed").length, color:"#3b82f6" },
+              { icon:"💰", label:"Revenue activités",      value: fmtUSD(bookings.filter(b=>b.type==="activite"&&b.status==="completed").reduce((s,b)=>s+(b.montantTotal||0),0)), color:"#6366f1" },
+            ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
+          </div>
+
+          <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
+            <h3 className={styles.chartTitle}>⏳ Annonces en attente de validation ({pendingActivities})</h3>
+            {pendingActivities === 0 ? (
+              <p style={{ color: "#64748b", fontSize: "0.9rem" }}>Aucune activité en attente.</p>
+            ) : (
+              <div className={styles.tableWrap}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr><th>Activité</th><th>Type</th><th>Prix</th><th>Ville</th><th>Soumis le</th><th>Actions</th></tr>
+                  </thead>
+                  <tbody>
+                    {pendingActivitiesList.map((a) => (
+                      <tr key={a._id} className={styles.tr}>
+                        <td>
+                          <div className={styles.vehicleCell}>
+                            {a.thumbnail || a.images?.[0] ? <img src={a.thumbnail || a.images[0]} alt="" className={styles.vehThumb} loading="lazy" decoding="async" /> : <div className={styles.vehThumbPlaceholder}>🎈</div>}
+                            <div>
+                              <strong>{a.title}</strong>
+                              <span className={styles.vehMeta}>{a.owner?.firstName || ""} {a.owner?.lastName || ""}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td><Badge label={ACTIVITY_TYPE_LABELS[a.activityType] || a.activityType} color="#8b5cf6" bg="#f5f3ff" /></td>
+                        <td className={styles.tdPrice}>{a.price ? `${fmtUSD(a.price)}${a.priceUnit === "per_session" ? "/sortie" : "/pers."}` : "—"}</td>
+                        <td style={{ fontSize:"0.85rem", color:"#64748b" }}>{a.ville || "—"}</td>
+                        <td className={styles.tdDate}>{fmtDate(a.createdAt)}</td>
+                        <td>
+                          <div className={styles.actionBtns}>
+                            <button className={styles.btnApprove} onClick={() => setConfirm({ message:`Approuver "${a.title}" ?`, action:()=>updateActivityStatus(a._id,"approved") })}>✅ Valider</button>
+                            <button className={styles.btnReject} onClick={() => { setActivityRejectModal({ id:a._id, name:a.title }); setActivityRejectReason(""); }}>✕ Rejeter</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className={styles.chartCard}>
+            <h3 className={styles.chartTitle}>✅ Activités actives ({activeActivities.length})</h3>
+            {activeActivities.length === 0 ? (
+              <p style={{ color:"#64748b", fontSize:"0.9rem" }}>Aucune activité active dans le catalogue.</p>
+            ) : (
+              <div className={styles.tableWrap}>
+                <table className={styles.table}>
+                  <thead><tr><th>Activité</th><th>Partenaire</th><th>Type</th><th>Prix</th><th>Note</th><th>Actions</th></tr></thead>
+                  <tbody>
+                    {activeActivities.map(a => (
+                      <tr key={a._id} className={styles.tr}>
+                        <td>
+                          <div className={styles.userCell}>
+                            <div className={styles.avatar}>{a.title?.[0]?.toUpperCase()||"?"}</div>
+                            <strong>{a.title}</strong>
+                          </div>
+                        </td>
+                        <td style={{ fontSize:"0.85rem", color:"#64748b" }}>{a.owner?.firstName||"—"} {a.owner?.phone ? `· ${a.owner.phone}` : ""}</td>
+                        <td><Badge label={ACTIVITY_TYPE_LABELS[a.activityType] || a.activityType} color="#8b5cf6" bg="#f5f3ff" /></td>
+                        <td className={styles.tdPrice}>{a.price ? `${fmtUSD(a.price)}${a.priceUnit === "per_session" ? "/sortie" : "/pers."}` : "—"}</td>
+                        <td>{a.noteMoyenne > 0 ? `⭐ ${a.noteMoyenne.toFixed(1)}` : "—"}</td>
+                        <td>
+                          <div className={styles.actionBtns}>
+                            <button className={styles.btnSecondary} title="Transférer vers un autre compte/entreprise/pays/ville"
+                              onClick={() => openActivityTransfer(a._id, a.title, a.country, a.ville)}>
+                              🔀 Transférer
+                            </button>
+                            <button className={styles.btnReject}
+                              onClick={() => setConfirm({ message:`Retirer "${a.title}" du catalogue ?`, action:()=>deactivateActiveActivity(a._id) })}>
+                              🚫 Retirer
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {activityRejectModal && (
+            <div className={styles.overlay} onClick={() => setActivityRejectModal(null)}>
+              <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
+                <p className={styles.confirmMsg}>Raison du refus pour « {activityRejectModal.name} »</p>
+                <textarea style={{ width: "100%", borderRadius: 8, border: "1px solid #e2e8f0", padding: ".6rem", fontSize: ".9rem", marginBottom: ".75rem", resize: "vertical" }}
+                  rows={3} placeholder="Ex: Photos insuffisantes…"
+                  value={activityRejectReason} onChange={(e) => setActivityRejectReason(e.target.value)} />
+                <div className={styles.confirmActions}>
+                  <button className={styles.btnDanger} onClick={() => handleRejectActivity(activityRejectModal.id, activityRejectReason)}>Refuser</button>
+                  <button className={styles.btnGhost} onClick={() => setActivityRejectModal(null)}>Annuler</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ══ MODAL TRANSFERT (activité) — même outil que CatalogueSection.transferModal ══ */}
+          {activityTransferModal && (
+            <div className={styles.overlay} onClick={() => setActivityTransferModal(null)}>
+              <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ width: "min(480px, 92vw)" }}>
+                <p className={styles.confirmMsg}>🔀 Transférer « {activityTransferModal.label} » (activité)</p>
+
+                <div style={{ marginBottom: 12, position: "relative" }}>
+                  <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#374151", display: "block", marginBottom: 4 }}>
+                    Nouveau propriétaire (nom ou email) — laisser vide pour ne pas changer
+                  </label>
+                  <input type="text" value={activityTransferForm.selectedOwner ? `${activityTransferForm.selectedOwner.firstName} ${activityTransferForm.selectedOwner.lastName} (${activityTransferForm.selectedOwner.email})` : activityTransferForm.ownerQuery}
+                    onChange={(e) => { setActivityTransferForm((p) => ({ ...p, selectedOwner: null })); searchActivityTransferOwners(e.target.value); }}
+                    placeholder="Ex : Jean Kouassi ou jean@exemple.com"
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".88rem", boxSizing: "border-box" }} />
+                  {activityTransferForm.ownerResults.length > 0 && !activityTransferForm.selectedOwner && (
+                    <div style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, marginTop: 4, maxHeight: 160, overflowY: "auto", background: "#fff" }}>
+                      {activityTransferForm.ownerResults.map((o) => (
+                        <div key={o._id} onClick={() => setActivityTransferForm((p) => ({ ...p, selectedOwner: o, ownerResults: [] }))}
+                          style={{ padding: "6px 10px", fontSize: ".82rem", cursor: "pointer", borderBottom: "1px solid #f1f5f9" }}>
+                          {o.firstName} {o.lastName} — {o.email}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                  <div>
+                    <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#374151", display: "block", marginBottom: 4 }}>Pays</label>
+                    <select value={activityTransferForm.country} onChange={(e) => setActivityTransferForm((p) => ({ ...p, country: e.target.value }))}
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".88rem" }}>
+                      <option value="">— Ne pas changer —</option>
+                      {COUNTRIES_CONFIG.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#374151", display: "block", marginBottom: 4 }}>Ville</label>
+                    <input type="text" value={activityTransferForm.ville} onChange={(e) => setActivityTransferForm((p) => ({ ...p, ville: e.target.value }))}
+                      placeholder="Ne pas changer"
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".88rem", boxSizing: "border-box" }} />
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#374151", display: "block", marginBottom: 4 }}>
+                    ID entreprise (PartnerBusiness) — optionnel, avancé
+                  </label>
+                  <input type="text" value={activityTransferForm.businessId} onChange={(e) => setActivityTransferForm((p) => ({ ...p, businessId: e.target.value }))}
+                    placeholder="Laisser vide pour ne pas rattacher"
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".88rem", boxSizing: "border-box" }} />
+                </div>
+
+                <div className={styles.confirmActions}>
+                  <button className={styles.btnPrimary} onClick={submitActivityTransfer} disabled={activityTransferSaving}>{activityTransferSaving ? "…" : "Transférer"}</button>
+                  <button className={styles.btnGhost} onClick={() => setActivityTransferModal(null)}>Annuler</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -9562,7 +9831,7 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
         ville: v.ville || "", adresse: v.adresse || "", description: v.description || "",
         contactNom: v.contactNom || "", contactTel: v.contactTel || "",
         currency: v.currency || "", // "" = automatique (devise du visiteur)
-        ageMin: v.ageMin || "", dureeMinLocation: v.dureeMinLocation || 1, permisRequis: v.permisRequis !== false,
+        ageMin: v.ageMin || "", dureeMinLocation: v.dureeMinLocation || 1, instantBook: !!v.instantBook, permisRequis: v.permisRequis !== false,
         assuranceOptionnelle: !!v.assuranceOptionnelle, withDriver: !!v.withDriver,
         available: v.available !== false,
       });
@@ -9618,6 +9887,7 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
         description: editForm.description, country: editForm.country || null,
         ville: editForm.ville, adresse: editForm.adresse, ageMin: Number(editForm.ageMin) || 0,
         dureeMinLocation: Math.max(1, Number(editForm.dureeMinLocation) || 1),
+        instantBook: !!editForm.instantBook,
         contactNom: editForm.contactNom, contactTel: editForm.contactTel,
         currency: editForm.currency || null,
         permisRequis: editForm.permisRequis, assuranceOptionnelle: editForm.assuranceOptionnelle,
@@ -10815,6 +11085,10 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
                         <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: ".85rem" }}>
                           <input type="checkbox" checked={editForm.withDriver} onChange={(e) => setEditForm((p) => ({ ...p, withDriver: e.target.checked }))} />
                           Disponible avec chauffeur
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: ".85rem" }} title="Re-vérifié côté serveur : sans effet si le partenaire propriétaire n'est pas certifié/Founding Partner">
+                          <input type="checkbox" checked={editForm.instantBook} onChange={(e) => setEditForm((p) => ({ ...p, instantBook: e.target.checked }))} />
+                          ⚡ Réservation instantanée
                         </label>
                       </>
                     )}

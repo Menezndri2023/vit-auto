@@ -166,6 +166,9 @@ export default function Booking() {
 
   /* ── STEP 2 : Options ──────────────────────────────────────────── */
   const [selectedOptions, setSelectedOptions] = useState({ babySeat: false, insurance: false, driver: false, gps: false });
+  // Fidélité — voir bookingController.createBooking pour le calcul autoritaire
+  // (jamais confiance dans ce montant côté client, uniquement un aperçu).
+  const [applyPoints, setApplyPoints] = useState(false);
 
   /* ── STEP 3 : Paiement ─────────────────────────────────────────── */
   const [payMethod,      setPayMethod]      = useState("orange_money");
@@ -234,9 +237,15 @@ export default function Booking() {
   const baseTotal    = isLeasing
     ? (financingTerms?.apportInitial || 0)
     : effectivePricePerDay * Math.max(days, 1);
+  // Fidélité — aperçu client uniquement (voir bookingController.createBooking
+  // pour le plafond/débit réels et autoritaires côté serveur, même règle
+  // reproduite ici : 100 points = 1 USD, max 20% de baseTotal).
+  const maxPointsUsable = Math.max(0, Math.min(user?.loyaltyPoints || 0, Math.floor(baseTotal * 0.2 * 100)));
+  const pointsToApply   = applyPoints ? maxPointsUsable : 0;
+  const loyaltyDiscountPreview = pointsToApply / 100;
   const totalToPay   = isTrial ? SERVICE_FEE
     : isLeasing ? baseTotal + SERVICE_FEE
-    : baseTotal + optionsTotal + deliveryFee + SERVICE_FEE;
+    : Math.max(baseTotal + optionsTotal + deliveryFee + SERVICE_FEE - loyaltyDiscountPreview, 0);
 
   /* ── GPS ───────────────────────────────────────────────────────── */
   const handleDetectGPS = async () => {
@@ -407,6 +416,10 @@ export default function Booking() {
         type:       bookingData.type,
         reference:  bookingRef,
         vehicleId:  vehicle?._id || vehicle?.id,
+        // Fidélité — voir bookingController.createBooking pour le calcul
+        // autoritaire (plafond 20% de montantBase, débit atomique conditionnel).
+        // pointsToApply reste purement indicatif côté client pour l'aperçu affiché.
+        ...(!isTrial && !isLeasing && pointsToApply > 0 ? { pointsToRedeem: pointsToApply } : {}),
         clientInfo: {
           ...bookingData.clientInfo,
           kycStatus: kycStatus,
@@ -1052,6 +1065,15 @@ export default function Booking() {
                   <div className={styles.confirmRow}><span>Mensualité</span><strong>{fmt(financingTerms?.mensualite || 0)} / mois</strong></div>
                   <div className={styles.confirmRow}><span>Durée</span><strong>{financingTerms?.duree || 36} mois</strong></div>
                 </>
+              )}
+              {!isTrial && !isLeasing && maxPointsUsable > 0 && (
+                <div className={styles.confirmRow}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                    <input type="checkbox" checked={applyPoints} onChange={(e) => setApplyPoints(e.target.checked)} />
+                    🎁 Utiliser mes points de fidélité ({user.loyaltyPoints} dispo)
+                  </label>
+                  {applyPoints && <strong style={{ color: "#059669" }}>-{fmt(loyaltyDiscountPreview)}</strong>}
+                </div>
               )}
               <div className={styles.confirmRow}><span>Frais de service</span><strong>{fmt(SERVICE_FEE)}</strong></div>
               <div className={styles.confirmRow}><span>Paiement</span><strong>{PAYMENT_METHODS.find((p) => p.value === payMethod)?.label || payMethod}</strong></div>

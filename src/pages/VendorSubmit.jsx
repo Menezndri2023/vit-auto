@@ -189,7 +189,7 @@ const VendorSubmit = () => {
     kilometrage: "",
     pricePerDay: "", priceForSale: "", caution: "",
     rentalDurationType: "les_deux", // courte | longue | les_deux — location uniquement
-    ageMin: 21, permisRequis: true, assuranceOptionnelle: true, dureeMinLocation: 1,
+    ageMin: 21, permisRequis: true, assuranceOptionnelle: true, dureeMinLocation: 1, instantBook: false,
     conditionsLocation: "", conditionsVente: "",
     description: "", images: [""],
     // "" = automatique (chaque visiteur voit sa propre devise détectée par
@@ -909,6 +909,22 @@ const VendorSubmit = () => {
                   <li>✓ Profil vérifié</li>
                 </ul>
               </button>
+
+              {/* Activité culturelle/loisir (section OTHERS du catalogue — Quad,
+                  Surf, Montgolfière, Jetski, Jet privé, Bateau...) — formulaire
+                  dédié (champs trop différents des véhicules/chauffeur pour
+                  s'insérer dans les étapes suivantes de cet assistant). */}
+              <button type="button" className={styles.adTypeCard}
+                onClick={() => navigate("/vendor/submit-activity")}>
+                <div className={styles.adTypeIcon}>🎈</div>
+                <h3>Activité (OTHERS)</h3>
+                <p>Quad, Surf, Montgolfière, Jetski, Jet privé, Bateau... proposez une activité réservable, avec essai en option.</p>
+                <ul className={styles.adTypeList}>
+                  <li>✓ Prix par personne ou par sortie</li>
+                  <li>✓ Capacité & durée de session</li>
+                  <li>✓ Essai/découverte activable</li>
+                </ul>
+              </button>
             </div>
 
             {adType === "chauffeur" && driverReq && (!driverReq.identityOk || !driverReq.licenseOk) && (
@@ -1283,6 +1299,23 @@ const VendorSubmit = () => {
                       <input type="checkbox" name="assuranceOptionnelle" checked={vehicle.assuranceOptionnelle} onChange={handleVehChange} />
                       🛡️ Assurance optionnelle proposée
                     </label>
+                    {/* Réservation instantanée — n'existait pas du tout jusqu'ici
+                        (toute demande de location attendait une confirmation
+                        manuelle du partenaire, quel que soit son délai de
+                        réponse). Réservé aux comptes certifiés/Founding Partner
+                        pour limiter le risque de no-show — re-vérifié côté
+                        serveur à chaque réservation, ce n'est jamais qu'une
+                        indication ici. */}
+                    {(user?.isFounder || (user?.certificationBadge && user.certificationBadge !== "none")) ? (
+                      <label className={`${styles.checkItem} ${vehicle.instantBook ? styles.checkActive : ""}`}>
+                        <input type="checkbox" name="instantBook" checked={vehicle.instantBook} onChange={handleVehChange} />
+                        ⚡ Réservation instantanée (confirmée automatiquement, sans attendre votre validation)
+                      </label>
+                    ) : (
+                      <p className={styles.hint} style={{ margin: 0 }}>
+                        ⚡ Réservation instantanée réservée aux comptes certifiés — complétez votre <a href="/partner-certification">certification partenaire</a> pour l'activer.
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className={`${styles.field} ${styles.colSpan2}`}>

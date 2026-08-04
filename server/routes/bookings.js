@@ -23,6 +23,7 @@ const createBookingLimiter = rateLimit({
 // ── Public : dates/créneaux déjà occupés ──────────────────
 router.get("/vehicle/:vehicleId/occupied-dates", b.getVehicleOccupiedDates);
 router.get("/driver/:driverId/occupied-slots",   b.getDriverOccupiedSlots);
+router.get("/activity/:activityId/occupied-slots", b.getActivityOccupiedSlots);
 router.get("/vehicle/:vehicleId/essai-slots",    b.getEssaiOccupiedSlots);
 
 // ── Création réservation (auth optionnelle — liaison user si connecté) ─

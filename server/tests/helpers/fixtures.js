@@ -3,6 +3,7 @@ import ImporterPartnerProfile from "../../models/ImporterPartnerProfile.js";
 import ImportExportListing from "../../models/ImportExportListing.js";
 import IETransaction from "../../models/IETransaction.js";
 import Vehicle from "../../models/Vehicle.js";
+import Activity from "../../models/Activity.js";
 import PartnerBusiness from "../../models/PartnerBusiness.js";
 
 let counter = 0;
@@ -99,6 +100,27 @@ export async function createVehicleDoc(overrides = {}) {
     caution: 50000,
     available: true,
     status: "approved",
+    owner,
+    ...rest,
+  });
+}
+
+// Section OTHERS (activités culturelles/loisir — Quad, Surf, Montgolfière,
+// Jetski, Jet privé, Bateau...) — même principe que createVehicleDoc.
+export async function createActivityDoc(overrides = {}) {
+  let { owner, ...rest } = overrides;
+  if (!owner) owner = (await createUser({ role: "partenaire" }))._id;
+
+  return Activity.create({
+    activityType: "QUAD",
+    title: "Sortie Quad 2h",
+    price: 50,
+    priceUnit: "per_person",
+    durationMinutes: 120,
+    capacity: 4,
+    images: ["https://example.test/quad.jpg"],
+    status: "approved",
+    available: true,
     owner,
     ...rest,
   });

@@ -4,11 +4,27 @@ import { MAX_IMPORT_ROWS } from "../services/vehicleImportService.js";
 import VehicleImportBatch from "../models/VehicleImportBatch.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
 import PartnerVerification from "../models/PartnerVerification.js";
+import Vehicle from "../models/Vehicle.js";
 import { createUser } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
 const csvBase64 = (rows) => Buffer.from(rows.join("\n"), "utf-8").toString("base64");
 const validFleetRows = () => ["titre,TypeAnnonce", "Ligne 1,location", "Ligne 2,vente"];
+
+// Le fallback synchrone de la queue PARTNER_FEED est DÉFÉRÉ (setImmediate,
+// voir DEFERRED_SYNC_QUEUES dans queue/index.js) — createImportBatch répond
+// avant la fin réelle du traitement du batch. Un test qui a besoin du résultat
+// complet (results/incompleteCount…) doit donc attendre explicitement la fin,
+// comme le fait le frontend en pollant /api/vehicles/import/:batchId.
+async function waitForBatchCompletion(batchId, timeoutMs = 5000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const batch = await VehicleImportBatch.findById(batchId);
+    if (batch && batch.status !== "processing") return batch;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  throw new Error("Timeout en attente de la fin du batch (test).");
+}
 
 describe("createImportBatch — portes d'accès", () => {
   it("réservé aux partenaires/admin", async () => {
@@ -185,6 +201,67 @@ describe("getImportBatch", () => {
     await getImportBatch(req, res);
     expect(res.statusCode).toBe(404);
   });
+});
+
+// ── Résumé agrégé "créé mais incomplet" (bug réel : un import de ~300 lignes
+// sans prix/carburant/transmission/ville/adresse se terminait "296 créé(s)"
+// sans qu'aucun signal ne remonte que ces annonces restaient incomplètes —
+// voir findMissingKeyFields dans vehicleImportService.js). ──────────────────
+describe("createImportBatch — résumé des champs essentiels manquants", () => {
+  it("signale les véhicules créés mais incomplets (prix/carburant/transmission/ville/adresse absents du fichier)", async () => {
+    const partner = await createUser({ role: "partenaire", isFounder: true });
+    // Fichier réaliste : aucune colonne Carburant/Transmission/PrixParJour/
+    // Ville/Adresse/PhotosURLs — reproduit exactement le scénario production
+    // (colonnes absentes du fichier soumis par le partenaire, pas juste vides).
+    const rows = [
+      "Titre,Marque,Modele,Annee,TypeAnnonce,NomContact,TelephoneContact",
+      "Toyota Corolla 2020,Toyota,Corolla,2020,location,Jean Kouassi,0700000000",
+    ];
+    const { req, res } = mockReqRes({
+      user: partner, body: { source: "csv", fileBase64: csvBase64(rows), fileName: "f.csv" },
+    });
+    await createImportBatch(req, res);
+    expect(res.statusCode).toBe(202);
+
+    const batch = await waitForBatchCompletion(res.body.batchId);
+    expect(batch.status).toBe("completed");
+    expect(batch.results).toHaveLength(1);
+    expect(batch.results[0].status).toBe("created");
+    expect(batch.results[0].missingKeyFields.sort()).toEqual(
+      ["adresse", "carburant", "price", "transmission", "ville"].sort()
+    );
+
+    // Le véhicule est bien créé (pas bloqué) — mais reste "pending", jamais
+    // "approved" automatiquement, tant qu'un admin ne l'a pas validé.
+    const vehicle = await Vehicle.findById(batch.results[0].vehicleId);
+    expect(vehicle).not.toBeNull();
+    expect(vehicle.status).toBe("pending");
+
+    // Résumé agrégé au niveau du batch entier — c'est ce chiffre qui manquait
+    // en production, pas seulement le détail ligne par ligne.
+    expect(batch.incompleteCount).toBe(1);
+    expect(batch.missingFieldsBreakdown).toMatchObject({
+      price: 1, carburant: 1, transmission: 1, ville: 1, adresse: 1,
+    });
+  }, 20000);
+
+  it("ne signale rien quand le véhicule créé a bien tous les champs essentiels", async () => {
+    const partner = await createUser({ role: "partenaire", isFounder: true });
+    const rows = [
+      "Titre,Marque,Modele,Annee,TypeAnnonce,Carburant,Transmission,PrixParJour,Ville,Adresse,NomContact,TelephoneContact",
+      "Toyota Corolla 2020,Toyota,Corolla,2020,location,Essence,Automatique,25000,Abidjan,Cocody,Jean Kouassi,0700000000",
+    ];
+    const { req, res } = mockReqRes({
+      user: partner, body: { source: "csv", fileBase64: csvBase64(rows), fileName: "f.csv" },
+    });
+    await createImportBatch(req, res);
+    expect(res.statusCode).toBe(202);
+
+    const batch = await waitForBatchCompletion(res.body.batchId);
+    expect(batch.results[0].missingKeyFields).toEqual([]);
+    expect(batch.incompleteCount).toBe(0);
+    expect(batch.missingFieldsBreakdown).toBeNull();
+  }, 20000);
 });
 
 describe("listImportBatches", () => {

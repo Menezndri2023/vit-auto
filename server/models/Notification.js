@@ -23,6 +23,7 @@ const notificationSchema = new mongoose.Schema({
       "listing_rejected",
       "new_vehicle",
       "new_driver",
+      "new_activity",
       // Paiements
       "payment_received",
       "payment_failed",

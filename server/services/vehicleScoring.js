@@ -23,6 +23,13 @@ export const scoreAnnonce = (data) => {
   if ((data.ville || "").trim().length >= 2) score += 5;
   else errors.push("Ville de publication manquante");
 
+  // Adresse — jamais notée (pas de points associés, une annonce reste
+  // publiable sans adresse précise), mais son absence doit rester visible :
+  // sans cet avertissement, un import en masse pouvait laisser des centaines
+  // de lignes sans aucune adresse sans qu'aucun signal ne le remonte au
+  // partenaire (bug réel constaté en production, voir processVehicleImportRow).
+  if (!(data.adresse || "").trim()) warnings.push("Adresse non renseignée");
+
   // ── 2. INFORMATIONS DU VÉHICULE (25 pts) ──────────────────────────────────
   const titleLen = (data.title || "").trim().length;
   if (titleLen >= 10) score += 8;
@@ -136,7 +143,7 @@ export const buildVehicleWhitelist = (data) => {
     type: vType, vehicleType, carburant, transmission,
     nombrePlaces, nombrePortes, climatisation, withDriver,
     pricePerDay, priceForSale, caution, leasing, credit,
-    ageMin, permisRequis, assuranceOptionnelle, dureeMinLocation,
+    ageMin, permisRequis, assuranceOptionnelle, dureeMinLocation, instantBook,
     conditionsLocation, conditionsVente,
     fuelPolicy, cancellationPolicy, insuranceIncluded,
     contactNom, contactTel, ville, adresse, coordonnees,
@@ -151,6 +158,7 @@ export const buildVehicleWhitelist = (data) => {
     pricePerDay, priceForSale, caution, leasing, credit,
     ageMin, permisRequis, assuranceOptionnelle,
     dureeMinLocation: Number.isFinite(Number(dureeMinLocation)) && Number(dureeMinLocation) >= 1 ? Number(dureeMinLocation) : 1,
+    instantBook: !!instantBook,
     conditionsLocation, conditionsVente,
     fuelPolicy: fuelPolicy || null, cancellationPolicy: cancellationPolicy || null, insuranceIncluded: !!insuranceIncluded,
     contactNom, contactTel, ville, adresse, coordonnees,

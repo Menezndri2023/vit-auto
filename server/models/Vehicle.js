@@ -113,6 +113,16 @@ const vehicleSchema = new mongoose.Schema({
   ageMin:               { type: Number, default: 21 },
   permisRequis:         { type: Boolean, default: true },
   assuranceOptionnelle: { type: Boolean, default: true },
+  // Réservation instantanée (location uniquement) — la demande passe
+  // directement à "confirmed" au lieu de "pending", sans attendre l'action
+  // manuelle du partenaire. N'existait pas du tout jusqu'ici (aucune
+  // réservation location n'était jamais confirmée automatiquement, quel que
+  // soit le partenaire). Activable par le partenaire, mais re-vérifié côté
+  // serveur à chaque réservation (certificationBadge !== "none" ou Founding
+  // Partner requis — voir bookingController.createBooking) : jamais de
+  // confiance aveugle dans ce booléen seul, un partenaire non vérifié ne peut
+  // pas l'activer même s'il est resté coché depuis avant sa suspension.
+  instantBook:          { type: Boolean, default: false },
   // Durée minimale de location (jours) — distincte de `promotions[].minDays`
   // (seuil d'application d'une remise) : ici c'est une contrainte de
   // réservation, appliquée côté serveur dans bookingController.createBooking

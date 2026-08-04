@@ -1,16 +1,21 @@
 import mongoose from "mongoose";
 
 /**
- * Booking couvre 3 types de commandes :
+ * Booking couvre 5 types de commandes :
  *  - "location"  : réservation véhicule avec dates
  *  - "essai"     : demande de rendez-vous pour essai (vente)
  *  - "chauffeur" : réservation d'un chauffeur
+ *  - "leasing"   : demande de financement (leasing/crédit)
+ *  - "activite"  : réservation d'une activité culturelle/loisir (section
+ *    OTHERS — Quad, Surf, Montgolfière, Jetski, Jet privé, Bateau...), avec
+ *    un mode "essai" facultatif porté par activite.essai (voir Activity.js
+ *    essaiDisponible) plutôt qu'un type Booking dédié.
  */
 const bookingSchema = new mongoose.Schema({
   // ── Type de commande ──────────────────────────────────────
   type: {
     type: String,
-    enum: ["location", "essai", "chauffeur", "leasing"],
+    enum: ["location", "essai", "chauffeur", "leasing", "activite"],
     required: true,
   },
 
@@ -78,6 +83,13 @@ const bookingSchema = new mongoose.Schema({
     default: null,
   },
 
+  // Activité réservée (section OTHERS — voir Activity.js)
+  activity: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Activity",
+    default: null,
+  },
+
   // ── Champs spécifiques : LOCATION ─────────────────────────
   location: {
     startDate:      { type: Date },
@@ -139,6 +151,21 @@ const bookingSchema = new mongoose.Schema({
     notes:       { type: String },
   },
 
+  // ── Champs spécifiques : ACTIVITE (Quad, Surf, Montgolfière, Jetski, Jet
+  // privé, Bateau...) ────────────────────────────────────────
+  activite: {
+    date:         { type: Date },
+    // Calculé côté serveur (date + Activity.durationMinutes ou
+    // essaiDurationMinutes selon `essai`), jamais depuis le client — même
+    // principe que chauffeur.dateFin pour la détection de conflit.
+    dateFin:      { type: Date },
+    participants: { type: Number, default: 1 },
+    // true = créneau d'essai/découverte (voir Activity.essaiDisponible),
+    // false = session complète — distingue le tarif et la durée appliqués.
+    essai:        { type: Boolean, default: false },
+    notes:        { type: String },
+  },
+
   // ── Financier (USD — voir server/scripts/migrate-vehicle-booking-to-usd.mjs
   // pour la migration des réservations créées avant ce changement de pivot,
   // toutes implicitement en FCFA/XOF) ───────────────────────
@@ -146,6 +173,11 @@ const bookingSchema = new mongoose.Schema({
   montantOptions: { type: Number, default: 0 },
   montantTotal:   { type: Number, default: 0 },
   devise:         { type: String, default: "USD" },
+  // Fidélité (voir bookingController.js — createBooking/awardLoyaltyPoints) —
+  // déjà déduit de montantTotal au moment de la création, conservé ici pour
+  // traçabilité (reçu, historique client) plutôt que recalculé après coup.
+  loyaltyPointsRedeemed: { type: Number, default: 0 },
+  loyaltyDiscount:       { type: Number, default: 0 }, // USD
 
   // ── Commission & Frais plateforme ─────────────────────────
   // Taux résolus dynamiquement par pricingEngine.resolveCommissionRate() (voir
@@ -311,6 +343,12 @@ const bookingSchema = new mongoose.Schema({
     respondedAt: { type: Date,   default: null },
   },
 
+  // Rappel automatique avant prise en charge (voir server/utils/bookingReminders.js)
+  // — n'existait pas du tout jusqu'ici, aucun rappel envoyé au client avant le
+  // début de sa location. `null` tant qu'aucun rappel n'a été envoyé ; posé une
+  // fois envoyé pour ne jamais relancer deux fois la même réservation.
+  pickupReminderSentAt: { type: Date, default: null },
+
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });
@@ -318,6 +356,7 @@ const bookingSchema = new mongoose.Schema({
 bookingSchema.index({ client: 1 });
 bookingSchema.index({ vehicle: 1 });
 bookingSchema.index({ driver: 1 });
+bookingSchema.index({ activity: 1 });
 bookingSchema.index({ status: 1 });
 bookingSchema.index({ type: 1 });
 bookingSchema.index({ createdAt: -1 });
@@ -325,6 +364,7 @@ bookingSchema.index({ createdAt: -1 });
 bookingSchema.index({ vehicle: 1, status: 1, "location.startDate": 1, "location.endDate": 1 });
 bookingSchema.index({ driver: 1, status: 1, "chauffeur.date": 1, "chauffeur.dateFin": 1 });
 bookingSchema.index({ vehicle: 1, status: 1, "essai.preferredDate": 1, "essai.dateFin": 1 });
+bookingSchema.index({ activity: 1, status: 1, "activite.date": 1, "activite.dateFin": 1 });
 
 bookingSchema.pre("save", function (next) {
   this.updatedAt = new Date();

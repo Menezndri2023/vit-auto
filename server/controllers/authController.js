@@ -94,6 +94,7 @@ function safeUser(u) {
     // limité à `.status` ci-dessus).
     isFounder:          !!u.isFounder,
     certificationBadge: u.certificationBadge || "none",
+    loyaltyPoints:      u.loyaltyPoints ?? 0,
     driverLicenseOcr: u.driverLicenseOcr ? {
       expiryDate: u.driverLicenseOcr.expiryDate || null,
       isExpired:  !!u.driverLicenseOcr.isExpired,

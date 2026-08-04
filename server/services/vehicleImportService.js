@@ -676,6 +676,37 @@ async function downloadImagesForRow(imageUrls, budgetDeadline, rowWarnings, file
   return images;
 }
 
+// ── Champs jugés indispensables pour qu'une annonce importée soit réellement
+// publiable/réservable, pas seulement "créée" ────────────────────────────────
+// scoreAnnonce() ne bloque la création (`status: "rejected"`) qu'au-delà de 3
+// erreurs critiques SIMULTANÉES sur une même ligne — une ligne à qui il ne
+// manque "que" le prix, ou "que" le carburant+transmission+adresse (aucun de
+// ces derniers n'étant une "erreur critique" au sens de scoreAnnonce), est
+// donc créée avec `status: "created"` au même titre qu'une ligne complète.
+// Bug réel constaté en production : un import de ~300 lignes sans
+// carburant/transmission/prix/ville/adresse s'est terminé "296 créé(s)" sans
+// qu'aucun signal agrégé n'indique que ces annonces restaient incomplètes —
+// le partenaire a dû tout recorriger manuellement en base après coup. Ce
+// helper alimente à la fois le badge par ligne (voir le résultat retourné) et
+// le résumé agrégé du batch entier (voir processImportBatch).
+const KEY_FIELD_LABELS = {
+  price:        "Prix (location ou vente)",
+  carburant:    "Carburant",
+  transmission: "Transmission",
+  ville:        "Ville",
+  adresse:      "Adresse",
+};
+
+function findMissingKeyFields(data) {
+  const missing = [];
+  if (!(Number(data.pricePerDay) > 0) && !(Number(data.priceForSale) > 0)) missing.push("price");
+  if (!data.carburant) missing.push("carburant");
+  if (!data.transmission) missing.push("transmission");
+  if (!String(data.ville || "").trim()) missing.push("ville");
+  if (!String(data.adresse || "").trim()) missing.push("adresse");
+  return missing;
+}
+
 // ── Traite une ligne du batch (véhicule catalogue) et retourne le résultat ───
 async function processVehicleImportRow(batch, rawRow, rowIndex, budgetDeadline, ownerUser, business) {
   let vehicleLabel = "";
@@ -758,6 +789,10 @@ async function processVehicleImportRow(batch, rawRow, rowIndex, budgetDeadline, 
       vehicleLabel,
       errors: validation.errors,
       warnings: validation.warnings,
+      // Voir findMissingKeyFields — distinct de validation.errors/warnings :
+      // sert au résumé agrégé du batch (incompleteCount/missingFieldsBreakdown),
+      // pas seulement à l'affichage ligne par ligne.
+      missingKeyFields: findMissingKeyFields(data),
     };
   } catch (rowErr) {
     logger.error("Import véhicule — erreur ligne", { rowIndex, error: rowErr.message });
@@ -897,6 +932,25 @@ export async function processImportBatch(batchId) {
 
     const hasErrors = batch.results.some((r) => r.status === "error");
     batch.status = hasErrors ? "completed_with_errors" : "completed";
+
+    // ── Résumé agrégé des annonces créées mais incomplètes (prix/carburant/
+    // transmission/ville/adresse) — voir findMissingKeyFields. Calculé sur le
+    // batch entier, pas seulement ligne par ligne : c'est justement l'absence
+    // de ce chiffre agrégé (avant ce correctif) qui laissait un import de
+    // ~300 lignes se terminer "296 créé(s)" sans qu'aucun signal ne remonte
+    // que la quasi-totalité manquait de champs essentiels avant publication.
+    if (!isExport) {
+      const breakdown = {};
+      let incompleteCount = 0;
+      for (const r of batch.results) {
+        if (r.status === "created" && r.missingKeyFields?.length) {
+          incompleteCount += 1;
+          for (const field of r.missingKeyFields) breakdown[field] = (breakdown[field] || 0) + 1;
+        }
+      }
+      batch.incompleteCount = incompleteCount;
+      batch.missingFieldsBreakdown = incompleteCount > 0 ? breakdown : null;
+    }
     await batch.save();
 
     try {
@@ -904,10 +958,17 @@ export async function processImportBatch(batchId) {
       const skipped = batch.results.filter((r) => r.status === "skipped_duplicate").length;
       const errored = batch.results.filter((r) => r.status === "error").length;
       const noun = isExport ? "annonce(s) export" : "véhicule(s)";
+      let message = `${created} ${noun} créé(s), ${skipped} doublon(s) ignoré(s), ${errored} erreur(s).`;
+      if (!isExport && batch.incompleteCount > 0) {
+        const breakdownLabel = Object.entries(batch.missingFieldsBreakdown || {})
+          .map(([field, count]) => `${KEY_FIELD_LABELS[field] || field} (${count})`)
+          .join(", ");
+        message += ` ⚠️ ${batch.incompleteCount} sans certains champs essentiels — à compléter avant publication : ${breakdownLabel}.`;
+      }
       const notifData = {
         type: "system",
         titre: isExport ? "📦 Import d'annonces export terminé" : "📦 Import de flotte terminé",
-        message: `${created} ${noun} créé(s), ${skipped} doublon(s) ignoré(s), ${errored} erreur(s).`,
+        message,
         lien: isExport ? "/vendor/publish?tab=import-export" : "/vendor/dashboard",
       };
       const notifDoc = await Notification.create({ user: batch.owner, ...notifData });

@@ -13,6 +13,10 @@ const resultSchema = new mongoose.Schema({
   vehicleLabel: { type: String, default: "" }, // ex: "Toyota Corolla 2020" — utile en cas d'erreur
   errors:   { type: [String], default: [] },
   warnings: { type: [String], default: [] },
+  // Champs essentiels absents pour une ligne créée (prix/carburant/transmission/
+  // ville/adresse) — voir findMissingKeyFields dans vehicleImportService.js.
+  // Vide/absent pour les lignes non "created" (erreur, doublon).
+  missingKeyFields: { type: [String], default: [] },
 }, {
   _id: false,
   // "errors" est un nom de chemin réservé par Mongoose (utilisé en interne pour
@@ -83,6 +87,16 @@ const vehicleImportBatchSchema = new mongoose.Schema({
   errorMessage: { type: String, default: null }, // ex: fichier illisible, colonnes manquantes
 
   results: { type: [resultSchema], default: [] },
+
+  // ── Résumé agrégé "créé mais incomplet" (targetType "vehicle" uniquement) ──
+  // Sans ce chiffre calculé sur le batch entier, un import de centaines de
+  // lignes sans prix/carburant/transmission/ville/adresse se terminait
+  // "296 créé(s)" sans qu'aucun signal ne l'indique — bug réel constaté en
+  // production (voir processImportBatch dans vehicleImportService.js).
+  incompleteCount: { type: Number, default: 0 },
+  // { [clé du champ]: nombre de lignes créées où il manque } — ex.
+  // { price: 12, carburant: 260, transmission: 240, ville: 5, adresse: 300 }.
+  missingFieldsBreakdown: { type: mongoose.Schema.Types.Mixed, default: null },
 
   // Lignes brutes en attente de traitement (consommées par processImportBatch,
   // vidées au fur et à mesure pour ne pas garder deux fois la même donnée).

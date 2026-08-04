@@ -30,6 +30,8 @@ const Cart                  = lazy(() => import("./pages/Cart"));
 const Booking               = lazy(() => import("./pages/Booking"));
 const DriverBooking         = lazy(() => import("./pages/DriverBooking"));
 const DriverEmployment      = lazy(() => import("./pages/DriverEmployment"));
+const ActivityBooking       = lazy(() => import("./pages/ActivityBooking"));
+const ActivitySubmit        = lazy(() => import("./pages/ActivitySubmit"));
 const BookingSuccess        = lazy(() => import("./pages/BookingSuccess"));
 const Dashboard             = lazy(() => import("./pages/Dashboard"));
 const Profile               = lazy(() => import("./pages/Profile"));
@@ -144,6 +146,9 @@ function AppRoutes() {
           <Route path="/driver-employment/:id"  element={
             <ErrorBoundary><DriverEmployment /></ErrorBoundary>
           } />
+          <Route path="/activity-booking/:id"   element={
+            <ErrorBoundary><ActivityBooking /></ErrorBoundary>
+          } />
           {/* ── Paiement (redirection fournisseur ou mode sandbox) ─── */}
           <Route path="/payment/simulate/:paymentId" element={<PaymentSimulate />} />
           <Route path="/payment/success"        element={<PaymentResult />} />
@@ -158,6 +163,7 @@ function AppRoutes() {
 
           {/* ── Espace partenaire (PartnerRoute = auth + rôle partenaire/admin) ── */}
           <Route path="/vendor"           element={<PartnerRoute><ErrorBoundary><VendorSubmit /></ErrorBoundary></PartnerRoute>} />
+          <Route path="/vendor/submit-activity" element={<PartnerRoute><ErrorBoundary><ActivitySubmit /></ErrorBoundary></PartnerRoute>} />
           <Route path="/vendor/dashboard" element={<PartnerRoute><ErrorBoundary><VendorDashboard /></ErrorBoundary></PartnerRoute>} />
           <Route path="/vendor/publish"   element={<PartnerRoute><ErrorBoundary><VendorPublish /></ErrorBoundary></PartnerRoute>} />
           <Route path="/importer-apply"   element={<PartnerRoute><ErrorBoundary><ImporterApply /></ErrorBoundary></PartnerRoute>} />

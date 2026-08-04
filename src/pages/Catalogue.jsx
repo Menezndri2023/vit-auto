@@ -8,6 +8,7 @@ import styles from "./Catalogue.module.css";
 import { useToast } from "../context/ToastContext";
 import { haversineKm, getCurrentPosition } from "../utils/geo";
 import { getCountryFlag } from "../data/autocomplete";
+import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "../constants/activityTypes";
 
 const MODES = [
   { key: "Tout",      icon: "⚡", label: "Tout"         },
@@ -15,7 +16,12 @@ const MODES = [
   { key: "Acheter",   icon: "💰", label: "Achat"        },
   { key: "Chauffeur", icon: "👨‍✈️", label: "Chauffeur"   },
   { key: "Import",    icon: "🌍", label: "Import/Export" },
+  // Section OTHERS — activités culturelles/loisir (Quad, Surf, Montgolfière,
+  // Jetski, Jet privé, Bateau...) — voir Activity.js/activityController.js.
+  { key: "Autres",    icon: "🎈", label: "OTHERS"       },
 ];
+
+const ACTIVITY_TYPE_PILLS = ["Tous", ...ACTIVITY_TYPES];
 
 const TYPE_ICONS = {
   "Tous": "🚘", "SUV": "🚙", "Berline": "🚗", "Viano": "🚐",
@@ -140,6 +146,41 @@ function DriverCard({ d, fmt }) {
   );
 }
 
+/* ── Carte Activité (section OTHERS) ── */
+function ActivityCard({ a, fmt }) {
+  const priceLabel = a.priceUnit === "per_session"
+    ? `${fmt(a.price)} / sortie`
+    : `${fmt(a.price)} / pers.`;
+  return (
+    <div className={styles.ieCard}>
+      <div className={styles.ieCardImg}>
+        {a.thumbnail || a.images?.[0]
+          ? <img src={a.thumbnail || a.images[0]} alt={a.title} loading="lazy" width="320" height="200" />
+          : <div className={styles.ieCardImgFallback}>{ACTIVITY_TYPE_ICONS[a.activityType] || "🎟️"}</div>
+        }
+        <div className={styles.ieCardTypeBadge}>{ACTIVITY_TYPE_ICONS[a.activityType] || "🎟️"} {ACTIVITY_TYPE_LABELS[a.activityType] || a.activityType}</div>
+        {a.essaiDisponible && <div className={styles.ieCardIncoterm}>🔰 Essai disponible</div>}
+      </div>
+      <div className={styles.ieCardBody}>
+        <strong className={styles.ieCardTitle}>{a.title}</strong>
+        <span className={styles.ieCardMeta}>
+          📍 {a.ville || "—"}
+          {a.noteMoyenne > 0 && <> · ⭐ {a.noteMoyenne.toFixed(1)} ({a.nombreAvis || 0})</>}
+        </span>
+        <span className={styles.ieCardMeta}>
+          ⏱️ {a.durationMinutes || 60} min · 👥 jusqu'à {a.capacity || 1} pers.
+        </span>
+        <div className={styles.ieCardFooter}>
+          <div>
+            <div className={styles.ieCardPrice}>{priceLabel}</div>
+          </div>
+          <Link to={`/activity-booking/${a._id}`} className={styles.ieCardLink}>Réserver →</Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const types         = Object.keys(TYPE_ICONS);
 const etats         = ["Tous", "Neuf", "Occasion"];
 const fuels         = ["Tous", "Essence", "Diesel", "Hybride", "Électrique", "GPL"];
@@ -152,7 +193,7 @@ const SORT_OPTIONS  = [
 ];
 
 const Catalogue = () => {
-  const { vehicles, drivers, refreshVehicles, vehiclesLoading } = useVehicles();
+  const { vehicles, drivers, activities, refreshVehicles, vehiclesLoading } = useVehicles();
   const { fmt, catalogCountry, setCatalogCountry, COUNTRIES_CONFIG, COUNTRY_INTERNATIONAL, detectPreciseCountry, rateFromUSD } = useCurrency();
   const { success: toastSuccess, error: toastError } = useToast();
   const [detectingCountry, setDetectingCountry] = useState(false);
@@ -183,6 +224,8 @@ const Catalogue = () => {
   const [activeDuree,  setActiveDuree]  = useState(() => searchParams.get("duree")    || "Tous");
   const [fuelType,     setFuelType]     = useState("Tous");
   const [transmission, setTransmission] = useState("Tous");
+  // Section OTHERS — type d'activité (Quad, Surf, Montgolfière...)
+  const [activityTypeFilter, setActivityTypeFilter] = useState("Tous");
   const [maxPrice,     setMaxPrice]     = useState(300);
   // Prix max vente/import — échelle totalement différente de la location
   // journalière (10-300 USD/j) : un véhicule à vendre ou une annonce
@@ -227,6 +270,7 @@ const Catalogue = () => {
 
   const isImportMode    = activeMode === "Import";
   const isChauffeurMode = activeMode === "Chauffeur";
+  const isOthersMode    = activeMode === "Autres";
 
   const loadIEListings = useCallback(async () => {
     setIeLoading(true);
@@ -281,7 +325,7 @@ const Catalogue = () => {
   const resetFilters = () => {
     setActiveType("Tous"); setActiveEtat("Tous"); setFuelType("Tous");
     setTransmission("Tous"); setMaxPrice(300); setMaxSalePrice(200000); setIeMaxPrice(200000);
-    setSearchTerm(""); setActiveDuree("Tous");
+    setSearchTerm(""); setActiveDuree("Tous"); setActivityTypeFilter("Tous");
     setActiveMode("Tout"); setSearchParams(new URLSearchParams()); setPage(1);
     setIeSearch(""); setIeSource(""); setIeSortKey("newest");
   };
@@ -311,8 +355,26 @@ const Catalogue = () => {
     return list;
   }, [drivers, isChauffeurMode, searchTerm, sortKey, catalogCountry, COUNTRY_INTERNATIONAL]);
 
+  const activitiesFiltered = useMemo(() => {
+    if (!isOthersMode) return [];
+    const q = searchTerm.toLowerCase();
+    // Une activité sans pays renseigné reste toujours visible, quel que soit
+    // le pays sélectionné — même principe que véhicules/chauffeurs.
+    let list = activities.filter((a) =>
+      (catalogCountry === COUNTRY_INTERNATIONAL || !a.country || a.country === catalogCountry)
+      && (activityTypeFilter === "Tous" || a.activityType === activityTypeFilter)
+      && (!q
+        || (a.title || "").toLowerCase().includes(q)
+        || (a.ville || "").toLowerCase().includes(q)
+        || (ACTIVITY_TYPE_LABELS[a.activityType] || "").toLowerCase().includes(q)));
+    if (sortKey === "price_asc")  list = [...list].sort((a, b) => (a.price || 0) - (b.price || 0));
+    if (sortKey === "price_desc") list = [...list].sort((a, b) => (b.price || 0) - (a.price || 0));
+    if (sortKey === "newest")     list = [...list].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    return list;
+  }, [activities, isOthersMode, searchTerm, sortKey, catalogCountry, COUNTRY_INTERNATIONAL, activityTypeFilter]);
+
   const filtered = useMemo(() => {
-    if (isImportMode || isChauffeurMode) return [];
+    if (isImportMode || isChauffeurMode || isOthersMode) return [];
     let list = vehicles.filter((v) => {
       const modeOk = activeMode === "Tout" || v.mode === activeMode;
       const typeOk = activeType === "Tous" || (v.vehicleType || v.type) === activeType;
@@ -359,9 +421,11 @@ const Catalogue = () => {
     if (sortKey === "price_desc") list = [...list].sort((a,b) => (b.pricePerDay||b.priceForSale||0) - (a.pricePerDay||a.priceForSale||0));
     if (sortKey === "newest")     list = [...list].sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
     return list;
-  }, [vehicles, activeMode, activeType, activeEtat, activeDuree, fuelType, transmission, maxPrice, maxSalePrice, searchTerm, sortKey, isImportMode, isChauffeurMode, catalogCountry, COUNTRY_INTERNATIONAL, nearMeActive, userPos]);
+  }, [vehicles, activeMode, activeType, activeEtat, activeDuree, fuelType, transmission, maxPrice, maxSalePrice, searchTerm, sortKey, isImportMode, isChauffeurMode, isOthersMode, catalogCountry, COUNTRY_INTERNATIONAL, nearMeActive, userPos]);
 
-  const activeChips = (!isImportMode && !isChauffeurMode) ? [
+  const isStandardMode = !isImportMode && !isChauffeurMode && !isOthersMode;
+
+  const activeChips = isStandardMode ? [
     activeMode !== "Tout"   && { label: activeMode,         clear: () => { setActiveMode("Tout"); setParam("mode",""); } },
     activeType !== "Tous"   && { label: activeType,         clear: () => { setActiveType("Tous"); setParam("type",""); } },
     activeEtat !== "Tous"   && { label: activeEtat,         clear: () => { setActiveEtat("Tous"); setParam("etat",""); } },
@@ -390,8 +454,8 @@ const Catalogue = () => {
 
           <div className={styles.headerRow}>
             <div>
-              <span className={styles.headerTag}>{isImportMode ? "🌍 VIT AUTO" : isChauffeurMode ? "🧑‍✈️ VIT AUTO" : "🚗 VIT AUTO"}</span>
-              <h1 className={styles.headerTitle}>{isImportMode ? "Import / Export" : isChauffeurMode ? "Chauffeurs" : "Catalogue"}</h1>
+              <span className={styles.headerTag}>{isImportMode ? "🌍 VIT AUTO" : isChauffeurMode ? "🧑‍✈️ VIT AUTO" : isOthersMode ? "🎈 VIT AUTO" : "🚗 VIT AUTO"}</span>
+              <h1 className={styles.headerTitle}>{isImportMode ? "Import / Export" : isChauffeurMode ? "Chauffeurs" : isOthersMode ? "OTHERS — Activités" : "Catalogue"}</h1>
             </div>
             <button
               type="button"
@@ -430,7 +494,7 @@ const Catalogue = () => {
               type="search"
               value={isImportMode ? ieSearch : searchTerm}
               onChange={(e) => isImportMode ? setIeSearch(e.target.value) : setSearchTerm(e.target.value)}
-              placeholder={isImportMode ? "Marque, modèle, pays d'origine…" : isChauffeurMode ? "Nom, zone…" : "Marque, modèle, ville…"}
+              placeholder={isImportMode ? "Marque, modèle, pays d'origine…" : isChauffeurMode ? "Nom, zone…" : isOthersMode ? "Activité, ville…" : "Marque, modèle, ville…"}
               className={styles.searchInput}
             />
             {(isImportMode ? ieSearch : searchTerm) && (
@@ -461,6 +525,17 @@ const Catalogue = () => {
                   style={{ flex: 1, minWidth: 160, maxWidth: 320, accentColor: "#ff4d2d" }} />
               </div>
             </>
+          ) : isOthersMode ? (
+            <div className={styles.typePillsRow}>
+              {ACTIVITY_TYPE_PILLS.map((t) => (
+                <button key={t} type="button"
+                  className={`${styles.typePill} ${activityTypeFilter === t ? styles.typePillActive : ""}`}
+                  onClick={() => setActivityTypeFilter(t)}>
+                  <span>{t === "Tous" ? "🎈" : (ACTIVITY_TYPE_ICONS[t] || "🎟️")}</span>
+                  <span>{t === "Tous" ? "Tout" : (ACTIVITY_TYPE_LABELS[t] || t)}</span>
+                </button>
+              ))}
+            </div>
           ) : !isChauffeurMode ? (
             <div className={styles.typePillsRow}>
               {types.map((t) => (
@@ -495,15 +570,17 @@ const Catalogue = () => {
                 ? <><strong>{ieListings.length}</strong> annonce{ieListings.length !== 1 ? "s" : ""} internationale{ieListings.length !== 1 ? "s" : ""}</>
                 : isChauffeurMode
                 ? <><strong>{chauffeursFiltered.length}</strong> chauffeur{chauffeursFiltered.length !== 1 ? "s" : ""}</>
+                : isOthersMode
+                ? <><strong>{activitiesFiltered.length}</strong> activité{activitiesFiltered.length !== 1 ? "s" : ""}</>
                 : <><strong>{filtered.length}</strong> véhicule{filtered.length !== 1 ? "s" : ""}</>
               }
             </span>
 
-            {geoError && !isImportMode && !isChauffeurMode && (
+            {geoError && isStandardMode && (
               <span className={styles.activeChip} title={geoError}>⚠️ {geoError}</span>
             )}
 
-            {!isImportMode && !isChauffeurMode && activeChips.map((chip, i) => (
+            {isStandardMode && activeChips.map((chip, i) => (
               <button key={i} type="button" className={styles.activeChip} onClick={chip.clear}>
                 {chip.label} <span>✕</span>
               </button>
@@ -537,7 +614,7 @@ const Catalogue = () => {
               {detectingCountry ? "📍 Détection…" : "📍 Détecter"}
             </button>
 
-            {!isImportMode && !isChauffeurMode && (
+            {isStandardMode && (
               <button
                 type="button"
                 className={styles.filterToggleBtn}
@@ -549,7 +626,7 @@ const Catalogue = () => {
               </button>
             )}
 
-            {!isImportMode && !isChauffeurMode && (
+            {isStandardMode && (
               <button type="button" className={styles.filterToggleBtn} onClick={() => setFilterOpen(true)}>
                 ⚙️ Filtres
                 {activeChips.length > 0 && <span className={styles.filterBadge}>{activeChips.length}</span>}
@@ -571,7 +648,7 @@ const Catalogue = () => {
         </div>
 
         {/* Drawer mobile (mode standard uniquement) */}
-        {!isImportMode && !isChauffeurMode && filterOpen && (
+        {isStandardMode && filterOpen && (
           <>
             <div className={styles.overlay} onClick={() => setFilterOpen(false)} />
             <div className={styles.drawer}>
@@ -597,7 +674,7 @@ const Catalogue = () => {
         )}
 
         {/* ── MODE STANDARD ── */}
-        {!isImportMode && !isChauffeurMode && (
+        {isStandardMode && (
           <div className={styles.layout}>
             <aside className={styles.sidebar}>
               <div className={styles.sidebarInner}>
@@ -769,6 +846,35 @@ const Catalogue = () => {
                   </div>
                 )}
               </>
+            )}
+          </div>
+        )}
+
+        {/* ── MODE OTHERS (activités culturelles/loisir) ── */}
+        {isOthersMode && (
+          <div className={styles.ieSection}>
+            <div className={styles.ieBanner}>
+              <div className={styles.ieBannerText}>
+                <strong>🎈 Activités & sorties</strong>
+                <p>Quad, Surf, Montgolfière, Jetski, Jet privé, Bateau et bien d'autres — réservez directement, essai possible sur certaines annonces</p>
+              </div>
+            </div>
+
+            {activitiesFiltered.length === 0 ? (
+              <div className={styles.ieEmpty}>
+                <span style={{ fontSize: "3rem" }}>🎈</span>
+                <h3>{searchTerm || activityTypeFilter !== "Tous" ? "Aucun résultat pour ce filtre" : "Aucune activité disponible"}</h3>
+                <p>{searchTerm || activityTypeFilter !== "Tous" ? "Essayez un autre filtre." : "Nos partenaires publieront bientôt des activités dans votre zone."}</p>
+                {(searchTerm || activityTypeFilter !== "Tous") && (
+                  <button className={styles.ieEmptyBtn} onClick={() => { setSearchTerm(""); setActivityTypeFilter("Tous"); }}>
+                    Effacer les filtres
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className={styles.ieGrid}>
+                {activitiesFiltered.map((a) => <ActivityCard key={a._id} a={a} fmt={fmt} />)}
+              </div>
             )}
           </div>
         )}

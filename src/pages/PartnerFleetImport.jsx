@@ -35,6 +35,16 @@ const STATUS_CONFIG = {
   error:              { icon: "❌", label: "Erreur" },
 };
 
+// Doit correspondre à KEY_FIELD_LABELS côté serveur (vehicleImportService.js) —
+// mêmes clés que `missingKeyFields`/`missingFieldsBreakdown` renvoyés par l'API.
+const MISSING_FIELD_LABELS = {
+  price:        "Prix",
+  carburant:    "Carburant",
+  transmission: "Transmission",
+  ville:        "Ville",
+  adresse:      "Adresse",
+};
+
 const readFileAsBase64 = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -537,6 +547,19 @@ const PartnerFleetImport = () => {
                 <span className={styles.summaryError}>{errored} erreur(s)</span>
               </div>
 
+              {batch.incompleteCount > 0 && (
+                <div style={{ background: "#fffbeb", border: "1.5px solid #fcd34d", borderRadius: 12, padding: "14px 18px", marginBottom: 16 }}>
+                  <strong style={{ display: "block", color: "#92400e", fontSize: ".88rem", marginBottom: 6 }}>
+                    ⚠️ {batch.incompleteCount} véhicule(s) créé(s) mais incomplet(s) — à compléter avant de pouvoir être réellement publiés/réservés :
+                  </strong>
+                  <p style={{ margin: 0, color: "#92400e", fontSize: ".82rem" }}>
+                    {Object.entries(batch.missingFieldsBreakdown || {})
+                      .map(([field, count]) => `${MISSING_FIELD_LABELS[field] || field} manquant sur ${count} véhicule(s)`)
+                      .join(" · ")}
+                  </p>
+                </div>
+              )}
+
               {errorGroups.length > 0 && (
                 <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 12, padding: "14px 18px", marginBottom: 16 }}>
                   <strong style={{ display: "block", color: "#991b1b", fontSize: ".88rem", marginBottom: 8 }}>
@@ -562,6 +585,11 @@ const PartnerFleetImport = () => {
                         <strong>{r.vehicleLabel || `Ligne ${r.rowIndex}`}</strong>
                         {(r.errors || []).map((e, i) => <p key={`e${i}`} className={styles.resultErrorText}>❌ {e}</p>)}
                         {(r.warnings || []).map((w, i) => <p key={`w${i}`} className={styles.resultWarningText}>⚠️ {w}</p>)}
+                        {r.missingKeyFields?.length > 0 && (
+                          <p className={styles.resultWarningText}>
+                            ⚠️ À compléter avant publication : {r.missingKeyFields.map((f) => MISSING_FIELD_LABELS[f] || f).join(", ")}
+                          </p>
+                        )}
                       </div>
                     </li>
                   );

@@ -12,6 +12,7 @@ import { runOnceMigration } from "./utils/runOnceMigration.js";
 import { initSentry, sentryRequestHandler, sentryTracingHandler, sentryErrorHandler, captureException } from "./config/sentry.js";
 import { initQueues, isReady as isQueuesReady, getQueueStats } from "./queue/index.js";
 import { startPartnerReminderScheduler } from "./utils/partnerReminders.js";
+import { startBookingReminderScheduler } from "./utils/bookingReminders.js";
 import { startAccountHealthScheduler } from "./utils/accountHealthCheck.js";
 
 import authRoutes          from "./routes/auth.js";
@@ -23,6 +24,7 @@ import paymentRoutes       from "./routes/payments.js";
 import * as paymentController from "./controllers/paymentController.js";
 import userRoutes          from "./routes/users.js";
 import driverRoutes        from "./routes/drivers.js";
+import activityRoutes      from "./routes/activities.js";
 import reviewRoutes        from "./routes/reviews.js";
 import notificationRoutes  from "./routes/notifications.js";
 import subscriptionRoutes  from "./routes/subscriptions.js";
@@ -349,6 +351,7 @@ app.use("/api/bookings",       apiLimiter,       bookingRoutes);
 app.use("/api/payments",       apiLimiter,       paymentRoutes);
 app.use("/api/users",          apiLimiter,       userRoutes);
 app.use("/api/drivers",        apiLimiter,       driverRoutes);
+app.use("/api/activities",     apiLimiter,       activityRoutes);
 app.use("/api/reviews",        apiLimiter,       reviewRoutes);
 app.use("/api/notifications",  apiLimiter,       notificationRoutes);
 app.use("/api/subscriptions",  apiLimiter,       subscriptionRoutes);
@@ -608,6 +611,10 @@ const startServer = async () => {
     // ── Relance automatique des dossiers partenaire incomplets ───────────
     // En mémoire (pas de job Redis) — voir utils/partnerReminders.js.
     startPartnerReminderScheduler();
+
+    // ── Rappel automatique avant prise en charge (location) ──────────────
+    // En mémoire (pas de job Redis) — voir utils/bookingReminders.js.
+    startBookingReminderScheduler();
 
     // ── Relance automatique des profils/comptes incomplets (tous rôles) ──
     startAccountHealthScheduler();

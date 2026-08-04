@@ -400,6 +400,9 @@ export default function VehicleDetails() {
               : <span className={styles.badgeUnavail}>{t("vd.unavailable")}</span>}
           </div>
           <h1 className={styles.heading}>{vehicle.title || vehicle.name}</h1>
+          {vehicle.instantBook && !isSale && (
+            <span className={styles.condItem} title="Confirmée automatiquement, sans attendre le partenaire">⚡ Réservation instantanée</span>
+          )}
           {(vehicle.ville || vehicle.adresse) && (
             <p className={styles.location}>📍 {[vehicle.ville, vehicle.adresse].filter(Boolean).join(", ")}</p>
           )}

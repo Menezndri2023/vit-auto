@@ -4,6 +4,7 @@ import Booking from "../models/Booking.js";
 import Driver from "../models/Driver.js";
 import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
+import User from "../models/User.js";
 
 const clientInfo = { firstName: "Jean", lastName: "Client", email: "jean.client@example.test", passportNumber: "P1234567" };
 
@@ -45,6 +46,90 @@ describe("bookingController.createBooking", () => {
     });
     await createBooking(req, res);
     expect(res.status).not.toHaveBeenCalledWith(400);
+  });
+
+  it("confirme automatiquement une réservation instantanée pour un partenaire certifié", async () => {
+    const certifiedOwner = await createUser({ role: "partenaire", certificationBadge: "verifie" });
+    const vehicle = await createVehicleDoc({ owner: certifiedOwner._id, instantBook: true, pricePerDay: 1000 });
+    const { req, res } = mockReqRes({
+      body: {
+        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        location: { days: 2, startDate: "2027-04-10", endDate: "2027-04-12" },
+      },
+    });
+    await createBooking(req, res);
+    expect(res.status).not.toHaveBeenCalledWith(400);
+    expect(res.body.booking.status).toBe("confirmed");
+  });
+
+  it("ignore instantBook si le propriétaire n'est plus certifié (jamais confiance dans le seul booléen)", async () => {
+    const uncertifiedOwner = await createUser({ role: "partenaire", certificationBadge: "none" });
+    const vehicle = await createVehicleDoc({ owner: uncertifiedOwner._id, instantBook: true, pricePerDay: 1000 });
+    const { req, res } = mockReqRes({
+      body: {
+        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        location: { days: 2, startDate: "2027-04-15", endDate: "2027-04-17" },
+      },
+    });
+    await createBooking(req, res);
+    expect(res.body.booking.status).toBe("pending");
+  });
+
+  it("applique une remise fidélité et débite les points du client (100 points = 1 USD)", async () => {
+    const client = await createUser({ loyaltyPoints: 500 });
+    const vehicle = await createVehicleDoc({ pricePerDay: 1000 }); // base = 2000 sur 2 jours, plafond 20% = 400 USD = 40000 pts
+    const { req, res } = mockReqRes({
+      user: client,
+      body: {
+        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        location: { days: 2, startDate: "2027-05-01", endDate: "2027-05-03" },
+        pointsToRedeem: 300,
+      },
+    });
+    await createBooking(req, res);
+    expect(res.status).not.toHaveBeenCalledWith(400);
+    expect(res.body.booking.loyaltyPointsRedeemed).toBe(300);
+    expect(res.body.booking.loyaltyDiscount).toBe(3);
+    expect(res.body.booking.montantTotal).toBe(2000 - 3);
+    const updated = await User.findById(client._id);
+    expect(updated.loyaltyPoints).toBe(200);
+  });
+
+  it("plafonne la remise fidélité à 20% du montant de base même si le client a plus de points", async () => {
+    const client = await createUser({ loyaltyPoints: 100000 });
+    const vehicle = await createVehicleDoc({ pricePerDay: 1000 }); // base = 1000 sur 1 jour, plafond 20% = 200 USD = 20000 pts
+    const { req, res } = mockReqRes({
+      user: client,
+      body: {
+        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        location: { days: 1, startDate: "2027-05-05", endDate: "2027-05-06" },
+        pointsToRedeem: 100000,
+      },
+    });
+    await createBooking(req, res);
+    expect(res.body.booking.loyaltyPointsRedeemed).toBe(20000);
+    expect(res.body.booking.loyaltyDiscount).toBe(200);
+    const updated = await User.findById(client._id);
+    expect(updated.loyaltyPoints).toBe(80000);
+  });
+
+  it("ignore une demande de remise fidélité si le client n'a pas assez de points (pas de blocage de la réservation)", async () => {
+    const client = await createUser({ loyaltyPoints: 10 });
+    const vehicle = await createVehicleDoc({ pricePerDay: 1000 });
+    const { req, res } = mockReqRes({
+      user: client,
+      body: {
+        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        location: { days: 1, startDate: "2027-05-08", endDate: "2027-05-09" },
+        pointsToRedeem: 5000,
+      },
+    });
+    await createBooking(req, res);
+    expect(res.status).not.toHaveBeenCalledWith(400);
+    expect(res.body.booking.loyaltyPointsRedeemed).toBe(0);
+    expect(res.body.booking.montantTotal).toBe(1000);
+    const updated = await User.findById(client._id);
+    expect(updated.loyaltyPoints).toBe(10);
   });
 
   it("crée une réservation location et calcule prix/caution côté serveur (jamais depuis le client)", async () => {

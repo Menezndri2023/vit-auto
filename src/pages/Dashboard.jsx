@@ -673,6 +673,14 @@ const Dashboard = () => {
           <p className={styles.welcome}>
             {t("dash.welcome")} <strong>{user?.firstName || user?.name || user?.email}</strong>
           </p>
+          {/* Fidélité — n'existait pas du tout jusqu'ici. 1 point = 1 USD dépensé
+              sur une commande terminée, 100 points = 1 USD de remise sur une
+              location (voir Booking.jsx, étape confirmation). */}
+          {user?.loyaltyPoints > 0 && (
+            <p style={{ margin: "4px 0 0", fontSize: ".85rem", fontWeight: 700, color: "#d97706" }}>
+              🎁 {user.loyaltyPoints} points de fidélité (≈ {fmt(user.loyaltyPoints / 100)} de remise disponible)
+            </p>
+          )}
         </div>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
           <button
