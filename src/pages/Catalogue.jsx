@@ -153,7 +153,7 @@ const SORT_OPTIONS  = [
 
 const Catalogue = () => {
   const { vehicles, drivers, refreshVehicles, vehiclesLoading } = useVehicles();
-  const { fmt, catalogCountry, setCatalogCountry, COUNTRIES_CONFIG, COUNTRY_INTERNATIONAL, detectPreciseCountry } = useCurrency();
+  const { fmt, catalogCountry, setCatalogCountry, COUNTRIES_CONFIG, COUNTRY_INTERNATIONAL, detectPreciseCountry, rateFromUSD } = useCurrency();
   const { success: toastSuccess, error: toastError } = useToast();
   const [detectingCountry, setDetectingCountry] = useState(false);
 
@@ -184,6 +184,14 @@ const Catalogue = () => {
   const [fuelType,     setFuelType]     = useState("Tous");
   const [transmission, setTransmission] = useState("Tous");
   const [maxPrice,     setMaxPrice]     = useState(300);
+  // Prix max vente/import — échelle totalement différente de la location
+  // journalière (10-300 USD/j) : un véhicule à vendre ou une annonce
+  // Import/Export peut valoir des dizaines de milliers de dollars. Défaut
+  // volontairement haut (aucune annonce cachée tant que l'utilisateur n'a pas
+  // lui-même resserré le curseur), contrairement à maxPrice (location) dont
+  // le défaut filtre déjà activement.
+  const [maxSalePrice, setMaxSalePrice] = useState(200000);
+  const [ieMaxPrice,   setIeMaxPrice]   = useState(200000);
 
   // ── "Près de moi" (recherche géolocalisée) ────────────────────────────────
   const [nearMeActive, setNearMeActive] = useState(false);
@@ -240,6 +248,15 @@ const Catalogue = () => {
             l.sourceCountry?.toLowerCase().includes(q)
           );
         }
+        // Bug réel corrigé (audit) : aucun filtre prix n'existait pour les
+        // annonces Import/Export. `price` est dans la devise propre de
+        // l'annonce (`currency`, souvent EUR/XOF/MAD, pas toujours USD) —
+        // converti en USD avant comparaison au curseur, sinon une annonce en
+        // XOF (valeurs numériques ~600x plus grandes) serait comparée telle
+        // quelle à un seuil pensé en USD.
+        if (ieMaxPrice < 200000) {
+          list = list.filter((l) => (l.price || 0) / (rateFromUSD(l.currency) || 1) <= ieMaxPrice);
+        }
         // Tri
         if (ieSortKey === "price_asc")  list = [...list].sort((a, b) => a.price - b.price);
         if (ieSortKey === "price_desc") list = [...list].sort((a, b) => b.price - a.price);
@@ -248,7 +265,7 @@ const Catalogue = () => {
       }
     } catch {}
     setIeLoading(false);
-  }, [ieSource, ieSearch, ieSortKey, catalogCountry]);
+  }, [ieSource, ieSearch, ieSortKey, catalogCountry, ieMaxPrice, rateFromUSD]);
 
   useEffect(() => {
     if (isImportMode) loadIEListings();
@@ -263,7 +280,8 @@ const Catalogue = () => {
 
   const resetFilters = () => {
     setActiveType("Tous"); setActiveEtat("Tous"); setFuelType("Tous");
-    setTransmission("Tous"); setMaxPrice(300); setSearchTerm(""); setActiveDuree("Tous");
+    setTransmission("Tous"); setMaxPrice(300); setMaxSalePrice(200000); setIeMaxPrice(200000);
+    setSearchTerm(""); setActiveDuree("Tous");
     setActiveMode("Tout"); setSearchParams(new URLSearchParams()); setPage(1);
     setIeSearch(""); setIeSource(""); setIeSortKey("newest");
   };
@@ -303,7 +321,13 @@ const Catalogue = () => {
         || (activeEtat === "Occasion" && v.etat && v.etat !== "Neuf");
       const fuelOk = fuelType === "Tous" || (v.fuel || v.carburant) === fuelType;
       const transOk = transmission === "Tous" || v.transmission === transmission;
-      const priceOk = activeMode === "Acheter" || (v.pricePerDay || 0) <= maxPrice;
+      // Bug réel corrigé (audit) : aucun filtre prix n'était appliqué en mode
+      // Achat (vente) — le curseur "Prix max / jour" (échelle location, 10-300
+      // USD) n'a de toute façon pas de sens pour un prix de vente. Échelle
+      // dédiée maxSalePrice (défaut haut, rien de caché par défaut).
+      const priceOk = activeMode === "Acheter"
+        ? (v.priceForSale || 0) <= maxSalePrice
+        : (v.pricePerDay || 0) <= maxPrice;
       // Un véhicule sans durée renseignée (créé avant cette fonctionnalité) ou
       // marqué "les_deux" reste visible sous les deux filtres.
       const dureeOk = activeMode !== "Louer" || activeDuree === "Tous"
@@ -335,7 +359,7 @@ const Catalogue = () => {
     if (sortKey === "price_desc") list = [...list].sort((a,b) => (b.pricePerDay||b.priceForSale||0) - (a.pricePerDay||a.priceForSale||0));
     if (sortKey === "newest")     list = [...list].sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
     return list;
-  }, [vehicles, activeMode, activeType, activeEtat, activeDuree, fuelType, transmission, maxPrice, searchTerm, sortKey, isImportMode, isChauffeurMode, catalogCountry, COUNTRY_INTERNATIONAL, nearMeActive, userPos]);
+  }, [vehicles, activeMode, activeType, activeEtat, activeDuree, fuelType, transmission, maxPrice, maxSalePrice, searchTerm, sortKey, isImportMode, isChauffeurMode, catalogCountry, COUNTRY_INTERNATIONAL, nearMeActive, userPos]);
 
   const activeChips = (!isImportMode && !isChauffeurMode) ? [
     activeMode !== "Tout"   && { label: activeMode,         clear: () => { setActiveMode("Tout"); setParam("mode",""); } },
@@ -344,7 +368,11 @@ const Catalogue = () => {
     activeMode === "Louer" && activeDuree !== "Tous" && { label: activeDuree, clear: () => { setActiveDuree("Tous"); setParam("duree",""); } },
     fuelType   !== "Tous"   && { label: fuelType,           clear: () => setFuelType("Tous") },
     transmission !== "Tous" && { label: transmission,       clear: () => setTransmission("Tous") },
-    activeMode !== "Acheter" && maxPrice < 300 && { label: `≤ ${fmt(maxPrice)}`, clear: () => setMaxPrice(300) },
+    // Comparé à la valeur PAR DÉFAUT (300/200000), pas au plafond technique du
+    // curseur (2000/200000) — sinon la puce s'afficherait dès le chargement
+    // (300 < 2000) sans que l'utilisateur n'ait rien changé.
+    activeMode !== "Acheter" && maxPrice !== 300 && { label: `≤ ${fmt(maxPrice)}`, clear: () => setMaxPrice(300) },
+    activeMode === "Acheter" && maxSalePrice !== 200000 && { label: `≤ ${fmt(maxSalePrice)}`, clear: () => setMaxSalePrice(200000) },
     searchTerm              && { label: `"${searchTerm}"`,  clear: () => setSearchTerm("") },
   ].filter(Boolean) : [];
 
@@ -413,15 +441,26 @@ const Catalogue = () => {
 
           {/* Pills type véhicule (mode standard) ou pays source (mode IE) — masquées en mode Chauffeur */}
           {isImportMode ? (
-            <div className={styles.typePillsRow}>
-              {IE_SOURCE_ZONES.map((z) => (
-                <button key={z.key} type="button"
-                  className={`${styles.typePill} ${ieSource === z.key ? styles.typePillActive : ""}`}
-                  onClick={() => setIeSource(z.key)}>
-                  <span>{z.label}</span>
-                </button>
-              ))}
-            </div>
+            <>
+              <div className={styles.typePillsRow}>
+                {IE_SOURCE_ZONES.map((z) => (
+                  <button key={z.key} type="button"
+                    className={`${styles.typePill} ${ieSource === z.key ? styles.typePillActive : ""}`}
+                    onClick={() => setIeSource(z.key)}>
+                    <span>{z.label}</span>
+                  </button>
+                ))}
+              </div>
+              {/* Bug réel corrigé (audit) : aucun filtre prix n'existait pour
+                  Import/Export — échelle vente (milliers/dizaines de milliers
+                  USD), converti depuis la devise propre de chaque annonce. */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
+                <span style={{ fontSize: ".8rem", fontWeight: 700, color: "#0f1b3f" }}>💰 Prix max — {fmt(ieMaxPrice)}</span>
+                <input type="range" min="1000" max="200000" step="1000" value={ieMaxPrice}
+                  onChange={(e) => setIeMaxPrice(Number(e.target.value))}
+                  style={{ flex: 1, minWidth: 160, maxWidth: 320, accentColor: "#ff4d2d" }} />
+              </div>
+            </>
           ) : !isChauffeurMode ? (
             <div className={styles.typePillsRow}>
               {types.map((t) => (
@@ -543,6 +582,7 @@ const Catalogue = () => {
               </div>
               <DrawerFilters
                 maxPrice={maxPrice} setMaxPrice={setMaxPrice}
+                maxSalePrice={maxSalePrice} setMaxSalePrice={setMaxSalePrice}
                 activeEtat={activeEtat} setActiveEtat={(v) => { setActiveEtat(v); setParam("etat", v); }}
                 fuelType={fuelType} setFuelType={setFuelType}
                 transmission={transmission} setTransmission={setTransmission}
@@ -561,17 +601,34 @@ const Catalogue = () => {
           <div className={styles.layout}>
             <aside className={styles.sidebar}>
               <div className={styles.sidebarInner}>
-                {activeMode !== "Acheter" && (
+                {activeMode !== "Acheter" ? (
                   <div className={styles.sidebarSection}>
                     <h4 className={styles.sidebarTitle}>💰 Prix max / jour</h4>
                     <div className={styles.priceRange}>
                       <span className={styles.priceLabel}>{fmt(maxPrice)}</span>
-                      <input type="range" min="10" max="300" step="5"
+                      <input type="range" min="10" max="2000" step="10"
                         value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))}
                         className={styles.rangeInput} />
                       <div className={styles.rangeLimits}>
                         <span>{fmt(10)}</span>
-                        <span>{fmt(300)}</span>
+                        <span>{fmt(2000)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  // Bug réel corrigé (audit) : le mode Achat n'avait jusqu'ici
+                  // aucun filtre prix — échelle dédiée (vente = milliers/
+                  // dizaines de milliers de USD, pas des USD/jour).
+                  <div className={styles.sidebarSection}>
+                    <h4 className={styles.sidebarTitle}>💰 Prix max (vente)</h4>
+                    <div className={styles.priceRange}>
+                      <span className={styles.priceLabel}>{fmt(maxSalePrice)}</span>
+                      <input type="range" min="1000" max="200000" step="1000"
+                        value={maxSalePrice} onChange={(e) => setMaxSalePrice(Number(e.target.value))}
+                        className={styles.rangeInput} />
+                      <div className={styles.rangeLimits}>
+                        <span>{fmt(1000)}</span>
+                        <span>{fmt(200000)}</span>
                       </div>
                     </div>
                   </div>
@@ -721,15 +778,22 @@ const Catalogue = () => {
 };
 
 /* ── Composant filtres drawer mobile ── */
-function DrawerFilters({ maxPrice, setMaxPrice, activeEtat, setActiveEtat, fuelType, setFuelType,
+function DrawerFilters({ maxPrice, setMaxPrice, maxSalePrice, setMaxSalePrice, activeEtat, setActiveEtat, fuelType, setFuelType,
   transmission, setTransmission, fuels, etats, transmissions, fmt, activeMode }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 16 }}>
-      {activeMode !== "Acheter" && (
+      {activeMode !== "Acheter" ? (
         <div>
           <p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: "0.82rem", color: "#0f1b3f" }}>💰 Prix max / jour — {fmt(maxPrice)}</p>
-          <input type="range" min="10" max="300" step="5" value={maxPrice}
+          <input type="range" min="10" max="2000" step="10" value={maxPrice}
             onChange={(e) => setMaxPrice(Number(e.target.value))}
+            style={{ width: "100%", accentColor: "#ff4d2d" }} />
+        </div>
+      ) : (
+        <div>
+          <p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: "0.82rem", color: "#0f1b3f" }}>💰 Prix max (vente) — {fmt(maxSalePrice)}</p>
+          <input type="range" min="1000" max="200000" step="1000" value={maxSalePrice}
+            onChange={(e) => setMaxSalePrice(Number(e.target.value))}
             style={{ width: "100%", accentColor: "#ff4d2d" }} />
         </div>
       )}
