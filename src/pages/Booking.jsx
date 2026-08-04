@@ -852,7 +852,14 @@ export default function Booking() {
                     <div>
                       <strong>{agencyName}</strong>
                       <span>{agencyFull}</span>
-                      {agencyPhone && <a href={`tel:${agencyPhone}`} className={styles.agencyPhone}>{agencyPhone}</a>}
+                      {/* Règle appliquée site large : l'appel ne pointe jamais vers le
+                          partenaire, uniquement le service client VIT AUTO dédié au
+                          pays de l'annonce — le numéro agence reste affiché en texte
+                          informatif (pas un lien tel: vers ce numéro-là). */}
+                      {agencyPhone && <span className={styles.agencyPhone}>{agencyPhone}</span>}
+                      <a href={`tel:${vehicle?.country === "CI" ? "+2250748124635" : "+2120607742672"}`} className={styles.agencyPhone}>
+                        📞 Appeler le service client
+                      </a>
                     </div>
                     <div className={styles.freeBadge}>Gratuit</div>
                   </div>
