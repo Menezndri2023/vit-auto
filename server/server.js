@@ -638,6 +638,23 @@ const startServer = async () => {
       logger.info(`[Migration] vehicle-images-to-imagekit : ${legacy.length} annonce(s) traitée(s).`);
     });
 
+    // Même bug/correctif que la migration véhicules ci-dessus, pour Driver.cv —
+    // en plus du poids en base, un CV stocké en base64 brut ne s'ouvrait dans
+    // AUCUN des endroits où le lien "Voir le CV" apparaît (DriverBooking,
+    // VendorDashboard, AdminPanel) : les navigateurs modernes refusent de
+    // naviguer un onglet vers une URL data: cliquée depuis un <a target="_blank">
+    // (voir uploadBase64Document/config/imagekit.js).
+    await runOnceMigration("driver-cv-to-imagekit-2026-08-04", async () => {
+      const { default: Driver } = await import("./models/Driver.js");
+      const { uploadBase64Document, FOLDERS } = await import("./config/imagekit.js");
+      const legacy = await Driver.find({ cv: { $regex: "^data:" } }).select("cv");
+      for (const d of legacy) {
+        d.cv = await uploadBase64Document(d.cv, FOLDERS.drivers);
+        await d.save();
+      }
+      logger.info(`[Migration] driver-cv-to-imagekit : ${legacy.length} profil(s) chauffeur traité(s).`);
+    });
+
     // ── BullMQ : queues + workers (si Redis configuré) ───────────────────
     await initQueues();
 

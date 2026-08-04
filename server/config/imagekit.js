@@ -128,3 +128,16 @@ export async function uploadBase64Images(images, folder = FOLDERS.vehicles) {
     return result?.url || img;
   }));
 }
+
+// ── Même correctif que uploadBase64Images, pour un document unique (CV
+// chauffeur PDF/image) — bug réel corrigé : un data URI base64 stocké tel
+// quel comme href d'un <a target="_blank"> est bloqué par les navigateurs
+// modernes ("Not allowed to navigate top frame to data URL"), le lien "Voir
+// le CV" ne s'ouvrait donc jamais nulle part où il apparaît (DriverBooking,
+// VendorDashboard, AdminPanel). Convertit en URL ImageKit hébergée, qu'un
+// navigateur ouvre normalement dans un nouvel onglet.
+export async function uploadBase64Document(doc, folder = FOLDERS.docs) {
+  if (typeof doc !== "string" || !doc.startsWith("data:")) return doc;
+  const result = await uploadDocument(doc, folder);
+  return result?.url || doc;
+}

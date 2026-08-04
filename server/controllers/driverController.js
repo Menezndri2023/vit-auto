@@ -10,7 +10,7 @@ import { validateImageDataUri, validateDocumentDataUri } from "../utils/imageVal
 import { logAction } from "../middleware/auditLog.js";
 import { resolveRequirements } from "../utils/partnerRequirements.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
-import { uploadBase64Images, FOLDERS } from "../config/imagekit.js";
+import { uploadBase64Images, uploadBase64Document, FOLDERS } from "../config/imagekit.js";
 import { getActiveRates } from "../services/currencyEngine.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -189,11 +189,13 @@ export const createDriver = async (req, res) => {
     // indisponible : reste en base64 en dégradation gracieuse.
     const [uploadedProfilePhoto] = await uploadBase64Images([profilePhoto], FOLDERS.drivers);
     const uploadedVehicleImages = vehicleImages.length ? await uploadBase64Images(vehicleImages, FOLDERS.drivers) : [];
+    // Même correctif que profilePhoto/images ci-dessus — voir uploadBase64Document.
+    const uploadedCv = await uploadBase64Document(cv, FOLDERS.drivers);
 
     const driver = await Driver.create({
       firstName, lastName, title, description,
       ...(phone ? { phone } : {}),
-      profilePhoto: uploadedProfilePhoto, cv,
+      profilePhoto: uploadedProfilePhoto, cv: uploadedCv,
       tarif: tarif || undefined, tarifDemiJournee: tarifDemiJournee || undefined, tarifHeure: tarifHeure || undefined,
       tarifEntered: tarifEntered != null && tarifEntered !== "" ? Number(tarifEntered) : null,
       tarifDemiJourneeEntered: tarifDemiJourneeEntered != null && tarifDemiJourneeEntered !== "" ? Number(tarifDemiJourneeEntered) : null,
@@ -547,6 +549,10 @@ export const updateDriver = async (req, res) => {
     const nextCv = safeUpdate.cv !== undefined ? safeUpdate.cv : driver.cv;
     const cvError = validateCv(nextCv);
     if (cvError) return res.status(400).json({ message: cvError });
+    // Même correctif que profilePhoto/images ci-dessus — voir uploadBase64Document.
+    if (safeUpdate.cv !== undefined) {
+      safeUpdate.cv = await uploadBase64Document(safeUpdate.cv, FOLDERS.drivers);
+    }
 
     // Rattachement à une entreprise du même propriétaire — même logique que
     // vehicleController.updateVehicle (déplacement du partenaire entre ses
