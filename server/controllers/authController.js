@@ -111,6 +111,17 @@ const isDevNoSmtp = () =>
 // ── Sanitisation basique (strip HTML, trim) ───────────────────────────────
 const sanitize = (v) => (typeof v === "string" ? v.replace(/<[^>]*>/g, "").trim() : v);
 
+// ── Ne garder que les chiffres d'un numéro (ignore +, espaces, tirets,
+// parenthèses, points) — le formulaire d'inscription accepte volontairement
+// un format libre (regex `^[+\d\s\-().]{6,20}$`, voir register ci-dessous),
+// donc le même numéro peut être stocké différemment selon comment chaque
+// utilisateur l'a tapé (+212612345678 / 0612345678 / 06 12 34 56 78...).
+// Sans cette normalisation, une connexion par téléphone échoue silencieusement
+// dès que le format saisi diffère de celui stocké à l'inscription — même
+// compte, même numéro réel, "Identifiants invalides" trompeur. Bug réel
+// trouvé en audit (compte partenaire réel injoignable par son propriétaire).
+const phoneDigits = (v) => String(v || "").replace(/\D/g, "");
+
 // ── Inscription ───────────────────────────────────────────────────────────
 // L'e-mail est l'unique canal d'inscription et de vérification (voir
 // smsConfigured.js — la vérification SMS est désactivée). Le téléphone reste un
@@ -340,7 +351,27 @@ export const login = async (req, res) => {
   const phone = isEmailLike ? null : rawIdentifier;
 
   try {
-    const user = await User.findOne(email ? { email } : { phone });
+    let user = await User.findOne(email ? { email } : { phone });
+    // Repli téléphone : même numéro réel, format de saisie différent de celui
+    // stocké à l'inscription (voir phoneDigits ci-dessus). Ne s'exécute que si
+    // la correspondance exacte a échoué — jamais de coût supplémentaire sur le
+    // chemin normal (email, ou téléphone déjà au même format).
+    if (!user && phone) {
+      const digits = phoneDigits(phone);
+      // Comparaison sur les 9 derniers chiffres (numéro national, indicatif
+      // pays ignoré) — les séparateurs (espaces, tirets...) pouvant tomber
+      // n'importe où dans le numéro stocké, un simple regex de fin de chaîne
+      // ne suffit pas : comparaison en mémoire après normalisation des deux
+      // côtés. Repli borné (max 3000 comptes ayant un téléphone) — n'est
+      // jamais emprunté sur le chemin normal (email, ou téléphone déjà au
+      // même format que celui stocké), uniquement quand la recherche exacte
+      // a échoué.
+      if (digits.length >= 6) {
+        const suffix = digits.slice(-9);
+        const candidates = await User.find({ phone: { $exists: true, $ne: null } }).limit(3000);
+        user = candidates.find((u) => phoneDigits(u.phone).endsWith(suffix)) || null;
+      }
+    }
     if (!user) return res.status(401).json({ message: "Identifiants invalides." });
 
     if (!user.isActive) {

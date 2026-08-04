@@ -48,6 +48,19 @@ describe("getUsers — aucune fuite de champ sensible via .lean()", () => {
     await getUsers(req2, res2);
     expect(res2.body.users).toHaveLength(1);
   });
+
+  // Bug réel trouvé en audit : le téléphone n'était jamais cherché — un admin
+  // cherchant un partenaire par le numéro qu'il lui a communiqué (plutôt que
+  // son nom/email exact) ne trouvait jamais le compte, même existant.
+  it("trouve un compte par numéro de téléphone", async () => {
+    await createUser({ role: "partenaire", firstName: "Gamma", phone: "0612345678" });
+    await createUser({ role: "partenaire", firstName: "Delta", phone: "0798765432" });
+
+    const { req, res } = mockReqRes({ query: { search: "0612345678" } });
+    await getUsers(req, res);
+    expect(res.body.users).toHaveLength(1);
+    expect(res.body.users[0].firstName).toBe("Gamma");
+  });
 });
 
 describe("getPublicProfile", () => {

@@ -36,10 +36,18 @@ export const getUsers = async (req, res) => {
     if (role) filter.role = role;
     if (search) {
       const s = escapeRegex(String(search).slice(0, 100));
+      // Bug réel trouvé en audit : le téléphone n'était jamais cherché — un
+      // admin recherchant un partenaire par le numéro qu'il lui a communiqué
+      // (plutôt que son nom/email exact) ne trouvait jamais le compte, même
+      // existant. Recherche brute (substring) en plus de la comparaison
+      // normalisée ci-dessous, qui tolère les formats de saisie différents
+      // (+212612345678 / 0612345678 / 06 12 34 56 78 — voir authController.js
+      // phoneDigits, même correctif pour la connexion par téléphone).
       filter.$or = [
         { firstName: new RegExp(s, "i") },
         { lastName:  new RegExp(s, "i") },
         { email:     new RegExp(s, "i") },
+        { phone:     new RegExp(s, "i") },
       ];
     }
 

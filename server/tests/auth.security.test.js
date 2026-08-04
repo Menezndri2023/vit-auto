@@ -83,6 +83,28 @@ describe("authController.login — verrouillage de compte", () => {
     expect(res.body.challengeToken).toBeTruthy();
     expect(res.body.token).toBeUndefined();
   });
+
+  // Bug réel trouvé en audit (compte partenaire réel injoignable par son
+  // propriétaire) : le formulaire d'inscription accepte un format de
+  // téléphone libre (+212612345678 / 0612345678 / 06 12 34 56 78...), donc le
+  // même numéro réel peut être stocké différemment de celui tapé plus tard à
+  // la connexion — la comparaison stricte échouait alors silencieusement
+  // ("Identifiants invalides") même pour le bon compte avec le bon mot de
+  // passe. Voir phoneDigits (authController.js).
+  it("connecte par téléphone même si le format de saisie diffère de celui stocké à l'inscription", async () => {
+    const user = await withPassword({ phone: "+212 612-345.678", email: null });
+    const { req, res } = mockReqRes({ body: { identifier: "0612345678", password: PASSWORD } });
+    await login(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.token).toBeTruthy();
+  });
+
+  it("rejette toujours un numéro qui ne correspond à aucun compte", async () => {
+    await withPassword({ phone: "0612345678", email: null });
+    const { req, res } = mockReqRes({ body: { identifier: "0798765432", password: PASSWORD } });
+    await login(req, res);
+    expect(res.statusCode).toBe(401);
+  });
 });
 
 describe("2FA — setup → enable → verify → disable", () => {

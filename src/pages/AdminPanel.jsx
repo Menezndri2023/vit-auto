@@ -1595,8 +1595,11 @@ export default function AdminPanel() {
     if (q.length < 2) return null;
     const matchesAny = (fields) => fields.some((f) => f && String(f).toLowerCase().includes(q));
 
+    // Téléphone ajouté partout (bug réel trouvé en audit) : un admin cherchant
+    // un partenaire par le numéro qu'il lui a communiqué (plutôt que son nom/
+    // email exact) ne trouvait jamais son annonce/profil, même existant.
     const matchVehicles = vehicles.filter((v) =>
-      matchesAny([v.title, v.name, v.marque, v.modele, v.owner?.firstName, v.owner?.lastName])
+      matchesAny([v.title, v.name, v.marque, v.modele, v.owner?.firstName, v.owner?.lastName, v.owner?.phone, v.contactTel])
     ).slice(0, 8);
 
     // `drivers` couvre désormais tous les statuts (voir loadAll) — recouvre déjà
@@ -1608,11 +1611,11 @@ export default function AdminPanel() {
       ...drivers.map((d) => ({ ...d, _searchStatus: d.status || "pending" })),
       ...activeDrivers.filter((d) => !knownDriverIds.has(d._id)).map((d) => ({ ...d, _searchStatus: d.status || "approved" })),
     ].filter((d) =>
-      matchesAny([d.firstName, d.lastName, d.title, d.owner?.firstName, d.owner?.lastName])
+      matchesAny([d.firstName, d.lastName, d.title, d.phone, d.owner?.firstName, d.owner?.lastName, d.owner?.phone])
     ).slice(0, 8);
 
     const matchListings = importerListings.filter((l) =>
-      matchesAny([l.title, l.make, l.model, l.partner?.firstName, l.partner?.lastName])
+      matchesAny([l.title, l.make, l.model, l.partner?.firstName, l.partner?.lastName, l.partner?.phone])
     ).slice(0, 8);
 
     return { vehicles: matchVehicles, drivers: matchDrivers, listings: matchListings };
@@ -3220,7 +3223,8 @@ export default function AdminPanel() {
       r = r.filter((u) =>
         u.firstName?.toLowerCase().includes(q) ||
         u.lastName?.toLowerCase().includes(q) ||
-        u.email?.toLowerCase().includes(q)
+        u.email?.toLowerCase().includes(q) ||
+        u.phone?.toLowerCase().includes(q)
       );
     }
     return r;
