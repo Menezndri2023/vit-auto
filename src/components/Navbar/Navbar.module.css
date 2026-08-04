@@ -265,6 +265,9 @@
   position: relative;
 }
 
+/* Typographie strictement identique à .navLinks a (même famille/poids/
+   taille/padding que Accueil, Catalogue, Publier...) — aucun traitement
+   spécial pour "OTHERS", juste un <button> plutôt qu'un <a>. */
 .activitiesTrigger {
   background: transparent;
   border: none;
@@ -275,9 +278,6 @@
   border-radius: var(--r-sm, 10px);
   cursor: pointer;
   font-family: inherit;
-  /* Même correctif typographique que Catalogue.module.css .modeTabOthers —
-     "OTHERS" est le seul libellé tout en majuscules du menu. */
-  letter-spacing: .03em;
   transition: color var(--t-base), background var(--t-base);
 }
 
@@ -287,13 +287,119 @@
   background: rgba(255, 255, 255, 0.09);
 }
 
-.activitiesMenu {
+/* Toile de fond semi-transparente sous le méga-menu — commence sous la
+   navbar (jamais par-dessus elle) pour qu'elle reste pleinement utilisable,
+   et rend explicite que le reste de la page est temporairement en retrait
+   plutôt que "caché" sans raison apparente. Clic dessus = fermeture. */
+.activitiesBackdrop {
+  position: fixed;
+  top: var(--navbar-h, 64px);
   left: 0;
-  right: auto;
+  right: 0;
+  bottom: 0;
+  background: rgba(8, 12, 28, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 550;
+  animation: activitiesFadeIn .15s ease;
+}
+
+@keyframes activitiesFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Méga-menu — panneau clair (se distingue volontairement du dropdown sombre
+   du burger) avec une grille d'activités plutôt qu'une simple liste. */
+.activitiesMenu {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 560;
+  width: 560px;
+  max-width: calc(100vw - 32px);
+  background: #fff;
+  border-radius: var(--r-lg, 18px);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.28), 0 0 0 1px rgba(15, 23, 42, 0.04);
+  padding: 18px;
+  animation: slideDown 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.activitiesMenuHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.activitiesMenuTitle {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f1b3f;
 }
 
 .activitiesMenuAll {
-  font-weight: 700 !important;
+  background: transparent;
+  border: none;
+  color: #ff4d2d;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: var(--r-sm, 10px);
+  font-family: inherit;
+  transition: background var(--t-fast, .15s);
+  white-space: nowrap;
+}
+
+.activitiesMenuAll:hover {
+  background: rgba(255, 77, 45, 0.08);
+}
+
+.activitiesGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.activitiesGridItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: #f8fafc;
+  border: 1.5px solid transparent;
+  border-radius: 14px;
+  padding: 14px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  color: #334155;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+  transition: background var(--t-fast, .15s), border-color var(--t-fast, .15s), transform var(--t-fast, .15s);
+}
+
+.activitiesGridItem:hover {
+  background: #fff5f2;
+  border-color: rgba(255, 77, 45, 0.3);
+  transform: translateY(-2px);
+}
+
+.activitiesGridIcon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+@media (max-width: 640px) {
+  .activitiesGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .activitiesMenu {
+    width: calc(100vw - 32px);
+  }
 }
 
 .partnerItem {

@@ -477,7 +477,7 @@ const Catalogue = () => {
               <button
                 key={key}
                 type="button"
-                className={`${styles.modeTab} ${key === "Autres" ? styles.modeTabOthers : ""} ${activeMode === key ? styles.modeTabActive : ""}`}
+                className={`${styles.modeTab} ${activeMode === key ? styles.modeTabActive : ""}`}
                 onClick={() => {
                   setActiveMode(key);
                   setParam("mode", key === "Tout" ? "" : key);

@@ -43,8 +43,15 @@ const Navbar = () => {
         setActivitiesOpen(false);
       }
     };
-    if (activitiesOpen) document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    const handleEscape = (e) => { if (e.key === "Escape") setActivitiesOpen(false); };
+    if (activitiesOpen) {
+      document.addEventListener("mousedown", handleClick);
+      document.addEventListener("keydown", handleEscape);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, [activitiesOpen]);
 
   const goToActivity = (activityType) => {
@@ -121,17 +128,29 @@ const Navbar = () => {
             🎈 OTHERS
           </button>
           {activitiesOpen && (
-            <div className={`${styles.dropdownMenu} ${styles.activitiesMenu}`}>
-              <button className={styles.activitiesMenuAll} onClick={() => goToActivity(null)}>
-                🎈 Toutes les activités
-              </button>
-              <div className={styles.dropdownDivider} />
-              {ACTIVITY_TYPES.filter((t) => t !== "AUTRE").map((t) => (
-                <button key={t} onClick={() => goToActivity(t)}>
-                  <span className={styles.diIcon}>{ACTIVITY_TYPE_ICONS[t] || "🎟️"}</span> {ACTIVITY_TYPE_LABELS[t] || t}
-                </button>
-              ))}
-            </div>
+            <>
+              {/* Toile de fond : commence sous la navbar (jamais par-dessus),
+                  qui reste donc pleinement visible et utilisable — rend
+                  explicite que c'est un état d'overlay volontaire plutôt
+                  qu'un panneau qui cache le reste du site sans raison. */}
+              <div className={styles.activitiesBackdrop} onClick={() => setActivitiesOpen(false)} />
+              <div className={styles.activitiesMenu}>
+                <div className={styles.activitiesMenuHeader}>
+                  <span className={styles.activitiesMenuTitle}>🎈 Activités & sorties</span>
+                  <button className={styles.activitiesMenuAll} onClick={() => goToActivity(null)}>
+                    Toutes les activités →
+                  </button>
+                </div>
+                <div className={styles.activitiesGrid}>
+                  {ACTIVITY_TYPES.filter((t) => t !== "AUTRE").map((t) => (
+                    <button key={t} className={styles.activitiesGridItem} onClick={() => goToActivity(t)}>
+                      <span className={styles.activitiesGridIcon}>{ACTIVITY_TYPE_ICONS[t] || "🎟️"}</span>
+                      <span>{ACTIVITY_TYPE_LABELS[t] || t}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
         </li>
 

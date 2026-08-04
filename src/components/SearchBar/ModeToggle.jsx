@@ -53,7 +53,7 @@ const ModeToggle = memo(({ mode, setMode, goToCatalogue }) => {
             Montgolfière, Jetski, Jet privé, Bateau...) — voir
             Catalogue.jsx MODES / src/constants/activityTypes.js. */}
         <button
-          className={`${styles.toggleBtn} ${styles.toggleBtnOthers} ${mode === "Autres" ? styles.active : ""}`}
+          className={`${styles.toggleBtn} ${mode === "Autres" ? styles.active : ""}`}
           onClick={() => { setMode("Autres"); navigate("/catalogue?mode=Autres"); }}
           type="button" title="Activités : Quad, Surf, Montgolfière, Jetski, Jet privé, Bateau..."
           data-label="Autres"
