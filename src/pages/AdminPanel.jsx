@@ -9658,11 +9658,13 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
   const [transferForm,   setTransferForm]   = useState({ ownerQuery: "", ownerResults: [], selectedOwner: null, country: "", ville: "", businessId: "" });
   const [transferSaving, setTransferSaving] = useState(false);
 
-  // Supervision des propositions d'embauche CDD/CDI — la décision accepter/
-  // refuser reste au partenaire propriétaire du chauffeur (voir
-  // driverEmploymentController.respondToEmploymentRequest), mais l'admin peut
-  // ensuite "traiter" une demande acceptée : personnaliser les clauses du
-  // contrat généré puis le transmettre automatiquement au partenaire.
+  // Supervision des propositions d'embauche CDD/CDI — toute demande passe
+  // d'abord par une validation admin (le partenaire ne la voit jamais avant,
+  // voir driverEmploymentController.adminReviewEmploymentRequest) ; une fois
+  // transmise, la décision accepter/refuser reste au partenaire propriétaire
+  // du chauffeur (respondToEmploymentRequest), puis l'admin peut "traiter"
+  // une demande acceptée : personnaliser les clauses du contrat généré puis
+  // le transmettre automatiquement au partenaire.
   const [employmentAdminList, setEmploymentAdminList] = useState([]);
   const [employmentAdminLoading, setEmploymentAdminLoading] = useState(false);
   const [processModal, setProcessModal] = useState(null); // { id, driverName }
@@ -9743,6 +9745,46 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
       } else showToast(d?.message || "Erreur lors du traitement.", "error");
     } catch { showToast("Erreur réseau.", "error"); }
     setProcessSaving(false);
+  };
+
+  // ── Validation admin obligatoire avant transmission au partenaire (voir
+  // driverEmploymentController.adminReviewEmploymentRequest) — le partenaire
+  // ne reçoit jamais une demande d'embauche directement du client.
+  const [employmentRejectModal, setEmploymentRejectModal] = useState(null); // { id, driverName }
+  const [employmentRejectReason, setEmploymentRejectReason] = useState("");
+  const [employmentReviewSaving, setEmploymentReviewSaving] = useState(null); // id en cours
+
+  const forwardEmploymentRequest = async (reqm) => {
+    setEmploymentReviewSaving(reqm._id);
+    try {
+      const r = await fetch(`/api/driver-employment/${reqm._id}/admin-review`, {
+        method: "PATCH", headers,
+        body: JSON.stringify({ action: "forward" }),
+      });
+      const d = await r.json().catch(() => null);
+      if (r.ok) { showToast("✅ Demande transmise au partenaire."); loadEmploymentAdminList(); }
+      else showToast(d?.message || "Erreur lors de la transmission.", "error");
+    } catch { showToast("Erreur réseau.", "error"); }
+    setEmploymentReviewSaving(null);
+  };
+
+  const submitRejectEmploymentRequest = async () => {
+    if (!employmentRejectModal) return;
+    setEmploymentReviewSaving(employmentRejectModal.id);
+    try {
+      const r = await fetch(`/api/driver-employment/${employmentRejectModal.id}/admin-review`, {
+        method: "PATCH", headers,
+        body: JSON.stringify({ action: "reject", reason: employmentRejectReason }),
+      });
+      const d = await r.json().catch(() => null);
+      if (r.ok) {
+        showToast("Demande rejetée.");
+        setEmploymentRejectModal(null);
+        setEmploymentRejectReason("");
+        loadEmploymentAdminList();
+      } else showToast(d?.message || "Erreur lors du rejet.", "error");
+    } catch { showToast("Erreur réseau.", "error"); }
+    setEmploymentReviewSaving(null);
   };
 
   // ── Édition complète d'une annonce véhicule (admin) — même principe que
@@ -10390,10 +10432,19 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
             </>
           )}
 
-          {/* Propositions d'embauche CDD/CDI — décision accepter/refuser au partenaire,
-              traitement (contrat modifiable + envoi) à l'admin une fois acceptée */}
+          {/* Propositions d'embauche CDD/CDI — l'admin valide (ou rejette) chaque
+              demande avant qu'elle n'atteigne le partenaire (colonne "Validation
+              admin"), la décision accepter/refuser reste ensuite au partenaire,
+              puis traitement (contrat modifiable + envoi) à l'admin une fois acceptée */}
           <div className={styles.sectionToolbar} style={{ marginTop: 32 }}>
-            <h2 style={{ fontSize: "1rem", fontWeight: 800, color: "#0f1b3f" }}>💼 Propositions d'embauche CDD/CDI ({employmentAdminList.length})</h2>
+            <h2 style={{ fontSize: "1rem", fontWeight: 800, color: "#0f1b3f" }}>
+              💼 Propositions d'embauche CDD/CDI ({employmentAdminList.length})
+              {employmentAdminList.some((r) => (r.adminReview?.status || "pending") === "pending") && (
+                <span style={{ marginLeft: 8, fontSize: ".75rem", fontWeight: 700, color: "#d97706", background: "#fef3c7", padding: "2px 8px", borderRadius: 999 }}>
+                  {employmentAdminList.filter((r) => (r.adminReview?.status || "pending") === "pending").length} à valider
+                </span>
+              )}
+            </h2>
           </div>
           {employmentAdminLoading ? <p style={{ color: "#94a3b8" }}>Chargement…</p> : employmentAdminList.length === 0 ? (
             <p style={{ color: "#64748b", fontSize: "0.9rem" }}>Aucune proposition d'embauche.</p>
@@ -10401,17 +10452,34 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
-                  <tr><th>Chauffeur</th><th>Employeur</th><th>Contrat</th><th>Salaire</th><th>Statut</th><th>Soumise le</th><th>Traitement</th></tr>
+                  <tr><th>Chauffeur</th><th>Employeur</th><th>Contrat</th><th>Salaire</th><th>Validation admin</th><th>Statut</th><th>Soumise le</th><th>Traitement</th></tr>
                 </thead>
                 <tbody>
                   {employmentAdminList.map((reqm) => {
                     const sc = { pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, accepted: { l: "Acceptée", c: "#059669", bg: "#d1fae5" }, declined: { l: "Refusée", c: "#dc2626", bg: "#fee2e2" }, cancelled: { l: "Annulée", c: "#64748b", bg: "#f1f5f9" } }[reqm.status];
+                    const arc = { pending: { l: "À valider", c: "#d97706", bg: "#fef3c7" }, forwarded: { l: "Transmise", c: "#059669", bg: "#d1fae5" }, rejected: { l: "Rejetée (admin)", c: "#dc2626", bg: "#fee2e2" } }[reqm.adminReview?.status || "pending"];
+                    const reviewing = employmentReviewSaving === reqm._id;
                     return (
                       <tr key={reqm._id} className={styles.tr}>
                         <td style={{ fontSize: ".82rem" }}>{reqm.driver?.firstName} {reqm.driver?.lastName}</td>
                         <td style={{ fontSize: ".82rem" }}>{reqm.employer?.firstName} {reqm.employer?.lastName}<div style={{ fontSize: ".73rem", color: "#94a3b8" }}>{reqm.employer?.email}</div></td>
                         <td><span className={styles.badge} style={{ color: "#64748b", background: "#f1f5f9" }}>{reqm.contractType?.toUpperCase()}</span></td>
                         <td style={{ fontSize: ".85rem", fontWeight: 700 }}>{Number(reqm.proposedSalary).toLocaleString()} {reqm.currency}</td>
+                        <td>
+                          <span className={styles.badge} style={{ color: arc.c, background: arc.bg }}>{arc.l}</span>
+                          {reqm.adminReview?.status === "pending" && (
+                            <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                              <button className={styles.btnApprove} style={{ fontSize: ".72rem", padding: "3px 8px" }} disabled={reviewing}
+                                onClick={() => forwardEmploymentRequest(reqm)}>
+                                {reviewing ? "…" : "✓ Transmettre"}
+                              </button>
+                              <button className={styles.btnDanger} style={{ fontSize: ".72rem", padding: "3px 8px" }} disabled={reviewing}
+                                onClick={() => { setEmploymentRejectModal({ id: reqm._id, driverName: `${reqm.driver?.firstName || ""} ${reqm.driver?.lastName || ""}`.trim() }); setEmploymentRejectReason(""); }}>
+                                ✕ Rejeter
+                              </button>
+                            </div>
+                          )}
+                        </td>
                         <td><span className={styles.badge} style={{ color: sc.c, background: sc.bg }}>{sc.l}</span></td>
                         <td style={{ fontSize: ".78rem", color: "#94a3b8" }}>{reqm.createdAt ? new Date(reqm.createdAt).toLocaleDateString("fr-FR") : "—"}</td>
                         <td>
@@ -10430,6 +10498,24 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Modal rejet demande d'embauche (admin, avant transmission au partenaire) */}
+      {employmentRejectModal && (
+        <div className={styles.overlay} onClick={() => setEmploymentRejectModal(null)}>
+          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
+            <p className={styles.confirmMsg}>Motif du rejet — proposition pour « {employmentRejectModal.driverName} »</p>
+            <textarea style={{ width: "100%", borderRadius: 8, border: "1px solid #e2e8f0", padding: ".6rem", fontSize: ".9rem", marginBottom: ".75rem", resize: "vertical" }}
+              rows={3} placeholder="Ex: Salaire proposé trop bas, conditions non conformes…"
+              value={employmentRejectReason} onChange={(e) => setEmploymentRejectReason(e.target.value)} />
+            <div className={styles.confirmActions}>
+              <button className={styles.btnDanger} disabled={employmentReviewSaving === employmentRejectModal.id} onClick={submitRejectEmploymentRequest}>
+                {employmentReviewSaving === employmentRejectModal.id ? "…" : "Rejeter"}
+              </button>
+              <button className={styles.btnGhost} onClick={() => setEmploymentRejectModal(null)}>Annuler</button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -57,6 +57,22 @@ const driverEmploymentSchema = new mongoose.Schema({
   declineReason: { type: String, default: null },
   respondedAt:   { type: Date, default: null },
 
+  // ── Validation admin obligatoire avant transmission au partenaire ───────
+  // Le chauffeur/partenaire ne reçoit jamais une demande directement du
+  // client — toute demande passe d'abord par l'admin, qui décide de la
+  // transmettre (visible côté partenaire, voir getReceivedEmploymentRequests)
+  // ou de la rejeter avant même que le partenaire en soit informé (demande
+  // explicite : "le chauffeur reçoit des offres d'emploi uniquement de
+  // l'admin"). Distinct de `status` (issue négociée client/partenaire) —
+  // une demande peut rester `status: "pending"` alors qu'elle attend encore
+  // ce premier filtre admin.
+  adminReview: {
+    status:           { type: String, enum: ["pending", "forwarded", "rejected"], default: "pending" },
+    reviewedBy:        { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    reviewedAt:        { type: Date, default: null },
+    rejectionReason:   { type: String, default: null },
+  },
+
   // ── Traitement admin : formalisation du contrat ─────────────────────────
   // Distinct de la décision accepter/refuser du partenaire (ci-dessus) — un
   // admin peut, une fois la demande acceptée, personnaliser les clauses du

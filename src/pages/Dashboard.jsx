@@ -845,7 +845,13 @@ const Dashboard = () => {
           </h2>
           <div className={styles.bookingList}>
             {employmentRequests.map((reqm) => {
-              const sc = { pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, accepted: { l: "Acceptée", c: "#059669", bg: "#d1fae5" }, declined: { l: "Refusée", c: "#dc2626", bg: "#fee2e2" }, cancelled: { l: "Annulée", c: "#64748b", bg: "#f1f5f9" } }[reqm.status];
+              // "pending" recouvre deux étapes distinctes côté client : d'abord
+              // la validation admin (le partenaire n'est même pas encore
+              // informé), puis l'attente de réponse du chauffeur une fois
+              // transmise — voir adminReview.status côté serveur.
+              const sc = reqm.status === "pending" && reqm.adminReview?.status !== "forwarded"
+                ? { l: "En attente de validation", c: "#d97706", bg: "#fef3c7" }
+                : { pending: { l: "En attente du chauffeur", c: "#d97706", bg: "#fef3c7" }, accepted: { l: "Acceptée", c: "#059669", bg: "#d1fae5" }, declined: { l: "Refusée", c: "#dc2626", bg: "#fee2e2" }, cancelled: { l: "Annulée", c: "#64748b", bg: "#f1f5f9" } }[reqm.status];
               return (
                 <div key={reqm._id} className={styles.bookingCard}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>

@@ -4,6 +4,7 @@ import DriverEmployment from "../models/DriverEmployment.js";
 import Driver from "../models/Driver.js";
 import Notification from "../models/Notification.js";
 import { generateEmploymentContractPDF } from "../utils/pdfGenerator.js";
+import { notifyAdmins } from "../utils/notifyAdmins.js";
 
 // ── Notifier un utilisateur (même schéma que bookingController.notify) ──────
 async function notify(userId, type, titre, message, lien = "/dashboard") {
@@ -66,12 +67,13 @@ export const createEmploymentRequest = async (req, res) => {
       status: "pending",
     });
 
-    await notify(
-      driver.owner,
+    // Le partenaire n'est PAS notifié ici — la demande doit d'abord être
+    // validée par l'admin (voir adminReview ci-dessus / adminForwardEmploymentRequest).
+    await notifyAdmins(
       "system",
-      "💼 Nouvelle proposition d'embauche",
-      `${req.user.firstName} propose un contrat ${contractType.toUpperCase()} à ${driver.firstName} ${driver.lastName}.`,
-      "/vendor/dashboard"
+      "💼 Nouvelle demande d'embauche à valider",
+      `${req.user.firstName} ${req.user.lastName} propose un contrat ${contractType.toUpperCase()} à ${driver.firstName} ${driver.lastName} — à transmettre ou rejeter.`,
+      "/admin?tab=drivers"
     );
 
     res.status(201).json({ request });
@@ -95,10 +97,17 @@ export const getMyEmploymentRequests = async (req, res) => {
 };
 
 // ── Demandes reçues pour mes chauffeurs (partenaire) ─────────────────────────
+// N'inclut que les demandes transmises par l'admin (voir adminReview ci-dessus
+// / adminForwardEmploymentRequest) — un partenaire ne voit jamais une demande
+// encore en attente de validation admin, ni une demande rejetée par l'admin
+// avant transmission.
 export const getReceivedEmploymentRequests = async (req, res) => {
   try {
     const myDriverIds = await Driver.find({ owner: req.user._id }).select("_id").lean();
-    const requests = await DriverEmployment.find({ driver: { $in: myDriverIds.map((d) => d._id) } })
+    const requests = await DriverEmployment.find({
+      driver: { $in: myDriverIds.map((d) => d._id) },
+      "adminReview.status": "forwarded",
+    })
       .sort({ createdAt: -1 })
       .populate("driver", "firstName lastName profilePhoto title")
       .populate("employer", "firstName lastName email phone");
@@ -126,6 +135,9 @@ export const respondToEmploymentRequest = async (req, res) => {
     }
     if (request.status !== "pending") {
       return res.status(409).json({ message: "Cette demande a déjà été traitée." });
+    }
+    if (request.adminReview?.status !== "forwarded") {
+      return res.status(409).json({ message: "Cette demande n'a pas encore été transmise par l'administration." });
     }
 
     request.status = action === "accept" ? "accepted" : "declined";
@@ -193,6 +205,65 @@ export const adminListEmploymentRequests = async (req, res) => {
     res.json({ requests, total, page: Number(page), pages: Math.ceil(total / safeLimit) });
   } catch (err) {
     logger.error("adminListEmploymentRequests:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Transmettre / rejeter une demande (admin, avant qu'elle n'atteigne le
+// partenaire) ─────────────────────────────────────────────────────────────
+// "forward" : la demande devient visible côté partenaire (voir
+// getReceivedEmploymentRequests) et lui est notifiée comme une proposition de
+// mission CDD/CDI — jamais avant ce point. "reject" : l'admin met fin à la
+// demande de son propre chef, le partenaire n'en a jamais connaissance.
+export const adminReviewEmploymentRequest = async (req, res) => {
+  try {
+    const { action, reason } = req.body; // action: "forward" | "reject"
+    if (!["forward", "reject"].includes(action)) {
+      return res.status(400).json({ message: "Action invalide (forward ou reject)." });
+    }
+
+    const request = await DriverEmployment.findById(req.params.id)
+      .populate("driver", "owner firstName lastName")
+      .populate("employer", "firstName lastName");
+    if (!request) return res.status(404).json({ message: "Demande introuvable." });
+    if (request.adminReview?.status !== "pending") {
+      return res.status(409).json({ message: "Cette demande a déjà été validée ou rejetée par l'administration." });
+    }
+
+    request.adminReview.reviewedBy = req.user._id;
+    request.adminReview.reviewedAt = new Date();
+
+    if (action === "forward") {
+      request.adminReview.status = "forwarded";
+      await request.save();
+
+      await notify(
+        request.driver.owner,
+        "system",
+        "💼 Nouvelle proposition d'embauche",
+        `${request.employer.firstName} ${request.employer.lastName} propose un contrat ${request.contractType.toUpperCase()} à ${request.driver.firstName} ${request.driver.lastName}.`,
+        "/vendor/dashboard"
+      );
+    } else {
+      request.adminReview.status = "rejected";
+      request.adminReview.rejectionReason = reason?.trim() || null;
+      request.status = "declined";
+      request.declineReason = reason?.trim() || "Demande non retenue par l'administration.";
+      request.respondedAt = new Date();
+      await request.save();
+
+      await notify(
+        request.employer._id,
+        "system",
+        "❌ Proposition d'embauche non retenue",
+        `Votre proposition ${request.contractType.toUpperCase()} pour ${request.driver.firstName} ${request.driver.lastName} n'a pas été retenue par l'administration.${reason ? ` Motif : ${reason}` : ""}`,
+        "/dashboard"
+      );
+    }
+
+    res.json({ request });
+  } catch (err) {
+    logger.error("adminReviewEmploymentRequest:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

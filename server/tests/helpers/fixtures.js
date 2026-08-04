@@ -4,6 +4,7 @@ import ImportExportListing from "../../models/ImportExportListing.js";
 import IETransaction from "../../models/IETransaction.js";
 import Vehicle from "../../models/Vehicle.js";
 import Activity from "../../models/Activity.js";
+import Driver from "../../models/Driver.js";
 import PartnerBusiness from "../../models/PartnerBusiness.js";
 
 let counter = 0;
@@ -99,6 +100,22 @@ export async function createVehicleDoc(overrides = {}) {
     pricePerDay: 15000,
     caution: 50000,
     available: true,
+    status: "approved",
+    owner,
+    ...rest,
+  });
+}
+
+// Même principe que createVehicleDoc.
+export async function createDriverDoc(overrides = {}) {
+  let { owner, ...rest } = overrides;
+  if (!owner) owner = (await createUser({ role: "partenaire" }))._id;
+
+  return Driver.create({
+    firstName: "Chauffeur", lastName: "Test", title: "Chauffeur pro",
+    tarifHeure: 3000, disponibilite: "Temps plein", zone: "Abidjan", experience: "5 ans",
+    profilePhoto: "https://cdn.example.test/driver-profile.jpg",
+    cv: "https://cdn.example.test/driver-cv.pdf",
     status: "approved",
     owner,
     ...rest,

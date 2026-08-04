@@ -18,6 +18,7 @@ router.patch("/:id/respond",        vid, authenticate, de.respondToEmploymentReq
 
 // ── Admin ──────────────────────────────────────────────────
 router.get("/admin/list",           authenticate, authorizeAdmin, de.adminListEmploymentRequests);
+router.patch("/:id/admin-review",   vid, authenticate, authorizeAdmin, de.adminReviewEmploymentRequest);
 router.patch("/:id/process",        vid, authenticate, authorizeAdmin, de.processEmploymentRequest);
 
 export default router;
