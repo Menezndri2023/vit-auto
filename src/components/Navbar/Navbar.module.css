@@ -260,6 +260,42 @@
   opacity: 0.85;
 }
 
+/* ── Section OTHERS (activités) — remplace l'ancien lien "❤️ Favoris" ──── */
+.activitiesDropdownWrapper {
+  position: relative;
+}
+
+.activitiesTrigger {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.78);
+  font-weight: 500;
+  font-size: 0.9rem;
+  padding: 7px 13px;
+  border-radius: var(--r-sm, 10px);
+  cursor: pointer;
+  font-family: inherit;
+  /* Même correctif typographique que Catalogue.module.css .modeTabOthers —
+     "OTHERS" est le seul libellé tout en majuscules du menu. */
+  letter-spacing: .03em;
+  transition: color var(--t-base), background var(--t-base);
+}
+
+.activitiesTrigger:hover,
+.activitiesTriggerOpen {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.activitiesMenu {
+  left: 0;
+  right: auto;
+}
+
+.activitiesMenuAll {
+  font-weight: 700 !important;
+}
+
 .partnerItem {
   color: #f59e0b !important;
 }

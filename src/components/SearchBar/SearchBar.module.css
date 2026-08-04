@@ -81,6 +81,14 @@
   font-size: 1rem;
 }
 
+/* "OTHERS" est le seul libellé tout en majuscules parmi ses voisins en casse
+   normale (Louer, Acheter, Chauffeur, Import/Export) — voir le même
+   traitement dans Catalogue.module.css (.modeTabOthers). */
+.toggleBtnOthers {
+  font-size: .8rem;
+  letter-spacing: .04em;
+}
+
 /* ═══════════════════
    ROW 2 — Inputs
    ═══════════════════ */
@@ -423,7 +431,7 @@
 
   .modeToggle {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     width: 100%;
   }
 
@@ -525,7 +533,8 @@
   }
 
   .toggleBtn:nth-child(3),
-  .toggleBtn:nth-child(4) {
+  .toggleBtn:nth-child(4),
+  .toggleBtn:nth-child(5) {
     border-top: 1px solid #f0f2f8;
   }
 

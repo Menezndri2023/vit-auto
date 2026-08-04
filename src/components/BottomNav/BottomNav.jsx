@@ -44,9 +44,13 @@ export default function BottomNav() {
           <span className={styles.label}>Catalogue</span>
         </NavLink>
 
-        <button className={styles.item} onClick={() => goAuthGated("/favorites")}>
-          <span className={styles.icon}>❤️</span>
-          <span className={styles.label}>Favoris</span>
+        {/* Section OTHERS (activités : Quad, Surf, Montgolfière, Jetski, Jet
+            privé, Bateau...) — remplace l'ancien onglet "❤️ Favoris" (déplacé
+            dans le tableau de bord client, voir Dashboard.jsx). Ouvert à
+            tous, parcourir le catalogue ne nécessite jamais de compte. */}
+        <button className={styles.item} onClick={() => navigate("/catalogue?mode=Autres")}>
+          <span className={styles.icon}>🎈</span>
+          <span className={styles.label}>OTHERS</span>
         </button>
 
         <button

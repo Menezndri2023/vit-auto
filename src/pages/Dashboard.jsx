@@ -8,6 +8,7 @@ import { useSocket } from "../context/SocketContext";
 import { useI18n } from "../context/I18nContext";
 import { useChat } from "../context/ChatContext";
 import { CLIENT_CANCEL_REASONS } from "../constants/bookingCancelReasons";
+import VehicleCard from "../components/VehicleCard/VehicleCard";
 import styles from "./Dashboard.module.css";
 
 // Cohérent avec FINANCING_DECISION_CFG (AdminPanel.jsx) — la décision admin sur
@@ -398,6 +399,11 @@ const Dashboard = () => {
   const [validating,    setValidating]    = useState(null);
   const [employmentRequests, setEmploymentRequests] = useState([]);
   const [employmentCanceling, setEmploymentCanceling] = useState(null);
+  // Favoris — déplacés ici depuis la navbar (qui pointe désormais vers la
+  // section OTHERS/activités à la place) : voir Navbar.jsx et Favorites.jsx
+  // (page complète toujours accessible via le lien "Voir tout" ci-dessous).
+  const [favorites, setFavorites] = useState([]);
+  const [favoritesLoading, setFavoritesLoading] = useState(true);
 
   // ── Fetch direct /api/bookings/mine — source de vérité ───────────────────
   const fetchMyOrders = useCallback(async () => {
@@ -429,6 +435,17 @@ const Dashboard = () => {
       const { requests } = await res.json();
       if (Array.isArray(requests)) setEmploymentRequests(requests);
     } catch { /* ignore */ }
+  }, [token]);
+
+  const fetchFavorites = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/favorites", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const { favorites: raw } = await res.json();
+      if (Array.isArray(raw)) setFavorites(raw);
+    } catch { /* liste vide affichée par défaut */ }
+    finally { setFavoritesLoading(false); }
   }, [token]);
 
   const cancelEmploymentRequest = useCallback(async (id) => {
@@ -538,6 +555,7 @@ const Dashboard = () => {
     if (!token) return;
     fetchMyOrders();
     fetchEmploymentRequests();
+    fetchFavorites();
 
     // Mise à jour instantanée sur événement Socket.io
     const handleBookingUpdate = (payload) => {
@@ -787,6 +805,35 @@ const Dashboard = () => {
               validating={validating === booking.id}
             />
           ))}
+        </div>
+      )}
+
+      {/* ── Mes favoris (déplacé depuis la navbar, voir Navbar.jsx) ── */}
+      {!favoritesLoading && favorites.length > 0 && (
+        <div style={{ marginTop: 32 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <h2 style={{ fontSize: "1.05rem", fontWeight: 800, color: "#0f1b3f", margin: 0 }}>
+              ❤️ Mes favoris
+            </h2>
+            <Link to="/favorites" style={{ fontSize: "0.85rem", fontWeight: 700, color: "#ff4d2d", textDecoration: "none" }}>
+              Voir tout ({favorites.length}) →
+            </Link>
+          </div>
+          <div className={styles.bookingList} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
+            {favorites.slice(0, 4).filter((f) => f.itemType === "vehicle").map((f) => (
+              <VehicleCard key={f.favoriteId} car={f.item} compact />
+            ))}
+            {favorites.slice(0, 4).filter((f) => f.itemType === "ie_listing").map((f) => (
+              <Link key={f.favoriteId} to={`/import-export/listings/${f.item._id}`}
+                style={{ display: "block", border: "1.5px solid #e2e8f0", borderRadius: 12, overflow: "hidden", textDecoration: "none", color: "inherit" }}>
+                {f.item.mainPhoto && <img src={f.item.mainPhoto} alt={f.item.title} loading="lazy" decoding="async" style={{ width: "100%", height: 120, objectFit: "cover" }} />}
+                <div style={{ padding: "10px 12px" }}>
+                  <strong style={{ display: "block", fontSize: ".88rem", color: "#0f1b3f" }}>{f.item.title}</strong>
+                  <span style={{ fontSize: ".78rem", color: "#64748b" }}>{f.item.make} {f.item.model} — {f.item.year}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
         </div>
       )}
 

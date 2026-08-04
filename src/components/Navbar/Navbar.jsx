@@ -5,6 +5,7 @@ import { useCart } from "../../context/CartContext";
 import NotificationBell from "../NotificationBell/NotificationBell";
 import LanguageSelector from "../LanguageSelector/LanguageSelector";
 import VitAutoLogo from "../Logo/VitAutoLogo";
+import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "../../constants/activityTypes";
 import styles from "./Navbar.module.css";
 
 const Navbar = () => {
@@ -14,6 +15,11 @@ const Navbar = () => {
   const [menuOpen, setMenuOpen]       = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
+  // Section OTHERS (activités culturelles/loisir — Quad, Surf, Montgolfière,
+  // Jetski, Jet privé, Bateau...) — remplace l'ancien lien navbar "❤️
+  // Favoris" (déplacé dans le tableau de bord client, voir Dashboard.jsx).
+  const [activitiesOpen, setActivitiesOpen] = useState(false);
+  const activitiesRef = useRef(null);
 
   const isPartner = user?.role === "partenaire" || user?.role === "admin";
   const isAdmin   = user?.role === "admin";
@@ -30,6 +36,24 @@ const Navbar = () => {
     if (dropdownOpen) document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [dropdownOpen]);
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (activitiesRef.current && !activitiesRef.current.contains(e.target)) {
+        setActivitiesOpen(false);
+      }
+    };
+    if (activitiesOpen) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [activitiesOpen]);
+
+  const goToActivity = (activityType) => {
+    setActivitiesOpen(false);
+    setMenuOpen(false);
+    const params = new URLSearchParams({ mode: "Autres" });
+    if (activityType) params.set("activityType", activityType);
+    navigate(`/catalogue?${params.toString()}`);
+  };
 
   return (
     <nav className={styles.navbar}>
@@ -85,9 +109,31 @@ const Navbar = () => {
           <li><NavLink to="/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>Tableau de bord</NavLink></li>
         )}
 
-        {isAuthenticated && (
-          <li><NavLink to="/favorites" className={navLink} onClick={() => setMenuOpen(false)}>❤️ Favoris</NavLink></li>
-        )}
+        {/* Section OTHERS — activités culturelles/loisir, ouverte à tous
+            (pas de garde isAuthenticated : parcourir le catalogue ne
+            nécessite jamais de compte, voir Catalogue.jsx). */}
+        <li className={styles.activitiesDropdownWrapper} ref={activitiesRef}>
+          <button
+            type="button"
+            className={`${styles.activitiesTrigger} ${activitiesOpen ? styles.activitiesTriggerOpen : ""}`}
+            onClick={() => setActivitiesOpen((o) => !o)}
+          >
+            🎈 OTHERS
+          </button>
+          {activitiesOpen && (
+            <div className={`${styles.dropdownMenu} ${styles.activitiesMenu}`}>
+              <button className={styles.activitiesMenuAll} onClick={() => goToActivity(null)}>
+                🎈 Toutes les activités
+              </button>
+              <div className={styles.dropdownDivider} />
+              {ACTIVITY_TYPES.filter((t) => t !== "AUTRE").map((t) => (
+                <button key={t} onClick={() => goToActivity(t)}>
+                  <span className={styles.diIcon}>{ACTIVITY_TYPE_ICONS[t] || "🎟️"}</span> {ACTIVITY_TYPE_LABELS[t] || t}
+                </button>
+              ))}
+            </div>
+          )}
+        </li>
 
         {isAuthenticated && !isPartner && (
           <li>

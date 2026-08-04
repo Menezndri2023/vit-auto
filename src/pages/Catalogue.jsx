@@ -225,7 +225,10 @@ const Catalogue = () => {
   const [fuelType,     setFuelType]     = useState("Tous");
   const [transmission, setTransmission] = useState("Tous");
   // Section OTHERS — type d'activité (Quad, Surf, Montgolfière...)
-  const [activityTypeFilter, setActivityTypeFilter] = useState("Tous");
+  const [activityTypeFilter, setActivityTypeFilter] = useState(() => {
+    const t = searchParams.get("activityType");
+    return t && ACTIVITY_TYPES.includes(t) ? t : "Tous";
+  });
   const [maxPrice,     setMaxPrice]     = useState(300);
   // Prix max vente/import — échelle totalement différente de la location
   // journalière (10-300 USD/j) : un véhicule à vendre ou une annonce
@@ -474,7 +477,7 @@ const Catalogue = () => {
               <button
                 key={key}
                 type="button"
-                className={`${styles.modeTab} ${activeMode === key ? styles.modeTabActive : ""}`}
+                className={`${styles.modeTab} ${key === "Autres" ? styles.modeTabOthers : ""} ${activeMode === key ? styles.modeTabActive : ""}`}
                 onClick={() => {
                   setActiveMode(key);
                   setParam("mode", key === "Tout" ? "" : key);
@@ -530,7 +533,7 @@ const Catalogue = () => {
               {ACTIVITY_TYPE_PILLS.map((t) => (
                 <button key={t} type="button"
                   className={`${styles.typePill} ${activityTypeFilter === t ? styles.typePillActive : ""}`}
-                  onClick={() => setActivityTypeFilter(t)}>
+                  onClick={() => { setActivityTypeFilter(t); setParam("activityType", t); }}>
                   <span>{t === "Tous" ? "🎈" : (ACTIVITY_TYPE_ICONS[t] || "🎟️")}</span>
                   <span>{t === "Tous" ? "Tout" : (ACTIVITY_TYPE_LABELS[t] || t)}</span>
                 </button>
@@ -866,7 +869,7 @@ const Catalogue = () => {
                 <h3>{searchTerm || activityTypeFilter !== "Tous" ? "Aucun résultat pour ce filtre" : "Aucune activité disponible"}</h3>
                 <p>{searchTerm || activityTypeFilter !== "Tous" ? "Essayez un autre filtre." : "Nos partenaires publieront bientôt des activités dans votre zone."}</p>
                 {(searchTerm || activityTypeFilter !== "Tous") && (
-                  <button className={styles.ieEmptyBtn} onClick={() => { setSearchTerm(""); setActivityTypeFilter("Tous"); }}>
+                  <button className={styles.ieEmptyBtn} onClick={() => { setSearchTerm(""); setActivityTypeFilter("Tous"); setParam("activityType", ""); }}>
                     Effacer les filtres
                   </button>
                 )}

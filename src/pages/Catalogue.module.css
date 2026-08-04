@@ -137,6 +137,17 @@
   box-shadow: 0 3px 12px rgba(255,77,45,.4);
 }
 
+/* "OTHERS" est le seul libellé tout en majuscules parmi des libellés en
+   casse normale (Location, Achat, Chauffeur...) — même famille/poids de
+   police que ses voisins, mais visuellement plus "lourd" à taille égale
+   (glyphes capitales uniformes, pas d'ascendantes/descendantes). Un
+   espacement des lettres + une taille légèrement réduite le font lire comme
+   un badge de catégorie voulu plutôt qu'une police différente. */
+.modeTabOthers {
+  font-size: .76rem;
+  letter-spacing: .04em;
+}
+
 /* ── Ligne 3 : search ── */
 .searchBar {
   position: relative;
