@@ -13,6 +13,7 @@ import PartnerBusinessManager from "../components/PartnerBusinessManager/Partner
 import { geocodeAddress } from "../utils/geo";
 import { PARTNER_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import { LICENSE_CATEGORIES, LICENSE_CATEGORY_LABELS } from "../constants/licenseCategories";
+import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, ACTIVITY_PRICE_UNITS } from "../constants/activityTypes";
 import styles from "./VendorDashboard.module.css";
 
 /* ── Utilitaires ────────────────────────────────────────────────────────── */
@@ -1277,6 +1278,99 @@ export default function VendorDashboard() {
     } catch { toastError("Erreur réseau."); }
     setDriverEditSaving(false);
   };
+
+  // ── Édition d'une annonce activité (Quad, Surf, Montgolfière...) ─────────
+  // Bug réel corrigé (audit) : contrairement aux véhicules/chauffeurs, un
+  // partenaire n'avait AUCUN moyen de corriger une annonce activité déjà
+  // publiée (prix, description, photos...) — seuls Pause/Congés/Supprimer
+  // existaient, obligeant à supprimer puis republier pour la moindre
+  // correction (perte du statut "approuvé", à revalider par un admin).
+  const [activityEditModal,  setActivityEditModal]  = useState(null); // activité en cours d'édition
+  const [activityEditForm,   setActivityEditForm]   = useState(null);
+  const [activityEditSaving, setActivityEditSaving] = useState(false);
+  const [activityEditPriceEntry,       setActivityEditPriceEntry]       = useState("");
+  const [activityEditPriceCurrency,    setActivityEditPriceCurrency]    = useState("USD");
+  const [activityEditEssaiPriceEntry,  setActivityEditEssaiPriceEntry]  = useState("");
+
+  const openActivityEdit = (act) => {
+    setActivityEditModal(act);
+    setActivityEditForm({
+      activityType: act.activityType || "QUAD",
+      title: act.title || "", description: act.description || "",
+      ville: act.ville || "", adresse: act.adresse || "",
+      priceUnit: act.priceUnit || "per_person",
+      durationMinutes: act.durationMinutes ?? 60,
+      capacity: act.capacity ?? 1,
+      essaiDisponible: !!act.essaiDisponible,
+      essaiDurationMinutes: act.essaiDurationMinutes ?? 30,
+      images: Array.isArray(act.images) ? act.images : [],
+      thumbnail: act.thumbnail || null,
+    });
+    const entryCurrency = act.priceEntryCurrency || act.currency || "USD";
+    setActivityEditPriceCurrency(entryCurrency);
+    setActivityEditPriceEntry(act.priceEntered != null ? String(act.priceEntered) : String(act.price ?? ""));
+    setActivityEditEssaiPriceEntry(act.essaiPrice != null ? String(act.essaiPrice) : "");
+  };
+
+  const addActivityEditPhotos = async (files) => {
+    const remaining = 8 - activityEditForm.images.length;
+    if (remaining <= 0) return;
+    const results = await Promise.all(Array.from(files).slice(0, remaining).map(readFileEdit));
+    const valid = results.filter(Boolean);
+    setActivityEditForm((p) => ({ ...p, images: [...p.images, ...valid], thumbnail: p.thumbnail || valid[0] || null }));
+  };
+
+  const removeActivityEditPhoto = (idx) => {
+    setActivityEditForm((p) => {
+      const images = p.images.filter((_, i) => i !== idx);
+      return { ...p, images, thumbnail: p.thumbnail === p.images[idx] ? (images[0] || null) : p.thumbnail };
+    });
+  };
+
+  const handleSaveActivityEdit = async () => {
+    if (!activityEditModal || !activityEditForm || !token) return;
+    if (activityEditForm.images.length === 0) { toastError("Au moins une photo est requise."); return; }
+    const priceNum = Number(activityEditPriceEntry);
+    if (!(priceNum > 0)) { toastError("Prix invalide."); return; }
+    const priceUSD = activityEditPriceCurrency === "USD" ? priceNum : Math.round((priceNum / rateFromUSD(activityEditPriceCurrency)) * 100) / 100;
+    const essaiNum = activityEditEssaiPriceEntry !== "" ? Number(activityEditEssaiPriceEntry) : null;
+    const essaiPriceUSD = essaiNum != null && !isNaN(essaiNum)
+      ? (activityEditPriceCurrency === "USD" ? essaiNum : Math.round((essaiNum / rateFromUSD(activityEditPriceCurrency)) * 100) / 100)
+      : null;
+
+    setActivityEditSaving(true);
+    try {
+      const patch = {
+        activityType: activityEditForm.activityType,
+        title: activityEditForm.title, description: activityEditForm.description,
+        ville: activityEditForm.ville, adresse: activityEditForm.adresse,
+        price: priceUSD, priceUnit: activityEditForm.priceUnit,
+        currency: activityEditPriceCurrency !== "USD" ? activityEditPriceCurrency : null,
+        priceEntered: priceNum, priceEntryCurrency: activityEditPriceCurrency,
+        durationMinutes: Number(activityEditForm.durationMinutes) || 60,
+        capacity: Number(activityEditForm.capacity) || 1,
+        essaiDisponible: activityEditForm.essaiDisponible,
+        essaiDurationMinutes: Number(activityEditForm.essaiDurationMinutes) || 30,
+        essaiPrice: activityEditForm.essaiDisponible ? essaiPriceUSD : null,
+        images: activityEditForm.images,
+        thumbnail: activityEditForm.thumbnail,
+      };
+      const r = await fetch(`/api/activities/${activityEditModal._id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(patch),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        toastSuccess("✅ Annonce activité mise à jour.");
+        setMyActivities((prev) => prev.map((a) => (a._id === d.activity._id ? d.activity : a)));
+        setActivityEditModal(null);
+        setActivityEditForm(null);
+      } else toastError(d.message || "Erreur lors de la mise à jour.");
+    } catch { toastError("Erreur réseau."); }
+    setActivityEditSaving(false);
+  };
+
   const [boostTier,      setBoostTier]      = useState("30d");
   const [boostPromoCode, setBoostPromoCode] = useState("");
   const [boostPricing,   setBoostPricing]   = useState(null); // { "24h": priceUSD, ... } — depuis /api/subscriptions/me
@@ -3042,6 +3136,7 @@ export default function VendorDashboard() {
                       )}
                     </div>
                     <div className={styles.vehicleCardActions}>
+                      <button className={styles.btnSecondary} onClick={() => openActivityEdit(act)}>✏️ Modifier</button>
                       <button className={styles.btnSecondary}
                         onClick={() => {
                           fetch(`/api/activities/${act._id}`, {
@@ -4004,6 +4099,137 @@ export default function VendorDashboard() {
               <button className={styles.btnSecondary} onClick={() => setDriverEditModal(null)}>Annuler</button>
               <button className={styles.btnAccept} disabled={driverEditSaving} onClick={handleSaveDriverEdit}>
                 {driverEditSaving ? "Enregistrement…" : "Enregistrer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activityEditModal && activityEditForm && (
+        <div className={styles.modalBackdrop} onClick={() => setActivityEditModal(null)}>
+          <div className={styles.rejectModal} style={{ maxWidth: 560, maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+            <h3>✏️ Modifier — {activityEditModal.title}</h3>
+
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: ".78rem", color: "#64748b", display: "block", marginBottom: 6 }}>Type d'activité</label>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 6 }}>
+                {ACTIVITY_TYPES.map((t) => (
+                  <button key={t} type="button" onClick={() => setActivityEditForm((p) => ({ ...p, activityType: t }))}
+                    style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "8px 4px",
+                      borderRadius: 8, cursor: "pointer", fontSize: ".72rem", fontFamily: "inherit",
+                      border: `1.5px solid ${activityEditForm.activityType === t ? "#6366f1" : "#e2e8f0"}`,
+                      background: activityEditForm.activityType === t ? "#eef2ff" : "#fff",
+                      color: activityEditForm.activityType === t ? "#4338ca" : "#475569" }}>
+                    <span style={{ fontSize: "1.2rem" }}>{ACTIVITY_TYPE_ICONS[t] || "🎟️"}</span>
+                    {ACTIVITY_TYPE_LABELS[t] || t}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: ".78rem", color: "#64748b" }}>Titre de l'annonce</label>
+              <input type="text" value={activityEditForm.title} onChange={(e) => setActivityEditForm((p) => ({ ...p, title: e.target.value }))}
+                style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+            </div>
+
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: ".78rem", color: "#64748b" }}>Description</label>
+              <textarea rows={3} value={activityEditForm.description} onChange={(e) => setActivityEditForm((p) => ({ ...p, description: e.target.value }))}
+                style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem", resize: "vertical" }} />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Ville</label>
+                <input type="text" value={activityEditForm.ville} onChange={(e) => setActivityEditForm((p) => ({ ...p, ville: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Adresse</label>
+                <input type="text" value={activityEditForm.adresse} onChange={(e) => setActivityEditForm((p) => ({ ...p, adresse: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Prix</label>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input type="number" min="0" value={activityEditPriceEntry} onChange={(e) => setActivityEditPriceEntry(e.target.value)}
+                    style={{ flex: 1, minWidth: 0, boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+                  <select value={activityEditPriceCurrency} onChange={(e) => setActivityEditPriceCurrency(e.target.value)}
+                    style={{ padding: "7px 6px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}>
+                    {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Unité de prix</label>
+                <select value={activityEditForm.priceUnit} onChange={(e) => setActivityEditForm((p) => ({ ...p, priceUnit: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}>
+                  {ACTIVITY_PRICE_UNITS.map((u) => <option key={u} value={u}>{u === "per_person" ? "Par personne" : "Forfait par sortie"}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Durée de la session (min)</label>
+                <input type="number" min="1" value={activityEditForm.durationMinutes} onChange={(e) => setActivityEditForm((p) => ({ ...p, durationMinutes: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Capacité (participants max.)</label>
+                <input type="number" min="1" value={activityEditForm.capacity} onChange={(e) => setActivityEditForm((p) => ({ ...p, capacity: e.target.value }))}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+              </div>
+            </div>
+
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, fontSize: ".85rem", cursor: "pointer" }}>
+              <input type="checkbox" checked={activityEditForm.essaiDisponible}
+                onChange={(e) => setActivityEditForm((p) => ({ ...p, essaiDisponible: e.target.checked }))} />
+              Proposer un essai/découverte
+            </label>
+
+            {activityEditForm.essaiDisponible && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                <div>
+                  <label style={{ fontSize: ".78rem", color: "#64748b" }}>Durée de l'essai (min)</label>
+                  <input type="number" min="1" value={activityEditForm.essaiDurationMinutes} onChange={(e) => setActivityEditForm((p) => ({ ...p, essaiDurationMinutes: e.target.value }))}
+                    style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: ".78rem", color: "#64748b" }}>Prix de l'essai ({activityEditPriceCurrency}, vide = même prix)</label>
+                  <input type="number" min="0" value={activityEditEssaiPriceEntry} onChange={(e) => setActivityEditEssaiPriceEntry(e.target.value)}
+                    style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: ".78rem", color: "#64748b", display: "block", marginBottom: 6 }}>Photos</label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {activityEditForm.images.map((img, i) => (
+                  <div key={i} style={{ position: "relative" }}>
+                    <img src={img} alt="" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8 }} />
+                    <button type="button" onClick={() => removeActivityEditPhoto(i)}
+                      style={{ position: "absolute", top: -6, right: -6, background: "#dc2626", color: "#fff", border: "none", borderRadius: "50%", width: 20, height: 20, fontSize: ".7rem", cursor: "pointer" }}>×</button>
+                  </div>
+                ))}
+                {activityEditForm.images.length < 8 && (
+                  <label style={{ width: 64, height: 64, border: "1.5px dashed #cbd5e1", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: "1.3rem", color: "#94a3b8" }}>
+                    +
+                    <input type="file" accept="image/*" multiple hidden onChange={(e) => addActivityEditPhotos(e.target.files)} />
+                  </label>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button className={styles.btnSecondary} onClick={() => setActivityEditModal(null)}>Annuler</button>
+              <button className={styles.btnAccept} disabled={activityEditSaving} onClick={handleSaveActivityEdit}>
+                {activityEditSaving ? "Enregistrement…" : "Enregistrer"}
               </button>
             </div>
           </div>

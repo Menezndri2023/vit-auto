@@ -951,7 +951,7 @@ const VendorSubmit = () => {
               <button type="button" className={styles.adTypeCard}
                 onClick={() => navigate("/vendor/submit-activity")}>
                 <div className={styles.adTypeIcon}>🎈</div>
-                <h3>Activité (Autres)</h3>
+                <h3>Activité (Activités et Loisirs)</h3>
                 <p>Quad, Surf, Montgolfière, Jetski, Jet privé, Bateau... proposez une activité réservable, avec essai en option.</p>
                 <ul className={styles.adTypeList}>
                   <li>✓ Prix par personne ou par sortie</li>

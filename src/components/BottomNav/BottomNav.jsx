@@ -50,7 +50,10 @@ export default function BottomNav() {
             tous, parcourir le catalogue ne nécessite jamais de compte. */}
         <button className={styles.item} onClick={() => navigate("/catalogue?mode=Autres")}>
           <span className={styles.icon}>🎈</span>
-          <span className={styles.label}>Autres</span>
+          {/* Libellé abrégé : les 5 onglets se partagent la largeur à égalité
+              (voir .item flex:1) — "Activités et Loisirs" en entier y
+              passait sur 2 lignes, seul onglet plus haut que les autres. */}
+          <span className={styles.label}>Loisirs</span>
         </button>
 
         <button

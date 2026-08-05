@@ -287,19 +287,21 @@
   background: rgba(255, 255, 255, 0.09);
 }
 
-/* Toile de fond semi-transparente sous le méga-menu — commence sous la
-   navbar (jamais par-dessus elle) pour qu'elle reste pleinement utilisable,
-   et rend explicite que le reste de la page est temporairement en retrait
-   plutôt que "caché" sans raison apparente. Clic dessus = fermeture. */
+/* Toile de fond sous le méga-menu — commence sous la navbar (jamais
+   par-dessus elle) pour qu'elle reste pleinement utilisable. Corrigé (retour
+   utilisateur) : un fond sombre à 45% + flou masquait le reste du site,
+   donnant l'impression qu'il "barre" la page plutôt que de la laisser
+   consultable derrière le menu. Désormais à peine visible — même teinte que
+   --c-primary-soft (déjà utilisée ailleurs sur le site pour les états actifs/
+   survol) plutôt qu'un gris/noir générique — juste assez pour capter le clic
+   de fermeture, jamais pour gêner la lecture du reste de la page. */
 .activitiesBackdrop {
   position: fixed;
   top: var(--navbar-h, 64px);
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(8, 12, 28, 0.45);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  background: var(--c-primary-soft, rgba(255, 77, 45, 0.12));
   z-index: 550;
   animation: activitiesFadeIn .15s ease;
 }

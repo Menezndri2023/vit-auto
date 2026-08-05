@@ -116,16 +116,16 @@ const Navbar = () => {
           <li><NavLink to="/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>Tableau de bord</NavLink></li>
         )}
 
-        {/* Section OTHERS — activités culturelles/loisir, ouverte à tous
-            (pas de garde isAuthenticated : parcourir le catalogue ne
-            nécessite jamais de compte, voir Catalogue.jsx). */}
+        {/* Section Activités et Loisirs — ouverte à tous (pas de garde
+            isAuthenticated : parcourir le catalogue ne nécessite jamais de
+            compte, voir Catalogue.jsx). */}
         <li className={styles.activitiesDropdownWrapper} ref={activitiesRef}>
           <button
             type="button"
             className={`${styles.activitiesTrigger} ${activitiesOpen ? styles.activitiesTriggerOpen : ""}`}
             onClick={() => setActivitiesOpen((o) => !o)}
           >
-            🎈 Autres
+            🎈 Activités et Loisirs
           </button>
           {activitiesOpen && (
             <>
@@ -136,7 +136,7 @@ const Navbar = () => {
               <div className={styles.activitiesBackdrop} onClick={() => setActivitiesOpen(false)} />
               <div className={styles.activitiesMenu}>
                 <div className={styles.activitiesMenuHeader}>
-                  <span className={styles.activitiesMenuTitle}>🎈 Activités & sorties</span>
+                  <span className={styles.activitiesMenuTitle}>🎈 Activités et Loisirs</span>
                   <button className={styles.activitiesMenuAll} onClick={() => goToActivity(null)}>
                     Toutes les activités →
                   </button>

@@ -156,7 +156,7 @@ const ActivitySubmit = () => {
           </h2>
           <p className={styles.resultDesc}>
             {result.status === "approved"
-              ? "Votre activité est maintenant visible dans la section Autres du catalogue."
+              ? "Votre activité est maintenant visible dans la section Activités et Loisirs du catalogue."
               : "Un admin va valider votre annonce avant publication — vous serez notifié(e)."}
           </p>
           <div className={styles.resultActions}>
@@ -175,7 +175,7 @@ const ActivitySubmit = () => {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1>🎈 Publier une activité — Autres</h1>
+        <h1>🎈 Publier une activité — Activités et Loisirs</h1>
         <p>Quad, Surf, Montgolfière, Jetski, Jet privé, Bateau... proposez une sortie réservable par les clients.</p>
       </div>
 

@@ -18,7 +18,7 @@ const MODES = [
   { key: "Import",    icon: "🌍", label: "Import/Export" },
   // Section OTHERS — activités culturelles/loisir (Quad, Surf, Montgolfière,
   // Jetski, Jet privé, Bateau...) — voir Activity.js/activityController.js.
-  { key: "Autres",    icon: "🎈", label: "Autres"       },
+  { key: "Autres",    icon: "🎈", label: "Activités et Loisirs" },
 ];
 
 const ACTIVITY_TYPE_PILLS = ["Tous", ...ACTIVITY_TYPES];
@@ -466,7 +466,7 @@ const Catalogue = () => {
           <div className={styles.headerRow}>
             <div>
               <span className={styles.headerTag}>{isImportMode ? "🌍 VIT AUTO" : isChauffeurMode ? "🧑‍✈️ VIT AUTO" : isOthersMode ? "🎈 VIT AUTO" : "🚗 VIT AUTO"}</span>
-              <h1 className={styles.headerTitle}>{isImportMode ? "Import / Export" : isChauffeurMode ? "Chauffeurs" : isOthersMode ? "Autres — Activités" : "Catalogue"}</h1>
+              <h1 className={styles.headerTitle}>{isImportMode ? "Import / Export" : isChauffeurMode ? "Chauffeurs" : isOthersMode ? "Activités et Loisirs" : "Catalogue"}</h1>
             </div>
             <button
               type="button"

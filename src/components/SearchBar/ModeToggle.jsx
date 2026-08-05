@@ -59,7 +59,11 @@ const ModeToggle = memo(({ mode, setMode, goToCatalogue }) => {
           data-label="Autres"
         >
           <span className={styles.icon}>🎈</span>
-          <span>Autres</span>
+          {/* Libellé abrégé : la rangée de 5 boutons est en grille à colonnes
+              égales sur mobile (voir SearchBar.module.css) — "Activités et
+              Loisirs" en entier y débordait/se coupait, contrairement au nom
+              complet utilisé partout ailleurs (navbar, catalogue, titres). */}
+          <span>Loisirs</span>
         </button>
       </div>
     </div>
