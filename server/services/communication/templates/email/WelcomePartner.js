@@ -1,7 +1,7 @@
 import { baseEmail, BRAND } from "../shared/base.js";
 import { btn, heroSection, greeting, signature, infoBox, dataTable, divider, badge, stepTimeline, escapeHtml } from "../shared/components.js";
 
-export function welcomePartnerTemplate({ firstName, companyName, partnerType, dashboardUrl, refNumber }, trackingPixel = "") {
+export function welcomePartnerTemplate({ firstName, companyName, partnerType, dashboardUrl, refNumber, country }, trackingPixel = "") {
   const typeLabel = {
     agence_location:           "Agence de location",
     concessionnaire:           "Concessionnaire",
@@ -53,10 +53,11 @@ export function welcomePartnerTemplate({ firstName, companyName, partnerType, da
     title: "Bienvenue Partenaire",
     preheader: `Votre dossier ${escapeHtml(companyName)} a été reçu — bienvenue dans VIT AUTO`,
     body,
+    country,
   });
 }
 
-export function loiReadyTemplate({ firstName, companyName, loiUrl, expiresAt }, trackingPixel = "") {
+export function loiReadyTemplate({ firstName, companyName, loiUrl, expiresAt, country }, trackingPixel = "") {
   const body = `
     ${heroSection("Votre Lettre d'Intention (LOI) est prête", "Signez pour passer à l'étape suivante", "📝")}
     ${greeting(firstName)}
@@ -86,10 +87,11 @@ export function loiReadyTemplate({ firstName, companyName, loiUrl, expiresAt }, 
     title: "LOI prête à signer",
     preheader: `Votre Lettre d'Intention VIT AUTO est disponible — signez maintenant`,
     body,
+    country,
   });
 }
 
-export function agreementReadyTemplate({ firstName, companyName, agreementUrl, expiresAt }, trackingPixel = "") {
+export function agreementReadyTemplate({ firstName, companyName, agreementUrl, expiresAt, country }, trackingPixel = "") {
   const body = `
     ${heroSection("Votre Accord Partenaire est prêt", "Dernière étape avant l'activation de votre compte", "🤝")}
     ${greeting(firstName)}
@@ -112,6 +114,7 @@ export function agreementReadyTemplate({ firstName, companyName, agreementUrl, e
     title: "Accord partenaire",
     preheader: `Votre accord partenaire VIT AUTO est prêt — activez votre compte`,
     body,
+    country,
   });
 }
 
@@ -121,7 +124,7 @@ export function agreementReadyTemplate({ firstName, companyName, agreementUrl, e
 // (adminResendDocuments) et par la relance automatique
 // (checkFoundingPartnerPendingSignature) quand un dossier reste bloqué à
 // l'étape loi_envoyee/accord_envoye sans signature.
-export function documentsReadyTemplate({ firstName, companyName, loiUrl, agreementUrl, expiresAt }, trackingPixel = "") {
+export function documentsReadyTemplate({ firstName, companyName, loiUrl, agreementUrl, expiresAt, country }, trackingPixel = "") {
   const pending = [
     loiUrl       && { label: "Lettre d'Intention (LOI)",              url: loiUrl,       cta: "Signer la LOI" },
     agreementUrl && { label: "Accord de Partenariat Fondateur",       url: agreementUrl, cta: "Signer l'Accord Partenaire" },
@@ -152,5 +155,6 @@ export function documentsReadyTemplate({ firstName, companyName, loiUrl, agreeme
     title: "Documents à signer — Founding Partner",
     preheader: `Votre dossier ${escapeHtml(companyName)} attend votre signature`,
     body,
+    country,
   });
 }

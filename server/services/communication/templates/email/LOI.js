@@ -1,7 +1,7 @@
 import { baseEmail, BRAND } from "../shared/base.js";
 import { btn, heroSection, greeting, signature, infoBox, dataTable, divider, stepTimeline, escapeHtml } from "../shared/components.js";
 
-export function loiSignedTemplate({ firstName, companyName, loiRef, nextStepDate }, trackingPixel = "") {
+export function loiSignedTemplate({ firstName, companyName, loiRef, nextStepDate, country }, trackingPixel = "") {
   const body = `
     ${heroSection("LOI signée avec succès ✅", "Votre Lettre d'Intention a été enregistrée", "📋")}
     ${greeting(firstName)}
@@ -33,10 +33,11 @@ export function loiSignedTemplate({ firstName, companyName, loiRef, nextStepDate
     title: "LOI signée",
     preheader: `Votre LOI ${escapeHtml(companyName)} a été signée — accord partenaire en cours`,
     body,
+    country,
   });
 }
 
-export function agreementSignedTemplate({ firstName, companyName, commissionRate, networkRate, dashboardUrl }, trackingPixel = "") {
+export function agreementSignedTemplate({ firstName, companyName, commissionRate, networkRate, dashboardUrl, country }, trackingPixel = "") {
   const body = `
     ${heroSection("🎉 Bienvenue dans le réseau VIT AUTO !", "Votre accord est signé — votre compte est activé", "🏆")}
     ${greeting(firstName)}
@@ -68,5 +69,6 @@ export function agreementSignedTemplate({ firstName, companyName, commissionRate
     title: "Compte partenaire activé",
     preheader: `Bienvenue dans VIT AUTO ! Votre compte ${escapeHtml(companyName)} est actif`,
     body,
+    country,
   });
 }

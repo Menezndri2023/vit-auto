@@ -1,5 +1,6 @@
 // ── VIT AUTO — Base template engine ──────────────────────────────────────────
 // Tous les emails passent par ce module. Modifier ici change tous les emails.
+import { getCustomerServiceContact } from "../../../../utils/customerServiceContact.js";
 
 const BRAND = {
   name:        "VIT AUTO",
@@ -19,12 +20,12 @@ const BRAND = {
   get logoUrl() { return `${process.env.APP_URL || "https://vit-auto.com"}/logo.png`; },
   get baseUrl() { return process.env.APP_URL || "https://vit-auto.com"; },
   get apiUrl()  { return process.env.API_URL  || "https://api.vit-auto.com"; },
-  address:     "Abidjan, Côte d'Ivoire | +225 XX XX XX XX",
   support:     "support@vit-auto.com",
   unsubscribe: "mailto:unsubscribe@vit-auto.com",
 };
 
-export function baseEmail({ title, preheader = "", body, lang = "fr" }) {
+export function baseEmail({ title, preheader = "", body, lang = "fr", country }) {
+  const contact = getCustomerServiceContact(country);
   return `<!DOCTYPE html>
 <html lang="${lang}" xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -96,7 +97,7 @@ export function baseEmail({ title, preheader = "", body, lang = "fr" }) {
             <td class="footer" style="background:${BRAND.footerBg};padding:28px 40px;text-align:center">
               <p style="color:#64748b;font-size:12px;margin:0 0 8px">
                 <a href="${BRAND.baseUrl}" style="color:${BRAND.accent};text-decoration:none;font-weight:600">VIT AUTO</a>
-                &nbsp;·&nbsp; ${BRAND.address}
+                &nbsp;·&nbsp; ${contact.address} | ${contact.tel}
               </p>
               <p style="color:#475569;font-size:11px;margin:0">
                 Vous recevez cet email car votre compte est actif sur VIT AUTO.

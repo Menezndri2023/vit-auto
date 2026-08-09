@@ -16,6 +16,7 @@ import { decryptField } from "../utils/fieldEncryption.js";
 import { combinePaginated } from "../utils/paginateWithOrphans.js";
 import { ensureDefaultPartnerBusiness } from "../utils/ensureDefaultPartnerBusiness.js";
 import { ACTIVITIES, ACTIVITY_TO_PARTNER_TYPE } from "../constants/partnerTaxonomy.js";
+import { autoLinkProspect } from "./partnerCrmController.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
 
@@ -577,6 +578,15 @@ export const submitApplication = async (req, res) => {
     doc.status = "soumis";
     await doc.save();
     await addAudit(doc._id, "DOSSIER_SOUMIS", req.user.id, "Candidature soumise par le partenaire");
+
+    // Best-effort : si un prospect CRM existait déjà pour cet email (démarché
+    // avant son inscription), on le rattache automatiquement au vrai dossier.
+    autoLinkProspect({
+      email: req.user.email,
+      userId: req.user.id,
+      businessId: doc.businessId,
+      onboardingId: doc._id,
+    }).catch(() => {});
 
     const admins = await User.find({ role: "admin" }).select("_id").lean();
     for (const admin of admins) {

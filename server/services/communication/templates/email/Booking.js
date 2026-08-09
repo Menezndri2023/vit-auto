@@ -15,7 +15,7 @@ function formatDate(d) {
 // légitime, ex: badge()) — l'échappement se fait donc ici, au point où le
 // champ non fiable rencontre le HTML.
 
-export function bookingConfirmationTemplate({ firstName, booking, vehicleName, vehicleImage, dashboardUrl }, trackingPixel = "") {
+export function bookingConfirmationTemplate({ firstName, booking, vehicleName, vehicleImage, dashboardUrl, country }, trackingPixel = "") {
   const { startDate, endDate, montantTotal, devise = "XOF", status, reference } = booking || {};
   const statusBadge = { confirmed: "Confirmée", preparing: "En préparation", pending: "En attente" };
   const safeVehicleName = escapeHtml(vehicleName);
@@ -47,10 +47,11 @@ export function bookingConfirmationTemplate({ firstName, booking, vehicleName, v
     title: "Confirmation de réservation",
     preheader: `Votre réservation ${safeVehicleName} est confirmée — ref: ${escapeHtml(reference)}`,
     body,
+    country,
   });
 }
 
-export function newBookingPartnerTemplate({ partnerName, clientName, booking, vehicleName, acceptUrl, declineUrl }, trackingPixel = "") {
+export function newBookingPartnerTemplate({ partnerName, clientName, booking, vehicleName, acceptUrl, declineUrl, country }, trackingPixel = "") {
   const { startDate, endDate, montantTotal, devise = "XOF", reference } = booking || {};
   const safeClientName  = escapeHtml(clientName);
   const safeVehicleName = escapeHtml(vehicleName);
@@ -94,10 +95,11 @@ export function newBookingPartnerTemplate({ partnerName, clientName, booking, ve
     title: "Nouvelle réservation",
     preheader: `${safeClientName} a réservé ${safeVehicleName} — répondez dans 24h`,
     body,
+    country,
   });
 }
 
-export function paymentReceiptTemplate({ firstName, vehicleName, booking, downloadUrl }, trackingPixel = "") {
+export function paymentReceiptTemplate({ firstName, vehicleName, booking, downloadUrl, country }, trackingPixel = "") {
   const { reference, montantTotal, devise = "XOF", paymentMethod } = booking || {};
   const methodLabels = {
     cash: "Espèces sur place", card: "Carte bancaire", orange_money: "Orange Money",
@@ -128,10 +130,11 @@ export function paymentReceiptTemplate({ firstName, vehicleName, booking, downlo
     title: "Reçu de paiement",
     preheader: `Reçu ${escapeHtml(reference)} — ${Number(montantTotal || 0).toLocaleString("fr-FR")} ${devise}`,
     body,
+    country,
   });
 }
 
-export function bookingAcceptedTemplate({ firstName, vehicleName, booking, partnerName, partnerPhone, dashboardUrl }, trackingPixel = "") {
+export function bookingAcceptedTemplate({ firstName, vehicleName, booking, partnerName, partnerPhone, dashboardUrl, country }, trackingPixel = "") {
   const { startDate, endDate, pickupAddress, reference } = booking || {};
   const safeVehicleName = escapeHtml(vehicleName);
   const safePartnerName = escapeHtml(partnerName);
@@ -160,5 +163,6 @@ export function bookingAcceptedTemplate({ firstName, vehicleName, booking, partn
     title: "Réservation acceptée",
     preheader: `${safePartnerName} a accepté votre réservation pour ${safeVehicleName}`,
     body,
+    country,
   });
 }

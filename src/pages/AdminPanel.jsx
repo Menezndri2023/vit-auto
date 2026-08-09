@@ -1397,6 +1397,19 @@ export default function AdminPanel() {
   const [supportMsgLoading, setSupportMsgLoading] = useState(false);
   const [supportReply,    setSupportReply]    = useState("");
   const [supportSending,  setSupportSending]  = useState(false);
+  // Gate admin obligatoire (audit 2026-08) — file d'attente de validation
+  // (réservations + achats directs IE) et inbox de supervision des chats
+  // client_partner (lecture seule, voir chatController.getClientPartnerChats).
+  const [pendingValidationBookings, setPendingValidationBookings] = useState([]);
+  const [pendingValidationDirect,   setPendingValidationDirect]   = useState([]);
+  const [pendingValidationLoading,  setPendingValidationLoading]  = useState(false);
+  const [validationRejectModal,     setValidationRejectModal]     = useState(null); // { kind: "booking"|"direct", item }
+  const [validationRejectReason,    setValidationRejectReason]    = useState("");
+  const [cpChats,        setCpChats]        = useState([]);
+  const [cpChatsLoading, setCpChatsLoading] = useState(false);
+  const [cpActive,       setCpActive]       = useState(null);
+  const [cpMessages,     setCpMessages]     = useState([]);
+  const [cpMsgLoading,   setCpMsgLoading]   = useState(false);
   // Certification Partenaire
   const [certList,          setCertList]          = useState([]);
   const [certLoading,       setCertLoading]        = useState(false);
@@ -1481,6 +1494,25 @@ export default function AdminPanel() {
   const [foundingView,      setFoundingView]     = useState("onboarding"); // "onboarding" | "crm"
   const [foundingCRMFilter, setFoundingCRMFilter]= useState("");           // crmStatus filter
   const [foundingCRMEdit,   setFoundingCRMEdit]  = useState(null);         // { id, data: {...} }
+
+  // ── CRM Partenaires (pipeline de prospection à 9 étapes) ──────────────────
+  const [crmList,      setCrmList]      = useState([]);
+  const [crmStats,     setCrmStats]     = useState(null);
+  const [crmLoading,   setCrmLoading]   = useState(false);
+  const [crmView,      setCrmView]      = useState("liste"); // "liste" | "pipeline"
+  const [crmFilter,    setCrmFilter]    = useState({ statut: "", pays: "", secteur: "", assignedTo: "" });
+  const [crmSearch,    setCrmSearch]    = useState("");
+  const [crmDetail,    setCrmDetail]    = useState(null); // dossier ouvert (modal détail)
+  const [crmDetailData, setCrmDetailData] = useState(null); // { crm, liveStats }
+  const [crmEditData,  setCrmEditData]  = useState(null); // formulaire d'édition du détail
+  const [crmCreating,  setCrmCreating]  = useState(false);
+  const [crmNewForm,   setCrmNewForm]   = useState({
+    entreprise: "", pays: "", ville: "", secteur: "",
+    contactNom: "", contactTel: "", contactEmail: "", website: "",
+    source: "", assignedTo: "", priority: "medium",
+  });
+  const [crmSubmitting, setCrmSubmitting] = useState(false);
+  const [crmLinkUserId, setCrmLinkUserId] = useState("");
 
   // Filtres
   const [userSearch,  setUserSearch]  = useState("");
@@ -2522,6 +2554,82 @@ export default function AdminPanel() {
     setSupportSending(false);
   }, [headers, supportReply, supportActive, showToast]);
 
+  // ── Gate admin obligatoire (audit 2026-08) ─────────────────────────────
+  const loadPendingValidation = useCallback(async () => {
+    if (!token) return;
+    setPendingValidationLoading(true);
+    try {
+      const [bRes, tRes] = await Promise.all([
+        fetch("/api/bookings/admin/pending-validation", { headers }),
+        fetch("/api/import-export/transactions/admin/pending-validation", { headers }),
+      ]);
+      if (bRes.ok) setPendingValidationBookings((await bRes.json()).bookings || []);
+      if (tRes.ok) setPendingValidationDirect((await tRes.json()).transactions || []);
+    } catch { /* ignore */ }
+    setPendingValidationLoading(false);
+  }, [token, headers]);
+
+  const adminValidateBookingReq = useCallback(async (id, decision, refusalReason) => {
+    try {
+      const r = await fetch(`/api/bookings/${id}/admin-validate`, {
+        method: "PATCH", headers, body: JSON.stringify({ decision, refusalReason }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) {
+        showToast(decision === "approved" ? "Réservation transmise au partenaire." : "Demande refusée.");
+        setPendingValidationBookings((prev) => prev.filter((b) => b._id !== id));
+      } else {
+        showToast(d.message || "Erreur lors de la validation.", "error");
+      }
+    } catch { showToast("Erreur réseau.", "error"); }
+  }, [headers, showToast]);
+
+  const adminValidateDirectReq = useCallback(async (id, decision, refusalReason) => {
+    try {
+      const r = await fetch(`/api/import-export/transactions/${id}/admin-validate-direct`, {
+        method: "PATCH", headers, body: JSON.stringify({ decision, refusalReason }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) {
+        showToast(decision === "approved" ? "Achat direct transmis au partenaire." : "Achat direct refusé.");
+        setPendingValidationDirect((prev) => prev.filter((t) => t._id !== id));
+      } else {
+        showToast(d.message || "Erreur lors de la validation.", "error");
+      }
+    } catch { showToast("Erreur réseau.", "error"); }
+  }, [headers, showToast]);
+
+  const confirmValidationReject = useCallback(async () => {
+    if (!validationRejectModal) return;
+    const { kind, item } = validationRejectModal;
+    if (kind === "booking") await adminValidateBookingReq(item._id, "rejected", validationRejectReason.trim());
+    else await adminValidateDirectReq(item._id, "rejected", validationRejectReason.trim());
+    setValidationRejectModal(null);
+    setValidationRejectReason("");
+  }, [validationRejectModal, validationRejectReason, adminValidateBookingReq, adminValidateDirectReq]);
+
+  // ── Supervision chats client_partner (lecture seule, audit 2026-08) ─────
+  const loadClientPartnerChats = useCallback(async () => {
+    if (!token) return;
+    setCpChatsLoading(true);
+    try {
+      const r = await fetch("/api/chats/admin/client-partner", { headers });
+      if (r.ok) setCpChats((await r.json()).chats || []);
+    } catch { /* ignore */ }
+    setCpChatsLoading(false);
+  }, [token, headers]);
+
+  const openClientPartnerChat = useCallback(async (chat) => {
+    setCpActive(chat);
+    setCpMsgLoading(true);
+    setCpMessages([]);
+    try {
+      const r = await fetch(`/api/chats/admin/client-partner/${chat._id}`, { headers });
+      if (r.ok) setCpMessages((await r.json()).messages || []);
+    } catch { /* ignore */ }
+    setCpMsgLoading(false);
+  }, [headers]);
+
   // Bug réel corrigé (audit) : plafonné à 50, trié du plus récent au plus
   // ancien, sans aucune pagination — les dossiers les plus ANCIENS (donc les
   // plus en retard de traitement) disparaissaient silencieusement en premier
@@ -2829,6 +2937,126 @@ export default function AdminPanel() {
     } catch { showToast("Erreur réseau", "error"); }
   };
 
+  // ── CRM Partenaires (pipeline de prospection à 9 étapes) ──────────────────
+  const loadPartnerCrm = useCallback(async () => {
+    if (!token) return;
+    setCrmLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: "200" });
+      if (crmFilter.statut)     params.set("statut", crmFilter.statut);
+      if (crmFilter.pays)       params.set("pays", crmFilter.pays);
+      if (crmFilter.secteur)    params.set("secteur", crmFilter.secteur);
+      if (crmFilter.assignedTo) params.set("assignedTo", crmFilter.assignedTo);
+      if (crmSearch)            params.set("search", crmSearch);
+      const [listRes, statsRes] = await Promise.all([
+        fetch(`/api/partner-crm/admin/list?${params}`, { headers }),
+        fetch("/api/partner-crm/admin/stats",           { headers }),
+      ]);
+      if (listRes.ok)  setCrmList((await listRes.json()).items || []);
+      if (statsRes.ok) setCrmStats(await statsRes.json());
+    } catch { /* ignore */ }
+    setCrmLoading(false);
+  }, [token, headers, crmFilter, crmSearch]);
+
+  const crmCreateProspect = async () => {
+    if (crmSubmitting) return;
+    if (!crmNewForm.entreprise.trim()) { showToast("Le nom de l'entreprise est requis", "error"); return; }
+    setCrmSubmitting(true);
+    try {
+      const r = await fetch("/api/partner-crm/admin", {
+        method: "POST", headers,
+        body: JSON.stringify(crmNewForm),
+      });
+      const data = await r.json();
+      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
+      showToast("Prospect créé", "success");
+      setCrmCreating(false);
+      setCrmNewForm({ entreprise: "", pays: "", ville: "", secteur: "", contactNom: "", contactTel: "", contactEmail: "", website: "", source: "", assignedTo: "", priority: "medium" });
+      loadPartnerCrm();
+    } catch { showToast("Erreur réseau", "error"); }
+    finally { setCrmSubmitting(false); }
+  };
+
+  const crmAdvanceStatut = async (id, statut) => {
+    try {
+      const r = await fetch(`/api/partner-crm/admin/${id}/statut`, {
+        method: "PATCH", headers,
+        body: JSON.stringify({ statut }),
+      });
+      const data = await r.json();
+      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
+      showToast(`Étape → ${statut}`, "success");
+      setCrmList((prev) => prev.map((c) => c._id === id ? { ...c, statut, dateInscription: data.dateInscription || c.dateInscription } : c));
+      loadPartnerCrm();
+    } catch { showToast("Erreur réseau", "error"); }
+  };
+
+  const crmOpenDetail = async (id) => {
+    setCrmDetail(id);
+    setCrmDetailData(null);
+    setCrmEditData(null);
+    try {
+      const r = await fetch(`/api/partner-crm/admin/${id}`, { headers });
+      if (r.ok) {
+        const data = await r.json();
+        setCrmDetailData(data);
+        setCrmEditData({
+          entreprise: data.crm.entreprise || "", pays: data.crm.pays || "", ville: data.crm.ville || "",
+          secteur: data.crm.secteur || "", contactNom: data.crm.contactNom || "", contactTel: data.crm.contactTel || "",
+          contactEmail: data.crm.contactEmail || "", website: data.crm.website || "",
+          internalNotes: data.crm.internalNotes || "", source: data.crm.source || "",
+          priority: data.crm.priority || "medium", assignedTo: data.crm.assignedTo?._id || "",
+          lastContactDate: data.crm.lastContactDate ? new Date(data.crm.lastContactDate).toISOString().slice(0, 10) : "",
+          lastContactChannel: data.crm.lastContactChannel || "",
+          nextFollowUpDate: data.crm.nextFollowUpDate ? new Date(data.crm.nextFollowUpDate).toISOString().slice(0, 10) : "",
+          commissionTaux: data.crm.commission?.taux ?? "", commissionNotes: data.crm.commission?.notes || "",
+          contratReference: data.crm.contrat?.reference || "", contratUrl: data.crm.contrat?.url || "",
+          services: (data.crm.services || []).join(", "),
+        });
+      }
+    } catch { showToast("Erreur réseau", "error"); }
+  };
+
+  const crmSaveDetail = async () => {
+    if (!crmDetail || !crmEditData) return;
+    setCrmSubmitting(true);
+    try {
+      const r = await fetch(`/api/partner-crm/admin/${crmDetail}`, {
+        method: "PATCH", headers,
+        body: JSON.stringify({
+          ...crmEditData,
+          services: crmEditData.services.split(",").map((s) => s.trim()).filter(Boolean),
+          commission: { taux: crmEditData.commissionTaux === "" ? null : Number(crmEditData.commissionTaux), notes: crmEditData.commissionNotes },
+          contrat: { reference: crmEditData.contratReference, url: crmEditData.contratUrl },
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
+      showToast("Prospect mis à jour", "success");
+      loadPartnerCrm();
+      crmOpenDetail(crmDetail);
+    } catch { showToast("Erreur réseau", "error"); }
+    finally { setCrmSubmitting(false); }
+  };
+
+  const crmLinkAccount = async () => {
+    if (!crmDetail || !crmLinkUserId.trim()) return;
+    setCrmSubmitting(true);
+    try {
+      const r = await fetch(`/api/partner-crm/admin/${crmDetail}/link`, {
+        method: "PATCH", headers,
+        body: JSON.stringify({ userId: crmLinkUserId.trim() }),
+      });
+      const data = await r.json();
+      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
+      showToast("Compte lié avec succès", "success");
+      setCrmLinkUserId("");
+      loadPartnerCrm();
+      crmOpenDetail(crmDetail);
+    } catch { showToast("Erreur réseau", "error"); }
+    finally { setCrmSubmitting(false); }
+  };
+
   const adminToggleShowroom = async (id) => {
     try {
       const r = await fetch(`/api/pms/admin/showrooms/${id}/toggle`, { method: "PATCH", headers });
@@ -2871,7 +3099,10 @@ export default function AdminPanel() {
     if (activeTab === "partner_verif")     loadPartnerVerif();
     if (activeTab === "pms_partners")      loadPMSAdmin();
     if (activeTab === "founding_partners") loadFoundingPartners();
+    if (activeTab === "partner_crm") { loadPartnerCrm(); loadAdminAccounts(); }
     if (activeTab === "support")           loadSupportChats();
+    if (activeTab === "pending_validation") loadPendingValidation();
+    if (activeTab === "chat_supervision")   loadClientPartnerChats();
     if (activeTab === "paiements")         loadSubRequests();
     if (activeTab === "reviews")           loadReviews();
     if (activeTab === "audit")             loadAuditLog();
@@ -2887,7 +3118,7 @@ export default function AdminPanel() {
     if (activeTab === "whatsapp")          loadWaConversations();
     if (activeTab === "business_config")   loadBusinessConfig();
     if (activeTab === "reversements")      loadPayouts();
-  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds, loadInsurance, loadServiceRequests, loadImportCostData, loadReports, loadWaConversations, loadBusinessConfig, loadPayouts]);
+  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadPartnerCrm, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds, loadInsurance, loadServiceRequests, loadImportCostData, loadReports, loadWaConversations, loadBusinessConfig, loadPayouts, loadPendingValidation, loadClientPartnerChats]);
 
   // Chargé indépendamment de l'onglet actif (contrairement au bloc ci-dessus,
   // conditionné par activeTab === "business_config") : le message d'invitation
@@ -2902,6 +3133,26 @@ export default function AdminPanel() {
     const t = setInterval(loadSupportChats, 15_000);
     return () => clearInterval(t);
   }, [activeTab, loadSupportChats]);
+
+  // Même logique de polling pour la supervision chats client_partner (audit 2026-08).
+  useEffect(() => {
+    if (activeTab !== "chat_supervision") return undefined;
+    const t = setInterval(loadClientPartnerChats, 15_000);
+    return () => clearInterval(t);
+  }, [activeTab, loadClientPartnerChats]);
+
+  // Temps réel : un message client_partner doit apparaître instantanément dans
+  // la supervision admin (voir chatController.sendMessage, qui émet désormais
+  // "chat:message" vers la room "admins" pour ce type aussi).
+  useEffect(() => {
+    return onSocket("chat:message", ({ chatId, message, type }) => {
+      if (type !== "client_partner") return;
+      if (cpActive?._id === chatId) {
+        setCpMessages((prev) => prev.some((m) => m._id === message._id) ? prev : [...prev, message]);
+      }
+      if (activeTab === "chat_supervision") loadClientPartnerChats();
+    });
+  }, [onSocket, cpActive, activeTab, loadClientPartnerChats]);
 
   // Temps réel : un client/partenaire qui écrit doit apparaître instantanément
   // dans la file support partagée, sans attendre jusqu'à 15s de polling — et si
@@ -3284,6 +3535,7 @@ export default function AdminPanel() {
   // badge basé dessus retomberait trompeusement à 0 dès qu'un autre filtre est
   // sélectionné. kycPendingTotal est interrogé indépendamment (voir plus haut).
   const pendingKyc  = kycPendingTotal;
+  const pendingValidationTotal = pendingValidationBookings.length + pendingValidationDirect.length;
   const pendingCert = certList.filter((c) => ["level1","level2","level3","level4","level5","level6","level7"].some((l) => c[l]?.status === "submitted")).length;
   const pendingImp = importerProfiles.filter((p) => p.status === "pending").length;
   const pendingInv = invoices.filter((i) => i.status === "pending").length;
@@ -3311,6 +3563,7 @@ export default function AdminPanel() {
   const TAB_SCOPES = {
     kyc:              "kyc",
     support:          "support",
+    chat_supervision: "support",
     whatsapp:         "support",
     reviews:          "moderation",
     reports:          "moderation",
@@ -3365,6 +3618,7 @@ export default function AdminPanel() {
     {
       label: "SERVICES",
       items: [
+        { key: "pending_validation", icon: "🕐", label: "Demandes à valider", badge: pendingValidationTotal || undefined },
         { key: "bookings",      icon: "📋", label: "Réservations",          badge: pendingBk },
         { key: "litiges",       icon: "⚖️",  label: "Litiges",              badge: disputedBk + liveDisputes },
         { key: "chauffeurs",    icon: "👨‍✈️", label: "Chauffeurs",           badge: pendingDrivers },
@@ -3385,6 +3639,7 @@ export default function AdminPanel() {
         { key: "partner_verif",    icon: "🔍", label: "Vérification Partenaires", badge: pendingPv },
         { key: "pms_partners",     icon: "🏪", label: "Partner Hub PMS",          badge: pmsShowrooms.filter(s => !s.isPublished).length || undefined },
         { key: "founding_partners",icon: "🌟", label: "Founding Partners",        badge: foundingPending || undefined },
+        { key: "partner_crm",      icon: "🎯", label: "CRM Partenaires" },
       ],
     },
     {
@@ -3404,6 +3659,7 @@ export default function AdminPanel() {
         { key: "reviews",       icon: "⭐", label: "Avis clients" },
         { key: "ads",           icon: "📢", label: "Publicités & Campagnes" },
         { key: "support",       icon: "🎧", label: "Support Client",           badge: pendingSupport || undefined },
+        { key: "chat_supervision", icon: "👁️", label: "Chats Client↔Partenaire" },
         { key: "reports",       icon: "🚩", label: "Signalements",             badge: pendingReports || undefined },
         { key: "whatsapp",      icon: "💬", label: "Bot WhatsApp partenaires", badge: pendingWa || undefined },
         { key: "email_delivery",icon: "📧", label: "Emails & Livraison",       badge: emailFailures.length || undefined },
@@ -4106,6 +4362,116 @@ export default function AdminPanel() {
                 ) : <p style={{ color: "#dc2626" }}>Erreur de chargement.</p>}
                 <div className={styles.confirmActions} style={{ marginTop: 16 }}>
                   <button className={styles.btnGhost} onClick={() => setTrustModal(null)}>Fermer</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ══════════ TAB DEMANDES À VALIDER (gate admin, audit 2026-08) ══════════ */}
+          {activeTab === "pending_validation" && (
+            <div className={styles.tabContent}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+                <div>
+                  <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🕐 Demandes à valider</h2>
+                  <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>
+                    Aucune réservation, demande d'essai ou achat direct n'atteint le partenaire tant qu'elle n'est pas approuvée ici.
+                  </p>
+                </div>
+                <button style={{ background: "#f1f5f9", color: "#0f1b3f", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 700, fontSize: ".8rem" }}
+                  onClick={loadPendingValidation}>↻ Actualiser</button>
+              </div>
+
+              <h3 style={{ fontSize: ".9rem", color: "#0f1b3f", margin: "0 0 10px" }}>📋 Réservations / essais ({pendingValidationBookings.length})</h3>
+              {pendingValidationLoading && pendingValidationBookings.length === 0 ? (
+                <p style={{ color: "#94a3b8", fontSize: ".85rem" }}>Chargement…</p>
+              ) : pendingValidationBookings.length === 0 ? (
+                <p style={{ color: "#94a3b8", fontSize: ".85rem", marginBottom: 24 }}>Aucune demande en attente.</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28 }}>
+                  {pendingValidationBookings.map((b) => {
+                    const itemLabel = b.vehicle?.title || (b.driver ? `${b.driver.firstName} ${b.driver.lastName}` : b.activity?.title) || "—";
+                    return (
+                      <div key={b._id} style={{ border: "1.5px solid #e2e8f0", borderRadius: 12, padding: 14, background: b.adminValidation?.fastTrack ? "#fff7ed" : "#fff", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: ".88rem", color: "#0f1b3f" }}>
+                            {b.adminValidation?.fastTrack && <span style={{ color: "#d97706" }}>⚡ Instantanée — </span>}
+                            {b.reference} · {b.type}
+                          </div>
+                          <div style={{ fontSize: ".78rem", color: "#64748b", marginTop: 2 }}>
+                            {b.clientInfo?.firstName} {b.clientInfo?.lastName} → {itemLabel}
+                          </div>
+                          <div style={{ fontSize: ".76rem", color: "#94a3b8", marginTop: 2 }}>
+                            {(b.montantTotal || 0).toLocaleString("fr-FR")} $ · {timeAgo(b.createdAt)}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => adminValidateBookingReq(b._id, "approved")}
+                            style={{ background: "#16a34a", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
+                            ✅ Approuver
+                          </button>
+                          <button onClick={() => setValidationRejectModal({ kind: "booking", item: b })}
+                            style={{ background: "#fef2f2", color: "#dc2626", border: "1.5px solid #fecaca", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
+                            ❌ Refuser
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <h3 style={{ fontSize: ".9rem", color: "#0f1b3f", margin: "0 0 10px" }}>🌍 Achats directs Import/Export ({pendingValidationDirect.length})</h3>
+              {pendingValidationDirect.length === 0 ? (
+                <p style={{ color: "#94a3b8", fontSize: ".85rem" }}>Aucun achat direct en attente.</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {pendingValidationDirect.map((tx) => (
+                    <div key={tx._id} style={{ border: "1.5px solid #e2e8f0", borderRadius: 12, padding: 14, background: "#fff", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: ".88rem", color: "#0f1b3f" }}>{tx.listing?.title || "Annonce"}</div>
+                        <div style={{ fontSize: ".78rem", color: "#64748b", marginTop: 2 }}>
+                          {tx.client?.firstName} {tx.client?.lastName} → {tx.partner?.firstName} {tx.partner?.lastName}
+                        </div>
+                        <div style={{ fontSize: ".76rem", color: "#94a3b8", marginTop: 2 }}>
+                          {(tx.finalOffer?.totalAmount || 0).toLocaleString("fr-FR")} {tx.finalOffer?.currency || ""} · {timeAgo(tx.createdAt)}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button onClick={() => adminValidateDirectReq(tx._id, "approved")}
+                          style={{ background: "#16a34a", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
+                          ✅ Approuver
+                        </button>
+                        <button onClick={() => setValidationRejectModal({ kind: "direct", item: tx })}
+                          style={{ background: "#fef2f2", color: "#dc2626", border: "1.5px solid #fecaca", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
+                          ❌ Refuser
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Modale motif de refus (réservation ou achat direct) ── */}
+          {validationRejectModal && (
+            <div className={styles.overlay} onClick={() => setValidationRejectModal(null)}>
+              <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
+                <h3 style={{ margin: "0 0 12px", fontSize: "1rem", color: "#0f1b3f" }}>Motif du refus</h3>
+                <textarea
+                  value={validationRejectReason}
+                  onChange={(e) => setValidationRejectReason(e.target.value)}
+                  placeholder="Expliquez pourquoi cette demande est refusée (visible par le client)…"
+                  rows={4}
+                  style={{ width: "100%", border: "1.5px solid #e2e8f0", borderRadius: 10, padding: 10, fontSize: ".85rem", fontFamily: "inherit", resize: "vertical", marginBottom: 14 }}
+                />
+                <div className={styles.confirmActions}>
+                  <button className={styles.btnGhost} onClick={() => setValidationRejectModal(null)}>Annuler</button>
+                  <button className={styles.btnDanger}
+                    disabled={!validationRejectReason.trim()}
+                    onClick={confirmValidationReject}>
+                    Confirmer le refus
+                  </button>
                 </div>
               </div>
             </div>
@@ -8387,6 +8753,325 @@ export default function AdminPanel() {
       })()}
 
       {activeTab === "partenaires" && <WipSection icon="🤝" title="Gestion des Partenariats" subtitle="Contrats partenaires, commissions, et tableau de bord dédié par partenaire stratégique." features={["Concessionnaires, loueurs, assureurs, banques","Contrats : date, commission, statut","Tableau de bord commissions par partenaire","Catégories : BYD, Hyundai, Total, NSIA..."]} />}
+
+      {activeTab === "partner_crm" && (() => {
+        const CRM_ST = {
+          LEAD:                 { l: "Lead",                    c: "#64748b", bg: "#f1f5f9" },
+          CONTACTE:             { l: "Contacté",                c: "#d97706", bg: "#fef3c7" },
+          INTERESSE:            { l: "Intéressé",               c: "#f59e0b", bg: "#fff7ed" },
+          QUALIFIE:             { l: "Qualifié",                c: "#3b82f6", bg: "#eff6ff" },
+          NEGOCIATION:          { l: "Négociation",             c: "#7c3aed", bg: "#f5f3ff" },
+          INSCRIT:              { l: "Inscrit",                 c: "#0284c7", bg: "#e0f2fe" },
+          ACTIF:                { l: "Actif",                   c: "#16a34a", bg: "#dcfce7" },
+          PREMIERE_TRANSACTION: { l: "1ère transaction 🎉",     c: "#059669", bg: "#d1fae5" },
+          PARTENAIRE_FIDELE:    { l: "Partenaire fidèle 🌟",    c: "#b45309", bg: "#fef3c7" },
+        };
+        const CRM_ORDER = ["LEAD","CONTACTE","INTERESSE","QUALIFIE","NEGOCIATION","INSCRIT","ACTIF","PREMIERE_TRANSACTION","PARTENAIRE_FIDELE"];
+        const totalConverti = (crmStats?.byStatut?.ACTIF || 0) + (crmStats?.byStatut?.PREMIERE_TRANSACTION || 0) + (crmStats?.byStatut?.PARTENAIRE_FIDELE || 0);
+        const totalEnCours = (crmStats?.byStatut?.CONTACTE || 0) + (crmStats?.byStatut?.INTERESSE || 0) + (crmStats?.byStatut?.QUALIFIE || 0) + (crmStats?.byStatut?.NEGOCIATION || 0);
+
+        return (
+          <div className={styles.tabContent}>
+            {/* Header + vue toggle */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1rem", flexWrap:"wrap", gap:12 }}>
+              <div>
+                <h2 style={{ fontSize:"1.1rem", fontWeight:800, color:"#0f1b3f", margin:"0 0 3px" }}>🎯 CRM Partenaires</h2>
+                <p style={{ margin:0, fontSize:".83rem", color:"#64748b" }}>Pipeline de prospection — du premier contact au partenaire fidèle.</p>
+              </div>
+              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                <div style={{ display:"flex", background:"#f1f5f9", borderRadius:10, padding:3, gap:2 }}>
+                  {[{v:"liste",l:"📋 Liste"},{v:"pipeline",l:"🎯 Pipeline"}].map(({v,l})=>(
+                    <button key={v} onClick={()=>setCrmView(v)}
+                      style={{ padding:"6px 14px", borderRadius:8, border:"none", fontWeight:700, fontSize:".8rem", cursor:"pointer",
+                        background: crmView===v ? "#0f1b3f" : "transparent",
+                        color: crmView===v ? "#fff" : "#64748b" }}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+                <button className={styles.btnRefresh} onClick={loadPartnerCrm}>↻</button>
+                <button onClick={() => setCrmCreating((v) => !v)}
+                  style={{ padding:"8px 16px", border:"none", borderRadius:8, background:"#0f1b3f", color:"#fff", fontWeight:700, fontSize:".82rem", cursor:"pointer" }}>
+                  {crmCreating ? "✕ Annuler" : "+ Nouveau prospect"}
+                </button>
+              </div>
+            </div>
+
+            {/* Formulaire de création */}
+            {crmCreating && (
+              <div style={{ background:"#fff", border:"1.5px solid #e2e8f0", borderRadius:12, padding:16, marginBottom:16 }}>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:10, marginBottom:12 }}>
+                  <input placeholder="Entreprise *" value={crmNewForm.entreprise} onChange={e=>setCrmNewForm(f=>({...f,entreprise:e.target.value}))}
+                    style={{ padding:"7px 9px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem" }} />
+                  <select value={crmNewForm.pays} onChange={e=>setCrmNewForm(f=>({...f,pays:e.target.value}))}
+                    style={{ padding:"7px 9px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem" }}>
+                    <option value="">— Pays —</option>
+                    {COUNTRIES_CONFIG.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+                  </select>
+                  <input placeholder="Ville" value={crmNewForm.ville} onChange={e=>setCrmNewForm(f=>({...f,ville:e.target.value}))}
+                    style={{ padding:"7px 9px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem" }} />
+                  <input placeholder="Secteur (ex: Assurance, Concessionnaire...)" value={crmNewForm.secteur} onChange={e=>setCrmNewForm(f=>({...f,secteur:e.target.value}))}
+                    style={{ padding:"7px 9px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem" }} />
+                  <input placeholder="Nom du contact" value={crmNewForm.contactNom} onChange={e=>setCrmNewForm(f=>({...f,contactNom:e.target.value}))}
+                    style={{ padding:"7px 9px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem" }} />
+                  <input placeholder="Téléphone" value={crmNewForm.contactTel} onChange={e=>setCrmNewForm(f=>({...f,contactTel:e.target.value}))}
+                    style={{ padding:"7px 9px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem" }} />
+                  <input placeholder="Email" value={crmNewForm.contactEmail} onChange={e=>setCrmNewForm(f=>({...f,contactEmail:e.target.value}))}
+                    style={{ padding:"7px 9px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem" }} />
+                  <input placeholder="Site web" value={crmNewForm.website} onChange={e=>setCrmNewForm(f=>({...f,website:e.target.value}))}
+                    style={{ padding:"7px 9px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem" }} />
+                  <input placeholder="Source (salon, recommandation...)" value={crmNewForm.source} onChange={e=>setCrmNewForm(f=>({...f,source:e.target.value}))}
+                    style={{ padding:"7px 9px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem" }} />
+                  <select value={crmNewForm.assignedTo} onChange={e=>setCrmNewForm(f=>({...f,assignedTo:e.target.value}))}
+                    style={{ padding:"7px 9px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem" }}>
+                    <option value="">— Responsable commercial —</option>
+                    {adminAccounts.map(a => <option key={a._id} value={a._id}>{a.firstName} {a.lastName}</option>)}
+                  </select>
+                </div>
+                <div style={{ display:"flex", justifyContent:"flex-end" }}>
+                  <button disabled={crmSubmitting} onClick={crmCreateProspect}
+                    style={{ padding:"8px 20px", border:"none", borderRadius:8, background:"#16a34a", color:"#fff", fontWeight:800, fontSize:".82rem", cursor: crmSubmitting ? "not-allowed" : "pointer", opacity: crmSubmitting ? .6 : 1 }}>
+                    💾 Créer le prospect
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* KPIs */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:12, marginBottom:"1.2rem" }}>
+              {[
+                { icon:"📋", label:"Total pipeline",   value: crmStats?.total || 0, color:"#0f1b3f" },
+                { icon:"🎯", label:"Leads",             value: crmStats?.byStatut?.LEAD || 0, color:"#64748b" },
+                { icon:"💬", label:"En cours",          value: totalEnCours, color:"#d97706" },
+                { icon:"📝", label:"Inscrits",          value: crmStats?.byStatut?.INSCRIT || 0, color:"#0284c7" },
+                { icon:"🌟", label:"Convertis",         value: totalConverti, color:"#16a34a" },
+              ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
+            </div>
+
+            {/* Barre de filtres */}
+            <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:14, alignItems:"center" }}>
+              <input placeholder="🔍 Rechercher (entreprise, contact, email)..." value={crmSearch} onChange={e=>setCrmSearch(e.target.value)}
+                style={{ padding:"7px 10px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem", minWidth:220 }} />
+              <select value={crmFilter.statut} onChange={e=>setCrmFilter(f=>({...f,statut:e.target.value}))}
+                style={{ padding:"7px 9px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem" }}>
+                <option value="">Tous les statuts</option>
+                {CRM_ORDER.map(s => <option key={s} value={s}>{CRM_ST[s].l}</option>)}
+              </select>
+              <select value={crmFilter.pays} onChange={e=>setCrmFilter(f=>({...f,pays:e.target.value}))}
+                style={{ padding:"7px 9px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem" }}>
+                <option value="">Tous les pays</option>
+                {COUNTRIES_CONFIG.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+              </select>
+              <input placeholder="Secteur" value={crmFilter.secteur} onChange={e=>setCrmFilter(f=>({...f,secteur:e.target.value}))}
+                style={{ padding:"7px 9px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem", width:140 }} />
+              <select value={crmFilter.assignedTo} onChange={e=>setCrmFilter(f=>({...f,assignedTo:e.target.value}))}
+                style={{ padding:"7px 9px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem" }}>
+                <option value="">Tous les responsables</option>
+                {adminAccounts.map(a => <option key={a._id} value={a._id}>{a.firstName} {a.lastName}</option>)}
+              </select>
+              <span style={{ marginLeft:"auto", fontSize:".76rem", color:"#94a3b8" }}>{crmList.length} entrée(s)</span>
+            </div>
+
+            {crmLoading ? (
+              <div style={{ textAlign:"center", padding:"2rem", color:"#94a3b8" }}>Chargement…</div>
+            ) : crmList.length === 0 ? (
+              <div style={{ textAlign:"center", padding:"2rem", color:"#94a3b8" }}>
+                <div style={{ fontSize:"2rem", marginBottom:8 }}>🎯</div>
+                <p style={{ fontWeight:600 }}>Aucun prospect pour ce filtre.</p>
+              </div>
+            ) : crmView === "liste" ? (
+              <div style={{ overflowX:"auto" }}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Entreprise</th><th>Pays / Ville</th><th>Secteur</th><th>Contact</th>
+                      <th>Statut</th><th>Responsable</th><th>Dernier contact</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {crmList.map((c) => {
+                      const st = CRM_ST[c.statut] || CRM_ST.LEAD;
+                      return (
+                        <tr key={c._id} onClick={() => crmOpenDetail(c._id)} style={{ cursor:"pointer" }}>
+                          <td style={{ fontWeight:700, color:"#0f1b3f" }}>{c.entreprise}</td>
+                          <td>{COUNTRIES_CONFIG.find(x=>x.code===c.pays)?.name || c.pays || "—"}{c.ville ? ` · ${c.ville}` : ""}</td>
+                          <td>{c.secteur || "—"}</td>
+                          <td>{c.contactNom || "—"}{c.contactTel ? ` · ${c.contactTel}` : ""}</td>
+                          <td>
+                            <span style={{ display:"inline-block", fontSize:".72rem", fontWeight:700, padding:"4px 10px", borderRadius:20, background:st.bg, color:st.c }}>
+                              {st.l}
+                            </span>
+                          </td>
+                          <td>{c.assignedTo ? `${c.assignedTo.firstName} ${c.assignedTo.lastName}` : "—"}</td>
+                          <td>{c.lastContactDate ? new Date(c.lastContactDate).toLocaleDateString("fr-FR") : "—"}</td>
+                          <td><button onClick={(e)=>{e.stopPropagation();crmOpenDetail(c._id);}} style={{ border:"none", background:"transparent", cursor:"pointer" }}>👁️</button></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ display:"flex", gap:10, overflowX:"auto", paddingBottom:10 }}>
+                {CRM_ORDER.map((statut) => {
+                  const items = crmList.filter(c => c.statut === statut);
+                  const st = CRM_ST[statut];
+                  const idx = CRM_ORDER.indexOf(statut);
+                  const next = CRM_ORDER[idx + 1];
+                  return (
+                    <div key={statut} style={{ minWidth:220, flex:"0 0 220px", background:"#f8fafc", borderRadius:10, padding:10 }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                        <span style={{ fontSize:".78rem", fontWeight:800, color:st.c }}>{st.l}</span>
+                        <span style={{ fontSize:".72rem", fontWeight:700, color:"#94a3b8" }}>{items.length}</span>
+                      </div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                        {items.map((c) => (
+                          <div key={c._id} style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:8, padding:8 }}>
+                            <div onClick={()=>crmOpenDetail(c._id)} style={{ cursor:"pointer", fontWeight:700, fontSize:".78rem", color:"#0f1b3f" }}>{c.entreprise}</div>
+                            <div style={{ fontSize:".7rem", color:"#94a3b8" }}>{c.contactNom || "—"}</div>
+                            {next && (
+                              <button onClick={() => crmAdvanceStatut(c._id, next)}
+                                style={{ marginTop:6, width:"100%", padding:"4px 6px", border:"1px solid #e2e8f0", borderRadius:6, background:"#fff", color:"#0f1b3f", fontWeight:700, fontSize:".68rem", cursor:"pointer" }}>
+                                → {CRM_ST[next].l}
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Modal détail / édition */}
+            {crmDetail && (
+              <div className={styles.overlay} onClick={() => setCrmDetail(null)}>
+                <div className={styles.confirmBox} style={{ maxWidth:680, width:"95%", maxHeight:"85vh", overflowY:"auto", textAlign:"left" }} onClick={e=>e.stopPropagation()}>
+                  {!crmDetailData || !crmEditData ? (
+                    <div style={{ textAlign:"center", padding:"2rem", color:"#94a3b8" }}>Chargement…</div>
+                  ) : (() => {
+                    const { crm, liveStats } = crmDetailData;
+                    const st = CRM_ST[crm.statut] || CRM_ST.LEAD;
+                    return (
+                      <>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:12 }}>
+                          <div>
+                            <h3 style={{ margin:"0 0 4px", fontSize:"1.05rem", fontWeight:800, color:"#0f1b3f" }}>{crm.entreprise}</h3>
+                            <span style={{ display:"inline-block", fontSize:".72rem", fontWeight:700, padding:"4px 10px", borderRadius:20, background:st.bg, color:st.c }}>{st.l}</span>
+                            <span style={{ marginLeft:8, fontSize:".72rem", color:"#94a3b8" }}>{crm.referenceNumber}</span>
+                          </div>
+                          <button onClick={()=>setCrmDetail(null)} style={{ border:"none", background:"transparent", fontSize:"1.1rem", cursor:"pointer", color:"#94a3b8" }}>✕</button>
+                        </div>
+
+                        {crm.linkedUserId ? (
+                          <div style={{ background:"#f0fdf4", border:"1px solid #dcfce7", borderRadius:8, padding:10, marginBottom:12, fontSize:".8rem" }}>
+                            🔗 Lié au compte <strong>{crm.linkedUserId.firstName} {crm.linkedUserId.lastName}</strong> ({crm.linkedUserId.email})
+                            <div style={{ marginTop:6, display:"flex", gap:16 }}>
+                              <span>🚗 {liveStats.nombreAnnonces} annonce(s)</span>
+                              <span>💼 {liveStats.transactionsCount} transaction(s)</span>
+                              <span>💰 {Number(liveStats.chiffreAffairesGenere || 0).toLocaleString("fr-FR")} CA généré</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ background:"#fef3c7", border:"1px solid #fde68a", borderRadius:8, padding:10, marginBottom:12, display:"flex", gap:8, alignItems:"center" }}>
+                            <input placeholder="ID du compte utilisateur à lier" value={crmLinkUserId} onChange={e=>setCrmLinkUserId(e.target.value)}
+                              style={{ flex:1, padding:"6px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".78rem" }} />
+                            <button disabled={crmSubmitting} onClick={crmLinkAccount}
+                              style={{ padding:"6px 12px", border:"none", borderRadius:8, background:"#0f1b3f", color:"#fff", fontWeight:700, fontSize:".76rem", cursor:"pointer" }}>
+                              🔗 Lier
+                            </button>
+                          </div>
+                        )}
+
+                        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:10, marginBottom:12 }}>
+                          {[
+                            ["entreprise","Entreprise"], ["pays","Pays"], ["ville","Ville"], ["secteur","Secteur"],
+                            ["contactNom","Contact"], ["contactTel","Téléphone"], ["contactEmail","Email"], ["website","Site web"],
+                            ["source","Source"],
+                          ].map(([key,label]) => (
+                            <div key={key}>
+                              <label style={{ fontSize:".72rem", fontWeight:700, color:"#64748b", display:"block", marginBottom:3 }}>{label}</label>
+                              <input value={crmEditData[key]} onChange={e=>setCrmEditData(d=>({...d,[key]:e.target.value}))}
+                                style={{ width:"100%", padding:"6px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".8rem", boxSizing:"border-box" }} />
+                            </div>
+                          ))}
+                          <div>
+                            <label style={{ fontSize:".72rem", fontWeight:700, color:"#64748b", display:"block", marginBottom:3 }}>Responsable commercial</label>
+                            <select value={crmEditData.assignedTo} onChange={e=>setCrmEditData(d=>({...d,assignedTo:e.target.value}))}
+                              style={{ width:"100%", padding:"6px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".8rem" }}>
+                              <option value="">—</option>
+                              {adminAccounts.map(a => <option key={a._id} value={a._id}>{a.firstName} {a.lastName}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontSize:".72rem", fontWeight:700, color:"#64748b", display:"block", marginBottom:3 }}>Priorité</label>
+                            <select value={crmEditData.priority} onChange={e=>setCrmEditData(d=>({...d,priority:e.target.value}))}
+                              style={{ width:"100%", padding:"6px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".8rem" }}>
+                              <option value="high">🔴 Haute</option><option value="medium">🟡 Moyenne</option><option value="low">🟢 Basse</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontSize:".72rem", fontWeight:700, color:"#64748b", display:"block", marginBottom:3 }}>Dernier contact</label>
+                            <input type="date" value={crmEditData.lastContactDate} onChange={e=>setCrmEditData(d=>({...d,lastContactDate:e.target.value}))}
+                              style={{ width:"100%", padding:"6px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".8rem", boxSizing:"border-box" }} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize:".72rem", fontWeight:700, color:"#64748b", display:"block", marginBottom:3 }}>Canal</label>
+                            <select value={crmEditData.lastContactChannel} onChange={e=>setCrmEditData(d=>({...d,lastContactChannel:e.target.value}))}
+                              style={{ width:"100%", padding:"6px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".8rem" }}>
+                              <option value="">—</option><option value="whatsapp">WhatsApp</option><option value="wechat">WeChat</option>
+                              <option value="email">Email</option><option value="phone">Téléphone</option><option value="meeting">RDV</option><option value="other">Autre</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontSize:".72rem", fontWeight:700, color:"#64748b", display:"block", marginBottom:3 }}>Prochain suivi</label>
+                            <input type="date" value={crmEditData.nextFollowUpDate} onChange={e=>setCrmEditData(d=>({...d,nextFollowUpDate:e.target.value}))}
+                              style={{ width:"100%", padding:"6px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".8rem", boxSizing:"border-box" }} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize:".72rem", fontWeight:700, color:"#64748b", display:"block", marginBottom:3 }}>Commission (%)</label>
+                            <input type="number" value={crmEditData.commissionTaux} onChange={e=>setCrmEditData(d=>({...d,commissionTaux:e.target.value}))}
+                              style={{ width:"100%", padding:"6px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".8rem", boxSizing:"border-box" }} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize:".72rem", fontWeight:700, color:"#64748b", display:"block", marginBottom:3 }}>Réf. contrat</label>
+                            <input value={crmEditData.contratReference} onChange={e=>setCrmEditData(d=>({...d,contratReference:e.target.value}))}
+                              style={{ width:"100%", padding:"6px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".8rem", boxSizing:"border-box" }} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize:".72rem", fontWeight:700, color:"#64748b", display:"block", marginBottom:3 }}>Services (séparés par virgule)</label>
+                            <input value={crmEditData.services} onChange={e=>setCrmEditData(d=>({...d,services:e.target.value}))}
+                              style={{ width:"100%", padding:"6px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".8rem", boxSizing:"border-box" }} />
+                          </div>
+                        </div>
+
+                        <div style={{ marginBottom:12 }}>
+                          <label style={{ fontSize:".72rem", fontWeight:700, color:"#64748b", display:"block", marginBottom:3 }}>Notes internes</label>
+                          <textarea value={crmEditData.internalNotes} onChange={e=>setCrmEditData(d=>({...d,internalNotes:e.target.value}))} rows={2}
+                            style={{ width:"100%", padding:"8px 10px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".8rem", resize:"vertical", fontFamily:"inherit", boxSizing:"border-box" }} />
+                        </div>
+
+                        {crm.statusHistory?.length > 0 && (
+                          <div style={{ marginBottom:12, fontSize:".74rem", color:"#94a3b8" }}>
+                            <strong style={{ color:"#64748b" }}>Historique : </strong>
+                            {crm.statusHistory.slice(-5).map((h) => `${CRM_ST[h.statut]?.l || h.statut} (${new Date(h.changedAt).toLocaleDateString("fr-FR")})`).join(" → ")}
+                          </div>
+                        )}
+
+                        <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }}>
+                          <button onClick={()=>setCrmDetail(null)} className={styles.btnGhost}>Fermer</button>
+                          <button disabled={crmSubmitting} onClick={crmSaveDetail} className={styles.btnPrimary}>💾 Enregistrer</button>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {activeTab === "ads" && (
         <div className={styles.tabContent}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
@@ -8522,6 +9207,98 @@ export default function AdminPanel() {
           </div>
         </div>
       )}
+
+      {/* ══════ TAB SUPERVISION CHATS CLIENT↔PARTENAIRE (audit 2026-08) ══════ */}
+      {/* Lecture seule volontaire : l'admin voit tout en temps réel (voir
+          chatController.sendMessage → room "admins") mais n'est jamais un
+          relais obligatoire des messages — les 2 parties continuent
+          d'échanger directement, supervisées sans être bloquées. */}
+      {activeTab === "chat_supervision" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>👁️ Chats Client↔Partenaire</h2>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Supervision en lecture seule — aucun échange n'a lieu hors de la plateforme.</p>
+            </div>
+            <button style={{ background: "#f1f5f9", color: "#0f1b3f", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 700, fontSize: ".8rem" }}
+              onClick={loadClientPartnerChats}>↻ Actualiser</button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 340px) 1fr", gap: 16, minHeight: 480, alignItems: "stretch" }}>
+            <div style={{ border: "1.5px solid #e2e8f0", borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", background: "#fff" }}>
+              <div style={{ padding: "10px 14px", borderBottom: "1.5px solid #e2e8f0", fontSize: ".78rem", fontWeight: 700, color: "#64748b" }}>
+                {cpChats.length} conversation{cpChats.length > 1 ? "s" : ""}
+              </div>
+              <div style={{ overflowY: "auto", flex: 1, maxHeight: 520 }}>
+                {cpChatsLoading && cpChats.length === 0 ? (
+                  <div style={{ padding: 24, textAlign: "center", color: "#94a3b8", fontSize: ".85rem" }}>Chargement…</div>
+                ) : cpChats.length === 0 ? (
+                  <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>
+                    <div style={{ fontSize: "2rem", marginBottom: 8 }}>👁️</div>
+                    <p style={{ fontSize: ".85rem", fontWeight: 600 }}>Aucune conversation client↔partenaire.</p>
+                  </div>
+                ) : cpChats.map((c) => {
+                  const isActive = cpActive?._id === c._id;
+                  return (
+                    <div key={c._id} onClick={() => openClientPartnerChat(c)}
+                      style={{ padding: "11px 14px", cursor: "pointer", background: isActive ? "#eff6ff" : "#fff", borderBottom: "1px solid #f1f5f9" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 6 }}>
+                        <strong style={{ fontSize: ".85rem", color: "#0f1b3f" }}>
+                          {c.client?.firstName} {c.client?.lastName} ↔ {c.partner?.firstName} {c.partner?.lastName}
+                        </strong>
+                        <span style={{ fontSize: ".7rem", color: "#94a3b8", flexShrink: 0 }}>{timeAgo(c.lastMessageAt)}</span>
+                      </div>
+                      <div style={{ fontSize: ".76rem", color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {c.booking?.reference ? `${c.booking.reference} · ` : ""}{c.lastMessage || "Conversation ouverte"}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ border: "1.5px solid #e2e8f0", borderRadius: 12, display: "flex", flexDirection: "column", background: "#fff", overflow: "hidden" }}>
+              {!cpActive ? (
+                <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", flexDirection: "column", gap: 8 }}>
+                  <div style={{ fontSize: "2.4rem" }}>👁️</div>
+                  <p style={{ fontSize: ".85rem", fontWeight: 600 }}>Sélectionnez une conversation à superviser.</p>
+                </div>
+              ) : (
+                <>
+                  <div style={{ padding: "12px 16px", borderBottom: "1.5px solid #e2e8f0", fontWeight: 700, color: "#0f1b3f", fontSize: ".9rem" }}>
+                    {cpActive.client?.firstName} {cpActive.client?.lastName} ↔ {cpActive.partner?.firstName} {cpActive.partner?.lastName}
+                  </div>
+                  <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 10, maxHeight: 420 }}>
+                    {cpMsgLoading ? (
+                      <div style={{ textAlign: "center", color: "#94a3b8", fontSize: ".85rem" }}>Chargement…</div>
+                    ) : cpMessages.length === 0 ? (
+                      <div style={{ textAlign: "center", color: "#94a3b8", fontSize: ".85rem" }}>Aucun message pour l'instant.</div>
+                    ) : cpMessages.map((m) => {
+                      const isPartnerMsg = m.senderRole !== "client";
+                      return (
+                        <div key={m._id} style={{ alignSelf: isPartnerMsg ? "flex-end" : "flex-start", maxWidth: "72%" }}>
+                          <div style={{
+                            padding: "8px 12px", borderRadius: 12,
+                            background: isPartnerMsg ? "#0f1b3f" : "#f1f5f9",
+                            color: isPartnerMsg ? "#fff" : "#0f1b3f",
+                            fontSize: ".85rem", whiteSpace: "pre-wrap", wordBreak: "break-word",
+                          }}>
+                            {m.content}
+                          </div>
+                          <div style={{ fontSize: ".68rem", color: "#94a3b8", marginTop: 3, textAlign: isPartnerMsg ? "right" : "left" }}>
+                            {m.sender?.firstName} · {timeAgo(m.createdAt)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === "reports" && (
         <div className={styles.tabContent}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>

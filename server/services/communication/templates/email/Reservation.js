@@ -5,7 +5,7 @@ function fmt(d) {
   return d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" }) : "—";
 }
 
-export function reservationCreatedTemplate({ firstName, reservation, vehicleName, destCountry, dashboardUrl }, trackingPixel = "") {
+export function reservationCreatedTemplate({ firstName, reservation, vehicleName, destCountry, dashboardUrl, country }, trackingPixel = "") {
   const { reference, createdAt, status } = reservation || {};
   const safeVehicleName = escapeHtml(vehicleName);
 
@@ -38,10 +38,11 @@ export function reservationCreatedTemplate({ firstName, reservation, vehicleName
     title: "Demande de réservation",
     preheader: `Votre demande pour ${safeVehicleName} a été envoyée — en attente de confirmation`,
     body,
+    country,
   });
 }
 
-export function reservationConfirmedTemplate({ firstName, reservation, vehicleName, partnerName, nextSteps, dashboardUrl }, trackingPixel = "") {
+export function reservationConfirmedTemplate({ firstName, reservation, vehicleName, partnerName, nextSteps, dashboardUrl, country }, trackingPixel = "") {
   const { reference } = reservation || {};
   const safeVehicleName = escapeHtml(vehicleName);
   const safePartnerName = escapeHtml(partnerName);
@@ -69,10 +70,11 @@ export function reservationConfirmedTemplate({ firstName, reservation, vehicleNa
     title: "Réservation confirmée",
     preheader: `${safePartnerName} a confirmé votre réservation — le processus démarre`,
     body,
+    country,
   });
 }
 
-export function transactionCompletedTemplate({ firstName, vehicleName, transaction, reviewUrl }, trackingPixel = "") {
+export function transactionCompletedTemplate({ firstName, vehicleName, transaction, reviewUrl, country }, trackingPixel = "") {
   const { reference, totalAmount, devise = "USD" } = transaction || {};
   const safeVehicleName = escapeHtml(vehicleName);
 
@@ -100,5 +102,6 @@ export function transactionCompletedTemplate({ firstName, vehicleName, transacti
     title: "Transaction complétée",
     preheader: `Transaction ${reference} finalisée — merci pour votre confiance`,
     body,
+    country,
   });
 }

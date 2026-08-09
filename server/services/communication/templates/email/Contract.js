@@ -1,7 +1,7 @@
 import { baseEmail, BRAND } from "../shared/base.js";
 import { btn, heroSection, greeting, signature, infoBox, dataTable, divider, escapeHtml } from "../shared/components.js";
 
-export function contractReadyTemplate({ firstName, contractTitle, contractRef, signUrl, expiresAt, amount, devise = "USD" }, trackingPixel = "") {
+export function contractReadyTemplate({ firstName, contractTitle, contractRef, signUrl, expiresAt, amount, devise = "USD", country }, trackingPixel = "") {
   const safeContractTitle = escapeHtml(contractTitle);
   const body = `
     ${heroSection("Contrat prêt à signer", safeContractTitle || "Votre contrat VIT AUTO", "📄")}
@@ -26,10 +26,11 @@ export function contractReadyTemplate({ firstName, contractTitle, contractRef, s
     title: "Contrat à signer",
     preheader: `Votre contrat ${escapeHtml(contractRef)} est prêt — signature requise`,
     body,
+    country,
   });
 }
 
-export function contractSignedTemplate({ firstName, contractTitle, contractRef, downloadUrl, counterpartyName }, trackingPixel = "") {
+export function contractSignedTemplate({ firstName, contractTitle, contractRef, downloadUrl, counterpartyName, country }, trackingPixel = "") {
   const safeContractTitle = escapeHtml(contractTitle);
   const safeCounterpartyName = escapeHtml(counterpartyName);
   const body = `
@@ -56,5 +57,6 @@ export function contractSignedTemplate({ firstName, contractTitle, contractRef, 
     title: "Contrat signé",
     preheader: `Contrat ${escapeHtml(contractRef)} signé par toutes les parties — téléchargez votre exemplaire`,
     body,
+    country,
   });
 }

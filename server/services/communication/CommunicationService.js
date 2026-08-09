@@ -6,6 +6,7 @@
  */
 import { randomUUID } from "crypto";
 import logger from "../../utils/logger.js";
+import User from "../../models/User.js";
 import { logSend } from "./analytics/CommunicationAnalytics.js";
 import { sendEmail, buildTrackingPixel, buildTrackedUrl, getProviderName } from "./channels/EmailChannel.js";
 import { sendSms }      from "./channels/SmsChannel.js";
@@ -61,8 +62,18 @@ export async function sendViaEmail({
     let finalHtml = html;
 
     if (template && EMAIL_TEMPLATES[template]) {
+      let templateData = data;
+      if (data.country === undefined && userId) {
+        try {
+          const recipient = await User.findById(userId).select("country").lean();
+          if (recipient?.country) templateData = { ...data, country: recipient.country };
+        } catch {
+          // userId invalide/non-Mongo (ex: tests, IDs externes) — le footer
+          // retombe simplement sur le pays par défaut, l'envoi ne doit pas échouer.
+        }
+      }
       const pixel = buildTrackingPixel(trackingId);
-      finalHtml = EMAIL_TEMPLATES[template](data, pixel);
+      finalHtml = EMAIL_TEMPLATES[template](templateData, pixel);
     } else if (!finalHtml) {
       throw new Error(`Template email "${template}" introuvable`);
     }

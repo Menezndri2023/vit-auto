@@ -41,6 +41,7 @@ import certificationRoutes    from "./routes/partnerCertification.js";
 import partnerVerifRoutes     from "./routes/partnerVerification.js";
 import pmsRoutes              from "./routes/pms.js";
 import partnerOnboardingRoutes from "./routes/partnerOnboarding.js";
+import partnerCrmRoutes       from "./routes/partnerCrm.js";
 import auditLogRoutes         from "./routes/auditLog.js";
 import analyticsRoutes        from "./routes/analytics.js";
 import insuranceRoutes        from "./routes/insurance.js";
@@ -55,6 +56,7 @@ import siteContentRoutes      from "./routes/siteContent.js";
 import driverEmploymentRoutes from "./routes/driverEmployment.js";
 import serviceInvoiceRoutes   from "./routes/serviceInvoices.js";
 import commissionLedgerRoutes from "./routes/commissionLedger.js";
+import loyaltyRoutes from "./routes/loyalty.js";
 import { authenticate, authorizeAdmin } from "./middleware/auth.js";
 
 dotenv.config();
@@ -369,6 +371,7 @@ app.use("/api/pms",           apiLimiter,       pmsRoutes);           // Partner
 // fréquemment ; seule PATCH /section/:sectionName (documents/photos) reste sous uploadLimiter,
 // appliqué directement dans routes/partnerOnboarding.js.
 app.use("/api/partner-onboarding", apiLimiter, partnerOnboardingRoutes); // Founding Partner Onboarding
+app.use("/api/partner-crm",        apiLimiter, partnerCrmRoutes);        // Pipeline de prospection partenaires
 app.use("/api/audit-log",          apiLimiter, auditLogRoutes);          // Journal d'audit (consultation admin)
 app.use("/api/analytics",          apiLimiter, analyticsRoutes);         // Analytics avancé (consultation admin)
 app.use("/api/insurance",          apiLimiter, insuranceRoutes);         // Demandes d'assurance
@@ -384,6 +387,7 @@ app.use("/api/partner/businesses",    apiLimiter, partnerBusinessRoutes);  // En
 app.use("/api/driver-employment",     apiLimiter, driverEmploymentRoutes); // Embauche chauffeur temps plein (CDD/CDI)
 app.use("/api/service-invoices",      apiLimiter, serviceInvoiceRoutes);   // Facture de prestation au partenaire après service
 app.use("/api/commission-ledger",     apiLimiter, commissionLedgerRoutes); // Suivi des reversements partenaire (dû vs déjà versé)
+app.use("/api/loyalty",               apiLimiter, loyaltyRoutes);          // Programme de fidélité à paliers (solde, historique)
 
 // ── Communication tracking (pixel ouverture + clic email) ────────────────────
 const TRANSPARENT_GIF = Buffer.from(
@@ -653,6 +657,30 @@ const startServer = async () => {
         await d.save();
       }
       logger.info(`[Migration] driver-cv-to-imagekit : ${legacy.length} profil(s) chauffeur traité(s).`);
+    });
+
+    // Gate admin obligatoire (audit 2026-08) : Booking.adminValidation/
+    // IETransaction.adminValidation viennent d'être ajoutés avec un défaut de
+    // schéma "pending" — sans ce backfill, TOUTES les commandes déjà en base
+    // disparaîtraient d'un coup des dashboards partenaires au déploiement
+    // (voir bookingController.getPartnerBookings, filtré sur
+    // adminValidation.status:"approved"). Seules les transactions IE
+    // directPurchase sont concernées côté import/export (voir IETransaction.js).
+    await runOnceMigration("booking-admin-validation-backfill-2026-08", async () => {
+      const { default: Booking } = await import("./models/Booking.js");
+      const result = await Booking.updateMany(
+        { "adminValidation.status": { $exists: false } },
+        { $set: { "adminValidation.status": "approved" } }
+      );
+      logger.info(`[Migration] booking-admin-validation-backfill : ${result.modifiedCount} commande(s) traitée(s).`);
+    });
+    await runOnceMigration("ie-transaction-admin-validation-backfill-2026-08", async () => {
+      const { default: IETransaction } = await import("./models/IETransaction.js");
+      const result = await IETransaction.updateMany(
+        { directPurchase: true, "adminValidation.status": { $exists: false } },
+        { $set: { "adminValidation.status": "approved" } }
+      );
+      logger.info(`[Migration] ie-transaction-admin-validation-backfill : ${result.modifiedCount} transaction(s) traitée(s).`);
     });
 
     // ── BullMQ : queues + workers (si Redis configuré) ───────────────────

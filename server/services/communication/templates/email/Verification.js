@@ -6,7 +6,7 @@ import { btn, heroSection, greeting, signature, infoBox } from "../shared/compon
 // vérification bloquante avant de pouvoir continuer, contrairement au lien
 // ci-dessous qui reste ignorable indéfiniment. Le lien est conservé en repli
 // (utile si l'email est ouvert sur un autre appareil que celui de l'inscription).
-export function emailVerificationTemplate({ firstName, verifyUrl, code }, trackingPixel = "") {
+export function emailVerificationTemplate({ firstName, verifyUrl, code, country }, trackingPixel = "") {
   const body = `
     ${heroSection("Vérifiez votre adresse e-mail", "Une étape rapide pour activer votre compte", "✉️")}
     ${greeting(firstName)}
@@ -30,10 +30,10 @@ export function emailVerificationTemplate({ firstName, verifyUrl, code }, tracki
     ${signature()}
     ${trackingPixel}
   `;
-  return baseEmail({ title: "Vérification e-mail", preheader: "Votre code de confirmation VIT AUTO", body });
+  return baseEmail({ title: "Vérification e-mail", preheader: "Votre code de confirmation VIT AUTO", body, country });
 }
 
-export function emailChangeConfirmationTemplate({ firstName, newEmail, confirmUrl }, trackingPixel = "") {
+export function emailChangeConfirmationTemplate({ firstName, newEmail, confirmUrl, country }, trackingPixel = "") {
   const body = `
     ${heroSection("Confirmez votre nouvelle adresse e-mail", "Une dernière étape avant le changement", "📧")}
     ${greeting(firstName)}
@@ -54,10 +54,10 @@ export function emailChangeConfirmationTemplate({ firstName, newEmail, confirmUr
     ${signature()}
     ${trackingPixel}
   `;
-  return baseEmail({ title: "Confirmez votre nouvelle adresse e-mail", preheader: `Confirmez le changement vers ${newEmail}`, body });
+  return baseEmail({ title: "Confirmez votre nouvelle adresse e-mail", preheader: `Confirmez le changement vers ${newEmail}`, body, country });
 }
 
-export function passwordResetTemplate({ firstName, resetUrl }, trackingPixel = "") {
+export function passwordResetTemplate({ firstName, resetUrl, country }, trackingPixel = "") {
   const body = `
     ${heroSection("Réinitialisez votre mot de passe", "Vous avez demandé une réinitialisation", "🔒")}
     ${greeting(firstName)}
@@ -73,5 +73,5 @@ export function passwordResetTemplate({ firstName, resetUrl }, trackingPixel = "
     ${signature()}
     ${trackingPixel}
   `;
-  return baseEmail({ title: "Réinitialisation mot de passe", preheader: "Réinitialisez votre mot de passe VIT AUTO", body });
+  return baseEmail({ title: "Réinitialisation mot de passe", preheader: "Réinitialisez votre mot de passe VIT AUTO", body, country });
 }

@@ -1,7 +1,7 @@
 import { baseEmail, BRAND } from "../shared/base.js";
 import { btn, heroSection, greeting, signature, infoBox, dataTable, badge } from "../shared/components.js";
 
-export function kycSubmittedTemplate({ firstName, kycType = "identité", dashboardUrl }, trackingPixel = "") {
+export function kycSubmittedTemplate({ firstName, kycType = "identité", dashboardUrl, country }, trackingPixel = "") {
   const body = `
     ${heroSection("Dossier KYC soumis ✅", "Votre dossier est en cours d'examen", "🔍")}
     ${greeting(firstName)}
@@ -25,10 +25,11 @@ export function kycSubmittedTemplate({ firstName, kycType = "identité", dashboa
     title: "KYC soumis",
     preheader: "Votre dossier de vérification est en cours d'examen — résultat sous 72h",
     body,
+    country,
   });
 }
 
-export function kycApprovedTemplate({ firstName, kycBadge, kycScore, dashboardUrl }, trackingPixel = "") {
+export function kycApprovedTemplate({ firstName, kycBadge, kycScore, dashboardUrl, country }, trackingPixel = "") {
   const badgeColors = { VERIFIE: BRAND.success, INSUFFISANT: BRAND.warning, REFUSE: BRAND.danger };
   const badgeLabels = { VERIFIE: "Vérifié ✓", INSUFFISANT: "Insuffisant", REFUSE: "Refusé" };
 
@@ -54,10 +55,11 @@ export function kycApprovedTemplate({ firstName, kycBadge, kycScore, dashboardUr
     title: "Identité vérifiée",
     preheader: "Votre identité a été vérifiée — accès complet à VIT AUTO débloqué",
     body,
+    country,
   });
 }
 
-export function kycRejectedTemplate({ firstName, reason, resubmitUrl }, trackingPixel = "") {
+export function kycRejectedTemplate({ firstName, reason, resubmitUrl, country }, trackingPixel = "") {
   const body = `
     ${heroSection("Vérification refusée", "Des informations complémentaires sont nécessaires", "⚠️")}
     ${greeting(firstName)}
@@ -80,5 +82,6 @@ export function kycRejectedTemplate({ firstName, reason, resubmitUrl }, tracking
     title: "Vérification refusée",
     preheader: "Votre vérification d'identité n'a pas pu être approuvée — soumettez à nouveau",
     body,
+    country,
   });
 }
