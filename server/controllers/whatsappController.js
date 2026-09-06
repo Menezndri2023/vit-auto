@@ -35,6 +35,64 @@ function isValidSignature(rawBody, signatureHeader) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+// ── Boutons interactifs (ACCEPTER/REFUSER/ALTERNATIVE) — Booking Engine, 2026-09 ──
+// Chemin entièrement séparé du bot IA prospect ci-dessus (payload "interactive"
+// vs "text") : jamais de logique de statut dupliquée ici, cette fonction ne
+// fait qu'appeler bookingActionService.js — exactement le même code que le
+// dashboard (voir server/services/bookingActionService.js).
+async function handleInteractiveButton(message, phone) {
+  const buttonId = message.interactive?.button_reply?.id;
+  if (!buttonId) return;
+  // ON_THE_WAY/DELIVERED — Booking Engine, livraison (2026-09), voir
+  // server/utils/bookingReminders.js pour l'envoi de ces boutons.
+  const match = /^(ACCEPT|REJECT|ALT|ON_THE_WAY|DELIVERED)_([0-9a-fA-F]{24})$/.exec(buttonId);
+  if (!match) return;
+  const [, action, bookingId] = match;
+
+  const [{ default: User }, { default: Booking }] = await Promise.all([
+    import("../models/User.js"), import("../models/Booking.js"),
+  ]);
+  // Jamais confiance dans l'ID de réservation seul — le numéro expéditeur doit
+  // correspondre au propriétaire réel du véhicule/chauffeur/activité concerné.
+  const owner = await User.findOne({ phone: { $in: [phone, `+${phone}`] } }).select("_id").lean();
+  if (!owner) return;
+
+  const booking = await Booking.findById(bookingId)
+    .populate("vehicle", "owner").populate("driver", "owner").populate("activity", "owner").lean();
+  if (!booking) return;
+  const ownerId = booking.vehicle?.owner?.toString() || booking.driver?.owner?.toString() || booking.activity?.owner?.toString();
+  if (!ownerId || ownerId !== owner._id.toString()) {
+    logger.warn("[WhatsApp] Bouton reçu d'un numéro non associé à cette réservation", { phone, bookingId });
+    return;
+  }
+
+  if (action === "ALT") {
+    await sendViaWhatsApp({
+      to: phone,
+      text: "Pour proposer une alternative (autre véhicule, horaire ou tarif), rendez-vous sur votre tableau de bord VIT AUTO, section Réservations.",
+    });
+    return;
+  }
+
+  const service = await import("../services/bookingActionService.js");
+  const ACTIONS = {
+    ACCEPT:      () => service.acceptBooking({ bookingId, actorId: owner._id, source: "WHATSAPP" }),
+    REJECT:      () => service.rejectBooking({ bookingId, actorId: owner._id, source: "WHATSAPP" }),
+    ON_THE_WAY:  () => service.markVehicleOnTheWay({ bookingId, actorId: owner._id, source: "WHATSAPP" }),
+    DELIVERED:   () => service.markVehicleDelivered({ bookingId, actorId: owner._id, source: "WHATSAPP" }),
+  };
+  const result = await ACTIONS[action]();
+
+  const SUCCESS_TEXT = {
+    ACCEPT:     "✅ Réservation confirmée. Le client a été notifié.",
+    REJECT:     "❌ Réservation refusée. Le client a été notifié.",
+    ON_THE_WAY: "🚗 Client informé que le véhicule est en route.",
+    DELIVERED:  "📦 Client informé de la livraison.",
+  };
+  const replyText = result.statusCode < 400 ? SUCCESS_TEXT[action] : `⚠️ ${result.body?.message || "Action impossible."}`;
+  await sendViaWhatsApp({ to: phone, text: replyText });
+}
+
 async function notifyAdminsEscalation(conversation, reason) {
   try {
     // Bug réel corrigé (audit) : Notification.insertMany ne pousse jamais
@@ -71,7 +129,13 @@ export const receiveWebhook = async (req, res) => {
     const payload = JSON.parse(req.body.toString("utf-8"));
     const value = payload?.entry?.[0]?.changes?.[0]?.value;
     const message = value?.messages?.[0];
-    if (!message || message.type !== "text") return; // statuts de livraison, médias non gérés
+    if (!message) return; // statuts de livraison, etc.
+
+    if (message.type === "interactive") {
+      await handleInteractiveButton(message, message.from);
+      return;
+    }
+    if (message.type !== "text") return; // médias non gérés
 
     const phone = message.from;
     const text = message.text?.body?.trim();

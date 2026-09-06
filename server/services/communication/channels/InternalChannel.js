@@ -36,7 +36,7 @@ const EVENT_ICONS = {
   invoice:           "🧾",
 };
 
-export async function sendInternal({ userId, type = "system", titre, message, lien, priority = "normal", metadata = {} }) {
+export async function sendInternal({ userId, type = "system", titre, message, lien, priority = "normal", metadata = {}, skipEmail = false }) {
   if (!userId) {
     logger.warn("[InternalChannel] userId manquant");
     return { sent: false };
@@ -54,6 +54,9 @@ export async function sendInternal({ userId, type = "system", titre, message, li
       lien:    lien || null,
       lu:      false,
       channel: "internal",
+      // skipEmail : réservé aux événements qui envoient déjà un email dédié
+      // pour ce même destinataire/événement — voir Notification.js (hook).
+      skipEmail,
     });
 
     // Émission Socket.io temps-réel
@@ -80,10 +83,10 @@ export async function sendInternal({ userId, type = "system", titre, message, li
   }
 }
 
-export async function sendInternalBroadcast({ role, type, titre, message, lien }) {
+export async function sendInternalBroadcast({ role, type, titre, message, lien, skipEmail = false }) {
   try {
     const User = (await import("../../../models/User.js")).default;
-    const users = await User.find({ role, isActive: true }).select("_id pushTokens").lean();
+    const users = await User.find({ role, isActive: true }).select("_id pushTokens email firstName").lean();
 
     if (!users.length) return { sent: false, count: 0 };
 
@@ -92,8 +95,26 @@ export async function sendInternalBroadcast({ role, type, titre, message, lien }
     const titreWithIcon = titre ? `${icon} ${titre}` : icon;
 
     const notifs = await Notification.insertMany(
-      users.map((u) => ({ user: u._id, type, titre: titreWithIcon, message, lien, channel: "internal" }))
+      users.map((u) => ({ user: u._id, type, titre: titreWithIcon, message, lien, channel: "internal", skipEmail }))
     );
+
+    // insertMany() ne déclenche pas le hook post("save") de Notification.js
+    // (filet email) — reproduit ici explicitement, best-effort.
+    if (!skipEmail) {
+      const usersWithEmail = users.filter((u) => u.email);
+      if (usersWithEmail.length) {
+        Promise.resolve().then(async () => {
+          const { enqueue } = await import("../../../queue/index.js");
+          const { QUEUE_NAMES } = await import("../../../queue/definitions.js");
+          await Promise.allSettled(usersWithEmail.map((u) => enqueue(QUEUE_NAMES.EMAIL, "generic_notification_email", {
+            type:   "generic_notification",
+            to:     u.email,
+            userId: u._id.toString(),
+            data:   { firstName: u.firstName, titre: titreWithIcon, message, lien },
+          })));
+        }).catch((err) => logger.warn("[InternalChannel] fan-out email broadcast échoué", { error: err.message }));
+      }
+    }
 
     if (global._io) {
       users.forEach((u) => {

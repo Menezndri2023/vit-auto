@@ -44,6 +44,9 @@ router.get   ("/transactions/mine",     authenticate,                           
 router.get   ("/transactions/partner",  authenticate,                            tx.getPartnerTransactions);
 router.get   ("/transactions/partner/analytics", authenticate,                   tx.getPartnerIEAnalytics);
 router.get   ("/transactions/partner/export",    authenticate,                   tx.exportPartnerIETransactions);
+// Gate admin obligatoire (audit 2026-08) — routes statiques AVANT "/:id".
+router.get   ("/transactions/admin/pending-validation", authenticate, authorizeAdmin, ieScope, tx.getPendingDirectPurchases);
+router.patch ("/transactions/:id/admin-validate-direct", authenticate, authorizeAdmin, ieScope, vid, tx.adminValidateDirectPurchase);
 router.get   ("/transactions/:id",      authenticate,                   vid,     tx.getTransactionById);
 router.get   ("/transactions/:id/receipt", authenticate,                vid,     tx.getTransactionReceipt);
 

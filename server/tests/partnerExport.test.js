@@ -13,6 +13,10 @@ describe("exportPartnerBookings", () => {
     const vehicle = await createVehicleDoc({ owner: owner._id });
     await Booking.create({
       type: "location", status: "completed",
+      // Gate admin obligatoire (audit 2026-08) : exportPartnerBookings filtre
+      // désormais sur adminValidation.status:"approved" (une commande
+      // "completed" a forcément déjà été validée bien avant).
+      adminValidation: { status: "approved" },
       clientInfo: { firstName: "Awa", lastName: "Koné", email: "awa@example.test" , passportNumber: "P1234567"},
       vehicle: vehicle._id, montantTotal: 30000, partnerPayout: 27000,
       reference: "VIT-LOC-CSV-001",

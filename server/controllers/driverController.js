@@ -288,7 +288,7 @@ export const getDrivers = async (req, res) => {
       const licenseVerified = !!(license?.licenseNumber && !license?.isExpired);
       return {
         ...d,
-        owner: { _id: owner._id, firstName: owner.firstName, phone: owner.phone },
+        owner: { _id: owner._id, firstName: owner.firstName },
         identityVerified,
         licenseVerified,
       };

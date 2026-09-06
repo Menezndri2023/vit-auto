@@ -307,6 +307,11 @@ const userSchema = new mongoose.Schema({
   // suivante (voir createBooking, paramètre pointsToRedeem), plafonné à 20%
   // du montant de base pour éviter une réservation quasi gratuite.
   loyaltyPoints: { type: Number, default: 0, min: 0 },
+  // Cumul à vie, jamais décrémenté par une dépense de points — seule base du
+  // calcul de palier (voir server/constants/loyaltyTiers.js), pour qu'un
+  // client ne rétrograde jamais en utilisant ses points.
+  loyaltyLifetimePoints: { type: Number, default: 0, min: 0 },
+  loyaltyTier: { type: String, enum: ["bronze", "argent", "or"], default: "bronze" },
 
   // ── Certification Partenaire Vérifié Vit-Auto ──────────────────────────────
   certificationBadge: {
@@ -352,6 +357,22 @@ const userSchema = new mongoose.Schema({
     planId:    { type: String, default: null },
     status:    { type: String, enum: ["active", "inactive", "trial"], default: "inactive" },
     expiresAt: { type: Date, default: null },
+  },
+
+  // ── Avis bidirectionnels (Booking Engine Phase 5) ──────────────
+  // partnerRating : moyenne des avis "agence" laissés par les clients sur ce
+  //   compte quand il est propriétaire d'un véhicule/chauffeur (Review targetType="partner").
+  // clientReliability : moyenne des avis laissés par les partenaires sur ce
+  //   compte quand il est client d'une réservation (Review targetType="client").
+  // Les deux restent à 0/0 tant que le compte n'a jamais été ciblé — jamais
+  // remplis pour un rôle qui n'est pas concerné.
+  partnerRating: {
+    noteMoyenne: { type: Number, default: 0 },
+    nombreAvis:  { type: Number, default: 0 },
+  },
+  clientReliability: {
+    noteMoyenne: { type: Number, default: 0 },
+    nombreAvis:  { type: Number, default: 0 },
   },
 
   createdAt: { type: Date, default: Date.now },

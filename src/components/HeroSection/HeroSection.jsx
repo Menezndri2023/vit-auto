@@ -170,10 +170,10 @@ export default function HeroSection() {
     goTo((current + 1) % total);
   }, [current, total, goTo]);
 
-  // Auto-défilement 5 secondes
+  // Auto-défilement 25 secondes
   useEffect(() => {
     if (total <= 1) return;
-    const t = setInterval(goNext, 5000);
+    const t = setInterval(goNext, 25000);
     return () => clearInterval(t);
   }, [goNext, total]);
 

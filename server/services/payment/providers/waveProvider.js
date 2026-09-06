@@ -46,6 +46,34 @@ export async function createCheckout({ payment, booking, successUrl, cancelUrl }
 }
 
 /**
+ * Rembourse intégralement une session Wave déjà payée — Booking Engine,
+ * Remboursements (2026-09). Comme pour createCheckout ci-dessus, ce code
+ * suit le contrat documenté publiquement par Wave
+ * (POST /checkout/sessions/:id/refund) mais n'a pas pu être testé en
+ * conditions réelles faute de compte marchand — à valider avec un vrai
+ * compte sandbox avant mise en production. L'API Wave documentée ne permet
+ * qu'un remboursement TOTAL de la session (pas de montant partiel) —
+ * refundService.js retombe donc en mode manuel si un remboursement partiel
+ * est demandé sur un paiement Wave plutôt que de rembourser plus que prévu.
+ */
+export async function refund({ payment }) {
+  const apiKey = process.env.WAVE_API_KEY;
+  if (!apiKey) throw new Error("Wave non configuré côté serveur.");
+  if (!payment.transactionId) throw new Error("Paiement Wave sans session associée.");
+
+  const res = await fetch(`${API_BASE}/checkout/sessions/${payment.transactionId}/refund`, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${apiKey}` },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Wave remboursement échoué (${res.status}) : ${body.slice(0, 200)}`);
+  }
+  logger.info("[Wave] Remboursement effectué", { paymentId: payment._id.toString(), sessionId: payment.transactionId });
+  return { providerRefundId: payment.transactionId };
+}
+
+/**
  * Vérifie la signature HMAC du webhook Wave (en-tête "Wave-Signature",
  * format "t=<timestamp>,v1=<hmac>"). Lève une erreur si la signature est
  * absente/invalide ou si WAVE_WEBHOOK_SECRET n'est pas configuré.

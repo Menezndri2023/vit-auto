@@ -47,6 +47,89 @@ const bookingSchema = new mongoose.Schema({
     default: "pending",
   },
 
+  // ── Validation admin obligatoire (audit 2026-08) ──────────
+  // Champ ORTHOGONAL à `status` ci-dessus, volontairement pas une valeur
+  // supplémentaire de cet enum : `status` est référencé dans la machine à
+  // états (VALID_TRANSITIONS), les filtres admin/partenaire et l'affichage
+  // (badges colorés) à plus de 15 endroits — y ajouter un statut intermédiaire
+  // aurait cassé tout ça. Ici : aucune demande (réservation, essai, achat)
+  // n'est visible/actionnable par un partenaire tant qu'un admin ne l'a pas
+  // explicitement approuvée (voir getPartnerBookings, assertPartnerCanAct).
+  // Les commandes déjà en base avant ce correctif sont backfillées à
+  // "approved" par migration (voir server.js — runOnceMigration).
+  adminValidation: {
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
+    validatedBy:   { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    validatedAt:   { type: Date, default: null },
+    refusalReason: { type: String, default: null },
+    // Ex-"instantConfirm" : le partenaire a activé Vehicle.instantBook, mais
+    // passe désormais quand même par la validation admin (jamais de bypass
+    // total) — seulement priorisé dans la file, et confirmé automatiquement
+    // (status → "confirmed") dès l'approbation admin pour préserver la
+    // rapidité perçue côté client.
+    fastTrack: { type: Boolean, default: false },
+    // Booking Engine (2026-09) : le gate n'exige plus un ADMIN humain — la
+    // décision d'approbation vient désormais par défaut du score de fraude
+    // (voir queue/workers/ai.worker.js fraud_detection + bookingActionService
+    // autoApproveBooking). `validatedBy` reste `null` quand c'est le système
+    // qui approuve ; seul un risque "high" laisse encore `status:"pending"`
+    // pour la revue humaine d'exception (queue admin existante, inchangée).
+    validatedByType: { type: String, enum: ["SYSTEM", "ADMIN"], default: null },
+  },
+
+  // ── Score de fraude (Booking Engine, 2026-09) ─────────────
+  // Persiste enfin le résultat de fraud_detection (ai.worker.js), calculé à
+  // chaque réservation depuis l'ajout du job mais jusqu'ici jamais écrit nulle
+  // part (seulement loggé + alerte admin si risque élevé) — c'est maintenant
+  // la donnée qui décide de l'auto-approbation.
+  fraudCheck: {
+    riskLevel: { type: String, enum: ["low", "medium", "high", null], default: null },
+    flags:     { type: [String], default: [] },
+    checkedAt: { type: Date, default: null },
+  },
+
+  // Horodatage de la notification partenaire (WhatsApp/interne) au moment de
+  // l'approbation — base de calcul du délai de réponse partenaire (15/25/30
+  // min, voir server/utils/partnerResponseReminders.js). `null` tant que la
+  // réservation n'a jamais été approuvée (risque élevé toujours en attente).
+  partnerNotifiedAt: { type: Date, default: null },
+  reminder15SentAt:  { type: Date, default: null },
+  reminder25SentAt:  { type: Date, default: null },
+
+  // ── Trace d'audit (Booking Engine, 2026-09) ───────────────
+  // Append-only — n'existait pas du tout jusqu'ici (seuls des champs ponctuels
+  // type cancelledBy/disputeResolution.resolvedBy capturaient un acteur unique
+  // pour une action terminale précise). Alimenté par bookingActionService.js à
+  // chaque action, quel que soit le canal d'origine (dashboard, WhatsApp...).
+  auditTrail: [{
+    action:    { type: String, required: true },
+    actorType: { type: String, enum: ["CLIENT", "PARTNER", "ADMIN", "SYSTEM"], required: true },
+    actorId:   { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    source:    { type: String, enum: ["DASHBOARD", "WHATSAPP", "EMAIL", "PUSH", "API", "SYSTEM"], default: "API" },
+    timestamp: { type: Date, default: Date.now },
+    metadata:  { type: mongoose.Schema.Types.Mixed, default: null },
+  }],
+
+  // ── Alternative proposée par le partenaire (Booking Engine, 2026-09) ──
+  // Le partenaire ne peut aujourd'hui que confirmer ou annuler — aucun moyen
+  // de proposer un autre véhicule/créneau sans faire recommencer le client
+  // depuis zéro. `clientResponse` reste "pending" tant que le client n'a pas
+  // tranché (voir bookingActionService.respondToAlternative).
+  alternative: {
+    proposedVehicle:    { type: mongoose.Schema.Types.ObjectId, ref: "Vehicle", default: null },
+    proposedStartDate:  { type: Date, default: null },
+    proposedEndDate:    { type: Date, default: null },
+    proposedPrice:      { type: Number, default: null },
+    note:               { type: String, default: null },
+    proposedAt:         { type: Date, default: null },
+    clientResponse:     { type: String, enum: ["pending", "accepted", "declined"], default: "pending" },
+    respondedAt:         { type: Date, default: null },
+  },
+
   // ── Parties impliquées ────────────────────────────────────
   client: {
     type: mongoose.Schema.Types.ObjectId,
@@ -105,6 +188,13 @@ const bookingSchema = new mongoose.Schema({
       lat:     { type: Number, default: null },
       lng:     { type: Number, default: null },
       address: { type: String, default: null },
+      // Champs structurés (Booking Engine — livraison, 2026-09) — additifs,
+      // remplissables via le sélecteur de carte ou la saisie manuelle
+      // (voir src/components/DeliveryMapPicker), jamais requis pour ne pas
+      // casser une réservation créée avant leur ajout.
+      city:         { type: String, default: null },
+      postalCode:   { type: String, default: null },
+      instructions: { type: String, default: null },
     },
 
     // Frais de livraison — calculé côté serveur (Haversine), jamais fourni par le client
@@ -124,6 +214,32 @@ const bookingSchema = new mongoose.Schema({
       insurance: { type: Boolean, default: false },
       driver:    { type: Boolean, default: false },
     },
+  },
+
+  // ── Suivi de livraison (Booking Engine, 2026-09) ──────────────────────────
+  // Champ ORTHOGONAL à `status` ci-dessus — même principe que
+  // `adminValidation` (voir son commentaire) : `pickupMethod:"livraison"` ne
+  // faisait jusqu'ici que déclencher le calcul de deliveryFee, sans aucun
+  // suivi (le partenaire n'avait aucun moyen de confirmer/refuser/signaler
+  // "en route"/"livré"). Reste à "none" pour toute réservation en retrait
+  // agence. Voir server/services/bookingActionService.js pour les
+  // transitions (acceptBooking confirme automatiquement à l'acceptation,
+  // markVehicleOnTheWay/markVehicleDelivered pour le suivi).
+  delivery: {
+    status: {
+      type: String,
+      enum: ["none", "requested", "confirmed", "rejected", "rescheduled", "on_the_way", "delivered"],
+      default: "none",
+    },
+    // = location.startDate au moment de la demande — conservé séparément
+    // car une ALTERNATIVE (voir bookingActionService.proposeAlternative)
+    // peut faire évoluer location.startDate sans que ceci ne soit rejoué.
+    requestedDateTime: { type: Date, default: null },
+    confirmedBy:        { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    confirmedAt:         { type: Date, default: null },
+    rejectionReason:     { type: String, default: null },
+    onTheWaySentAt:      { type: Date, default: null },
+    deliveredAt:         { type: Date, default: null },
   },
 
   // ── Champs spécifiques : ESSAI (rendez-vous d'essai avant achat) ──────────
@@ -198,19 +314,31 @@ const bookingSchema = new mongoose.Schema({
   },
 
   // ── Instantané KYC complet (copié au moment de la réservation) ────────────
+  // ── Fuite corrigée (Booking Engine — Éligibilité, 2026-09) ────────────────
+  // Bug réel trouvé en audit : ce snapshot est un champ RACINE de Booking (pas
+  // du User populé) — la restriction déjà appliquée à `client` (populate avec
+  // projection limitée selon le rôle, voir getBookingDetail/getPartnerBookings)
+  // ne le couvrait donc jamais. `select:false` sur les champs images/OCR bruts
+  // ci-dessous les exclut désormais de TOUTE requête (y compris .lean(), y
+  // compris pour l'admin — son écran de revue KYC lit toujours les données
+  // fraîches depuis User.identity/kycOcrData via kycController.js, jamais ce
+  // snapshot figé). Les champs texte non biométriques (idType/idNumber/
+  // licenceNumber/expiry/catégories/kycStatus/kycScore) restent nécessaires
+  // au partenaire pour l'exécution de la location (contrat, vérification à la
+  // remise) et ne sont pas concernés.
   clientKycSnapshot: {
     idType:            { type: String, default: null },
     idNumber:          { type: String, default: null },
-    frontImage:        { type: String, default: null },
-    backImage:         { type: String, default: null },
-    selfie:            { type: String, default: null },
-    licenseFrontImage: { type: String, default: null },
-    licenseBackImage:  { type: String, default: null },
+    frontImage:        { type: String, default: null, select: false },
+    backImage:         { type: String, default: null, select: false },
+    selfie:            { type: String, default: null, select: false },
+    licenseFrontImage: { type: String, default: null, select: false },
+    licenseBackImage:  { type: String, default: null, select: false },
     licenseNumber:     { type: String, default: null },
     licenseExpiry:     { type: Date,   default: null },
     licenseCategories: { type: String, default: null },
-    ocrData:           { type: mongoose.Schema.Types.Mixed, default: null },
-    faceMatchScore:    { type: Number, default: null },
+    ocrData:           { type: mongoose.Schema.Types.Mixed, default: null, select: false },
+    faceMatchScore:    { type: Number, default: null, select: false },
     kycStatus:         { type: String, default: null },
     kycScore:          { type: Number, default: null },
     snapshotAt:        { type: Date,   default: null },
@@ -296,11 +424,19 @@ const bookingSchema = new mongoose.Schema({
   invoice:    { type: mongoose.Schema.Types.ObjectId, ref: "Invoice", default: null },
 
   // ── Avis post-commande ────────────────────────────────────
+  // review : avis du client sur le véhicule/chauffeur (historique, inchangé —
+  // reste la source de `hasReview` côté frontend).
   review: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Review",
     default: null,
   },
+  // Avis bidirectionnels (Booking Engine Phase 5) — orthogonaux à `review`,
+  // permettent de savoir en O(1) ce qui a déjà été soumis pour cette
+  // réservation sans requêter la collection Review.
+  partnerReviewByClient: { type: mongoose.Schema.Types.ObjectId, ref: "Review", default: null },
+  platformReviewByClient:{ type: mongoose.Schema.Types.ObjectId, ref: "Review", default: null },
+  clientReviewByPartner: { type: mongoose.Schema.Types.ObjectId, ref: "Review", default: null },
 
   // ── Annulation ────────────────────────────────────────────
   cancelledAt:  { type: Date, default: null },
@@ -310,7 +446,7 @@ const bookingSchema = new mongoose.Schema({
   // validée par le contrôleur (pas d'enum Mongoose unique ici, les deux listes
   // se chevauchent partiellement mais restent sémantiquement distinctes).
   cancelReasonCode: { type: String, default: null },
-  cancelledBy: { type: String, enum: ["client", "partenaire", "admin", null], default: null },
+  cancelledBy: { type: String, enum: ["client", "partenaire", "admin", "system", null], default: null },
 
   // ── Caution (dépôt de garantie) : traitement au retour ────────────────
   // cautionAmount (ci-dessus) n'était qu'un montant à percevoir, affiché mais

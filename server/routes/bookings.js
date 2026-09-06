@@ -1,7 +1,7 @@
 import express from "express";
 import { rateLimit } from "express-rate-limit";
 import * as b from "../controllers/bookingController.js";
-import { authenticate, authorizeAdmin, optionalAuth, requireAdminScope } from "../middleware/auth.js";
+import { authenticate, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 import { generateReceiptPDF } from "../utils/pdfGenerator.js";
 import Booking from "../models/Booking.js";
@@ -26,8 +26,13 @@ router.get("/driver/:driverId/occupied-slots",   b.getDriverOccupiedSlots);
 router.get("/activity/:activityId/occupied-slots", b.getActivityOccupiedSlots);
 router.get("/vehicle/:vehicleId/essai-slots",    b.getEssaiOccupiedSlots);
 
-// ── Création réservation (auth optionnelle — liaison user si connecté) ─
-router.post("/", createBookingLimiter, optionalAuth, b.createBooking);
+// ── Création réservation ────────────────────────────────────────────────
+// Booking Engine (2026-09) : passé d'`optionalAuth` (réservation invité
+// autorisée) à `authenticate` — le Niveau 1 de vérification (téléphone/email
+// vérifié, voir createBooking) est désormais obligatoire pour réserver, donc
+// un compte l'est nécessairement aussi. L'inscription reste rapide (OTP déjà
+// existant, authController.js) — pas de nouveau parcours d'inscription requis.
+router.post("/", createBookingLimiter, authenticate, b.createBooking);
 // ── Panier : plusieurs véhicules réservés en une fois (auth requise, pas de
 // panier invité) ──────────────────────────────────────────
 router.post("/batch", createBookingLimiter, authenticate, b.createBookingsBatch);
@@ -50,6 +55,13 @@ router.patch("/:id/status",              vid, authenticate, b.updateBookingStatu
 router.patch("/:id/transaction",         vid, authenticate, b.recordTransaction);
 router.patch("/:id/partner-confirm",     vid, authenticate, b.partnerConfirm);
 router.patch("/:id/partner-kyc-verify",  vid, authenticate, b.partnerVerifyKyc);
+// Booking Engine (2026-09) — alternative proposée par le partenaire, réponse
+// du client (voir server/services/bookingActionService.js).
+router.post("/:id/alternative",          vid, authenticate, b.proposeBookingAlternative);
+router.patch("/:id/alternative-response", vid, authenticate, b.respondBookingAlternative);
+// Booking Engine (2026-09) — suivi de livraison.
+router.patch("/:id/delivery/on-the-way", vid, authenticate, b.markBookingVehicleOnTheWay);
+router.patch("/:id/delivery/delivered",  vid, authenticate, b.markBookingVehicleDelivered);
 router.patch("/:id/caution",             vid, authenticate, b.claimCaution);
 router.post("/:id/dispute-response",     vid, authenticate, b.respondToDispute);
 
@@ -57,6 +69,10 @@ router.post("/:id/dispute-response",     vid, authenticate, b.respondToDispute);
 router.get("/:id/detail",             vid, authenticate, b.getBookingDetail);
 
 // ── Admin ─────────────────────────────────────────────────
+// Gate admin obligatoire (audit 2026-08) — routes statiques AVANT "/" pour ne
+// jamais être avalées par un futur "/:id".
+router.get("/admin/pending-validation",   authenticate, authorizeAdmin, b.getPendingValidationBookings);
+router.patch("/:id/admin-validate",       vid, authenticate, authorizeAdmin, b.adminValidateBooking);
 router.get("/",                           authenticate, authorizeAdmin, b.getAllBookings);
 router.get("/admin/export",               authenticate, authorizeAdmin, b.exportBookings);
 router.get("/admin/stats-full",           authenticate, authorizeAdmin, b.getAdminBookingStats);

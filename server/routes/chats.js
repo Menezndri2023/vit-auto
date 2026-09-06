@@ -35,6 +35,10 @@ router.get("/unread",     c.getUnreadCount);
 // Route statique AVANT "/:id" (sinon "support" serait interprété comme un :id et
 // rejeté par validateObjectId).
 router.get("/support",    authorizeAdmin, requireAdminScope("support"), c.getSupportChats);
+// Supervision admin des chats client↔partenaire (audit 2026-08) — routes
+// statiques AVANT "/:id" pour la même raison que "/support" ci-dessus.
+router.get("/admin/client-partner",     authorizeAdmin, requireAdminScope("support"), c.getClientPartnerChats);
+router.get("/admin/client-partner/:id", vid, authorizeAdmin, requireAdminScope("support"), c.getClientPartnerChatMessages);
 router.post("/",          createChatLimiter, c.getOrCreateChat);
 router.get("/:id",        vid, c.getMessages);
 router.post("/:id",       vid, sendMessageLimiter, c.sendMessage);

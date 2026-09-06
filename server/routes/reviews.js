@@ -1,7 +1,7 @@
 import express from "express";
 import { rateLimit } from "express-rate-limit";
 import * as r from "../controllers/reviewController.js";
-import { authenticate, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
+import { authenticate, optionalAuth, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 
 const moderationScope = requireAdminScope("moderation");
@@ -16,8 +16,8 @@ const createReviewLimiter = rateLimit({
   legacyHeaders:   false,
 });
 
-// ── Public ────────────────────────────────────────────────
-router.get("/", r.getReviews);
+// ── Public (platform/client filtrés côté contrôleur pour non-admin) ───────
+router.get("/", optionalAuth, r.getReviews);
 
 // ── Client connecté ───────────────────────────────────────
 router.post("/", authenticate, createReviewLimiter, r.createReview);

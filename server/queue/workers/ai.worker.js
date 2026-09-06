@@ -77,6 +77,22 @@ export async function processAiJob(job) {
           message: `Réservation ${bookingId} — Risque: ${riskLevel} — Flags: ${flags.join(", ")}`,
           lien:    `/admin`,
         }).catch(() => {});
+        // Risque élevé : reste "pending" pour la revue humaine d'exception
+        // (queue admin existante, getPendingValidationBookings) — on écrit
+        // quand même fraudCheck pour que l'admin voie le détail des drapeaux.
+        const Booking = (await import("../../models/Booking.js")).default;
+        await Booking.findByIdAndUpdate(bookingId, {
+          $set: { fraudCheck: { riskLevel, flags, checkedAt: new Date() } },
+        }).catch(() => {});
+      } else if (bookingId) {
+        // Booking Engine (2026-09) : risque faible/moyen → approbation
+        // automatique, remplace le gate admin manuel par défaut (voir
+        // bookingActionService.autoApproveBooking, qui réutilise
+        // adminValidateBooking tel quel).
+        const { autoApproveBooking } = await import("../../services/bookingActionService.js");
+        await autoApproveBooking({ bookingId, riskLevel, flags }).catch((e) =>
+          logger.error("[AiWorker] autoApproveBooking échoué:", { bookingId, error: e.message })
+        );
       }
 
       return { bookingId, riskLevel, flags };

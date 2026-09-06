@@ -290,8 +290,10 @@ export const createDirectPurchase = async (req, res) => {
       });
     }
 
-    const chatId = await createTransactionChat(req.user._id, listing.partner, null);
-
+    // Gate admin obligatoire (audit 2026-08) : le chat client↔partenaire n'est
+    // plus créé ici — un partenaire ne doit rien savoir d'un achat direct tant
+    // qu'un admin ne l'a pas explicitement approuvé (voir
+    // adminValidateDirectPurchase, qui crée ce chat au moment de l'approbation).
     const now = new Date();
     const tx = await IETransaction.create({
       listing: listingId,
@@ -302,7 +304,7 @@ export const createDirectPurchase = async (req, res) => {
       notes:    notes || null,
       status:   "payment_pending",
       directPurchase: true,
-      chat:     chatId,
+      adminValidation: { status: "pending" },
       costEstimate: {
         available: true, breakdown: est.breakdown, totalServices: est.totalServices,
         grandTotal: est.grandTotal, currency: est.currency, computedAt: est.computedAt,
@@ -329,28 +331,101 @@ export const createDirectPurchase = async (req, res) => {
 
     await ImportExportListing.findByIdAndUpdate(listingId, { $inc: { inquiries: 1 } });
 
-    await notify(
-      listing.partner,
-      "ie_reservation",
-      "🛒 Achat direct !",
-      `${req.user.firstName} ${req.user.lastName} a acheté directement votre annonce "${listing.title}" au prix affiché (${est.grandTotal.toLocaleString("fr-FR")} ${est.currency}). En attente de paiement.`,
-      `/importer-dashboard`
+    // Gate admin obligatoire (audit 2026-08) : le partenaire n'est plus notifié
+    // ici — voir adminValidateDirectPurchase pour la notification envoyée à
+    // l'approbation. Seuls les admins sont alertés pour traiter la file.
+    await notifyAdmins(
+      "ie_direct_purchase_pending_review",
+      "🕐 Achat direct à valider",
+      `${req.user.firstName} ${req.user.lastName} — achat direct "${listing.title}" (${est.grandTotal.toLocaleString("fr-FR")} ${est.currency})`,
+      `/admin`
     );
     await notify(
       req.user._id,
       "ie_reservation",
-      "Achat direct confirmé !",
-      `Votre achat pour "${listing.title}" est enregistré. Procédez au paiement (${est.grandTotal.toLocaleString("fr-FR")} ${est.currency}).`,
+      "Achat direct enregistré",
+      `Votre achat pour "${listing.title}" est en cours de vérification par notre équipe. Vous pourrez procéder au paiement dès sa validation.`,
       `/import-export/transaction/${tx._id}`
     );
 
     res.status(201).json({
-      message: "Achat direct enregistré. Procédez au paiement.",
+      message: "Achat direct enregistré. En attente de validation par notre équipe.",
       transaction: tx,
     });
   } catch (err) {
     logger.error("createDirectPurchase:", err);
     captureException(err, { controller: "ieTransactionController.createDirectPurchase" });
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── GET /api/import-export/transactions/admin/pending-validation (admin) ───
+// Gate admin obligatoire (audit 2026-08) — file d'attente des achats directs
+// jamais encore vus par un admin.
+export const getPendingDirectPurchases = async (req, res) => {
+  try {
+    const transactions = await IETransaction.find({ directPurchase: true, "adminValidation.status": "pending" })
+      .populate("listing", "title make model price currency")
+      .populate("client",  "firstName lastName email phone")
+      .populate("partner", "firstName lastName")
+      .sort({ createdAt: 1 })
+      .limit(300)
+      .lean();
+
+    res.json({ transactions });
+  } catch (err) {
+    logger.error("getPendingDirectPurchases:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── PATCH /api/import-export/transactions/:id/admin-validate-direct (admin) ─
+// Approuve/refuse un achat direct — c'est seulement à cette étape que le chat
+// client↔partenaire est créé et que le partenaire est notifié (voir
+// createDirectPurchase, qui ne fait plus ni l'un ni l'autre).
+export const adminValidateDirectPurchase = async (req, res) => {
+  try {
+    const { decision, refusalReason } = req.body;
+    if (!["approved", "rejected"].includes(decision)) {
+      return res.status(400).json({ message: "Décision invalide." });
+    }
+    const tx = await IETransaction.findById(req.params.id).populate("listing", "title");
+    if (!tx) return res.status(404).json({ message: "Transaction introuvable." });
+    if (!tx.directPurchase) return res.status(400).json({ message: "Cette transaction n'est pas un achat direct." });
+    if (tx.adminValidation.status !== "pending") {
+      return res.status(409).json({ message: "Cette demande a déjà été traitée." });
+    }
+
+    tx.adminValidation.status      = decision;
+    tx.adminValidation.validatedBy = req.user._id;
+    tx.adminValidation.validatedAt = new Date();
+
+    if (decision === "rejected") {
+      tx.adminValidation.refusalReason = refusalReason || null;
+      tx.status = "cancelled";
+      pushHistory(tx, "cancelled", req.user._id, refusalReason || "Achat direct refusé lors de la validation initiale.");
+      await tx.save();
+
+      await notify(tx.client, "ie_direct_purchase_rejected", "❌ Achat direct refusé",
+        `Votre achat pour "${tx.listing?.title || ""}" n'a pas pu être validé.${refusalReason ? ` Motif : ${refusalReason}` : ""}`,
+        `/import-export/transaction/${tx._id}`);
+      return res.json({ transaction: tx });
+    }
+
+    const chatId = await createTransactionChat(tx.client, tx.partner, tx._id);
+    tx.chat = chatId;
+    await tx.save();
+
+    await notify(tx.partner, "ie_direct_purchase_approved", "🛒 Achat direct !",
+      `Un client a acheté directement votre annonce "${tx.listing?.title || ""}" au prix affiché. En attente de paiement.`,
+      `/importer-dashboard`);
+    await notify(tx.client, "ie_direct_purchase_approved", "Achat direct validé !",
+      `Votre achat pour "${tx.listing?.title || ""}" est validé — vous pouvez procéder au paiement.`,
+      `/import-export/transaction/${tx._id}`);
+
+    res.json({ transaction: tx });
+  } catch (err) {
+    logger.error("adminValidateDirectPurchase:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -566,6 +641,13 @@ export const payEscrow = async (req, res) => {
       status: "payment_pending",
     });
     if (!tx) return res.status(404).json({ message: "Transaction introuvable ou paiement non attendu." });
+    // Gate admin obligatoire (audit 2026-08) : un achat direct reste à
+    // "payment_pending" dès sa création (voir createDirectPurchase) — c'est ce
+    // contrôle, et non le statut, qui bloque réellement le paiement tant
+    // qu'un admin ne l'a pas approuvé.
+    if (tx.directPurchase && tx.adminValidation?.status !== "approved") {
+      return res.status(409).json({ message: "Cet achat est en attente de validation par notre équipe." });
+    }
 
     const { method, transactionRef, lcReference, installment } = req.body;
     if (!method) return res.status(400).json({ message: "Moyen de paiement requis." });
@@ -1233,9 +1315,16 @@ export const getTransactionById = async (req, res) => {
 
     if (!tx) return res.status(404).json({ message: "Transaction introuvable." });
 
-    const isParticipant = [tx.client._id.toString(), tx.partner._id.toString()].includes(req.user._id.toString());
     const isAdmin       = req.user.role === "admin";
-    if (!isParticipant && !isAdmin) return res.status(403).json({ message: "Accès refusé." });
+    const isPartner     = tx.partner._id.toString() === req.user._id.toString();
+    const isClient      = tx.client._id.toString()  === req.user._id.toString();
+    if (!isClient && !isPartner && !isAdmin) return res.status(403).json({ message: "Accès refusé." });
+    // Gate admin obligatoire (audit 2026-08) : le partenaire ne doit pas voir
+    // un achat direct tant qu'un admin ne l'a pas validé (le client, lui,
+    // garde toujours accès à sa propre demande).
+    if (isPartner && !isAdmin && tx.directPurchase && tx.adminValidation?.status !== "approved") {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
 
     const paymentProfile = await getPartnerPaymentProfile(tx.partner._id);
 
@@ -1311,7 +1400,14 @@ export const getPartnerTransactions = async (req, res) => {
     const { status, page = 1, limit = 20 } = req.query;
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
     const safePage  = Math.max(Number(page), 1);
-    const filter = { partner: req.user._id };
+    // Gate admin obligatoire (audit 2026-08) : un achat direct non encore
+    // approuvé par un admin n'est jamais visible du partenaire — les
+    // transactions négociées classiques (directPurchase: false) ne sont pas
+    // concernées (adminValidation.status y reste "approved" par défaut/migration).
+    const filter = {
+      partner: req.user._id,
+      $or: [{ directPurchase: { $ne: true } }, { "adminValidation.status": "approved" }],
+    };
     if (status) filter.status = status;
 
     const [transactions, total] = await Promise.all([

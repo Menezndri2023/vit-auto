@@ -9,7 +9,10 @@ import { useI18n } from "../context/I18nContext";
 import { useChat } from "../context/ChatContext";
 import { CLIENT_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import VehicleCard from "../components/VehicleCard/VehicleCard";
+import LoyaltyTierBadge from "../components/LoyaltyTierBadge/LoyaltyTierBadge";
 import styles from "./Dashboard.module.css";
+
+const TIER_LABEL = { bronze: "Bronze", argent: "Argent", or: "Or" };
 
 // Cohérent avec FINANCING_DECISION_CFG (AdminPanel.jsx) — la décision admin sur
 // une demande leasing/crédit n'était jusqu'ici visible que via une notification
@@ -93,6 +96,7 @@ const normalizeBooking = (b) => {
     // Partenaire
     partnerPhone:  veh?.contactTel || drv?.phone || null,
     partnerName:   veh?.contactNom || (drv ? `${drv.firstName} ${drv.lastName}` : null),
+    ownerId:       (veh?.owner?._id || veh?.owner)?.toString?.() || (drv?.owner?._id || drv?.owner)?.toString?.() || null,
     country:       veh?.country || drv?.country || null,
     // Contrat
     contract:      b.contract?._id || b.contract,
@@ -308,71 +312,162 @@ function DeliveryTimeline({ booking, onValidate, onDispute, validating }) {
 }
 
 // ── Modal avis ────────────────────────────────────────────────────────────────
+// Flux à 3 étapes : véhicule/chauffeur (historique) → agence (targetType
+// "partner") → expérience VIT AUTO (targetType "platform", avec un Oui/Non
+// explicite sur le déroulement de la transaction). Chaque étape est un
+// POST /api/reviews indépendant — voir reviewController.createReview, qui
+// dispatch déjà par targetType — soumis dans l'ordre au clic final, en ne
+// renvoyant jamais une étape déjà acceptée (retry-safe si une étape échoue).
 function ReviewModal({ booking, token, onClose, onSuccess }) {
-  const [note, setNote] = useState(5);
-  const [commentaire, setCommentaire] = useState("");
+  const isDriverBooking = !booking.vehicleId && !!booking.driverId;
+  const primaryTargetType = isDriverBooking ? "driver" : "vehicle";
+  const primaryTargetId   = isDriverBooking ? booking.driverId : booking.vehicleId;
+
+  const STEPS = [
+    {
+      key: "primary",
+      targetType: primaryTargetType,
+      targetId: primaryTargetId,
+      title: "Laisser un avis",
+      subtitle: booking.vehicleName,
+      placeholder: isDriverBooking ? "Partagez votre expérience avec ce chauffeur..." : "Partagez votre expérience avec ce véhicule...",
+      requireComment: true,
+    },
+    {
+      key: "partner",
+      targetType: "partner",
+      targetId: booking.ownerId || null,
+      title: "Notez l'agence",
+      subtitle: "Accueil, ponctualité, état du véhicule remis, service rendu.",
+      placeholder: "Partagez votre expérience avec l'agence (optionnel)...",
+      requireComment: false,
+    },
+    {
+      key: "platform",
+      targetType: "platform",
+      targetId: booking.id,
+      title: "Votre expérience VIT AUTO",
+      subtitle: "Facilité de réservation, paiement, communication.",
+      placeholder: "Dites-nous comment améliorer VIT AUTO (optionnel)...",
+      requireComment: false,
+      askWentWell: true,
+    },
+  ];
+
+  const [stepIndex, setStepIndex] = useState(0);
+  const [answers, setAnswers] = useState({
+    primary:  { note: 5, commentaire: "" },
+    partner:  { note: 5, commentaire: "" },
+    platform: { note: 5, commentaire: "", wentWell: null },
+  });
+  const [submitted, setSubmitted] = useState({ primary: false, partner: false, platform: false });
   const [loading, setLoading] = useState(false);
   const { error: toastErr } = useToast();
 
-  // Réservation chauffeur (booking.driverId) vs véhicule — targetType/targetId
-  // doivent correspondre à la ressource réellement réservée (voir reviewController.
-  // createReview, qui accepte déjà pleinement targetType "driver" côté backend ;
-  // ce composant l'envoyait jusqu'ici toujours en dur en "vehicle", ce qui
-  // empêchait silencieusement tout avis sur une mission chauffeur terminée).
-  const isDriverBooking = !booking.vehicleId && !!booking.driverId;
-  const targetType = isDriverBooking ? "driver" : "vehicle";
-  const targetId   = isDriverBooking ? booking.driverId : booking.vehicleId;
+  const step = STEPS[stepIndex];
+  const current = answers[step.key];
+  const setCurrent = (patch) => setAnswers((a) => ({ ...a, [step.key]: { ...a[step.key], ...patch } }));
 
-  const submit = async () => {
-    if (!token || !targetId) return;
-    setLoading(true);
+  const canGoNext = !step.requireComment || current.commentaire.trim();
+
+  const submitStep = async (s) => {
+    if (submitted[s.key] || !s.targetId) return true; // rien à faire (déjà envoyé, ou pas de cible — ex. pas de partenaire résolu)
+    const a = answers[s.key];
     try {
       const res = await fetch("/api/reviews", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           bookingId: booking.id,
-          targetType,
-          targetId,
-          note,
-          commentaire,
+          targetType: s.targetType,
+          targetId: s.targetId,
+          note: a.note,
+          commentaire: a.commentaire,
+          ...(s.askWentWell ? { wentWell: a.wentWell } : {}),
         }),
       });
-      if (res.ok) { onSuccess(); onClose(); }
-      else {
-        const data = await res.json().catch(() => ({}));
-        toastErr(data.message || "Impossible d'envoyer l'avis.");
-      }
-    } catch { toastErr("Erreur réseau, réessayez."); }
-    finally { setLoading(false); }
+      if (res.ok) { setSubmitted((sub) => ({ ...sub, [s.key]: true })); return true; }
+      const data = await res.json().catch(() => ({}));
+      toastErr(data.message || "Impossible d'envoyer l'avis.");
+      return false;
+    } catch { toastErr("Erreur réseau, réessayez."); return false; }
   };
+
+  const publish = async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      for (const s of STEPS) {
+        // eslint-disable-next-line no-await-in-loop
+        const ok = await submitStep(s);
+        if (!ok) { setLoading(false); return; }
+      }
+      onSuccess(); onClose();
+    } finally { setLoading(false); }
+  };
+
+  const isLastStep = stepIndex === STEPS.length - 1;
 
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.reviewModal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.reviewHeader}>
-          <h3>Laisser un avis</h3>
+          <h3>{step.title}</h3>
           <button className={styles.closeBtn} onClick={onClose}>✕</button>
         </div>
-        <p className={styles.reviewVehicle}>{booking.vehicleName}</p>
+        <p className={styles.reviewVehicle}>{step.subtitle}</p>
+        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          {STEPS.map((s, i) => (
+            <div key={s.key} style={{ height: 4, flex: 1, borderRadius: 2, background: i <= stepIndex ? "#f59e0b" : "#e5e7eb" }} />
+          ))}
+        </div>
         <div className={styles.starRow}>
           {[1,2,3,4,5].map((s) => (
-            <button key={s} className={`${styles.star} ${s <= note ? styles.starOn : ""}`} onClick={() => setNote(s)}>★</button>
+            <button key={s} className={`${styles.star} ${s <= current.note ? styles.starOn : ""}`} onClick={() => setCurrent({ note: s })}>★</button>
           ))}
-          <span className={styles.noteLabel}>{note}/5</span>
+          <span className={styles.noteLabel}>{current.note}/5</span>
         </div>
+        {step.askWentWell && (
+          <div style={{ margin: "10px 0" }}>
+            <p style={{ fontSize: "0.9rem", fontWeight: 600, margin: "0 0 6px" }}>La transaction s'est-elle bien déroulée ?</p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setCurrent({ wentWell: true })}
+                className={styles.btnGhost}
+                style={current.wentWell === true ? { background: "#10b981", color: "#fff", borderColor: "#10b981" } : undefined}
+              >👍 Oui</button>
+              <button
+                type="button"
+                onClick={() => setCurrent({ wentWell: false })}
+                className={styles.btnGhost}
+                style={current.wentWell === false ? { background: "#dc2626", color: "#fff", borderColor: "#dc2626" } : undefined}
+              >👎 Non</button>
+            </div>
+          </div>
+        )}
         <textarea
           className={styles.reviewTextarea}
           rows={4}
-          placeholder={isDriverBooking ? "Partagez votre expérience avec ce chauffeur..." : "Partagez votre expérience avec ce véhicule..."}
-          value={commentaire}
-          onChange={(e) => setCommentaire(e.target.value)}
+          placeholder={step.placeholder}
+          value={current.commentaire}
+          onChange={(e) => setCurrent({ commentaire: e.target.value })}
         />
         <div className={styles.reviewActions}>
-          <button className={styles.btnSubmitReview} onClick={submit} disabled={loading || !commentaire.trim()}>
-            {loading ? "Envoi..." : "Publier l'avis"}
-          </button>
-          <button className={styles.btnGhost} onClick={onClose}>Annuler</button>
+          {!isLastStep && (
+            <button className={styles.btnSubmitReview} onClick={() => setStepIndex((i) => i + 1)} disabled={!canGoNext}>
+              Suivant
+            </button>
+          )}
+          {isLastStep && (
+            <button className={styles.btnSubmitReview} onClick={publish} disabled={loading || !canGoNext}>
+              {loading ? "Envoi..." : "Publier"}
+            </button>
+          )}
+          {stepIndex > 0 && (
+            <button className={styles.btnGhost} onClick={() => setStepIndex((i) => i - 1)} disabled={loading}>Précédent</button>
+          )}
+          <button className={styles.btnGhost} onClick={onClose} disabled={loading}>Annuler</button>
         </div>
       </div>
     </div>
@@ -691,13 +786,15 @@ const Dashboard = () => {
           <p className={styles.welcome}>
             {t("dash.welcome")} <strong>{user?.firstName || user?.name || user?.email}</strong>
           </p>
-          {/* Fidélité — n'existait pas du tout jusqu'ici. 1 point = 1 USD dépensé
-              sur une commande terminée, 100 points = 1 USD de remise sur une
-              location (voir Booking.jsx, étape confirmation). */}
+          {/* Fidélité à paliers (Bronze/Argent/Or) — voir /loyalty pour le détail
+              (historique, progression, avantages par palier). */}
           {user?.loyaltyPoints > 0 && (
-            <p style={{ margin: "4px 0 0", fontSize: ".85rem", fontWeight: 700, color: "#d97706" }}>
-              🎁 {user.loyaltyPoints} points de fidélité (≈ {fmt(user.loyaltyPoints / 100)} de remise disponible)
-            </p>
+            <Link to="/loyalty" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 6, textDecoration: "none" }}>
+              <LoyaltyTierBadge tierKey={user.loyaltyTier || "bronze"} label={TIER_LABEL[user.loyaltyTier] || "Bronze"} />
+              <span style={{ fontSize: ".85rem", fontWeight: 700, color: "#d97706" }}>
+                🎁 {user.loyaltyPoints} points (≈ {fmt(user.loyaltyPoints / 100)} de remise) →
+              </span>
+            </Link>
           )}
         </div>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>

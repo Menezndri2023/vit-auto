@@ -13,6 +13,7 @@ import { initSentry, sentryRequestHandler, sentryTracingHandler, sentryErrorHand
 import { initQueues, isReady as isQueuesReady, getQueueStats } from "./queue/index.js";
 import { startPartnerReminderScheduler } from "./utils/partnerReminders.js";
 import { startBookingReminderScheduler } from "./utils/bookingReminders.js";
+import { startPartnerResponseScheduler } from "./utils/partnerResponseReminders.js";
 import { startAccountHealthScheduler } from "./utils/accountHealthCheck.js";
 
 import authRoutes          from "./routes/auth.js";
@@ -701,6 +702,10 @@ const startServer = async () => {
     // ── Rappel automatique avant prise en charge (location) ──────────────
     // En mémoire (pas de job Redis) — voir utils/bookingReminders.js.
     startBookingReminderScheduler();
+
+    // ── Délai de réponse partenaire — Booking Engine (2026-09) ───────────
+    // En mémoire (pas de job Redis) — voir utils/partnerResponseReminders.js.
+    startPartnerResponseScheduler();
 
     // ── Relance automatique des profils/comptes incomplets (tous rôles) ──
     startAccountHealthScheduler();

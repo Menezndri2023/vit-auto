@@ -218,6 +218,19 @@
 .gpsBtn:hover:not(:disabled) { background: #1a2d5a; }
 .gpsBtnOk { background: #10b981; }
 
+.deliveryModeRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.deliveryFieldsRow {
+  display: flex;
+  gap: 10px;
+}
+
+.deliveryFieldsRow .input { flex: 1; }
+
 .deliveryFeeBox {
   background: #f8fafc;
   border: 1px solid #e2e8f0;

@@ -23,6 +23,16 @@ import { notifyAdmins } from "../utils/notifyAdmins.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+// Retire le contact direct de l'annonceur (Vehicle.contactTel, saisi par le
+// partenaire à la publication) des réponses publiques — même politique que le
+// téléphone du compte partenaire (owner.phone) : aucun canal de contact
+// direct partenaire ne doit être exposé au client, l'appel passe par le
+// service client centralisé (voir src/utils/customerServiceContact.js).
+function hidePartnerDirectContact(vehicle) {
+  if (vehicle && typeof vehicle === "object") delete vehicle.contactTel;
+  return vehicle;
+}
+
 const MAX_VEHICLE_IMAGE_BYTES = 6 * 1024 * 1024; // cohérent avec KYC/profil
 const MAX_IMAGE_URL_LENGTH    = 2048;
 
@@ -378,29 +388,29 @@ export const getVehicles = async (req, res) => {
       const ownerIds = [...new Set(vehicles.map((v) => v.owner?.toString()).filter(Boolean))];
       const businessIds = [...new Set(vehicles.map((v) => v.business?.toString()).filter(Boolean))];
       const [owners, businesses] = await Promise.all([
-        User.find({ _id: { $in: ownerIds } }).select("firstName phone ville certificationBadge").lean(),
+        User.find({ _id: { $in: ownerIds } }).select("firstName ville certificationBadge").lean(),
         businessIds.length ? PartnerBusinessModel.find({ _id: { $in: businessIds } }).select("companyName isConcessionnaire").lean() : [],
       ]);
       const ownerMap = Object.fromEntries(owners.map((o) => [o._id.toString(), o]));
       const businessMap = Object.fromEntries(businesses.map((b) => [b._id.toString(), b]));
-      vehicles = vehicles.map((v) => limitVehicleImages({
+      vehicles = vehicles.map((v) => hidePartnerDirectContact(limitVehicleImages({
         ...v,
         owner: ownerMap[v.owner?.toString()] || v.owner,
         business: businessMap[v.business?.toString()] || v.business,
         distanceKm: Math.round(v.distanceKm * 10) / 10,
-      }));
+      })));
     } else {
       [vehicles, total] = await Promise.all([
         Vehicle.find(filter)
           .sort({ createdAt: -1 })
           .skip(skip)
           .limit(safeLimit)
-          .populate("owner", "firstName phone ville certificationBadge")
+          .populate("owner", "firstName ville certificationBadge")
           .populate("business", "companyName isConcessionnaire")
           .lean(),
         Vehicle.countDocuments(filter),
       ]);
-      vehicles = vehicles.map((v) => limitVehicleImages(v));
+      vehicles = vehicles.map((v) => hidePartnerDirectContact(limitVehicleImages(v)));
     }
 
     const payload = { vehicles, total, page: Number(page), pages: Math.ceil(total / safeLimit) };
@@ -421,7 +431,7 @@ export const getVehicleById = async (req, res) => {
     }
     const ownerFields = req.user?.role === "admin"
       ? "firstName lastName email phone profilePhoto role isActive kycStatus certificationBadge createdAt ville"
-      : "firstName lastName phone ville certificationBadge";
+      : "firstName lastName country ville certificationBadge";
     const vehicle = await Vehicle.findById(id)
       .populate("owner", ownerFields)
       .populate("business", "companyName isConcessionnaire")
@@ -431,6 +441,8 @@ export const getVehicleById = async (req, res) => {
     if (vehicle.status !== "approved" && req.user?.role !== "admin" && vehicle.owner?._id?.toString() !== req.user?._id?.toString()) {
       return res.status(404).json({ message: "Véhicule introuvable." });
     }
+    const isOwnerViewing = vehicle.owner?._id?.toString() === req.user?._id?.toString();
+    if (req.user?.role !== "admin" && !isOwnerViewing) hidePartnerDirectContact(vehicle);
     res.json({ vehicle });
   } catch (err) {
     logger.error("getVehicleById:", err);
@@ -847,6 +859,65 @@ export const updatePromotion = async (req, res) => {
   } catch (err) {
     logger.error("updatePromotion:", err);
     res.status(500).json({ message: "Erreur mise à jour de la promotion." });
+  }
+};
+
+// ── Tarification saisonnière (Vehicle.seasonalRates) ──────────────────────────
+// Endpoint dédié, même principe que updatePromotion ci-dessus : remplace
+// l'ensemble des règles à chaque appel, jamais mêlé à updateVehicle (une
+// règle saisonnière ne doit jamais déclencher une re-modération de l'annonce).
+// Accessible au propriétaire ET à l'admin (demande explicite : le partenaire
+// doit pouvoir ajuster ses propres saisons, mais l'admin doit pouvoir
+// intervenir aussi — ex. correction en masse pour plusieurs partenaires).
+const MAX_SEASONAL_RULES = 12;
+
+export const updateSeasonalRates = async (req, res) => {
+  try {
+    const vehicle = await Vehicle.findById(req.params.id);
+    if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable." });
+
+    const isOwner = vehicle.owner.toString() === req.user._id.toString();
+    if (req.user.role !== "admin" && !isOwner) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+
+    const rawRules = Array.isArray(req.body.rules) ? req.body.rules : [];
+    if (rawRules.length > MAX_SEASONAL_RULES) {
+      return res.status(400).json({ message: `Maximum ${MAX_SEASONAL_RULES} périodes saisonnières par véhicule.` });
+    }
+
+    const rules = [];
+    for (const [i, r] of rawRules.entries()) {
+      const startMonth = Math.round(Number(r.startMonth));
+      const startDay   = Math.round(Number(r.startDay));
+      const endMonth   = Math.round(Number(r.endMonth));
+      const endDay     = Math.round(Number(r.endDay));
+      for (const [label, m, d] of [["début", startMonth, startDay], ["fin", endMonth, endDay]]) {
+        if (!Number.isFinite(m) || m < 1 || m > 12 || !Number.isFinite(d) || d < 1 || d > 31) {
+          return res.status(400).json({ message: `Période ${i + 1} : date de ${label} invalide.` });
+        }
+      }
+      const pricePerDay = Number(r.pricePerDay);
+      if (!Number.isFinite(pricePerDay) || pricePerDay <= 0) {
+        return res.status(400).json({ message: `Période ${i + 1} : prix/jour invalide.` });
+      }
+      rules.push({
+        label: (r.label || "").slice(0, 60),
+        startMonth, startDay, endMonth, endDay,
+        pricePerDay,
+        pricePerDayEntered: r.pricePerDayEntered != null ? Number(r.pricePerDayEntered) : null,
+        priceEntryCurrency: r.priceEntryCurrency || null,
+        active: r.active !== false,
+      });
+    }
+
+    vehicle.seasonalRates = rules;
+    await vehicle.save();
+
+    res.json({ vehicle });
+  } catch (err) {
+    logger.error("updateSeasonalRates:", err);
+    res.status(500).json({ message: "Erreur mise à jour de la tarification saisonnière." });
   }
 };
 

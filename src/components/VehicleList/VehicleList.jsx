@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import VehicleCard from "../VehicleCard/VehicleCard";
 import { useVehicles } from "../../context/VehicleContext";
@@ -19,6 +19,7 @@ const VehicleList = () => {
 
   const [start, setStart]       = useState(0);
   const [animDir, setAnimDir]   = useState(""); // "left" | "right"
+  const intervalRef = useRef(null);
 
   const maxStart = Math.max(0, total - VISIBLE);
 
@@ -34,11 +35,18 @@ const VehicleList = () => {
     setTimeout(() => setAnimDir(""), 400);
   }, [maxStart]);
 
-  // Auto-défilement toutes les 3 secondes
+  // Auto-défilement toutes les 9 secondes, décalé au démarrage pour ne
+  // jamais tourner en même temps que le carrousel Hero (25s)
   useEffect(() => {
     if (total <= VISIBLE) return;
-    const timer = setInterval(goNext, 3000);
-    return () => clearInterval(timer);
+    const start = setTimeout(() => {
+      const timer = setInterval(goNext, 9000);
+      intervalRef.current = timer;
+    }, 4000);
+    return () => {
+      clearTimeout(start);
+      clearInterval(intervalRef.current);
+    };
   }, [goNext, total]);
 
   const visible = featured.slice(start, start + VISIBLE);

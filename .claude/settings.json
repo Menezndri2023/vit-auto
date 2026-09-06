@@ -4,5 +4,27 @@
       "Bash(npm install:*)",
       "Bash(npx tsc *)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/mac/.local/share/uv/tools/graphifyy/bin/graphify hook-guard search"
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/mac/.local/share/uv/tools/graphifyy/bin/graphify hook-guard read"
+          }
+        ]
+      }
+    ]
   }
 }

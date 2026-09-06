@@ -113,6 +113,19 @@ const vehicleSchema = new mongoose.Schema({
   ageMin:               { type: Number, default: 21 },
   permisRequis:         { type: Boolean, default: true },
   assuranceOptionnelle: { type: Boolean, default: true },
+  // Niveau de vérification client minimum exigé pour réserver CE véhicule
+  // (Booking Engine, 2026-09) — "ACCOUNT_VERIFIED" (téléphone/email vérifié,
+  // Niveau 1) s'applique déjà à toute réservation quel que soit ce champ ;
+  // "IDENTITY_VERIFIED" ajoute l'exigence User.kycStatus==="VERIFIE"
+  // (Niveau 2) ; "RENTAL_VERIFIED" (Niveau 3, ajouté en Phase 3) ajoute en
+  // plus un permis de conduire vérifié (User.driverLicenseOcr, non expiré) —
+  // voir server/services/eligibilityEngine.js pour le calcul complet
+  // (combine aussi PartnerBusiness.rentalPolicy et l'âge du client).
+  requiredVerificationLevel: {
+    type: String,
+    enum: ["ACCOUNT_VERIFIED", "IDENTITY_VERIFIED", "RENTAL_VERIFIED"],
+    default: "ACCOUNT_VERIFIED",
+  },
   // Réservation instantanée (location uniquement) — la demande passe
   // directement à "confirmed" au lieu de "pending", sans attendre l'action
   // manuelle du partenaire. N'existait pas du tout jusqu'ici (aucune
@@ -254,6 +267,39 @@ const vehicleSchema = new mongoose.Schema({
       active:    { type: Boolean, default: true },
       startDate: { type: Date, default: null },
       endDate:   { type: Date, default: null },
+    }],
+    default: [],
+  },
+
+  // ── Tarification saisonnière (paliers configurables par période de l'année) ──
+  // Remplace le tarif unique `pricePerDay` par des périodes récurrentes chaque
+  // année (mois/jour, sans année — ex. "haute saison" du 15/06 au 05/09) où un
+  // tarif différent s'applique. Contrairement à `promotions` (toujours une
+  // REMISE sur le prix), une règle ici est un prix/jour de REMPLACEMENT complet
+  // (généralement plus élevé) — voir server/utils/seasonalPricing.js pour le
+  // calcul (tarif appliqué jour par jour sur la durée réservée, ce qui gère
+  // correctement un séjour à cheval entre deux saisons). Éditable via son
+  // propre endpoint PATCH /:id/seasonal-rates (owner ou admin — même pattern
+  // que promotions/updatePromotion ci-dessous), jamais mêlé à
+  // création/modification générale de l'annonce.
+  seasonalRates: {
+    type: [{
+      label: { type: String, trim: true, default: "" },
+      // Mois/jour de début et fin (1-12 / 1-31), sans année : la période se
+      // répète automatiquement chaque année sans ressaisie. Un intervalle où
+      // la fin est "avant" le début dans l'année (ex. 01/12 → 28/02) est
+      // traité comme à cheval sur le nouvel an (voir isDateInSeasonalRange).
+      startMonth: { type: Number, required: true, min: 1, max: 12 },
+      startDay:   { type: Number, required: true, min: 1, max: 31 },
+      endMonth:   { type: Number, required: true, min: 1, max: 12 },
+      endDay:     { type: Number, required: true, min: 1, max: 31 },
+      // Prix/jour de remplacement pour cette période — toujours en USD comme
+      // pricePerDay (voir pricePerDayEntered/priceEntryCurrency plus haut pour
+      // le même principe de conservation du montant exact saisi).
+      pricePerDay:         { type: Number, required: true, min: 0 },
+      pricePerDayEntered:  { type: Number, default: null },
+      priceEntryCurrency:  { type: String, default: null },
+      active: { type: Boolean, default: true },
     }],
     default: [],
   },

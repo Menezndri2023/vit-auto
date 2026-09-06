@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import VehicleCard from "../components/VehicleCard/VehicleCard";
 import ReportButton from "../components/ReportButton/ReportButton";
+import { getCustomerServiceContact } from "../utils/customerServiceContact";
 import styles from "./PartnerProfile.module.css";
 
 const CERT_BADGE = {
@@ -105,9 +106,12 @@ export default function PartnerProfile() {
           {partner?.business?.companyName && partner?.firstName && (
             <p className={styles.contact}>👤 {partner.firstName} {partner.lastName}</p>
           )}
-          {partner?.phone && (
-            <a href={`tel:${partner.phone}`} className={styles.phoneLink}>
-              📞 {partner.phone}
+          {/* Aucun contact direct partenaire n'est plus jamais exposé (audit
+              2026-08) — l'appel passe uniquement par le service client VIT AUTO
+              dédié au pays du partenaire. */}
+          {partner && (
+            <a href={`tel:${getCustomerServiceContact(partner.country).tel}`} className={styles.phoneLink}>
+              📞 Appeler le service client VIT AUTO
             </a>
           )}
           <div style={{ marginTop: 10 }}>

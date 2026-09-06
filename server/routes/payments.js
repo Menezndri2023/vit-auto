@@ -1,7 +1,7 @@
 import express from "express";
 import { rateLimit } from "express-rate-limit";
 import * as paymentController from "../controllers/paymentController.js";
-import { authenticate, optionalAuth } from "../middleware/auth.js";
+import { authenticate, optionalAuth, authorizeAdmin } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 
 const router = express.Router();
@@ -26,6 +26,9 @@ router.get("/booking/:bookingId",         validateObjectId("bookingId"), authent
 router.post("/initiate",                  optionalAuth, paymentController.initiatePayment);
 router.get("/:id/status",                 vid, optionalAuth, paymentController.getPaymentStatus);
 router.post("/:id/simulate",              vid, optionalAuth, simulateLimiter, paymentController.simulatePayment);
+// Booking Engine — Remboursements (2026-09) : filet admin pour les cas restés
+// manuels (Orange Money, espèces...) — voir server/services/payment/refundService.js.
+router.post("/:id/refund",                vid, authenticate, authorizeAdmin, paymentController.refundPaymentAdmin);
 
 // Orange Money ne nécessite pas le corps brut (pas de vérification HMAC) —
 // passe par le parsing JSON normal. Stripe et Wave, eux, ont besoin du corps

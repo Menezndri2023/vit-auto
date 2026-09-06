@@ -23,6 +23,7 @@ import { welcomePartnerTemplate, loiReadyTemplate, agreementReadyTemplate, docum
 import { loiSignedTemplate, agreementSignedTemplate } from "./templates/email/LOI.js";
 import { contractReadyTemplate, contractSignedTemplate } from "./templates/email/Contract.js";
 import { kycSubmittedTemplate, kycApprovedTemplate, kycRejectedTemplate } from "./templates/email/KYC.js";
+import { genericNotificationTemplate } from "./templates/email/GenericNotification.js";
 
 const EMAIL_TEMPLATES = {
   email_verification:      emailVerificationTemplate,
@@ -47,6 +48,7 @@ const EMAIL_TEMPLATES = {
   kyc_submitted:           kycSubmittedTemplate,
   kyc_approved:            kycApprovedTemplate,
   kyc_rejected:            kycRejectedTemplate,
+  generic_notification:    genericNotificationTemplate,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -161,15 +163,15 @@ export async function sendViaPush({ to, title, body, data, imageUrl, userId, con
 // ─────────────────────────────────────────────────────────────────────────────
 // sendViaInternal — notification Socket.io + MongoDB
 // ─────────────────────────────────────────────────────────────────────────────
-export async function sendViaInternal({ userId, type, titre, message, lien, priority, metadata }) {
-  return sendInternal({ userId, type, titre, message, lien, priority, metadata });
+export async function sendViaInternal({ userId, type, titre, message, lien, priority, metadata, skipEmail }) {
+  return sendInternal({ userId, type, titre, message, lien, priority, metadata, skipEmail });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // broadcast — envoyer à tous les utilisateurs d'un rôle
 // ─────────────────────────────────────────────────────────────────────────────
-export async function broadcast({ role, type, titre, message, lien }) {
-  return sendInternalBroadcast({ role, type, titre, message, lien });
+export async function broadcast({ role, type, titre, message, lien, skipEmail }) {
+  return sendInternalBroadcast({ role, type, titre, message, lien, skipEmail });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

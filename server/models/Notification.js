@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { notifyAdminByEmail, notifyAdminsByEmailBulk } from "../utils/adminAlertEmail.js";
+import logger from "../utils/logger.js";
 
 const notificationSchema = new mongoose.Schema({
   // ── Destinataire ──────────────────────────────────────────
@@ -18,6 +19,9 @@ const notificationSchema = new mongoose.Schema({
       "booking_cancelled",
       "booking_completed",
       "new_booking",
+      "booking_pending_review",
+      "booking_admin_approved",
+      "booking_admin_rejected",
       // Annonces
       "listing_approved",
       "listing_rejected",
@@ -52,6 +56,9 @@ const notificationSchema = new mongoose.Schema({
       "ie_payment",
       "ie_delivery",
       "ie_dispute",
+      "ie_direct_purchase_pending_review",
+      "ie_direct_purchase_approved",
+      "ie_direct_purchase_rejected",
       // Avis
       "new_review",
       // Chat
@@ -59,6 +66,8 @@ const notificationSchema = new mongoose.Schema({
       // Drivers
       "driver_assigned",
       "driver_completed",
+      // Fidélité
+      "loyalty_tier_up",
       // Système
       "system",
       "info",
@@ -92,6 +101,12 @@ const notificationSchema = new mongoose.Schema({
   lu:    { type: Boolean, default: false },
   luAt:  { type: Date, default: null },
 
+  // Filet email (Booking Engine, 2026-09) — voir le hook post("save")
+  // ci-dessous. `true` uniquement pour les quelques événements qui envoient
+  // déjà un email dédié au même destinataire pour le même événement (évite un
+  // doublon) — voir queue/index.js (bookingCreated, bookingStatusChanged).
+  skipEmail: { type: Boolean, default: false },
+
   createdAt: { type: Date, default: Date.now },
 });
 
@@ -106,6 +121,35 @@ notificationSchema.index({ createdAt: -1 });
 // hooks "save" par défaut dans Mongoose, d'où le second hook dédié ci-dessous.
 notificationSchema.post("save", function (doc) {
   notifyAdminByEmail(doc).catch(() => {});
+});
+
+// ── Filet email pour toute notification (push/in-app) ────────────────────────
+// Tant que le canal push (FCM) n'est pas garanti fiable en production, toute
+// notification qui passerait par lui doit aussi atteindre l'utilisateur par
+// email — voir services/communication/templates/email/GenericNotification.js.
+// Centralisé ici pour couvrir d'un coup les ~20 contrôleurs qui créent une
+// Notification directement (Notification.create), sans qu'aucun d'eux n'ait
+// à changer. `insertMany()` (utilisé par sendInternalBroadcast) ne déclenche
+// pas ce hook — voir la logique équivalente ajoutée explicitement là-bas.
+notificationSchema.post("save", async function (doc) {
+  if (doc.skipEmail) return;
+  try {
+    const User = mongoose.model("User");
+    const recipient = await User.findById(doc.user).select("email firstName").lean();
+    if (!recipient?.email) return;
+    const { enqueue } = await import("../queue/index.js");
+    const { QUEUE_NAMES } = await import("../queue/definitions.js");
+    await enqueue(QUEUE_NAMES.EMAIL, "generic_notification_email", {
+      type:   "generic_notification",
+      to:     recipient.email,
+      userId: doc.user.toString(),
+      data:   { firstName: recipient.firstName, titre: doc.titre, message: doc.message, lien: doc.lien },
+    });
+  } catch (err) {
+    // Non-bloquant : ne doit jamais faire échouer la création de la
+    // notification elle-même ni l'action métier qui l'a déclenchée.
+    logger.warn("[Notification] Filet email non envoyé (non bloquant) :", err?.message);
+  }
 });
 notificationSchema.post("insertMany", function (docs) {
   notifyAdminsByEmailBulk(docs).catch(() => {});

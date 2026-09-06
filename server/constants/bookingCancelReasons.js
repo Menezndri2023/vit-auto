@@ -19,6 +19,10 @@ export const PARTNER_CANCEL_REASONS = [
   ["document_client_invalide",   "Documents du client invalides ou manquants"],
   ["erreur_annonce",             "Erreur dans l'annonce (prix, disponibilité)"],
   ["doute_fiabilite",            "Doute sur la fiabilité de la réservation"],
+  // Annulation SYSTÈME (Booking Engine, 2026-09) — jamais choisie par un
+  // partenaire depuis un formulaire, écrite directement par
+  // partnerResponseReminders.js à l'expiration du délai de réponse.
+  ["partner_no_response",        "Le partenaire n'a pas répondu à temps"],
   ["autre",                      "Autre raison"],
 ];
 

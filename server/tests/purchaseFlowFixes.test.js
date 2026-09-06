@@ -13,9 +13,15 @@ const clientInfo = { firstName: "Jean", lastName: "Client", email: "jean.client@
 // 3. décision financement (admin) n'empêchait jamais la progression du booking
 // 4. essai acceptable sur un véhicule qui n'est pas à vendre
 describe("Corrections flux essai/achat (audit)", () => {
+  // Booking Engine (2026-09) : createBooking exige désormais un client
+  // authentifié et vérifié (Niveau 1) — voir bookingController.createBooking.
+  const verifiedClient = () => createUser({ role: "client", emailVerified: true });
+
   it("refuse un essai sur un véhicule qui n'est pas à vendre (type location)", async () => {
+    const client = await verifiedClient();
     const vehicle = await createVehicleDoc({ type: "location" });
     const { req, res } = mockReqRes({
+      user: client,
       body: { type: "essai", clientInfo, vehicleId: vehicle._id.toString(), essai: { preferredDate: new Date(Date.now() + 7 * 86400000).toISOString() } },
     });
     await createBooking(req, res);
@@ -23,8 +29,10 @@ describe("Corrections flux essai/achat (audit)", () => {
   });
 
   it("refuse une demande de leasing si le véhicule n'a pas activé le leasing", async () => {
+    const client = await verifiedClient();
     const vehicle = await createVehicleDoc({ type: "vente", leasing: { disponible: false } });
     const { req, res } = mockReqRes({
+      user: client,
       body: { type: "leasing", clientInfo, vehicleId: vehicle._id.toString(), leasing: { financingType: "leasing", apportInitial: 5000 } },
     });
     await createBooking(req, res);
@@ -32,8 +40,10 @@ describe("Corrections flux essai/achat (audit)", () => {
   });
 
   it("refuse une demande de crédit si le véhicule n'a pas activé le crédit", async () => {
+    const client = await verifiedClient();
     const vehicle = await createVehicleDoc({ type: "vente", credit: { disponible: false } });
     const { req, res } = mockReqRes({
+      user: client,
       body: { type: "leasing", clientInfo, vehicleId: vehicle._id.toString(), leasing: { financingType: "credit", apportInitial: 5000 } },
     });
     await createBooking(req, res);
@@ -41,8 +51,10 @@ describe("Corrections flux essai/achat (audit)", () => {
   });
 
   it("accepte une demande de leasing quand le véhicule l'a activé", async () => {
+    const client = await verifiedClient();
     const vehicle = await createVehicleDoc({ type: "vente", leasing: { disponible: true, apportInitial: 3000, mensualite: 400, duree: 36, tauxInteret: 8 } });
     const { req, res } = mockReqRes({
+      user: client,
       body: { type: "leasing", clientInfo, vehicleId: vehicle._id.toString(), leasing: { financingType: "leasing", apportInitial: 5000 } },
     });
     await createBooking(req, res);
@@ -54,6 +66,9 @@ describe("Corrections flux essai/achat (audit)", () => {
     const vehicle = await createVehicleDoc({ owner: owner._id, type: "vente", leasing: { disponible: true } });
     const booking = await Booking.create({
       type: "leasing", status: "pending", vehicle: vehicle._id,
+      // Gate admin obligatoire (audit 2026-08) : ce test vérifie le blocage
+      // par financement non accepté, pas la validation admin — déjà approuvée.
+      adminValidation: { status: "approved" },
       clientInfo, leasing: { financingType: "leasing", decision: "en_etude" },
     });
 
@@ -67,6 +82,7 @@ describe("Corrections flux essai/achat (audit)", () => {
     const vehicle = await createVehicleDoc({ owner: owner._id, type: "vente", leasing: { disponible: true } });
     const booking = await Booking.create({
       type: "leasing", status: "pending", vehicle: vehicle._id,
+      adminValidation: { status: "approved" },
       clientInfo, leasing: { financingType: "leasing", decision: "accepte" },
     });
 

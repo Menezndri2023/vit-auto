@@ -33,6 +33,7 @@ router.patch("/:id/status",   vid, authenticate, authorizeAdmin, v.updateVehicle
 router.patch("/:id/transfer", vid, authenticate, authorizeAdmin, v.transferVehicle);       // réassigner compte/entreprise/pays/ville (admin)
 router.patch("/:id/lifecycle",vid, authenticate, v.updateVehicleLifecycle);               // brouillon/vendu/archivé (partenaire)
 router.patch("/:id/promotion",vid, authenticate, v.updatePromotion);                      // activer/désactiver une promotion
+router.patch("/:id/seasonal-rates", vid, authenticate, v.updateSeasonalRates);            // tarifs saisonniers (haute/basse saison)
 router.post("/:id/convert-to-export", vid, authenticate, v.convertVehicleToExport);       // transforme en annonce Import/Export
 router.post("/:id/generate-description", vid, authenticate, v.generateDescription);       // description automatique (propriétaire/admin)
 router.get("/:id/maintenance",              vid, authenticate, v.getMaintenanceLogs);     // journal entretien/incident/dommage

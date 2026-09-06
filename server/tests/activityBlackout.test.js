@@ -57,7 +57,9 @@ describe("activityController — congés bloqués", () => {
     activity.blackoutDates.push({ start: new Date("2027-02-10"), end: new Date("2027-02-15"), reason: "Maintenance" });
     await activity.save();
 
+    const client = await createUser({ role: "client", emailVerified: true });
     const { req, res } = mockReqRes({
+      user: client,
       body: {
         type: "activite", clientInfo, activityId: activity._id.toString(),
         activite: { date: "2027-02-12T09:00:00.000Z", participants: 1 },

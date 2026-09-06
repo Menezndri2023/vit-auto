@@ -15,5 +15,6 @@ export const PARTNER_CANCEL_REASONS = [
   ["document_client_invalide",   "Documents du client invalides ou manquants"],
   ["erreur_annonce",             "Erreur dans l'annonce (prix, disponibilité)"],
   ["doute_fiabilite",            "Doute sur la fiabilité de la réservation"],
+  ["partner_no_response",        "Le partenaire n'a pas répondu à temps"],
   ["autre",                      "Autre raison"],
 ];

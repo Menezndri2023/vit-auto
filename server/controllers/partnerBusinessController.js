@@ -81,7 +81,7 @@ export const updateBusiness = async (req, res) => {
     const business = await PartnerBusiness.findOne({ _id: req.params.id, owner: req.user._id });
     if (!business) return res.status(404).json({ message: "Entreprise introuvable." });
 
-    const EDITABLE = ["companyName", "country", "ville", "adresse", "coordonnees", "contactNom", "contactTel", "isConcessionnaire"];
+    const EDITABLE = ["companyName", "country", "ville", "adresse", "coordonnees", "contactNom", "contactTel", "isConcessionnaire", "rentalPolicy"];
     for (const key of EDITABLE) {
       if (req.body[key] !== undefined) business[key] = req.body[key];
     }

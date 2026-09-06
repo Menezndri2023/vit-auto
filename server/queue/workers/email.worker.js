@@ -12,6 +12,7 @@
  *   email_verification | email_change_confirmation | password_reset | identity_rejected
  *   contract_ready | contract_signed
  *   reservation_created | reservation_confirmed
+ *   generic_notification (filet email pour toute notif interne/push)
  */
 import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
@@ -154,6 +155,11 @@ async function resolveEmailTemplate(type, data) {
       return { subject: "VIT AUTO — Demande reçue", template: "reservation_created", data };
     case "reservation_confirmed":
       return { subject: "VIT AUTO — Réservation confirmée ✅", template: "reservation_confirmed", data };
+
+    // ── Filet email pour toute notification interne/push (2026-09) ────────
+    // Voir Notification.js (post-save hook) / InternalChannel.sendInternalBroadcast.
+    case "generic_notification":
+      return { subject: `VIT AUTO — ${data.titre || "Nouvelle notification"}`, template: "generic_notification", data };
 
     default:
       throw new Error(`Type "${type}" non géré par le worker email`);

@@ -23,6 +23,9 @@ import styles from "./VendorDashboard.module.css";
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 const fmtDateTime = (d) => d ? new Date(d).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
 
+// Tarification saisonnière (voir handleOpenSeasonal plus bas) — mois 1-12.
+const MONTH_NAMES = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+
 // Repli si /api/pricing/config n'a pas encore répondu — valeurs par défaut de
 // PricingConfig (server/config/defaultPricingConfig.js), remplacées dès que
 // commissionRates est chargé pour ne jamais afficher un taux périmé si
@@ -63,37 +66,6 @@ const PAY_LABELS = {
   cash: "Espèces", card: "Carte bancaire", orange_money: "Orange Money",
   wave: "Wave", mtn: "MTN Money", moov: "Moov Money", paypal: "PayPal", virement: "Virement",
 };
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   PHOTO THUMB — miniature cliquable pour zoom plein écran
-   ══════════════════════════════════════════════════════════════════════════════ */
-function PhotoThumb({ src, label }) {
-  const [open, setOpen] = useState(false);
-  if (!src) return (
-    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", width:80, height:72, borderRadius:8, border:"1.5px dashed #cbd5e1", background:"#f8fafc", color:"#94a3b8", fontSize:".68rem", gap:3, flexShrink:0 }}>
-      <span style={{ fontSize:"1.2rem" }}>📄</span><span>{label}</span>
-    </div>
-  );
-  return (
-    <>
-      <div onClick={() => setOpen(true)} style={{ position:"relative", width:80, height:72, borderRadius:8, overflow:"hidden", cursor:"zoom-in", border:"1.5px solid #e2e8f0", flexShrink:0 }}>
-        <img src={src} alt={label} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
-        <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,.35)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:".65rem", fontWeight:700, opacity:0, transition:"opacity .15s" }}
-          onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0}>🔍 Zoom</div>
-        <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"rgba(0,0,0,.55)", color:"#fff", fontSize:".6rem", padding:"2px 4px", textAlign:"center" }}>{label}</div>
-      </div>
-      {open && (
-        <div onClick={() => setOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.8)", zIndex:99999, display:"flex", alignItems:"center", justifyContent:"center", animation:"fadeIn .15s" }}>
-          <div onClick={e=>e.stopPropagation()} style={{ position:"relative", maxWidth:"92vw", maxHeight:"90vh", background:"#fff", borderRadius:14, overflow:"hidden" }}>
-            <button onClick={() => setOpen(false)} style={{ position:"absolute", top:8, right:8, background:"rgba(0,0,0,.6)", color:"#fff", border:"none", borderRadius:"50%", width:32, height:32, fontSize:"1rem", cursor:"pointer", zIndex:2 }}>✕</button>
-            <img src={src} alt={label} style={{ maxWidth:"88vw", maxHeight:"82vh", objectFit:"contain", display:"block" }} />
-            <div style={{ padding:"8px 16px", textAlign:"center", fontSize:".82rem", fontWeight:700, color:"#64748b" }}>{label}</div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
 
 /* ══════════════════════════════════════════════════════════════════════════════
    CONFIGURATION WORKFLOWS PAR TYPE DE COMMANDE VIT-AUTO
@@ -237,7 +209,7 @@ const ORDER_WORKFLOWS = {
    ══════════════════════════════════════════════════════════════════════════════ */
 function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onPrepare, onReady, onInProgress,
   onClientArrived, onClientAbsent, onRecordTransaction, onPartnerConfirm, onComplete, onReject, onTransactionNotConcluded, onRespondToDispute, onPartnerVerifyKyc,
-  onClaimCaution, commRates = DEFAULT_COMM_RATE }) {
+  onClaimCaution, onRateClient, commRates = DEFAULT_COMM_RATE }) {
   // Tous les hooks AVANT tout return conditionnel (règles des hooks React)
   const { fmt: fmtXOF } = useCurrency();
   const [cautionForm, setCautionForm] = useState({ retain: false, amount: "", reason: "" });
@@ -261,6 +233,13 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
   const [fastMode, setFastMode]         = useState(null);
   const [disputeMsg, setDisputeMsg]           = useState("");
   const [disputeSubmitting, setDisputeSubmitting] = useState(false);
+  // Booking Engine Phase 5 — le partenaire note le client (une fois la
+  // commande terminée) ; état local pour éviter de refetch orderDetail juste
+  // pour refléter l'avis qui vient d'être soumis.
+  const [showRateClient, setShowRateClient]   = useState(false);
+  const [clientRatingForm, setClientRatingForm] = useState({ note: 5, commentaire: "" });
+  const [clientRatingSubmitting, setClientRatingSubmitting] = useState(false);
+  const [clientRated, setClientRated]         = useState(false);
 
   if (!order) return null;
 
@@ -304,31 +283,26 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
     ? `https://www.google.com/maps?q=${order.pickupLat},${order.pickupLng}`
     : pickupAddr ? `https://www.google.com/maps/search/${encodeURIComponent(pickupAddr)}` : null;
 
-  // ── Données identité (toutes sources, par priorité) ───────────────────────
+  // ── Données identité (Booking Engine — Éligibilité, 2026-09) ──────────────
+  // Le partenaire ne reçoit plus les photos (recto/verso/selfie/permis) ni les
+  // données OCR brutes (nom/naissance/sexe/pays extraits du document) —
+  // Booking.clientKycSnapshot les exclut désormais par défaut (select:false)
+  // et User.identity/driverLicenseOcr/kycOcrData ne sont jamais populés pour
+  // un partenaire (voir bookingController.getBookingDetail/getPartnerBookings,
+  // clientFields). Seuls les statuts et données non biométriques nécessaires à
+  // l'exécution de la location restent visibles (§10 du cahier des charges :
+  // "Identity: VERIFIED / License: VERIFIED", pas les documents eux-mêmes).
   const snap       = orderDetail?.clientKycSnapshot || {};
   const clientUser = orderDetail?.client || {};
-  const frontImg   = snap.frontImage        || clientUser?.identity?.frontImage    || null;
-  const backImg    = snap.backImage         || clientUser?.identity?.backImage     || null;
-  const selfieImg  = snap.selfie            || clientUser?.identity?.selfie        || null;
-  const licFront   = snap.licenseFrontImage || clientUser?.driverLicenseOcr?.frontImage || null;
-  const licBack    = snap.licenseBackImage  || clientUser?.driverLicenseOcr?.backImage  || null;
-  const ocrData    = snap.ocrData           || clientUser?.kycOcrData || null;
-  const idType     = snap.idType    || order.clientVerification?.idType   || clientUser?.identity?.type   || null;
-  const idNumber   = snap.idNumber  || order.clientVerification?.idNumber || clientUser?.identity?.number || null;
-  const idExpiry   = ocrData?.expiryDate || clientUser?.identity?.expiryDate || null;
-  const idExpired  = idExpiry ? new Date(idExpiry) < new Date() : false;
-  const ocrFirst   = ocrData?.firstName || "";
-  const ocrLast    = ocrData?.lastName  || "";
-  const ocrDOB     = ocrData?.birthDate || null;
-  const ocrGender  = ocrData?.gender    || null;
-  const ocrCountry = ocrData?.issuingCountry || null;
-  const ocrConf    = ocrData?.ocrConfidence  || 0;
-  const faceScore  = snap.faceMatchScore || clientUser?.kycFaceMatchScore || null;
+  const idType     = snap.idType    || order.clientVerification?.idType   || null;
+  const idNumber   = snap.idNumber  || order.clientVerification?.idNumber || null;
+  const identityVerified = clientUser?.kycStatus === "VERIFIE";
   const kycScore   = snap.kycScore || order.clientInfo?.kycScore || clientUser?.kycScore || 0;
-  const licNumber  = snap.licenseNumber    || clientUser?.driverLicenseOcr?.licenseNumber || null;
-  const licExpiry  = snap.licenseExpiry    || clientUser?.driverLicenseOcr?.expiryDate    || null;
-  const licCats    = snap.licenseCategories || clientUser?.driverLicenseOcr?.categories   || null;
+  const licNumber  = snap.licenseNumber     || null;
+  const licExpiry  = snap.licenseExpiry     || null;
+  const licCats    = snap.licenseCategories || null;
   const licExpired = licExpiry ? new Date(licExpiry) < new Date() : false;
+  const licenseVerified = !!licNumber && !licExpired;
 
   // ── Contrat & finances ────────────────────────────────────────────────────
   const contractId = orderDetail?.contract?._id || order.contract || null;
@@ -375,10 +349,7 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
 
                 {/* Avatar + Nom + KYC */}
                 <div className={styles.clientAvatar}>
-                  {selfieImg
-                    ? <img src={selfieImg} alt="Selfie" className={styles.avatarSelfie} onClick={() => {}} style={{ cursor:"zoom-in" }} />
-                    : <div className={styles.avatarCircle}>{(order.firstName || "?").charAt(0).toUpperCase()}</div>
-                  }
+                  <div className={styles.avatarCircle}>{(order.firstName || "?").charAt(0).toUpperCase()}</div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div className={styles.clientName}>{order.firstName} {order.lastName}</div>
                     {kycCfg
@@ -417,26 +388,15 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
                   {detailLoading ? (
                     <div style={{ fontSize:".8rem", color:"#94a3b8", padding:"8px 0" }}>⏳ Chargement…</div>
                   ) : (
-                    <>
-                      {/* Photos pièce d'identité */}
-                      <div className={styles.idPhotosRow}>
-                        <PhotoThumb src={frontImg}  label="Recto" />
-                        <PhotoThumb src={backImg}   label="Verso" />
-                        <PhotoThumb src={selfieImg} label="Selfie" />
+                    // Booking Engine — Éligibilité (2026-09) : plus de photos ni
+                    // de données OCR brutes ici (§10 du cahier des charges) —
+                    // seul le statut de vérification, déjà validé avant la
+                    // réservation (voir EligibilityEngine), est communiqué.
+                    <div style={{ marginTop: 8 }}>
+                      <div className={styles.kycBadgeLarge} style={{ background: identityVerified ? "#dcfce7" : "#fef3c7", color: identityVerified ? "#059669" : "#d97706" }}>
+                        {identityVerified ? "✅ Identité vérifiée" : "⏳ Identité non vérifiée"}
                       </div>
-
-                      {/* Données OCR */}
-                      <div style={{ marginTop:8 }}>
-                        <InfoLine label="Nom complet" value={(ocrFirst||ocrLast) ? `${ocrFirst} ${ocrLast}`.trim() : `${order.firstName} ${order.lastName}`} />
-                        <InfoLine label="Date de naissance" value={ocrDOB ? new Date(ocrDOB).toLocaleDateString("fr-FR") : null} />
-                        <InfoLine label="Sexe" value={ocrGender === "M" ? "Masculin" : ocrGender === "F" ? "Féminin" : null} />
-                        <InfoLine label="Pays émetteur" value={ocrCountry} />
-                        <InfoLine label="Expiration" value={idExpiry ? new Date(idExpiry).toLocaleDateString("fr-FR") : null} color={idExpired?"#dc2626":idExpiry?"#059669":undefined} />
-                        {idExpired && <div style={{ fontSize:".75rem", color:"#dc2626", fontWeight:700, marginTop:2 }}>⚠️ Document expiré</div>}
-                        {ocrConf > 0 && <InfoLine label="Confiance OCR" value={`${ocrConf}%`} color={ocrConf>=70?"#059669":ocrConf>=40?"#d97706":"#dc2626"} />}
-                        {faceScore != null && <InfoLine label="Face matching" value={`${faceScore}%`} color={faceScore>=65?"#059669":"#d97706"} />}
-                      </div>
-                    </>
+                    </div>
                   )}
                 </div>
 
@@ -450,17 +410,15 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
                     {detailLoading ? (
                       <div style={{ fontSize:".8rem", color:"#94a3b8", padding:"4px 0" }}>⏳</div>
                     ) : (
-                      <>
-                        <div className={styles.idPhotosRow}>
-                          <PhotoThumb src={licFront} label="Permis Recto" />
-                          <PhotoThumb src={licBack}  label="Permis Verso" />
+                      // Booking Engine — Éligibilité (2026-09) : plus de photos
+                      // du permis ici non plus (§10) — statut uniquement.
+                      <div style={{ marginTop: 6 }}>
+                        <div className={styles.kycBadgeLarge} style={{ background: licenseVerified ? "#dcfce7" : "#fef3c7", color: licenseVerified ? "#059669" : "#d97706" }}>
+                          {licenseVerified ? "✅ Permis vérifié" : "⏳ Permis non vérifié"}
                         </div>
-                        <div style={{ marginTop:6 }}>
-                          <InfoLine label="Expiration" value={licExpiry ? new Date(licExpiry).toLocaleDateString("fr-FR") : null} color={licExpired?"#dc2626":licExpiry?"#059669":undefined} />
-                          {licExpired && <div style={{ fontSize:".75rem", color:"#dc2626", fontWeight:700, marginTop:2 }}>⚠️ Permis expiré</div>}
-                          <InfoLine label="Catégories" value={licCats} />
-                        </div>
-                      </>
+                        {licExpired && <div style={{ fontSize:".75rem", color:"#dc2626", fontWeight:700, marginTop:4 }}>⚠️ Permis expiré</div>}
+                        <InfoLine label="Catégories" value={licCats} />
+                      </div>
                     )}
                   </div>
                 )}
@@ -596,7 +554,53 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
               {(() => { const cur = wf.steps.find(s=>s.s===order.status); return cur?.desc ? <p style={{ fontSize:".82rem", color:"#64748b", margin:"8px 0 0", textAlign:"center" }}>{cur.desc}</p> : null; })()}
             </div>
           )}
-          {order.status === "completed" && <div className={styles.completedBanner}>🏁 Commande terminée avec succès ! Client notifié.</div>}
+          {order.status === "completed" && (() => {
+            const alreadyRatedClient = clientRated || !!order?.clientReviewByPartner || !!orderDetail?.clientReviewByPartner;
+            const clientId = orderDetail?.client?._id || orderDetail?.client || order?.client?._id || order?.client || null;
+            const submitClientRating = async () => {
+              if (!clientId) return;
+              setClientRatingSubmitting(true);
+              const r = await onRateClient(order.id, clientId, clientRatingForm);
+              setClientRatingSubmitting(false);
+              if (r?.ok) { setClientRated(true); setShowRateClient(false); }
+            };
+            return (
+              <div className={styles.completedBanner} style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+                <span>🏁 Commande terminée avec succès ! Client notifié.</span>
+                {alreadyRatedClient ? (
+                  <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>✅ Client noté</span>
+                ) : !showRateClient ? (
+                  <button type="button" onClick={() => setShowRateClient(true)}
+                    style={{ alignSelf: "flex-start", background: "#fff", border: "1.5px solid #10b981", color: "#059669", borderRadius: 8, padding: "6px 14px", fontWeight: 700, fontSize: "0.85rem", cursor: "pointer" }}>
+                    ⭐ Noter le client
+                  </button>
+                ) : (
+                  <div style={{ background: "#fff", border: "1px solid #a7f3d0", borderRadius: 10, padding: 12 }}>
+                    <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+                      {[1,2,3,4,5].map((s) => (
+                        <button key={s} type="button" onClick={() => setClientRatingForm((f) => ({ ...f, note: s }))}
+                          style={{ background: "none", border: "none", fontSize: "1.3rem", cursor: "pointer", color: s <= clientRatingForm.note ? "#f59e0b" : "#d1d5db" }}>★</button>
+                      ))}
+                    </div>
+                    <textarea rows={2} placeholder="Ponctualité, respect du véhicule, comportement... (optionnel)"
+                      value={clientRatingForm.commentaire}
+                      onChange={(e) => setClientRatingForm((f) => ({ ...f, commentaire: e.target.value }))}
+                      style={{ width: "100%", borderRadius: 8, border: "1.5px solid #e2e8f0", padding: "8px 10px", fontSize: "0.85rem", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box", marginBottom: 10 }} />
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button type="button" disabled={clientRatingSubmitting} onClick={submitClientRating}
+                        style={{ background: "#10b981", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontWeight: 700, fontSize: "0.85rem", cursor: "pointer" }}>
+                        {clientRatingSubmitting ? "Envoi…" : "Publier"}
+                      </button>
+                      <button type="button" onClick={() => setShowRateClient(false)}
+                        style={{ background: "transparent", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "8px 14px", fontSize: "0.85rem", cursor: "pointer", color: "#64748b" }}>
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* ══ BLOC 4 : ACTION UNIQUE ════════════════════════════════════════ */}
 
@@ -1393,6 +1397,18 @@ export default function VendorDashboard() {
   const [promoSaving,    setPromoSaving]    = useState(false);
   const emptyPromoRule = () => ({ type: "percent", value: 15, minDays: 1, label: "", active: true, startDate: "", endDate: "" });
 
+  // ── Tarification saisonnière (Vehicle.seasonalRates) ──────────────────────
+  // Périodes récurrentes chaque année (mois/jour, sans année — ex. "haute
+  // saison" du 15/06 au 05/09) où un prix/jour de REMPLACEMENT s'applique
+  // (contrairement aux promotions ci-dessus, toujours une remise). Une seule
+  // devise de saisie pour tout le véhicule (cohérent avec le prix de base :
+  // un partenaire n'a aucune raison de mélanger les devises entre saisons).
+  const [seasonalModal,   setSeasonalModal]   = useState(null); // véhicule en cours d'édition
+  const [seasonalRules,   setSeasonalRules]   = useState([]);
+  const [seasonalCurrency, setSeasonalCurrency] = useState("USD");
+  const [seasonalSaving,  setSeasonalSaving]  = useState(false);
+  const emptySeasonalRule = () => ({ label: "Haute saison", startMonth: 6, startDay: 15, endMonth: 9, endDay: 5, price: "", active: true });
+
   // ── Journal d'entretien/incident/dommage par véhicule ─────────────────────
   const [maintenanceModal,       setMaintenanceModal]       = useState(null); // véhicule en cours de consultation
   const [maintenanceLogs,        setMaintenanceLogs]        = useState([]);
@@ -1655,6 +1671,56 @@ export default function VendorDashboard() {
   const addPromoRule    = () => setPromoRules((rules) => [...rules, emptyPromoRule()]);
   const removePromoRule = (i) => setPromoRules((rules) => rules.filter((_, idx) => idx !== i));
   const updatePromoRule = (i, patch) => setPromoRules((rules) => rules.map((r, idx) => idx === i ? { ...r, ...patch } : r));
+
+  const handleOpenSeasonal = (vehicle) => {
+    const existing = Array.isArray(vehicle.seasonalRates) ? vehicle.seasonalRates : [];
+    setSeasonalCurrency(existing[0]?.priceEntryCurrency || vehicle.priceEntryCurrency || "USD");
+    setSeasonalRules(existing.map((r) => ({
+      label: r.label || "",
+      startMonth: r.startMonth || 6, startDay: r.startDay || 15,
+      endMonth:   r.endMonth   || 9, endDay:   r.endDay   || 5,
+      price:  r.pricePerDayEntered != null ? String(r.pricePerDayEntered) : String(r.pricePerDay ?? ""),
+      active: r.active !== false,
+    })));
+    setSeasonalModal(vehicle);
+  };
+
+  const addSeasonalRule    = () => setSeasonalRules((rules) => [...rules, emptySeasonalRule()]);
+  const removeSeasonalRule = (i) => setSeasonalRules((rules) => rules.filter((_, idx) => idx !== i));
+  const updateSeasonalRule = (i, patch) => setSeasonalRules((rules) => rules.map((r, idx) => idx === i ? { ...r, ...patch } : r));
+
+  const handleSaveSeasonal = async () => {
+    if (!seasonalModal || !token) return;
+    const vid = seasonalModal.id || seasonalModal._id;
+    setSeasonalSaving(true);
+    try {
+      const rules = seasonalRules.map((r) => {
+        const entered = Number(r.price) || 0;
+        const usd = seasonalCurrency === "USD" ? entered : Math.round((entered / rateFromUSD(seasonalCurrency)) * 100) / 100;
+        return {
+          label: r.label,
+          startMonth: Number(r.startMonth), startDay: Number(r.startDay),
+          endMonth: Number(r.endMonth), endDay: Number(r.endDay),
+          pricePerDay: usd,
+          pricePerDayEntered: entered,
+          priceEntryCurrency: seasonalCurrency,
+          active: r.active,
+        };
+      });
+      const r = await fetch(`/api/vehicles/${vid}/seasonal-rates`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ rules }),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        toastSuccess(rules.length > 0 ? "🗓️ Tarifs saisonniers enregistrés." : "Tarifs saisonniers supprimés.");
+        setSeasonalModal(null);
+        loadPartnerVehicles();
+      } else toastError(d.message || "Erreur.");
+    } catch { toastError("Erreur réseau."); }
+    finally { setSeasonalSaving(false); }
+  };
 
   const handleSavePromo = async () => {
     if (!promoModal || !token) return;
@@ -2169,6 +2235,22 @@ export default function VendorDashboard() {
     const r = await doUpdateStatus(id, "completed");
     if (r.ok) toastSuccess("🏁 Commande terminée."); else toastError(r.message || "Impossible de terminer la commande.");
   }, [doUpdateStatus, toastSuccess, toastError]);
+
+  // Booking Engine Phase 5 — le partenaire note le client (targetType "client"
+  // sur reviewController.createReview, réservé aux commandes terminées).
+  const handleRateClient = useCallback(async (bookingId, clientId, { note, commentaire }) => {
+    try {
+      const res = await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ bookingId, targetType: "client", targetId: clientId, note, commentaire }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) { toastSuccess("⭐ Client noté."); return { ok: true }; }
+      toastError(data.message || "Impossible d'enregistrer la note.");
+      return { ok: false, message: data.message };
+    } catch { toastError("Erreur réseau."); return { ok: false }; }
+  }, [token, toastSuccess, toastError]);
   // Bug réel corrigé (audit) : le bouton "Transaction non conclue" du formulaire
   // de transaction appelait onReject (→ status "cancelled", motif catégorisé
   // obligatoire) au lieu du statut dédié transaction_not_concluded que le
@@ -2992,6 +3074,11 @@ export default function VendorDashboard() {
                       <button className={styles.btnSecondary} onClick={() => handleOpenPromo(vehicle)}>
                         {(vehicle.promotions || []).some((r) => r.active) ? "🏷️ Promos actives" : "🏷️ Promo"}
                       </button>
+                      {vehicle.type === "location" && (
+                        <button className={styles.btnSecondary} onClick={() => handleOpenSeasonal(vehicle)}>
+                          {(vehicle.seasonalRates || []).some((r) => r.active) ? "🗓️ Saisons actives" : "🗓️ Tarifs saisonniers"}
+                        </button>
+                      )}
                       <button className={styles.btnSecondary} onClick={() => handleOpenMaintenance(vehicle)}>🔧 Journal</button>
                       {SUBSCRIPTIONS_ENABLED && !isBoosted && <button className={styles.btnBoost} onClick={() => { setBoostTier("30d"); setBoostPromoCode(""); setBoostModal({ vehicleId: vid, title: vehicle.name || vehicle.title }); }} disabled={boostTarget === vid}>{boostTarget === vid ? "…" : "⭐ Booster"}</button>}
                       <button className={styles.btnDanger} onClick={() => handleDeleteVehicle(vid)}>Suppr.</button>
@@ -3569,6 +3656,7 @@ export default function VendorDashboard() {
           onTransactionNotConcluded={handleTransactionNotConcluded}
           onRespondToDispute={handleRespondToDispute}
           onPartnerVerifyKyc={handlePartnerVerifyKyc}
+          onRateClient={handleRateClient}
           onClaimCaution={handleClaimCaution}
         />
       )}
@@ -3875,6 +3963,95 @@ export default function VendorDashboard() {
                 {promoSaving ? "Envoi…" : "✅ Enregistrer"}
               </button>
               <button className={styles.btnSecondary} onClick={() => setPromoModal(null)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {seasonalModal && (
+        <div className={styles.modalBackdrop} onClick={() => setSeasonalModal(null)}>
+          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
+            <h3>🗓️ Tarifs saisonniers — {seasonalModal.name}</h3>
+            <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "#64748b" }}>
+              Définissez des périodes de l'année (ex. "haute saison" du 15 juin au 5 septembre) où un prix/jour
+              différent s'applique automatiquement — la période se répète chaque année, pas besoin de la ressaisir.
+              Le prix normal du véhicule reste appliqué en dehors de ces périodes.
+            </p>
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Devise de saisie</label>
+              <select className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px", width: "100%" }}
+                value={seasonalCurrency} onChange={(e) => setSeasonalCurrency(e.target.value)}>
+                {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code} — {c.name}</option>)}
+              </select>
+            </div>
+
+            {seasonalRules.length === 0 && (
+              <p style={{ fontSize: "0.85rem", color: "#94a3b8", margin: "0 0 14px" }}>Aucune période saisonnière configurée pour ce véhicule.</p>
+            )}
+
+            {seasonalRules.map((rule, i) => (
+              <div key={i} style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, cursor: "pointer" }}>
+                    <input type="checkbox" checked={rule.active}
+                      onChange={(e) => updateSeasonalRule(i, { active: e.target.checked })} />
+                    Période {i + 1} active
+                  </label>
+                  <button type="button" className={styles.btnDanger} style={{ padding: "3px 10px", fontSize: "0.78rem" }}
+                    onClick={() => removeSeasonalRule(i)}>Supprimer</button>
+                </div>
+
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Libellé</label>
+                  <input type="text" placeholder="Ex : Haute saison" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                    value={rule.label}
+                    onChange={(e) => updateSeasonalRule(i, { label: e.target.value })} />
+                </div>
+
+                <div style={{ display: "flex", gap: 10, marginBottom: 10, alignItems: "flex-end" }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Du (jour/mois)</label>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input type="number" min="1" max="31" placeholder="Jour" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 10px", width: "50%" }}
+                        value={rule.startDay} onChange={(e) => updateSeasonalRule(i, { startDay: e.target.value })} />
+                      <select className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 10px", width: "50%" }}
+                        value={rule.startMonth} onChange={(e) => updateSeasonalRule(i, { startMonth: e.target.value })}>
+                        {MONTH_NAMES.map((m, idx) => <option key={idx} value={idx + 1}>{m}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Au (jour/mois)</label>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input type="number" min="1" max="31" placeholder="Jour" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 10px", width: "50%" }}
+                        value={rule.endDay} onChange={(e) => updateSeasonalRule(i, { endDay: e.target.value })} />
+                      <select className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 10px", width: "50%" }}
+                        value={rule.endMonth} onChange={(e) => updateSeasonalRule(i, { endMonth: e.target.value })}>
+                        {MONTH_NAMES.map((m, idx) => <option key={idx} value={idx + 1}>{m}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Prix/jour pendant cette période ({seasonalCurrency})</label>
+                  <input type="number" min="0" step="0.01" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                    value={rule.price}
+                    onChange={(e) => updateSeasonalRule(i, { price: e.target.value })} />
+                </div>
+              </div>
+            ))}
+
+            <button type="button" className={styles.btnSecondary} style={{ marginBottom: 14 }} onClick={addSeasonalRule}>
+              ➕ Ajouter une période
+            </button>
+
+            <div className={styles.rejectActions}>
+              <button className={styles.btnAccept} onClick={handleSaveSeasonal} disabled={seasonalSaving}>
+                {seasonalSaving ? "Envoi…" : "✅ Enregistrer"}
+              </button>
+              <button className={styles.btnSecondary} onClick={() => setSeasonalModal(null)}>Annuler</button>
             </div>
           </div>
         </div>

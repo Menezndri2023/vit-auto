@@ -160,8 +160,8 @@ describe("Segmentation multi-entité (PartnerBusiness) — overview & commandes"
     const vehicleA = await createVehicleDoc({ owner: partner._id, business: businessA._id });
     const vehicleB = await createVehicleDoc({ owner: partner._id, business: businessB._id });
     const { Booking } = await import("../models/Booking.js").then((m) => ({ Booking: m.default }));
-    await Booking.create({ type: "location", vehicle: vehicleA._id, status: "completed", montantTotal: 1000, clientInfo: { firstName: "A", lastName: "B", email: "a@b.test", passportNumber: "P1234567" } });
-    await Booking.create({ type: "location", vehicle: vehicleB._id, status: "completed", montantTotal: 5000, clientInfo: { firstName: "A", lastName: "B", email: "a@b.test", passportNumber: "P1234567" } });
+    await Booking.create({ type: "location", vehicle: vehicleA._id, status: "completed", adminValidation: { status: "approved" }, montantTotal: 1000, clientInfo: { firstName: "A", lastName: "B", email: "a@b.test", passportNumber: "P1234567" } });
+    await Booking.create({ type: "location", vehicle: vehicleB._id, status: "completed", adminValidation: { status: "approved" }, montantTotal: 5000, clientInfo: { firstName: "A", lastName: "B", email: "a@b.test", passportNumber: "P1234567" } });
 
     const { req, res } = mockReqRes({ user: partner, query: { businessId: businessA._id.toString() } });
     await getPartnerStats(req, res);
@@ -177,8 +177,8 @@ describe("Segmentation multi-entité (PartnerBusiness) — overview & commandes"
     const vehicleA = await createVehicleDoc({ owner: partner._id, business: businessA._id });
     const vehicleB = await createVehicleDoc({ owner: partner._id, business: businessB._id });
     const { Booking } = await import("../models/Booking.js").then((m) => ({ Booking: m.default }));
-    await Booking.create({ type: "location", vehicle: vehicleA._id, status: "pending", clientInfo: { firstName: "A", lastName: "B", email: "a@b.test", passportNumber: "P1234567" } });
-    await Booking.create({ type: "location", vehicle: vehicleB._id, status: "pending", clientInfo: { firstName: "A", lastName: "B", email: "a@b.test", passportNumber: "P1234567" } });
+    await Booking.create({ type: "location", vehicle: vehicleA._id, status: "pending", adminValidation: { status: "approved" }, clientInfo: { firstName: "A", lastName: "B", email: "a@b.test", passportNumber: "P1234567" } });
+    await Booking.create({ type: "location", vehicle: vehicleB._id, status: "pending", adminValidation: { status: "approved" }, clientInfo: { firstName: "A", lastName: "B", email: "a@b.test", passportNumber: "P1234567" } });
 
     const { req, res } = mockReqRes({ user: partner, query: { businessId: businessB._id.toString() } });
     await getPartnerBookingsCtrl(req, res);

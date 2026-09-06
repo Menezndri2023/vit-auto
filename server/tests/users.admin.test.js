@@ -78,15 +78,19 @@ describe("getPublicProfile", () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it("expose le profil d'un partenaire actif sans email ni rôle", async () => {
-    const partner = await createUser({ role: "partenaire", isActive: true, phone: "+2250700000000" });
+  it("expose le profil d'un partenaire actif sans email, téléphone ni rôle (audit 2026-08 — aucun contact direct)", async () => {
+    const partner = await createUser({ role: "partenaire", isActive: true, phone: "+2250700000000", country: "CI" });
     const { req, res } = mockReqRes({ params: { id: partner._id.toString() } });
     await getPublicProfile(req, res);
     expect(res.statusCode).toBe(200);
     expect(res.body.email).toBeUndefined();
     expect(res.body.role).toBeUndefined();
     expect(res.body.isActive).toBeUndefined();
-    expect(res.body.phone).toBe("+2250700000000");
+    // Gate anti-contournement (audit 2026-08) : le téléphone du partenaire
+    // n'est plus jamais exposé publiquement — seul `country` l'est, pour que
+    // le frontend résolve le numéro de service client centralisé à la place.
+    expect(res.body.phone).toBeUndefined();
+    expect(res.body.country).toBe("CI");
   });
 });
 

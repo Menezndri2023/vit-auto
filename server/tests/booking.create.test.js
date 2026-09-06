@@ -8,6 +8,14 @@ import User from "../models/User.js";
 
 const clientInfo = { firstName: "Jean", lastName: "Client", email: "jean.client@example.test", passportNumber: "P1234567" };
 
+// Booking Engine (2026-09) : POST /api/bookings exige désormais un compte
+// authentifié dont le téléphone ou l'email est vérifié (Niveau 1) — voir
+// createBooking. Les tests ci-dessous appellent le contrôleur directement
+// (sans passer par le middleware authenticate), donc un client vérifié doit
+// être fourni explicitement en req.user pour refléter ce qu'un vrai appel
+// authentifié fournirait.
+const verifiedClient = () => createUser({ role: "client", emailVerified: true });
+
 describe("bookingController.createBooking", () => {
   it("refuse une réservation sans informations client", async () => {
     const { req, res } = mockReqRes({ body: { type: "location" } });
@@ -15,9 +23,23 @@ describe("bookingController.createBooking", () => {
     expect(res.status).toHaveBeenCalledWith(400);
   });
 
-  it("refuse un nombre de jours de location invalide (<=0)", async () => {
+  it("refuse une réservation d'un client non vérifié (Niveau 1)", async () => {
+    const unverified = await createUser({ role: "client" }); // emailVerified/phoneVerified false par défaut
     const vehicle = await createVehicleDoc();
     const { req, res } = mockReqRes({
+      user: unverified,
+      body: { type: "location", clientInfo, vehicleId: vehicle._id.toString(), location: { days: 2, startDate: "2027-09-01", endDate: "2027-09-03" } },
+    });
+    await createBooking(req, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.body.code).toBe("VERIFICATION_LEVEL_1_REQUIRED");
+  });
+
+  it("refuse un nombre de jours de location invalide (<=0)", async () => {
+    const client = await verifiedClient();
+    const vehicle = await createVehicleDoc();
+    const { req, res } = mockReqRes({
+      user: client,
       body: { type: "location", clientInfo, vehicleId: vehicle._id.toString(), location: { days: 0 } },
     });
     await createBooking(req, res);
@@ -25,8 +47,10 @@ describe("bookingController.createBooking", () => {
   });
 
   it("refuse une location sous la durée minimale fixée par le partenaire (dureeMinLocation)", async () => {
+    const client = await verifiedClient();
     const vehicle = await createVehicleDoc({ dureeMinLocation: 3 });
     const { req, res } = mockReqRes({
+      user: client,
       body: {
         type: "location", clientInfo, vehicleId: vehicle._id.toString(),
         location: { days: 2, startDate: "2027-03-10", endDate: "2027-03-12" },
@@ -37,8 +61,10 @@ describe("bookingController.createBooking", () => {
   });
 
   it("accepte une location qui atteint exactement la durée minimale", async () => {
+    const client = await verifiedClient();
     const vehicle = await createVehicleDoc({ dureeMinLocation: 3, pricePerDay: 1000 });
     const { req, res } = mockReqRes({
+      user: client,
       body: {
         type: "location", clientInfo, vehicleId: vehicle._id.toString(),
         location: { days: 3, startDate: "2027-03-15", endDate: "2027-03-18" },
@@ -48,10 +74,41 @@ describe("bookingController.createBooking", () => {
     expect(res.status).not.toHaveBeenCalledWith(400);
   });
 
-  it("confirme automatiquement une réservation instantanée pour un partenaire certifié", async () => {
+  it("refuse une réservation sur un véhicule exigeant une identité vérifiée (Niveau 2) si le client n'est pas VERIFIE", async () => {
+    const client = await verifiedClient(); // Niveau 1 OK, mais kycStatus par défaut EN_ATTENTE
+    const vehicle = await createVehicleDoc({ requiredVerificationLevel: "IDENTITY_VERIFIED", pricePerDay: 1000 });
+    const { req, res } = mockReqRes({
+      user: client,
+      body: {
+        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        location: { days: 2, startDate: "2027-09-05", endDate: "2027-09-07" },
+      },
+    });
+    await createBooking(req, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.body.code).toBe("VERIFICATION_LEVEL_2_REQUIRED");
+  });
+
+  it("accepte une réservation sur un véhicule exigeant une identité vérifiée si le client a kycStatus VERIFIE", async () => {
+    const client = await createUser({ role: "client", emailVerified: true, kycStatus: "VERIFIE" });
+    const vehicle = await createVehicleDoc({ requiredVerificationLevel: "IDENTITY_VERIFIED", pricePerDay: 1000 });
+    const { req, res } = mockReqRes({
+      user: client,
+      body: {
+        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        location: { days: 2, startDate: "2027-09-08", endDate: "2027-09-10" },
+      },
+    });
+    await createBooking(req, res);
+    expect(res.status).not.toHaveBeenCalledWith(403);
+  });
+
+  it("marque une réservation instantanée fastTrack mais la fait quand même passer par la validation admin (audit 2026-08)", async () => {
+    const client = await verifiedClient();
     const certifiedOwner = await createUser({ role: "partenaire", certificationBadge: "verifie" });
     const vehicle = await createVehicleDoc({ owner: certifiedOwner._id, instantBook: true, pricePerDay: 1000 });
     const { req, res } = mockReqRes({
+      user: client,
       body: {
         type: "location", clientInfo, vehicleId: vehicle._id.toString(),
         location: { days: 2, startDate: "2027-04-10", endDate: "2027-04-12" },
@@ -59,13 +116,19 @@ describe("bookingController.createBooking", () => {
     });
     await createBooking(req, res);
     expect(res.status).not.toHaveBeenCalledWith(400);
-    expect(res.body.booking.status).toBe("confirmed");
+    // Gate admin obligatoire : instantBook ne bypass plus jamais la validation
+    // admin — il priorise seulement la demande dans la file (fastTrack).
+    expect(res.body.booking.status).toBe("pending");
+    expect(res.body.booking.adminValidation.status).toBe("pending");
+    expect(res.body.booking.adminValidation.fastTrack).toBe(true);
   });
 
   it("ignore instantBook si le propriétaire n'est plus certifié (jamais confiance dans le seul booléen)", async () => {
+    const client = await verifiedClient();
     const uncertifiedOwner = await createUser({ role: "partenaire", certificationBadge: "none" });
     const vehicle = await createVehicleDoc({ owner: uncertifiedOwner._id, instantBook: true, pricePerDay: 1000 });
     const { req, res } = mockReqRes({
+      user: client,
       body: {
         type: "location", clientInfo, vehicleId: vehicle._id.toString(),
         location: { days: 2, startDate: "2027-04-15", endDate: "2027-04-17" },
@@ -76,7 +139,7 @@ describe("bookingController.createBooking", () => {
   });
 
   it("applique une remise fidélité et débite les points du client (100 points = 1 USD)", async () => {
-    const client = await createUser({ loyaltyPoints: 500 });
+    const client = await createUser({ loyaltyPoints: 500, emailVerified: true });
     const vehicle = await createVehicleDoc({ pricePerDay: 1000 }); // base = 2000 sur 2 jours, plafond 20% = 400 USD = 40000 pts
     const { req, res } = mockReqRes({
       user: client,
@@ -96,7 +159,7 @@ describe("bookingController.createBooking", () => {
   });
 
   it("plafonne la remise fidélité à 20% du montant de base même si le client a plus de points", async () => {
-    const client = await createUser({ loyaltyPoints: 100000 });
+    const client = await createUser({ loyaltyPoints: 100000, emailVerified: true });
     const vehicle = await createVehicleDoc({ pricePerDay: 1000 }); // base = 1000 sur 1 jour, plafond 20% = 200 USD = 20000 pts
     const { req, res } = mockReqRes({
       user: client,
@@ -114,7 +177,7 @@ describe("bookingController.createBooking", () => {
   });
 
   it("ignore une demande de remise fidélité si le client n'a pas assez de points (pas de blocage de la réservation)", async () => {
-    const client = await createUser({ loyaltyPoints: 10 });
+    const client = await createUser({ loyaltyPoints: 10, emailVerified: true });
     const vehicle = await createVehicleDoc({ pricePerDay: 1000 });
     const { req, res } = mockReqRes({
       user: client,
@@ -133,8 +196,10 @@ describe("bookingController.createBooking", () => {
   });
 
   it("crée une réservation location et calcule prix/caution côté serveur (jamais depuis le client)", async () => {
+    const client = await verifiedClient();
     const vehicle = await createVehicleDoc({ pricePerDay: 15000, caution: 50000 });
     const { req, res } = mockReqRes({
+      user: client,
       body: {
         type: "location",
         clientInfo,
@@ -151,9 +216,35 @@ describe("bookingController.createBooking", () => {
     expect(res.body.booking.cautionAmount).toBe(50000);
   });
 
+  it("ignore toute méthode de paiement en ligne pour une location — espèces forcées (2026-09)", async () => {
+    const client = await verifiedClient();
+    const vehicle = await createVehicleDoc({ pricePerDay: 10000, caution: 20000 });
+    const { req, res } = mockReqRes({
+      user: client,
+      body: {
+        type: "location",
+        clientInfo,
+        vehicleId: vehicle._id.toString(),
+        location: { days: 2, startDate: "2027-04-10", endDate: "2027-04-12" },
+        // Le client tente de payer par carte — doit être ignoré côté serveur.
+        payment: { method: "card", cardLast4: "4242", cardHolder: "Jean Client" },
+      },
+    });
+    await createBooking(req, res);
+
+    expect(res.status).not.toHaveBeenCalledWith(400);
+    expect(res.body.booking.payment).toBeFalsy();
+
+    const Payment = (await import("../models/Payment.js")).default;
+    const anyPayment = await Payment.findOne({ booking: res.body.booking._id });
+    expect(anyPayment).toBeNull();
+  });
+
   it("refuse une réservation sur un véhicule déjà réservé sur les mêmes dates (transaction anti-double-booking)", async () => {
+    const client = await verifiedClient();
     const vehicle = await createVehicleDoc();
     const first = mockReqRes({
+      user: client,
       body: {
         type: "location", clientInfo, vehicleId: vehicle._id.toString(),
         location: { days: 2, startDate: "2027-02-01", endDate: "2027-02-03" },
@@ -164,6 +255,7 @@ describe("bookingController.createBooking", () => {
 
     // Chevauchement partiel avec la réservation existante (01-03 fev)
     const second = mockReqRes({
+      user: client,
       body: {
         type: "location", clientInfo, vehicleId: vehicle._id.toString(),
         location: { days: 2, startDate: "2027-02-02", endDate: "2027-02-04" },
@@ -177,8 +269,10 @@ describe("bookingController.createBooking", () => {
   });
 
   it("autorise deux réservations sur le même véhicule si les dates ne se chevauchent pas", async () => {
+    const client = await verifiedClient();
     const vehicle = await createVehicleDoc();
     const first = mockReqRes({
+      user: client,
       body: {
         type: "location", clientInfo, vehicleId: vehicle._id.toString(),
         location: { days: 2, startDate: "2027-03-01", endDate: "2027-03-03" },
@@ -187,6 +281,7 @@ describe("bookingController.createBooking", () => {
     await createBooking(first.req, first.res);
 
     const second = mockReqRes({
+      user: client,
       body: {
         type: "location", clientInfo, vehicleId: vehicle._id.toString(),
         location: { days: 2, startDate: "2027-03-03", endDate: "2027-03-05" },
@@ -200,19 +295,21 @@ describe("bookingController.createBooking", () => {
   });
 
   it("refuse un essai déjà prévu sur le même véhicule au même créneau", async () => {
+    const client = await verifiedClient();
     const vehicle = await createVehicleDoc({ type: "vente" });
     const preferredDate = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
 
-    const first = mockReqRes({ body: { type: "essai", clientInfo, vehicleId: vehicle._id.toString(), essai: { preferredDate } } });
+    const first = mockReqRes({ user: client, body: { type: "essai", clientInfo, vehicleId: vehicle._id.toString(), essai: { preferredDate } } });
     await createBooking(first.req, first.res);
     expect(first.res.status).not.toHaveBeenCalledWith(409);
 
-    const second = mockReqRes({ body: { type: "essai", clientInfo, vehicleId: vehicle._id.toString(), essai: { preferredDate } } });
+    const second = mockReqRes({ user: client, body: { type: "essai", clientInfo, vehicleId: vehicle._id.toString(), essai: { preferredDate } } });
     await createBooking(second.req, second.res);
     expect(second.res.status).toHaveBeenCalledWith(409);
   });
 
   it("refuse un chauffeur déjà réservé sur le même créneau et facture au tarif horaire (pas journée)", async () => {
+    const client = await verifiedClient();
     const owner = await createUser({ role: "partenaire" });
     const driver = await Driver.create({
       owner: owner._id,
@@ -222,12 +319,12 @@ describe("bookingController.createBooking", () => {
     });
     const date = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
 
-    const first = mockReqRes({ body: { type: "chauffeur", clientInfo, driverId: driver._id.toString(), chauffeur: { date, heures: 4 } } });
+    const first = mockReqRes({ user: client, body: { type: "chauffeur", clientInfo, driverId: driver._id.toString(), chauffeur: { date, heures: 4 } } });
     await createBooking(first.req, first.res);
     expect(first.res.status).not.toHaveBeenCalledWith(409);
     expect(first.res.body.booking.montantBase).toBe(5000 * 4);
 
-    const second = mockReqRes({ body: { type: "chauffeur", clientInfo, driverId: driver._id.toString(), chauffeur: { date, heures: 2 } } });
+    const second = mockReqRes({ user: client, body: { type: "chauffeur", clientInfo, driverId: driver._id.toString(), chauffeur: { date, heures: 2 } } });
     await createBooking(second.req, second.res);
     expect(second.res.status).toHaveBeenCalledWith(409);
   });
@@ -237,7 +334,7 @@ describe("bookingController.createBooking", () => {
   // que par notification, l'utilisateur étant déjà sur l'écran concerné.
   describe("isFirstBooking", () => {
     it("vrai pour la toute première réservation d'un client connecté", async () => {
-      const client = await createUser({ role: "client" });
+      const client = await createUser({ role: "client", emailVerified: true });
       const vehicle = await createVehicleDoc();
       const { req, res } = mockReqRes({
         user: client,
@@ -248,7 +345,7 @@ describe("bookingController.createBooking", () => {
     });
 
     it("faux à partir de la 2e réservation du même client", async () => {
-      const client = await createUser({ role: "client" });
+      const client = await createUser({ role: "client", emailVerified: true });
       const vehicle = await createVehicleDoc();
 
       const first = mockReqRes({
@@ -266,13 +363,18 @@ describe("bookingController.createBooking", () => {
       expect(second.res.body.isFirstBooking).toBe(false);
     });
 
-    it("faux pour une réservation non connectée (pas de req.user)", async () => {
+    // Booking Engine (2026-09) : la réservation invité (sans compte) n'existe
+    // plus — POST /api/bookings exige désormais authenticate + Niveau 1 (voir
+    // routes/bookings.js). Ce test couvrait auparavant "isFirstBooking=false
+    // pour un invité" ; il couvre maintenant le refus lui-même.
+    it("refuse une réservation sans req.user (jamais atteint en production, route authenticate)", async () => {
       const vehicle = await createVehicleDoc();
       const { req, res } = mockReqRes({
         body: { type: "location", clientInfo, vehicleId: vehicle._id.toString(), location: { days: 2, startDate: "2027-06-01", endDate: "2027-06-03" } },
       });
       await createBooking(req, res);
-      expect(res.body.isFirstBooking).toBe(false);
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.body.code).toBe("VERIFICATION_LEVEL_1_REQUIRED");
     });
   });
 });

@@ -1,0 +1,217 @@
+.page {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 40px 20px 80px;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.header h1 {
+  color: #0f1b3f;
+  font-size: 1.6rem;
+  margin: 0 0 8px;
+}
+
+.header p {
+  color: #64748b;
+  margin: 0;
+}
+
+.skeleton {
+  height: 220px;
+  border-radius: 14px;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.statusCard {
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 32px;
+}
+
+.statusTop {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.balances {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.balances div {
+  display: flex;
+  flex-direction: column;
+}
+
+.balances strong {
+  font-size: 1.3rem;
+  color: #0f1b3f;
+}
+
+.balances span {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.progressBlock { margin-top: 8px; }
+
+.progressLabel {
+  font-size: 0.85rem;
+  color: #475569;
+  margin-bottom: 8px;
+}
+
+.progressBar {
+  height: 10px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #ff4d2d, #f59e0b);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.sectionTitle {
+  font-size: 1.05rem;
+  color: #0f1b3f;
+  margin: 28px 0 16px;
+}
+
+.tierGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.tierCard {
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 18px;
+  background: #fff;
+}
+
+.tierCardActive {
+  border-color: #ff4d2d;
+  box-shadow: 0 0 0 3px rgba(255, 77, 45, 0.1);
+}
+
+.tierThreshold {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 10px 0 4px;
+}
+
+.tierMultiplier {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0f1b3f;
+  margin: 0 0 10px;
+}
+
+.tierCard ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+.empty {
+  color: #64748b;
+  text-align: center;
+  padding: 20px;
+}
+
+.historyList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.historyRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.historyIcon {
+  font-size: 1.1rem;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #f1f5f9;
+}
+
+.historyInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.historyInfo strong {
+  font-size: 0.88rem;
+  color: #0f1b3f;
+}
+
+.historyInfo span {
+  font-size: 0.76rem;
+  color: #94a3b8;
+}
+
+.historyPoints {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.credit   { color: #16a34a; }
+.debit    { color: #dc2626; }
+.rollback { color: #d97706; }
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 16px;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.pagination button {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

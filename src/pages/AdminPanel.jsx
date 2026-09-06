@@ -33,6 +33,8 @@ const timeAgo = (d) => {
   return new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
 };
 const MOIS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
+// Tarification saisonnière (CatalogueSection, voir openSeasonalModal) — noms complets pour le sélecteur.
+const MOIS_LONGS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 const PLAN_TIER_LABELS = { individuel_plus: "Individuel Plus", business: "Business", exportateur: "Exportateur" };
 // Sanitise une URL avant de l'utiliser dans href (bloque javascript: et autres schémas dangereux)
 const safeHref = (url) => {
@@ -1663,6 +1665,26 @@ export default function AdminPanel() {
     Authorization: `Bearer ${token}`,
   }), [token]);
 
+  // Booking Engine — Remboursements (2026-09) : marque comme traité un
+  // remboursement resté manuel (voir pendingManualRefunds ci-dessus). Résout
+  // le Payment via la réservation (GET /payments/booking/:id, déjà existant)
+  // avant d'appeler le nouvel endpoint admin.
+  const handleMarkRefunded = useCallback(async (bookingId) => {
+    try {
+      const payRes = await fetch(`/api/payments/booking/${bookingId}`, { headers });
+      const payData = await payRes.json();
+      if (!payRes.ok || !payData.payment?._id) {
+        showToast(payData.message || "Paiement introuvable pour cette réservation.", "error");
+        return;
+      }
+      const res = await fetch(`/api/payments/${payData.payment._id}/refund`, { method: "POST", headers, body: JSON.stringify({}) });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.message || "Erreur.", "error"); return; }
+      showToast("💸 Remboursement enregistré.", "success");
+      setPendingManualRefunds((prev) => prev.filter((r) => r.bookingId !== bookingId));
+    } catch { showToast("Erreur réseau.", "error"); }
+  }, [headers, showToast]);
+
   // ── Chargement données ──────────────────────────────────────────────────────
   // usersLimit/bookingsLimit/vehiclesLimit paramétrables (bug réel corrigé —
   // voir loadMoreUsers/loadMoreBookings/loadMoreVehicles) : un plafond fixe
@@ -3170,11 +3192,21 @@ export default function AdminPanel() {
   // Bug réel corrigé (audit) : le backend émettait déjà "refund_needed" à
   // plusieurs endroits (annulation payée par le client/partenaire, litige
   // résolu en compensation) mais AUCUN écouteur n'existait côté front — le
-  // signal se perdait silencieusement, sans aucune trace exploitable pour
-  // l'admin qui doit traiter le remboursement manuellement.
+  // signal se perdait silencieusement. Booking Engine — Remboursements
+  // (2026-09) : la plupart des cas sont désormais traités automatiquement
+  // (Stripe) — le message distingue les deux cas, seul le second nécessite
+  // une action admin (voir bouton "Marquer remboursé").
+  const [pendingManualRefunds, setPendingManualRefunds] = useState([]);
   useEffect(() => {
-    return onSocket("refund_needed", ({ reference, reason }) => {
-      showToast(`💸 Remboursement à traiter — ${reference || ""} : ${reason || ""}`, "error");
+    return onSocket("refund_needed", ({ bookingId, reference, reason }) => {
+      const automatic = /automatiquement/.test(reason || "");
+      showToast(`💸 ${reference || ""} : ${reason || ""}`, automatic ? "success" : "error");
+      // Cas resté manuel (Orange Money, espèces...) : gardé visible au-delà du
+      // toast (3,5s) jusqu'à ce qu'un admin le marque traité — voir
+      // handleMarkRefunded ci-dessous.
+      if (!automatic && bookingId) {
+        setPendingManualRefunds((prev) => prev.some((r) => r.bookingId === bookingId) ? prev : [...prev, { bookingId, reference, reason }]);
+      }
     });
   }, [onSocket, showToast]);
 
@@ -3688,6 +3720,29 @@ export default function AdminPanel() {
       {toast && (
         <div className={`${styles.toast} ${toast.type === "error" ? styles.toastError : styles.toastSuccess}`}>
           {toast.type === "error" ? "❌" : "✅"} {toast.msg}
+        </div>
+      )}
+
+      {/* ── Remboursements manuels en attente (Booking Engine, 2026-09) ──
+          Reste visible au-delà du toast (Orange Money/espèces — aucune
+          automatisation possible, voir refundService.js) jusqu'à ce qu'un
+          admin confirme l'avoir traité hors plateforme. */}
+      {pendingManualRefunds.length > 0 && (
+        <div style={{ position: "fixed", bottom: 20, left: 20, zIndex: 9998, display: "flex", flexDirection: "column", gap: 8, maxWidth: 340 }}>
+          {pendingManualRefunds.map((r) => (
+            <div key={r.bookingId} style={{ background: "#fff", border: "1.5px solid #fca5a5", borderRadius: 10, padding: "10px 14px", boxShadow: "0 4px 16px rgba(0,0,0,.12)" }}>
+              <div style={{ fontSize: ".78rem", fontWeight: 700, color: "#991b1b", marginBottom: 4 }}>💸 {r.reference}</div>
+              <div style={{ fontSize: ".74rem", color: "#64748b", marginBottom: 8 }}>{r.reason}</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button className={styles.btnApprove} style={{ fontSize: ".72rem", padding: "4px 10px" }} onClick={() => handleMarkRefunded(r.bookingId)}>
+                  ✅ Marquer remboursé
+                </button>
+                <button className={styles.btnSmall} style={{ fontSize: ".72rem" }} onClick={() => setPendingManualRefunds((prev) => prev.filter((x) => x.bookingId !== r.bookingId))}>
+                  Ignorer
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -10370,6 +10425,58 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
   const [exportForm, setExportForm] = useState({ price: "", currency: "XOF", availableIn: [], sourceCity: "" });
   const [exportAvailText, setExportAvailText] = useState("");
   const [exportSaving, setExportSaving] = useState(false);
+  // Tarification saisonnière (Vehicle.seasonalRates) — même endpoint et même
+  // format que VendorDashboard.jsx (le partenaire peut aussi l'éditer), admin
+  // pouvant intervenir en plus (ex. correction directe sans passer par le partenaire).
+  const [seasonalModal,    setSeasonalModal]    = useState(null);
+  const [seasonalRules,    setSeasonalRules]    = useState([]);
+  const [seasonalCurrency, setSeasonalCurrency] = useState("USD");
+  const [seasonalSaving,   setSeasonalSaving]   = useState(false);
+  const emptySeasonalRule = () => ({ label: "Haute saison", startMonth: 6, startDay: 15, endMonth: 9, endDay: 5, price: "", active: true });
+  const openSeasonalModal = (vehicle) => {
+    const existing = Array.isArray(vehicle.seasonalRates) ? vehicle.seasonalRates : [];
+    setSeasonalCurrency(existing[0]?.priceEntryCurrency || vehicle.priceEntryCurrency || "USD");
+    setSeasonalRules(existing.map((r) => ({
+      label: r.label || "",
+      startMonth: r.startMonth || 6, startDay: r.startDay || 15,
+      endMonth:   r.endMonth   || 9, endDay:   r.endDay   || 5,
+      price:  r.pricePerDayEntered != null ? String(r.pricePerDayEntered) : String(r.pricePerDay ?? ""),
+      active: r.active !== false,
+    })));
+    setSeasonalModal(vehicle);
+  };
+  const addSeasonalRule    = () => setSeasonalRules((rules) => [...rules, emptySeasonalRule()]);
+  const removeSeasonalRule = (i) => setSeasonalRules((rules) => rules.filter((_, idx) => idx !== i));
+  const updateSeasonalRule = (i, patch) => setSeasonalRules((rules) => rules.map((r, idx) => idx === i ? { ...r, ...patch } : r));
+  const handleSaveSeasonal = async () => {
+    if (!seasonalModal) return;
+    const vid = seasonalModal._id || seasonalModal.id;
+    setSeasonalSaving(true);
+    try {
+      const rules = seasonalRules.map((r) => {
+        const entered = Number(r.price) || 0;
+        const usd = seasonalCurrency === "USD" ? entered : Math.round((entered / rateFromUSD(seasonalCurrency)) * 100) / 100;
+        return {
+          label: r.label,
+          startMonth: Number(r.startMonth), startDay: Number(r.startDay),
+          endMonth: Number(r.endMonth), endDay: Number(r.endDay),
+          pricePerDay: usd,
+          pricePerDayEntered: entered,
+          priceEntryCurrency: seasonalCurrency,
+          active: r.active,
+        };
+      });
+      const r = await fetch(`/api/vehicles/${vid}/seasonal-rates`, {
+        method: "PATCH", headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ rules }),
+      });
+      const d = await r.json();
+      if (r.ok) { showToast(rules.length > 0 ? "🗓️ Tarifs saisonniers enregistrés." : "Tarifs saisonniers supprimés.", "success"); setSeasonalModal(null); onRefresh(); }
+      else showToast(d.message || "Erreur.", "error");
+    } catch { showToast("Erreur réseau.", "error"); }
+    finally { setSeasonalSaving(false); }
+  };
+
   const [thumbBackfilling, setThumbBackfilling] = useState(false);
   const [descBackfilling, setDescBackfilling] = useState(false);
   const PAGE = 12;
@@ -11019,6 +11126,13 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
                               style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#f5f3ff", color: "#7c3aed", border: "1.5px solid #ddd6fe", borderRadius: 6, cursor: "pointer" }}>
                               ✏️
                             </button>
+                            {v.type === "location" && (
+                              <button title="Tarifs saisonniers"
+                                onClick={() => openSeasonalModal(v)}
+                                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#fefce8", color: "#a16207", border: "1.5px solid #fde68a", borderRadius: 6, cursor: "pointer" }}>
+                                🗓️
+                              </button>
+                            )}
                             <button title="Transférer vers un autre compte/entreprise/pays/ville"
                               onClick={() => openTransfer("vehicle", vid, v.title || v.name, v.country, v.ville)}
                               style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#fff7ed", color: "#c2410c", border: "1.5px solid #fed7aa", borderRadius: 6, cursor: "pointer" }}>
@@ -11976,6 +12090,94 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
                   </>)}
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {seasonalModal && (
+        <div className={styles.modalBackdrop} onClick={() => setSeasonalModal(null)}>
+          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
+            <h3>🗓️ Tarifs saisonniers — {seasonalModal.title || seasonalModal.name}</h3>
+            <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "#64748b" }}>
+              Périodes de l'année (récurrentes chaque année) où un prix/jour différent s'applique automatiquement.
+              Le prix normal du véhicule reste appliqué en dehors de ces périodes.
+            </p>
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Devise de saisie</label>
+              <select className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px", width: "100%" }}
+                value={seasonalCurrency} onChange={(e) => setSeasonalCurrency(e.target.value)}>
+                {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code} — {c.name}</option>)}
+              </select>
+            </div>
+
+            {seasonalRules.length === 0 && (
+              <p style={{ fontSize: "0.85rem", color: "#94a3b8", margin: "0 0 14px" }}>Aucune période saisonnière configurée pour ce véhicule.</p>
+            )}
+
+            {seasonalRules.map((rule, i) => (
+              <div key={i} style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, cursor: "pointer" }}>
+                    <input type="checkbox" checked={rule.active}
+                      onChange={(e) => updateSeasonalRule(i, { active: e.target.checked })} />
+                    Période {i + 1} active
+                  </label>
+                  <button type="button" className={styles.btnDanger} style={{ padding: "3px 10px", fontSize: "0.78rem" }}
+                    onClick={() => removeSeasonalRule(i)}>Supprimer</button>
+                </div>
+
+                <div style={{ marginBottom: 10 }}>
+                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Libellé</label>
+                  <input type="text" placeholder="Ex : Haute saison" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                    value={rule.label}
+                    onChange={(e) => updateSeasonalRule(i, { label: e.target.value })} />
+                </div>
+
+                <div style={{ display: "flex", gap: 10, marginBottom: 10, alignItems: "flex-end" }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Du (jour/mois)</label>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input type="number" min="1" max="31" placeholder="Jour" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 10px", width: "50%" }}
+                        value={rule.startDay} onChange={(e) => updateSeasonalRule(i, { startDay: e.target.value })} />
+                      <select className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 10px", width: "50%" }}
+                        value={rule.startMonth} onChange={(e) => updateSeasonalRule(i, { startMonth: e.target.value })}>
+                        {MOIS_LONGS.map((m, idx) => <option key={idx} value={idx + 1}>{m}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Au (jour/mois)</label>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input type="number" min="1" max="31" placeholder="Jour" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 10px", width: "50%" }}
+                        value={rule.endDay} onChange={(e) => updateSeasonalRule(i, { endDay: e.target.value })} />
+                      <select className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 10px", width: "50%" }}
+                        value={rule.endMonth} onChange={(e) => updateSeasonalRule(i, { endMonth: e.target.value })}>
+                        {MOIS_LONGS.map((m, idx) => <option key={idx} value={idx + 1}>{m}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Prix/jour pendant cette période ({seasonalCurrency})</label>
+                  <input type="number" min="0" step="0.01" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px" }}
+                    value={rule.price}
+                    onChange={(e) => updateSeasonalRule(i, { price: e.target.value })} />
+                </div>
+              </div>
+            ))}
+
+            <button type="button" className={styles.btnSecondary} style={{ marginBottom: 14 }} onClick={addSeasonalRule}>
+              ➕ Ajouter une période
+            </button>
+
+            <div className={styles.rejectActions}>
+              <button className={styles.btnAccept} onClick={handleSaveSeasonal} disabled={seasonalSaving}>
+                {seasonalSaving ? "Envoi…" : "✅ Enregistrer"}
+              </button>
+              <button className={styles.btnSecondary} onClick={() => setSeasonalModal(null)}>Annuler</button>
             </div>
           </div>
         </div>

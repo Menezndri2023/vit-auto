@@ -6,15 +6,22 @@ import { mockReqRes } from "./helpers/mockReqRes.js";
 
 const clientInfo = { firstName: "Jean", lastName: "Client", email: "jean.client@example.test", passportNumber: "P1234567" };
 
+// Booking Engine (2026-09) : createBooking exige désormais un client
+// authentifié et vérifié (Niveau 1) — voir bookingController.createBooking.
+const verifiedClient = () => createUser({ role: "client", emailVerified: true });
+
 describe("bookingController.createBooking — type 'activite' (section OTHERS)", () => {
   it("refuse sans activityId", async () => {
-    const { req, res } = mockReqRes({ body: { type: "activite", clientInfo } });
+    const client = await verifiedClient();
+    const { req, res } = mockReqRes({ user: client, body: { type: "activite", clientInfo } });
     await createBooking(req, res);
     expect(res.status).toHaveBeenCalledWith(400);
   });
 
   it("refuse une activité introuvable", async () => {
+    const client = await verifiedClient();
     const { req, res } = mockReqRes({
+      user: client,
       body: { type: "activite", clientInfo, activityId: "64b000000000000000000000", activite: { date: "2027-06-01T10:00:00.000Z" } },
     });
     await createBooking(req, res);
@@ -22,8 +29,10 @@ describe("bookingController.createBooking — type 'activite' (section OTHERS)",
   });
 
   it("refuse une activité non approuvée (pending)", async () => {
+    const client = await verifiedClient();
     const activity = await createActivityDoc({ status: "pending" });
     const { req, res } = mockReqRes({
+      user: client,
       body: { type: "activite", clientInfo, activityId: activity._id.toString(), activite: { date: "2027-06-01T10:00:00.000Z" } },
     });
     await createBooking(req, res);
@@ -31,8 +40,10 @@ describe("bookingController.createBooking — type 'activite' (section OTHERS)",
   });
 
   it("calcule le prix 'per_person' × nombre de participants", async () => {
+    const client = await verifiedClient();
     const activity = await createActivityDoc({ price: 50, priceUnit: "per_person", capacity: 6 });
     const { req, res } = mockReqRes({
+      user: client,
       body: {
         type: "activite", clientInfo, activityId: activity._id.toString(),
         activite: { date: "2027-06-01T10:00:00.000Z", participants: 3 },
@@ -47,8 +58,10 @@ describe("bookingController.createBooking — type 'activite' (section OTHERS)",
   });
 
   it("garde un prix forfaitaire 'per_session' quel que soit le nombre de participants", async () => {
+    const client = await verifiedClient();
     const activity = await createActivityDoc({ price: 400, priceUnit: "per_session", capacity: 8 });
     const { req, res } = mockReqRes({
+      user: client,
       body: {
         type: "activite", clientInfo, activityId: activity._id.toString(),
         activite: { date: "2027-06-02T10:00:00.000Z", participants: 5 },
@@ -59,8 +72,10 @@ describe("bookingController.createBooking — type 'activite' (section OTHERS)",
   });
 
   it("refuse un essai si l'activité ne le propose pas", async () => {
+    const client = await verifiedClient();
     const activity = await createActivityDoc({ essaiDisponible: false });
     const { req, res } = mockReqRes({
+      user: client,
       body: {
         type: "activite", clientInfo, activityId: activity._id.toString(),
         activite: { date: "2027-06-03T10:00:00.000Z", essai: true },
@@ -71,11 +86,13 @@ describe("bookingController.createBooking — type 'activite' (section OTHERS)",
   });
 
   it("applique le tarif et la durée d'essai quand activé et demandé", async () => {
+    const client = await verifiedClient();
     const activity = await createActivityDoc({
       essaiDisponible: true, essaiPrice: 20, essaiDurationMinutes: 30,
       price: 50, durationMinutes: 120,
     });
     const { req, res } = mockReqRes({
+      user: client,
       body: {
         type: "activite", clientInfo, activityId: activity._id.toString(),
         activite: { date: "2027-06-04T10:00:00.000Z", essai: true },
@@ -90,8 +107,10 @@ describe("bookingController.createBooking — type 'activite' (section OTHERS)",
   });
 
   it("refuse de dépasser la capacité de l'activité sur un même créneau", async () => {
+    const client = await verifiedClient();
     const activity = await createActivityDoc({ capacity: 4, durationMinutes: 60 });
     const { req, res } = mockReqRes({
+      user: client,
       body: {
         type: "activite", clientInfo, activityId: activity._id.toString(),
         activite: { date: "2027-06-05T10:00:00.000Z", participants: 5 },
@@ -102,8 +121,10 @@ describe("bookingController.createBooking — type 'activite' (section OTHERS)",
   });
 
   it("additionne les participants déjà réservés sur le même créneau avant d'accepter", async () => {
+    const client = await verifiedClient();
     const activity = await createActivityDoc({ capacity: 4, durationMinutes: 60 });
     const first = mockReqRes({
+      user: client,
       body: {
         type: "activite", clientInfo, activityId: activity._id.toString(),
         activite: { date: "2027-06-06T10:00:00.000Z", participants: 3 },
@@ -114,6 +135,7 @@ describe("bookingController.createBooking — type 'activite' (section OTHERS)",
 
     // Même créneau, 2 participants de plus → 3+2=5 > capacité 4
     const second = mockReqRes({
+      user: client,
       body: {
         type: "activite", clientInfo, activityId: activity._id.toString(),
         activite: { date: "2027-06-06T10:15:00.000Z", participants: 2 },
@@ -124,8 +146,10 @@ describe("bookingController.createBooking — type 'activite' (section OTHERS)",
   });
 
   it("accepte deux réservations concurrentes sur le même créneau tant que la capacité suffit", async () => {
+    const client = await verifiedClient();
     const activity = await createActivityDoc({ capacity: 6, durationMinutes: 60 });
     const first = mockReqRes({
+      user: client,
       body: {
         type: "activite", clientInfo, activityId: activity._id.toString(),
         activite: { date: "2027-06-07T10:00:00.000Z", participants: 3 },
@@ -135,6 +159,7 @@ describe("bookingController.createBooking — type 'activite' (section OTHERS)",
     expect(first.res.status).not.toHaveBeenCalledWith(409);
 
     const second = mockReqRes({
+      user: client,
       body: {
         type: "activite", clientInfo, activityId: activity._id.toString(),
         activite: { date: "2027-06-07T10:15:00.000Z", participants: 3 },
@@ -148,8 +173,10 @@ describe("bookingController.createBooking — type 'activite' (section OTHERS)",
   });
 
   it("refuse une date d'activité dans le passé", async () => {
+    const client = await verifiedClient();
     const activity = await createActivityDoc();
     const { req, res } = mockReqRes({
+      user: client,
       body: {
         type: "activite", clientInfo, activityId: activity._id.toString(),
         activite: { date: "2020-01-01T10:00:00.000Z" },

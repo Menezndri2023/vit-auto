@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import VehicleCard from "../components/VehicleCard/VehicleCard";
 import ReportButton from "../components/ReportButton/ReportButton";
+import { getCustomerServiceContact } from "../utils/customerServiceContact";
 
 const fmtNum = (n) => Number(n || 0).toLocaleString("fr-FR");
 
@@ -295,8 +296,6 @@ export default function PartnerShowroomPublic() {
                 <h3 style={{ margin:"0 0 16px", fontWeight:800, color:"#0f1b3f", fontSize:".95rem" }}>Coordonnées</h3>
                 {[
                   { icon:"📍", label:"Adresse",  val:[showroom.address, showroom.city, showroom.country].filter(Boolean).join(", ") },
-                  { icon:"📞", label:"Téléphone", val:showroom.phone },
-                  { icon:"✉️", label:"Email",     val:showroom.email },
                   { icon:"🌐", label:"Site web",  val:showroom.website },
                 ].filter((r) => r.val).map((row) => (
                   <div key={row.label} style={{ display:"flex", gap:10, marginBottom:12, alignItems:"flex-start" }}>
@@ -310,24 +309,20 @@ export default function PartnerShowroomPublic() {
               </div>
 
               <div style={{ background:"#fff", border:"1.5px solid #e2e8f0", borderRadius:14, padding:20 }}>
-                <h3 style={{ margin:"0 0 16px", fontWeight:800, color:"#0f1b3f", fontSize:".95rem" }}>Contacts directs</h3>
+                <h3 style={{ margin:"0 0 16px", fontWeight:800, color:"#0f1b3f", fontSize:".95rem" }}>Contact</h3>
+                {/* Aucun contact direct partenaire n'est plus jamais exposé
+                    (audit 2026-08) — appel uniquement via le service client
+                    VIT AUTO dédié au pays du partenaire. */}
                 <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                  {showroom.whatsapp && (
-                    <a href={`https://wa.me/${showroom.whatsapp.replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer"
-                      style={{ display:"flex", alignItems:"center", gap:10, background:"#ecfdf5", color:"#059669", border:"1.5px solid #bbf7d0", borderRadius:10, padding:"12px 16px", textDecoration:"none", fontWeight:700, fontSize:".88rem" }}>
-                      <span style={{ fontSize:"1.3rem" }}>📱</span> WhatsApp
-                    </a>
-                  )}
-                  {showroom.wechat && (
-                    <div style={{ display:"flex", alignItems:"center", gap:10, background:"#f0fdf4", color:"#166534", border:"1.5px solid #bbf7d0", borderRadius:10, padding:"12px 16px", fontSize:".88rem", fontWeight:700 }}>
-                      <span style={{ fontSize:"1.3rem" }}>💬</span> WeChat: {showroom.wechat}
-                    </div>
-                  )}
-                  {showroom.email && (
-                    <a href={`mailto:${showroom.email}`}
+                  <a href={`tel:${getCustomerServiceContact(showroom.partnerInfo?.country).tel}`}
+                    style={{ display:"flex", alignItems:"center", gap:10, background:"#fff1ee", color:"#ff4d2d", border:"1.5px solid #ffd4c7", borderRadius:10, padding:"12px 16px", textDecoration:"none", fontWeight:700, fontSize:".88rem" }}>
+                    <span style={{ fontSize:"1.3rem" }}>📞</span> Appeler le service client VIT AUTO
+                  </a>
+                  {showroom.partnerId && (
+                    <Link to={`/partner/${showroom.partnerId}`}
                       style={{ display:"flex", alignItems:"center", gap:10, background:"#eff6ff", color:"#1d4ed8", border:"1.5px solid #bfdbfe", borderRadius:10, padding:"12px 16px", textDecoration:"none", fontWeight:700, fontSize:".88rem" }}>
-                      <span style={{ fontSize:"1.3rem" }}>✉️</span> Envoyer un email
-                    </a>
+                      <span style={{ fontSize:"1.3rem" }}>👤</span> Voir le profil du partenaire
+                    </Link>
                   )}
                 </div>
 
@@ -397,18 +392,10 @@ export default function PartnerShowroomPublic() {
           <div style={{ background:"linear-gradient(135deg, #0f1b3f, #1e3a6e)", borderRadius:16, padding:20, color:"#fff" }}>
             <h4 style={{ margin:"0 0 12px", fontWeight:800, fontSize:".9rem" }}>Intéressé par ce partenaire ?</h4>
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-              {showroom.whatsapp && (
-                <a href={`https://wa.me/${showroom.whatsapp.replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer"
-                  style={{ background:"#25D366", color:"#fff", textDecoration:"none", padding:"11px 16px", borderRadius:10, fontWeight:700, fontSize:".85rem", textAlign:"center" }}>
-                  📱 Contacter sur WhatsApp
-                </a>
-              )}
-              {showroom.email && (
-                <a href={`mailto:${showroom.email}`}
-                  style={{ background:"rgba(255,255,255,.12)", color:"#fff", textDecoration:"none", padding:"11px 16px", borderRadius:10, fontWeight:700, fontSize:".85rem", textAlign:"center", border:"1px solid rgba(255,255,255,.2)" }}>
-                  ✉️ Envoyer un email
-                </a>
-              )}
+              <a href={`tel:${getCustomerServiceContact(showroom.partnerInfo?.country).tel}`}
+                style={{ background:"#ff4d2d", color:"#fff", textDecoration:"none", padding:"11px 16px", borderRadius:10, fontWeight:700, fontSize:".85rem", textAlign:"center" }}>
+                📞 Appeler le service client
+              </a>
               <Link to="/import-export" style={{ background:"rgba(255,77,45,.25)", color:"#ff8060", textDecoration:"none", padding:"11px 16px", borderRadius:10, fontWeight:700, fontSize:".85rem", textAlign:"center", border:"1px solid rgba(255,77,45,.3)" }}>
                 📦 Demander un import
               </Link>

@@ -15,6 +15,11 @@ const makeCompletedLocationBooking = async (overrides = {}) => {
   const booking = await Booking.create({
     type: "location",
     status: "completed",
+    // Gate admin obligatoire (audit 2026-08) : ces tests portent sur la
+    // caution d'une location déjà arrivée à "completed", donc forcément déjà
+    // validée par un admin bien avant (voir assertPartnerCanAct) — pas l'objet
+    // de ce fichier de test.
+    adminValidation: { status: "approved" },
     client: client._id,
     clientInfo: { firstName: "Jean", lastName: "Client", email: "jean@example.test" , passportNumber: "P1234567"},
     vehicle: vehicle._id,

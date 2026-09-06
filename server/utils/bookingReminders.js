@@ -15,6 +15,7 @@ import logger from "./logger.js";
 import Booking from "../models/Booking.js";
 import Notification from "../models/Notification.js";
 import { dispatch } from "../queue/index.js";
+import { sendViaWhatsApp } from "../services/communication/CommunicationService.js";
 
 const ACTIVE_STATUSES = ["confirmed", "preparing", "ready"];
 const REMINDER_WINDOW_MS = 26 * 60 * 60 * 1000; // fenêtre "commence dans les 26h"
@@ -30,6 +31,45 @@ async function notifyClient(userId, titre, message, lien) {
   dispatch.pushNotification(userId, titre, message, { lien, type: "system" }).catch(() => {});
 }
 
+// Booking Engine — livraison (2026-09). Boutons interactifs Meta (quick_reply)
+// avec un payload portant l'ID de réservation — relu par
+// whatsappController.handleInteractiveButton, qui appelle
+// bookingActionService.markVehicleOnTheWay/markVehicleDelivered (jamais de
+// logique de statut dupliquée ici). Nécessite un template Meta approuvé
+// nommé "delivery_reminder_partner" (catégorie UTILITY), même principe que
+// "new_booking_partner" (voir queue/index.js dispatch.partnerBookingApproved).
+async function sendPartnerDeliveryReminder(booking) {
+  const User = (await import("../models/User.js")).default;
+  const ownerId = booking.vehicle?.owner?._id?.toString() || booking.vehicle?.owner?.toString();
+  if (!ownerId) return;
+  const owner = await User.findById(ownerId).select("phone firstName").lean();
+  if (!owner?.phone) return;
+
+  const pickupDate = new Date(booking.location.startDate).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" });
+  const addr = booking.location.pickupPosition?.address || booking.location.pickupLocation || "";
+
+  await sendViaWhatsApp({
+    to: owner.phone,
+    template: "delivery_reminder_partner",
+    language: "fr",
+    userId: ownerId,
+    components: [
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: owner.firstName || "Partenaire" },
+          { type: "text", text: booking.reference || "" },
+          { type: "text", text: booking.vehicle?.title || "votre annonce" },
+          { type: "text", text: addr },
+          { type: "text", text: pickupDate },
+        ],
+      },
+      { type: "button", sub_type: "quick_reply", index: "0", parameters: [{ type: "payload", payload: `ON_THE_WAY_${booking._id}` }] },
+      { type: "button", sub_type: "quick_reply", index: "1", parameters: [{ type: "payload", payload: `DELIVERED_${booking._id}` }] },
+    ],
+  });
+}
+
 export async function checkAndSendPickupReminders() {
   try {
     const now = new Date();
@@ -40,20 +80,34 @@ export async function checkAndSendPickupReminders() {
       status: { $in: ACTIVE_STATUSES },
       pickupReminderSentAt: null,
       "location.startDate": { $gte: now, $lte: windowEnd },
-    }).select("client clientInfo reference location vehicle").lean();
+    }).select("client clientInfo reference location vehicle delivery")
+      .populate("vehicle", "owner title")
+      .lean();
 
     let sent = 0;
     for (const booking of due) {
       const userId = booking.client;
-      if (!userId) continue; // réservation invité sans compte — pas de destinataire push/in-app
       const pickupDate = new Date(booking.location.startDate).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" });
       const methodTxt = booking.location.pickupMethod === "livraison" ? "livraison à votre adresse" : "retrait en agence";
-      await notifyClient(
-        userId,
-        "🚗 Votre location commence bientôt",
-        `Réservation ${booking.reference || ""} : ${methodTxt} prévu(e) le ${pickupDate}. Munissez-vous de votre pièce d'identité et de votre permis de conduire.`,
-        `/dashboard`
-      );
+      if (userId) {
+        await notifyClient(
+          userId,
+          "🚗 Votre location commence bientôt",
+          `Réservation ${booking.reference || ""} : ${methodTxt} prévu(e) le ${pickupDate}. Munissez-vous de votre pièce d'identité et de votre permis de conduire.`,
+          `/dashboard`
+        );
+      }
+
+      // Booking Engine — livraison (2026-09) : au même moment, le partenaire
+      // reçoit ses boutons de suivi (EN ROUTE/LIVRÉ) — jamais au moment de
+      // l'approbation, Meta limite à 3 boutons/message et ACCEPTER/REFUSER/
+      // ALTERNATIVE les occupent déjà (voir dispatch.partnerBookingApproved).
+      if (booking.location.pickupMethod === "livraison" && booking.delivery?.status === "confirmed") {
+        await sendPartnerDeliveryReminder(booking).catch((e) =>
+          logger.error("[BookingReminders] Rappel livraison partenaire échoué:", { bookingId: booking._id, error: e.message })
+        );
+      }
+
       await Booking.updateOne({ _id: booking._id, pickupReminderSentAt: null }, { $set: { pickupReminderSentAt: new Date() } });
       sent += 1;
     }

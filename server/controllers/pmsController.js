@@ -110,6 +110,13 @@ async function getPartnerBookings(partnerId, businessId) {
   const driverIds  = drivers.map((d) => d._id);
   if (vehicleIds.length === 0 && driverIds.length === 0) return [];
   return Booking.find({
+    // Bug réel corrigé (audit Booking Engine 2026-09) : contrairement à toute
+    // autre requête partenaire du code (bookingController.js getPartnerBookings/
+    // getPartnerStats/getPartnerAnalytics/exportPartnerBookings), cette
+    // fonction ne filtrait pas sur adminValidation.status — les stats PMS
+    // (getPMSOverview/getPerformanceScore) comptaient donc des réservations
+    // que le partenaire n'était censé voir nulle part ailleurs.
+    "adminValidation.status": "approved",
     $or: [
       ...(vehicleIds.length ? [{ vehicle: { $in: vehicleIds } }] : []),
       ...(driverIds.length  ? [{ driver:  { $in: driverIds } }]  : []),
@@ -659,10 +666,15 @@ export async function getPublicShowroom(req, res) {
     // statut de facturation, vérification interne) ne doivent jamais y fuiter :
     // seul isFounder est réellement exploité par PartnerShowroomPublic.jsx.
     const partner = await User.findById(showroom.partnerId)
-      .select("firstName lastName isFounder")
+      .select("firstName lastName isFounder country")
       .lean();
 
-    res.json({ ...showroom, partnerInfo: partner });
+    // Aucun contact direct partenaire n'est plus jamais exposé (audit 2026-08) :
+    // phone/whatsapp/email étaient renvoyés bruts via le spread du document
+    // showroom complet — retirés explicitement, le frontend doit utiliser le
+    // service client centralisé (customerServiceContact.js) ou le chat supervisé.
+    const { phone, whatsapp, email, ...safeShowroom } = showroom;
+    res.json({ ...safeShowroom, partnerInfo: partner });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

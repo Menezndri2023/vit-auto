@@ -49,7 +49,7 @@ export const getMyChats = async (req, res) => {
   try {
     const chats = await Chat.find({ participants: req.user._id })
       .sort({ lastMessageAt: -1 })
-      .populate("participants", "firstName lastName email role profilePhoto")
+      .populate("participants", "firstName lastName role profilePhoto")
       .populate("booking", "type status");
 
     const result = chats.map((c) => {
@@ -130,7 +130,7 @@ export const getOrCreateChat = async (req, res) => {
       : { type, participants: { $all: [myId, targetId] }, booking: bookingId };
 
     let chat = await Chat.findOne(filter)
-      .populate("participants", "firstName lastName email role profilePhoto");
+      .populate("participants", "firstName lastName role profilePhoto");
 
     if (!chat) {
       chat = await Chat.create({
@@ -138,7 +138,7 @@ export const getOrCreateChat = async (req, res) => {
         participants: [myId, targetId],
         booking: type === "client_partner" ? bookingId : null,
       });
-      chat = await chat.populate("participants", "firstName lastName email role profilePhoto");
+      chat = await chat.populate("participants", "firstName lastName role profilePhoto");
     }
 
     res.json({ chat });
@@ -243,7 +243,16 @@ export const sendMessage = async (req, res) => {
       // demande en direct dans sa file partagée même s'il n'est pas encore
       // participant (voir findAccessibleChat) — sans ceci, seul l'admin déjà
       // ajouté aux participants recevrait l'événement ci-dessus.
-      if (SUPPORT_TYPES.includes(chat.type)) io.to("admins").emit("chat:message", payload);
+      // Supervision admin (audit 2026-08) : un chat client_partner n'a jamais
+      // d'admin parmi ses participants (voir getOrCreateChat) — sans cette
+      // ligne, aucun admin ne verrait jamais ces messages en temps réel, et la
+      // seule fenêtre de visibilité serait un rechargement manuel de l'onglet
+      // "Chats Client↔Partenaire" (getClientPartnerChats). L'admin reste
+      // volontairement en lecture seule ici (jamais ajouté aux participants,
+      // jamais de relais obligatoire de chaque message).
+      if (SUPPORT_TYPES.includes(chat.type) || chat.type === "client_partner") {
+        io.to("admins").emit("chat:message", payload);
+      }
     }
 
     res.json({ message: savedMsg });
@@ -277,7 +286,7 @@ export const getSupportChats = async (req, res) => {
     const chats = await Chat.find({ type: { $in: SUPPORT_TYPES } })
       .select("-messages")
       .sort({ lastMessageAt: -1 })
-      .populate("participants", "firstName lastName email role profilePhoto");
+      .populate("participants", "firstName lastName role profilePhoto");
 
     const result = chats.map((c) => {
       const requester = c.participants.find((p) => p.role !== "admin");
@@ -296,6 +305,57 @@ export const getSupportChats = async (req, res) => {
     res.json({ chats: result });
   } catch (err) {
     logger.error("getSupportChats:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Supervision admin des chats client↔partenaire (audit 2026-08) ─────────
+// Contrairement à findAccessibleChat (support), l'admin n'est JAMAIS ajouté
+// aux `participants` ici — lecture directe par requête Mongo, en pure
+// supervision passive (voir sendMessage : l'admin reçoit déjà chaque message
+// en temps réel via la room "admins", ceci ne fait qu'exposer l'historique et
+// la liste). Aucune réponse admin dans ce canal : la décision produit est de
+// superviser sans jamais devenir un relais obligatoire de chaque message.
+export const getClientPartnerChats = async (req, res) => {
+  try {
+    const chats = await Chat.find({ type: "client_partner" })
+      .select("-messages")
+      .sort({ lastMessageAt: -1 })
+      .populate("participants", "firstName lastName role profilePhoto")
+      .populate("booking", "type status reference");
+
+    const result = chats.map((c) => {
+      const client  = c.participants.find((p) => p.role === "client");
+      const partner = c.participants.find((p) => p.role !== "client");
+      return {
+        _id:           c._id,
+        booking:       c.booking,
+        client,
+        partner,
+        lastMessage:   c.lastMessage,
+        lastMessageAt: c.lastMessageAt,
+      };
+    });
+
+    res.json({ chats: result });
+  } catch (err) {
+    logger.error("getClientPartnerChats:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Détail (messages) d'un chat client↔partenaire — admin, lecture seule ──
+export const getClientPartnerChatMessages = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const chat = await Chat.findOne({ _id: id, type: "client_partner" })
+      .populate("participants", "firstName lastName role profilePhoto")
+      .populate("messages.sender", "firstName lastName role profilePhoto");
+    if (!chat) return res.status(404).json({ message: "Conversation introuvable." });
+
+    res.json({ participants: chat.participants, messages: chat.messages });
+  } catch (err) {
+    logger.error("getClientPartnerChatMessages:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

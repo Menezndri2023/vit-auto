@@ -79,6 +79,24 @@ const ieTransactionSchema = new mongoose.Schema({
   // (offre, inspection) côté UI pour ces transactions.
   directPurchase: { type: Boolean, default: false },
 
+  // ── Validation admin obligatoire (audit 2026-08) ──────────────────────────
+  // Uniquement exploité pour `directPurchase: true` — l'achat direct sautait
+  // toute revue admin avant contact/paiement (chat créé + payment_pending
+  // immédiat). Le reste du pipeline négocié (reserved→...→completed) n'est
+  // pas concerné par ce chantier : un admin intervient déjà à
+  // "payment_submitted" pour ce parcours. Backfillé à "approved" par
+  // migration pour les transactions directPurchase déjà en base.
+  adminValidation: {
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
+    validatedBy:   { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    validatedAt:   { type: Date, default: null },
+    refusalReason: { type: String, default: null },
+  },
+
   // ── Destination client ─────────────────────────────────────────────────────
   destCountry: { type: String, trim: true },
   destCity:    { type: String, trim: true },

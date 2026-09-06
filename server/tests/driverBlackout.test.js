@@ -65,7 +65,9 @@ describe("driverController — congés bloqués", () => {
     driver.blackoutDates.push({ start: new Date("2027-02-10"), end: new Date("2027-02-15"), reason: "Congés" });
     await driver.save();
 
+    const client = await createUser({ role: "client", emailVerified: true });
     const { req, res } = mockReqRes({
+      user: client,
       body: {
         type: "chauffeur",
         clientInfo: { firstName: "Jean", lastName: "Client", email: "jean.client@example.test", passportNumber: "P1234567" },

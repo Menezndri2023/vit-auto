@@ -38,6 +38,36 @@ const partnerBusinessSchema = new mongoose.Schema({
   // (Vehicle.business) — voir VehicleDetails.jsx.
   isConcessionnaire: { type: Boolean, default: false },
 
+  // ── Politique de location (Booking Engine — Éligibilité, 2026-09) ────────
+  // Règles par défaut de cette entité, utilisées par
+  // server/services/eligibilityEngine.js en complément (jamais en remplacement)
+  // des champs déjà existants au niveau véhicule (Vehicle.ageMin/permisRequis/
+  // requiredVerificationLevel). Tout champ à `null`/valeur par défaut = aucune
+  // règle partenaire, l'éligibilité retombe alors uniquement sur le véhicule —
+  // comportement Phase 1 strictement inchangé tant qu'aucun partenaire ne
+  // configure cette section.
+  rentalPolicy: {
+    minimumAge:                   { type: Number, default: null },
+    // Ancienneté minimale du permis exigée, en années (comparée à
+    // User.driverLicenseOcr.deliveredDate).
+    minimumLicenseYears:          { type: Number, default: null },
+    // Tri-état volontaire (jamais true/false par défaut) : `null` = aucune
+    // règle partenaire pour ce critère, on retombe entièrement sur le
+    // véhicule (Vehicle.permisRequis, requiredVerificationLevel...) — un
+    // défaut à `true` aurait activé silencieusement une exigence partenaire
+    // dès qu'une seule entrée de rentalPolicy est enregistrée (ex. un
+    // partenaire qui fixe juste un âge minimum), y compris pour des véhicules
+    // qui n'en demandaient pas. Voir eligibilityEngine.js (`=== true` strict).
+    identityDocumentRequired:     { type: Boolean, default: null },
+    drivingLicenseRequired:       { type: Boolean, default: null },
+    internationalLicenseRequired: { type: Boolean, default: null },
+    depositRequired:              { type: Boolean, default: null },
+    // Réutilise le calcul Haversine déjà construit pour les frais de
+    // livraison (server/services/deliveryFee.js) — null = pas de limite.
+    maxDeliveryRadiusKm:          { type: Number, default: null },
+    additionalRequirements:       { type: String, trim: true, default: null },
+  },
+
   // Dernière relance envoyée pour "aucune candidature Founding Partner Program
   // démarrée pour cette entité" — voir utils/partnerReminders.js
   // checkPartnerBusinessesWithoutOnboarding. Le programme étant devenu

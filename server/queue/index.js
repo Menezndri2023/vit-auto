@@ -273,7 +273,9 @@ export const dispatch = {
         data: { reference: ref, vehicleTitle: vehicle?.title, firstName: client.firstName },
       }),
 
-      // Notification interne client
+      // Notification interne client — email dédié déjà envoyé juste au-dessus
+      // (booking_confirmation) pour ce même événement/destinataire : skipEmail
+      // évite un doublon avec le filet email générique (Notification.js).
       client?._id && enqueue(QUEUE_NAMES.NOTIFICATION, "booking_created_notif", {
         channel: "internal",
         userId:  client._id?.toString(),
@@ -281,6 +283,7 @@ export const dispatch = {
         titre:   "🚗 Réservation créée",
         message: `Votre réservation ${ref} a été enregistrée. En attente de confirmation du partenaire.`,
         lien:    `/dashboard`,
+        skipEmail: true,
       }),
 
       // Notification interne partenaire
@@ -293,7 +296,10 @@ export const dispatch = {
         lien:    `/vendor/dashboard`,
       }),
 
-      // AI : analyse risque
+      // AI : analyse risque — décide désormais l'auto-approbation (Booking
+      // Engine, 2026-09), remonté de LOW à NORMAL car il conditionne
+      // maintenant une action visible client/partenaire, plus seulement une
+      // alerte (voir ai.worker.js fraud_detection).
       client?._id && enqueue(QUEUE_NAMES.AI, "fraud_check", {
         type: "fraud_detection",
         data: {
@@ -301,7 +307,7 @@ export const dispatch = {
           userId:    client._id?.toString(),
           amount:    booking.montantTotal,
         },
-      }, { priority: PRIORITY.LOW }),
+      }, { priority: PRIORITY.NORMAL }),
     ]);
   },
 
@@ -330,6 +336,11 @@ export const dispatch = {
         titre:   notif.titre,
         message: notif.message,
         lien:    `/dashboard`,
+        // "confirmed" a déjà un email dédié (booking_accepted_email, juste en
+        // dessous) — skipEmail évite le doublon avec le filet générique. Les
+        // autres statuts (in_progress/completed/cancelled) n'ont aujourd'hui
+        // aucun email dédié : ils reçoivent désormais le filet générique.
+        skipEmail: newStatus === "confirmed",
       });
     }
 
@@ -342,6 +353,58 @@ export const dispatch = {
         data:   { firstName: client.firstName, reference: ref, vehicleTitle: vehicle?.title },
       });
     }
+  },
+
+  // ── WhatsApp partenaire : nouvelle réservation validée ──────────────────────
+  // Appelé UNIQUEMENT depuis bookingController.adminValidateBooking (decision
+  // "approved") — jamais à la création (voir le commentaire "Gate admin
+  // obligatoire" dans createBooking : le partenaire ne doit rien savoir d'une
+  // demande avant qu'un admin ne l'ait validée). Nécessite un template Meta
+  // pré-approuvé nommé "new_booking_partner" (catégorie UTILITY) — voir
+  // server/services/communication/channels/WhatsAppChannel.js pour les
+  // identifiants requis (WHATSAPP_TOKEN/WHATSAPP_PHONE_ID). Silencieux tant
+  // que ces identifiants ne sont pas configurés (sendWhatsApp gère déjà ce cas).
+  async partnerBookingApproved(booking, ownerId, serviceTitle) {
+    if (!ownerId) return;
+    const User = (await import("../models/User.js")).default;
+    const owner = await User.findById(ownerId).select("firstName phone").lean();
+    if (!owner?.phone) return;
+
+    const clientName = `${booking.clientInfo?.firstName || ""} ${booking.clientInfo?.lastName || ""}`.trim() || "Client";
+    const bookingId = booking._id?.toString();
+    // Booking Engine — livraison (2026-09) : le partenaire voit directement le
+    // mode de récupération choisi par le client dans la notification initiale
+    // (§34 du cahier des charges) — accepter confirme la livraison du même
+    // geste (voir bookingActionService.acceptBooking).
+    const pickupInfo = booking.location?.pickupMethod === "livraison"
+      ? `Livraison — ${booking.location.pickupPosition?.address || booking.location.pickupLocation || "adresse à confirmer"}`
+      : "Retrait en agence";
+    await enqueue(QUEUE_NAMES.WHATSAPP, "new_booking_partner_wa", {
+      to:       owner.phone,
+      template: "new_booking_partner",
+      language: "fr",
+      userId:   ownerId.toString(),
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: owner.firstName || "Partenaire" },
+            { type: "text", text: booking.reference || "" },
+            { type: "text", text: serviceTitle || "votre annonce" },
+            { type: "text", text: clientName },
+            { type: "text", text: pickupInfo },
+          ],
+        },
+        // Boutons de réponse rapide (Booking Engine, 2026-09) — le template
+        // Meta approuvé doit déclarer 3 boutons "quick_reply" dans cet ordre
+        // exact (Accepter/Refuser/Alternative) ; le payload ici porte l'ID de
+        // réservation, relu par whatsappController.handleInteractiveButton.
+        { type: "button", sub_type: "quick_reply", index: "0", parameters: [{ type: "payload", payload: `ACCEPT_${bookingId}` }] },
+        { type: "button", sub_type: "quick_reply", index: "1", parameters: [{ type: "payload", payload: `REJECT_${bookingId}` }] },
+        { type: "button", sub_type: "quick_reply", index: "2", parameters: [{ type: "payload", payload: `ALT_${bookingId}` }] },
+      ],
+      data: { bookingId },
+    });
   },
 
   // ── KYC ───────────────────────────────────────────────────────────────────

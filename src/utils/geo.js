@@ -64,7 +64,10 @@ export async function reverseGeocode(lat, lng) {
     if (!a) return null;
     const road = [a.road, a.house_number].filter(Boolean).join(" ");
     const city = a.city || a.town || a.village || a.county || null;
-    return { address: road || data.display_name || null, city };
+    // postalCode ajouté (Booking Engine — livraison, 2026-09) pour
+    // DeliveryMapPicker — champ additionnel, ne change rien pour les appelants
+    // existants qui ne déstructurent que {address, city}.
+    return { address: road || data.display_name || null, city, postalCode: a.postcode || null };
   } catch { /* réseau indisponible */ }
   return null;
 }

@@ -121,7 +121,9 @@ const normalizeVehicle = (v) => {
     // Partenaire — pour affichage et lien profil
     ownerId,
     ownerName,
-    ownerPhone:   v.owner?.phone || v.contactTel || null,
+    // Aucun contact direct partenaire n'est plus jamais transmis pour une
+    // annonce (voir vehicleController.getVehicles/getVehicleById côté
+    // backend) — l'appel se fait uniquement via le service client centralisé.
     ownerCity:            v.owner?.city  || v.ville || null,
     // Concessionnaire = attribut de l'ENTITÉ (PartnerBusiness.isConcessionnaire),
     // pas du compte partenaire — seule getVehicleById peuple `business` (populate),

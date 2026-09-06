@@ -33,3 +33,6 @@ server/backups/
 *.sln
 *.sw?
 .vercel
+
+# graphify — graphe de connaissances généré localement
+graphify-out/

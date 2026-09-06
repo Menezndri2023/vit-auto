@@ -13,6 +13,10 @@ async function makeBooking(overrides = {}) {
   const vehicle = await createVehicleDoc({ owner: partner._id });
   const booking = await Booking.create({
     type: "location", status: "confirmed", client: client._id, clientInfo,
+    // Gate admin obligatoire (audit 2026-08) : ces tests portent sur des
+    // commandes déjà "confirmed" ou plus avancées, donc forcément déjà
+    // validées par un admin — pas l'objet de ce fichier de test.
+    adminValidation: { status: "approved" },
     vehicle: vehicle._id,
     location: { startDate: new Date("2027-03-01"), endDate: new Date("2027-03-03"), days: 2 },
     montantBase: 20000, montantTotal: 20000, commissionRate: 0.15, commissionAmount: 3000, partnerPayout: 17000,

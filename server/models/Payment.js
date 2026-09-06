@@ -33,9 +33,11 @@ const paymentSchema = new mongoose.Schema({
   },
 
   // ── Statut ────────────────────────────────────────────────
+  // "partially_refunded" ajouté (Booking Engine — Remboursements, 2026-09) —
+  // voir refundedAmount ci-dessous et server/services/payment/refundService.js.
   status: {
     type: String,
-    enum: ["pending", "completed", "failed", "refunded"],
+    enum: ["pending", "completed", "failed", "refunded", "partially_refunded"],
     default: "pending",
   },
 
@@ -71,9 +73,14 @@ const paymentSchema = new mongoose.Schema({
   // simuler un paiement réussi en appelant directement le webhook.
   webhookToken: { type: String, default: null, select: false },
 
-  // ── Remboursement ─────────────────────────────────────────
-  refundedAt:    { type: Date, default: null },
-  refundReason:  { type: String, default: null },
+  // ── Remboursement (Booking Engine — Remboursements, 2026-09) ──────────────
+  // Ces champs existaient déjà mais n'étaient jamais écrits nulle part avant
+  // cette phase (voir server/services/payment/refundService.js, seul point
+  // d'écriture désormais). `refundedAmount` cumule plusieurs remboursements
+  // partiels jusqu'à `amount` — au-delà, status passe à "refunded".
+  refundedAmount: { type: Number, default: 0 },
+  refundedAt:      { type: Date, default: null },
+  refundReason:    { type: String, default: null },
 
   createdAt: { type: Date, default: Date.now },
 });

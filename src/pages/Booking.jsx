@@ -4,10 +4,13 @@ import { useVehicles } from "../context/VehicleContext";
 import { useAuth }     from "../context/AuthContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useToast }    from "../context/ToastContext";
-import { haversineKm, geocodeAddress, getCurrentPosition } from "../utils/geo";
+import { haversineKm, geocodeAddress, getCurrentPosition, reverseGeocode } from "../utils/geo";
 import { getKycBadge, generateBookingRef } from "../utils/kycEngine.js";
 import { selectBestPromotionRule, effectivePricePerDay as computeEffectivePricePerDay } from "../utils/promotion";
+import { computeLocationTotal as computeSeasonalLocationTotal } from "../utils/seasonalPricing";
+import { getCustomerServiceContact } from "../utils/customerServiceContact";
 import PriceTag from "../components/PriceTag/PriceTag";
+import DeliveryMapPicker from "../components/DeliveryMapPicker/DeliveryMapPicker";
 import styles from "./Booking.module.css";
 
 /* ── Constantes financières (USD — voir PricingConfig.serviceFee/rentalOptions
@@ -40,15 +43,6 @@ const STEPS = [
   { id: 3, label: "Paiement" },
   { id: 4, label: "Confirmation" },
 ];
-
-async function reverseGeocode(lat, lng) {
-  try {
-    const res  = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`, { headers: { "Accept-Language": "fr" } });
-    const data = await res.json();
-    return data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-  } catch {}
-  return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-}
 
 /* ════════════════════════════════════════════════════════════════
    COMPOSANT PRINCIPAL
@@ -158,6 +152,13 @@ export default function Booking() {
   const [pickupAddress,  setPickupAddress]  = useState("");
   const [pickupPosition, setPickupPosition] = useState(null);
   const [gpsState,       setGpsState]       = useState("idle");
+  // Booking Engine — livraison (2026-09) : champs structurés optionnels +
+  // sélecteur de carte (voir DeliveryMapPicker), en plus de la détection GPS
+  // et de la saisie libre déjà existantes.
+  const [deliveryCity,         setDeliveryCity]         = useState("");
+  const [deliveryPostalCode,   setDeliveryPostalCode]   = useState("");
+  const [deliveryInstructions, setDeliveryInstructions] = useState("");
+  const [showMapPicker,        setShowMapPicker]        = useState(false);
   const [gpsError,       setGpsError]       = useState("");
   const [geoDistance,    setGeoDistance]    = useState(null);
   const [geoFee,         setGeoFee]         = useState(null);
@@ -178,9 +179,16 @@ export default function Booking() {
   const [cardExpiry,     setCardExpiry]     = useState("");
   const [cardCvv,        setCardCvv]        = useState("");
 
+  // Location (hors essai/leasing) : un seul moyen de paiement possible
+  // (espèces) — voir `isRentalOnly`/`visiblePaymentMethods` plus bas. Corrige
+  // le défaut "orange_money" dès que isTrial/isLeasing sont connus (dépendent
+  // de vehicle/financingTerms, potentiellement résolus après le premier rendu).
+  useEffect(() => {
+    if (!isTrial && !isLeasing) setPayMethod("cash");
+  }, [isTrial, isLeasing]);
+
   /* ── Infos partenaire ──────────────────────────────────────────── */
   const agencyName    = vehicle?.contactNom  || vehicle?.ownerName  || "Partenaire VIT AUTO";
-  const agencyPhone   = vehicle?.contactTel  || vehicle?.ownerPhone || null;
   const agencyCity    = vehicle?.ville       || vehicle?.ownerCity  || "";
   const agencyAddress = vehicle?.adresse     || "";
   const agencyFull    = [agencyAddress, agencyCity].filter(Boolean).join(", ");
@@ -234,9 +242,13 @@ export default function Booking() {
   const activePromo = selectBestPromotionRule(vehicle?.promotions, Math.max(days, 1), promoBaseTotal);
   const promoActive = !!activePromo;
   const effectivePricePerDay = Math.round(computeEffectivePricePerDay(vehicle?.pricePerDay || 0, Math.max(days, 1), vehicle?.promotions));
+  // Tarification saisonnière (Vehicle.seasonalRates, voir src/utils/seasonalPricing.js) —
+  // même calcul jour par jour que le serveur (bookingController.createBooking),
+  // pour que l'estimation affichée avant envoi corresponde au montant réellement
+  // facturé (apiData.booking.montantBase reste toujours autoritaire, voir plus bas).
   const baseTotal    = isLeasing
     ? (financingTerms?.apportInitial || 0)
-    : effectivePricePerDay * Math.max(days, 1);
+    : computeSeasonalLocationTotal(vehicle, form.startDate, Math.max(days, 1));
   // Fidélité — aperçu client uniquement (voir bookingController.createBooking
   // pour le plafond/débit réels et autoritaires côté serveur, même règle
   // reproduite ici : 100 points = 1 USD, max 20% de baseTotal).
@@ -264,14 +276,28 @@ export default function Booking() {
           { enableHighAccuracy: true, timeout: 12000 }
         )
       );
-      const addr = await reverseGeocode(pos.lat, pos.lng);
+      const result = await reverseGeocode(pos.lat, pos.lng);
       setPickupPosition(pos);
-      setPickupAddress(addr);
+      setPickupAddress(result?.address || `${pos.lat.toFixed(5)}, ${pos.lng.toFixed(5)}`);
+      setDeliveryCity(result?.city || "");
+      setDeliveryPostalCode(result?.postalCode || "");
       setGpsState("ok");
     } catch (err) {
       setGpsState("error");
       setGpsError(err.message);
     }
+  };
+
+  // Booking Engine — livraison (2026-09) : confirmation depuis le sélecteur
+  // de carte (voir DeliveryMapPicker) — même état que la détection GPS/la
+  // saisie manuelle, juste une 3e façon de le renseigner.
+  const handleMapConfirm = ({ lat, lng, address, city, postalCode }) => {
+    setPickupPosition({ lat, lng });
+    setPickupAddress(address || "");
+    setDeliveryCity(city || "");
+    setDeliveryPostalCode(postalCode || "");
+    setGpsState("ok");
+    setShowMapPicker(false);
   };
 
   // Calcul frais livraison GPS
@@ -315,6 +341,12 @@ export default function Booking() {
     // l'écran qu'au rendu suivant, laissant une fenêtre réelle pour un double
     // appel avant que le bouton ne soit visuellement désactivé.
     if (submitting) return;
+    // Booking Engine (2026-09) : POST /api/bookings exige désormais un compte
+    // (voir routes/bookings.js) — la réservation invité n'est plus possible.
+    if (!token) {
+      navigate("/login", { state: { from: { pathname: location.pathname + location.search } } });
+      return;
+    }
     setSubmitting(true);
 
     const finalPickup = pickupMethod === "retrait"
@@ -434,7 +466,9 @@ export default function Booking() {
             days,
             pickupMethod,
             pickupLocation: finalPickup,
-            pickupPosition: pickupMethod === "livraison" ? pickupPosition : null,
+            pickupPosition: pickupMethod === "livraison" && pickupPosition
+              ? { ...pickupPosition, address: pickupAddress, city: deliveryCity || null, postalCode: deliveryPostalCode || null, instructions: deliveryInstructions || null }
+              : null,
             options:        selectedOptions,
           },
           payment: {
@@ -536,6 +570,11 @@ export default function Booking() {
         // "Réservation confirmée" tant qu'aucune réservation n'existe en base.
         removeLocalBooking(bookingRef);
         toastError(apiData.message || "Votre réservation n'a pas pu être enregistrée. Veuillez réessayer.");
+        // Booking Engine (2026-09) — dirige directement vers l'écran de
+        // vérification concerné plutôt que de laisser le client deviner quoi
+        // faire à partir du seul message d'erreur.
+        if (apiData.code === "VERIFICATION_LEVEL_1_REQUIRED") navigate("/profile");
+        if (apiData.code === "VERIFICATION_LEVEL_2_REQUIRED") navigate("/kyc");
         setSubmitting(false);
         return;
       }
@@ -554,7 +593,7 @@ export default function Booking() {
 
     setSubmitting(false);
     navigate("/booking/success", { state: { booking: bookingData, trial: isTrial, payment: { paymentMethod: payMethod, mobileNumber } } });
-  }, [submitting, form, pickupMethod, pickupAddress, pickupPosition, selectedOptions, payMethod, mobileNumber, cardNumber, cardHolder, days, deliveryFee, geoDistance, baseTotal, optionsTotal, totalToPay, kycOk, kycScore, kycBadge, bookingRef, isTrial, isLeasing, financingType, financingTerms, vehicle, token, user, addBooking, removeLocalBooking, navigate, agencyFull, toastError]);
+  }, [submitting, form, pickupMethod, pickupAddress, pickupPosition, deliveryCity, deliveryPostalCode, deliveryInstructions, selectedOptions, payMethod, mobileNumber, cardNumber, cardHolder, days, deliveryFee, geoDistance, baseTotal, optionsTotal, totalToPay, kycOk, kycScore, kycBadge, bookingRef, isTrial, isLeasing, financingType, financingTerms, vehicle, token, user, addBooking, removeLocalBooking, navigate, location, agencyFull, toastError]);
 
   /* ════════════════════════════════════════════════════════════════
      RENDU
@@ -664,9 +703,16 @@ export default function Booking() {
   // Restreint les moyens de paiement à ceux activés par l'admin pour le pays du
   // véhicule (CountryConfig.paymentMethods) — voir Checkout.jsx pour le même mécanisme.
   const allowedPaymentMethods = getPaymentMethodsForCountry(vehicle.country || catalogCountry || countryCode);
-  const visiblePaymentMethods = allowedPaymentMethods
-    ? PAYMENT_METHODS.filter((pm) => allowedPaymentMethods.includes(pm.value))
-    : PAYMENT_METHODS;
+  // Décision produit (2026-09) : la location (hors essai/leasing, voir `type`
+  // ci-dessus) passe exclusivement en espèces en attendant la configuration
+  // des vraies clés de paiement — bookingController.createBooking applique le
+  // même filet côté serveur, indépendamment de ce que ce composant envoie.
+  const isRentalOnly = !isTrial && !isLeasing;
+  const visiblePaymentMethods = isRentalOnly
+    ? PAYMENT_METHODS.filter((pm) => pm.value === "cash")
+    : allowedPaymentMethods
+      ? PAYMENT_METHODS.filter((pm) => allowedPaymentMethods.includes(pm.value))
+      : PAYMENT_METHODS;
 
   return (
     <div className={styles.page}>
@@ -829,14 +875,19 @@ export default function Booking() {
 
                 {pickupMethod === "livraison" && (
                   <div className={styles.deliveryBlock}>
-                    <button
-                      type="button"
-                      className={`${styles.gpsBtn} ${gpsState === "ok" ? styles.gpsBtnOk : ""}`}
-                      onClick={handleDetectGPS}
-                      disabled={gpsState === "loading"}
-                    >
-                      {gpsState === "loading" ? "⏳ Détection…" : gpsState === "ok" ? "✓ Position détectée" : "🎯 Détecter ma position GPS"}
-                    </button>
+                    <div className={styles.deliveryModeRow}>
+                      <button
+                        type="button"
+                        className={`${styles.gpsBtn} ${gpsState === "ok" ? styles.gpsBtnOk : ""}`}
+                        onClick={handleDetectGPS}
+                        disabled={gpsState === "loading"}
+                      >
+                        {gpsState === "loading" ? "⏳ Détection…" : gpsState === "ok" ? "✓ Position détectée" : "🎯 Utiliser ma position"}
+                      </button>
+                      <button type="button" className={styles.gpsBtn} onClick={() => setShowMapPicker(true)}>
+                        🗺️ Choisir sur la carte
+                      </button>
+                    </div>
                     {gpsError && <p className={styles.errorMsg}>⚠️ {gpsError}</p>}
                     <input
                       type="text"
@@ -845,6 +896,28 @@ export default function Booking() {
                       value={pickupAddress}
                       onChange={(e) => { setPickupAddress(e.target.value); if (!e.target.value) { setPickupPosition(null); setGeoDistance(null); setGeoFee(null); } }}
                     />
+                    <div className={styles.deliveryFieldsRow}>
+                      <input
+                        type="text" className={styles.input} placeholder="Ville (optionnel)"
+                        value={deliveryCity} onChange={(e) => setDeliveryCity(e.target.value)}
+                      />
+                      <input
+                        type="text" className={styles.input} placeholder="Code postal (optionnel)"
+                        value={deliveryPostalCode} onChange={(e) => setDeliveryPostalCode(e.target.value)}
+                      />
+                    </div>
+                    <input
+                      type="text" className={styles.input} placeholder="Instructions pour le livreur (optionnel — ex : réception principale)"
+                      value={deliveryInstructions} onChange={(e) => setDeliveryInstructions(e.target.value)}
+                    />
+                    {showMapPicker && (
+                      <DeliveryMapPicker
+                        initialPosition={pickupPosition}
+                        fallbackCenter={vehicle?.coordonnees}
+                        onConfirm={handleMapConfirm}
+                        onClose={() => setShowMapPicker(false)}
+                      />
+                    )}
                     {pickupMethod === "livraison" && (
                       <div className={styles.deliveryFeeBox}>
                         <div className={styles.deliveryFeeRow}>
@@ -866,11 +939,9 @@ export default function Booking() {
                       <strong>{agencyName}</strong>
                       <span>{agencyFull}</span>
                       {/* Règle appliquée site large : l'appel ne pointe jamais vers le
-                          partenaire, uniquement le service client VIT AUTO dédié au
-                          pays de l'annonce — le numéro agence reste affiché en texte
-                          informatif (pas un lien tel: vers ce numéro-là). */}
-                      {agencyPhone && <span className={styles.agencyPhone}>{agencyPhone}</span>}
-                      <a href={`tel:${vehicle?.country === "CI" ? "+2250748124635" : "+2120607742672"}`} className={styles.agencyPhone}>
+                          partenaire ni n'affiche son numéro, uniquement le service
+                          client VIT AUTO dédié au pays de l'annonce. */}
+                      <a href={`tel:${getCustomerServiceContact(vehicle?.country).tel}`} className={styles.agencyPhone}>
                         📞 Appeler le service client
                       </a>
                     </div>

@@ -9,6 +9,7 @@ import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import ReportButton from "../components/ReportButton/ReportButton";
 import PriceTag from "../components/PriceTag/PriceTag";
 import { optimizedImageUrl } from "../utils/imageOptim";
+import { getCustomerServiceContact } from "../utils/customerServiceContact";
 import styles from "./VehicleDetails.module.css";
 
 const fmtN = (n) => n != null ? Number(n).toLocaleString("fr-FR") : "—";
@@ -415,6 +416,9 @@ export default function VehicleDetails() {
             <span className={styles.caution}>{t("vd.caution")} <PriceTag amountUSD={vehicle.caution} pinnedCurrency={vehicle.currency}
               enteredAmount={vehicle.cautionEntered} enteredCurrency={vehicle.priceEntryCurrency} compact /></span>
           )}
+          {!isSale && (vehicle.seasonalRates || []).some((r) => r.active) && (
+            <span className={styles.caution}>🗓️ Tarif variable selon la période — voir le détail aux dates choisies</span>
+          )}
           {vehicle.noteMoyenne > 0 && (
             <span className={styles.rating}>
               {"★".repeat(Math.round(vehicle.noteMoyenne))}{"☆".repeat(5 - Math.round(vehicle.noteMoyenne))}
@@ -543,21 +547,14 @@ export default function VehicleDetails() {
           )}
 
           {/* ── Carte annonceur ── */}
-          {/* Refonte (demande explicite) : les appels ne passent plus jamais
-              directement chez le partenaire — uniquement sur le numéro de
-              service client VIT AUTO dédié au pays de l'annonce (Maroc ou
-              Côte d'Ivoire, un seul des deux affiché/appelé selon
-              vehicle.country). Le numéro du partenaire reste visible à titre
-              informatif (texte, pas de lien tel:) ; l'appel réel est
-              centralisé pour que l'admin puisse gérer la demande à la place
-              du partenaire si besoin (voir bookingController — admin a
-              désormais les mêmes actions que le propriétaire sur toute
-              réservation/essai). */}
-          {(vehicle.ownerName || vehicle.contactNom || vehicle.partnerName || vehicle.ownerPhone || vehicle.contactTel) && (() => {
-            const isCI = vehicle.country === "CI";
-            const serviceTel     = isCI ? "+2250748124635" : "+2120607742672";
-            const serviceDisplay = isCI ? "🇨🇮 +225 07 48 12 46 35" : "🇲🇦 +212 06 07 74 26 72";
-            const partnerPhone = vehicle.ownerPhone || vehicle.contactTel;
+          {/* Aucun contact direct partenaire n'est plus jamais exposé (ni
+              affiché en clair, ni transmis par l'API — voir vehicleController
+              getVehicles/getVehicleById) : les appels passent uniquement par
+              le numéro de service client VIT AUTO dédié au pays de l'annonce
+              (Maroc ou Côte d'Ivoire selon vehicle.country), pour que l'admin
+              puisse gérer la demande à la place du partenaire si besoin. */}
+          {(vehicle.ownerName || vehicle.contactNom || vehicle.partnerName) && (() => {
+            const { tel: serviceTel, display: serviceDisplay } = getCustomerServiceContact(vehicle.country);
             return (
               <div className={styles.card}>
                 <h3 className={styles.cardTitle}>{t("vd.publisher")}</h3>
@@ -574,9 +571,6 @@ export default function VehicleDetails() {
                     )}
                     {vehicle.isConcessionnaire && (
                       <span className={styles.publisherMeta}>🏬 {t("vd.dealer")}</span>
-                    )}
-                    {partnerPhone && (
-                      <span className={styles.publisherMeta}>👤 {t("vd.partnerPhoneInfo")} {partnerPhone}</span>
                     )}
                   </div>
                   <div className={styles.publisherActions}>

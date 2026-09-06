@@ -27,6 +27,9 @@ describe("bookingController.getPartnerAnalytics", () => {
     for (let i = 0; i < 3; i++) {
       await Booking.create({
         type: "location", status: "completed",
+        // Gate admin obligatoire (audit 2026-08) : getPartnerAnalytics filtre
+        // désormais sur adminValidation.status:"approved".
+        adminValidation: { status: "approved" },
         client: client._id,
         clientInfo: { firstName: "Awa", lastName: "Koné", email: "awa@example.test" , passportNumber: "P1234567"},
         vehicle: vehicle._id,
@@ -53,6 +56,7 @@ describe("bookingController.getPartnerAnalytics", () => {
 
     await Booking.create({
       type: "location", status: "pending",
+      adminValidation: { status: "approved" },
       clientInfo: { firstName: "Invité", lastName: "Sans compte", email: "guest@example.test" , passportNumber: "P1234567"},
       vehicle: vehicle._id,
       location: { days: 1 },

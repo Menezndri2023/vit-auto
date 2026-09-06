@@ -76,8 +76,10 @@ export const getUsers = async (req, res) => {
 };
 
 // ── Profil partenaire public (aucune authentification requise) ────────────
-// Champ whitelist strict : jamais l'email, le téléphone n'est volontairement affiché
-// que côté frontend s'il existe (contact commercial), jamais de données KYC brutes.
+// Champ whitelist strict : jamais l'email ni le téléphone — aucun contact
+// direct partenaire n'est plus jamais exposé publiquement (audit 2026-08) ;
+// `country` permet au frontend de résoudre le numéro de service client
+// centralisé à appeler à la place (voir customerServiceContact.js).
 export const getPublicProfile = async (req, res) => {
   try {
     // Sélection au niveau champ ET sous-champ : `business`/`defaultLocation` sont
@@ -85,7 +87,7 @@ export const getPublicProfile = async (req, res) => {
     // les inclure entiers exposait ces données à tout visiteur anonyme sans
     // qu'aucun usage frontend ne les consomme. Fuite PII trouvée en audit (2026-07).
     const user = await User.findById(req.params.id)
-      .select("firstName lastName phone profilePhoto business.companyName partnerType defaultLocation.city isFounder certificationBadge role isActive")
+      .select("firstName lastName country profilePhoto business.companyName partnerType defaultLocation.city isFounder certificationBadge role isActive")
       .lean();
     if (!user || !user.isActive || !["partenaire", "admin"].includes(user.role)) {
       return res.status(404).json({ message: "Partenaire introuvable." });

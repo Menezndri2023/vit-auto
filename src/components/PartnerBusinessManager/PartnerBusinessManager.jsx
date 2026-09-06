@@ -5,7 +5,31 @@ import { useCurrency } from "../../context/CurrencyContext";
 import { geocodeAddress } from "../../utils/geo";
 import styles from "./PartnerBusinessManager.module.css";
 
-const EMPTY_FORM = { companyName: "", country: "", ville: "", adresse: "", contactNom: "", contactTel: "", isConcessionnaire: false };
+// Booking Engine — Éligibilité (2026-09) — voir server/services/eligibilityEngine.js.
+// Chaînes vides pour les champs numériques (pas 0/null) pour que les <input
+// type="number"> restent vides tant que le partenaire n'a rien saisi, plutôt
+// que d'afficher un "0" trompeur (0 an minimum de permis, par exemple).
+// "" = pas de règle partenaire (tri-état, voir server/models/PartnerBusiness.js)
+// — jamais true/false par défaut, pour qu'enregistrer une seule règle (ex.
+// l'âge minimum) n'active pas silencieusement les autres exigences.
+const EMPTY_RENTAL_POLICY = {
+  minimumAge: "", minimumLicenseYears: "",
+  identityDocumentRequired: "", drivingLicenseRequired: "",
+  internationalLicenseRequired: "", depositRequired: "",
+  maxDeliveryRadiusKm: "", additionalRequirements: "",
+};
+
+// Représente le tri-état (aucune règle / oui / non) dans un <select> — un
+// simple checkbox ne peut pas représenter "aucune règle" distinctement de "non".
+const TRISTATE_OPTIONS = [
+  { value: "",  label: "Pas de règle" },
+  { value: "1", label: "Oui, exigé" },
+  { value: "0", label: "Non, pas exigé" },
+];
+const toTristateValue = (v) => v === true ? "1" : v === false ? "0" : "";
+const fromTristateValue = (v) => v === "1" ? true : v === "0" ? false : null;
+
+const EMPTY_FORM = { companyName: "", country: "", ville: "", adresse: "", contactNom: "", contactTel: "", isConcessionnaire: false, rentalPolicy: EMPTY_RENTAL_POLICY };
 
 const PartnerBusinessManager = () => {
   const { success, error } = useToast();
@@ -43,11 +67,22 @@ const PartnerBusinessManager = () => {
       companyName: b.companyName || "", country: b.country || "", ville: b.ville || "",
       adresse: b.adresse || "", contactNom: b.contactNom || "", contactTel: b.contactTel || "",
       isConcessionnaire: !!b.isConcessionnaire,
+      rentalPolicy: {
+        minimumAge:           b.rentalPolicy?.minimumAge ?? "",
+        minimumLicenseYears:  b.rentalPolicy?.minimumLicenseYears ?? "",
+        identityDocumentRequired:     toTristateValue(b.rentalPolicy?.identityDocumentRequired),
+        drivingLicenseRequired:       toTristateValue(b.rentalPolicy?.drivingLicenseRequired),
+        internationalLicenseRequired: toTristateValue(b.rentalPolicy?.internationalLicenseRequired),
+        depositRequired:              toTristateValue(b.rentalPolicy?.depositRequired),
+        maxDeliveryRadiusKm:  b.rentalPolicy?.maxDeliveryRadiusKm ?? "",
+        additionalRequirements: b.rentalPolicy?.additionalRequirements || "",
+      },
     });
     setShowForm(true);
   };
 
-  const setF = (field, val) => setForm((p) => ({ ...p, [field]: val }));
+  const setF  = (field, val) => setForm((p) => ({ ...p, [field]: val }));
+  const setRP = (field, val) => setForm((p) => ({ ...p, rentalPolicy: { ...p.rentalPolicy, [field]: val } }));
 
   const handleSave = async () => {
     if (!form.companyName.trim() || !form.country || !form.ville.trim()) {
@@ -59,7 +94,17 @@ const PartnerBusinessManager = () => {
       const coordonnees = form.adresse.trim()
         ? await geocodeAddress(`${form.adresse}, ${form.ville}`)
         : null;
-      const payload = { ...form, coordonnees: coordonnees || undefined };
+      const rentalPolicy = {
+        minimumAge:          form.rentalPolicy.minimumAge          === "" ? null : Number(form.rentalPolicy.minimumAge),
+        minimumLicenseYears: form.rentalPolicy.minimumLicenseYears === "" ? null : Number(form.rentalPolicy.minimumLicenseYears),
+        maxDeliveryRadiusKm: form.rentalPolicy.maxDeliveryRadiusKm === "" ? null : Number(form.rentalPolicy.maxDeliveryRadiusKm),
+        additionalRequirements: form.rentalPolicy.additionalRequirements.trim() || null,
+        identityDocumentRequired:     fromTristateValue(form.rentalPolicy.identityDocumentRequired),
+        drivingLicenseRequired:       fromTristateValue(form.rentalPolicy.drivingLicenseRequired),
+        internationalLicenseRequired: fromTristateValue(form.rentalPolicy.internationalLicenseRequired),
+        depositRequired:              fromTristateValue(form.rentalPolicy.depositRequired),
+      };
+      const payload = { ...form, rentalPolicy, coordonnees: coordonnees || undefined };
 
       if (editingId) {
         await api.patch(`/api/partner/businesses/${editingId}`, payload);
@@ -132,6 +177,7 @@ const PartnerBusinessManager = () => {
             <p className={styles.cardLine}>📍 {b.ville}{b.adresse ? `, ${b.adresse}` : ""}</p>
             {b.contactNom && <p className={styles.cardLine}>👤 {b.contactNom}</p>}
             {b.contactTel && <p className={styles.cardLine}>📞 {b.contactTel}</p>}
+            {b.rentalPolicy?.minimumAge && <p className={styles.cardLine}>🛡️ Âge min. {b.rentalPolicy.minimumAge} ans</p>}
             <div className={styles.cardActions}>
               {!b.isDefault && (
                 <button className={styles.linkBtn} onClick={() => handleSetDefault(b)}>Définir par défaut</button>
@@ -181,6 +227,64 @@ const PartnerBusinessManager = () => {
               </label>
             </div>
           </div>
+
+          {/* Booking Engine — Éligibilité (2026-09) : politique de location par
+              défaut de cette entité, appliquée en plus des réglages propres à
+              chaque véhicule (voir server/services/eligibilityEngine.js).
+              Laisser un champ vide = pas de règle partenaire pour ce critère. */}
+          <h3 className={styles.cardTitle} style={{ marginTop: 24 }}>🛡️ Politique de location</h3>
+          <p className={styles.hint}>
+            Ces règles s'appliquent par défaut à toutes les réservations sur les véhicules de cette entité,
+            en plus des réglages propres à chaque annonce. Laissez un champ vide pour ne poser aucune exigence.
+          </p>
+          <div className={styles.formGrid}>
+            <div className={styles.field}>
+              <label>Âge minimum du client</label>
+              <input type="number" min="18" value={form.rentalPolicy.minimumAge}
+                onChange={(e) => setRP("minimumAge", e.target.value)} placeholder="Ex : 23" />
+            </div>
+            <div className={styles.field}>
+              <label>Ancienneté minimale du permis (années)</label>
+              <input type="number" min="0" value={form.rentalPolicy.minimumLicenseYears}
+                onChange={(e) => setRP("minimumLicenseYears", e.target.value)} placeholder="Ex : 2" />
+            </div>
+            <div className={styles.field}>
+              <label>Rayon de livraison maximum (km)</label>
+              <input type="number" min="0" value={form.rentalPolicy.maxDeliveryRadiusKm}
+                onChange={(e) => setRP("maxDeliveryRadiusKm", e.target.value)} placeholder="Illimité" />
+            </div>
+            <div className={styles.field}>
+              <label>🪪 Pièce d'identité vérifiée</label>
+              <select value={form.rentalPolicy.identityDocumentRequired} onChange={(e) => setRP("identityDocumentRequired", e.target.value)}>
+                {TRISTATE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div className={styles.field}>
+              <label>🚘 Permis de conduire vérifié</label>
+              <select value={form.rentalPolicy.drivingLicenseRequired} onChange={(e) => setRP("drivingLicenseRequired", e.target.value)}>
+                {TRISTATE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div className={styles.field}>
+              <label>🌍 Permis international (clients étrangers)</label>
+              <select value={form.rentalPolicy.internationalLicenseRequired} onChange={(e) => setRP("internationalLicenseRequired", e.target.value)}>
+                {TRISTATE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div className={styles.field}>
+              <label>💰 Caution exigée par défaut</label>
+              <select value={form.rentalPolicy.depositRequired} onChange={(e) => setRP("depositRequired", e.target.value)}>
+                {TRISTATE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div className={`${styles.field} ${styles.colSpan2}`}>
+              <label>Exigences complémentaires (affichées au client)</label>
+              <input value={form.rentalPolicy.additionalRequirements}
+                onChange={(e) => setRP("additionalRequirements", e.target.value)}
+                placeholder="Ex : carte bancaire au nom du conducteur requise" />
+            </div>
+          </div>
+
           <div className={styles.formActions}>
             <button className={styles.cancelBtn} onClick={() => setShowForm(false)} disabled={saving}>Annuler</button>
             <button className={styles.saveBtn} onClick={handleSave} disabled={saving}>

@@ -46,7 +46,7 @@ const ONLINE_METHODS  = ["card", "orange_money", "wave"];
 // ServiceRequest/InsuranceRequest couvrent le paiement d'un devis approuvé
 // (assurance, transport, garantie...), qui n'avait auparavant aucun moyen de
 // règlement depuis l'interface client.
-async function resolvePaymentTarget(payment) {
+export async function resolvePaymentTarget(payment) {
   if (payment.booking)           return { type: "booking",           doc: await Booking.findById(payment.booking).populate("vehicle", "title") };
   if (payment.serviceRequest)    return { type: "serviceRequest",    doc: await ServiceRequest.findById(payment.serviceRequest) };
   if (payment.insuranceRequest)  return { type: "insuranceRequest",  doc: await InsuranceRequest.findById(payment.insuranceRequest) };
@@ -511,6 +511,27 @@ export const createPayment = async (req, res) => {
     logger.error("createPayment:", err);
     captureException(err, { controller: "paymentController.createPayment", bookingId: req.body?.booking });
     res.status(500).json({ message: "Erreur serveur lors du paiement." });
+  }
+};
+
+// ── Remboursement — filet admin (Booking Engine, 2026-09) ───────────────────
+// Pour les cas où aucune automatisation n'a pu s'appliquer (Orange Money,
+// espèces...) et où l'admin a traité le remboursement lui-même hors
+// plateforme — enregistre l'action réelle au lieu du toast "refund_needed"
+// sans suite qui existait jusqu'ici. Voir server/services/payment/refundService.js
+// pour la logique (identique à celle utilisée automatiquement ailleurs).
+export const refundPaymentAdmin = async (req, res) => {
+  try {
+    const { amount, reason } = req.body;
+    const { refundPayment } = await import("../services/payment/refundService.js");
+    const result = await refundPayment({
+      paymentId: req.params.id, amount, reason, actorId: req.user._id, actorType: "ADMIN",
+    });
+    if (!result.ok) return res.status(409).json({ message: result.message });
+    res.json({ payment: result.payment, automatic: result.automatic });
+  } catch (err) {
+    logger.error("refundPaymentAdmin:", err);
+    res.status(500).json({ message: "Erreur serveur." });
   }
 };
 

@@ -49,6 +49,7 @@ const ServiceRequest        = lazy(() => import("./pages/ServiceRequest"));
 const Favorites             = lazy(() => import("./pages/Favorites"));
 const Help                  = lazy(() => import("./pages/Help"));
 const ContractPage          = lazy(() => import("./pages/ContractPage"));
+const Loyalty                = lazy(() => import("./pages/Loyalty"));
 const Privacy               = lazy(() => import("./pages/Privacy"));
 const FAQ                   = lazy(() => import("./pages/FAQ"));
 const CGU                   = lazy(() => import("./pages/CGU"));
@@ -158,6 +159,7 @@ function AppRoutes() {
           <Route path="/dashboard"              element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
           <Route path="/favorites"              element={<ErrorBoundary><Favorites /></ErrorBoundary>} />
           <Route path="/profile"                element={<ErrorBoundary><Profile /></ErrorBoundary>} />
+          <Route path="/loyalty"                element={<ErrorBoundary><Loyalty /></ErrorBoundary>} />
           <Route path="/kyc"                    element={<ErrorBoundary><KYC /></ErrorBoundary>} />
           <Route path="/contract/:bookingId"    element={<ErrorBoundary><ContractPage /></ErrorBoundary>} />
 

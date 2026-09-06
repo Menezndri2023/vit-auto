@@ -10,6 +10,10 @@ const makeLocationBooking = async (overrides = {}) => {
   const vehicle = await createVehicleDoc({ pricePerDay: 10000, owner: partner._id });
   const booking = await Booking.create({
     type: "location", status: "pending", client: client._id,
+    // Gate admin obligatoire (audit 2026-08) : ce fichier teste la
+    // prolongation/annulation, pas la validation admin elle-même — la
+    // réservation est donc déjà approuvée.
+    adminValidation: { status: "approved" },
     clientInfo: { firstName: "Jean", lastName: "Client", email: "jean@example.test", passportNumber: "P1234567" },
     vehicle: vehicle._id,
     location: { startDate: new Date("2027-03-01"), endDate: new Date("2027-03-03"), days: 2 },
@@ -141,14 +145,14 @@ describe("bookingController.updateBookingStatus — annulation partenaire, motif
 
 describe("bookingController.createBookingsBatch", () => {
   it("refuse un panier vide", async () => {
-    const client = await createUser();
+    const client = await createUser({ emailVerified: true });
     const { req, res } = mockReqRes({ user: client, body: { items: [] } });
     await createBookingsBatch(req, res);
     expect(res.statusCode).toBe(400);
   });
 
   it("refuse plus de 8 véhicules", async () => {
-    const client = await createUser();
+    const client = await createUser({ emailVerified: true });
     const items = Array.from({ length: 9 }, () => ({ vehicleId: client._id.toString(), startDate: "2027-06-01", endDate: "2027-06-03" }));
     const { req, res } = mockReqRes({ user: client, body: { items } });
     await createBookingsBatch(req, res);
@@ -156,7 +160,7 @@ describe("bookingController.createBookingsBatch", () => {
   });
 
   it("crée plusieurs réservations indépendantes, en tolérant un échec isolé", async () => {
-    const client = await createUser();
+    const client = await createUser({ emailVerified: true });
     const partner = await createUser({ role: "partenaire" });
     const v1 = await createVehicleDoc({ pricePerDay: 10000, owner: partner._id });
     const v2 = await createVehicleDoc({ pricePerDay: 20000, owner: partner._id });
@@ -182,7 +186,7 @@ describe("bookingController.createBookingsBatch", () => {
   });
 
   it("refuse un véhicule non disponible à la location (type vente)", async () => {
-    const client = await createUser();
+    const client = await createUser({ emailVerified: true });
     const partner = await createUser({ role: "partenaire" });
     const vSale = await createVehicleDoc({ type: "vente", pricePerDay: 0, priceForSale: 5000000, owner: partner._id });
 

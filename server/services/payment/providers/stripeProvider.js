@@ -57,6 +57,30 @@ export async function createCheckout({ payment, booking, successUrl, cancelUrl }
 }
 
 /**
+ * Rembourse (total ou partiel) un paiement Stripe déjà complété — Booking
+ * Engine, Remboursements (2026-09). `payment.transactionId` est l'ID de la
+ * session Checkout, pas le PaymentIntent (voir createCheckout ci-dessus et
+ * paymentController.completePayment, qui stocke `providerRef: session.id`) —
+ * il faut donc d'abord retrouver le PaymentIntent sous-jacent avant de
+ * pouvoir appeler l'API de remboursement Stripe.
+ */
+export async function refund({ payment, amount }) {
+  const stripe = getClient();
+  if (!stripe) throw new Error("Stripe non configuré côté serveur.");
+  if (!payment.transactionId) throw new Error("Paiement Stripe sans session associée.");
+
+  const session = await stripe.checkout.sessions.retrieve(payment.transactionId);
+  if (!session.payment_intent) throw new Error("Session Stripe sans paiement associé (pas encore réglée ?).");
+
+  const refund = await stripe.refunds.create({
+    payment_intent: session.payment_intent,
+    amount: toStripeAmount(amount, payment.devise),
+  });
+  logger.info("[Stripe] Remboursement effectué", { paymentId: payment._id.toString(), refundId: refund.id, amount });
+  return { providerRefundId: refund.id };
+}
+
+/**
  * Vérifie la signature cryptographique du webhook Stripe (en-tête
  * "stripe-signature") — nécessite le corps BRUT de la requête (avant
  * express.json()), voir routes/payments.js. Lève une erreur si la signature

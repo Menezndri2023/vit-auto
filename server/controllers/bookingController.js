@@ -8,10 +8,12 @@ import Payment from "../models/Payment.js";
 import Notification from "../models/Notification.js";
 import Contract from "../models/Contract.js";
 import User from "../models/User.js";
+import PartnerBusiness from "../models/PartnerBusiness.js";
 import { dispatch, schedule } from "../queue/index.js";
 import { QUEUE_NAMES } from "../queue/definitions.js";
 import { resolveDeliveryFee, detectCountryFromCoords } from "../services/deliveryFee.js";
-import { applyPromotion } from "../utils/promotion.js";
+import { evaluateEligibility, ELIGIBILITY_MESSAGES } from "../services/eligibilityEngine.js";
+import { computeLocationTotal } from "../utils/seasonalPricing.js";
 import { resolveCommissionRate, computeServiceFee, getRentalOptionPrice } from "../services/pricingEngine.js";
 import { convertAmount } from "../services/currencyEngine.js";
 import { issueServiceInvoice } from "./serviceInvoiceController.js";
@@ -20,6 +22,8 @@ import {
   CLIENT_CANCEL_REASONS, PARTNER_CANCEL_REASONS,
   CLIENT_CANCEL_REASON_CODES, PARTNER_CANCEL_REASON_CODES,
 } from "../constants/bookingCancelReasons.js";
+import { resolveTier } from "../constants/loyaltyTiers.js";
+import LoyaltyTransaction from "../models/LoyaltyTransaction.js";
 
 const CLIENT_CANCEL_REASONS_MAP  = Object.fromEntries(CLIENT_CANCEL_REASONS);
 const PARTNER_CANCEL_REASONS_MAP = Object.fromEntries(PARTNER_CANCEL_REASONS);
@@ -27,7 +31,7 @@ const PARTNER_CANCEL_REASONS_MAP = Object.fromEntries(PARTNER_CANCEL_REASONS);
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // ── Émettre un événement Socket.io sur tous les participants d'une commande ──
-function emitBookingUpdate(booking, eventName = "booking_updated", extra = {}) {
+export function emitBookingUpdate(booking, eventName = "booking_updated", extra = {}) {
   const io = global._io;
   if (!io) return;
   const payload = {
@@ -140,7 +144,7 @@ async function generateReference(type) {
 }
 
 // ── Notifier un utilisateur ────────────────────────────────────────────────────
-async function notify(userId, type, titre, message, lien = "/dashboard") {
+export async function notify(userId, type, titre, message, lien = "/dashboard") {
   if (!userId) return;
   const notif = await Notification.create({ user: userId, type, titre, message, lien }).catch(() => null);
   // ── Émettre en temps réel via Socket.io ─────────────────────────────────
@@ -172,6 +176,23 @@ async function notifyAdmins(type, titre, message, lien = "/admin") {
   await Promise.all(admins.map((a) => notify(a._id, type, titre, message, lien)));
 }
 
+// ── Gate admin obligatoire (audit 2026-08) ─────────────────────────────────
+// Un partenaire (jamais un admin, toujours laissé passer) ne peut agir sur
+// une commande que si un admin l'a explicitement approuvée — sinon il ne
+// devrait même pas la connaître (voir getPartnerBookings, qui la masque déjà
+// de sa liste). Ce contrôle est une seconde ligne de défense pour les appels
+// directs par ID (ex: PATCH /:id/status avec un id deviné/partagé). Écrit la
+// réponse 409 lui-même (comme les gardes 403 déjà en place dans ce fichier)
+// pour rester un simple `if (!assertPartnerCanAct(...)) return;` au point d'appel.
+function assertPartnerCanAct(booking, req, res) {
+  if (req.user.role === "admin") return true;
+  if (booking.adminValidation?.status !== "approved") {
+    res.status(409).json({ message: "Cette demande est encore en attente de validation par notre équipe." });
+    return false;
+  }
+  return true;
+}
+
 // ── Sondage post-service (client) ──────────────────────────────────────────────
 // Une commande peut passer à "completed" depuis 4 endroits distincts
 // (updateBookingStatus, validateTransaction, resolveDispute, adminForceComplete) —
@@ -200,15 +221,49 @@ function schedulePostServiceSurvey(booking) {
 // schedulePostServiceSurvey ci-dessus (voir son commentaire pour la liste).
 // Best-effort volontaire (jamais bloquant pour la complétion de la commande
 // elle-même) : erreur avalée, jamais remontée à l'appelant.
+//
+// Programme à paliers (Bronze/Argent/Or, voir constants/loyaltyTiers.js) :
+// le multiplicateur appliqué est celui du palier atteint AVANT ce crédit
+// (loyaltyLifetimePoints actuel), jamais celui d'après — un client ne doit
+// jamais bénéficier rétroactivement du palier qu'il vient tout juste
+// d'atteindre avec cette même commande.
 async function awardLoyaltyPoints(booking) {
   if (!booking?.client) return; // réservation invité sans compte — rien à créditer
-  const points = Math.floor(Number(booking.montantTotal) || 0);
-  if (points <= 0) return;
+  const basePoints = Math.floor(Number(booking.montantTotal) || 0);
+  if (basePoints <= 0) return;
   try {
-    await User.findByIdAndUpdate(booking.client, { $inc: { loyaltyPoints: points } });
+    const user = await User.findById(booking.client).select("loyaltyLifetimePoints loyaltyTier").lean();
+    if (!user) return;
+    const tierBefore = resolveTier(user.loyaltyLifetimePoints);
+    const points = Math.floor(basePoints * tierBefore.multiplier);
+
+    const updated = await User.findByIdAndUpdate(
+      booking.client,
+      { $inc: { loyaltyPoints: points, loyaltyLifetimePoints: points } },
+      { new: true }
+    ).select("loyaltyPoints loyaltyLifetimePoints loyaltyTier");
+    if (!updated) return;
+
+    const tierAfter = resolveTier(updated.loyaltyLifetimePoints);
+    if (tierAfter.key !== updated.loyaltyTier) {
+      updated.loyaltyTier = tierAfter.key;
+      await updated.save();
+    }
+
+    await LoyaltyTransaction.create({
+      user: booking.client, type: "credit", points, reason: "booking_completed",
+      booking: booking._id, balanceAfter: updated.loyaltyPoints, tierAtTime: tierAfter.key,
+    }).catch(() => {});
+
     await notify(booking.client, "system", "🎁 Points de fidélité crédités",
       `+${points} points pour votre commande ${booking.reference || ""} — 100 points = 1 USD de remise sur votre prochaine réservation.`,
       "/dashboard");
+
+    if (tierAfter.key !== tierBefore.key) {
+      await notify(booking.client, "loyalty_tier_up", `🏆 Palier ${tierAfter.label} atteint !`,
+        `Félicitations, vous passez au palier ${tierAfter.label} — vos points sont désormais multipliés par ${tierAfter.multiplier}.`,
+        "/loyalty");
+    }
   } catch (err) {
     logger.error("awardLoyaltyPoints:", err);
   }
@@ -231,6 +286,20 @@ export const createBooking = async (req, res) => {
     }
     if (!clientInfo?.passportNumber || !String(clientInfo.passportNumber).trim()) {
       return res.status(400).json({ message: "Numéro de passeport requis." });
+    }
+
+    // ── Vérification client — Niveau 1 (Booking Engine, 2026-09) ────────────────
+    // Obligatoire pour réserver, quel que soit le véhicule (route passée
+    // d'optionalAuth à authenticate, qui garantit déjà req.user en production —
+    // le `!req.user` ci-dessous n'est qu'un filet défensif, jamais atteint hors
+    // appel direct du contrôleur en test). Réutilise les champs déjà fiables et
+    // déjà alimentés par l'inscription/OTP existante (authController.js) —
+    // aucune nouvelle vérification construite.
+    if (!req.user || (!req.user.phoneVerified && !req.user.emailVerified)) {
+      return res.status(403).json({
+        message: "Vérifiez votre numéro de téléphone ou votre email avant de réserver.",
+        code: "VERIFICATION_LEVEL_1_REQUIRED",
+      });
     }
 
     // ── Validation des quantités (évite montants négatifs/NaN en aval) ─────────
@@ -271,6 +340,10 @@ export const createBooking = async (req, res) => {
     let ownerId = null;
     let essaiPreferredDate   = null;
     let essaiDateFinComputed = null;
+    // Politique de location de l'entité partenaire (Booking Engine —
+    // Éligibilité, 2026-09) — chargée au moment de valider l'éligibilité,
+    // réutilisée plus bas pour le contrôle de zone de livraison.
+    let rentalPolicyBusiness = null;
     // Réservation instantanée — voir plus bas (bloc "location") pour le calcul,
     // toujours re-vérifié côté serveur (jamais confiance dans Vehicle.instantBook
     // seul, un partenaire suspendu/déclassé après coup ne doit jamais en bénéficier).
@@ -291,6 +364,22 @@ export const createBooking = async (req, res) => {
       }
       if (!vehicle.available && type === "location") {
         return res.status(409).json({ message: "Véhicule non disponible." });
+      }
+      // ── Éligibilité — Niveaux 2/3 + âge (Booking Engine — Éligibilité, 2026-09) ──
+      // Remplace le contrôle ad hoc de la Phase 1 (identité seule) par le
+      // moteur combinant aussi l'âge minimum et le permis, selon le véhicule
+      // ET la politique de l'entité partenaire (PartnerBusiness.rentalPolicy,
+      // absente = comportement Phase 1 inchangé). La zone de livraison est
+      // vérifiée plus bas, une fois la distance calculée.
+      rentalPolicyBusiness = vehicle.business
+        ? await PartnerBusiness.findById(vehicle.business).select("rentalPolicy").lean()
+        : null;
+      const eligibility = evaluateEligibility({
+        user: req.user, vehicle, rentalPolicy: rentalPolicyBusiness?.rentalPolicy,
+      });
+      if (!eligibility.eligible) {
+        const failure = ELIGIBILITY_MESSAGES[eligibility.reasons[0]];
+        return res.status(403).json({ message: failure.message, code: failure.code });
       }
       ownerId = vehicle.owner;
 
@@ -326,8 +415,7 @@ export const createBooking = async (req, res) => {
         // Prix/jour toujours recalculé côté serveur (jamais confiance dans un
         // prix déjà remisé envoyé par le client) — applique la meilleure règle
         // de promotion éligible pour la durée réservée (voir Vehicle.promotions).
-        const effectivePricePerDay = applyPromotion(vehicle.pricePerDay || 0, location?.days || 1, vehicle.promotions);
-        montantBase = effectivePricePerDay * (location?.days || 1);
+        montantBase = computeLocationTotal(vehicle, startDate, location?.days || 1);
 
         // Réservation instantanée : le partenaire a activé Vehicle.instantBook,
         // mais ça ne suffit jamais seul — re-vérifié à chaque réservation que le
@@ -569,6 +657,17 @@ export const createBooking = async (req, res) => {
           const feeUSD = await convertAmount(fee.fee, fee.currency, "USD");
           deliveryFee = feeUSD ?? 0;
         }
+        // Zone de livraison (Booking Engine — Éligibilité, 2026-09) — vérifiée
+        // ici, une fois la distance connue, plutôt que de réordonner le reste
+        // de la fonction. rentalPolicyBusiness est déjà chargé plus haut.
+        const zoneCheck = evaluateEligibility({
+          user: req.user, vehicle, rentalPolicy: rentalPolicyBusiness?.rentalPolicy,
+          deliveryDistanceKm: fee?.distanceKm ?? null,
+        });
+        if (zoneCheck.reasons.includes("DELIVERY_OUT_OF_ZONE")) {
+          const failure = ELIGIBILITY_MESSAGES.DELIVERY_OUT_OF_ZONE;
+          return res.status(403).json({ message: failure.message, code: failure.code });
+        }
       }
     }
 
@@ -593,6 +692,11 @@ export const createBooking = async (req, res) => {
         if (debited.modifiedCount > 0) {
           loyaltyPointsRedeemed = pointsToTry;
           loyaltyDiscount = pointsToTry / 100;
+          const afterDebit = await User.findById(req.user._id).select("loyaltyPoints").lean();
+          await LoyaltyTransaction.create({
+            user: req.user._id, type: "debit", points: pointsToTry, reason: "booking_redeemed",
+            balanceAfter: afterDebit?.loyaltyPoints ?? null,
+          }).catch(() => {});
         }
       }
     }
@@ -639,9 +743,13 @@ export const createBooking = async (req, res) => {
     const bookingData = {
       type,
       reference,
-      // Réservation instantanée (voir bloc "location" plus haut) — sinon
-      // laissé absent pour que le schéma applique son défaut ("pending").
-      ...(instantConfirm ? { status: "confirmed" } : {}),
+      // Gate admin obligatoire (audit 2026-08) : `instantConfirm` ne fait plus
+      // jamais passer `status` directement à "confirmed" — aucune réservation
+      // n'atteint le partenaire sans validation admin, même instantanée. Elle
+      // est simplement priorisée (adminValidation.fastTrack) : l'admin
+      // approuve/refuse comme les autres, et si fastTrack, l'approbation fait
+      // passer directement `status` à "confirmed" (voir adminValidateBooking).
+      adminValidation: { fastTrack: instantConfirm },
       clientInfo: {
         ...clientInfo,
         kycStatus:  clientKycStatus,
@@ -653,6 +761,13 @@ export const createBooking = async (req, res) => {
       activity: activityObj?._id || null,
       // deliveryFee toujours écrasé par la valeur calculée serveur ci-dessus, jamais celle du client
       location: type === "location" && location ? { ...location, deliveryFee } : (type === "location" ? location : undefined),
+      // Suivi de livraison (Booking Engine, 2026-09) — voir Booking.js. Démarre
+      // à "requested" dès la création si le client a choisi la livraison ;
+      // confirmé automatiquement à l'acceptation partenaire (voir
+      // bookingActionService.acceptBooking).
+      delivery: (type === "location" && location?.pickupMethod === "livraison")
+        ? { status: "requested", requestedDateTime: location?.startDate ? new Date(location.startDate) : null }
+        : undefined,
       // preferredDate/dateFin toujours écrasés par les valeurs calculées serveur
       // ci-dessus (combinaison date+heure normalisée, dateFin de conflit),
       // jamais celles envoyées brutes par le client.
@@ -816,8 +931,13 @@ export const createBooking = async (req, res) => {
     // Aucun prestataire de paiement réel n'est branché (pas de vérification de
     // webhook signé) : on enregistre la demande en "pending" au lieu de confirmer
     // automatiquement — même traitement que paymentController.createPayment.
+    // Décision produit (2026-09) : la location passe exclusivement en espèces
+    // en attendant la configuration des vraies clés de paiement — filet de
+    // sécurité serveur, indépendant de ce qu'envoie le frontend (Booking.jsx
+    // ne propose déjà plus que "cash" pour ce type, mais on ne fait jamais
+    // confiance au client pour une règle métier).
     const VALID_PAY_METHODS = ["card", "orange_money", "wave", "mtn", "moov", "paypal", "applepay", "virement", "test"];
-    const payMethod = paymentData?.method;
+    const payMethod = type === "location" ? null : paymentData?.method;
     if (payMethod && payMethod !== "cash" && VALID_PAY_METHODS.includes(payMethod)) {
       try {
         const paiement = await Payment.create({
@@ -867,12 +987,15 @@ export const createBooking = async (req, res) => {
       vehicleOrDriverForDispatch
     ).catch((e) => logger.error("dispatch.bookingCreated:", { error: e.message }));
 
-    // Notification temps réel Socket.io immédiate (partenaire propriétaire)
-    if (ownerId) {
-      notify(ownerId, "new_booking", "📋 Nouvelle commande reçue",
-        `${clientInfo.firstName} ${clientInfo.lastName} — Réservation ${reference}`, "/vendor/dashboard"
-      ).catch(() => {});
-    }
+    // Gate admin obligatoire (audit 2026-08) : le partenaire n'est plus
+    // notifié à la création — il ne doit rien savoir d'une demande tant
+    // qu'un admin ne l'a pas validée (voir adminValidateBooking, qui envoie
+    // ce même type de notification au moment de l'approbation). Seuls les
+    // admins sont alertés ici, pour traiter la file de validation.
+    notifyAdmins("booking_pending_review", "🕐 Nouvelle demande à valider",
+      `${clientInfo.firstName} ${clientInfo.lastName} — ${type} ${reference}${instantConfirm ? " (instantanée — priorité)" : ""}`,
+      "/admin"
+    ).catch(() => {});
 
     // 1ère réservation de ce client (tous types confondus) — signalée
     // directement dans la réponse plutôt que via une notification/socket :
@@ -895,6 +1018,9 @@ export const createBooking = async (req, res) => {
     // perdus silencieusement.
     if (typeof loyaltyPointsRedeemed === "number" && loyaltyPointsRedeemed > 0 && req.user?._id) {
       await User.updateOne({ _id: req.user._id }, { $inc: { loyaltyPoints: loyaltyPointsRedeemed } }).catch(() => {});
+      await LoyaltyTransaction.create({
+        user: req.user._id, type: "rollback", points: loyaltyPointsRedeemed, reason: "booking_creation_failed",
+      }).catch(() => {});
     }
     res.status(500).json({ message: "Erreur serveur." });
   }
@@ -924,6 +1050,15 @@ export const createBookingsBatch = async (req, res) => {
     const passportNumber = req.body?.passportNumber;
     if (!passportNumber || !String(passportNumber).trim()) {
       return res.status(400).json({ message: "Numéro de passeport requis." });
+    }
+
+    // ── Vérification client — Niveau 1 (Booking Engine, 2026-09) ────────────────
+    // Voir createBooking pour le même correctif et la même justification.
+    if (!req.user || (!req.user.phoneVerified && !req.user.emailVerified)) {
+      return res.status(403).json({
+        message: "Vérifiez votre numéro de téléphone ou votre email avant de réserver.",
+        code: "VERIFICATION_LEVEL_1_REQUIRED",
+      });
     }
 
     const clientInfo = {
@@ -974,6 +1109,18 @@ export const createBookingsBatch = async (req, res) => {
           results.push({ vehicleId, ok: false, message: "Véhicule introuvable." });
           continue;
         }
+        // Éligibilité (Booking Engine — Éligibilité, 2026-09) — voir createBooking.
+        const batchRentalPolicy = vehicle.business
+          ? await PartnerBusiness.findById(vehicle.business).select("rentalPolicy").lean()
+          : null;
+        const batchEligibility = evaluateEligibility({
+          user: req.user, vehicle, rentalPolicy: batchRentalPolicy?.rentalPolicy,
+        });
+        if (!batchEligibility.eligible) {
+          const failure = ELIGIBILITY_MESSAGES[batchEligibility.reasons[0]];
+          results.push({ vehicleId, ok: false, message: failure.message, code: failure.code });
+          continue;
+        }
         if (vehicle.type !== "location") {
           results.push({ vehicleId, ok: false, message: "Ce véhicule n'est pas disponible à la location." });
           continue;
@@ -1004,8 +1151,7 @@ export const createBookingsBatch = async (req, res) => {
           results.push({ vehicleId, ok: false, message: `Ce véhicule nécessite une location d'au moins ${minDays} jour(s).`, title: vehicle.title });
           continue;
         }
-        const effectivePricePerDay = applyPromotion(vehicle.pricePerDay || 0, days, vehicle.promotions);
-        const montantBase  = effectivePricePerDay * days;
+        const montantBase  = computeLocationTotal(vehicle, startDate, days);
         const montantTotal = montantBase;
         const commissionRate   = await resolveCommissionRate("location", vehicle.owner);
         const commissionAmount = Math.round(montantTotal * commissionRate * 100) / 100;
@@ -1061,11 +1207,11 @@ export const createBookingsBatch = async (req, res) => {
         }
 
         syncVehicleAvailability(vehicle._id).catch(() => {});
-        if (vehicle.owner) {
-          notify(vehicle.owner, "new_booking", "📋 Nouvelle commande reçue",
-            `${clientInfo.firstName} ${clientInfo.lastName} — Réservation ${reference}`, "/vendor/dashboard"
-          ).catch(() => {});
-        }
+        // Gate admin obligatoire (audit 2026-08) — même règle que createBooking :
+        // le partenaire n'est jamais notifié avant validation admin.
+        notifyAdmins("booking_pending_review", "🕐 Nouvelle demande à valider",
+          `${clientInfo.firstName} ${clientInfo.lastName} — location ${reference} (panier)`, "/admin"
+        ).catch(() => {});
         dispatch.bookingCreated(
           { _id: booking._id, reference, type: "location", montantTotal, location: bookingData.location, status: booking.status },
           { _id: req.user._id, email: req.user.email, phone: req.user.phone, firstName: req.user.firstName },
@@ -1153,7 +1299,14 @@ export const getPartnerBookings = async (req, res) => {
     const vehicleIds  = myVehicles.map((v) => v._id);
     const driverIds   = myDrivers.map((d) => d._id);
     const activityIds = myActivities.map((a) => a._id);
-    const filter = { $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }, { activity: { $in: activityIds } }] };
+    // Gate admin obligatoire (audit 2026-08) : un partenaire ne doit jamais
+    // voir une demande (ni ses coordonnées client) tant qu'un admin ne l'a pas
+    // explicitement approuvée — voir Booking.adminValidation, createBooking,
+    // adminValidateBooking.
+    const filter = {
+      $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }, { activity: { $in: activityIds } }],
+      "adminValidation.status": "approved",
+    };
 
     const [bookings, total] = await Promise.all([
       Booking.find(filter)
@@ -1328,6 +1481,7 @@ export const updateBookingStatus = async (req, res) => {
     if (req.user.role !== "admin" && !isOwner) {
       return res.status(403).json({ message: "Accès refusé." });
     }
+    if (!assertPartnerCanAct(booking, req, res)) return;
 
     // ── Vérifier la validité de la transition d'état ──────────────────────────
     // Bug réel corrigé (audit) : "cancelled" n'était pas une transition
@@ -1369,13 +1523,23 @@ export const updateBookingStatus = async (req, res) => {
     }
     await booking.save();
 
-    if (status === "cancelled" && wasPaidBeforeCancel && global._io) {
-      // Voir cancelBookingByClient — même signalement, aucune automatisation
-      // de remboursement pour l'instant.
-      global._io.to("admins").emit("refund_needed", {
-        bookingId: booking._id.toString(), reference: booking.reference,
-        reason: "Réservation payée annulée par le partenaire — remboursement à traiter manuellement.",
-      });
+    if (status === "cancelled" && wasPaidBeforeCancel) {
+      // Booking Engine — Remboursements (2026-09) : annulation par le
+      // partenaire d'une réservation déjà payée = remboursement prévisible,
+      // aucune décision humaine nécessaire (voir refundService.js — Stripe
+      // automatique, sinon reste "à traiter manuellement" mais tracé).
+      const { refundPayment } = await import("../services/payment/refundService.js");
+      const refundResult = await refundPayment({
+        paymentId: booking.payment, reason: "Réservation payée annulée par le partenaire.", actorType: "SYSTEM",
+      }).catch((e) => { logger.error("refundPayment (updateBookingStatus):", e.message); return { ok: false }; });
+      if (global._io) {
+        global._io.to("admins").emit("refund_needed", {
+          bookingId: booking._id.toString(), reference: booking.reference,
+          reason: refundResult.ok && refundResult.automatic
+            ? "Réservation payée annulée par le partenaire — remboursement traité automatiquement."
+            : "Réservation payée annulée par le partenaire — remboursement à traiter manuellement.",
+        });
+      }
     }
 
     // ── Synchronisation temps réel (Socket.io) ─────────────────────────────
@@ -1465,6 +1629,22 @@ export const updateBookingStatus = async (req, res) => {
     }
     if (status === "completed") { await markVehicleSoldIfApplicable(booking); schedulePostServiceSurvey(booking); issueServiceInvoice(booking); await recordPartnerPayout(booking); await awardLoyaltyPoints(booking); }
 
+    // Trace d'audit (Booking Engine, 2026-09) — couvre indifféremment un appel
+    // HTTP direct (dashboard) et un appel programmatique via invokeController
+    // (voir bookingActionService.js, utilisé par le webhook WhatsApp) : les
+    // deux canaux exécutent cette même fonction, donc un seul point d'écriture
+    // suffit à les auditer tous les deux.
+    await Booking.findByIdAndUpdate(booking._id, {
+      $push: {
+        auditTrail: {
+          action:    `status_${status}`,
+          actorType: req.user.role === "admin" ? "ADMIN" : "PARTNER",
+          actorId:   req.user._id,
+          source:    req.source || "DASHBOARD",
+        },
+      },
+    }).catch(() => {});
+
     res.json({ booking });
   } catch (err) {
     logger.error("updateBookingStatus:", err);
@@ -1522,6 +1702,7 @@ export const recordTransaction = async (req, res) => {
     if (req.user.role !== "admin" && !isOwner) {
       return res.status(403).json({ message: "Accès refusé." });
     }
+    if (!assertPartnerCanAct(booking, req, res)) return;
 
     if (booking.status !== "client_arrived") {
       return res.status(409).json({ message: `Impossible d'enregistrer la transaction depuis le statut "${booking.status}". Le client doit d'abord être marqué comme arrivé.` });
@@ -1925,6 +2106,7 @@ export const getPartnerStats = async (req, res) => {
       {
         $match: {
           $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }],
+          "adminValidation.status": "approved",
           ...dateFilter,
         },
       },
@@ -1986,7 +2168,7 @@ export const getPartnerAnalytics = async (req, res) => {
     ]);
     const vehicleIds = myVehicles.map((v) => v._id);
     const driverIds  = myDrivers.map((d) => d._id);
-    const scopeMatch = { $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }] };
+    const scopeMatch = { $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }], "adminValidation.status": "approved" };
 
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
@@ -2119,7 +2301,10 @@ export const exportPartnerBookings = async (req, res) => {
     const driverIds   = myDrivers.map((d) => d._id);
     const activityIds = myActivities.map((a) => a._id);
 
-    const filter = { $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }, { activity: { $in: activityIds } }] };
+    const filter = {
+      $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }, { activity: { $in: activityIds } }],
+      "adminValidation.status": "approved",
+    };
     if (dateFrom || dateTo) {
       filter.createdAt = {};
       if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
@@ -2200,6 +2385,7 @@ export const partnerConfirm = async (req, res) => {
     if (req.user.role !== "admin" && !isOwner) {
       return res.status(403).json({ message: "Accès refusé." });
     }
+    if (!assertPartnerCanAct(booking, req, res)) return;
 
     if (!["confirmed", "preparing", "ready", "in_progress"].includes(booking.status)) {
       return res.status(409).json({
@@ -2331,7 +2517,7 @@ export const getBookingDetail = async (req, res) => {
 
     // Vérification d'autorisation AVANT de charger les données sensibles
     const rawBooking = await Booking.findById(id)
-      .select("vehicle driver activity client")
+      .select("vehicle driver activity client adminValidation")
       .populate("vehicle", "owner")
       .populate("driver",  "owner")
       .populate("activity", "owner");
@@ -2356,6 +2542,13 @@ export const getBookingDetail = async (req, res) => {
     const dOwner = rawBooking.driver?.owner?._id?.toString()  || rawBooking.driver?.owner?.toString();
     const aOwner = rawBooking.activity?.owner?._id?.toString() || rawBooking.activity?.owner?.toString();
     const isPartnerOwner = (vOwner && vOwner === uid) || (dOwner && dOwner === uid) || (aOwner && aOwner === uid);
+
+    // Gate admin obligatoire (audit 2026-08) : seule la branche PARTENAIRE est
+    // bloquée tant que l'admin n'a pas validé — le client doit toujours
+    // pouvoir consulter sa propre demande, même en attente.
+    if (!isAdmin && isPartnerOwner && rawBooking.adminValidation?.status !== "approved") {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
 
     const clientFields = isAdmin
       ? "firstName lastName email phone kycStatus kycScore kycBadge kycOcrData kycFaceMatchScore driverLicenseOcr emailVerified phoneVerified"
@@ -2408,6 +2601,7 @@ export const partnerVerifyKyc = async (req, res) => {
     if (req.user.role !== "admin" && !isOwner) {
       return res.status(403).json({ message: "Accès refusé." });
     }
+    if (!assertPartnerCanAct(booking, req, res)) return;
 
     booking.partnerKycVerification = {
       status:     decision,
@@ -2437,6 +2631,56 @@ export const partnerVerifyKyc = async (req, res) => {
     logger.error("partnerVerifyKyc:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 8d-bis. ALTERNATIVE PARTENAIRE — Booking Engine (2026-09)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Fins wrappers HTTP autour de bookingActionService.js — jamais de logique de
+// transition dupliquée ici (voir la même fonction invoquée par le webhook
+// WhatsApp, server/controllers/whatsappController.js).
+export const proposeBookingAlternative = async (req, res) => {
+  const { proposeAlternative } = await import("../services/bookingActionService.js");
+  const { id } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(id)) return res.status(404).json({ message: "Commande introuvable." });
+  const result = await proposeAlternative({
+    bookingId: id,
+    actorId:   req.user._id,
+    source:    "DASHBOARD",
+    ...req.body,
+  });
+  res.status(result.statusCode).json(result.body);
+};
+
+export const respondBookingAlternative = async (req, res) => {
+  const { respondToAlternative } = await import("../services/bookingActionService.js");
+  const { id } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(id)) return res.status(404).json({ message: "Commande introuvable." });
+  const result = await respondToAlternative({
+    bookingId: id,
+    clientId:  req.user._id,
+    accept:    !!req.body.accept,
+  });
+  res.status(result.statusCode).json(result.body);
+};
+
+// ── Suivi de livraison (Booking Engine, 2026-09) ──────────────────────────
+// Fins wrappers HTTP — voir bookingActionService.js, même fonction appelée
+// par le webhook WhatsApp (whatsappController.handleInteractiveButton).
+export const markBookingVehicleOnTheWay = async (req, res) => {
+  const { markVehicleOnTheWay } = await import("../services/bookingActionService.js");
+  const { id } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(id)) return res.status(404).json({ message: "Commande introuvable." });
+  const result = await markVehicleOnTheWay({ bookingId: id, actorId: req.user._id, source: "DASHBOARD" });
+  res.status(result.statusCode).json(result.body);
+};
+
+export const markBookingVehicleDelivered = async (req, res) => {
+  const { markVehicleDelivered } = await import("../services/bookingActionService.js");
+  const { id } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(id)) return res.status(404).json({ message: "Commande introuvable." });
+  const result = await markVehicleDelivered({ bookingId: id, actorId: req.user._id, source: "DASHBOARD" });
+  res.status(result.statusCode).json(result.body);
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2487,8 +2731,7 @@ export const modifyBookingDates = async (req, res) => {
     }
 
     const days = Math.max(1, Math.round((newEnd - newStart) / 86400000));
-    const effectivePricePerDay = applyPromotion(booking.vehicle.pricePerDay || 0, days, booking.vehicle.promotions);
-    const newMontantBase = effectivePricePerDay * days;
+    const newMontantBase = computeLocationTotal(booking.vehicle, newStart, days);
     const priceDelta = newMontantBase - (booking.montantBase || 0);
     const newCommissionAmount = Math.round((newMontantBase + (booking.montantOptions || 0) + (booking.location.deliveryFee || 0)) * (booking.commissionRate || 0) * 100) / 100;
     const newMontantTotal = newMontantBase + (booking.montantOptions || 0) + (booking.location.deliveryFee || 0);
@@ -2597,8 +2840,7 @@ export const extendBooking = async (req, res) => {
 
     const totalDays = Math.max(1, Math.round((newEnd - new Date(booking.location.startDate)) / 86400000));
     const addedDays  = totalDays - (booking.location.days || 0);
-    const effectivePricePerDay = applyPromotion(booking.vehicle.pricePerDay || 0, totalDays, booking.vehicle.promotions);
-    const newMontantBase = effectivePricePerDay * totalDays;
+    const newMontantBase = computeLocationTotal(booking.vehicle, new Date(booking.location.startDate), totalDays);
     const priceDelta = newMontantBase - (booking.montantBase || 0);
     const newMontantTotal = newMontantBase + (booking.montantOptions || 0) + (booking.location.deliveryFee || 0);
     const newCommissionAmount = Math.round(newMontantTotal * (booking.commissionRate || 0) * 100) / 100;
@@ -2706,7 +2948,7 @@ export const cancelBookingByClient = async (req, res) => {
     }
 
     // On ne peut annuler que les réservations non-commencées
-    const cancellableStatuses = ["pending", "À confirmer", "confirmed"];
+    const cancellableStatuses = ["pending", "confirmed"];
     if (!cancellableStatuses.includes(booking.status)) {
       return res.status(409).json({
         message: `Impossible d'annuler une réservation avec le statut "${booking.status}".`,
@@ -2757,15 +2999,22 @@ export const cancelBookingByClient = async (req, res) => {
       );
     }
 
-    // Un paiement en ligne déjà réglé avant annulation nécessite un remboursement
-    // manuel (aucune automatisation de remboursement — hors périmètre de cette
-    // fonctionnalité) : signalé aux admins connectés en temps réel, même canal
-    // que emitBookingUpdate ci-dessus.
-    if (wasPaid && global._io) {
-      global._io.to("admins").emit("refund_needed", {
-        bookingId: booking._id.toString(), reference: booking.reference,
-        reason: "Réservation payée annulée par le client — remboursement à traiter manuellement.",
-      });
+    // Un paiement en ligne déjà réglé avant annulation déclenche désormais un
+    // remboursement automatique quand c'est possible (Booking Engine —
+    // Remboursements, 2026-09) — voir refundService.js.
+    if (wasPaid) {
+      const { refundPayment } = await import("../services/payment/refundService.js");
+      const refundResult = await refundPayment({
+        paymentId: booking.payment, reason: "Réservation payée annulée par le client.", actorType: "CLIENT",
+      }).catch((e) => { logger.error("refundPayment (cancelBookingByClient):", e.message); return { ok: false }; });
+      if (global._io) {
+        global._io.to("admins").emit("refund_needed", {
+          bookingId: booking._id.toString(), reference: booking.reference,
+          reason: refundResult.ok && refundResult.automatic
+            ? "Réservation payée annulée par le client — remboursement traité automatiquement."
+            : "Réservation payée annulée par le client — remboursement à traiter manuellement.",
+        });
+      }
     }
 
     res.json({ success: true, message: "Réservation annulée.", status: "cancelled" });
@@ -2906,6 +3155,7 @@ export const claimCaution = async (req, res) => {
     if (req.user.role !== "admin" && ownerId !== req.user._id.toString()) {
       return res.status(403).json({ message: "Accès refusé." });
     }
+    if (!assertPartnerCanAct(booking, req, res)) return;
     // "cancelled" n'est éligible QUE s'il provient d'une résolution de litige
     // (booking.disputeResolution posé par resolveDispute) : la caution a pu
     // être physiquement encaissée par le partenaire AVANT le litige (prise en
@@ -2982,8 +3232,10 @@ export const claimCaution = async (req, res) => {
 export const resolveDispute = async (req, res) => {
   try {
     const { id } = req.params;
-    const { resolution, note, refundClient = false } = req.body;
+    const { resolution, note, refundClient = false, refundAmount } = req.body;
     // resolution: "completed" | "cancelled" | "compensated"
+    // refundAmount (Booking Engine — Remboursements, 2026-09) : montant USD
+    // optionnel, seulement si refundClient — défaut = solde restant total.
 
     const allowed = ["completed", "cancelled", "compensated"];
     if (!allowed.includes(resolution)) {
@@ -3017,15 +3269,24 @@ export const resolveDispute = async (req, res) => {
     if (booking.status === "completed") await markVehicleSoldIfApplicable(booking);
 
     // Bug réel corrigé (audit) : une résolution "Compensation" promettait un
-    // remboursement partiel au client (voir clientMsg ci-dessous) sans que
-    // rien ne le signale nulle part — même signal que les autres cas de
-    // remboursement manuel de ce fichier (ex: cancelBookingByClient), pour
-    // qu'un admin voie qu'un versement reste dû.
-    if (refundClient && global._io) {
-      global._io.to("admins").emit("refund_needed", {
-        bookingId: booking._id.toString(), reference: booking.reference,
-        reason: `Litige résolu en "${resolution}" — remboursement/compensation partielle à traiter manuellement.`,
-      });
+    // remboursement partiel au client sans que rien ne le déclenche jamais.
+    // Booking Engine — Remboursements (2026-09) : l'admin a déjà pris la
+    // décision en cochant refundClient — le geste qui suit peut donc
+    // s'automatiser (Stripe) sans nouvelle validation humaine.
+    if (refundClient) {
+      const { refundPayment } = await import("../services/payment/refundService.js");
+      const refundResult = await refundPayment({
+        paymentId: booking.payment, amount: refundAmount,
+        reason: `Litige résolu en "${resolution}".`, actorId: req.user._id, actorType: "ADMIN",
+      }).catch((e) => { logger.error("refundPayment (resolveDispute):", e.message); return { ok: false }; });
+      if (global._io) {
+        global._io.to("admins").emit("refund_needed", {
+          bookingId: booking._id.toString(), reference: booking.reference,
+          reason: refundResult.ok && refundResult.automatic
+            ? `Litige résolu en "${resolution}" — remboursement/compensation traité automatiquement.`
+            : `Litige résolu en "${resolution}" — remboursement/compensation à traiter manuellement.`,
+        });
+      }
     }
 
     // Notifier les deux parties
@@ -3085,6 +3346,7 @@ export const respondToDispute = async (req, res) => {
     if (req.user.role !== "admin" && !isOwner) {
       return res.status(403).json({ message: "Accès refusé." });
     }
+    if (!assertPartnerCanAct(booking, req, res)) return;
 
     booking.partnerDisputeResponse = { message: message.trim().slice(0, 2000), respondedAt: new Date() };
     await booking.save();
@@ -3381,6 +3643,135 @@ export const setFinancingDecision = async (req, res) => {
     res.json({ success: true, booking });
   } catch (err) {
     logger.error("setFinancingDecision:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GATE ADMIN OBLIGATOIRE (audit 2026-08) — validation manuelle systématique de
+// toute réservation/essai/achat AVANT qu'elle n'atteigne le partenaire (voir
+// Booking.adminValidation, getPartnerBookings, assertPartnerCanAct).
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── GET /api/bookings/admin/pending-validation (admin) ──────────────────────
+export const getPendingValidationBookings = async (req, res) => {
+  try {
+    const bookings = await Booking.find({ "adminValidation.status": "pending" })
+      .populate("vehicle",  "title marque modele owner")
+      .populate("driver",   "firstName lastName owner")
+      .populate("activity", "title owner")
+      .populate("client",   "firstName lastName email phone kycStatus")
+      // Les demandes fastTrack (ex-instantConfirm) en tête de file : le
+      // partenaire les attend en confirmation immédiate, elles méritent un
+      // traitement admin prioritaire.
+      .sort({ "adminValidation.fastTrack": -1, createdAt: 1 })
+      .limit(300)
+      .lean();
+
+    res.json({ bookings });
+  } catch (err) {
+    logger.error("getPendingValidationBookings:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── PATCH /api/bookings/:id/admin-validate (admin) ───────────────────────────
+export const adminValidateBooking = async (req, res) => {
+  try {
+    const { decision, refusalReason } = req.body;
+    if (!["approved", "rejected"].includes(decision)) {
+      return res.status(400).json({ message: "Décision invalide." });
+    }
+    const booking = await Booking.findById(req.params.id)
+      .populate("vehicle",  "owner title")
+      .populate("driver",   "owner firstName lastName")
+      .populate("activity", "owner title");
+    if (!booking) return res.status(404).json({ message: "Commande introuvable." });
+    if (booking.adminValidation.status !== "pending") {
+      return res.status(409).json({ message: "Cette demande a déjà été traitée." });
+    }
+
+    // Booking Engine (2026-09) : cette fonction est désormais aussi invoquée
+    // par bookingActionService.autoApproveBooking (score de fraude faible/
+    // moyen), via invokeController — jamais un vrai req.user admin dans ce
+    // cas, d'où ce distinguo explicite plutôt que de faire confiance à
+    // req.user._id (qui exploserait sur un acteur système).
+    const isSystemActor = req.user?.role === "system";
+    booking.adminValidation.status          = decision;
+    booking.adminValidation.validatedBy     = isSystemActor ? null : req.user._id;
+    booking.adminValidation.validatedByType = isSystemActor ? "SYSTEM" : "ADMIN";
+    booking.adminValidation.validatedAt     = new Date();
+
+    const ownerId = booking.vehicle?.owner?._id?.toString()  || booking.vehicle?.owner?.toString()
+      || booking.driver?.owner?._id?.toString()   || booking.driver?.owner?.toString()
+      || booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString();
+
+    if (decision === "rejected") {
+      booking.adminValidation.refusalReason = refusalReason || null;
+      booking.status = "cancelled";
+      booking.cancelReason = refusalReason || "Demande refusée lors de la validation initiale.";
+
+      // Rollback fidélité (voir createBooking — débit à la réservation) : si
+      // des points avaient été débités, ils sont recrédités, jamais perdus.
+      if (booking.loyaltyPointsRedeemed > 0 && booking.client) {
+        const afterRollback = await User.findByIdAndUpdate(
+          booking.client, { $inc: { loyaltyPoints: booking.loyaltyPointsRedeemed } }, { new: true }
+        ).select("loyaltyPoints").catch(() => null);
+        await LoyaltyTransaction.create({
+          user: booking.client, type: "rollback", points: booking.loyaltyPointsRedeemed,
+          reason: "booking_admin_rejected", booking: booking._id, balanceAfter: afterRollback?.loyaltyPoints ?? null,
+        }).catch(() => {});
+      }
+    } else if (booking.adminValidation.fastTrack) {
+      // Ex-instantConfirm : approuvé directement en "confirmed" pour préserver
+      // la rapidité perçue côté client (voir createBooking).
+      booking.status = "confirmed";
+    }
+
+    await booking.save();
+    // Rafraîchit en direct la liste du partenaire (voir VendorDashboard.jsx,
+    // écoute déjà "booking_updated") dès que la commande devient visible.
+    emitBookingUpdate(booking);
+
+    if (decision === "approved" && ownerId) {
+      await notify(ownerId, "booking_admin_approved", "📋 Nouvelle commande transmise",
+        `${booking.clientInfo?.firstName || ""} ${booking.clientInfo?.lastName || ""} — Réservation ${booking.reference} validée, à traiter.`.trim(),
+        "/vendor/dashboard");
+      // WhatsApp — voir queue/index.js dispatch.partnerBookingApproved (inerte
+      // tant que WHATSAPP_TOKEN/WHATSAPP_PHONE_ID ne sont pas configurés).
+      const serviceTitle = booking.vehicle?.title
+        || (booking.driver ? `${booking.driver.firstName || ""} ${booking.driver.lastName || ""}`.trim() : null)
+        || booking.activity?.title
+        || null;
+      dispatch.partnerBookingApproved(booking, ownerId, serviceTitle)
+        .catch((e) => logger.error("dispatch.partnerBookingApproved:", { error: e.message }));
+      // Base du délai de réponse partenaire (15/25/30 min, voir
+      // server/utils/partnerResponseReminders.js) — écrit ici pour couvrir à
+      // la fois l'approbation admin manuelle (risque élevé) et automatique.
+      await Booking.findByIdAndUpdate(booking._id, { $set: { partnerNotifiedAt: new Date() } }).catch(() => {});
+    }
+    if (decision === "rejected" && booking.client) {
+      await notify(booking.client, "booking_admin_rejected", "❌ Demande refusée",
+        `Votre demande ${booking.reference} n'a pas pu être validée.${refusalReason ? ` Motif : ${refusalReason}` : ""}`,
+        "/dashboard");
+    }
+
+    // Trace d'audit — voir le même ajout dans updateBookingStatus.
+    await Booking.findByIdAndUpdate(booking._id, {
+      $push: {
+        auditTrail: {
+          action:    `admin_validation_${decision}`,
+          actorType: isSystemActor ? "SYSTEM" : "ADMIN",
+          actorId:   isSystemActor ? null : req.user._id,
+          source:    req.source || "DASHBOARD",
+          metadata:  req.body?.fraudCheck || null,
+        },
+      },
+    }).catch(() => {});
+
+    res.json({ booking });
+  } catch (err) {
+    logger.error("adminValidateBooking:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
