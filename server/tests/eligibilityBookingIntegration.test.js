@@ -5,6 +5,15 @@ import { mockReqRes } from "./helpers/mockReqRes.js";
 
 const clientInfo = { firstName: "Jean", lastName: "Client", email: "jean.client@example.test", passportNumber: "P1234567" };
 
+// Restructuration réservation (2026-09) : toute location exige désormais une
+// pièce d'identité + permis (sauf véhicule avec chauffeur) — voir
+// eligibilityEngine.evaluateEligibility et booking.create.test.js.
+const FAKE_DOC_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+const bookingDocuments = {
+  identity: { type: "cni", frontImage: FAKE_DOC_IMAGE },
+  license:  { frontImage: FAKE_DOC_IMAGE },
+};
+
 describe("Booking Engine — Éligibilité (intégration createBooking)", () => {
   it("bloque une réservation RENTAL_VERIFIED sans permis vérifié, même avec un compte et une identité vérifiés", async () => {
     const owner  = await createUser({ role: "partenaire" });
@@ -71,7 +80,7 @@ describe("Booking Engine — Éligibilité (intégration createBooking)", () => 
     const { req, res } = mockReqRes({
       user: client,
       body: {
-        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(),
         location: { days: 2, startDate: "2027-08-15", endDate: "2027-08-17" },
       },
     });

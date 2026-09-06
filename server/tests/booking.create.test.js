@@ -8,6 +8,16 @@ import User from "../models/User.js";
 
 const clientInfo = { firstName: "Jean", lastName: "Client", email: "jean.client@example.test", passportNumber: "P1234567" };
 
+// Restructuration réservation (2026-09) : toute location exige désormais une
+// pièce d'identité (+ permis si le véhicule ne fournit pas de chauffeur) —
+// voir eligibilityEngine.evaluateEligibility. Image factice valide (magic
+// bytes PNG réels) pour passer validateImageDataUri sans dépendre d'ImageKit.
+const FAKE_DOC_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+const bookingDocuments = {
+  identity: { type: "cni", frontImage: FAKE_DOC_IMAGE },
+  license:  { frontImage: FAKE_DOC_IMAGE },
+};
+
 // Booking Engine (2026-09) : POST /api/bookings exige désormais un compte
 // authentifié dont le téléphone ou l'email est vérifié (Niveau 1) — voir
 // createBooking. Les tests ci-dessous appellent le contrôleur directement
@@ -28,7 +38,7 @@ describe("bookingController.createBooking", () => {
     const vehicle = await createVehicleDoc();
     const { req, res } = mockReqRes({
       user: unverified,
-      body: { type: "location", clientInfo, vehicleId: vehicle._id.toString(), location: { days: 2, startDate: "2027-09-01", endDate: "2027-09-03" } },
+      body: { type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(), location: { days: 2, startDate: "2027-09-01", endDate: "2027-09-03" } },
     });
     await createBooking(req, res);
     expect(res.status).toHaveBeenCalledWith(403);
@@ -40,7 +50,7 @@ describe("bookingController.createBooking", () => {
     const vehicle = await createVehicleDoc();
     const { req, res } = mockReqRes({
       user: client,
-      body: { type: "location", clientInfo, vehicleId: vehicle._id.toString(), location: { days: 0 } },
+      body: { type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(), location: { days: 0 } },
     });
     await createBooking(req, res);
     expect(res.status).toHaveBeenCalledWith(400);
@@ -52,7 +62,7 @@ describe("bookingController.createBooking", () => {
     const { req, res } = mockReqRes({
       user: client,
       body: {
-        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(),
         location: { days: 2, startDate: "2027-03-10", endDate: "2027-03-12" },
       },
     });
@@ -66,7 +76,7 @@ describe("bookingController.createBooking", () => {
     const { req, res } = mockReqRes({
       user: client,
       body: {
-        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(),
         location: { days: 3, startDate: "2027-03-15", endDate: "2027-03-18" },
       },
     });
@@ -74,7 +84,7 @@ describe("bookingController.createBooking", () => {
     expect(res.status).not.toHaveBeenCalledWith(400);
   });
 
-  it("refuse une réservation sur un véhicule exigeant une identité vérifiée (Niveau 2) si le client n'est pas VERIFIE", async () => {
+  it("refuse une réservation sur un véhicule exigeant une identité vérifiée (Niveau 2) si le client n'est pas VERIFIE et ne fournit aucun document", async () => {
     const client = await verifiedClient(); // Niveau 1 OK, mais kycStatus par défaut EN_ATTENTE
     const vehicle = await createVehicleDoc({ requiredVerificationLevel: "IDENTITY_VERIFIED", pricePerDay: 1000 });
     const { req, res } = mockReqRes({
@@ -95,8 +105,56 @@ describe("bookingController.createBooking", () => {
     const { req, res } = mockReqRes({
       user: client,
       body: {
-        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(),
         location: { days: 2, startDate: "2027-09-08", endDate: "2027-09-10" },
+      },
+    });
+    await createBooking(req, res);
+    expect(res.status).not.toHaveBeenCalledWith(403);
+  });
+
+  it("accepte une réservation sur un véhicule exigeant une identité vérifiée si le client, jamais passé par le KYC, joint sa pièce d'identité à la réservation (restructuration 2026-09)", async () => {
+    const client = await verifiedClient(); // kycStatus EN_ATTENTE — jamais fait le parcours /kyc
+    const vehicle = await createVehicleDoc({ requiredVerificationLevel: "IDENTITY_VERIFIED", pricePerDay: 1000 });
+    const { req, res } = mockReqRes({
+      user: client,
+      body: {
+        type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(),
+        location: { days: 2, startDate: "2027-09-12", endDate: "2027-09-14" },
+      },
+    });
+    await createBooking(req, res);
+    expect(res.status).not.toHaveBeenCalledWith(403);
+    // Le document fourni est bien attaché à LA RÉSERVATION (pas au profil User) —
+    // transmis au partenaire, conservé pour l'admin en cas de litige (select:false).
+    const saved = await Booking.findById(res.body.booking._id).select("+clientKycSnapshot.frontImage +clientKycSnapshot.licenseFrontImage");
+    expect(saved.clientKycSnapshot.frontImage).toBeTruthy();
+    expect(saved.clientKycSnapshot.licenseFrontImage).toBeTruthy();
+  });
+
+  it("refuse une location sans chauffeur si le permis n'est fourni ni vérifié, même identité fournie", async () => {
+    const client = await verifiedClient();
+    const vehicle = await createVehicleDoc({ pricePerDay: 1000 }); // withDriver false par défaut
+    const { req, res } = mockReqRes({
+      user: client,
+      body: {
+        type: "location", clientInfo, documents: { identity: bookingDocuments.identity }, vehicleId: vehicle._id.toString(),
+        location: { days: 2, startDate: "2027-09-16", endDate: "2027-09-18" },
+      },
+    });
+    await createBooking(req, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.body.code).toBe("LICENSE_NOT_VERIFIED");
+  });
+
+  it("n'exige aucun permis pour une location avec chauffeur (Vehicle.withDriver)", async () => {
+    const client = await verifiedClient();
+    const vehicle = await createVehicleDoc({ pricePerDay: 1000, withDriver: true });
+    const { req, res } = mockReqRes({
+      user: client,
+      body: {
+        type: "location", clientInfo, documents: { identity: bookingDocuments.identity }, vehicleId: vehicle._id.toString(),
+        location: { days: 2, startDate: "2027-09-20", endDate: "2027-09-22" },
       },
     });
     await createBooking(req, res);
@@ -110,7 +168,7 @@ describe("bookingController.createBooking", () => {
     const { req, res } = mockReqRes({
       user: client,
       body: {
-        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(),
         location: { days: 2, startDate: "2027-04-10", endDate: "2027-04-12" },
       },
     });
@@ -130,7 +188,7 @@ describe("bookingController.createBooking", () => {
     const { req, res } = mockReqRes({
       user: client,
       body: {
-        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(),
         location: { days: 2, startDate: "2027-04-15", endDate: "2027-04-17" },
       },
     });
@@ -144,7 +202,7 @@ describe("bookingController.createBooking", () => {
     const { req, res } = mockReqRes({
       user: client,
       body: {
-        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(),
         location: { days: 2, startDate: "2027-05-01", endDate: "2027-05-03" },
         pointsToRedeem: 300,
       },
@@ -164,7 +222,7 @@ describe("bookingController.createBooking", () => {
     const { req, res } = mockReqRes({
       user: client,
       body: {
-        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(),
         location: { days: 1, startDate: "2027-05-05", endDate: "2027-05-06" },
         pointsToRedeem: 100000,
       },
@@ -182,7 +240,7 @@ describe("bookingController.createBooking", () => {
     const { req, res } = mockReqRes({
       user: client,
       body: {
-        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(),
         location: { days: 1, startDate: "2027-05-08", endDate: "2027-05-09" },
         pointsToRedeem: 5000,
       },
@@ -203,6 +261,7 @@ describe("bookingController.createBooking", () => {
       body: {
         type: "location",
         clientInfo,
+        documents: bookingDocuments,
         vehicleId: vehicle._id.toString(),
         // Le client tente d'envoyer un prix et une caution truqués — doivent être ignorés.
         location: { days: 3, startDate: "2027-01-10", endDate: "2027-01-13", pricePerDay: 1, options: {} },
@@ -224,6 +283,7 @@ describe("bookingController.createBooking", () => {
       body: {
         type: "location",
         clientInfo,
+        documents: bookingDocuments,
         vehicleId: vehicle._id.toString(),
         location: { days: 2, startDate: "2027-04-10", endDate: "2027-04-12" },
         // Le client tente de payer par carte — doit être ignoré côté serveur.
@@ -246,7 +306,7 @@ describe("bookingController.createBooking", () => {
     const first = mockReqRes({
       user: client,
       body: {
-        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(),
         location: { days: 2, startDate: "2027-02-01", endDate: "2027-02-03" },
       },
     });
@@ -257,7 +317,7 @@ describe("bookingController.createBooking", () => {
     const second = mockReqRes({
       user: client,
       body: {
-        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(),
         location: { days: 2, startDate: "2027-02-02", endDate: "2027-02-04" },
       },
     });
@@ -274,7 +334,7 @@ describe("bookingController.createBooking", () => {
     const first = mockReqRes({
       user: client,
       body: {
-        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(),
         location: { days: 2, startDate: "2027-03-01", endDate: "2027-03-03" },
       },
     });
@@ -283,7 +343,7 @@ describe("bookingController.createBooking", () => {
     const second = mockReqRes({
       user: client,
       body: {
-        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(),
         location: { days: 2, startDate: "2027-03-03", endDate: "2027-03-05" },
       },
     });
@@ -338,7 +398,7 @@ describe("bookingController.createBooking", () => {
       const vehicle = await createVehicleDoc();
       const { req, res } = mockReqRes({
         user: client,
-        body: { type: "location", clientInfo, vehicleId: vehicle._id.toString(), location: { days: 2, startDate: "2027-04-01", endDate: "2027-04-03" } },
+        body: { type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(), location: { days: 2, startDate: "2027-04-01", endDate: "2027-04-03" } },
       });
       await createBooking(req, res);
       expect(res.body.isFirstBooking).toBe(true);
@@ -350,14 +410,14 @@ describe("bookingController.createBooking", () => {
 
       const first = mockReqRes({
         user: client,
-        body: { type: "location", clientInfo, vehicleId: vehicle._id.toString(), location: { days: 2, startDate: "2027-05-01", endDate: "2027-05-03" } },
+        body: { type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(), location: { days: 2, startDate: "2027-05-01", endDate: "2027-05-03" } },
       });
       await createBooking(first.req, first.res);
       expect(first.res.body.isFirstBooking).toBe(true);
 
       const second = mockReqRes({
         user: client,
-        body: { type: "location", clientInfo, vehicleId: vehicle._id.toString(), location: { days: 2, startDate: "2027-05-10", endDate: "2027-05-12" } },
+        body: { type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(), location: { days: 2, startDate: "2027-05-10", endDate: "2027-05-12" } },
       });
       await createBooking(second.req, second.res);
       expect(second.res.body.isFirstBooking).toBe(false);
@@ -370,7 +430,7 @@ describe("bookingController.createBooking", () => {
     it("refuse une réservation sans req.user (jamais atteint en production, route authenticate)", async () => {
       const vehicle = await createVehicleDoc();
       const { req, res } = mockReqRes({
-        body: { type: "location", clientInfo, vehicleId: vehicle._id.toString(), location: { days: 2, startDate: "2027-06-01", endDate: "2027-06-03" } },
+        body: { type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(), location: { days: 2, startDate: "2027-06-01", endDate: "2027-06-03" } },
       });
       await createBooking(req, res);
       expect(res.status).toHaveBeenCalledWith(403);

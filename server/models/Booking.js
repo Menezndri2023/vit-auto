@@ -143,10 +143,11 @@ const bookingSchema = new mongoose.Schema({
     lastName:   { type: String, required: true },
     email:      { type: String, required: true },
     phone:      { type: String },
-    // Numéro de passeport — obligatoire à la réservation, transmis au
-    // partenaire et visible côté admin (indépendant du KYC compte, qui
-    // peut être une CNI/permis) — voir bookingController.createBooking.
-    passportNumber: { type: String, required: true },
+    // Numéro de pièce (passeport/CNI), optionnel — le vrai justificatif de la
+    // réservation est désormais l'image jointe dans clientKycSnapshot (voir
+    // ce champ plus bas), pas un numéro en texte libre. Conservé pour
+    // référence si le client le renseigne — voir bookingController.createBooking.
+    passportNumber: { type: String, default: null },
     kycStatus:  { type: String, default: null },   // statut KYC au moment de la réservation
     kycScore:   { type: Number, default: null },
     kycVerified:{ type: Boolean, default: false },

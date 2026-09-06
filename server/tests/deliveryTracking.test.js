@@ -8,6 +8,10 @@ import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
 const clientInfo = { firstName: "Jean", lastName: "Client", email: "jean.client@example.test", passportNumber: "P1234567" };
+// Restructuration réservation (2026-09) : toute location exige une pièce
+// d'identité + permis — voir booking.create.test.js pour le détail.
+const FAKE_DOC_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+const bookingDocuments = { identity: { type: "cni", frontImage: FAKE_DOC_IMAGE }, license: { frontImage: FAKE_DOC_IMAGE } };
 
 async function makeDeliveryBooking(overrides = {}) {
   const owner = await createUser({ role: "partenaire" });
@@ -16,7 +20,7 @@ async function makeDeliveryBooking(overrides = {}) {
   const { req, res } = mockReqRes({
     user: client,
     body: {
-      type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+      type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(),
       location: {
         days: 2, startDate: "2027-07-10", endDate: "2027-07-12",
         pickupMethod: "livraison",
@@ -52,7 +56,7 @@ describe("Booking Engine — livraison (suivi)", () => {
     const { req, res } = mockReqRes({
       user: client,
       body: {
-        type: "location", clientInfo, vehicleId: vehicle._id.toString(),
+        type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(),
         location: { days: 2, startDate: "2027-07-15", endDate: "2027-07-17", pickupMethod: "retrait" },
       },
     });

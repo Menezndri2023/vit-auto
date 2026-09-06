@@ -173,6 +173,12 @@ describe("bookingController.createBookingsBatch", () => {
           { vehicleId: v2._id.toString(), startDate: "2027-06-05", endDate: "2027-06-04" }, // dates invalides
         ],
         passportNumber: "P1234567",
+        // Restructuration réservation (2026-09) : pièce d'identité + permis
+        // désormais exigés pour toute location — voir booking.create.test.js.
+        documents: {
+          identity: { type: "cni", frontImage: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" },
+          license:  { frontImage: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" },
+        },
       },
     });
     await createBookingsBatch(req, res);

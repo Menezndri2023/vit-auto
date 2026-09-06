@@ -91,9 +91,6 @@ export default function Booking() {
   const vehicleRequiresLicense = vehicle?.permisRequis !== false;
   // Le client a-t-il un permis vérifié ? (driverLicenseOcr soumis)
   const hasVerifiedLicense = !!(liveDriverLic?.licenseNumber || liveDriverLic?.rawOcrText);
-  // Blocage permis uniquement si : location + véhicule l'exige + pas de permis vérifié
-  const licenseRequired = vehicleRequiresLicense && isSaleMode === false;
-  // (On ne bloque pas avant la réservation — le partenaire peut vérifier en présentiel)
 
   // Rafraîchissement du statut KYC à chaque navigation vers cette page (retour de /kyc inclus)
   const { updateUser } = useAuth();
@@ -146,7 +143,6 @@ export default function Booking() {
     lastName:      user?.lastName  || "",
     email:         user?.email     || "",
     phone:         user?.phone     || "",
-    passportNumber: "",
     startDate:     "",
     endDate:       "",
     preferredDate: "",
@@ -170,6 +166,39 @@ export default function Booking() {
   const [geoFee,         setGeoFee]         = useState(null);
   const [geoFeeLoading,  setGeoFeeLoading]  = useState(false);
   const [leasingAccepted, setLeasingAccepted] = useState(false);
+
+  /* ── Documents liés à LA RÉSERVATION (restructuration 2026-09) ───────────
+     Demandés en dernière étape, pour conclure la réservation — jamais avant.
+     Pas d'OCR ni de revue manuelle : l'image est jointe telle quelle à cette
+     commande, transmise au partenaire et conservée pour l'admin en cas de
+     litige (voir bookingController.createBooking). Un client déjà
+     kycStatus VERIFIE (ancien parcours /kyc) n'a rien à fournir. ────────── */
+  const [idType,             setIdType]             = useState("cni");
+  const [idFrontImage,       setIdFrontImage]       = useState(null);
+  const [idBackImage,        setIdBackImage]        = useState(null);
+  const [licenseFrontImage,  setLicenseFrontImage]  = useState(null);
+  const [licenseBackImage,   setLicenseBackImage]   = useState(null);
+  const [docError,           setDocError]           = useState("");
+
+  const readImageFile = useCallback((file, setter) => {
+    if (!file) return;
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowed.includes(file.type)) { setDocError(t("booking.docFormatError")); return; }
+    if (file.size > 6 * 1024 * 1024) { setDocError(t("booking.docSizeError")); return; }
+    setDocError("");
+    const reader = new FileReader();
+    reader.onload = (e) => setter(e.target.result);
+    reader.readAsDataURL(file);
+  }, [t]);
+
+  // Location classique uniquement (hors essai/leasing, gérés séparément —
+  // voir suggestion de parcours dédiée) : identité toujours requise, permis
+  // requis sauf véhicule avec chauffeur (Vehicle.withDriver).
+  const showDocumentStep = !isTrial && !isLeasing;
+  const needsLicenseDoc  = showDocumentStep && !vehicle?.withDriver && vehicleRequiresLicense;
+  const identitySatisfied = kycStatus === "VERIFIE" || !!idFrontImage;
+  const licenseSatisfied  = !needsLicenseDoc || hasVerifiedLicense || !!licenseFrontImage;
+  const documentsReady = !showDocumentStep || (identitySatisfied && licenseSatisfied);
 
   /* ── STEP 2 : Options ──────────────────────────────────────────── */
   const [selectedOptions, setSelectedOptions] = useState({ babySeat: false, insurance: false, driver: false, gps: false });
@@ -385,7 +414,6 @@ export default function Booking() {
         lastName:  form.lastName,
         email:     form.email,
         phone:     form.phone,
-        passportNumber: form.passportNumber,
       },
       kycVerified:    kycOk,
       kycScore:       kycScore,
@@ -465,6 +493,15 @@ export default function Booking() {
           kycBadge:  kycBadge.badge,
           kycVerified: kycOk,
         },
+        // Documents liés à LA RÉSERVATION (restructuration 2026-09) — voir
+        // bookingController.createBooking. Rien à envoyer si le client est
+        // déjà kycStatus VERIFIE (ancien parcours /kyc) ou hors location.
+        ...(showDocumentStep && (idFrontImage || licenseFrontImage) ? {
+          documents: {
+            ...(idFrontImage ? { identity: { type: idType, frontImage: idFrontImage, backImage: idBackImage || undefined } } : {}),
+            ...(licenseFrontImage ? { license: { frontImage: licenseFrontImage, backImage: licenseBackImage || undefined } } : {}),
+          },
+        } : {}),
         ...((!isTrial && !isLeasing) ? {
           location: {
             startDate:      form.startDate,
@@ -599,7 +636,7 @@ export default function Booking() {
 
     setSubmitting(false);
     navigate("/booking/success", { state: { booking: bookingData, trial: isTrial, payment: { paymentMethod: payMethod, mobileNumber } } });
-  }, [submitting, form, pickupMethod, pickupAddress, pickupPosition, deliveryCity, deliveryPostalCode, deliveryInstructions, selectedOptions, payMethod, mobileNumber, cardNumber, cardHolder, days, deliveryFee, geoDistance, baseTotal, optionsTotal, totalToPay, kycOk, kycScore, kycBadge, bookingRef, isTrial, isLeasing, financingType, financingTerms, vehicle, token, user, addBooking, removeLocalBooking, navigate, location, agencyFull, toastError]);
+  }, [submitting, form, pickupMethod, pickupAddress, pickupPosition, deliveryCity, deliveryPostalCode, deliveryInstructions, selectedOptions, payMethod, mobileNumber, cardNumber, cardHolder, days, deliveryFee, geoDistance, baseTotal, optionsTotal, totalToPay, kycOk, kycScore, kycBadge, bookingRef, isTrial, isLeasing, financingType, financingTerms, vehicle, token, user, addBooking, removeLocalBooking, navigate, location, agencyFull, toastError, showDocumentStep, idType, idFrontImage, idBackImage, licenseFrontImage, licenseBackImage]);
 
   /* ════════════════════════════════════════════════════════════════
      RENDU
@@ -613,94 +650,6 @@ export default function Booking() {
           <h2>{t("booking.vehicleNotFoundTitle")}</h2>
           <p>{t("booking.vehicleNotFoundDesc")}</p>
           <button className={styles.primaryBtn} onClick={() => navigate("/catalogue")}>{t("booking.backToCatalogue")}</button>
-        </div>
-      </div>
-    );
-  }
-
-  /* ── KYC GATE ──────────────────────────────────────────────────── */
-  if (!kycOk) {
-    const isEnAttente = kycStatus === "EN_ATTENTE" && kycScore > 0;
-    const isEnRevision = kycStatus === "A_REVOIR_MANUELLEMENT";
-    const kycSteps = [
-      { icon: "📧", label: t("booking.kycStepEmailLabel"),  desc: t("booking.kycStepEmailDesc") },
-      { icon: "📱", label: t("booking.kycStepPhoneLabel"),  desc: t("booking.kycStepPhoneDesc") },
-      { icon: "📄", label: t("booking.kycStepDocLabel"),    desc: t("booking.kycStepDocDesc") },
-      { icon: "🤳", label: t("booking.kycStepSelfieLabel"), desc: t("booking.kycStepSelfieDesc") },
-    ];
-    return (
-      <div className={styles.page}>
-        <div className={styles.kycGate}>
-          <div className={styles.kycGateHeader}>
-            <div className={styles.kycGateLock}>🔒</div>
-            <div>
-              <h2 className={styles.kycGateTitle}>{t("booking.kycGateTitle")}</h2>
-              <p className={styles.kycGateVehicle}>
-                {t("booking.kycGateVehicleMsg", { vehicle: vehicle.title || vehicle.name })}
-              </p>
-            </div>
-          </div>
-
-          {/* Statut en cours */}
-          {(isEnAttente || isEnRevision) && (
-            <div style={{ background: "#fef3c7", border: "1.5px solid #fde68a", borderRadius: 12, padding: "14px 18px", margin: "0 0 16px", fontSize: ".9rem", color: "#78350f" }}>
-              {isEnRevision
-                ? t("booking.kycUnderReviewMsg")
-                : t("booking.kycSubmittedMsg")}
-            </div>
-          )}
-
-          {/* Score circulaire */}
-          <div className={styles.kycGateScoreRing}>
-            <svg viewBox="0 0 100 100" className={styles.kycRingSvg}>
-              <circle cx="50" cy="50" r="42" fill="none" stroke="#e2e8f0" strokeWidth="10" />
-              <circle
-                cx="50" cy="50" r="42" fill="none"
-                stroke={kycBadge.color} strokeWidth="10"
-                strokeDasharray={`${2.64 * kycScore} ${264 - 2.64 * kycScore}`}
-                strokeLinecap="round" transform="rotate(-90 50 50)"
-              />
-            </svg>
-            <div className={styles.kycRingInner}>
-              <span className={styles.kycRingScore}>{kycScore}</span>
-              <span className={styles.kycRingMax}>/100</span>
-            </div>
-          </div>
-
-          <div className={styles.kycGateMissing}>
-            <span className={styles.kycGateMissingBadge} style={{ background: kycBadge.bg, color: kycBadge.color }}>
-              {kycBadge.emoji} {kycBadge.badge}
-            </span>
-            <p>{t("booking.kycCurrentStatusLabel")}<strong>{kycStatus.replace(/_/g, " ")}</strong></p>
-          </div>
-
-          {!isEnAttente && !isEnRevision && (
-            <div className={styles.kycGateSteps}>
-              {kycSteps.map((s, i) => (
-                <div key={i} className={styles.kycStep}>
-                  <span className={styles.kycStepIcon}>{s.icon}</span>
-                  <div>
-                    <span className={styles.kycStepLabel}>{s.label}</span>
-                    <span className={styles.kycStepDesc}>{s.desc}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className={styles.kycGateActions}>
-            {!isEnAttente && !isEnRevision && (
-              <button className={styles.kycGateCta}
-                onClick={() => navigate(`/kyc?returnTo=/booking/${id}${searchParams.get("type") ? "&type=" + searchParams.get("type") : ""}`)}>
-                {t("booking.kycVerifyCta")}
-              </button>
-            )}
-            <button className={styles.secondaryBtn} onClick={() => navigate(-1)}>{t("booking.back")}</button>
-          </div>
-
-          <p className={styles.kycGateNote}>
-            {t("booking.kycDataPrivacyNote")}
-          </p>
         </div>
       </div>
     );
@@ -765,13 +714,11 @@ export default function Booking() {
               <input className={styles.input} type="tel"   placeholder={t("booking.phonePlaceholder")} value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })} required />
             </div>
-            <div className={styles.row}>
-              <input className={styles.input} type="text"  placeholder={t("booking.passportPlaceholder")} value={form.passportNumber}
-                onChange={(e) => setForm({ ...form, passportNumber: e.target.value })} required />
-            </div>
-            <p className={styles.optionsNote} style={{ marginTop: -8, marginBottom: 12 }}>
-              {t("booking.passportRequiredNote")}
-            </p>
+            {showDocumentStep && (
+              <p className={styles.optionsNote} style={{ marginTop: -8, marginBottom: 12 }}>
+                {t("booking.documentsLaterNote")}
+              </p>
+            )}
 
             {/* Essai / Leasing / Location */}
             {isLeasing ? (
@@ -963,7 +910,7 @@ export default function Booking() {
                 className={styles.primaryBtn}
                 onClick={() => setStep(isLeasing ? 3 : 2)}
                 disabled={
-                  !form.firstName || !form.lastName || !form.email || !form.phone || !form.passportNumber.trim() ||
+                  !form.firstName || !form.lastName || !form.email || !form.phone ||
                   (isLeasing && !leasingAccepted) ||
                   (!isTrial && !isLeasing && (!form.startDate || !form.endDate || days <= 0 || days < (vehicle?.dureeMinLocation || 1))) ||
                   (isTrial && (!form.preferredDate || !form.preferredTime || !!essaiConflict)) ||
@@ -1168,10 +1115,78 @@ export default function Booking() {
               </div>
             </div>
 
-            <div className={styles.kycBadgeBar} style={{ background: kycBadge.bg, borderColor: kycBadge.border }}>
-              {kycBadge.emoji} <span style={{ color: kycBadge.color, fontWeight: 700 }}>{kycBadge.badge}</span>
-              <span style={{ color: "#5a6a8a", fontSize: "0.82rem" }}>{t("booking.identityVerifiedSuffix")}</span>
-            </div>
+            {/* ── Documents liés à LA RÉSERVATION (restructuration 2026-09) ──
+                Demandés ici, en dernière étape, pour conclure la réservation —
+                jamais avant. Transmis au partenaire + conservés pour l'admin
+                en cas de litige (voir bookingController.createBooking). Pas
+                d'OCR ni de revue manuelle : juste l'image. ────────────────── */}
+            {showDocumentStep && (
+              <div style={{ margin: "18px 0" }}>
+                <h3 className={styles.sectionTitle}>{t("booking.documentsTitle")}</h3>
+                <p className={styles.optionsNote}>{t("booking.documentsIntro")}</p>
+
+                {kycStatus === "VERIFIE" ? (
+                  <div className={styles.kycBadgeBar} style={{ background: kycBadge.bg, borderColor: kycBadge.border }}>
+                    {kycBadge.emoji} <span style={{ color: kycBadge.color, fontWeight: 700 }}>{kycBadge.badge}</span>
+                    <span style={{ color: "#5a6a8a", fontSize: "0.82rem" }}>{t("booking.identityVerifiedSuffix")}</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className={styles.row}>
+                      <label className={styles.label} style={{ flex: 1 }}>
+                        {t("booking.idTypeLabel")}
+                        <select className={styles.input} value={idType} onChange={(e) => setIdType(e.target.value)}>
+                          <option value="cni">{t("booking.idTypeCni")}</option>
+                          <option value="passport">{t("booking.idTypePassport")}</option>
+                          <option value="carte_sejour">{t("booking.idTypeResidence")}</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div className={styles.row}>
+                      <label style={{ flex: 1, cursor: "pointer", border: "1.5px dashed #cbd5e1", borderRadius: 10, padding: 14, textAlign: "center", fontSize: "0.85rem" }}>
+                        <input type="file" accept="image/*" capture="environment" style={{ display: "none" }}
+                          onChange={(e) => readImageFile(e.target.files?.[0], setIdFrontImage)} />
+                        {idFrontImage
+                          ? <img src={idFrontImage} alt="" style={{ maxHeight: 90, borderRadius: 8 }} />
+                          : <span>📄 {t("booking.uploadIdFront")}</span>}
+                      </label>
+                      <label style={{ flex: 1, cursor: "pointer", border: "1.5px dashed #cbd5e1", borderRadius: 10, padding: 14, textAlign: "center", fontSize: "0.85rem" }}>
+                        <input type="file" accept="image/*" capture="environment" style={{ display: "none" }}
+                          onChange={(e) => readImageFile(e.target.files?.[0], setIdBackImage)} />
+                        {idBackImage
+                          ? <img src={idBackImage} alt="" style={{ maxHeight: 90, borderRadius: 8 }} />
+                          : <span>📄 {t("booking.uploadIdBackOptional")}</span>}
+                      </label>
+                    </div>
+                  </>
+                )}
+
+                {needsLicenseDoc && !hasVerifiedLicense && (
+                  <>
+                    <h3 className={styles.sectionTitle} style={{ marginTop: 16 }}>{t("booking.licenseDocTitle")}</h3>
+                    <div className={styles.row}>
+                      <label style={{ flex: 1, cursor: "pointer", border: "1.5px dashed #cbd5e1", borderRadius: 10, padding: 14, textAlign: "center", fontSize: "0.85rem" }}>
+                        <input type="file" accept="image/*" capture="environment" style={{ display: "none" }}
+                          onChange={(e) => readImageFile(e.target.files?.[0], setLicenseFrontImage)} />
+                        {licenseFrontImage
+                          ? <img src={licenseFrontImage} alt="" style={{ maxHeight: 90, borderRadius: 8 }} />
+                          : <span>🪪 {t("booking.uploadLicenseFront")}</span>}
+                      </label>
+                      <label style={{ flex: 1, cursor: "pointer", border: "1.5px dashed #cbd5e1", borderRadius: 10, padding: 14, textAlign: "center", fontSize: "0.85rem" }}>
+                        <input type="file" accept="image/*" capture="environment" style={{ display: "none" }}
+                          onChange={(e) => readImageFile(e.target.files?.[0], setLicenseBackImage)} />
+                        {licenseBackImage
+                          ? <img src={licenseBackImage} alt="" style={{ maxHeight: 90, borderRadius: 8 }} />
+                          : <span>🪪 {t("booking.uploadLicenseBackOptional")}</span>}
+                      </label>
+                    </div>
+                  </>
+                )}
+
+                {docError && <p className={styles.errorMsg}>⚠️ {docError}</p>}
+                <p className={styles.optionsNote}>{t("booking.documentsPrivacyNote")}</p>
+              </div>
+            )}
 
             <div className={styles.legalNote}>
               {t("booking.legalAcceptPrefix")}
@@ -1180,9 +1195,13 @@ export default function Booking() {
               <Link to="/privacy" target="_blank">{t("booking.privacyLink")}</Link>{t("booking.legalAcceptSuffix")}
             </div>
 
+            {!documentsReady && (
+              <p className={styles.errorMsg}>{t("booking.documentsMissingNote")}</p>
+            )}
+
             <div className={styles.actionRow}>
               <button className={styles.secondaryBtn} onClick={() => setStep(3)}>{t("booking.editButton")}</button>
-              <button className={styles.confirmBtn} onClick={handleSubmit} disabled={submitting}>
+              <button className={styles.confirmBtn} onClick={handleSubmit} disabled={submitting || !documentsReady}>
                 {submitting ? t("booking.sending") : t("booking.confirmButton", { total: fmt(totalToPay) })}
               </button>
             </div>

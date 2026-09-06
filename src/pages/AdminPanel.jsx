@@ -1616,6 +1616,18 @@ export default function AdminPanel() {
   const [disputeModal,    setDisputeModal]    = useState(null); // { booking }
   const [disputeNote,     setDisputeNote]     = useState("");
   const [disputeResol,    setDisputeResol]    = useState("completed");
+  // Documents client liés à LA RÉSERVATION en litige (restructuration
+  // réservation, 2026-09) — la liste des commandes ne les charge jamais
+  // (select:false par défaut), donc rechargés à l'ouverture du litige via
+  // getBookingDetail, qui les inclut explicitement pour l'admin.
+  const [disputeDocs, setDisputeDocs] = useState(null);
+  useEffect(() => {
+    if (!disputeModal?.booking?._id) { setDisputeDocs(null); return; }
+    fetch(`/api/bookings/${disputeModal.booking._id}/detail`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => setDisputeDocs(d?.booking?.clientKycSnapshot || null))
+      .catch(() => setDisputeDocs(null));
+  }, [disputeModal, token]);
   const [forceModal,      setForceModal]      = useState(null); // { booking }
   const [forceAmount,     setForceAmount]     = useState("");
   const [forceNote,       setForceNote]       = useState("");
@@ -3830,6 +3842,17 @@ export default function AdminPanel() {
             {/* Bug réel corrigé (audit) : le partenaire peut désormais répondre à
                 un litige (VendorDashboard) — sans ça, l'admin tranchait sans
                 jamais voir ses éventuels éléments de réponse. */}
+            {(disputeDocs?.frontImage || disputeDocs?.backImage || disputeDocs?.licenseFrontImage || disputeDocs?.licenseBackImage) && (
+              <div style={{ marginBottom: 12 }}>
+                <p style={{ margin:"0 0 6px", fontSize:".78rem", fontWeight:700, color:"#0f1b3f" }}>📄 Documents joints à cette réservation :</p>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  {disputeDocs.frontImage && <a href={disputeDocs.frontImage} target="_blank" rel="noopener noreferrer"><img src={disputeDocs.frontImage} alt="Recto pièce d'identité" style={{ maxHeight:80, borderRadius:8, border:"1px solid #e2e8f0" }} /></a>}
+                  {disputeDocs.backImage && <a href={disputeDocs.backImage} target="_blank" rel="noopener noreferrer"><img src={disputeDocs.backImage} alt="Verso pièce d'identité" style={{ maxHeight:80, borderRadius:8, border:"1px solid #e2e8f0" }} /></a>}
+                  {disputeDocs.licenseFrontImage && <a href={disputeDocs.licenseFrontImage} target="_blank" rel="noopener noreferrer"><img src={disputeDocs.licenseFrontImage} alt="Recto permis" style={{ maxHeight:80, borderRadius:8, border:"1px solid #e2e8f0" }} /></a>}
+                  {disputeDocs.licenseBackImage && <a href={disputeDocs.licenseBackImage} target="_blank" rel="noopener noreferrer"><img src={disputeDocs.licenseBackImage} alt="Verso permis" style={{ maxHeight:80, borderRadius:8, border:"1px solid #e2e8f0" }} /></a>}
+                </div>
+              </div>
+            )}
             {disputeModal.booking.partnerDisputeResponse?.respondedAt && (
               <div style={{ background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:8, padding:"8px 12px", marginBottom:12 }}>
                 <p style={{ margin:0, fontSize:".78rem", fontWeight:700, color:"#0f1b3f" }}>💬 Réponse du partenaire :</p>

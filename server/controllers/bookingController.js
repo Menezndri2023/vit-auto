@@ -24,11 +24,51 @@ import {
 } from "../constants/bookingCancelReasons.js";
 import { resolveTier } from "../constants/loyaltyTiers.js";
 import LoyaltyTransaction from "../models/LoyaltyTransaction.js";
+import { validateImageDataUri } from "../utils/imageValidation.js";
+import { uploadBase64Document, FOLDERS } from "../config/imagekit.js";
 
 const CLIENT_CANCEL_REASONS_MAP  = Object.fromEntries(CLIENT_CANCEL_REASONS);
 const PARTNER_CANCEL_REASONS_MAP = Object.fromEntries(PARTNER_CANCEL_REASONS);
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// ── Documents liés à la réservation (restructuration 2026-09) ────────────────
+// Remplace le mur KYC (OCR + revue manuelle admin avant même d'accéder au
+// formulaire) par une pièce jointe à LA COMMANDE : le client fournit sa pièce
+// d'identité (et son permis si le véhicule l'exige) au moment de conclure sa
+// réservation, jamais avant. Aucun OCR/face-match ici — juste une image
+// validée (taille + type réel) et hébergée, transmise telle quelle au
+// partenaire et conservée pour l'admin en cas de litige (voir
+// Booking.clientKycSnapshot). Un client déjà kycStatus VERIFIE n'a rien à
+// fournir (voir eligibilityEngine.evaluateEligibility).
+const MAX_BOOKING_DOC_BYTES = 6 * 1024 * 1024; // cohérent avec kycController/driverController
+
+async function processBookingDocuments(documents) {
+  const identity = documents?.identity || null;
+  const license  = documents?.license  || null;
+  for (const [label, img] of [
+    ["identité (recto)", identity?.frontImage], ["identité (verso)", identity?.backImage],
+    ["permis (recto)", license?.frontImage], ["permis (verso)", license?.backImage],
+  ]) {
+    const check = validateImageDataUri(img, MAX_BOOKING_DOC_BYTES);
+    if (!check.ok) return { error: `Document ${label} : ${check.message}` };
+  }
+  const [idFront, idBack, licFront, licBack] = await Promise.all([
+    uploadBase64Document(identity?.frontImage || null, FOLDERS.bookingDocs || FOLDERS.docs),
+    uploadBase64Document(identity?.backImage  || null, FOLDERS.bookingDocs || FOLDERS.docs),
+    uploadBase64Document(license?.frontImage  || null, FOLDERS.bookingDocs || FOLDERS.docs),
+    uploadBase64Document(license?.backImage   || null, FOLDERS.bookingDocs || FOLDERS.docs),
+  ]);
+  return {
+    error: null,
+    providedDocuments: { identity: !!idFront, license: !!licFront },
+    uploaded: {
+      idType: identity?.type || null,
+      idFrontImage: idFront, idBackImage: idBack,
+      licenseFrontImage: licFront, licenseBackImage: licBack,
+    },
+  };
+}
 
 // ── Émettre un événement Socket.io sur tous les participants d'une commande ──
 export function emitBookingUpdate(booking, eventName = "booking_updated", extra = {}) {
@@ -328,8 +368,17 @@ export const createBooking = async (req, res) => {
     if (!type || !clientInfo?.firstName || !clientInfo?.email) {
       return res.status(400).json({ message: "Type et informations client requis." });
     }
-    if (!clientInfo?.passportNumber || !String(clientInfo.passportNumber).trim()) {
-      return res.status(400).json({ message: "Numéro de passeport requis." });
+
+    // ── Documents liés à la réservation (restructuration 2026-09) ────────────
+    // Remplace le numéro de passeport en texte libre (ancien unique
+    // justificatif, jamais vérifié) : le client joint désormais une vraie
+    // pièce d'identité (et un permis si le véhicule l'exige) à SA réservation.
+    // Validée pour la taille/le type réel seulement — aucun OCR, aucune revue
+    // manuelle bloquante (voir processBookingDocuments ci-dessus et
+    // eligibilityEngine.js).
+    const docsResult = await processBookingDocuments(req.body?.documents);
+    if (docsResult.error) {
+      return res.status(400).json({ message: docsResult.error, code: "INVALID_DOCUMENT" });
     }
 
     // ── Vérification client — Niveau 1 (Booking Engine, 2026-09) ────────────────
@@ -420,6 +469,7 @@ export const createBooking = async (req, res) => {
         : null;
       const eligibility = evaluateEligibility({
         user: req.user, vehicle, rentalPolicy: rentalPolicyBusiness?.rentalPolicy,
+        bookingType: type, providedDocuments: docsResult.providedDocuments,
       });
       if (!eligibility.eligible) {
         const failure = ELIGIBILITY_MESSAGES[eligibility.reasons[0]];
@@ -765,13 +815,13 @@ export const createBooking = async (req, res) => {
         clientKycStatus = clientUser.kycStatus || null;
         clientKycScore  = clientUser.kycScore  || 0;
         clientKycSnapshot = {
-          idType:            clientUser.identity?.type           || clientInfo?.idType   || null,
+          idType:            clientUser.identity?.type           || docsResult.uploaded?.idType || clientInfo?.idType   || null,
           idNumber:          clientUser.identity?.number         || clientInfo?.idNumber || null,
-          frontImage:        clientUser.identity?.frontImage     || null,
-          backImage:         clientUser.identity?.backImage      || null,
+          frontImage:        clientUser.identity?.frontImage     || docsResult.uploaded?.idFrontImage || null,
+          backImage:         clientUser.identity?.backImage      || docsResult.uploaded?.idBackImage  || null,
           selfie:            clientUser.identity?.selfie         || null,
-          licenseFrontImage: clientUser.driverLicenseOcr?.frontImage  || null,
-          licenseBackImage:  clientUser.driverLicenseOcr?.backImage   || null,
+          licenseFrontImage: clientUser.driverLicenseOcr?.frontImage  || docsResult.uploaded?.licenseFrontImage || null,
+          licenseBackImage:  clientUser.driverLicenseOcr?.backImage   || docsResult.uploaded?.licenseBackImage  || null,
           licenseNumber:     clientUser.driverLicenseOcr?.licenseNumber || null,
           licenseExpiry:     clientUser.driverLicenseOcr?.expiryDate   || null,
           licenseCategories: clientUser.driverLicenseOcr?.categories   || null,
@@ -780,6 +830,18 @@ export const createBooking = async (req, res) => {
           kycStatus:         clientKycStatus,
           kycScore:          clientKycScore,
           snapshotAt:        new Date(),
+        };
+      } else if (docsResult.uploaded?.idFrontImage || docsResult.uploaded?.licenseFrontImage) {
+        // Réservation invité — jamais atteint en production (route authenticate),
+        // filet défensif pour ne pas perdre un document fourni sans req.user.
+        clientKycSnapshot = {
+          idType: docsResult.uploaded.idType || clientInfo?.idType || null,
+          idNumber: clientInfo?.idNumber || null,
+          frontImage: docsResult.uploaded.idFrontImage,
+          backImage:  docsResult.uploaded.idBackImage,
+          licenseFrontImage: docsResult.uploaded.licenseFrontImage,
+          licenseBackImage:  docsResult.uploaded.licenseBackImage,
+          snapshotAt: new Date(),
         };
       }
     }
@@ -1092,9 +1154,6 @@ export const createBookingsBatch = async (req, res) => {
       return res.status(400).json({ message: `Maximum ${MAX_BATCH_ITEMS} véhicules par panier.` });
     }
     const passportNumber = req.body?.passportNumber;
-    if (!passportNumber || !String(passportNumber).trim()) {
-      return res.status(400).json({ message: "Numéro de passeport requis." });
-    }
 
     // ── Vérification client — Niveau 1 (Booking Engine, 2026-09) ────────────────
     // Voir createBooking pour le même correctif et la même justification.
@@ -1103,6 +1162,14 @@ export const createBookingsBatch = async (req, res) => {
         message: "Vérifiez votre numéro de téléphone ou votre email avant de réserver.",
         code: "VERIFICATION_LEVEL_1_REQUIRED",
       });
+    }
+
+    // ── Documents liés à la réservation (restructuration 2026-09) ────────────
+    // Un seul document pour tout le panier (même client, plusieurs véhicules)
+    // — voir createBooking pour la même logique côté réservation simple.
+    const docsResult = await processBookingDocuments(req.body?.documents);
+    if (docsResult.error) {
+      return res.status(400).json({ message: docsResult.error, code: "INVALID_DOCUMENT" });
     }
 
     const clientInfo = {
@@ -1121,13 +1188,13 @@ export const createBookingsBatch = async (req, res) => {
     const clientKycStatus = clientUser?.kycStatus || null;
     const clientKycScore  = clientUser?.kycScore  || 0;
     const clientKycSnapshot = clientUser ? {
-      idType:            clientUser.identity?.type           || null,
+      idType:            clientUser.identity?.type           || docsResult.uploaded?.idType || null,
       idNumber:          clientUser.identity?.number         || null,
-      frontImage:        clientUser.identity?.frontImage     || null,
-      backImage:         clientUser.identity?.backImage      || null,
+      frontImage:        clientUser.identity?.frontImage     || docsResult.uploaded?.idFrontImage || null,
+      backImage:         clientUser.identity?.backImage      || docsResult.uploaded?.idBackImage  || null,
       selfie:            clientUser.identity?.selfie         || null,
-      licenseFrontImage: clientUser.driverLicenseOcr?.frontImage  || null,
-      licenseBackImage:  clientUser.driverLicenseOcr?.backImage   || null,
+      licenseFrontImage: clientUser.driverLicenseOcr?.frontImage  || docsResult.uploaded?.licenseFrontImage || null,
+      licenseBackImage:  clientUser.driverLicenseOcr?.backImage   || docsResult.uploaded?.licenseBackImage  || null,
       licenseNumber:     clientUser.driverLicenseOcr?.licenseNumber || null,
       licenseExpiry:     clientUser.driverLicenseOcr?.expiryDate   || null,
       licenseCategories: clientUser.driverLicenseOcr?.categories   || null,
@@ -1159,6 +1226,7 @@ export const createBookingsBatch = async (req, res) => {
           : null;
         const batchEligibility = evaluateEligibility({
           user: req.user, vehicle, rentalPolicy: batchRentalPolicy?.rentalPolicy,
+          bookingType: "location", providedDocuments: docsResult.providedDocuments,
         });
         if (!batchEligibility.eligible) {
           const failure = ELIGIBILITY_MESSAGES[batchEligibility.reasons[0]];
@@ -2626,7 +2694,19 @@ export const getBookingDetail = async (req, res) => {
         ? "firstName lastName email phone kycStatus emailVerified phoneVerified"  // pas les données biométriques
         : "firstName lastName email phone kycStatus";
 
-    const booking = await Booking.findById(id)
+    // Documents liés à la réservation (restructuration 2026-09) — transmis au
+    // partenaire propriétaire pour qu'il n'ait jamais à les redemander, et à
+    // l'admin en cas de litige. Le selfie reste un artefact biométrique
+    // KYC-only, jamais exposé au partenaire.
+    const docSelect = isAdmin
+      ? "+clientKycSnapshot.frontImage +clientKycSnapshot.backImage +clientKycSnapshot.licenseFrontImage +clientKycSnapshot.licenseBackImage +clientKycSnapshot.selfie"
+      : isPartnerOwner
+        ? "+clientKycSnapshot.frontImage +clientKycSnapshot.backImage +clientKycSnapshot.licenseFrontImage +clientKycSnapshot.licenseBackImage"
+        : null;
+
+    let bookingQuery = Booking.findById(id);
+    if (docSelect) bookingQuery = bookingQuery.select(docSelect);
+    const booking = await bookingQuery
       .populate("client",   clientFields)
       .populate("vehicle",  "title marque modele owner images pricePerDay contactNom contactTel")
       .populate("driver",   "firstName lastName phone owner tarif")

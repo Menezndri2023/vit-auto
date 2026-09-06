@@ -28,6 +28,7 @@ export const FOLDERS = {
   showrooms: "vit-auto/showrooms",
   docs:      "vit-auto/docs",
   drivers:   "vit-auto/drivers",
+  bookingDocs: "vit-auto/booking-docs",
 };
 
 export async function uploadImage(source, options = {}) {

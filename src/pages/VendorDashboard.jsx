@@ -283,15 +283,15 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
     ? `https://www.google.com/maps?q=${order.pickupLat},${order.pickupLng}`
     : pickupAddr ? `https://www.google.com/maps/search/${encodeURIComponent(pickupAddr)}` : null;
 
-  // ── Données identité (Booking Engine — Éligibilité, 2026-09) ──────────────
-  // Le partenaire ne reçoit plus les photos (recto/verso/selfie/permis) ni les
-  // données OCR brutes (nom/naissance/sexe/pays extraits du document) —
-  // Booking.clientKycSnapshot les exclut désormais par défaut (select:false)
-  // et User.identity/driverLicenseOcr/kycOcrData ne sont jamais populés pour
-  // un partenaire (voir bookingController.getBookingDetail/getPartnerBookings,
-  // clientFields). Seuls les statuts et données non biométriques nécessaires à
-  // l'exécution de la location restent visibles (§10 du cahier des charges :
-  // "Identity: VERIFIED / License: VERIFIED", pas les documents eux-mêmes).
+  // ── Données identité (restructuration réservation, 2026-09) ──────────────
+  // Le partenaire reçoit désormais le document (recto/verso pièce d'identité +
+  // permis) lié À CETTE RÉSERVATION — uploadé par le client à la conclusion de
+  // sa commande, sans OCR ni revue manuelle (voir bookingController.
+  // createBooking/getBookingDetail, docSelect côté isPartnerOwner). Objectif :
+  // le partenaire n'a plus jamais à redemander un document déjà transmis avec
+  // la réservation. Le selfie et les données OCR brutes (nom/naissance/sexe/
+  // pays, score de correspondance visage) restent exclus (select:false),
+  // réservés à l'admin en cas de litige.
   const snap       = orderDetail?.clientKycSnapshot || {};
   const clientUser = orderDetail?.client || {};
   const idType     = snap.idType    || order.clientVerification?.idType   || null;
@@ -388,14 +388,22 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
                   {detailLoading ? (
                     <div style={{ fontSize:".8rem", color:"#94a3b8", padding:"8px 0" }}>⏳ Chargement…</div>
                   ) : (
-                    // Booking Engine — Éligibilité (2026-09) : plus de photos ni
-                    // de données OCR brutes ici (§10 du cahier des charges) —
-                    // seul le statut de vérification, déjà validé avant la
-                    // réservation (voir EligibilityEngine), est communiqué.
+                    // Restructuration réservation (2026-09) : le document est
+                    // désormais lié À CETTE RÉSERVATION (uploadé à la conclusion,
+                    // sans OCR ni revue manuelle — voir bookingController.
+                    // createBooking) et transmis directement au partenaire pour
+                    // qu'il n'ait jamais à le redemander (remplace la politique
+                    // "statut seulement, jamais la photo" de l'audit précédent).
                     <div style={{ marginTop: 8 }}>
                       <div className={styles.kycBadgeLarge} style={{ background: identityVerified ? "#dcfce7" : "#fef3c7", color: identityVerified ? "#059669" : "#d97706" }}>
-                        {identityVerified ? "✅ Identité vérifiée" : "⏳ Identité non vérifiée"}
+                        {identityVerified ? "✅ Identité vérifiée" : (snap.frontImage ? "📄 Document fourni" : "⏳ Aucun document")}
                       </div>
+                      {(snap.frontImage || snap.backImage) && (
+                        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                          {snap.frontImage && <a href={snap.frontImage} target="_blank" rel="noopener noreferrer"><img src={snap.frontImage} alt="Recto pièce d'identité" style={{ maxHeight: 90, borderRadius: 8, border: "1px solid #e2e8f0" }} /></a>}
+                          {snap.backImage && <a href={snap.backImage} target="_blank" rel="noopener noreferrer"><img src={snap.backImage} alt="Verso pièce d'identité" style={{ maxHeight: 90, borderRadius: 8, border: "1px solid #e2e8f0" }} /></a>}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -410,14 +418,20 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
                     {detailLoading ? (
                       <div style={{ fontSize:".8rem", color:"#94a3b8", padding:"4px 0" }}>⏳</div>
                     ) : (
-                      // Booking Engine — Éligibilité (2026-09) : plus de photos
-                      // du permis ici non plus (§10) — statut uniquement.
+                      // Restructuration réservation (2026-09) — voir commentaire
+                      // ci-dessus (pièce d'identité) : même logique pour le permis.
                       <div style={{ marginTop: 6 }}>
                         <div className={styles.kycBadgeLarge} style={{ background: licenseVerified ? "#dcfce7" : "#fef3c7", color: licenseVerified ? "#059669" : "#d97706" }}>
-                          {licenseVerified ? "✅ Permis vérifié" : "⏳ Permis non vérifié"}
+                          {licenseVerified ? "✅ Permis vérifié" : (snap.licenseFrontImage ? "📄 Document fourni" : "⏳ Aucun document")}
                         </div>
                         {licExpired && <div style={{ fontSize:".75rem", color:"#dc2626", fontWeight:700, marginTop:4 }}>⚠️ Permis expiré</div>}
                         <InfoLine label="Catégories" value={licCats} />
+                        {(snap.licenseFrontImage || snap.licenseBackImage) && (
+                          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                            {snap.licenseFrontImage && <a href={snap.licenseFrontImage} target="_blank" rel="noopener noreferrer"><img src={snap.licenseFrontImage} alt="Recto permis" style={{ maxHeight: 90, borderRadius: 8, border: "1px solid #e2e8f0" }} /></a>}
+                            {snap.licenseBackImage && <a href={snap.licenseBackImage} target="_blank" rel="noopener noreferrer"><img src={snap.licenseBackImage} alt="Verso permis" style={{ maxHeight: 90, borderRadius: 8, border: "1px solid #e2e8f0" }} /></a>}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

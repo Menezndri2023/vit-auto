@@ -33,13 +33,24 @@ function computeYearsSince(date) {
 
 // `user` : document/objet User (au minimum phoneVerified, emailVerified,
 // kycStatus, birthDate, kycOcrData, driverLicenseOcr).
-// `vehicle` : document/objet Vehicle (ageMin, permisRequis, requiredVerificationLevel).
+// `vehicle` : document/objet Vehicle (ageMin, permisRequis, withDriver, requiredVerificationLevel).
 // `rentalPolicy` : PartnerBusiness.rentalPolicy ou null/undefined si le
 // véhicule n'est rattaché à aucune entité.
 // `deliveryDistanceKm` : distance déjà calculée par
 // server/services/deliveryFee.js (Phase 2) — null si retrait en agence ou non
 // encore calculée.
-export function evaluateEligibility({ user, vehicle, rentalPolicy = null, deliveryDistanceKm = null }) {
+// `bookingType` : type de réservation ("location", "essai", "leasing", ...).
+// `providedDocuments` : { identity: bool, license: bool } — présence d'un
+// document transmis AVEC CETTE réservation (voir bookingController.createBooking,
+// restructuration 2026-09 "documents liés à la réservation"). Remplace le mur
+// KYC global (compte pré-vérifié par OCR) par une pièce jointe à la commande :
+// un client déjà kycStatus VERIFIE reste dispensé de la re-fournir, mais un
+// nouveau client peut désormais réserver en joignant le document au lieu de
+// passer par /kyc au préalable.
+export function evaluateEligibility({
+  user, vehicle, rentalPolicy = null, deliveryDistanceKm = null,
+  bookingType = null, providedDocuments = null,
+}) {
   const reasons = [];
   const requiredVerification = { identityDocument: false, drivingLicense: false };
 
@@ -59,27 +70,42 @@ export function evaluateEligibility({ user, vehicle, rentalPolicy = null, delive
     reasons.push("AGE_BELOW_MINIMUM");
   }
 
-  // ── Niveau 2 — identité vérifiée ───────────────────────────────────────────
+  // ── Niveau 2 — pièce d'identité ────────────────────────────────────────────
+  // Toute location exige une pièce d'identité (CNI/passeport), quelle que soit
+  // la politique du partenaire — règle produit 2026-09 (restructuration
+  // réservation). Les autres types (essai, leasing, activité, chauffeur)
+  // gardent l'ancien déclenchement, opt-in par véhicule/politique.
   const identityRequired =
     vehicle?.requiredVerificationLevel === "IDENTITY_VERIFIED" ||
     vehicle?.requiredVerificationLevel === "RENTAL_VERIFIED" ||
-    rentalPolicy?.identityDocumentRequired === true;
+    rentalPolicy?.identityDocumentRequired === true ||
+    bookingType === "location";
   if (identityRequired) {
     requiredVerification.identityDocument = true;
-    if (user?.kycStatus !== "VERIFIE") reasons.push("IDENTITY_NOT_VERIFIED");
+    const satisfied = user?.kycStatus === "VERIFIE" || providedDocuments?.identity === true;
+    if (!satisfied) reasons.push("IDENTITY_NOT_VERIFIED");
   }
 
-  // ── Niveau 3 — permis de conduire vérifié ──────────────────────────────────
-  const licenseRequired =
-    vehicle?.requiredVerificationLevel === "RENTAL_VERIFIED" ||
-    (rentalPolicy?.drivingLicenseRequired === true && vehicle?.permisRequis !== false);
+  // ── Niveau 3 — permis de conduire ──────────────────────────────────────────
+  // Location sans chauffeur : permis exigé, comme la pièce d'identité
+  // ci-dessus. Location AVEC chauffeur (Vehicle.withDriver) : le client ne
+  // conduit pas, jamais de permis à fournir, quelle que soit la politique
+  // partenaire — règle produit 2026-09.
+  const licenseRequired = vehicle?.withDriver
+    ? false
+    : (
+      vehicle?.requiredVerificationLevel === "RENTAL_VERIFIED" ||
+      (rentalPolicy?.drivingLicenseRequired === true && vehicle?.permisRequis !== false) ||
+      (bookingType === "location" && vehicle?.permisRequis !== false)
+    );
   if (licenseRequired) {
     requiredVerification.drivingLicense = true;
     const lic = user?.driverLicenseOcr;
-    const licenseOk = !!lic?.licenseNumber && lic?.isExpired !== true;
-    if (!licenseOk) {
+    const licenseOkProfile = !!lic?.licenseNumber && lic?.isExpired !== true;
+    const satisfied = licenseOkProfile || providedDocuments?.license === true;
+    if (!satisfied) {
       reasons.push("LICENSE_NOT_VERIFIED");
-    } else if (rentalPolicy?.minimumLicenseYears) {
+    } else if (rentalPolicy?.minimumLicenseYears && licenseOkProfile) {
       const years = computeYearsSince(lic.deliveredDate);
       if (years != null && years < rentalPolicy.minimumLicenseYears) {
         reasons.push("LICENSE_TOO_RECENT");
