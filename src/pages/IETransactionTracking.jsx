@@ -876,6 +876,22 @@ export default function IETransactionTracking() {
       {/* ── Barre de progression ── */}
       <div className={styles.card}><ProgressBar status={tx.status} /></div>
 
+      {/* Prise en charge logistique (restructuration 2026-09) — visible dès que
+          les fonds sont sécurisés (voir ieTransactionController.onEscrowSecured) */}
+      {tx.assignment?.assignedTo && (
+        <div className={styles.card} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: "1.4rem" }}>{tx.assignment.mode === "transitaire" ? "🚚" : "🧑‍💼"}</span>
+          <div>
+            <strong>
+              {tx.assignment.mode === "transitaire" ? "Transitaire assigné" : "Agent VIT AUTO assigné"} : {tx.assignment.assignedTo.firstName} {tx.assignment.assignedTo.lastName}
+            </strong>
+            <p style={{ margin: "2px 0 0", fontSize: "0.82rem", color: "#64748b" }}>
+              Prend en charge la logistique de votre import{tx.assignment.assignedTo.email ? ` — ${tx.assignment.assignedTo.email}` : ""}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className={styles.layout}>
         <div className={styles.main}>
           {/* Panneau d'action */}

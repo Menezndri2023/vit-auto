@@ -596,6 +596,118 @@ function AnalyticsSection({ analytics, loading }) {
   );
 }
 
+// ── Assignation logistique (restructuration Import/Export, 2026-09) ────────
+// Dès que les fonds d'une transaction sont sécurisés (in_escrow), le serveur
+// propose déjà automatiquement un transitaire actif pour le pays de
+// destination (voir ieTransactionController.onEscrowSecured) — cette section
+// rend cette assignation visible et réassignable par un admin, ou permet de
+// garder le dossier en interne (agent VIT AUTO) plutôt qu'un transitaire
+// externe.
+function LogisticsAssignmentSection({ ieTransactions, loading, token, onRefresh }) {
+  const needsAttention = ieTransactions.filter((t) => ["in_escrow", "preparing"].includes(t.status));
+  const [assignModal, setAssignModal] = useState(null); // { tx }
+  const [transitaires, setTransitaires] = useState([]);
+  const [agents, setAgents] = useState([]);
+  const [assignMode, setAssignMode] = useState("transitaire");
+  const [assignTo, setAssignTo] = useState("");
+  const [assigning, setAssigning] = useState(false);
+
+  useEffect(() => {
+    if (!assignModal) return;
+    const headers = { Authorization: `Bearer ${token}` };
+    fetch(`/api/import-export/transitaires?country=${encodeURIComponent(assignModal.tx.destCountry || "")}`, { headers })
+      .then((r) => r.ok ? r.json() : { transitaires: [] }).then((d) => setTransitaires(d.transitaires || [])).catch(() => setTransitaires([]));
+    fetch("/api/import-export/agents", { headers })
+      .then((r) => r.ok ? r.json() : { agents: [] }).then((d) => setAgents(d.agents || [])).catch(() => setAgents([]));
+  }, [assignModal, token]);
+
+  const openAssign = (tx) => { setAssignModal({ tx }); setAssignMode("transitaire"); setAssignTo(""); };
+
+  const handleAssign = async () => {
+    if (!assignTo || !assignModal) return;
+    setAssigning(true);
+    try {
+      const r = await fetch(`/api/import-export/transactions/${assignModal.tx._id}/assign`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ mode: assignMode, assignedTo: assignTo }),
+      });
+      if (r.ok) { setAssignModal(null); onRefresh(); }
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  if (loading) return <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>;
+
+  return (
+    <div style={{ marginBottom: "1.5rem" }}>
+      {needsAttention.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "2rem", color: "#94a3b8" }}>
+          <p style={{ fontWeight: 600 }}>Aucun dossier en attente d'assignation.</p>
+        </div>
+      ) : (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead><tr><th>Client</th><th>Partenaire</th><th>Destination</th><th>Statut</th><th>Pris en charge par</th><th>Actions</th></tr></thead>
+            <tbody>
+              {needsAttention.map((t) => (
+                <tr key={t._id} className={styles.tr}>
+                  <td><strong style={{ fontSize: ".85rem" }}>{t.client?.firstName} {t.client?.lastName}</strong></td>
+                  <td style={{ fontSize: ".82rem" }}>{t.partner?.firstName} {t.partner?.lastName}</td>
+                  <td style={{ fontSize: ".82rem" }}>{t.destCountry || "—"}</td>
+                  <td><Badge label={t.status === "in_escrow" ? "Fonds sécurisés" : "Préparation"} color={t.status === "in_escrow" ? "#0891b2" : "#f59e0b"} bg={t.status === "in_escrow" ? "#ecfeff" : "#fef3c7"} /></td>
+                  <td style={{ fontSize: ".82rem" }}>
+                    {t.assignment?.assignedTo
+                      ? <>{t.assignment.mode === "transitaire" ? "🚚" : "🧑‍💼"} {t.assignment.assignedTo.firstName} {t.assignment.assignedTo.lastName}{t.assignment.autoAssigned ? " (auto)" : ""}</>
+                      : <span style={{ color: "#dc2626" }}>⏳ Non assigné</span>}
+                  </td>
+                  <td>
+                    <button className={styles.btnApprove} onClick={() => openAssign(t)}>
+                      {t.assignment?.assignedTo ? "Réassigner" : "Assigner"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {assignModal && (
+        <div className={styles.overlay} onClick={() => setAssignModal(null)}>
+          <div className={styles.confirmBox} style={{ maxWidth: 460, width: "95%" }} onClick={(e) => e.stopPropagation()}>
+            <p className={styles.confirmMsg}>Assigner la transaction {assignModal.tx.reference || assignModal.tx._id}</p>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <button className={assignMode === "transitaire" ? styles.btnPrimary : styles.btnGhost} onClick={() => { setAssignMode("transitaire"); setAssignTo(""); }}>🚚 Transitaire partenaire</button>
+              <button className={assignMode === "agent" ? styles.btnPrimary : styles.btnGhost} onClick={() => { setAssignMode("agent"); setAssignTo(""); }}>🧑‍💼 Agent interne</button>
+            </div>
+            <select value={assignTo} onChange={(e) => setAssignTo(e.target.value)} style={{ width: "100%", padding: "0.5rem", borderRadius: 8, border: "1.5px solid #e2e8f0", marginBottom: 8 }}>
+              <option value="">— Choisir —</option>
+              {(assignMode === "transitaire" ? transitaires : agents).map((p) => (
+                <option key={p.userId || p._id} value={p.userId || p._id}>
+                  {p.firstName} {p.lastName}{p.country ? ` — ${p.country}` : ""}
+                </option>
+              ))}
+            </select>
+            {assignMode === "transitaire" && transitaires.length === 0 && (
+              <p style={{ fontSize: ".8rem", color: "#dc2626", margin: "0 0 8px" }}>
+                Aucun transitaire actif pour {assignModal.tx.destCountry || "cette destination"} — choisissez un agent interne à la place.
+              </p>
+            )}
+            <div className={styles.confirmActions}>
+              <button className={styles.btnPrimary} disabled={!assignTo || assigning} onClick={handleAssign}>
+                {assigning ? "…" : "Confirmer"}
+              </button>
+              <button className={styles.btnGhost} onClick={() => setAssignModal(null)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Transport International — construit à partir de IETransaction.shipping,
 // déjà collecté via le pipeline export 14 étapes (markShipped/updateTracking,
 // voir ieTransactionController.js) mais jusqu'ici jamais affiché à l'admin :
@@ -7000,6 +7112,9 @@ export default function AdminPanel() {
             </div>
             <button className={styles.btnRefresh} onClick={loadIeTransactions}>↻ Actualiser</button>
           </div>
+          <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#0f1b3f", margin: "0 0 10px" }}>📦 Assignation transitaire / agent</h3>
+          <LogisticsAssignmentSection ieTransactions={ieTransactions} loading={ieTxLoading} token={token} onRefresh={loadIeTransactions} />
+          <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#0f1b3f", margin: "1.5rem 0 10px" }}>🚢 Acheminement</h3>
           <TransportSection ieTransactions={ieTransactions} loading={ieTxLoading} />
         </div>
       )}

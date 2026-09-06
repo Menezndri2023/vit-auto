@@ -97,6 +97,31 @@ const ieTransactionSchema = new mongoose.Schema({
     refusalReason: { type: String, default: null },
   },
 
+  // ── Logistique : transitaire ou agent en charge du dossier (2026-09) ────────
+  // Dès que les fonds sont sécurisés (in_escrow), le système propose
+  // automatiquement un transitaire actif (PartnerOnboarding.partnerType
+  // "transitaire_logistique") pour le pays de destination, ou l'admin peut
+  // garder le dossier en interne (un agent VIT AUTO) — voir
+  // ieTransactionController.onEscrowSecured/assignTransaction. Toujours
+  // réassignable ensuite par un admin.
+  assignment: {
+    mode:         { type: String, enum: ["agent", "transitaire", null], default: null },
+    assignedTo:   { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    assignedBy:   { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null }, // null = auto
+    autoAssigned: { type: Boolean, default: false },
+    assignedAt:   { type: Date, default: null },
+  },
+  // Historique des réassignations (voir assignTransaction) — jamais écrasé,
+  // pour garder une trace de qui a géré le dossier à chaque étape.
+  assignmentHistory: [{
+    mode:         { type: String, enum: ["agent", "transitaire"] },
+    assignedTo:   { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    assignedBy:   { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    autoAssigned: { type: Boolean, default: false },
+    assignedAt:   { type: Date, default: Date.now },
+    note:         { type: String, default: null },
+  }],
+
   // ── Destination client ─────────────────────────────────────────────────────
   destCountry: { type: String, trim: true },
   destCity:    { type: String, trim: true },
@@ -283,6 +308,7 @@ const ieTransactionSchema = new mongoose.Schema({
 ieTransactionSchema.index({ client: 1, createdAt: -1 });
 ieTransactionSchema.index({ partner: 1, createdAt: -1 });
 ieTransactionSchema.index({ status: 1 });
+ieTransactionSchema.index({ "assignment.assignedTo": 1 });
 
 ieTransactionSchema.pre("save", function (next) {
   this.updatedAt = new Date();

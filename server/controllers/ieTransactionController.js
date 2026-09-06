@@ -1,8 +1,10 @@
+import mongoose from "mongoose";
 import logger from "../utils/logger.js";
 import IETransaction       from "../models/IETransaction.js";
 import ImportExportListing  from "../models/ImportExportListing.js";
 import InspectionReport     from "../models/InspectionReport.js";
 import User                 from "../models/User.js";
+import PartnerOnboarding    from "../models/PartnerOnboarding.js";
 import Notification         from "../models/Notification.js";
 import Chat                 from "../models/Chat.js";
 import { dispatch, enqueue } from "../queue/index.js";
@@ -65,6 +67,96 @@ const notifyAdmins = async (type, titre, message, lien) => {
     }
   }
 };
+
+// ── Assignation transitaire (restructuration Import/Export, 2026-09) ───────
+// Un transitaire "actif" = Founding Partner dont l'onboarding est allé
+// jusqu'au bout (PartnerOnboarding.status "actif") avec partnerType
+// "transitaire_logistique" — jamais un simple compte "partenaire" au hasard.
+// country est dénormalisé sur PartnerOnboarding depuis User.country à la
+// candidature (voir applyToProgram), donc interrogeable directement ici sans
+// jointure supplémentaire.
+async function findActiveTransitaires(country) {
+  const filter = { partnerType: "transitaire_logistique", status: "actif" };
+  if (country) filter.country = country;
+  return PartnerOnboarding.find(filter).select("userId country").populate("userId", "firstName lastName email phone").lean();
+}
+
+// Répartition simple par charge (jamais un vrai algorithme de matching) :
+// le transitaire actif pour ce pays avec le moins de dossiers en cours reçoit
+// la mission — évite de toujours saturer le même, sans complexité inutile.
+async function autoAssignTransitaire(tx) {
+  const candidates = await findActiveTransitaires(tx.destCountry);
+  if (!candidates.length) return null;
+
+  const activeCounts = await IETransaction.aggregate([
+    { $match: {
+      "assignment.assignedTo": { $in: candidates.map((c) => c.userId._id) },
+      status: { $nin: ["completed", "cancelled", "disputed"] },
+    } },
+    { $group: { _id: "$assignment.assignedTo", count: { $sum: 1 } } },
+  ]);
+  const countByUser = Object.fromEntries(activeCounts.map((a) => [a._id.toString(), a.count]));
+  candidates.sort((a, b) => (countByUser[a.userId._id.toString()] || 0) - (countByUser[b.userId._id.toString()] || 0));
+  const chosen = candidates[0];
+
+  return {
+    mode: "transitaire",
+    assignedTo: chosen.userId._id,
+    assignedToName: `${chosen.userId.firstName || ""} ${chosen.userId.lastName || ""}`.trim(),
+    assignedBy: null,
+    autoAssigned: true,
+    assignedAt: new Date(),
+  };
+}
+
+// Si l'annonce avait déjà un rapport d'inspection publié AVANT l'achat (voir
+// createInspectionReport/getInspectionReport), la transaction n'a jamais
+// besoin d'en redemander un — on le marque "fourni" dès la création, avec un
+// lien vers l'annonce (où le rapport complet reste consultable). Sinon,
+// "en_attente" par défaut (voir docStatusSchema) déclenchera la demande au
+// partenaire à la sécurisation des fonds (onEscrowSecured) et bloquera
+// l'expédition tant qu'il n'est pas fourni (voir markShipped).
+async function buildInitialInspectionDoc(listingId) {
+  const report = await InspectionReport.findOne({ listing: listingId, status: "published" }).select("_id createdAt").lean();
+  if (!report) return undefined;
+  return { status: "fourni", url: `/import-export/listings/${listingId}`, uploadedAt: report.createdAt };
+}
+
+// Déclenché une seule fois, dès que les fonds sont sécurisés (in_escrow) —
+// avant même la préparation de l'export, comme demandé : le client sait dès
+// ce moment qui gère son dossier, et le partenaire sait s'il doit encore
+// fournir un rapport d'inspection (voir markShipped, qui l'exige avant
+// l'expédition). Appelée depuis les deux points d'entrée en escrow
+// (completeIEEscrowPayment, confirmEscrowPayment) — jamais bloquante : une
+// erreur ici ne doit jamais faire échouer la confirmation du paiement déjà
+// sécurisé.
+async function onEscrowSecured(tx) {
+  try {
+    if (tx.documents.inspectionDocs?.status === "en_attente") {
+      await notify(tx.partner, "warning", "Rapport d'inspection requis",
+        "Avant l'expédition, fournissez un rapport d'inspection du véhicule (état réel constaté) — obligatoire pour cette transaction.",
+        "/importer-dashboard");
+    }
+
+    const assignment = await autoAssignTransitaire(tx);
+    if (assignment) {
+      const { assignedToName, ...toSave } = assignment;
+      await IETransaction.findByIdAndUpdate(tx._id, { $set: { assignment: toSave } });
+      await notifyAdmins("ie_transitaire_assigned", "🚚 Transitaire assigné automatiquement",
+        `${assignedToName || "Transitaire"} pris en charge pour la transaction ${tx._id} — réassignable si besoin.`,
+        "/admin");
+      await notify(tx.client, "info", "Votre dossier est pris en charge",
+        `${assignedToName || "Notre équipe"} s'occupe désormais de la logistique de votre import.`,
+        `/import-export/transaction/${tx._id}`);
+    } else {
+      await notifyAdmins("ie_needs_assignment", "📦 Transaction à assigner",
+        `Aucun transitaire actif pour ${tx.destCountry || "cette destination"} — assignez un agent ou un transitaire manuellement pour la transaction ${tx._id}.`,
+        "/admin");
+    }
+  } catch (err) {
+    logger.error("onEscrowSecured:", err);
+  }
+}
 
 // ── Valider et parser une date — retourne null si invalide ────────────────
 const parseDate = (d) => {
@@ -164,6 +256,7 @@ export const createReservation = async (req, res) => {
       } catch (e) { logger.error("createReservation costEstimate:", e); }
     }
 
+    const inspectionDocs = await buildInitialInspectionDoc(listingId);
     const tx = await IETransaction.create({
       listing: listingId,
       client:  req.user._id,
@@ -175,6 +268,7 @@ export const createReservation = async (req, res) => {
       status: "reserved",
       chat:   chatId,
       costEstimate,
+      ...(inspectionDocs ? { documents: { inspectionDocs } } : {}),
       statusHistory: [{
         status: "reserved", changedAt: new Date(), changedBy: req.user._id, note: "Réservation initiale",
       }],
@@ -295,6 +389,7 @@ export const createDirectPurchase = async (req, res) => {
     // qu'un admin ne l'a pas explicitement approuvé (voir
     // adminValidateDirectPurchase, qui crée ce chat au moment de l'approbation).
     const now = new Date();
+    const inspectionDocs = await buildInitialInspectionDoc(listingId);
     const tx = await IETransaction.create({
       listing: listingId,
       client:  req.user._id,
@@ -305,6 +400,7 @@ export const createDirectPurchase = async (req, res) => {
       status:   "payment_pending",
       directPurchase: true,
       adminValidation: { status: "pending" },
+      ...(inspectionDocs ? { documents: { inspectionDocs } } : {}),
       costEstimate: {
         available: true, breakdown: est.breakdown, totalServices: est.totalServices,
         grandTotal: est.grandTotal, currency: est.currency, computedAt: est.computedAt,
@@ -794,6 +890,7 @@ export async function completeIEEscrowPayment(tx, providerRef) {
 
   await notify(updated.partner, "success", "Fonds sécurisés en entiercement !", `Le paiement de ${updated.payment.amount?.toLocaleString("fr-FR")} ${updated.payment.currency} est confirmé et sécurisé. Procédez à la préparation de l'export.`, `/importer-dashboard`);
   await notify(updated.client, "success", "Paiement confirmé", "Votre paiement carte a été confirmé et sécurisé en entiercement.", `/import-export/transaction/${updated._id}`);
+  await onEscrowSecured(updated);
 }
 
 // ── Admin : vérifier/rejeter un paiement manuel déclaré (virement, mobile
@@ -848,6 +945,7 @@ export const confirmEscrowPayment = async (req, res) => {
 
     await notify(tx.partner, "success", "Fonds sécurisés en entiercement !", `Le paiement de ${tx.payment.amount?.toLocaleString("fr-FR")} ${tx.payment.currency} est vérifié et sécurisé. Procédez à la préparation de l'export.`, `/importer-dashboard`);
     await notify(tx.client, "success", "Paiement confirmé", "Votre paiement a été vérifié et sécurisé en entiercement.", `/import-export/transaction/${tx._id}`);
+    await onEscrowSecured(tx);
 
     res.json({ message: "Paiement vérifié — entiercement sécurisé.", transaction: tx });
   } catch (err) {
@@ -966,6 +1064,18 @@ export const markShipped = async (req, res) => {
       status: { $in: ["in_escrow", "preparing"] },
     });
     if (!tx) return res.status(404).json({ message: "Transaction introuvable ou statut incompatible." });
+
+    // Rapport d'inspection obligatoire avant embarquement (restructuration
+    // 2026-09) — soit déjà fourni via l'annonce avant achat (voir
+    // buildInitialInspectionDoc), soit demandé au partenaire à la sécurisation
+    // des fonds (voir onEscrowSecured) : dans les deux cas, le véhicule ne
+    // doit jamais partir sans qu'on sache dans quel état il est réellement.
+    if (!["fourni", "valide"].includes(tx.documents.inspectionDocs?.status)) {
+      return res.status(409).json({
+        message: "Rapport d'inspection requis avant l'expédition — fournissez-le via la mise à jour des documents (étape Documents d'export).",
+        code: "INSPECTION_REQUIRED",
+      });
+    }
 
     const { carrier, trackingNumber, shippingType, departureDate, estimatedArrival, currentStatus } = req.body;
 
@@ -1311,7 +1421,8 @@ export const getTransactionById = async (req, res) => {
       // l'acheteur, sans aucune indication de vérification d'identité.
       .populate("client",  "firstName lastName email profilePhoto phone kycStatus kycScore kycBadge")
       .populate("partner", "firstName lastName email profilePhoto phone business")
-      .populate("independentInspection.assignedTo", "firstName lastName");
+      .populate("independentInspection.assignedTo", "firstName lastName")
+      .populate("assignment.assignedTo", "firstName lastName email phone");
 
     if (!tx) return res.status(404).json({ message: "Transaction introuvable." });
 
@@ -1415,6 +1526,7 @@ export const getPartnerTransactions = async (req, res) => {
         .populate("listing", "title make model year mainPhoto price currency sourceCountry")
         // Voir le commentaire de getTransactionById — même parité KYC que Booking.
         .populate("client",  "firstName lastName profilePhoto email phone kycStatus kycScore kycBadge")
+        .populate("assignment.assignedTo", "firstName lastName email phone")
         .sort({ createdAt: -1 })
         .skip((safePage - 1) * safeLimit)
         .limit(safeLimit),
@@ -1518,6 +1630,7 @@ export const getAllTransactions = async (req, res) => {
         .populate("listing", "title make model year mainPhoto price currency")
         .populate("client",  "firstName lastName email kycStatus kycScore kycBadge")
         .populate("partner", "firstName lastName email business")
+        .populate("assignment.assignedTo", "firstName lastName email")
         .sort({ createdAt: -1 })
         .skip((safePage - 1) * safeLimit)
         .limit(safeLimit),
@@ -1527,6 +1640,82 @@ export const getAllTransactions = async (req, res) => {
     res.json({ transactions, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {
     logger.error("getAllTransactions:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LOGISTIQUE — ASSIGNATION TRANSITAIRE/AGENT (restructuration 2026-09)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GET /api/import-export/transitaires?country=CI (admin) — pour le sélecteur
+// de réassignation manuelle, filtré par pays de destination de la transaction.
+export const getTransitairesList = async (req, res) => {
+  try {
+    const { country } = req.query;
+    const list = await findActiveTransitaires(country || null);
+    res.json({
+      transitaires: list.map((t) => ({
+        userId: t.userId._id, firstName: t.userId.firstName, lastName: t.userId.lastName,
+        email: t.userId.email, phone: t.userId.phone, country: t.country,
+      })),
+    });
+  } catch (err) {
+    logger.error("getTransitairesList:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// GET /api/import-export/agents (admin) — équipe interne VIT AUTO pouvant
+// être choisie comme "agent dédié" plutôt qu'un transitaire externe.
+export const getInternalAgents = async (req, res) => {
+  try {
+    const agents = await User.find({ role: "admin" }).select("firstName lastName email").lean();
+    res.json({ agents });
+  } catch (err) {
+    logger.error("getInternalAgents:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// PATCH /api/import-export/transactions/:id/assign (admin) — assignation
+// manuelle initiale ou réassignation (toujours possible, même après une
+// auto-assignation — voir onEscrowSecured).
+export const assignTransaction = async (req, res) => {
+  try {
+    const { mode, assignedTo, note } = req.body;
+    if (!["agent", "transitaire"].includes(mode)) {
+      return res.status(400).json({ message: "mode doit être 'agent' ou 'transitaire'." });
+    }
+    if (!mongoose.Types.ObjectId.isValid(assignedTo)) {
+      return res.status(400).json({ message: "assignedTo invalide." });
+    }
+    const tx = await IETransaction.findById(req.params.id);
+    if (!tx) return res.status(404).json({ message: "Transaction introuvable." });
+
+    const assignee = await User.findById(assignedTo).select("firstName lastName");
+    if (!assignee) return res.status(404).json({ message: "Utilisateur introuvable." });
+
+    if (tx.assignment?.assignedTo) {
+      tx.assignmentHistory.push({
+        mode: tx.assignment.mode, assignedTo: tx.assignment.assignedTo, assignedBy: tx.assignment.assignedBy,
+        autoAssigned: tx.assignment.autoAssigned, assignedAt: tx.assignment.assignedAt, note: "Réassigné",
+      });
+    }
+    tx.assignment = { mode, assignedTo, assignedBy: req.user._id, autoAssigned: false, assignedAt: new Date() };
+    await tx.save();
+
+    const assigneeName = `${assignee.firstName || ""} ${assignee.lastName || ""}`.trim();
+    await notify(assignedTo, "info", "Nouveau dossier Import/Export assigné",
+      `Transaction ${tx._id} (destination : ${tx.destCountry || "—"}) vous est confiée.${note ? ` Note : ${note}` : ""}`,
+      "/importer-dashboard");
+    await notify(tx.client, "info", "Votre dossier a été réassigné",
+      `${assigneeName} s'occupe désormais de la logistique de votre import.`,
+      `/import-export/transaction/${tx._id}`);
+
+    res.json({ message: "Transaction assignée.", transaction: tx });
+  } catch (err) {
+    logger.error("assignTransaction:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
