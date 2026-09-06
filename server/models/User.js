@@ -272,7 +272,7 @@ const userSchema = new mongoose.Schema({
 
   // Tokens FCM des appareils natifs (iOS/Android via app Capacitor) — plusieurs
   // possibles par utilisateur (téléphone + tablette...). Voir PushChannel.js
-  // (envoi effectif, no-op tant que FCM_SERVER_KEY n'est pas configuré).
+  // (envoi effectif, no-op tant que FIREBASE_PROJECT_ID/FIREBASE_SERVICE_ACCOUNT_JSON ne sont pas configurés).
   pushTokens: { type: [String], default: [] },
 
   // Incrémenté à chaque changement/réinitialisation de mot de passe — permet à
@@ -373,6 +373,19 @@ const userSchema = new mongoose.Schema({
   clientReliability: {
     noteMoyenne: { type: Number, default: 0 },
     nombreAvis:  { type: Number, default: 0 },
+  },
+
+  // ── Auto-acceptation des clients fiables (2026-09) ──────────────
+  // Opt-in partenaire (jamais activé par défaut) — quand une réservation est
+  // approuvée automatiquement côté fraude (low/medium, voir ai.worker.js +
+  // bookingActionService.autoApproveBooking), le partenaire peut choisir de
+  // sauter aussi sa propre confirmation manuelle pour les clients dont le
+  // clientReliability dépasse ces seuils. Sur User (pas PartnerBusiness) pour
+  // rester disponible même aux partenaires sans entité déclarée.
+  autoAcceptTrustedClients: {
+    enabled:    { type: Boolean, default: false },
+    minRating:  { type: Number, default: 4 },
+    minReviews: { type: Number, default: 2 },
   },
 
   createdAt: { type: Date, default: Date.now },

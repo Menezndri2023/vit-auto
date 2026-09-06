@@ -158,6 +158,12 @@ export default function PartnerShowroomPublic() {
               {showroom.tagline && (
                 <p style={{ margin:0, color:"rgba(255,255,255,.85)", fontSize:".9rem" }}>{showroom.tagline}</p>
               )}
+              {showroom.partnerInfo?.partnerRating?.nombreAvis > 0 && (
+                <p style={{ margin:"4px 0 0", color:"#fbbf24", fontSize:".88rem", fontWeight:700 }}>
+                  ★ {showroom.partnerInfo.partnerRating.noteMoyenne.toFixed(1)}
+                  <span style={{ color:"rgba(255,255,255,.75)", fontWeight:500 }}> ({showroom.partnerInfo.partnerRating.nombreAvis} avis)</span>
+                </p>
+              )}
               <div style={{ display:"flex", gap:14, marginTop:6, flexWrap:"wrap" }}>
                 {showroom.city && <span style={{ color:"rgba(255,255,255,.75)", fontSize:".8rem" }}>📍 {showroom.city}, {showroom.country}</span>}
                 {showroom.foundedYear && <span style={{ color:"rgba(255,255,255,.75)", fontSize:".8rem" }}>🗓 Depuis {showroom.foundedYear}</span>}

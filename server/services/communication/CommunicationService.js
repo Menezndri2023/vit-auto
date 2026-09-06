@@ -163,8 +163,8 @@ export async function sendViaPush({ to, title, body, data, imageUrl, userId, con
 // ─────────────────────────────────────────────────────────────────────────────
 // sendViaInternal — notification Socket.io + MongoDB
 // ─────────────────────────────────────────────────────────────────────────────
-export async function sendViaInternal({ userId, type, titre, message, lien, priority, metadata, skipEmail }) {
-  return sendInternal({ userId, type, titre, message, lien, priority, metadata, skipEmail });
+export async function sendViaInternal({ userId, type, titre, message, lien, priority, metadata, skipEmail, pushTitle, pushBody }) {
+  return sendInternal({ userId, type, titre, message, lien, priority, metadata, skipEmail, pushTitle, pushBody });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

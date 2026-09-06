@@ -5,7 +5,7 @@ import { createUser } from "./helpers/fixtures.js";
 
 // sendViaPush est mocké pour capturer ce qui serait réellement envoyé à FCM —
 // sans ce mock, PushChannel.js retourne juste "not_configured" en test
-// (FCM_SERVER_KEY absent), ce qui ne permettrait pas de vérifier que les bons
+// (FIREBASE_PROJECT_ID/FIREBASE_SERVICE_ACCOUNT_JSON absents en test), ce qui ne permettrait pas de vérifier que les bons
 // tokens/titre/corps sont bien résolus et transmis.
 const sendViaPushMock = vi.fn().mockResolvedValue({ sent: true, provider: "fcm" });
 vi.mock("../services/communication/CommunicationService.js", () => ({

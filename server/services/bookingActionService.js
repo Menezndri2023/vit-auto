@@ -92,8 +92,36 @@ export async function autoApproveBooking({ bookingId, riskLevel, flags }) {
   });
   if (result.statusCode >= 400) {
     logger.warn("autoApproveBooking — approbation refusée", { bookingId, statusCode: result.statusCode, message: result.body?.message });
+  } else {
+    await maybeAutoAcceptForTrustedClient(bookingId).catch((e) =>
+      logger.error("maybeAutoAcceptForTrustedClient échoué:", { bookingId, error: e.message })
+    );
   }
   return result;
+}
+
+// ── AUTO-ACCEPTATION PARTENAIRE POUR CLIENT FIABLE ──────────────────────────
+// Opt-in (User.autoAcceptTrustedClients) — une fois la réservation approuvée
+// côté fraude (ci-dessus), saute AUSSI la confirmation manuelle du partenaire
+// si le client dépasse les seuils de fiabilité qu'il a lui-même choisis.
+// Réutilise acceptBooking() tel quel : aucune logique de transition dupliquée.
+async function maybeAutoAcceptForTrustedClient(bookingId) {
+  const booking = await Booking.findById(bookingId)
+    .select("status client vehicle")
+    .populate("vehicle", "owner")
+    .populate("client", "clientReliability");
+  if (!booking || booking.status !== "pending" || !booking.vehicle?.owner || !booking.client) return;
+
+  const User = (await import("../models/User.js")).default;
+  const owner = await User.findById(booking.vehicle.owner).select("autoAcceptTrustedClients").lean();
+  const settings = owner?.autoAcceptTrustedClients;
+  if (!settings?.enabled) return;
+
+  const reliability = booking.client.clientReliability || {};
+  if ((reliability.nombreAvis || 0) < settings.minReviews) return;
+  if ((reliability.noteMoyenne || 0) < settings.minRating) return;
+
+  await acceptBooking({ bookingId, actorId: booking.vehicle.owner, source: "AUTO_TRUSTED_CLIENT" });
 }
 
 // ── ALTERNATIVE (proposée par le partenaire) ───────────────────────────────

@@ -131,12 +131,24 @@ notificationSchema.post("save", function (doc) {
 // Notification directement (Notification.create), sans qu'aucun d'eux n'ait
 // à changer. `insertMany()` (utilisé par sendInternalBroadcast) ne déclenche
 // pas ce hook — voir la logique équivalente ajoutée explicitement là-bas.
-notificationSchema.post("save", async function (doc) {
+// Surtout PAS une fonction "async" ici : un hook post("save") async, dont la
+// promesse est attendue, est BLOQUANT — Mongoose attendrait tout ce filet
+// email (lookup User + enqueue + traitement email en fallback synchrone si
+// Redis indisponible) avant de laisser Notification.create()/save() se
+// résoudre, ralentissant db tout appelant existant (bug réel constaté : la
+// suite de tests entière a ralenti, plusieurs tests ont timeout). Le hook
+// jumeau ci-dessus (notifyAdminByEmail) évite déjà ce piège — même principe
+// ici : lancer le travail async SANS le retourner/l'attendre.
+notificationSchema.post("save", function (doc) {
   if (doc.skipEmail) return;
-  try {
+  (async () => {
     const User = mongoose.model("User");
-    const recipient = await User.findById(doc.user).select("email firstName").lean();
+    const recipient = await User.findById(doc.user).select("email firstName notif_emailReminders").lean();
     if (!recipient?.email) return;
+    // Respecte la préférence "Rappels par email" (Profile.jsx, déjà branchée
+    // en écriture via PATCH /api/users/me mais jusqu'ici jamais consultée
+    // avant un envoi réel — bug réel corrigé en même temps que ce filet).
+    if (recipient.notif_emailReminders === false) return;
     const { enqueue } = await import("../queue/index.js");
     const { QUEUE_NAMES } = await import("../queue/definitions.js");
     await enqueue(QUEUE_NAMES.EMAIL, "generic_notification_email", {
@@ -145,11 +157,11 @@ notificationSchema.post("save", async function (doc) {
       userId: doc.user.toString(),
       data:   { firstName: recipient.firstName, titre: doc.titre, message: doc.message, lien: doc.lien },
     });
-  } catch (err) {
+  })().catch((err) => {
     // Non-bloquant : ne doit jamais faire échouer la création de la
     // notification elle-même ni l'action métier qui l'a déclenchée.
     logger.warn("[Notification] Filet email non envoyé (non bloquant) :", err?.message);
-  }
+  });
 });
 notificationSchema.post("insertMany", function (docs) {
   notifyAdminsByEmailBulk(docs).catch(() => {});

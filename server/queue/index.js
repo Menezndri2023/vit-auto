@@ -11,6 +11,7 @@ import { Queue } from "bullmq";
 import logger from "../utils/logger.js";
 import { QUEUE_NAMES, QUEUE_OPTIONS, PRIORITY } from "./definitions.js";
 import { initQueueConnection, isQueueConnected, isConnectionHardBroken } from "./connection.js";
+import { newBookingPartnerPush, newBookingClientPush, bookingConfirmedClientPush } from "../services/communication/templates/push/BookingPush.js";
 
 // ── Registre des queues ───────────────────────────────────────────────────────
 let _queues = {};
@@ -276,6 +277,8 @@ export const dispatch = {
       // Notification interne client — email dédié déjà envoyé juste au-dessus
       // (booking_confirmation) pour ce même événement/destinataire : skipEmail
       // évite un doublon avec le filet email générique (Notification.js).
+      // pushTitle/pushBody : modèle dédié au push (voir templates/push/BookingPush.js),
+      // plus court/actionnable que le texte in-app ci-dessus.
       client?._id && enqueue(QUEUE_NAMES.NOTIFICATION, "booking_created_notif", {
         channel: "internal",
         userId:  client._id?.toString(),
@@ -284,6 +287,7 @@ export const dispatch = {
         message: `Votre réservation ${ref} a été enregistrée. En attente de confirmation du partenaire.`,
         lien:    `/dashboard`,
         skipEmail: true,
+        ...(() => { const p = newBookingClientPush({ reference: ref, vehicleTitle: vehicle?.title }); return { pushTitle: p.title, pushBody: p.body }; })(),
       }),
 
       // Notification interne partenaire
@@ -294,6 +298,7 @@ export const dispatch = {
         titre:   "📋 Nouvelle réservation",
         message: `Nouvelle réservation ${ref} — ${client?.firstName || "Client"} — À confirmer.`,
         lien:    `/vendor/dashboard`,
+        ...(() => { const p = newBookingPartnerPush({ reference: ref, clientName: client?.firstName, vehicleTitle: vehicle?.title }); return { pushTitle: p.title, pushBody: p.body }; })(),
       }),
 
       // AI : analyse risque — décide désormais l'auto-approbation (Booking
@@ -329,6 +334,7 @@ export const dispatch = {
 
     const notif = STATUS_MESSAGES[newStatus];
     if (notif && client?._id) {
+      const confirmedPush = newStatus === "confirmed" ? bookingConfirmedClientPush({ reference: ref, vehicleTitle: vehicle?.title }) : null;
       await enqueue(QUEUE_NAMES.NOTIFICATION, `booking_${newStatus}`, {
         channel: "internal",
         userId:  client._id?.toString(),
@@ -341,6 +347,7 @@ export const dispatch = {
         // autres statuts (in_progress/completed/cancelled) n'ont aujourd'hui
         // aucun email dédié : ils reçoivent désormais le filet générique.
         skipEmail: newStatus === "confirmed",
+        ...(confirmedPush ? { pushTitle: confirmedPush.title, pushBody: confirmedPush.body } : {}),
       });
     }
 

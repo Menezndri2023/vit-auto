@@ -77,9 +77,14 @@ function applicantDisplayName(doc, user) {
 }
 
 // ── Notification helper ───────────────────────────────────────────────────────
-async function notify(userId, title, message, lien = null, celebrate = false) {
+// skipEmail : à passer à true quand l'appelant envoie déjà, juste à côté, un
+// email dédié (dispatch.loiReady/agreementReady/loiSigned/agreementSigned/
+// documentsReadyReminder/foundingPartnerInfoRequested...) pour ce même
+// destinataire — sinon le filet email générique (Notification.js) doublerait
+// l'envoi (voir Booking Engine, 2026-09).
+async function notify(userId, title, message, lien = null, celebrate = false, skipEmail = false) {
   try {
-    const notif = await Notification.create({ user: userId, titre: title, message, type: "system" });
+    const notif = await Notification.create({ user: userId, titre: title, message, type: "system", skipEmail });
     // Voir insuranceController.notify — même correctif (mauvais nom d'événement
     // + payload partiel, bug réel trouvé en audit).
     if (global._io) {
@@ -644,7 +649,8 @@ export const signLOI = async (req, res) => {
       chained ? "✅ LOI signée — Signez maintenant l'Accord" : "✅ LOI signée — Accord de partenariat en cours",
       chained
         ? "Votre Lettre d'Intention a été signée avec succès. Votre Accord de Partenariat Fondateur est prêt : signez-le dès maintenant depuis votre tableau de bord."
-        : "Votre Lettre d'Intention a été signée avec succès. Notre équipe prépare votre Accord de Partenariat Fondateur."
+        : "Votre Lettre d'Intention a été signée avec succès. Notre équipe prépare votre Accord de Partenariat Fondateur.",
+      null, false, true, // skipEmail : dispatch.loiSigned envoie déjà un email dédié juste en dessous
     );
 
     dispatch.loiSigned(req.user.email, req.user.id, {
@@ -706,7 +712,7 @@ export const signAgreement = async (req, res) => {
     await notify(doc.userId,
       "🎉 Bienvenue dans le programme Founding Partner VIT-AUTO !",
       `Félicitations ! Votre accord de partenariat fondateur a été signé. Votre badge exclusif "Founding Partner" est maintenant actif. Commissions : Location ${doc.commissions.location}% / Vente ${doc.commissions.vente}%.`,
-      "/partner-pms", true,
+      "/partner-pms", true, true, // skipEmail : dispatch.agreementSigned envoie déjà un email dédié juste en dessous
     );
 
     dispatch.agreementSigned(req.user.email, req.user.id, {
@@ -923,7 +929,8 @@ export const adminApprove = async (req, res) => {
     const partnerId = doc.userId._id || doc.userId;
     await notify(partnerId,
       "✅ Candidature approuvée — Signez votre LOI",
-      `Félicitations ${user.firstName} ! Votre candidature a été approuvée. Vous avez reçu un email avec votre LOI et un lien sécurisé pour la signer.`
+      `Félicitations ${user.firstName} ! Votre candidature a été approuvée. Vous avez reçu un email avec votre LOI et un lien sécurisé pour la signer.`,
+      null, false, true, // skipEmail : dispatch.loiReady envoie déjà un email dédié juste en dessous
     );
 
     // Email avec PDF via queue (non-bloquant)
@@ -974,7 +981,8 @@ export const adminSendAgreement = async (req, res) => {
     const partnerId = doc.userId._id || doc.userId;
     await notify(partnerId,
       "📄 Accord de Partenariat Fondateur disponible",
-      "Votre Accord est prêt. Vous avez reçu un email avec le document PDF et un lien sécurisé pour signer et activer votre statut Founding Partner."
+      "Votre Accord est prêt. Vous avez reçu un email avec le document PDF et un lien sécurisé pour signer et activer votre statut Founding Partner.",
+      null, false, true, // skipEmail : dispatch.agreementReady envoie déjà un email dédié juste en dessous
     );
 
     // Email avec PDF via queue (non-bloquant)
@@ -1042,7 +1050,7 @@ export const adminResendDocuments = async (req, res) => {
     await notify(partnerId,
       "✍️ Signature en attente",
       `Un nouveau lien sécurisé pour signer votre ${isLoiStep ? "Lettre d'Intention" : "Accord de Partenariat Fondateur"} vous a été envoyé par email.`,
-      "/partner-onboarding",
+      "/partner-onboarding", false, true, // skipEmail : dispatch.documentsReadyReminder envoie déjà un email dédié juste en dessous
     );
 
     dispatch.documentsReadyReminder(String(partnerId), user.email, {
@@ -1168,7 +1176,8 @@ export const adminRequestInfo = async (req, res) => {
     const partnerId = partner._id || partner;
     await notify(partnerId,
       "📝 Informations complémentaires requises",
-      `Notre équipe a besoin d'informations supplémentaires pour traiter votre candidature : ${infoRequested}. Mettez à jour votre dossier et resoumettez.`
+      `Notre équipe a besoin d'informations supplémentaires pour traiter votre candidature : ${infoRequested}. Mettez à jour votre dossier et resoumettez.`,
+      null, false, true, // skipEmail : dispatch.foundingPartnerInfoRequested envoie déjà un email dédié juste en dessous (si partner.email)
     );
 
     // Email — un partenaire resté en "brouillon" ne consulte pas forcément le
@@ -1363,7 +1372,8 @@ export const signByToken = async (req, res) => {
         chained ? "✅ LOI signée — Signez maintenant l'Accord" : "✅ LOI signée — Accord en préparation",
         chained
           ? "Votre Lettre d'Intention a été signée via le lien sécurisé. Le même lien vous permet maintenant de signer votre Accord de Partenariat Fondateur."
-          : "Votre Lettre d'Intention a été signée via le lien sécurisé. Notre équipe prépare votre Accord de Partenariat Fondateur."
+          : "Votre Lettre d'Intention a été signée via le lien sécurisé. Notre équipe prépare votre Accord de Partenariat Fondateur.",
+        null, false, true, // skipEmail : dispatch.loiSigned envoie déjà un email dédié juste en dessous
       );
 
       const loiSigner = await User.findById(doc.userId).select("email firstName").lean();
@@ -1417,7 +1427,7 @@ export const signByToken = async (req, res) => {
 
       await notify(doc.userId, "🎉 Bienvenue dans le programme Founding Partner VIT-AUTO !",
         `Votre accord a été signé. Badge "Founding Partner" activé ! Commissions : Location ${doc.commissions.location}% / Vente ${doc.commissions.vente}%.`,
-        "/partner-pms", true);
+        "/partner-pms", true, true); // skipEmail : dispatch.agreementSigned envoie déjà un email dédié juste en dessous
 
       const agreementSigner = await User.findById(doc.userId).select("email firstName").lean();
       if (agreementSigner) {

@@ -324,7 +324,9 @@ app.get("/api/health", async (_req, res) => {
       email:    process.env.RESEND_API_KEY ? "resend" : (process.env.SMTP_HOST ? "smtp" : "console"),
       imagekit: process.env.IMAGEKIT_PUBLIC_KEY ? "configured" : "disabled",
       whatsapp: process.env.WHATSAPP_TOKEN ? "configured" : "disabled",
-      push:     process.env.FCM_SERVER_KEY ? "configured" : "disabled",
+      // FCM HTTP v1 (2026-09) — l'ancienne clé FCM_SERVER_KEY (API Legacy,
+      // fermée par Google mi-2024) n'est plus le bon indicateur.
+      push:     (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_SERVICE_ACCOUNT_JSON) ? "configured" : "disabled",
       sentry:   process.env.SENTRY_DSN ? "configured" : "disabled",
       // Chiffrement KYC/permis (voir utils/fieldEncryption.js) — n'était vérifié
       // nulle part au démarrage ni ici : une clé absente ou mal formée (doit

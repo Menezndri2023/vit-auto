@@ -694,7 +694,8 @@ export const updateMyProfile = async (req, res) => {
     const allowed = ["firstName", "lastName", "phone", "address", "country",
                      "notif_emailReminders", "notif_smsReminders",
                      "notif_promotionalEmails", "notif_bookingConfirmations",
-                     "licenseNumber", "licenseExpiry", "profilePhoto"];
+                     "licenseNumber", "licenseExpiry", "profilePhoto",
+                     "autoAcceptTrustedClients"];
     const updates = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];

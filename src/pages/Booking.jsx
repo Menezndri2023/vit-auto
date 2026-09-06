@@ -1010,18 +1010,23 @@ export default function Booking() {
           <div className={styles.section}>
             <h3 className={styles.sectionTitle}>Méthode de paiement</h3>
 
-            <div className={styles.payMethodGrid}>
-              {visiblePaymentMethods.map((pm) => (
-                <label key={pm.value} className={`${styles.payCard} ${payMethod === pm.value ? styles.payCardActive : ""}`}>
-                  <input type="radio" name="payMethod" value={pm.value}
-                    checked={payMethod === pm.value} onChange={() => setPayMethod(pm.value)} />
-                  <span className={styles.payIcon}>{pm.icon}</span>
-                  <span className={styles.payLabel}>{pm.label}</span>
-                </label>
-              ))}
-            </div>
+            {/* Location (hors essai/leasing) : un seul moyen possible (espèces)
+                — pas de grille de sélection pour un choix unique, on va droit
+                au bloc d'information. */}
+            {!isRentalOnly && (
+              <div className={styles.payMethodGrid}>
+                {visiblePaymentMethods.map((pm) => (
+                  <label key={pm.value} className={`${styles.payCard} ${payMethod === pm.value ? styles.payCardActive : ""}`}>
+                    <input type="radio" name="payMethod" value={pm.value}
+                      checked={payMethod === pm.value} onChange={() => setPayMethod(pm.value)} />
+                    <span className={styles.payIcon}>{pm.icon}</span>
+                    <span className={styles.payLabel}>{pm.label}</span>
+                  </label>
+                ))}
+              </div>
+            )}
 
-            {["orange_money", "wave", "mtn", "moov"].includes(payMethod) && (
+            {!isRentalOnly && ["orange_money", "wave", "mtn", "moov"].includes(payMethod) && (
               <div className={styles.payDetails}>
                 <label className={styles.label}>
                   Numéro mobile *
@@ -1069,12 +1074,16 @@ export default function Booking() {
               </div>
             )}
 
-            <div className={styles.securityNote}>
-              🔐 Paiement sécurisé TLS 1.3 — Données chiffrées · CVV jamais stocké sur nos serveurs
-            </div>
-            <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "8px 14px", fontSize: "0.8rem", color: "#92400e", marginTop: 8 }}>
-              ⚠️ <strong>Mode simulation actif</strong> — Aucun débit réel. L'intégration Orange Money / Stripe sera activée en production.
-            </div>
+            {!isRentalOnly && (
+              <>
+                <div className={styles.securityNote}>
+                  🔐 Paiement sécurisé TLS 1.3 — Données chiffrées · CVV jamais stocké sur nos serveurs
+                </div>
+                <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "8px 14px", fontSize: "0.8rem", color: "#92400e", marginTop: 8 }}>
+                  ⚠️ <strong>Mode simulation actif</strong> — Aucun débit réel. L'intégration Orange Money / Stripe sera activée en production.
+                </div>
+              </>
+            )}
 
             <div className={styles.actionRow}>
               <button className={styles.secondaryBtn} onClick={() => setStep(isLeasing ? 1 : 2)}>← Retour</button>

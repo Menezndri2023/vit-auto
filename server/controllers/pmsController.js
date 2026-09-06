@@ -666,7 +666,7 @@ export async function getPublicShowroom(req, res) {
     // statut de facturation, vérification interne) ne doivent jamais y fuiter :
     // seul isFounder est réellement exploité par PartnerShowroomPublic.jsx.
     const partner = await User.findById(showroom.partnerId)
-      .select("firstName lastName isFounder country")
+      .select("firstName lastName isFounder country partnerRating")
       .lean();
 
     // Aucun contact direct partenaire n'est plus jamais exposé (audit 2026-08) :

@@ -1026,7 +1026,7 @@ function TxForm({ form, setForm, onSubmit, onCancel, cancelLabel = "Annuler", su
    COMPOSANT PRINCIPAL — VendorDashboard
    ══════════════════════════════════════════════════════════════════════════════ */
 export default function VendorDashboard() {
-  const { user, isAuthenticated, token } = useAuth();
+  const { user, isAuthenticated, token, updateUser } = useAuth();
   const { partnerVehicles: myVehicles, partnerBookings, bookings, updateBookingStatus, updateVehicle, loadPartnerVehicles, loadPartnerOrders } = useVehicles();
   const { success: toastSuccess, error: toastError } = useToast();
   const { on } = useSocket();
@@ -1403,6 +1403,29 @@ export default function VendorDashboard() {
   // (contrairement aux promotions ci-dessus, toujours une remise). Une seule
   // devise de saisie pour tout le véhicule (cohérent avec le prix de base :
   // un partenaire n'a aucune raison de mélanger les devises entre saisons).
+  // ── Auto-acceptation des clients fiables (User.autoAcceptTrustedClients) ──
+  const [autoAccept, setAutoAccept] = useState({
+    enabled:    user?.autoAcceptTrustedClients?.enabled    ?? false,
+    minRating:  user?.autoAcceptTrustedClients?.minRating  ?? 4,
+    minReviews: user?.autoAcceptTrustedClients?.minReviews ?? 2,
+  });
+  const [autoAcceptSaving, setAutoAcceptSaving] = useState(false);
+  const saveAutoAccept = async (next) => {
+    setAutoAccept(next);
+    setAutoAcceptSaving(true);
+    try {
+      const res = await fetch("/api/users/me", {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ autoAcceptTrustedClients: next }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.user) { updateUser(data.user); toastSuccess("Réglage mis à jour."); }
+      else toastError(data?.message || "Impossible de mettre à jour ce réglage.");
+    } catch { toastError("Erreur réseau."); }
+    finally { setAutoAcceptSaving(false); }
+  };
+
   const [seasonalModal,   setSeasonalModal]   = useState(null); // véhicule en cours d'édition
   const [seasonalRules,   setSeasonalRules]   = useState([]);
   const [seasonalCurrency, setSeasonalCurrency] = useState("USD");
@@ -3325,6 +3348,46 @@ export default function VendorDashboard() {
               Vos clients classés par nombre de commandes — repérez vos clients réguliers d'un coup d'œil.
             </p>
           </div>
+
+          {/* ── Auto-acceptation des clients fiables ─────────────────────── */}
+          <div className={styles.sectionCard} style={{ marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <div>
+                <strong style={{ fontSize: ".92rem" }}>⚡ Auto-accepter les clients fiables</strong>
+                <p style={{ margin: "4px 0 0", fontSize: ".8rem", color: "#64748b", maxWidth: 480 }}>
+                  Confirme automatiquement une réservation (sans attendre votre validation manuelle) quand le client dépasse la note et le nombre d'avis fixés ci-dessous.
+                </p>
+              </div>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                <input type="checkbox" checked={autoAccept.enabled} disabled={autoAcceptSaving}
+                  onChange={(e) => saveAutoAccept({ ...autoAccept, enabled: e.target.checked })} />
+                <span style={{ fontSize: ".85rem", fontWeight: 700, color: autoAccept.enabled ? "#059669" : "#94a3b8" }}>
+                  {autoAccept.enabled ? "Activé" : "Désactivé"}
+                </span>
+              </label>
+            </div>
+            {autoAccept.enabled && (
+              <div style={{ display: "flex", gap: 20, marginTop: 14, flexWrap: "wrap" }}>
+                <label style={{ fontSize: ".82rem", color: "#334155" }}>
+                  Note minimale
+                  <select value={autoAccept.minRating} disabled={autoAcceptSaving}
+                    onChange={(e) => saveAutoAccept({ ...autoAccept, minRating: Number(e.target.value) })}
+                    style={{ display: "block", marginTop: 4, padding: "6px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0" }}>
+                    {[3, 3.5, 4, 4.5, 5].map((n) => <option key={n} value={n}>★ {n}+</option>)}
+                  </select>
+                </label>
+                <label style={{ fontSize: ".82rem", color: "#334155" }}>
+                  Avis minimum reçus
+                  <select value={autoAccept.minReviews} disabled={autoAcceptSaving}
+                    onChange={(e) => saveAutoAccept({ ...autoAccept, minReviews: Number(e.target.value) })}
+                    style={{ display: "block", marginTop: 4, padding: "6px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0" }}>
+                    {[1, 2, 3, 5, 10].map((n) => <option key={n} value={n}>{n}+</option>)}
+                  </select>
+                </label>
+              </div>
+            )}
+          </div>
+
           {!analytics?.topClients?.length ? (
             <div className={styles.emptyFull}>
               <div className={styles.emptyIcon}>👥</div>

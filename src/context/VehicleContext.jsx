@@ -121,6 +121,11 @@ const normalizeVehicle = (v) => {
     // Partenaire — pour affichage et lien profil
     ownerId,
     ownerName,
+    // Note de l'agence (Booking Engine — avis bidirectionnels, 2026-09) —
+    // User.partnerRating, calculée à partir des avis clients ciblant le
+    // partenaire (targetType "partner"), distincte de la note du véhicule.
+    ownerRating:      v.owner?.partnerRating?.noteMoyenne || 0,
+    ownerReviewCount: v.owner?.partnerRating?.nombreAvis  || 0,
     // Aucun contact direct partenaire n'est plus jamais transmis pour une
     // annonce (voir vehicleController.getVehicles/getVehicleById côté
     // backend) — l'appel se fait uniquement via le service client centralisé.

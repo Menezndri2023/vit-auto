@@ -36,7 +36,7 @@ const EVENT_ICONS = {
   invoice:           "🧾",
 };
 
-export async function sendInternal({ userId, type = "system", titre, message, lien, priority = "normal", metadata = {}, skipEmail = false }) {
+export async function sendInternal({ userId, type = "system", titre, message, lien, priority = "normal", metadata = {}, skipEmail = false, pushTitle, pushBody }) {
   if (!userId) {
     logger.warn("[InternalChannel] userId manquant");
     return { sent: false };
@@ -73,7 +73,9 @@ export async function sendInternal({ userId, type = "system", titre, message, li
       global._io.to(`user_${userId}`).emit("notification_new", payload);
     }
 
-    if (pushAvailable()) fanOutPush(userId, notif.titre, message, { lien: lien || "", type });
+    // pushTitle/pushBody : contenu dédié au push (voir templates/push/), plus
+    // court/actionnable que le texte in-app — repli sur ce dernier si absent.
+    if (pushAvailable()) fanOutPush(userId, pushTitle || notif.titre, pushBody || message, { lien: lien || "", type });
 
     logger.debug("[InternalChannel] Notification envoyée", { userId, type, titre });
     return { sent: true, notifId: notif._id, provider: "socket" };
@@ -86,7 +88,7 @@ export async function sendInternal({ userId, type = "system", titre, message, li
 export async function sendInternalBroadcast({ role, type, titre, message, lien, skipEmail = false }) {
   try {
     const User = (await import("../../../models/User.js")).default;
-    const users = await User.find({ role, isActive: true }).select("_id pushTokens email firstName").lean();
+    const users = await User.find({ role, isActive: true }).select("_id pushTokens email firstName notif_emailReminders").lean();
 
     if (!users.length) return { sent: false, count: 0 };
 
@@ -101,7 +103,8 @@ export async function sendInternalBroadcast({ role, type, titre, message, lien, 
     // insertMany() ne déclenche pas le hook post("save") de Notification.js
     // (filet email) — reproduit ici explicitement, best-effort.
     if (!skipEmail) {
-      const usersWithEmail = users.filter((u) => u.email);
+      // Respecte la préférence "Rappels par email" (voir Notification.js, même correctif).
+      const usersWithEmail = users.filter((u) => u.email && u.notif_emailReminders !== false);
       if (usersWithEmail.length) {
         Promise.resolve().then(async () => {
           const { enqueue } = await import("../../../queue/index.js");

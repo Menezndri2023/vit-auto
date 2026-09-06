@@ -572,6 +572,9 @@ export default function VehicleDetails() {
                     {vehicle.isConcessionnaire && (
                       <span className={styles.publisherMeta}>🏬 {t("vd.dealer")}</span>
                     )}
+                    {vehicle.ownerReviewCount > 0 && (
+                      <span className={styles.publisherMeta}>★ {vehicle.ownerRating.toFixed(1)} ({vehicle.ownerReviewCount} avis agence)</span>
+                    )}
                   </div>
                   <div className={styles.publisherActions}>
                     <a href={`tel:${serviceTel}`} className={styles.publisherCall}>

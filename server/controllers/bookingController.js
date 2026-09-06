@@ -162,7 +162,7 @@ export async function notify(userId, type, titre, message, lien = "/dashboard") 
   // Push natif (iOS/Android) — réveille l'app quand elle est fermée/en arrière-
   // plan ; le Socket.io ci-dessus ne fonctionne que si l'app est ouverte. Voir
   // dispatch.pushNotification (no-op silencieux si l'utilisateur n'a pas
-  // enregistré d'appareil natif ou si FCM_SERVER_KEY n'est pas configuré).
+  // enregistré d'appareil natif ou si Firebase n'est pas configuré).
   dispatch.pushNotification(userId, titre, message, { lien, type }).catch(() => {});
 }
 

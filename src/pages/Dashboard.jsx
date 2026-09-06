@@ -55,6 +55,7 @@ const normalizeBooking = (b) => {
     endDate:       b.location?.endDate,
     days:          b.location?.days,
     pickupMethod:  b.location?.pickupMethod || "retrait",
+    deliveryStatus: b.delivery?.status || "none",
     pickupLocation: b.location?.pickupLocation,
     pickupAddress: b.location?.pickupLocation,
     pickupLat:     b.location?.pickupPosition?.lat ?? null,
@@ -307,6 +308,33 @@ function DeliveryTimeline({ booking, onValidate, onDispute, validating }) {
           <span>Litige signalé. Notre équipe vous contactera sous 48h.</span>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Suivi de livraison (client) — négociation de créneau ────────────────────
+// Booking.delivery.status (Phase 2, Booking Engine) n'était affiché nulle
+// part côté client. Le déroulé "confirmé → en route → livré" est déjà bien
+// couvert par DeliveryTimeline ci-dessus (statuts confirmed/in_progress/
+// client_arrived du booking) — dupliquer un second stepper parallèle serait
+// juste redondant. Le vrai trou : la phase de NÉGOCIATION du créneau de
+// livraison (requested/rejected/rescheduled), qui se joue pendant que le
+// booking est encore "pending" et dont DeliveryTimeline ne dit rien de plus
+// que "en attente de confirmation du partenaire" — sans jamais préciser que
+// c'est spécifiquement la livraison qui bloque.
+const DELIVERY_NEGOTIATION_MSG = {
+  requested:   { icon: "🚚", color: "#1e3a8a", bg: "#eff6ff", border: "#bfdbfe", text: "Livraison demandée — en attente de confirmation du partenaire pour cette adresse." },
+  rejected:    { icon: "❌", color: "#991b1b", bg: "#fef2f2", border: "#fca5a5", text: "Le partenaire n'a pas pu confirmer la livraison à cette adresse — contactez-le pour une alternative (retrait en agence ou autre créneau)." },
+  rescheduled: { icon: "📅", color: "#92400e", bg: "#fffbeb", border: "#fde68a", text: "Le partenaire propose un nouveau créneau de livraison — consultez les détails dans vos messages." },
+};
+
+function DeliveryNegotiationStatus({ status }) {
+  const cfg = DELIVERY_NEGOTIATION_MSG[status];
+  if (!cfg) return null;
+  return (
+    <div style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 8, padding: "10px 14px", fontSize: "0.85rem", color: cfg.color, marginTop: 8, display: "flex", gap: 8, alignItems: "flex-start" }}>
+      <span>{cfg.icon}</span>
+      <span>{cfg.text}</span>
     </div>
   );
 }
@@ -1190,6 +1218,7 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
             <span className={styles.deliveryIcon}>🚚</span>
             <span className={styles.deliveryLabel}>Livraison à domicile</span>
           </div>
+          <DeliveryNegotiationStatus status={booking.deliveryStatus} />
           <div className={styles.deliveryAddress}>
             <p className={styles.deliveryAddressText}>
               {booking.pickupAddress || booking.pickupLocation || "Adresse à confirmer par le partenaire"}
@@ -1404,6 +1433,11 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
           <span className={styles.btnReview} style={{ opacity: 0.6, cursor: "default" }}>
             ✅ Avis publié
           </span>
+        )}
+        {(isCompleted || booking.status === "cancelled") && booking.type === "location" && booking.vehicleId && (
+          <Link to={`/booking/${booking.vehicleId}`} className={styles.btnContract}>
+            🔁 Réserver à nouveau
+          </Link>
         )}
         {canCancel && booking.type === "location" && !showModify && (
           <button className={styles.btnContract} onClick={() => { setShowModify(true); setModifyForm({ startDate: "", endDate: "" }); setModifyError(null); }}>

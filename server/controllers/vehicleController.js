@@ -430,8 +430,8 @@ export const getVehicleById = async (req, res) => {
       return res.status(404).json({ message: "Véhicule introuvable." });
     }
     const ownerFields = req.user?.role === "admin"
-      ? "firstName lastName email phone profilePhoto role isActive kycStatus certificationBadge createdAt ville"
-      : "firstName lastName country ville certificationBadge";
+      ? "firstName lastName email phone profilePhoto role isActive kycStatus certificationBadge createdAt ville partnerRating"
+      : "firstName lastName country ville certificationBadge partnerRating";
     const vehicle = await Vehicle.findById(id)
       .populate("owner", ownerFields)
       .populate("business", "companyName isConcessionnaire")
