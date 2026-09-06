@@ -831,21 +831,27 @@ export default function IETransactionTracking() {
     </div>
   );
 
-  const userId    = user?._id?.toString();
-  const isClient  = tx.client?._id?.toString() === userId || tx.client?.toString() === userId;
-  const isPartner = tx.partner?._id?.toString() === userId || tx.partner?.toString() === userId;
-  const isAdmin   = user?.role === "admin";
-  const role      = isClient ? "client" : isPartner ? "partner" : "admin";
+  const userId     = user?._id?.toString();
+  const isClient   = tx.client?._id?.toString() === userId || tx.client?.toString() === userId;
+  const isPartner  = tx.partner?._id?.toString() === userId || tx.partner?.toString() === userId;
+  const isAdmin    = user?.role === "admin";
+  // Transitaire ou agent assigné (restructuration logistique 2026-09) — traité
+  // comme "partner" pour cette page (mêmes actions de logistique : documents,
+  // expédition), sauf s'il s'agit en réalité d'un admin, qui garde ses
+  // pouvoirs complets (voir getTransactionById côté serveur pour l'accès).
+  const isAssignee = tx.assignment?.assignedTo?._id?.toString() === userId || tx.assignment?.assignedTo?.toString() === userId;
+  const role       = isClient ? "client" : isAdmin ? "admin" : (isPartner || isAssignee) ? "partner" : "admin";
 
   const currentStep = STEPS.find((s) => s.status === tx.status);
+
+  const backTo    = role === "client" ? "/import-export/dashboard" : isPartner ? "/importer-dashboard" : isAssignee ? "/import-export/assigned" : "/admin";
+  const backLabel = role === "client" ? "Mes transactions" : isPartner ? "Dashboard importateur" : isAssignee ? "Mes dossiers assignés" : "Admin";
 
   return (
     <div className={styles.page}>
       {/* ── Breadcrumb ── */}
       <div className={styles.breadcrumb}>
-        <Link to={role === "partner" ? "/importer-dashboard" : "/import-export/dashboard"}>
-          {role === "partner" ? "Dashboard importateur" : "Mes transactions"}
-        </Link>
+        <Link to={backTo}>{backLabel}</Link>
         <span>/</span>
         <span>Transaction {tx._id?.slice(-8).toUpperCase()}</span>
       </div>

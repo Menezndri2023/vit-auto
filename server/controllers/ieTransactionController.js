@@ -1003,7 +1003,12 @@ export const updateDocuments = async (req, res) => {
       _id: req.params.id,
       status: { $in: ["payment_submitted", "in_escrow", "preparing"] },
     };
-    if (!isAdmin) filter.partner = req.user._id;
+    // Le transitaire/agent assigné (restructuration logistique 2026-09) peut
+    // préparer les documents d'export au même titre que le partenaire — c'est
+    // précisément son rôle une fois la mission confiée (voir onEscrowSecured/
+    // assignTransaction). Toujours soumis à la même règle "valide" réservée à
+    // l'admin, quelques lignes plus bas.
+    if (!isAdmin) filter.$or = [{ partner: req.user._id }, { "assignment.assignedTo": req.user._id }];
 
     const tx = await IETransaction.findOne(filter);
     if (!tx) return res.status(404).json({ message: "Transaction introuvable ou statut incompatible." });
@@ -1058,9 +1063,11 @@ export const updateDocuments = async (req, res) => {
 
 export const markShipped = async (req, res) => {
   try {
+    // Le transitaire/agent assigné peut expédier au même titre que le
+    // partenaire (restructuration logistique 2026-09) — voir updateDocuments.
     const tx = await IETransaction.findOne({
       _id: req.params.id,
-      partner: req.user._id,
+      $or: [{ partner: req.user._id }, { "assignment.assignedTo": req.user._id }],
       status: { $in: ["in_escrow", "preparing"] },
     });
     if (!tx) return res.status(404).json({ message: "Transaction introuvable ou statut incompatible." });
@@ -1104,9 +1111,10 @@ export const markShipped = async (req, res) => {
 // PATCH /api/import-export/transactions/:id/tracking — partenaire met à jour le tracking
 export const updateTracking = async (req, res) => {
   try {
+    // Voir markShipped — même ouverture au transitaire/agent assigné.
     const tx = await IETransaction.findOne({
       _id: req.params.id,
-      partner: req.user._id,
+      $or: [{ partner: req.user._id }, { "assignment.assignedTo": req.user._id }],
       status: { $in: ["shipped", "in_transit"] },
     });
     if (!tx) return res.status(404).json({ message: "Transaction introuvable." });
@@ -1429,7 +1437,12 @@ export const getTransactionById = async (req, res) => {
     const isAdmin       = req.user.role === "admin";
     const isPartner     = tx.partner._id.toString() === req.user._id.toString();
     const isClient      = tx.client._id.toString()  === req.user._id.toString();
-    if (!isClient && !isPartner && !isAdmin) return res.status(403).json({ message: "Accès refusé." });
+    // Transitaire/agent assigné (restructuration logistique 2026-09) — accède
+    // au dossier au même titre que le partenaire pour les actions de
+    // logistique (documents, expédition), voir updateDocuments/markShipped/
+    // updateTracking et le rôle "assignee" côté front (IETransactionTracking.jsx).
+    const isAssignee    = tx.assignment?.assignedTo?._id?.toString() === req.user._id.toString();
+    if (!isClient && !isPartner && !isAdmin && !isAssignee) return res.status(403).json({ message: "Accès refusé." });
     // Gate admin obligatoire (audit 2026-08) : le partenaire ne doit pas voir
     // un achat direct tant qu'un admin ne l'a pas validé (le client, lui,
     // garde toujours accès à sa propre demande).
@@ -1648,6 +1661,36 @@ export const getAllTransactions = async (req, res) => {
 // LOGISTIQUE — ASSIGNATION TRANSITAIRE/AGENT (restructuration 2026-09)
 // ═══════════════════════════════════════════════════════════════════════════
 
+// GET /api/import-export/transactions/assigned (transitaire ou agent) —
+// dossiers confiés à l'utilisateur connecté (voir assignment.assignedTo).
+// Distinct de getPartnerTransactions (le vendeur de l'annonce) : un
+// transitaire externe n'est jamais le partenaire de la transaction.
+export const getAssignedTransactions = async (req, res) => {
+  try {
+    const { status, page = 1, limit = 20 } = req.query;
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const safePage  = Math.max(Number(page), 1);
+    const filter = { "assignment.assignedTo": req.user._id };
+    if (status) filter.status = status;
+
+    const [transactions, total] = await Promise.all([
+      IETransaction.find(filter)
+        .populate("listing", "title make model year mainPhoto price currency sourceCountry")
+        .populate("client",  "firstName lastName email phone")
+        .populate("partner", "firstName lastName email phone")
+        .sort({ createdAt: -1 })
+        .skip((safePage - 1) * safeLimit)
+        .limit(safeLimit),
+      IETransaction.countDocuments(filter),
+    ]);
+
+    res.json({ transactions, total, pages: Math.ceil(total / safeLimit) });
+  } catch (err) {
+    logger.error("getAssignedTransactions:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
 // GET /api/import-export/transitaires?country=CI (admin) — pour le sélecteur
 // de réassignation manuelle, filtré par pays de destination de la transaction.
 export const getTransitairesList = async (req, res) => {
@@ -1708,7 +1751,7 @@ export const assignTransaction = async (req, res) => {
     const assigneeName = `${assignee.firstName || ""} ${assignee.lastName || ""}`.trim();
     await notify(assignedTo, "info", "Nouveau dossier Import/Export assigné",
       `Transaction ${tx._id} (destination : ${tx.destCountry || "—"}) vous est confiée.${note ? ` Note : ${note}` : ""}`,
-      "/importer-dashboard");
+      "/import-export/assigned");
     await notify(tx.client, "info", "Votre dossier a été réassigné",
       `${assigneeName} s'occupe désormais de la logistique de votre import.`,
       `/import-export/transaction/${tx._id}`);

@@ -41,6 +41,7 @@ router.post  ("/listings/:id/inspection-report",  authenticate,        vid,     
 // ── Transactions (cycle de vie 14 étapes) ────────────────────────────────────
 router.get   ("/transactions",          authenticate, authorizeAdmin, ieScope,            tx.getAllTransactions);
 // ── Logistique : assignation transitaire/agent (restructuration 2026-09) ──
+router.get   ("/transactions/assigned",            authenticate,                                     tx.getAssignedTransactions);
 router.get   ("/transitaires",                     authenticate, authorizeAdmin, ieScope,            tx.getTransitairesList);
 router.get   ("/agents",                           authenticate, authorizeAdmin, ieScope,            tx.getInternalAgents);
 router.patch ("/transactions/:id/assign",          authenticate, authorizeAdmin, ieScope, vid,        tx.assignTransaction);

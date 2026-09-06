@@ -70,6 +70,7 @@ const IEListings            = lazy(() => import("./pages/IEListings"));
 const IEListingDetail       = lazy(() => import("./pages/IEListingDetail"));
 const IETransactionTracking = lazy(() => import("./pages/IETransactionTracking"));
 const IEClientDashboard     = lazy(() => import("./pages/IEClientDashboard"));
+const IEAssignedTransactions = lazy(() => import("./pages/IEAssignedTransactions"));
 const ImporterApply         = lazy(() => import("./pages/ImporterApply"));
 const ImporterDashboard     = lazy(() => import("./pages/ImporterDashboard"));
 const KYC                   = lazy(() => import("./pages/KYC"));
@@ -125,6 +126,7 @@ function AppRoutes() {
           <Route path="/import-export/listings/:id"      element={<IEListingDetail />} />
           <Route path="/import-export/transaction/:id"   element={<ErrorBoundary><IETransactionTracking /></ErrorBoundary>} />
           <Route path="/import-export/dashboard"         element={<ErrorBoundary><IEClientDashboard /></ErrorBoundary>} />
+          <Route path="/import-export/assigned"          element={<ErrorBoundary><IEAssignedTransactions /></ErrorBoundary>} />
 
           {/* ── Pages légales ──────────────────────────────── */}
           <Route path="/privacy"                element={<Privacy />} />

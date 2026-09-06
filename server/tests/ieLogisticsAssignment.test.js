@@ -1,10 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { confirmEscrowPayment, assignTransaction, markShipped, createReservation } from "../controllers/ieTransactionController.js";
+import {
+  confirmEscrowPayment, assignTransaction, markShipped, createReservation,
+  getTransactionById, updateDocuments, updateTracking, getAssignedTransactions,
+} from "../controllers/ieTransactionController.js";
 import IETransaction from "../models/IETransaction.js";
 import PartnerOnboarding from "../models/PartnerOnboarding.js";
 import InspectionReport from "../models/InspectionReport.js";
 import { createUser, createListing, createIETransaction } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
+
+const FAKE_DOC_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 
 // Restructuration Import/Export (2026-09) : dès que les fonds sont sécurisés
 // (in_escrow), le système propose automatiquement un transitaire actif pour
@@ -156,5 +161,94 @@ describe("Import/Export — assignation transitaire/agent + rapport d'inspection
 
     const tx = await IETransaction.findOne({ listing: listing._id, client: client._id });
     expect(tx.documents.inspectionDocs.status).toBe("fourni");
+  });
+
+  // ── Accès et actions du transitaire/agent assigné (2026-09) ────────────────
+  // Un transitaire externe n'est jamais tx.partner — sans ces ouvertures, il
+  // ne pourrait ni consulter le dossier qui lui a été confié, ni agir dessus
+  // (documents, expédition, suivi), rendant l'assignation purement décorative.
+  describe("accès et actions du transitaire/agent assigné", () => {
+    async function makeAssignedTx(overrides = {}) {
+      const client       = await createUser({ role: "client" });
+      const partner      = await createUser({ role: "client", isFounder: true });
+      const transitaireUser = await createUser({ role: "partenaire", firstName: "Amara" });
+      const listing = await createListing({ partner: partner._id });
+      const tx = await createIETransaction({
+        listing: listing._id, client: client._id, partner: partner._id,
+        status: "in_escrow",
+        assignment: { mode: "transitaire", assignedTo: transitaireUser._id, autoAssigned: true, assignedAt: new Date() },
+        ...overrides,
+      });
+      return { client, partner, transitaireUser, listing, tx };
+    }
+
+    it("un transitaire assigné peut consulter le dossier (sans être ni le client ni le partenaire)", async () => {
+      const { transitaireUser, tx } = await makeAssignedTx();
+      const { req, res } = mockReqRes({ params: { id: tx._id.toString() }, user: transitaireUser });
+      await getTransactionById(req, res);
+      expect(res.status).not.toHaveBeenCalledWith(403);
+      expect(res.body.transaction._id.toString()).toBe(tx._id.toString());
+    });
+
+    it("un tiers non assigné n'a toujours pas accès au dossier", async () => {
+      const { tx } = await makeAssignedTx();
+      const stranger = await createUser({ role: "partenaire" });
+      const { req, res } = mockReqRes({ params: { id: tx._id.toString() }, user: stranger });
+      await getTransactionById(req, res);
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+
+    it("un transitaire assigné peut mettre à jour les documents d'export", async () => {
+      const { transitaireUser, tx } = await makeAssignedTx();
+      const { req, res } = mockReqRes({
+        params: { id: tx._id.toString() }, user: transitaireUser,
+        body: { documents: { commercialInvoice: { status: "fourni", url: FAKE_DOC_IMAGE } } },
+      });
+      await updateDocuments(req, res);
+      expect(res.status).not.toHaveBeenCalledWith(404);
+      expect(res.status).not.toHaveBeenCalledWith(400);
+      const updated = await IETransaction.findById(tx._id);
+      expect(updated.documents.commercialInvoice.status).toBe("fourni");
+    });
+
+    it("un transitaire assigné ne peut pas faire valider un document lui-même (réservé à l'admin)", async () => {
+      const { transitaireUser, tx } = await makeAssignedTx();
+      const { req, res } = mockReqRes({
+        params: { id: tx._id.toString() }, user: transitaireUser,
+        body: { documents: { commercialInvoice: { status: "valide", url: FAKE_DOC_IMAGE } } },
+      });
+      await updateDocuments(req, res);
+      expect(res.status).not.toHaveBeenCalledWith(400);
+      const updated = await IETransaction.findById(tx._id);
+      expect(updated.documents.commercialInvoice.status).not.toBe("valide");
+      expect(updated.documents.commercialInvoice.url).toBe(FAKE_DOC_IMAGE);
+    });
+
+    it("un transitaire assigné peut expédier et mettre à jour le suivi", async () => {
+      const { transitaireUser, tx } = await makeAssignedTx({
+        documents: { inspectionDocs: { status: "fourni", url: "data:application/pdf;base64,xx" } },
+      });
+      const ship = mockReqRes({ params: { id: tx._id.toString() }, user: transitaireUser, body: { carrier: "Maersk" } });
+      await markShipped(ship.req, ship.res);
+      expect(ship.res.status).not.toHaveBeenCalledWith(404);
+
+      const track = mockReqRes({ params: { id: tx._id.toString() }, user: transitaireUser, body: { currentStatus: "En mer" } });
+      await updateTracking(track.req, track.res);
+      expect(track.res.status).not.toHaveBeenCalledWith(404);
+
+      const updated = await IETransaction.findById(tx._id);
+      expect(updated.status).toBe("in_transit");
+    });
+
+    it("liste les dossiers confiés au transitaire connecté via /transactions/assigned", async () => {
+      const { transitaireUser, tx } = await makeAssignedTx();
+      // Une transaction non assignée à ce transitaire ne doit jamais apparaître.
+      await createIETransaction({ status: "in_escrow" });
+
+      const { req, res } = mockReqRes({ user: transitaireUser });
+      await getAssignedTransactions(req, res);
+      expect(res.body.total).toBe(1);
+      expect(res.body.transactions[0]._id.toString()).toBe(tx._id.toString());
+    });
   });
 });
