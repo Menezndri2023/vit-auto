@@ -47,7 +47,7 @@ export async function processAiJob(job) {
     }
 
     case "fraud_detection": {
-      const { bookingId, userId, amount } = data;
+      const { bookingId, userId, amount, bookingType } = data;
       const flags = [];
 
       const User = (await import("../../models/User.js")).default;
@@ -80,6 +80,17 @@ export async function processAiJob(job) {
         // Risque élevé : reste "pending" pour la revue humaine d'exception
         // (queue admin existante, getPendingValidationBookings) — on écrit
         // quand même fraudCheck pour que l'admin voie le détail des drapeaux.
+        const Booking = (await import("../../models/Booking.js")).default;
+        await Booking.findByIdAndUpdate(bookingId, {
+          $set: { fraudCheck: { riskLevel, flags, checkedAt: new Date() } },
+        }).catch(() => {});
+      } else if (bookingId && bookingType === "essai") {
+        // Restructuration réservation (2026-09) : un essai reste TOUJOURS
+        // soumis à une revue admin humaine avant transmission au partenaire —
+        // jamais à ce score automatique, quel que soit le risque calculé (le
+        // client conduit seul le véhicule d'un tiers sans engagement encore
+        // pris). On enregistre quand même fraudCheck pour info admin, mais on
+        // ne touche jamais adminValidation.status ici.
         const Booking = (await import("../../models/Booking.js")).default;
         await Booking.findByIdAndUpdate(bookingId, {
           $set: { fraudCheck: { riskLevel, flags, checkedAt: new Date() } },

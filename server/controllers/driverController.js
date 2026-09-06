@@ -8,7 +8,6 @@ import PartnerVerification from "../models/PartnerVerification.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 import { validateImageDataUri, validateDocumentDataUri } from "../utils/imageValidation.js";
 import { logAction } from "../middleware/auditLog.js";
-import { resolveRequirements } from "../utils/partnerRequirements.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 import { uploadBase64Images, uploadBase64Document, FOLDERS } from "../config/imagekit.js";
 import { getActiveRates } from "../services/currencyEngine.js";
@@ -50,28 +49,41 @@ function validateDriverImages(images) {
   return null;
 }
 
-// ── Pièce d'identité (CNI/passeport) + permis de conduire vérifiés — exigence
-// obligatoire à la publication d'un profil chauffeur, quel que soit le type de
-// vendeur (contrairement à Vehicle où un Founding Partner en est exempté) : un
-// chauffeur transporte des clients, l'identité et le permis doivent être fiables.
-// Réutilise les documents déjà vérifiés via /api/kyc (submit + submit-driver-license)
-// plutôt que de créer un nouveau circuit de vérification. La liste des documents
-// requis vient de server/utils/partnerRequirements.js (point de vérité unique,
-// partagé avec la redirection post-inscription et le wizard Founding Partner) —
-// le CV reste validé séparément par validateCv ci-dessus, pas ici.
-function missingDriverDocs(user) {
-  const { docs } = resolveRequirements({ activity: "chauffeur", entityType: user.entityType }).driver;
-  // Les 4 types acceptés par le KYC (User.identity.type enum — voir models/User.js
-  // et KYC.jsx DOC_TYPES) sont tous vérifiés par le même circuit admin ; restreindre
-  // ici à cni/passport bloquait silencieusement et définitivement tout chauffeur
-  // ayant soumis un titre de séjour ou son permis comme pièce d'identité (bug réel).
-  const hasIdentity = docs.includes("identity") && ["cni", "passport", "permis", "carte_sejour"].includes(user.identity?.type) && user.identity?.status === "verified";
-  const license = user.driverLicenseOcr;
-  const hasLicense = docs.includes("driverLicense") && !!(license?.licenseNumber && license?.frontImage) && !license?.isExpired;
-  if (!hasIdentity && !hasLicense) return "Pièce d'identité vérifiée et permis de conduire vérifié requis pour publier un profil chauffeur.";
-  if (!hasIdentity) return "Pièce d'identité vérifiée requise pour publier un profil chauffeur.";
-  if (!hasLicense) return "Permis de conduire vérifié (recto/verso, non expiré) requis pour publier un profil chauffeur.";
-  return null;
+// ── Pièce d'identité (CNI/passeport) + permis de conduire — restructuration
+// réservation 2026-09, même principe que pour une réservation client (voir
+// bookingController.processBookingDocuments) : un chauffeur transporte des
+// clients, l'identité et le permis restent obligatoires, mais joints
+// DIRECTEMENT à la création du profil plutôt que via un aller-retour séparé
+// par /kyc (ancien circuit `missingDriverDocs`, qui exigeait un
+// User.identity/driverLicenseOcr déjà VÉRIFIÉ par un admin AVANT même de
+// pouvoir soumettre le profil — origine de bugs réels documentés dans
+// VendorSubmit.jsx, partenaire bloqué indéfiniment). Aucun OCR, aucune revue
+// manuelle bloquante ici : le profil part en modération standard
+// (Driver.status: "pending"), l'admin voit ces documents au moment d'approuver
+// la fiche publique (voir getDriverById ci-dessous et AdminPanel.jsx).
+const MAX_DRIVER_DOC_BYTES = 6 * 1024 * 1024;
+
+async function processDriverDocuments({ identityDocument, licenseDocument }) {
+  for (const [label, img] of [
+    ["identité (recto)", identityDocument?.frontImage], ["identité (verso)", identityDocument?.backImage],
+    ["permis (recto)", licenseDocument?.frontImage], ["permis (verso)", licenseDocument?.backImage],
+  ]) {
+    const check = validateImageDataUri(img, MAX_DRIVER_DOC_BYTES);
+    if (!check.ok) return { error: `Document ${label} : ${check.message}` };
+  }
+  if (!identityDocument?.frontImage) return { error: "Pièce d'identité (recto) requise pour publier un profil chauffeur." };
+  if (!licenseDocument?.frontImage) return { error: "Permis de conduire (recto) requis pour publier un profil chauffeur." };
+  const [idFront, idBack, licFront, licBack] = await Promise.all([
+    uploadBase64Document(identityDocument.frontImage, FOLDERS.drivers),
+    uploadBase64Document(identityDocument.backImage || null, FOLDERS.drivers),
+    uploadBase64Document(licenseDocument.frontImage, FOLDERS.drivers),
+    uploadBase64Document(licenseDocument.backImage || null, FOLDERS.drivers),
+  ]);
+  return {
+    error: null,
+    identityDocument: { type: identityDocument.type || null, frontImage: idFront, backImage: idBack },
+    licenseDocument:  { frontImage: licFront, backImage: licBack },
+  };
 }
 
 // ── Créer un profil chauffeur (partenaire) ────────────────────────────────
@@ -126,12 +138,12 @@ export const createDriver = async (req, res) => {
       });
     }
 
-    // ── Pièce d'identité + permis obligatoires (voir missingDriverDocs) ──────
-    if (req.user.role === "partenaire") {
-      const docsError = missingDriverDocs(req.user);
-      if (docsError) {
-        return res.status(403).json({ code: "DRIVER_DOCS_REQUIRED", message: docsError });
-      }
+    // ── Pièce d'identité + permis obligatoires (voir processDriverDocuments) ──
+    const driverDocsResult = await processDriverDocuments({
+      identityDocument: req.body.identityDocument, licenseDocument: req.body.licenseDocument,
+    });
+    if (driverDocsResult.error) {
+      return res.status(400).json({ code: "DRIVER_DOCS_REQUIRED", message: driverDocsResult.error });
     }
 
     // Whitelist des champs autorisés (évite mass assignment sur owner, stats, status)
@@ -209,6 +221,8 @@ export const createDriver = async (req, res) => {
       vehiculePersonnel: !!vehiculePersonnel,
       typeVehicule,
       images: uploadedVehicleImages,
+      identityDocument: driverDocsResult.identityDocument,
+      licenseDocument:  driverDocsResult.licenseDocument,
       // Champs serveur — jamais depuis req.body
       owner:         req.user._id,
       business:      business?._id || null,
@@ -280,17 +294,23 @@ export const getDrivers = async (req, res) => {
 
     const publicDrivers = drivers.map((d) => {
       const owner = d.owner || {};
-      // Mêmes 4 types acceptés que missingDriverDocs() ci-dessus — sinon un
-      // chauffeur avec un titre de séjour/permis vérifié affichait publiquement
-      // un badge "identité non vérifiée" malgré une vérification admin réelle.
+      // Mêmes 4 types acceptés que ci-dessus — sinon un chauffeur avec un
+      // titre de séjour/permis vérifié affichait publiquement un badge
+      // "identité non vérifiée" malgré une vérification admin réelle.
       const identityVerified = ["cni", "passport", "permis", "carte_sejour"].includes(owner.identity?.type) && owner.identity?.status === "verified";
       const license = owner.driverLicenseOcr;
       const licenseVerified = !!(license?.licenseNumber && !license?.isExpired);
+      // Restructuration 2026-09 : document joint au profil mais pas encore
+      // vérifié par un admin — jamais les images elles-mêmes en public
+      // (identityDocument/licenseDocument exclus du spread ci-dessous).
+      const { identityDocument, licenseDocument, ...publicFields } = d;
       return {
-        ...d,
+        ...publicFields,
         owner: { _id: owner._id, firstName: owner.firstName },
         identityVerified,
         licenseVerified,
+        identityProvided: !!identityDocument?.frontImage,
+        licenseProvided:  !!licenseDocument?.frontImage,
       };
     });
 

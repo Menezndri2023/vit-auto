@@ -104,4 +104,38 @@ describe("eligibilityEngine.evaluateEligibility", () => {
     });
     expect(result.reasons).not.toContain("DELIVERY_OUT_OF_ZONE");
   });
+
+  // ── Restructuration réservation (2026-09) ──────────────────────────────────
+  it("exige identité ET permis pour une location, sans configuration véhicule/politique particulière", () => {
+    const vehicle = { permisRequis: true };
+    const result = evaluateEligibility({ user: verifiedUser, vehicle, bookingType: "location" });
+    expect(result.eligible).toBe(false);
+    expect(result.reasons).toContain("IDENTITY_NOT_VERIFIED");
+    expect(result.reasons).toContain("LICENSE_NOT_VERIFIED");
+  });
+
+  it("satisfait identité/permis d'une location via un document joint à CETTE réservation", () => {
+    const vehicle = { permisRequis: true };
+    const result = evaluateEligibility({
+      user: verifiedUser, vehicle, bookingType: "location",
+      providedDocuments: { identity: true, license: true },
+    });
+    expect(result.eligible).toBe(true);
+  });
+
+  it("n'exige aucun permis pour une location avec chauffeur (Vehicle.withDriver)", () => {
+    const vehicle = { withDriver: true };
+    const result = evaluateEligibility({
+      user: verifiedUser, vehicle, bookingType: "location",
+      providedDocuments: { identity: true },
+    });
+    expect(result.eligible).toBe(true);
+  });
+
+  it("exige identité ET permis pour un essai, même sur un véhicule avec chauffeur (non pertinent pour un essai)", () => {
+    const vehicle = { withDriver: true };
+    const result = evaluateEligibility({ user: verifiedUser, vehicle, bookingType: "essai" });
+    expect(result.reasons).toContain("IDENTITY_NOT_VERIFIED");
+    expect(result.reasons).toContain("LICENSE_NOT_VERIFIED");
+  });
 });

@@ -71,6 +71,9 @@ describe("driverController — congés bloqués", () => {
       body: {
         type: "chauffeur",
         clientInfo: { firstName: "Jean", lastName: "Client", email: "jean.client@example.test", passportNumber: "P1234567" },
+        // Restructuration réservation (2026-09) : identité exigée pour réserver
+        // un chauffeur professionnel — voir booking.create.test.js.
+        documents: { identity: { type: "cni", frontImage: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" } },
         driverId: driver._id.toString(),
         chauffeur: { date: "2027-02-12T09:00:00.000Z", heures: 2 },
       },

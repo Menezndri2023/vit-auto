@@ -6,6 +6,10 @@ import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
 const clientInfo = { firstName: "Jean", lastName: "Client", email: "jean.client@example.test", passportNumber: "P1234567" };
+// Restructuration réservation (2026-09) : un essai exige désormais une pièce
+// d'identité + permis (le client conduit seul) — voir booking.create.test.js.
+const FAKE_DOC_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+const bookingDocuments = { identity: { type: "cni", frontImage: FAKE_DOC_IMAGE }, license: { frontImage: FAKE_DOC_IMAGE } };
 
 // 4 bugs réels confirmés par audit du flux essai/achat/leasing :
 // 1. véhicule vendu jamais retiré de la disponibilité
@@ -22,7 +26,7 @@ describe("Corrections flux essai/achat (audit)", () => {
     const vehicle = await createVehicleDoc({ type: "location" });
     const { req, res } = mockReqRes({
       user: client,
-      body: { type: "essai", clientInfo, vehicleId: vehicle._id.toString(), essai: { preferredDate: new Date(Date.now() + 7 * 86400000).toISOString() } },
+      body: { type: "essai", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(), essai: { preferredDate: new Date(Date.now() + 7 * 86400000).toISOString() } },
     });
     await createBooking(req, res);
     expect(res.statusCode).toBe(400);

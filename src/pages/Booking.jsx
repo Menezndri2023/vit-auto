@@ -191,11 +191,13 @@ export default function Booking() {
     reader.readAsDataURL(file);
   }, [t]);
 
-  // Location classique uniquement (hors essai/leasing, gérés séparément —
-  // voir suggestion de parcours dédiée) : identité toujours requise, permis
-  // requis sauf véhicule avec chauffeur (Vehicle.withDriver).
-  const showDocumentStep = !isTrial && !isLeasing;
-  const needsLicenseDoc  = showDocumentStep && !vehicle?.withDriver && vehicleRequiresLicense;
+  // Location + essai (hors leasing) : identité toujours requise. Permis requis
+  // sauf véhicule avec chauffeur (Vehicle.withDriver) — non applicable à un
+  // essai, toujours conduit par le client lui-même. Un essai reste en plus
+  // toujours revu manuellement par un admin avant transmission au partenaire,
+  // jamais par le score de fraude automatique (voir ai.worker.js).
+  const showDocumentStep = !isLeasing;
+  const needsLicenseDoc  = showDocumentStep && (isTrial || (!vehicle?.withDriver && vehicleRequiresLicense));
   const identitySatisfied = kycStatus === "VERIFIE" || !!idFrontImage;
   const licenseSatisfied  = !needsLicenseDoc || hasVerifiedLicense || !!licenseFrontImage;
   const documentsReady = !showDocumentStep || (identitySatisfied && licenseSatisfied);

@@ -359,11 +359,11 @@ describe("bookingController.createBooking", () => {
     const vehicle = await createVehicleDoc({ type: "vente" });
     const preferredDate = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
 
-    const first = mockReqRes({ user: client, body: { type: "essai", clientInfo, vehicleId: vehicle._id.toString(), essai: { preferredDate } } });
+    const first = mockReqRes({ user: client, body: { type: "essai", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(), essai: { preferredDate } } });
     await createBooking(first.req, first.res);
     expect(first.res.status).not.toHaveBeenCalledWith(409);
 
-    const second = mockReqRes({ user: client, body: { type: "essai", clientInfo, vehicleId: vehicle._id.toString(), essai: { preferredDate } } });
+    const second = mockReqRes({ user: client, body: { type: "essai", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(), essai: { preferredDate } } });
     await createBooking(second.req, second.res);
     expect(second.res.status).toHaveBeenCalledWith(409);
   });
@@ -379,14 +379,36 @@ describe("bookingController.createBooking", () => {
     });
     const date = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
 
-    const first = mockReqRes({ user: client, body: { type: "chauffeur", clientInfo, driverId: driver._id.toString(), chauffeur: { date, heures: 4 } } });
+    const first = mockReqRes({ user: client, body: { type: "chauffeur", clientInfo, documents: bookingDocuments, driverId: driver._id.toString(), chauffeur: { date, heures: 4 } } });
     await createBooking(first.req, first.res);
     expect(first.res.status).not.toHaveBeenCalledWith(409);
     expect(first.res.body.booking.montantBase).toBe(5000 * 4);
 
-    const second = mockReqRes({ user: client, body: { type: "chauffeur", clientInfo, driverId: driver._id.toString(), chauffeur: { date, heures: 2 } } });
+    const second = mockReqRes({ user: client, body: { type: "chauffeur", clientInfo, documents: bookingDocuments, driverId: driver._id.toString(), chauffeur: { date, heures: 2 } } });
     await createBooking(second.req, second.res);
     expect(second.res.status).toHaveBeenCalledWith(409);
+  });
+
+  it("exige une pièce d'identité pour réserver un chauffeur professionnel, mais jamais de permis (le chauffeur conduit) — restructuration 2026-09", async () => {
+    const client = await verifiedClient();
+    const owner = await createUser({ role: "partenaire" });
+    const driver = await Driver.create({
+      owner: owner._id, firstName: "Chauffeur", lastName: "Test", title: "Chauffeur pro Abidjan",
+      tarif: 30000, tarifHeure: 5000, disponibilite: "Temps plein", zone: "Abidjan", experience: "5 ans",
+    });
+    const date = new Date(Date.now() + 8 * 24 * 3600 * 1000).toISOString();
+
+    const withoutDocs = mockReqRes({ user: client, body: { type: "chauffeur", clientInfo, driverId: driver._id.toString(), chauffeur: { date, heures: 3 } } });
+    await createBooking(withoutDocs.req, withoutDocs.res);
+    expect(withoutDocs.res.status).toHaveBeenCalledWith(403);
+    expect(withoutDocs.res.body.code).toBe("VERIFICATION_LEVEL_2_REQUIRED");
+
+    const identityOnly = mockReqRes({
+      user: client,
+      body: { type: "chauffeur", clientInfo, documents: { identity: bookingDocuments.identity }, driverId: driver._id.toString(), chauffeur: { date, heures: 3 } },
+    });
+    await createBooking(identityOnly.req, identityOnly.res);
+    expect(identityOnly.res.status).not.toHaveBeenCalledWith(403);
   });
 
   // Alimente l'animation de félicitations "1ère réservation" côté front

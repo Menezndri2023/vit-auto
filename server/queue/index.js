@@ -308,9 +308,13 @@ export const dispatch = {
       client?._id && enqueue(QUEUE_NAMES.AI, "fraud_check", {
         type: "fraud_detection",
         data: {
-          bookingId: bId,
-          userId:    client._id?.toString(),
-          amount:    booking.montantTotal,
+          bookingId:   bId,
+          userId:      client._id?.toString(),
+          amount:      booking.montantTotal,
+          // Essai (restructuration 2026-09) : le client conduit seul le
+          // véhicule d'un tiers avant tout engagement — toujours revu par un
+          // vrai admin, jamais par ce score automatique (voir ai.worker.js).
+          bookingType: booking.type,
         },
       }, { priority: PRIORITY.NORMAL }),
     ]);

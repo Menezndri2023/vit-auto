@@ -8,21 +8,22 @@ import { mockReqRes } from "./helpers/mockReqRes.js";
 // vehicle.create.test.js) — portes KYC/certification/suspension partagées,
 // pas de plafond "particulier" ni de détection de doublon ici en revanche.
 // profilePhoto et cv sont désormais toujours exigés (voir createDriver) — inclus par défaut.
+const FAKE_DOC_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+// Restructuration réservation (2026-09) : la pièce d'identité et le permis
+// sont désormais joints DIRECTEMENT à la création du profil (voir
+// driverController.processDriverDocuments) — remplace l'ancien mur qui exigeait
+// un User.identity/driverLicenseOcr déjà VÉRIFIÉ PAR UN ADMIN au préalable via
+// /kyc (missingDriverDocs, supprimé). Le profil part en modération standard
+// (status "pending") sans jamais attendre cette vérification a priori.
 const minimalDriver = (overrides = {}) => ({
   firstName: "Chauffeur", lastName: "Test", title: "Chauffeur pro Abidjan",
   tarif: 30000, disponibilite: "Temps plein", zone: "Abidjan", experience: "5 ans",
   profilePhoto: "https://cdn.example.test/driver-profile.jpg",
   cv: "https://cdn.example.test/driver-cv.pdf",
+  identityDocument: { type: "cni", frontImage: FAKE_DOC_IMAGE },
+  licenseDocument: { frontImage: FAKE_DOC_IMAGE },
   ...overrides,
-});
-
-// Pièce d'identité (CNI/passeport) + permis vérifiés — exigence obligatoire à la
-// publication chauffeur (missingDriverDocs), indépendante du mur KYC/certification
-// classique testé plus bas (un partenaire peut avoir kycStatus VERIFIE sans que
-// ces deux champs distincts soient renseignés).
-const validDriverDocs = () => ({
-  identity: { type: "cni", status: "verified" },
-  driverLicenseOcr: { licenseNumber: "LIC12345", frontImage: "data:image/jpeg;base64,xx", isExpired: false },
 });
 
 describe("driverController.createDriver — contrôle d'accès à la publication", () => {
@@ -34,7 +35,7 @@ describe("driverController.createDriver — contrôle d'accès à la publication
   });
 
   it("autorise un Founding Partner sans KYC ni certification", async () => {
-    const founder = await createUser({ role: "partenaire", isFounder: true, sellerType: "particulier", ...validDriverDocs() });
+    const founder = await createUser({ role: "partenaire", isFounder: true, sellerType: "particulier" });
     const { req, res } = mockReqRes({ user: founder, body: minimalDriver() });
     await createDriver(req, res);
 
@@ -73,40 +74,38 @@ describe("driverController.createDriver — contrôle d'accès à la publication
     expect(res.body.code).toBe("CERTIFICATION_REQUIRED");
   });
 
-  it("accepte une pièce d'identité de type carte_sejour ou permis, pas seulement CNI/passeport (bug réel corrigé)", async () => {
-    // Avant correctif, missingDriverDocs() ne reconnaissait que identity.type
-    // "cni"/"passport" — un chauffeur ayant soumis un titre de séjour (type
-    // valide et vérifiable dans le même circuit KYC, voir User.identity enum)
-    // restait bloqué en DRIVER_DOCS_REQUIRED indéfiniment, même vérifié par l'admin.
-    for (const identityType of ["carte_sejour", "permis"]) {
-      const seller = await createUser({
-        role: "partenaire", sellerType: "particulier", kycStatus: "VERIFIE",
-        identity: { type: identityType, status: "verified" },
-        driverLicenseOcr: { licenseNumber: "LIC12345", frontImage: "data:image/jpeg;base64,xx", isExpired: false },
-      });
-      const { req, res } = mockReqRes({ user: seller, body: minimalDriver() });
-      await createDriver(req, res);
-
-      expect(res.status).not.toHaveBeenCalledWith(403);
-      expect(res.body.driver.status).toBe("pending");
-    }
-  });
-
-  it("bloque toujours une pièce d'identité non vérifiée (status pending) même de type valide", async () => {
-    const seller = await createUser({
-      role: "partenaire", sellerType: "particulier", kycStatus: "VERIFIE",
-      identity: { type: "cni", status: "pending" },
-      driverLicenseOcr: { licenseNumber: "LIC12345", frontImage: "data:image/jpeg;base64,xx", isExpired: false },
-    });
-    const { req, res } = mockReqRes({ user: seller, body: minimalDriver() });
+  it("refuse de publier sans pièce d'identité jointe (DRIVER_DOCS_REQUIRED)", async () => {
+    const founder = await createUser({ role: "partenaire", isFounder: true });
+    const { req, res } = mockReqRes({ user: founder, body: minimalDriver({ identityDocument: undefined }) });
     await createDriver(req, res);
 
-    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.status).toHaveBeenCalledWith(400);
     expect(res.body.code).toBe("DRIVER_DOCS_REQUIRED");
   });
 
+  it("refuse de publier sans permis de conduire joint (DRIVER_DOCS_REQUIRED)", async () => {
+    const founder = await createUser({ role: "partenaire", isFounder: true });
+    const { req, res } = mockReqRes({ user: founder, body: minimalDriver({ licenseDocument: undefined }) });
+    await createDriver(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.body.code).toBe("DRIVER_DOCS_REQUIRED");
+  });
+
+  it("accepte le profil dès que les documents sont joints — jamais besoin d'une vérification admin préalable (restructuration 2026-09)", async () => {
+    const founder = await createUser({ role: "partenaire", isFounder: true });
+    const { req, res } = mockReqRes({ user: founder, body: minimalDriver() });
+    await createDriver(req, res);
+
+    expect(res.status).not.toHaveBeenCalledWith(403);
+    expect(res.body.driver.status).toBe("pending");
+    const saved = await Driver.findById(res.body.driver._id);
+    expect(saved.identityDocument.frontImage).toBeTruthy();
+    expect(saved.licenseDocument.frontImage).toBeTruthy();
+  });
+
   it("les champs serveur (owner, status, country) ne sont jamais pris depuis req.body", async () => {
-    const founder = await createUser({ role: "partenaire", isFounder: true, country: "CI", ...validDriverDocs() });
+    const founder = await createUser({ role: "partenaire", isFounder: true, country: "CI" });
     const intruderId = (await createUser())._id.toString();
     const { req, res } = mockReqRes({
       user: founder,

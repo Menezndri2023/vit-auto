@@ -291,6 +291,17 @@ const VendorSubmit = () => {
   const [driverCv, setDriverCv] = useState(null);
   const [driverCvName, setDriverCvName] = useState("");
 
+  // Pièce d'identité + permis du chauffeur (restructuration 2026-09, même
+  // principe que la réservation client) : joints directement à la création du
+  // profil — remplace l'ancien aller-retour bloquant par /kyc (voir
+  // driverController.processDriverDocuments). Le profil part quand même en
+  // modération standard (Driver.status "pending") avant d'être public.
+  const [driverIdType, setDriverIdType] = useState("cni");
+  const [driverIdFront, setDriverIdFront] = useState(null);
+  const [driverIdBack, setDriverIdBack] = useState(null);
+  const [driverLicenseFront, setDriverLicenseFront] = useState(null);
+  const [driverLicenseBack, setDriverLicenseBack] = useState(null);
+
   const [errors, setErrors] = useState({});
 
   // ── Brouillon (sauvegarde automatique) ──────────────────────────────────
@@ -550,6 +561,17 @@ const VendorSubmit = () => {
     reader.readAsDataURL(file);
   };
 
+  // ── Pièce d'identité / permis chauffeur (restructuration 2026-09) ────────
+  const handleDriverDocFile = (e, setter) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { error("Format non autorisé. Utilisez JPG, PNG ou WebP."); return; }
+    if (file.size > 6 * 1024 * 1024) { error("Fichier trop volumineux (max 6 Mo)."); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => setter(ev.target.result);
+    reader.readAsDataURL(file);
+  };
+
   const handleDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
@@ -603,6 +625,8 @@ const VendorSubmit = () => {
       if (adType === "chauffeur") {
         if (!driverProfilePhoto) e.driverProfilePhoto = "Photo de profil du chauffeur requise";
         if (!driverCv) e.driverCv = "CV requis (PDF ou image)";
+        if (!driverIdFront) e.driverIdFront = "Pièce d'identité (recto) requise";
+        if (!driverLicenseFront) e.driverLicenseFront = "Permis de conduire (recto) requis";
         if (driver.vehiculePersonnel && photos.length === 0)
           e.photos = "Au moins 1 photo du véhicule est requise (chauffeur avec véhicule)";
       } else if (photos.length === 0) {
@@ -666,6 +690,8 @@ const VendorSubmit = () => {
             ...contactInfo,
             profilePhoto: driverProfilePhoto,
             cv: driverCv,
+            identityDocument: { type: driverIdType, frontImage: driverIdFront, backImage: driverIdBack || undefined },
+            licenseDocument: { frontImage: driverLicenseFront, backImage: driverLicenseBack || undefined },
             // Photos véhicule uniquement si "avec véhicule" — sinon rien à photographier.
             images: driver.vehiculePersonnel ? imageUrls : [],
             // Montant exact tel que tapé (voir Driver.js tarifEntered — même
@@ -696,27 +722,18 @@ const VendorSubmit = () => {
           return;
         } else {
           const data = await res.json().catch(() => null);
-          if (data?.code === "KYC_REQUIRED" || data?.code === "DRIVER_DOCS_REQUIRED") {
-            error(data?.message || "Vérifiez votre identité et votre permis de conduire pour publier votre annonce. Redirection…");
-            // Bug réel corrigé (audit) : KYC.jsx n'affiche l'étape "permis de
-            // conduire" que si user.activity==="chauffeur" OU ?next=driver-docs
-            // est présent dans l'URL. Un partenaire dont l'activité principale
-            // enregistrée n'est pas "chauffeur" (ex. déjà partenaire location/
-            // vente qui publie AUSSI une annonce chauffeur) atterrissait donc
-            // sur un KYC identité seul, sans aucun moyen d'uploader son permis
-            // — bloqué indéfiniment par missingDriverDocs côté serveur
-            // (driverController.js) sans jamais pouvoir créer son profil
-            // chauffeur, malgré une redirection "pour le guider".
-            //
-            // Bug réel confirmé (base réelle, 2026-08-02) : quand l'identité
-            // nécessite une revue manuelle admin (cas courant), le partenaire
-            // quitte KYC.jsx en attente puis revient PLUS TARD sans ce
-            // paramètre d'URL (perdu dès qu'il navigue ailleurs) — l'étape
-            // "Permis de conduire" ne réapparaît alors jamais, malgré une
-            // identité désormais vérifiée. Flag localStorage posé ici, lu par
-            // KYC.jsx en plus du paramètre d'URL, pour survivre à l'attente.
+          if (data?.code === "KYC_REQUIRED") {
+            // Gate général partenaire "particulier" (compte jamais vérifié du
+            // tout, hors sujet chauffeur) — inchangé, redirige vers /kyc.
+            error(data?.message || "Vérifiez votre identité pour publier votre annonce. Redirection…");
             try { localStorage.setItem(DRIVER_INTENT_KEY, "1"); } catch { /* ignore */ }
             setTimeout(() => navigate("/kyc?next=driver-docs"), 1500);
+          } else if (data?.code === "DRIVER_DOCS_REQUIRED") {
+            // Restructuration réservation 2026-09 : la pièce d'identité et le
+            // permis se joignent désormais directement à CE formulaire (voir
+            // driverIdFront/driverLicenseFront ci-dessus) — plus de redirection
+            // vers /kyc, juste un message pour corriger l'étape 6 ci-dessus.
+            error(data?.message || "Ajoutez votre pièce d'identité et votre permis de conduire ci-dessus pour publier votre annonce.");
           } else if (data?.code === "CERTIFICATION_REQUIRED") {
             // Bug réel corrigé (audit) : redirigeait vers /partner-onboarding,
             // le portail Founding Partner (5 étapes lourdes dont signature LOI
@@ -1618,6 +1635,51 @@ const VendorSubmit = () => {
                     <input type="file" accept="application/pdf,image/*" style={{ display: "none" }} onChange={handleCvFile} />
                   </label>
                   {driverCvName && <span className={styles.hint} style={{ margin: 0 }}>{driverCvName}</span>}
+                </div>
+              </div>
+            )}
+
+            {/* Restructuration réservation 2026-09 : pièce d'identité + permis
+                joints directement ici, à la publication du profil — remplace
+                l'ancien aller-retour bloquant par /kyc (voir
+                driverController.processDriverDocuments). Aucun OCR, aucune
+                revue manuelle bloquante : le profil part en modération
+                standard (admin le vérifie avant de le rendre public). */}
+            {isDriverMode && (
+              <div className={styles.field} style={{ marginBottom: "1.25rem" }}>
+                <label>Pièce d'identité *</label>
+                {errors.driverIdFront && <span className={styles.err}>{errors.driverIdFront}</span>}
+                <select className={styles.input} value={driverIdType} onChange={(e) => setDriverIdType(e.target.value)} style={{ margin: "0.5rem 0" }}>
+                  <option value="cni">Carte d'identité</option>
+                  <option value="passport">Passeport</option>
+                  <option value="carte_sejour">Carte de séjour</option>
+                </select>
+                <div style={{ display: "flex", gap: "1rem" }}>
+                  <label style={{ flex: 1, cursor: "pointer", border: "1.5px dashed #cbd5e1", borderRadius: 10, padding: 14, textAlign: "center", fontSize: "0.85rem" }}>
+                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleDriverDocFile(e, setDriverIdFront)} />
+                    {driverIdFront ? <img src={driverIdFront} alt="" style={{ maxHeight: 90, borderRadius: 8 }} /> : <span>Ajouter le recto</span>}
+                  </label>
+                  <label style={{ flex: 1, cursor: "pointer", border: "1.5px dashed #cbd5e1", borderRadius: 10, padding: 14, textAlign: "center", fontSize: "0.85rem" }}>
+                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleDriverDocFile(e, setDriverIdBack)} />
+                    {driverIdBack ? <img src={driverIdBack} alt="" style={{ maxHeight: 90, borderRadius: 8 }} /> : <span>Ajouter le verso (optionnel)</span>}
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {isDriverMode && (
+              <div className={styles.field} style={{ marginBottom: "1.25rem" }}>
+                <label>Permis de conduire *</label>
+                {errors.driverLicenseFront && <span className={styles.err}>{errors.driverLicenseFront}</span>}
+                <div style={{ display: "flex", gap: "1rem" }}>
+                  <label style={{ flex: 1, cursor: "pointer", border: "1.5px dashed #cbd5e1", borderRadius: 10, padding: 14, textAlign: "center", fontSize: "0.85rem" }}>
+                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleDriverDocFile(e, setDriverLicenseFront)} />
+                    {driverLicenseFront ? <img src={driverLicenseFront} alt="" style={{ maxHeight: 90, borderRadius: 8 }} /> : <span>Ajouter le recto</span>}
+                  </label>
+                  <label style={{ flex: 1, cursor: "pointer", border: "1.5px dashed #cbd5e1", borderRadius: 10, padding: 14, textAlign: "center", fontSize: "0.85rem" }}>
+                    <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleDriverDocFile(e, setDriverLicenseBack)} />
+                    {driverLicenseBack ? <img src={driverLicenseBack} alt="" style={{ maxHeight: 90, borderRadius: 8 }} /> : <span>Ajouter le verso (optionnel)</span>}
+                  </label>
                 </div>
               </div>
             )}

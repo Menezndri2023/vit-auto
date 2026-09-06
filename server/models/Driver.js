@@ -125,6 +125,25 @@ const driverSchema = new mongoose.Schema({
     default: [],
   },
 
+  // ── Documents chauffeur (restructuration 2026-09) ──────────
+  // Remplace l'ancien mur bloquant (missingDriverDocs exigeait un
+  // User.identity/driverLicenseOcr déjà VÉRIFIÉ par un admin via /kyc avant
+  // même de pouvoir créer le profil — allers-retours réels documentés dans
+  // VendorSubmit.jsx). Le chauffeur joint désormais sa pièce d'identité et son
+  // permis directement à LA CRÉATION de son profil (comme un client joint son
+  // document à une réservation) : aucun OCR, aucune revue manuelle bloquante —
+  // le profil part en modération standard (`status: "pending"`, voir plus
+  // bas), l'admin voit ces documents au moment d'approuver la fiche publique.
+  identityDocument: {
+    type:       { type: String, enum: ["cni", "passport", "permis", "carte_sejour", null], default: null },
+    frontImage: { type: String, default: null },
+    backImage:  { type: String, default: null },
+  },
+  licenseDocument: {
+    frontImage: { type: String, default: null },
+    backImage:  { type: String, default: null },
+  },
+
   // ── Modération ────────────────────────────────────────────
   // "archived" : profil retiré du catalogue public sans le supprimer — utilisé
   // quand le compte propriétaire est supprimé par un admin (voir

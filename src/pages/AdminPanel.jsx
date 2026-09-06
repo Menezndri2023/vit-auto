@@ -6658,7 +6658,7 @@ export default function AdminPanel() {
               <div className={styles.tableWrap}>
                 <table className={styles.table}>
                   <thead>
-                    <tr><th>Chauffeur</th><th>Disponibilité</th><th>Tarif</th><th>Zone</th><th>Soumis le</th><th>Actions</th></tr>
+                    <tr><th>Chauffeur</th><th>Disponibilité</th><th>Tarif</th><th>Zone</th><th>Documents</th><th>Soumis le</th><th>Actions</th></tr>
                   </thead>
                   <tbody>
                     {pendingDriversList.map((d) => (
@@ -6675,6 +6675,20 @@ export default function AdminPanel() {
                         <td><Badge label={d.disponibilite||"—"} color="#8b5cf6" bg="#f5f3ff" /></td>
                         <td className={styles.tdPrice}>{d.tarif?`${fmtUSD(d.tarif)}/j`:"—"}</td>
                         <td style={{ fontSize:"0.85rem", color:"#64748b" }}>{d.zone||d.ville||"—"}</td>
+                        <td>
+                          {/* Restructuration réservation 2026-09 : documents joints
+                              directement à la création du profil (voir driverController.
+                              processDriverDocuments), à vérifier ici avant validation —
+                              remplace l'ancien circuit KYC bloquant séparé. */}
+                          <div style={{ display:"flex", gap:4 }}>
+                            {d.identityDocument?.frontImage
+                              ? <a href={d.identityDocument.frontImage} target="_blank" rel="noopener noreferrer" title="Pièce d'identité"><img src={d.identityDocument.frontImage} alt="Identité" style={{ width:32, height:32, objectFit:"cover", borderRadius:6, border:"1px solid #e2e8f0" }} /></a>
+                              : <span style={{ fontSize:"0.75rem", color:"#dc2626" }}>Identité ✕</span>}
+                            {d.licenseDocument?.frontImage
+                              ? <a href={d.licenseDocument.frontImage} target="_blank" rel="noopener noreferrer" title="Permis de conduire"><img src={d.licenseDocument.frontImage} alt="Permis" style={{ width:32, height:32, objectFit:"cover", borderRadius:6, border:"1px solid #e2e8f0" }} /></a>
+                              : <span style={{ fontSize:"0.75rem", color:"#dc2626" }}>Permis ✕</span>}
+                          </div>
+                        </td>
                         <td className={styles.tdDate}>{fmtDate(d.createdAt)}</td>
                         <td>
                           <div className={styles.actionBtns}>

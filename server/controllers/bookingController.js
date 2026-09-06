@@ -594,6 +594,19 @@ export const createBooking = async (req, res) => {
       if (!driverId) return res.status(400).json({ message: "driverId requis." });
       driver = await Driver.findById(driverId);
       if (!driver) return res.status(404).json({ message: "Chauffeur introuvable." });
+
+      // ── Éligibilité — même principe que la location (Booking Engine —
+      // Éligibilité, 2026-09) : un chauffeur professionnel conduit à la place
+      // du client, exactement comme une location "avec chauffeur" — identité
+      // exigée, jamais de permis (voir eligibilityEngine.js, withDriver:true).
+      const chauffeurEligibility = evaluateEligibility({
+        user: req.user, vehicle: { withDriver: true },
+        bookingType: "chauffeur", providedDocuments: docsResult.providedDocuments,
+      });
+      if (!chauffeurEligibility.eligible) {
+        const failure = ELIGIBILITY_MESSAGES[chauffeurEligibility.reasons[0]];
+        return res.status(403).json({ message: failure.message, code: failure.code });
+      }
       // `tarif` est le tarif JOURNÉE (voir VendorSubmit.jsx), `tarifHeure` le tarif
       // HORAIRE — utiliser le second pour une facturation à l'heure, sinon on
       // surfacture massivement (ex: tarif journée × nombre d'heures).

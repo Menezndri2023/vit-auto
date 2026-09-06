@@ -71,15 +71,18 @@ export function evaluateEligibility({
   }
 
   // ── Niveau 2 — pièce d'identité ────────────────────────────────────────────
-  // Toute location exige une pièce d'identité (CNI/passeport), quelle que soit
-  // la politique du partenaire — règle produit 2026-09 (restructuration
-  // réservation). Les autres types (essai, leasing, activité, chauffeur)
-  // gardent l'ancien déclenchement, opt-in par véhicule/politique.
+  // Toute location ET tout essai exigent une pièce d'identité (CNI/passeport),
+  // quelle que soit la politique du partenaire — règle produit 2026-09
+  // (restructuration réservation). Un essai reste en plus toujours revu
+  // manuellement par un admin avant transmission au partenaire, jamais par le
+  // score de fraude automatique (voir queue/workers/ai.worker.js). Les autres
+  // types (leasing, activité, chauffeur) gardent l'ancien déclenchement,
+  // opt-in par véhicule/politique.
   const identityRequired =
     vehicle?.requiredVerificationLevel === "IDENTITY_VERIFIED" ||
     vehicle?.requiredVerificationLevel === "RENTAL_VERIFIED" ||
     rentalPolicy?.identityDocumentRequired === true ||
-    bookingType === "location";
+    bookingType === "location" || bookingType === "essai" || bookingType === "chauffeur";
   if (identityRequired) {
     requiredVerification.identityDocument = true;
     const satisfied = user?.kycStatus === "VERIFIE" || providedDocuments?.identity === true;
@@ -87,16 +90,18 @@ export function evaluateEligibility({
   }
 
   // ── Niveau 3 — permis de conduire ──────────────────────────────────────────
-  // Location sans chauffeur : permis exigé, comme la pièce d'identité
-  // ci-dessus. Location AVEC chauffeur (Vehicle.withDriver) : le client ne
-  // conduit pas, jamais de permis à fournir, quelle que soit la politique
-  // partenaire — règle produit 2026-09.
-  const licenseRequired = vehicle?.withDriver
+  // Location sans chauffeur ET essai : permis exigé, comme la pièce d'identité
+  // ci-dessus (un essai est toujours conduit par le client lui-même, jamais par
+  // un chauffeur — Vehicle.withDriver ne s'applique pas à un essai). Location
+  // AVEC chauffeur : le client ne conduit pas, jamais de permis à fournir,
+  // quelle que soit la politique partenaire — règle produit 2026-09.
+  const licenseRequired = (vehicle?.withDriver && bookingType !== "essai")
     ? false
     : (
       vehicle?.requiredVerificationLevel === "RENTAL_VERIFIED" ||
       (rentalPolicy?.drivingLicenseRequired === true && vehicle?.permisRequis !== false) ||
-      (bookingType === "location" && vehicle?.permisRequis !== false)
+      (bookingType === "location" && vehicle?.permisRequis !== false) ||
+      bookingType === "essai"
     );
   if (licenseRequired) {
     requiredVerification.drivingLicense = true;

@@ -29,11 +29,32 @@ const DriverBooking = () => {
 
   const driver = getItemById(id);
 
+  const identitySatisfied = user?.kycStatus === "VERIFIE" || !!idFrontImage;
+
+  const readImageFile = (file, setter) => {
+    if (!file) return;
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowed.includes(file.type)) { setDocError("Format non autorisé. Utilisez JPG, PNG ou WebP."); return; }
+    if (file.size > 6 * 1024 * 1024) { setDocError("Fichier trop volumineux (max 6 Mo)."); return; }
+    setDocError("");
+    const reader = new FileReader();
+    reader.onload = (e) => setter(e.target.result);
+    reader.readAsDataURL(file);
+  };
+
   const [firstName, setFirstName] = useState(user?.firstName || "");
   const [lastName,  setLastName]  = useState(user?.lastName  || "");
   const [email,     setEmail]     = useState(user?.email     || "");
   const [phone,     setPhone]     = useState(user?.phone     || "");
-  const [passportNumber, setPassportNumber] = useState("");
+  // Documents liés à LA RÉSERVATION (restructuration 2026-09, même principe
+  // que Booking.jsx) : un chauffeur professionnel conduit à la place du
+  // client — seule la pièce d'identité est demandée, jamais de permis
+  // (voir eligibilityEngine.js, bookingType "chauffeur" avec withDriver:true).
+  // Demandée en dernière étape, pour conclure la réservation.
+  const [idType, setIdType] = useState("cni");
+  const [idFrontImage, setIdFrontImage] = useState(null);
+  const [idBackImage, setIdBackImage] = useState(null);
+  const [docError, setDocError] = useState("");
   const [missionDate, setMissionDate] = useState("");
   const [missionTime, setMissionTime] = useState("");
   const [lieuDepart,  setLieuDepart]  = useState("");
@@ -114,8 +135,8 @@ const DriverBooking = () => {
       error("Veuillez remplir toutes vos informations.");
       return;
     }
-    if (!passportNumber.trim()) {
-      error("Le numéro de passeport est obligatoire.");
+    if (!identitySatisfied) {
+      error("Veuillez ajouter votre pièce d'identité pour conclure la réservation.");
       return;
     }
     if (!missionStart) {
@@ -154,7 +175,8 @@ const DriverBooking = () => {
         body: JSON.stringify({
           type: "chauffeur",
           driverId: id,
-          clientInfo: { firstName, lastName, email, phone, passportNumber },
+          clientInfo: { firstName, lastName, email, phone },
+          ...(idFrontImage ? { documents: { identity: { type: idType, frontImage: idFrontImage, backImage: idBackImage || undefined } } } : {}),
           chauffeur: { date: missionStart.toISOString(), heures: Number(heures), lieuDepart: lieuDepart.trim() || undefined },
           payment: {
             method: selectedMethod,
@@ -240,13 +262,17 @@ const DriverBooking = () => {
       {/* Badges de vérification — booléens calculés côté serveur (getDrivers),
           jamais les documents/images bruts (identité, permis) qui restent
           strictement privés et visibles uniquement par l'admin. */}
-      {(driver.identityVerified || driver.licenseVerified || driver.cv) && (
+      {(driver.identityVerified || driver.licenseVerified || driver.identityProvided || driver.licenseProvided || driver.cv) && (
         <div className={dbStyles.badges}>
-          {driver.identityVerified && (
+          {driver.identityVerified ? (
             <span className={dbStyles.badgeVerified}>✓ Identité vérifiée</span>
+          ) : driver.identityProvided && (
+            <span className={dbStyles.badgeVerified}>📄 Identité fournie</span>
           )}
-          {driver.licenseVerified && (
+          {driver.licenseVerified ? (
             <span className={dbStyles.badgeVerified}>✓ Permis vérifié</span>
+          ) : driver.licenseProvided && (
+            <span className={dbStyles.badgeVerified}>📄 Permis fourni</span>
           )}
           {driver.cv && (
             <a href={driver.cv} target="_blank" rel="noopener noreferrer" className={dbStyles.badgeCv}>
@@ -284,7 +310,6 @@ const DriverBooking = () => {
         <input className={styles.input} placeholder="Nom *" value={lastName} onChange={(e) => setLastName(e.target.value)} />
         <input className={styles.input} type="email" placeholder="E-mail *" value={email} onChange={(e) => setEmail(e.target.value)} />
         <input className={styles.input} type="tel" placeholder="Téléphone *" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        <input className={`${styles.input} ${dbStyles.fieldFull}`} placeholder="N° de passeport *" value={passportNumber} onChange={(e) => setPassportNumber(e.target.value)} />
       </div>
 
       {/* Date, heure & durée */}
@@ -376,6 +401,37 @@ const DriverBooking = () => {
         </div>
       )}
 
+      {/* Document lié à LA RÉSERVATION (restructuration 2026-09) — demandé ici,
+          en dernière étape, pour conclure la réservation. Transmis directement
+          au chauffeur/partenaire, conservé pour l'admin en cas de litige. */}
+      <h2 className={dbStyles.sectionTitle}>📄 Votre pièce d'identité</h2>
+      {user?.kycStatus === "VERIFIE" ? (
+        <p style={{ fontSize: "0.85rem", color: "#059669", margin: "0 0 12px" }}>✅ Identité déjà vérifiée sur votre compte.</p>
+      ) : (
+        <>
+          <div className={dbStyles.formGrid2}>
+            <select className={styles.input} value={idType} onChange={(e) => setIdType(e.target.value)}>
+              <option value="cni">Carte d'identité</option>
+              <option value="passport">Passeport</option>
+              <option value="carte_sejour">Carte de séjour</option>
+            </select>
+          </div>
+          <div className={dbStyles.formGrid2}>
+            <label style={{ cursor: "pointer", border: "1.5px dashed #cbd5e1", borderRadius: 10, padding: 14, textAlign: "center", fontSize: "0.85rem" }}>
+              <input type="file" accept="image/*" capture="environment" style={{ display: "none" }}
+                onChange={(e) => readImageFile(e.target.files?.[0], setIdFrontImage)} />
+              {idFrontImage ? <img src={idFrontImage} alt="" style={{ maxHeight: 90, borderRadius: 8 }} /> : <span>Ajouter le recto</span>}
+            </label>
+            <label style={{ cursor: "pointer", border: "1.5px dashed #cbd5e1", borderRadius: 10, padding: 14, textAlign: "center", fontSize: "0.85rem" }}>
+              <input type="file" accept="image/*" capture="environment" style={{ display: "none" }}
+                onChange={(e) => readImageFile(e.target.files?.[0], setIdBackImage)} />
+              {idBackImage ? <img src={idBackImage} alt="" style={{ maxHeight: 90, borderRadius: 8 }} /> : <span>Ajouter le verso (optionnel)</span>}
+            </label>
+          </div>
+          {docError && <p style={{ color: "#dc2626", fontSize: "0.85rem" }}>⚠️ {docError}</p>}
+        </>
+      )}
+
       {/* Total + confirmation */}
       <div className={dbStyles.totalBar}>
         <span className={dbStyles.totalLabel}>Total estimé</span>
@@ -384,7 +440,7 @@ const DriverBooking = () => {
         </strong>
       </div>
 
-      <button onClick={handleSubmit} disabled={submitting || !missionStart || !!slotConflict || !hasHourlyRate}
+      <button onClick={handleSubmit} disabled={submitting || !missionStart || !!slotConflict || !hasHourlyRate || !identitySatisfied}
         className={dbStyles.submitBtn}>
         {submitting ? "Envoi en cours…" : "Employer ce chauffeur"}
       </button>
