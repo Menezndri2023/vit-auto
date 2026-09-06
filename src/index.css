@@ -135,6 +135,26 @@ body {
   padding-top: var(--safe-top);
 }
 
+/* ── Base RTL (arabe) ──────────────────────────────────────────────────────
+   I18nContext.jsx pose déjà `dir="rtl"` sur <html> quand la langue est
+   l'arabe, mais aucune règle CSS ne s'appuyait dessus jusqu'ici — le texte
+   arabe s'affichait dans une mise en page pensée pour LTR (marges/paddings
+   asymétriques figés à gauche, texte aligné à gauche par défaut). Ceci pose
+   une base globale saine (texte aligné dans le sens de lecture par défaut) ;
+   ça ne corrige PAS individuellement les ~47 fichiers CSS de composants qui
+   fixent une marge/un padding/un alignement en dur à gauche OU à droite —
+   un vrai audit visuel (que je ne peux pas faire sans navigateur) reste
+   nécessaire composant par composant pour aller plus loin proprement.
+*/
+[dir="rtl"] body {
+  text-align: right;
+}
+[dir="rtl"] input,
+[dir="rtl"] textarea,
+[dir="rtl"] select {
+  text-align: right;
+}
+
 /* ── Typographie de base ────────────────────────────────────── */
 h1, h2, h3, h4, h5, h6 {
   font-weight: var(--fw-bold);

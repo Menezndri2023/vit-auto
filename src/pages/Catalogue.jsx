@@ -9,16 +9,17 @@ import { useToast } from "../context/ToastContext";
 import { haversineKm, getCurrentPosition } from "../utils/geo";
 import { getCountryFlag } from "../data/autocomplete";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "../constants/activityTypes";
+import { useI18n } from "../context/I18nContext";
 
 const MODES = [
-  { key: "Tout",      icon: "⚡", label: "Tout"         },
-  { key: "Louer",     icon: "🔑", label: "Location"     },
-  { key: "Acheter",   icon: "💰", label: "Achat"        },
-  { key: "Chauffeur", icon: "👨‍✈️", label: "Chauffeur"   },
-  { key: "Import",    icon: "🌍", label: "Import/Export" },
+  { key: "Tout",      icon: "⚡", label: "catalogue.all" },
+  { key: "Louer",     icon: "🔑", label: "catalogue.rent" },
+  { key: "Acheter",   icon: "💰", label: "catalogue.modeBuy" },
+  { key: "Chauffeur", icon: "👨‍✈️", label: "catalogue.modeDriver" },
+  { key: "Import",    icon: "🌍", label: "catalogue.modeImportExport" },
   // Section OTHERS — activités culturelles/loisir (Quad, Surf, Montgolfière,
   // Jetski, Jet privé, Bateau...) — voir Activity.js/activityController.js.
-  { key: "Autres",    icon: "🎈", label: "Activités et Loisirs" },
+  { key: "Autres",    icon: "🎈", label: "catalogue.modeActivities" },
 ];
 
 const ACTIVITY_TYPE_PILLS = ["Tous", ...ACTIVITY_TYPES];
@@ -29,30 +30,41 @@ const TYPE_ICONS = {
   "Pick-up": "🛻", "Cabriolet": "🚗", "Utilitaire": "📦", "Minibus": "🚌",
 };
 
+// Valeurs de filtre = valeurs réelles stockées (v.vehicleType, v.etat...) —
+// ne jamais traduire la VALEUR (casserait les comparaisons), seulement son
+// libellé affiché via ce lookup.
+const TYPE_LABEL_KEYS = {
+  "Tous": "catalogue.filterAllShort", "SUV": "catalogue.typeSuv", "Berline": "catalogue.typeSedan",
+  "Viano": "catalogue.typeVan", "Monospace": "catalogue.typeMinivan", "Citadine": "catalogue.typeCitycar",
+  "4x4": "catalogue.type4x4", "Sportif": "catalogue.typeSport", "Pick-up": "catalogue.typePickup",
+  "Cabriolet": "catalogue.typeConvertible", "Utilitaire": "catalogue.typeUtility", "Minibus": "catalogue.typeMinibus",
+};
+
 const IE_SOURCE_ZONES = [
-  { key: "",       label: "Tous pays" },
-  { key: "Chine",  label: "🇨🇳 Chine" },
-  { key: "Dubaï",  label: "🇦🇪 Dubaï / EAU" },
-  { key: "France", label: "🇫🇷 France" },
-  { key: "Europe", label: "🇪🇺 Europe" },
+  { key: "",       label: "catalogue.allCountries" },
+  { key: "Chine",  label: "catalogue.zoneChina" },
+  { key: "Dubaï",  label: "catalogue.zoneDubai" },
+  { key: "France", label: "catalogue.zoneFrance" },
+  { key: "Europe", label: "catalogue.zoneEurope" },
 ];
 
 const IE_SORT = [
-  { key: "newest",     label: "Plus récentes" },
-  { key: "price_asc",  label: "Prix croissant" },
-  { key: "price_desc", label: "Prix décroissant" },
+  { key: "newest",     label: "catalogue.sortNewestIe" },
+  { key: "price_asc",  label: "catalogue.sortPriceAsc" },
+  { key: "price_desc", label: "catalogue.sortPriceDesc" },
 ];
 
 const FUEL_LABELS = {
-  essence: "Essence", diesel: "Diesel", hybride: "Hybride",
-  hybride_rechargeable: "Hybride rech.", electrique: "Électrique",
-  gpl: "GPL", autre: "Autre",
+  essence: "catalogue.fuelGasoline", diesel: "catalogue.fuelDiesel", hybride: "catalogue.fuelHybrid",
+  hybride_rechargeable: "catalogue.fuelPluginHybrid", electrique: "catalogue.fuelElectric",
+  gpl: "catalogue.fuelLpg", autre: "catalogue.fuelOther",
 };
 
 const BADGE_ICONS_MAP = { silver: "🥈", gold: "🥇", platinum: "💎" };
 
 /* ── Carte Import/Export ── */
 function IECard({ l }) {
+  const { t } = useI18n();
   return (
     <div className={styles.ieCard}>
       <div className={styles.ieCardImg}>
@@ -61,7 +73,7 @@ function IECard({ l }) {
           : <div className={styles.ieCardImgFallback}>🚗</div>
         }
         <div className={styles.ieCardOrigin}>{getCountryFlag(l.sourceCountry)} {l.sourceCountry}</div>
-        <div className={styles.ieCardTypeBadge}>🌍 Import/Export</div>
+        <div className={styles.ieCardTypeBadge}>🌍 {t("catalogue.ieBadge")}</div>
         {l.incoterm && (
           <div className={styles.ieCardIncoterm}>📦 {l.incoterm}</div>
         )}
@@ -75,7 +87,7 @@ function IECard({ l }) {
       <div className={styles.ieCardBody}>
         <strong className={styles.ieCardTitle}>{l.title}</strong>
         <span className={styles.ieCardMeta}>
-          {l.make} {l.model} {l.year} · {FUEL_LABELS[l.fuelType] || l.fuelType} · {l.condition === "neuf" ? "Neuf" : l.condition === "occasion" ? "Occasion" : "Reconditionné"}
+          {l.make} {l.model} {l.year} · {FUEL_LABELS[l.fuelType] ? t(FUEL_LABELS[l.fuelType]) : l.fuelType} · {l.condition === "neuf" ? t("catalogue.conditionNew") : l.condition === "occasion" ? t("catalogue.conditionUsed") : t("catalogue.conditionRefurbished")}
         </span>
 
         {l.availableIn?.length > 0 && (
@@ -94,9 +106,9 @@ function IECard({ l }) {
         <div className={styles.ieCardFooter}>
           <div>
             <div className={styles.ieCardPrice}><PriceTag amount={l.price} sourceCurrency={l.currency} compact /></div>
-            {l.negotiable && <span className={styles.ieCardNeg}>Négociable</span>}
+            {l.negotiable && <span className={styles.ieCardNeg}>{t("catalogue.negotiable")}</span>}
           </div>
-          <Link to="/import-export/listings" className={styles.ieCardLink}>Voir →</Link>
+          <Link to="/import-export/listings" className={styles.ieCardLink}>{t("catalogue.viewMore")}</Link>
         </div>
       </div>
     </div>
@@ -105,6 +117,7 @@ function IECard({ l }) {
 
 /* ── Carte Chauffeur ── */
 function DriverCard({ d }) {
+  const { t } = useI18n();
   // Priorité à l'unité réellement renseignée — afficher un tarif jour avec un
   // suffixe "/h" (bug précédent : tarifHeure||tarif sans jamais changer le
   // libellé) induisait le client en erreur sur le prix réel du service.
@@ -127,14 +140,14 @@ function DriverCard({ d }) {
       <div className={styles.ieCardBody}>
         <strong className={styles.ieCardTitle}>{d.firstName} {d.lastName}</strong>
         <span className={styles.ieCardMeta}>
-          {d.title || "Chauffeur professionnel"} · {d.experience || 0} ans d'expérience
+          {d.title || t("catalogue.driverDefaultTitle")} · {t("catalogue.driverExperience", { n: d.experience || 0 })}
         </span>
         <span className={styles.ieCardMeta}>
           📍 {d.zone || d.ville || "—"}
           {d.noteMoyenne > 0 && <> · ⭐ {d.noteMoyenne.toFixed(1)} ({d.nombreAvis || 0})</>}
         </span>
         <span className={styles.ieCardMeta}>
-          {d.vehiculePersonnel ? `🚗 Avec véhicule${d.typeVehicule ? ` (${d.typeVehicule})` : ""}` : "🚶 Sans véhicule"}
+          {d.vehiculePersonnel ? t("catalogue.driverWithVehicle", { type: d.typeVehicule ? ` (${d.typeVehicule})` : "" }) : t("catalogue.driverNoVehicle")}
         </span>
         {d.langues?.length > 0 && (
           <span className={styles.ieCardMeta}>💬 {d.langues.join(", ")}</span>
@@ -144,10 +157,10 @@ function DriverCard({ d }) {
             <div className={styles.ieCardPrice}>
               {priceUnit
                 ? <PriceTag amountUSD={priceUnit.amount} pinnedCurrency={d.currency} enteredAmount={priceUnit.entered} enteredCurrency={d.priceEntryCurrency} suffix={priceUnit.suffix} />
-                : "Sur devis"}
+                : t("catalogue.priceOnRequest")}
             </div>
           </div>
-          <Link to={`/driver-booking/${d._id}`} className={styles.ieCardLink}>Employer →</Link>
+          <Link to={`/driver-booking/${d._id}`} className={styles.ieCardLink}>{t("catalogue.hireDriver")}</Link>
         </div>
       </div>
     </div>
@@ -156,7 +169,8 @@ function DriverCard({ d }) {
 
 /* ── Carte Activité (section OTHERS) ── */
 function ActivityCard({ a }) {
-  const suffix = a.priceUnit === "per_session" ? " / sortie" : " / pers.";
+  const { t } = useI18n();
+  const suffix = t(a.priceUnit === "per_session" ? "catalogue.perSessionSuffix" : "catalogue.perPersonSuffix");
   return (
     <div className={styles.ieCard}>
       <div className={styles.ieCardImg}>
@@ -165,7 +179,7 @@ function ActivityCard({ a }) {
           : <div className={styles.ieCardImgFallback}>{ACTIVITY_TYPE_ICONS[a.activityType] || "🎟️"}</div>
         }
         <div className={styles.ieCardTypeBadge}>{ACTIVITY_TYPE_ICONS[a.activityType] || "🎟️"} {ACTIVITY_TYPE_LABELS[a.activityType] || a.activityType}</div>
-        {a.essaiDisponible && <div className={styles.ieCardIncoterm}>🔰 Essai disponible</div>}
+        {a.essaiDisponible && <div className={styles.ieCardIncoterm}>{t("catalogue.trialAvailableBadge")}</div>}
       </div>
       <div className={styles.ieCardBody}>
         <strong className={styles.ieCardTitle}>{a.title}</strong>
@@ -174,7 +188,7 @@ function ActivityCard({ a }) {
           {a.noteMoyenne > 0 && <> · ⭐ {a.noteMoyenne.toFixed(1)} ({a.nombreAvis || 0})</>}
         </span>
         <span className={styles.ieCardMeta}>
-          ⏱️ {a.durationMinutes || 60} min · 👥 jusqu'à {a.capacity || 1} pers.
+          {t("catalogue.activityDurationCapacity", { min: a.durationMinutes || 60, n: a.capacity || 1 })}
         </span>
         <div className={styles.ieCardFooter}>
           <div>
@@ -182,7 +196,7 @@ function ActivityCard({ a }) {
               <PriceTag amountUSD={a.price} pinnedCurrency={a.currency} enteredAmount={a.priceEntered} enteredCurrency={a.priceEntryCurrency} suffix={suffix} />
             </div>
           </div>
-          <Link to={`/activity-booking/${a._id}`} className={styles.ieCardLink}>Réserver →</Link>
+          <Link to={`/activity-booking/${a._id}`} className={styles.ieCardLink}>{t("catalogue.bookActivity")}</Link>
         </div>
       </div>
     </div>
@@ -191,16 +205,21 @@ function ActivityCard({ a }) {
 
 const types         = Object.keys(TYPE_ICONS);
 const etats         = ["Tous", "Neuf", "Occasion"];
+const ETAT_LABEL_KEYS = { "Tous": "catalogue.filterAllShort", "Neuf": "catalogue.conditionNew", "Occasion": "catalogue.conditionUsed" };
 const fuels         = ["Tous", "Essence", "Diesel", "Hybride", "Électrique", "GPL"];
+const FUEL_FILTER_LABEL_KEYS = { "Tous": "catalogue.filterAllShort", "Essence": "catalogue.fuelGasoline", "Diesel": "catalogue.fuelDiesel", "Hybride": "catalogue.fuelHybrid", "Électrique": "catalogue.fuelElectric", "GPL": "catalogue.fuelLpg" };
 const transmissions = ["Tous", "Automatique", "Manuelle"];
+const TRANSMISSION_LABEL_KEYS = { "Tous": "catalogue.filterAllShort", "Automatique": "catalogue.transmissionAuto", "Manuelle": "catalogue.transmissionManual" };
+const DUREE_LABEL_KEYS = { "Tous": "catalogue.filterAllShort", "Courte": "catalogue.durationShort", "Longue": "catalogue.durationLong" };
 const SORT_OPTIONS  = [
-  { key: "default",    label: "Par défaut" },
-  { key: "price_asc",  label: "Prix croissant" },
-  { key: "price_desc", label: "Prix décroissant" },
-  { key: "newest",     label: "Plus récent" },
+  { key: "default",    label: "catalogue.sortDefault" },
+  { key: "price_asc",  label: "catalogue.sortPriceAsc" },
+  { key: "price_desc", label: "catalogue.sortPriceDesc" },
+  { key: "newest",     label: "catalogue.sortNewest" },
 ];
 
 const Catalogue = () => {
+  const { t } = useI18n();
   const { vehicles, drivers, activities, refreshVehicles, vehiclesLoading } = useVehicles();
   const { fmt, catalogCountry, setCatalogCountry, COUNTRIES_CONFIG, COUNTRY_INTERNATIONAL, detectPreciseCountry, rateFromUSD } = useCurrency();
   const { success: toastSuccess, error: toastError } = useToast();
@@ -212,9 +231,9 @@ const Catalogue = () => {
     setDetectingCountry(false);
     if (res.ok) {
       const c = COUNTRIES_CONFIG.find((x) => x.code === res.country);
-      toastSuccess(`📍 Pays détecté : ${c ? `${c.flag} ${c.name}` : res.country}`);
+      toastSuccess(t("catalogue.countryDetectedToast", { country: c ? `${c.flag} ${c.name}` : res.country }));
     } else {
-      toastError(res.message || "Détection impossible.");
+      toastError(res.message || t("catalogue.detectionFailedError"));
     }
   };
   const [searchParams, setSearchParams] = useSearchParams();
@@ -264,7 +283,7 @@ const Catalogue = () => {
         setGeoLoading(false);
       },
       () => {
-        setGeoError("Impossible d'obtenir votre position. Vérifiez les autorisations de localisation.");
+        setGeoError(t("catalogue.geoPermissionError"));
         setGeoLoading(false);
       },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
@@ -346,7 +365,7 @@ const Catalogue = () => {
     if (isImportMode) await loadIEListings();
     else await refreshVehicles();
     setRefreshing(false);
-    toastSuccess(isImportMode ? "Annonces Import/Export actualisées" : "Catalogue actualisé");
+    toastSuccess(isImportMode ? t("catalogue.ieRefreshedToast") : t("catalogue.refreshedToast"));
   };
 
   const chauffeursFiltered = useMemo(() => {
@@ -437,12 +456,12 @@ const Catalogue = () => {
   const isStandardMode = !isImportMode && !isChauffeurMode && !isOthersMode;
 
   const activeChips = isStandardMode ? [
-    activeMode !== "Tout"   && { label: activeMode,         clear: () => { setActiveMode("Tout"); setParam("mode",""); } },
-    activeType !== "Tous"   && { label: activeType,         clear: () => { setActiveType("Tous"); setParam("type",""); } },
-    activeEtat !== "Tous"   && { label: activeEtat,         clear: () => { setActiveEtat("Tous"); setParam("etat",""); } },
-    activeMode === "Louer" && activeDuree !== "Tous" && { label: activeDuree, clear: () => { setActiveDuree("Tous"); setParam("duree",""); } },
-    fuelType   !== "Tous"   && { label: fuelType,           clear: () => setFuelType("Tous") },
-    transmission !== "Tous" && { label: transmission,       clear: () => setTransmission("Tous") },
+    activeMode !== "Tout"   && { label: t(MODES.find((m) => m.key === activeMode)?.label || "catalogue.all"), clear: () => { setActiveMode("Tout"); setParam("mode",""); } },
+    activeType !== "Tous"   && { label: t(TYPE_LABEL_KEYS[activeType] || "catalogue.filterAllShort"), clear: () => { setActiveType("Tous"); setParam("type",""); } },
+    activeEtat !== "Tous"   && { label: t(ETAT_LABEL_KEYS[activeEtat] || "catalogue.filterAllShort"), clear: () => { setActiveEtat("Tous"); setParam("etat",""); } },
+    activeMode === "Louer" && activeDuree !== "Tous" && { label: t(DUREE_LABEL_KEYS[activeDuree] || "catalogue.filterAllShort"), clear: () => { setActiveDuree("Tous"); setParam("duree",""); } },
+    fuelType   !== "Tous"   && { label: t(FUEL_FILTER_LABEL_KEYS[fuelType] || "catalogue.filterAllShort"), clear: () => setFuelType("Tous") },
+    transmission !== "Tous" && { label: t(TRANSMISSION_LABEL_KEYS[transmission] || "catalogue.filterAllShort"), clear: () => setTransmission("Tous") },
     // Comparé à la valeur PAR DÉFAUT (300/200000), pas au plafond technique du
     // curseur (2000/200000) — sinon la puce s'afficherait dès le chargement
     // (300 < 2000) sans que l'utilisateur n'ait rien changé.
@@ -466,14 +485,14 @@ const Catalogue = () => {
           <div className={styles.headerRow}>
             <div>
               <span className={styles.headerTag}>{isImportMode ? "🌍 VIT AUTO" : isChauffeurMode ? "🧑‍✈️ VIT AUTO" : isOthersMode ? "🎈 VIT AUTO" : "🚗 VIT AUTO"}</span>
-              <h1 className={styles.headerTitle}>{isImportMode ? "Import / Export" : isChauffeurMode ? "Chauffeurs" : isOthersMode ? "Activités et Loisirs" : "Catalogue"}</h1>
+              <h1 className={styles.headerTitle}>{t(isImportMode ? "catalogue.pageTitleImportExport" : isChauffeurMode ? "catalogue.pageTitleDrivers" : isOthersMode ? "catalogue.pageTitleActivities" : "catalogue.pageTitleDefault")}</h1>
             </div>
             <button
               type="button"
               className={`${styles.refreshBtn} ${refreshing ? styles.refreshSpinning : ""}`}
               onClick={handleRefresh}
               disabled={refreshing}
-              title="Actualiser"
+              title={t("catalogue.refreshTooltip")}
             >
               <span>↻</span>
             </button>
@@ -493,7 +512,7 @@ const Catalogue = () => {
                 }}
               >
                 <span>{icon}</span>
-                <span>{label}</span>
+                <span>{t(label)}</span>
               </button>
             ))}
           </nav>
@@ -505,7 +524,7 @@ const Catalogue = () => {
               type="search"
               value={isImportMode ? ieSearch : searchTerm}
               onChange={(e) => isImportMode ? setIeSearch(e.target.value) : setSearchTerm(e.target.value)}
-              placeholder={isImportMode ? "Marque, modèle, pays d'origine…" : isChauffeurMode ? "Nom, zone…" : isOthersMode ? "Activité, ville…" : "Marque, modèle, ville…"}
+              placeholder={t(isImportMode ? "catalogue.searchPlaceholderIe" : isChauffeurMode ? "catalogue.searchPlaceholderDriver" : isOthersMode ? "catalogue.searchPlaceholderActivity" : "catalogue.searchPlaceholderDefault")}
               className={styles.searchInput}
             />
             {(isImportMode ? ieSearch : searchTerm) && (
@@ -522,7 +541,7 @@ const Catalogue = () => {
                   <button key={z.key} type="button"
                     className={`${styles.typePill} ${ieSource === z.key ? styles.typePillActive : ""}`}
                     onClick={() => setIeSource(z.key)}>
-                    <span>{z.label}</span>
+                    <span>{t(z.label)}</span>
                   </button>
                 ))}
               </div>
@@ -530,7 +549,7 @@ const Catalogue = () => {
                   Import/Export — échelle vente (milliers/dizaines de milliers
                   USD), converti depuis la devise propre de chaque annonce. */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
-                <span style={{ fontSize: ".8rem", fontWeight: 700, color: "#0f1b3f" }}>💰 Prix max — {fmt(ieMaxPrice)}</span>
+                <span style={{ fontSize: ".8rem", fontWeight: 700, color: "#0f1b3f" }}>{t("catalogue.ieMaxPriceLabel", { price: fmt(ieMaxPrice) })}</span>
                 <input type="range" min="1000" max="200000" step="1000" value={ieMaxPrice}
                   onChange={(e) => setIeMaxPrice(Number(e.target.value))}
                   style={{ flex: 1, minWidth: 160, maxWidth: 320, accentColor: "#ff4d2d" }} />
@@ -538,23 +557,23 @@ const Catalogue = () => {
             </>
           ) : isOthersMode ? (
             <div className={styles.typePillsRow}>
-              {ACTIVITY_TYPE_PILLS.map((t) => (
-                <button key={t} type="button"
-                  className={`${styles.typePill} ${activityTypeFilter === t ? styles.typePillActive : ""}`}
-                  onClick={() => { setActivityTypeFilter(t); setParam("activityType", t); }}>
-                  <span>{t === "Tous" ? "🎈" : (ACTIVITY_TYPE_ICONS[t] || "🎟️")}</span>
-                  <span>{t === "Tous" ? "Tout" : (ACTIVITY_TYPE_LABELS[t] || t)}</span>
+              {ACTIVITY_TYPE_PILLS.map((at) => (
+                <button key={at} type="button"
+                  className={`${styles.typePill} ${activityTypeFilter === at ? styles.typePillActive : ""}`}
+                  onClick={() => { setActivityTypeFilter(at); setParam("activityType", at); }}>
+                  <span>{at === "Tous" ? "🎈" : (ACTIVITY_TYPE_ICONS[at] || "🎟️")}</span>
+                  <span>{at === "Tous" ? t("catalogue.filterAll") : (ACTIVITY_TYPE_LABELS[at] || at)}</span>
                 </button>
               ))}
             </div>
           ) : !isChauffeurMode ? (
             <div className={styles.typePillsRow}>
-              {types.map((t) => (
-                <button key={t} type="button"
-                  className={`${styles.typePill} ${activeType === t ? styles.typePillActive : ""}`}
-                  onClick={() => { setActiveType(t); setParam("type", t); }}>
-                  <span>{TYPE_ICONS[t]}</span>
-                  <span>{t === "Tous" ? "Tout" : t}</span>
+              {types.map((ty) => (
+                <button key={ty} type="button"
+                  className={`${styles.typePill} ${activeType === ty ? styles.typePillActive : ""}`}
+                  onClick={() => { setActiveType(ty); setParam("type", ty); }}>
+                  <span>{TYPE_ICONS[ty]}</span>
+                  <span>{t(TYPE_LABEL_KEYS[ty] || "catalogue.filterAllShort")}</span>
                 </button>
               ))}
             </div>
@@ -578,12 +597,12 @@ const Catalogue = () => {
           <div className={styles.resultsLeft}>
             <span className={styles.resultCount}>
               {isImportMode
-                ? <><strong>{ieListings.length}</strong> annonce{ieListings.length !== 1 ? "s" : ""} internationale{ieListings.length !== 1 ? "s" : ""}</>
+                ? t("catalogue.resultsCountIe", { n: ieListings.length })
                 : isChauffeurMode
-                ? <><strong>{chauffeursFiltered.length}</strong> chauffeur{chauffeursFiltered.length !== 1 ? "s" : ""}</>
+                ? t("catalogue.resultsCountDrivers", { n: chauffeursFiltered.length })
                 : isOthersMode
-                ? <><strong>{activitiesFiltered.length}</strong> activité{activitiesFiltered.length !== 1 ? "s" : ""}</>
-                : <><strong>{filtered.length}</strong> véhicule{filtered.length !== 1 ? "s" : ""}</>
+                ? t("catalogue.resultsCountActivities", { n: activitiesFiltered.length })
+                : t("catalogue.resultsCountVehicles", { n: filtered.length })
               }
             </span>
 
@@ -598,7 +617,7 @@ const Catalogue = () => {
             ))}
 
             {activeChips.length > 1 && (
-              <button type="button" className={styles.clearAllBtn} onClick={resetFilters}>Tout effacer</button>
+              <button type="button" className={styles.clearAllBtn} onClick={resetFilters}>{t("catalogue.clearAll")}</button>
             )}
           </div>
 
@@ -607,9 +626,9 @@ const Catalogue = () => {
               className={styles.sortSelect}
               value={catalogCountry}
               onChange={(e) => setCatalogCountry(e.target.value)}
-              title="Filtrer les annonces par pays"
+              title={t("catalogue.filterByCountryTooltip")}
             >
-              <option value={COUNTRY_INTERNATIONAL}>🌍 Tous pays (International)</option>
+              <option value={COUNTRY_INTERNATIONAL}>{t("catalogue.allCountriesInternational")}</option>
               {COUNTRIES_CONFIG.map((c) => (
                 <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
               ))}
@@ -620,9 +639,9 @@ const Catalogue = () => {
               className={styles.filterToggleBtn}
               onClick={handleDetectCountry}
               disabled={detectingCountry}
-              title="Détecter mon pays via ma position (plus précis que l'IP)"
+              title={t("catalogue.detectCountryTooltip")}
             >
-              {detectingCountry ? "📍 Détection…" : "📍 Détecter"}
+              {detectingCountry ? t("catalogue.detectingLabel") : t("catalogue.detectLabel")}
             </button>
 
             {isStandardMode && (
@@ -631,15 +650,15 @@ const Catalogue = () => {
                 className={styles.filterToggleBtn}
                 onClick={handleToggleNearMe}
                 disabled={geoLoading}
-                title={nearMeActive ? "Désactiver le tri par proximité" : "Trier les véhicules par distance depuis ma position"}
+                title={t(nearMeActive ? "catalogue.disableNearMeTooltip" : "catalogue.enableNearMeTooltip")}
               >
-                {geoLoading ? "📍 Localisation…" : nearMeActive ? "✅ Près de moi" : "📍 Près de moi"}
+                {geoLoading ? t("catalogue.locating") : nearMeActive ? t("catalogue.nearMeActive") : t("catalogue.nearMeInactive")}
               </button>
             )}
 
             {isStandardMode && (
               <button type="button" className={styles.filterToggleBtn} onClick={() => setFilterOpen(true)}>
-                ⚙️ Filtres
+                {t("catalogue.filtersButton")}
                 {activeChips.length > 0 && <span className={styles.filterBadge}>{activeChips.length}</span>}
               </button>
             )}
@@ -651,7 +670,7 @@ const Catalogue = () => {
                 onChange={(e) => isImportMode ? setIeSortKey(e.target.value) : setSortKey(e.target.value)}
               >
                 {(isImportMode ? IE_SORT : SORT_OPTIONS).map(o => (
-                  <option key={o.key} value={o.key}>{o.label}</option>
+                  <option key={o.key} value={o.key}>{t(o.label)}</option>
                 ))}
               </select>
             )}
@@ -665,7 +684,7 @@ const Catalogue = () => {
             <div className={styles.drawer}>
               <div className={styles.drawerHandle} />
               <div className={styles.drawerHead}>
-                <h3>Filtres</h3>
+                <h3>{t("catalogue.filtersDrawerTitle")}</h3>
                 <button className={styles.drawerClose} onClick={() => setFilterOpen(false)}>✕</button>
               </div>
               <DrawerFilters
@@ -678,7 +697,7 @@ const Catalogue = () => {
                 fmt={fmt} activeMode={activeMode}
               />
               <button className={styles.resetBtn} onClick={() => { resetFilters(); setFilterOpen(false); }}>
-                Réinitialiser
+                {t("catalogue.resetButton")}
               </button>
             </div>
           </>
@@ -691,7 +710,7 @@ const Catalogue = () => {
               <div className={styles.sidebarInner}>
                 {activeMode !== "Acheter" ? (
                   <div className={styles.sidebarSection}>
-                    <h4 className={styles.sidebarTitle}>💰 Prix max / jour</h4>
+                    <h4 className={styles.sidebarTitle}>{t("catalogue.maxPricePerDayTitle")}</h4>
                     <div className={styles.priceRange}>
                       <span className={styles.priceLabel}>{fmt(maxPrice)}</span>
                       <input type="range" min="10" max="2000" step="10"
@@ -708,7 +727,7 @@ const Catalogue = () => {
                   // aucun filtre prix — échelle dédiée (vente = milliers/
                   // dizaines de milliers de USD, pas des USD/jour).
                   <div className={styles.sidebarSection}>
-                    <h4 className={styles.sidebarTitle}>💰 Prix max (vente)</h4>
+                    <h4 className={styles.sidebarTitle}>{t("catalogue.maxSalePriceTitle")}</h4>
                     <div className={styles.priceRange}>
                       <span className={styles.priceLabel}>{fmt(maxSalePrice)}</span>
                       <input type="range" min="1000" max="200000" step="1000"
@@ -722,49 +741,49 @@ const Catalogue = () => {
                   </div>
                 )}
                 <div className={styles.sidebarSection}>
-                  <h4 className={styles.sidebarTitle}>✨ État</h4>
+                  <h4 className={styles.sidebarTitle}>{t("catalogue.stateFilterTitle")}</h4>
                   <div className={styles.pillGroup}>
                     {etats.map((e) => (
                       <button key={e} type="button"
                         className={`${styles.filterPill} ${activeEtat === e ? styles.filterPillActive : ""}`}
-                        onClick={() => { setActiveEtat(e); setParam("etat", e); }}>{e}</button>
+                        onClick={() => { setActiveEtat(e); setParam("etat", e); }}>{t(ETAT_LABEL_KEYS[e] || "catalogue.filterAllShort")}</button>
                     ))}
                   </div>
                 </div>
                 {activeMode === "Louer" && (
                   <div className={styles.sidebarSection}>
-                    <h4 className={styles.sidebarTitle}>🗓️ Durée</h4>
+                    <h4 className={styles.sidebarTitle}>{t("catalogue.durationFilterTitle")}</h4>
                     <div className={styles.pillGroup}>
                       {["Tous", "Courte", "Longue"].map((d) => (
                         <button key={d} type="button"
                           className={`${styles.filterPill} ${activeDuree === d ? styles.filterPillActive : ""}`}
-                          onClick={() => { setActiveDuree(d); setParam("duree", d); }}>{d}</button>
+                          onClick={() => { setActiveDuree(d); setParam("duree", d); }}>{t(DUREE_LABEL_KEYS[d] || "catalogue.filterAllShort")}</button>
                       ))}
                     </div>
                   </div>
                 )}
                 <div className={styles.sidebarSection}>
-                  <h4 className={styles.sidebarTitle}>⛽ Carburant</h4>
+                  <h4 className={styles.sidebarTitle}>{t("catalogue.fuelFilterTitle")}</h4>
                   <div className={styles.pillGroup}>
                     {fuels.map((f) => (
                       <button key={f} type="button"
                         className={`${styles.filterPill} ${fuelType === f ? styles.filterPillActive : ""}`}
-                        onClick={() => setFuelType(f)}>{f}</button>
+                        onClick={() => setFuelType(f)}>{t(FUEL_FILTER_LABEL_KEYS[f] || "catalogue.filterAllShort")}</button>
                     ))}
                   </div>
                 </div>
                 <div className={styles.sidebarSection}>
-                  <h4 className={styles.sidebarTitle}>⚙️ Transmission</h4>
+                  <h4 className={styles.sidebarTitle}>{t("catalogue.transmissionFilterTitle")}</h4>
                   <div className={styles.pillGroup}>
-                    {transmissions.map((t) => (
-                      <button key={t} type="button"
-                        className={`${styles.filterPill} ${transmission === t ? styles.filterPillActive : ""}`}
-                        onClick={() => setTransmission(t)}>{t}</button>
+                    {transmissions.map((tr) => (
+                      <button key={tr} type="button"
+                        className={`${styles.filterPill} ${transmission === tr ? styles.filterPillActive : ""}`}
+                        onClick={() => setTransmission(tr)}>{t(TRANSMISSION_LABEL_KEYS[tr] || "catalogue.filterAllShort")}</button>
                     ))}
                   </div>
                 </div>
                 {activeChips.length > 0 && (
-                  <button className={styles.resetBtn} onClick={resetFilters}>↺ Réinitialiser les filtres</button>
+                  <button className={styles.resetBtn} onClick={resetFilters}>{t("catalogue.resetFiltersButton")}</button>
                 )}
               </div>
             </aside>
@@ -775,9 +794,9 @@ const Catalogue = () => {
               ) : filtered.length === 0 ? (
                 <div className={styles.empty}>
                   <div className={styles.emptyIcon}>🔍</div>
-                  <h3>Aucun véhicule trouvé</h3>
-                  <p>Modifiez vos filtres ou explorez tout le catalogue.</p>
-                  <button className={styles.emptyReset} onClick={resetFilters}>Voir tous les véhicules</button>
+                  <h3>{t("catalogue.noVehiclesFoundTitle")}</h3>
+                  <p>{t("catalogue.noVehiclesFoundDesc")}</p>
+                  <button className={styles.emptyReset} onClick={resetFilters}>{t("catalogue.viewAllVehicles")}</button>
                 </div>
               ) : (
                 filtered.map((car) => <VehicleCard key={car._id || car.id} car={car} />)
@@ -792,10 +811,10 @@ const Catalogue = () => {
             {chauffeursFiltered.length === 0 ? (
               <div className={styles.ieEmpty}>
                 <span style={{ fontSize: "3rem" }}>🧑‍✈️</span>
-                <h3>{searchTerm ? "Aucun résultat pour cette recherche" : "Aucun chauffeur disponible"}</h3>
-                <p>{searchTerm ? "Essayez un autre terme." : "Nos partenaires proposeront bientôt des chauffeurs dans votre zone."}</p>
+                <h3>{searchTerm ? t("catalogue.noDriverSearchResults") : t("catalogue.noDriversAvailable")}</h3>
+                <p>{searchTerm ? t("catalogue.tryAnotherTerm") : t("catalogue.driversComingSoon")}</p>
                 {searchTerm && (
-                  <button className={styles.ieEmptyBtn} onClick={() => setSearchTerm("")}>Effacer la recherche</button>
+                  <button className={styles.ieEmptyBtn} onClick={() => setSearchTerm("")}>{t("catalogue.clearSearch")}</button>
                 )}
               </div>
             ) : (
@@ -813,15 +832,15 @@ const Catalogue = () => {
             {/* Bannière informative */}
             <div className={styles.ieBanner}>
               <div className={styles.ieBannerText}>
-                <strong>🌍 Véhicules disponibles à l'import</strong>
-                <p>Annonces publiées par nos importateurs certifiés — Chine, Dubaï, Europe & Afrique</p>
+                <strong>{t("catalogue.ieBannerTitle")}</strong>
+                <p>{t("catalogue.ieBannerDesc")}</p>
               </div>
               <div className={styles.ieBannerActions}>
                 <Link to="/import-export/listings" className={styles.ieBannerBtn}>
-                  Voir toutes les annonces →
+                  {t("catalogue.viewAllIeListings")}
                 </Link>
                 <Link to="/import-export" className={styles.ieBannerBtnGhost}>
-                  En savoir plus
+                  {t("catalogue.learnMore")}
                 </Link>
               </div>
             </div>
@@ -836,11 +855,11 @@ const Catalogue = () => {
             ) : ieListings.length === 0 ? (
               <div className={styles.ieEmpty}>
                 <span style={{ fontSize: "3rem" }}>🌍</span>
-                <h3>{ieSearch || ieSource ? "Aucun résultat pour ce filtre" : "Aucune annonce disponible"}</h3>
-                <p>{ieSearch || ieSource ? "Essayez un autre filtre." : "Les importateurs partenaires publieront bientôt leurs annonces."}</p>
+                <h3>{ieSearch || ieSource ? t("catalogue.noFilterResults") : t("catalogue.noIeListingsAvailable")}</h3>
+                <p>{ieSearch || ieSource ? t("catalogue.tryAnotherFilter") : t("catalogue.ieListingsComingSoon")}</p>
                 {(ieSearch || ieSource) && (
                   <button className={styles.ieEmptyBtn} onClick={() => { setIeSearch(""); setIeSource(""); }}>
-                    Effacer les filtres
+                    {t("catalogue.clearFilters")}
                   </button>
                 )}
               </div>
@@ -852,7 +871,7 @@ const Catalogue = () => {
                 {ieTotal > 24 && (
                   <div className={styles.ieMore}>
                     <Link to="/import-export/listings" className={styles.ieMoreLink}>
-                      Voir les {ieTotal} annonces →
+                      {t("catalogue.viewAllNIeListings", { n: ieTotal })}
                     </Link>
                   </div>
                 )}
@@ -866,19 +885,19 @@ const Catalogue = () => {
           <div className={styles.ieSection}>
             <div className={styles.ieBanner}>
               <div className={styles.ieBannerText}>
-                <strong>🎈 Activités & sorties</strong>
-                <p>Quad, Surf, Montgolfière, Jetski, Jet privé, Bateau et bien d'autres — réservez directement, essai possible sur certaines annonces</p>
+                <strong>{t("catalogue.activitiesBannerTitle")}</strong>
+                <p>{t("catalogue.activitiesBannerDesc")}</p>
               </div>
             </div>
 
             {activitiesFiltered.length === 0 ? (
               <div className={styles.ieEmpty}>
                 <span style={{ fontSize: "3rem" }}>🎈</span>
-                <h3>{searchTerm || activityTypeFilter !== "Tous" ? "Aucun résultat pour ce filtre" : "Aucune activité disponible"}</h3>
-                <p>{searchTerm || activityTypeFilter !== "Tous" ? "Essayez un autre filtre." : "Nos partenaires publieront bientôt des activités dans votre zone."}</p>
+                <h3>{searchTerm || activityTypeFilter !== "Tous" ? t("catalogue.noFilterResults") : t("catalogue.noActivitiesAvailable")}</h3>
+                <p>{searchTerm || activityTypeFilter !== "Tous" ? t("catalogue.tryAnotherFilter") : t("catalogue.activitiesComingSoon")}</p>
                 {(searchTerm || activityTypeFilter !== "Tous") && (
                   <button className={styles.ieEmptyBtn} onClick={() => { setSearchTerm(""); setActivityTypeFilter("Tous"); setParam("activityType", ""); }}>
-                    Effacer les filtres
+                    {t("catalogue.clearFilters")}
                   </button>
                 )}
               </div>
@@ -897,28 +916,29 @@ const Catalogue = () => {
 /* ── Composant filtres drawer mobile ── */
 function DrawerFilters({ maxPrice, setMaxPrice, maxSalePrice, setMaxSalePrice, activeEtat, setActiveEtat, fuelType, setFuelType,
   transmission, setTransmission, fuels, etats, transmissions, fmt, activeMode }) {
+  const { t } = useI18n();
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 16 }}>
       {activeMode !== "Acheter" ? (
         <div>
-          <p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: "0.82rem", color: "#0f1b3f" }}>💰 Prix max / jour — {fmt(maxPrice)}</p>
+          <p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: "0.82rem", color: "#0f1b3f" }}>{t("catalogue.drawerMaxPricePerDay", { price: fmt(maxPrice) })}</p>
           <input type="range" min="10" max="2000" step="10" value={maxPrice}
             onChange={(e) => setMaxPrice(Number(e.target.value))}
             style={{ width: "100%", accentColor: "#ff4d2d" }} />
         </div>
       ) : (
         <div>
-          <p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: "0.82rem", color: "#0f1b3f" }}>💰 Prix max (vente) — {fmt(maxSalePrice)}</p>
+          <p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: "0.82rem", color: "#0f1b3f" }}>{t("catalogue.drawerMaxSalePrice", { price: fmt(maxSalePrice) })}</p>
           <input type="range" min="1000" max="200000" step="1000" value={maxSalePrice}
             onChange={(e) => setMaxSalePrice(Number(e.target.value))}
             style={{ width: "100%", accentColor: "#ff4d2d" }} />
         </div>
       )}
       {[
-        { title: "✨ État",          opts: etats,         val: activeEtat,   set: setActiveEtat },
-        { title: "⛽ Carburant",     opts: fuels,         val: fuelType,     set: setFuelType },
-        { title: "⚙️ Transmission", opts: transmissions, val: transmission, set: setTransmission },
-      ].map(({ title, opts, val, set }) => (
+        { title: t("catalogue.stateFilterTitle"),        opts: etats,         val: activeEtat,   set: setActiveEtat,   labelKeys: ETAT_LABEL_KEYS },
+        { title: t("catalogue.fuelFilterTitle"),         opts: fuels,         val: fuelType,     set: setFuelType,     labelKeys: FUEL_FILTER_LABEL_KEYS },
+        { title: t("catalogue.transmissionFilterTitle"), opts: transmissions, val: transmission, set: setTransmission, labelKeys: TRANSMISSION_LABEL_KEYS },
+      ].map(({ title, opts, val, set, labelKeys }) => (
         <div key={title}>
           <p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: "0.82rem", color: "#0f1b3f" }}>{title}</p>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -927,7 +947,7 @@ function DrawerFilters({ maxPrice, setMaxPrice, maxSalePrice, setMaxSalePrice, a
                 style={{ padding: "6px 14px", borderRadius: 999, border: `1.5px solid ${val === o ? "#ff4d2d" : "#e2e8f0"}`,
                   background: val === o ? "#ff4d2d" : "#fff", color: val === o ? "#fff" : "#374151",
                   fontWeight: 600, fontSize: "0.82rem", cursor: "pointer", fontFamily: "inherit" }}>
-                {o}
+                {t(labelKeys[o] || "catalogue.filterAllShort")}
               </button>
             ))}
           </div>

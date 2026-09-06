@@ -124,6 +124,7 @@ const Register = () => {
         birthDate:  form.birthDate,
         activity:   form.role === "partenaire" ? form.activity : undefined,
         entityType: form.role === "partenaire" ? form.entityType : undefined,
+        referralCode: searchParams.get("ref") || undefined,
       });
 
       // Le compte existe déjà (session active) mais l'inscription n'est pas

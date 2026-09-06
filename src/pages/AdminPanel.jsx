@@ -1222,6 +1222,21 @@ export default function AdminPanel() {
   const [reviewsList,      setReviewsList]      = useState([]);
   const [reviewsLoading,   setReviewsLoading]   = useState(false);
   const [reviewsFilter,    setReviewsFilter]    = useState(""); // "" | "true" | "false"
+  const [reviewsTargetType, setReviewsTargetType] = useState(""); // "" | vehicle | driver | partner | platform | client
+  const [platformReviewStats, setPlatformReviewStats] = useState(null);
+
+  // ── Santé système (2026-09) — /api/health existait déjà, jamais affiché
+  // ailleurs qu'en curl manuel. Pas de nouvel endpoint : juste une vue.
+  const [systemHealth,        setSystemHealth]        = useState(null);
+  const [systemHealthLoading, setSystemHealthLoading]  = useState(false);
+  const loadSystemHealth = useCallback(async () => {
+    setSystemHealthLoading(true);
+    try {
+      const r = await fetch("/api/health");
+      if (r.ok) setSystemHealth(await r.json());
+    } catch { /* ignore */ }
+    setSystemHealthLoading(false);
+  }, []);
   const [reviewActioning,  setReviewActioning]  = useState(null);
 
   // Analytics avancé
@@ -1994,11 +2009,16 @@ export default function AdminPanel() {
     try {
       const params = new URLSearchParams({ limit: "50" });
       if (reviewsFilter) params.set("visible", reviewsFilter);
+      if (reviewsTargetType) params.set("targetType", reviewsTargetType);
       const r = await fetch(`/api/reviews/admin/list?${params}`, { headers });
-      if (r.ok) setReviewsList((await r.json()).reviews || []);
+      if (r.ok) {
+        const data = await r.json();
+        setReviewsList(data.reviews || []);
+        setPlatformReviewStats(data.platformStats || null);
+      }
     } catch { /* ignore */ }
     setReviewsLoading(false);
-  }, [token, headers, reviewsFilter]);
+  }, [token, headers, reviewsFilter, reviewsTargetType]);
 
   const toggleReviewVisibility = async (review) => {
     if (reviewActioning) return;
@@ -3127,6 +3147,7 @@ export default function AdminPanel() {
     if (activeTab === "chat_supervision")   loadClientPartnerChats();
     if (activeTab === "paiements")         loadSubRequests();
     if (activeTab === "reviews")           loadReviews();
+    if (activeTab === "system_health")     loadSystemHealth();
     if (activeTab === "audit")             loadAuditLog();
     if (activeTab === "analytics")         loadAnalytics();
     if (activeTab === "email_delivery")    loadEmailDelivery();
@@ -3140,7 +3161,7 @@ export default function AdminPanel() {
     if (activeTab === "whatsapp")          loadWaConversations();
     if (activeTab === "business_config")   loadBusinessConfig();
     if (activeTab === "reversements")      loadPayouts();
-  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadPartnerCrm, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds, loadInsurance, loadServiceRequests, loadImportCostData, loadReports, loadWaConversations, loadBusinessConfig, loadPayouts, loadPendingValidation, loadClientPartnerChats]);
+  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadPartnerCrm, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds, loadInsurance, loadServiceRequests, loadImportCostData, loadReports, loadWaConversations, loadBusinessConfig, loadPayouts, loadPendingValidation, loadClientPartnerChats, loadSystemHealth]);
 
   // Chargé indépendamment de l'onglet actif (contrairement au bloc ci-dessus,
   // conditionné par activeTab === "business_config") : le message d'invitation
@@ -3702,6 +3723,7 @@ export default function AdminPanel() {
       items: [
         { key: "roles", icon: "🔑", label: "Rôles & Permissions" },
         { key: "audit", icon: "📜", label: "Audit Logs" },
+        { key: "system_health", icon: "🩺", label: "Santé système" },
       ],
     },
   ];
@@ -6506,6 +6528,44 @@ export default function AdminPanel() {
             ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
           </div>
 
+          {/* Tendance (8 dernières semaines) — calculée côté client sur les
+              `bookings` déjà chargés, sans nouvel endpoint : compte les
+              litiges OUVERTS par semaine (clientValidation.disputedAt), pas
+              seulement ceux encore ouverts aujourd'hui. */}
+          {(() => {
+            const weeks = Array.from({ length: 8 }, (_, i) => {
+              const start = new Date();
+              start.setHours(0, 0, 0, 0);
+              start.setDate(start.getDate() - start.getDay() - (7 - i) * 7);
+              const end = new Date(start); end.setDate(end.getDate() + 7);
+              return { start, end, count: 0 };
+            });
+            for (const b of bookings) {
+              const d = b.clientValidation?.disputedAt;
+              if (!d) continue;
+              const dd = new Date(d);
+              const w = weeks.find((w) => dd >= w.start && dd < w.end);
+              if (w) w.count++;
+            }
+            const hasAny = weeks.some((w) => w.count > 0);
+            if (!hasAny) return null;
+            const maxCount = Math.max(...weeks.map((w) => w.count), 1);
+            return (
+              <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
+                <div style={{ fontSize: ".82rem", fontWeight: 700, color: "#64748b", marginBottom: 10 }}>Litiges ouverts par semaine (8 dernières semaines)</div>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 80 }}>
+                  {weeks.map((w, i) => (
+                    <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                      <span style={{ fontSize: ".68rem", color: "#64748b", fontWeight: 700 }}>{w.count || ""}</span>
+                      <div style={{ width: "100%", height: Math.max(3, Math.round((w.count / maxCount) * 50)), background: w.count > 0 ? "linear-gradient(180deg,#f87171,#dc2626)" : "#e2e8f0", borderRadius: "4px 4px 0 0" }} />
+                      <span style={{ fontSize: ".62rem", color: "#94a3b8" }}>{w.start.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           {bookings.filter(b => b.status === "disputed").length === 0 ? (
             <div style={{ textAlign: "center", padding: "60px 0", color: "#94a3b8" }}>
               <div style={{ fontSize: "3rem", marginBottom: 12 }}>⚖️</div>
@@ -7952,6 +8012,14 @@ export default function AdminPanel() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
             <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>⭐ Avis clients — modération</h2>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <select value={reviewsTargetType} onChange={(e) => setReviewsTargetType(e.target.value)} style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 12px", fontSize: ".85rem" }}>
+                <option value="">Toutes les cibles</option>
+                <option value="vehicle">Véhicule</option>
+                <option value="driver">Chauffeur</option>
+                <option value="partner">Agence</option>
+                <option value="platform">Plateforme (VIT AUTO)</option>
+                <option value="client">Client (fiabilité)</option>
+              </select>
               <select value={reviewsFilter} onChange={(e) => setReviewsFilter(e.target.value)} style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 12px", fontSize: ".85rem" }}>
                 <option value="">Tous les avis</option>
                 <option value="true">Visibles</option>
@@ -7960,6 +8028,25 @@ export default function AdminPanel() {
               <button className={styles.btnRefresh} onClick={loadReviews}>↻ Actualiser</button>
             </div>
           </div>
+
+          {reviewsTargetType === "platform" && platformReviewStats && (
+            <div style={{ display: "flex", gap: 12, marginBottom: "1.5rem", flexWrap: "wrap" }}>
+              <div className={styles.chartCard} style={{ flex: "1 1 160px" }}>
+                <div style={{ fontSize: ".78rem", color: "#64748b", fontWeight: 700 }}>NOTE MOYENNE</div>
+                <div style={{ fontSize: "1.6rem", fontWeight: 900, color: "#0f1b3f" }}>★ {platformReviewStats.noteMoyenne}</div>
+              </div>
+              <div className={styles.chartCard} style={{ flex: "1 1 160px" }}>
+                <div style={{ fontSize: ".78rem", color: "#64748b", fontWeight: 700 }}>TRANSACTIONS BIEN DÉROULÉES</div>
+                <div style={{ fontSize: "1.6rem", fontWeight: 900, color: platformReviewStats.wentWellRate >= 80 ? "#059669" : platformReviewStats.wentWellRate >= 50 ? "#d97706" : "#dc2626" }}>
+                  {platformReviewStats.wentWellRate != null ? `${platformReviewStats.wentWellRate}%` : "—"}
+                </div>
+              </div>
+              <div className={styles.chartCard} style={{ flex: "1 1 160px" }}>
+                <div style={{ fontSize: ".78rem", color: "#64748b", fontWeight: 700 }}>TOTAL AVIS</div>
+                <div style={{ fontSize: "1.6rem", fontWeight: 900, color: "#0f1b3f" }}>{platformReviewStats.total}</div>
+              </div>
+            </div>
+          )}
 
           {reviewsLoading ? (
             <p style={{ color: "#64748b" }}>Chargement…</p>
@@ -7973,8 +8060,13 @@ export default function AdminPanel() {
                     <div>
                       <strong>{"⭐".repeat(r.note)}</strong>{" "}
                       <span style={{ color: "#64748b", fontSize: ".85rem" }}>
-                        — {r.targetLabel || (r.targetType === "vehicle" ? "Véhicule" : "Chauffeur")} · par {r.reviewer?.firstName} {r.reviewer?.lastName}
+                        — {r.targetType === "platform" ? "Plateforme VIT AUTO" : r.targetLabel || (r.targetType === "vehicle" ? "Véhicule" : r.targetType === "driver" ? "Chauffeur" : r.targetType === "partner" ? "Agence" : "Client")} · par {r.reviewer?.firstName} {r.reviewer?.lastName}
                       </span>
+                      {r.targetType === "platform" && r.wentWell != null && (
+                        <span style={{ marginLeft: 8, fontSize: ".78rem", fontWeight: 700, color: r.wentWell ? "#059669" : "#dc2626" }}>
+                          {r.wentWell ? "👍 Bien déroulée" : "👎 Mal déroulée"}
+                        </span>
+                      )}
                       {!r.visible && <span style={{ marginLeft: 8, fontSize: ".72rem", color: "#ef4444", fontWeight: 700 }}>MASQUÉ</span>}
                       {r.commentaire && <p style={{ margin: "6px 0 0", fontSize: ".88rem", color: "#374151" }}>{r.commentaire}</p>}
                     </div>
@@ -7989,6 +8081,43 @@ export default function AdminPanel() {
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "system_health" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
+            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>🩺 Santé système</h2>
+            <button className={styles.btnRefresh} onClick={loadSystemHealth}>↻ Actualiser</button>
+          </div>
+
+          {systemHealthLoading ? (
+            <p style={{ color: "#64748b" }}>Chargement…</p>
+          ) : !systemHealth ? (
+            <p style={{ color: "#64748b" }}>Impossible de joindre /api/health.</p>
+          ) : (
+            <>
+              <p style={{ color: "#64748b", fontSize: ".85rem", marginBottom: 16 }}>
+                Statut global : <strong style={{ color: systemHealth.status === "healthy" ? "#059669" : "#dc2626" }}>{systemHealth.status}</strong>
+                {" · "}Uptime : {Math.floor((systemHealth.uptime || 0) / 3600)}h{Math.floor(((systemHealth.uptime || 0) % 3600) / 60)}min
+                {systemHealth.memory && ` · Mémoire : ${systemHealth.memory.used} / ${systemHealth.memory.total}`}
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
+                {Object.entries(systemHealth.services || {}).map(([name, value]) => {
+                  const ok = ["connected", "ready", "resend", "smtp", "configured", true].includes(value);
+                  const neutral = ["disabled", "sync-mode"].includes(value);
+                  const color = ok ? "#059669" : neutral ? "#94a3b8" : "#dc2626";
+                  const bg = ok ? "#f0fdf4" : neutral ? "#f8fafc" : "#fef2f2";
+                  return (
+                    <div key={name} className={styles.chartCard} style={{ background: bg, borderColor: color }}>
+                      <div style={{ fontSize: ".72rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>{name}</div>
+                      <div style={{ fontSize: "1rem", fontWeight: 800, color }}>{String(value)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
       )}

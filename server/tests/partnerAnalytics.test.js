@@ -17,6 +17,7 @@ describe("bookingController.getPartnerAnalytics", () => {
     expect(res.body.topVehicles).toEqual([]);
     expect(res.body.topClients).toEqual([]);
     expect(res.body.occupancyRate).toBe(0);
+    expect(res.body.avgResponseTimeMinutes).toBeNull();
   });
 
   it("agrège revenu mensuel, top véhicule et clientèle sur des commandes terminées", async () => {
@@ -68,5 +69,49 @@ describe("bookingController.getPartnerAnalytics", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.topClients[0].email).toBe("guest@example.test");
     expect(res.body.topClients[0].totalBookings).toBe(1);
+  });
+
+  it("calcule le temps de réponse moyen à partir de partnerNotifiedAt et de l'auditTrail", async () => {
+    const owner = await createUser({ role: "partenaire" });
+    const client = await createUser({ role: "client" });
+    const vehicle = await createVehicleDoc({ owner: owner._id });
+    const notifiedAt = new Date(Date.now() - 20 * 60 * 1000); // il y a 20 min
+
+    await Booking.create({
+      type: "location", status: "confirmed",
+      adminValidation: { status: "approved" },
+      client: client._id,
+      clientInfo: { firstName: "Jean", lastName: "Client", email: "jean@example.test", passportNumber: "P1234567" },
+      vehicle: vehicle._id,
+      partnerNotifiedAt: notifiedAt,
+      auditTrail: [{ action: "status_confirmed", actorType: "PARTNER", actorId: owner._id, timestamp: new Date() }],
+      location: { days: 1, startDate: new Date(), endDate: new Date() },
+    });
+
+    const { req, res } = mockReqRes({ user: owner });
+    await getPartnerAnalytics(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.avgResponseTimeMinutes).toBeGreaterThanOrEqual(19);
+    expect(res.body.avgResponseTimeMinutes).toBeLessThanOrEqual(21);
+  });
+
+  it("ignore les réservations sans décision dans l'auditTrail (encore en attente)", async () => {
+    const owner = await createUser({ role: "partenaire" });
+    const vehicle = await createVehicleDoc({ owner: owner._id });
+
+    await Booking.create({
+      type: "location", status: "pending",
+      adminValidation: { status: "approved" },
+      clientInfo: { firstName: "Jean", lastName: "Client", email: "jean2@example.test", passportNumber: "P1234567" },
+      vehicle: vehicle._id,
+      partnerNotifiedAt: new Date(),
+      location: { days: 1 },
+    });
+
+    const { req, res } = mockReqRes({ user: owner });
+    await getPartnerAnalytics(req, res);
+
+    expect(res.body.avgResponseTimeMinutes).toBeNull();
   });
 });

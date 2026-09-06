@@ -144,7 +144,7 @@ export const AuthProvider = ({ children }) => {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Méthodes publiques ─────────────────────────────────────────────────────
-  const register = async ({ firstName, lastName, email, password, phone, role, country, birthDate, activity, entityType }) => {
+  const register = async ({ firstName, lastName, email, password, phone, role, country, birthDate, activity, entityType, referralCode }) => {
     // sellerType était silencieusement absent de ce payload depuis toujours : le
     // choix particulier/professionnel/entreprise fait à l'inscription (Register.jsx)
     // n'atteignait jamais le backend — createVehicle s'en sortait via un fallback
@@ -154,7 +154,7 @@ export const AuthProvider = ({ children }) => {
     const res  = await fetch("/api/auth/register", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ firstName, lastName, email, password, phone, role, country, birthDate, activity, entityType }),
+      body:    JSON.stringify({ firstName, lastName, email, password, phone, role, country, birthDate, activity, entityType, referralCode }),
     });
     const data = await res.json();
     if (!res.ok) {

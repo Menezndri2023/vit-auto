@@ -9,6 +9,7 @@ import { getKycBadge, generateBookingRef } from "../utils/kycEngine.js";
 import { selectBestPromotionRule, effectivePricePerDay as computeEffectivePricePerDay } from "../utils/promotion";
 import { computeLocationTotal as computeSeasonalLocationTotal } from "../utils/seasonalPricing";
 import { getCustomerServiceContact } from "../utils/customerServiceContact";
+import { useI18n } from "../context/I18nContext";
 import PriceTag from "../components/PriceTag/PriceTag";
 import DeliveryMapPicker from "../components/DeliveryMapPicker/DeliveryMapPicker";
 import styles from "./Booking.module.css";
@@ -20,28 +21,32 @@ const SERVICE_FEE     = 1;      // plancher serviceFee.minUSD (PricingConfig)
 const DELIVERY_BASE   = 3;      // repli si /api/geo/delivery-fee échoue
 const DELIVERY_PER_KM = 0.5;    // repli si /api/geo/delivery-fee échoue
 
+// label = clé de traduction (voir src/i18n/translations.js), résolue via t()
+// au moment du rendu — ces constantes vivent hors du composant donc ne
+// peuvent pas appeler le hook useI18n() directement.
 const OPTIONS_CATALOG = [
-  { id: "babySeat",  label: "Siège bébé",        price: 11.67, icon: "👶" },
-  { id: "insurance", label: "Prime d'assurance", price: 25,    icon: "🛡️" },
-  { id: "driver",    label: "Chauffeur privé",   price: 83.33, icon: "🧑‍✈️" },
-  { id: "gps",       label: "GPS intégré",        price: 16.67, icon: "🗺️" },
+  { id: "babySeat",  label: "booking.optionBabySeat",  price: 11.67, icon: "👶" },
+  { id: "insurance", label: "booking.optionInsurance", price: 25,    icon: "🛡️" },
+  { id: "driver",    label: "booking.optionDriver",    price: 83.33, icon: "🧑‍✈️" },
+  { id: "gps",       label: "booking.optionGps",       price: 16.67, icon: "🗺️" },
 ];
 
 // Moyens de paiement disponibles au choix du client (voir Checkout.jsx/DriverBooking.jsx).
+// Orange Money/Wave/MTN/Moov sont des noms de marque, jamais traduits.
 const PAYMENT_METHODS = [
-  { value: "orange_money", label: "Orange Money",    icon: "🟠", mobile: true },
-  { value: "wave",         label: "Wave",             icon: "🔵", mobile: true },
-  { value: "mtn",          label: "MTN Mobile Money", icon: "💛", mobile: true },
-  { value: "moov",         label: "Moov Money",       icon: "🟢", mobile: true },
-  { value: "card",         label: "Carte bancaire",   icon: "💳", mobile: false },
-  { value: "cash",         label: "Espèces sur place", icon: "💵", mobile: false },
+  { value: "orange_money", label: "Orange Money",           icon: "🟠", mobile: true },
+  { value: "wave",         label: "Wave",                    icon: "🔵", mobile: true },
+  { value: "mtn",          label: "MTN Mobile Money",        icon: "💛", mobile: true },
+  { value: "moov",         label: "Moov Money",              icon: "🟢", mobile: true },
+  { value: "card",         label: "booking.paymentCard",     icon: "💳", mobile: false, translate: true },
+  { value: "cash",         label: "booking.paymentCash",     icon: "💵", mobile: false, translate: true },
 ];
 
 const STEPS = [
-  { id: 1, label: "Dates & Prise en charge" },
-  { id: 2, label: "Options" },
-  { id: 3, label: "Paiement" },
-  { id: 4, label: "Confirmation" },
+  { id: 1, label: "booking.step1Label" },
+  { id: 2, label: "booking.step2Label" },
+  { id: 3, label: "booking.step3Label" },
+  { id: 4, label: "booking.step4Label" },
 ];
 
 /* ════════════════════════════════════════════════════════════════
@@ -56,6 +61,7 @@ export default function Booking() {
   const { vehicles, addBooking, removeLocalBooking, getItemById } = useVehicles();
   const { token, user } = useAuth();
   const { error: toastError } = useToast();
+  const { t } = useI18n();
 
   const getVehicleById = getItemById
     || ((vid) => vehicles?.find((v) => String(v.id) === String(vid) || v._id === String(vid)));
@@ -272,7 +278,7 @@ export default function Booking() {
       const pos = await new Promise((res, rej) =>
         getCurrentPosition(
           (p) => res({ lat: p.coords.latitude, lng: p.coords.longitude }),
-          (e) => rej(new Error(e.code === 1 ? "Accès GPS refusé." : "Position indisponible.")),
+          (e) => rej(new Error(e.code === 1 ? t("booking.gpsDeniedError") : t("booking.gpsUnavailableError"))),
           { enableHighAccuracy: true, timeout: 12000 }
         )
       );
@@ -558,7 +564,7 @@ export default function Booking() {
           // au lieu de croire sa réservation payée (voir BookingSuccess.jsx qui
           // affiche l'avertissement correspondant via payment.initFailed).
           if (paymentInitFailed) {
-            toastError("La passerelle de paiement est momentanément indisponible. Votre réservation est enregistrée, complétez le paiement depuis votre tableau de bord.");
+            toastError(t("booking.paymentGatewayDownError"));
             setSubmitting(false);
             navigate("/booking/success", { state: { booking: bookingData, trial: isTrial, payment: { paymentMethod: payMethod, mobileNumber, initFailed: true } } });
             return;
@@ -569,7 +575,7 @@ export default function Booking() {
         // KYC insuffisant, créneau déjà pris, etc.) — ne jamais afficher l'écran
         // "Réservation confirmée" tant qu'aucune réservation n'existe en base.
         removeLocalBooking(bookingRef);
-        toastError(apiData.message || "Votre réservation n'a pas pu être enregistrée. Veuillez réessayer.");
+        toastError(apiData.message || t("booking.submitFailedGenericError"));
         // Booking Engine (2026-09) — dirige directement vers l'écran de
         // vérification concerné plutôt que de laisser le client deviner quoi
         // faire à partir du seul message d'erreur.
@@ -586,7 +592,7 @@ export default function Booking() {
       // traitement que le refus serveur explicite ci-dessus : jamais de faux
       // succès, retrait de la réservation optimiste fantôme.
       removeLocalBooking(bookingRef);
-      toastError("Connexion perdue — votre réservation n'a pas pu être transmise. Vérifiez votre connexion et réessayez.");
+      toastError(t("booking.networkLostError"));
       setSubmitting(false);
       return;
     }
@@ -604,9 +610,9 @@ export default function Booking() {
       <div className={styles.page}>
         <div className={styles.emptyState}>
           <span>🚗</span>
-          <h2>Véhicule introuvable</h2>
-          <p>Ce véhicule n'est plus disponible.</p>
-          <button className={styles.primaryBtn} onClick={() => navigate("/catalogue")}>← Catalogue</button>
+          <h2>{t("booking.vehicleNotFoundTitle")}</h2>
+          <p>{t("booking.vehicleNotFoundDesc")}</p>
+          <button className={styles.primaryBtn} onClick={() => navigate("/catalogue")}>{t("booking.backToCatalogue")}</button>
         </div>
       </div>
     );
@@ -617,10 +623,10 @@ export default function Booking() {
     const isEnAttente = kycStatus === "EN_ATTENTE" && kycScore > 0;
     const isEnRevision = kycStatus === "A_REVOIR_MANUELLEMENT";
     const kycSteps = [
-      { icon: "📧", label: "Email vérifié",            desc: "Confirmez votre adresse email" },
-      { icon: "📱", label: "Téléphone confirmé",       desc: "Vérification par SMS" },
-      { icon: "📄", label: "Photo du document",        desc: "CNI, Passeport ou Permis" },
-      { icon: "🤳", label: "Selfie de vérification",   desc: "Comparaison avec le document" },
+      { icon: "📧", label: t("booking.kycStepEmailLabel"),  desc: t("booking.kycStepEmailDesc") },
+      { icon: "📱", label: t("booking.kycStepPhoneLabel"),  desc: t("booking.kycStepPhoneDesc") },
+      { icon: "📄", label: t("booking.kycStepDocLabel"),    desc: t("booking.kycStepDocDesc") },
+      { icon: "🤳", label: t("booking.kycStepSelfieLabel"), desc: t("booking.kycStepSelfieDesc") },
     ];
     return (
       <div className={styles.page}>
@@ -628,9 +634,9 @@ export default function Booking() {
           <div className={styles.kycGateHeader}>
             <div className={styles.kycGateLock}>🔒</div>
             <div>
-              <h2 className={styles.kycGateTitle}>Vérification d'identité requise</h2>
+              <h2 className={styles.kycGateTitle}>{t("booking.kycGateTitle")}</h2>
               <p className={styles.kycGateVehicle}>
-                Pour réserver <strong>{vehicle.title || vehicle.name}</strong>, votre identité doit être vérifiée.
+                {t("booking.kycGateVehicleMsg", { vehicle: vehicle.title || vehicle.name })}
               </p>
             </div>
           </div>
@@ -639,8 +645,8 @@ export default function Booking() {
           {(isEnAttente || isEnRevision) && (
             <div style={{ background: "#fef3c7", border: "1.5px solid #fde68a", borderRadius: 12, padding: "14px 18px", margin: "0 0 16px", fontSize: ".9rem", color: "#78350f" }}>
               {isEnRevision
-                ? "🔍 Votre dossier KYC est actuellement en cours d'examen par notre équipe. Résultat sous 24h."
-                : "⏳ Votre dossier KYC a été soumis. Notre équipe l'examine et vous notifiera sous 24 à 48h."}
+                ? t("booking.kycUnderReviewMsg")
+                : t("booking.kycSubmittedMsg")}
             </div>
           )}
 
@@ -665,7 +671,7 @@ export default function Booking() {
             <span className={styles.kycGateMissingBadge} style={{ background: kycBadge.bg, color: kycBadge.color }}>
               {kycBadge.emoji} {kycBadge.badge}
             </span>
-            <p>Statut actuel : <strong>{kycStatus.replace(/_/g, " ")}</strong></p>
+            <p>{t("booking.kycCurrentStatusLabel")}<strong>{kycStatus.replace(/_/g, " ")}</strong></p>
           </div>
 
           {!isEnAttente && !isEnRevision && (
@@ -686,14 +692,14 @@ export default function Booking() {
             {!isEnAttente && !isEnRevision && (
               <button className={styles.kycGateCta}
                 onClick={() => navigate(`/kyc?returnTo=/booking/${id}${searchParams.get("type") ? "&type=" + searchParams.get("type") : ""}`)}>
-                🛡️ Vérifier mon identité
+                {t("booking.kycVerifyCta")}
               </button>
             )}
-            <button className={styles.secondaryBtn} onClick={() => navigate(-1)}>← Retour</button>
+            <button className={styles.secondaryBtn} onClick={() => navigate(-1)}>{t("booking.back")}</button>
           </div>
 
           <p className={styles.kycGateNote}>
-            🔐 Vos données sont chiffrées et ne sont jamais partagées sans votre consentement.
+            {t("booking.kycDataPrivacyNote")}
           </p>
         </div>
       </div>
@@ -719,15 +725,15 @@ export default function Booking() {
       {/* ── Contenu principal ───────────────────────────── */}
       <div className={styles.content}>
         <h1 className={styles.pageTitle}>
-          {isTrial ? "🔑 Demande d'essai" : isLeasing ? (financingType === "credit" ? "💳 Réserver ce crédit" : "💳 Réserver ce leasing") : "📅 Réserver ce véhicule"}
+          {isTrial ? t("booking.titleTrial") : isLeasing ? (financingType === "credit" ? t("booking.titleCredit") : t("booking.titleLeasing")) : t("booking.titleRental")}
         </h1>
 
         {/* KYC Badge */}
         <div className={styles.kycBadgeBar} style={{ background: kycBadge.bg, borderColor: kycBadge.border }}>
           <span>{kycBadge.emoji}</span>
           <span style={{ color: kycBadge.color, fontWeight: 700 }}>{kycBadge.badge}</span>
-          <span style={{ color: "#5a6a8a", fontSize: "0.82rem" }}>— Identité vérifiée • {kycScore}/100</span>
-          <span className={styles.kycRef}>Réf. future : <strong>{bookingRef}</strong></span>
+          <span style={{ color: "#5a6a8a", fontSize: "0.82rem" }}>{t("booking.kycVerifiedScoreBar", { score: kycScore })}</span>
+          <span className={styles.kycRef}>{t("booking.futureRefLabel")}<strong>{bookingRef}</strong></span>
         </div>
 
         {/* ── Progress steps ──────────────────────────── */}
@@ -737,7 +743,7 @@ export default function Booking() {
               key={s.id}
               className={`${styles.stepBtn} ${step === s.id ? styles.stepActive : ""} ${step > s.id ? styles.stepDone : ""}`}
             >
-              {step > s.id ? "✓ " : ""}{s.label}
+              {step > s.id ? "✓ " : ""}{t(s.label)}
             </div>
           ))}
         </div>
@@ -746,108 +752,108 @@ export default function Booking() {
         {step === 1 && (
           <div className={styles.section}>
             {/* Infos client */}
-            <h3 className={styles.sectionTitle}>Coordonnées</h3>
+            <h3 className={styles.sectionTitle}>{t("booking.step1ContactTitle")}</h3>
             <div className={styles.row}>
-              <input className={styles.input} type="text"  placeholder="Prénom *" value={form.firstName}
+              <input className={styles.input} type="text"  placeholder={t("booking.firstNamePlaceholder")} value={form.firstName}
                 onChange={(e) => setForm({ ...form, firstName: e.target.value })} required />
-              <input className={styles.input} type="text"  placeholder="Nom *" value={form.lastName}
+              <input className={styles.input} type="text"  placeholder={t("booking.lastNamePlaceholder")} value={form.lastName}
                 onChange={(e) => setForm({ ...form, lastName: e.target.value })} required />
             </div>
             <div className={styles.row}>
-              <input className={styles.input} type="email" placeholder="E-mail *" value={form.email}
+              <input className={styles.input} type="email" placeholder={t("booking.emailPlaceholder")} value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })} required />
-              <input className={styles.input} type="tel"   placeholder="Téléphone *" value={form.phone}
+              <input className={styles.input} type="tel"   placeholder={t("booking.phonePlaceholder")} value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })} required />
             </div>
             <div className={styles.row}>
-              <input className={styles.input} type="text"  placeholder="N° de passeport *" value={form.passportNumber}
+              <input className={styles.input} type="text"  placeholder={t("booking.passportPlaceholder")} value={form.passportNumber}
                 onChange={(e) => setForm({ ...form, passportNumber: e.target.value })} required />
             </div>
             <p className={styles.optionsNote} style={{ marginTop: -8, marginBottom: 12 }}>
-              📔 Le passeport est obligatoire pour toute réservation — il sera transmis au partenaire.
+              {t("booking.passportRequiredNote")}
             </p>
 
             {/* Essai / Leasing / Location */}
             {isLeasing ? (
               <>
-                <h3 className={styles.sectionTitle}>💳 Conditions du leasing</h3>
+                <h3 className={styles.sectionTitle}>{t("booking.leasingConditionsTitle")}</h3>
                 <p className={styles.optionsNote} style={{ marginBottom: 12 }}>
-                  Ce véhicule est proposé par le partenaire avec les conditions de financement suivantes — non modifiables à cette étape.
+                  {t("booking.leasingConditionsNote")}
                 </p>
                 <div className={styles.confirmRows}>
-                  <div className={styles.confirmRow}><span>Apport initial</span><strong>{fmt(financingTerms?.apportInitial || 0)}</strong></div>
-                  <div className={styles.confirmRow}><span>Mensualité</span><strong>{fmt(financingTerms?.mensualite || 0)} / mois</strong></div>
-                  <div className={styles.confirmRow}><span>Durée</span><strong>{financingTerms?.duree || 36} mois</strong></div>
-                  <div className={styles.confirmRow}><span>Taux d'intérêt</span><strong>{financingTerms?.tauxInteret || 8}% / an</strong></div>
+                  <div className={styles.confirmRow}><span>{t("booking.downPaymentLabel")}</span><strong>{fmt(financingTerms?.apportInitial || 0)}</strong></div>
+                  <div className={styles.confirmRow}><span>{t("booking.monthlyPaymentLabel")}</span><strong>{fmt(financingTerms?.mensualite || 0)} / {t("booking.monthLabel")}</strong></div>
+                  <div className={styles.confirmRow}><span>{t("booking.durationLabel")}</span><strong>{financingTerms?.duree || 36} {t("booking.durationMonthsSuffix")}</strong></div>
+                  <div className={styles.confirmRow}><span>{t("booking.interestRateLabel")}</span><strong>{financingTerms?.tauxInteret || 8}% / {t("booking.yearLabel")}</strong></div>
                   {financingTerms?.description && (
-                    <div className={styles.confirmRow}><span>Conditions</span><strong>{financingTerms.description}</strong></div>
+                    <div className={styles.confirmRow}><span>{t("booking.financingConditionsLabel")}</span><strong>{financingTerms.description}</strong></div>
                   )}
                 </div>
                 <label className={styles.optionCard} style={{ marginTop: 16, cursor: "pointer" }}>
                   <input type="checkbox" className={styles.optionCheckbox}
                     checked={leasingAccepted}
                     onChange={(e) => setLeasingAccepted(e.target.checked)} />
-                  <span>J'ai lu et j'accepte les conditions de ce leasing. L'apport initial sera exigé pour confirmer la réservation ; le reste est payé directement au partenaire selon l'échéancier ci-dessus.</span>
+                  <span>{t("booking.leasingAcceptCheckboxLabel")}</span>
                 </label>
               </>
             ) : isTrial ? (
               <>
-                <h3 className={styles.sectionTitle}>Date d'essai</h3>
+                <h3 className={styles.sectionTitle}>{t("booking.trialDateTitle")}</h3>
                 <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "#64748b" }}>
-                  Choisissez un créneau pour venir essayer le véhicule (environ 1h). Le partenaire confirmera le rendez-vous.
+                  {t("booking.trialDateNote")}
                 </p>
                 <div className={styles.row}>
                   <label className={styles.label}>
-                    Date préférée
+                    {t("booking.preferredDateLabel")}
                     <input className={styles.input} type="date" value={form.preferredDate}
                       min={new Date().toISOString().split("T")[0]}
                       onChange={(e) => setForm({ ...form, preferredDate: e.target.value })} required />
                   </label>
                   <label className={styles.label}>
-                    Heure préférée
+                    {t("booking.preferredTimeLabel")}
                     <input className={styles.input} type="time" value={form.preferredTime}
                       onChange={(e) => setForm({ ...form, preferredTime: e.target.value })} required />
                   </label>
                 </div>
                 {essaiConflict && (
                   <div className={styles.blockedNotice}>
-                    ⛔ Un autre essai est déjà prévu sur ce créneau ({new Date(essaiConflict.date).toLocaleString("fr-FR")}). Choisissez une autre heure.
+                    {t("booking.trialSlotConflict", { date: new Date(essaiConflict.date).toLocaleString("fr-FR") })}
                   </div>
                 )}
-                <textarea className={styles.textarea} placeholder="Notes (optionnel)"
+                <textarea className={styles.textarea} placeholder={t("booking.notesPlaceholder")}
                   value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
               </>
             ) : (
               <>
-                <h3 className={styles.sectionTitle}>Dates de location</h3>
+                <h3 className={styles.sectionTitle}>{t("booking.rentalDatesTitle")}</h3>
                 {blockedDays.length > 0 && (
                   <div className={styles.blockedNotice}>
-                    ⚠️ {blockedDays.length} jour{blockedDays.length > 1 ? "s" : ""} déjà réservé{blockedDays.length > 1 ? "s" : ""} sur ce véhicule.
+                    {t("booking.blockedDaysNotice", { n: blockedDays.length })}
                   </div>
                 )}
                 <div className={styles.row}>
                   <label className={styles.label}>
-                    Début *
+                    {t("booking.startDateLabel")}
                     <input className={`${styles.input} ${form.startDate && blockedSet.has(form.startDate) ? styles.inputBlocked : ""}`}
                       type="date" value={form.startDate} min={new Date().toISOString().split("T")[0]}
                       onChange={(e) => setForm({ ...form, startDate: e.target.value })} required />
-                    {form.startDate && blockedSet.has(form.startDate) && <span className={styles.blockedMsg}>⛔ Date réservée</span>}
+                    {form.startDate && blockedSet.has(form.startDate) && <span className={styles.blockedMsg}>{t("booking.dateBlockedMsg")}</span>}
                   </label>
                   <label className={styles.label}>
-                    Fin *
+                    {t("booking.endDateLabel")}
                     <input className={`${styles.input} ${form.endDate && blockedSet.has(form.endDate) ? styles.inputBlocked : ""}`}
                       type="date" value={form.endDate} min={form.startDate || new Date().toISOString().split("T")[0]}
                       onChange={(e) => setForm({ ...form, endDate: e.target.value })} required />
-                    {form.endDate && blockedSet.has(form.endDate) && <span className={styles.blockedMsg}>⛔ Date réservée</span>}
+                    {form.endDate && blockedSet.has(form.endDate) && <span className={styles.blockedMsg}>{t("booking.dateBlockedMsg")}</span>}
                   </label>
                 </div>
-                {days > 0 && <p className={styles.daysLabel}>📅 {days} jour{days > 1 ? "s" : ""} de location</p>}
+                {days > 0 && <p className={styles.daysLabel}>{t("booking.daysCountLabel", { n: days })}</p>}
                 {days > 0 && days < (vehicle?.dureeMinLocation || 1) && (
-                  <p className={styles.errorMsg}>⚠️ Ce véhicule nécessite une location d'au moins {vehicle.dureeMinLocation} jours.</p>
+                  <p className={styles.errorMsg}>{t("booking.minDurationError", { n: vehicle.dureeMinLocation })}</p>
                 )}
 
                 {/* Mode prise en charge */}
-                <h3 className={styles.sectionTitle}>Mode de prise en charge</h3>
+                <h3 className={styles.sectionTitle}>{t("booking.pickupModeTitle")}</h3>
                 <div className={styles.pickupCards}>
                   <div
                     className={`${styles.pickupCard} ${pickupMethod === "retrait" ? styles.pickupCardActive : ""}`}
@@ -855,8 +861,8 @@ export default function Booking() {
                   >
                     <span>🏢</span>
                     <div>
-                      <strong>Retrait en agence</strong>
-                      <span>Gratuit — {agencyFull || "Adresse communiquée après confirmation"}</span>
+                      <strong>{t("booking.pickupAgencyLabel")}</strong>
+                      <span>{t("booking.pickupAgencyFreeDesc", { address: agencyFull || t("booking.addressAfterConfirmation") })}</span>
                     </div>
                     <div className={styles.radioIndicator}>{pickupMethod === "retrait" ? "●" : "○"}</div>
                   </div>
@@ -866,8 +872,8 @@ export default function Booking() {
                   >
                     <span>🚚</span>
                     <div>
-                      <strong>Livraison à domicile</strong>
-                      <span>Le partenaire livre le véhicule chez vous</span>
+                      <strong>{t("booking.pickupDeliveryLabel")}</strong>
+                      <span>{t("booking.pickupDeliveryDesc")}</span>
                     </div>
                     <div className={styles.radioIndicator}>{pickupMethod === "livraison" ? "●" : "○"}</div>
                   </div>
@@ -882,32 +888,32 @@ export default function Booking() {
                         onClick={handleDetectGPS}
                         disabled={gpsState === "loading"}
                       >
-                        {gpsState === "loading" ? "⏳ Détection…" : gpsState === "ok" ? "✓ Position détectée" : "🎯 Utiliser ma position"}
+                        {gpsState === "loading" ? t("booking.gpsDetecting") : gpsState === "ok" ? t("booking.gpsDetected") : t("booking.gpsUseMyPosition")}
                       </button>
                       <button type="button" className={styles.gpsBtn} onClick={() => setShowMapPicker(true)}>
-                        🗺️ Choisir sur la carte
+                        {t("booking.chooseOnMap")}
                       </button>
                     </div>
                     {gpsError && <p className={styles.errorMsg}>⚠️ {gpsError}</p>}
                     <input
                       type="text"
                       className={styles.input}
-                      placeholder="Votre adresse de livraison"
+                      placeholder={t("booking.deliveryAddressPlaceholder")}
                       value={pickupAddress}
                       onChange={(e) => { setPickupAddress(e.target.value); if (!e.target.value) { setPickupPosition(null); setGeoDistance(null); setGeoFee(null); } }}
                     />
                     <div className={styles.deliveryFieldsRow}>
                       <input
-                        type="text" className={styles.input} placeholder="Ville (optionnel)"
+                        type="text" className={styles.input} placeholder={t("booking.cityPlaceholder")}
                         value={deliveryCity} onChange={(e) => setDeliveryCity(e.target.value)}
                       />
                       <input
-                        type="text" className={styles.input} placeholder="Code postal (optionnel)"
+                        type="text" className={styles.input} placeholder={t("booking.postalCodePlaceholder")}
                         value={deliveryPostalCode} onChange={(e) => setDeliveryPostalCode(e.target.value)}
                       />
                     </div>
                     <input
-                      type="text" className={styles.input} placeholder="Instructions pour le livreur (optionnel — ex : réception principale)"
+                      type="text" className={styles.input} placeholder={t("booking.deliveryInstructionsPlaceholder")}
                       value={deliveryInstructions} onChange={(e) => setDeliveryInstructions(e.target.value)}
                     />
                     {showMapPicker && (
@@ -921,12 +927,12 @@ export default function Booking() {
                     {pickupMethod === "livraison" && (
                       <div className={styles.deliveryFeeBox}>
                         <div className={styles.deliveryFeeRow}>
-                          <span>🚚 Frais de livraison</span>
-                          {geoFeeLoading ? <span>Calcul…</span>
+                          <span>{t("booking.deliveryFeeLabel")}</span>
+                          {geoFeeLoading ? <span>{t("booking.calculating")}</span>
                             : geoFee != null ? <strong className={styles.feeAmount}>{fmt(deliveryFee)}</strong>
-                            : <span className={styles.feePending}>Activez le GPS pour calculer</span>}
+                            : <span className={styles.feePending}>{t("booking.enableGpsToCalculate")}</span>}
                         </div>
-                        {geoDistance && <p className={styles.distanceLabel}>📏 Distance estimée : {geoDistance} km</p>}
+                        {geoDistance && <p className={styles.distanceLabel}>{t("booking.estimatedDistance", { km: geoDistance })}</p>}
                       </div>
                     )}
                   </div>
@@ -942,10 +948,10 @@ export default function Booking() {
                           partenaire ni n'affiche son numéro, uniquement le service
                           client VIT AUTO dédié au pays de l'annonce. */}
                       <a href={`tel:${getCustomerServiceContact(vehicle?.country).tel}`} className={styles.agencyPhone}>
-                        📞 Appeler le service client
+                        {t("booking.callCustomerService")}
                       </a>
                     </div>
-                    <div className={styles.freeBadge}>Gratuit</div>
+                    <div className={styles.freeBadge}>{t("booking.freeLabel")}</div>
                   </div>
                 )}
               </>
@@ -964,7 +970,7 @@ export default function Booking() {
                   (!isLeasing && pickupMethod === "livraison" && !pickupAddress.trim())
                 }
               >
-                Suivant →
+                {t("booking.next")}
               </button>
             </div>
           </div>
@@ -973,8 +979,8 @@ export default function Booking() {
         {/* ════ ÉTAPE 2 — OPTIONS ════════════════════════ */}
         {step === 2 && (
           <div className={styles.section}>
-            <h3 className={styles.sectionTitle}>Options supplémentaires</h3>
-            <p className={styles.optionsNote}>Tarif par jour × {Math.max(days, 1)} jour{days > 1 ? "s" : ""}</p>
+            <h3 className={styles.sectionTitle}>{t("booking.optionsTitle")}</h3>
+            <p className={styles.optionsNote}>{t("booking.optionsRateNote", { n: Math.max(days, 1) })}</p>
 
             <div className={styles.optionsGrid}>
               {OPTIONS_CATALOG.map((opt) => (
@@ -984,8 +990,8 @@ export default function Booking() {
                     onChange={(e) => setSelectedOptions({ ...selectedOptions, [opt.id]: e.target.checked })} />
                   <span className={styles.optionIcon}>{opt.icon}</span>
                   <div className={styles.optionInfo}>
-                    <strong>{opt.label}</strong>
-                    <span>+{fmt(opt.price)}/jour</span>
+                    <strong>{t(opt.label)}</strong>
+                    <span>{t("booking.optionPricePerDay", { price: fmt(opt.price) })}</span>
                   </div>
                   {selectedOptions[opt.id] && <span className={styles.optionCheck}>✓</span>}
                 </label>
@@ -994,13 +1000,13 @@ export default function Booking() {
 
             {optionsTotal > 0 && (
               <div className={styles.optionsTotalBar}>
-                Options sélectionnées : <strong>{fmt(optionsTotal)}</strong>
+                {t("booking.optionsSelectedTotal")}<strong>{fmt(optionsTotal)}</strong>
               </div>
             )}
 
             <div className={styles.actionRow}>
-              <button className={styles.secondaryBtn} onClick={() => setStep(1)}>← Retour</button>
-              <button className={styles.primaryBtn} onClick={() => setStep(3)}>Suivant →</button>
+              <button className={styles.secondaryBtn} onClick={() => setStep(1)}>{t("booking.back")}</button>
+              <button className={styles.primaryBtn} onClick={() => setStep(3)}>{t("booking.next")}</button>
             </div>
           </div>
         )}
@@ -1008,7 +1014,7 @@ export default function Booking() {
         {/* ════ ÉTAPE 3 — PAIEMENT ═══════════════════════ */}
         {step === 3 && (
           <div className={styles.section}>
-            <h3 className={styles.sectionTitle}>Méthode de paiement</h3>
+            <h3 className={styles.sectionTitle}>{t("booking.paymentMethodTitle")}</h3>
 
             {/* Location (hors essai/leasing) : un seul moyen possible (espèces)
                 — pas de grille de sélection pour un choix unique, on va droit
@@ -1020,7 +1026,7 @@ export default function Booking() {
                     <input type="radio" name="payMethod" value={pm.value}
                       checked={payMethod === pm.value} onChange={() => setPayMethod(pm.value)} />
                     <span className={styles.payIcon}>{pm.icon}</span>
-                    <span className={styles.payLabel}>{pm.label}</span>
+                    <span className={styles.payLabel}>{pm.translate ? t(pm.label) : pm.label}</span>
                   </label>
                 ))}
               </div>
@@ -1029,7 +1035,7 @@ export default function Booking() {
             {!isRentalOnly && ["orange_money", "wave", "mtn", "moov"].includes(payMethod) && (
               <div className={styles.payDetails}>
                 <label className={styles.label}>
-                  Numéro mobile *
+                  {t("booking.mobileNumberLabel")}
                   <input className={styles.input} type="tel" placeholder="+225 07 00 00 00 00"
                     value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)} required />
                 </label>
@@ -1039,8 +1045,7 @@ export default function Booking() {
             {payMethod === "cash" && (
               <div className={styles.payDetails}>
                 <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 14px", fontSize: "0.85rem", color: "#1e3a8a" }}>
-                  💵 Le règlement se fera <strong>en espèces à la remise du véhicule</strong>, directement auprès du partenaire.
-                  Un reçu de paiement au format PDF vous sera automatiquement envoyé par email dès que la transaction sera validée.
+                  {t("booking.cashPaymentNote")}
                 </div>
               </div>
             )}
@@ -1049,24 +1054,24 @@ export default function Booking() {
               <div className={styles.payDetails}>
                 <div className={styles.row}>
                   <label className={styles.label}>
-                    Numéro de carte *
-                    <input className={styles.input} type="text" placeholder="0000 0000 0000 0000"
+                    {t("booking.cardNumberLabel")}
+                    <input className={styles.input} type="text" placeholder={t("booking.cardNumberPlaceholder")}
                       value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} maxLength={19} />
                   </label>
                   <label className={styles.label}>
-                    Nom sur la carte *
-                    <input className={styles.input} type="text" placeholder="NOM PRÉNOM"
+                    {t("booking.cardHolderLabel")}
+                    <input className={styles.input} type="text" placeholder={t("booking.cardHolderPlaceholder")}
                       value={cardHolder} onChange={(e) => setCardHolder(e.target.value.toUpperCase())} />
                   </label>
                 </div>
                 <div className={styles.row}>
                   <label className={styles.label}>
-                    Expiration (MM/AA) *
-                    <input className={styles.input} type="text" placeholder="MM/AA"
+                    {t("booking.cardExpiryLabel")}
+                    <input className={styles.input} type="text" placeholder={t("booking.cardExpiryPlaceholder")}
                       value={cardExpiry} onChange={(e) => setCardExpiry(e.target.value)} maxLength={5} />
                   </label>
                   <label className={styles.label}>
-                    CVV *
+                    {t("booking.cardCvvLabel")}
                     <input className={styles.input} type="text" placeholder="123"
                       value={cardCvv} onChange={(e) => setCardCvv(e.target.value)} maxLength={4} />
                   </label>
@@ -1077,16 +1082,16 @@ export default function Booking() {
             {!isRentalOnly && (
               <>
                 <div className={styles.securityNote}>
-                  🔐 Paiement sécurisé TLS 1.3 — Données chiffrées · CVV jamais stocké sur nos serveurs
+                  {t("booking.securePaymentNote")}
                 </div>
                 <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "8px 14px", fontSize: "0.8rem", color: "#92400e", marginTop: 8 }}>
-                  ⚠️ <strong>Mode simulation actif</strong> — Aucun débit réel. L'intégration Orange Money / Stripe sera activée en production.
+                  {t("booking.simulationModeNote")}
                 </div>
               </>
             )}
 
             <div className={styles.actionRow}>
-              <button className={styles.secondaryBtn} onClick={() => setStep(isLeasing ? 1 : 2)}>← Retour</button>
+              <button className={styles.secondaryBtn} onClick={() => setStep(isLeasing ? 1 : 2)}>{t("booking.back")}</button>
               <button
                 className={styles.primaryBtn}
                 onClick={() => setStep(4)}
@@ -1095,7 +1100,7 @@ export default function Booking() {
                   (payMethod === "card" && (!cardNumber || !cardHolder || !cardExpiry || !cardCvv))
                 }
               >
-                Voir le récapitulatif →
+                {t("booking.viewSummary")}
               </button>
             </div>
           </div>
@@ -1104,81 +1109,81 @@ export default function Booking() {
         {/* ════ ÉTAPE 4 — CONFIRMATION ═══════════════════ */}
         {step === 4 && (
           <div className={styles.section}>
-            <h3 className={styles.sectionTitle}>✅ Récapitulatif de la réservation</h3>
+            <h3 className={styles.sectionTitle}>{t("booking.summaryTitle")}</h3>
 
             <div className={styles.refBox}>
-              <span>Référence</span>
+              <span>{t("booking.referenceLabel")}</span>
               <strong className={styles.refCode}>{bookingRef}</strong>
             </div>
 
             <div className={styles.confirmRows}>
-              <div className={styles.confirmRow}><span>Client</span><strong>{form.firstName} {form.lastName}</strong></div>
-              <div className={styles.confirmRow}><span>Email</span><strong>{form.email}</strong></div>
-              <div className={styles.confirmRow}><span>Téléphone</span><strong>{form.phone}</strong></div>
-              <div className={styles.confirmRow}><span>Véhicule</span><strong>{vehicle.title || vehicle.name}</strong></div>
+              <div className={styles.confirmRow}><span>{t("booking.clientLabel")}</span><strong>{form.firstName} {form.lastName}</strong></div>
+              <div className={styles.confirmRow}><span>{t("booking.emailLabel")}</span><strong>{form.email}</strong></div>
+              <div className={styles.confirmRow}><span>{t("booking.phoneLabel")}</span><strong>{form.phone}</strong></div>
+              <div className={styles.confirmRow}><span>{t("booking.vehicleLabel")}</span><strong>{vehicle.title || vehicle.name}</strong></div>
               {!isTrial && !isLeasing && (
                 <>
-                  <div className={styles.confirmRow}><span>Du</span><strong>{new Date(form.startDate).toLocaleDateString("fr-FR")}</strong></div>
-                  <div className={styles.confirmRow}><span>Au</span><strong>{new Date(form.endDate).toLocaleDateString("fr-FR")}</strong></div>
-                  <div className={styles.confirmRow}><span>Durée</span><strong>{days} jour{days > 1 ? "s" : ""}</strong></div>
-                  <div className={styles.confirmRow}><span>Prise en charge</span><strong>{pickupMethod === "retrait" ? `Retrait — ${agencyFull || "Agence"}` : `Livraison — ${pickupAddress.slice(0, 50)}`}</strong></div>
-                  {baseTotal > 0 && <div className={styles.confirmRow}><span>Base</span><strong>{fmt(baseTotal)}</strong></div>}
+                  <div className={styles.confirmRow}><span>{t("booking.fromLabel")}</span><strong>{new Date(form.startDate).toLocaleDateString("fr-FR")}</strong></div>
+                  <div className={styles.confirmRow}><span>{t("booking.toLabel")}</span><strong>{new Date(form.endDate).toLocaleDateString("fr-FR")}</strong></div>
+                  <div className={styles.confirmRow}><span>{t("booking.durationLabel")}</span><strong>{t("booking.daysCountLabel", { n: days })}</strong></div>
+                  <div className={styles.confirmRow}><span>{t("booking.pickupLabel")}</span><strong>{pickupMethod === "retrait" ? t("booking.pickupSummaryAgency", { agency: agencyFull || t("booking.agencyFallback") }) : t("booking.pickupSummaryDelivery", { address: pickupAddress.slice(0, 50) })}</strong></div>
+                  {baseTotal > 0 && <div className={styles.confirmRow}><span>{t("booking.baseAmountLabel")}</span><strong>{fmt(baseTotal)}</strong></div>}
                   {promoActive && (
                     <div className={styles.confirmRow} style={{ color: "#dc2626" }}>
-                      <span>🏷️ Promotion{activePromo.label ? ` (${activePromo.label})` : ""}</span>
+                      <span>{t("booking.promotionLabel", { label: activePromo.label ? ` (${activePromo.label})` : "" })}</span>
                       <strong>{activePromo.type === "percent" ? `-${activePromo.value}%` : `-${fmt(activePromo.value)}`}</strong>
                     </div>
                   )}
-                  {optionsTotal > 0 && <div className={styles.confirmRow}><span>Options</span><strong>{fmt(optionsTotal)}</strong></div>}
-                  {pickupMethod === "livraison" && <div className={styles.confirmRow}><span>Livraison</span><strong>{fmt(deliveryFee)}</strong></div>}
+                  {optionsTotal > 0 && <div className={styles.confirmRow}><span>{t("booking.optionsLabel")}</span><strong>{fmt(optionsTotal)}</strong></div>}
+                  {pickupMethod === "livraison" && <div className={styles.confirmRow}><span>{t("booking.deliveryLabel")}</span><strong>{fmt(deliveryFee)}</strong></div>}
                 </>
               )}
               {isTrial && (
                 <>
-                  <div className={styles.confirmRow}><span>Date d'essai</span><strong>{new Date(form.preferredDate).toLocaleDateString("fr-FR")}</strong></div>
-                  <div className={styles.confirmRow}><span>Heure</span><strong>{form.preferredTime}</strong></div>
+                  <div className={styles.confirmRow}><span>{t("booking.trialDateSummaryLabel")}</span><strong>{new Date(form.preferredDate).toLocaleDateString("fr-FR")}</strong></div>
+                  <div className={styles.confirmRow}><span>{t("booking.timeLabel")}</span><strong>{form.preferredTime}</strong></div>
                 </>
               )}
               {isLeasing && (
                 <>
-                  <div className={styles.confirmRow}><span>Apport initial</span><strong>{fmt(baseTotal)}</strong></div>
-                  <div className={styles.confirmRow}><span>Mensualité</span><strong>{fmt(financingTerms?.mensualite || 0)} / mois</strong></div>
-                  <div className={styles.confirmRow}><span>Durée</span><strong>{financingTerms?.duree || 36} mois</strong></div>
+                  <div className={styles.confirmRow}><span>{t("booking.downPaymentLabel")}</span><strong>{fmt(baseTotal)}</strong></div>
+                  <div className={styles.confirmRow}><span>{t("booking.monthlyPaymentLabel")}</span><strong>{fmt(financingTerms?.mensualite || 0)} / {t("booking.durationMonthsSuffix")}</strong></div>
+                  <div className={styles.confirmRow}><span>{t("booking.durationLabel")}</span><strong>{financingTerms?.duree || 36} {t("booking.durationMonthsSuffix")}</strong></div>
                 </>
               )}
               {!isTrial && !isLeasing && maxPointsUsable > 0 && (
                 <div className={styles.confirmRow}>
                   <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
                     <input type="checkbox" checked={applyPoints} onChange={(e) => setApplyPoints(e.target.checked)} />
-                    🎁 Utiliser mes points de fidélité ({user.loyaltyPoints} dispo)
+                    {t("booking.useLoyaltyPoints", { n: user.loyaltyPoints })}
                   </label>
                   {applyPoints && <strong style={{ color: "#059669" }}>-{fmt(loyaltyDiscountPreview)}</strong>}
                 </div>
               )}
-              <div className={styles.confirmRow}><span>Frais de service</span><strong>{fmt(SERVICE_FEE)}</strong></div>
-              <div className={styles.confirmRow}><span>Paiement</span><strong>{PAYMENT_METHODS.find((p) => p.value === payMethod)?.label || payMethod}</strong></div>
+              <div className={styles.confirmRow}><span>{t("booking.serviceFeeLabel")}</span><strong>{fmt(SERVICE_FEE)}</strong></div>
+              <div className={styles.confirmRow}><span>{t("booking.paymentLabel")}</span><strong>{(() => { const pm = PAYMENT_METHODS.find((p) => p.value === payMethod); return pm ? (pm.translate ? t(pm.label) : pm.label) : payMethod; })()}</strong></div>
               <div className={`${styles.confirmRow} ${styles.confirmTotal}`}>
-                <span>Total à payer</span>
+                <span>{t("booking.totalToPayLabel")}</span>
                 <strong><PriceTag amountUSD={totalToPay} /></strong>
               </div>
             </div>
 
             <div className={styles.kycBadgeBar} style={{ background: kycBadge.bg, borderColor: kycBadge.border }}>
               {kycBadge.emoji} <span style={{ color: kycBadge.color, fontWeight: 700 }}>{kycBadge.badge}</span>
-              <span style={{ color: "#5a6a8a", fontSize: "0.82rem" }}> — Identité vérifiée</span>
+              <span style={{ color: "#5a6a8a", fontSize: "0.82rem" }}>{t("booking.identityVerifiedSuffix")}</span>
             </div>
 
             <div className={styles.legalNote}>
-              En confirmant, vous acceptez les{" "}
-              <Link to="/cgu" target="_blank">conditions générales</Link>{" "}
-              et la{" "}
-              <Link to="/privacy" target="_blank">politique de confidentialité</Link> de VIT AUTO.
+              {t("booking.legalAcceptPrefix")}
+              <Link to="/cgu" target="_blank">{t("booking.termsLink")}</Link>
+              {t("booking.legalAcceptConnector")}
+              <Link to="/privacy" target="_blank">{t("booking.privacyLink")}</Link>{t("booking.legalAcceptSuffix")}
             </div>
 
             <div className={styles.actionRow}>
-              <button className={styles.secondaryBtn} onClick={() => setStep(3)}>← Modifier</button>
+              <button className={styles.secondaryBtn} onClick={() => setStep(3)}>{t("booking.editButton")}</button>
               <button className={styles.confirmBtn} onClick={handleSubmit} disabled={submitting}>
-                {submitting ? "⏳ Envoi…" : `✅ Confirmer — ${fmt(totalToPay)}`}
+                {submitting ? t("booking.sending") : t("booking.confirmButton", { total: fmt(totalToPay) })}
               </button>
             </div>
           </div>
@@ -1200,36 +1205,36 @@ export default function Booking() {
           <div className={styles.sidebarRows}>
             {isLeasing ? (
               <>
-                <div className={styles.sidebarRow}><span>Apport initial</span><strong>{fmt(baseTotal)}</strong></div>
-                <div className={styles.sidebarRow}><span>Mensualité</span><strong>{fmt(financingTerms?.mensualite || 0)}/mois</strong></div>
-                <div className={styles.sidebarRow}><span>Durée</span><strong>{financingTerms?.duree || 36} mois</strong></div>
+                <div className={styles.sidebarRow}><span>{t("booking.downPaymentLabel")}</span><strong>{fmt(baseTotal)}</strong></div>
+                <div className={styles.sidebarRow}><span>{t("booking.monthlyPaymentLabel")}</span><strong>{fmt(financingTerms?.mensualite || 0)}/{t("booking.durationMonthsSuffix")}</strong></div>
+                <div className={styles.sidebarRow}><span>{t("booking.durationLabel")}</span><strong>{financingTerms?.duree || 36} {t("booking.durationMonthsSuffix")}</strong></div>
               </>
             ) : (
               <>
-                {!isTrial && <div className={styles.sidebarRow}><span>Prix / jour</span><strong><PriceTag amountUSD={vehicle.pricePerDay || 0} enteredAmount={vehicle.pricePerDayEntered} enteredCurrency={vehicle.priceEntryCurrency} /></strong></div>}
-                {days > 0 && !isTrial && <div className={styles.sidebarRow}><span>Durée</span><strong>{days} j</strong></div>}
-                {baseTotal > 0 && !isTrial && <div className={styles.sidebarRow}><span>Base</span><strong>{fmt(baseTotal)}</strong></div>}
+                {!isTrial && <div className={styles.sidebarRow}><span>{t("booking.pricePerDayLabel")}</span><strong><PriceTag amountUSD={vehicle.pricePerDay || 0} enteredAmount={vehicle.pricePerDayEntered} enteredCurrency={vehicle.priceEntryCurrency} /></strong></div>}
+                {days > 0 && !isTrial && <div className={styles.sidebarRow}><span>{t("booking.durationLabel")}</span><strong>{t("booking.daysAbbrev", { n: days })}</strong></div>}
+                {baseTotal > 0 && !isTrial && <div className={styles.sidebarRow}><span>{t("booking.baseAmountLabel")}</span><strong>{fmt(baseTotal)}</strong></div>}
                 {promoActive && !isTrial && (
                   <div className={styles.sidebarRow} style={{ color: "#dc2626" }}>
-                    <span>🏷️ Promotion</span>
+                    <span>{t("booking.promotionLabel", { label: "" })}</span>
                     <strong>{activePromo.type === "percent" ? `-${activePromo.value}%` : `-${fmt(activePromo.value)}`}</strong>
                   </div>
                 )}
-                {optionsTotal > 0 && <div className={styles.sidebarRow}><span>Options</span><strong>{fmt(optionsTotal)}</strong></div>}
+                {optionsTotal > 0 && <div className={styles.sidebarRow}><span>{t("booking.optionsLabel")}</span><strong>{fmt(optionsTotal)}</strong></div>}
                 {pickupMethod === "livraison" && !isTrial && (
                   <div className={styles.sidebarRow}>
-                    <span>Livraison{geoDistance ? ` (${geoDistance}km)` : ""}</span>
-                    <strong>{geoFeeLoading ? "…" : fmt(deliveryFee)}</strong>
+                    <span>{t("booking.deliveryLabel")}{geoDistance ? ` (${geoDistance}km)` : ""}</span>
+                    <strong>{geoFeeLoading ? t("booking.loadingEllipsis") : fmt(deliveryFee)}</strong>
                   </div>
                 )}
                 {pickupMethod === "retrait" && !isTrial && (
-                  <div className={styles.sidebarRow}><span>Retrait agence</span><strong className={styles.freeLabel}>Gratuit</strong></div>
+                  <div className={styles.sidebarRow}><span>{t("booking.pickupAgencySidebarLabel")}</span><strong className={styles.freeLabel}>{t("booking.freeLabel")}</strong></div>
                 )}
               </>
             )}
-            <div className={styles.sidebarRow}><span>Frais service</span><strong>{fmt(SERVICE_FEE)}</strong></div>
+            <div className={styles.sidebarRow}><span>{t("booking.serviceFeeShortLabel")}</span><strong>{fmt(SERVICE_FEE)}</strong></div>
             <div className={`${styles.sidebarRow} ${styles.sidebarTotal}`}>
-              <span>Total</span>
+              <span>{t("booking.totalLabel")}</span>
               <strong><PriceTag amountUSD={totalToPay} /></strong>
             </div>
           </div>
@@ -1241,7 +1246,7 @@ export default function Booking() {
           </div>
 
           <div className={styles.sidebarGuarantee}>
-            🛡️ Identité vérifiée · Paiement sécurisé · Contrat digital
+            {t("booking.sidebarGuaranteeNote")}
           </div>
         </div>
       </aside>

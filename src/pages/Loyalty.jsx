@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import LoyaltyTierBadge from "../components/LoyaltyTierBadge/LoyaltyTierBadge";
 import styles from "./Loyalty.module.css";
 
@@ -11,14 +12,22 @@ const REASON_LABEL = {
   booking_admin_rejected:   "Remboursement (demande refusée)",
 };
 
+// Le "reason" d'un bonus de parrainage encode l'id du filleul
+// (`referral_<clientId>`, voir bookingController.awardReferralBonusIfEligible)
+// pour garantir qu'un même filleul ne peut jamais déclencher deux fois le
+// bonus — jamais un libellé fixe à faire correspondre dans REASON_LABEL.
+const reasonLabel = (reason) => (reason?.startsWith("referral_") ? "Bonus de parrainage" : REASON_LABEL[reason] || reason);
+
 const TYPE_STYLE = {
   credit:   { emoji: "➕", className: "credit" },
   debit:    { emoji: "➖", className: "debit" },
   rollback: { emoji: "↩️", className: "rollback" },
+  referral: { emoji: "🎉", className: "credit" },
 };
 
 export default function Loyalty() {
-  const { isAuthenticated, authFetch } = useAuth();
+  const { isAuthenticated, authFetch, user } = useAuth();
+  const { success: toastSuccess } = useToast();
   const [status,  setStatus]  = useState(null);
   const [tiers,   setTiers]   = useState([]);
   const [history, setHistory] = useState([]);
@@ -98,6 +107,29 @@ export default function Loyalty() {
         )}
       </div>
 
+      {user?.referralCode && (
+        <div className={styles.statusCard}>
+          <div className={styles.progressLabel} style={{ marginBottom: 10 }}>
+            🎁 Parrainez un ami — 500 points offerts dès sa première réservation terminée
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <code style={{ background: "#f1f5f9", padding: "8px 14px", borderRadius: 8, fontWeight: 700, letterSpacing: 1 }}>
+              {user.referralCode}
+            </code>
+            <button
+              type="button"
+              onClick={() => {
+                const link = `${window.location.origin}/register?ref=${user.referralCode}`;
+                navigator.clipboard?.writeText(link).then(() => toastSuccess("Lien de parrainage copié !"));
+              }}
+              style={{ background: "#0f1b3f", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontWeight: 700, cursor: "pointer" }}
+            >
+              📋 Copier le lien de parrainage
+            </button>
+          </div>
+        </div>
+      )}
+
       <h2 className={styles.sectionTitle}>Les paliers</h2>
       <div className={styles.tierGrid}>
         {tiers.map((t) => (
@@ -126,7 +158,7 @@ export default function Loyalty() {
                 <div key={tx._id} className={styles.historyRow}>
                   <span className={`${styles.historyIcon} ${styles[style.className]}`}>{style.emoji}</span>
                   <div className={styles.historyInfo}>
-                    <strong>{REASON_LABEL[tx.reason] || tx.reason}</strong>
+                    <strong>{reasonLabel(tx.reason)}</strong>
                     <span>{new Date(tx.createdAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}</span>
                   </div>
                   <span className={`${styles.historyPoints} ${styles[style.className]}`}>

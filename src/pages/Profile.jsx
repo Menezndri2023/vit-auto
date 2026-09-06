@@ -692,6 +692,22 @@ const Profile = () => {
                   </small>
                 </div>
 
+                {/* Fiabilité (avis laissés par les partenaires — Booking Engine Phase 5) */}
+                {!isPartner && user?.clientReliability?.nombreAvis > 0 && (
+                  <div className={styles.field} style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "12px 16px" }}>
+                    <label style={{ marginBottom: 4 }}>🤝 Votre fiabilité</label>
+                    <p style={{ margin: 0, fontSize: "0.95rem", fontWeight: 700, color: "#059669" }}>
+                      ★ {user.clientReliability.noteMoyenne.toFixed(1)} / 5
+                      <span style={{ marginLeft: 6, fontWeight: 500, color: "#64748b" }}>
+                        ({user.clientReliability.nombreAvis} avis partenaire{user.clientReliability.nombreAvis > 1 ? "s" : ""})
+                      </span>
+                    </p>
+                    <small style={{ color: "#64748b", fontSize: "0.78rem" }}>
+                      Une bonne fiabilité peut vous faire bénéficier d'une confirmation automatique chez certains partenaires.
+                    </small>
+                  </div>
+                )}
+
                 {/* Permis (seulement clients) */}
                 {!isPartner && (
                   <>

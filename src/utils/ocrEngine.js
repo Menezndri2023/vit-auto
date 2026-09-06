@@ -136,28 +136,28 @@ function parseDocumentText(text, documentType, confidence) {
   // ── Extraction par patterns textuels ─────────────────────────────────────
   // Nom / Prénom — patterns francophones
   const namePatterns = [
-    /NOM\s*[:\/]?\s*([A-ZÀ-Ÿ\s\-']+)/i,
-    /NOM\s+DE\s+FAMILLE\s*[:\/]?\s*([A-ZÀ-Ÿ\s\-']+)/i,
-    /SURNAME\s*[:\/]?\s*([A-Z\s\-']+)/i,
-    /LAST\s+NAME\s*[:\/]?\s*([A-Z\s\-']+)/i,
+    /NOM\s*[:/]?\s*([A-ZÀ-Ÿ\s\-']+)/i,
+    /NOM\s+DE\s+FAMILLE\s*[:/]?\s*([A-ZÀ-Ÿ\s\-']+)/i,
+    /SURNAME\s*[:/]?\s*([A-Z\s\-']+)/i,
+    /LAST\s+NAME\s*[:/]?\s*([A-Z\s\-']+)/i,
   ];
   const firstNamePatterns = [
-    /PR[EÉ]NOM\s*[:\/]?\s*([A-ZÀ-Ÿ\s\-']+)/i,
-    /GIVEN\s+NAME\s*[:\/]?\s*([A-Z\s\-']+)/i,
-    /FIRST\s+NAME\s*[:\/]?\s*([A-Z\s\-']+)/i,
-    /PRENOM\s*[:\/]?\s*([A-ZÀ-Ÿ\s\-']+)/i,
+    /PR[EÉ]NOM\s*[:/]?\s*([A-ZÀ-Ÿ\s\-']+)/i,
+    /GIVEN\s+NAME\s*[:/]?\s*([A-Z\s\-']+)/i,
+    /FIRST\s+NAME\s*[:/]?\s*([A-Z\s\-']+)/i,
+    /PRENOM\s*[:/]?\s*([A-ZÀ-Ÿ\s\-']+)/i,
   ];
   const birthPatterns = [
-    /N[ÉE]\s*(?:LE)?\s*[:\/]?\s*(\d{1,2}[\s\.\/\-]\d{1,2}[\s\.\/\-]\d{2,4})/i,
-    /DATE\s+(?:DE\s+)?NAISSANCE\s*[:\/]?\s*(\d{1,2}[\s\.\/\-]\d{1,2}[\s\.\/\-]\d{2,4})/i,
-    /DOB\s*[:\/]?\s*(\d{1,2}[\s\.\/\-]\d{1,2}[\s\.\/\-]\d{2,4})/i,
-    /BIRTH\s*(?:DATE)?\s*[:\/]?\s*(\d{1,2}[\s\.\/\-]\d{1,2}[\s\.\/\-]\d{2,4})/i,
+    /N[ÉE]\s*(?:LE)?\s*[:/]?\s*(\d{1,2}[\s./-]\d{1,2}[\s./-]\d{2,4})/i,
+    /DATE\s+(?:DE\s+)?NAISSANCE\s*[:/]?\s*(\d{1,2}[\s./-]\d{1,2}[\s./-]\d{2,4})/i,
+    /DOB\s*[:/]?\s*(\d{1,2}[\s./-]\d{1,2}[\s./-]\d{2,4})/i,
+    /BIRTH\s*(?:DATE)?\s*[:/]?\s*(\d{1,2}[\s./-]\d{1,2}[\s./-]\d{2,4})/i,
   ];
   const expiryPatterns = [
-    /DATE\s+D['\s]?EXPIR\w*\s*[:\/]?\s*(\d{1,2}[\s\.\/\-]\d{1,2}[\s\.\/\-]\d{2,4})/i,
-    /EXPIR\w*\s*(?:DATE)?\s*[:\/]?\s*(\d{1,2}[\s\.\/\-]\d{1,2}[\s\.\/\-]\d{2,4})/i,
-    /VALID\w*\s+(?:UNTIL|JUSQU)?\s*[:\/]?\s*(\d{1,2}[\s\.\/\-]\d{1,2}[\s\.\/\-]\d{2,4})/i,
-    /FIN\s+VALIDIT[EÉ]\s*[:\/]?\s*(\d{1,2}[\s\.\/\-]\d{1,2}[\s\.\/\-]\d{2,4})/i,
+    /DATE\s+D['\s]?EXPIR\w*\s*[:/]?\s*(\d{1,2}[\s./-]\d{1,2}[\s./-]\d{2,4})/i,
+    /EXPIR\w*\s*(?:DATE)?\s*[:/]?\s*(\d{1,2}[\s./-]\d{1,2}[\s./-]\d{2,4})/i,
+    /VALID\w*\s+(?:UNTIL|JUSQU)?\s*[:/]?\s*(\d{1,2}[\s./-]\d{1,2}[\s./-]\d{2,4})/i,
+    /FIN\s+VALIDIT[EÉ]\s*[:/]?\s*(\d{1,2}[\s./-]\d{1,2}[\s./-]\d{2,4})/i,
   ];
   // Mots-clés à rejeter absolument comme numéro de document
   const DOC_TYPE_KEYWORDS = new Set([
@@ -182,18 +182,18 @@ function parseDocumentText(text, documentType, confidence) {
   };
 
   const docNumPatterns = [
-    /N[°º]\s*[:\/]?\s*([A-Z0-9\-]{5,18})/i,
-    /NUM[EÉ]RO\s*[:\/]?\s*([A-Z0-9\-]{5,18})/i,
-    /DOCUMENT\s+N[°º]\s*[:\/]?\s*([A-Z0-9\-]{5,18})/i,
-    /CARTE\s+N[°º]\s*[:\/]?\s*([A-Z0-9\-]{5,18})/i,
-    /PASSEPORT\s+N[°º]\s*[:\/]?\s*([A-Z0-9]{6,12})/i,
-    /PERMIS\s+N[°º]\s*[:\/]?\s*([A-Z0-9\-]{5,18})/i,
-    /\bID\b\s*[:\/]?\s*([A-Z0-9]{6,15})/i,
+    /N[°º]\s*[:/]?\s*([A-Z0-9-]{5,18})/i,
+    /NUM[EÉ]RO\s*[:/]?\s*([A-Z0-9-]{5,18})/i,
+    /DOCUMENT\s+N[°º]\s*[:/]?\s*([A-Z0-9-]{5,18})/i,
+    /CARTE\s+N[°º]\s*[:/]?\s*([A-Z0-9-]{5,18})/i,
+    /PASSEPORT\s+N[°º]\s*[:/]?\s*([A-Z0-9]{6,12})/i,
+    /PERMIS\s+N[°º]\s*[:/]?\s*([A-Z0-9-]{5,18})/i,
+    /\bID\b\s*[:/]?\s*([A-Z0-9]{6,15})/i,
   ];
   const genderPatterns = [
-    /SEXE\s*[:\/]?\s*(M|F|MASCULIN|FÉMININ|FEMININ|MALE|FEMALE)/i,
-    /SEX\s*[:\/]?\s*(M|F|MALE|FEMALE)/i,
-    /GENRE\s*[:\/]?\s*(M|F)/i,
+    /SEXE\s*[:/]?\s*(M|F|MASCULIN|FÉMININ|FEMININ|MALE|FEMALE)/i,
+    /SEX\s*[:/]?\s*(M|F|MALE|FEMALE)/i,
+    /GENRE\s*[:/]?\s*(M|F)/i,
   ];
 
   const isValidName = (s) => s && s.trim().length >= 2 && !/^\s*[A-Z]\s*$/.test(s.trim());
@@ -363,12 +363,16 @@ function detectCountryFromText(upper) {
 // ── Normaliser une date extraite ──────────────────────────────────────────────
 function normalizeDate(raw) {
   if (!raw) return null;
-  const clean = raw.trim().replace(/[\s\.]/g, "/");
-  const parts  = clean.split(/[\/\-]/);
+  const clean = raw.trim().replace(/[\s.]/g, "/");
+  const parts  = clean.split(/[/-]/);
   if (parts.length < 3) return null;
 
   let [d, m, y] = parts;
   // Si l'année vient en premier (format YYYY-MM-DD)
+  // Faux positif ESLint : échange de variables par déstructuration
+  // ([y,m,d] = [d,m,y]) — `m` ne change simplement pas de valeur dans cette
+  // permutation précise, ce n'est pas une auto-affectation.
+  // eslint-disable-next-line no-self-assign
   if (y && y.length === 4 && parseInt(y) > 1900) { [y, m, d] = [d, m, y]; }
   // Complétion année sur 2 chiffres
   if (y && y.length === 2) {
@@ -390,7 +394,7 @@ function capitalizeWords(str) {
   if (!str) return null;
   return str
     .toLowerCase()
-    .split(/[\s\-]+/)
+    .split(/[\s-]+/)
     .filter(Boolean)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ")

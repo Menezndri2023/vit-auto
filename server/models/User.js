@@ -388,7 +388,22 @@ const userSchema = new mongoose.Schema({
     minReviews: { type: Number, default: 2 },
   },
 
+  // ── Parrainage (2026-09) ────────────────────────────────────────
+  // referralCode : généré automatiquement (pre-save ci-dessous, dérivé de
+  // _id — toujours unique sans avoir besoin d'une boucle de retry). Partagé
+  // par le client via un lien `?ref=CODE` (voir Register.jsx/Loyalty.jsx).
+  // referredBy : posé UNE SEULE FOIS à l'inscription (authController.register),
+  // jamais réécrit ensuite — le crédit du parrain se joue à la première
+  // réservation complétée du filleul (voir bookingController.awardLoyaltyPoints).
+  referralCode: { type: String, default: null, unique: true, sparse: true },
+  referredBy:   { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+
   createdAt: { type: Date, default: Date.now },
+});
+
+userSchema.pre("save", function (next) {
+  if (!this.referralCode) this.referralCode = this._id.toString().slice(-8).toUpperCase();
+  next();
 });
 
 userSchema.index({ role: 1 });

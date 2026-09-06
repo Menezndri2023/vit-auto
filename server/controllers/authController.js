@@ -99,6 +99,18 @@ function safeUser(u) {
       expiryDate: u.driverLicenseOcr.expiryDate || null,
       isExpired:  !!u.driverLicenseOcr.isExpired,
     } : null,
+    // Même piège que ci-dessus (isFounder/certificationBadge), à nouveau
+    // constaté : ces champs, ajoutés par des chantiers plus récents (avis
+    // bidirectionnels, auto-acceptation, parrainage), n'étaient lus par le
+    // frontend (AuthContext.user) qu'après une réponse PATCH /api/users/me
+    // qui les renvoie déjà (projection différente, en liste noire) — jamais
+    // au login/getMe initial (safeUser, en liste blanche). Ajoutés ici pour
+    // que ce soit cohérent dès la première connexion, pas seulement après
+    // une modification de profil.
+    partnerRating:             u.partnerRating             || { noteMoyenne: 0, nombreAvis: 0 },
+    clientReliability:         u.clientReliability         || { noteMoyenne: 0, nombreAvis: 0 },
+    autoAcceptTrustedClients:  u.autoAcceptTrustedClients  || { enabled: false, minRating: 4, minReviews: 2 },
+    referralCode:              u.referralCode || null,
   };
 }
 
@@ -250,6 +262,16 @@ export const register = async (req, res) => {
     const sellerType = isPartner && entityType ? entityTypeToSellerType(entityType) : null;
     const hash = await bcrypt.hash(password, 12);
 
+    // Parrainage (2026-09) — posé une seule fois ici, jamais réécrit ensuite.
+    // Un code invalide/inconnu est silencieusement ignoré (pas de raison de
+    // bloquer une inscription pour un lien de parrainage périmé/mal recopié).
+    const referralCodeIn = sanitize(req.body.referralCode);
+    let referredBy = null;
+    if (referralCodeIn) {
+      const referrer = await User.findOne({ referralCode: referralCodeIn.toUpperCase() }).select("_id");
+      if (referrer) referredBy = referrer._id;
+    }
+
     const token = makeToken();
     const autoVerify = isDevNoSmtp(); // En développement sans SMTP : auto-vérifier l'email
 
@@ -272,6 +294,7 @@ export const register = async (req, res) => {
       sellerType,
       partnerActivity: isPartner ? activity : null,
       entityType: isPartner ? entityType : null,
+      referredBy,
       emailVerificationToken:        autoVerify ? null : token,
       emailVerificationExpires:      autoVerify ? null : new Date(Date.now() + VERIFY_TTL),
       emailVerificationCode:         codeHash,

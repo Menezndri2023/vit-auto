@@ -58,11 +58,17 @@ export function I18nProvider({ children }) {
     applyLang(code);
   }, [applyLang]);
 
+  // params (optionnel) : interpolation simple `{nom}` — nécessaire pour les
+  // clés qui embarquent une valeur dynamique (nombre de jours, prix, nom de
+  // véhicule...). Rétrocompatible : t("key") sans params fonctionne comme avant.
   const t = useCallback(
-    (key) => {
+    (key, params) => {
       const entry = translations[key];
-      if (!entry) return key;
-      return entry[lang] || entry["fr"] || key;
+      let str = entry ? (entry[lang] || entry["fr"] || key) : key;
+      if (params) {
+        str = str.replace(/\{(\w+)\}/g, (match, name) => (params[name] !== undefined ? params[name] : match));
+      }
+      return str;
     },
     [lang]
   );

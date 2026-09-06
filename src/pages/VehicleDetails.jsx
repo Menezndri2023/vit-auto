@@ -310,11 +310,32 @@ export default function VehicleDetails() {
   // avant ce hook, un lien vers CETTE voiture affichait toujours l'aperçu
   // générique de la page d'accueil (voir hooks/useDocumentMeta.js).
   const vehicleImg = (Array.isArray(vehicle?.images) && vehicle.images[0]) || vehicle?.image || null;
+  // Données structurées schema.org (SEO, 2026-09) — Product + Offer, seul
+  // couple assez largement supporté par Google pour une annonce qui peut être
+  // en location OU en vente (pas de type schema.org dédié convenable aux deux).
+  const vehiclePrice = vehicle?.mode === "Acheter" ? (vehicle?.buyPrice ?? vehicle?.priceForSale) : vehicle?.pricePerDay;
+  const structuredData = vehicle ? {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: vehicle.title || vehicle.name || `${vehicle.marque || ""} ${vehicle.modele || ""}`.trim(),
+    description: vehicle.description || `${vehicle.marque || ""} ${vehicle.modele || ""} ${vehicle.annee || ""} — disponible sur VIT AUTO.`.trim(),
+    image: (Array.isArray(vehicle.images) && vehicle.images.length ? vehicle.images : [vehicleImg]).filter(Boolean),
+    brand: vehicle.marque ? { "@type": "Brand", name: vehicle.marque } : undefined,
+    offers: {
+      "@type": "Offer",
+      price: vehiclePrice || undefined,
+      priceCurrency: vehicle.currency || "USD",
+      availability: vehicle.available !== false ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      url: `https://vit-auto.com/vehicle/${id}`,
+      ...(vehicle.ownerName ? { seller: { "@type": "Organization", name: vehicle.ownerName } } : {}),
+    },
+  } : null;
   useDocumentMeta(vehicle ? {
     title:       vehicle.title || vehicle.name || `${vehicle.marque || ""} ${vehicle.modele || ""}`.trim(),
     description: vehicle.description || `${vehicle.marque || ""} ${vehicle.modele || ""} ${vehicle.annee || ""} — disponible sur VIT AUTO.`.trim(),
     image:       vehicleImg,
     url:         `https://vit-auto.com/vehicle/${id}`,
+    structuredData,
   } : {});
 
   // États de chargement

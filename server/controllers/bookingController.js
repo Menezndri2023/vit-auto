@@ -227,8 +227,52 @@ function schedulePostServiceSurvey(booking) {
 // (loyaltyLifetimePoints actuel), jamais celui d'après — un client ne doit
 // jamais bénéficier rétroactivement du palier qu'il vient tout juste
 // d'atteindre avec cette même commande.
+// Parrainage (2026-09) — montant fixe plutôt qu'un pourcentage : plus simple
+// à expliquer au parrain ("500 points par filleul") et à auditer qu'un calcul
+// proportionnel au montant, variable, de la commande du filleul.
+const REFERRAL_BONUS_POINTS = 500;
+
+// Crédite le parrain (referredBy) au moment précis où son filleul termine sa
+// TOUTE PREMIÈRE réservation — jamais plus tard, jamais deux fois. Séparé de
+// awardLoyaltyPoints pour rester lisible ; appelé juste après.
+async function awardReferralBonusIfEligible(booking) {
+  if (!booking?.client) return;
+  try {
+    const client = await User.findById(booking.client).select("referredBy").lean();
+    if (!client?.referredBy) return;
+
+    const completedCount = await Booking.countDocuments({ client: booking.client, status: "completed" });
+    if (completedCount !== 1) return; // pas la première — déjà crédité ou pas encore éligible
+
+    const alreadyCredited = await LoyaltyTransaction.exists({ user: client.referredBy, type: "referral", reason: `referral_${booking.client}` });
+    if (alreadyCredited) return; // filet de sécurité en plus du compteur ci-dessus
+
+    const referrer = await User.findByIdAndUpdate(
+      client.referredBy,
+      { $inc: { loyaltyPoints: REFERRAL_BONUS_POINTS, loyaltyLifetimePoints: REFERRAL_BONUS_POINTS } },
+      { new: true }
+    ).select("loyaltyPoints loyaltyLifetimePoints loyaltyTier");
+    if (!referrer) return;
+
+    const tierAfter = resolveTier(referrer.loyaltyLifetimePoints);
+    if (tierAfter.key !== referrer.loyaltyTier) { referrer.loyaltyTier = tierAfter.key; await referrer.save(); }
+
+    await LoyaltyTransaction.create({
+      user: client.referredBy, type: "referral", points: REFERRAL_BONUS_POINTS,
+      reason: `referral_${booking.client}`, balanceAfter: referrer.loyaltyPoints, tierAtTime: tierAfter.key,
+    }).catch(() => {});
+
+    await notify(client.referredBy, "system", "🎉 Bonus de parrainage !",
+      `Votre filleul a terminé sa première réservation — +${REFERRAL_BONUS_POINTS} points crédités sur votre compte.`,
+      "/loyalty");
+  } catch (err) {
+    logger.error("awardReferralBonusIfEligible:", err);
+  }
+}
+
 async function awardLoyaltyPoints(booking) {
   if (!booking?.client) return; // réservation invité sans compte — rien à créditer
+  await awardReferralBonusIfEligible(booking);
   const basePoints = Math.floor(Number(booking.montantTotal) || 0);
   if (basePoints <= 0) return;
   try {
@@ -2268,7 +2312,33 @@ export const getPartnerAnalytics = async (req, res) => {
     const fleetSize = myVehicles.length || 1;
     const occupancyRate = Math.min(100, Math.round(((occupancyAgg[0]?.totalDays || 0) / (fleetSize * 30)) * 100));
 
-    res.json({ monthlyRevenue, topVehicles, topClients, occupancyRate, fleetSize });
+    // ── Temps de réponse moyen (30 derniers jours) ──────────────────────────
+    // Durée entre la notification du partenaire (partnerNotifiedAt) et sa
+    // décision réelle (auditTrail — voir updateBookingStatus, "status_confirmed"/
+    // "status_cancelled") — plus fiable que `updatedAt`, qui bouge à chaque
+    // écriture ultérieure du document (paiement, avis...) et fausserait la
+    // mesure avec le temps. Calculé en JS (pas en agrégation Mongo) : volume
+    // borné (un partenaire, 30 jours), plus simple et sûr à lire/maintenir
+    // qu'un $reduce sur auditTrail dans un pipeline.
+    const decidedBookings = await Booking.find({
+      ...scopeMatch,
+      status: { $in: ["confirmed", "cancelled"] },
+      partnerNotifiedAt: { $ne: null },
+      createdAt: { $gte: periodStart },
+    }).select("partnerNotifiedAt auditTrail").lean();
+
+    const responseTimesMin = [];
+    for (const b of decidedBookings) {
+      const decision = (b.auditTrail || []).find((e) => e.action === "status_confirmed" || e.action === "status_cancelled");
+      if (!decision?.timestamp) continue;
+      const minutes = (new Date(decision.timestamp) - new Date(b.partnerNotifiedAt)) / 60000;
+      if (minutes >= 0) responseTimesMin.push(minutes);
+    }
+    const avgResponseTimeMinutes = responseTimesMin.length
+      ? Math.round(responseTimesMin.reduce((a, b) => a + b, 0) / responseTimesMin.length)
+      : null;
+
+    res.json({ monthlyRevenue, topVehicles, topClients, occupancyRate, fleetSize, avgResponseTimeMinutes });
   } catch (err) {
     logger.error("getPartnerAnalytics:", err);
     res.status(500).json({ message: "Erreur serveur." });

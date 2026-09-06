@@ -15,7 +15,7 @@ const loyaltyTransactionSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ["credit", "debit", "rollback"],
+    enum: ["credit", "debit", "rollback", "referral"],
     required: true,
   },
   points: { type: Number, required: true, min: 0 }, // toujours positif, le signe est porté par `type`

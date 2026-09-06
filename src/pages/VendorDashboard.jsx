@@ -367,7 +367,7 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
                 <div className={styles.contactList}>
                   {order.phone && <a href={`tel:${order.phone}`} className={styles.contactItem}><span className={styles.contactIcon}>📞</span><span>{order.phone}</span><span className={styles.contactAction}>Appeler</span></a>}
                   {order.email && <a href={`mailto:${order.email}`} className={styles.contactItem}><span className={styles.contactIcon}>✉️</span><span className={styles.ellipsis}>{order.email}</span><span className={styles.contactAction}>Email</span></a>}
-                  {order.phone && <a href={`https://wa.me/${order.phone?.replace(/[\s\+\-]/g,"")}`} target="_blank" rel="noopener noreferrer" className={styles.contactItem}><span className={styles.contactIcon}>💬</span><span>WhatsApp</span><span className={styles.contactAction}>Chat</span></a>}
+                  {order.phone && <a href={`https://wa.me/${order.phone?.replace(/[\s+-]/g,"")}`} target="_blank" rel="noopener noreferrer" className={styles.contactItem}><span className={styles.contactIcon}>💬</span><span>WhatsApp</span><span className={styles.contactAction}>Chat</span></a>}
                 </div>
 
                 {/* ── Passeport (obligatoire à la réservation) ──────────────── */}
@@ -520,7 +520,7 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
                 </div>
                 <div className={styles.pickupActions}>
                   {mapsUrl && <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className={styles.mapsBtn}>🗺️ Google Maps</a>}
-                  {order.phone && <a href={`https://wa.me/${order.phone?.replace(/[\s\+\-]/g,"")}?text=Bonjour%20${encodeURIComponent(order.firstName||"")}%2C%20je%20confirme%20notre%20rendez-vous%20VIT%20AUTO.`} target="_blank" rel="noopener noreferrer" className={styles.whatsappBtn}>💬 WhatsApp</a>}
+                  {order.phone && <a href={`https://wa.me/${order.phone?.replace(/[\s+-]/g,"")}?text=Bonjour%20${encodeURIComponent(order.firstName||"")}%2C%20je%20confirme%20notre%20rendez-vous%20VIT%20AUTO.`} target="_blank" rel="noopener noreferrer" className={styles.whatsappBtn}>💬 WhatsApp</a>}
                 </div>
               </div>
               {hasGps && <iframe title="Carte" loading="lazy" src={`https://www.openstreetmap.org/export/embed.html?bbox=${order.pickupLng-.01},${order.pickupLat-.01},${order.pickupLng+.01},${order.pickupLat+.01}&layer=mapnik&marker=${order.pickupLat},${order.pickupLng}`} className={styles.mapFrame} />}
@@ -770,7 +770,7 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
               </p>
               <div className={styles.decisionBtns} style={{ marginBottom:12 }}>
                 {order.phone && (
-                  <a href={`https://wa.me/${order.phone?.replace(/[\s\+\-]/g,"")}?text=Bonjour%20${encodeURIComponent(order.firstName||"")}%2C%20nous%20avons%20constaté%20votre%20absence%20au%20rendez-vous%20VIT%20AUTO%20(réf.%20${order.reference||""}).%20Souhaitez-vous%20replanifier%20%3F`}
+                  <a href={`https://wa.me/${order.phone?.replace(/[\s+-]/g,"")}?text=Bonjour%20${encodeURIComponent(order.firstName||"")}%2C%20nous%20avons%20constaté%20votre%20absence%20au%20rendez-vous%20VIT%20AUTO%20(réf.%20${order.reference||""}).%20Souhaitez-vous%20replanifier%20%3F`}
                     target="_blank" rel="noopener noreferrer" className={styles.btnAccept} style={{ textDecoration:"none" }}>
                     <span>💬</span><div><strong>Recontacter via WhatsApp</strong><span>Proposer un nouveau RDV</span></div>
                   </a>
@@ -2759,11 +2759,18 @@ export default function VendorDashboard() {
             <div className={styles.dashSection}>
               <div className={styles.dashSectionHeader}>
                 <h3>📈 Analytique</h3>
-                {analytics.fleetSize > 0 && (
-                  <span style={{ fontSize: ".8rem", fontWeight: 700, color: analytics.occupancyRate >= 60 ? "#059669" : analytics.occupancyRate >= 30 ? "#d97706" : "#dc2626" }}>
-                    Taux d'occupation (30j) : {analytics.occupancyRate}%
-                  </span>
-                )}
+                <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+                  {analytics.fleetSize > 0 && (
+                    <span style={{ fontSize: ".8rem", fontWeight: 700, color: analytics.occupancyRate >= 60 ? "#059669" : analytics.occupancyRate >= 30 ? "#d97706" : "#dc2626" }}>
+                      Taux d'occupation (30j) : {analytics.occupancyRate}%
+                    </span>
+                  )}
+                  {analytics.avgResponseTimeMinutes != null && (
+                    <span style={{ fontSize: ".8rem", fontWeight: 700, color: analytics.avgResponseTimeMinutes <= 15 ? "#059669" : analytics.avgResponseTimeMinutes <= 25 ? "#d97706" : "#dc2626" }}>
+                      ⏱️ Temps de réponse moyen (30j) : {analytics.avgResponseTimeMinutes} min
+                    </span>
+                  )}
+                </div>
               </div>
 
               {analytics.monthlyRevenue.length > 0 && (
@@ -2922,7 +2929,7 @@ export default function VendorDashboard() {
                         </div>
                         <div className={styles.orderClientContacts}>
                           {order.phone && <a href={`tel:${order.phone}`} className={styles.contactBtn} title="Appeler">📞</a>}
-                          {order.phone && <a href={`https://wa.me/${order.phone?.replace(/[\s\+\-]/g,"")}`} target="_blank" rel="noopener noreferrer" className={styles.contactBtn} title="WhatsApp">💬</a>}
+                          {order.phone && <a href={`https://wa.me/${order.phone?.replace(/[\s+-]/g,"")}`} target="_blank" rel="noopener noreferrer" className={styles.contactBtn} title="WhatsApp">💬</a>}
                           <button type="button" className={styles.contactBtn} title="Message via VIT AUTO" onClick={() => handleContactClient(order.id)} disabled={contactingOrder === order.id}>🗨️</button>
                         </div>
                       </div>
@@ -2982,7 +2989,7 @@ export default function VendorDashboard() {
                         <button className={styles.btnRefuseSmall} onClick={() => setRejectModal(order.id)}>✕</button>
                       </>}
                       {isAbsent && order.phone && (
-                        <a href={`https://wa.me/${order.phone?.replace(/[\s\+\-]/g,"")}`} target="_blank" rel="noopener noreferrer" className={styles.btnWhatsAppSmall}>💬 Recontacter</a>
+                        <a href={`https://wa.me/${order.phone?.replace(/[\s+-]/g,"")}`} target="_blank" rel="noopener noreferrer" className={styles.btnWhatsAppSmall}>💬 Recontacter</a>
                       )}
                     </div>
                   </div>
