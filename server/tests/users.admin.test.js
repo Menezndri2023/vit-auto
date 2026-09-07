@@ -260,10 +260,11 @@ describe("updateAdminScope", () => {
     expect(res.statusCode).toBe(200);
   });
 
-  // Sémantique inversée (2026-09) : un admin SANS permission ne peut plus rien,
-  // et surtout pas s'attribuer des droits ni en attribuer à un autre.
-  it("un admin sans aucune permission ne peut PAS modifier les permissions", async () => {
-    const sansDroit = await createUser({ role: "admin", adminScope: [] });
+  // Seul un ADMIN GÉNÉRAL (aucun domaine assigné, ou "super_admin") peut
+  // restreindre un autre admin — un admin restreint ne doit pas pouvoir
+  // s'attribuer des droits ni en attribuer à un autre.
+  it("un admin RESTREINT ne peut pas modifier les permissions d'un autre", async () => {
+    const sansDroit = await createUser({ role: "admin", adminScope: ["users"] });
     const target = await createUser({ role: "admin", adminScope: ["finance"] });
     const { req, res } = mockReqRes({
       user: sansDroit, params: { id: target._id.toString() }, body: { scope: ["kyc", "support"] },

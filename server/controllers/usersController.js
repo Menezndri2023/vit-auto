@@ -11,7 +11,7 @@ import { sendEmail, identityRejectedTemplate } from "../config/email.js";
 import { logAction } from "../middleware/auditLog.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
 import { isValidCountryCode } from "../utils/countries.js";
-import { ADMIN_SCOPES } from "../constants/adminScopes.js";
+import { ADMIN_SCOPES, isGeneralAdmin } from "../constants/adminScopes.js";
 import PartnerVerification from "../models/PartnerVerification.js";
 import PartnerCertification from "../models/PartnerCertification.js";
 import PartnerOnboarding from "../models/PartnerOnboarding.js";
@@ -211,15 +211,15 @@ export const updateUserRole = async (req, res) => {
     // Créer un admin (ou démettre un admin existant) : réservé à
     // l'ADMINISTRATEUR GÉNÉRAL, sinon cette route contournait entièrement la
     // protection déjà en place sur /admin/:id/scope.
-    const isGeneral = (req.user.adminScope || []).includes("super_admin");
-    if ((role === "admin" || previousRole?.role === "admin") && !isGeneral) {
+    if ((role === "admin" || previousRole?.role === "admin") && !isGeneralAdmin(req.user)) {
       return res.status(403).json({ message: "Seul l'administrateur général peut créer ou modifier un compte admin." });
     }
-    // Un compte promu admin part SANS aucune permission : elles lui sont
-    // attribuées explicitement ensuite depuis « Rôles & Permissions ». Sans
-    // cette remise à zéro, un compte anciennement scopé (rétrogradé puis
-    // repromu) reprendrait ses anciens droits sans décision explicite.
-    // Symétriquement, un admin rétrogradé perd ses permissions.
+    // Un compte promu admin devient ADMINISTRATEUR GÉNÉRAL : ses identifiants
+    // de connexion lui suffisent, aucune permission à lui attribuer ensuite.
+    // Le restreindre à des domaines est une décision explicite, prise après
+    // coup depuis « Rôles & Permissions ». La remise à zéro évite aussi qu'un
+    // compte anciennement restreint (rétrogradé puis repromu) reprenne ses
+    // anciennes limitations sans qu'on l'ait décidé.
     const update = { role };
     if (role === "admin" && previousRole?.role !== "admin") update.adminScope = [];
     if (role !== "admin") update.adminScope = [];
@@ -317,22 +317,21 @@ export const updateAdminScope = async (req, res) => {
     if (!target) return res.status(404).json({ message: "Utilisateur introuvable." });
     if (target.role !== "admin") return res.status(400).json({ message: "Ce compte n'est pas un compte admin." });
 
-    // Seul un super admin (ou un compte non encore scopé, accès complet
-    // historique) peut modifier les permissions d'un autre admin — sinon un
-    // admin "finance" pourrait s'auto-attribuer "super_admin".
-    if (!(req.user.adminScope || []).includes("super_admin")) {
+    // Seul un ADMINISTRATEUR GÉNÉRAL peut restreindre un autre admin — sinon
+    // un admin "finance" pourrait s'auto-attribuer l'accès complet.
+    if (!isGeneralAdmin(req.user)) {
       return res.status(403).json({ message: "Seul l'administrateur général peut modifier les permissions." });
     }
 
     const before = target.adminScope || [];
-    // Filet de sécurité final (voir aussi la confirmation ajoutée côté
-    // AdminPanel.jsx, toggleAdminScope) : sans ce garde, retirer l'accès
-    // complet au DERNIER admin qui l'a encore rendait la plateforme
-    // impossible à administrer depuis l'UI — updateAdminScope exige déjà un
-    // accès complet ou super_admin pour modifier des scopes, donc plus
-    // personne n'aurait pu se le rendre.
-    const wasFullAccess = before.includes("super_admin");
-    const willBeFullAccess = scope.includes("super_admin");
+    // Filet de sécurité final (voir aussi la confirmation côté AdminPanel.jsx,
+    // toggleAdminScope) : sans ce garde, restreindre le DERNIER administrateur
+    // général rendait la plateforme impossible à administrer — plus personne
+    // n'aurait pu rendre l'accès complet à quiconque.
+    // Accès complet = adminScope VIDE (défaut : être admin suffit) OU contenant
+    // explicitement "super_admin" — les deux sont équivalents.
+    const wasFullAccess   = before.length === 0 || before.includes("super_admin");
+    const willBeFullAccess = scope.length === 0 || scope.includes("super_admin");
     if (wasFullAccess && !willBeFullAccess) {
       // isActive:true est indispensable ici (bug réel trouvé en audit) — sans
       // lui, un admin à accès complet mais DÉSACTIVÉ compte quand même comme
@@ -342,7 +341,7 @@ export const updateAdminScope = async (req, res) => {
         role: "admin",
         isActive: true,
         _id: { $ne: target._id },
-        adminScope: "super_admin",
+        $or: [{ adminScope: { $size: 0 } }, { adminScope: "super_admin" }],
       });
       if (otherFullAccess === 0) {
         return res.status(400).json({ message: "Impossible : au moins un administrateur général actif doit exister sur la plateforme." });
@@ -370,7 +369,7 @@ export const toggleUserActive = async (req, res) => {
     // restreint (ex: scope "moderation") pouvait désactiver le compte d'un
     // super admin, neutralisant sa propre chaîne de contrôle.
     if (user.role === "admin") {
-      if (!(req.user.adminScope || []).includes("super_admin")) {
+      if (!isGeneralAdmin(req.user)) {
         return res.status(403).json({ message: "Seul l'administrateur général peut activer/désactiver un compte admin." });
       }
     }

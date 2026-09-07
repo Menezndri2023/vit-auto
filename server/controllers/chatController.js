@@ -28,11 +28,11 @@ async function findAccessibleChat(id, user) {
     // conversation support, contournant entièrement la restriction de scope
     // (un admin "kyc" pouvait lire/répondre à une conversation support s'il
     // en obtenait l'ID par un autre biais). Même contrôle que
-    // requireAdminScope("support") : administrateur général ou scope "support"
-    // explicite (un tableau de permissions vide ne donne plus accès à rien —
-    // voir constants/adminScopes.js).
+    // requireAdminScope("support") : administrateur général (adminScope vide —
+    // être admin suffit — ou "super_admin") ou scope "support" explicite.
+    // Voir constants/adminScopes.js.
     const scopes = user.adminScope || [];
-    const hasSupportScope = scopes.includes("super_admin") || scopes.includes("support");
+    const hasSupportScope = scopes.length === 0 || scopes.includes("super_admin") || scopes.includes("support");
     if (!hasSupportScope) return null;
 
     // $addToSet est atomique côté MongoDB — contrairement à un push() en mémoire

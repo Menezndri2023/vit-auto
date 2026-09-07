@@ -1,15 +1,19 @@
 import express from "express";
 import * as ie from "../controllers/importExportController.js";
 import * as tx from "../controllers/ieTransactionController.js";
-import { authenticate, authorizeAdmin, optionalAuth, requireAdminScope } from "../middleware/auth.js";
+import { authenticate, authorizeAdmin, optionalAuth, requireAdminScope, requireAnyAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 
 const router = express.Router();
 const vid = validateObjectId();
 const ieScope = requireAdminScope("import_export");
+// La logistique export relève de DEUX secteurs : un admin assigné à
+// "import_export" comme un admin assigné à "transitaire" doit pouvoir y agir
+// (assigner un dossier, consulter les transitaires et agents disponibles).
+const logisticsScope = requireAnyAdminScope("import_export", "transitaire");
 
 // ── Statistiques globales (admin) ─────────────────────────────────────────────
-router.get("/stats", authenticate, authorizeAdmin, requireAdminScope("import_export"), ieScope, ie.getStats);
+router.get("/stats", authenticate, authorizeAdmin, ieScope, ie.getStats);
 
 // ── Demandes client (formulaire public) ───────────────────────────────────────
 router.post  ("/requests",             optionalAuth,                            ie.createRequest);
@@ -42,9 +46,9 @@ router.post  ("/listings/:id/inspection-report",  authenticate,        vid,     
 router.get   ("/transactions",          authenticate, authorizeAdmin, ieScope,            tx.getAllTransactions);
 // ── Logistique : assignation transitaire/agent (restructuration 2026-09) ──
 router.get   ("/transactions/assigned",            authenticate,                                     tx.getAssignedTransactions);
-router.get   ("/transitaires",                     authenticate, authorizeAdmin, ieScope,            tx.getTransitairesList);
-router.get   ("/agents",                           authenticate, authorizeAdmin, ieScope,            tx.getInternalAgents);
-router.patch ("/transactions/:id/assign",          authenticate, authorizeAdmin, ieScope, vid,        tx.assignTransaction);
+router.get   ("/transitaires",                     authenticate, authorizeAdmin, logisticsScope,     tx.getTransitairesList);
+router.get   ("/agents",                           authenticate, authorizeAdmin, logisticsScope,     tx.getInternalAgents);
+router.patch ("/transactions/:id/assign",          authenticate, authorizeAdmin, logisticsScope, vid, tx.assignTransaction);
 router.get   ("/transactions/mine",     authenticate,                            tx.getClientTransactions);
 router.get   ("/transactions/partner",  authenticate,                            tx.getPartnerTransactions);
 router.get   ("/transactions/partner/analytics", authenticate,                   tx.getPartnerIEAnalytics);

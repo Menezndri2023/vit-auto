@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import fs from "fs";
 import path from "path";
-import { requireAdminScope, requireGeneralAdmin } from "../middleware/auth.js";
+import { requireAdminScope, requireAnyAdminScope, requireGeneralAdmin } from "../middleware/auth.js";
 import { ADMIN_SCOPES } from "../constants/adminScopes.js";
 
 // « L'admin général doit avoir accès à TOUTE l'administration VIT AUTO ; les
@@ -18,13 +18,23 @@ const ROUTES_DIR = path.join(process.cwd(), "routes");
 
 function collectGuards() {
   const scopes = new Set();
+  const anyGroups = [];
   const filesWithGeneral = [];
   for (const file of fs.readdirSync(ROUTES_DIR).filter((f) => f.endsWith(".js"))) {
     const src = fs.readFileSync(path.join(ROUTES_DIR, file), "utf8");
     for (const m of src.matchAll(/requireAdminScope\("([^"]+)"\)/g)) scopes.add(m[1]);
+    // Zones relevant de PLUSIEURS secteurs (ex. la logistique export :
+    // import_export OU transitaire) — elles doivent être couvertes elles aussi.
+    for (const m of src.matchAll(/requireAnyAdminScope\(([^)]*)\)/g)) {
+      const group = [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+      if (group.length) {
+        anyGroups.push(group);
+        group.forEach((g) => scopes.add(g));
+      }
+    }
     if (/requireGeneralAdmin/.test(src)) filesWithGeneral.push(file);
   }
-  return { scopes: [...scopes].sort(), filesWithGeneral };
+  return { scopes: [...scopes].sort(), anyGroups, filesWithGeneral };
 }
 
 const pass = (middleware, user) => {
@@ -37,7 +47,7 @@ const pass = (middleware, user) => {
 const GENERAL_ADMIN = { role: "admin", adminScope: ["super_admin"] };
 
 describe("L'administrateur général atteint toute l'administration", () => {
-  const { scopes, filesWithGeneral } = collectGuards();
+  const { scopes, anyGroups, filesWithGeneral } = collectGuards();
 
   it("les routes admin posent bien des gardes (le test aurait sinon une valeur nulle)", () => {
     expect(scopes.length).toBeGreaterThan(5);
@@ -51,6 +61,21 @@ describe("L'administrateur général atteint toute l'administration", () => {
 
   it("passe les routes réservées à l'administrateur général", () => {
     expect(pass(requireGeneralAdmin, GENERAL_ADMIN)).toBe(true);
+  });
+
+  it("passe aussi les zones relevant de plusieurs secteurs", () => {
+    for (const group of anyGroups) {
+      expect(pass(requireAnyAdminScope(...group), GENERAL_ADMIN), `secteurs ${group.join("/")}`).toBe(true);
+    }
+  });
+
+  it("un compte admin NON RESTREINT passe tout, sans aucune permission attribuée", () => {
+    // C'est la règle : il n'y a qu'un administrateur — le général — et ses
+    // identifiants de connexion lui suffisent.
+    const nonRestreint = { role: "admin", adminScope: [] };
+    const refusees = scopes.filter((scope) => !pass(requireAdminScope(scope), nonRestreint));
+    expect(refusees, `secteurs refusés : ${refusees.join(", ")}`).toEqual([]);
+    expect(pass(requireGeneralAdmin, nonRestreint)).toBe(true);
   });
 
   it("toute permission gardée par une route est attribuable depuis l'interface", () => {

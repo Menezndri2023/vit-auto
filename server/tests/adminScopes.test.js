@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { requireAdminScope, requireGeneralAdmin } from "../middleware/auth.js";
+import { requireAdminScope, requireAnyAdminScope, requireGeneralAdmin } from "../middleware/auth.js";
 import { updateAdminScope, updateUserRole } from "../controllers/usersController.js";
 import User from "../models/User.js";
 import { createUser } from "./helpers/fixtures.js";
@@ -39,11 +39,12 @@ describe("requireAdminScope — accès assigné", () => {
     expect(refus.res.status).toHaveBeenCalledWith(403);
   });
 
-  it("refuse un admin SANS aucune permission (le tableau vide ne donne plus accès à rien)", () => {
-    const sansDroit = { role: "admin", adminScope: [] };
-    const refus = runMiddleware(requireAdminScope("finance"), sansDroit);
-    expect(refus.next).not.toHaveBeenCalled();
-    expect(refus.res.status).toHaveBeenCalledWith(403);
+  it("un compte admin SANS domaine assigné a accès à TOUT (être admin suffit)", () => {
+    const adminSimple = { role: "admin", adminScope: [] };
+    for (const scope of ["finance", "kyc", "bookings", "users", "catalogue", "partners", "support", "moderation", "import_export"]) {
+      const { next } = runMiddleware(requireAdminScope(scope), adminSimple);
+      expect(next, `un admin non restreint doit passer « ${scope} »`).toHaveBeenCalled();
+    }
   });
 
   it("refuse un non-admin, quel que soit son adminScope", () => {
@@ -53,11 +54,52 @@ describe("requireAdminScope — accès assigné", () => {
   });
 });
 
-describe("requireGeneralAdmin — réservé à l'admin général", () => {
-  it("accepte l'admin général, refuse tout accès assigné", () => {
-    expect(runMiddleware(requireGeneralAdmin, { role: "admin", adminScope: ["super_admin"] }).next).toHaveBeenCalled();
+// Secteur "transitaire" (2026-09) : un admin peut être assigné à la logistique
+// export — assignation des dossiers aux transitaires et agents, suivi
+// d'expédition. Cette zone relève de DEUX secteurs (import_export OU
+// transitaire) : être assigné à l'un des deux suffit.
+describe("Secteur Transit & Logistique", () => {
+  it("un admin assigné « transitaire » accède à la logistique export", () => {
+    const transit = { role: "admin", adminScope: ["transitaire"] };
+    const { next } = runMiddleware(requireAnyAdminScope("import_export", "transitaire"), transit);
+    expect(next).toHaveBeenCalled();
+  });
 
-    for (const scope of [["finance"], ["users"], ["support", "moderation"], []]) {
+  it("un admin assigné « import_export » y accède aussi", () => {
+    const ie = { role: "admin", adminScope: ["import_export"] };
+    const { next } = runMiddleware(requireAnyAdminScope("import_export", "transitaire"), ie);
+    expect(next).toHaveBeenCalled();
+  });
+
+  it("un admin d'un AUTRE secteur en est exclu", () => {
+    const financier = { role: "admin", adminScope: ["finance"] };
+    const refus = runMiddleware(requireAnyAdminScope("import_export", "transitaire"), financier);
+    expect(refus.next).not.toHaveBeenCalled();
+    expect(refus.res.status).toHaveBeenCalledWith(403);
+  });
+
+  it("l'administrateur général y accède, comme partout", () => {
+    for (const scope of [["super_admin"], []]) {
+      const { next } = runMiddleware(requireAnyAdminScope("import_export", "transitaire"), { role: "admin", adminScope: scope });
+      expect(next).toHaveBeenCalled();
+    }
+  });
+
+  it("un admin « transitaire » reste exclu des autres secteurs", () => {
+    const transit = { role: "admin", adminScope: ["transitaire"] };
+    for (const scope of ["finance", "users", "bookings", "catalogue", "kyc"]) {
+      const refus = runMiddleware(requireAdminScope(scope), transit);
+      expect(refus.next, `ne doit pas passer « ${scope} »`).not.toHaveBeenCalled();
+    }
+  });
+});
+
+describe("requireGeneralAdmin — réservé à l'admin général", () => {
+  it("accepte l'admin général (explicite OU non restreint), refuse tout accès assigné", () => {
+    expect(runMiddleware(requireGeneralAdmin, { role: "admin", adminScope: ["super_admin"] }).next).toHaveBeenCalled();
+    expect(runMiddleware(requireGeneralAdmin, { role: "admin", adminScope: [] }).next).toHaveBeenCalled();
+
+    for (const scope of [["finance"], ["users"], ["support", "moderation"]]) {
       const refus = runMiddleware(requireGeneralAdmin, { role: "admin", adminScope: scope });
       expect(refus.next).not.toHaveBeenCalled();
       expect(refus.res.status).toHaveBeenCalledWith(403);
@@ -126,7 +168,7 @@ describe("Gestion des comptes admin", () => {
     expect(fresh.adminScope).toContain("super_admin");
   });
 
-  it("un compte promu admin part sans aucune permission (attribution explicite ensuite)", async () => {
+  it("un compte promu admin devient administrateur général (accès à tout, sans permission à attribuer)", async () => {
     const general = await createUser({ role: "admin", adminScope: ["super_admin"] });
     const client  = await createUser({ role: "client" });
 
@@ -135,7 +177,10 @@ describe("Gestion des comptes admin", () => {
 
     const promu = await User.findById(client._id).select("role adminScope");
     expect(promu.role).toBe("admin");
-    expect(promu.adminScope).toEqual([]); // aucun droit tant qu'aucun ne lui est assigné
+    // Aucun domaine assigné = administrateur général : ses identifiants de
+    // connexion lui suffisent pour accéder à toute l'administration. Le
+    // restreindre est une décision explicite, prise ensuite.
+    expect(promu.adminScope).toEqual([]);
   });
 
   it("un admin rétrogradé perd ses permissions", async () => {

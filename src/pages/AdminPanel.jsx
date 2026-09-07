@@ -1333,6 +1333,7 @@ const ADMIN_SCOPE_CFG = [
   { key: "users",         label: "Comptes",         icon: "👥", desc: "Comptes clients et partenaires : rôles, activation, suppression." },
   { key: "catalogue",     label: "Catalogue",       icon: "🚗", desc: "Annonces véhicules, chauffeurs, activités et publicités." },
   { key: "partners",      label: "Partenaires",     icon: "🤝", desc: "Onboarding, certification, vérification, CRM, showrooms." },
+  { key: "transitaire",   label: "Transit & Logistique", icon: "🚢", desc: "Assignation des dossiers export aux transitaires et agents, suivi d'expédition." },
   { key: "kyc",           label: "KYC & Identités", icon: "🛡️", desc: "Dossiers KYC et pièces d'identité soumises." },
   { key: "import_export", label: "Import / Export", icon: "🌍", desc: "Transactions internationales, annonces export, logistique." },
   { key: "support",       label: "Support client",  icon: "💬", desc: "Conversations, notifications, WhatsApp." },
@@ -1347,7 +1348,9 @@ function RolesSection({ admins, loading, savingId, onToggle, currentUserId }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {admins.map((a) => {
         const scope = a.adminScope || [];
-        const isGeneral = scope.includes("super_admin");
+        // Aucun domaine assigné = ADMINISTRATEUR GÉNÉRAL (accès à tout, sans
+        // permission à demander). Restreindre est une décision explicite.
+        const isGeneral = scope.length === 0 || scope.includes("super_admin");
         const assigned  = scope.filter((x) => x !== "super_admin");
         return (
           <div key={a._id} style={{ background: "#fff", border: "1.5px solid", borderColor: isGeneral ? "#fbbf24" : "#e2e8f0", borderRadius: 12, padding: "14px 18px" }}>
@@ -1358,7 +1361,7 @@ function RolesSection({ admins, loading, savingId, onToggle, currentUserId }) {
                 <div style={{ fontSize: ".78rem", color: "#94a3b8" }}>{a.email}</div>
               </div>
               <span style={{ fontSize: ".74rem", fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: isGeneral ? "#fef3c7" : assigned.length ? "#eff6ff" : "#fef2f2", color: isGeneral ? "#b45309" : assigned.length ? "#1d4ed8" : "#b91c1c" }}>
-                {isGeneral ? "👑 Administrateur général" : assigned.length ? `${assigned.length} domaine${assigned.length > 1 ? "s" : ""} assigné${assigned.length > 1 ? "s" : ""}` : "⚠️ Aucune permission"}
+                {isGeneral ? "👑 Administrateur général — accès à tout" : `${assigned.length} domaine${assigned.length > 1 ? "s" : ""} assigné${assigned.length > 1 ? "s" : ""}`}
               </span>
             </div>
 
@@ -1376,12 +1379,15 @@ function RolesSection({ admins, loading, savingId, onToggle, currentUserId }) {
                 {isGeneral ? "👑 Administrateur général — accès total" : "👑 Faire de ce compte un administrateur général"}
               </div>
               <div style={{ fontSize: ".76rem", color: "#94a3b8", marginTop: 2 }}>
-                Peut tout gérer, y compris créer, restreindre ou désactiver les autres comptes admin.
+                Accès à toute l'administration, sans aucune permission à attribuer — ses identifiants
+                de connexion suffisent. Peut aussi créer, restreindre ou désactiver les autres comptes admin.
               </div>
             </button>
 
             <div style={{ fontSize: ".76rem", color: "#64748b", fontWeight: 700, marginBottom: 6 }}>
-              {isGeneral ? "Domaines (sans effet : l'accès général les couvre déjà)" : "Domaines assignés à ce compte"}
+              {isGeneral
+                ? "Domaines — en assigner un RESTREINT ce compte à ce seul périmètre"
+                : "Domaines assignés à ce compte"}
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, opacity: isGeneral ? 0.45 : 1 }}>
               {ADMIN_SCOPE_CFG.map((s) => {
@@ -2128,6 +2134,11 @@ export default function AdminPanel() {
   const [bkPage,    setBkPage]    = useState(1);
   const PAGE_SIZE = 10;
 
+  // Échecs du chargement des données admin, affichés au lieu d'être avalés
+  // (voir loadAll) — une section vide et une section en échec ne doivent jamais
+  // se ressembler.
+  const [loadErrors, setLoadErrors] = useState([]);
+
   // Confirmation
   const [confirm, setConfirm] = useState(null);
 
@@ -2321,7 +2332,15 @@ export default function AdminPanel() {
     for (let page = 1; items.length < limit; page += 1) {
       const sep = path.includes("?") ? "&" : "?";
       const r = await fetch(`${path}${sep}limit=${pageSize}&page=${page}`, { headers });
-      if (!r.ok) break;
+      if (!r.ok) {
+        // Un refus (403 de permission) ou une erreur serveur donnait jusqu'ici
+        // une liste vide indiscernable d'une absence réelle de données.
+        const d = await r.json().catch(() => null);
+        const message = r.status === 403
+          ? (d?.message || "Accès refusé — permission manquante.")
+          : (d?.message || `Erreur ${r.status}`);
+        return { items, total: total || items.length, error: page === 1 ? message : null };
+      }
       const d = await r.json();
       const batch = Array.isArray(d) ? d : (d[key] || []);
       total = d.total ?? total;
@@ -2333,9 +2352,31 @@ export default function AdminPanel() {
     return { items: items.slice(0, limit), total: total || items.length };
   }, [headers]);
 
+  // Signalé : « des sections comme Comptes n'affichent rien ». La cause n'était
+  // pas la donnée mais le SILENCE — chaque `if (res.ok)` sans `else`, et un
+  // `catch {}` global, transformaient indifféremment un refus de permission,
+  // une panne réseau ou une erreur serveur en « liste vide ». Impossible de
+  // distinguer « il n'y a rien » de « ça a échoué ». Les échecs sont désormais
+  // collectés et affichés en tête du panneau, section par section.
   const loadAll = useCallback(async () => {
     if (!token) return;
     setLoading(true);
+    const failures = [];
+    const read = async (label, res, onOk) => {
+      if (res?.ok) {
+        const d = await res.json().catch(() => null);
+        onOk(d);
+        return;
+      }
+      const d = await res?.json?.().catch(() => null);
+      failures.push({
+        label,
+        message: res?.status === 403
+          ? (d?.message || "Accès refusé — permission manquante.")
+          : (d?.message || `Erreur ${res?.status ?? "réseau"}`),
+      });
+    };
+
     try {
       const [sRes, uRes, vPaged, bPaged, dRes, adRes, paRes, aaRes] = await Promise.all([
         fetch("/api/users/stats",    { headers }),
@@ -2347,17 +2388,22 @@ export default function AdminPanel() {
         fetch("/api/activities/pending?status=all", { headers }),
         fetch("/api/activities", { headers }),
       ]);
-      if (sRes.ok) setStats((await sRes.json()));
-      if (uRes.ok) { const d = await uRes.json(); setUsers(d.users || []); setUsersTotal(d.total || 0); }
-      setVehicles(vPaged.items); setVehiclesTotal(vPaged.total);
-      setBookings(bPaged.items);  setBookingsTotal(bPaged.total);
-      if (dRes.ok) setDrivers((await dRes.json()).drivers || []);
-      if (adRes.ok) { const ad = await adRes.json(); setActiveDrivers(Array.isArray(ad) ? ad : ad.drivers || []); }
-      if (paRes.ok) setPendingActivitiesList((await paRes.json()).activities || []);
-      if (aaRes.ok) { const aa = await aaRes.json(); setActiveActivities(Array.isArray(aa) ? aa : aa.activities || []); }
+      await read("Statistiques", sRes, (d) => setStats(d));
+      await read("Comptes", uRes, (d) => { setUsers(d?.users || []); setUsersTotal(d?.total || 0); });
+      if (vPaged.error) failures.push({ label: "Annonces", message: vPaged.error });
+      else { setVehicles(vPaged.items); setVehiclesTotal(vPaged.total); }
+      if (bPaged.error) failures.push({ label: "Réservations", message: bPaged.error });
+      else { setBookings(bPaged.items); setBookingsTotal(bPaged.total); }
+      await read("Chauffeurs en attente", dRes, (d) => setDrivers(d?.drivers || []));
+      await read("Chauffeurs actifs", adRes, (d) => setActiveDrivers(Array.isArray(d) ? d : d?.drivers || []));
+      await read("Activités en attente", paRes, (d) => setPendingActivitiesList(d?.activities || []));
+      await read("Activités actives", aaRes, (d) => setActiveActivities(Array.isArray(d) ? d : d?.activities || []));
       setLiveNewListings(0);
       setLiveDisputes(0);
-    } catch { /* ignore */ }
+    } catch (err) {
+      failures.push({ label: "Chargement général", message: err?.message || "Connexion au serveur impossible." });
+    }
+    setLoadErrors(failures);
     setLoading(false);
   }, [token, headers, usersLimit, bookingsLimit, vehiclesLimit, fetchPaged]);
 
@@ -2736,7 +2782,8 @@ export default function AdminPanel() {
   // laisserait 0 admin à accès complet sur toute la plateforme, en filet de
   // sécurité final si cette confirmation était contournée.
   const toggleAdminScope = (adminId, currentScope, scopeKey) => {
-    const wasGeneral = currentScope.includes("super_admin");
+    // Aucun domaine assigné = administrateur général (accès à tout).
+    const wasGeneral = currentScope.length === 0 || currentScope.includes("super_admin");
     const next = currentScope.includes(scopeKey)
       ? currentScope.filter((s) => s !== scopeKey)
       : [...currentScope, scopeKey];
@@ -2744,6 +2791,17 @@ export default function AdminPanel() {
     // Passage d'ADMIN GÉNÉRAL à accès assigné : perte massive de droits, on
     // demande confirmation explicite. (Le serveur refuse par ailleurs de
     // retirer le dernier administrateur général actif de la plateforme.)
+    // Assigner un premier domaine à un administrateur général le RESTREINT :
+    // c'est le geste qui fait basculer d'« accès à tout » à « accès assigné ».
+    if (wasGeneral && scopeKey !== "super_admin" && !currentScope.includes(scopeKey)) {
+      const label = ADMIN_SCOPE_CFG.find((x) => x.key === scopeKey)?.label || scopeKey;
+      setConfirm({
+        message: `Ce compte est ADMINISTRATEUR GÉNÉRAL (accès à tout). Lui assigner « ${label} » va le RESTREINDRE à ce seul domaine — il perdra l'accès à tout le reste. Continuer ?`,
+        danger: true,
+        action: () => applyAdminScope(adminId, [scopeKey]),
+      });
+      return;
+    }
     if (wasGeneral && scopeKey === "super_admin") {
       setConfirm({
         message: "Retirer le statut d'ADMINISTRATEUR GÉNÉRAL à ce compte ? Il ne pourra plus gérer que les domaines qui lui sont explicitement attribués, et ne pourra plus gérer les autres comptes admin.",
@@ -4339,10 +4397,12 @@ export default function AdminPanel() {
     bookings:         "bookings",
     pending_validation:"bookings",
     litiges:          "bookings",
-    // Import / Export
+    // Import / Export — la logistique relève de DEUX secteurs : un admin
+    // assigné à "import_export" comme un admin assigné à "transitaire" y agit
+    // (miroir de requireAnyAdminScope côté serveur).
     import_export:    "import_export",
     exportateurs:     "import_export",
-    transport:        "import_export",
+    transport:        ["import_export", "transitaire"],
     // Finance
     assurance:        "finance",
     financement:      "finance",
@@ -4370,26 +4430,27 @@ export default function AdminPanel() {
   // Niveau d'accès du compte connecté — `undefined` signifie « inconnu »
   // (session antérieure à la transmission d'adminScope par le serveur), à ne
   // jamais confondre avec « aucune permission ».
+  // ADMIN GÉNÉRAL = accès à tout, sans aucune permission à demander : ses
+  // identifiants de connexion suffisent. C'est le niveau par défaut d'un compte
+  // admin (adminScope vide), ou explicitement "super_admin". Un compte n'est
+  // restreint que si des domaines lui ont été assignés — décision explicite.
   const myScopes       = Array.isArray(user?.adminScope) ? user.adminScope : null;
-  const isGeneralAdmin = myScopes === null || myScopes.includes("super_admin");
+  const isGeneralAdmin = myScopes === null || myScopes.length === 0 || myScopes.includes("super_admin");
 
   const canSeeTab = (key) => {
     const scope = TAB_SCOPES[key];
-    // Permissions INCONNUES (session ouverte avant que le serveur ne renvoie
-    // adminScope, ou réponse tronquée) : on affiche tout plutôt que de
-    // présenter un panneau vide et inexplicable. Ce filtre n'est qu'un confort
-    // d'affichage — l'autorité reste le serveur (requireAdminScope), qui
-    // refusera ce qui n'est pas permis avec un message explicite. Distinguer
-    // « inconnu » de « aucune permission » est essentiel : un tableau vide,
-    // lui, signifie réellement aucun droit.
-    if (!Array.isArray(user?.adminScope)) return true;
+    // L'administrateur général passe partout — y compris quand adminScope est
+    // absent (session antérieure au correctif) ou vide (défaut d'un compte
+    // admin non restreint). Ce filtre n'est qu'un confort d'affichage :
+    // l'autorité reste le serveur (requireAdminScope).
+    if (isGeneralAdmin) return true;
     const scopes = user.adminScope;
-    // L'administrateur général passe partout.
-    if (scopes.includes("super_admin")) return true;
-    // Onglets sans permission déclarée (vue d'ensemble, santé système) :
-    // visibles par tout compte admin.
+    // Onglets sans secteur déclaré (vue d'ensemble, santé système) : visibles
+    // par tout compte admin.
     if (!scope) return true;
-    return scopes.includes(scope);
+    // Un onglet peut relever de plusieurs secteurs : être assigné à l'un
+    // d'eux suffit.
+    return Array.isArray(scope) ? scope.some((x) => scopes.includes(x)) : scopes.includes(scope);
   };
 
   const NAV_GROUPS_ALL = [
@@ -4870,19 +4931,26 @@ export default function AdminPanel() {
           fraîchement promu admin n'a aucun droit tant qu'un administrateur
           général ne lui en attribue pas — sans ce message, il verrait un écran
           désert sans comprendre pourquoi. */}
-      {myScopes !== null && myScopes.length === 0 ? (
-        <div style={{ maxWidth: 560, margin: "3rem auto", background: "#fff", border: "1.5px solid #fecaca", borderRadius: 14, padding: "24px 28px", textAlign: "center" }}>
-          <div style={{ fontSize: "2rem", marginBottom: 10 }}>🔒</div>
-          <h2 style={{ margin: "0 0 8px", fontSize: "1.05rem", color: "#0f1b3f" }}>Aucune permission attribuée</h2>
-          <p style={{ margin: "0 0 6px", fontSize: ".88rem", color: "#475569", lineHeight: 1.6 }}>
-            Votre compte est bien administrateur, mais aucun domaine ne lui a encore été attribué.
-          </p>
-          <p style={{ margin: 0, fontSize: ".84rem", color: "#94a3b8", lineHeight: 1.6 }}>
-            Demandez à un <strong>administrateur général</strong> de vous ouvrir les domaines nécessaires
-            depuis <em>Rôles &amp; Permissions</em>.
-          </p>
+      {/* Échecs de chargement — affichés au lieu de laisser des sections vides
+          sans explication (cause du signalement « Comptes n'affiche rien »). */}
+      {loadErrors.length > 0 && (
+        <div style={{ background: "#fef2f2", border: "1.5px solid #fecaca", borderRadius: 12, padding: "12px 16px", margin: "0 0 16px" }}>
+          <div style={{ fontWeight: 800, color: "#b91c1c", fontSize: ".88rem", marginBottom: 6 }}>
+            ⚠️ {loadErrors.length} section{loadErrors.length > 1 ? "s" : ""} n'{loadErrors.length > 1 ? "ont" : "a"} pas pu être chargée{loadErrors.length > 1 ? "s" : ""}
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: ".83rem", color: "#7f1d1d", lineHeight: 1.7 }}>
+            {loadErrors.map((e) => (
+              <li key={e.label}><strong>{e.label}</strong> — {e.message}</li>
+            ))}
+          </ul>
+          <button onClick={loadAll}
+            style={{ marginTop: 10, background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, padding: "6px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
+            ↻ Réessayer
+          </button>
         </div>
-      ) : loading ? (
+      )}
+
+      {loading ? (
         <div className={styles.loadingBox}>
           <div className={styles.spinner} />
           <p>Chargement des données...</p>

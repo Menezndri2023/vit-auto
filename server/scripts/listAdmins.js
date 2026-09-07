@@ -75,17 +75,19 @@ async function main() {
 
   for (const a of admins) {
     const scopes = a.adminScope || [];
-    const isGeneral = scopes.includes("super_admin");
+    // Aucun domaine assigné = ADMINISTRATEUR GÉNÉRAL : être admin suffit,
+    // aucune permission à attribuer (voir constants/adminScopes.js).
+    const isGeneral = scopes.length === 0 || scopes.includes("super_admin");
     if (isGeneral && a.isActive !== false) generalCount += 1;
 
     console.log(`  ${a.isActive === false ? "🚫" : "✅"}  ${a.firstName || ""} ${a.lastName || ""}`.trimEnd());
     console.log(`      Identifiant  : ${a.email || "(aucun email)"}`);
     if (a.phone) console.log(`      Téléphone    : ${a.phone}`);
     console.log(`      Statut       : ${a.isActive === false ? "DÉSACTIVÉ" : "actif"}`);
-    console.log(`      Permissions  : ${
-      scopes.length === 0
-        ? "⚠️  AUCUNE — ce compte ne peut rien faire (à attribuer depuis Rôles & Permissions)"
-        : scopes.map((s) => SCOPE_LABELS[s] || s).join(", ")
+    console.log(`      Niveau       : ${
+      isGeneral
+        ? "👑 ADMINISTRATEUR GÉNÉRAL — accès à toute l'administration"
+        : `accès assigné — ${scopes.map((s) => SCOPE_LABELS[s] || s).join(", ")}`
     }`);
     if (a.lastLogin)  console.log(`      Dernière connexion : ${new Date(a.lastLogin).toLocaleString("fr-FR")}`);
     if (a.createdAt)  console.log(`      Créé le      : ${new Date(a.createdAt).toLocaleDateString("fr-FR")}`);
@@ -101,7 +103,27 @@ async function main() {
     console.log("");
   }
 
+  // La migration qui a rendu explicite l'accès complet des comptes historiques
+  // ne s'exécute qu'au DÉMARRAGE du serveur. Tant qu'il n'a pas redémarré avec
+  // le nouveau code, les admins gardent adminScope=[] — et depuis que ce
+  // tableau vide ne donne plus aucun accès, leurs sections d'administration
+  // répondent 403 et s'affichent vides. C'est la première chose à vérifier
+  // devant un panneau d'administration sans données.
+  const SystemMigration = mongoose.model(
+    "SystemMigration",
+    new mongoose.Schema({}, { strict: false }),
+    "systemmigrations"
+  );
+  const migrated = await SystemMigration.findOne({ name: "admin-scope-explicit-super-admin-2026-09" }).lean();
+
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  console.log(`  Migration des permissions : ${migrated ? "✅ appliquée" : "non appliquée (sans conséquence)"}`);
+  if (!migrated) {
+    console.log(`     Cette migration rend simplement le statut d'administrateur`);
+    console.log(`     général EXPLICITE sur les comptes existants. Sans elle, un`);
+    console.log(`     compte admin sans domaine assigné garde de toute façon`);
+    console.log(`     l'accès complet — aucun blocage possible.`);
+  }
   console.log(`  Administrateurs généraux actifs : ${generalCount}`);
   if (generalCount === 0) {
     console.log(`  🔴 AUCUN administrateur général actif — la plateforme ne peut plus`);

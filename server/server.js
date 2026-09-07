@@ -710,16 +710,13 @@ const startServer = async () => {
       logger.error("Construction des index critiques échouée (non bloquant) :", err.message);
     }
 
-    // ── Permissions admin explicites (2026-09) — AVANT d'accepter du trafic ──
-    // `adminScope: []` valait « accès complet » pour les comptes créés avant
-    // l'existence de ce champ. Cette sémantique rendait tout nouvel admin
-    // administrateur général par simple oubli, et rendait sans effet le retrait
-    // de sa dernière permission. Le tableau vide ne donne désormais plus aucun
-    // accès (voir middleware/auth.js requireAdminScope) : cette migration écrit
-    // ["super_admin"] sur les comptes qui avaient réellement l'accès complet.
-    // Elle DOIT s'exécuter avant l'ouverture du port — sinon, entre le
-    // démarrage et son exécution, les administrateurs historiques seraient
-    // refusés sur toutes les routes admin. Elle est brève (un seul updateMany).
+    // ── Statut d'administrateur général explicite (2026-09) ─────────────────
+    // Un compte admin sans domaine assigné EST administrateur général : ses
+    // identifiants de connexion lui suffisent, aucune permission à attribuer
+    // (voir constants/adminScopes.js). Cette migration ne fait que rendre ce
+    // statut EXPLICITE sur les comptes existants, pour que l'interface l'affiche
+    // clairement (« 👑 Administrateur général ») plutôt que de le déduire.
+    // Aucun compte ne peut être bloqué par son absence.
     await runOnceMigration("admin-scope-explicit-super-admin-2026-09", async () => {
       const { default: User } = await import("./models/User.js");
       const result = await User.updateMany(

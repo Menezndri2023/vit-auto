@@ -93,23 +93,31 @@ export const authorizeAdmin = requireRole("admin");
 // Doit être appelée APRÈS authenticate (ne remplace pas authorizeAdmin, la
 // combine : req.user.role === "admin" est déjà requis en amont sur ces routes).
 //
-// Deux niveaux seulement (voir constants/adminScopes.js) :
-//   - "super_admin" = ADMIN GÉNÉRAL, passe partout ;
-//   - tout autre scope = accès assigné, strictement limité à son domaine.
+// Modèle à deux niveaux (voir constants/adminScopes.js) :
 //
-// Un tableau VIDE ne donne plus accès à rien. Il valait auparavant « accès
-// complet » (compatibilité avec les comptes antérieurs au champ) : un admin
-// nouvellement promu devenait alors administrateur général par simple oubli,
-// et une permission retirée n'avait aucun effet tant qu'il n'en restait
-// aucune. La migration "admin-scope-explicit-super-admin" (server.js) a écrit
-// ["super_admin"] sur tous les comptes historiquement à accès complet avant
-// ce changement de sémantique.
+//   ADMIN GÉNÉRAL — accès à TOUTE l'administration, sans exception.
+//     C'est le niveau par DÉFAUT de tout compte administrateur : aucune
+//     permission à demander ni à attribuer, être admin suffit. Correspond à un
+//     adminScope vide (le défaut) ou contenant explicitement "super_admin".
+//
+//   ADMIN À ACCÈS ASSIGNÉ — restriction OPT-IN.
+//     Dès qu'un administrateur général lui attribue un ou plusieurs domaines,
+//     le compte est strictement limité à ceux-ci, côté serveur comme côté
+//     interface.
+//
+// La restriction est donc toujours une décision explicite, jamais un état par
+// défaut : un compte ne peut pas se retrouver administrateur sans aucun droit,
+// situation qui rendait le panneau d'administration vide et incompréhensible.
+const isGeneralAdminUser = (user) => {
+  const scopes = user?.adminScope || [];
+  return scopes.length === 0 || scopes.includes("super_admin");
+};
+
 export const requireAdminScope = (scope) => (req, res, next) => {
   if (!req.user || req.user.role !== "admin") {
     return res.status(403).json({ message: "Accès réservé aux administrateurs." });
   }
-  const scopes = req.user.adminScope || [];
-  if (scopes.includes("super_admin") || scopes.includes(scope)) {
+  if (isGeneralAdminUser(req.user) || (req.user.adminScope || []).includes(scope)) {
     return next();
   }
   return res.status(403).json({
@@ -118,13 +126,31 @@ export const requireAdminScope = (scope) => (req, res, next) => {
   });
 };
 
+// Certaines zones relèvent de PLUSIEURS secteurs à la fois : la logistique
+// Import/Export, par exemple, concerne aussi bien un admin assigné au secteur
+// "import_export" qu'un admin assigné au secteur "transitaire". Il suffit alors
+// d'être assigné à l'un d'eux.
+export const requireAnyAdminScope = (...scopes) => (req, res, next) => {
+  if (!req.user || req.user.role !== "admin") {
+    return res.status(403).json({ message: "Accès réservé aux administrateurs." });
+  }
+  const mine = req.user.adminScope || [];
+  if (isGeneralAdminUser(req.user) || scopes.some((s) => mine.includes(s))) {
+    return next();
+  }
+  return res.status(403).json({
+    message: `Accès refusé — l'un de ces secteurs est requis : ${scopes.join(", ")}. Demandez-le à l'administrateur général.`,
+    requiredScope: scopes,
+  });
+};
+
 // Réservé à l'ADMIN GÉNÉRAL (gestion des comptes admin eux-mêmes, journal
-// d'audit) — aucun accès assigné ne peut y suppléer.
+// d'audit) — un accès assigné ne peut pas y suppléer.
 export const requireGeneralAdmin = (req, res, next) => {
   if (!req.user || req.user.role !== "admin") {
     return res.status(403).json({ message: "Accès réservé aux administrateurs." });
   }
-  if ((req.user.adminScope || []).includes("super_admin")) return next();
+  if (isGeneralAdminUser(req.user)) return next();
   return res.status(403).json({
     message: "Action réservée à l'administrateur général.",
     requiredScope: "super_admin",

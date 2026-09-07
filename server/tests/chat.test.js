@@ -234,7 +234,7 @@ describe("chatController — scope 'support' sur les conversations support (séc
   // qu'un admin sans aucune permission n'accède plus à rien — auparavant un
   // adminScope vide valait « accès complet », donc tout compte admin
   // fraîchement promu pouvait lire les conversations de support.
-  it("l'administrateur général accède à une conversation support, un admin sans permission non", async () => {
+  it("l'administrateur général accède à une conversation support, un admin restreint hors support non", async () => {
     await createUser({ role: "admin", isActive: true, adminScope: ["super_admin"] });
     const client = await createUser();
     const { req: cReq, res: cRes } = mockReqRes({ user: client, body: { type: "client_support" } });
@@ -246,10 +246,18 @@ describe("chatController — scope 'support' sur les conversations support (séc
     await getMessages(ok.req, ok.res);
     expect(ok.res.statusCode).not.toBe(404);
 
-    const sansDroit = await createUser({ role: "admin", adminScope: [] });
-    const refus = mockReqRes({ user: sansDroit, params: { id: chatId } });
+    // Un admin RESTREINT hors du domaine "support" n'accède pas aux
+    // conversations ; un admin non restreint, lui, est administrateur général
+    // et y accède (ses identifiants suffisent).
+    const restreint = await createUser({ role: "admin", adminScope: ["finance"] });
+    const refus = mockReqRes({ user: restreint, params: { id: chatId } });
     await getMessages(refus.req, refus.res);
     expect(refus.res.statusCode).toBe(404);
+
+    const nonRestreint = await createUser({ role: "admin", adminScope: [] });
+    const ok2 = mockReqRes({ user: nonRestreint, params: { id: chatId } });
+    await getMessages(ok2.req, ok2.res);
+    expect(ok2.res.statusCode).not.toBe(404);
   });
 });
 

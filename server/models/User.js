@@ -60,6 +60,7 @@ const userSchema = new mongoose.Schema({
       "bookings",        // Réservations : validation, litiges, statuts, export
       "catalogue",       // Annonces véhicules/chauffeurs/activités, publicités
       "partners",        // Onboarding, certification, vérification, CRM, PMS
+      "transitaire",     // Transit & logistique : assignation des dossiers export, suivi d'expédition
     ],
     default: [],
   },
