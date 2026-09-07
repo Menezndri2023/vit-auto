@@ -1,6 +1,13 @@
 import crypto from "crypto";
 import logger from "../../../utils/logger.js";
 
+// Délai maximal sur les appels sortants. Sans lui, un fournisseur qui ne
+// répond pas laissait la requête HTTP appelante suspendue jusqu'au timeout
+// par défaut de Node (~5 min) : le client voyait une page qui tourne au
+// moment de payer et pouvait relancer le paiement.
+const OUTBOUND_TIMEOUT_MS = 15_000;
+
+
 /**
  * Orange Money Web Payment API — https://developer.orange.com (Orange Money
  * Web Payment). Nécessite ORANGE_MONEY_CLIENT_ID, ORANGE_MONEY_CLIENT_SECRET
@@ -41,6 +48,8 @@ async function getAccessToken() {
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: "grant_type=client_credentials",
+  
+    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`Orange Money OAuth échoué (${res.status})`);
 
@@ -83,6 +92,8 @@ export async function createCheckout({ payment, booking, successUrl, cancelUrl }
       lang: "fr",
       reference: booking.reference || payment._id.toString(),
     }),
+  
+    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
 
   if (!res.ok) {

@@ -186,6 +186,10 @@ async function runSyncFallback(queueName, jobName, data) {
 // à chaque appel ; un succès referme aussitôt le circuit (reprise automatique
 // dès que le quota/la connexion redevient disponible).
 const REDIS_BREAKER_COOLDOWN_MS = 60_000;
+// Au-delà de ce délai, Redis est considéré injoignable et le job part en
+// traitement synchrone. Volontairement court : ce délai s'ajoute au temps de
+// réponse d'une requête HTTP utilisateur (création de réservation, paiement…).
+const ENQUEUE_TIMEOUT_MS = 3_000;
 let _redisBrokenUntil = 0;
 
 // ── Fonction d'enqueue bas niveau ─────────────────────────────────────────────
@@ -201,7 +205,21 @@ export async function enqueue(queueName, jobName, data, opts = {}) {
     return runSyncFallback(queueName, jobName, data);
   }
   try {
-    const job = await q.add(jobName, data, opts);
+    // Délai maximal d'attente sur Redis. Sans lui, `q.add` peut ne JAMAIS
+    // rendre la main : la connexion est créée avec `maxRetriesPerRequest: null`
+    // et l'offline queue d'ioredis activée (voir queue/connection.js), donc si
+    // Redis devient injoignable (DNS, identifiants rotés, partition réseau) la
+    // commande est mise en file d'attente locale indéfiniment au lieu d'être
+    // rejetée. Le `catch` ci-dessous — et donc tout le filet de sécurité
+    // synchrone — n'était alors jamais atteint : la requête HTTP appelante
+    // restait suspendue (réservation créée, mais aucun email/notification
+    // envoyé, et le client voyait une page qui tourne jusqu'au 504).
+    const job = await Promise.race([
+      q.add(jobName, data, opts),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`Redis ne répond pas après ${ENQUEUE_TIMEOUT_MS}ms`)), ENQUEUE_TIMEOUT_MS).unref?.()
+      ),
+    ]);
     _redisBrokenUntil = 0;
     return job.id;
   } catch (err) {

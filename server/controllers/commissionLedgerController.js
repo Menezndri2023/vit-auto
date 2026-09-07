@@ -80,17 +80,32 @@ export const adminListPayouts = async (req, res) => {
 export const adminMarkPaid = async (req, res) => {
   try {
     const { paidViaTxId, notes } = req.body;
-    const entry = await CommissionLedger.findById(req.params.id);
-    if (!entry) return res.status(404).json({ message: "Entrée introuvable." });
-    if (entry.status === "paid") {
-      return res.status(400).json({ message: "Déjà marqué comme payé." });
-    }
 
-    entry.status       = "paid";
-    entry.paidAt        = new Date();
-    entry.paidViaTxId    = paidViaTxId || null;
-    if (notes) entry.notes = notes;
-    await entry.save();
+    // Transition ATOMIQUE : le statut fait partie du filtre de l'écriture.
+    // L'ancien enchaînement findById → test « déjà payé » → save() laissait une
+    // fenêtre où deux admins (deux onglets, un double-clic) passaient tous deux
+    // le contrôle avant qu'aucun n'ait écrit : les deux recevaient « Reversement
+    // marqué comme payé » et deux virements manuels étaient exécutés pour la
+    // même ligne. Même correctif que refundService/releaseFunds.
+    const entry = await CommissionLedger.findOneAndUpdate(
+      { _id: req.params.id, status: { $ne: "paid" } },
+      {
+        $set: {
+          status:      "paid",
+          paidAt:      new Date(),
+          paidViaTxId: paidViaTxId || null,
+          ...(notes ? { notes } : {}),
+        },
+      },
+      { new: true }
+    );
+
+    if (!entry) {
+      const exists = await CommissionLedger.exists({ _id: req.params.id });
+      return exists
+        ? res.status(409).json({ message: "Ce reversement vient d'être marqué comme payé — ne versez pas une seconde fois." })
+        : res.status(404).json({ message: "Entrée introuvable." });
+    }
 
     res.json({ entry, message: "Reversement marqué comme payé." });
   } catch (err) {

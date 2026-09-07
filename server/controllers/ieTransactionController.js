@@ -16,6 +16,7 @@ import { captureException } from "../config/sentry.js";
 import { generateGenericReceiptPDF } from "../utils/pdfGenerator.js";
 import { validateDocumentDataUri } from "../utils/imageValidation.js";
 import { recordIEPartnerPayout } from "../utils/commissionLedger.js";
+import { isMalformedObjectId } from "../utils/objectId.js";
 
 const MAX_EXPORT_DOC_BYTES = 8 * 1024 * 1024; // 8 Mo — cohérent avec les autres documents (CV, KYC)
 
@@ -56,7 +57,7 @@ const notify = async (userId, type, titre, message, lien) => {
 };
 
 const notifyAdmins = async (type, titre, message, lien) => {
-  const admins = await User.find({ role: "admin" }).select("_id");
+  const admins = await User.find({ role: "admin", isActive: true }).select("_id");
   if (!admins.length) return;
   const docs = await Notification.insertMany(admins.map((a) => ({ user: a._id, type, titre, message, lien })));
   if (global._io) {
@@ -142,6 +143,14 @@ async function onEscrowSecured(tx) {
     if (assignment) {
       const { assignedToName, ...toSave } = assignment;
       await IETransaction.findByIdAndUpdate(tx._id, { $set: { assignment: toSave } });
+      // Le transitaire auto-assigné n'était prévenu par RIEN : seule
+      // l'assignation MANUELLE (assignTransaction) le notifiait. Son dossier
+      // apparaissait dans son espace sans qu'il ait aucune raison d'aller
+      // regarder, alors que l'écran lui promet « Vous serez notifié dès qu'une
+      // transaction vous sera confiée ».
+      await notify(toSave.assignedTo, "info", "Nouveau dossier Import/Export assigné",
+        `Transaction ${tx._id} (destination : ${tx.destCountry || "—"}) vous est confiée automatiquement.`,
+        "/import-export/assigned");
       await notifyAdmins("ie_transitaire_assigned", "🚚 Transitaire assigné automatiquement",
         `${assignedToName || "Transitaire"} pris en charge pour la transaction ${tx._id} — réassignable si besoin.`,
         "/admin");
@@ -214,6 +223,8 @@ export const createReservation = async (req, res) => {
     const { listingId, destCountry, destCity, notes } = req.body;
 
     if (!listingId) return res.status(400).json({ message: "listingId requis." });
+    // Sans ce contrôle, un listingId malformé lève un CastError → 500.
+    if (isMalformedObjectId(listingId)) return res.status(400).json({ message: "listingId invalide." });
 
     const listing = await ImportExportListing.findOne({ _id: listingId, status: "approved" });
     if (!listing) return res.status(404).json({ message: "Annonce introuvable ou non disponible." });
@@ -347,6 +358,7 @@ export const createDirectPurchase = async (req, res) => {
     const { listingId, destCountry, destCity, notes } = req.body;
 
     if (!listingId) return res.status(400).json({ message: "listingId requis." });
+    if (isMalformedObjectId(listingId)) return res.status(400).json({ message: "listingId invalide." });
     if (!destCountry) return res.status(400).json({ message: "Pays de destination requis pour un achat direct." });
 
     const listing = await ImportExportListing.findOne({ _id: listingId, status: "approved" });
@@ -999,9 +1011,14 @@ export const updateDocuments = async (req, res) => {
     // les documents d'export soient fournis et validés AVANT le déblocage des
     // fonds (voir confirmEscrowPayment) — donc avant même l'entrée en escrow.
     const isAdmin = req.user.role === "admin";
+    // "shipped"/"in_transit"/"delivered" acceptés : des documents arrivent
+    // légitimement APRÈS l'embarquement (connaissement définitif, certificat
+    // d'origine visé, documents de dédouanement à destination). L'interface les
+    // proposait déjà à ces statuts, mais le serveur répondait « Transaction
+    // introuvable » — message trompeur sur une transaction bien existante.
     const filter = {
       _id: req.params.id,
-      status: { $in: ["payment_submitted", "in_escrow", "preparing"] },
+      status: { $in: ["payment_submitted", "in_escrow", "preparing", "shipped", "in_transit", "delivered"] },
     };
     // Le transitaire/agent assigné (restructuration logistique 2026-09) peut
     // préparer les documents d'export au même titre que le partenaire — c'est
@@ -1034,6 +1051,20 @@ export const updateDocuments = async (req, res) => {
         if (incoming.url !== undefined) {
           const check = validateDocumentDataUri(incoming.url, MAX_EXPORT_DOC_BYTES);
           if (!check.ok) return res.status(400).json({ message: `${key} : ${check.message}` });
+        }
+        // Déclarer « fourni » sans joindre le moindre fichier était possible :
+        // le rapport d'inspection exigé avant embarquement (markShipped) devenait
+        // alors purement déclaratif, contrôlé par la partie qu'il doit contrôler.
+        // Un document ne peut être marqué « fourni » que s'il porte réellement
+        // un fichier (celui de cette requête, ou un déjà enregistré).
+        if (incoming.status === "fourni") {
+          const existingUrl = tx.documents[key]?.url;
+          if (!incoming.url && !existingUrl) {
+            return res.status(400).json({
+              message: `${key} : joignez le document avant de le marquer comme fourni.`,
+              code: "DOCUMENT_FILE_REQUIRED",
+            });
+          }
         }
         tx.documents[key] = { ...tx.documents[key].toObject?.() || {}, ...incoming };
       }
@@ -1216,6 +1247,9 @@ export const releaseFunds = async (req, res) => {
     );
     if (!tx) return res.status(409).json({ message: "Les fonds ont déjà été libérés entre-temps." });
     await recordIEPartnerPayout(tx);
+    // Vente définitive : l'annonce sort du stock ici, sans attendre que les
+    // deux parties aient laissé un avis (voir settleListingStock).
+    await settleListingStock(tx._id, tx.listing);
 
     await notify(tx.partner, "success", "Fonds libérés !", `${payoutAmount.toLocaleString("fr-FR")} ${tx.payment.currency} ont été versés sur votre compte (commission VIT AUTO ${(rate * 100).toFixed(0)}% déduite, sur un total de ${tx.payment.amount?.toLocaleString("fr-FR")} ${tx.payment.currency}).`, `/importer-dashboard`);
     await notify(tx.client,  "info",    "Fonds libérés", "Les fonds ont été versés au fournisseur. N'oubliez pas de laisser votre évaluation.", `/import-export/transaction/${tx._id}`);
@@ -1268,15 +1302,7 @@ export const addReview = async (req, res) => {
     if (tx.clientReview.rating && tx.partnerReview.rating) {
       tx.status = "completed";
       pushHistory(tx, "completed", req.user._id, "Transaction complète — les deux parties ont évalué.");
-      // Décrémenter le stock sans passer sous 0 ; mettre hors stock si nécessaire
-      const updatedListing = await ImportExportListing.findByIdAndUpdate(
-        tx.listing,
-        [{ $set: { stockQty: { $max: [{ $subtract: ["$stockQty", 1] }, 0] } } }],
-        { new: true }
-      );
-      if (updatedListing && updatedListing.stockQty === 0) {
-        await ImportExportListing.findByIdAndUpdate(tx.listing, { available: false });
-      }
+      await settleListingStock(tx._id, tx.listing);
     }
 
     await tx.save();
@@ -1287,6 +1313,34 @@ export const addReview = async (req, res) => {
   }
 };
 
+// ── Sortie de stock d'une annonce vendue ─────────────────────────────────────
+// Deux bugs réels corrigés ici :
+//  1. `{ available: false }` n'existait PAS au schéma ImportExportListing
+//     (Mongoose `strict` l'ignorait silencieusement) — un véhicule vendu restait
+//     donc publié et achetable. Le schéma a un vrai statut "sold" : on l'utilise.
+//  2. La sortie de stock n'avait lieu que si le client ET le partenaire avaient
+//     laissé un avis. Un partenaire qui n'évalue jamais laissait la voiture
+//     achetable indéfiniment — deux clients pouvaient acheter le même véhicule
+//     physique. Elle a lieu désormais dès que la vente est définitive
+//     (libération des fonds), l'indicateur `stockSettled` garantissant qu'elle
+//     ne s'applique qu'une fois par transaction.
+async function settleListingStock(txId, listingId) {
+  if (!listingId) return;
+  const claimed = await IETransaction.findOneAndUpdate(
+    { _id: txId, stockSettled: { $ne: true } },
+    { $set: { stockSettled: true } }
+  );
+  if (!claimed) return; // déjà décompté par un autre chemin
+  const updated = await ImportExportListing.findByIdAndUpdate(
+    listingId,
+    [{ $set: { stockQty: { $max: [{ $subtract: ["$stockQty", 1] }, 0] } } }],
+    { new: true }
+  );
+  if (updated && (updated.stockQty || 0) <= 0 && updated.status === "approved") {
+    await ImportExportListing.findByIdAndUpdate(listingId, { status: "sold" });
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // LITIGE
 // POST /api/import-export/transactions/:id/dispute
@@ -1296,7 +1350,9 @@ export const openDispute = async (req, res) => {
   try {
     const tx = await IETransaction.findOne({
       _id: req.params.id,
-      status: { $in: ["in_escrow", "preparing", "shipped", "in_transit", "delivered"] },
+      // "payment_submitted" inclus : un acompte déclaré puis contesté (fonds
+      // réellement envoyés mais non reconnus) n'avait aucune voie de recours.
+      status: { $in: ["payment_submitted", "in_escrow", "preparing", "shipped", "in_transit", "delivered"] },
     });
     if (!tx) return res.status(404).json({ message: "Transaction introuvable ou litige non autorisé à ce stade." });
 
@@ -1340,10 +1396,15 @@ export const resolveDispute = async (req, res) => {
     // status:"disputed" avant qu'aucun n'ait écrit — le dernier save()
     // écrasait silencieusement l'autre, créant potentiellement une entrée
     // CommissionLedger "à verser" pour une transaction finalement annulée.
-    const dispute = {
-      resolution: resolution || null,
-      resolvedAt: new Date(),
-      resolvedBy: req.user._id,
+    // Chemins pointés OBLIGATOIRES ici : `$set: { dispute }` remplace le
+    // sous-document ENTIER, effaçant opened/openedAt/openedBy et surtout
+    // `reason` — le motif du litige disparaissait de la base au moment précis
+    // où l'admin le tranchait, alors que c'est la pièce qui justifie le
+    // versement (l'écran admin affichait « — » juste après la décision).
+    const disputeResolutionFields = {
+      "dispute.resolution": resolution || null,
+      "dispute.resolvedAt": new Date(),
+      "dispute.resolvedBy": req.user._id,
     };
 
     let update;
@@ -1351,7 +1412,7 @@ export const resolveDispute = async (req, res) => {
       const { rate, amount, payoutAmount } = await computeIeCommission(existing);
       update = {
         $set: {
-          dispute,
+          ...disputeResolutionFields,
           "payment.commission": { rate, amount, payoutAmount, computedAt: new Date() },
           "payment.releasedAt": new Date(),
           status: "funds_released",
@@ -1360,7 +1421,7 @@ export const resolveDispute = async (req, res) => {
       };
     } else {
       update = {
-        $set: { dispute, status: "cancelled" },
+        $set: { ...disputeResolutionFields, status: "cancelled" },
         $push: { statusHistory: { status: "cancelled", changedAt: new Date(), changedBy: req.user._id, note: `Litige résolu — transaction annulée. ${resolution || ""}` } },
       };
     }
@@ -1387,7 +1448,18 @@ export const resolveDispute = async (req, res) => {
 
 export const cancelTransaction = async (req, res) => {
   try {
-    const cancellableStatuses = ["reserved", "confirmed", "in_discussion", "inspection_requested", "inspection_done", "offer_sent"];
+    // "payment_pending" et "payment_submitted" ajoutés : ces deux états étaient
+    // des IMPASSES ABSOLUES. Un client qui déclarait un virement puis
+    // abandonnait (ou dont l'acompte était rejeté par l'admin) laissait la
+    // transaction gelée à vie : annulation refusée (404), litige refusé (404),
+    // et il ne pouvait même plus racheter l'annonce ("vous avez déjà une
+    // transaction active"). Aucune sortie n'existait, pas même pour l'admin.
+    // Un acompte DÉJÀ VÉRIFIÉ (in_escrow et au-delà) reste exclu : à ce stade
+    // des fonds réels sont séquestrés, la voie est le litige.
+    const cancellableStatuses = [
+      "reserved", "confirmed", "in_discussion", "inspection_requested", "inspection_done", "offer_sent",
+      "payment_pending", "payment_submitted",
+    ];
     const tx = await IETransaction.findOne({
       _id: req.params.id,
       status: { $in: cancellableStatuses },
@@ -1713,7 +1785,7 @@ export const getTransitairesList = async (req, res) => {
 // être choisie comme "agent dédié" plutôt qu'un transitaire externe.
 export const getInternalAgents = async (req, res) => {
   try {
-    const agents = await User.find({ role: "admin" }).select("firstName lastName email").lean();
+    const agents = await User.find({ role: "admin", isActive: true }).select("firstName lastName email").lean();
     res.json({ agents });
   } catch (err) {
     logger.error("getInternalAgents:", err);

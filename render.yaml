@@ -30,7 +30,14 @@ services:
         sync: false
       - key: REDIS_URL
         sync: false
-      - key: REQUIRE_EMAIL_VERIFICATION
+      # Noms EXACTS lus par le code (server/utils/emailVerificationRequired.js).
+      # L'ancienne clé « REQUIRE_EMAIL_VERIFICATION » n'existait nulle part dans
+      # le code : la poser n'avait aucun effet, et le garde-fou documenté
+      # (désactiver l'exigence en cas de souci de délivrabilité, sans
+      # redéploiement) n'aurait pas fonctionné.
+      - key: REQUIRE_EMAIL_VERIFICATION_LOGIN
+        sync: false
+      - key: REQUIRE_EMAIL_VERIFICATION_KYC
         sync: false
       - key: RESEND_API_KEY
         sync: false

@@ -14,6 +14,7 @@ import { validateImageDataUri } from "../utils/imageValidation.js";
 import { isIncotermCompatible } from "../constants/incoterms.js";
 import { resolveDefaultPartnerBusinessId } from "../utils/ensureDefaultPartnerBusiness.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
+import { isMalformedObjectId } from "../utils/objectId.js";
 
 const MAX_LISTING_IMAGE_BYTES = 6 * 1024 * 1024;
 const MAX_IMAGE_URL_LENGTH    = 2048;
@@ -519,6 +520,8 @@ export const createListing = async (req, res) => {
     // dossier à vérifier est donc celui de l'entité utilisée pour CETTE annonce,
     // pas un dossier arbitraire parmi ceux du partenaire.
     const { businessId } = req.body;
+    // Un businessId malformé lèverait un CastError (→ 500) au lieu d'un refus clair.
+    if (isMalformedObjectId(businessId)) return res.status(400).json({ message: "Entreprise invalide." });
     let business = null;
     if (businessId) {
       business = await PartnerBusiness.findOne({ _id: businessId, owner: req.user._id }).lean();
@@ -654,6 +657,9 @@ export const updateListing = async (req, res) => {
 
     let business = undefined;
     if (businessId !== undefined) {
+      if (businessId !== null && isMalformedObjectId(businessId)) {
+        return res.status(400).json({ message: "Entreprise invalide." });
+      }
       if (businessId === null) {
         business = null;
       } else {
@@ -742,8 +748,15 @@ export const updateListingStatus = async (req, res) => {
       {
         status,
         adminNote: adminNote || null,
-        approvedBy: status === "approved" ? req.user._id : null,
-        approvedAt: status === "approved" ? new Date() : null,
+        // `approvedBy/At` n'étaient remis à null que parce que le statut n'était
+        // pas "approved" — archiver une annonce DÉJÀ validée effaçait donc la
+        // trace de qui l'avait validée et quand. On ne les touche qu'à la
+        // validation elle-même, ou à un refus explicite.
+        ...(status === "approved"
+          ? { approvedBy: req.user._id, approvedAt: new Date() }
+          : status === "rejected"
+            ? { approvedBy: null, approvedAt: null }
+            : {}),
       },
       { new: true }
     ).populate("partner", "firstName lastName");
@@ -751,12 +764,19 @@ export const updateListingStatus = async (req, res) => {
     if (!listing) return res.status(404).json({ message: "Annonce introuvable." });
 
     // Notifier le partenaire
+    // L'archivage annonçait au partenaire « Votre annonce a été refusée » —
+    // message faux et alarmant pour une annonce publiée puis simplement retirée.
+    const isArchived = status === "archived";
     await notify(listing.partner._id, {
-      type:    status === "approved" ? "success" : "error",
-      titre:   status === "approved" ? "Annonce import/export publiée !" : "Annonce import/export refusée",
+      type:    status === "approved" ? "success" : isArchived ? "info" : "error",
+      titre:   status === "approved" ? "Annonce import/export publiée !"
+             : isArchived ? "Annonce import/export archivée"
+             : "Annonce import/export refusée",
       message: status === "approved"
         ? `Votre annonce "${listing.title}" est maintenant publiée sur VIT AUTO.`
-        : `Votre annonce "${listing.title}" a été refusée.${adminNote ? " Motif : " + adminNote : ""}`,
+        : isArchived
+          ? `Votre annonce "${listing.title}" a été retirée du catalogue.${adminNote ? " Motif : " + adminNote : ""}`
+          : `Votre annonce "${listing.title}" a été refusée.${adminNote ? " Motif : " + adminNote : ""}`,
       lien:    "/importer-dashboard",
     });
 

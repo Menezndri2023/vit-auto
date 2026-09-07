@@ -8,7 +8,7 @@ import {
   adminRejectPlanPayment,
   adminApproveBoost,
 } from "../controllers/subscriptionController.js";
-import { authenticate as protect, authorizeAdmin } from "../middleware/auth.js";
+import { authenticate as protect, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 
 const router = express.Router();
@@ -26,9 +26,9 @@ router.post("/boost",         protect, purchaseBoost);
 // validateObjectId() — un identifiant malformé déclenchait un CastError
 // Mongoose non intercepté, remontant en 500 avec le message d'erreur brut
 // Mongoose renvoyé au client au lieu d'un 400 propre.
-router.get("/admin/pending",                                    protect, authorizeAdmin, getPendingSubscriptionRequests);
-router.patch("/admin/:subscriptionId/plan/:paymentId/approve",  protect, authorizeAdmin, validateObjectId("subscriptionId", "paymentId"), adminApprovePlanPayment);
-router.patch("/admin/:subscriptionId/plan/:paymentId/reject",   protect, authorizeAdmin, validateObjectId("subscriptionId", "paymentId"), adminRejectPlanPayment);
-router.patch("/admin/:subscriptionId/boost/:boostId/approve",   protect, authorizeAdmin, validateObjectId("subscriptionId", "boostId"), adminApproveBoost);
+router.get("/admin/pending",                                    protect, authorizeAdmin, requireAdminScope("finance"), getPendingSubscriptionRequests);
+router.patch("/admin/:subscriptionId/plan/:paymentId/approve",  protect, authorizeAdmin, requireAdminScope("finance"), validateObjectId("subscriptionId", "paymentId"), adminApprovePlanPayment);
+router.patch("/admin/:subscriptionId/plan/:paymentId/reject",   protect, authorizeAdmin, requireAdminScope("finance"), validateObjectId("subscriptionId", "paymentId"), adminRejectPlanPayment);
+router.patch("/admin/:subscriptionId/boost/:boostId/approve",   protect, authorizeAdmin, requireAdminScope("finance"), validateObjectId("subscriptionId", "boostId"), adminApproveBoost);
 
 export default router;

@@ -288,6 +288,11 @@ const ieTransactionSchema = new mongoose.Schema({
   },
 
   // ── Litige ────────────────────────────────────────────────────────────────
+  // Le stock de l'annonce n'est décrémenté qu'UNE fois par transaction, quel
+  // que soit le chemin de finalisation (libération des fonds ou double
+  // évaluation) — voir settleListingStock/ieTransactionController.js.
+  stockSettled: { type: Boolean, default: false },
+
   dispute: {
     opened:     { type: Boolean, default: false },
     openedAt:   { type: Date, default: null },

@@ -103,6 +103,13 @@ const ORDER_WORKFLOWS = {
       { s:"confirmed",    l:"Acceptée",          i:"✓",  c:"#059669", desc:"Réservation confirmée — préparez le véhicule" },
       { s:"ready",        l:"Prêt à l'agence",   i:"🏢", c:"#7c3aed", desc:"Véhicule prêt, client attendu" },
       { s:"client_arrived",l:"Remise au client", i:"🤝", c:"#0284c7", desc:"Client présent — remise et transaction" },
+      // Étape MANQUANTE : recordTransaction fait systématiquement passer la
+      // commande par "waiting_client_validation" (côté serveur), statut absent
+      // de cette liste — le suivi du partenaire retombait alors sur curIdx=-1
+      // et TOUTES ses étapes repassaient en gris « à venir », barre de
+      // progression à 0 %, juste après qu'il ait enregistré la transaction.
+      // Le suivi du client, lui, affichait correctement « Validation ».
+      { s:"waiting_client_validation", l:"Validation client", i:"✋", c:"#b45309", desc:"En attente de confirmation par le client" },
       { s:"completed",    l:"Terminée",           i:"🏁", c:"#475569", desc:"Location terminée avec succès" },
     ],
     nextBtn: {

@@ -1,3 +1,4 @@
+import logger from "../utils/logger.js";
 import Ad from "../models/Ad.js";
 
 export const getAds = async (req, res) => {
@@ -59,9 +60,14 @@ export const updateAd = async (req, res) => {
 
 export const deleteAd = async (req, res) => {
   try {
-    await Ad.findByIdAndDelete(req.params.id);
+    // Le résultat était ignoré : supprimer un id inexistant (ligne déjà
+    // supprimée dans un autre onglet) répondait 200 « Annonce supprimée »,
+    // faisant croire à une suppression qui n'a jamais eu lieu.
+    const deleted = await Ad.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: "Publicité introuvable." });
     res.json({ message: "Annonce supprimée." });
-  } catch {
+  } catch (err) {
+    logger.error("deleteAd:", err);
     res.status(500).json({ message: "Erreur suppression." });
   }
 };

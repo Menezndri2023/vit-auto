@@ -1,5 +1,12 @@
 import logger from "../../../utils/logger.js";
 
+// Délai maximal sur les appels sortants. Sans lui, un fournisseur qui ne
+// répond pas laissait la requête HTTP appelante suspendue jusqu'au timeout
+// par défaut de Node (~5 min) : le client voyait une page qui tourne au
+// moment de payer et pouvait relancer le paiement.
+const OUTBOUND_TIMEOUT_MS = 15_000;
+
+
 // ── WhatsApp Business API (Meta) ──────────────────────────────────────────────
 // Docs: https://developers.facebook.com/docs/whatsapp/cloud-api
 // Nécessite: WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_BUSINESS_ID
@@ -43,7 +50,9 @@ export async function sendWhatsApp({ to, template, components = [], language = "
       method:  "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body:    JSON.stringify(body),
-    });
+    
+    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
+  });
 
     const json = await res.json();
     if (!res.ok) throw new Error(json.error?.message || "WhatsApp API error");

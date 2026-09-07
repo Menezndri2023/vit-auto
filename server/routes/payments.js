@@ -1,7 +1,7 @@
 import express from "express";
 import { rateLimit } from "express-rate-limit";
 import * as paymentController from "../controllers/paymentController.js";
-import { authenticate, optionalAuth, authorizeAdmin } from "../middleware/auth.js";
+import { authenticate, optionalAuth, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 
 const router = express.Router();
@@ -28,7 +28,11 @@ router.get("/:id/status",                 vid, optionalAuth, paymentController.g
 router.post("/:id/simulate",              vid, optionalAuth, simulateLimiter, paymentController.simulatePayment);
 // Booking Engine — Remboursements (2026-09) : filet admin pour les cas restés
 // manuels (Orange Money, espèces...) — voir server/services/payment/refundService.js.
-router.post("/:id/refund",                vid, authenticate, authorizeAdmin, paymentController.refundPaymentAdmin);
+// Rembourse réellement via la passerelle (Stripe/Wave) : réservé au scope
+// finance, comme le reversement des commissions — un admin support pouvait
+// déclencher un remboursement alors qu'il ne peut même pas LIRE le registre
+// des commissions.
+router.post("/:id/refund",                vid, authenticate, authorizeAdmin, requireAdminScope("finance"), paymentController.refundPaymentAdmin);
 
 // Orange Money ne nécessite pas le corps brut (pas de vérification HMAC) —
 // passe par le parsing JSON normal. Stripe et Wave, eux, ont besoin du corps

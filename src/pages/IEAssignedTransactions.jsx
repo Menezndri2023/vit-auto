@@ -21,6 +21,12 @@ const STATUS_CFG = {
   in_transit: { label: "En transit",                   icon: "🌍", color: "#2563eb", bg: "#eff6ff" },
   delivered:  { label: "Livré",                        icon: "📬", color: "#d97706", bg: "#fffbeb" },
   completed:  { label: "Terminé",                      icon: "⭐", color: "#94a3b8", bg: "#f1f5f9" },
+  // Un dossier assigné peut aussi basculer sur ces états (litige ouvert pendant
+  // le transit, fonds libérés, annulation) : sans eux, le transitaire lisait
+  // « 📋 disputed » ou « 📋 funds_released » en anglais brut.
+  funds_released: { label: "Fonds libérés",            icon: "💰", color: "#059669", bg: "#ecfdf5" },
+  disputed:       { label: "Litige en cours",          icon: "⚠️", color: "#dc2626", bg: "#fef2f2" },
+  cancelled:      { label: "Annulé",                   icon: "🚫", color: "#94a3b8", bg: "#f1f5f9" },
 };
 
 function AssignedCard({ tx }) {

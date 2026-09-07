@@ -116,12 +116,17 @@ export const getOrCreateChat = async (req, res) => {
 
       const booking = await Booking.findById(bookingId)
         .populate("vehicle", "owner")
-        .populate("driver", "owner");
+        .populate("driver", "owner")
+        // `activity.owner` manquait : le bouton « Message au partenaire » est
+        // pourtant affiché pour une réservation d'activité (jet-ski, excursion…),
+        // et renvoyait « Réservation introuvable » puisque aucun propriétaire
+        // n'était résolu.
+        .populate("activity", "owner");
 
       if (!booking) return notPartyErr();
 
       const clientId = booking.client?.toString();
-      const ownerId  = (booking.vehicle?.owner || booking.driver?.owner)?.toString();
+      const ownerId  = (booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner)?.toString();
       if (!ownerId) return notPartyErr();
 
       if (myId === clientId)      targetId = ownerId;
@@ -244,13 +249,23 @@ export const sendMessage = async (req, res) => {
     // Notification pour les autres participants
     const others = chat.participants.filter((p) => p.toString() !== myId);
     const senderName = `${req.user.firstName} ${req.user.lastName}`;
+    // Le lien était "/dashboard" en dur pour TOUS les destinataires : un
+    // partenaire qui clique la notification atterrissait sur le tableau de bord
+    // CLIENT, qui lui affiche seulement une carte « Espace Partenaire » — donc
+    // une impasse, sans la conversation. Le sens client→partenaire de la
+    // messagerie était cassé dès le premier clic.
+    const recipients = await User.find({ _id: { $in: others } }).select("role").lean();
+    const roleById = new Map(recipients.map((u) => [u._id.toString(), u.role]));
+    const linkForRole = (role) =>
+      role === "partenaire" ? "/vendor/dashboard" : role === "admin" ? "/admin" : "/dashboard";
+
     for (const otherId of others) {
       try {
         const msgNotif = {
           type:    "new_message",
           titre:   `Nouveau message de ${senderName}`,
           message: content.trim().substring(0, 80),
-          lien:    "/dashboard",
+          lien:    linkForRole(roleById.get(otherId.toString())),
         };
         const msgNotifDoc = await Notification.create({ user: otherId, ...msgNotif });
         // Bug réel corrigé (audit) : "chat:message" (ci-dessous) met à jour la

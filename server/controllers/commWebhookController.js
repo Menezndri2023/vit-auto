@@ -23,7 +23,7 @@ import { captureException } from "../config/sentry.js";
 // variable, le webhook refuse toute requête (503) plutôt que d'accepter des
 // données non authentifiées.
 const notifyAdmins = async (type, titre, message, lien) => {
-  const admins = await User.find({ role: "admin" }).select("_id");
+  const admins = await User.find({ role: "admin", isActive: true }).select("_id");
   if (!admins.length) return;
   const docs = await Notification.insertMany(admins.map((a) => ({ user: a._id, type, titre, message, lien })));
   if (global._io) {

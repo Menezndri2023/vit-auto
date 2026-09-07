@@ -17,14 +17,16 @@ const CATEGORY_LABELS = {
   sequestre:       "Séquestre / Escrow",
 };
 
-async function notify(userId, titre, message) {
+async function notify(userId, titre, message, lien = "/services") {
   try {
-    const notif = await Notification.create({ user: userId, titre, message, type: "system" });
+    // `lien` renseigné : sans lui, un clic sur la notification dans la cloche
+    // ne produisait rien (NotificationBell ne navigue que si `lien` existe).
+    const notif = await Notification.create({ user: userId, titre, message, type: "system", lien });
     // Voir insuranceController.notify — même correctif (mauvais nom d'événement
     // + payload partiel, bug réel trouvé en audit).
     if (global._io) {
       global._io.to(`user_${userId}`).emit("notification_new", {
-        _id: notif._id, type: "system", titre, message, lien: null, lu: false, createdAt: notif.createdAt,
+        _id: notif._id, type: "system", titre, message, lien, lu: false, createdAt: notif.createdAt,
       });
     }
   } catch { /* non-bloquant */ }

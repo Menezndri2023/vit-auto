@@ -1,6 +1,6 @@
 import express from "express";
 import * as inv from "../controllers/invoiceController.js";
-import { authenticate, authorizeAdmin } from "../middleware/auth.js";
+import { authenticate, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 import { generateInvoicePDF } from "../utils/pdfGenerator.js";
 import Invoice from "../models/Invoice.js";
@@ -11,6 +11,13 @@ const vid = validateObjectId();
 // ── Partenaire ────────────────────────────────────────────
 router.get("/mine",          authenticate,               inv.getMyInvoices);
 router.get("/transactions",  authenticate,               inv.getPartnerTransactions);
+
+// ── Commissions consolidées (admin) ───────────────────────────────────────
+// DÉCLARÉE AVANT "/:id" : Express matche dans l'ordre, donc placée après elle
+// la chaîne littérale "commissions" était capturée comme un id et rejetée par
+// validateObjectId (400) — le tableau des commissions de l'admin affichait
+// zéro en permanence, indiscernable d'un mois sans revenu.
+router.get("/commissions",   authenticate, authorizeAdmin, requireAdminScope("finance"), inv.getAdminCommissions);
 
 // ── Détail d'une facture (partenaire propriétaire ou admin) ───────────────
 router.get("/:id",           vid, authenticate,               async (req, res) => {
@@ -43,10 +50,9 @@ router.get("/:id/pdf",       vid, authenticate,               async (req, res) =
 });
 
 // ── Admin ─────────────────────────────────────────────────
-router.get("/",              authenticate, authorizeAdmin, inv.getAllInvoices);
-router.post("/generate",     authenticate, authorizeAdmin, inv.generatePartnerInvoice);
-router.post("/generate-all", authenticate, authorizeAdmin, inv.generateAllMonthlyInvoices);
-router.patch("/:id/paid",    vid, authenticate, authorizeAdmin, inv.markInvoicePaid);
-router.get("/commissions",   authenticate, authorizeAdmin, inv.getAdminCommissions);
+router.get("/",              authenticate, authorizeAdmin, requireAdminScope("finance"), inv.getAllInvoices);
+router.post("/generate",     authenticate, authorizeAdmin, requireAdminScope("finance"), inv.generatePartnerInvoice);
+router.post("/generate-all", authenticate, authorizeAdmin, requireAdminScope("finance"), inv.generateAllMonthlyInvoices);
+router.patch("/:id/paid",    vid, authenticate, authorizeAdmin, requireAdminScope("finance"), inv.markInvoicePaid);
 
 export default router;

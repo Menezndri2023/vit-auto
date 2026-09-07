@@ -86,15 +86,22 @@ router.delete("/:id/admin-delete",        vid, authenticate, authorizeAdmin, b.a
 // ── PDF reçu de réservation ───────────────────────────────
 router.get("/:id/receipt",             vid, authenticate, async (req, res) => {
   try {
+    // `owner` DOIT être sélectionné : sans lui, vOwner valait toujours undefined
+    // et le partenaire — pourtant la partie à qui le reçu tripartite est destiné
+    // — recevait systématiquement 403 sur son propre dossier. Les réservations
+    // chauffeur et activité n'étaient pas couvertes du tout.
     const booking = await Booking.findById(req.params.id)
-      .populate("vehicle", "title marque modele")
-      .populate("client",  "firstName lastName email");
+      .populate("vehicle",  "title marque modele owner")
+      .populate("driver",   "owner")
+      .populate("activity", "owner")
+      .populate("client",   "firstName lastName email");
     if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
     const uid      = req.user._id.toString();
     const clientId = booking.client?._id?.toString() || booking.client?.toString();
     const isClient = clientId && clientId === uid;
-    const vOwner   = booking.vehicle?.owner?.toString();
-    if (!isClient && vOwner !== uid && req.user.role !== "admin") {
+    const isOwner  = [booking.vehicle?.owner, booking.driver?.owner, booking.activity?.owner]
+      .some((o) => o && (o._id?.toString() || o.toString()) === uid);
+    if (!isClient && !isOwner && req.user.role !== "admin") {
       return res.status(403).json({ message: "Accès refusé." });
     }
     generateReceiptPDF(booking, res);

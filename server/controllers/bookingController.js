@@ -26,6 +26,8 @@ import { resolveTier } from "../constants/loyaltyTiers.js";
 import LoyaltyTransaction from "../models/LoyaltyTransaction.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
 import { uploadBase64Document, FOLDERS } from "../config/imagekit.js";
+import { isMalformedObjectId } from "../utils/objectId.js";
+import { logAction } from "../middleware/auditLog.js";
 
 const CLIENT_CANCEL_REASONS_MAP  = Object.fromEntries(CLIENT_CANCEL_REASONS);
 const PARTNER_CANCEL_REASONS_MAP = Object.fromEntries(PARTNER_CANCEL_REASONS);
@@ -212,7 +214,7 @@ export async function notify(userId, type, titre, message, lien = "/dashboard") 
 // partenaire était réellement notifié — l'admin ne découvrait un litige qu'en
 // rechargeant manuellement l'onglet Litiges.
 async function notifyAdmins(type, titre, message, lien = "/admin") {
-  const admins = await User.find({ role: "admin" }).select("_id").lean();
+  const admins = await User.find({ role: "admin", isActive: true }).select("_id").lean();
   await Promise.all(admins.map((a) => notify(a._id, type, titre, message, lien)));
 }
 
@@ -367,6 +369,16 @@ export const createBooking = async (req, res) => {
 
     if (!type || !clientInfo?.firstName || !clientInfo?.email) {
       return res.status(400).json({ message: "Type et informations client requis." });
+    }
+
+    // Identifiants malformés (id local, valeur tronquée, copier-coller) : sans
+    // ce contrôle, findById lève un CastError rattrapé par le catch en bas de
+    // fonction et renvoyé en 500 "Erreur serveur." — une réservation qui échoue
+    // sans explication utilisable côté client.
+    for (const [label, value] of [["vehicleId", vehicleId], ["driverId", driverId], ["activityId", activityId]]) {
+      if (isMalformedObjectId(value)) {
+        return res.status(400).json({ message: `${label} invalide.` });
+      }
     }
 
     // ── Documents liés à la réservation (restructuration 2026-09) ────────────
@@ -1529,6 +1541,76 @@ export const getAllBookings = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // 5. WORKFLOW PARTENAIRE : ACCEPTER / REFUSER / SUIVI LIVRAISON
 // ═══════════════════════════════════════════════════════════════════════════════
+// ── Reçu tripartite (Contract) ────────────────────────────────────────────────
+// Extrait de updateBookingStatus : le reçu n'était créé QUE par ce chemin, alors
+// que deux autres passent une réservation en "confirmed" sans y passer —
+// adminValidateBooking (réservation instantanée / fastTrack) et l'acceptation
+// d'un créneau alternatif. Résultat : sur une réservation instantanée, client et
+// partenaire cliquaient sur « Mon contrat » et lisaient « Contrat introuvable.
+// Il sera disponible après acceptation par le partenaire » — alors que le
+// partenaire avait bien accepté. Jamais bloquant : un échec ici ne doit pas
+// empêcher la confirmation.
+export async function ensureBookingContract(booking, vendorUser = null) {
+  if (!booking || booking.contract) return null;
+  try {
+    const veh = booking.vehicle;
+      const ci  = booking.clientInfo;
+      const contract = await Contract.create({
+        booking: booking._id,
+        type:    booking.type,
+        currency: booking.devise || "USD",
+        client: {
+          firstName: ci?.firstName,
+          lastName:  ci?.lastName,
+          email:     ci?.email,
+          phone:     ci?.phone,
+          idType:    booking.clientVerification?.idType,
+          idNumber:  booking.clientVerification?.idNumber,
+        },
+        vendor: {
+          name:  veh?.contactNom || vendorUser?.firstName || "",
+          email: vendorUser?.email,
+          phone: veh?.contactTel || "",
+        },
+        vehicle: {
+          name:    veh ? [veh.title, veh.marque, veh.modele].filter(Boolean).join(" ") : "",
+          brand:   veh?.marque,
+          year:    veh?.annee,
+          color:   veh?.couleur,
+          mileage: veh?.kilometrage,
+        },
+        terms: {
+          startDate:        booking.location?.startDate,
+          endDate:          booking.location?.endDate,
+          days:             booking.location?.days,
+          pickupLocation:   booking.location?.pickupLocation,
+          returnLocation:   booking.location?.returnLocation,
+          dailyRateXOF:     veh?.pricePerDay,
+          cautionXOF:       booking.cautionAmount ?? 0,
+          serviceFeeXOF:    booking.serviceFeeFCFA ?? 1,
+          optionsXOF:       booking.montantOptions ?? 0,
+          baseXOF:          booking.montantBase,
+          totalXOF:         booking.montantTotal,
+          commissionRate:   booking.commissionRate,
+          commissionXOF:    booking.commissionAmount,
+          partnerPayoutXOF: booking.partnerPayout,
+          apportInitial:    booking.leasing?.apportInitial ?? 0,
+          mensualite:       booking.leasing?.mensualite    ?? 0,
+          dureeLeasing:     booking.leasing?.duree         ?? 0,
+          tauxInteret:      booking.leasing?.tauxInteret   ?? 0,
+          totalLeasing:     booking.leasing?.totalLeasing  ?? 0,
+        },
+        status: "sent",
+      });
+    booking.contract = contract._id;
+    await booking.save();
+    return contract;
+  } catch (contractErr) {
+    logger.error("Auto-contrat échoué (non bloquant) :", contractErr.message);
+    return null;
+  }
+}
+
 export const updateBookingStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1551,6 +1633,13 @@ export const updateBookingStatus = async (req, res) => {
       "client_arrived", "client_absent",
       "transaction_concluded", "transaction_not_concluded",
       "waiting_client_validation", "disputed",
+      // Missions chauffeur : ce statut est écrit par le client (markDriverArrived)
+      // mais était absent d'ici ET de VALID_TRANSITIONS ci-dessous. Conséquences
+      // réelles : le sélecteur d'étape de l'admin proposait "📍 Chauffeur arrivé"
+      // et échouait TOUJOURS en 400 ; et une mission dont le client oublie de
+      // confirmer la fin restait bloquée sans aucune action possible pour le
+      // partenaire ni l'admin (seul adminForceComplete s'en sortait).
+      "driver_arrived",
     ];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: "Statut invalide." });
@@ -1579,7 +1668,11 @@ export const updateBookingStatus = async (req, res) => {
       confirmed:                  ["preparing", "ready", "in_progress", "cancelled"],
       preparing:                  ["ready", "in_progress", "cancelled"],
       ready:                      ["in_progress", "client_arrived", "cancelled"],
-      in_progress:                ["client_arrived", "client_absent", "cancelled"],
+      in_progress:                ["client_arrived", "client_absent", "driver_arrived", "cancelled"],
+      // Sorties d'une mission chauffeur dont le client a confirmé l'arrivée :
+      // le partenaire ou l'admin peuvent la clore même si le client ne le fait
+      // jamais (completeMission reste la voie normale, côté client).
+      driver_arrived:             ["completed", "cancelled"],
       client_arrived:             ["transaction_concluded", "transaction_not_concluded", "client_absent"],
       client_absent:              ["in_progress", "cancelled"],
       transaction_concluded:      ["waiting_client_validation", "cancelled"],
@@ -1656,6 +1749,29 @@ export const updateBookingStatus = async (req, res) => {
     }
     await booking.save();
 
+    // Points de fidélité : ils étaient rendus au client lors d'un rejet à la
+    // validation admin (adminValidateBooking) et lors d'un échec de création,
+    // mais PAS ici — une annulation par l'admin ou le partenaire remboursait
+    // l'argent en détruisant définitivement les points utilisés, sans aucune
+    // ligne LoyaltyTransaction. Le drapeau `loyaltyRolledBack` garantit qu'ils
+    // ne sont rendus qu'une seule fois.
+    if (status === "cancelled" && booking.loyaltyPointsRedeemed > 0 && booking.client && !booking.loyaltyRolledBack) {
+      const claimed = await Booking.findOneAndUpdate(
+        { _id: booking._id, loyaltyRolledBack: { $ne: true } },
+        { $set: { loyaltyRolledBack: true } }
+      );
+      if (claimed) {
+        const afterRollback = await User.findByIdAndUpdate(
+          booking.client, { $inc: { loyaltyPoints: booking.loyaltyPointsRedeemed } }, { new: true }
+        ).catch(() => null);
+        await LoyaltyTransaction.create({
+          user: booking.client, type: "rollback", points: booking.loyaltyPointsRedeemed,
+          reason: "booking_cancelled", booking: booking._id,
+          balanceAfter: afterRollback?.loyaltyPoints ?? null,
+        }).catch(() => {});
+      }
+    }
+
     if (status === "cancelled" && wasPaidBeforeCancel) {
       // Booking Engine — Remboursements (2026-09) : annulation par le
       // partenaire d'une réservation déjà payée = remboursement prévisible,
@@ -1681,63 +1797,9 @@ export const updateBookingStatus = async (req, res) => {
     // Sync disponibilité du véhicule (non bloquant)
     syncVehicleAvailability(booking.vehicle?._id || booking.vehicle);
 
-    // ── Contrat auto à la confirmation ─────────────────────────────────────────
-    if (status === "confirmed" && !booking.contract) {
-      try {
-        const veh = booking.vehicle;
-        const ci  = booking.clientInfo;
-        const contract = await Contract.create({
-          booking: booking._id,
-          type:    booking.type,
-          currency: booking.devise || "USD",
-          client: {
-            firstName: ci?.firstName,
-            lastName:  ci?.lastName,
-            email:     ci?.email,
-            phone:     ci?.phone,
-            idType:    booking.clientVerification?.idType,
-            idNumber:  booking.clientVerification?.idNumber,
-          },
-          vendor: {
-            name:  veh?.contactNom || req.user.firstName || "",
-            email: req.user.email,
-            phone: veh?.contactTel || "",
-          },
-          vehicle: {
-            name:    veh ? [veh.title, veh.marque, veh.modele].filter(Boolean).join(" ") : "",
-            brand:   veh?.marque,
-            year:    veh?.annee,
-            color:   veh?.couleur,
-            mileage: veh?.kilometrage,
-          },
-          terms: {
-            startDate:        booking.location?.startDate,
-            endDate:          booking.location?.endDate,
-            days:             booking.location?.days,
-            pickupLocation:   booking.location?.pickupLocation,
-            returnLocation:   booking.location?.returnLocation,
-            dailyRateXOF:     veh?.pricePerDay,
-            cautionXOF:       booking.cautionAmount ?? 0,
-            serviceFeeXOF:    booking.serviceFeeFCFA ?? 1,
-            optionsXOF:       booking.montantOptions ?? 0,
-            baseXOF:          booking.montantBase,
-            totalXOF:         booking.montantTotal,
-            commissionRate:   booking.commissionRate,
-            commissionXOF:    booking.commissionAmount,
-            partnerPayoutXOF: booking.partnerPayout,
-            apportInitial:    booking.leasing?.apportInitial ?? 0,
-            mensualite:       booking.leasing?.mensualite    ?? 0,
-            dureeLeasing:     booking.leasing?.duree         ?? 0,
-            tauxInteret:      booking.leasing?.tauxInteret   ?? 0,
-            totalLeasing:     booking.leasing?.totalLeasing  ?? 0,
-          },
-          status: "sent",
-        });
-        booking.contract = contract._id;
-        await booking.save();
-      } catch (contractErr) {
-        logger.error("Auto-contrat échoué (non bloquant) :", contractErr.message);
-      }
+    // ── Reçu tripartite auto à la confirmation (voir ensureBookingContract) ────
+    if (status === "confirmed") {
+      await ensureBookingContract(booking, req.user);
     }
 
     // ── Notifications client ────────────────────────────────────────────────────
@@ -1941,7 +2003,9 @@ export const validateTransaction = async (req, res) => {
       return res.status(409).json({ message: "Cette transaction n'est pas en attente de validation." });
     }
 
-    const ownerId = booking.vehicle?.owner || booking.driver?.owner;
+    // activity.owner inclus : sans lui, une réservation d'activité ne notifiait
+    // jamais son partenaire (vehicle/driver sont null dans ce cas).
+    const ownerId = booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner;
 
     if (action === "validate") {
       booking.status = "completed";
@@ -3467,7 +3531,7 @@ export const resolveDispute = async (req, res) => {
       compensated:  "✅ Le litige a été résolu — une compensation vous sera versée.",
     }[resolution];
 
-    const disputeOwnerId = booking.vehicle?.owner || booking.driver?.owner;
+    const disputeOwnerId = booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner;
     if (booking.client?._id) await notify(booking.client._id, "system", "Litige résolu", clientMsg, "/dashboard");
     if (disputeOwnerId) await notify(disputeOwnerId, "system", "Litige résolu",
       `Le litige sur la commande ${booking.reference} a été résolu par l'administration.`, "/vendor/dashboard");
@@ -3571,7 +3635,7 @@ export const adminForceComplete = async (req, res) => {
       }
       amount = parsed;
     }
-    const commRate = await resolveCommissionRate(booking.type, booking.vehicle?.owner || booking.driver?.owner);
+    const commRate = await resolveCommissionRate(booking.type, booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner);
 
     booking.status           = "completed";
     booking.isPaid           = true;
@@ -3591,7 +3655,7 @@ export const adminForceComplete = async (req, res) => {
     await markVehicleSoldIfApplicable(booking);
     syncVehicleAvailability(booking.vehicle?._id);
 
-    const forceCompleteOwnerId = booking.vehicle?.owner || booking.driver?.owner;
+    const forceCompleteOwnerId = booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner;
     if (booking.client?._id) await notify(booking.client._id, "system", "✅ Commande finalisée", `Votre commande ${booking.reference} a été finalisée par l'administration.`, "/dashboard");
     if (forceCompleteOwnerId) await notify(forceCompleteOwnerId, "system", "✅ Commande finalisée", `La commande ${booking.reference} a été finalisée.`, "/vendor/dashboard");
     schedulePostServiceSurvey(booking);
@@ -3617,13 +3681,38 @@ export const adminDeleteBooking = async (req, res) => {
     const booking = await Booking.findById(id);
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
 
-    // Sécurité : on ne supprime pas des commandes actives avec transaction
-    if (["completed", "waiting_client_validation"].includes(booking.status)) {
-      return res.status(409).json({ message: "Impossible de supprimer une commande avec transaction en cours." });
+    // Sécurité : on ne supprime pas des commandes actives avec transaction.
+    // "disputed" et toute commande DÉJÀ PAYÉE ajoutées : une suppression en dur
+    // détruisait les preuves d'un litige en cours, laissait le Payment et le
+    // Contract orphelins, et ne rendait jamais les points de fidélité utilisés.
+    if (["completed", "waiting_client_validation", "disputed", "transaction_concluded"].includes(booking.status)) {
+      return res.status(409).json({ message: "Impossible de supprimer une commande avec transaction ou litige en cours — annulez-la plutôt." });
+    }
+    if (booking.isPaid) {
+      return res.status(409).json({ message: "Cette commande a été payée : annulez-la (remboursement tracé) au lieu de la supprimer." });
+    }
+
+    // Points de fidélité rendus au client avant destruction de la commande —
+    // sinon ils disparaissaient avec elle, sans trace.
+    if (booking.loyaltyPointsRedeemed > 0 && booking.client && !booking.loyaltyRolledBack) {
+      const afterRollback = await User.findByIdAndUpdate(
+        booking.client, { $inc: { loyaltyPoints: booking.loyaltyPointsRedeemed } }, { new: true }
+      ).catch(() => null);
+      await LoyaltyTransaction.create({
+        user: booking.client, type: "rollback", points: booking.loyaltyPointsRedeemed,
+        reason: "booking_deleted_by_admin", booking: booking._id,
+        balanceAfter: afterRollback?.loyaltyPoints ?? null,
+      }).catch(() => {});
     }
 
     await Booking.findByIdAndDelete(id);
     syncVehicleAvailability(booking.vehicle);
+
+    // Journal d'audit : aucune action admin sur les réservations n'était tracée,
+    // alors qu'une suppression est irréversible.
+    await logAction(req, "booking.delete", "Booking", id, {
+      before: { reference: booking.reference, status: booking.status, type: booking.type, montantTotal: booking.montantTotal },
+    }).catch(() => {});
 
     res.json({ success: true, message: "Commande supprimée." });
   } catch (err) {
@@ -3661,6 +3750,14 @@ export const exportBookings = async (req, res) => {
       .lean();
 
     if (format === "csv") {
+      // Échappement CSV obligatoire : les valeurs étaient concaténées telles
+      // quelles. Un véhicule intitulé « Toyota Land Cruiser, 7 places » (virgule)
+      // décalait toutes les colonnes financières de sa ligne ; un guillemet ou
+      // un retour à la ligne dans une adresse cassait le fichier entier.
+      const csv = (v) => {
+        const str = String(v ?? "");
+        return /[",\n\r;]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+      };
       const rows = [
         "Reference,Type,Statut,Client,Email,Téléphone,Passeport,Véhicule/Chauffeur/Activité,Montant,Commission,Net Partenaire,Date,Payé",
         ...bookings.map(b => [
@@ -3677,7 +3774,7 @@ export const exportBookings = async (req, res) => {
           b.partnerPayout || 0,
           b.createdAt?.toISOString().slice(0,10) || "",
           b.isPaid ? "Oui" : "Non",
-        ].join(","))
+        ].map(csv).join(","))
       ].join("\n");
 
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -3685,7 +3782,17 @@ export const exportBookings = async (req, res) => {
       return res.send("﻿" + rows); // BOM UTF-8 pour Excel
     }
 
-    res.json({ bookings, total: bookings.length, exportedAt: new Date() });
+    // `total` valait la longueur du tableau DÉJÀ TRONQUÉ à 5 000 : un export
+    // partiel se présentait comme complet. On renvoie le vrai total et on
+    // signale explicitement la troncature.
+    const total = await Booking.countDocuments(filter);
+    res.json({
+      bookings,
+      total,
+      exported: bookings.length,
+      truncated: total > bookings.length,
+      exportedAt: new Date(),
+    });
   } catch (err) {
     logger.error("exportBookings:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -3884,7 +3991,8 @@ export const adminValidateBooking = async (req, res) => {
 
       // Rollback fidélité (voir createBooking — débit à la réservation) : si
       // des points avaient été débités, ils sont recrédités, jamais perdus.
-      if (booking.loyaltyPointsRedeemed > 0 && booking.client) {
+      if (booking.loyaltyPointsRedeemed > 0 && booking.client && !booking.loyaltyRolledBack) {
+        booking.loyaltyRolledBack = true; // jamais deux recrédits (voir updateBookingStatus)
         const afterRollback = await User.findByIdAndUpdate(
           booking.client, { $inc: { loyaltyPoints: booking.loyaltyPointsRedeemed } }, { new: true }
         ).select("loyaltyPoints").catch(() => null);
@@ -3900,6 +4008,16 @@ export const adminValidateBooking = async (req, res) => {
     }
 
     await booking.save();
+
+    // Reçu tripartite : ce chemin passe la réservation en "confirmed" SANS
+    // passer par updateBookingStatus, où le reçu était jusqu'ici créé — une
+    // réservation instantanée n'en avait donc jamais (« Contrat introuvable »
+    // des deux côtés, définitivement). Le propriétaire est chargé pour
+    // renseigner le vendeur du reçu.
+    if (booking.status === "confirmed" && !booking.contract) {
+      const vendorUser = ownerId ? await User.findById(ownerId).select("firstName email").lean().catch(() => null) : null;
+      await ensureBookingContract(booking, vendorUser);
+    }
     // Rafraîchit en direct la liste du partenaire (voir VendorDashboard.jsx,
     // écoute déjà "booking_updated") dès que la commande devient visible.
     emitBookingUpdate(booking);

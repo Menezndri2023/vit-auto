@@ -121,6 +121,11 @@ describe("adminMarkPaid — trace un virement exécuté manuellement", () => {
     expect(reloaded.paidAt).toBeTruthy();
   });
 
+  // 409 (conflit) et non 400 : la ressource existe, c'est son état qui ne
+  // permet pas l'action — cohérent avec le reste du projet. Le marquage est
+  // désormais ATOMIQUE (findOneAndUpdate filtré sur le statut) : deux admins
+  // qui cliquent simultanément ne peuvent plus recevoir tous deux un succès et
+  // exécuter deux virements manuels pour la même ligne.
   it("refuse de re-marquer une entrée déjà payée", async () => {
     const partner = await createUser({ role: "partenaire" });
     const entry = await CommissionLedger.create({
@@ -130,7 +135,24 @@ describe("adminMarkPaid — trace un virement exécuté manuellement", () => {
     });
     const { req, res } = mockReqRes({ params: { id: entry._id.toString() }, body: {} });
     await adminMarkPaid(req, res);
-    expect(res.statusCode).toBe(400);
+    expect(res.statusCode).toBe(409);
+  });
+
+  it("ne marque payé qu'UNE fois même sur deux appels simultanés (pas de double virement)", async () => {
+    const partner = await createUser({ role: "partenaire" });
+    const entry = await CommissionLedger.create({
+      transactionId: "tx-concurrent", transactionType: "booking", partnerId: partner._id,
+      grossAmount: 20000, commissionRate: 15, commissionAmount: 17000, type: "partner_direct",
+      status: "confirmed",
+    });
+    const a = mockReqRes({ params: { id: entry._id.toString() }, body: { paidViaTxId: "VIR-A" } });
+    const b = mockReqRes({ params: { id: entry._id.toString() }, body: { paidViaTxId: "VIR-B" } });
+    await Promise.all([adminMarkPaid(a.req, a.res), adminMarkPaid(b.req, b.res)]);
+
+    const codes = [a.res.statusCode, b.res.statusCode].sort();
+    expect(codes).toEqual([200, 409]);      // un seul succès
+    const fresh = await CommissionLedger.findById(entry._id);
+    expect(fresh.status).toBe("paid");
   });
 
   it("404 pour une entrée inexistante", async () => {

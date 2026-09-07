@@ -21,7 +21,13 @@ import logger from "./logger.js";
 export async function unpublishPartnerListings(partnerId) {
   try {
     await Promise.all([
-      Vehicle.updateMany({ owner: partnerId, available: true }, { $set: { available: false } }),
+      // `available` seul ne suffisait pas : il est intégralement RECALCULÉ à
+      // partir de l'occupation par syncAllAvailability/getVehicleAvailability
+      // (vehicleController.js) — un simple passage de la synchro republiait
+      // donc les annonces d'un partenaire dont le KYC venait d'être refusé.
+      // Le statut, lui, fait foi et remet l'annonce dans la file de revue
+      // admin, exactement comme pour les profils chauffeur ci-dessous.
+      Vehicle.updateMany({ owner: partnerId, status: "approved" }, { $set: { status: "pending", available: false } }),
       ImportExportListing.updateMany({ partner: partnerId, status: "approved" }, { $set: { status: "archived" } }),
       Driver.updateMany({ owner: partnerId, status: "approved" }, { $set: { status: "pending" } }),
     ]);

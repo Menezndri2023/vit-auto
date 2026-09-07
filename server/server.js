@@ -488,6 +488,202 @@ app.use((err, req, res, _next) => {
 });
 
 // ── Démarrage ─────────────────────────────────────────────────────────────
+// ── Migrations de démarrage ───────────────────────────────────────────────────
+// Exécutées EN ARRIÈRE-PLAN, après l'ouverture du port. Elles étaient
+// auparavant attendues avant server.listen() : sur un redémarrage avec des
+// annonces à convertir (upload ImageKit en série, une sauvegarde par annonce),
+// le port pouvait rester fermé plusieurs minutes — le healthcheck de la
+// plateforme d'hébergement ne recevait alors aucune réponse et le déploiement
+// était déclaré en échec, ou le premier visiteur après une mise en veille
+// attendait la durée complète. Chaque migration est déjà idempotente et non
+// bloquante (voir runOnceMigration).
+async function runStartupMigrations() {
+  try {
+      // Invoice.init() ci-dessus construit le nouvel index {partner, businessId,
+      // year, month} mais ne supprime jamais l'ancien index unique
+      // {partner, year, month} — tant qu'il reste en place, il bloque en 409 la
+      // facturation d'une 2e entité pour le même partenaire/mois (voir
+      // scripts/migrateInvoiceBusinessIndex.js, qui dépendait jusqu'ici d'un
+      // opérateur pour être lancé manuellement après déploiement — même piège
+      // que l'incident Vehicle.currency ci-dessous, désormais évité de la même façon).
+      await runOnceMigration("invoice-drop-legacy-unique-index-2026-08-02", async () => {
+        const { dropLegacyInvoiceIndex } = await import("./scripts/migrateInvoiceBusinessIndex.js");
+        const { default: Invoice } = await import("./models/Invoice.js");
+        await dropLegacyInvoiceIndex();
+        await Invoice.syncIndexes();
+      });
+
+      // ── Migrations à usage unique (auto, jamais rejouées) ─────────────────
+      // Vehicle.currency avait pour défaut de schéma "USD" bien avant d'avoir
+      // un sens réel (voir models/Vehicle.js) — chaque annonce déjà publiée
+      // porte donc littéralement "USD" en base. Depuis que ce champ pilote
+      // l'affichage (PriceTag pinnedCurrency), laisser cette valeur telle
+      // quelle FIGERAIT l'affichage de TOUTES les annonces existantes en USD
+      // pour tout le monde au lieu de garder la conversion automatique par
+      // pays du visiteur — un script de migration manuel existe
+      // (scripts/migrate-vehicle-currency-reset.mjs) mais dépendre qu'un
+      // opérateur se souvienne de le lancer après déploiement est justement ce
+      // qui a causé l'incident. Rendu automatique et sans risque de répétition
+      // (voir runOnceMigration.js).
+      await runOnceMigration("vehicle-currency-reset-2026-07-28", async () => {
+        const { default: Vehicle } = await import("./models/Vehicle.js");
+        await Vehicle.updateMany({ currency: "USD" }, { $set: { currency: null } });
+      });
+
+      // Le champ unique `Vehicle.promotion` (un seul pourcentage, sans notion
+      // de durée) est remplacé par `promotions[]` (paliers configurables — voir
+      // models/Vehicle.js). Les annonces ayant déjà une promo active migrent
+      // automatiquement vers une règle équivalente (percent, minDays:1) plutôt
+      // que de perdre silencieusement leur promotion en cours ; `promotion` est
+      // ensuite retiré du document (déjà absent du schéma).
+      await runOnceMigration("vehicle-promotion-rules-2026-07-28", async () => {
+        const { default: Vehicle } = await import("./models/Vehicle.js");
+        const legacy = await Vehicle.collection.find(
+          { "promotion.discountPercent": { $gt: 0 } },
+          { projection: { promotion: 1 } }
+        ).toArray();
+        for (const doc of legacy) {
+          const p = doc.promotion;
+          await Vehicle.collection.updateOne(
+            { _id: doc._id },
+            {
+              $set: {
+                promotions: [{
+                  type:      "percent",
+                  value:     p.discountPercent,
+                  minDays:   1,
+                  label:     p.label || "",
+                  active:    !!p.active,
+                  startDate: p.startDate || null,
+                  endDate:   p.endDate || null,
+                }],
+              },
+              $unset: { promotion: "" },
+            }
+          );
+        }
+      });
+
+      // Driver.permisCategorie passe d'une valeur texte libre unique ("B",
+      // "B+C"...) à un tableau validé contre la liste standard (voir
+      // constants/licenseCategories.js) — un chauffeur détient souvent
+      // plusieurs catégories à la fois, et le sélecteur précédent ne proposait
+      // que 5 valeurs dont une ("E" seul) qui n'est même pas une vraie
+      // catégorie. Découpe les anciennes valeurs combinées (séparateurs +, /,
+      // virgule, espace) et ne garde que les catégories réellement valides ;
+      // "E" seul (invalide) et toute valeur vide retombent sur ["B"], comme le
+      // défaut du schéma pour les profils qui n'avaient jamais renseigné ce champ.
+      await runOnceMigration("driver-license-categories-array-2026-08-04", async () => {
+        const { LICENSE_CATEGORIES } = await import("./constants/licenseCategories.js");
+        const { default: Driver } = await import("./models/Driver.js");
+        const legacy = await Driver.collection.find(
+          { permisCategorie: { $type: "string" } },
+          { projection: { permisCategorie: 1 } }
+        ).toArray();
+        for (const doc of legacy) {
+          const parsed = String(doc.permisCategorie || "")
+            .toUpperCase()
+            .split(/[+/,\s]+/)
+            .filter((c) => LICENSE_CATEGORIES.includes(c));
+          const categories = [...new Set(parsed)];
+          await Driver.collection.updateOne(
+            { _id: doc._id },
+            { $set: { permisCategorie: categories.length ? categories : ["B"] } }
+          );
+        }
+      });
+
+      // Driver.currency passe d'un défaut "USD" (jamais un vrai choix — champ
+      // déclaré mais jamais lu nulle part avant ce correctif, voir Driver.js)
+      // à `null` = automatique, cohérent avec Vehicle.currency. Sans cette
+      // remise à zéro, tous les profils chauffeur déjà en base se
+      // retrouveraient figés en USD pour tous les visiteurs dès l'activation
+      // du sélecteur de devise, au lieu de garder la conversion automatique
+      // par pays du visiteur (même incident que "vehicle-currency-reset-2026-07-28").
+      await runOnceMigration("driver-currency-reset-2026-08-04", async () => {
+        const { default: Driver } = await import("./models/Driver.js");
+        await Driver.updateMany({ currency: "USD" }, { $set: { currency: null } });
+      });
+
+      // Les annonces véhicule existantes stockaient leurs photos en base64 brut
+      // dans MongoDB (voir uploadBase64Images/config/imagekit.js pour le
+      // correctif du flux de création/édition) — mesuré en production :
+      // /api/vehicles?limit=20 pesait 1,37 Mo, retransmis en entier à chaque
+      // chargement du catalogue, jamais mis en cache par le navigateur. Migre
+      // les photos déjà stockées vers des URLs ImageKit hébergées ; une annonce
+      // dont l'upload échoue (ImageKit indisponible, etc.) garde son base64
+      // actuel et sera retentée au prochain démarrage (voir runOnceMigration).
+      await runOnceMigration("vehicle-images-to-imagekit-2026-07-30", async () => {
+        const { default: Vehicle } = await import("./models/Vehicle.js");
+        const { uploadBase64Images, isImageKitConfigured } = await import("./config/imagekit.js");
+        // Sans identifiants ImageKit, la conversion est un no-op silencieux : on
+        // LÈVE pour que le marqueur ne soit pas posé et que la migration soit
+        // retentée au prochain démarrage (une fois les variables en place).
+        if (!isImageKitConfigured()) {
+          throw new Error("ImageKit non configuré — migration reportée au prochain démarrage.");
+        }
+        const legacy = await Vehicle.find({
+          $or: [{ images: { $regex: "^data:" } }, { thumbnail: { $regex: "^data:" } }],
+        }).select("images thumbnail");
+        for (const v of legacy) {
+          if (v.images?.length) v.images = await uploadBase64Images(v.images);
+          if (v.thumbnail?.startsWith("data:")) {
+            const [uploaded] = await uploadBase64Images([v.thumbnail]);
+            v.thumbnail = uploaded;
+          }
+          await v.save();
+        }
+        logger.info(`[Migration] vehicle-images-to-imagekit : ${legacy.length} annonce(s) traitée(s).`);
+      });
+
+      // Même bug/correctif que la migration véhicules ci-dessus, pour Driver.cv —
+      // en plus du poids en base, un CV stocké en base64 brut ne s'ouvrait dans
+      // AUCUN des endroits où le lien "Voir le CV" apparaît (DriverBooking,
+      // VendorDashboard, AdminPanel) : les navigateurs modernes refusent de
+      // naviguer un onglet vers une URL data: cliquée depuis un <a target="_blank">
+      // (voir uploadBase64Document/config/imagekit.js).
+      await runOnceMigration("driver-cv-to-imagekit-2026-08-04", async () => {
+        const { default: Driver } = await import("./models/Driver.js");
+        const { uploadBase64Document, FOLDERS, isImageKitConfigured } = await import("./config/imagekit.js");
+        if (!isImageKitConfigured()) {
+          throw new Error("ImageKit non configuré — migration reportée au prochain démarrage.");
+        }
+        const legacy = await Driver.find({ cv: { $regex: "^data:" } }).select("cv");
+        for (const d of legacy) {
+          d.cv = await uploadBase64Document(d.cv, FOLDERS.drivers);
+          await d.save();
+        }
+        logger.info(`[Migration] driver-cv-to-imagekit : ${legacy.length} profil(s) chauffeur traité(s).`);
+      });
+
+      // Gate admin obligatoire (audit 2026-08) : Booking.adminValidation/
+      // IETransaction.adminValidation viennent d'être ajoutés avec un défaut de
+      // schéma "pending" — sans ce backfill, TOUTES les commandes déjà en base
+      // disparaîtraient d'un coup des dashboards partenaires au déploiement
+      // (voir bookingController.getPartnerBookings, filtré sur
+      // adminValidation.status:"approved"). Seules les transactions IE
+      // directPurchase sont concernées côté import/export (voir IETransaction.js).
+      await runOnceMigration("booking-admin-validation-backfill-2026-08", async () => {
+        const { default: Booking } = await import("./models/Booking.js");
+        const result = await Booking.updateMany(
+          { "adminValidation.status": { $exists: false } },
+          { $set: { "adminValidation.status": "approved" } }
+        );
+        logger.info(`[Migration] booking-admin-validation-backfill : ${result.modifiedCount} commande(s) traitée(s).`);
+      });
+      await runOnceMigration("ie-transaction-admin-validation-backfill-2026-08", async () => {
+        const { default: IETransaction } = await import("./models/IETransaction.js");
+        const result = await IETransaction.updateMany(
+          { directPurchase: true, "adminValidation.status": { $exists: false } },
+          { $set: { "adminValidation.status": "approved" } }
+        );
+        logger.info(`[Migration] ie-transaction-admin-validation-backfill : ${result.modifiedCount} transaction(s) traitée(s).`);
+      });
+  } catch (err) {
+    logger.error("Migrations de démarrage : échec inattendu (non bloquant) :", err.message);
+  }
+}
+
 const startServer = async () => {
   try {
     await connectDB();
@@ -514,177 +710,6 @@ const startServer = async () => {
       logger.error("Construction des index critiques échouée (non bloquant) :", err.message);
     }
 
-    // Invoice.init() ci-dessus construit le nouvel index {partner, businessId,
-    // year, month} mais ne supprime jamais l'ancien index unique
-    // {partner, year, month} — tant qu'il reste en place, il bloque en 409 la
-    // facturation d'une 2e entité pour le même partenaire/mois (voir
-    // scripts/migrateInvoiceBusinessIndex.js, qui dépendait jusqu'ici d'un
-    // opérateur pour être lancé manuellement après déploiement — même piège
-    // que l'incident Vehicle.currency ci-dessous, désormais évité de la même façon).
-    await runOnceMigration("invoice-drop-legacy-unique-index-2026-08-02", async () => {
-      const { dropLegacyInvoiceIndex } = await import("./scripts/migrateInvoiceBusinessIndex.js");
-      const { default: Invoice } = await import("./models/Invoice.js");
-      await dropLegacyInvoiceIndex();
-      await Invoice.syncIndexes();
-    });
-
-    // ── Migrations à usage unique (auto, jamais rejouées) ─────────────────
-    // Vehicle.currency avait pour défaut de schéma "USD" bien avant d'avoir
-    // un sens réel (voir models/Vehicle.js) — chaque annonce déjà publiée
-    // porte donc littéralement "USD" en base. Depuis que ce champ pilote
-    // l'affichage (PriceTag pinnedCurrency), laisser cette valeur telle
-    // quelle FIGERAIT l'affichage de TOUTES les annonces existantes en USD
-    // pour tout le monde au lieu de garder la conversion automatique par
-    // pays du visiteur — un script de migration manuel existe
-    // (scripts/migrate-vehicle-currency-reset.mjs) mais dépendre qu'un
-    // opérateur se souvienne de le lancer après déploiement est justement ce
-    // qui a causé l'incident. Rendu automatique et sans risque de répétition
-    // (voir runOnceMigration.js).
-    await runOnceMigration("vehicle-currency-reset-2026-07-28", async () => {
-      const { default: Vehicle } = await import("./models/Vehicle.js");
-      await Vehicle.updateMany({ currency: "USD" }, { $set: { currency: null } });
-    });
-
-    // Le champ unique `Vehicle.promotion` (un seul pourcentage, sans notion
-    // de durée) est remplacé par `promotions[]` (paliers configurables — voir
-    // models/Vehicle.js). Les annonces ayant déjà une promo active migrent
-    // automatiquement vers une règle équivalente (percent, minDays:1) plutôt
-    // que de perdre silencieusement leur promotion en cours ; `promotion` est
-    // ensuite retiré du document (déjà absent du schéma).
-    await runOnceMigration("vehicle-promotion-rules-2026-07-28", async () => {
-      const { default: Vehicle } = await import("./models/Vehicle.js");
-      const legacy = await Vehicle.collection.find(
-        { "promotion.discountPercent": { $gt: 0 } },
-        { projection: { promotion: 1 } }
-      ).toArray();
-      for (const doc of legacy) {
-        const p = doc.promotion;
-        await Vehicle.collection.updateOne(
-          { _id: doc._id },
-          {
-            $set: {
-              promotions: [{
-                type:      "percent",
-                value:     p.discountPercent,
-                minDays:   1,
-                label:     p.label || "",
-                active:    !!p.active,
-                startDate: p.startDate || null,
-                endDate:   p.endDate || null,
-              }],
-            },
-            $unset: { promotion: "" },
-          }
-        );
-      }
-    });
-
-    // Driver.permisCategorie passe d'une valeur texte libre unique ("B",
-    // "B+C"...) à un tableau validé contre la liste standard (voir
-    // constants/licenseCategories.js) — un chauffeur détient souvent
-    // plusieurs catégories à la fois, et le sélecteur précédent ne proposait
-    // que 5 valeurs dont une ("E" seul) qui n'est même pas une vraie
-    // catégorie. Découpe les anciennes valeurs combinées (séparateurs +, /,
-    // virgule, espace) et ne garde que les catégories réellement valides ;
-    // "E" seul (invalide) et toute valeur vide retombent sur ["B"], comme le
-    // défaut du schéma pour les profils qui n'avaient jamais renseigné ce champ.
-    await runOnceMigration("driver-license-categories-array-2026-08-04", async () => {
-      const { LICENSE_CATEGORIES } = await import("./constants/licenseCategories.js");
-      const { default: Driver } = await import("./models/Driver.js");
-      const legacy = await Driver.collection.find(
-        { permisCategorie: { $type: "string" } },
-        { projection: { permisCategorie: 1 } }
-      ).toArray();
-      for (const doc of legacy) {
-        const parsed = String(doc.permisCategorie || "")
-          .toUpperCase()
-          .split(/[+/,\s]+/)
-          .filter((c) => LICENSE_CATEGORIES.includes(c));
-        const categories = [...new Set(parsed)];
-        await Driver.collection.updateOne(
-          { _id: doc._id },
-          { $set: { permisCategorie: categories.length ? categories : ["B"] } }
-        );
-      }
-    });
-
-    // Driver.currency passe d'un défaut "USD" (jamais un vrai choix — champ
-    // déclaré mais jamais lu nulle part avant ce correctif, voir Driver.js)
-    // à `null` = automatique, cohérent avec Vehicle.currency. Sans cette
-    // remise à zéro, tous les profils chauffeur déjà en base se
-    // retrouveraient figés en USD pour tous les visiteurs dès l'activation
-    // du sélecteur de devise, au lieu de garder la conversion automatique
-    // par pays du visiteur (même incident que "vehicle-currency-reset-2026-07-28").
-    await runOnceMigration("driver-currency-reset-2026-08-04", async () => {
-      const { default: Driver } = await import("./models/Driver.js");
-      await Driver.updateMany({ currency: "USD" }, { $set: { currency: null } });
-    });
-
-    // Les annonces véhicule existantes stockaient leurs photos en base64 brut
-    // dans MongoDB (voir uploadBase64Images/config/imagekit.js pour le
-    // correctif du flux de création/édition) — mesuré en production :
-    // /api/vehicles?limit=20 pesait 1,37 Mo, retransmis en entier à chaque
-    // chargement du catalogue, jamais mis en cache par le navigateur. Migre
-    // les photos déjà stockées vers des URLs ImageKit hébergées ; une annonce
-    // dont l'upload échoue (ImageKit indisponible, etc.) garde son base64
-    // actuel et sera retentée au prochain démarrage (voir runOnceMigration).
-    await runOnceMigration("vehicle-images-to-imagekit-2026-07-30", async () => {
-      const { default: Vehicle } = await import("./models/Vehicle.js");
-      const { uploadBase64Images } = await import("./config/imagekit.js");
-      const legacy = await Vehicle.find({
-        $or: [{ images: { $regex: "^data:" } }, { thumbnail: { $regex: "^data:" } }],
-      }).select("images thumbnail");
-      for (const v of legacy) {
-        if (v.images?.length) v.images = await uploadBase64Images(v.images);
-        if (v.thumbnail?.startsWith("data:")) {
-          const [uploaded] = await uploadBase64Images([v.thumbnail]);
-          v.thumbnail = uploaded;
-        }
-        await v.save();
-      }
-      logger.info(`[Migration] vehicle-images-to-imagekit : ${legacy.length} annonce(s) traitée(s).`);
-    });
-
-    // Même bug/correctif que la migration véhicules ci-dessus, pour Driver.cv —
-    // en plus du poids en base, un CV stocké en base64 brut ne s'ouvrait dans
-    // AUCUN des endroits où le lien "Voir le CV" apparaît (DriverBooking,
-    // VendorDashboard, AdminPanel) : les navigateurs modernes refusent de
-    // naviguer un onglet vers une URL data: cliquée depuis un <a target="_blank">
-    // (voir uploadBase64Document/config/imagekit.js).
-    await runOnceMigration("driver-cv-to-imagekit-2026-08-04", async () => {
-      const { default: Driver } = await import("./models/Driver.js");
-      const { uploadBase64Document, FOLDERS } = await import("./config/imagekit.js");
-      const legacy = await Driver.find({ cv: { $regex: "^data:" } }).select("cv");
-      for (const d of legacy) {
-        d.cv = await uploadBase64Document(d.cv, FOLDERS.drivers);
-        await d.save();
-      }
-      logger.info(`[Migration] driver-cv-to-imagekit : ${legacy.length} profil(s) chauffeur traité(s).`);
-    });
-
-    // Gate admin obligatoire (audit 2026-08) : Booking.adminValidation/
-    // IETransaction.adminValidation viennent d'être ajoutés avec un défaut de
-    // schéma "pending" — sans ce backfill, TOUTES les commandes déjà en base
-    // disparaîtraient d'un coup des dashboards partenaires au déploiement
-    // (voir bookingController.getPartnerBookings, filtré sur
-    // adminValidation.status:"approved"). Seules les transactions IE
-    // directPurchase sont concernées côté import/export (voir IETransaction.js).
-    await runOnceMigration("booking-admin-validation-backfill-2026-08", async () => {
-      const { default: Booking } = await import("./models/Booking.js");
-      const result = await Booking.updateMany(
-        { "adminValidation.status": { $exists: false } },
-        { $set: { "adminValidation.status": "approved" } }
-      );
-      logger.info(`[Migration] booking-admin-validation-backfill : ${result.modifiedCount} commande(s) traitée(s).`);
-    });
-    await runOnceMigration("ie-transaction-admin-validation-backfill-2026-08", async () => {
-      const { default: IETransaction } = await import("./models/IETransaction.js");
-      const result = await IETransaction.updateMany(
-        { directPurchase: true, "adminValidation.status": { $exists: false } },
-        { $set: { "adminValidation.status": "approved" } }
-      );
-      logger.info(`[Migration] ie-transaction-admin-validation-backfill : ${result.modifiedCount} transaction(s) traitée(s).`);
-    });
 
     // ── BullMQ : queues + workers (si Redis configuré) ───────────────────
     await initQueues();
@@ -766,6 +791,9 @@ const startServer = async () => {
       logger.info(`VIT AUTO API démarré — ${env.toUpperCase()}`, {
         port: PORT, corsHosts: ALLOWED_HOSTS.join(", "),
       });
+      // Après l'ouverture du port : le service répond au healthcheck et sert
+      // le trafic pendant que les migrations tournent (voir runStartupMigrations).
+      runStartupMigrations();
     });
 
     // Gestion propre du port déjà occupé

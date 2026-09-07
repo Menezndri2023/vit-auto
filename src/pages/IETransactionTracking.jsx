@@ -43,6 +43,14 @@ const STEPS = [
 
 const STATUS_ORDER = STEPS.map((s) => s.status);
 
+// États hors parcours nominal : absents de STEPS (ils n'ont pas d'étape dans la
+// barre de progression), mais le bandeau de titre affichait alors leur code
+// technique en anglais — « disputed », « cancelled » — au client.
+const OFF_TRACK_STATUS = {
+  disputed:  { label: "Litige en cours", icon: "⚠️" },
+  cancelled: { label: "Transaction annulée", icon: "🚫" },
+};
+
 const DOC_LABELS = {
   commercialInvoice: "Facture commerciale",
   customsDocs:       "Documents douaniers",
@@ -99,7 +107,7 @@ function ProgressBar({ status }) {
 }
 
 // ── Panneau d'action selon statut et rôle ─────────────────────────────────
-function ActionPanel({ tx, role, token, onRefresh, paymentProfile }) {
+function ActionPanel({ tx, role, canDoLogistics, token, onRefresh, paymentProfile }) {
   const [loading, setLoading]           = useState(false);
   const [error, setError]               = useState(null);
   const [form, setForm]                 = useState({});
@@ -454,8 +462,8 @@ function ActionPanel({ tx, role, token, onRefresh, paymentProfile }) {
   }
 
   // ── Étape 11 : expédition — partenaire ─────────────────────────────────
-  if (tx.status === "in_escrow" || (tx.status === "preparing" && role === "partner")) {
-    if (role !== "partner") return null;
+  if (tx.status === "in_escrow" || (tx.status === "preparing" && canDoLogistics)) {
+    if (!canDoLogistics) return null;
     return (
       <div className={styles.actionCard}>
         <h4>Enregistrer l'expédition</h4>
@@ -702,7 +710,7 @@ function DocsPanel({ docs, txId, token, role, status, onRefresh }) {
 }
 
 // ── Suivi expédition ───────────────────────────────────────────────────────
-function ShippingPanel({ shipping, txId, token, role, status, onRefresh }) {
+function ShippingPanel({ shipping, txId, token, canDoLogistics, status, onRefresh }) {
   const [form, setForm]   = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
@@ -740,7 +748,7 @@ function ShippingPanel({ shipping, txId, token, role, status, onRefresh }) {
           </div>
         )}
       </div>
-      {role === "partner" && ["shipped", "in_transit"].includes(status) && (
+      {canDoLogistics && ["shipped", "in_transit"].includes(status) && (
         <div className={styles.trackingUpdate}>
           <input placeholder="Nouveau statut de livraison…" value={form.currentStatus || ""} onChange={(e) => setForm((f) => ({ ...f, currentStatus: e.target.value }))} />
           <button className={styles.btnSecondary} disabled={loading || !form.currentStatus} onClick={update}>
@@ -841,6 +849,13 @@ export default function IETransactionTracking() {
   // pouvoirs complets (voir getTransactionById côté serveur pour l'accès).
   const isAssignee = tx.assignment?.assignedTo?._id?.toString() === userId || tx.assignment?.assignedTo?.toString() === userId;
   const role       = isClient ? "client" : isAdmin ? "admin" : (isPartner || isAssignee) ? "partner" : "admin";
+  // `isAdmin` est évalué AVANT `isAssignee` ci-dessus, et les agents internes
+  // SONT des comptes admin (getInternalAgents côté serveur) : un agent à qui
+  // l'admin confie un dossier voyait donc role="admin" et perdait tous les
+  // boutons de logistique (« Marquer comme expédié », suivi de transport),
+  // alors que le serveur les lui autorise. Ce drapeau porte le droit d'AGIR sur
+  // la logistique, indépendamment du rôle d'affichage.
+  const canDoLogistics = isPartner || isAssignee;
 
   const currentStep = STEPS.find((s) => s.status === tx.status);
 
@@ -871,7 +886,7 @@ export default function IETransactionTracking() {
         </div>
         <div className={styles.headerRight}>
           <span className={`${styles.statusChip} ${styles[`chip_${tx.status}`]}`}>
-            {currentStep?.icon} {currentStep?.label || tx.status}
+            {(currentStep?.icon || OFF_TRACK_STATUS[tx.status]?.icon)} {currentStep?.label || OFF_TRACK_STATUS[tx.status]?.label || tx.status}
           </span>
           {tx.finalOffer?.totalAmount && (
             <p className={styles.headerPrice}>{fmtPrice(tx.finalOffer.totalAmount, tx.finalOffer.currency)}</p>
@@ -901,13 +916,13 @@ export default function IETransactionTracking() {
       <div className={styles.layout}>
         <div className={styles.main}>
           {/* Panneau d'action */}
-          <ActionPanel tx={tx} role={role} token={token} onRefresh={load} paymentProfile={paymentProfile} />
+          <ActionPanel tx={tx} role={role} canDoLogistics={canDoLogistics} token={token} onRefresh={load} paymentProfile={paymentProfile} />
 
           {/* Documents export */}
           <DocsPanel docs={tx.documents} txId={tx._id} token={token} role={role} status={tx.status} onRefresh={load} />
 
           {/* Suivi expédition */}
-          <ShippingPanel shipping={tx.shipping} txId={tx._id} token={token} role={role} status={tx.status} onRefresh={load} />
+          <ShippingPanel shipping={tx.shipping} txId={tx._id} token={token} canDoLogistics={canDoLogistics} status={tx.status} onRefresh={load} />
 
           {/* Inspection indépendante */}
           {tx.independentInspection?.requested && (

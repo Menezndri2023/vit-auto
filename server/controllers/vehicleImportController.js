@@ -2,6 +2,7 @@ import logger from "../utils/logger.js";
 import VehicleImportBatch from "../models/VehicleImportBatch.js";
 import PartnerVerification from "../models/PartnerVerification.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
+import { isMalformedObjectId } from "../utils/objectId.js";
 import { dispatch } from "../queue/index.js";
 import {
   MAX_IMPORT_ROWS,
@@ -173,6 +174,7 @@ export const createImportBatch = async (req, res) => {
     // toutes les lignes du batch (voir processImportBatch/vehicleImportService.js).
     let business = null;
     if (businessId) {
+      if (isMalformedObjectId(businessId)) return res.status(400).json({ message: "Entreprise invalide." });
       business = await PartnerBusiness.findOne({ _id: businessId, owner: req.user._id }).lean();
       if (!business) return res.status(400).json({ message: "Entreprise introuvable." });
     }

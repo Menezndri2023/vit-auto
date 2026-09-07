@@ -2,13 +2,14 @@ import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useSocket } from "../context/SocketContext";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import styles from "./AdminPanel.module.css";
 import { ListingForm as IEListingEditForm } from "./ImporterDashboard";
 import { COUNTRIES_ALL, CURRENCIES as IE_CURRENCIES, getCountryFlag } from "../data/autocomplete";
 import { INCOTERMS as IE_LISTING_INCOTERMS } from "../constants/incoterms";
 import { PARTNER_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import { ACTIVITY_TYPE_LABELS } from "../constants/activityTypes";
+import { downloadAuthFile } from "../utils/downloadAuthFile";
 
 // Drapeau pays — reconnaissance rapide du pays d'un partenaire/client par
 // l'admin, à partir du code ISO stocké sur User/Vehicle/Driver (voir
@@ -691,14 +692,31 @@ function RentalPolicySection({ token }) {
   const [form, setForm]             = useState(null);
   const [saving, setSaving]         = useState(false);
 
+  const [saveError, setSaveError] = useState(null);
+  const [total, setTotal] = useState(0);
+
+  // Le serveur plafonne à 20 entités par page et renvoie total/pages, que cet
+  // écran ignorait : au-delà de 20 entreprises, les politiques de location des
+  // autres (âge minimum, caution, frais de livraison) étaient tout simplement
+  // inaccessibles. On charge les pages successives.
   const load = async (q) => {
     setLoading(true);
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const qs = q ? `?search=${encodeURIComponent(q)}` : "";
-      const r = await fetch(`/api/partner/businesses/admin${qs}`, { headers });
-      const d = await r.json();
-      setBusinesses(d.businesses || []);
+      const qs = q ? `search=${encodeURIComponent(q)}&` : "";
+      const all = [];
+      let grandTotal = 0;
+      for (let page = 1; page <= 25; page += 1) {
+        const r = await fetch(`/api/partner/businesses/admin?${qs}limit=100&page=${page}`, { headers });
+        if (!r.ok) break;
+        const d = await r.json();
+        const batch = d.businesses || [];
+        grandTotal = d.total ?? grandTotal;
+        all.push(...batch);
+        if (batch.length < 100 || (grandTotal && all.length >= grandTotal)) break;
+      }
+      setBusinesses(all);
+      setTotal(grandTotal || all.length);
     } catch { /* liste vide, pas bloquant */ }
     finally { setLoading(false); }
   };
@@ -741,7 +759,15 @@ function RentalPolicySection({ token }) {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ rentalPolicy }),
       });
-      if (r.ok) { setEditing(null); load(search); }
+      if (r.ok) { setEditing(null); setSaveError(null); load(search); }
+      else {
+        // Aucun retour en cas d'échec : la modale restait ouverte, le spinner
+        // s'arrêtait, et rien ne s'affichait — l'admin recliquait sans fin.
+        const d = await r.json().catch(() => null);
+        setSaveError(d?.message || "Enregistrement refusé par le serveur.");
+      }
+    } catch {
+      setSaveError("Erreur réseau — modifications non enregistrées.");
     } finally {
       setSaving(false);
     }
@@ -765,6 +791,9 @@ function RentalPolicySection({ token }) {
         <div style={{ textAlign: "center", padding: "2rem", color: "#94a3b8" }}>Aucune entreprise trouvée.</div>
       ) : (
         <div className={styles.tableWrap}>
+          <div style={{ fontSize: ".8rem", color: "#64748b", marginBottom: 8 }}>
+            {businesses.length} entreprise(s) affichée(s){total > businesses.length ? ` sur ${total}` : ""}
+          </div>
           <table className={styles.table}>
             <thead><tr><th>Entreprise</th><th>Propriétaire</th><th>Pays / Ville</th><th>Livraison même ville</th><th>Actions</th></tr></thead>
             <tbody>
@@ -825,9 +854,14 @@ function RentalPolicySection({ token }) {
             <label style={{ fontSize: ".8rem", display: "block", marginBottom: 12 }}>Exigences complémentaires
               <input value={form.additionalRequirements} onChange={(e) => setF("additionalRequirements", e.target.value)} style={{ width: "100%", padding: 6, marginTop: 4 }} />
             </label>
+            {saveError && (
+              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", borderRadius: 8, padding: "8px 10px", fontSize: ".8rem", marginBottom: 10 }}>
+                ⚠️ {saveError}
+              </div>
+            )}
             <div className={styles.confirmActions}>
               <button className={styles.btnPrimary} disabled={saving} onClick={handleSave}>{saving ? "…" : "Enregistrer"}</button>
-              <button className={styles.btnGhost} onClick={() => setEditing(null)}>Annuler</button>
+              <button className={styles.btnGhost} onClick={() => { setEditing(null); setSaveError(null); }}>Annuler</button>
             </div>
           </div>
         </div>
@@ -844,6 +878,7 @@ function LogisticsAssignmentSection({ ieTransactions, loading, token, onRefresh 
   const [assignMode, setAssignMode] = useState("transitaire");
   const [assignTo, setAssignTo] = useState("");
   const [assigning, setAssigning] = useState(false);
+  const [assignError, setAssignError] = useState(null);
 
   useEffect(() => {
     if (!assignModal) return;
@@ -865,7 +900,13 @@ function LogisticsAssignmentSection({ ieTransactions, loading, token, onRefresh 
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ mode: assignMode, assignedTo: assignTo }),
       });
-      if (r.ok) { setAssignModal(null); onRefresh(); }
+      if (r.ok) { setAssignModal(null); setAssignError(null); onRefresh(); }
+      else {
+        const d = await r.json().catch(() => null);
+        setAssignError(d?.message || "Assignation refusée par le serveur.");
+      }
+    } catch {
+      setAssignError("Erreur réseau — assignation non enregistrée.");
     } finally {
       setAssigning(false);
     }
@@ -928,11 +969,16 @@ function LogisticsAssignmentSection({ ieTransactions, loading, token, onRefresh 
                 Aucun transitaire actif pour {assignModal.tx.destCountry || "cette destination"} — choisissez un agent interne à la place.
               </p>
             )}
+            {assignError && (
+              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", borderRadius: 8, padding: "8px 10px", fontSize: ".8rem", marginBottom: 10 }}>
+                ⚠️ {assignError}
+              </div>
+            )}
             <div className={styles.confirmActions}>
               <button className={styles.btnPrimary} disabled={!assignTo || assigning} onClick={handleAssign}>
                 {assigning ? "…" : "Confirmer"}
               </button>
-              <button className={styles.btnGhost} onClick={() => setAssignModal(null)}>Annuler</button>
+              <button className={styles.btnGhost} onClick={() => { setAssignModal(null); setAssignError(null); }}>Annuler</button>
             </div>
           </div>
         </div>
@@ -1012,10 +1058,25 @@ function TransportSection({ ieTransactions, loading }) {
 function EscrowSection({ ieTransactions, loading }) {
   const held     = ieTransactions.filter((t) => t.status === "in_escrow");
   const released = ieTransactions.filter((t) => t.payment?.releasedAt);
-  const totalHeld = held.reduce((s, t) => s + (t.payment?.amount || 0), 0);
+  // Les montants sont dans des devises différentes (USD, MAD, XOF…) — les
+  // additionner produisait un total sans aucun sens, affiché sans symbole, sur
+  // lequel un admin pouvait fonder une décision de trésorerie. On totalise
+  // désormais PAR DEVISE.
+  const sumByCurrency = (list) => list.reduce((acc, t) => {
+    const cur = t.payment?.currency || "?";
+    acc[cur] = (acc[cur] || 0) + (t.payment?.amount || 0);
+    return acc;
+  }, {});
+  const fmtByCurrency = (totals) => {
+    const entries = Object.entries(totals);
+    if (!entries.length) return "0";
+    return entries.map(([cur, amt]) => `${amt.toLocaleString("fr-FR")} ${cur}`).join(" · ");
+  };
   const thisMonth = new Date(); thisMonth.setDate(1); thisMonth.setHours(0, 0, 0, 0);
-  const releasedThisMonth = released.filter((t) => new Date(t.payment.releasedAt) >= thisMonth)
-    .reduce((s, t) => s + (t.payment?.amount || 0), 0);
+  const totalHeld = fmtByCurrency(sumByCurrency(held));
+  const releasedThisMonth = fmtByCurrency(
+    sumByCurrency(released.filter((t) => new Date(t.payment.releasedAt) >= thisMonth))
+  );
 
   if (loading) return <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>;
 
@@ -1023,9 +1084,9 @@ function EscrowSection({ ieTransactions, loading }) {
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 14, marginBottom: "1.5rem" }}>
         <StatCard icon="🔐" label="Dossiers en séquestre" value={held.length} color="#0891b2" />
-        <StatCard icon="💰" label="Total bloqué"          value={`${totalHeld.toLocaleString("fr-FR")}`} color="#f59e0b" />
+        <StatCard icon="💰" label="Total bloqué"          value={totalHeld} color="#f59e0b" />
         <StatCard icon="✅" label="Dossiers libérés"       value={released.length} color="#10b981" />
-        <StatCard icon="📤" label="Libéré ce mois"         value={`${releasedThisMonth.toLocaleString("fr-FR")}`} color="#6366f1" />
+        <StatCard icon="📤" label="Libéré ce mois"         value={releasedThisMonth} color="#6366f1" />
       </div>
 
       {held.length === 0 && released.length === 0 ? (
@@ -1520,7 +1581,30 @@ export default function AdminPanel() {
   const { on: onSocket } = useSocket();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab]   = useState("dashboard");
+  // Les notifications et e-mails admin pointent vers /admin?tab=reports,
+  // ?tab=whatsapp, ?tab=drivers… mais ce paramètre n'était lu nulle part :
+  // l'admin qui cliquait « Voir dans l'admin → » atterrissait toujours sur le
+  // tableau de bord. Tout le flux d'escalade reposait sur un lien inerte.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab]   = useState(() => searchParams.get("tab") || "dashboard");
+
+  // Suit les changements d'URL ultérieurs (clic sur une notification alors que
+  // le panneau est déjà ouvert).
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab && tab !== activeTab) setActiveTab(tab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // Sens inverse : l'onglet courant reste dans l'URL, pour que le lien soit
+  // partageable et que le bouton « retour » du navigateur fonctionne.
+  useEffect(() => {
+    if (searchParams.get("tab") === activeTab) return;
+    const next = new URLSearchParams(searchParams);
+    if (activeTab === "dashboard") next.delete("tab"); else next.set("tab", activeTab);
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 900);
   const isMobile = useRef(window.innerWidth <= 900);
 
@@ -1577,9 +1661,15 @@ export default function AdminPanel() {
   const loadSystemHealth = useCallback(async () => {
     setSystemHealthLoading(true);
     try {
+      // /api/health renvoie 503 quand le système est DÉGRADÉ — soit le seul cas
+      // que cet écran de diagnostic doit couvrir. En ne lisant que les réponses
+      // 2xx, l'admin voyait « impossible de joindre /api/health » alors que la
+      // réponse contenait précisément « database: disconnected ».
       const r = await fetch("/api/health");
-      if (r.ok) setSystemHealth(await r.json());
-    } catch { /* ignore */ }
+      const d = await r.json().catch(() => null);
+      if (d) setSystemHealth(d);
+      else setSystemHealth({ status: "unreachable", error: `HTTP ${r.status}` });
+    } catch { setSystemHealth({ status: "unreachable", error: "réseau injoignable" }); }
     setSystemHealthLoading(false);
   }, []);
   const [reviewActioning,  setReviewActioning]  = useState(null);
@@ -2071,15 +2161,38 @@ export default function AdminPanel() {
   // "Publiées" de cet onglet (calculés sur ce même tableau tronqué) pouvaient
   // diverger silencieusement des vrais totaux (stats.vehicles.*, eux corrects
   // car agrégés côté serveur sans pagination).
+  // Récupération par pages successives. Les listes admin demandaient un `limit`
+  // toujours croissant (« Charger plus » = +200), mais le serveur le replafonne
+  // (500 pour les annonces, 200 pour les réservations) : au-delà du plafond, le
+  // bouton renvoyait EXACTEMENT les mêmes lignes, et les plus anciennes étaient
+  // définitivement hors de portée — non modérables. On pagine réellement.
+  const fetchPaged = useCallback(async (path, { limit, pageSize, key }) => {
+    const items = [];
+    let total = 0;
+    for (let page = 1; items.length < limit; page += 1) {
+      const sep = path.includes("?") ? "&" : "?";
+      const r = await fetch(`${path}${sep}limit=${pageSize}&page=${page}`, { headers });
+      if (!r.ok) break;
+      const d = await r.json();
+      const batch = Array.isArray(d) ? d : (d[key] || []);
+      total = d.total ?? total;
+      items.push(...batch);
+      if (batch.length < pageSize) break;       // dernière page atteinte
+      if (total && items.length >= total) break; // tout est chargé
+      if (page > 40) break;                      // garde-fou (20 000 lignes)
+    }
+    return { items: items.slice(0, limit), total: total || items.length };
+  }, [headers]);
+
   const loadAll = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     try {
-      const [sRes, uRes, vRes, bRes, dRes, adRes, paRes, aaRes] = await Promise.all([
+      const [sRes, uRes, vPaged, bPaged, dRes, adRes, paRes, aaRes] = await Promise.all([
         fetch("/api/users/stats",    { headers }),
         fetch(`/api/users?limit=${usersLimit}`, { headers }),
-        fetch(`/api/vehicles?limit=${vehiclesLimit}&status=all`, { headers }),
-        fetch(`/api/bookings?limit=${bookingsLimit}`, { headers }),
+        fetchPaged("/api/vehicles?status=all", { limit: vehiclesLimit, pageSize: 500, key: "vehicles" }),
+        fetchPaged("/api/bookings",            { limit: bookingsLimit, pageSize: 200, key: "bookings" }),
         fetch("/api/drivers/pending?status=all", { headers }),
         fetch("/api/drivers", { headers }),
         fetch("/api/activities/pending?status=all", { headers }),
@@ -2087,12 +2200,8 @@ export default function AdminPanel() {
       ]);
       if (sRes.ok) setStats((await sRes.json()));
       if (uRes.ok) { const d = await uRes.json(); setUsers(d.users || []); setUsersTotal(d.total || 0); }
-      if (vRes.ok) {
-        const d = await vRes.json();
-        setVehicles(Array.isArray(d) ? d : d.vehicles || []);
-        setVehiclesTotal(d.total || 0);
-      }
-      if (bRes.ok) { const d = await bRes.json(); setBookings(d.bookings || []); setBookingsTotal(d.total || 0); }
+      setVehicles(vPaged.items); setVehiclesTotal(vPaged.total);
+      setBookings(bPaged.items);  setBookingsTotal(bPaged.total);
       if (dRes.ok) setDrivers((await dRes.json()).drivers || []);
       if (adRes.ok) { const ad = await adRes.json(); setActiveDrivers(Array.isArray(ad) ? ad : ad.drivers || []); }
       if (paRes.ok) setPendingActivitiesList((await paRes.json()).activities || []);
@@ -2101,7 +2210,7 @@ export default function AdminPanel() {
       setLiveDisputes(0);
     } catch { /* ignore */ }
     setLoading(false);
-  }, [token, headers, usersLimit, bookingsLimit, vehiclesLimit]);
+  }, [token, headers, usersLimit, bookingsLimit, vehiclesLimit, fetchPaged]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -2118,22 +2227,18 @@ export default function AdminPanel() {
   const refreshPendingListings = useCallback(async () => {
     if (!token) return;
     try {
-      const [vRes, dRes, bRes] = await Promise.all([
-        fetch(`/api/vehicles?limit=${vehiclesLimit}&status=all`, { headers }),
+      const [vPaged, dRes, bPaged] = await Promise.all([
+        fetchPaged("/api/vehicles?status=all", { limit: vehiclesLimit, pageSize: 500, key: "vehicles" }),
         fetch("/api/drivers/pending?status=all", { headers }),
-        fetch(`/api/bookings?limit=${bookingsLimit}`, { headers }),
+        fetchPaged("/api/bookings",            { limit: bookingsLimit, pageSize: 200, key: "bookings" }),
       ]);
-      if (vRes.ok) {
-        const d = await vRes.json();
-        setVehicles(Array.isArray(d) ? d : d.vehicles || []);
-        setVehiclesTotal(d.total || 0);
-      }
+      setVehicles(vPaged.items); setVehiclesTotal(vPaged.total);
       if (dRes.ok) setDrivers((await dRes.json()).drivers || []);
-      if (bRes.ok) { const d = await bRes.json(); setBookings(d.bookings || []); setBookingsTotal(d.total || 0); }
+      setBookings(bPaged.items); setBookingsTotal(bPaged.total);
       setLiveNewListings(0);
       setLiveDisputes(0);
     } catch { /* ignore — le badge live reste affiché, l'admin peut réessayer via Actualiser */ }
-  }, [token, headers, vehiclesLimit, bookingsLimit]);
+  }, [token, headers, vehiclesLimit, bookingsLimit, fetchPaged]);
 
   const loadMoreUsers = useCallback(() => setUsersLimit((l) => l + 200), []);
   const loadMoreBookings = useCallback(() => setBookingsLimit((l) => l + 200), []);
@@ -2668,9 +2773,20 @@ export default function AdminPanel() {
 
   const deleteCostConfig = async (id) => {
     if (!confirm("Supprimer ce barème ?")) return;
-    await fetch(`/api/import-cost/admin/configs/${id}`, { method: "DELETE", headers });
-    showToast("Barème supprimé.");
-    loadImportCostData();
+    // La réponse n'était pas vérifiée : un refus (droits insuffisants sur ce
+    // scope, contrainte serveur) affichait quand même un message de succès, et
+    // la ligne restait à l'écran après rechargement — l'admin croyait à un
+    // bug d'affichage et recommençait.
+    try {
+      const r = await fetch(`/api/import-cost/admin/configs/${id}`, { method: "DELETE", headers });
+      if (!r.ok) {
+        const d = await r.json().catch(() => null);
+        showToast(d?.message || "Suppression refusée par le serveur.", "error");
+        return;
+      }
+      showToast("Barème supprimé.");
+      loadImportCostData();
+    } catch { showToast("Erreur réseau — rien n'a été supprimé.", "error"); }
   };
 
   const saveLaneRate = async () => {
@@ -2690,9 +2806,16 @@ export default function AdminPanel() {
 
   const deleteLaneRate = async (id) => {
     if (!confirm("Supprimer cette liaison ?")) return;
-    await fetch(`/api/import-cost/admin/lanes/${id}`, { method: "DELETE", headers });
-    showToast("Liaison supprimée.");
-    loadImportCostData();
+    try {
+      const r = await fetch(`/api/import-cost/admin/lanes/${id}`, { method: "DELETE", headers });
+      if (!r.ok) {
+        const d = await r.json().catch(() => null);
+        showToast(d?.message || "Suppression refusée par le serveur.", "error");
+        return;
+      }
+      showToast("Liaison supprimée.");
+      loadImportCostData();
+    } catch { showToast("Erreur réseau — rien n'a été supprimé.", "error"); }
   };
 
   // ── Configuration métier — PricingConfig + ExchangeRate + CountryConfig ─────
@@ -2755,9 +2878,16 @@ export default function AdminPanel() {
 
   const deleteExchangeRateFn = async (id) => {
     if (!confirm("Supprimer cette devise ?")) return;
-    await fetch(`/api/admin/business-config/exchange-rates/${id}`, { method: "DELETE", headers });
-    showToast("Devise supprimée.");
-    loadBusinessConfig();
+    try {
+      const r = await fetch(`/api/admin/business-config/exchange-rates/${id}`, { method: "DELETE", headers });
+      if (!r.ok) {
+        const d = await r.json().catch(() => null);
+        showToast(d?.message || "Suppression refusée par le serveur.", "error");
+        return;
+      }
+      showToast("Devise supprimée.");
+      loadBusinessConfig();
+    } catch { showToast("Erreur réseau — rien n'a été supprimé.", "error"); }
   };
 
   const saveCountryConfig = async () => {
@@ -2776,9 +2906,16 @@ export default function AdminPanel() {
 
   const deleteCountryConfigFn = async (id) => {
     if (!confirm("Supprimer ce pays ?")) return;
-    await fetch(`/api/admin/business-config/countries/${id}`, { method: "DELETE", headers });
-    showToast("Pays supprimé.");
-    loadBusinessConfig();
+    try {
+      const r = await fetch(`/api/admin/business-config/countries/${id}`, { method: "DELETE", headers });
+      if (!r.ok) {
+        const d = await r.json().catch(() => null);
+        showToast(d?.message || "Suppression refusée par le serveur.", "error");
+        return;
+      }
+      showToast("Pays supprimé.");
+      loadBusinessConfig();
+    } catch { showToast("Erreur réseau — rien n'a été supprimé.", "error"); }
   };
 
   const saveDiscountCampaign = async () => {
@@ -2803,9 +2940,16 @@ export default function AdminPanel() {
 
   const deleteDiscountCampaignFn = async (id) => {
     if (!confirm("Supprimer cette campagne ?")) return;
-    await fetch(`/api/admin/business-config/discount-campaigns/${id}`, { method: "DELETE", headers });
-    showToast("Campagne supprimée.");
-    loadBusinessConfig();
+    try {
+      const r = await fetch(`/api/admin/business-config/discount-campaigns/${id}`, { method: "DELETE", headers });
+      if (!r.ok) {
+        const d = await r.json().catch(() => null);
+        showToast(d?.message || "Suppression refusée par le serveur.", "error");
+        return;
+      }
+      showToast("Campagne supprimée.");
+      loadBusinessConfig();
+    } catch { showToast("Erreur réseau — rien n'a été supprimé.", "error"); }
   };
 
   // ── Journal d'audit ──────────────────────────────────────────────────────────
@@ -2863,7 +3007,15 @@ export default function AdminPanel() {
   };
 
   const decideReport = async (id, status) => {
-    const note = status === "classe_sans_suite" ? null : prompt("Note (optionnel) :") || null;
+    // prompt() renvoie null quand l'admin clique « Annuler » : l'ancien
+    // `prompt(...) || null` continuait, et la décision était appliquée quand
+    // même. On abandonne réellement.
+    let note = null;
+    if (status !== "classe_sans_suite") {
+      const answer = prompt("Note (optionnel) :");
+      if (answer === null) return;
+      note = answer.trim() || null;
+    }
     try {
       const r = await fetch(`/api/reports/admin/${id}`, {
         method: "PATCH", headers, body: JSON.stringify({ status, reviewNote: note }),
@@ -3490,7 +3642,13 @@ export default function AdminPanel() {
   }, [token, headers, pvFilter]);
 
   useEffect(() => {
+    // Les onglets Escrow et Transport affichent EXACTEMENT les mêmes données
+    // (ieTransactions) mais ne les chargeaient pas : ouverts directement (F5,
+    // lien profond), ils annonçaient « aucun fonds en séquestre » avec des
+    // compteurs à zéro alors que des dossiers existaient — il fallait passer
+    // d'abord par l'onglet Transactions I/E pour qu'ils se remplissent.
     if (activeTab === "import_export")  { loadImportExport(); loadIeTransactions(); }
+    if (activeTab === "escrow" || activeTab === "transport") loadIeTransactions();
     if (activeTab === "exportateurs")   loadImporters();
     if (activeTab === "commissions")    loadCommissions();
     if (activeTab === "factures")       { loadInvoices(); loadServiceInvoicesAdmin(); }
@@ -3667,11 +3825,17 @@ export default function AdminPanel() {
       const res = await fetch(`/api/users/${uid}/role`, {
         method: "PATCH", headers, body: JSON.stringify({ role }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        // Le message du serveur était jeté : « rôle invalide » et « seul un super
+        // admin peut… » devenaient tous deux « Erreur lors du changement de rôle ».
+        const d = await res.json().catch(() => null);
+        showToast(d?.message || "Erreur lors du changement de rôle", "error");
+        return;
+      }
       const { user: updated } = await res.json();
       setUsers((prev) => prev.map((u) => u._id === uid ? { ...u, role: updated.role } : u));
       showToast(`Rôle changé → ${updated.role}`);
-    } catch { showToast("Erreur lors du changement de rôle", "error"); }
+    } catch { showToast("Erreur réseau — rôle inchangé.", "error"); }
   }, [headers, showToast]);
 
   const deleteUser = useCallback(async (uid) => {
@@ -3734,10 +3898,17 @@ export default function AdminPanel() {
       const res = await fetch(`/api/drivers/${did}/status`, {
         method: "PATCH", headers, body: JSON.stringify({ status, rejectionReason: reason }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        // Le message réel du serveur était jeté : toute erreur (droits
+        // insuffisants, statut refusé…) devenait « Erreur lors de la mise à
+        // jour », sans indication de ce qu'il fallait corriger.
+        const d = await res.json().catch(() => null);
+        showToast(d?.message || "Erreur lors de la mise à jour", "error");
+        return;
+      }
       setDrivers((prev) => prev.map((d) => (d._id === did ? { ...d, status, rejectionReason: reason || d.rejectionReason } : d)));
       showToast(`Chauffeur ${status === "approved" ? "approuvé" : "rejeté"}`);
-    } catch { showToast("Erreur lors de la mise à jour", "error"); }
+    } catch { showToast("Erreur réseau — action non appliquée.", "error"); }
   }, [headers, showToast]);
 
   // ── Actions chauffeurs ──────────────────────────────────────────────────────
@@ -3746,10 +3917,17 @@ export default function AdminPanel() {
       const res = await fetch(`/api/drivers/${did}/status`, {
         method: "PATCH", headers, body: JSON.stringify({ status, rejectionReason: reason }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        // Le message réel du serveur était jeté : toute erreur (droits
+        // insuffisants, statut refusé…) devenait « Erreur lors de la mise à
+        // jour », sans indication de ce qu'il fallait corriger.
+        const d = await res.json().catch(() => null);
+        showToast(d?.message || "Erreur lors de la mise à jour", "error");
+        return;
+      }
       setDrivers((prev) => prev.filter((d) => d._id !== did));
       showToast(`Chauffeur ${status === "approved" ? "approuvé" : "rejeté"}`);
-    } catch { showToast("Erreur lors de la mise à jour", "error"); }
+    } catch { showToast("Erreur réseau — action non appliquée.", "error"); }
   }, [headers, showToast]);
 
   // Retire un chauffeur actif du catalogue public (repasse en "rejected" —
@@ -3840,12 +4018,18 @@ export default function AdminPanel() {
     } catch (e) { showToast(e.message || "Erreur suppression", "error"); }
   }, [headers, showToast]);
 
-  const exportBookings = useCallback((fmt = "csv") => {
+  // window.open n'envoie AUCUN en-tête : le `_t=${token}` en query n'est lu par
+  // rien côté serveur (authenticate ne lit que l'en-tête Authorization), donc
+  // l'export ouvrait un onglet affichant {"message":"Non autorisé"} — il n'a
+  // jamais fonctionné. Téléchargement authentifié comme les autres documents.
+  const exportBookings = useCallback(async (fmt = "csv") => {
     const params = new URLSearchParams({ format: fmt });
     if (bkStatus !== "all") params.set("status", bkStatus);
     if (bkSearch.trim()) params.set("search", bkSearch.trim());
-    window.open(`/api/bookings/admin/export?${params}&_t=${token}`, "_blank");
-  }, [bkStatus, bkSearch, token]);
+    const date = new Date().toISOString().slice(0, 10);
+    const r = await downloadAuthFile(`/api/bookings/admin/export?${params}`, `commandes-${date}.${fmt === "csv" ? "csv" : "json"}`, token);
+    if (!r.ok) showToast(r.message, "error");
+  }, [bkStatus, bkSearch, token, showToast]);
 
   // ── Broadcast notification ─────────────────────────────────────────────────
   const sendBroadcast = useCallback(async () => {
@@ -3990,6 +4174,12 @@ export default function AdminPanel() {
     // n'obtenait que des 403 en boucle (tableau vide, aucune action possible).
     import_cost:      "finance",
     reversements:     "finance",
+    // Même correction que import_cost : les routes /api/invoices et le
+    // remboursement /api/payments/:id/refund portent désormais
+    // requireAdminScope("finance") côté serveur — sans cette entrée, un admin
+    // hors finance verrait l'onglet et n'obtiendrait que des 403.
+    factures:         "finance",
+    paiements:        "finance",
   };
   const canSeeTab = (key) => {
     const scope = TAB_SCOPES[key];
@@ -4139,7 +4329,7 @@ export default function AdminPanel() {
 
       {/* ── Booking action modal ── */}
       {bkActionModal && (
-        <div className={styles.overlay} onClick={() => setBkActionModal(null)}>
+        <div className={styles.overlay} onClick={() => { setBkActionModal(null); setBkCancelReason(""); setBkCancelReasonCode(""); }}>
           <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
             <p className={styles.confirmMsg}>
               {bkActionModal.action === "cancelled" ? `Annuler la commande de « ${bkActionModal.name} » ?` : `Confirmer la commande de « ${bkActionModal.name} » ?`}
@@ -4666,7 +4856,11 @@ export default function AdminPanel() {
                               <option value="client">Client</option>
                               <option value="partenaire">Partenaire</option>
                               <option value="admin">Admin</option>
-                              <option value="chauffeur">Chauffeur</option>
+                              {/* « Chauffeur » retiré : ce n'est pas un rôle de COMPTE
+                                  (usersController.updateUserRole n'accepte que client/
+                                  partenaire/admin). Un chauffeur est une fiche publiée
+                                  par un partenaire — le choisir ici renvoyait toujours
+                                  400, sans message exploitable. */}
                             </select>
                           </td>
                           <td>{u.isActive ? <Badge label="Actif" color="#10b981" bg="#ecfdf5" /> : <Badge label="Bloqué" color="#ef4444" bg="#fef2f2" />}</td>
@@ -4854,7 +5048,7 @@ export default function AdminPanel() {
                             style={{ background: "#16a34a", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
                             ✅ Approuver
                           </button>
-                          <button onClick={() => setValidationRejectModal({ kind: "booking", item: b })}
+                          <button onClick={() => { setValidationRejectModal({ kind: "booking", item: b }); setValidationRejectReason(""); }}
                             style={{ background: "#fef2f2", color: "#dc2626", border: "1.5px solid #fecaca", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
                             ❌ Refuser
                           </button>
@@ -4886,7 +5080,7 @@ export default function AdminPanel() {
                           style={{ background: "#16a34a", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
                           ✅ Approuver
                         </button>
-                        <button onClick={() => setValidationRejectModal({ kind: "direct", item: tx })}
+                        <button onClick={() => { setValidationRejectModal({ kind: "direct", item: tx }); setValidationRejectReason(""); }}
                           style={{ background: "#fef2f2", color: "#dc2626", border: "1.5px solid #fecaca", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
                           ❌ Refuser
                         </button>
@@ -4900,7 +5094,7 @@ export default function AdminPanel() {
 
           {/* ── Modale motif de refus (réservation ou achat direct) ── */}
           {validationRejectModal && (
-            <div className={styles.overlay} onClick={() => setValidationRejectModal(null)}>
+            <div className={styles.overlay} onClick={() => { setValidationRejectModal(null); setValidationRejectReason(""); }}>
               <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
                 <h3 style={{ margin: "0 0 12px", fontSize: "1rem", color: "#0f1b3f" }}>Motif du refus</h3>
                 <textarea
@@ -4911,7 +5105,7 @@ export default function AdminPanel() {
                   style={{ width: "100%", border: "1.5px solid #e2e8f0", borderRadius: 10, padding: 10, fontSize: ".85rem", fontFamily: "inherit", resize: "vertical", marginBottom: 14 }}
                 />
                 <div className={styles.confirmActions}>
-                  <button className={styles.btnGhost} onClick={() => setValidationRejectModal(null)}>Annuler</button>
+                  <button className={styles.btnGhost} onClick={() => { setValidationRejectModal(null); setValidationRejectReason(""); }}>Annuler</button>
                   <button className={styles.btnDanger}
                     disabled={!validationRejectReason.trim()}
                     onClick={confirmValidationReject}>
@@ -5018,8 +5212,15 @@ export default function AdminPanel() {
                           <td className={styles.tdDate}>{fmtDate(b.createdAt)}</td>
                           <td>
                             <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-                              <a href={`/api/bookings/${b._id}/receipt`} target="_blank" rel="noopener noreferrer"
-                                style={{ fontSize:"0.7rem", padding:"2px 6px", background:"#f1f5f9", color:"#0f1b3f", borderRadius:6, textDecoration:"none" }} title="Reçu PDF">🧾</a>
+                              {/* Ces routes PDF exigent un en-tête Authorization qu'un simple
+                                  <a href> n'envoie jamais : le clic ouvrait un onglet
+                                  {"message":"Non autorisé"} au lieu du document (voir
+                                  utils/downloadAuthFile.js). */}
+                              <button type="button" onClick={async () => {
+                                  const r = await downloadAuthFile(`/api/bookings/${b._id}/receipt`, `recu-${b.reference || b._id}.pdf`, token);
+                                  if (!r.ok) showToast(r.message, "error");
+                                }}
+                                style={{ fontSize:"0.7rem", padding:"2px 6px", background:"#f1f5f9", color:"#0f1b3f", border:"none", borderRadius:6, cursor:"pointer" }} title="Reçu PDF">🧾</button>
                               {/* Documents client joints à la réservation (2026-09) — l'admin
                                   ne voyait que le numéro de pièce, jamais les documents
                                   eux-mêmes, alors qu'ils sont la pièce maîtresse en cas de
@@ -5065,7 +5266,7 @@ export default function AdminPanel() {
                               )}
                               {!["cancelled","completed"].includes(b.status) && (
                                 <button className={styles.btnReject} style={{ padding:"0.2rem 0.5rem", fontSize:"0.72rem" }}
-                                  onClick={() => { setBkActionModal({ id:b._id, name:clientName, action:"cancelled" }); setBkCancelReason(""); }}
+                                  onClick={() => { setBkActionModal({ id:b._id, name:clientName, action:"cancelled" }); setBkCancelReason(""); setBkCancelReasonCode(""); }}
                                   title="Annuler">✕</button>
                               )}
                               {b.status === "cancelled" && (
@@ -6009,7 +6210,10 @@ export default function AdminPanel() {
                       <td style={{ fontWeight: 800, color: "#0f1b3f" }}>{fmtUSD(inv.netPayout || 0)}</td>
                       <td style={{ fontSize: "0.8rem", color: "#64748b" }}>{inv.createdAt ? new Date(inv.createdAt).toLocaleDateString("fr-FR") : "—"}</td>
                       <td>
-                        <a href={`/api/service-invoices/${inv._id}/pdf`} target="_blank" rel="noopener noreferrer" style={{ color: "#2563eb", fontSize: "0.82rem" }}>⬇️ Voir</a>
+                        <button type="button" onClick={async () => {
+                            const r = await downloadAuthFile(`/api/service-invoices/${inv._id}/pdf`, `facture-${inv.reference || inv._id}.pdf`, token);
+                            if (!r.ok) showToast(r.message, "error");
+                          }} style={{ color: "#2563eb", fontSize: "0.82rem", background: "none", border: "none", cursor: "pointer", padding: 0 }}>⬇️ Voir</button>
                       </td>
                     </tr>
                   ))}
@@ -7044,7 +7248,7 @@ export default function AdminPanel() {
                         <td>
                           <div className={styles.actionBtns}>
                             <button className={styles.btnApprove} onClick={() => setConfirm({ message:`Approuver ${d.firstName} ${d.lastName} ?`, action:()=>updateDriverStatus(d._id,"approved") })}>✅ Valider</button>
-                            <button className={styles.btnReject} onClick={() => { setDriverRejectModal({ did:d._id, name:`${d.firstName} ${d.lastName}` }); setDriverRejectReason(""); }}>✕ Rejeter</button>
+                            <button className={styles.btnReject} onClick={() => { setDriverRejectModal({ id:d._id, name:`${d.firstName} ${d.lastName}` }); setDriverRejectReason(""); }}>✕ Rejeter</button>
                           </div>
                         </td>
                       </tr>
@@ -7093,6 +7297,30 @@ export default function AdminPanel() {
               </div>
             )}
           </div>
+
+          {/* Bug réel : le bouton « ✕ Rejeter » de cet onglet ouvrait une modale
+              qui n'existait QUE dans CatalogueSection (onglet Annonces) — donc
+              jamais rendue ici. Le clic ne produisait rien, et la modale
+              resurgissait plus tard en changeant d'onglet, avec le mauvais
+              chauffeur. La voici, dans la portée où le bouton vit réellement. */}
+          {driverRejectModal && (
+            <div className={styles.confirmOverlay} onClick={() => { setDriverRejectModal(null); setDriverRejectReason(""); }}>
+              <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
+                <p className={styles.confirmMsg}>Raison du refus pour « {driverRejectModal.name} »</p>
+                <textarea className={styles.textarea} rows={3} value={driverRejectReason}
+                  onChange={(e) => setDriverRejectReason(e.target.value)}
+                  placeholder="Motif communiqué au partenaire (documents illisibles, permis expiré…)" />
+                <div className={styles.confirmActions}>
+                  <button className={styles.btnDanger}
+                    onClick={async () => {
+                      await updateDriverStatus(driverRejectModal.id, "rejected", driverRejectReason);
+                      setDriverRejectModal(null); setDriverRejectReason("");
+                    }}>Refuser</button>
+                  <button className={styles.btnGhost} onClick={() => { setDriverRejectModal(null); setDriverRejectReason(""); }}>Annuler</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -11017,6 +11245,16 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
   // annonce hors du filtre actuellement affiché à l'écran.
   const [selectedVehicleIds, setSelectedVehicleIds] = useState(new Set());
   const [selectedDriverIds,  setSelectedDriverIds]  = useState(new Set());
+
+  // La sélection multiple n'était vidée qu'après une suppression réussie. Un
+  // admin qui cochait « tout sélectionner » sur les annonces en attente puis
+  // changeait de sous-onglet, de recherche, de filtre ou de page gardait sa
+  // sélection active : la barre affichait toujours « Supprimer 20 annonces »,
+  // et la confirmation ne dit pas LESQUELLES — il supprimait des annonces
+  // qu'il ne voyait plus à l'écran. On repart d'une sélection vide dès que la
+  // liste affichée change.
+  useEffect(() => { setSelectedVehicleIds(new Set()); }, [subTab, vehSearch, vehPage, vehCountryFilter, vehVilleFilter, vehTypeFilter]);
+  useEffect(() => { setSelectedDriverIds(new Set()); }, [driverStatusFilter, driverSearch, driverCountryFilter, driverVilleFilter]);
   const [bulkDeleting,       setBulkDeleting]        = useState(false);
   // Garde anti-double-clic sur Valider/Refuser chauffeur — ce bouton n'a pas de
   // modale de confirmation intermédiaire (contrairement à l'approbation véhicule,
@@ -11909,7 +12147,10 @@ function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMore
                             <button className={styles.btnApprove} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => openProcessModal(reqm)}>📄 Traiter</button>
                           )}
                           {reqm.contractSentAt && (
-                            <a href={`/api/driver-employment/${reqm._id}/contract-pdf`} target="_blank" rel="noopener noreferrer" style={{ color: "#2563eb", fontSize: ".78rem" }}>✓ Envoyé — voir PDF</a>
+                            <button type="button" onClick={async () => {
+                                const r = await downloadAuthFile(`/api/driver-employment/${reqm._id}/contract-pdf`, `contrat-emploi-${reqm._id}.pdf`, token);
+                                if (!r.ok) showToast(r.message, "error");
+                              }} style={{ color: "#2563eb", fontSize: ".78rem", background: "none", border: "none", cursor: "pointer", padding: 0 }}>✓ Envoyé — voir PDF</button>
                           )}
                           {reqm.status !== "accepted" && !reqm.contractSentAt && <span style={{ color: "#94a3b8", fontSize: ".78rem" }}>—</span>}
                         </td>

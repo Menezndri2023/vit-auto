@@ -2,6 +2,7 @@ import logger from "../utils/logger.js";
 import Review from "../models/Review.js";
 import Booking from "../models/Booking.js";
 import Notification from "../models/Notification.js";
+import { isMalformedObjectId } from "../utils/objectId.js";
 
 // Champ Booking correspondant à chaque targetType — permet un contrôle
 // "déjà noté" par cible (au lieu du seul champ historique `review`) et de
@@ -24,6 +25,10 @@ export const createReview = async (req, res) => {
 
     if (!bookingId || !note) {
       return res.status(400).json({ message: "bookingId et note requis." });
+    }
+    // Sans ce contrôle, un bookingId malformé lève un CastError → 500.
+    if (isMalformedObjectId(bookingId)) {
+      return res.status(400).json({ message: "bookingId invalide." });
     }
     if (note < 1 || note > 5) {
       return res.status(400).json({ message: "Note entre 1 et 5." });

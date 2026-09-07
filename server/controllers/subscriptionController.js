@@ -2,6 +2,7 @@ import Subscription from "../models/Subscription.js";
 import User from "../models/User.js";
 import Vehicle from "../models/Vehicle.js";
 import { getSubscriptionPrice, getBoostPrice, applyDiscountCode, redeemDiscountCodeByCode } from "../services/pricingEngine.js";
+import { isMalformedObjectId } from "../utils/objectId.js";
 
 const PLAN_TIERS  = ["individuel_plus", "business", "exportateur"];
 const BOOST_TIERS = ["24h", "7d", "30d", "international"];
@@ -88,6 +89,8 @@ export const purchaseBoost = async (req, res) => {
   try {
     const { vehicleId, tier, promoCode } = req.body;
     if (!vehicleId) return res.status(400).json({ message: "vehicleId requis." });
+    // Sans ce contrôle, un vehicleId malformé lève un CastError → 500.
+    if (isMalformedObjectId(vehicleId)) return res.status(400).json({ message: "vehicleId invalide." });
     if (!BOOST_TIERS.includes(tier)) {
       return res.status(400).json({ message: `Palier de boost invalide. Attendu : ${BOOST_TIERS.join(", ")}.` });
     }
@@ -183,6 +186,14 @@ export const adminRejectPlanPayment = async (req, res) => {
     if (!sub) return res.status(404).json({ message: "Abonnement introuvable." });
     const entry = sub.paymentHistory.id(paymentId);
     if (!entry) return res.status(404).json({ message: "Paiement introuvable." });
+    // Garde de statut absente ici (contrairement à adminApprovePlanPayment) :
+    // un admin travaillant sur une liste non rafraîchie pouvait rejeter un
+    // paiement DÉJÀ confirmé. Le vendeur gardait alors son plan payant actif
+    // (et son taux de commission premium) pendant que la comptabilité affichait
+    // « paiement échoué ».
+    if (entry.status !== "pending") {
+      return res.status(409).json({ message: `Ce paiement n'est plus en attente (statut actuel : ${entry.status}).` });
+    }
     entry.status = "failed";
     await sub.save();
     res.json({ message: "Demande rejetée.", subscription: sub });

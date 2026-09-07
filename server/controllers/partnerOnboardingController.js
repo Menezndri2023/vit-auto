@@ -593,7 +593,7 @@ export const submitApplication = async (req, res) => {
       onboardingId: doc._id,
     }).catch(() => {});
 
-    const admins = await User.find({ role: "admin" }).select("_id").lean();
+    const admins = await User.find({ role: "admin", isActive: true }).select("_id").lean();
     for (const admin of admins) {
       await notify(admin._id,
         "📋 Nouvelle candidature Founding Partner",
@@ -659,7 +659,7 @@ export const signLOI = async (req, res) => {
       loiRef:      doc.referenceNumber,
     }).catch((e) => logger.error("dispatch.loiSigned:", e.message));
 
-    const admins = await User.find({ role: "admin" }).select("_id").lean();
+    const admins = await User.find({ role: "admin", isActive: true }).select("_id").lean();
     for (const admin of admins) {
       await notify(admin._id, "LOI signée",
         chained
@@ -900,7 +900,11 @@ export const adminApprove = async (req, res) => {
     const doc = await PartnerOnboarding.findById(req.params.id)
       .populate("userId", "firstName lastName email");
     if (!doc) return res.status(404).json({ message: "Dossier introuvable." });
-    if (!["soumis", "en_review"].includes(doc.status)) {
+    // "rejete" accepté : un rejet par erreur (mauvaise ligne cliquée) était
+    // définitif — le partenaire ne pouvait plus resoumettre (« déjà soumis ») et
+    // l'admin n'avait plus aucun bouton. Le dossier n'était réparable qu'en
+    // base. Approuver depuis "rejete" est la correction naturelle.
+    if (!["soumis", "en_review", "rejete"].includes(doc.status)) {
       return res.status(400).json({ message: "Ce dossier n'est pas en attente de validation." });
     }
 
@@ -1164,6 +1168,15 @@ export const adminRequestInfo = async (req, res) => {
       .populate("userId", "firstName lastName email");
     if (!doc) return res.status(404).json({ message: "Dossier introuvable." });
 
+    // Garde de statut absente : appelée sur un dossier "actif" ou déjà signé,
+    // cette action rembobinait un Founding Partner en "info_demandee".
+    // "rejete" est volontairement accepté : c'est la seconde voie de sortie
+    // d'un rejet (le partenaire peut alors resoumettre, submitApplication
+    // acceptant "info_demandee").
+    if (!["soumis", "en_review", "info_demandee", "rejete"].includes(doc.status)) {
+      return res.status(409).json({ message: `Action impossible sur un dossier au statut « ${doc.status} ».` });
+    }
+
     const partner = doc.userId;
     doc.status = "info_demandee";
     doc.adminReview.infoRequested = infoRequested.trim();
@@ -1385,7 +1398,7 @@ export const signByToken = async (req, res) => {
         }).catch((e) => logger.error("dispatch.loiSigned:", e.message));
       }
 
-      const admins = await User.find({ role: "admin" }).select("_id").lean();
+      const admins = await User.find({ role: "admin", isActive: true }).select("_id").lean();
       for (const admin of admins) {
         await notify(admin._id, "LOI signée (lien sécurisé)",
           chained
@@ -1440,7 +1453,7 @@ export const signByToken = async (req, res) => {
         }).catch((e) => logger.error("dispatch.agreementSigned:", e.message));
       }
 
-      const admins = await User.find({ role: "admin" }).select("_id").lean();
+      const admins = await User.find({ role: "admin", isActive: true }).select("_id").lean();
       for (const admin of admins) {
         await notify(admin._id, "Accord signé (lien sécurisé)",
           `${doc.companyInfo?.legalName} (${doc.referenceNumber}) a signé l'accord. Partenaire Fondateur activé.`);

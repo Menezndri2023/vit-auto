@@ -89,8 +89,15 @@ export default function Booking() {
 
   // Le véhicule exige-t-il un permis ? (vehicle.permisRequis = true par défaut)
   const vehicleRequiresLicense = vehicle?.permisRequis !== false;
-  // Le client a-t-il un permis vérifié ? (driverLicenseOcr soumis)
-  const hasVerifiedLicense = !!(liveDriverLic?.licenseNumber || liveDriverLic?.rawOcrText);
+  // Le client a-t-il un permis vérifié ? Mêmes critères EXACTS que le serveur
+  // (eligibilityEngine : licenseNumber présent ET non expiré) — sinon le
+  // formulaire présentait la condition « permis » comme déjà satisfaite,
+  // n'invitait jamais à joindre le document, et le client se prenait un refus
+  // au tout dernier clic après avoir rempli dates, options et paiement.
+  // `rawOcrText` seul ne suffit pas : le serveur exige un numéro de permis.
+  const licenseExpired     = liveDriverLic?.isExpired === true
+    || (liveDriverLic?.expiryDate ? new Date(liveDriverLic.expiryDate) < new Date() : false);
+  const hasVerifiedLicense = !!liveDriverLic?.licenseNumber && !licenseExpired;
 
   // Rafraîchissement du statut KYC à chaque navigation vers cette page (retour de /kyc inclus)
   const { updateUser } = useAuth();
@@ -1166,6 +1173,11 @@ export default function Booking() {
                 {needsLicenseDoc && !hasVerifiedLicense && (
                   <>
                     <h3 className={styles.sectionTitle} style={{ marginTop: 16 }}>{t("booking.licenseDocTitle")}</h3>
+                    {licenseExpired && (
+                      <p style={{ background: "#fef3c7", border: "1px solid #fde68a", color: "#92400e", borderRadius: 8, padding: "8px 10px", fontSize: ".82rem", margin: "0 0 10px" }}>
+                        ⚠️ Le permis enregistré sur votre profil a expiré — joignez un permis en cours de validité pour cette réservation.
+                      </p>
+                    )}
                     <div className={styles.row}>
                       <label style={{ flex: 1, cursor: "pointer", border: "1.5px dashed #cbd5e1", borderRadius: 10, padding: 14, textAlign: "center", fontSize: "0.85rem" }}>
                         <input type="file" accept="image/*" capture="environment" style={{ display: "none" }}

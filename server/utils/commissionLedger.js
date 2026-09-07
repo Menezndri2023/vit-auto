@@ -17,8 +17,13 @@ import logger from "./logger.js";
 // / adminForceComplete).
 export async function recordPartnerPayout(booking) {
   try {
+    // `activity.owner` manquait : pour une réservation d'activité (vehicle et
+    // driver valent null), la fonction sortait ici en silence — le partenaire
+    // n'avait AUCUNE ligne "à verser" dans le suivi des reversements, son dû
+    // était donc invisible pour lui comme pour l'admin.
     const ownerId = booking.vehicle?.owner?._id || booking.vehicle?.owner
-      || booking.driver?.owner?._id || booking.driver?.owner;
+      || booking.driver?.owner?._id || booking.driver?.owner
+      || booking.activity?.owner?._id || booking.activity?.owner;
     if (!ownerId) return;
     if (!booking.partnerPayout || booking.partnerPayout <= 0) return;
 

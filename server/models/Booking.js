@@ -295,6 +295,10 @@ const bookingSchema = new mongoose.Schema({
   // traçabilité (reçu, historique client) plutôt que recalculé après coup.
   loyaltyPointsRedeemed: { type: Number, default: 0 },
   loyaltyDiscount:       { type: Number, default: 0 }, // USD
+  // Garantit que les points utilisés ne sont recrédités qu'UNE fois, quel que
+  // soit le chemin (rejet à la validation admin, annulation admin/partenaire) —
+  // voir updateBookingStatus/adminValidateBooking.
+  loyaltyRolledBack:     { type: Boolean, default: false },
 
   // ── Commission & Frais plateforme ─────────────────────────
   // Taux résolus dynamiquement par pricingEngine.resolveCommissionRate() (voir

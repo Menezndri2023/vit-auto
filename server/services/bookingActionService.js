@@ -216,9 +216,15 @@ export async function respondToAlternative({ bookingId, clientId, accept }) {
   booking.auditTrail.push({ action: `alternative_${booking.alternative.clientResponse}`, actorType: "CLIENT", actorId: clientId });
   await booking.save();
 
-  const { emitBookingUpdate, syncVehicleAvailability } = await getBookingController();
+  const { emitBookingUpdate, syncVehicleAvailability, ensureBookingContract } = await getBookingController();
   emitBookingUpdate?.(booking);
   syncVehicleAvailability(booking.vehicle?._id || booking.vehicle).catch(() => {});
+  // Troisième chemin qui confirme une réservation sans passer par
+  // updateBookingStatus : sans ceci, accepter un créneau alternatif laissait
+  // la réservation confirmée mais sans reçu tripartite.
+  if (booking.status === "confirmed") {
+    await ensureBookingContract?.(booking).catch(() => {});
+  }
 
   return { statusCode: 200, body: { booking } };
 }

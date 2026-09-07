@@ -1,5 +1,5 @@
 // VIT AUTO — Service Worker v3.0
-const CACHE_NAME    = 'vit-auto-v3';
+const CACHE_NAME    = 'vit-auto-v4';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -66,7 +66,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Fonts et autres ressources tierces → Cache First
+  // Appels de données tiers (géolocalisation IP, géocodage inverse…) → JAMAIS
+  // mis en cache. Ils tombaient jusqu'ici dans le "cache first" ci-dessous, qui
+  // n'a ni expiration ni revalidation : un premier chargement derrière un VPN
+  // (ou en déplacement) figeait DÉFINITIVEMENT le pays détecté, donc la devise
+  // affichée et le filtrage du catalogue — le cache survivait aux rechargements
+  // comme aux déploiements. Ces requêtes ont `destination === ""` ; on les
+  // laisse passer directement au réseau.
+  if (request.destination === '' && url.origin !== self.location.origin) return;
+
+  // Polices et autres ressources statiques tierces → Cache First
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;

@@ -10,6 +10,7 @@ import { useChat } from "../context/ChatContext";
 import { CLIENT_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import VehicleCard from "../components/VehicleCard/VehicleCard";
 import LoyaltyTierBadge from "../components/LoyaltyTierBadge/LoyaltyTierBadge";
+import { downloadAuthFile } from "../utils/downloadAuthFile";
 import styles from "./Dashboard.module.css";
 
 const TIER_LABEL = { bronze: "Bronze", argent: "Argent", or: "Or" };
@@ -1050,9 +1051,17 @@ const Dashboard = () => {
                   </div>
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                     {reqm.status === "accepted" && (
-                      <a href={`/api/driver-employment/${reqm._id}/contract-pdf`} target="_blank" rel="noopener noreferrer" className={styles.btnContract}>
+                      <button
+                        type="button"
+                        className={styles.btnContract}
+                        style={{ cursor: "pointer", font: "inherit", border: "none" }}
+                        onClick={async () => {
+                          const r = await downloadAuthFile(`/api/driver-employment/${reqm._id}/contract-pdf`, `contrat-emploi-${reqm._id}.pdf`, token);
+                          if (!r.ok) toastError(r.message);
+                        }}
+                      >
                         ⬇️ Récapitulatif PDF
-                      </a>
+                      </button>
                     )}
                     {reqm.status === "pending" && (
                       <button className={styles.btnDangerSm} disabled={employmentCanceling === reqm._id}
@@ -1463,21 +1472,44 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
             Voir le véhicule
           </Link>
         )}
-        {/* Contrat + reçu PDF (disponible après acceptation) */}
-        {(booking.status === "confirmed" || booking.status === "preparing" || booking.status === "ready" || booking.status === "in_progress" || booking.status === "completed") && booking.id && (
+        {/* Reçu tripartite — à PRÉSENTER AU PARTENAIRE lors de la récupération
+            du véhicule (voir pdfGenerator/ContractPage). Il disparaissait
+            justement aux statuts de la remise (client_arrived,
+            transaction_concluded, waiting_client_validation) et en cas de
+            litige : le client arrivait à l'agence, le partenaire le marquait
+            « arrivé », et le document à présenter s'évanouissait de son écran. */}
+        {["confirmed", "preparing", "ready", "in_progress", "client_arrived", "client_absent",
+          "transaction_concluded", "transaction_not_concluded", "waiting_client_validation",
+          "driver_arrived", "disputed", "completed"].includes(booking.status) && booking.id && (
           <>
             <Link to={`/contract/${booking.id}`} className={styles.btnContract}>
               📄 Mon contrat
             </Link>
-            <a href={`/api/contracts/${booking.id}/pdf`} target="_blank" rel="noopener noreferrer" className={styles.btnContract} style={{ background: "transparent", border: "1.5px solid currentColor" }}>
+            <button
+              type="button"
+              className={styles.btnContract}
+              style={{ background: "transparent", border: "1.5px solid currentColor", cursor: "pointer", font: "inherit" }}
+              onClick={async () => {
+                const r = await downloadAuthFile(`/api/contracts/${booking.id}/pdf`, `contrat-${booking.reference || booking.id}.pdf`, token);
+                if (!r.ok) toastErr(r.message);
+              }}
+            >
               ⬇️ PDF
-            </a>
+            </button>
           </>
         )}
-        {booking.status === "completed" && booking.id && (
-          <a href={`/api/bookings/${booking.id}/receipt`} target="_blank" rel="noopener noreferrer" className={styles.btnContact}>
+        {["client_arrived", "transaction_concluded", "waiting_client_validation", "completed"].includes(booking.status) && booking.id && (
+          <button
+            type="button"
+            className={styles.btnContact}
+            style={{ cursor: "pointer", font: "inherit", border: "none" }}
+            onClick={async () => {
+              const r = await downloadAuthFile(`/api/bookings/${booking.id}/receipt`, `recu-${booking.reference || booking.id}.pdf`, token);
+              if (!r.ok) toastErr(r.message);
+            }}
+          >
             🧾 Reçu
-          </a>
+          </button>
         )}
         {/* Refonte (demande explicite) : l'appel ne passe plus jamais
             directement chez le partenaire — uniquement sur le service client

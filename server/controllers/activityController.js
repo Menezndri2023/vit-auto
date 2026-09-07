@@ -425,6 +425,11 @@ export const transferActivity = async (req, res) => {
     }
 
     if (businessId !== undefined) {
+      // Un businessId malformé ferait lever un CastError à findOne (→ 500) au
+      // lieu d'un simple refus de saisie.
+      if (businessId !== null && !mongoose.Types.ObjectId.isValid(businessId)) {
+        return res.status(400).json({ message: "Entreprise invalide." });
+      }
       if (businessId === null) {
         update.business = null;
       } else {

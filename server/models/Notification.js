@@ -59,6 +59,18 @@ const notificationSchema = new mongoose.Schema({
       "ie_direct_purchase_pending_review",
       "ie_direct_purchase_approved",
       "ie_direct_purchase_rejected",
+      // Logistique (assignation transitaire/agent). Ces types étaient émis par
+      // onEscrowSecured/ieTransactionController.js SANS figurer ici : la
+      // validation Mongoose levait, l'erreur était avalée par le catch, et la
+      // cascade emportait avec elle la notification destinée au CLIENT écrite
+      // juste après — personne (ni admin, ni client, ni transitaire) n'était
+      // prévenu qu'un dossier venait d'être pris en charge.
+      "ie_transitaire_assigned",
+      "ie_needs_assignment",
+      // Délivrabilité email (webhook Resend — commWebhookController.js) : même
+      // problème, le type manquait et l'alerte de non-délivrance d'un document
+      // partenaire n'atteignait jamais les admins.
+      "email_bounce",
       // Avis
       "new_review",
       // Chat

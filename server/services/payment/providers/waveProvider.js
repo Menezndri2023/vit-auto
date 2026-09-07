@@ -1,6 +1,13 @@
 import crypto from "crypto";
 import logger from "../../../utils/logger.js";
 
+// Délai maximal sur les appels sortants. Sans lui, un fournisseur qui ne
+// répond pas laissait la requête HTTP appelante suspendue jusqu'au timeout
+// par défaut de Node (~5 min) : le client voyait une page qui tourne au
+// moment de payer et pouvait relancer le paiement.
+const OUTBOUND_TIMEOUT_MS = 15_000;
+
+
 /**
  * Wave Checkout API (Côte d'Ivoire / Sénégal) — https://docs.wave.com
  * Nécessite WAVE_API_KEY (clé secrète du compte marchand Wave Business) et,
@@ -33,6 +40,8 @@ export async function createCheckout({ payment, booking, successUrl, cancelUrl }
       success_url: successUrl,
       client_reference: payment._id.toString(),
     }),
+  
+    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -64,6 +73,8 @@ export async function refund({ payment }) {
   const res = await fetch(`${API_BASE}/checkout/sessions/${payment.transactionId}/refund`, {
     method: "POST",
     headers: { "Authorization": `Bearer ${apiKey}` },
+  
+    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");

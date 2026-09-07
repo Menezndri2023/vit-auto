@@ -11,6 +11,7 @@ import { initiateCheckout, stripeProvider, waveProvider, orangeMoneyProvider } f
 import { completeIEEscrowPayment } from "./ieTransactionController.js";
 import { dispatch } from "../queue/index.js";
 import { captureException } from "../config/sentry.js";
+import { isMalformedObjectId } from "../utils/objectId.js";
 
 // Trace un changement d'état financier (webhook fournisseur ou simulation
 // sandbox) — ces événements n'ont pas de req.user (appels serveur-à-serveur),
@@ -196,6 +197,11 @@ export const initiatePayment = async (req, res) => {
     const targetCount = [bookingId, serviceRequestId, insuranceRequestId].filter(Boolean).length;
     if (targetCount !== 1) {
       return res.status(400).json({ message: "Fournissez exactement une cible : bookingId, serviceRequestId ou insuranceRequestId." });
+    }
+    // Sans ce contrôle, une cible malformée lève un CastError → 500 (le client
+    // voit "Erreur serveur" au moment de payer, sans savoir quoi corriger).
+    if ([bookingId, serviceRequestId, insuranceRequestId].some(isMalformedObjectId)) {
+      return res.status(400).json({ message: "Identifiant de cible invalide." });
     }
 
     let target, amount, devise, ownerId, paymentField, notFoundMsg, alreadyPaidMsg;

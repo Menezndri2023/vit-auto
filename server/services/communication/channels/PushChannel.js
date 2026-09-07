@@ -1,6 +1,13 @@
 import logger from "../../../utils/logger.js";
 import { GoogleAuth } from "google-auth-library";
 
+// Délai maximal sur les appels sortants. Sans lui, un fournisseur qui ne
+// répond pas laissait la requête HTTP appelante suspendue jusqu'au timeout
+// par défaut de Node (~5 min) : le client voyait une page qui tourne au
+// moment de payer et pouvait relancer le paiement.
+const OUTBOUND_TIMEOUT_MS = 15_000;
+
+
 // ── Firebase Cloud Messaging — API HTTP v1 ────────────────────────────────────
 // L'ancienne API "Legacy HTTP" (fcm.googleapis.com/fcm/send, authentifiée par
 // un simple FCM_SERVER_KEY) a été définitivement fermée par Google mi-2024 —
@@ -73,7 +80,9 @@ export async function sendPush({ to, title, body, data = {}, imageUrl, badge = 1
             apns:    { payload: { aps: { badge, sound: "default" } } },
           },
         }),
-      });
+      
+    signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
+  });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error?.message || `FCM error ${res.status}`);
       return json;

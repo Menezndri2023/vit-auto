@@ -512,6 +512,15 @@ export const adminReviewKyc = async (req, res) => {
         "identity.status": "verified",
         "identity.verifiedAt": new Date(),
       } : {}),
+      // Seule la branche VERIFIE écrivait ces champs : après un REFUS, un
+      // dossier précédemment validé gardait documentsVerified:true et
+      // identity.status:"verified" — le badge public « identité vérifiée »
+      // restait donc allumé sur un compte dont le KYC venait d'être refusé.
+      ...(decision === "REFUSE" ? {
+        documentsVerified: false,
+        "identity.status": "rejected",
+        "identity.rejectionReason": note || "Dossier refusé par l'administrateur.",
+      } : {}),
     };
 
     await User.findByIdAndUpdate(req.params.userId, { $set: updateFields });

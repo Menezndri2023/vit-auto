@@ -5,16 +5,18 @@ import { getServiceConfig } from "../services/pricingEngine.js";
 import { generateGenericReceiptPDF } from "../utils/pdfGenerator.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 
-async function notify(userId, titre, message) {
+async function notify(userId, titre, message, lien = "/insurance-request") {
   try {
-    const notif = await Notification.create({ user: userId, titre, message, type: "system" });
+    // `lien` renseigné : sans lui, un clic sur la notification dans la cloche
+    // ne produisait rien (NotificationBell ne navigue que si `lien` existe).
+    const notif = await Notification.create({ user: userId, titre, message, type: "system", lien });
     // "notification_new" (pas "notification") : c'est le seul événement écouté
     // côté client (NotificationContext.jsx) — payload complet requis, le
     // dédoublonnage frontend compare payload._id (bug réel trouvé en audit :
     // ce helper émettait le mauvais nom d'événement avec un payload partiel).
     if (global._io) {
       global._io.to(`user_${userId}`).emit("notification_new", {
-        _id: notif._id, type: "system", titre, message, lien: null, lu: false, createdAt: notif.createdAt,
+        _id: notif._id, type: "system", titre, message, lien, lu: false, createdAt: notif.createdAt,
       });
     }
   } catch { /* non-bloquant */ }

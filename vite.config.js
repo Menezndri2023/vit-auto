@@ -64,7 +64,10 @@ export default defineConfig(({ mode }) => ({
         // les transforme en "chunks partagés entre plusieurs entrées async" — Rollup les
         // preload alors sur TOUTE route au lieu de les charger à la demande par page.
         manualChunks: (id) => {
-          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/react-router-dom')) {
+          // Barres obliques finales OBLIGATOIRES : 'node_modules/react' matchait
+          // aussi react-leaflet, qui entraînait tout Leaflet dans le chunk
+          // chargé par CHAQUE visiteur, page d'accueil comprise (386 Ko).
+          if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/react-router-dom/')) {
             return 'react';
           }
         },

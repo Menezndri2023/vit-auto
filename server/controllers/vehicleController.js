@@ -486,11 +486,19 @@ export const updateVehicleStatus = async (req, res) => {
 
     const vehicle = await Vehicle.findByIdAndUpdate(
       req.params.id,
-      {
-        status,
-        rejectionReason: rejectionReason || null,
-        available: status === "approved",
-      },
+      [{
+        $set: {
+          status,
+          rejectionReason: rejectionReason || null,
+          // La pause manuelle du partenaire (mise en entretien, voir
+          // manuallyPaused) était écrasée : réapprouver une annonce la remettait
+          // en location alors que le partenaire l'avait explicitement retirée.
+          // syncAllAvailability respecte pourtant déjà ce drapeau.
+          available: status === "approved"
+            ? { $ne: ["$manuallyPaused", true] }
+            : false,
+        },
+      }],
       { new: true }
     ).populate("owner", "_id firstName");
 
@@ -1152,6 +1160,11 @@ export const transferVehicle = async (req, res) => {
     }
 
     if (businessId !== undefined) {
+      // Un businessId malformé ferait lever un CastError à findOne (→ 500) au
+      // lieu d'un simple refus de saisie.
+      if (businessId !== null && !mongoose.Types.ObjectId.isValid(businessId)) {
+        return res.status(400).json({ message: "Entreprise invalide." });
+      }
       if (businessId === null) {
         update.business = null;
       } else {
@@ -1190,7 +1203,7 @@ export const getVehicleAvailability = async (req, res) => {
     const { id } = req.params;
     const { startDate, endDate } = req.query;
 
-    const vehicle = await Vehicle.findById(id).select("title type available owner manuallyPaused");
+    const vehicle = await Vehicle.findById(id).select("title type available owner manuallyPaused status");
     if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable." });
 
     const today = new Date();
@@ -1218,8 +1231,12 @@ export const getVehicleAvailability = async (req, res) => {
     // véhicule "disponible" dès qu'aucune réservation active ne le couvre.
     const shouldBeAvailable = !vehicle.manuallyPaused && !isOccupied;
 
-    // Synchroniser le champ available si nécessaire
-    if (vehicle.type === "location" && vehicle.available !== shouldBeAvailable) {
+    // Synchroniser le champ available si nécessaire. Route PUBLIQUE et non
+    // authentifiée : elle ne doit jamais repasser "disponible" une annonce
+    // non approuvée (dépubliée par un refus KYC / une suspension partenaire —
+    // voir unpublishPartnerListings), sinon un simple appel suffisait à
+    // remettre en location le parc d'un partenaire suspendu.
+    if (vehicle.type === "location" && vehicle.status === "approved" && vehicle.available !== shouldBeAvailable) {
       await Vehicle.findByIdAndUpdate(id, { available: shouldBeAvailable });
     }
 
@@ -1257,7 +1274,11 @@ export const syncAllAvailability = async (req, res) => {
     ];
 
     // Trouver tous les véhicules location
-    const vehicles = await Vehicle.find({ type: "location" }).select("_id available manuallyPaused").lean();
+    // `status: "approved"` OBLIGATOIRE : sans ce filtre, la synchro recalculait
+    // `available` pour TOUTES les annonces, y compris celles dépubliées par un
+    // refus KYC / une suspension partenaire (unpublishPartnerListings), et les
+    // remettait en location.
+    const vehicles = await Vehicle.find({ type: "location", status: "approved" }).select("_id available manuallyPaused").lean();
 
     // Pour chaque véhicule, vérifier s'il a un booking actif aujourd'hui
     const activeBookings = await Booking.find({

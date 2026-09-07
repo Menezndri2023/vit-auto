@@ -41,14 +41,28 @@ export function SocketProvider({ children }) {
     // vercel.json (même mécanisme que /api), donc ce repli reste valide même après
     // une migration de backend (Railway→Render 2026-07-20) sans jamais coder l'URL
     // du backend en dur ici — piège rencontré une première fois avec Railway.
-    const SOCKET_URL = import.meta.env.VITE_API_URL
-      || (import.meta.env.PROD ? window.location.origin : "http://localhost:5001");
+    // VITE_API_URL n'est utilisable ici que si c'est une URL ABSOLUE : le CI du
+    // projet a pour valeur par défaut "/api", que socket.io-client interpréterait
+    // comme un NAMESPACE et non une adresse — le REST continuerait de marcher
+    // (les appels du front sont relatifs) mais chat et notifications seraient
+    // morts, sans le moindre symptôme visible. Le repli sur l'origine courante
+    // est le cas sûr (/socket.io est réécrit vers le backend, voir vercel.json).
+    const envUrl = import.meta.env.VITE_API_URL;
+    const SOCKET_URL = /^https?:\/\//i.test(envUrl || "")
+      ? envUrl
+      : (import.meta.env.PROD ? window.location.origin : "http://localhost:5001");
 
     const socket = io(SOCKET_URL, {
       auth:                { token },
       transports:          ["websocket", "polling"],
-      reconnectionAttempts: 5,
-      reconnectionDelay:    3000,
+      // Reconnexion indéfinie (avec back-off) au lieu d'abandonner après 5
+      // essais / 15 s : quand l'API se met en veille (plan Render free) ou
+      // qu'un déploiement passe, un partenaire dont l'onglet reste ouvert
+      // perdait DÉFINITIVEMENT ses notifications temps réel jusqu'à ce qu'il
+      // pense à recharger la page.
+      reconnectionAttempts: Infinity,
+      reconnectionDelay:    2000,
+      reconnectionDelayMax: 30000,
       timeout:              10000,
     });
 

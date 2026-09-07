@@ -21,14 +21,17 @@ async function addAudit(docId, action, criterion, performedBy, note) {
 }
 
 // ── Notifier le partenaire ────────────────────────────────────────────────────
-async function notifyPartner(userId, title, message) {
+async function notifyPartner(userId, title, message, lien = "/vendor/dashboard") {
   try {
-    const notif = await Notification.create({ user: userId, titre: title, message, type: "system" });
+    // `lien` renseigné : sans lui, la notification était inerte dans la cloche
+    // (NotificationBell ne navigue que si `lien` existe) — le partenaire lisait
+    // un message sans jamais pouvoir atteindre le dossier concerné.
+    const notif = await Notification.create({ user: userId, titre: title, message, type: "system", lien });
     // Voir insuranceController.notify — même correctif (mauvais nom d'événement
     // + payload partiel, bug réel trouvé en audit).
     if (global._io) {
       global._io.to(`user_${userId}`).emit("notification_new", {
-        _id: notif._id, type: "system", titre: title, message, lien: null, lu: false, createdAt: notif.createdAt,
+        _id: notif._id, type: "system", titre: title, message, lien, lu: false, createdAt: notif.createdAt,
       });
     }
   } catch { /* non-bloquant */ }
@@ -225,7 +228,12 @@ export const adminCreate = async (req, res) => {
 // ── PATCH /api/partner-verification/admin/:userId/info ────────────────────────
 export const adminUpdateInfo = async (req, res) => {
   try {
-    const allowed = ["companyName","companyType","country","city","website","phone","email","description","exportCountries","importCountries","vehicleCategories","portsUsed","annualVolume","yearsExperience","paymentMethods","adminNote","internalRating","assignedTo","status","documents"];
+    // "status" RETIRÉ de cette liste : il court-circuitait adminUpdateStatus et
+    // donc la dépublication des annonces (unpublishPartnerListings), l'audit, le
+    // journal d'action et la notification au partenaire. Un {"status":"suspendu"}
+    // envoyé ici suspendait le dossier EN LAISSANT les annonces publiées.
+    // Le changement de statut passe exclusivement par PATCH .../status.
+    const allowed = ["companyName","companyType","country","city","website","phone","email","description","exportCountries","importCountries","vehicleCategories","portsUsed","annualVolume","yearsExperience","paymentMethods","adminNote","internalRating","assignedTo","documents"];
     const update = {};
     for (const key of allowed) {
       if (key in req.body) update[key] = req.body[key];

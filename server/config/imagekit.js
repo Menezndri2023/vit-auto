@@ -119,6 +119,15 @@ export function isAvailable() {
 // d'upload individuel sont conservés tels quels (jamais bloquant pour la
 // création/modification d'une annonce — dégradation gracieuse, comme le reste
 // des intégrations ImageKit du projet).
+// Permet aux migrations de savoir si une conversion est réellement possible :
+// sans identifiants, uploadBase64Images/Document renvoient l'entrée INCHANGÉE
+// (dégradation gracieuse voulue à l'usage courant), ce qui faisait passer une
+// migration pour « réussie » alors qu'elle n'avait rien converti — et
+// runOnceMigration ne la rejouait alors JAMAIS.
+export function isImageKitConfigured() {
+  return !!getIK();
+}
+
 export async function uploadBase64Images(images, folder = FOLDERS.vehicles) {
   if (!Array.isArray(images) || !images.length) return images;
   const ik = getIK();
