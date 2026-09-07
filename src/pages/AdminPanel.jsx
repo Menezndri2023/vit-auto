@@ -603,6 +603,72 @@ function AnalyticsSection({ analytics, loading }) {
 // rend cette assignation visible et réassignable par un admin, ou permet de
 // garder le dossier en interne (agent VIT AUTO) plutôt qu'un transitaire
 // externe.
+// ── Documents client d'une réservation (2026-09) ──────────────────────────
+// Les images (pièce d'identité, permis, selfie) sont en `select: false` sur
+// Booking.clientKycSnapshot : elles ne remontent que via getBookingDetail, qui
+// les inclut explicitement pour l'admin et pour le partenaire propriétaire
+// (voir bookingController.getBookingDetail). La liste des réservations, elle,
+// ne les contient jamais — d'où le chargement à la demande ci-dessous.
+function ClientDocuments({ docs, reference }) {
+  const items = [
+    { key: "id-recto",     url: docs?.frontImage,        label: "Identité — recto" },
+    { key: "id-verso",     url: docs?.backImage,         label: "Identité — verso" },
+    { key: "permis-recto", url: docs?.licenseFrontImage, label: "Permis — recto" },
+    { key: "permis-verso", url: docs?.licenseBackImage,  label: "Permis — verso" },
+    { key: "selfie",       url: docs?.selfie,            label: "Selfie KYC" },
+  ].filter((i) => i.url);
+
+  if (!items.length) {
+    return <p style={{ fontSize: ".85rem", color: "#94a3b8", margin: 0 }}>Aucun document joint à cette réservation.</p>;
+  }
+
+  return (
+    <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+      {items.map((i) => (
+        <div key={i.key} style={{ textAlign: "center" }}>
+          <a href={i.url} target="_blank" rel="noopener noreferrer">
+            <img src={i.url} alt={i.label} style={{ maxHeight: 110, borderRadius: 8, border: "1px solid #e2e8f0" }} />
+          </a>
+          <div style={{ fontSize: ".7rem", color: "#64748b", marginTop: 3 }}>{i.label}</div>
+          <a href={i.url} download={`${i.key}-${reference || "reservation"}.jpg`} style={{ fontSize: ".7rem", color: "#2563eb" }}>💾 Télécharger</a>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ClientDocumentsModal({ booking, token, onClose }) {
+  const [docs, setDocs]       = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/bookings/${booking._id}/detail`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => setDocs(d?.booking?.clientKycSnapshot || null))
+      .catch(() => setDocs(null))
+      .finally(() => setLoading(false));
+  }, [booking._id, token]);
+
+  const ci = booking.clientInfo || {};
+  return (
+    <div className={styles.overlay} onClick={onClose}>
+      <div className={styles.confirmBox} style={{ maxWidth: 660, width: "95%" }} onClick={(e) => e.stopPropagation()}>
+        <p className={styles.confirmMsg}>📄 Documents client — {booking.reference || booking._id?.slice(-6)}</p>
+        <p style={{ fontSize: ".83rem", color: "#64748b", margin: "0 0 12px" }}>
+          {ci.firstName} {ci.lastName}{ci.email ? ` · ${ci.email}` : ""}
+          {docs?.idType ? ` · ${String(docs.idType).toUpperCase()}${docs.idNumber ? ` ${docs.idNumber}` : ""}` : ""}
+        </p>
+        {loading
+          ? <p style={{ color: "#94a3b8", fontSize: ".85rem" }}>Chargement…</p>
+          : <ClientDocuments docs={docs} reference={booking.reference} />}
+        <div className={styles.confirmActions} style={{ marginTop: 14 }}>
+          <button className={styles.btnGhost} onClick={onClose}>Fermer</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Politiques de location partenaire (restructuration 2026-09) ────────────
 // La politique de location (âge min, permis, ET frais de livraison "même
 // ville") ne pouvait jusqu'ici être réglée que par le partenaire lui-même
@@ -1895,6 +1961,7 @@ export default function AdminPanel() {
   const [disputeModal,    setDisputeModal]    = useState(null); // { booking }
   const [disputeNote,     setDisputeNote]     = useState("");
   const [disputeResol,    setDisputeResol]    = useState("completed");
+  const [docsModal,       setDocsModal]       = useState(null); // { booking } — documents client
   // Documents client liés à LA RÉSERVATION en litige (restructuration
   // réservation, 2026-09) — la liste des commandes ne les charge jamais
   // (select:false par défaut), donc rechargés à l'ouverture du litige via
@@ -4111,6 +4178,9 @@ export default function AdminPanel() {
       )}
 
       {/* ── Modal résolution litige ── */}
+      {docsModal && (
+        <ClientDocumentsModal booking={docsModal.booking} token={token} onClose={() => setDocsModal(null)} />
+      )}
       {disputeModal && (
         <div className={styles.overlay} onClick={() => setDisputeModal(null)}>
           <div className={styles.confirmBox} style={{ maxWidth:500, width:"95%" }} onClick={e => e.stopPropagation()}>
@@ -4122,15 +4192,10 @@ export default function AdminPanel() {
             {/* Bug réel corrigé (audit) : le partenaire peut désormais répondre à
                 un litige (VendorDashboard) — sans ça, l'admin tranchait sans
                 jamais voir ses éventuels éléments de réponse. */}
-            {(disputeDocs?.frontImage || disputeDocs?.backImage || disputeDocs?.licenseFrontImage || disputeDocs?.licenseBackImage) && (
+            {disputeDocs && (
               <div style={{ marginBottom: 12 }}>
                 <p style={{ margin:"0 0 6px", fontSize:".78rem", fontWeight:700, color:"#0f1b3f" }}>📄 Documents joints à cette réservation :</p>
-                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                  {disputeDocs.frontImage && <a href={disputeDocs.frontImage} target="_blank" rel="noopener noreferrer"><img src={disputeDocs.frontImage} alt="Recto pièce d'identité" style={{ maxHeight:80, borderRadius:8, border:"1px solid #e2e8f0" }} /></a>}
-                  {disputeDocs.backImage && <a href={disputeDocs.backImage} target="_blank" rel="noopener noreferrer"><img src={disputeDocs.backImage} alt="Verso pièce d'identité" style={{ maxHeight:80, borderRadius:8, border:"1px solid #e2e8f0" }} /></a>}
-                  {disputeDocs.licenseFrontImage && <a href={disputeDocs.licenseFrontImage} target="_blank" rel="noopener noreferrer"><img src={disputeDocs.licenseFrontImage} alt="Recto permis" style={{ maxHeight:80, borderRadius:8, border:"1px solid #e2e8f0" }} /></a>}
-                  {disputeDocs.licenseBackImage && <a href={disputeDocs.licenseBackImage} target="_blank" rel="noopener noreferrer"><img src={disputeDocs.licenseBackImage} alt="Verso permis" style={{ maxHeight:80, borderRadius:8, border:"1px solid #e2e8f0" }} /></a>}
-                </div>
+                <ClientDocuments docs={disputeDocs} reference={disputeModal.booking.reference} />
               </div>
             )}
             {disputeModal.booking.partnerDisputeResponse?.respondedAt && (
@@ -4955,6 +5020,12 @@ export default function AdminPanel() {
                             <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
                               <a href={`/api/bookings/${b._id}/receipt`} target="_blank" rel="noopener noreferrer"
                                 style={{ fontSize:"0.7rem", padding:"2px 6px", background:"#f1f5f9", color:"#0f1b3f", borderRadius:6, textDecoration:"none" }} title="Reçu PDF">🧾</a>
+                              {/* Documents client joints à la réservation (2026-09) — l'admin
+                                  ne voyait que le numéro de pièce, jamais les documents
+                                  eux-mêmes, alors qu'ils sont la pièce maîtresse en cas de
+                                  litige (voir ClientDocumentsModal). */}
+                              <button style={{ fontSize:"0.7rem", padding:"2px 6px", background:"#eff6ff", color:"#1d4ed8", border:"none", borderRadius:6, cursor:"pointer", fontWeight:700 }}
+                                onClick={() => setDocsModal({ booking: b })} title="Documents client">📄</button>
                               {b.status === "pending" && (
                                 <button className={styles.btnApprove} style={{ padding:"0.2rem 0.5rem", fontSize:"0.72rem" }}
                                   onClick={() => setBkActionModal({ id:b._id, name:clientName, action:"confirmed" })} title="Confirmer">✅</button>

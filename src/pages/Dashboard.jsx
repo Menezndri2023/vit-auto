@@ -1213,6 +1213,17 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
     ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived"].includes(booking.status);
   const isCompleted    = booking.status === "completed";
   const isActive       = ["confirmed", "preparing", "ready", "in_progress", "client_arrived", "driver_arrived"].includes(booking.status);
+  // Messagerie VIT AUTO client↔partenaire : disponible sur tout le cycle de vie
+  // une fois la réservation validée, pas seulement pendant la location — un
+  // client devait sinon appeler le service client pour la moindre question
+  // après la remise, pendant la validation de transaction ou en litige. Exclut
+  // "pending" (le partenaire n'est pas encore au courant, gate admin) et
+  // "cancelled" — le serveur applique la même règle (voir chatController).
+  const canMessagePartner = !!booking.id && [
+    "confirmed", "preparing", "ready", "in_progress", "client_arrived", "driver_arrived",
+    "client_absent", "transaction_concluded", "transaction_not_concluded",
+    "waiting_client_validation", "disputed", "completed",
+  ].includes(booking.status);
   // Mission chauffeur pilotée par le client : "confirmer l'arrivée" tant que le
   // partenaire n'a pas encore atteint la destination, puis "terminer la mission"
   // une fois l'arrivée confirmée (voir bookingController.markDriverArrived/completeMission).
@@ -1477,7 +1488,7 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
             📞 Appeler le service client
           </a>
         )}
-        {isActive && booking.id && (
+        {canMessagePartner && (
           <button className={styles.btnContact} onClick={handleContactPartner} disabled={contacting}>
             💬 {contacting ? "Ouverture…" : "Message au partenaire"}
           </button>

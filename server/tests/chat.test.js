@@ -10,13 +10,20 @@ import "../models/Vehicle.js";
 import "../models/Driver.js";
 import Vehicle from "../models/Vehicle.js";
 
-async function createBookingBetween(client, ownerId) {
+// `adminValidation: "approved"` par défaut : depuis l'activation de la
+// messagerie (2026-09), une conversation client↔partenaire n'est ouvrable que
+// sur une réservation déjà validée par un admin — sinon le partenaire serait
+// notifié d'une demande qu'il n'est pas censé connaître (gate admin,
+// audit 2026-08). Les cas non validés sont testés explicitement plus bas.
+async function createBookingBetween(client, ownerId, overrides = {}) {
   const vehicle = await Vehicle.create({ title: "Toyota Corolla", type: "location", owner: ownerId });
   return Booking.create({
     type: "location",
     clientInfo: { firstName: client.firstName, lastName: client.lastName, email: client.email, passportNumber: "P1234567" },
     client: client._id,
     vehicle: vehicle._id,
+    adminValidation: { status: "approved" },
+    ...overrides,
   });
 }
 
@@ -59,6 +66,58 @@ describe("chatController.getOrCreateChat", () => {
     const notParty = mockReqRes({ user: stranger, body: { type: "client_partner", bookingId: booking._id.toString() } });
     await getOrCreateChat(notParty.req, notParty.res);
     expect(notParty.res.status).toHaveBeenCalledWith(404);
+  });
+
+  // Activation de la messagerie client↔partenaire (2026-09) : le bouton était
+  // déjà masqué côté client tant que la réservation n'était pas validée, mais
+  // rien ne l'empêchait côté serveur — un appel direct créait la conversation
+  // ET notifiait le partenaire, lui révélant une demande encore en attente de
+  // validation admin (contournement du gate de l'audit 2026-08).
+  it("refuse d'ouvrir une conversation tant que la réservation n'est pas validée par un admin", async () => {
+    const client  = await createUser();
+    const owner   = await createUser();
+    const booking = await createBookingBetween(client, owner._id, { adminValidation: { status: "pending" } });
+
+    const { req, res } = mockReqRes({ user: client, body: { type: "client_partner", bookingId: booking._id.toString() } });
+    await getOrCreateChat(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.body.code).toBe("BOOKING_NOT_APPROVED");
+    expect(await Chat.countDocuments({ booking: booking._id })).toBe(0);
+  });
+
+  it("refuse également au partenaire d'ouvrir la conversation avant validation admin", async () => {
+    const client  = await createUser();
+    const owner   = await createUser();
+    const booking = await createBookingBetween(client, owner._id, { adminValidation: { status: "pending" } });
+
+    const { req, res } = mockReqRes({ user: owner, body: { type: "client_partner", bookingId: booking._id.toString() } });
+    await getOrCreateChat(req, res);
+    expect(res.status).toHaveBeenCalledWith(409);
+  });
+
+  it("refuse d'ouvrir une conversation sur une réservation annulée", async () => {
+    const client  = await createUser();
+    const owner   = await createUser();
+    const booking = await createBookingBetween(client, owner._id, { status: "cancelled" });
+
+    const { req, res } = mockReqRes({ user: client, body: { type: "client_partner", bookingId: booking._id.toString() } });
+    await getOrCreateChat(req, res);
+    expect(res.status).toHaveBeenCalledWith(409);
+  });
+
+  it("ouvre la conversation sur tout le cycle de vie une fois validée, y compris après la remise", async () => {
+    for (const status of ["confirmed", "waiting_client_validation", "disputed", "completed"]) {
+      const client  = await createUser();
+      const owner   = await createUser();
+      const booking = await createBookingBetween(client, owner._id, { status });
+
+      const { req, res } = mockReqRes({ user: client, body: { type: "client_partner", bookingId: booking._id.toString() } });
+      await getOrCreateChat(req, res);
+
+      expect(res.status).not.toHaveBeenCalledWith(409);
+      expect(res.body.chat).toBeTruthy();
+    }
   });
 
   it("refuse d'ouvrir une conversation avec soi-même", async () => {

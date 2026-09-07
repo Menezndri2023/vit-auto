@@ -115,6 +115,22 @@ export const getOrCreateChat = async (req, res) => {
       if (myId === clientId)      targetId = ownerId;
       else if (myId === ownerId)  targetId = clientId;
       else return notPartyErr();
+
+      // Gate admin obligatoire (audit 2026-08) — le partenaire ne doit rien
+      // savoir d'une réservation tant qu'un admin ne l'a pas validée. Le
+      // bouton "Message au partenaire" est déjà masqué côté client dans ce
+      // cas, mais rien ne l'empêchait côté serveur : un appel direct créait
+      // la conversation ET notifiait le partenaire ("Nouveau message de X"),
+      // lui révélant une demande encore en attente de validation.
+      if (booking.adminValidation?.status !== "approved") {
+        return res.status(409).json({
+          message: "Cette réservation est encore en cours de validation par VIT AUTO. La messagerie s'ouvrira dès qu'elle sera confirmée.",
+          code: "BOOKING_NOT_APPROVED",
+        });
+      }
+      if (booking.status === "cancelled") {
+        return res.status(409).json({ message: "Cette réservation est annulée — contactez le service client VIT AUTO." });
+      }
     }
 
     if (targetId === myId) return res.status(400).json({ message: "Impossible de vous écrire à vous-même." });

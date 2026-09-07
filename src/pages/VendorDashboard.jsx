@@ -223,7 +223,7 @@ const displayStatus = (subType, status) => LEGACY_STATUS_MAP[subType]?.[status] 
    MODAL GÉRER — Gestion complète, identité intégrée, workflow par type VIT-AUTO
    ══════════════════════════════════════════════════════════════════════════════ */
 function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onPrepare, onReady, onInProgress,
-  onClientArrived, onClientAbsent, onRecordTransaction, onPartnerConfirm, onComplete, onReject, onTransactionNotConcluded, onRespondToDispute, onPartnerVerifyKyc,
+  onClientArrived, onClientAbsent, onRecordTransaction, onPartnerConfirm, onComplete, onReject, onTransactionNotConcluded, onRespondToDispute, onPartnerVerifyKyc, onContactClient,
   onClaimCaution, onRateClient, commRates = DEFAULT_COMM_RATE }) {
   // Tous les hooks AVANT tout return conditionnel (règles des hooks React)
   const { fmt: fmtXOF } = useCurrency();
@@ -386,6 +386,18 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
                   {order.phone && <a href={`tel:${order.phone}`} className={styles.contactItem}><span className={styles.contactIcon}>📞</span><span>{order.phone}</span><span className={styles.contactAction}>Appeler</span></a>}
                   {order.email && <a href={`mailto:${order.email}`} className={styles.contactItem}><span className={styles.contactIcon}>✉️</span><span className={styles.ellipsis}>{order.email}</span><span className={styles.contactAction}>Email</span></a>}
                   {order.phone && <a href={`https://wa.me/${order.phone?.replace(/[\s+-]/g,"")}`} target="_blank" rel="noopener noreferrer" className={styles.contactItem}><span className={styles.contactIcon}>💬</span><span>WhatsApp</span><span className={styles.contactAction}>Chat</span></a>}
+                  {/* Messagerie VIT AUTO — n'était accessible que via une petite
+                      icône sur la carte de commande, jamais depuis la fiche
+                      détaillée où le partenaire passe pourtant l'essentiel de
+                      son temps. Conversation tracée et supervisable par
+                      l'admin, contrairement à WhatsApp/téléphone. */}
+                  {onContactClient && (
+                    <button type="button" className={styles.contactItem} onClick={() => onContactClient(order.id)} style={{ width: "100%", border: "none", cursor: "pointer", font: "inherit", textAlign: "left" }}>
+                      <span className={styles.contactIcon}>🗨️</span>
+                      <span>Messagerie VIT AUTO</span>
+                      <span className={styles.contactAction}>Écrire</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* ── Passeport (obligatoire à la réservation) ──────────────── */}
@@ -3802,6 +3814,7 @@ export default function VendorDashboard() {
           onTransactionNotConcluded={handleTransactionNotConcluded}
           onRespondToDispute={handleRespondToDispute}
           onPartnerVerifyKyc={handlePartnerVerifyKyc}
+          onContactClient={handleContactClient}
           onRateClient={handleRateClient}
           onClaimCaution={handleClaimCaution}
         />
