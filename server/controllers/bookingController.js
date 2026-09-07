@@ -1559,16 +1559,24 @@ export const updateBookingStatus = async (req, res) => {
     // ── Machine à états : transitions autorisées ──────────────────────────────
     // Le parcours "preparing" → "ready" → "in_progress" n'est pas suivi à l'identique
     // par tous les services (VendorDashboard.jsx a un workflow dédié par sous-type) :
-    //   - location à l'agence   : ready → client_arrived        (pas d'étape "en route")
+    //   - location à l'agence   : confirmed → ready → client_arrived  (ni préparation ni "en route")
+    //   - location livraison    : confirmed → in_progress → client_arrived (pas d'étape "prêt")
     //   - essai / vente         : confirmed → in_progress        (pas de préparation)
     //   - chauffeur             : preparing → in_progress        (pas d'étape "ready")
     //   - leasing               : ready → client_arrived         (signature directe)
     // Chaque étape intermédiaire du pipeline générique est donc acceptée comme
     // saut en avant légitime, tant qu'on ne saute pas les étapes qui déclenchent
     // une action métier dédiée (transaction, validation, résolution de litige).
+    //
+    // "confirmed → ready" (simplification des parcours partenaire, 2026-09) :
+    // le clic "Commencer la préparation" ne faisait que déplacer un statut sans
+    // action métier — la location à l'agence passe donc directement d'acceptée
+    // à "véhicule prêt". "preparing" reste une transition valide : les
+    // réservations déjà à ce statut continuent d'avancer normalement, et les
+    // parcours qui s'en servent réellement (chauffeur, leasing) sont inchangés.
     const VALID_TRANSITIONS = {
       pending:                    ["confirmed", "cancelled"],
-      confirmed:                  ["preparing", "in_progress", "cancelled"],
+      confirmed:                  ["preparing", "ready", "in_progress", "cancelled"],
       preparing:                  ["ready", "in_progress", "cancelled"],
       ready:                      ["in_progress", "client_arrived", "cancelled"],
       in_progress:                ["client_arrived", "client_absent", "cancelled"],

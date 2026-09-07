@@ -89,38 +89,42 @@ const getOrderSubType = (order) => {
 };
 
 const ORDER_WORKFLOWS = {
+  // Simplification des parcours partenaire (2026-09) : l'étape "Commencer la
+  // préparation" a été retirée des deux parcours location — elle ne faisait
+  // que déplacer un statut sans action métier, et allongeait le parcours de
+  // 6-7 étapes là où 3-4 suffisent. La préparation elle-même n'est pas
+  // perdue : elle est devenue une checklist affichée dès l'acceptation (voir
+  // le panneau "À faire avant la remise du véhicule" plus bas). Le statut
+  // "preparing" reste géré : une réservation déjà à ce statut s'affiche et
+  // avance normalement (voir PREPARING_FALLBACK_BTN).
   location_agence: {
     badge: "📅 Location · À l'agence", color: "#6366f1",
     steps: [
-      { s:"confirmed",    l:"Acceptée",          i:"✓",  c:"#059669", desc:"Réservation confirmée" },
-      { s:"preparing",    l:"Préparation",        i:"⚙️", c:"#0891b2", desc:"Véhicule en cours de préparation" },
+      { s:"confirmed",    l:"Acceptée",          i:"✓",  c:"#059669", desc:"Réservation confirmée — préparez le véhicule" },
       { s:"ready",        l:"Prêt à l'agence",   i:"🏢", c:"#7c3aed", desc:"Véhicule prêt, client attendu" },
-      { s:"client_arrived",l:"Client présent",   i:"🤝", c:"#0284c7", desc:"Client arrivé à l'agence" },
-      { s:"waiting_client_validation",l:"Transaction",i:"💰",c:"#b45309",desc:"Validation transaction" },
+      { s:"client_arrived",l:"Remise au client", i:"🤝", c:"#0284c7", desc:"Client présent — remise et transaction" },
       { s:"completed",    l:"Terminée",           i:"🏁", c:"#475569", desc:"Location terminée avec succès" },
     ],
     nextBtn: {
-      confirmed: { fn:"onPrepare",       label:"Commencer la préparation", icon:"⚙️" },
+      confirmed: { fn:"onReady",         label:"Véhicule prêt à l'agence", icon:"🏢" },
       preparing: { fn:"onReady",         label:"Véhicule prêt à l'agence", icon:"🏢" },
-      ready:     { fn:"onClientArrived", label:"Client arrivé à l'agence", icon:"🤝" },
+      ready:     { fn:"onClientArrived", label:"Client arrivé — remise",   icon:"🤝" },
     },
     rdvAtStatus: null,
   },
   location_domicile: {
     badge: "📅 Location · Livraison domicile", color: "#2563eb",
     steps: [
-      { s:"confirmed",    l:"Acceptée",       i:"✓",  c:"#059669", desc:"Réservation confirmée" },
-      { s:"preparing",    l:"Préparation",    i:"⚙️", c:"#0891b2", desc:"Préparation du véhicule" },
-      { s:"ready",        l:"Prêt",           i:"✅", c:"#7c3aed", desc:"Véhicule prêt pour livraison" },
+      { s:"confirmed",    l:"Acceptée",       i:"✓",  c:"#059669", desc:"Réservation confirmée — préparez le véhicule" },
       { s:"in_progress",  l:"En livraison",   i:"🚚", c:"#2563eb", desc:"En route vers le client" },
-      { s:"client_arrived",l:"Livré",         i:"📍", c:"#0284c7", desc:"Arrivée chez le client" },
+      { s:"client_arrived",l:"Livré",         i:"📍", c:"#0284c7", desc:"Véhicule remis au client" },
       { s:"waiting_client_validation",l:"Transaction",i:"💰",c:"#b45309",desc:"Remise véhicule + transaction" },
       { s:"completed",    l:"Terminée",       i:"🏁", c:"#475569", desc:"Location terminée avec succès" },
     ],
     nextBtn: {
-      confirmed: { fn:"onPrepare",    label:"Commencer la préparation",   icon:"⚙️" },
-      preparing: { fn:"onReady",      label:"Véhicule prêt à partir",     icon:"✅" },
-      ready:     { fn:"onInProgress", label:"Partir en livraison",        icon:"🚚" },
+      confirmed: { fn:"onInProgress", label:"Partir en livraison",    icon:"🚚" },
+      preparing: { fn:"onInProgress", label:"Partir en livraison",    icon:"🚚" },
+      ready:     { fn:"onInProgress", label:"Partir en livraison",    icon:"🚚" },
     },
     rdvAtStatus: "in_progress",
     rdvLabel: "Êtes-vous arrivé chez le client ?",
@@ -204,6 +208,17 @@ const ORDER_WORKFLOWS = {
   },
 };
 
+// Réservations créées avant la simplification des parcours (2026-09) : leur
+// statut peut ne plus figurer dans `steps` ("preparing" dans les deux
+// parcours location, "ready" en livraison). On le ramène sur l'étape affichée
+// qui lui correspond — sans ça, indexOf renverrait -1 et le suivi visuel
+// afficherait toutes les étapes comme "à venir" pour ces commandes.
+const LEGACY_STATUS_MAP = {
+  location_agence:   { preparing: "confirmed" },
+  location_domicile: { preparing: "confirmed", ready: "confirmed" },
+};
+const displayStatus = (subType, status) => LEGACY_STATUS_MAP[subType]?.[status] || status;
+
 /* ══════════════════════════════════════════════════════════════════════════════
    MODAL GÉRER — Gestion complète, identité intégrée, workflow par type VIT-AUTO
    ══════════════════════════════════════════════════════════════════════════════ */
@@ -246,6 +261,9 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
   // ── Sous-type et workflow ─────────────────────────────────────────────────
   const subType = getOrderSubType(order);
   const wf      = ORDER_WORKFLOWS[subType] || ORDER_WORKFLOWS.location_agence;
+  // Statut ramené sur une étape réellement affichée (voir LEGACY_STATUS_MAP) —
+  // utilisé uniquement pour l'affichage du suivi, jamais pour les actions.
+  const stepStatus = displayStatus(subType, order.status);
 
   // ── Statut ────────────────────────────────────────────────────────────────
   const bst    = BS[order.status] || BS.pending;
@@ -569,7 +587,7 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
               <div className={styles.timeline}>
                 {wf.steps.map((step, idx) => {
                   const statusOrder = wf.steps.map(s=>s.s);
-                  const curIdx = statusOrder.indexOf(order.status);
+                  const curIdx = statusOrder.indexOf(stepStatus);
                   const myIdx  = statusOrder.indexOf(step.s);
                   const done    = curIdx > myIdx;
                   const current = curIdx === myIdx;
@@ -585,7 +603,7 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
                 })}
               </div>
               {/* Description de l'étape courante */}
-              {(() => { const cur = wf.steps.find(s=>s.s===order.status); return cur?.desc ? <p style={{ fontSize:".82rem", color:"#64748b", margin:"8px 0 0", textAlign:"center" }}>{cur.desc}</p> : null; })()}
+              {(() => { const cur = wf.steps.find(s=>s.s===stepStatus); return cur?.desc ? <p style={{ fontSize:".82rem", color:"#64748b", margin:"8px 0 0", textAlign:"center" }}>{cur.desc}</p> : null; })()}
             </div>
           )}
           {order.status === "completed" && (() => {
@@ -656,13 +674,16 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
             </div>
           )}
 
-          {/* ── Préparation — checklist simplifiée, adaptée agence/livraison
-              (restructuration 2026-09) : avant, cette étape n'était qu'un
-              bouton "Commencer la préparation" sans aucun repère sur ce qu'il
-              y a réellement à faire — documents client à vérifier, reçu à
-              imprimer, et une consigne différente selon que le client vient
-              chercher le véhicule ou se fait livrer. ─────────────────────── */}
-          {order.status === "preparing" && (subType === "location_agence" || subType === "location_domicile") && (
+          {/* ── Préparation — checklist adaptée agence/livraison (2026-09) ──
+              Remplace l'ancienne étape "Commencer la préparation", qui ne
+              faisait que déplacer un statut : la préparation est désormais
+              une consigne affichée dès l'acceptation (documents client à
+              vérifier, reçu à imprimer, consigne différente selon que le
+              client vient chercher le véhicule ou se fait livrer), sans clic
+              supplémentaire dans le parcours. Reste affichée pour une
+              commande encore au statut "preparing" (réservations antérieures
+              à la simplification). ─────────────────────────────────────── */}
+          {["confirmed", "preparing"].includes(order.status) && (subType === "location_agence" || subType === "location_domicile") && (
             <div className={styles.sectionCard} style={{ border: "1.5px solid #bae6fd", background: "#f0f9ff" }}>
               <div className={styles.sectionCardTitle}>📋 À faire avant la remise du véhicule</div>
               <ul style={{ margin: "6px 0 10px", paddingLeft: 18, fontSize: ".85rem", color: "#334155", lineHeight: 1.6 }}>
@@ -681,10 +702,10 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
           {ACTION === "progress" && nextBtnCfg && (
             <div className={styles.sectionCard}>
               <div className={styles.sectionCardTitle} style={{ color: wf.color }}>
-                ⚙️ Étape en cours — {wf.steps.find(s=>s.s===order.status)?.l || "Avancement"}
+                ⚙️ Étape en cours — {wf.steps.find(s=>s.s===stepStatus)?.l || "Avancement"}
               </div>
-              {wf.steps.find(s=>s.s===order.status)?.desc && (
-                <p className={styles.decisionHelp}>{wf.steps.find(s=>s.s===order.status)?.desc}</p>
+              {wf.steps.find(s=>s.s===stepStatus)?.desc && (
+                <p className={styles.decisionHelp}>{wf.steps.find(s=>s.s===stepStatus)?.desc}</p>
               )}
               <button className={styles.nextStepBtn} onClick={() => FN_MAP[nextBtnCfg.fn]?.(order.id)}>
                 {nextBtnCfg.icon} {nextBtnCfg.label} →
@@ -741,7 +762,7 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
                 📍 {wf.rdvLabel || "Le client est-il présent ?"}
               </div>
               <p className={styles.decisionHelp} style={{ color:"#1e40af" }}>
-                {wf.steps.find(s=>s.s===order.status)?.desc}. Vérifiez la pièce d'identité dans la section ci-dessus avant de confirmer.
+                {wf.steps.find(s=>s.s===stepStatus)?.desc}. Vérifiez la pièce d'identité dans la section ci-dessus avant de confirmer.
               </p>
               <div className={styles.decisionBtns}>
                 <button className={styles.btnAccept} onClick={() => onClientArrived(order.id)}>
@@ -2939,7 +2960,7 @@ export default function VendorDashboard() {
                 const wfCard  = ORDER_WORKFLOWS[subT] || ORDER_WORKFLOWS.location_agence;
                 // Étapes du workflow pour mini-progress bar
                 const stepStatuses = wfCard.steps.map(s => s.s);
-                const curStepIdx   = stepStatuses.indexOf(order.status);
+                const curStepIdx   = stepStatuses.indexOf(displayStatus(subT, order.status));
                 const progressPct  = curStepIdx >= 0 ? Math.round((curStepIdx / (stepStatuses.length - 1)) * 100) : 0;
 
                 return (

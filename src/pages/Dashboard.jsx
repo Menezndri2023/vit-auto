@@ -158,38 +158,84 @@ const OPTIONS_LABELS = {
   driver:    "Chauffeur privé",
 };
 
-// ── Étapes de suivi de livraison — workflow complet client (8 étapes) ─────────
-const TRACKING_STEPS = [
-  { key: "pending",                  label: "Reçue",       icon: "📋", desc: "Votre demande a été envoyée au partenaire" },
-  { key: "confirmed",                label: "Acceptée",    icon: "✅", desc: "Le partenaire a accepté votre réservation" },
-  { key: "preparing",                label: "Préparation", icon: "⚙️", desc: "Le partenaire prépare votre véhicule" },
-  { key: "ready",                    label: "Prêt",        icon: "🚗", desc: "Votre véhicule est prêt pour la livraison" },
-  { key: "in_progress",              label: "En route",    icon: "🚀", desc: "Le partenaire est en route vers vous" },
-  { key: "client_arrived",           label: "Arrivée",     icon: "📍", desc: "Votre présence a été confirmée au point de remise" },
-  { key: "waiting_client_validation",label: "Validation",  icon: "✋", desc: "Confirmez la transaction enregistrée par le partenaire" },
-  { key: "completed",                label: "Terminée",    icon: "🏁", desc: "Location terminée — merci !" },
+// ── Étapes de suivi client — adaptées au mode de récupération (2026-09) ──────
+// Une seule liste de 8 étapes servait auparavant à TOUS les cas : un client
+// venant chercher son véhicule à l'agence voyait "Prêt pour la livraison" puis
+// "En route vers vous", deux étapes qui n'arrivent jamais dans son cas (le
+// statut in_progress n'existe pas dans le parcours agence). Chaque mode
+// n'affiche désormais que les étapes qu'il traverse réellement, et ces étapes
+// correspondent une à une à celles du partenaire (ORDER_WORKFLOWS, voir
+// VendorDashboard.jsx).
+const STEP_RECUE      = { key: "pending",                   label: "Reçue",      icon: "📋", desc: "Votre demande a été envoyée au partenaire" };
+const STEP_ACCEPTEE   = { key: "confirmed",                 label: "Acceptée",   icon: "✅", desc: "Le partenaire a accepté votre réservation" };
+const STEP_VALIDATION = { key: "waiting_client_validation", label: "Validation", icon: "✋", desc: "Confirmez la transaction enregistrée par le partenaire" };
+const STEP_TERMINEE   = { key: "completed",                 label: "Terminée",   icon: "🏁", desc: "Location terminée — merci !" };
+
+const TRACKING_STEPS_AGENCE = [
+  STEP_RECUE, STEP_ACCEPTEE,
+  { key: "ready",          label: "Prêt",   icon: "🏢", desc: "Votre véhicule vous attend à l'agence" },
+  { key: "client_arrived", label: "Remise", icon: "🤝", desc: "Remise du véhicule en cours" },
+  STEP_VALIDATION, STEP_TERMINEE,
 ];
 
-const STEP_ORDER_CLIENT = [
-  "pending", "confirmed", "preparing", "ready",
-  "in_progress", "client_arrived", "waiting_client_validation", "completed",
+const TRACKING_STEPS_LIVRAISON = [
+  STEP_RECUE, STEP_ACCEPTEE,
+  { key: "in_progress",    label: "En route", icon: "🚀", desc: "Le partenaire est en route vers vous" },
+  { key: "client_arrived", label: "Livré",    icon: "📍", desc: "Véhicule livré — remise en cours" },
+  STEP_VALIDATION, STEP_TERMINEE,
 ];
 
-function getStepIndex(status) {
-  const idx = STEP_ORDER_CLIENT.indexOf(status);
+// Autres services (essai/vente, chauffeur, leasing, activité) : parcours
+// générique inchangé, ils ont leurs propres étapes intermédiaires.
+const TRACKING_STEPS_GENERIC = [
+  STEP_RECUE, STEP_ACCEPTEE,
+  { key: "preparing",      label: "Préparation", icon: "⚙️", desc: "Le partenaire prépare votre véhicule" },
+  { key: "ready",          label: "Prêt",        icon: "🚗", desc: "Votre véhicule est prêt" },
+  { key: "in_progress",    label: "En cours",    icon: "🚀", desc: "Prestation en cours" },
+  { key: "client_arrived", label: "Arrivée",     icon: "📍", desc: "Votre présence a été confirmée au point de remise" },
+  STEP_VALIDATION, STEP_TERMINEE,
+];
+
+function getTrackingSteps(booking) {
+  if (booking.type !== "location") return TRACKING_STEPS_GENERIC;
+  return booking.pickupMethod === "livraison" ? TRACKING_STEPS_LIVRAISON : TRACKING_STEPS_AGENCE;
+}
+
+// Statuts qui ne figurent pas dans la liste affichée (réservations créées
+// avant la simplification, ou issues d'un autre chemin) — ramenés sur l'étape
+// équivalente pour ne jamais perdre la progression visuelle.
+const LEGACY_CLIENT_STATUS = {
+  preparing: "confirmed",   // la préparation n'est plus une étape en soi
+  ready:     "confirmed",   // en livraison uniquement : "prêt" précède le départ
+};
+
+function getStepIndex(status, steps) {
+  const order = steps.map((s) => s.key);
+  const idx = order.indexOf(status);
   if (idx !== -1) return idx;
-  if (status === "À confirmer")            return 0; // = pending
-  if (status === "transaction_concluded")  return 7; // après validation → completed
-  if (status === "client_absent")          return 4; // resté sur in_progress
-  if (status === "transaction_not_concluded") return 5; // client_arrived mais transaction échouée
-  if (status === "compensated")            return 7; // résolu avec compensation
+
+  const mapped = LEGACY_CLIENT_STATUS[status];
+  if (mapped) {
+    const mappedIdx = order.indexOf(mapped);
+    if (mappedIdx !== -1) return mappedIdx;
+  }
+
+  const lastIdx     = order.length - 1;
+  const arrivedIdx  = order.indexOf("client_arrived");
+  const enCoursIdx  = order.indexOf("in_progress");
+  if (status === "À confirmer")               return 0;                              // = pending
+  if (status === "transaction_concluded")     return lastIdx;                        // après validation → terminée
+  if (status === "compensated")               return lastIdx;                        // résolu avec compensation
+  if (status === "client_absent")             return Math.max(enCoursIdx, 0);        // resté au point de rencontre
+  if (status === "transaction_not_concluded") return Math.max(arrivedIdx, 0);        // arrivé, transaction échouée
   return 0;
 }
 
 // ── Timeline suivi ────────────────────────────────────────────────────────────
 function DeliveryTimeline({ booking, onValidate, onDispute, validating }) {
   const { fmt } = useCurrency();
-  const currentIdx  = getStepIndex(booking.status);
+  const steps       = getTrackingSteps(booking);
+  const currentIdx  = getStepIndex(booking.status, steps);
   const isCancelled = booking.status === "cancelled";
 
   if (isCancelled) {
@@ -201,13 +247,11 @@ function DeliveryTimeline({ booking, onValidate, onDispute, validating }) {
     );
   }
 
-  const currentStep = TRACKING_STEPS[currentIdx];
-
   return (
     <div className={styles.timelineWrapper}>
       {/* Barre de progression */}
       <div className={styles.timeline}>
-        {TRACKING_STEPS.map((step, idx) => {
+        {steps.map((step, idx) => {
           const isDone    = idx < currentIdx;
           const isCurrent = idx === currentIdx;
           return (
@@ -219,7 +263,7 @@ function DeliveryTimeline({ booking, onValidate, onDispute, validating }) {
               ].join(" ")}>
                 <span>{isDone ? "✓" : step.icon}</span>
               </div>
-              {idx < TRACKING_STEPS.length - 1 && (
+              {idx < steps.length - 1 && (
                 <div className={`${styles.timelineLine}${isDone ? ` ${styles.timelineLineDone}` : ""}`} />
               )}
               <span className={`${styles.timelineLabel}${isCurrent ? ` ${styles.timelineLabelActive}` : ""}`}>
@@ -248,7 +292,11 @@ function DeliveryTimeline({ booking, onValidate, onDispute, validating }) {
       ) : booking.status === "ready" ? (
         <div className={styles.readyAlert}>
           <span>🎉</span>
-          <span>Votre véhicule est prêt ! Le partenaire va vous contacter pour la livraison.</span>
+          <span>
+            {booking.pickupMethod === "livraison"
+              ? "Votre véhicule est prêt ! Le partenaire va partir en livraison."
+              : "Votre véhicule est prêt — vous pouvez venir le récupérer à l'agence. Munissez-vous de votre reçu de réservation."}
+          </span>
         </div>
       ) : booking.status === "in_progress" ? (
         <div className={styles.enRouteAlertClient}>
@@ -258,7 +306,11 @@ function DeliveryTimeline({ booking, onValidate, onDispute, validating }) {
       ) : booking.status === "client_arrived" ? (
         <div className={styles.timelineStatusMsg} style={{ background: "#e0f2fe", borderLeft: "3px solid #0ea5e9" }}>
           <span className={styles.timelineStatusIcon}>📍</span>
-          <span>Votre présence a été confirmée. Le partenaire enregistre la transaction.</span>
+          <span>
+            {booking.pickupMethod === "livraison"
+              ? "Véhicule livré. Le partenaire enregistre la transaction."
+              : "Votre présence a été confirmée. Le partenaire enregistre la transaction."}
+          </span>
         </div>
       ) : booking.status === "transaction_concluded" ? (
         <div className={styles.timelineStatusMsg} style={{ background: "#fef3c7", borderLeft: "3px solid #f59e0b" }}>
