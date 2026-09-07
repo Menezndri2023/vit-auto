@@ -143,3 +143,64 @@ export const deleteBusiness = async (req, res) => {
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADMIN — supervision des politiques partenaire (restructuration 2026-09)
+// La politique de location (rentalPolicy — âge min, permis, ET frais de
+// livraison "même ville") restait jusqu'ici réglable uniquement par le
+// partenaire lui-même. L'admin peut désormais consulter/ajuster n'importe
+// quelle entité, sans restriction owner (voir requirePartnerRole ci-dessus,
+// non applicable ici — routes déjà gardées par authorizeAdmin).
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── GET /api/admin/businesses?search=... ─────────────────────────────────────
+export const adminListBusinesses = async (req, res) => {
+  try {
+    const { search, page = 1, limit = 20 } = req.query;
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const safePage  = Math.max(Number(page), 1);
+    const filter = {};
+    if (search) filter.companyName = new RegExp(String(search).slice(0, 100).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+
+    const [businesses, total] = await Promise.all([
+      PartnerBusiness.find(filter)
+        .populate("owner", "firstName lastName email")
+        .sort({ createdAt: -1 })
+        .skip((safePage - 1) * safeLimit)
+        .limit(safeLimit),
+      PartnerBusiness.countDocuments(filter),
+    ]);
+
+    res.json({ businesses, total, pages: Math.ceil(total / safeLimit) });
+  } catch (err) {
+    logger.error("adminListBusinesses:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── PATCH /api/admin/businesses/:id/rental-policy ────────────────────────────
+export const adminUpdateRentalPolicy = async (req, res) => {
+  try {
+    const business = await PartnerBusiness.findById(req.params.id);
+    if (!business) return res.status(404).json({ message: "Entreprise introuvable." });
+
+    const EDITABLE = [
+      "minimumAge", "minimumLicenseYears", "identityDocumentRequired", "drivingLicenseRequired",
+      "internationalLicenseRequired", "depositRequired", "maxDeliveryRadiusKm",
+      "deliveryFeeSameCity", "deliverySameCityRadiusKm", "additionalRequirements",
+    ];
+    const incoming = req.body?.rentalPolicy || {};
+    for (const key of EDITABLE) {
+      if (incoming[key] !== undefined) business.rentalPolicy[key] = incoming[key];
+    }
+    await business.save();
+
+    res.json({ business });
+  } catch (err) {
+    logger.error("adminUpdateRentalPolicy:", err);
+    if (err.name === "ValidationError") {
+      return res.status(400).json({ message: "Données invalides : " + err.message });
+    }
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};

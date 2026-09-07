@@ -56,6 +56,12 @@ const normalizeBooking = (b) => {
     days:          b.location?.days,
     pickupMethod:  b.location?.pickupMethod || "retrait",
     deliveryStatus: b.delivery?.status || "none",
+    // Horodatages réels (restructuration suivi livraison, 2026-09) — jusqu'ici
+    // seul le statut passait la normalisation, jamais "depuis quand" le
+    // véhicule est en route ou a été livré (voir enRouteAlert plus bas).
+    deliveryOnTheWayAt:  b.delivery?.onTheWaySentAt || null,
+    deliveryDeliveredAt: b.delivery?.deliveredAt     || null,
+    deliveryConfirmedAt: b.delivery?.confirmedAt     || null,
     pickupLocation: b.location?.pickupLocation,
     pickupAddress: b.location?.pickupLocation,
     pickupLat:     b.location?.pickupPosition?.lat ?? null,
@@ -1237,7 +1243,17 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
           {booking.status === "in_progress" && (
             <div className={styles.enRouteAlert}>
               <span>🚗</span>
-              <span>Le partenaire est en route vers vous !</span>
+              <span>
+                Le partenaire est en route vers vous !
+                {booking.deliveryOnTheWayAt && ` Départ à ${new Date(booking.deliveryOnTheWayAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}.`}
+              </span>
+            </div>
+          )}
+          {booking.deliveryDeliveredAt && ["client_arrived", "transaction_concluded", "waiting_client_validation", "completed"].includes(booking.status) && (
+            <div className={styles.deliveryAddress} style={{ marginTop: 6 }}>
+              <p className={styles.deliveryAddressText}>
+                📍 Livré à {new Date(booking.deliveryDeliveredAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+              </p>
             </div>
           )}
         </div>

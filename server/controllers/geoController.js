@@ -1,5 +1,6 @@
 import geoip from "geoip-lite";
 import Vehicle from "../models/Vehicle.js";
+import PartnerBusiness from "../models/PartnerBusiness.js";
 import { resolveDeliveryFee, detectCountryFromCoords } from "../services/deliveryFee.js";
 import { getActiveCountries, getActiveRates } from "../services/currencyEngine.js";
 import logger from "../utils/logger.js";
@@ -38,15 +39,25 @@ export const getDeliveryFee = async (req, res) => {
     let pLat = parseFloat(partnerLat);
     let pLng = parseFloat(partnerLng);
 
-    // Si vehicleId fourni et coords partenaire absentes → chercher en base
-    if ((isNaN(pLat) || isNaN(pLng)) && vehicleId) {
+    // Si vehicleId fourni et coords partenaire absentes → chercher en base.
+    // Récupère aussi la politique de livraison de l'entité partenaire (voir
+    // PartnerBusiness.rentalPolicy.deliveryFeeSameCity) pour que cet aperçu
+    // corresponde exactement au montant recalculé à la réservation (voir
+    // bookingController.createBooking) — jamais un chiffre affiché puis
+    // démenti au paiement.
+    let rentalPolicy = null;
+    if (vehicleId) {
       try {
-        const vehicle = await Vehicle.findById(vehicleId).select("coordonnees adresse ville");
-        if (vehicle?.coordonnees?.lat != null && vehicle?.coordonnees?.lng != null) {
+        const vehicle = await Vehicle.findById(vehicleId).select("coordonnees adresse ville business");
+        if ((isNaN(pLat) || isNaN(pLng)) && vehicle?.coordonnees?.lat != null && vehicle?.coordonnees?.lng != null) {
           pLat = vehicle.coordonnees.lat;
           pLng = vehicle.coordonnees.lng;
         }
-      } catch { /* coords non disponibles */ }
+        if (vehicle?.business) {
+          const business = await PartnerBusiness.findById(vehicle.business).select("rentalPolicy").lean();
+          rentalPolicy = business?.rentalPolicy || null;
+        }
+      } catch { /* coords/politique non disponibles */ }
     }
 
     // Auto-détecter le pays depuis les coordonnées client si absent
@@ -62,7 +73,7 @@ export const getDeliveryFee = async (req, res) => {
     }
 
     const result = await resolveDeliveryFee({
-      clientLat: cLat, clientLng: cLng, vehicleLat: pLat, vehicleLng: pLng, countryCode,
+      clientLat: cLat, clientLng: cLng, vehicleLat: pLat, vehicleLng: pLng, countryCode, rentalPolicy,
     });
 
     return res.json({ countryCode, ...result });

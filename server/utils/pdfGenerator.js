@@ -143,41 +143,67 @@ export function generateInvoicePDFBuffer(invoice) {
 // ══════════════════════════════════════════════════════════════════════════════
 export function generateContractPDF(contract, res) {
   const doc = new PDFDocument({ margin: 40, size: "A4" });
+  // Restructuration réservation (2026-09) : ce document n'est plus présenté
+  // comme un contrat de location définitif — c'est un REÇU DE RÉSERVATION
+  // établi par VIT AUTO entre les trois parties, à présenter au partenaire
+  // lors de la récupération du véhicule (voir ContractPage.jsx pour la même
+  // reformulation côté page imprimable).
   const typeLabels = {
-    location:  "CONTRAT DE LOCATION",
+    location:  "REÇU DE RÉSERVATION — LOCATION",
     essai:     "BON DE RENDEZ-VOUS",
-    chauffeur: "CONTRAT DE CHAUFFEUR",
-    leasing:   "CONTRAT DE LEASING",
+    chauffeur: "REÇU DE RÉSERVATION — CHAUFFEUR",
+    leasing:   "REÇU DE RÉSERVATION — LEASING",
   };
   const ref = contract.reference || `VIT-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`;
 
   res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename="contrat-${ref}.pdf"`);
+  res.setHeader("Content-Disposition", `attachment; filename="recu-${ref}.pdf"`);
   doc.pipe(res);
 
-  header(doc, typeLabels[contract.type] || "CONTRAT", ref);
+  header(doc, typeLabels[contract.type] || "REÇU DE RÉSERVATION", ref);
 
-  // ── Parties ──────────────────────────────────────────────────────────────
-  doc.rect(40, doc.y, (doc.page.width - 90) / 2, 110).fill(LGRAY).stroke("#e2e8f0");
-  const leftX = 50;
-  const rightX = (doc.page.width / 2) + 10;
-  const topY = doc.y - 108;
+  // ── Parties (3 : client / VIT AUTO / partenaire) ────────────────────────
+  const colWidth = (doc.page.width - 100) / 3;
+  const col1X = 50;
+  const col2X = col1X + colWidth + 5;
+  const col3X = col2X + colWidth + 5;
+  const topY = doc.y;
 
-  doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(9).text("CLIENT (LOCATAIRE)", leftX, topY + 6);
-  doc.font("Helvetica").fontSize(9).fillColor(GRAY);
-  doc.text(`${contract.client?.firstName || ""} ${contract.client?.lastName || ""}`, leftX, topY + 20);
-  doc.text(contract.client?.email  || "—", leftX, topY + 32);
-  doc.text(contract.client?.phone  || "—", leftX, topY + 44);
-  if (contract.client?.idType) doc.text(`${contract.client.idType?.toUpperCase()} : ${contract.client.idNumber || "—"}`, leftX, topY + 56);
+  doc.rect(40, topY, doc.page.width - 80, 110).fill(LGRAY).stroke("#e2e8f0");
+  doc.moveTo(col2X - 5, topY).lineTo(col2X - 5, topY + 110).stroke("#e2e8f0");
+  doc.moveTo(col3X - 5, topY).lineTo(col3X - 5, topY + 110).stroke("#e2e8f0");
 
-  doc.rect(rightX - 10, doc.y - 110 + 2, (doc.page.width - 90) / 2, 110).fill(LGRAY).stroke("#e2e8f0");
-  doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(9).text("PARTENAIRE (LOUEUR)", rightX, topY + 6);
-  doc.font("Helvetica").fontSize(9).fillColor(GRAY);
-  doc.text(contract.vendor?.name  || "—", rightX, topY + 20);
-  doc.text(contract.vendor?.email || "—", rightX, topY + 32);
-  doc.text(contract.vendor?.phone || "—", rightX, topY + 44);
+  doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(9).text("CLIENT", col1X, topY + 6, { width: colWidth - 8 });
+  doc.font("Helvetica").fontSize(8).fillColor(GRAY);
+  doc.text(`${contract.client?.firstName || ""} ${contract.client?.lastName || ""}`, col1X, topY + 20, { width: colWidth - 8 });
+  doc.text(contract.client?.email  || "—", col1X, topY + 34, { width: colWidth - 8 });
+  doc.text(contract.client?.phone  || "—", col1X, topY + 48, { width: colWidth - 8 });
+  if (contract.client?.idType) doc.text(`${contract.client.idType?.toUpperCase()} : ${contract.client.idNumber || "—"}`, col1X, topY + 62, { width: colWidth - 8 });
 
-  doc.moveDown(5.5);
+  doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(9).text("VIT AUTO (intermédiaire)", col2X, topY + 6, { width: colWidth - 8 });
+  doc.font("Helvetica").fontSize(8).fillColor(GRAY);
+  doc.text("VIT AUTO", col2X, topY + 20, { width: colWidth - 8 });
+  doc.text("contact@vit-auto.com", col2X, topY + 34, { width: colWidth - 8 });
+  doc.text("Met en relation client et partenaire, sans être partie au contrat de location définitif.", col2X, topY + 48, { width: colWidth - 8 });
+
+  doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(9).text("PARTENAIRE (LOUEUR)", col3X, topY + 6, { width: colWidth - 8 });
+  doc.font("Helvetica").fontSize(8).fillColor(GRAY);
+  doc.text(contract.vendor?.name  || "—", col3X, topY + 20, { width: colWidth - 8 });
+  doc.text(contract.vendor?.email || "—", col3X, topY + 34, { width: colWidth - 8 });
+  doc.text(contract.vendor?.phone || "—", col3X, topY + 48, { width: colWidth - 8 });
+
+  doc.y = topY + 110;
+  doc.moveDown(1);
+
+  // ── Avis : reçu tripartite, pas un contrat définitif ─────────────────────
+  doc.rect(40, doc.y, doc.page.width - 80, 34).fill("#eff6ff").stroke("#bfdbfe");
+  doc.fillColor("#1e3a8a").font("Helvetica").fontSize(7.5)
+    .text(
+      "Ce document est un reçu de réservation établi par VIT AUTO entre les trois parties ci-dessus, à présenter au partenaire lors de la " +
+      "récupération du véhicule. Il ne remplace pas un contrat de location définitif — le partenaire peut, s'il le souhaite, en délivrer un au client.",
+      48, doc.y + 8, { width: doc.page.width - 96, align: "justify" }
+    );
+  doc.moveDown(2.5);
 
   // ── Véhicule ─────────────────────────────────────────────────────────────
   section(doc, "Véhicule concerné");
@@ -227,8 +253,8 @@ export function generateContractPDF(contract, res) {
   doc.moveDown(0.5);
   doc.fillColor(GRAY).font("Helvetica").fontSize(8)
     .text(
-      "Ce contrat a été généré automatiquement par la plateforme VIT AUTO conformément aux conditions générales d'utilisation. " +
-      "Le client reconnaît avoir pris connaissance des conditions générales de location et s'engage à respecter le véhicule mis à " +
+      "Ce reçu a été généré automatiquement par la plateforme VIT AUTO conformément aux conditions générales d'utilisation. " +
+      "Le client reconnaît avoir pris connaissance des conditions ci-dessus et s'engage à respecter le véhicule mis à " +
       "disposition. Tout dommage causé au véhicule sera prélevé sur la caution. La sous-location est strictement interdite. " +
       "En cas de litige, les parties conviennent de recourir à la médiation VIT AUTO avant toute procédure judiciaire.",
       40, doc.y, { width: doc.page.width - 80, align: "justify" }

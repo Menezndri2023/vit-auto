@@ -1,4 +1,4 @@
-import { calculateDeliveryFee } from "./currencyEngine.js";
+import { calculateDeliveryFee, getCountry } from "./currencyEngine.js";
 
 /**
  * Formule de Haversine — distance en km entre deux points GPS.
@@ -56,8 +56,14 @@ export function detectCountryFromCoords(lat, lng) {
  * Calcule le frais de livraison de façon autoritaire côté serveur à partir des
  * coordonnées du véhicule (jamais depuis une valeur fournie par le client).
  * Retourne null si la distance ne peut pas être calculée (coords manquantes).
+ *
+ * `rentalPolicy` (PartnerBusiness.rentalPolicy, optionnel — restructuration
+ * 2026-09) : si le partenaire a fixé deliveryFeeSameCity et que la distance
+ * reste sous deliverySameCityRadiusKm, ce tarif fixe remplace le calcul au km
+ * — sinon (pas configuré, ou hors rayon) le barème pays existant s'applique
+ * tel quel, comportement strictement inchangé.
  */
-export async function resolveDeliveryFee({ clientLat, clientLng, vehicleLat, vehicleLng, countryCode }) {
+export async function resolveDeliveryFee({ clientLat, clientLng, vehicleLat, vehicleLng, countryCode, rentalPolicy = null }) {
   const cLat = parseFloat(clientLat);
   const cLng = parseFloat(clientLng);
   const vLat = parseFloat(vehicleLat);
@@ -66,6 +72,22 @@ export async function resolveDeliveryFee({ clientLat, clientLng, vehicleLat, veh
   if ([cLat, cLng, vLat, vLng].some((n) => Number.isNaN(n))) return null;
 
   const distanceKm = haversineKm(cLat, cLng, vLat, vLng);
+  const roundedKm = Math.round(distanceKm * 10) / 10;
+
+  const sameCityFee    = rentalPolicy?.deliveryFeeSameCity;
+  const sameCityRadius = rentalPolicy?.deliverySameCityRadiusKm ?? 15;
+  if (sameCityFee != null && distanceKm <= sameCityRadius) {
+    // Devise/pays toujours dérivés du barème pays pour rester cohérents avec
+    // le reste de l'affichage (symbole, conversion) — seul le montant change.
+    const country = await getCountry(countryCode || "CI");
+    return {
+      distanceKm: roundedKm,
+      fee: Math.round(sameCityFee),
+      currency: country?.defaultCurrency || "USD",
+      feeDisplay: `${Math.round(sameCityFee).toLocaleString("fr-FR")} ${country?.defaultCurrency || "USD"} (tarif même ville)`,
+    };
+  }
+
   const result = await calculateDeliveryFee(countryCode || "CI", distanceKm);
-  return { distanceKm: Math.round(distanceKm * 10) / 10, ...result };
+  return { distanceKm: roundedKm, ...result };
 }

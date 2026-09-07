@@ -58,12 +58,12 @@
 /* ── Parties ─────────────────────────────────────────────── */
 .partiesGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 0;
   border-bottom: 2px solid #e2e8f0;
 }
 .partyBlock {
-  padding: 1.5rem 2.5rem;
+  padding: 1.5rem 1.5rem;
   border-right: 1px solid #e2e8f0;
 }
 .partyBlock:last-child { border-right: none; }

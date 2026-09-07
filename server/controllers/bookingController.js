@@ -754,7 +754,7 @@ export const createBooking = async (req, res) => {
         const fee = await resolveDeliveryFee({
           clientLat: cLat, clientLng: cLng,
           vehicleLat: vehicle.coordonnees.lat, vehicleLng: vehicle.coordonnees.lng,
-          countryCode,
+          countryCode, rentalPolicy: rentalPolicyBusiness?.rentalPolicy,
         });
         // resolveDeliveryFee renvoie un montant dans la devise LOCALE du pays
         // (barème deliveryBaseRate/deliveryRatePerKm de CountryConfig) —

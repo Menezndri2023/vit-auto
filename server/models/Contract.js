@@ -88,6 +88,7 @@ const contractSchema = new mongoose.Schema({
   conditions: {
     type: String,
     default: [
+      "0. Ce document est un reçu de réservation établi par VIT AUTO entre le client, VIT AUTO et le partenaire — il est à présenter au partenaire lors de la récupération du véhicule et ne constitue pas un contrat de location définitif. Le partenaire peut, s'il le souhaite, délivrer son propre contrat au client.",
       "1. Le locataire s'engage à restituer le véhicule dans l'état décrit au moment de la prise en charge.",
       "2. Tout dommage constaté sera imputé sur la caution versée.",
       "3. Le véhicule doit être restitué avec le même niveau d'essence.",

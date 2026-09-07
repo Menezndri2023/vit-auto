@@ -603,6 +603,173 @@ function AnalyticsSection({ analytics, loading }) {
 // rend cette assignation visible et réassignable par un admin, ou permet de
 // garder le dossier en interne (agent VIT AUTO) plutôt qu'un transitaire
 // externe.
+// ── Politiques de location partenaire (restructuration 2026-09) ────────────
+// La politique de location (âge min, permis, ET frais de livraison "même
+// ville") ne pouvait jusqu'ici être réglée que par le partenaire lui-même
+// (PartnerBusinessManager.jsx) — l'admin n'avait aucun moyen de consulter ou
+// ajuster ces règles pour une entité donnée. Réutilise le tri-état déjà
+// utilisé côté partenaire (voir server/models/PartnerBusiness.js).
+const RP_TRISTATE_OPTIONS = [
+  { value: "",  label: "Pas de règle" },
+  { value: "1", label: "Oui, exigé" },
+  { value: "0", label: "Non, pas exigé" },
+];
+const rpToTristate   = (v) => v === true ? "1" : v === false ? "0" : "";
+const rpFromTristate = (v) => v === "1" ? true : v === "0" ? false : null;
+
+function RentalPolicySection({ token }) {
+  const [search, setSearch]         = useState("");
+  const [businesses, setBusinesses] = useState([]);
+  const [loading, setLoading]       = useState(false);
+  const [editing, setEditing]       = useState(null);
+  const [form, setForm]             = useState(null);
+  const [saving, setSaving]         = useState(false);
+
+  const load = async (q) => {
+    setLoading(true);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const qs = q ? `?search=${encodeURIComponent(q)}` : "";
+      const r = await fetch(`/api/partner/businesses/admin${qs}`, { headers });
+      const d = await r.json();
+      setBusinesses(d.businesses || []);
+    } catch { /* liste vide, pas bloquant */ }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(""); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const openEdit = (b) => {
+    setEditing(b);
+    setForm({
+      minimumAge:               b.rentalPolicy?.minimumAge ?? "",
+      minimumLicenseYears:      b.rentalPolicy?.minimumLicenseYears ?? "",
+      maxDeliveryRadiusKm:      b.rentalPolicy?.maxDeliveryRadiusKm ?? "",
+      deliveryFeeSameCity:      b.rentalPolicy?.deliveryFeeSameCity ?? "",
+      deliverySameCityRadiusKm: b.rentalPolicy?.deliverySameCityRadiusKm ?? "",
+      identityDocumentRequired: rpToTristate(b.rentalPolicy?.identityDocumentRequired),
+      drivingLicenseRequired:   rpToTristate(b.rentalPolicy?.drivingLicenseRequired),
+      depositRequired:          rpToTristate(b.rentalPolicy?.depositRequired),
+      additionalRequirements:   b.rentalPolicy?.additionalRequirements || "",
+    });
+  };
+
+  const setF = (k, v) => setForm((p) => ({ ...p, [k]: v }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const rentalPolicy = {
+        minimumAge:               form.minimumAge               === "" ? null : Number(form.minimumAge),
+        minimumLicenseYears:      form.minimumLicenseYears       === "" ? null : Number(form.minimumLicenseYears),
+        maxDeliveryRadiusKm:      form.maxDeliveryRadiusKm       === "" ? null : Number(form.maxDeliveryRadiusKm),
+        deliveryFeeSameCity:      form.deliveryFeeSameCity       === "" ? null : Number(form.deliveryFeeSameCity),
+        deliverySameCityRadiusKm: form.deliverySameCityRadiusKm  === "" ? null : Number(form.deliverySameCityRadiusKm),
+        identityDocumentRequired: rpFromTristate(form.identityDocumentRequired),
+        drivingLicenseRequired:   rpFromTristate(form.drivingLicenseRequired),
+        depositRequired:          rpFromTristate(form.depositRequired),
+        additionalRequirements:   form.additionalRequirements.trim() || null,
+      };
+      const r = await fetch(`/api/partner/businesses/${editing._id}/admin-rental-policy`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ rentalPolicy }),
+      });
+      if (r.ok) { setEditing(null); load(search); }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <input
+          placeholder="Rechercher une entreprise…" value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && load(search)}
+          style={{ flex: 1, padding: "0.5rem", borderRadius: 8, border: "1.5px solid #e2e8f0" }}
+        />
+        <button className={styles.btnRefresh} onClick={() => load(search)}>Rechercher</button>
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: "center", padding: "2rem", color: "#94a3b8" }}>Chargement…</div>
+      ) : businesses.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "2rem", color: "#94a3b8" }}>Aucune entreprise trouvée.</div>
+      ) : (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead><tr><th>Entreprise</th><th>Propriétaire</th><th>Pays / Ville</th><th>Livraison même ville</th><th>Actions</th></tr></thead>
+            <tbody>
+              {businesses.map((b) => (
+                <tr key={b._id} className={styles.tr}>
+                  <td><strong style={{ fontSize: ".85rem" }}>{b.companyName}</strong></td>
+                  <td style={{ fontSize: ".82rem", color: "#64748b" }}>{b.owner?.firstName} {b.owner?.lastName}</td>
+                  <td style={{ fontSize: ".82rem", color: "#64748b" }}>{b.country} · {b.ville}</td>
+                  <td style={{ fontSize: ".82rem" }}>
+                    {b.rentalPolicy?.deliveryFeeSameCity != null
+                      ? `${b.rentalPolicy.deliveryFeeSameCity} (≤ ${b.rentalPolicy.deliverySameCityRadiusKm || 15} km)`
+                      : <span style={{ color: "#94a3b8" }}>— (barème pays)</span>}
+                  </td>
+                  <td><button className={styles.btnApprove} onClick={() => openEdit(b)}>Modifier</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {editing && form && (
+        <div className={styles.overlay} onClick={() => setEditing(null)}>
+          <div className={styles.confirmBox} style={{ maxWidth: 520, width: "95%" }} onClick={(e) => e.stopPropagation()}>
+            <p className={styles.confirmMsg}>Politique de location — {editing.companyName}</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+              <label style={{ fontSize: ".8rem" }}>Âge minimum
+                <input type="number" value={form.minimumAge} onChange={(e) => setF("minimumAge", e.target.value)} style={{ width: "100%", padding: 6, marginTop: 4 }} />
+              </label>
+              <label style={{ fontSize: ".8rem" }}>Ancienneté permis (ans)
+                <input type="number" value={form.minimumLicenseYears} onChange={(e) => setF("minimumLicenseYears", e.target.value)} style={{ width: "100%", padding: 6, marginTop: 4 }} />
+              </label>
+              <label style={{ fontSize: ".8rem" }}>🚚 Frais livraison même ville
+                <input type="number" value={form.deliveryFeeSameCity} onChange={(e) => setF("deliveryFeeSameCity", e.target.value)} placeholder="100-150" style={{ width: "100%", padding: 6, marginTop: 4 }} />
+              </label>
+              <label style={{ fontSize: ".8rem" }}>Rayon "même ville" (km)
+                <input type="number" value={form.deliverySameCityRadiusKm} onChange={(e) => setF("deliverySameCityRadiusKm", e.target.value)} placeholder="15" style={{ width: "100%", padding: 6, marginTop: 4 }} />
+              </label>
+              <label style={{ fontSize: ".8rem" }}>Rayon livraison max (km)
+                <input type="number" value={form.maxDeliveryRadiusKm} onChange={(e) => setF("maxDeliveryRadiusKm", e.target.value)} placeholder="Illimité" style={{ width: "100%", padding: 6, marginTop: 4 }} />
+              </label>
+              <label style={{ fontSize: ".8rem" }}>🪪 Identité vérifiée
+                <select value={form.identityDocumentRequired} onChange={(e) => setF("identityDocumentRequired", e.target.value)} style={{ width: "100%", padding: 6, marginTop: 4 }}>
+                  {RP_TRISTATE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </label>
+              <label style={{ fontSize: ".8rem" }}>🚘 Permis vérifié
+                <select value={form.drivingLicenseRequired} onChange={(e) => setF("drivingLicenseRequired", e.target.value)} style={{ width: "100%", padding: 6, marginTop: 4 }}>
+                  {RP_TRISTATE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </label>
+              <label style={{ fontSize: ".8rem" }}>💰 Caution exigée
+                <select value={form.depositRequired} onChange={(e) => setF("depositRequired", e.target.value)} style={{ width: "100%", padding: 6, marginTop: 4 }}>
+                  {RP_TRISTATE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </label>
+            </div>
+            <label style={{ fontSize: ".8rem", display: "block", marginBottom: 12 }}>Exigences complémentaires
+              <input value={form.additionalRequirements} onChange={(e) => setF("additionalRequirements", e.target.value)} style={{ width: "100%", padding: 6, marginTop: 4 }} />
+            </label>
+            <div className={styles.confirmActions}>
+              <button className={styles.btnPrimary} disabled={saving} onClick={handleSave}>{saving ? "…" : "Enregistrer"}</button>
+              <button className={styles.btnGhost} onClick={() => setEditing(null)}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LogisticsAssignmentSection({ ieTransactions, loading, token, onRefresh }) {
   const needsAttention = ieTransactions.filter((t) => ["in_escrow", "preparing"].includes(t.status));
   const [assignModal, setAssignModal] = useState(null); // { tx }
@@ -3817,6 +3984,7 @@ export default function AdminPanel() {
         { key: "pms_partners",     icon: "🏪", label: "Partner Hub PMS",          badge: pmsShowrooms.filter(s => !s.isPublished).length || undefined },
         { key: "founding_partners",icon: "🌟", label: "Founding Partners",        badge: foundingPending || undefined },
         { key: "partner_crm",      icon: "🎯", label: "CRM Partenaires" },
+        { key: "rental_policies",  icon: "🚚", label: "Politiques de location" },
       ],
     },
     {
@@ -9408,6 +9576,17 @@ export default function AdminPanel() {
           </div>
         );
       })()}
+      {activeTab === "rental_policies" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🚚 Politiques de location</h2>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Âge minimum, permis, caution et frais de livraison "même ville" — réglables par le partenaire, ajustables ici si besoin.</p>
+            </div>
+          </div>
+          <RentalPolicySection token={token} />
+        </div>
+      )}
       {activeTab === "ads" && (
         <div className={styles.tabContent}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>

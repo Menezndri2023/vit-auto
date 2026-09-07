@@ -65,6 +65,17 @@ const partnerBusinessSchema = new mongoose.Schema({
     // Réutilise le calcul Haversine déjà construit pour les frais de
     // livraison (server/services/deliveryFee.js) — null = pas de limite.
     maxDeliveryRadiusKm:          { type: Number, default: null },
+    // ── Frais de livraison "même ville" (restructuration 2026-09) ───────────
+    // Tarif fixe (devise du partenaire) appliqué quand la distance client↔véhicule
+    // reste sous deliverySameCityRadiusKm — remplace le calcul au km pour les
+    // livraisons courtes, où un barème linéaire donne un montant peu lisible.
+    // null = pas de tarif fixe, on retombe entièrement sur le barème pays
+    // (CountryConfig.deliveryBaseRate/deliveryRatePerKm) — jamais bloquant,
+    // comportement actuel strictement inchangé tant que le partenaire ne
+    // configure rien. Au-delà du rayon, le barème au km s'applique tel quel
+    // (déjà "plus cher si plus loin", pas de second montant à définir).
+    deliveryFeeSameCity:          { type: Number, default: null },
+    deliverySameCityRadiusKm:     { type: Number, default: 15 },
     additionalRequirements:       { type: String, trim: true, default: null },
   },
 

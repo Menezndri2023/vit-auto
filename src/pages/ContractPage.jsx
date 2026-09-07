@@ -6,7 +6,13 @@ import styles from "./ContractPage.module.css";
 const fmt = (n) => n != null && n !== 0 ? Number(n).toLocaleString("fr-FR", { maximumFractionDigits: 2 }) + " USD" : null;
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" }) : "—";
 
+// Restructuration réservation (2026-09) : ce document n'est plus présenté
+// comme un contrat de location définitif entre client et partenaire — c'est
+// un REÇU DE RÉSERVATION établi par VIT AUTO entre les trois parties, à
+// présenter au partenaire lors de la récupération du véhicule. Le partenaire
+// reste libre de délivrer ensuite son propre contrat définitif (optionnel).
 const TYPE_LABELS = { location: "Location de véhicule", essai: "Essai / Vente", chauffeur: "Service chauffeur", leasing: "Leasing / Achat en mensualités" };
+const RECEIPT_TITLE = "Reçu de réservation";
 
 export default function ContractPage() {
   const { bookingId } = useParams();
@@ -161,12 +167,21 @@ export default function ContractPage() {
           </div>
           <div className={styles.contractMeta}>
             <div className={styles.contractNumber}>N° {contract.contractNumber}</div>
-            <div className={styles.contractType}>{TYPE_LABELS[contract.type] || contract.type}</div>
+            <div className={styles.contractType}>{RECEIPT_TITLE} — {TYPE_LABELS[contract.type] || contract.type}</div>
             <div className={styles.contractDate}>Émis le {fmtDate(contract.createdAt)}</div>
             {contract.isSigned && (
               <div className={styles.contractSigned}>✅ Signé le {fmtDate(contract.signedAt)}</div>
             )}
           </div>
+        </div>
+
+        {/* ── Avis : reçu tripartite, pas un contrat définitif ── */}
+        <div className={styles.section} style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
+          <p style={{ margin: 0, fontSize: "0.85rem", color: "#1e3a8a" }}>
+            📋 Ce document est un <strong>reçu de réservation</strong>, établi par VIT AUTO entre les trois parties ci-dessous — il est à présenter
+            au partenaire lors de la récupération du véhicule. Il ne remplace pas un contrat de location définitif : le partenaire peut, s'il le
+            souhaite, délivrer son propre contrat au client (optionnel).
+          </p>
         </div>
 
         {/* ── Parties ── */}
@@ -182,6 +197,14 @@ export default function ContractPage() {
                   {contract.client.idType.toUpperCase()} : {contract.client.idNumber}
                 </span>
               )}
+            </div>
+          </div>
+          <div className={styles.partyBlock}>
+            <h3 className={styles.partyTitle}>🚗 VIT AUTO (Plateforme intermédiaire)</h3>
+            <div className={styles.partyInfo}>
+              <span>VIT AUTO</span>
+              <span>✉ contact@vit-auto.com</span>
+              <span>Met en relation client et partenaire, sans être partie au contrat de location définitif.</span>
             </div>
           </div>
           <div className={styles.partyBlock}>
@@ -251,18 +274,19 @@ export default function ContractPage() {
           {signed ? (
             <div className={styles.signedBlock}>
               <div className={styles.signedIcon}>✅</div>
-              <p className={styles.signedText}>Contrat signé électroniquement le {fmtDate(contract.signedAt)}</p>
+              <p className={styles.signedText}>Reçu signé électroniquement le {fmtDate(contract.signedAt)}</p>
               {contract.clientSignature && (
                 <img src={contract.clientSignature} alt="Signature" className={styles.signatureImg} />
               )}
               <p className={styles.signatureLegal}>
-                Signature numérique validée — Ce document a valeur contractuelle conformément aux lois en vigueur.
+                Signature numérique validée — ce reçu établit la réservation entre les trois parties et fait foi lors de la
+                récupération du véhicule chez le partenaire.
               </p>
             </div>
           ) : (
             <div className={styles.signatureBlock}>
               <p className={styles.signatureInfo}>
-                En signant ci-dessous, vous confirmez avoir lu et accepté toutes les conditions du présent contrat.
+                En signant ci-dessous, vous confirmez avoir lu et accepté les conditions ci-dessus pour conclure cette réservation.
               </p>
               <div className={styles.canvasWrapper}>
                 <canvas
@@ -289,7 +313,7 @@ export default function ContractPage() {
                   onClick={handleSign}
                   disabled={!hasDrawn || signing}
                 >
-                  {signing ? "Signature en cours..." : "✍️ Signer le contrat"}
+                  {signing ? "Signature en cours..." : "✍️ Signer le reçu"}
                 </button>
               </div>
             </div>
@@ -299,7 +323,7 @@ export default function ContractPage() {
         {/* ── Pied de page légal ── */}
         <div className={styles.contractFooter}>
           <p>VIT AUTO — Plateforme agréée de location et vente de véhicules — Abidjan, Côte d'Ivoire</p>
-          <p>Contrat N° {contract.contractNumber} · Généré le {fmtDate(contract.createdAt)}</p>
+          <p>Reçu N° {contract.contractNumber} · Généré le {fmtDate(contract.createdAt)}</p>
         </div>
       </div>
 

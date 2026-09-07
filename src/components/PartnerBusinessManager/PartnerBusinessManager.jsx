@@ -16,7 +16,8 @@ const EMPTY_RENTAL_POLICY = {
   minimumAge: "", minimumLicenseYears: "",
   identityDocumentRequired: "", drivingLicenseRequired: "",
   internationalLicenseRequired: "", depositRequired: "",
-  maxDeliveryRadiusKm: "", additionalRequirements: "",
+  maxDeliveryRadiusKm: "", deliveryFeeSameCity: "", deliverySameCityRadiusKm: "",
+  additionalRequirements: "",
 };
 
 // Représente le tri-état (aucune règle / oui / non) dans un <select> — un
@@ -75,6 +76,8 @@ const PartnerBusinessManager = () => {
         internationalLicenseRequired: toTristateValue(b.rentalPolicy?.internationalLicenseRequired),
         depositRequired:              toTristateValue(b.rentalPolicy?.depositRequired),
         maxDeliveryRadiusKm:  b.rentalPolicy?.maxDeliveryRadiusKm ?? "",
+        deliveryFeeSameCity:      b.rentalPolicy?.deliveryFeeSameCity ?? "",
+        deliverySameCityRadiusKm: b.rentalPolicy?.deliverySameCityRadiusKm ?? "",
         additionalRequirements: b.rentalPolicy?.additionalRequirements || "",
       },
     });
@@ -98,6 +101,8 @@ const PartnerBusinessManager = () => {
         minimumAge:          form.rentalPolicy.minimumAge          === "" ? null : Number(form.rentalPolicy.minimumAge),
         minimumLicenseYears: form.rentalPolicy.minimumLicenseYears === "" ? null : Number(form.rentalPolicy.minimumLicenseYears),
         maxDeliveryRadiusKm: form.rentalPolicy.maxDeliveryRadiusKm === "" ? null : Number(form.rentalPolicy.maxDeliveryRadiusKm),
+        deliveryFeeSameCity:      form.rentalPolicy.deliveryFeeSameCity      === "" ? null : Number(form.rentalPolicy.deliveryFeeSameCity),
+        deliverySameCityRadiusKm: form.rentalPolicy.deliverySameCityRadiusKm === "" ? null : Number(form.rentalPolicy.deliverySameCityRadiusKm),
         additionalRequirements: form.rentalPolicy.additionalRequirements.trim() || null,
         identityDocumentRequired:     fromTristateValue(form.rentalPolicy.identityDocumentRequired),
         drivingLicenseRequired:       fromTristateValue(form.rentalPolicy.drivingLicenseRequired),
@@ -252,6 +257,23 @@ const PartnerBusinessManager = () => {
               <label>Rayon de livraison maximum (km)</label>
               <input type="number" min="0" value={form.rentalPolicy.maxDeliveryRadiusKm}
                 onChange={(e) => setRP("maxDeliveryRadiusKm", e.target.value)} placeholder="Illimité" />
+            </div>
+            <div className={styles.field}>
+              <label>🚚 Frais de livraison — même ville</label>
+              <input type="number" min="0" value={form.rentalPolicy.deliveryFeeSameCity}
+                onChange={(e) => setRP("deliveryFeeSameCity", e.target.value)}
+                placeholder="Suggestion : 100 à 150 (votre devise locale)" />
+              <span className={styles.hint} style={{ margin: "4px 0 0" }}>
+                Tarif fixe si la livraison reste dans le rayon ci-dessous. Vide = tarif standard VIT AUTO au kilomètre.
+              </span>
+            </div>
+            <div className={styles.field}>
+              <label>Rayon "même ville" (km)</label>
+              <input type="number" min="0" value={form.rentalPolicy.deliverySameCityRadiusKm}
+                onChange={(e) => setRP("deliverySameCityRadiusKm", e.target.value)} placeholder="15" />
+              <span className={styles.hint} style={{ margin: "4px 0 0" }}>
+                Au-delà, le tarif au kilomètre standard s'applique.
+              </span>
             </div>
             <div className={styles.field}>
               <label>🪪 Pièce d'identité vérifiée</label>

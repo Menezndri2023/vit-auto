@@ -399,9 +399,19 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
                         {identityVerified ? "✅ Identité vérifiée" : (snap.frontImage ? "📄 Document fourni" : "⏳ Aucun document")}
                       </div>
                       {(snap.frontImage || snap.backImage) && (
-                        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                          {snap.frontImage && <a href={snap.frontImage} target="_blank" rel="noopener noreferrer"><img src={snap.frontImage} alt="Recto pièce d'identité" style={{ maxHeight: 90, borderRadius: 8, border: "1px solid #e2e8f0" }} /></a>}
-                          {snap.backImage && <a href={snap.backImage} target="_blank" rel="noopener noreferrer"><img src={snap.backImage} alt="Verso pièce d'identité" style={{ maxHeight: 90, borderRadius: 8, border: "1px solid #e2e8f0" }} /></a>}
+                        <div style={{ display: "flex", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
+                          {snap.frontImage && (
+                            <div style={{ textAlign: "center" }}>
+                              <a href={snap.frontImage} target="_blank" rel="noopener noreferrer"><img src={snap.frontImage} alt="Recto pièce d'identité" style={{ maxHeight: 90, borderRadius: 8, border: "1px solid #e2e8f0" }} /></a>
+                              <a href={snap.frontImage} download={`identite-recto-${order.reference || order.id}.jpg`} style={{ display: "block", fontSize: ".72rem", color: "#2563eb", marginTop: 2 }}>💾 Télécharger</a>
+                            </div>
+                          )}
+                          {snap.backImage && (
+                            <div style={{ textAlign: "center" }}>
+                              <a href={snap.backImage} target="_blank" rel="noopener noreferrer"><img src={snap.backImage} alt="Verso pièce d'identité" style={{ maxHeight: 90, borderRadius: 8, border: "1px solid #e2e8f0" }} /></a>
+                              <a href={snap.backImage} download={`identite-verso-${order.reference || order.id}.jpg`} style={{ display: "block", fontSize: ".72rem", color: "#2563eb", marginTop: 2 }}>💾 Télécharger</a>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -427,9 +437,19 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
                         {licExpired && <div style={{ fontSize:".75rem", color:"#dc2626", fontWeight:700, marginTop:4 }}>⚠️ Permis expiré</div>}
                         <InfoLine label="Catégories" value={licCats} />
                         {(snap.licenseFrontImage || snap.licenseBackImage) && (
-                          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                            {snap.licenseFrontImage && <a href={snap.licenseFrontImage} target="_blank" rel="noopener noreferrer"><img src={snap.licenseFrontImage} alt="Recto permis" style={{ maxHeight: 90, borderRadius: 8, border: "1px solid #e2e8f0" }} /></a>}
-                            {snap.licenseBackImage && <a href={snap.licenseBackImage} target="_blank" rel="noopener noreferrer"><img src={snap.licenseBackImage} alt="Verso permis" style={{ maxHeight: 90, borderRadius: 8, border: "1px solid #e2e8f0" }} /></a>}
+                          <div style={{ display: "flex", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
+                            {snap.licenseFrontImage && (
+                              <div style={{ textAlign: "center" }}>
+                                <a href={snap.licenseFrontImage} target="_blank" rel="noopener noreferrer"><img src={snap.licenseFrontImage} alt="Recto permis" style={{ maxHeight: 90, borderRadius: 8, border: "1px solid #e2e8f0" }} /></a>
+                                <a href={snap.licenseFrontImage} download={`permis-recto-${order.reference || order.id}.jpg`} style={{ display: "block", fontSize: ".72rem", color: "#2563eb", marginTop: 2 }}>💾 Télécharger</a>
+                              </div>
+                            )}
+                            {snap.licenseBackImage && (
+                              <div style={{ textAlign: "center" }}>
+                                <a href={snap.licenseBackImage} target="_blank" rel="noopener noreferrer"><img src={snap.licenseBackImage} alt="Verso permis" style={{ maxHeight: 90, borderRadius: 8, border: "1px solid #e2e8f0" }} /></a>
+                                <a href={snap.licenseBackImage} download={`permis-verso-${order.reference || order.id}.jpg`} style={{ display: "block", fontSize: ".72rem", color: "#2563eb", marginTop: 2 }}>💾 Télécharger</a>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -633,6 +653,27 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
                   <span>✕</span><div><strong>Refuser</strong><span>Avec motif (optionnel)</span></div>
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* ── Préparation — checklist simplifiée, adaptée agence/livraison
+              (restructuration 2026-09) : avant, cette étape n'était qu'un
+              bouton "Commencer la préparation" sans aucun repère sur ce qu'il
+              y a réellement à faire — documents client à vérifier, reçu à
+              imprimer, et une consigne différente selon que le client vient
+              chercher le véhicule ou se fait livrer. ─────────────────────── */}
+          {order.status === "preparing" && (subType === "location_agence" || subType === "location_domicile") && (
+            <div className={styles.sectionCard} style={{ border: "1.5px solid #bae6fd", background: "#f0f9ff" }}>
+              <div className={styles.sectionCardTitle}>📋 À faire avant la remise du véhicule</div>
+              <ul style={{ margin: "6px 0 10px", paddingLeft: 18, fontSize: ".85rem", color: "#334155", lineHeight: 1.6 }}>
+                <li>Vérifiez les documents du client fournis avec sa réservation (identité, et permis si le véhicule est loué sans chauffeur — voir ci-dessus) — vous n'avez pas à les redemander.</li>
+                {subType === "location_agence" ? (
+                  <li>Préparez le véhicule pour un retrait en agence : plein, propreté, état des lieux à faire signer sur place.</li>
+                ) : (
+                  <li>Préparez le véhicule pour la livraison : confirmez l'adresse ci-contre et l'heure prévue avec le client si besoin.</li>
+                )}
+                <li>Imprimez ou ayez sous la main le <Link to={`/contract/${order.id}`} target="_blank" rel="noopener noreferrer" style={{ color: "#2563eb", fontWeight: 600 }}>reçu de réservation</Link> — à faire signer par le client {subType === "location_agence" ? "à l'agence" : "à la livraison"}.</li>
+              </ul>
             </div>
           )}
 
