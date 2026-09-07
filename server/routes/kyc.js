@@ -13,8 +13,8 @@ router.post("/submit-driver-license", protect, kyc.submitDriverLicense);
 router.delete("/reset",               protect, kyc.resetKyc);
 
 // ── Administration ────────────────────────────────────────────────────────────
-router.get("/admin/list",             protect, authorizeAdmin, kycScope, kyc.getKycList);
-router.get("/admin/:userId",          protect, authorizeAdmin, kycScope, validateObjectId("userId"), kyc.getKycDetail);
-router.patch("/admin/:userId/review", protect, authorizeAdmin, kycScope, validateObjectId("userId"), kyc.adminReviewKyc);
+router.get("/admin/list",             protect, authorizeAdmin, requireAdminScope("kyc"), kycScope, kyc.getKycList);
+router.get("/admin/:userId",          protect, authorizeAdmin, requireAdminScope("kyc"), kycScope, validateObjectId("userId"), kyc.getKycDetail);
+router.patch("/admin/:userId/review", protect, authorizeAdmin, requireAdminScope("kyc"), kycScope, validateObjectId("userId"), kyc.adminReviewKyc);
 
 export default router;

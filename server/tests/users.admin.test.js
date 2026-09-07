@@ -218,15 +218,19 @@ describe("updateAdminScope", () => {
   // qui l'avait encore rendait la plateforme impossible à administrer depuis
   // l'UI (updateAdminScope exige déjà un accès complet ou super_admin pour
   // modifier des scopes — plus personne n'aurait pu se le rendre).
-  it("refuse de retirer l'accès complet au DERNIER admin qui l'a encore", async () => {
-    const onlyFullAccessAdmin = await createUser({ role: "admin", adminScope: [] });
+  // Permissions explicites (2026-09) : « accès complet » = adminScope contenant
+  // "super_admin" (ADMIN GÉNÉRAL). Un tableau VIDE ne donne plus accès à rien —
+  // auparavant il valait accès complet, si bien qu'un compte promu admin
+  // devenait administrateur général par simple oubli.
+  it("refuse de retirer son statut au DERNIER administrateur général", async () => {
+    const onlyGeneral = await createUser({ role: "admin", adminScope: ["super_admin"] });
     const { req, res } = mockReqRes({
-      user: onlyFullAccessAdmin, params: { id: onlyFullAccessAdmin._id.toString() }, body: { scope: ["kyc"] },
+      user: onlyGeneral, params: { id: onlyGeneral._id.toString() }, body: { scope: ["kyc"] },
     });
     await updateAdminScope(req, res);
     expect(res.statusCode).toBe(400);
-    const reloaded = await User.findById(onlyFullAccessAdmin._id);
-    expect(reloaded.adminScope).toEqual([]); // inchangé
+    const reloaded = await User.findById(onlyGeneral._id);
+    expect(reloaded.adminScope).toEqual(["super_admin"]); // inchangé
   });
 
   // Bug réel corrigé (audit) : le comptage des "autres admins à accès complet"
@@ -234,21 +238,21 @@ describe("updateAdminScope", () => {
   // comptait quand même comme filet de sécurité valide, permettant de
   // verrouiller la plateforme en retirant l'accès complet au dernier admin
   // réellement actif.
-  it("refuse de retirer l'accès complet si le SEUL autre admin à accès complet est désactivé", async () => {
-    const target = await createUser({ role: "admin", adminScope: [] });
-    await createUser({ role: "admin", adminScope: [], isActive: false });
+  it("refuse si le SEUL autre administrateur général est désactivé", async () => {
+    const target = await createUser({ role: "admin", adminScope: ["super_admin"] });
+    await createUser({ role: "admin", adminScope: ["super_admin"], isActive: false });
     const { req, res } = mockReqRes({
       user: target, params: { id: target._id.toString() }, body: { scope: ["kyc"] },
     });
     await updateAdminScope(req, res);
     expect(res.statusCode).toBe(400);
     const reloaded = await User.findById(target._id);
-    expect(reloaded.adminScope).toEqual([]); // inchangé
+    expect(reloaded.adminScope).toEqual(["super_admin"]); // inchangé
   });
 
-  it("autorise de restreindre un admin à accès complet s'il en reste un AUTRE", async () => {
-    const admin1 = await createUser({ role: "admin", adminScope: [] });
-    const admin2 = await createUser({ role: "admin", adminScope: [] });
+  it("autorise de restreindre un administrateur général s'il en reste un AUTRE", async () => {
+    const admin1 = await createUser({ role: "admin", adminScope: ["super_admin"] });
+    const admin2 = await createUser({ role: "admin", adminScope: ["super_admin"] });
     const { req, res } = mockReqRes({
       user: admin1, params: { id: admin2._id.toString() }, body: { scope: ["kyc"] },
     });
@@ -256,15 +260,18 @@ describe("updateAdminScope", () => {
     expect(res.statusCode).toBe(200);
   });
 
-  it("un admin non scopé (adminScope=[], accès complet historique) peut modifier les permissions", async () => {
-    const legacyAdmin = await createUser({ role: "admin", adminScope: [] });
-    const target = await createUser({ role: "admin", adminScope: [] });
+  // Sémantique inversée (2026-09) : un admin SANS permission ne peut plus rien,
+  // et surtout pas s'attribuer des droits ni en attribuer à un autre.
+  it("un admin sans aucune permission ne peut PAS modifier les permissions", async () => {
+    const sansDroit = await createUser({ role: "admin", adminScope: [] });
+    const target = await createUser({ role: "admin", adminScope: ["finance"] });
     const { req, res } = mockReqRes({
-      user: legacyAdmin, params: { id: target._id.toString() }, body: { scope: ["kyc", "support"] },
+      user: sansDroit, params: { id: target._id.toString() }, body: { scope: ["kyc", "support"] },
     });
     await updateAdminScope(req, res);
-    expect(res.statusCode).toBe(200);
-    expect(res.body.adminScope).toEqual(["kyc", "support"]);
+    expect(res.statusCode).toBe(403);
+    const unchanged = await User.findById(target._id).select("adminScope");
+    expect(unchanged.adminScope).toEqual(["finance"]);
   });
 
   it("un super_admin peut modifier les permissions d'un autre admin", async () => {

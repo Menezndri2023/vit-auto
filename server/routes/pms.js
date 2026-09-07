@@ -1,5 +1,5 @@
 import express from "express";
-import { authenticate as protect } from "../middleware/auth.js";
+import { authenticate as protect, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 import {
   getPMSOverview,
@@ -75,6 +75,6 @@ const isAdmin = [protect, requireAdmin];
 
 router.get  ("/admin/stats",              isAdmin, getAdminPMSStats);
 router.get  ("/admin/showrooms",          isAdmin, getAdminShowrooms);
-router.patch("/admin/showrooms/:id/toggle", vid, isAdmin, adminToggleShowroom);
+router.patch("/admin/showrooms/:id/toggle", vid, isAdmin, requireAdminScope("partners"), adminToggleShowroom);
 
 export default router;

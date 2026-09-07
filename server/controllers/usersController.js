@@ -11,6 +11,7 @@ import { sendEmail, identityRejectedTemplate } from "../config/email.js";
 import { logAction } from "../middleware/auditLog.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
 import { isValidCountryCode } from "../utils/countries.js";
+import { ADMIN_SCOPES } from "../constants/adminScopes.js";
 import PartnerVerification from "../models/PartnerVerification.js";
 import PartnerCertification from "../models/PartnerCertification.js";
 import PartnerOnboarding from "../models/PartnerOnboarding.js";
@@ -207,16 +208,23 @@ export const updateUserRole = async (req, res) => {
       return res.status(400).json({ message: "Rôle invalide." });
     }
     const previousRole = await User.findById(req.params.id).select("role").lean();
-    // Créer un admin (ou démettre un admin existant) équivaut à distribuer des
-    // permissions complètes (voir updateAdminScope — adminScope=[] = accès
-    // total) : réservé à un super admin, sinon cette route contournait
-    // entièrement la protection déjà en place sur /admin/:id/scope.
-    const actingScopes = req.user.adminScope || [];
-    const isSuperAdmin = actingScopes.length === 0 || actingScopes.includes("super_admin");
-    if ((role === "admin" || previousRole?.role === "admin") && !isSuperAdmin) {
-      return res.status(403).json({ message: "Seul un super admin peut créer ou modifier un compte admin." });
+    // Créer un admin (ou démettre un admin existant) : réservé à
+    // l'ADMINISTRATEUR GÉNÉRAL, sinon cette route contournait entièrement la
+    // protection déjà en place sur /admin/:id/scope.
+    const isGeneral = (req.user.adminScope || []).includes("super_admin");
+    if ((role === "admin" || previousRole?.role === "admin") && !isGeneral) {
+      return res.status(403).json({ message: "Seul l'administrateur général peut créer ou modifier un compte admin." });
     }
-    const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true }).select("-password");
+    // Un compte promu admin part SANS aucune permission : elles lui sont
+    // attribuées explicitement ensuite depuis « Rôles & Permissions ». Sans
+    // cette remise à zéro, un compte anciennement scopé (rétrogradé puis
+    // repromu) reprendrait ses anciens droits sans décision explicite.
+    // Symétriquement, un admin rétrogradé perd ses permissions.
+    const update = { role };
+    if (role === "admin" && previousRole?.role !== "admin") update.adminScope = [];
+    if (role !== "admin") update.adminScope = [];
+
+    const user = await User.findByIdAndUpdate(req.params.id, update, { new: true }).select("-password");
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
     // Journal d'audit global (changement de rôle — action sensible)
     await logAction(req, "user.role_change", "User", req.params.id, {
@@ -290,7 +298,12 @@ export const getAdminAccounts = async (req, res) => {
 // ── PATCH /api/users/admin/:id/scope ──────────────────────────────────────
 export const updateAdminScope = async (req, res) => {
   try {
-    const VALID_SCOPES = ["super_admin", "finance", "kyc", "import_export", "support", "moderation"];
+    // Liste importée depuis la source unique de vérité (constants/adminScopes.js)
+    // plutôt que recopiée ici : cette copie locale n'avait PAS été mise à jour
+    // lors de l'ajout des domaines users/bookings/catalogue/partners — les
+    // attribuer renvoyait « Permissions invalides », rendant les nouveaux
+    // domaines inattribuables.
+    const VALID_SCOPES = ADMIN_SCOPES;
     const { scope } = req.body;
     if (!Array.isArray(scope) || scope.some((s) => !VALID_SCOPES.includes(s))) {
       return res.status(400).json({ message: "Permissions invalides." });
@@ -307,9 +320,8 @@ export const updateAdminScope = async (req, res) => {
     // Seul un super admin (ou un compte non encore scopé, accès complet
     // historique) peut modifier les permissions d'un autre admin — sinon un
     // admin "finance" pourrait s'auto-attribuer "super_admin".
-    const actingScopes = req.user.adminScope || [];
-    if (actingScopes.length > 0 && !actingScopes.includes("super_admin")) {
-      return res.status(403).json({ message: "Seul un super admin peut modifier les permissions." });
+    if (!(req.user.adminScope || []).includes("super_admin")) {
+      return res.status(403).json({ message: "Seul l'administrateur général peut modifier les permissions." });
     }
 
     const before = target.adminScope || [];
@@ -319,8 +331,8 @@ export const updateAdminScope = async (req, res) => {
     // impossible à administrer depuis l'UI — updateAdminScope exige déjà un
     // accès complet ou super_admin pour modifier des scopes, donc plus
     // personne n'aurait pu se le rendre.
-    const wasFullAccess = before.length === 0 || before.includes("super_admin");
-    const willBeFullAccess = scope.length === 0 || scope.includes("super_admin");
+    const wasFullAccess = before.includes("super_admin");
+    const willBeFullAccess = scope.includes("super_admin");
     if (wasFullAccess && !willBeFullAccess) {
       // isActive:true est indispensable ici (bug réel trouvé en audit) — sans
       // lui, un admin à accès complet mais DÉSACTIVÉ compte quand même comme
@@ -330,10 +342,10 @@ export const updateAdminScope = async (req, res) => {
         role: "admin",
         isActive: true,
         _id: { $ne: target._id },
-        $or: [{ adminScope: { $size: 0 } }, { adminScope: "super_admin" }],
+        adminScope: "super_admin",
       });
       if (otherFullAccess === 0) {
-        return res.status(400).json({ message: "Impossible : au moins un administrateur doit conserver l'accès complet sur la plateforme." });
+        return res.status(400).json({ message: "Impossible : au moins un administrateur général actif doit exister sur la plateforme." });
       }
     }
 
@@ -358,10 +370,8 @@ export const toggleUserActive = async (req, res) => {
     // restreint (ex: scope "moderation") pouvait désactiver le compte d'un
     // super admin, neutralisant sa propre chaîne de contrôle.
     if (user.role === "admin") {
-      const actingScopes = req.user.adminScope || [];
-      const isSuperAdmin = actingScopes.length === 0 || actingScopes.includes("super_admin");
-      if (!isSuperAdmin) {
-        return res.status(403).json({ message: "Seul un super admin peut activer/désactiver un compte admin." });
+      if (!(req.user.adminScope || []).includes("super_admin")) {
+        return res.status(403).json({ message: "Seul l'administrateur général peut activer/désactiver un compte admin." });
       }
     }
     const wasActive = user.isActive;

@@ -230,17 +230,26 @@ describe("chatController — scope 'support' sur les conversations support (séc
     expect(chat.participants.map(String)).toContain(supportAdmin._id.toString());
   });
 
-  it("un admin à accès complet (adminScope=[]) garde l'accès (comportement historique)", async () => {
-    await createUser({ role: "admin", isActive: true });
+  // Permissions explicites (2026-09) : l'ADMIN GÉNÉRAL passe partout, tandis
+  // qu'un admin sans aucune permission n'accède plus à rien — auparavant un
+  // adminScope vide valait « accès complet », donc tout compte admin
+  // fraîchement promu pouvait lire les conversations de support.
+  it("l'administrateur général accède à une conversation support, un admin sans permission non", async () => {
+    await createUser({ role: "admin", isActive: true, adminScope: ["super_admin"] });
     const client = await createUser();
     const { req: cReq, res: cRes } = mockReqRes({ user: client, body: { type: "client_support" } });
     await getOrCreateChat(cReq, cRes);
     const chatId = cRes.body.chat._id.toString();
 
-    const fullAccessAdmin = await createUser({ role: "admin", adminScope: [] });
-    const { req, res } = mockReqRes({ user: fullAccessAdmin, params: { id: chatId } });
-    await getMessages(req, res);
-    expect(res.statusCode).not.toBe(404);
+    const general = await createUser({ role: "admin", adminScope: ["super_admin"] });
+    const ok = mockReqRes({ user: general, params: { id: chatId } });
+    await getMessages(ok.req, ok.res);
+    expect(ok.res.statusCode).not.toBe(404);
+
+    const sansDroit = await createUser({ role: "admin", adminScope: [] });
+    const refus = mockReqRes({ user: sansDroit, params: { id: chatId } });
+    await getMessages(refus.req, refus.res);
+    expect(refus.res.statusCode).toBe(404);
   });
 });
 

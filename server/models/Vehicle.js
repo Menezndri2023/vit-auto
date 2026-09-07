@@ -318,7 +318,11 @@ const vehicleSchema = new mongoose.Schema({
   // CATALOGUE normal, jamais une entrée automatique dans le carousel/vedette
   // sans validation explicite d'un admin.
   featured:       { type: Boolean, default: false },
-  boostLevel:     { type: Number,  default: 0 },    // informationnel — n'influence jamais featured
+  // Poids de la mise en avant PAYANTE (voir subscriptionController.adminApproveBoost) :
+  // 1 = 24h, 2 = 7j, 3 = 30j, 4 = international. Utilisé par le tri du catalogue
+  // (getVehicles) UNIQUEMENT tant que `sponsoredUntil` n'est pas dépassée —
+  // n'influence jamais `featured`, qui reste une curation manuelle de l'admin.
+  boostLevel:     { type: Number,  default: 0 },
   sponsoredUntil: { type: Date,    default: null },
 
   // ── Statistiques ──────────────────────────────────────────

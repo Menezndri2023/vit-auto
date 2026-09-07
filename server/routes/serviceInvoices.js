@@ -1,6 +1,6 @@
 import express from "express";
 import * as si from "../controllers/serviceInvoiceController.js";
-import { authenticate, authorizeAdmin } from "../middleware/auth.js";
+import { authenticate, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 import { generateServiceInvoicePDF } from "../utils/pdfGenerator.js";
 import ServiceInvoice from "../models/ServiceInvoice.js";
@@ -25,6 +25,6 @@ router.get("/:id/pdf", vid, authenticate, async (req, res) => {
 });
 
 // ── Admin ─────────────────────────────────────────────────
-router.get("/", authenticate, authorizeAdmin, si.getAllServiceInvoices);
+router.get("/", authenticate, authorizeAdmin, requireAdminScope("finance"), si.getAllServiceInvoices);
 
 export default router;

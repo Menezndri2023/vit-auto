@@ -24,7 +24,7 @@ router.post("/", authenticate, createReviewLimiter, r.createReview);
 
 // ── Admin ─────────────────────────────────────────────────
 router.get  ("/admin/list", authenticate, authorizeAdmin, moderationScope, r.adminListReviews);
-router.patch("/:id/hide",   validateObjectId(), authenticate, authorizeAdmin, moderationScope, r.hideReview);
-router.patch("/:id/unhide", validateObjectId(), authenticate, authorizeAdmin, moderationScope, r.unhideReview);
+router.patch("/:id/hide",   validateObjectId(), authenticate, authorizeAdmin, requireAdminScope("moderation"), moderationScope, r.hideReview);
+router.patch("/:id/unhide", validateObjectId(), authenticate, authorizeAdmin, requireAdminScope("moderation"), moderationScope, r.unhideReview);
 
 export default router;

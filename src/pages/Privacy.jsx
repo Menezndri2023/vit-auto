@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { COMPANY, COMPANY_ADDRESS } from "../constants/company";
 
 const Section = ({ title, children }) => (
   <div style={{ marginBottom: 40 }}>
@@ -46,7 +47,7 @@ export default function Privacy() {
       </div>
 
       <Section title="1. Responsable du traitement">
-        <p><strong>VIT AUTO</strong> — Route 1029, Hay Sidi Maârouf 1, 20520 Casablanca, Maroc.</p>
+        <p><strong>{COMPANY.name}</strong> — {COMPANY_ADDRESS}.</p>
         <p style={{ marginTop: 8 }}>
           Contact DPO : <a href="mailto:contact@vit-auto.com" style={{ color: "#ff4d2d" }}>contact@vit-auto.com</a>
           {" "}· <a href="tel:+2120607742672" style={{ color: "#ff4d2d" }}>+212 06 07 74 26 72</a>

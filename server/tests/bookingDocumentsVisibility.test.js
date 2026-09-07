@@ -86,6 +86,43 @@ describe("getBookingDetail — visibilité des documents client", () => {
     expect(res.status).toHaveBeenCalledWith(403);
   });
 
+  // « Les documents doivent être visibles et disponibles pour l'admin ET le
+  // partenaire dès qu'il y a réservation » — quel que soit le TYPE de
+  // réservation. La résolution du propriétaire couvre véhicule, chauffeur ET
+  // activité (activity.owner a longtemps manqué à plusieurs endroits).
+  it("expose les documents au partenaire quel que soit le type de réservation (chauffeur, activité)", async () => {
+    const { default: Driver }   = await import("../models/Driver.js");
+    const { default: Activity } = await import("../models/Activity.js");
+    const owner  = await createUser({ role: "partenaire" });
+    const client = await createUser({ role: "client", emailVerified: true });
+
+    const driver = await Driver.create({
+      firstName: "Chauffeur", lastName: "Pro", title: "Chauffeur", tarifHeure: 3000,
+      disponibilite: "Temps plein", zone: "Abidjan", experience: "5 ans",
+      profilePhoto: "https://cdn.example.test/p.jpg", cv: "https://cdn.example.test/cv.pdf",
+      status: "approved", owner: owner._id,
+    });
+    const activity = await Activity.create({
+      title: "Jet-ski", activityType: "JETSKI", price: 25000, owner: owner._id, status: "approved",
+    });
+
+    for (const [label, extra] of [["chauffeur", { driver: driver._id }], ["activité", { activity: activity._id }]]) {
+      const booking = await Booking.create({
+        type: label === "chauffeur" ? "chauffeur" : "activite",
+        clientInfo: { firstName: "Jean", lastName: "Client", email: "jean@example.test" },
+        client: client._id,
+        adminValidation: { status: "approved" },
+        clientKycSnapshot: { idType: "cni", frontImage: `${IMG}/id.jpg`, selfie: `${IMG}/selfie.jpg` },
+        ...extra,
+      });
+      const { req, res } = mockReqRes({ user: owner, params: { id: booking._id.toString() } });
+      await getBookingDetail(req, res);
+      expect(res.status, label).not.toHaveBeenCalledWith(403);
+      expect(res.body.booking.clientKycSnapshot.frontImage, label).toBe(`${IMG}/id.jpg`);
+      expect(res.body.booking.clientKycSnapshot.selfie, label).toBeUndefined();
+    }
+  });
+
   it("renvoie 404 — jamais 500 — sur un id de réservation qui n'est pas un ObjectId", async () => {
     const owner = await createUser({ role: "partenaire" });
     const { req, res } = mockReqRes({ user: owner, params: { id: "1757230000000" } });

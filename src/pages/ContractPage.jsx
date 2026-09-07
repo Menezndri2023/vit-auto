@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import styles from "./ContractPage.module.css";
+import { COMPANY, COMPANY_ADDRESS } from "../constants/company";
 
 const fmt = (n) => n != null && n !== 0 ? Number(n).toLocaleString("fr-FR", { maximumFractionDigits: 2 }) + " USD" : null;
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" }) : "—";
@@ -322,7 +323,7 @@ export default function ContractPage() {
 
         {/* ── Pied de page légal ── */}
         <div className={styles.contractFooter}>
-          <p>VIT AUTO — Plateforme agréée de location et vente de véhicules — Abidjan, Côte d'Ivoire</p>
+          <p>{COMPANY.name} — Plateforme agréée de location et vente de véhicules — {COMPANY_ADDRESS}</p>
           <p>Reçu N° {contract.contractNumber} · Généré le {fmtDate(contract.createdAt)}</p>
         </div>
       </div>

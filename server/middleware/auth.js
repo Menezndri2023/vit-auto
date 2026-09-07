@@ -91,20 +91,44 @@ export const authorizeAdmin = requireRole("admin");
 
 // ── Permissions fines admin (Rôles & Permissions) ───────────────────────────
 // Doit être appelée APRÈS authenticate (ne remplace pas authorizeAdmin, la
-// combine : req.user.role === "admin" est déjà requis en amont sur ces
-// routes). Un admin avec adminScope=[] (défaut — comptes existants avant
-// l'ajout de ce champ) ou contenant "super_admin" garde un accès complet :
-// ce garde-fou n'exclut jamais un admin par accident, il n'ajoute des
-// restrictions qu'aux comptes explicitement scopés par un super admin.
+// combine : req.user.role === "admin" est déjà requis en amont sur ces routes).
+//
+// Deux niveaux seulement (voir constants/adminScopes.js) :
+//   - "super_admin" = ADMIN GÉNÉRAL, passe partout ;
+//   - tout autre scope = accès assigné, strictement limité à son domaine.
+//
+// Un tableau VIDE ne donne plus accès à rien. Il valait auparavant « accès
+// complet » (compatibilité avec les comptes antérieurs au champ) : un admin
+// nouvellement promu devenait alors administrateur général par simple oubli,
+// et une permission retirée n'avait aucun effet tant qu'il n'en restait
+// aucune. La migration "admin-scope-explicit-super-admin" (server.js) a écrit
+// ["super_admin"] sur tous les comptes historiquement à accès complet avant
+// ce changement de sémantique.
 export const requireAdminScope = (scope) => (req, res, next) => {
   if (!req.user || req.user.role !== "admin") {
     return res.status(403).json({ message: "Accès réservé aux administrateurs." });
   }
   const scopes = req.user.adminScope || [];
-  if (scopes.length === 0 || scopes.includes("super_admin") || scopes.includes(scope)) {
+  if (scopes.includes("super_admin") || scopes.includes(scope)) {
     return next();
   }
-  return res.status(403).json({ message: `Accès refusé — permission "${scope}" requise.` });
+  return res.status(403).json({
+    message: `Accès refusé — permission « ${scope} » requise. Demandez-la à un administrateur général.`,
+    requiredScope: scope,
+  });
+};
+
+// Réservé à l'ADMIN GÉNÉRAL (gestion des comptes admin eux-mêmes, journal
+// d'audit) — aucun accès assigné ne peut y suppléer.
+export const requireGeneralAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== "admin") {
+    return res.status(403).json({ message: "Accès réservé aux administrateurs." });
+  }
+  if ((req.user.adminScope || []).includes("super_admin")) return next();
+  return res.status(403).json({
+    message: "Action réservée à l'administrateur général.",
+    requiredScope: "super_admin",
+  });
 };
 
 // ── Vérification propriété — l'utilisateur doit être propriétaire OU admin ──

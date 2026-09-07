@@ -1,7 +1,7 @@
 import express from "express";
 import { rateLimit } from "express-rate-limit";
 import * as u from "../controllers/usersController.js";
-import { authenticate, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
+import { authenticate, authorizeAdmin, requireAdminScope, requireGeneralAdmin } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 import { validate } from "../middleware/validate.js";
 import { requestEmailChangeSchema, deactivateAccountSchema } from "../validators/auth.validators.js";
@@ -26,22 +26,25 @@ router.post("/me/deactivate",   strictLimiter, authenticate, validate(deactivate
 router.get("/:id/public",      validateObjectId(), u.getPublicProfile);
 
 // ── Admin ─────────────────────────────────────────────────────────────────
-router.get("/",                authenticate, authorizeAdmin, u.getUsers);
+// Permissions assignées (2026-09) : la gestion des comptes relève du scope
+// "users", les pièces d'identité du scope "kyc", et tout ce qui touche aux
+// comptes ADMIN eux-mêmes est réservé à l'administrateur général.
+router.get("/",                authenticate, authorizeAdmin, requireAdminScope("users"), u.getUsers);
 router.get("/stats",           authenticate, authorizeAdmin, u.getAdminStats);
-router.get("/pending-identity",authenticate, authorizeAdmin, u.getPendingIdentities);
+router.get("/pending-identity",authenticate, authorizeAdmin, requireAdminScope("kyc"), u.getPendingIdentities);
 // Bug réel corrigé (audit sécurité) : aucune vérification de scope — un admin
 // scopé uniquement "support"/"moderation" pouvait lister tous les comptes
 // admin (emails, scopes). requireAdminScope("super_admin") reproduit
 // exactement la garde déjà appliquée manuellement ailleurs dans ce contrôleur
 // (adminScope=[] = accès complet, comportement historique inchangé).
-router.get("/admin/accounts",  authenticate, authorizeAdmin, requireAdminScope("super_admin"), u.getAdminAccounts);
-router.patch("/admin/:id/scope", authenticate, authorizeAdmin, validateObjectId(), u.updateAdminScope);
-router.get("/:id",             authenticate, authorizeAdmin, validateObjectId(), u.getUser);
-router.get("/:id/trust-overview", authenticate, authorizeAdmin, validateObjectId(), u.getUserTrustOverview);
-router.patch("/:id/role",      authenticate, authorizeAdmin, validateObjectId(), u.updateUserRole);
-router.patch("/:id/phone",     authenticate, authorizeAdmin, validateObjectId(), u.adminUpdatePhone);
-router.patch("/:id/toggle",    authenticate, authorizeAdmin, validateObjectId(), u.toggleUserActive);
-router.patch("/:id/verify-identity", authenticate, authorizeAdmin, validateObjectId(), u.adminVerifyIdentity);
-router.delete("/:id",          authenticate, authorizeAdmin, validateObjectId(), u.deleteUser);
+router.get("/admin/accounts",  authenticate, authorizeAdmin, requireGeneralAdmin, u.getAdminAccounts);
+router.patch("/admin/:id/scope", authenticate, authorizeAdmin, requireGeneralAdmin, validateObjectId(), u.updateAdminScope);
+router.get("/:id",             authenticate, authorizeAdmin, requireAdminScope("users"), validateObjectId(), u.getUser);
+router.get("/:id/trust-overview", authenticate, authorizeAdmin, requireAdminScope("users"), validateObjectId(), u.getUserTrustOverview);
+router.patch("/:id/role",      authenticate, authorizeAdmin, requireAdminScope("users"), validateObjectId(), u.updateUserRole);
+router.patch("/:id/phone",     authenticate, authorizeAdmin, requireAdminScope("users"), validateObjectId(), u.adminUpdatePhone);
+router.patch("/:id/toggle",    authenticate, authorizeAdmin, requireAdminScope("users"), validateObjectId(), u.toggleUserActive);
+router.patch("/:id/verify-identity", authenticate, authorizeAdmin, requireAdminScope("kyc"), validateObjectId(), u.adminVerifyIdentity);
+router.delete("/:id",          authenticate, authorizeAdmin, requireAdminScope("users"), validateObjectId(), u.deleteUser);
 
 export default router;

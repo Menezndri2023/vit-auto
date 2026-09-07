@@ -1,7 +1,7 @@
 import express from "express";
 import * as v from "../controllers/vehicleController.js";
 import { createVehicleInspectionReport, getVehicleInspectionReport } from "../controllers/inspectionController.js";
-import { authenticate, authorizeAdmin, optionalAuth } from "../middleware/auth.js";
+import { authenticate, authorizeAdmin, optionalAuth, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 
 const router = express.Router();
@@ -22,8 +22,8 @@ router.post("/bulk-update", authenticate, v.bulkUpdateVehicles);            // a
 // ── Admin — routes statiques ──────────────────────────────
 router.get("/pending", authenticate, authorizeAdmin, v.getPendingVehicles);  // annonces en attente
 router.post("/sync-availability", authenticate, authorizeAdmin, v.syncAllAvailability);
-router.post("/backfill-thumbnails", authenticate, authorizeAdmin, v.backfillThumbnails);
-router.post("/backfill-descriptions", authenticate, authorizeAdmin, v.backfillDescriptions);
+router.post("/backfill-thumbnails", authenticate, authorizeAdmin, requireAdminScope("catalogue"), v.backfillThumbnails);
+router.post("/backfill-descriptions", authenticate, authorizeAdmin, requireAdminScope("catalogue"), v.backfillDescriptions);
 
 // ── Routes paramétrées (viennent APRÈS les routes statiques) ─────────────────
 router.get("/:id/availability", vid, optionalAuth, v.getVehicleAvailability);    // disponibilité dates

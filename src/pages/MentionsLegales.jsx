@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { COMPANY_ADDRESS } from "../constants/company";
 
 const Section = ({ title, children }) => (
   <div style={{ marginBottom: 36 }}>
@@ -50,7 +51,7 @@ export default function MentionsLegales() {
       <Section title="1. Éditeur de la plateforme">
         <Row label="Dénomination" value="VIT AUTO" />
         <Row label="Forme juridique" value="Entreprise individuelle / Startup" />
-        <Row label="Siège social" value="Route 1029, Hay Sidi Maârouf 1, 20520 Casablanca, Maroc" />
+        <Row label="Siège social" value={COMPANY_ADDRESS} />
         <Row label="Email de contact" value="contact@vit-auto.com" />
         <Row label="Téléphone" value="+212 06 07 74 26 72" />
         <Row label="Directeur de publication" value="VIT AUTO" />

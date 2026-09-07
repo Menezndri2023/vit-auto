@@ -17,6 +17,7 @@ import { combinePaginated } from "../utils/paginateWithOrphans.js";
 import { ensureDefaultPartnerBusiness } from "../utils/ensureDefaultPartnerBusiness.js";
 import { ACTIVITIES, ACTIVITY_TO_PARTNER_TYPE } from "../constants/partnerTaxonomy.js";
 import { autoLinkProspect } from "./partnerCrmController.js";
+import { COMPANY_ADDRESS_EN } from "../constants/company.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
 
@@ -1606,7 +1607,7 @@ Status     : PENDING PARTNER SIGNATURE
 BETWEEN:
 
   VIT-AUTO — International Automotive Services Platform
-  Route 1029, Hay Sidi Maârouf, Casablanca, Morocco
+  ${COMPANY_ADDRESS_EN}
   contact@vit-auto.com · vit-auto.com
   Represented by: Manassé N'DRI N'GUESSAN, Founder & CEO
 
@@ -1710,7 +1711,7 @@ Status     : PENDING PARTNER SIGNATURE
 BETWEEN:
 
   VIT-AUTO — International Automotive Services Platform
-  Route 1029, Hay Sidi Maârouf, Casablanca, Morocco
+  ${COMPANY_ADDRESS_EN}
   contact@vit-auto.com · vit-auto.com
   Represented by: Manassé N'DRI N'GUESSAN, Founder & CEO
   (hereinafter "the Platform")

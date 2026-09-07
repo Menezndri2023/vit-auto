@@ -17,12 +17,12 @@ router.get("/listings/:id/estimate", vid, ic.getListingCostEstimate);
 // ── Admin — barèmes pays ─────────────────────────────────────────────────
 router.get   ("/admin/configs",     authenticate, authorizeAdmin, finance, ic.getCostConfigs);
 router.post  ("/admin/configs",     authenticate, authorizeAdmin, finance, ic.upsertCostConfig);
-router.delete("/admin/configs/:id", vid, authenticate, authorizeAdmin, finance, ic.deleteCostConfig);
+router.delete("/admin/configs/:id", vid, authenticate, authorizeAdmin, requireAdminScope("finance"), finance, ic.deleteCostConfig);
 
 // ── Admin — liaisons de fret ─────────────────────────────────────────────
 router.get   ("/admin/lanes",     authenticate, authorizeAdmin, finance, ic.getLaneRates);
 router.post  ("/admin/lanes",     authenticate, authorizeAdmin, finance, ic.createLaneRate);
 router.patch ("/admin/lanes/:id", vid, authenticate, authorizeAdmin, finance, ic.updateLaneRate);
-router.delete("/admin/lanes/:id", vid, authenticate, authorizeAdmin, finance, ic.deleteLaneRate);
+router.delete("/admin/lanes/:id", vid, authenticate, authorizeAdmin, requireAdminScope("finance"), finance, ic.deleteLaneRate);
 
 export default router;

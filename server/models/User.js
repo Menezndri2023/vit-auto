@@ -38,9 +38,29 @@ const userSchema = new mongoose.Schema({
   // exhaustif : seules les routes ajoutées avec requireAdminScope() le
   // vérifient réellement (voir middleware/auth.js) — les routes admin
   // préexistantes restent en accès admin classique, sans rétrofit global.
+  // Permissions fines d'un compte admin (voir middleware/auth.js
+  // requireAdminScope et ADMIN_SCOPES ci-dessous).
+  //   super_admin  → ADMIN GÉNÉRAL : accès total, seul habilité à créer,
+  //                  promouvoir, scoper, désactiver ou supprimer un autre admin.
+  //   autres       → accès assigné, strictement limité à son domaine.
+  // Un tableau VIDE ne donne plus accès à rien (voir la migration
+  // "admin-scope-explicit-super-admin" dans server.js, qui a rendu explicite
+  // l'accès complet des comptes historiques) : les permissions d'un admin sont
+  // désormais toujours attribuées explicitement.
   adminScope: {
     type: [String],
-    enum: ["super_admin", "finance", "kyc", "import_export", "support", "moderation"],
+    enum: [
+      "super_admin",     // Admin général — tout
+      "finance",         // Factures, commissions, reversements, paiements, escrow, tarifs
+      "kyc",             // Dossiers KYC et pièces d'identité
+      "import_export",   // Transactions I/E, annonces export, logistique
+      "support",         // Conversations, notifications, WhatsApp, signalements
+      "moderation",      // Avis, signalements, contenu publié
+      "users",           // Comptes clients/partenaires (rôles, activation, suppression)
+      "bookings",        // Réservations : validation, litiges, statuts, export
+      "catalogue",       // Annonces véhicules/chauffeurs/activités, publicités
+      "partners",        // Onboarding, certification, vérification, CRM, PMS
+    ],
     default: [],
   },
 

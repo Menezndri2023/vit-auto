@@ -400,14 +400,35 @@ export const getVehicles = async (req, res) => {
         distanceKm: Math.round(v.distanceKm * 10) / 10,
       })));
     } else {
+      // Mise en avant payante (boost) : les annonces dont la mise en avant est
+      // ENCORE VALIDE remontent en tête, les autres restent triées par date.
+      // Le produit était vendu (prix réel, paiement confirmé par un admin) mais
+      // n'avait strictement aucun effet : boostLevel/sponsoredUntil n'étaient
+      // lus nulle part et le catalogue triait uniquement par createdAt.
+      // La comparaison se fait à la volée sur la date d'expiration : aucune
+      // tâche planifiée n'est nécessaire pour "éteindre" un boost échu — ce qui
+      // compte, puisque les planificateurs en mémoire ne tournent pas quand le
+      // service est en veille.
+      const now = new Date();
       [vehicles, total] = await Promise.all([
-        Vehicle.find(filter)
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(safeLimit)
-          .populate("owner", "firstName ville certificationBadge")
-          .populate("business", "companyName isConcessionnaire")
-          .lean(),
+        Vehicle.aggregate([
+          { $match: filter },
+          { $addFields: {
+              _sponsored: { $cond: [{ $gt: ["$sponsoredUntil", now] }, { $ifNull: ["$boostLevel", 1] }, 0] },
+          } },
+          { $sort: { _sponsored: -1, createdAt: -1 } },
+          { $skip: skip },
+          { $limit: safeLimit },
+          { $lookup: { from: "users", localField: "owner", foreignField: "_id", as: "owner",
+              pipeline: [{ $project: { firstName: 1, ville: 1, certificationBadge: 1 } }] } },
+          { $lookup: { from: "partnerbusinesses", localField: "business", foreignField: "_id", as: "business",
+              pipeline: [{ $project: { companyName: 1, isConcessionnaire: 1 } }] } },
+          { $addFields: {
+              owner:    { $arrayElemAt: ["$owner", 0] },
+              business: { $arrayElemAt: ["$business", 0] },
+          } },
+          { $unset: "_sponsored" },
+        ]),
         Vehicle.countDocuments(filter),
       ]);
       vehicles = vehicles.map((v) => hidePartnerDirectContact(limitVehicleImages(v)));

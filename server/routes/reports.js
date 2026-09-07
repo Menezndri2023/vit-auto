@@ -18,6 +18,6 @@ const createReportLimiter = rateLimit({
 
 router.post ("/",             authenticate, createReportLimiter, r.createReport);
 router.get  ("/admin",         authenticate, authorizeAdmin, moderationScope,      r.getReports);
-router.patch("/admin/:id",     vid, authenticate, authorizeAdmin, moderationScope, r.updateReportStatus);
+router.patch("/admin/:id",     vid, authenticate, authorizeAdmin, requireAdminScope("moderation"), moderationScope, r.updateReportStatus);
 
 export default router;

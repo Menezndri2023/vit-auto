@@ -1,6 +1,6 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
-import { authenticate as protect, authorizeAdmin } from "../middleware/auth.js";
+import { authenticate as protect, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 import {
   getMyOnboarding,
@@ -90,7 +90,7 @@ router.post ("/admin/:id/resend-documents",   isAdmin, validateObjectId(), admin
 router.post ("/admin/relaunch-business/:businessId", isAdmin, validateObjectId("businessId"), adminRelaunchBusiness);
 router.post ("/admin/:id/reject",             isAdmin, validateObjectId(), adminReject);
 router.post ("/admin/:id/request-info",       isAdmin, validateObjectId(), adminRequestInfo);
-router.patch("/admin/:id/status",             isAdmin, validateObjectId(), adminUpdateStatus);
-router.patch("/admin/:id/crm",               isAdmin, validateObjectId(), adminUpdateCRM);
+router.patch("/admin/:id/status",             isAdmin, requireAdminScope("partners"), validateObjectId(), adminUpdateStatus);
+router.patch("/admin/:id/crm",               isAdmin, requireAdminScope("partners"), validateObjectId(), adminUpdateCRM);
 
 export default router;

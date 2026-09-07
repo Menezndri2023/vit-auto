@@ -1,6 +1,6 @@
 import express from "express";
 import * as pb from "../controllers/partnerBusinessController.js";
-import { authenticate, authorizeAdmin } from "../middleware/auth.js";
+import { authenticate, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 
 const router = express.Router();
@@ -15,7 +15,7 @@ router.delete("/:id",         vid, authenticate, pb.deleteBusiness);
 // ── Admin — supervision des politiques partenaire (restructuration 2026-09) ──
 // Routes statiques ("/admin") déclarées AVANT "/:id" pour ne jamais être
 // capturées par le paramètre :id (même règle que ailleurs, voir importExport.js).
-router.get("/admin",                    authenticate, authorizeAdmin, pb.adminListBusinesses);
-router.patch("/:id/admin-rental-policy", vid, authenticate, authorizeAdmin, pb.adminUpdateRentalPolicy);
+router.get("/admin",                    authenticate, authorizeAdmin, requireAdminScope("partners"), pb.adminListBusinesses);
+router.patch("/:id/admin-rental-policy", vid, authenticate, authorizeAdmin, requireAdminScope("partners"), pb.adminUpdateRentalPolicy);
 
 export default router;

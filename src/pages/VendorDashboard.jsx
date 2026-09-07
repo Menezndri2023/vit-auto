@@ -3055,6 +3055,13 @@ export default function VendorDashboard() {
                           {order.phone && <a href={`tel:${order.phone}`} className={styles.contactBtn} title="Appeler">📞</a>}
                           {order.phone && <a href={`https://wa.me/${order.phone?.replace(/[\s+-]/g,"")}`} target="_blank" rel="noopener noreferrer" className={styles.contactBtn} title="WhatsApp">💬</a>}
                           <button type="button" className={styles.contactBtn} title="Message via VIT AUTO" onClick={() => handleContactClient(order.id)} disabled={contactingOrder === order.id}>🗨️</button>
+                          {/* Accès direct aux documents joints par le client à CETTE
+                              réservation (pièce d'identité, permis) : ils n'étaient
+                              atteignables qu'en ouvrant « Gérer » puis en faisant
+                              défiler la fiche. Le partenaire n'a jamais à les
+                              redemander au client. */}
+                          <button type="button" className={styles.contactBtn} title="Documents du client (identité, permis)"
+                            onClick={() => handleGerer(order)}>📄</button>
                         </div>
                       </div>
 
@@ -3177,7 +3184,15 @@ export default function VendorDashboard() {
               {filteredVehicles.map((vehicle) => {
                 const vid  = vehicle.id || vehicle._id;
                 const sc   = { approved: { l: "Publié", c: "#059669", bg: "#d1fae5" }, pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, rejected: { l: "Rejeté", c: "#dc2626", bg: "#fee2e2" } }[vehicle.status || "pending"];
-                const isBoosted = subscription?.boosts?.some((b) => b.isActive && String(b.vehicle) === String(vid));
+                // La date d'expiration fait foi : `isActive` n'est jamais repassé
+                // à false à l'échéance (aucune tâche ne le fait), si bien que le
+                // badge « En vedette » restait allumé à vie sur une mise en avant
+                // terminée depuis des mois.
+                const isBoosted = subscription?.boosts?.some((b) =>
+                  b.isActive
+                  && String(b.vehicle) === String(vid)
+                  && (!b.endDate || new Date(b.endDate) > new Date())
+                );
                 const orderCount = allOrders.filter((b) => String(b.vehicleId) === String(vid)).length;
                 return (
                   <div key={vid} className={[styles.vehicleCard, isBoosted ? styles.vehicleCardBoosted : ""].join(" ")} style={{ position: "relative" }}>

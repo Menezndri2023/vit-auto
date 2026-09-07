@@ -1,4 +1,5 @@
 import PDFDocument from "pdfkit";
+import { COMPANY, COMPANY_ADDRESS } from "../constants/company.js";
 
 const BRAND   = "#ff4d2d";
 const NAVY    = "#0f1b3f";
@@ -27,8 +28,9 @@ function footer(doc) {
   const bottom = doc.page.height - 50;
   doc.moveTo(40, bottom).lineTo(doc.page.width - 40, bottom).strokeColor("#e2e8f0").lineWidth(1).stroke();
   doc.fillColor(GRAY).font("Helvetica").fontSize(8)
-    .text("VIT AUTO — Plateforme Automobile Internationale | www.vit-auto.com | contact@vit-auto.com", 40, bottom + 8, { align: "center", width: doc.page.width - 80 })
-    .text("Ce document est généré automatiquement et ne nécessite pas de signature manuscrite.", 40, bottom + 20, { align: "center", width: doc.page.width - 80 });
+    .text(`${COMPANY.name} — Plateforme Automobile Internationale | ${COMPANY_ADDRESS}`, 40, bottom + 8, { align: "center", width: doc.page.width - 80 })
+    .text(`${COMPANY.website} | ${COMPANY.email}`, 40, bottom + 18, { align: "center", width: doc.page.width - 80 })
+    .text("Ce document est généré automatiquement et ne nécessite pas de signature manuscrite.", 40, bottom + 28, { align: "center", width: doc.page.width - 80 });
 }
 
 function section(doc, title) {

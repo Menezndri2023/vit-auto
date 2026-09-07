@@ -26,12 +26,19 @@ const ADMIN = {
   email:     process.env.ADMIN_SEED_EMAIL || "admin@vitauto.ci",
   password:  process.env.ADMIN_SEED_PASSWORD || crypto.randomBytes(12).toString("base64url"),
   role:      "admin",
+  // ADMINISTRATEUR GÉNÉRAL explicite : depuis que le tableau de permissions
+  // vide ne donne plus aucun accès (voir constants/adminScopes.js), le premier
+  // compte créé par ce script doit porter "super_admin" — sinon il serait
+  // administrateur sans le moindre droit, et personne ne pourrait lui en
+  // attribuer.
+  adminScope: ["super_admin"],
   isActive:  true,
 };
 
 const userSchema = new mongoose.Schema({
   firstName:  String,
   lastName:   String,
+  adminScope: [String],
   email:      { type: String, unique: true },
   password:   String,
   phone:      String,

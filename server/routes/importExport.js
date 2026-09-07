@@ -9,13 +9,13 @@ const vid = validateObjectId();
 const ieScope = requireAdminScope("import_export");
 
 // ── Statistiques globales (admin) ─────────────────────────────────────────────
-router.get("/stats", authenticate, authorizeAdmin, ieScope, ie.getStats);
+router.get("/stats", authenticate, authorizeAdmin, requireAdminScope("import_export"), ieScope, ie.getStats);
 
 // ── Demandes client (formulaire public) ───────────────────────────────────────
 router.post  ("/requests",             optionalAuth,                            ie.createRequest);
 router.get   ("/requests",             authenticate, authorizeAdmin, ieScope,            ie.getRequests);
 router.patch ("/requests/:id/status",  authenticate, authorizeAdmin, ieScope, vid,       ie.updateRequestStatus);
-router.delete("/requests/:id",         authenticate, authorizeAdmin, ieScope, vid,       ie.deleteRequest);
+router.delete("/requests/:id",         authenticate, authorizeAdmin, requireAdminScope("import_export"), ieScope, vid,       ie.deleteRequest);
 
 // ── Profil importateur partenaire ─────────────────────────────────────────────
 router.get   ("/importer-profile",              authenticate,                   ie.getMyImporterProfile);

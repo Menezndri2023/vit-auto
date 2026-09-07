@@ -71,17 +71,17 @@ router.get("/:id/detail",             vid, authenticate, b.getBookingDetail);
 // ── Admin ─────────────────────────────────────────────────
 // Gate admin obligatoire (audit 2026-08) — routes statiques AVANT "/" pour ne
 // jamais être avalées par un futur "/:id".
-router.get("/admin/pending-validation",   authenticate, authorizeAdmin, b.getPendingValidationBookings);
-router.patch("/:id/admin-validate",       vid, authenticate, authorizeAdmin, b.adminValidateBooking);
-router.get("/",                           authenticate, authorizeAdmin, b.getAllBookings);
-router.get("/admin/export",               authenticate, authorizeAdmin, b.exportBookings);
-router.get("/admin/stats-full",           authenticate, authorizeAdmin, b.getAdminBookingStats);
+router.get("/admin/pending-validation",   authenticate, authorizeAdmin, requireAdminScope("bookings"), b.getPendingValidationBookings);
+router.patch("/:id/admin-validate",       vid, authenticate, authorizeAdmin, requireAdminScope("bookings"), b.adminValidateBooking);
+router.get("/",                           authenticate, authorizeAdmin, requireAdminScope("bookings"), b.getAllBookings);
+router.get("/admin/export",               authenticate, authorizeAdmin, requireAdminScope("bookings"), b.exportBookings);
+router.get("/admin/stats-full",           authenticate, authorizeAdmin, requireAdminScope("bookings"), b.getAdminBookingStats);
 router.get("/admin/financing",            authenticate, authorizeAdmin, requireAdminScope("finance"), b.getFinancingRequests);
 router.patch("/:id/financing-decision",   vid, authenticate, authorizeAdmin, requireAdminScope("finance"), b.setFinancingDecision);
-router.patch("/:id/admin-status",         vid, authenticate, authorizeAdmin, b.updateBookingStatus);
-router.patch("/:id/admin-force-complete", vid, authenticate, authorizeAdmin, b.adminForceComplete);
-router.patch("/:id/resolve-dispute",      vid, authenticate, authorizeAdmin, b.resolveDispute);
-router.delete("/:id/admin-delete",        vid, authenticate, authorizeAdmin, b.adminDeleteBooking);
+router.patch("/:id/admin-status",         vid, authenticate, authorizeAdmin, requireAdminScope("bookings"), b.updateBookingStatus);
+router.patch("/:id/admin-force-complete", vid, authenticate, authorizeAdmin, requireAdminScope("bookings"), b.adminForceComplete);
+router.patch("/:id/resolve-dispute",      vid, authenticate, authorizeAdmin, requireAdminScope("bookings"), b.resolveDispute);
+router.delete("/:id/admin-delete",        vid, authenticate, authorizeAdmin, requireAdminScope("bookings"), b.adminDeleteBooking);
 
 // ── PDF reçu de réservation ───────────────────────────────
 router.get("/:id/receipt",             vid, authenticate, async (req, res) => {

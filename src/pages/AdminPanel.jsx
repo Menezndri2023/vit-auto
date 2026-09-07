@@ -642,11 +642,21 @@ function ClientDocumentsModal({ booking, token, onClose }) {
   const [docs, setDocs]       = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const [error, setError] = useState(null);
+
   useEffect(() => {
+    // L'échec était avalé : un refus de permission ou une erreur réseau
+    // s'affichait exactement comme « aucun document fourni ».
     fetch(`/api/bookings/${booking._id}/detail`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => setDocs(d?.booking?.clientKycSnapshot || null))
-      .catch(() => setDocs(null))
+      .then(async (r) => {
+        const d = await r.json().catch(() => null);
+        if (!r.ok) {
+          setError(d?.message || `Documents non chargés (erreur ${r.status}).`);
+          return;
+        }
+        setDocs(d?.booking?.clientKycSnapshot || null);
+      })
+      .catch(() => setError("Connexion au serveur impossible — documents non chargés."))
       .finally(() => setLoading(false));
   }, [booking._id, token]);
 
@@ -661,11 +671,122 @@ function ClientDocumentsModal({ booking, token, onClose }) {
         </p>
         {loading
           ? <p style={{ color: "#94a3b8", fontSize: ".85rem" }}>Chargement…</p>
-          : <ClientDocuments docs={docs} reference={booking.reference} />}
+          : error
+            ? <p style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", borderRadius: 8, padding: "8px 10px", fontSize: ".83rem" }}>⚠️ {error}</p>
+            : <ClientDocuments docs={docs} reference={booking.reference} />}
         <div className={styles.confirmActions} style={{ marginTop: 14 }}>
           <button className={styles.btnGhost} onClick={onClose}>Fermer</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Pièces d'identité soumises depuis le profil client ────────────────────
+// Manque réel : les endpoints existaient des deux côtés (getPendingIdentities,
+// adminVerifyIdentity) et les admins recevaient bien la notification
+// « 📋 Nouvelle pièce d'identité soumise » pointant sur /admin — mais AUCUN
+// écran ne listait ces dossiers ni n'offrait de les approuver ou refuser. Les
+// soumissions tombaient donc dans le vide : la seule sortie du statut
+// "pending" était le parcours /kyc séparé, qu'on n'avait jamais demandé à
+// l'utilisateur de refaire.
+function PendingIdentitiesSection({ token, showToast }) {
+  const [list, setList]       = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState(null);
+  const [acting, setActing]   = useState(null);
+  const [rejectFor, setRejectFor] = useState(null);
+  const [reason, setReason]   = useState("");
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true); setError(null);
+    try {
+      const r = await fetch("/api/users/pending-identity", { headers: { Authorization: `Bearer ${token}` } });
+      const d = await r.json().catch(() => null);
+      if (!r.ok) { setError(d?.message || `Chargement impossible (erreur ${r.status}).`); return; }
+      setList(d?.users || []);
+    } catch { setError("Connexion au serveur impossible."); }
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const decide = async (userId, status, rejectionReason) => {
+    setActing(userId);
+    try {
+      const r = await fetch(`/api/users/${userId}/verify-identity`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status, rejectionReason }),
+      });
+      const d = await r.json().catch(() => null);
+      if (!r.ok) { showToast(d?.message || "Décision refusée par le serveur.", "error"); return; }
+      showToast(status === "verified" ? "✅ Pièce d'identité validée." : "🚫 Pièce d'identité refusée — client notifié.");
+      setRejectFor(null); setReason("");
+      load();
+    } catch { showToast("Erreur réseau — décision non enregistrée.", "error"); }
+    finally { setActing(null); }
+  };
+
+  if (loading) return <div style={{ textAlign: "center", padding: "2rem", color: "#94a3b8" }}>Chargement…</div>;
+  if (error) return <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", borderRadius: 10, padding: "10px 12px", fontSize: ".84rem" }}>⚠️ {error}</div>;
+  if (!list.length) {
+    return <p style={{ color: "#94a3b8", fontSize: ".85rem", margin: 0 }}>Aucune pièce d'identité en attente d'examen.</p>;
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {list.map((u) => (
+        <div key={u._id} style={{ background: "#fff", border: "1.5px solid #e2e8f0", borderRadius: 12, padding: "14px 18px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
+            <div>
+              <strong style={{ fontSize: ".9rem", color: "#0f1b3f" }}>{u.firstName} {u.lastName}</strong>
+              <div style={{ fontSize: ".78rem", color: "#94a3b8" }}>
+                {u.email}{u.phone ? ` · ${u.phone}` : ""}
+              </div>
+              <div style={{ fontSize: ".78rem", color: "#64748b", marginTop: 3 }}>
+                {(u.identity?.type || "pièce").toUpperCase()}
+                {u.identity?.number ? ` · nº ${u.identity.number}` : ""}
+                {u.identity?.submittedAt ? ` · soumise le ${new Date(u.identity.submittedAt).toLocaleDateString("fr-FR")}` : ""}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <button disabled={acting === u._id} onClick={() => decide(u._id, "verified")}
+                style={{ background: "#16a34a", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
+                ✅ Valider
+              </button>
+              <button disabled={acting === u._id} onClick={() => { setRejectFor(u._id); setReason(""); }}
+                style={{ background: "#fef2f2", color: "#dc2626", border: "1.5px solid #fecaca", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
+                ❌ Refuser
+              </button>
+            </div>
+          </div>
+
+          <ClientDocuments
+            docs={{ frontImage: u.identity?.frontImage, backImage: u.identity?.backImage, selfie: u.identity?.selfie }}
+            reference={`identite-${u._id.slice(-6)}`}
+          />
+
+          {rejectFor === u._id && (
+            <div style={{ marginTop: 12, borderTop: "1px solid #f1f5f9", paddingTop: 12 }}>
+              <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2}
+                placeholder="Motif du refus (communiqué au client) — ex : document illisible, pièce expirée…"
+                style={{ width: "100%", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: 8, fontSize: ".84rem", fontFamily: "inherit" }} />
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <button disabled={!reason.trim() || acting === u._id} onClick={() => decide(u._id, "rejected", reason.trim())}
+                  style={{ background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, padding: "7px 14px", fontWeight: 700, fontSize: ".8rem", cursor: reason.trim() ? "pointer" : "not-allowed", opacity: reason.trim() ? 1 : 0.5 }}>
+                  Confirmer le refus
+                </button>
+                <button onClick={() => { setRejectFor(null); setReason(""); }}
+                  style={{ background: "#f1f5f9", color: "#475569", border: "none", borderRadius: 8, padding: "7px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
+                  Annuler
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -1204,13 +1325,18 @@ function FinancingSection({ requests, loading, onDecide }) {
 // requireAdminScope() vérifient réellement ces permissions pour l'instant —
 // retrofit des routes admin existantes volontairement laissé pour plus tard
 // (risque de régression trop élevé pour un rattrapage en une passe).
+// Miroir EXACT de server/constants/adminScopes.js — toute permission ajoutée
+// côté serveur doit apparaître ici, sinon elle devient inattribuable.
 const ADMIN_SCOPE_CFG = [
-  { key: "super_admin",   label: "Super Admin",       icon: "👑", desc: "Accès total, y compris gestion des permissions des autres admins." },
-  { key: "finance",       label: "Finance",           icon: "💰", desc: "Paiements, commissions, factures, financement." },
-  { key: "kyc",           label: "KYC",               icon: "🛡️", desc: "Identités et documents." },
-  { key: "import_export", label: "Import/Export",     icon: "🌍", desc: "Dossiers internationaux." },
-  { key: "support",       label: "Support",           icon: "🎧", desc: "Tickets clients." },
-  { key: "moderation",    label: "Modérateur",        icon: "📝", desc: "Annonces et contenu." },
+  { key: "finance",       label: "Finance",         icon: "💰", desc: "Factures, commissions, reversements, paiements, séquestre, tarification." },
+  { key: "bookings",      label: "Réservations",    icon: "📋", desc: "Validation des demandes, litiges, statuts, export des commandes." },
+  { key: "users",         label: "Comptes",         icon: "👥", desc: "Comptes clients et partenaires : rôles, activation, suppression." },
+  { key: "catalogue",     label: "Catalogue",       icon: "🚗", desc: "Annonces véhicules, chauffeurs, activités et publicités." },
+  { key: "partners",      label: "Partenaires",     icon: "🤝", desc: "Onboarding, certification, vérification, CRM, showrooms." },
+  { key: "kyc",           label: "KYC & Identités", icon: "🛡️", desc: "Dossiers KYC et pièces d'identité soumises." },
+  { key: "import_export", label: "Import / Export", icon: "🌍", desc: "Transactions internationales, annonces export, logistique." },
+  { key: "support",       label: "Support client",  icon: "💬", desc: "Conversations, notifications, WhatsApp." },
+  { key: "moderation",    label: "Modération",      icon: "🚩", desc: "Avis clients et signalements." },
 ];
 
 function RolesSection({ admins, loading, savingId, onToggle, currentUserId }) {
@@ -1221,20 +1347,43 @@ function RolesSection({ admins, loading, savingId, onToggle, currentUserId }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {admins.map((a) => {
         const scope = a.adminScope || [];
-        const isFullAccess = scope.length === 0 || scope.includes("super_admin");
+        const isGeneral = scope.includes("super_admin");
+        const assigned  = scope.filter((x) => x !== "super_admin");
         return (
-          <div key={a._id} style={{ background: "#fff", border: "1.5px solid #e2e8f0", borderRadius: 12, padding: "14px 18px" }}>
+          <div key={a._id} style={{ background: "#fff", border: "1.5px solid", borderColor: isGeneral ? "#fbbf24" : "#e2e8f0", borderRadius: 12, padding: "14px 18px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
               <div>
                 <strong style={{ fontSize: ".9rem", color: "#0f1b3f" }}>{a.firstName} {a.lastName}</strong>
                 {a._id === currentUserId && <span style={{ marginLeft: 8, fontSize: ".72rem", color: "#6366f1", fontWeight: 700 }}>(vous)</span>}
                 <div style={{ fontSize: ".78rem", color: "#94a3b8" }}>{a.email}</div>
               </div>
-              <span style={{ fontSize: ".74rem", fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: isFullAccess ? "#fef3c7" : "#eff6ff", color: isFullAccess ? "#b45309" : "#1d4ed8" }}>
-                {isFullAccess ? "🔓 Accès complet" : `${scope.length} permission${scope.length > 1 ? "s" : ""}`}
+              <span style={{ fontSize: ".74rem", fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: isGeneral ? "#fef3c7" : assigned.length ? "#eff6ff" : "#fef2f2", color: isGeneral ? "#b45309" : assigned.length ? "#1d4ed8" : "#b91c1c" }}>
+                {isGeneral ? "👑 Administrateur général" : assigned.length ? `${assigned.length} domaine${assigned.length > 1 ? "s" : ""} assigné${assigned.length > 1 ? "s" : ""}` : "⚠️ Aucune permission"}
               </span>
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+
+            {/* Bascule ADMIN GÉNÉRAL — séparée des domaines : c'est un niveau,
+                pas un domaine de plus. Un administrateur général passe partout
+                et gère les autres comptes admin. */}
+            <button disabled={savingId === a._id} onClick={() => onToggle(a._id, scope, "super_admin")}
+              style={{
+                width: "100%", textAlign: "left", padding: "10px 14px", borderRadius: 10,
+                border: "1.5px solid", borderColor: isGeneral ? "#f59e0b" : "#e2e8f0",
+                background: isGeneral ? "#fffbeb" : "#f8fafc", cursor: savingId === a._id ? "wait" : "pointer",
+                marginBottom: 12, fontFamily: "inherit",
+              }}>
+              <div style={{ fontWeight: 800, fontSize: ".84rem", color: isGeneral ? "#b45309" : "#475569" }}>
+                {isGeneral ? "👑 Administrateur général — accès total" : "👑 Faire de ce compte un administrateur général"}
+              </div>
+              <div style={{ fontSize: ".76rem", color: "#94a3b8", marginTop: 2 }}>
+                Peut tout gérer, y compris créer, restreindre ou désactiver les autres comptes admin.
+              </div>
+            </button>
+
+            <div style={{ fontSize: ".76rem", color: "#64748b", fontWeight: 700, marginBottom: 6 }}>
+              {isGeneral ? "Domaines (sans effet : l'accès général les couvre déjà)" : "Domaines assignés à ce compte"}
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, opacity: isGeneral ? 0.45 : 1 }}>
               {ADMIN_SCOPE_CFG.map((s) => {
                 const active = scope.includes(s.key);
                 return (
@@ -2587,17 +2736,27 @@ export default function AdminPanel() {
   // laisserait 0 admin à accès complet sur toute la plateforme, en filet de
   // sécurité final si cette confirmation était contournée.
   const toggleAdminScope = (adminId, currentScope, scopeKey) => {
-    const wasFullAccess = currentScope.length === 0;
+    const wasGeneral = currentScope.includes("super_admin");
     const next = currentScope.includes(scopeKey)
       ? currentScope.filter((s) => s !== scopeKey)
       : [...currentScope, scopeKey];
 
-    if (wasFullAccess) {
-      const label = ADMIN_SCOPE_CFG.find((s) => s.key === scopeKey)?.label || scopeKey;
+    // Passage d'ADMIN GÉNÉRAL à accès assigné : perte massive de droits, on
+    // demande confirmation explicite. (Le serveur refuse par ailleurs de
+    // retirer le dernier administrateur général actif de la plateforme.)
+    if (wasGeneral && scopeKey === "super_admin") {
       setConfirm({
-        message: `Ce compte a actuellement un ACCÈS COMPLET. Cette action va le restreindre uniquement à "${label}" — il perdra l'accès à tout le reste. Continuer ?`,
+        message: "Retirer le statut d'ADMINISTRATEUR GÉNÉRAL à ce compte ? Il ne pourra plus gérer que les domaines qui lui sont explicitement attribués, et ne pourra plus gérer les autres comptes admin.",
         danger: true,
         action: () => applyAdminScope(adminId, next),
+      });
+      return;
+    }
+    // Passage à ADMIN GÉNÉRAL : accès total, à confirmer aussi.
+    if (!wasGeneral && scopeKey === "super_admin") {
+      setConfirm({
+        message: "Faire de ce compte un ADMINISTRATEUR GÉNÉRAL ? Il pourra tout gérer sur la plateforme, y compris créer, restreindre ou désactiver les autres comptes admin.",
+        action: () => applyAdminScope(adminId, ["super_admin"]),
       });
       return;
     }
@@ -4155,37 +4314,68 @@ export default function AdminPanel() {
   // associée ne vérifie de scope, donc le restreindre ici serait trompeur :
   // ni plus ni moins permissif que le backend). adminScope vide/absent ou
   // contenant "super_admin" = accès complet, même règle que requireAdminScope.
+  // Miroir EXACT des gardes serveur (requireAdminScope / requireGeneralAdmin).
+  // Un onglet visible dont les routes sont refusées donne un écran vide
+  // inexplicable ; un onglet masqué dont les routes sont ouvertes est une
+  // fausse sécurité. Les deux doivent rester alignés — toute route admin
+  // nouvellement scopée côté serveur doit apparaître ici.
   const TAB_SCOPES = {
+    // Comptes & conformité
+    users:            "users",
     kyc:              "kyc",
-    support:          "support",
-    chat_supervision: "support",
-    whatsapp:         "support",
-    reviews:          "moderation",
-    reports:          "moderation",
+    certification:    "partners",
+    partner_verif:    "partners",
+    pms_partners:     "partners",
+    founding_partners:"partners",
+    partner_crm:      "partners",
+    rental_policies:  "partners",
+    // Catalogue
+    catalogue:        "catalogue",
+    chauffeurs:       "catalogue",
+    activites:        "catalogue",
+    ads:              "catalogue",
+    marketing:        "catalogue",
+    // Réservations
+    bookings:         "bookings",
+    pending_validation:"bookings",
+    litiges:          "bookings",
+    // Import / Export
     import_export:    "import_export",
     exportateurs:     "import_export",
+    transport:        "import_export",
+    // Finance
     assurance:        "finance",
     financement:      "finance",
     service_requests: "finance",
     business_config:  "finance",
-    // Bug réel corrigé (audit) : server/routes/importCost.js protège tous ses
-    // endpoints admin avec requireAdminScope("finance"), mais cette entrée
-    // manquait ici — un admin sans ce scope voyait l'onglet dans le menu et
-    // n'obtenait que des 403 en boucle (tableau vide, aucune action possible).
     import_cost:      "finance",
     reversements:     "finance",
-    // Même correction que import_cost : les routes /api/invoices et le
-    // remboursement /api/payments/:id/refund portent désormais
-    // requireAdminScope("finance") côté serveur — sans cette entrée, un admin
-    // hors finance verrait l'onglet et n'obtiendrait que des 403.
+    commissions:      "finance",
     factures:         "finance",
     paiements:        "finance",
+    escrow:           "finance",
+    analytics:        "finance",
+    // Support & modération
+    support:          "support",
+    chat_supervision: "support",
+    whatsapp:         "support",
+    notifications:    "support",
+    email_delivery:   "support",
+    reviews:          "moderation",
+    reports:          "moderation",
+    // Réservé à l'administrateur général
+    roles:            "super_admin",
+    audit:            "super_admin",
   };
   const canSeeTab = (key) => {
     const scope = TAB_SCOPES[key];
-    if (!scope) return true;
     const scopes = user?.adminScope || [];
-    return scopes.length === 0 || scopes.includes("super_admin") || scopes.includes(scope);
+    // L'administrateur général passe partout.
+    if (scopes.includes("super_admin")) return true;
+    // Onglets sans permission déclarée (vue d'ensemble, santé système) :
+    // visibles par tout compte admin.
+    if (!scope) return true;
+    return scopes.includes(scope);
   };
 
   const NAV_GROUPS_ALL = [
@@ -4716,21 +4906,61 @@ export default function AdminPanel() {
                   color="#ff4d2d" />
               </div>
 
-              {/* Alertes */}
-              {(stats?.vehicles?.pending || 0) > 0 && (
-                <div className={styles.alertBanner}>
-                  <span>⚠️</span>
-                  <span>{stats.vehicles.pending} annonce{stats.vehicles.pending > 1 ? "s" : ""} en attente de validation</span>
-                  <button className={styles.alertBtn} onClick={() => setActiveTab("catalogue")}>Voir →</button>
-                </div>
-              )}
-              {(stats?.bookings?.pending || 0) > 0 && (
-                <div className={styles.alertBanner} style={{ borderColor: "#6366f1", background: "#f0f4ff" }}>
-                  <span>📋</span>
-                  <span>{stats.bookings.pending} commande{stats.bookings.pending > 1 ? "s" : ""} en attente de confirmation</span>
-                  <button className={styles.alertBtn} onClick={() => setActiveTab("bookings")}>Voir →</button>
-                </div>
-              )}
+              {/* ── À TRAITER AUJOURD'HUI ────────────────────────────────
+                  File unique : tout ce qui attend une décision, au même
+                  endroit. L'admin devait auparavant faire le tour d'une
+                  trentaine d'onglets pour savoir ce qui l'attendait, en se
+                  fiant à des pastilles dispersées dans le menu. Chaque ligne
+                  n'apparaît que si le compte a la permission d'agir dessus
+                  (canSeeTab) — inutile de signaler un dossier qu'on ne peut
+                  pas ouvrir. */}
+              {(() => {
+                const queue = [
+                  { tab: "pending_validation", icon: "⏳", n: pendingValidationTotal, label: "demande(s) de réservation à valider", urgent: true },
+                  { tab: "litiges",            icon: "⚖️", n: disputedBk,          label: "litige(s) à arbitrer", urgent: true },
+                  { tab: "kyc",                icon: "🛡️", n: pendingKyc,            label: "dossier(s) KYC à examiner" },
+                  { tab: "catalogue",          icon: "🚗", n: stats?.vehicles?.pending || 0, label: "annonce(s) en attente de validation" },
+                  { tab: "chauffeurs",         icon: "🧑‍✈️", n: pendingDrivers,        label: "profil(s) chauffeur à valider" },
+                  { tab: "activites",          icon: "🎈", n: pendingActivities,      label: "activité(s) à valider" },
+                  { tab: "certification",      icon: "🏅", n: pendingCert,            label: "certification(s) partenaire à examiner" },
+                  { tab: "paiements",          icon: "💳", n: pendingSub,             label: "paiement(s) d'abonnement à confirmer" },
+                  { tab: "factures",           icon: "📄", n: pendingInv,             label: "facture(s) en attente" },
+                  { tab: "reports",            icon: "🚩", n: pendingReports,         label: "signalement(s) à traiter" },
+                  { tab: "import_export",      icon: "🌍", n: pendingIe,              label: "demande(s) Import/Export" },
+                  { tab: "service_requests",   icon: "🧰", n: pendingSvcReq,          label: "demande(s) de service" },
+                  { tab: "exportateurs",       icon: "🤝", n: pendingImp,             label: "profil(s) exportateur à valider" },
+                ].filter((q) => q.n > 0 && canSeeTab(q.tab));
+
+                return (
+                  <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
+                    <h3 className={styles.chartTitle}>
+                      🎯 À traiter aujourd'hui {queue.length > 0 && <span style={{ color: "#dc2626" }}>({queue.reduce((t, q) => t + q.n, 0)})</span>}
+                    </h3>
+                    {queue.length === 0 ? (
+                      <p style={{ margin: 0, fontSize: ".86rem", color: "#059669", fontWeight: 700 }}>
+                        ✅ Rien en attente — tout est traité.
+                      </p>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {queue.map((q) => (
+                          <button key={q.tab} onClick={() => setActiveTab(q.tab)}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
+                              padding: "10px 14px", borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
+                              border: "1.5px solid", borderColor: q.urgent ? "#fecaca" : "#e2e8f0",
+                              background: q.urgent ? "#fef2f2" : "#f8fafc",
+                            }}>
+                            <span style={{ fontSize: "1.05rem" }}>{q.icon}</span>
+                            <span style={{ fontWeight: 800, color: q.urgent ? "#b91c1c" : "#0f1b3f", fontSize: ".9rem", minWidth: 28 }}>{q.n}</span>
+                            <span style={{ fontSize: ".85rem", color: "#475569", flex: 1 }}>{q.label}</span>
+                            <span style={{ fontSize: ".8rem", color: "#6366f1", fontWeight: 700 }}>Traiter →</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Graphique revenus 6 mois */}
               {revByMonth.length > 0 && (
@@ -5044,6 +5274,15 @@ export default function AdminPanel() {
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 8 }}>
+                          {/* Les documents client (pièce d'identité, permis) sont
+                              joints à la réservation : c'est ICI, au moment de la
+                              décision d'approbation, que l'admin en a le plus
+                              besoin — ils n'étaient consultables que depuis
+                              l'onglet Réservations, une fois la décision prise. */}
+                          <button onClick={() => setDocsModal({ booking: b })} title="Documents client joints à la réservation"
+                            style={{ background: "#eff6ff", color: "#1d4ed8", border: "1.5px solid #bfdbfe", borderRadius: 8, padding: "8px 12px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
+                            📄 Documents
+                          </button>
                           <button onClick={() => adminValidateBookingReq(b._id, "approved")}
                             style={{ background: "#16a34a", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
                             ✅ Approuver
@@ -6241,6 +6480,17 @@ export default function AdminPanel() {
             >
               🔄 Actualiser
             </button>
+          </div>
+
+          {/* Pièces d'identité soumises depuis le profil client — file distincte
+              du parcours KYC complet, et jusqu'ici sans aucun écran (voir
+              PendingIdentitiesSection). */}
+          <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
+            <h3 className={styles.chartTitle}>🪪 Pièces d'identité soumises depuis le profil</h3>
+            <p style={{ margin: "0 0 12px", fontSize: ".8rem", color: "#64748b" }}>
+              Envoyées par un client depuis sa page Profil, hors parcours KYC complet.
+            </p>
+            <PendingIdentitiesSection token={token} showToast={showToast} />
           </div>
 
           {/* Filtres par statut */}

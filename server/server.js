@@ -710,6 +710,25 @@ const startServer = async () => {
       logger.error("Construction des index critiques échouée (non bloquant) :", err.message);
     }
 
+    // ── Permissions admin explicites (2026-09) — AVANT d'accepter du trafic ──
+    // `adminScope: []` valait « accès complet » pour les comptes créés avant
+    // l'existence de ce champ. Cette sémantique rendait tout nouvel admin
+    // administrateur général par simple oubli, et rendait sans effet le retrait
+    // de sa dernière permission. Le tableau vide ne donne désormais plus aucun
+    // accès (voir middleware/auth.js requireAdminScope) : cette migration écrit
+    // ["super_admin"] sur les comptes qui avaient réellement l'accès complet.
+    // Elle DOIT s'exécuter avant l'ouverture du port — sinon, entre le
+    // démarrage et son exécution, les administrateurs historiques seraient
+    // refusés sur toutes les routes admin. Elle est brève (un seul updateMany).
+    await runOnceMigration("admin-scope-explicit-super-admin-2026-09", async () => {
+      const { default: User } = await import("./models/User.js");
+      const result = await User.updateMany(
+        { role: "admin", $or: [{ adminScope: { $size: 0 } }, { adminScope: { $exists: false } }] },
+        { $set: { adminScope: ["super_admin"] } }
+      );
+      logger.info(`[Migration] admin-scope-explicit-super-admin : ${result.modifiedCount} admin(s) passé(s) en administrateur général explicite.`);
+    });
+
 
     // ── BullMQ : queues + workers (si Redis configuré) ───────────────────
     await initQueues();

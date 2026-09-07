@@ -1,6 +1,6 @@
 import express from "express";
 import * as de from "../controllers/driverEmploymentController.js";
-import { authenticate, authorizeAdmin } from "../middleware/auth.js";
+import { authenticate, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 
 const router = express.Router();
@@ -17,8 +17,8 @@ router.get("/received",             authenticate, de.getReceivedEmploymentReques
 router.patch("/:id/respond",        vid, authenticate, de.respondToEmploymentRequest);
 
 // ── Admin ──────────────────────────────────────────────────
-router.get("/admin/list",           authenticate, authorizeAdmin, de.adminListEmploymentRequests);
-router.patch("/:id/admin-review",   vid, authenticate, authorizeAdmin, de.adminReviewEmploymentRequest);
-router.patch("/:id/process",        vid, authenticate, authorizeAdmin, de.processEmploymentRequest);
+router.get("/admin/list",           authenticate, authorizeAdmin, requireAdminScope("partners"), de.adminListEmploymentRequests);
+router.patch("/:id/admin-review",   vid, authenticate, authorizeAdmin, requireAdminScope("partners"), de.adminReviewEmploymentRequest);
+router.patch("/:id/process",        vid, authenticate, authorizeAdmin, requireAdminScope("partners"), de.processEmploymentRequest);
 
 export default router;

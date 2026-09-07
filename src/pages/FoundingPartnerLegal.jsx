@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { COMPANY_ADDRESS_EN } from "../constants/company";
 
 const Art = ({ n, title, children }) => (
   <div style={{ marginBottom: 32 }}>
@@ -98,8 +99,8 @@ export default function FoundingPartnerLegal() {
           </div>
 
           <p style={{ color: "#64748b", fontSize: "0.82rem", marginBottom: 24 }}>
-            Between <strong>VIT-AUTO</strong> — International Automotive Services Platform, Route 1029,
-            Hay Sidi Maârouf, Casablanca, Morocco, represented by Manassé N'DRI N'GUESSAN, Founder &amp; CEO
+            Between <strong>VIT-AUTO</strong> — International Automotive Services Platform,{" "}
+            {COMPANY_ADDRESS_EN}, represented by Manassé N'DRI N'GUESSAN, Founder &amp; CEO
             (the "Platform") — and the applying company (the "Founding Partner").
           </p>
 

@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import VitAutoLogo from "../Logo/VitAutoLogo";
 import styles from "./Footer.module.css";
+import { COMPANY } from "../../constants/company";
 
 const Footer = () => {
   return (
@@ -66,7 +67,7 @@ const Footer = () => {
             </ul>
             <h3 className={styles.colSubTitle}>Contact</h3>
             <ul>
-              <li>📍 Route 1029, Hay Sidi Maârouf, Casablanca</li>
+              <li>📍 {COMPANY.street}, {COMPANY.city}</li>
               <li>
                 <a href="tel:+2120607742672">📞 +212 06 07 74 26 72</a>
               </li>

@@ -220,6 +220,24 @@ export const adminApproveBoost = async (req, res) => {
     boost.paidAt    = new Date();
 
     await sub.save();
+
+    // C'est ICI que la mise en avant prend réellement effet sur l'annonce.
+    // Auparavant, seul le sous-document `sub.boosts` était écrit : le
+    // partenaire payait, l'admin confirmait, et le catalogue ne changeait
+    // strictement pas (Vehicle.boostLevel / sponsoredUntil n'étaient lus nulle
+    // part, le tri se faisant uniquement par date de création).
+    // `boostLevel` porte le poids du palier : à date de validité égale, un
+    // boost international passe devant un boost 24h.
+    const BOOST_WEIGHT = { "24h": 1, "7d": 2, "30d": 3, international: 4 };
+    if (boost.vehicle) {
+      await Vehicle.findByIdAndUpdate(boost.vehicle, {
+        $set: {
+          sponsoredUntil: boost.endDate,
+          boostLevel: BOOST_WEIGHT[boost.tier] ?? 1,
+        },
+      });
+    }
+
     // Paiement réellement confirmé — c'est le seul moment où un code promo
     // éventuel est décompté (voir redeemDiscountCode/pricingEngine.js).
     if (boost.promoCode) await redeemDiscountCodeByCode(boost.promoCode);

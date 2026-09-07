@@ -1,10 +1,10 @@
 import express from "express";
 import * as a from "../controllers/auditLogController.js";
-import { authenticate, authorizeAdmin } from "../middleware/auth.js";
+import { authenticate, authorizeAdmin, requireGeneralAdmin } from "../middleware/auth.js";
 
 const router = express.Router();
 
-router.get("/admin/list",    authenticate, authorizeAdmin, a.adminListAuditLog);
-router.get("/admin/actions", authenticate, authorizeAdmin, a.adminAuditLogFacets);
+router.get("/admin/list",    authenticate, authorizeAdmin, requireGeneralAdmin, a.adminListAuditLog);
+router.get("/admin/actions", authenticate, authorizeAdmin, requireGeneralAdmin, a.adminAuditLogFacets);
 
 export default router;

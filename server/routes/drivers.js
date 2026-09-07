@@ -1,6 +1,6 @@
 import express from "express";
 import * as d from "../controllers/driverController.js";
-import { authenticate, authorizeAdmin } from "../middleware/auth.js";
+import { authenticate, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 
 const router = express.Router();
@@ -18,8 +18,8 @@ router.post("/:id/blackout", authenticate, validateObjectId(), d.addDriverBlacko
 router.delete("/:id/blackout/:blackoutId", authenticate, validateObjectId(), validateObjectId("blackoutId"), d.removeDriverBlackout);
 
 // ── Admin ─────────────────────────────────────────────────
-router.get("/pending", authenticate, authorizeAdmin, d.getPendingDrivers);
-router.patch("/:id/status", authenticate, authorizeAdmin, validateObjectId(), d.updateDriverStatus);
-router.patch("/:id/transfer", authenticate, authorizeAdmin, validateObjectId(), d.transferDriver);
+router.get("/pending", authenticate, authorizeAdmin, requireAdminScope("catalogue"), d.getPendingDrivers);
+router.patch("/:id/status", authenticate, authorizeAdmin, requireAdminScope("catalogue"), validateObjectId(), d.updateDriverStatus);
+router.patch("/:id/transfer", authenticate, authorizeAdmin, requireAdminScope("catalogue"), validateObjectId(), d.transferDriver);
 
 export default router;

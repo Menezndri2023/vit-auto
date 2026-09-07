@@ -1,3 +1,4 @@
+import { COMPANY, COMPANY_ADDRESS } from "../constants/company.js";
 // ══════════════════════════════════════════════════════════════════════════════
 // VIT AUTO — Templates email HTML professionnels
 // ══════════════════════════════════════════════════════════════════════════════
@@ -68,7 +69,7 @@ function baseLayout(content, title = "VIT AUTO") {
           <a href="${BASE_URL}/help">Aide</a>
         </div>
         <p>© ${new Date().getFullYear()} VIT AUTO — Plateforme Automobile Internationale</p>
-        <p>Route 1029, Hay Sidi Maârouf, Casablanca | <a href="mailto:contact@vit-auto.com">contact@vit-auto.com</a></p>
+        <p>${COMPANY_ADDRESS} | <a href="mailto:${COMPANY.email}">${COMPANY.email}</a></p>
         <p style="margin-top:8px;"><a href="${BASE_URL}/cgu">CGU</a> · <a href="${BASE_URL}/privacy">Confidentialité</a> · <a href="mailto:unsubscribe@vit-auto.com?subject=Désabonnement">Se désabonner</a></p>
       </div>
     </div>

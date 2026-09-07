@@ -709,6 +709,38 @@ export default function Booking() {
         {/* ════ ÉTAPE 1 — DATES & PRISE EN CHARGE ════════ */}
         {step === 1 && (
           <div className={styles.section}>
+            {/* Documents annoncés DÈS LE DÉBUT (et non découverts au dernier
+                écran) : ils dépendent du véhicule choisi — un véhicule avec
+                chauffeur ne demande pas de permis. Le client sait ainsi
+                immédiatement s'il peut aller au bout, au lieu de remplir tout
+                le parcours pour se heurter à la demande finale. */}
+            {showDocumentStep && (
+              <div style={{ background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 12, padding: "12px 14px", marginBottom: 18 }}>
+                <div style={{ fontWeight: 800, fontSize: ".88rem", color: "#0f1b3f", marginBottom: 6 }}>
+                  🪪 Documents à préparer pour cette réservation
+                </div>
+                <ul style={{ margin: 0, paddingLeft: 18, fontSize: ".83rem", color: "#475569", lineHeight: 1.7 }}>
+                  <li>
+                    Pièce d'identité ou passeport
+                    {identitySatisfied && <span style={{ color: "#059669", fontWeight: 700 }}> — déjà fournie ✓</span>}
+                  </li>
+                  {needsLicenseDoc && (
+                    <li>
+                      Permis de conduire{vehicle?.withDriver ? "" : " (véhicule conduit par vous-même)"}
+                      {licenseSatisfied && !licenseExpired && <span style={{ color: "#059669", fontWeight: 700 }}> — déjà fourni ✓</span>}
+                      {licenseExpired && <span style={{ color: "#b45309", fontWeight: 700 }}> — celui de votre profil a expiré</span>}
+                    </li>
+                  )}
+                  {!needsLicenseDoc && vehicle?.withDriver && (
+                    <li style={{ color: "#059669" }}>Permis non requis — ce véhicule est fourni avec chauffeur</li>
+                  )}
+                </ul>
+                <div style={{ fontSize: ".78rem", color: "#94a3b8", marginTop: 8 }}>
+                  Ils vous seront demandés à la dernière étape, pour conclure la réservation. Le partenaire les recevra avec votre réservation et n'aura jamais à vous les redemander.
+                </div>
+              </div>
+            )}
+
             {/* Infos client */}
             <h3 className={styles.sectionTitle}>{t("booking.step1ContactTitle")}</h3>
             <div className={styles.row}>
