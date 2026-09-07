@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import logger from "../utils/logger.js";
 import Chat from "../models/Chat.js";
 import User from "../models/User.js";
@@ -12,6 +13,9 @@ const SUPPORT_TYPES = ["client_support", "partner_support"];
 // bloqués (404) si ce premier admin est indisponible ou désactivé. Il est ajouté
 // aux participants dès sa première interaction (lecture ou réponse).
 async function findAccessibleChat(id, user) {
+  // Un id de conversation invalide doit se comporter comme un id inconnu
+  // (404 par l'appelant) et non lever un CastError remonté en 500.
+  if (!mongoose.Types.ObjectId.isValid(id)) return null;
   const myId = user._id.toString();
   let chat = await Chat.findOne({ _id: id, participants: myId });
   if (chat) return chat;
@@ -98,14 +102,22 @@ export const getOrCreateChat = async (req, res) => {
       // n'importe quel autre compte du système). Il est dérivé côté serveur à partir
       // d'une réservation réelle impliquant l'appelant.
       if (!bookingId) return res.status(400).json({ message: "Réservation requise pour contacter un partenaire." });
-      const booking = await Booking.findById(bookingId)
-        .populate("vehicle", "owner")
-        .populate("driver", "owner");
 
       // Réponse générique identique que la réservation n'existe pas OU qu'elle
       // existe mais n'implique pas l'appelant — sinon la différence 404/403
       // permet de sonder l'existence d'un bookingId arbitraire par force brute.
       const notPartyErr = () => res.status(404).json({ message: "Réservation introuvable." });
+
+      // Un id non-ObjectId (ex. commande locale optimiste côté front, id
+      // numérique Date.now()) faisait lever un CastError à findById, remonté
+      // en 500 "Erreur serveur." — le partenaire voyait une erreur serveur en
+      // cliquant sur "Message au client". Même 404 générique qu'un id inconnu.
+      if (!mongoose.Types.ObjectId.isValid(bookingId)) return notPartyErr();
+
+      const booking = await Booking.findById(bookingId)
+        .populate("vehicle", "owner")
+        .populate("driver", "owner");
+
       if (!booking) return notPartyErr();
 
       const clientId = booking.client?.toString();
@@ -115,6 +127,13 @@ export const getOrCreateChat = async (req, res) => {
       if (myId === clientId)      targetId = ownerId;
       else if (myId === ownerId)  targetId = clientId;
       else return notPartyErr();
+
+      // Réservation sans compte client rattaché (import historique / commande
+      // invité) : le partenaire n'a personne à qui écrire — message explicite
+      // plutôt qu'une conversation à participant `undefined`.
+      if (!targetId) {
+        return res.status(409).json({ message: "Cette réservation n'est rattachée à aucun compte client — contactez le service client VIT AUTO." });
+      }
 
       // Gate admin obligatoire (audit 2026-08) — le partenaire ne doit rien
       // savoir d'une réservation tant qu'un admin ne l'a pas validée. Le
@@ -364,6 +383,9 @@ export const getClientPartnerChats = async (req, res) => {
 export const getClientPartnerChatMessages = async (req, res) => {
   try {
     const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(404).json({ message: "Conversation introuvable." });
+    }
     const chat = await Chat.findOne({ _id: id, type: "client_partner" })
       .populate("participants", "firstName lastName role profilePhoto")
       .populate("messages.sender", "firstName lastName role profilePhoto");

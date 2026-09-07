@@ -328,9 +328,17 @@ export const VehicleProvider = ({ children }) => {
         const backendIds  = new Set(fromBackend.map((b) => String(b.id)));
         setBookings((prev) => {
           // Garder les commandes locales (id numérique) UNIQUEMENT si elles ne sont pas encore
-          // présentes dans le backend (évite doublons et entrées orphelines)
+          // présentes dans le backend (évite doublons et entrées orphelines).
+          // Purge en plus les entrées locales périmées : une commande créée
+          // hors ligne (ou dont l'appel POST a échoué) restait sinon dans le
+          // localStorage indéfiniment, sans jamais correspondre à une
+          // réservation serveur — d'où des lignes fantômes sur lesquelles
+          // aucune action (message, gestion, documents) ne peut aboutir.
+          const STALE_LOCAL_MS = 24 * 60 * 60 * 1000;
+          const now = Date.now();
           const localOnly = prev.filter(
             (b) => !b._fromBackend && typeof b.id === "number" && !backendIds.has(String(b.id))
+              && (now - new Date(b.createdAt || b.id).getTime()) < STALE_LOCAL_MS
           );
           const merged = [...fromBackend, ...localOnly];
           saveBookings(merged);

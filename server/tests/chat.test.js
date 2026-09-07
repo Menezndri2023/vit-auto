@@ -68,6 +68,44 @@ describe("chatController.getOrCreateChat", () => {
     expect(notParty.res.status).toHaveBeenCalledWith(404);
   });
 
+  // Bug réel signalé par le partenaire : cliquer sur "Message au client" depuis
+  // une ligne de commande locale (id numérique Date.now(), jamais fusionnée
+  // avec son équivalent serveur) envoyait un bookingId non-ObjectId → CastError
+  // à findById → 500 "Erreur serveur.". Doit être le même 404 générique qu'un
+  // id inconnu (cohérence anti-énumération).
+  it("renvoie 404 — jamais 500 — sur un bookingId qui n'est pas un ObjectId", async () => {
+    const client = await createUser();
+    for (const bad of ["abc123", "1757230000000", "../../etc/passwd"]) {
+      const { req, res } = mockReqRes({ user: client, body: { type: "client_partner", bookingId: bad } });
+      await getOrCreateChat(req, res);
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.status).not.toHaveBeenCalledWith(500);
+    }
+  });
+
+  it("refuse proprement une réservation sans compte client rattaché (pas de conversation à participant vide)", async () => {
+    const owner   = await createUser();
+    const client  = await createUser();
+    const booking = await createBookingBetween(client, owner._id);
+    await Booking.updateOne({ _id: booking._id }, { $set: { client: null } });
+
+    const { req, res } = mockReqRes({ user: owner, body: { type: "client_partner", bookingId: booking._id.toString() } });
+    await getOrCreateChat(req, res);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.status).not.toHaveBeenCalledWith(500);
+  });
+
+  it("renvoie 404 — jamais 500 — sur un id de conversation invalide", async () => {
+    const client = await createUser();
+    const get = mockReqRes({ user: client, params: { id: "pas-un-id" } });
+    await getMessages(get.req, get.res);
+    expect(get.res.status).toHaveBeenCalledWith(404);
+
+    const send = mockReqRes({ user: client, params: { id: "pas-un-id" }, body: { content: "Bonjour" } });
+    await sendMessage(send.req, send.res);
+    expect(send.res.status).toHaveBeenCalledWith(404);
+  });
+
   // Activation de la messagerie client↔partenaire (2026-09) : le bouton était
   // déjà masqué côté client tant que la réservation n'était pas validée, mais
   // rien ne l'empêchait côté serveur — un appel direct créait la conversation

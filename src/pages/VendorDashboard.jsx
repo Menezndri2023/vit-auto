@@ -222,7 +222,7 @@ const displayStatus = (subType, status) => LEGACY_STATUS_MAP[subType]?.[status] 
 /* ══════════════════════════════════════════════════════════════════════════════
    MODAL GÉRER — Gestion complète, identité intégrée, workflow par type VIT-AUTO
    ══════════════════════════════════════════════════════════════════════════════ */
-function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onPrepare, onReady, onInProgress,
+function GererModal({ order, orderDetail, detailLoading, detailError, onClose, onConfirm, onPrepare, onReady, onInProgress,
   onClientArrived, onClientAbsent, onRecordTransaction, onPartnerConfirm, onComplete, onReject, onTransactionNotConcluded, onRespondToDispute, onPartnerVerifyKyc, onContactClient,
   onClaimCaution, onRateClient, commRates = DEFAULT_COMM_RATE }) {
   // Tous les hooks AVANT tout return conditionnel (règles des hooks React)
@@ -417,6 +417,10 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
 
                   {detailLoading ? (
                     <div style={{ fontSize:".8rem", color:"#94a3b8", padding:"8px 0" }}>⏳ Chargement…</div>
+                  ) : detailError ? (
+                    <div style={{ fontSize:".78rem", color:"#b91c1c", background:"#fef2f2", border:"1px solid #fecaca", borderRadius:8, padding:"8px 10px", marginTop:8 }}>
+                      ⚠️ {detailError}
+                    </div>
                   ) : (
                     // Restructuration réservation (2026-09) : le document est
                     // désormais lié À CETTE RÉSERVATION (uploadé à la conclusion,
@@ -457,6 +461,8 @@ function GererModal({ order, orderDetail, detailLoading, onClose, onConfirm, onP
                     </div>
                     {detailLoading ? (
                       <div style={{ fontSize:".8rem", color:"#94a3b8", padding:"4px 0" }}>⏳</div>
+                    ) : detailError ? (
+                      <div style={{ fontSize:".78rem", color:"#b91c1c", padding:"4px 0" }}>⚠️ Documents non chargés.</div>
                     ) : (
                       // Restructuration réservation (2026-09) — voir commentaire
                       // ci-dessus (pièce d'identité) : même logique pour le permis.
@@ -1551,6 +1557,7 @@ export default function VendorDashboard() {
   const [gererModalId,   setGererModalId]   = useState(null);
   const [orderDetail,    setOrderDetail]    = useState(null);
   const [detailLoading,  setDetailLoading]  = useState(false);
+  const [detailError,    setDetailError]    = useState(null);
   const [myDrivers,      setMyDrivers]      = useState([]);
   const [driverLoading,  setDriverLoading]  = useState(false);
   // Activités (section OTHERS — Quad, Surf, Montgolfière, Jetski, Jet privé,
@@ -1671,10 +1678,18 @@ export default function VendorDashboard() {
     if (activeTab === "reservations") fetchPersonalBookings();
   }, [activeTab, fetchPersonalBookings]);
 
+  // Le partenaire ne doit voir QUE des réservations réellement enregistrées côté
+  // serveur. Les commandes locales optimistes (VehicleContext.addBooking, id
+  // numérique Date.now()) ne se fusionnent jamais avec leur équivalent backend
+  // (_id Mongo) : elles restaient donc comme lignes fantômes, sur lesquelles
+  // "Message au client" partait avec un id numérique (500 côté chat) et "Gérer"
+  // appelait /api/bookings/<numérique>/detail → 404, d'où des documents client
+  // jamais affichés. Filtre : id ObjectId Mongo (24 hex) uniquement.
   const allOrders = useMemo(() => {
+    const isServerId = (id) => /^[a-f\d]{24}$/i.test(String(id ?? ""));
     const map = new Map();
-    localOrders.forEach((b) => map.set(String(b.id), b));
-    partnerBookings.forEach((b) => map.set(String(b.id), { ...map.get(String(b.id)), ...b }));
+    localOrders.forEach((b) => { if (isServerId(b.id)) map.set(String(b.id), b); });
+    partnerBookings.forEach((b) => { if (isServerId(b.id)) map.set(String(b.id), { ...map.get(String(b.id)), ...b }); });
     return Array.from(map.values()).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }, [localOrders, partnerBookings]);
 
@@ -2547,17 +2562,31 @@ export default function VendorDashboard() {
   const handleGerer = useCallback((order) => {
     setGererModalId(order.id);
     setOrderDetail(null);
+    setDetailError(null);
   }, []);
 
-  // Charger le détail complet (avec snapshot KYC + images) à l'ouverture du modal
+  // Charger le détail complet (avec snapshot KYC + images) à l'ouverture du modal.
+  // L'échec était auparavant avalé en silence (.catch(() => {})) : le partenaire
+  // voyait « Aucun document » sans savoir que l'appel avait échoué — c'est ce qui
+  // rendait le symptôme « documents non visibles » indiagnosticable. On remonte
+  // désormais la raison réelle dans le modal.
   useEffect(() => {
     if (!gererModalId || !token) return;
+    let cancelled = false;
     setDetailLoading(true);
+    setDetailError(null);
     fetch(`/api/bookings/${gererModalId}/detail`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d?.booking) setOrderDetail(d.booking); })
-      .catch(() => {})
-      .finally(() => setDetailLoading(false));
+      .then(async (r) => {
+        const d = await r.json().catch(() => null);
+        if (cancelled) return;
+        if (r.ok && d?.booking) setOrderDetail(d.booking);
+        else if (r.status === 403) setDetailError("Fiche non accessible : la réservation n'a pas encore été validée par VIT AUTO.");
+        else if (r.status === 404) setDetailError("Réservation introuvable côté serveur.");
+        else setDetailError(d?.message || "Impossible de charger les documents de cette réservation.");
+      })
+      .catch(() => { if (!cancelled) setDetailError("Connexion au serveur impossible — documents non chargés."); })
+      .finally(() => { if (!cancelled) setDetailLoading(false); });
+    return () => { cancelled = true; };
   }, [gererModalId, token]);
 
   const handlePartnerVerifyKyc = useCallback(async (id, decision, note) => {
@@ -3799,6 +3828,7 @@ export default function VendorDashboard() {
           order={gererModal}
           orderDetail={orderDetail}
           detailLoading={detailLoading}
+          detailError={detailError}
           commRates={activeCommRates}
           onClose={() => { setGererModalId(null); setOrderDetail(null); }}
           onConfirm={handleConfirm}
