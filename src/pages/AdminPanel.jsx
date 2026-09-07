@@ -4367,9 +4367,23 @@ export default function AdminPanel() {
     roles:            "super_admin",
     audit:            "super_admin",
   };
+  // Niveau d'accès du compte connecté — `undefined` signifie « inconnu »
+  // (session antérieure à la transmission d'adminScope par le serveur), à ne
+  // jamais confondre avec « aucune permission ».
+  const myScopes       = Array.isArray(user?.adminScope) ? user.adminScope : null;
+  const isGeneralAdmin = myScopes === null || myScopes.includes("super_admin");
+
   const canSeeTab = (key) => {
     const scope = TAB_SCOPES[key];
-    const scopes = user?.adminScope || [];
+    // Permissions INCONNUES (session ouverte avant que le serveur ne renvoie
+    // adminScope, ou réponse tronquée) : on affiche tout plutôt que de
+    // présenter un panneau vide et inexplicable. Ce filtre n'est qu'un confort
+    // d'affichage — l'autorité reste le serveur (requireAdminScope), qui
+    // refusera ce qui n'est pas permis avec un message explicite. Distinguer
+    // « inconnu » de « aucune permission » est essentiel : un tableau vide,
+    // lui, signifie réellement aucun droit.
+    if (!Array.isArray(user?.adminScope)) return true;
+    const scopes = user.adminScope;
     // L'administrateur général passe partout.
     if (scopes.includes("super_admin")) return true;
     // Onglets sans permission déclarée (vue d'ensemble, santé système) :
@@ -4799,10 +4813,16 @@ export default function AdminPanel() {
             <button
               className={styles.adminBadge}
               onClick={() => navigate("/profile")}
-              title="Modifier mon profil / mot de passe"
+              title={isGeneralAdmin
+                ? "Administrateur général — accès complet à toute l'administration"
+                : `Accès assigné : ${myScopes.join(", ") || "aucun domaine"}`}
               style={{ border: "none", cursor: "pointer", fontFamily: "inherit" }}
             >
-              🔐 {user.firstName} · Admin
+              {/* Le niveau d'accès est désormais affiché : rien ne distinguait
+                  un administrateur général d'un admin restreint, ce qui rendait
+                  incompréhensible qu'un onglet soit absent ou qu'une action
+                  soit refusée. */}
+              {isGeneralAdmin ? "👑" : "🔐"} {user.firstName} · {isGeneralAdmin ? "Admin général" : "Admin"}
             </button>
 
             {/* Bouton "Voir le site" — retour au site public */}
@@ -4845,7 +4865,24 @@ export default function AdminPanel() {
         {/* ── Zone de scroll ── */}
         <div className={styles.scrollZone}>
 
-      {loading ? (
+      {/* Compte admin sans AUCUNE permission : message explicite plutôt qu'un
+          panneau vide. Depuis le passage aux permissions explicites, un compte
+          fraîchement promu admin n'a aucun droit tant qu'un administrateur
+          général ne lui en attribue pas — sans ce message, il verrait un écran
+          désert sans comprendre pourquoi. */}
+      {myScopes !== null && myScopes.length === 0 ? (
+        <div style={{ maxWidth: 560, margin: "3rem auto", background: "#fff", border: "1.5px solid #fecaca", borderRadius: 14, padding: "24px 28px", textAlign: "center" }}>
+          <div style={{ fontSize: "2rem", marginBottom: 10 }}>🔒</div>
+          <h2 style={{ margin: "0 0 8px", fontSize: "1.05rem", color: "#0f1b3f" }}>Aucune permission attribuée</h2>
+          <p style={{ margin: "0 0 6px", fontSize: ".88rem", color: "#475569", lineHeight: 1.6 }}>
+            Votre compte est bien administrateur, mais aucun domaine ne lui a encore été attribué.
+          </p>
+          <p style={{ margin: 0, fontSize: ".84rem", color: "#94a3b8", lineHeight: 1.6 }}>
+            Demandez à un <strong>administrateur général</strong> de vous ouvrir les domaines nécessaires
+            depuis <em>Rôles &amp; Permissions</em>.
+          </p>
+        </div>
+      ) : loading ? (
         <div className={styles.loadingBox}>
           <div className={styles.spinner} />
           <p>Chargement des données...</p>

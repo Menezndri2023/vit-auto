@@ -68,6 +68,15 @@ function safeUser(u) {
     phone:            u.phone,
     country:          u.country || null,
     role:             u.role,
+    // Permissions admin — indispensable côté interface : AdminPanel masque ses
+    // onglets selon ce tableau (canSeeTab, miroir de requireAdminScope côté
+    // serveur). Il n'était renvoyé NULLE PART (ni au login, ni par /auth/me),
+    // ce qui n'avait pas d'importance tant qu'un tableau vide valait « accès
+    // complet ». Depuis le passage aux permissions explicites, son absence
+    // faisait croire à l'interface que le compte n'avait AUCUNE permission :
+    // tous les onglets disparaissaient et le panneau d'administration
+    // s'affichait vide. Renvoyé uniquement pour un compte admin.
+    adminScope:       u.role === "admin" ? (u.adminScope || []) : undefined,
     sellerType:       u.sellerType || null,
     activity:         u.partnerActivity || null,
     entityType:       u.entityType || null,

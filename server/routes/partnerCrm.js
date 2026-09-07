@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authenticate as protect, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
+import { authenticate as protect, authorizeAdmin, requireAdminScope, requireGeneralAdmin } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 import {
   adminList,
@@ -24,6 +24,10 @@ router.patch ("/admin/:id",           isAdmin, validateObjectId(), adminUpdate);
 router.patch ("/admin/:id/statut",    isAdmin, validateObjectId(), adminUpdateStatut);
 router.patch ("/admin/:id/link",      isAdmin, validateObjectId(), adminLink);
 // Suppression réservée au super admin — nettoyage de doublons, pas un usage courant.
-router.delete("/admin/:id", protect, authorizeAdmin, requireAdminScope("super_admin"), validateObjectId(), adminDelete);
+// Suppression d'un prospect : action irréversible réservée à
+// l'administrateur général (requireGeneralAdmin exprime cette intention
+// directement, au lieu de passer "super_admin" comme un domaine parmi les
+// autres — ce n'est pas un domaine, c'est un niveau).
+router.delete("/admin/:id", protect, authorizeAdmin, requireGeneralAdmin, validateObjectId(), adminDelete);
 
 export default router;

@@ -65,6 +65,40 @@ describe("requireGeneralAdmin — réservé à l'admin général", () => {
   });
 });
 
+// Régression réelle (signalée : « l'admin général est vide, je ne vois rien ») :
+// safeUser() ne renvoyait PAS adminScope — ni au login, ni sur /auth/me. Sans
+// importance tant qu'un tableau vide valait « accès complet » ; mais depuis les
+// permissions explicites, l'interface en déduisait « aucune permission » et
+// masquait TOUS les onglets, y compris à l'administrateur général.
+describe("safeUser — les permissions doivent atteindre l'interface", () => {
+  it("renvoie adminScope pour un compte admin", async () => {
+    const { getMe } = await import("../controllers/authController.js");
+    const general = await createUser({ role: "admin", adminScope: ["super_admin"] });
+
+    const { req, res } = mockReqRes({ user: general });
+    await getMe(req, res);
+    expect(res.body.user.adminScope).toEqual(["super_admin"]);
+  });
+
+  it("renvoie les domaines assignés d'un admin restreint", async () => {
+    const { getMe } = await import("../controllers/authController.js");
+    const scoped = await createUser({ role: "admin", adminScope: ["finance", "bookings"] });
+
+    const { req, res } = mockReqRes({ user: scoped });
+    await getMe(req, res);
+    expect(res.body.user.adminScope).toEqual(["finance", "bookings"]);
+  });
+
+  it("n'expose pas adminScope à un compte non-admin", async () => {
+    const { getMe } = await import("../controllers/authController.js");
+    const client = await createUser({ role: "client" });
+
+    const { req, res } = mockReqRes({ user: client });
+    await getMe(req, res);
+    expect(res.body.user.adminScope).toBeUndefined();
+  });
+});
+
 describe("Gestion des comptes admin", () => {
   it("seul l'administrateur général peut modifier les permissions d'un autre admin", async () => {
     const general = await createUser({ role: "admin", adminScope: ["super_admin"] });
