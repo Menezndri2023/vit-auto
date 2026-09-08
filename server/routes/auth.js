@@ -3,6 +3,7 @@ import { rateLimit } from "express-rate-limit";
 import * as auth from "../controllers/authController.js";
 import { authenticate } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
+import { makeRateLimitStore } from "../utils/rateLimitStore.js";
 import {
   registerSchema,
   loginSchema,
@@ -18,6 +19,7 @@ const router = express.Router();
 
 // Limiteur strict pour les actions sensibles OTP / reset (5/h)
 const strictLimiter = rateLimit({
+  store: makeRateLimitStore("auth"),
   windowMs: 60 * 60 * 1000, max: 5,
   message: { message: "Trop de tentatives. Réessayez dans 1 heure." },
   standardHeaders: true, legacyHeaders: false,
@@ -25,6 +27,7 @@ const strictLimiter = rateLimit({
 
 // Limiteur modéré pour la validation de document (60/h — pas un endpoint sensible)
 const identityLimiter = rateLimit({
+  store: makeRateLimitStore("auth2"),
   windowMs: 60 * 60 * 1000, max: 60,
   message: { message: "Trop de vérifications. Réessayez dans 1 heure." },
   standardHeaders: true, legacyHeaders: false,

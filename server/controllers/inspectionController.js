@@ -9,6 +9,31 @@ import Vehicle from "../models/Vehicle.js";
 // de propriété — dupliquée plutôt que factorisée avec le contrôleur IE pour
 // ne pas toucher un flux déjà en production.
 
+// Liste blanche des champs saisissables d'un rapport d'inspection.
+// Deux raisons (audit sécurité 2026-09) :
+//  • `Object.assign(doc, { ...req.body })` recopiait le corps entier. La clé
+//    `__proto__` d'un JSON traverse express-mongo-sanitize (qui ne filtre que
+//    `$` et `.`) et `Object.assign` déclenche alors le setter de prototype :
+//    le document Mongoose perdait ses méthodes (`doc.save is not a function`).
+//  • Le partenaire pilotait `status`, `createdAt` et `inspectionDate` : il
+//    pouvait publier une auto-attestation d'inspection ANTIDATÉE sur ses
+//    propres annonces — alors que le rapport est précisément la garantie
+//    d'état réel du véhicule avant expédition.
+const INSPECTION_EDITABLE_FIELDS = [
+  "engine", "transmission", "suspension", "brakes", "tires", "bodywork",
+  "interior", "electronics", "battery",
+  "mileageVerified", "overallRating", "overallNotes", "defects", "photos",
+  "inspectorName", "inspectionLocation",
+];
+
+export const pickInspectionFields = (body = {}) => {
+  const out = {};
+  for (const key of INSPECTION_EDITABLE_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(body, key)) out[key] = body[key];
+  }
+  return out;
+};
+
 // POST /api/vehicles/:id/inspection-report
 export const createVehicleInspectionReport = async (req, res) => {
   try {
@@ -18,7 +43,7 @@ export const createVehicleInspectionReport = async (req, res) => {
     const existing = await InspectionReport.findOne({ vehicle: req.params.id });
     if (existing) {
       Object.assign(existing, {
-        ...req.body,
+        ...pickInspectionFields(req.body),
         partner: req.user._id,
         vehicle: req.params.id,
         listing: null,
@@ -33,7 +58,7 @@ export const createVehicleInspectionReport = async (req, res) => {
     // l'utilisateur authentifié, jamais du client (même raisonnement que
     // createInspectionReport côté IE — éviter le spoofing d'ownership).
     const report = await InspectionReport.create({
-      ...req.body,
+      ...pickInspectionFields(req.body),
       vehicle: req.params.id,
       partner: req.user._id,
     });

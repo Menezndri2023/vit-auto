@@ -5,9 +5,15 @@ import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { sendEmail } from "../config/email.js";
 import { validateDocumentDataUri } from "../utils/imageValidation.js";
-import { decryptField } from "../utils/fieldEncryption.js";
+import { encryptField, decryptField } from "../utils/fieldEncryption.js";
 import { combinePaginated } from "../utils/paginateWithOrphans.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
+
+// Champs chiffrés au repos (AES-256-GCM, voir utils/fieldEncryption.js) :
+// coordonnées bancaires du niveau 4 et identifiant fiscal du niveau 1. Ils
+// n'ont pas besoin d'être cherchables par égalité — aucun index HMAC requis,
+// contrairement au numéro de pièce d'identité du KYC.
+const ENCRYPTED_CERT_FIELDS = ["iban", "swift", "accountHolder", "bankName", "taxId"];
 
 // ── Champs autorisés par niveau (whitelist anti mass-assignment) ──────────────
 const LEVEL_ALLOWED_FIELDS = {
@@ -117,6 +123,23 @@ async function addAudit(certId, action, level, performedBy, note) {
   }).catch(() => {});
 }
 
+// Déchiffre les champs bancaires/fiscaux d'un dossier avant de le renvoyer.
+// `decryptField` laisse intacte une valeur non chiffrée : les dossiers créés
+// avant l'activation du chiffrement restent donc lisibles sans migration
+// préalable, et la migration peut passer plus tard sans interruption.
+function decryptCertFields(cert) {
+  if (!cert) return cert;
+  const doc = typeof cert.toObject === "function" ? cert.toObject() : cert;
+  for (const levelKey of ["level1", "level4"]) {
+    const level = doc[levelKey];
+    if (!level) continue;
+    for (const field of ENCRYPTED_CERT_FIELDS) {
+      if (level[field]) level[field] = decryptField(level[field]);
+    }
+  }
+  return doc;
+}
+
 // ── GET /api/certification/status ────────────────────────────────────────────
 export const getStatus = async (req, res) => {
   try {
@@ -126,7 +149,7 @@ export const getStatus = async (req, res) => {
       { $setOnInsert: { userId: req.user.id } },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
-    res.json({ certification: cert });
+    res.json({ certification: decryptCertFields(cert) });
   } catch (err) {
     logger.error("certification getStatus:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -169,6 +192,17 @@ export const submitLevel = async (req, res) => {
     const docCheck = validateLevelDocs(safePayload, lvlNum);
     if (!docCheck.ok) {
       return res.status(400).json({ message: `${docCheck.field} : ${docCheck.message}`, code: "INVALID_DOCUMENT" });
+    }
+
+    // Chiffrement au repos des données bancaires et fiscales (audit sécurité
+    // 2026-09). Elles étaient stockées en CLAIR alors que les photos de pièce
+    // d'identité du même dossier sont chiffrées depuis 2026-07 : la protection
+    // était incohérente précisément sur les données les plus directement
+    // monétisables. Une fuite de sauvegarde Mongo donnait les IBAN complets.
+    // `encryptField` est idempotent (jamais de double chiffrement) et no-op sur
+    // les valeurs vides — voir utils/fieldEncryption.js.
+    for (const field of ENCRYPTED_CERT_FIELDS) {
+      if (safePayload[field] !== undefined) safePayload[field] = encryptField(safePayload[field]);
     }
 
     const levelKey = `level${lvlNum}`;
@@ -355,7 +389,7 @@ export const adminDetail = async (req, res) => {
       }
     }
 
-    res.json({ certification: cert });
+    res.json({ certification: decryptCertFields(cert) });
   } catch (err) {
     logger.error("certification adminDetail:", err);
     res.status(500).json({ message: "Erreur serveur." });

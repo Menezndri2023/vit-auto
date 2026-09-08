@@ -3,6 +3,7 @@ import rateLimit from "express-rate-limit";
 import * as vi from "../controllers/vehicleImportController.js";
 import { authenticate } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
+import { makeRateLimitStore } from "../utils/rateLimitStore.js";
 
 const router = express.Router();
 const vid = validateObjectId("batchId");
@@ -11,6 +12,7 @@ const vid = validateObjectId("batchId");
 // x 8 images téléchargées) — limiteur dédié, plus strict que le reste du routeur qui
 // est aussi utilisé pour le polling de progression (toutes les 2s côté frontend).
 const importCreateLimiter = rateLimit({
+  store: makeRateLimitStore("vehicleImport"),
   windowMs:        60 * 60 * 1000,
   max:             20,
   message:         { message: "Trop d'imports. Réessayez dans 1 heure." },

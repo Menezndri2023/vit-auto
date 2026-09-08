@@ -8,6 +8,7 @@ import { rateLimit } from "express-rate-limit";
 import mongoSanitize from "express-mongo-sanitize";
 import connectDB from "./config/db.js";
 import logger from "./utils/logger.js";
+import { makeRateLimitStore } from "./utils/rateLimitStore.js";
 import { runOnceMigration } from "./utils/runOnceMigration.js";
 import { initSentry, sentryRequestHandler, sentryTracingHandler, sentryErrorHandler, captureException } from "./config/sentry.js";
 import { initQueues, isReady as isQueuesReady, getQueueStats } from "./queue/index.js";
@@ -223,22 +224,39 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
+// Limiteur propre aux webhooks (audit sécurité 2026-09) : ils étaient montés
+// AVANT la section de limitation de débit et n'étaient donc couverts par aucun
+// plafond. Chacun calcule pourtant un HMAC sur un corps pouvant aller jusqu'à
+// la limite de `express.raw`, et certains font une écriture en base — le tout
+// sans authentification préalable, sur un processus dont le tas est borné.
+// Plafond large : il ne doit jamais gêner un fournisseur qui rejoue ses
+// événements, seulement écrêter un flood.
+const webhookLimiter = rateLimit({
+  store:           makeRateLimitStore("webhook"),
+  windowMs:        60 * 1000,
+  max:             120,
+  message:         { message: "Trop de requêtes." },
+  standardHeaders: true,
+  legacyHeaders:   false,
+  skip:            () => process.env.NODE_ENV === "test",
+});
+
 // ── Webhooks Stripe/Wave — corps BRUT requis pour vérifier leur signature
 // cryptographique (stripe-signature / Wave-Signature), donc montés ICI, avant
 // express.json() qui parserait sinon le corps et empêcherait toute vérification
 // fiable de la signature (voir services/payment/providers/*Provider.js).
-app.post("/api/payments/webhook/stripe", express.raw({ type: "application/json" }), paymentController.stripeWebhook);
-app.post("/api/payments/webhook/wave",   express.raw({ type: "application/json" }), paymentController.waveWebhook);
+app.post("/api/payments/webhook/stripe", webhookLimiter, express.raw({ type: "application/json" }), paymentController.stripeWebhook);
+app.post("/api/payments/webhook/wave",   webhookLimiter, express.raw({ type: "application/json" }), paymentController.waveWebhook);
 
 // ── Webhook WhatsApp (Meta Cloud API) — même raison : signature X-Hub-Signature-256
 // vérifiée sur le corps brut. Le challenge GET n'a besoin d'aucun body parsing.
 app.get ("/api/whatsapp/webhook", whatsappController.verifyWebhook);
-app.post("/api/whatsapp/webhook", express.raw({ type: "application/json" }), whatsappController.receiveWebhook);
+app.post("/api/whatsapp/webhook", webhookLimiter, express.raw({ type: "application/json" }), whatsappController.receiveWebhook);
 
 // ── Webhook Resend (bounce/complaint/delivered) — même raison : signature
 // svix-signature vérifiée sur le corps brut (voir commWebhookController.js
 // pour la configuration requise côté dashboard Resend).
-app.post("/api/comm/webhook/resend", express.raw({ type: "application/json" }), commWebhookController.resendWebhook);
+app.post("/api/comm/webhook/resend", webhookLimiter, express.raw({ type: "application/json" }), commWebhookController.resendWebhook);
 
 // ── Body parsing — 20 MB pour couvrir jusqu'à 6 photos véhicule (VendorSubmit.jsx,
 // recompressées côté client mais avec marge) en plus des photos base64 KYC ──
@@ -261,7 +279,12 @@ app.use(mongoSanitize({
 // /api/auth/*, sans affaiblir la protection anti brute-force réelle.
 const skipInTest = () => process.env.NODE_ENV === "test";
 
+// `store` partagé (Redis) : sans lui les compteurs anti-force brute vivaient
+// en mémoire du processus et repartaient de zéro à chaque redémarrage — un
+// attaquant provoquait lui-même la remise à zéro sur un hébergement qui met le
+// service en veille. Repli automatique en mémoire si Redis est absent.
 const authLimiter = rateLimit({
+  store:           makeRateLimitStore("auth"),
   windowMs:        15 * 60 * 1000,     // 15 minutes
   max:             10,                  // 10 tentatives (anti brute-force renforcé)
   message:         { message: "Trop de tentatives. Réessayez dans 15 minutes." },
@@ -272,6 +295,7 @@ const authLimiter = rateLimit({
 });
 
 const apiLimiter = rateLimit({
+  store:           makeRateLimitStore("api"),
   windowMs:        10 * 60 * 1000,     // 10 minutes
   max:             300,
   message:         { message: "Trop de requêtes. Réessayez dans quelques minutes." },
@@ -281,6 +305,7 @@ const apiLimiter = rateLimit({
 
 // Limiter catalogue public (anti-scraping bots)
 const catalogueLimiter = rateLimit({
+  store:           makeRateLimitStore("catalogue"),
   windowMs:        5 * 60 * 1000,
   max:             200,               // 200 req/5min = largement suffisant pour navigation normale
   message:         { message: "Trop de requêtes. Réessayez dans quelques minutes." },
@@ -292,6 +317,7 @@ const catalogueLimiter = rateLimit({
 
 // Limiter upload / KYC (ressources intensives)
 const uploadLimiter = rateLimit({
+  store:           makeRateLimitStore("upload"),
   windowMs:        60 * 60 * 1000,
   max:             20,
   message:         { message: "Trop de soumissions. Réessayez dans 1 heure." },
@@ -306,11 +332,41 @@ app.use((req, _res, next) => {
 });
 
 // ── Health check détaillé (pour load balancers / monitoring) ─────────────
-app.get("/api/health", async (_req, res) => {
+// Cette route DOIT rester publique : c'est la sonde de santé de l'hébergeur.
+// Mais elle divulguait à quiconque l'inventaire complet du service (audit
+// sécurité 2026-09) : intégrations configurées ou non, état des files, version,
+// consommation mémoire — et surtout `fieldEncryption: "missing"`, qui annonçait
+// noir sur blanc que les données KYC sont stockées NON CHIFFRÉES, avec le
+// moment opportun pour frapper. Le détail n'est désormais renvoyé qu'à un
+// administrateur authentifié ; le public ne reçoit que l'état de santé, seule
+// information dont la sonde a besoin.
+app.get("/api/health", async (req, res) => {
   const mongoose = await import("mongoose");
   const { isRedisAvailable } = await import("./config/redis.js");
   const dbState = ["disconnected", "connected", "connecting", "disconnecting"][mongoose.default.connection.readyState] || "unknown";
   const healthy = dbState === "connected";
+
+  let isAdmin = false;
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (token) {
+      const jwt = (await import("jsonwebtoken")).default;
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      if (!decoded.purpose) {
+        const { default: User } = await import("./models/User.js");
+        const u = await User.findById(decoded.id).select("role isActive").lean();
+        isAdmin = !!u && u.isActive !== false && u.role === "admin";
+      }
+    }
+  } catch { /* jeton absent ou invalide → réponse publique minimale */ }
+
+  if (!isAdmin) {
+    return res.status(healthy ? 200 : 503).json({
+      status:    healthy ? "healthy" : "degraded",
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   res.status(healthy ? 200 : 503).json({
     status:    healthy ? "healthy" : "degraded",
     timestamp: new Date().toISOString(),
@@ -671,6 +727,56 @@ async function runStartupMigrations() {
         );
         logger.info(`[Migration] booking-admin-validation-backfill : ${result.modifiedCount} commande(s) traitée(s).`);
       });
+      // ── Chiffrement au repos des données bancaires, fiscales et de pièce ────
+      // Les nouvelles écritures sont chiffrées depuis l'audit sécurité 2026-09
+      // (partnerCertificationController.submitLevel, bookingController.
+      // createBooking) ; cette migration rattrape l'existant. `encryptField` est
+      // idempotent — une valeur déjà chiffrée est laissée telle quelle — et
+      // `decryptField` restitue les valeurs non chiffrées : la lecture
+      // fonctionne donc avant, pendant et après le passage de cette migration,
+      // sans interruption de service.
+      // Sans FIELD_ENCRYPTION_KEY, on LÈVE : le marqueur n'est pas posé et la
+      // migration repassera au prochain démarrage, une fois la clé en place
+      // (même principe que les migrations ImageKit).
+      await runOnceMigration("encrypt-bank-tax-passport-2026-09", async () => {
+        const { encryptField, isEncrypted } = await import("./utils/fieldEncryption.js");
+        const [{ default: PartnerCertification }, { default: Booking }] = await Promise.all([
+          import("./models/PartnerCertification.js"),
+          import("./models/Booking.js"),
+        ]);
+        // Vérifie la clé AVANT toute écriture partielle.
+        encryptField("test-de-cle");
+
+        const CERT_FIELDS = { level1: ["taxId"], level4: ["iban", "swift", "accountHolder", "bankName"] };
+        let certs = 0;
+        const cursor = PartnerCertification.find({}).select("level1 level4").cursor();
+        for (let doc = await cursor.next(); doc; doc = await cursor.next()) {
+          const set = {};
+          for (const [levelKey, fields] of Object.entries(CERT_FIELDS)) {
+            for (const field of fields) {
+              const val = doc[levelKey]?.[field];
+              if (val && !isEncrypted(val)) set[`${levelKey}.${field}`] = encryptField(val);
+            }
+          }
+          if (Object.keys(set).length) {
+            await PartnerCertification.updateOne({ _id: doc._id }, { $set: set });
+            certs += 1;
+          }
+        }
+
+        let bookings = 0;
+        const bCursor = Booking.find({ "clientInfo.passportNumber": { $nin: [null, ""] } })
+          .select("clientInfo.passportNumber").cursor();
+        for (let doc = await bCursor.next(); doc; doc = await bCursor.next()) {
+          const val = doc.clientInfo?.passportNumber;
+          if (val && !isEncrypted(val)) {
+            await Booking.updateOne({ _id: doc._id }, { $set: { "clientInfo.passportNumber": encryptField(val) } });
+            bookings += 1;
+          }
+        }
+        logger.info(`[Migration] encrypt-bank-tax-passport : ${certs} dossier(s) de certification, ${bookings} réservation(s) chiffré(s).`);
+      });
+
       await runOnceMigration("ie-transaction-admin-validation-backfill-2026-08", async () => {
         const { default: IETransaction } = await import("./models/IETransaction.js");
         const result = await IETransaction.updateMany(

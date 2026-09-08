@@ -20,8 +20,13 @@ router.post("/bulk-delete", authenticate, v.bulkDeleteVehicles);             // 
 router.post("/bulk-update", authenticate, v.bulkUpdateVehicles);            // ajuster prix / pause dispo (sélection)
 
 // ── Admin — routes statiques ──────────────────────────────
-router.get("/pending", authenticate, authorizeAdmin, v.getPendingVehicles);  // annonces en attente
-router.post("/sync-availability", authenticate, authorizeAdmin, v.syncAllAvailability);
+// Scope "catalogue" ajouté (audit sécurité 2026-09) : ces 4 routes admin en
+// étaient dépourvues, alors que leurs homologues chauffeurs et les backfill
+// du même fichier l'ont. Un admin restreint à un autre secteur pouvait donc
+// lister les annonces en modération AVEC l'e-mail et le téléphone de chaque
+// partenaire, les approuver ou les rejeter, et se réassigner une annonce.
+router.get("/pending", authenticate, authorizeAdmin, requireAdminScope("catalogue"), v.getPendingVehicles);
+router.post("/sync-availability", authenticate, authorizeAdmin, requireAdminScope("catalogue"), v.syncAllAvailability);
 router.post("/backfill-thumbnails", authenticate, authorizeAdmin, requireAdminScope("catalogue"), v.backfillThumbnails);
 router.post("/backfill-descriptions", authenticate, authorizeAdmin, requireAdminScope("catalogue"), v.backfillDescriptions);
 
@@ -29,8 +34,8 @@ router.post("/backfill-descriptions", authenticate, authorizeAdmin, requireAdmin
 router.get("/:id/availability", vid, optionalAuth, v.getVehicleAvailability);    // disponibilité dates
 router.get("/:id/inspection-report",  vid, optionalAuth,  getVehicleInspectionReport);   // rapport d'inspection (public)
 router.post("/:id/inspection-report", vid, authenticate,  createVehicleInspectionReport); // publié/mis à jour par le propriétaire
-router.patch("/:id/status",   vid, authenticate, authorizeAdmin, v.updateVehicleStatus); // approuver/rejeter
-router.patch("/:id/transfer", vid, authenticate, authorizeAdmin, v.transferVehicle);       // réassigner compte/entreprise/pays/ville (admin)
+router.patch("/:id/status",   vid, authenticate, authorizeAdmin, requireAdminScope("catalogue"), v.updateVehicleStatus); // approuver/rejeter
+router.patch("/:id/transfer", vid, authenticate, authorizeAdmin, requireAdminScope("catalogue"), v.transferVehicle); // réassigner compte/entreprise/pays/ville (admin)
 router.patch("/:id/lifecycle",vid, authenticate, v.updateVehicleLifecycle);               // brouillon/vendu/archivé (partenaire)
 router.patch("/:id/promotion",vid, authenticate, v.updatePromotion);                      // activer/désactiver une promotion
 router.patch("/:id/seasonal-rates", vid, authenticate, v.updateSeasonalRates);            // tarifs saisonniers (haute/basse saison)

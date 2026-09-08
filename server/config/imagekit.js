@@ -61,6 +61,41 @@ export async function uploadImage(source, options = {}) {
   }
 }
 
+// Dossiers contenant des PIÈCES D'IDENTITÉ : pièce d'identité, permis, selfie,
+// documents joints à une réservation, documents des chauffeurs. Les fichiers y
+// sont déposés en PRIVÉ (audit sécurité 2026-09) : ils étaient jusqu'ici
+// publics par défaut, si bien qu'une URL ayant fuité par un canal ordinaire
+// (historique de navigateur, en-tête Referer, capture d'écran, journaux d'un
+// proxy) restait une photo de carte d'identité téléchargeable sans
+// authentification, indéfiniment — y compris après suppression du compte.
+// Le caractère imprévisible du nom de fichier n'est pas un contrôle d'accès.
+const PRIVATE_FOLDERS = [FOLDERS.kyc, FOLDERS.docs, FOLDERS.drivers, FOLDERS.bookingDocs].filter(Boolean);
+
+const isPrivateFolder = (folder) => PRIVATE_FOLDERS.some((f) => folder === f || String(folder).startsWith(`${f}/`));
+
+// Durée de validité d'une URL signée. Assez longue pour consulter et
+// télécharger un document dans la foulée, assez courte pour qu'une URL ayant
+// fuité ne serve plus.
+const SIGNED_URL_TTL_SECONDS = 15 * 60;
+
+// Rend affichable une URL de document. Un fichier PRIVÉ n'est lisible que via
+// une URL signée ; un fichier public (déposé avant ce changement) traverse la
+// signature sans dommage. Appelée au moment de la LECTURE, jamais stockée :
+// une URL signée expire, elle n'a pas vocation à vivre en base.
+export function signedDocumentUrl(url) {
+  if (!url || typeof url !== "string") return url;
+  const ik = getIK();
+  const endpoint = process.env.IMAGEKIT_URL_ENDPOINT;
+  // Data URI, URL externe, ou ImageKit non configuré : rien à signer.
+  if (!ik || !endpoint || !url.startsWith(endpoint)) return url;
+  try {
+    return ik.url({ src: url, signed: true, expireSeconds: SIGNED_URL_TTL_SECONDS });
+  } catch (err) {
+    logger.error("ImageKit signedDocumentUrl", { error: err.message });
+    return url; // ne jamais faire disparaître un document à cause d'une erreur de signature
+  }
+}
+
 export async function uploadDocument(source, folder = FOLDERS.kyc, fileName = null) {
   const ik = getIK();
   if (!ik) return null;
@@ -70,6 +105,8 @@ export async function uploadDocument(source, folder = FOLDERS.kyc, fileName = nu
       fileName: fileName || `doc_${Date.now()}`,
       folder,
       useUniqueFileName: true,
+      // Pièces d'identité : jamais accessibles sans URL signée.
+      ...(isPrivateFolder(folder) ? { isPrivateFile: true } : {}),
     });
     return { url: result.url, fileId: result.fileId, name: result.name, filePath: result.filePath };
   } catch (err) {

@@ -689,7 +689,9 @@ export async function getPublicShowrooms(req, res) {
     if (country) filter.exportCountries = { $in: [country] };
     if (brand) {
       // Échappement ReDoS : caractères spéciaux neutralisés
-      filter.brands = { $in: [new RegExp(escapeRegex(brand), "i")] };
+      // `String()` et plafond de longueur : sans eux, `?brand[]=a&brand[]=b`
+      // (tableau) faisait planter escapeRegex en 500.
+      filter.brands = { $in: [new RegExp(escapeRegex(String(brand).slice(0, 100)), "i")] };
     }
 
     const [showrooms, total] = await Promise.all([

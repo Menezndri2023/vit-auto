@@ -5,6 +5,7 @@ import ImportExportListing  from "../models/ImportExportListing.js";
 import InspectionReport     from "../models/InspectionReport.js";
 import User                 from "../models/User.js";
 import PartnerOnboarding    from "../models/PartnerOnboarding.js";
+import { pickInspectionFields } from "./inspectionController.js";
 import Notification         from "../models/Notification.js";
 import Chat                 from "../models/Chat.js";
 import { dispatch, enqueue } from "../queue/index.js";
@@ -1816,8 +1817,36 @@ export const assignTransaction = async (req, res) => {
     const tx = await IETransaction.findById(req.params.id);
     if (!tx) return res.status(404).json({ message: "Transaction introuvable." });
 
-    const assignee = await User.findById(assignedTo).select("firstName lastName");
+    const assignee = await User.findById(assignedTo).select("firstName lastName role isActive");
     if (!assignee) return res.status(404).json({ message: "Utilisateur introuvable." });
+
+    // Faille corrigée (audit sécurité 2026-09) : SEULE l'existence du compte
+    // était vérifiée. Or le statut d'assigné ouvre la lecture complète du
+    // dossier — e-mail, téléphone et statut KYC du client, e-mail, téléphone et
+    // données d'entreprise du fournisseur — et l'écriture des documents, de
+    // l'expédition et du suivi. On pouvait donc y désigner n'importe qui,
+    // y compris un partenaire CONCURRENT ou un simple client.
+    if (assignee.isActive === false) {
+      return res.status(400).json({ message: "Ce compte est désactivé." });
+    }
+    if (mode === "agent") {
+      // Agent interne = compte administrateur (voir getInternalAgents).
+      if (assignee.role !== "admin") {
+        return res.status(400).json({ message: "Un agent interne doit être un compte administrateur." });
+      }
+    } else {
+      // Transitaire = partenaire dont le dossier « transitaire_logistique » est
+      // actif — exactement la population proposée par le sélecteur
+      // (findActiveTransitaires).
+      const habilite = await PartnerOnboarding.exists({
+        userId: assignedTo, partnerType: "transitaire_logistique", status: "actif",
+      });
+      if (!habilite) {
+        return res.status(400).json({
+          message: "Ce compte n'est pas un transitaire habilité (dossier « transitaire_logistique » actif requis).",
+        });
+      }
+    }
 
     if (tx.assignment?.assignedTo) {
       tx.assignmentHistory.push({
@@ -1860,7 +1889,10 @@ export const createInspectionReport = async (req, res) => {
     const existing = await InspectionReport.findOne({ listing: req.params.id });
     if (existing) {
       Object.assign(existing, {
-        ...req.body,
+        // Liste blanche partagée (voir inspectionController) : empêche la
+        // pollution de prototype via `__proto__` et l'auto-attestation
+        // antidatée en pilotant `status`/`createdAt`/`inspectionDate`.
+        ...pickInspectionFields(req.body),
         partner: req.user._id,
         listing: req.params.id,
         updatedAt: new Date(),
@@ -1874,7 +1906,7 @@ export const createInspectionReport = async (req, res) => {
     // authentifié, jamais du client, sinon un partenaire pourrait rattacher son rapport
     // à l'annonce d'un concurrent (spoofing d'ownership).
     const report = await InspectionReport.create({
-      ...req.body,
+      ...pickInspectionFields(req.body),
       listing: req.params.id,
       partner: req.user._id,
     });

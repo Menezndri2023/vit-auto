@@ -24,6 +24,10 @@ import User from "../models/User.js";
 import { createUser } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
+import crypto from "crypto";
+// Même hachage que le serveur (authController.hashResetToken).
+const sha256 = (v) => crypto.createHash("sha256").update(v).digest("hex");
+
 const PASSWORD = "correct-horse-battery";
 const withPassword = async (overrides = {}) =>
   createUser({ password: await bcrypt.hash(PASSWORD, 12), emailVerified: true, ...overrides });
@@ -254,8 +258,12 @@ describe("resetPassword", () => {
   });
 
   it("réinitialise le mot de passe et invalide les sessions existantes", async () => {
+    // Le jeton est désormais stocké HACHÉ (audit sécurité 2026-09) : il était
+    // en clair, si bien que toute lecture de la collection `users` livrait les
+    // jetons actifs — donc les comptes dont une réinitialisation était en cours,
+    // sans passer par leur boîte mail. Le test reflète ce stockage.
     const user = await withPassword({
-      passwordResetToken: "valid-reset-token",
+      passwordResetToken: sha256("valid-reset-token"),
       passwordResetExpires: new Date(Date.now() + 3600_000),
       refreshTokens: ["old-hash"],
       tokenVersion: 1,
@@ -269,6 +277,22 @@ describe("resetPassword", () => {
     expect(reloaded.refreshTokens).toEqual([]);
     expect(reloaded.tokenVersion).toBe(2);
     expect(await bcrypt.compare("brandnewpassword", reloaded.password)).toBe(true);
+  });
+
+  it("ne stocke JAMAIS le jeton de réinitialisation en clair", async () => {
+    const user = await withPassword({ email: "reset-clair@example.test" });
+    const { req, res } = mockReqRes({ body: { identifier: user.email } });
+    await forgotPassword(req, res);
+
+    const reloaded = await User.findById(user._id).select("passwordResetToken");
+    expect(reloaded.passwordResetToken, "un jeton doit avoir été émis").toBeTruthy();
+    // 64 caractères hexadécimaux = SHA-256. Un jeton en clair
+    // (crypto.randomBytes(32).toString("hex")) ferait la même longueur, d'où
+    // la vérification supplémentaire : le lien envoyé ne doit pas correspondre
+    // à la valeur stockée.
+    expect(reloaded.passwordResetToken).toMatch(/^[a-f0-9]{64}$/);
+    const enBase = reloaded.passwordResetToken;
+    expect(sha256(enBase), "la valeur stockée ne doit pas être le jeton du lien").not.toBe(enBase);
   });
 });
 

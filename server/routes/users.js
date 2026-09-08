@@ -5,11 +5,13 @@ import { authenticate, authorizeAdmin, requireAdminScope, requireGeneralAdmin } 
 import { validateObjectId } from "../middleware/validateObjectId.js";
 import { validate } from "../middleware/validate.js";
 import { requestEmailChangeSchema, deactivateAccountSchema } from "../validators/auth.validators.js";
+import { makeRateLimitStore } from "../utils/rateLimitStore.js";
 
 const router = express.Router();
 
 // Même limiteur que les actions sensibles d'auth (mot de passe requis à chaque appel)
 const strictLimiter = rateLimit({
+  store: makeRateLimitStore("users"),
   windowMs: 60 * 60 * 1000, max: 5,
   message: { message: "Trop de tentatives. Réessayez dans 1 heure." },
   standardHeaders: true, legacyHeaders: false,

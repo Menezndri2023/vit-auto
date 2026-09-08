@@ -3,12 +3,14 @@ import * as r from "../controllers/reportController.js";
 import { authenticate, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 import { rateLimit } from "express-rate-limit";
+import { makeRateLimitStore } from "../utils/rateLimitStore.js";
 
 const router = express.Router();
 const vid = validateObjectId();
 const moderationScope = requireAdminScope("moderation");
 
 const createReportLimiter = rateLimit({
+  store: makeRateLimitStore("reports"),
   windowMs: 60 * 60 * 1000,
   max: 20,
   message: { message: "Trop de signalements envoyés. Réessayez plus tard." },

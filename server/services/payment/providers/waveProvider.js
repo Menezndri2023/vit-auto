@@ -100,6 +100,18 @@ export function verifyWebhookSignature(rawBody, signatureHeader) {
   const { t: timestamp, v1: signature } = parts;
   if (!timestamp || !signature) throw new Error("En-tête Wave-Signature malformé.");
 
+  // Fenêtre de fraîcheur (audit sécurité 2026-09) : l'horodatage entrait bien
+  // dans le calcul de la signature mais n'était JAMAIS comparé à l'heure
+  // courante — une requête signée restait donc valide indéfiniment et pouvait
+  // être rejouée. Stripe et Resend appliquent la même tolérance de 5 minutes.
+  const WEBHOOK_TOLERANCE_SECONDS = 300;
+  const sentAt = Number(timestamp);
+  if (!Number.isFinite(sentAt)) throw new Error("Horodatage Wave invalide.");
+  const ageSeconds = Math.abs(Date.now() / 1000 - sentAt);
+  if (ageSeconds > WEBHOOK_TOLERANCE_SECONDS) {
+    throw new Error("Webhook Wave expiré (horodatage hors tolérance).");
+  }
+
   const expected = crypto
     .createHmac("sha256", secret)
     .update(`${timestamp}.${rawBody}`)

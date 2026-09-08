@@ -1820,13 +1820,16 @@ export default function AdminPanel() {
       // que cet écran de diagnostic doit couvrir. En ne lisant que les réponses
       // 2xx, l'admin voyait « impossible de joindre /api/health » alors que la
       // réponse contenait précisément « database: disconnected ».
-      const r = await fetch("/api/health");
+      // En-tête d'authentification indispensable depuis que /api/health ne
+      // renvoie le détail qu'à un administrateur (le public n'obtient plus que
+      // l'état de santé, pour ne pas divulguer l'inventaire du service).
+      const r = await fetch("/api/health", { headers });
       const d = await r.json().catch(() => null);
       if (d) setSystemHealth(d);
       else setSystemHealth({ status: "unreachable", error: `HTTP ${r.status}` });
     } catch { setSystemHealth({ status: "unreachable", error: "réseau injoignable" }); }
     setSystemHealthLoading(false);
-  }, []);
+  }, [headers]);
   const [reviewActioning,  setReviewActioning]  = useState(null);
 
   // Analytics avancé

@@ -3,6 +3,7 @@ import { rateLimit } from "express-rate-limit";
 import * as paymentController from "../controllers/paymentController.js";
 import { authenticate, optionalAuth, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
+import { makeRateLimitStore } from "../utils/rateLimitStore.js";
 
 const router = express.Router();
 const vid = validateObjectId();
@@ -11,6 +12,7 @@ const vid = validateObjectId();
 // limite dédiée, le apiLimiter générique (300/10min) laissait un IP tenter un
 // grand nombre de complétions frauduleuses avant blocage.
 const simulateLimiter = rateLimit({
+  store: makeRateLimitStore("payments"),
   windowMs:        10 * 60 * 1000,
   max:             15,
   message:         { message: "Trop de tentatives. Réessayez plus tard." },

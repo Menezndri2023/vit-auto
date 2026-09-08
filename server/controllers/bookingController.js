@@ -28,6 +28,8 @@ import { validateImageDataUri } from "../utils/imageValidation.js";
 import { uploadBase64Document, FOLDERS } from "../config/imagekit.js";
 import { isMalformedObjectId } from "../utils/objectId.js";
 import { csvCell } from "../utils/csv.js";
+import { encryptField, decryptField } from "../utils/fieldEncryption.js";
+import { signedDocumentUrl } from "../config/imagekit.js";
 import { logAction } from "../middleware/auditLog.js";
 
 const CLIENT_CANCEL_REASONS_MAP  = Object.fromEntries(CLIENT_CANCEL_REASONS);
@@ -71,6 +73,28 @@ async function processBookingDocuments(documents) {
       licenseFrontImage: licFront, licenseBackImage: licBack,
     },
   };
+}
+
+// ── Numéro de pièce d'identité : chiffré au repos ────────────────────────────
+// Chiffré au repos (audit sécurité 2026-09) : il était stocké en clair alors
+// que les IMAGES de la même pièce, dans clientKycSnapshot, sont chiffrées
+// depuis 2026-07. `decryptField` laisse intacte une valeur non chiffrée : les
+// réservations antérieures restent lisibles sans migration préalable, et la
+// migration peut donc passer sans interruption de service.
+function encryptClientInfo(clientInfo) {
+  if (!clientInfo?.passportNumber) return clientInfo;
+  return { ...clientInfo, passportNumber: encryptField(clientInfo.passportNumber) };
+}
+
+// À appliquer sur TOUTE réponse qui expose clientInfo à un humain (fiche
+// détaillée, liste admin, exports) — sinon le lecteur verrait « enc:v1:… ».
+export function decryptClientInfo(booking) {
+  if (!booking) return booking;
+  const doc = typeof booking.toObject === "function" ? booking.toObject() : booking;
+  if (doc.clientInfo?.passportNumber) {
+    doc.clientInfo = { ...doc.clientInfo, passportNumber: decryptField(doc.clientInfo.passportNumber) };
+  }
+  return doc;
 }
 
 // ── Émettre un événement Socket.io sur tous les participants d'une commande ──
@@ -905,11 +929,11 @@ export const createBooking = async (req, res) => {
       // approuve/refuse comme les autres, et si fastTrack, l'approbation fait
       // passer directement `status` à "confirmed" (voir adminValidateBooking).
       adminValidation: { fastTrack: instantConfirm },
-      clientInfo: {
+      clientInfo: encryptClientInfo({
         ...clientInfo,
         kycStatus:  clientKycStatus,
         kycScore:   clientKycScore,
-      },
+      }),
       client:   req.user?._id || null,
       vehicle:  vehicle?._id  || null,
       driver:   driver?._id   || null,
@@ -1323,7 +1347,7 @@ export const createBookingsBatch = async (req, res) => {
         const bookingData = {
           type: "location",
           reference,
-          clientInfo: { ...clientInfo, kycStatus: clientKycStatus, kycScore: clientKycScore },
+          clientInfo: encryptClientInfo({ ...clientInfo, kycStatus: clientKycStatus, kycScore: clientKycScore }),
           client:  req.user._id,
           vehicle: vehicle._id,
           location: { startDate, endDate, days, pickupMethod: "retrait", deliveryFee: 0 },
@@ -1406,7 +1430,11 @@ export const getMyBookings = async (req, res) => {
     const filter = {
       $or: [
         { client: req.user._id },
-        { client: null, "clientInfo.email": req.user.email },
+        // Réservations invité rattachées par e-mail : seulement si l'adresse a
+        // été VÉRIFIÉE. Sans ce contrôle, créer un compte avec l'adresse d'un
+        // tiers — sans la confirmer — listait ses réservations, avec ses
+        // coordonnées complètes et le contact du partenaire.
+        ...(req.user.emailVerified === true ? [{ client: null, "clientInfo.email": req.user.email }] : []),
       ],
     };
 
@@ -1423,7 +1451,7 @@ export const getMyBookings = async (req, res) => {
       Booking.countDocuments(filter),
     ]);
 
-    res.json({ bookings, total, pages: Math.ceil(total / safeLimit), page: safePage });
+    res.json({ bookings: bookings.map(decryptClientInfo), total, pages: Math.ceil(total / safeLimit), page: safePage });
   } catch (err) {
     logger.error("getMyBookings:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -1485,7 +1513,7 @@ export const getPartnerBookings = async (req, res) => {
       Booking.countDocuments(filter),
     ]);
 
-    res.json({ bookings, total, pages: Math.ceil(total / safeLimit), page: safePage });
+    res.json({ bookings: bookings.map(decryptClientInfo), total, pages: Math.ceil(total / safeLimit), page: safePage });
   } catch (err) {
     logger.error("getPartnerBookings:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -1555,7 +1583,7 @@ export const getAllBookings = async (req, res) => {
     ]);
     const byStatus = Object.fromEntries(counts.map(c => [c._id, c.count]));
 
-    res.json({ bookings, total, pages: Math.ceil(total / safeLimit), page: Number(page), byStatus });
+    res.json({ bookings: bookings.map(decryptClientInfo), total, pages: Math.ceil(total / safeLimit), page: Number(page), byStatus });
   } catch (err) {
     logger.error("getAllBookings:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -1864,7 +1892,7 @@ export const updateBookingStatus = async (req, res) => {
       },
     }).catch(() => {});
 
-    res.json({ booking });
+    res.json({ booking: decryptClientInfo(booking) });
   } catch (err) {
     logger.error("updateBookingStatus:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -2827,7 +2855,20 @@ export const getBookingDetail = async (req, res) => {
       .populate("payment",  "method status amount devise createdAt")
       .populate("contract", "reference status createdAt");
 
-    res.json({ booking });
+    // Les documents d'identité sont désormais déposés en PRIVÉ sur ImageKit
+    // (voir config/imagekit.js) : leur URL n'est lisible que signée, et pour un
+    // temps limité. La signature se fait ICI, à la lecture, jamais en base —
+    // une URL signée expire. Les fichiers déposés AVANT ce changement sont
+    // publics et traversent la signature sans dommage.
+    const payload = decryptClientInfo(booking);
+    if (payload.clientKycSnapshot) {
+      for (const field of ["frontImage", "backImage", "licenseFrontImage", "licenseBackImage", "selfie"]) {
+        if (payload.clientKycSnapshot[field]) {
+          payload.clientKycSnapshot[field] = signedDocumentUrl(payload.clientKycSnapshot[field]);
+        }
+      }
+    }
+    res.json({ booking: payload });
   } catch (err) {
     logger.error("getBookingDetail:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -3316,7 +3357,15 @@ const requireClientOwnership = (booking, req) => {
   if (req.user?.role === "admin") return true; // service client centralisé, voir modifyBookingDates
   const userId = req.user?.id || req.user?._id;
   const isOwnerById    = booking.client && booking.client.toString() === userId?.toString();
-  const isOwnerByEmail = !booking.client && booking.clientInfo?.email?.toLowerCase() === req.user?.email?.toLowerCase();
+  // `emailVerified === true` OBLIGATOIRE (audit sécurité 2026-09) : les trois
+  // autres implémentations du même contrôle dans ce fichier (modifyBookingDates,
+  // extendBooking, cancelBookingByClient) l'exigent, pas celle-ci. Sans elle,
+  // il suffisait de créer un compte avec l'adresse d'une victime — sans jamais
+  // la confirmer — pour piloter ses réservations invité, dont completeMission
+  // qui positionne `isPaid` et déclenche le versement au partenaire.
+  const isOwnerByEmail = !booking.client
+    && req.user?.emailVerified === true
+    && booking.clientInfo?.email?.toLowerCase() === req.user?.email?.toLowerCase();
   return isOwnerById || isOwnerByEmail;
 };
 
@@ -3809,7 +3858,7 @@ export const exportBookings = async (req, res) => {
           `${b.clientInfo?.firstName || ""} ${b.clientInfo?.lastName || ""}`.trim(),
           b.clientInfo?.email || "",
           b.clientInfo?.phone || "",
-          b.clientInfo?.passportNumber || "",
+          decryptField(b.clientInfo?.passportNumber) || "",
           b.vehicle?.title || b.activity?.title || (b.driver ? `${b.driver.firstName || ""} ${b.driver.lastName || ""}`.trim() : ""),
           b.montantTotal || 0,
           b.commissionAmount || 0,
@@ -3988,7 +4037,7 @@ export const getPendingValidationBookings = async (req, res) => {
       .limit(300)
       .lean();
 
-    res.json({ bookings });
+    res.json({ bookings: bookings.map(decryptClientInfo) });
   } catch (err) {
     logger.error("getPendingValidationBookings:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -4100,7 +4149,7 @@ export const adminValidateBooking = async (req, res) => {
       },
     }).catch(() => {});
 
-    res.json({ booking });
+    res.json({ booking: decryptClientInfo(booking) });
   } catch (err) {
     logger.error("adminValidateBooking:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -4152,7 +4201,7 @@ export const getAllBookingsEnhanced = async (req, res) => {
       Booking.countDocuments(filter),
     ]);
 
-    res.json({ bookings, total, pages: Math.ceil(total / safeLimit), page: safePage });
+    res.json({ bookings: bookings.map(decryptClientInfo), total, pages: Math.ceil(total / safeLimit), page: safePage });
   } catch (err) {
     logger.error("getAllBookingsEnhanced:", err);
     res.status(500).json({ message: "Erreur serveur." });

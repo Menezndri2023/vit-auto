@@ -3,6 +3,7 @@ import { rateLimit } from "express-rate-limit";
 import * as c from "../controllers/chatController.js";
 import { authenticate, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
+import { makeRateLimitStore } from "../utils/rateLimitStore.js";
 
 const router = express.Router();
 
@@ -12,6 +13,7 @@ const vid = validateObjectId();
 // Anti-spam dédié à l'envoi de messages (le apiLimiter global sur /api/chats est
 // partagé avec des usages légitimes bien plus fréquents comme le polling de la liste).
 const sendMessageLimiter = rateLimit({
+  store: makeRateLimitStore("chats"),
   windowMs:        60 * 1000,
   max:             20,
   message:         { message: "Trop de messages envoyés. Ralentissez un peu." },
@@ -23,6 +25,7 @@ const sendMessageLimiter = rateLimit({
 // différent crée un nouveau document Chat — sans limite dédiée, un compte peut
 // en générer un grand nombre sous le seul apiLimiter générique (300/10min).
 const createChatLimiter = rateLimit({
+  store: makeRateLimitStore("chats2"),
   windowMs:        10 * 60 * 1000,
   max:             30,
   message:         { message: "Trop de conversations créées. Réessayez plus tard." },

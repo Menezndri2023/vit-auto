@@ -59,6 +59,16 @@ function hashRefreshToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
+// Même raisonnement pour le jeton de réinitialisation de mot de passe : il était
+// stocké EN CLAIR (audit sécurité 2026-09), alors que les refresh tokens sont
+// hachés depuis longtemps pour cette raison exacte. Toute lecture de la
+// collection `users` — sauvegarde mal protégée, snapshot, exception journalisée
+// contenant le document — livrait les jetons actifs, donc la prise de contrôle
+// de tous les comptes dont une réinitialisation était en cours, sans jamais
+// toucher à leur boîte mail. Le jeton est déjà à haute entropie
+// (crypto.randomBytes(32)) : un hachage simple suffit, comme pour les refresh.
+const hashResetToken = hashRefreshToken;
+
 function safeUser(u) {
   return {
     id:               u._id,
@@ -288,7 +298,7 @@ export const register = async (req, res) => {
     // c'est ce code, saisi dans Register.jsx, qui rend la confirmation
     // bloquante avant de pouvoir continuer l'inscription (même patron que
     // phoneOtp : hashé en base, jamais stocké en clair).
-    const code     = autoVerify ? null : Math.floor(100000 + Math.random() * 900000).toString();
+    const code     = autoVerify ? null : crypto.randomInt(100000, 1000000).toString();
     const codeHash = code ? await bcrypt.hash(code, 10) : null;
     const CODE_TTL = 10 * 60 * 1000; // 10 min
 
@@ -789,7 +799,7 @@ export const resendEmailCode = async (req, res) => {
     }
     if (!user.email) return res.status(400).json({ message: "Aucune adresse e-mail sur ce compte." });
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = crypto.randomInt(100000, 1000000).toString();
     user.emailVerificationCode        = await bcrypt.hash(code, 10);
     user.emailVerificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
@@ -1003,7 +1013,9 @@ export const forgotPassword = async (req, res) => {
 
     if (isEmailLike) {
       const token = makeToken();
-      user.passwordResetToken   = token;
+      // Seul le HACHÉ est persisté ; la valeur en clair ne quitte le serveur que
+      // dans le lien envoyé par e-mail à la personne concernée.
+      user.passwordResetToken   = hashResetToken(token);
       user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1h
       await user.save();
 
@@ -1114,7 +1126,7 @@ export const sendPhoneOtp = async (req, res) => {
     }
 
     // ── Flux OTP maison (Africa's Talking / dev console) ─────────────────
-    const otp     = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp     = crypto.randomInt(100000, 1000000).toString();
     const otpHash = await bcrypt.hash(otp, 10);
     user.phoneOtp        = otpHash;
     user.phoneOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
@@ -1298,7 +1310,7 @@ export const resetPassword = async (req, res) => {
 
     if (token) {
       user = await User.findOne({
-        passwordResetToken:   token,
+        passwordResetToken:   hashResetToken(token),
         passwordResetExpires: { $gt: new Date() },
       });
       if (!user) {

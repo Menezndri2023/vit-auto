@@ -392,8 +392,13 @@ export const getListings = async (req, res) => {
     const filter = isAdmin && status ? { status } : { status: "approved" };
 
     if (sourceCountry) {
-      const escaped = sourceCountry.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      filter.sourceCountry = new RegExp(escaped.slice(0, 100), "i");
+      // `slice` APRÈS l'échappement coupait un antislash doublé en deux et
+      // produisait une expression invalide → 500 sur une route publique. Et
+      // `sourceCountry` n'était pas converti : `?sourceCountry=a&sourceCountry=b`
+      // arrive en TABLEAU et faisait planter `.replace`. Ordre corrigé, comme
+      // partout ailleurs dans le projet.
+      const escaped = String(sourceCountry).slice(0, 100).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      filter.sourceCountry = new RegExp(escaped, "i");
     }
     if (partner && /^[0-9a-f]{24}$/i.test(String(partner))) filter.partner = partner;
 

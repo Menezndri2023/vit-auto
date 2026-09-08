@@ -2,6 +2,7 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { authenticate as protect, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
+import { makeRateLimitStore } from "../utils/rateLimitStore.js";
 import {
   getMyOnboarding,
   getMyOnboardingAll,
@@ -49,6 +50,7 @@ const isAdmin   = [protect, authorizeAdmin];
 // intensive) — seule cette route reste sous un limiteur strict, contrairement à /my et
 // /availability qui sont pollées/rechargées fréquemment par le portail.
 const sectionUploadLimiter = rateLimit({
+  store: makeRateLimitStore("partnerOnboarding"),
   windowMs: 60 * 60 * 1000,
   max: 30,
   message: { message: "Trop de soumissions. Réessayez dans 1 heure." },

@@ -5,6 +5,7 @@ import { authenticate, authorizeAdmin, requireAdminScope } from "../middleware/a
 import { validateObjectId } from "../middleware/validateObjectId.js";
 import { generateReceiptPDF } from "../utils/pdfGenerator.js";
 import Booking from "../models/Booking.js";
+import { makeRateLimitStore } from "../utils/rateLimitStore.js";
 
 const router = express.Router();
 const vid = validateObjectId();
@@ -13,6 +14,7 @@ const vid = validateObjectId();
 // appel — le apiLimiter générique (300/10min) restait trop permissif pour un
 // point d'entrée aussi coûteux, accessible sans authentification.
 const createBookingLimiter = rateLimit({
+  store: makeRateLimitStore("bookings"),
   windowMs:        10 * 60 * 1000,
   max:             30,
   message:         { message: "Trop de réservations créées. Réessayez plus tard." },

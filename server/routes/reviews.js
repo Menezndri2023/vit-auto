@@ -3,12 +3,14 @@ import { rateLimit } from "express-rate-limit";
 import * as r from "../controllers/reviewController.js";
 import { authenticate, optionalAuth, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
+import { makeRateLimitStore } from "../utils/rateLimitStore.js";
 
 const moderationScope = requireAdminScope("moderation");
 
 const router = express.Router();
 
 const createReviewLimiter = rateLimit({
+  store: makeRateLimitStore("reviews"),
   windowMs:        60 * 60 * 1000,
   max:             20,
   message:         { message: "Trop d'avis publiés. Réessayez plus tard." },

@@ -283,7 +283,16 @@ export const initiatePayment = async (req, res) => {
     res.json({ checkoutUrl, paymentId: payment._id, simulated });
   } catch (err) {
     logger.error("initiatePayment:", err);
-    captureException(err, { controller: "paymentController.initiatePayment", body: req.body });
+    // Le CORPS COMPLET partait chez Sentry sur toute erreur : montant, méthode,
+    // identifiants de cible et, selon la méthode, le numéro Mobile Money du
+    // client — données personnelles répliquées chez un tiers, hors de la
+    // politique de rétention de la plateforme. Seuls les champs utiles au
+    // diagnostic sont conservés (même approche que la ligne voisine 518).
+    captureException(err, {
+      controller: "paymentController.initiatePayment",
+      method:     req.body?.method,
+      target:     req.body?.bookingId || req.body?.serviceRequestId || req.body?.insuranceRequestId || null,
+    });
     res.status(500).json({ message: "Erreur lors de l'initialisation du paiement." });
   }
 };

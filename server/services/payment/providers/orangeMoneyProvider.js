@@ -102,7 +102,11 @@ export async function createCheckout({ payment, booking, successUrl, cancelUrl }
   }
 
   const data = await res.json();
-  logger.info("[OrangeMoney] Paiement web créé", { paymentId: payment._id.toString(), payToken: data.pay_token });
+  // Le jeton du fournisseur n'est PAS journalisé (audit sécurité 2026-09) :
+  // il permet d'agir sur la transaction, et les journaux transitent par la
+  // sortie standard de l'hébergeur et ses agrégateurs. Sa seule présence
+  // suffit au diagnostic.
+  logger.info("[OrangeMoney] Paiement web créé", { paymentId: payment._id.toString(), hasPayToken: !!data.pay_token });
   return { checkoutUrl: data.payment_url, providerRef: data.pay_token, webhookToken };
 }
 
