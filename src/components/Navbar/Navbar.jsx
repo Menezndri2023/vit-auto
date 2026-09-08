@@ -205,10 +205,12 @@ const Navbar = () => {
         {isAuthenticated ? (
           <>
             <NotificationBell />
-            {/* Le Centre d'aide ne figurait que dans le menu des visiteurs NON
-                connectés : un client rencontrant un problème EN COURS de
-                réservation n'avait plus aucun accès au support depuis le menu. */}
-            <NavLink to="/help" className={styles.linkBtn} title="Centre d'aide">💬 Aide</NavLink>
+            {/* PAS de bouton d'aide ici. Il y a figuré brièvement — au motif
+                qu'un client connecté n'avait plus d'accès au support depuis le
+                menu — puis a été retiré : la barre de navigation n'est pas un
+                fourre-tout, et le support reste joignable par le pied de page,
+                la page Aide et le chat. Une barre se juge à ce qu'on en
+                retire. */}
             <button
               className={isPartner ? styles.badgePartner : styles.userBadge}
               onClick={() => navigate("/profile")}
