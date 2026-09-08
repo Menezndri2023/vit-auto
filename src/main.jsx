@@ -40,6 +40,15 @@ window.addEventListener("unhandledrejection", (e) => reloadOnceForStaleChunk(e?.
 // Chargement réussi : on réarme le mécanisme pour le prochain déploiement.
 window.addEventListener("load", () => { try { sessionStorage.removeItem(RELOAD_FLAG); } catch { /* ignore */ } });
 
+// Service worker (PWA). Était un script inline dans index.html, que la
+// Content-Security-Policy bloquait depuis son ajout — voir le commentaire
+// laissé à sa place. Ici, c'est du code de module servi depuis l'origine.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
 // GoogleAuthButton.jsx se masque lui-même si VITE_GOOGLE_CLIENT_ID est absent
 // — un clientId vide ici ne casse rien tant qu'aucun <GoogleLogin> n'est monté.
 createRoot(document.getElementById('root')).render(

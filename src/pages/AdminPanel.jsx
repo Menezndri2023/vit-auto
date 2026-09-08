@@ -1736,6 +1736,25 @@ export default function AdminPanel() {
   const { on: onSocket } = useSocket();
   const navigate = useNavigate();
 
+  // ── En-têtes API ────────────────────────────────────────────────────────────
+  // DÉFINI ICI, TOUT EN HAUT, ET PAS AILLEURS. Cette constante vivait ~550
+  // lignes plus bas alors qu'un `useCallback` la citait déjà dans son tableau de
+  // dépendances (`}, [headers])`, plus haut dans le composant. Or un tableau de
+  // dépendances est évalué À CHAQUE RENDU, pas au moment où la fonction est
+  // appelée : lire `headers` avant sa déclaration `const` levait donc une erreur
+  // de zone morte temporelle — « Cannot access 'headers' before initialization »
+  // — à la toute première ligne de rendu du panneau. Résultat en production :
+  // l'administration entière tombait sur l'écran « Une erreur s'est produite »,
+  // sans qu'aucune donnée ni permission soit en cause.
+  //
+  // Le corps d'un callback peut citer une constante déclarée plus bas (il ne
+  // s'exécute qu'après le rendu) ; un tableau de dépendances, jamais. En la
+  // plaçant avant tout le reste, les deux cas sont couverts définitivement.
+  const headers = useMemo(() => ({
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  }), [token]);
+
   // Les notifications et e-mails admin pointent vers /admin?tab=reports,
   // ?tab=whatsapp, ?tab=drivers… mais ce paramètre n'était lu nulle part :
   // l'admin qui cliquait « Voir dans l'admin → » atterrissait toujours sur le
@@ -2285,11 +2304,9 @@ export default function AdminPanel() {
     ? globalSearchResults.vehicles.length + globalSearchResults.drivers.length + globalSearchResults.listings.length
     : 0;
 
-  // ── Headers API ─────────────────────────────────────────────────────────────
-  const headers = useMemo(() => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  }), [token]);
+  // ── Headers API ── remonté en tête du composant (voir le commentaire à sa
+  // nouvelle définition) : déclaré ici, il était cité par un tableau de
+  // dépendances situé plus haut, ce qui faisait planter tout le panneau.
 
   // Booking Engine — Remboursements (2026-09) : marque comme traité un
   // remboursement resté manuel (voir pendingManualRefunds ci-dessus). Résout

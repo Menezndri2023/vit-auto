@@ -107,13 +107,12 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- L'enregistrement du service worker vivait ici, en script INLINE. La
+         Content-Security-Policy posée sur vercel.json (script-src 'self', sans
+         'unsafe-inline') le bloquait silencieusement : plus aucun nouveau
+         visiteur n'installait le service worker, et la PWA cessait de
+         fonctionner sans la moindre erreur visible. Déplacé dans main.jsx, qui
+         est un module servi depuis l'origine — donc autorisé. -->
     <script type="module" src="/src/main.jsx"></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {});
-        });
-      }
-    </script>
   </body>
 </html>
