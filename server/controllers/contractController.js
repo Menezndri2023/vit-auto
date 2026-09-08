@@ -168,20 +168,33 @@ export const signContract = async (req, res) => {
     if (!contract) return res.status(404).json({ message: "Contrat introuvable." });
     if (contract.isSigned) return res.status(409).json({ message: "Contrat déjà signé." });
 
-    // Vérification sécurité : seul le client concerné peut signer
+    // Vérification sécurité : seul le client concerné peut signer.
+    //
+    // Faille CRITIQUE corrigée (audit sécurité 2026-09) : tout ce bloc était
+    // enfermé dans `if (booking) { … }` SANS `else`. Or `contract.booking` est
+    // un populate : il vaut `null` dès que la réservation a disparu — cas
+    // réellement atteignable, adminDeleteBooking supprimant la réservation sans
+    // son contrat. Sur un contrat orphelin, plus AUCUN contrôle ne s'appliquait
+    // et la route étant en `optionalAuth`, un ANONYME pouvait y apposer une
+    // signature juridiquement opposable, avec son IP dans les métadonnées.
+    // Échec FERMÉ : pas de réservation rattachée ⇒ personne ne signe.
     const booking = contract.booking;
-    if (booking) {
-      const bookingClientId    = booking.client?.toString();
-      const bookingClientEmail = booking.clientInfo?.email?.toLowerCase();
-      const requestUserId      = req.user?._id?.toString();
-      const requestEmail       = (clientEmail || "").toLowerCase();
+    if (!booking) {
+      return res.status(409).json({
+        message: "Ce contrat n'est plus rattaché à une réservation — contactez le service client VIT AUTO.",
+      });
+    }
 
-      const isAuthorizedById    = requestUserId && bookingClientId && requestUserId === bookingClientId;
-      const isAuthorizedByEmail = requestEmail && bookingClientEmail && requestEmail === bookingClientEmail;
+    const bookingClientId    = booking.client?.toString();
+    const bookingClientEmail = booking.clientInfo?.email?.toLowerCase();
+    const requestUserId      = req.user?._id?.toString();
+    const requestEmail       = (clientEmail || "").toLowerCase();
 
-      if (!isAuthorizedById && !isAuthorizedByEmail) {
-        return res.status(403).json({ message: "Vous n'êtes pas autorisé à signer ce contrat." });
-      }
+    const isAuthorizedById    = requestUserId && bookingClientId && requestUserId === bookingClientId;
+    const isAuthorizedByEmail = requestEmail && bookingClientEmail && requestEmail === bookingClientEmail;
+
+    if (!isAuthorizedById && !isAuthorizedByEmail) {
+      return res.status(403).json({ message: "Vous n'êtes pas autorisé à signer ce contrat." });
     }
 
     contract.isSigned        = true;

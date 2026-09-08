@@ -164,15 +164,41 @@ describe("paymentController.createPayment", () => {
 
 describe("paymentController.simulatePayment", () => {
   it("un succès simulé marque le paiement complété et la réservation payée", async () => {
-    const booking = await createBookingDoc();
+    // Le CLIENT de la réservation simule son propre paiement. Ce test envoyait
+    // auparavant une requête ANONYME sur une réservation sans compte rattaché —
+    // il encodait donc la faille corrigée en 2026-09 (voir le test suivant).
+    const client  = await createUser({ role: "client" });
+    const booking = await createBookingDoc({ client: client._id });
     const payment = await Payment.create({ booking: booking._id, amount: 45000, method: "card", status: "pending", simulated: true });
 
-    const { req, res } = mockReqRes({ params: { id: payment._id.toString() }, body: { outcome: "success" } });
+    const { req, res } = mockReqRes({ user: client, params: { id: payment._id.toString() }, body: { outcome: "success" } });
     await simulatePayment(req, res);
 
     expect(res.body.status).toBe("completed");
     const updatedBooking = await Booking.findById(booking._id);
     expect(updatedBooking.isPaid).toBe(true);
+  });
+
+  // Faille corrigée (audit sécurité 2026-09) : la garde tolérait l'absence de
+  // propriétaire, si bien qu'un ANONYME détenant un identifiant de paiement
+  // marquait « payée » la réservation d'un tiers — déclenchant au passage la
+  // notification « 💳 Paiement confirmé » et l'envoi du reçu PDF au client.
+  it("refuse un anonyme, et refuse un client tiers", async () => {
+    const client   = await createUser({ role: "client" });
+    const intrus   = await createUser({ role: "client" });
+    const booking  = await createBookingDoc({ client: client._id });
+    const payment  = await Payment.create({ booking: booking._id, amount: 45000, method: "card", status: "pending", simulated: true });
+
+    const anonyme = mockReqRes({ params: { id: payment._id.toString() }, body: { outcome: "success" } });
+    await simulatePayment(anonyme.req, anonyme.res);
+    expect(anonyme.res.statusCode).toBe(403);
+
+    const tiers = mockReqRes({ user: intrus, params: { id: payment._id.toString() }, body: { outcome: "success" } });
+    await simulatePayment(tiers.req, tiers.res);
+    expect(tiers.res.statusCode).toBe(403);
+
+    const inchange = await Booking.findById(booking._id);
+    expect(inchange.isPaid).toBeFalsy();
   });
 
   it("refuse de simuler un paiement lié à un vrai fournisseur", async () => {

@@ -129,13 +129,19 @@ async function maybeAutoAcceptForTrustedClient(bookingId) {
 // aucun moyen de proposer un autre véhicule/créneau sans faire recommencer
 // le client depuis zéro.
 export async function proposeAlternative({ bookingId, actorId, proposedVehicleId, proposedStartDate, proposedEndDate, proposedPrice, note, source = "API" }) {
-  const booking = await Booking.findById(bookingId).populate("vehicle", "owner");
+  // `driver` et `activity` peuplés eux aussi : resolveOwnerId doit pouvoir
+  // identifier le propriétaire des réservations chauffeur et activité, sans
+  // quoi la garde fermée refuserait au VRAI propriétaire.
+  const booking = await Booking.findById(bookingId)
+    .populate("vehicle", "owner")
+    .populate("driver", "owner")
+    .populate("activity", "owner");
   if (!booking) return { statusCode: 404, body: { message: "Réservation introuvable." } };
 
-  const vehicleOwnerId = booking.vehicle?.owner?._id?.toString() || booking.vehicle?.owner?.toString();
-  if (actorId && vehicleOwnerId && actorId.toString() !== vehicleOwnerId) {
-    return { statusCode: 403, body: { message: "Accès refusé." } };
-  }
+  // Garde fermée par défaut — voir assertOwner : refuse un acteur non identifié
+  // et les réservations dont le propriétaire n'est pas résolu.
+  const refus = assertOwner(booking, actorId);
+  if (refus) return refus;
   if (!["pending", "confirmed"].includes(booking.status)) {
     return { statusCode: 409, body: { message: `Impossible de proposer une alternative pour le statut "${booking.status}".` } };
   }
@@ -176,7 +182,11 @@ export async function proposeAlternative({ bookingId, actorId, proposedVehicleId
 export async function respondToAlternative({ bookingId, clientId, accept }) {
   const booking = await Booking.findById(bookingId).populate("vehicle");
   if (!booking) return { statusCode: 404, body: { message: "Réservation introuvable." } };
-  if (clientId && booking.client && clientId.toString() !== booking.client.toString()) {
+  // Même correction : `if (clientId && booking.client && ...)` autorisait tout
+  // le monde sur une réservation invité (booking.client absent) — un tiers
+  // pouvait donc refuser l'alternative d'autrui, ce qui ANNULE la réservation
+  // en imputant l'annulation à la victime.
+  if (!clientId || !booking.client || clientId.toString() !== booking.client.toString()) {
     return { statusCode: 403, body: { message: "Accès refusé." } };
   }
   if (!booking.alternative?.proposedAt || booking.alternative.clientResponse !== "pending") {
@@ -230,16 +240,29 @@ export async function respondToAlternative({ bookingId, clientId, accept }) {
 }
 
 // ── Suivi de livraison (Booking Engine, 2026-09) ──────────────────────────
+// Faille CRITIQUE corrigée (audit sécurité 2026-09) : cette fonction ne lisait
+// que `booking.vehicle`. Or une réservation CHAUFFEUR ou ACTIVITÉ n'a pas de
+// véhicule — son propriétaire valait donc toujours `null`, et la garde
+// ci-dessous, construite en `if (actorId && ownerId && ...)`, s'ouvrait alors à
+// TOUT compte authentifié. Couvre désormais les trois types de support.
 function resolveOwnerId(booking) {
-  return booking.vehicle?.owner?._id?.toString() || booking.vehicle?.owner?.toString() || null;
+  const owner = booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner;
+  return owner?._id?.toString() || owner?.toString() || null;
 }
 
-async function assertDeliveryActor(booking, actorId) {
+// Garde FERMÉE PAR DÉFAUT : un acteur non identifié ou un propriétaire non
+// résolu doit refuser, jamais autoriser. L'ancienne forme
+// `if (actorId && ownerId && actorId !== ownerId)` faisait exactement l'inverse.
+function assertOwner(booking, actorId) {
   const ownerId = resolveOwnerId(booking);
-  if (actorId && ownerId && actorId.toString() !== ownerId) {
+  if (!actorId || !ownerId || actorId.toString() !== ownerId) {
     return { statusCode: 403, body: { message: "Accès refusé." } };
   }
   return null;
+}
+
+async function assertDeliveryActor(booking, actorId) {
+  return assertOwner(booking, actorId);
 }
 
 // Le véhicule vient de partir vers le client. Réutilise la transition
@@ -248,7 +271,13 @@ async function assertDeliveryActor(booking, actorId) {
 // d'identité") correspond exactement à cet événement, aucun doublon créé.
 // Jamais de suivi GPS continu (hors périmètre, voir le plan de cette phase).
 export async function markVehicleOnTheWay({ bookingId, actorId, source = "API" }) {
-  const booking = await Booking.findById(bookingId).populate("vehicle", "owner");
+  // `driver` et `activity` peuplés eux aussi : resolveOwnerId doit pouvoir
+  // identifier le propriétaire des réservations chauffeur et activité, sans
+  // quoi la garde fermée refuserait au VRAI propriétaire.
+  const booking = await Booking.findById(bookingId)
+    .populate("vehicle", "owner")
+    .populate("driver", "owner")
+    .populate("activity", "owner");
   if (!booking) return { statusCode: 404, body: { message: "Réservation introuvable." } };
   const denied = await assertDeliveryActor(booking, actorId);
   if (denied) return denied;
@@ -280,7 +309,13 @@ export async function markVehicleOnTheWay({ bookingId, actorId, source = "API" }
 // client_arrived est la seule transition valide vers client_arrived pour une
 // réservation déjà confirmée — voir VALID_TRANSITIONS de updateBookingStatus).
 export async function markVehicleDelivered({ bookingId, actorId, source = "API" }) {
-  const booking = await Booking.findById(bookingId).populate("vehicle", "owner");
+  // `driver` et `activity` peuplés eux aussi : resolveOwnerId doit pouvoir
+  // identifier le propriétaire des réservations chauffeur et activité, sans
+  // quoi la garde fermée refuserait au VRAI propriétaire.
+  const booking = await Booking.findById(bookingId)
+    .populate("vehicle", "owner")
+    .populate("driver", "owner")
+    .populate("activity", "owner");
   if (!booking) return { statusCode: 404, body: { message: "Réservation introuvable." } };
   const denied = await assertDeliveryActor(booking, actorId);
   if (denied) return denied;

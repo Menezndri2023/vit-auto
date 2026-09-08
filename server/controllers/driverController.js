@@ -303,7 +303,21 @@ export const getDrivers = async (req, res) => {
       // Restructuration 2026-09 : document joint au profil mais pas encore
       // vérifié par un admin — jamais les images elles-mêmes en public
       // (identityDocument/licenseDocument exclus du spread ci-dessous).
-      const { identityDocument, licenseDocument, ...publicFields } = d;
+      // Fuite PII corrigée (audit sécurité 2026-09) : le spread ne retirait que
+      // les deux documents d'identité — `phone` et `cv` du chauffeur partaient
+      // donc en clair sur une route PUBLIQUE et non authentifiée. `GET /api/drivers`
+      // constituait ainsi un annuaire téléphonique complet des chauffeurs
+      // publiés, moissonnable en une requête. Aucun contact direct ne doit être
+      // exposé : le client passe par le service client centralisé (voir
+      // utils/customerServiceContact.js), politique déjà appliquée au
+      // propriétaire ci-dessous mais oubliée pour le chauffeur lui-même.
+      // `cv` est volontairement conservé : la fiche publique sert au client à
+      // choisir son chauffeur, et le lien « Voir le CV » existe dans les trois
+      // interfaces. `phone`, lui, n'a aucune raison d'y être.
+      // `phone` renommé `_phone` : il est extrait uniquement pour être EXCLU de
+      // la réponse publique (le préfixe `_` marque une variable volontairement
+      // inutilisée, convention reconnue par la configuration de lint).
+      const { identityDocument, licenseDocument, phone: _phone, ...publicFields } = d;
       return {
         ...publicFields,
         owner: { _id: owner._id, firstName: owner.firstName },

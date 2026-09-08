@@ -472,7 +472,15 @@ export const login = async (req, res) => {
     // en connaissant seulement son secret TOTP (ou un code de secours fuité),
     // sans jamais avoir prouvé connaître le mot de passe.
     if (user.twoFactor?.enabled) {
-      const challengeToken = jwt.sign({ id: user._id, purpose: "2fa_challenge" }, JWT_SECRET(), { expiresIn: "10m" });
+      const challengeToken = jwt.sign(
+        // `purpose` est REFUSÉ par authenticate (voir middleware/auth.js) :
+        // ce jeton ne sert qu'à soumettre le code, jamais de session.
+        // `tokenVersion` inclus pour qu'un changement ou une réinitialisation
+        // de mot de passe invalide immédiatement un challenge en cours.
+        { id: user._id, purpose: "2fa_challenge", tokenVersion: user.tokenVersion || 0 },
+        JWT_SECRET(),
+        { expiresIn: "10m" }
+      );
       return res.json({
         requiresTwoFactor: true,
         challengeToken,
@@ -617,7 +625,15 @@ export const oauthGoogle = async (req, res) => {
     }
 
     if (user.twoFactor?.enabled) {
-      const challengeToken = jwt.sign({ id: user._id, purpose: "2fa_challenge" }, JWT_SECRET(), { expiresIn: "10m" });
+      const challengeToken = jwt.sign(
+        // `purpose` est REFUSÉ par authenticate (voir middleware/auth.js) :
+        // ce jeton ne sert qu'à soumettre le code, jamais de session.
+        // `tokenVersion` inclus pour qu'un changement ou une réinitialisation
+        // de mot de passe invalide immédiatement un challenge en cours.
+        { id: user._id, purpose: "2fa_challenge", tokenVersion: user.tokenVersion || 0 },
+        JWT_SECRET(),
+        { expiresIn: "10m" }
+      );
       return res.json({
         requiresTwoFactor: true,
         challengeToken,

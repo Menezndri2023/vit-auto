@@ -187,7 +187,9 @@ export const getActivities = async (req, res) => {
 
     const activities = await Activity.find(filter)
       .sort({ noteMoyenne: -1, createdAt: -1 })
-      .populate("owner", "firstName phone")
+      // Fuite PII corrigée (audit 2026-09) : `phone` était peuplé sur des routes
+      // PUBLIQUES — aucun contact direct partenaire ne doit être exposé.
+      .populate("owner", "firstName")
       .lean();
 
     cacheSet(cacheKey, activities);
@@ -200,8 +202,18 @@ export const getActivities = async (req, res) => {
 
 export const getActivityById = async (req, res) => {
   try {
-    const activity = await Activity.findById(req.params.id).populate("owner", "firstName phone");
+    // Fuite PII corrigée (audit sécurité 2026-09) : `phone` était peuplé sur
+    // cette route PUBLIQUE — aucun contact direct partenaire ne doit être
+    // exposé (le client passe par le service client centralisé).
+    const activity = await Activity.findById(req.params.id).populate("owner", "firstName");
     if (!activity) return res.status(404).json({ message: "Activité introuvable." });
+    // Filtre de statut ABSENT : une activité `pending` ou `rejected` était
+    // lisible publiquement par son identifiant, avant toute modération.
+    const isAdmin = req.user?.role === "admin";
+    const isOwner = req.user && activity.owner?._id?.toString() === req.user._id?.toString();
+    if (activity.status !== "approved" && !isAdmin && !isOwner) {
+      return res.status(404).json({ message: "Activité introuvable." });
+    }
     res.json({ activity });
   } catch (err) {
     logger.error("getActivityById:", err);

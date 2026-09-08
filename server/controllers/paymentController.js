@@ -301,8 +301,16 @@ export const getPaymentStatus = async (req, res) => {
     // cible (ou admin) dès qu'elle appartient à un compte ; une réservation
     // invité (sans client) reste consultable par quiconque détient l'ID,
     // comme pour le reste du flux de paiement invité.
+    // Garde FERMÉE (audit sécurité 2026-09). Elle tolérait auparavant l'absence
+    // de propriétaire : une cible « invité » (sans compte client rattaché)
+    // restait accessible à quiconque en détenait l'identifiant. Cette tolérance
+    // avait un sens tant que la réservation invité existait ; depuis que
+    // POST /api/bookings exige un compte vérifié, elle ne couvre plus que des
+    // dossiers historiques — et laissait un anonyme marquer « payée » la
+    // réservation d'un tiers (déclenchant notification et reçu PDF au client).
     const ownerId = await getTargetOwnerId(payment);
-    if (ownerId && (!req.user || (req.user.role !== "admin" && ownerId.toString() !== req.user._id.toString()))) {
+    const isAdmin = req.user?.role === "admin";
+    if (!isAdmin && (!req.user || !ownerId || ownerId.toString() !== req.user._id.toString())) {
       return res.status(403).json({ message: "Accès refusé." });
     }
 
@@ -332,8 +340,16 @@ export const simulatePayment = async (req, res) => {
     // le client de la cible (ou admin) dès qu'elle appartient à un compte ;
     // une réservation invité (sans client) reste simulable par quiconque
     // détient l'ID, comme n'importe quel flux de paiement invité.
+    // Garde FERMÉE (audit sécurité 2026-09). Elle tolérait auparavant l'absence
+    // de propriétaire : une cible « invité » (sans compte client rattaché)
+    // restait accessible à quiconque en détenait l'identifiant. Cette tolérance
+    // avait un sens tant que la réservation invité existait ; depuis que
+    // POST /api/bookings exige un compte vérifié, elle ne couvre plus que des
+    // dossiers historiques — et laissait un anonyme marquer « payée » la
+    // réservation d'un tiers (déclenchant notification et reçu PDF au client).
     const ownerId = await getTargetOwnerId(payment);
-    if (ownerId && (!req.user || (req.user.role !== "admin" && ownerId.toString() !== req.user._id.toString()))) {
+    const isAdmin = req.user?.role === "admin";
+    if (!isAdmin && (!req.user || !ownerId || ownerId.toString() !== req.user._id.toString())) {
       return res.status(403).json({ message: "Accès refusé." });
     }
 

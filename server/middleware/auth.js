@@ -11,6 +11,23 @@ export const authenticate = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    // Faille CRITIQUE corrigée (audit sécurité 2026-09) — CONTOURNEMENT DU 2FA.
+    // Les jetons à usage restreint (challenge 2FA émis par /auth/login quand la
+    // double authentification est active) sont signés avec la MÊME clé que les
+    // jetons d'accès. Sans ce contrôle, un tel jeton authentifiait normalement :
+    // un attaquant en possession du seul mot de passe recevait le challenge,
+    // ignorait l'écran du code, et s'en servait comme session complète pendant
+    // 10 minutes — puis appelait /auth/2fa/disable (qui n'exige que le mot de
+    // passe) pour supprimer définitivement le second facteur. Le 2FA ne
+    // protégeait donc contre rien.
+    // Refus GÉNÉRIQUE de tout `purpose` : un jeton à usage restreint introduit
+    // plus tard (lien signé, action ponctuelle) est couvert d'office.
+    if (decoded.purpose) {
+      return res.status(401).json({
+        message: "Ce jeton ne permet pas d'accéder à cette ressource.",
+      });
+    }
+
     // Faille réelle corrigée (audit) : une déconnexion volontaire (revokeRefreshToken)
     // ne révoquait que le refresh token — ce JWT d'accès restait valide jusqu'à
     // 7 jours. Vérification par jti, no-op silencieux si Redis indisponible

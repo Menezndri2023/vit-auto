@@ -17,9 +17,23 @@ export const getFavorites = async (req, res) => {
     const vehicleIds = favs.filter((f) => f.itemType === "vehicle").map((f) => f.itemId);
     const listingIds = favs.filter((f) => f.itemType === "ie_listing").map((f) => f.itemId);
 
+    // Fuite corrigée (audit sécurité 2026-09) : ces requêtes renvoyaient le
+    // document COMPLET, sans projection ni filtre de statut. Un client pouvait
+    // donc mettre en favori n'importe quel identifiant — y compris une annonce
+    // `pending`, `draft` ou `rejected` d'un partenaire concurrent — et lire en
+    // retour son `contactTel` (le contact direct que la plateforme s'interdit
+    // d'exposer), son adresse, son `rejectionReason` et ses erreurs de
+    // validation. Restreint aux annonces réellement publiées, et projeté sur
+    // les seuls champs d'affichage d'une carte de favori.
+    const VEHICLE_PUBLIC_FIELDS = "title marque modele annee images thumbnail pricePerDay prixVente type ville country status currency available withDriver";
+    const LISTING_PUBLIC_FIELDS = "title marque modele annee photos price currency sourceCountry status vehicleType";
     const [vehicles, listings] = await Promise.all([
-      vehicleIds.length ? Vehicle.find({ _id: { $in: vehicleIds } }).lean() : [],
-      listingIds.length ? ImportExportListing.find({ _id: { $in: listingIds } }).lean() : [],
+      vehicleIds.length
+        ? Vehicle.find({ _id: { $in: vehicleIds }, status: "approved" }).select(VEHICLE_PUBLIC_FIELDS).lean()
+        : [],
+      listingIds.length
+        ? ImportExportListing.find({ _id: { $in: listingIds }, status: "approved" }).select(LISTING_PUBLIC_FIELDS).lean()
+        : [],
     ]);
     const vehicleMap = new Map(vehicles.map((v) => [String(v._id), limitVehicleImages(v)]));
     const listingMap = new Map(listings.map((l) => [String(l._id), (

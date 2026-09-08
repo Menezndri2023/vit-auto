@@ -24,9 +24,27 @@ export const verifyWebhook = (req, res) => {
 // — sans ça, n'importe qui connaissant l'URL du webhook pourrait injecter de
 // faux messages entrants (déclenchant des appels Claude facturés + de fausses
 // escalades admin).
-function isValidSignature(rawBody, signatureHeader) {
+export function isValidSignature(rawBody, signatureHeader) {
   const secret = process.env.WHATSAPP_APP_SECRET;
-  if (!secret) return true; // pas configuré en dev — ne bloque jamais localement
+  if (!secret) {
+    // Faille CRITIQUE corrigée (audit sécurité 2026-09) : ce cas renvoyait
+    // `true` — la vérification de signature s'auto-désactivait donc en
+    // PRODUCTION dès que la variable manquait (elle n'était même pas déclarée
+    // dans render.yaml). N'importe qui connaissant l'URL du webhook pouvait
+    // alors forger un message : le seul contrôle d'autorisation en aval est le
+    // numéro de l'expéditeur (`message.from`), lui-même fourni dans le corps de
+    // la requête. Avec le numéro d'un partenaire — affiché publiquement sur sa
+    // fiche — un attaquant acceptait, refusait ou marquait « livrée » n'importe
+    // quelle réservation, sans le moindre identifiant.
+    // Échec FERMÉ, comme les webhooks Stripe, Wave et Resend. La tolérance
+    // reste possible hors production uniquement, pour le développement local.
+    if (process.env.NODE_ENV === "production") {
+      logger.error("[WhatsApp] WHATSAPP_APP_SECRET absent en production — webhook refusé (échec fermé).");
+      return false;
+    }
+    logger.warn("[WhatsApp] WHATSAPP_APP_SECRET absent — signature non vérifiée (hors production uniquement).");
+    return true;
+  }
   if (!signatureHeader) return false;
 
   const expected = "sha256=" + crypto.createHmac("sha256", secret).update(rawBody).digest("hex");

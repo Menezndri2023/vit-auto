@@ -27,6 +27,7 @@ import LoyaltyTransaction from "../models/LoyaltyTransaction.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
 import { uploadBase64Document, FOLDERS } from "../config/imagekit.js";
 import { isMalformedObjectId } from "../utils/objectId.js";
+import { csvCell } from "../utils/csv.js";
 import { logAction } from "../middleware/auditLog.js";
 
 const CLIENT_CANCEL_REASONS_MAP  = Object.fromEntries(CLIENT_CANCEL_REASONS);
@@ -412,6 +413,29 @@ export const createBooking = async (req, res) => {
       const days = Number(location.days);
       if (!Number.isFinite(days) || days <= 0) {
         return res.status(400).json({ message: "Nombre de jours de location invalide." });
+      }
+      // Faille de FACTURATION corrigée (audit sécurité 2026-09) : `days` servait
+      // seul au calcul du prix, tandis que le contrôle de disponibilité
+      // utilisait startDate/endDate — les deux n'étaient JAMAIS confrontés. Un
+      // client réservait donc du 1er au 31 octobre en déclarant « days: 1 » :
+      // le véhicule était immobilisé un mois, facturé un jour, et la commission
+      // comme le versement partenaire suivaient ce montant erroné.
+      // La durée est désormais RECALCULÉE à partir des dates, qui font foi.
+      const start = location?.startDate ? new Date(location.startDate) : null;
+      const end   = location?.endDate   ? new Date(location.endDate)   : null;
+      if (start && end && !isNaN(start) && !isNaN(end)) {
+        const joursReels = Math.max(1, Math.ceil((end - start) / 86400000));
+        if (joursReels !== days) {
+          location.days = joursReels;
+        }
+      }
+      // Plafond absolu : sans lui, une valeur démesurée (« days: 500000000 »)
+      // faisait boucler jour par jour le calcul des tarifs saisonniers
+      // (utils/seasonalPricing.js) et figeait le serveur — mono-thread — pendant
+      // plusieurs minutes, pour toutes les requêtes de la plateforme.
+      const MAX_RENTAL_DAYS = 365;
+      if (Number(location.days) > MAX_RENTAL_DAYS) {
+        return res.status(400).json({ message: `Durée de location trop longue (maximum ${MAX_RENTAL_DAYS} jours).` });
       }
     }
     if (type === "chauffeur" && chauffeur?.heures !== undefined) {
@@ -2544,6 +2568,10 @@ export const exportPartnerBookings = async (req, res) => {
 
     const rows = [
       "Reference,Type,Statut,Client,Email,Vehicule/Chauffeur,Montant,Commission,Net Partenaire,Caution retenue,Devise,Date,Paye",
+      // Aucun échappement ici jusqu'à l'audit 2026-09 : nom, e-mail et titre
+      // d'annonce partaient bruts dans un `join(",")`, permettant à un client de
+      // décaler les colonnes financières de sa propre ligne dans la
+      // comptabilité du partenaire. Voir utils/csv.js.
       ...bookings.map((b) => [
         b.reference || b._id,
         b.type,
@@ -2558,7 +2586,7 @@ export const exportPartnerBookings = async (req, res) => {
         b.devise || "USD",
         b.createdAt?.toISOString().slice(0, 10) || "",
         b.isPaid ? "Oui" : "Non",
-      ].join(",")),
+      ].map(csvCell).join(",")),
     ].join("\n");
 
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -2878,11 +2906,24 @@ export const proposeBookingAlternative = async (req, res) => {
   const { proposeAlternative } = await import("../services/bookingActionService.js");
   const { id } = req.params;
   if (!mongoose.Types.ObjectId.isValid(id)) return res.status(404).json({ message: "Commande introuvable." });
+  // Faille CRITIQUE corrigée (audit sécurité 2026-09) — AFFECTATION EN MASSE.
+  // Le `...req.body` était étalé APRÈS `bookingId` et `actorId` : le client
+  // pouvait donc réécrire les deux. En envoyant `actorId: null`, il neutralisait
+  // le contrôle de propriété (`if (actorId && ownerId && ...)`) ; en envoyant
+  // `bookingId`, il visait la réservation de quelqu'un d'autre. Résultat : un
+  // compte client quelconque proposait une « alternative » à 1 € avec SON
+  // véhicule sur la réservation d'un tiers, notification signée VIT AUTO à
+  // l'appui — et si le client acceptait, le montant et le véhicule étaient
+  // réellement remplacés. Les paramètres sont désormais nommés un par un.
   const result = await proposeAlternative({
     bookingId: id,
     actorId:   req.user._id,
     source:    "DASHBOARD",
-    ...req.body,
+    proposedVehicleId: req.body?.proposedVehicleId,
+    proposedStartDate: req.body?.proposedStartDate,
+    proposedEndDate:   req.body?.proposedEndDate,
+    proposedPrice:     req.body?.proposedPrice,
+    note:              req.body?.note,
   });
   res.status(result.statusCode).json(result.body);
 };
@@ -3754,10 +3795,11 @@ export const exportBookings = async (req, res) => {
       // quelles. Un véhicule intitulé « Toyota Land Cruiser, 7 places » (virgule)
       // décalait toutes les colonnes financières de sa ligne ; un guillemet ou
       // un retour à la ligne dans une adresse cassait le fichier entier.
-      const csv = (v) => {
-        const str = String(v ?? "");
-        return /[",\n\r;]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-      };
+      // Échappement délégué à utils/csv.js : le helper local doublait bien les
+      // guillemets mais ne neutralisait PAS les préfixes de formule (=, +, -, @)
+      // — un nom de client valant `=HYPERLINK(...)` s'exécutait à l'ouverture du
+      // fichier dans Excel.
+      const csv = csvCell;
       const rows = [
         "Reference,Type,Statut,Client,Email,Téléphone,Passeport,Véhicule/Chauffeur/Activité,Montant,Commission,Net Partenaire,Date,Payé",
         ...bookings.map(b => [

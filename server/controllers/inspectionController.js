@@ -51,7 +51,14 @@ export const createVehicleInspectionReport = async (req, res) => {
 export const getVehicleInspectionReport = async (req, res) => {
   try {
     const report = await InspectionReport.findOne({ vehicle: req.params.id, status: "published" })
-      .populate("partner", "firstName lastName profilePhoto business");
+      // Fuite PII/fiscale corrigée (audit sécurité 2026-09) : `business` renvoyait
+      // le sous-document COMPLET — companyName, mais aussi RCCM, numéro fiscal et
+      // adresse du siège — et `phone` le contact direct du partenaire, sur une
+      // route PUBLIQUE. En itérant sur les annonces, on reconstituait l'annuaire
+      // fiscal et téléphonique de tous les exportateurs. Le projet applique déjà
+      // cette restriction ailleurs (usersController.getPublicProfile, pmsController) :
+      // seul le nom commercial et le logo ont vocation à être publics.
+      .populate("partner", "firstName lastName profilePhoto business.companyName business.logo");
     res.json({ report: report || null });
   } catch (err) {
     logger.error("getVehicleInspectionReport:", err);

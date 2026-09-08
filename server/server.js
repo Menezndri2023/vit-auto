@@ -782,13 +782,36 @@ const startServer = async () => {
     const { verify: jwtVerify } = await import("jsonwebtoken");
     const JWT_SECRET = process.env.JWT_SECRET;
 
-    io.use((socket, next) => {
+    // Mêmes contrôles que l'authentification HTTP (middleware/auth.js) — ils
+    // manquaient ici (audit sécurité 2026-09), avec trois conséquences :
+    //   • le RÔLE était lu dans le jeton et non en base : un administrateur
+    //     rétrogradé gardait un jeton portant role:"admin" jusqu'à 7 jours et
+    //     restait abonné au canal des admins, continuant de recevoir en temps
+    //     réel litiges, dossiers KYC et alertes financières ;
+    //   • ni `isActive`, ni `tokenVersion`, ni la révocation n'étaient
+    //     vérifiés : une déconnexion, un blocage de compte ou un changement de
+    //     mot de passe coupaient la session HTTP, jamais la socket ;
+    //   • un jeton à usage restreint (challenge 2FA) ouvrait la socket, donc
+    //     les notifications privées de la victime.
+    io.use(async (socket, next) => {
       const token = socket.handshake.auth?.token || socket.handshake.query?.token;
       if (!token) return next(); // Connexion anonyme tolérée (lecture publique)
       try {
         const decoded = jwtVerify(token, JWT_SECRET);
-        socket.data.userId = decoded.id || decoded.userId;
-        socket.data.role   = decoded.role;
+        if (decoded.purpose) return next(); // jeton à usage restreint → anonyme
+
+        const { isAccessTokenRevoked } = await import("./utils/tokenRevocation.js");
+        if (decoded.jti && await isAccessTokenRevoked(decoded.jti)) return next();
+
+        const { default: User } = await import("./models/User.js");
+        const user = await User.findById(decoded.id || decoded.userId)
+          .select("role isActive tokenVersion")
+          .lean();
+        if (!user || user.isActive === false) return next();
+        if ((decoded.tokenVersion || 0) !== (user.tokenVersion || 0)) return next();
+
+        socket.data.userId = user._id.toString();
+        socket.data.role   = user.role; // rôle RÉEL, relu en base
         next();
       } catch {
         next(); // Token invalide → connexion anonyme

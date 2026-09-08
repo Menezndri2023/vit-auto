@@ -1,12 +1,12 @@
 import { baseEmail, BRAND } from "../shared/base.js";
-import { btn, heroSection, greeting, signature, infoBox, dataTable, badge } from "../shared/components.js";
+import { btn, heroSection, greeting, signature, infoBox, dataTable, badge, escapeHtml } from "../shared/components.js";
 
 export function kycSubmittedTemplate({ firstName, kycType = "identité", dashboardUrl, country }, trackingPixel = "") {
   const body = `
     ${heroSection("Dossier KYC soumis ✅", "Votre dossier est en cours d'examen", "🔍")}
     ${greeting(firstName)}
     <p style="font-size:14px;color:${BRAND.muted};line-height:1.7;margin:0 0 20px">
-      Votre dossier de vérification <strong>${kycType}</strong> a été soumis avec succès.
+      Votre dossier de vérification <strong>${escapeHtml(kycType)}</strong> a été soumis avec succès.
       Notre équipe procède à l'examen sous <strong>24-72 heures</strong>.
     </p>
 
@@ -67,7 +67,7 @@ export function kycRejectedTemplate({ firstName, reason, resubmitUrl, country },
       Malheureusement, votre dossier de vérification n'a pas pu être approuvé pour la raison suivante :
     </p>
 
-    ${infoBox(`<strong>Motif :</strong><br>${reason || "Documents insuffisants ou illisibles."}`, "danger")}
+    ${infoBox(`<strong>Motif :</strong><br>${escapeHtml(reason || "Documents insuffisants ou illisibles.")}`, "danger")}
 
     <p style="font-size:14px;color:${BRAND.muted};line-height:1.7;margin:16px 0">
       Vous pouvez soumettre un nouveau dossier avec des documents plus lisibles.
