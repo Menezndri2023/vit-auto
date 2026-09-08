@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { COMPANY_ADDRESS } from "../constants/company";
+import { COMPANY, COMPANY_ADDRESS } from "../constants/company";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 const Section = ({ title, children }) => (
@@ -58,12 +58,21 @@ export default function MentionsLegales() {
       </div>
 
       <Section title="1. Éditeur de la plateforme">
-        <Row label="Dénomination" value="VIT AUTO" />
+        <Row label="Dénomination" value={COMPANY.name} />
+        {/* ⚠️ À COMPLÉTER par le gérant : forme juridique exacte, numéro RC,
+            ICE, IF et capital social sont attendus pour une société marocaine
+            sur un site commercial. Ils ne peuvent pas être devinés, et une
+            valeur inventée serait pire que leur absence. */}
         <Row label="Forme juridique" value="Entreprise individuelle / Startup" />
         <Row label="Siège social" value={COMPANY_ADDRESS} />
-        <Row label="Email de contact" value="contact@vit-auto.com" />
-        <Row label="Téléphone" value="+212 6 07 74 26 72" />
-        <Row label="Directeur de publication" value="VIT AUTO" />
+        {/* La loi attend une PERSONNE PHYSIQUE nommée comme directeur de
+            publication ; cette ligne indiquait « VIT AUTO ». Le nom du gérant
+            figurait pourtant déjà dans la LOI et l'Accord Founding Partner —
+            il vient maintenant de la même source (constants/company.js). */}
+        <Row label="Gérant" value={COMPANY.manager} />
+        <Row label="Directeur de publication" value={COMPANY.manager} />
+        <Row label="Email de contact" value={COMPANY.email} />
+        <Row label="Téléphone" value={COMPANY.phoneMADisplay} />
       </Section>
 
       <Section title="2. Hébergement">

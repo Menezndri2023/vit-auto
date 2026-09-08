@@ -26,6 +26,20 @@ export const COMPANY = {
   phoneMADisplay: "+212 6 07 74 26 72",
   phoneCI:        "+2250748124635",
   phoneCIDisplay: "+225 07 48 12 46 35",
+
+  // ── Gérant et directeur de publication ────────────────────────────────────
+  // Le nom figurait déjà, écrit EN DUR et en double, dans la LOI et l'Accord
+  // Founding Partner (partnerOnboardingController.js) — mais restait absent
+  // des mentions légales, qui donnaient « VIT AUTO » là où la loi attend une
+  // personne physique nommée. Une seule source désormais.
+  //
+  // `manager` : forme légale, patronyme d'abord, telle que communiquée.
+  // `managerDisplay` : forme employée dans les contrats internationaux, prénom
+  // d'abord et accentué — graphie déjà en vigueur dans les documents signés,
+  // conservée telle quelle pour ne pas créer deux identités contractuelles.
+  manager:        "N'DRI N'GUESSAN MANASSE",
+  managerDisplay: "Manassé N'DRI N'GUESSAN",
+  managerTitle:   "Fondateur & Gérant",
 };
 
 export const COMPANY_ADDRESS    = `${COMPANY.street}, ${COMPANY.city}, ${COMPANY.country}`;

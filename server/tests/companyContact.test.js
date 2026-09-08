@@ -19,7 +19,7 @@ const FRONT = fs.readFileSync(
 const valeurFront = (cle) => (FRONT.match(new RegExp(`${cle}:\\s*"([^"]+)"`)) || [])[1];
 
 describe("Identité de l'entreprise — miroir front / serveur", () => {
-  for (const cle of ["name", "street", "city", "country", "email", "website", "phoneMA", "phoneCI"]) {
+  for (const cle of ["name", "street", "city", "country", "email", "website", "phoneMA", "phoneCI", "manager", "managerDisplay", "managerTitle"]) {
     it(`« ${cle} » est identique des deux côtés`, () => {
       expect(valeurFront(cle), `${cle} absent de src/constants/company.js`).toBeTruthy();
       expect(COMPANY[cle], `${cle} diverge entre le serveur et l'interface`).toBe(valeurFront(cle));
@@ -60,6 +60,22 @@ describe("Numéros du service client — composables depuis l'étranger", () => 
       expect(c.address?.trim()).toBeTruthy();
       expect(c.tel?.trim()).toBeTruthy();
     }
+  });
+
+  it("le gérant est nommé, et son nom n'est plus écrit en dur dans les contrats", () => {
+    // La loi attend une personne physique nommée comme directeur de
+    // publication ; les mentions légales indiquaient « VIT AUTO ». Le nom
+    // figurait pourtant déjà, EN DUR et en double, dans la LOI et l'Accord
+    // Founding Partner — deux copies qui auraient divergé au premier changement.
+    expect(COMPANY.manager?.trim()).toBeTruthy();
+    expect(COMPANY.managerDisplay?.trim()).toBeTruthy();
+
+    const controleur = fs.readFileSync(
+      path.join(process.cwd(), "controllers/partnerOnboardingController.js"), "utf8"
+    );
+    expect(controleur, "le nom du gérant ne doit plus être écrit en dur dans les contrats")
+      .not.toContain("N'DRI N'GUESSAN, Founder");
+    expect(controleur).toContain("COMPANY.managerDisplay");
   });
 
   it("l'adresse du siège porte bien la ville et le pays", () => {
