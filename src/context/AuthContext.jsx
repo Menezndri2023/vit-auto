@@ -98,6 +98,27 @@ export const AuthProvider = ({ children }) => {
     return () => window.removeEventListener("vit:logout", handleForceLogout);
   }, []);
 
+  // ── Rafraîchissement PRÉVENTIF du jeton d'accès ───────────────────────────
+  // Le jeton d'accès est passé de 7 jours à 1 heure (audit sécurité 2026-09) :
+  // il vit dans le localStorage, donc sa durée de vie est exactement la fenêtre
+  // pendant laquelle un jeton volé reste exploitable.
+  //
+  // apiClient rafraîchit bien sur 401 et rejoue la requête, mais une grande
+  // partie des écrans (tableaux de bord admin et partenaire) appelle l'API
+  // directement, sans passer par lui : au bout d'une heure, ces écrans
+  // commenceraient à échouer alors que la session est parfaitement valide.
+  // On renouvelle donc en avance, à intervalle régulier — l'utilisateur ne voit
+  // jamais l'expiration, et le vol de jeton reste limité à une heure.
+  // refreshAccessTokenOnce() est mutualisé : aucun appel concurrent possible.
+  useEffect(() => {
+    if (!token) return;
+    const REFRESH_INTERVAL_MS = 45 * 60 * 1000; // avant l'expiration (1 h)
+    const id = setInterval(() => {
+      refreshAccessTokenOnce().then((t) => { if (t) setToken(t); }).catch(() => {});
+    }, REFRESH_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [token]);
+
   // ── Validation du token au démarrage ──────────────────────────────────────
   useEffect(() => {
     const storedToken = loadToken();

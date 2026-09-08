@@ -359,6 +359,14 @@ const userSchema = new mongoose.Schema({
   // sinon aucune résistance au niveau du compte lui-même.
   failedLoginAttempts: { type: Number, default: 0 },
   lockUntil:           { type: Date,   default: null },
+  // Adresse IP à l'origine du verrouillage. Le verrou était GLOBAL : n'importe
+  // qui connaissant l'e-mail d'un partenaire ou d'un admin (visible sur les
+  // fiches publiques) le tenait hors de son compte en permanence, en envoyant
+  // 5 mauvais mots de passe toutes les 15 minutes — un déni de service ciblé,
+  // sans aucun moyen d'action pour la victime. Le verrou ne s'applique
+  // désormais qu'à l'adresse fautive ; `null` signifie un verrou GLOBAL,
+  // réservé aux attaques distribuées (voir ESCALATION_ATTEMPTS/authController).
+  lockIp:              { type: String, default: null },
 
   // ── Authentification à deux facteurs (TOTP) ──────────────────
   twoFactor: {

@@ -28,6 +28,11 @@ const APP_URL            = () => process.env.APP_URL || process.env.FRONTEND_URL
 const VERIFY_TTL         = 24 * 60 * 60 * 1000; // 24h
 const REFRESH_TTL_DAYS   = 30;
 
+// Durée de vie du jeton d'accès. Court volontairement : c'est la fenêtre
+// pendant laquelle un jeton volé reste exploitable.
+const ACCESS_TOKEN_TTL = process.env.ACCESS_TOKEN_TTL || "1h";
+
+
 function makeToken() {
   return crypto.randomBytes(32).toString("hex");
 }
@@ -37,15 +42,29 @@ function signJWT(user) {
     // jti unique par token émis — permet de révoquer CE token précis à la
     // déconnexion (voir revokeRefreshToken) sans affecter les autres sessions
     // de l'utilisateur, contrairement à tokenVersion (global, toutes sessions).
-    { id: user._id, email: user.email, role: user.role, tokenVersion: user.tokenVersion || 0, jti: makeToken() },
+    // Charge utile MINIMALE : `email` et `role` y figuraient sans nécessité —
+    // un JWT n'est que du base64, quiconque intercepte le jeton (journal de
+    // proxy, historique, capture réseau) les lisait sans la clé. `authenticate`
+    // relit de toute façon l'utilisateur en base.
+    { id: user._id, tokenVersion: user.tokenVersion || 0, jti: makeToken() },
     JWT_SECRET(),
-    { expiresIn: "7d" }
+    // 1 heure au lieu de 7 jours (audit sécurité 2026-09). Les jetons vivent
+    // dans le localStorage du navigateur : une seule injection donnait
+    // auparavant une semaine d'accès, non révocable de façon fiable quand Redis
+    // est indisponible. La rotation du refresh token (30 j) prend le relais de
+    // façon transparente — l'expérience utilisateur est inchangée.
+    { expiresIn: ACCESS_TOKEN_TTL }
   );
 }
 
 function signRefreshToken(user) {
   return jwt.sign(
-    { id: user._id },
+    // jti unique par jeton émis. Sans lui, le payload ({id}) et `iat` (précision
+    // à la seconde) sont constants : deux rotations dans la même seconde
+    // produisent deux chaînes STRICTEMENT identiques. La rotation devenait alors
+    // un non-événement, et surtout la détection de rejeu ci-dessous ne pouvait
+    // pas distinguer l'ancien jeton du nouveau.
+    { id: user._id, jti: makeToken() },
     REFRESH_SECRET(),
     { expiresIn: `${REFRESH_TTL_DAYS}d` }
   );
@@ -68,6 +87,25 @@ function hashRefreshToken(token) {
 // toucher à leur boîte mail. Le jeton est déjà à haute entropie
 // (crypto.randomBytes(32)) : un hachage simple suffit, comme pour les refresh.
 const hashResetToken = hashRefreshToken;
+
+// Prévient le titulaire qu'une attaque par force brute vise son compte — il
+// n'était jamais informé, alors que c'est précisément le moment où il devrait
+// changer son mot de passe. Jamais bloquant pour la connexion.
+async function notifyBruteForceAttempt(user) {
+  try {
+    const { default: Notification } = await import("../models/Notification.js");
+    const titre = "🔐 Tentatives de connexion suspectes";
+    const message = "Plusieurs tentatives de connexion ont échoué sur votre compte. Si ce n'était pas vous, changez votre mot de passe.";
+    const notif = await Notification.create({ user: user._id, type: "system", titre, message, lien: "/profile" });
+    if (global._io) {
+      global._io.to(`user_${user._id}`).emit("notification_new", {
+        _id: notif._id, type: "system", titre, message, lien: "/profile", lu: false, createdAt: notif.createdAt,
+      });
+    }
+  } catch (err) {
+    logger.error("notifyBruteForceAttempt:", err.message);
+  }
+}
 
 function safeUser(u) {
   return {
@@ -424,14 +462,22 @@ export const login = async (req, res) => {
     // sans ça, un attaquant distribuant ses tentatives sur plusieurs IP ou
     // attendant simplement la fenêtre de 15 min n'a aucune résistance au
     // niveau du compte lui-même.
-    if (user.lockUntil && user.lockUntil > new Date()) {
+    // Le verrou ne bloque QUE l'adresse fautive (audit sécurité 2026-09) — ou
+    // tout le monde en cas d'attaque distribuée (lockIp null). Auparavant il
+    // était global : quiconque connaissait l'e-mail d'un partenaire ou d'un
+    // admin — visible sur les fiches publiques — le tenait hors de son compte
+    // en permanence en envoyant 5 mauvais mots de passe toutes les 15 minutes.
+    // La victime n'avait aucun recours.
+    if (user.lockUntil && user.lockUntil > new Date() && (!user.lockIp || user.lockIp === req.ip)) {
       const minutesLeft = Math.ceil((user.lockUntil.getTime() - Date.now()) / 60000);
       return res.status(429).json({ message: `Compte temporairement verrouillé après trop de tentatives. Réessayez dans ${minutesLeft} min.` });
     }
 
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
-      const MAX_ATTEMPTS = 5, LOCKOUT_MS = 15 * 60 * 1000;
+      const MAX_ATTEMPTS = 5;              // verrou ciblé sur l'adresse fautive
+      const ESCALATION_ATTEMPTS = 30;      // au-delà : attaque distribuée → verrou global
+      const LOCKOUT_MS = 15 * 60 * 1000;
       // $inc atomique : deux requêtes concurrentes (ex: double-clic, script
       // brute-force parallèle) incrémentent chacune leur propre valeur sans
       // écraser l'autre, contrairement à un read-then-write en JS.
@@ -440,23 +486,39 @@ export const login = async (req, res) => {
         { $inc: { failedLoginAttempts: 1 } },
         { new: true }
       ).select("failedLoginAttempts");
-      if (updated.failedLoginAttempts >= MAX_ATTEMPTS) {
-        await User.updateOne({ _id: user._id }, { $set: { lockUntil: new Date(Date.now() + LOCKOUT_MS), failedLoginAttempts: 0 } });
+
+      const attempts = updated.failedLoginAttempts;
+
+      // Escalade : autant d'échecs consécutifs signale une attaque menée depuis
+      // plusieurs adresses. Là seulement, le verrou devient global — et le
+      // titulaire est prévenu, ce qui n'était jamais le cas auparavant.
+      if (attempts >= ESCALATION_ATTEMPTS) {
+        await User.updateOne({ _id: user._id }, { $set: { lockUntil: new Date(Date.now() + LOCKOUT_MS), lockIp: null } });
+        logger.warn("[SECURITY] Attaque par force brute distribuée — verrou global", {
+          userId: user._id.toString(), attempts,
+        });
+        notifyBruteForceAttempt(user).catch(() => {});
         return res.status(429).json({ message: "Compte temporairement verrouillé après trop de tentatives. Réessayez dans 15 min." });
+      }
+
+      // Verrou ciblé : ne gêne que l'adresse qui multiplie les tentatives.
+      if (attempts % MAX_ATTEMPTS === 0) {
+        await User.updateOne({ _id: user._id }, { $set: { lockUntil: new Date(Date.now() + LOCKOUT_MS), lockIp: req.ip } });
+        return res.status(429).json({ message: "Trop de tentatives depuis cet appareil. Réessayez dans 15 min." });
       }
       return res.status(401).json({ message: "Identifiants invalides." });
     }
 
     // Mot de passe correct : réinitialise le compteur d'échecs.
     if (user.failedLoginAttempts || user.lockUntil) {
-      await User.updateOne({ _id: user._id }, { $set: { failedLoginAttempts: 0, lockUntil: null } });
+      await User.updateOne({ _id: user._id }, { $set: { failedLoginAttempts: 0, lockUntil: null, lockIp: null } });
     }
 
     // Bloquer si email non vérifié (sauf admin, mode dev sans SMTP, ou tant que la
     // vérification email n'est pas exigée — voir emailVerificationRequiredForLogin()).
     // Ne s'applique que si le compte a effectivement un email (comptes inscrits par
     // téléphone uniquement : user.email est null, rien à vérifier de ce côté).
-    if (user.email && !user.emailVerified && user.role !== "admin" && !isDevNoSmtp() && emailVerificationRequiredForLogin()) {
+    if (user.email && !user.emailVerified && user.role !== "admin" && !isDevNoSmtp() && emailVerificationRequiredForLogin(user)) {
       return res.status(403).json({
         code: "EMAIL_NOT_VERIFIED",
         message: "Veuillez vérifier votre adresse e-mail avant de vous connecter. Vérifiez votre boîte mail ou demandez un nouveau lien.",
@@ -1241,6 +1303,31 @@ export const refreshToken = async (req, res) => {
     }
     const tokenHash = hashRefreshToken(token);
     if (!user.refreshTokens || !user.refreshTokens.includes(tokenHash)) {
+      // DÉTECTION DE RÉUTILISATION (audit sécurité 2026-09). La rotation était
+      // bien en place, mais un jeton déjà consommé renvoyait un simple 401 : un
+      // attaquant ayant volé un refresh token et l'utilisant AVANT la victime
+      // obtenait une chaîne de sessions parallèle, la victime était seulement
+      // déconnectée et se reconnectait — personne ne détectait l'intrusion.
+      //
+      // Un jeton valide cryptographiquement mais absent de la liste ne peut
+      // signifier qu'une chose : il a déjà été échangé. Soit c'est un rejeu, et
+      // la session est compromise. On révoque alors TOUTE la famille — toutes
+      // les sessions du compte — et on prévient le titulaire. C'est la
+      // contre-mesure standard qui manquait à un mécanisme par ailleurs correct.
+      if (user.refreshTokens?.length) {
+        await User.updateOne(
+          { _id: user._id },
+          { $set: { refreshTokens: [] }, $inc: { tokenVersion: 1 } }
+        );
+        logger.warn("[SECURITY] Réutilisation d'un refresh token — toutes les sessions révoquées", {
+          userId: user._id.toString(),
+        });
+        notifyBruteForceAttempt(user).catch(() => {});
+        return res.status(401).json({
+          message: "Session compromise : toutes vos sessions ont été fermées par sécurité. Reconnectez-vous.",
+          code: "REFRESH_TOKEN_REUSE",
+        });
+      }
       return res.status(401).json({ message: "Refresh token révoqué ou invalide." });
     }
 

@@ -303,30 +303,62 @@ describe("refreshToken / revokeRefreshToken", () => {
     await login(loginReq, loginRes);
     const firstRefresh = loginRes.body.refreshToken;
 
-    // JWT iat est à la précision de la seconde et le payload ({id}, pas de jti)
-    // est constant : sans cet écart, un second appel dans la même seconde
-    // produirait une chaîne strictement identique, rendant "l'ancien token
-    // rejeté" trivialement vrai pour la mauvaise raison (il serait encore le
-    // token courant).
-    await new Promise((r) => setTimeout(r, 1100));
-
     const { req: r1, res: res1 } = mockReqRes({ body: { refreshToken: firstRefresh } });
     await refreshTokenCtrl(r1, res1);
     expect(res1.statusCode).toBe(200);
     const secondRefresh = res1.body.refreshToken;
-    // Ne pas comparer les chaînes brutes : deux JWT signés la même seconde avec
-    // le même payload ({id}, pas de jti) peuvent être strictement identiques —
-    // ce qui compte est le comportement ci-dessous, pas la valeur littérale.
 
-    // Rejouer l'ancien refresh token (déjà remplacé) doit échouer.
-    const { req: r2, res: res2 } = mockReqRes({ body: { refreshToken: firstRefresh } });
+    // Le `jti` rend chaque jeton émis unique : sans lui, deux rotations dans la
+    // même seconde renvoyaient la même chaîne et « l'ancien est rejeté » aurait
+    // été vrai pour la mauvaise raison (il serait encore le jeton courant).
+    expect(secondRefresh, "chaque rotation doit émettre un jeton distinct").not.toBe(firstRefresh);
+
+    // Le nouveau jeton fonctionne.
+    const { req: r2, res: res2 } = mockReqRes({ body: { refreshToken: secondRefresh } });
+    await refreshTokenCtrl(r2, res2);
+    expect(res2.statusCode).toBe(200);
+
+    // L'ancien, déjà consommé, est refusé.
+    const { req: r3, res: res3 } = mockReqRes({ body: { refreshToken: firstRefresh } });
+    await refreshTokenCtrl(r3, res3);
+    expect(res3.statusCode).toBe(401);
+  });
+
+  it("rejouer un refresh token déjà consommé révoque TOUTE la famille de sessions", async () => {
+    // Contre-mesure ajoutée à l'audit sécurité 2026-09. Avant, un jeton rejoué
+    // renvoyait un simple 401 : un attaquant ayant volé un refresh token et
+    // l'échangeant AVANT la victime obtenait une chaîne de sessions parallèle,
+    // pendant que la victime, seulement déconnectée, se reconnectait sans rien
+    // soupçonner. Un jeton valide cryptographiquement mais absent de la liste ne
+    // peut signifier qu'une chose : il a déjà été échangé, donc quelqu'un le
+    // détient en double. On ferme tout et on prévient le titulaire.
+    const user = await withPassword();
+    const { req: loginReq, res: loginRes } = mockReqRes({ body: { identifier: user.email, password: PASSWORD } });
+    await login(loginReq, loginRes);
+    const vole = loginRes.body.refreshToken;
+
+    // La victime utilise normalement sa session.
+    const { req: r1, res: res1 } = mockReqRes({ body: { refreshToken: vole } });
+    await refreshTokenCtrl(r1, res1);
+    const courant = res1.body.refreshToken;
+
+    // L'attaquant rejoue le jeton volé.
+    const { req: r2, res: res2 } = mockReqRes({ body: { refreshToken: vole } });
     await refreshTokenCtrl(r2, res2);
     expect(res2.statusCode).toBe(401);
+    expect(res2.body.code).toBe("REFRESH_TOKEN_REUSE");
 
-    // Le nouveau, lui, doit fonctionner.
-    const { req: r3, res: res3 } = mockReqRes({ body: { refreshToken: secondRefresh } });
+    // Le jeton légitime de la victime tombe AUSSI : c'est le point de la
+    // contre-mesure. Une reconnexion par mot de passe est désormais exigée —
+    // l'attaquant, lui, n'a pas le mot de passe.
+    const { req: r3, res: res3 } = mockReqRes({ body: { refreshToken: courant } });
     await refreshTokenCtrl(r3, res3);
-    expect(res3.statusCode).toBe(200);
+    expect(res3.statusCode, "toute la famille doit être révoquée, pas seulement le jeton rejoué").toBe(401);
+
+    // Et les jetons d'accès déjà émis sont invalidés par l'incrément de version.
+    const fresh = await User.findById(user._id).select("refreshTokens tokenVersion");
+    expect(fresh.refreshTokens).toHaveLength(0);
+    expect(fresh.tokenVersion).toBeGreaterThan(0);
   });
 
   it("revokeRefreshToken empêche toute réutilisation ultérieure", async () => {
