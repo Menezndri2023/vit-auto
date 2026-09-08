@@ -46,7 +46,7 @@ const VendorSubmit = () => {
 
   // Photos : { id, preview (dataURL), name, size }
   const [photos, setPhotos] = useState([]);
-  const MAX_PHOTOS = 6;
+  const MAX_PHOTOS = 20;   // aligné sur MAX_VEHICLE_IMAGES (serveur)
   const fileInputRef = useRef(null);
 
   // ── Étape 1 : Identité du partenaire ────────────────────────────────────────

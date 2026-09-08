@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 const Art = ({ n, title, children }) => (
   <div style={{ marginBottom: 36 }}>
@@ -27,6 +28,14 @@ const Li = ({ children }) => (
 );
 
 export default function ConditionsPartenaires() {
+  // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
+  // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
+  // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
+  useDocumentMeta({
+    title: "Conditions partenaires",
+    description: "Engagements, commissions et obligations des partenaires VIT AUTO.",
+  });
+
   return (
     <div style={{ maxWidth: 820, margin: "0 auto", padding: "48px 24px 96px" }}>
 

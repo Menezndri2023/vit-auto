@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 const FAQS = [
   {
@@ -165,6 +166,14 @@ const FAQItem = ({ q, a }) => {
 };
 
 export default function FAQ() {
+  // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
+  // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
+  // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
+  useDocumentMeta({
+    title: "Questions fréquentes",
+    description: "Tout ce qu'il faut savoir avant de louer, acheter ou importer un véhicule avec VIT AUTO.",
+  });
+
   return (
     <div style={{ maxWidth: 880, margin: "0 auto", padding: "48px 24px 96px" }}>
 

@@ -18,23 +18,32 @@ const Footer = () => {
             entre l'Afrique, l'Europe, la Chine et le Moyen-Orient.
           </p>
           <div className={styles.socials}>
-            <a href="https://wa.me/212607742672" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">📱</a>
-            <a href="mailto:contact@vit-auto.com" aria-label="Email">✉️</a>
-            <a href="tel:+212607742672" aria-label="Téléphone">📞</a>
+            <a href={`https://wa.me/${COMPANY.phoneMA.replace("+", "")}`} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">📱</a>
+            <a href={`mailto:${COMPANY.email}`} aria-label="Email">✉️</a>
+            <a href={`tel:${COMPANY.phoneMA}`} aria-label="Téléphone">📞</a>
           </div>
         </div>
 
         <div className={styles.cols}>
           {/* Services */}
           <div className={styles.col}>
+            {/* Colonne restructurée : elle listait « Location courte durée » et
+                « Location longue durée » comme deux entrées distinctes menant
+                à la MÊME adresse (/catalogue?mode=Louer) — deux libellés, une
+                seule destination, ce qui trompe le visiteur sur la richesse du
+                menu. Fusionnées. « Pourquoi VIT AUTO ? » est une page de
+                présentation, pas un service : déplacée en Navigation.
+                Import/Export gagne en revanche sa vitrine d'annonces, qui
+                n'était atteignable que depuis sa page d'accueil — c'est le
+                point d'entrée que la barre de navigation n'a pas à porter. */}
             <h3>Services</h3>
             <ul>
-              <li><Link to="/catalogue?mode=Louer">Location courte durée</Link></li>
-              <li><Link to="/catalogue?mode=Louer">Location longue durée</Link></li>
+              <li><Link to="/catalogue?mode=Louer">Location de véhicules</Link></li>
               <li><Link to="/catalogue?mode=Acheter">Vente de véhicules</Link></li>
               <li><Link to="/catalogue?mode=Chauffeur">Service chauffeur</Link></li>
-              <li><Link to="/import-export">Import / Export International</Link></li>
-              <li><Link to="/pourquoi">Pourquoi VIT AUTO ?</Link></li>
+              <li><Link to="/catalogue?mode=Autres">Activités &amp; loisirs</Link></li>
+              <li><Link to="/import-export">Import / Export international</Link></li>
+              <li><Link to="/import-export/listings">Annonces Import / Export</Link></li>
             </ul>
           </div>
 
@@ -47,6 +56,7 @@ const Footer = () => {
               <li><Link to="/services">Services</Link></li>
               <li><Link to="/partenaires">Devenir partenaire</Link></li>
               <li><Link to="/plans">Tarifs</Link></li>
+              <li><Link to="/pourquoi">Pourquoi VIT AUTO ?</Link></li>
               <li><Link to="/help">Centre d'aide</Link></li>
               <li><Link to="/faq">FAQ</Link></li>
             </ul>
@@ -63,16 +73,15 @@ const Footer = () => {
               <li><Link to="/cookies">Politique Cookies</Link></li>
               <li><Link to="/politiques">Confiance & Conformité</Link></li>
               <li><Link to="/mentions-legales">Mentions légales</Link></li>
-              <li><Link to="/faq">Questions fréquentes</Link></li>
             </ul>
             <h3 className={styles.colSubTitle}>Contact</h3>
             <ul>
               <li>📍 {COMPANY.street}, {COMPANY.city}</li>
               <li>
-                <a href="tel:+212607742672">📞 +212 6 07 74 26 72</a>
+                <a href={`tel:${COMPANY.phoneMA}`}>📞 {COMPANY.phoneMADisplay}</a>
               </li>
               <li>
-                <a href="mailto:contact@vit-auto.com">✉️ contact@vit-auto.com</a>
+                <a href={`mailto:${COMPANY.email}`}>✉️ {COMPANY.email}</a>
               </li>
               <li className={styles.hours}>🕐 Ouvert 7j/7 · 24h/24</li>
             </ul>

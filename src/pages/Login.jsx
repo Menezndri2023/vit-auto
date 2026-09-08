@@ -5,8 +5,17 @@ import { useToast } from "../context/ToastContext";
 import { useI18n } from "../context/I18nContext";
 import GoogleAuthButton from "../components/GoogleAuthButton/GoogleAuthButton";
 import styles from "./Auth.module.css";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 const Login = () => {
+  // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
+  // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
+  // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
+  useDocumentMeta({
+    title: "Connexion",
+    description: "Accédez à votre espace VIT AUTO : réservations, documents, annonces et suivi de vos transactions.",
+  });
+
   const { login, oauthGoogle, verifyTwoFactor } = useAuth();
   const { success, error } = useToast();
   const { t } = useI18n();

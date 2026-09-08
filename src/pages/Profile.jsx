@@ -949,11 +949,18 @@ const Profile = () => {
               <div className={styles.notifList}>
                 {[
                   { key: "emailReminders",      title: "Rappels par e-mail",          desc: "Recevoir un rappel avant chaque réservation" },
-                  { key: "smsReminders",         title: "Rappels par SMS",             desc: "Recevoir un rappel par message texte" },
+                  // L'envoi de SMS est désactivé en dur côté serveur depuis
+                  // l'incident Twilio de 2026-07 (voir utils/smsConfigured.js,
+                  // SMS_ENABLED = false). Laisser l'interrupteur actionnable
+                  // faisait promettre au client des rappels qui ne partiraient
+                  // jamais — il l'activait, puis reprochait à la plateforme de
+                  // ne pas l'avoir prévenu de sa réservation.
+                  { key: "smsReminders", title: "Rappels par SMS", indisponible: true,
+                    desc: "Momentanément indisponible — les rappels vous parviennent par e-mail et dans votre espace." },
                   { key: "promotionalEmails",    title: "Offres et promotions",        desc: "Recevoir nos offres spéciales et réductions" },
                   { key: "bookingConfirmations", title: "Confirmations de réservation",desc: "Recevoir une confirmation après chaque réservation" },
-                ].map(({ key, title, desc }) => (
-                  <div key={key} className={styles.notifItem}>
+                ].map(({ key, title, desc, indisponible }) => (
+                  <div key={key} className={styles.notifItem} style={indisponible ? { opacity: 0.6 } : undefined}>
                     <div>
                       <p className={styles.notifTitle}>{title}</p>
                       <p className={styles.notifDesc}>{desc}</p>
@@ -961,7 +968,8 @@ const Profile = () => {
                     <label className={styles.toggle}>
                       <input
                         type="checkbox"
-                        checked={notifications[key]}
+                        checked={indisponible ? false : notifications[key]}
+                        disabled={indisponible}
                         onChange={(e) => handleNotifChange(key, e.target.checked)}
                       />
                       <span className={styles.toggleSlider} />

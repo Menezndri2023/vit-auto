@@ -19,6 +19,9 @@ const createReviewLimiter = rateLimit({
 });
 
 // ── Public (platform/client filtrés côté contrôleur pour non-admin) ───────
+// `/showcase` AVANT `/` : ordre sans conséquence ici (chemins distincts), mais
+// conforme à la convention du projet — statique avant paramétré.
+router.get("/showcase", r.getShowcaseReviews);   // avis réels, page d'accueil
 router.get("/", optionalAuth, r.getReviews);
 
 // ── Client connecté ───────────────────────────────────────

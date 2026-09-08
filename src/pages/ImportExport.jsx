@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import styles from "./ImportExport.module.css";
 import { COUNTRIES_ALL, VEHICLE_TYPES } from "../data/autocomplete";
 import { useCurrency } from "../context/CurrencyContext";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 // Repli tant que GET /api/pricing/config n'a pas répondu — mêmes valeurs que
 // server/config/defaultPricingConfig.js (source de vérité réelle).
@@ -313,6 +314,14 @@ function RequestModal({ defaultPack, onClose }) {
 }
 
 const ImportExport = () => {
+  // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
+  // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
+  // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
+  useDocumentMeta({
+    title: "Import / Export international",
+    description: "Importez ou exportez un véhicule entre l'Afrique, l'Europe, la Chine et le Moyen-Orient. Inspection, transport, dédouanement et livraison gérés de bout en bout.",
+  });
+
   const [showModal, setShowModal] = useState(false);
   const [modalPack, setModalPack] = useState("Silver");
   const [pricing, setPricing] = useState(FALLBACK_PRICING);

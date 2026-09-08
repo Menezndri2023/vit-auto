@@ -8,8 +8,17 @@ import { WORLD_COUNTRIES } from "../data/worldCountries";
 import { ACTIVITIES, ACTIVITY_LABELS, ENTITY_TYPES, ENTITY_TYPE_LABELS, requiresBusinessDocs } from "../constants/partnerTaxonomy";
 import { resolveRequirements } from "../utils/partnerRequirements";
 import styles from "./Auth.module.css";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 const Register = () => {
+  // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
+  // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
+  // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
+  useDocumentMeta({
+    title: "Créer un compte",
+    description: "Créez votre compte VIT AUTO en quelques minutes, où que vous soyez : location, achat, import ou publication d'annonces.",
+  });
+
   const { register, oauthGoogle, verifyEmailCode, resendEmailCode, user, isAuthenticated } = useAuth();
   const { success, error } = useToast();
   const { countryCode } = useCurrency();

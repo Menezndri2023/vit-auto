@@ -153,6 +153,53 @@ export const getReviews = async (req, res) => {
   }
 };
 
+// ── Avis mis en avant sur la page d'accueil — GET /api/reviews/showcase ────
+// La page d'accueil affichait QUATRE TÉMOIGNAGES FABRIQUÉS : personnes
+// inventées, fonctions, villes, et affirmations chiffrées précises
+// (« Livraison à Abidjan en 35 jours », « Revenue doubled in 6 months »),
+// toutes notées 5 étoiles. Sur une plateforme qui encaisse des paiements et
+// séquestre des fonds, de faux avis sont une pratique commerciale trompeuse —
+// et, plus prosaïquement, un visiteur qui les reconnaît doute ensuite de tout
+// le reste du site.
+//
+// Cette route ne renvoie que de VRAIS avis, déjà visibles après modération, et
+// seulement sur les cibles publiques (véhicule, chauffeur, agence) — jamais
+// "platform" ni "client", qui sont des signaux internes (voir getReviews).
+// Le prénom est conservé, le nom réduit à son initiale : un avis public ne
+// justifie pas d'exposer l'identité complète d'un client.
+export const getShowcaseReviews = async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 6, 12);
+
+    const reviews = await Review.find({
+      visible: true,
+      targetType: { $in: ["vehicle", "driver", "partner"] },
+      note: { $gte: 4 },
+      commentaire: { $nin: [null, ""] },
+    })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .populate("reviewer", "firstName lastName country")
+      .lean();
+
+    res.json({
+      reviews: reviews.map((r) => ({
+        _id:         r._id,
+        note:        r.note,
+        commentaire: r.commentaire,
+        createdAt:   r.createdAt,
+        auteur:      [r.reviewer?.firstName, r.reviewer?.lastName?.[0] ? `${r.reviewer.lastName[0]}.` : null]
+          .filter(Boolean).join(" ") || "Client vérifié",
+        pays:        r.reviewer?.country || null,
+      })),
+      total: reviews.length,
+    });
+  } catch (err) {
+    logger.error("getShowcaseReviews:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
 // ── Liste des avis (admin) — pour modération ──────────────────────────────
 export const adminListReviews = async (req, res) => {
   try {

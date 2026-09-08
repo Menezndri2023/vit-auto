@@ -12,6 +12,7 @@ const logVid = validateObjectId("logId");
 
 // ── Public (optionalAuth pour que les admins puissent filtrer par statut) ────
 router.get("/", optionalAuth, v.getVehicles);                                // tous les véhicules approuvés
+router.get("/public-stats", v.getPublicStats);                              // chiffres affichés sur la page d'accueil
 
 // ── Partenaire authentifié — routes statiques ─────────────
 router.get("/mine",    authenticate, v.getMyVehicles);                       // mes annonces
@@ -32,6 +33,7 @@ router.post("/backfill-descriptions", authenticate, authorizeAdmin, requireAdmin
 
 // ── Routes paramétrées (viennent APRÈS les routes statiques) ─────────────────
 router.get("/:id/availability", vid, optionalAuth, v.getVehicleAvailability);    // disponibilité dates
+router.get("/:id/rental-conditions", vid, optionalAuth, v.getVehicleRentalConditions); // options et conditions du partenaire
 router.get("/:id/inspection-report",  vid, optionalAuth,  getVehicleInspectionReport);   // rapport d'inspection (public)
 router.post("/:id/inspection-report", vid, authenticate,  createVehicleInspectionReport); // publié/mis à jour par le propriétaire
 router.patch("/:id/status",   vid, authenticate, authorizeAdmin, requireAdminScope("catalogue"), v.updateVehicleStatus); // approuver/rejeter

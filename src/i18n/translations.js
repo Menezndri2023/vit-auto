@@ -282,7 +282,44 @@ const translations = {
   // ─── Réservation — options & paiement ───────────────────────────────────────
   "booking.optionsTitle":         { fr: "Options supplémentaires", en: "Additional options", ar: "خيارات إضافية", es: "Opciones adicionales", zh: "附加选项" },
   "booking.optionsRateNote":      { fr: "Tarif par jour × {n} jour(s)", en: "Daily rate × {n} day(s)", ar: "السعر اليومي × {n} يوم/أيام", es: "Tarifa diaria × {n} día(s)", zh: "每日费率 × {n} 天" },
+  // ── Catalogue vide à cause du filtre pays ─────────────────────────────────
+  // Le catalogue s'ouvre sur le pays du visiteur (détecté par IP, ou déclaré au
+  // profil). C'est le bon défaut — mais 25 des 28 pays couverts n'ont encore
+  // aucune annonce : leurs visiteurs tombaient sur une page vide dont le seul
+  // bouton, « Voir tous les véhicules », réinitialisait les filtres SANS
+  // toucher au pays. Ils revoyaient donc la même page vide, et repartaient.
+  "catalogue.emptyCountryTitle": { fr: "Aucune annonce dans votre pays pour l'instant", en: "No listings in your country yet", ar: "لا توجد إعلانات في بلدك حاليًا", es: "Aún no hay anuncios en tu país", zh: "您所在国家暂无车源" },
+  "catalogue.emptyCountryDesc":  { fr: "VIT AUTO couvre {n} pays. Élargissez la recherche pour voir les véhicules disponibles ailleurs — l'import et la livraison internationale font partie de nos services.", en: "VIT AUTO covers {n} countries. Widen your search to see vehicles available elsewhere — import and international delivery are part of our services.", ar: "تغطي VIT AUTO {n} دولة. وسّع بحثك لرؤية المركبات المتاحة في أماكن أخرى — الاستيراد والتوصيل الدولي من خدماتنا.", es: "VIT AUTO cubre {n} países. Amplía tu búsqueda para ver vehículos disponibles en otros lugares: la importación y la entrega internacional forman parte de nuestros servicios.", zh: "VIT AUTO 覆盖 {n} 个国家。扩大搜索范围以查看其他地区的车辆——进口与国际配送均在我们的服务范围内。" },
+  "catalogue.emptyCountryCta":   { fr: "🌍 Voir les véhicules de tous les pays", en: "🌍 See vehicles from all countries", ar: "🌍 عرض المركبات من جميع الدول", es: "🌍 Ver vehículos de todos los países", zh: "🌍 查看所有国家的车辆" },
+
   "booking.optionsSelectedTotal": { fr: "Options sélectionnées : ", en: "Selected options: ", ar: "الخيارات المختارة: ", es: "Opciones seleccionadas: ", zh: "已选选项：" },
+
+  // ── Conditions du partenaire, affichées à l'étape des options ─────────────
+  // Ajoutées avec le bloc PartnerConditions (Booking.jsx). Les CGV (article 6)
+  // affirment que ces conditions sont affichées à l'étape de réservation.
+  "booking.partnerConditionsTitle": { fr: "📋 Conditions du partenaire", en: "📋 Partner conditions", ar: "📋 شروط الشريك", es: "📋 Condiciones del socio", zh: "📋 合作伙伴条件" },
+  "booking.condMinimumAge":     { fr: "Âge minimum : {n} ans", en: "Minimum age: {n} years", ar: "الحد الأدنى للسن: {n} سنة", es: "Edad mínima: {n} años", zh: "最低年龄：{n} 岁" },
+  "booking.condLicenseYears":   { fr: "Permis depuis au moins {n} an(s)", en: "Licence held for at least {n} year(s)", ar: "رخصة القيادة منذ {n} سنة على الأقل", es: "Carné desde hace al menos {n} año(s)", zh: "持照至少 {n} 年" },
+  "booking.condMinDays":        { fr: "Durée minimale : {n} jours", en: "Minimum duration: {n} days", ar: "المدة الدنيا: {n} أيام", es: "Duración mínima: {n} días", zh: "最短租期：{n} 天" },
+  "booking.condIdentityDoc":    { fr: "Pièce d'identité exigée", en: "Identity document required", ar: "بطاقة الهوية مطلوبة", es: "Documento de identidad exigido", zh: "需要身份证件" },
+  "booking.condLicense":        { fr: "Permis de conduire exigé", en: "Driving licence required", ar: "رخصة القيادة مطلوبة", es: "Carné de conducir exigido", zh: "需要驾驶执照" },
+  "booking.condIntlLicense":    { fr: "Permis international exigé", en: "International licence required", ar: "رخصة دولية مطلوبة", es: "Carné internacional exigido", zh: "需要国际驾照" },
+  "booking.condDeposit":        { fr: "Caution exigée", en: "Deposit required", ar: "التأمين مطلوب", es: "Fianza exigida", zh: "需要押金" },
+  "booking.condDeliveryRadius": { fr: "Livraison dans un rayon de {n} km", en: "Delivery within {n} km", ar: "التوصيل ضمن {n} كم", es: "Entrega en un radio de {n} km", zh: "{n} 公里内配送" },
+  "booking.condFuelPolicy":     { fr: "Carburant : {v}", en: "Fuel: {v}", ar: "الوقود: {v}", es: "Combustible: {v}", zh: "燃油：{v}" },
+  "booking.condCancellation":   { fr: "Annulation : {v}", en: "Cancellation: {v}", ar: "الإلغاء: {v}", es: "Cancelación: {v}", zh: "取消：{v}" },
+
+  // ── Avis clients (page d'accueil) — remplacent des témoignages fabriqués ──
+  "home.reviewsTag":      { fr: "💬 AVIS CLIENTS", en: "💬 CUSTOMER REVIEWS", ar: "💬 آراء العملاء", es: "💬 OPINIONES DE CLIENTES", zh: "💬 客户评价" },
+  "home.reviewsTitle":    { fr: "Ils ont réservé sur VIT AUTO", en: "They booked with VIT AUTO", ar: "لقد حجزوا عبر VIT AUTO", es: "Reservaron en VIT AUTO", zh: "他们在 VIT AUTO 预订" },
+  "home.reviewsSubtitle": { fr: "Avis laissés par des clients après une réservation, publiés après modération.", en: "Reviews left by customers after a booking, published after moderation.", ar: "آراء تركها العملاء بعد الحجز، تُنشر بعد المراجعة.", es: "Opiniones dejadas por clientes tras una reserva, publicadas tras moderación.", zh: "客户预订后留下的评价，经审核后发布。" },
+  "home.reviewsAverage":  { fr: "sur {n} avis affiché(s)", en: "from {n} review(s) shown", ar: "من {n} رأي معروض", es: "de {n} opinión(es) mostrada(s)", zh: "基于显示的 {n} 条评价" },
+
+  // ── Chiffres réels de la plateforme (page d'accueil) ──────────────────────
+  "home.statVehicles":  { fr: "Véhicules disponibles", en: "Vehicles available", ar: "المركبات المتاحة", es: "Vehículos disponibles", zh: "可用车辆" },
+  "home.statCountries": { fr: "Pays couverts", en: "Countries covered", ar: "الدول المغطاة", es: "Países cubiertos", zh: "覆盖国家" },
+  "home.statCountry":   { fr: "Pays couvert", en: "Country covered", ar: "دولة مغطاة", es: "País cubierto", zh: "覆盖国家" },
+  "home.statRating":    { fr: "Note sur {n} avis", en: "Rating from {n} reviews", ar: "التقييم من {n} رأي", es: "Nota sobre {n} opiniones", zh: "基于 {n} 条评价" },
   "booking.paymentMethodTitle": { fr: "Méthode de paiement", en: "Payment method", ar: "طريقة الدفع", es: "Método de pago", zh: "支付方式" },
   "booking.mobileNumberLabel":  { fr: "Numéro mobile *", en: "Mobile number *", ar: "رقم الهاتف المحمول *", es: "Número de móvil *", zh: "手机号码 *" },
   "booking.optionPricePerDay": { fr: "+{price}/jour", en: "+{price}/day", ar: "+{price}/يوم", es: "+{price}/día", zh: "+{price}/天" },

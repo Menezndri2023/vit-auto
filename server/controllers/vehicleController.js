@@ -6,6 +6,8 @@ import Notification from "../models/Notification.js";
 import Booking from "../models/Booking.js";
 import PartnerVerification from "../models/PartnerVerification.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
+import Review from "../models/Review.js";
+import { resolveRentalOptions } from "../services/rentalOptions.js";
 import ImportExportListing from "../models/ImportExportListing.js";
 import VehicleMaintenanceLog from "../models/VehicleMaintenanceLog.js";
 import { syncVehicleAvailability } from "./bookingController.js";
@@ -35,6 +37,21 @@ function hidePartnerDirectContact(vehicle) {
 
 const MAX_VEHICLE_IMAGE_BYTES = 6 * 1024 * 1024; // cohérent avec KYC/profil
 const MAX_IMAGE_URL_LENGTH    = 2048;
+
+// Nombre de photos par annonce. Était à 8, et surtout appliqué par une
+// TRONCATURE SILENCIEUSE (`images.slice(0, 8)`) : un partenaire qui déposait
+// douze photos de son véhicule en perdait quatre sans le moindre message, et
+// découvrait l'amputation — s'il la découvrait — sur son annonce publiée.
+// Une annonce automobile vit de ses photos : intérieur, coffre, tableau de
+// bord, pneus, défauts… huit ne suffisent pas à présenter un véhicule
+// honnêtement, et le manque se paie en confiance.
+//
+// Le plafond monte donc à 20 et devient EXPLICITE : au-delà, la requête est
+// refusée avec un message clair plutôt que rognée en douce. Il reste borné —
+// le corps d'une requête est limité à 20 Mo (server.js) et chaque image à
+// 6 Mo décodés — pour qu'une annonce ne puisse pas rendre le catalogue
+// inutilisable sur une connexion mobile.
+const MAX_VEHICLE_IMAGES = 20;
 
 // `images` n'était jamais validé côté serveur (seule la longueur du tableau
 // l'était) : un partenaire authentifié pouvait soumettre un blob base64 énorme
@@ -152,9 +169,11 @@ export const createVehicle = async (req, res) => {
       if (!business) return res.status(400).json({ message: "Entreprise introuvable." });
     }
 
-    // ── Limite photos (max 8 côté backend) ────────────────────────────────
-    if (req.body.images && req.body.images.length > 8) {
-      req.body.images = req.body.images.slice(0, 8);
+    // ── Limite photos — refus explicite, jamais de troncature silencieuse ──
+    if (Array.isArray(req.body.images) && req.body.images.length > MAX_VEHICLE_IMAGES) {
+      return res.status(400).json({
+        message: `Trop de photos : ${req.body.images.length} envoyées, ${MAX_VEHICLE_IMAGES} au maximum.`,
+      });
     }
     const imagesError = validateVehicleImages([...(req.body.images || []), req.body.thumbnail].filter(Boolean));
     if (imagesError) return res.status(400).json({ message: imagesError });
@@ -617,7 +636,14 @@ export const updateVehicle = async (req, res) => {
     ];
     // Champs réservés admin
     const ADMIN_ONLY = ["featured", "sponsoredUntil", "boostLevel"];
-    if (req.body.images) req.body.images = req.body.images.slice(0, 8);
+    // Même règle qu'à la création : refus explicite plutôt que troncature. Une
+    // modification qui rognait les photos en silence était le pire des deux
+    // cas — le partenaire venait justement d'en ajouter.
+    if (Array.isArray(req.body.images) && req.body.images.length > MAX_VEHICLE_IMAGES) {
+      return res.status(400).json({
+        message: `Trop de photos : ${req.body.images.length} envoyées, ${MAX_VEHICLE_IMAGES} au maximum.`,
+      });
+    }
     if (req.body.images || req.body.thumbnail) {
       const imagesError = validateVehicleImages([...(req.body.images || []), req.body.thumbnail].filter(Boolean));
       if (imagesError) return res.status(400).json({ message: imagesError });
@@ -1212,6 +1238,121 @@ export const transferVehicle = async (req, res) => {
   } catch (err) {
     logger.error("transferVehicle:", err);
     res.status(500).json({ message: "Erreur lors du transfert." });
+  }
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CHIFFRES PUBLICS — GET /api/vehicles/public-stats
+// ══════════════════════════════════════════════════════════════════════════════
+// La page d'accueil, la page « Pourquoi VIT AUTO » et l'appel à l'action final
+// annonçaient « 3 500+ véhicules », « 20+ pays », « 50 000+ utilisateurs
+// satisfaits sur 5 continents » et « 4,9/5 sur 2 400+ avis vérifiés » — tous
+// écrits en dur. Les chiffres réels au moment de ce constat : 138 véhicules
+// publiés, 3 pays, 29 comptes, 0 avis. Un écart d'un à trois ordres de
+// grandeur, sur des allégations commerciales chiffrées.
+//
+// Le risque n'est pas seulement réglementaire (« avis vérifiés » est une
+// mention encadrée) : un partenaire ou un investisseur qui recoupe une seule de
+// ces valeurs cesse de croire toutes les autres, y compris les vraies.
+//
+// Ces compteurs disent donc la vérité, et grandissent d'eux-mêmes. Cache court
+// en mémoire : ces valeurs bougent lentement et la page d'accueil est la plus
+// sollicitée du site.
+let statsCache = { at: 0, data: null };
+const PUBLIC_STATS_TTL_MS = 5 * 60 * 1000;
+
+export const getPublicStats = async (req, res) => {
+  try {
+    if (statsCache.data && Date.now() - statsCache.at < PUBLIC_STATS_TTL_MS) {
+      return res.json(statsCache.data);
+    }
+
+    const [vehicles, countries, notes] = await Promise.all([
+      Vehicle.countDocuments({ status: "approved" }),
+      Vehicle.distinct("country", { status: "approved" }),
+      Review.aggregate([
+        { $match: { visible: true, targetType: { $in: ["vehicle", "driver", "partner"] } } },
+        { $group: { _id: null, moyenne: { $avg: "$note" }, total: { $sum: 1 } } },
+      ]),
+    ]);
+
+    const agg = notes[0] || null;
+    const data = {
+      vehicles,
+      countries: countries.filter(Boolean).length,
+      // `null` tant qu'il n'y a pas d'avis : l'interface masque alors la
+      // statistique au lieu d'afficher un 0/5 ou une moyenne sur deux avis.
+      rating:      agg?.total ? Math.round(agg.moyenne * 10) / 10 : null,
+      reviewCount: agg?.total || 0,
+    };
+
+    statsCache = { at: Date.now(), data };
+    res.json(data);
+  } catch (err) {
+    logger.error("getPublicStats:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CONDITIONS DE LOCATION DU PARTENAIRE — GET /api/vehicles/:id/rental-conditions
+// ══════════════════════════════════════════════════════════════════════════════
+// Les conditions particulières du partenaire (exigences de documents, âge
+// minimum, ancienneté de permis, texte libre) ne quittaient JAMAIS le serveur :
+// elles n'alimentaient que le moteur d'éligibilité, au moment de valider une
+// réservation. Le client remplissait donc tout son parcours pour se voir
+// éventuellement refuser à la dernière étape, sans avoir jamais pu lire les
+// conditions qu'on lui opposait.
+//
+// Cette route les expose AVANT la réservation, avec les options réellement
+// proposées par ce partenaire et à son tarif (voir services/rentalOptions.js).
+// Publique : ces conditions s'adressent à un visiteur qui hésite encore, pas
+// seulement à un client déjà inscrit. Rien d'identifiant n'y transite — ni
+// coordonnées, ni identité du partenaire, conformément à la politique du projet
+// (aucun contact direct partenaire exposé).
+export const getVehicleRentalConditions = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const vehicle = await Vehicle.findById(id)
+      .select("business dureeMinLocation permisRequis ageMin fuelPolicy cancellationPolicy")
+      .lean();
+    if (!vehicle) return res.status(404).json({ message: "Véhicule introuvable." });
+
+    const business = vehicle.business
+      ? await PartnerBusiness.findById(vehicle.business).select("rentalPolicy").lean()
+      : null;
+    const policy = business?.rentalPolicy || null;
+
+    const options = await resolveRentalOptions(policy);
+
+    res.json({
+      // Seules les options réellement proposées sont renvoyées : le parcours
+      // ne doit pas afficher une case que la réservation refusera ensuite.
+      options: options.filter((o) => o.offered).map(({ id: optId, label, pricePerDay }) => ({
+        id: optId, label, pricePerDay,
+      })),
+      conditions: {
+        minimumAge:                   policy?.minimumAge ?? vehicle.ageMin ?? null,
+        minimumLicenseYears:          policy?.minimumLicenseYears ?? null,
+        identityDocumentRequired:     policy?.identityDocumentRequired ?? null,
+        drivingLicenseRequired:       policy?.drivingLicenseRequired ?? null,
+        internationalLicenseRequired: policy?.internationalLicenseRequired ?? null,
+        depositRequired:              policy?.depositRequired ?? null,
+        maxDeliveryRadiusKm:          policy?.maxDeliveryRadiusKm ?? null,
+        additionalRequirements:       policy?.additionalRequirements || null,
+        minimumRentalDays:            vehicle.dureeMinLocation || null,
+        // Conditions propres à l'ANNONCE (et non à l'entité partenaire). Elles
+        // n'étaient affichées que sur la fiche du véhicule — or les CGV
+        // (article 6) affirment qu'elles sont « affichées à l'étape de
+        // réservation ». Un client arrivant par « Réserver à nouveau » ou par
+        // le panier ne les voyait donc jamais, tout en y étant lié.
+        fuelPolicy:                   vehicle.fuelPolicy || null,
+        cancellationPolicy:           vehicle.cancellationPolicy || null,
+      },
+    });
+  } catch (err) {
+    logger.error("getVehicleRentalConditions:", err);
+    res.status(500).json({ message: "Erreur lors du chargement des conditions." });
   }
 };
 

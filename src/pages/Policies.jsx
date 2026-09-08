@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 const Section = ({ id, title, children }) => (
   <div id={id} style={{ marginBottom: 44, scrollMarginTop: 90 }}>
@@ -37,6 +38,14 @@ const TOC_ITEMS = [
 ];
 
 export default function Policies() {
+  // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
+  // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
+  // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
+  useDocumentMeta({
+    title: "Confiance et conformité",
+    description: "Modération des annonces, vérification des identités, gestion des litiges et conformité chez VIT AUTO.",
+  });
+
   return (
     <div style={{ maxWidth: 820, margin: "0 auto", padding: "48px 24px 96px" }}>
 

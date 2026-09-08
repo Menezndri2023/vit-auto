@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import styles from "./Help.module.css";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 const faqs = [
   {
@@ -52,6 +53,14 @@ const FAQ = ({ q, a }) => {
 };
 
 const Help = () => {
+  // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
+  // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
+  // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
+  useDocumentMeta({
+    title: "Centre d'aide",
+    description: "Réponses aux questions sur la réservation, le paiement, la livraison, les documents et le programme partenaire VIT AUTO.",
+  });
+
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 

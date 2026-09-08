@@ -6,17 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
     <!-- SEO -->
-    <title>VIT AUTO — Location & Vente de Véhicules en Afrique</title>
-    <meta name="description" content="Louez, achetez ou vendez des véhicules en Afrique de l'Ouest. Catalogue de véhicules, chauffeurs privés, service client 24h/24." />
-    <meta name="keywords" content="location voiture, vente voiture, chauffeur privé, Dakar, Abidjan, Bamako, VIT AUTO" />
+    <title>VIT AUTO — Location, vente et import de véhicules à l'international</title>
+    <meta name="description" content="Louez, achetez, importez ou exportez un véhicule dans 28 pays. Inspection, transport, dédouanement et livraison gérés de bout en bout, avec paiement sécurisé." />
+    <meta name="keywords" content="location voiture, vente voiture, import véhicule, export véhicule, chauffeur privé, Casablanca, Abidjan, Dakar, VIT AUTO" />
     <meta name="author" content="VIT AUTO" />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://vit-auto.com" />
 
     <!-- Open Graph -->
     <meta property="og:type"        content="website" />
-    <meta property="og:title"       content="VIT AUTO — Location & Vente de Véhicules" />
-    <meta property="og:description" content="Louez ou achetez votre véhicule en Afrique de l'Ouest" />
+    <meta property="og:title"       content="VIT AUTO — Location, vente et import de véhicules à l'international" />
+    <meta property="og:description" content="Location, vente et import de véhicules entre l'Afrique, l'Europe, l'Asie et le Moyen-Orient." />
     <meta property="og:image"       content="https://vit-auto.com/icons/icon-512x512.png" />
     <meta property="og:url"         content="https://vit-auto.com" />
     <meta property="og:site_name"   content="VIT AUTO" />
@@ -24,8 +24,8 @@
 
     <!-- Twitter Card -->
     <meta name="twitter:card"        content="summary_large_image" />
-    <meta name="twitter:title"       content="VIT AUTO — Location & Vente de Véhicules" />
-    <meta name="twitter:description" content="Louez ou achetez votre véhicule en Afrique de l'Ouest" />
+    <meta name="twitter:title"       content="VIT AUTO — Location, vente et import de véhicules à l'international" />
+    <meta name="twitter:description" content="Location, vente et import de véhicules entre l'Afrique, l'Europe, l'Asie et le Moyen-Orient." />
     <meta name="twitter:image"       content="https://vit-auto.com/icons/icon-512x512.png" />
 
     <!-- Mobile / PWA -->
@@ -78,30 +78,47 @@
     </style>
 
     <!-- Structured Data JSON-LD -->
+    <!-- Données structurées. Elles décrivaient VIT AUTO comme une plateforme
+         « en Afrique de l'Ouest — 14 pays couverts », alors que le siège est à
+         Casablanca, que 28 pays sont configurés et que l'offre relie l'Asie,
+         le Golfe et l'Europe. `sameAs` pointait en outre vers une URL de
+         PRÉVERSION Vercel, donnée aux moteurs comme profil officiel.
+         Ce bloc statique est celui que les robots lisent sans exécuter le
+         JavaScript : c'est donc lui qui fait foi pour l'accueil. -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "AutoDealer",
       "name": "VIT AUTO",
-      "description": "Plateforme de location et vente de véhicules en Afrique de l'Ouest — 14 pays couverts",
+      "description": "Location, vente, import et export de véhicules à l'international — inspection, transport, dédouanement et livraison gérés de bout en bout.",
       "url": "https://vit-auto.com",
       "logo": {
         "@type": "ImageObject",
         "url": "https://vit-auto.com/favicon.svg"
       },
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "Boulevard Lalla Yacout & Rue El Arrar, Résidence Galis",
+        "addressLocality": "Casablanca",
+        "addressCountry": "MA"
+      },
+      "email": "contact@vit-auto.com",
+      "telephone": "+212607742672",
       "areaServed": [
-        "Côte d'Ivoire","Sénégal","Mali","Maroc",
-        "Niger","Burkina Faso","Guinée","Cameroun",
-        "Togo","Bénin","Ghana","Mauritanie","Tunisie","Algérie"
+        "Maroc","Côte d'Ivoire","Sénégal","Mali","Niger","Burkina Faso",
+        "Guinée","Cameroun","Togo","Bénin","Ghana","Mauritanie",
+        "Tunisie","Algérie","Nigeria","France","Belgique","Espagne",
+        "Émirats Arabes Unis","Chine","Japon","Canada","Royaume-Uni","Suisse"
       ],
-      "serviceType": ["Car Rental","Car Sales","Private Driver"],
+      "serviceType": ["Car Rental","Car Sales","Vehicle Import","Vehicle Export","Private Driver"],
       "priceRange": "$$",
       "contactPoint": {
         "@type": "ContactPoint",
         "contactType": "customer service",
+        "telephone": "+212607742672",
+        "email": "contact@vit-auto.com",
         "availableLanguage": ["French","English","Arabic"]
-      },
-      "sameAs": ["https://vitauto.vercel.app"]
+      }
     }
     </script>
   </head>

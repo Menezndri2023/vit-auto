@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { COMPANY_ADDRESS } from "../constants/company";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 const Section = ({ title, children }) => (
   <div style={{ marginBottom: 36 }}>
@@ -27,6 +28,14 @@ const Row = ({ label, value }) => (
 );
 
 export default function MentionsLegales() {
+  // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
+  // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
+  // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
+  useDocumentMeta({
+    title: "Mentions légales",
+    description: "Éditeur, hébergement et informations légales de la plateforme VIT AUTO.",
+  });
+
   return (
     <div style={{ maxWidth: 820, margin: "0 auto", padding: "48px 24px 96px" }}>
 

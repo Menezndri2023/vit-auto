@@ -42,6 +42,59 @@ const PAYMENT_METHODS = [
   { value: "cash",         label: "booking.paymentCash",     icon: "💵", mobile: false, translate: true },
 ];
 
+// Conditions particulières du partenaire. Composant défini au niveau du module,
+// pas dans le rendu : un composant recréé à chaque rendu est démonté puis
+// remonté par React, ce qui reconstruit son DOM à chaque frappe du formulaire.
+// `t` est passé en argument : ce composant vit au niveau du module (voir plus
+// haut) et ne peut donc pas appeler le hook useI18n() lui-même — même contrainte
+// que OPTIONS_CATALOG.
+function PartnerConditions({ conditions, t }) {
+  if (!conditions) return null;
+
+  const lignes = [];
+  if (conditions.minimumAge) lignes.push(t("booking.condMinimumAge", { n: conditions.minimumAge }));
+  if (conditions.minimumLicenseYears) lignes.push(t("booking.condLicenseYears", { n: conditions.minimumLicenseYears }));
+  if (conditions.minimumRentalDays > 1) lignes.push(t("booking.condMinDays", { n: conditions.minimumRentalDays }));
+  // `=== true` strict, jamais `truthy` : le tri-état de rentalPolicy distingue
+  // « exigé » (true) de « aucune règle partenaire » (null) — voir
+  // server/models/PartnerBusiness.js et eligibilityEngine.js.
+  if (conditions.identityDocumentRequired === true) lignes.push(t("booking.condIdentityDoc"));
+  if (conditions.drivingLicenseRequired === true) lignes.push(t("booking.condLicense"));
+  if (conditions.internationalLicenseRequired === true) lignes.push(t("booking.condIntlLicense"));
+  if (conditions.depositRequired === true) lignes.push(t("booking.condDeposit"));
+  if (conditions.maxDeliveryRadiusKm) lignes.push(t("booking.condDeliveryRadius", { n: conditions.maxDeliveryRadiusKm }));
+  // Conditions propres à l'annonce. Les CGV (article 6) affirment qu'elles sont
+  // affichées à l'étape de réservation ; elles ne l'étaient que sur la fiche du
+  // véhicule, donc invisibles pour qui réserve depuis le panier ou « Réserver à
+  // nouveau ».
+  if (conditions.fuelPolicy) lignes.push(t("booking.condFuelPolicy", { v: conditions.fuelPolicy }));
+  if (conditions.cancellationPolicy) lignes.push(t("booking.condCancellation", { v: conditions.cancellationPolicy }));
+
+  const libre = conditions.additionalRequirements;
+  if (!lignes.length && !libre) return null;
+
+  return (
+    <div style={{
+      marginTop: "1.25rem", padding: "1rem 1.15rem", borderRadius: 14,
+      background: "#f8faff", border: "1.5px solid #e8edf8",
+    }}>
+      <strong style={{ display: "block", color: "#0f1b3f", fontSize: ".92rem", marginBottom: 8 }}>
+        {t("booking.partnerConditionsTitle")}
+      </strong>
+      {lignes.length > 0 && (
+        <ul style={{ margin: "0 0 .5rem", paddingLeft: "1.1rem", color: "#5a6a8a", fontSize: ".86rem", lineHeight: 1.7 }}>
+          {lignes.map((l) => <li key={l}>{l}</li>)}
+        </ul>
+      )}
+      {libre && (
+        <p style={{ margin: 0, color: "#5a6a8a", fontSize: ".86rem", lineHeight: 1.6, whiteSpace: "pre-line" }}>
+          {libre}
+        </p>
+      )}
+    </div>
+  );
+}
+
 const STEPS = [
   { id: 1, label: "booking.step1Label" },
   { id: 2, label: "booking.step2Label" },
@@ -211,6 +264,56 @@ export default function Booking() {
 
   /* ── STEP 2 : Options ──────────────────────────────────────────── */
   const [selectedOptions, setSelectedOptions] = useState({ babySeat: false, insurance: false, driver: false, gps: false });
+
+  /* ── Conditions du partenaire ───────────────────────────────────────────
+     Les options supplémentaires étaient une liste FIGÉE, au tarif global,
+     identique pour tous les partenaires. Un client pouvait donc cocher
+     « chauffeur privé » chez un partenaire qui n'en propose pas : la
+     réservation partait, et le désaccord se découvrait à la remise des clés.
+     Symétriquement, les conditions particulières du partenaire (âge minimum,
+     ancienneté de permis, caution, exigences propres) ne quittaient jamais le
+     serveur — elles n'alimentaient que le contrôle d'éligibilité, au moment de
+     valider. Le client remplissait tout son parcours pour se voir refuser à la
+     dernière étape, sans avoir jamais pu lire ce qu'on lui opposait.
+
+     Le serveur reste seul autoritaire sur les prix (voir
+     services/rentalOptions.js) : ce qui suit n'est que l'affichage. */
+  const [rentalConditions, setRentalConditions] = useState(null);
+  useEffect(() => {
+    const vid = vehicle?._id || vehicle?.id;
+    if (!vid || isSaleMode) return;
+    let annule = false;
+    fetch(`/api/vehicles/${vid}/rental-conditions`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!annule && d) setRentalConditions(d); })
+      .catch(() => { /* repli sur le catalogue global ci-dessous */ });
+    return () => { annule = true; };
+  }, [vehicle?._id, vehicle?.id, isSaleMode]);
+
+  // Options réellement proposées. Tant que les conditions ne sont pas chargées
+  // — ou si l'appel échoue — on retombe sur le catalogue global : le parcours
+  // ne doit jamais se retrouver sans aucune option à cause d'un aléa réseau.
+  const availableOptions = useMemo(() => {
+    if (!rentalConditions?.options?.length) return OPTIONS_CATALOG;
+    const parId = Object.fromEntries(OPTIONS_CATALOG.map((o) => [o.id, o]));
+    return rentalConditions.options
+      .filter((o) => parId[o.id])
+      .map((o) => ({ ...parId[o.id], price: o.pricePerDay }));
+  }, [rentalConditions]);
+
+  // Une option retirée par le partenaire ne doit pas rester cochée d'un choix
+  // antérieur : elle serait facturée à l'affichage puis refusée au serveur.
+  useEffect(() => {
+    const proposees = new Set(availableOptions.map((o) => o.id));
+    setSelectedOptions((prev) => {
+      const nettoye = { ...prev };
+      let change = false;
+      for (const id of Object.keys(prev)) {
+        if (prev[id] && !proposees.has(id)) { nettoye[id] = false; change = true; }
+      }
+      return change ? nettoye : prev;
+    });
+  }, [availableOptions]);
   // Fidélité — voir bookingController.createBooking pour le calcul autoritaire
   // (jamais confiance dans ce montant côté client, uniquement un aperçu).
   const [applyPoints, setApplyPoints] = useState(false);
@@ -247,11 +350,11 @@ export default function Booking() {
   }, [form.startDate, form.endDate]);
 
   const optionsTotal = useMemo(() => {
-    return OPTIONS_CATALOG.reduce((acc, opt) => {
+    return availableOptions.reduce((acc, opt) => {
       if (!selectedOptions[opt.id]) return acc;
       return acc + opt.price * Math.max(days, 1);
     }, 0);
-  }, [selectedOptions, days]);
+  }, [selectedOptions, days, availableOptions]);
 
   /* ── Créneau d'essai souhaité + détection de conflit (même durée fixe 1h
      que server/controllers/bookingController.js ESSAI_DURATION_MS — le
@@ -971,7 +1074,7 @@ export default function Booking() {
             <p className={styles.optionsNote}>{t("booking.optionsRateNote", { n: Math.max(days, 1) })}</p>
 
             <div className={styles.optionsGrid}>
-              {OPTIONS_CATALOG.map((opt) => (
+              {availableOptions.map((opt) => (
                 <label key={opt.id} className={`${styles.optionCard} ${selectedOptions[opt.id] ? styles.optionCardActive : ""}`}>
                   <input type="checkbox" className={styles.optionCheckbox}
                     checked={selectedOptions[opt.id]}
@@ -991,6 +1094,12 @@ export default function Booking() {
                 {t("booking.optionsSelectedTotal")}<strong>{fmt(optionsTotal)}</strong>
               </div>
             )}
+
+            {/* Conditions particulières du partenaire — jusqu'ici invisibles
+                pour le client : elles n'alimentaient que le contrôle
+                d'éligibilité côté serveur, qui pouvait refuser la réservation à
+                la toute dernière étape sans que rien ne l'ait annoncé. */}
+            <PartnerConditions conditions={rentalConditions?.conditions} t={t} />
 
             <div className={styles.actionRow}>
               <button className={styles.secondaryBtn} onClick={() => setStep(1)}>{t("booking.back")}</button>

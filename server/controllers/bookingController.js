@@ -14,7 +14,8 @@ import { QUEUE_NAMES } from "../queue/definitions.js";
 import { resolveDeliveryFee, detectCountryFromCoords } from "../services/deliveryFee.js";
 import { evaluateEligibility, ELIGIBILITY_MESSAGES } from "../services/eligibilityEngine.js";
 import { computeLocationTotal } from "../utils/seasonalPricing.js";
-import { resolveCommissionRate, computeServiceFee, getRentalOptionPrice } from "../services/pricingEngine.js";
+import { resolveCommissionRate, computeServiceFee } from "../services/pricingEngine.js";
+import { priceRentalOptions } from "../services/rentalOptions.js";
 import { convertAmount } from "../services/currencyEngine.js";
 import { issueServiceInvoice } from "./serviceInvoiceController.js";
 import { recordPartnerPayout } from "../utils/commissionLedger.js";
@@ -795,13 +796,26 @@ export const createBooking = async (req, res) => {
     }
 
     // ── Options location ───────────────────────────────────────────────────────
+    // Tarifées d'après les conditions du PARTENAIRE, avec repli sur le
+    // catalogue global (voir services/rentalOptions.js). Auparavant, toute
+    // option cochée était facturée au tarif global, y compris chez un
+    // partenaire qui ne la propose pas : la réservation partait, et le
+    // désaccord se découvrait à la remise des clés.
     let montantOptions = 0;
     if (type === "location" && location?.options) {
-      for (const [key, active] of Object.entries(location.options)) {
-        if (!active) continue;
-        const optionPrice = await getRentalOptionPrice(key);
-        if (optionPrice) montantOptions += optionPrice * (location.days || 1);
+      const { montant, refusees } = await priceRentalOptions(
+        location.options, rentalPolicyBusiness?.rentalPolicy, location.days || 1
+      );
+      if (refusees.length) {
+        // Refus, jamais d'allègement silencieux : le client a choisi ces
+        // options, il ne doit pas en découvrir l'absence sur place.
+        return res.status(400).json({
+          message: `Ce partenaire ne propose pas : ${refusees.join(", ")}. Retirez cette option pour continuer.`,
+          code: "OPTION_NON_PROPOSEE",
+          options: refusees,
+        });
       }
+      montantOptions = montant;
     }
 
     // ── Frais de livraison — recalculé côté serveur, jamais accepté depuis le client ──

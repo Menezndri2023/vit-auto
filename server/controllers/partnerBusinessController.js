@@ -188,6 +188,10 @@ export const adminUpdateRentalPolicy = async (req, res) => {
       "minimumAge", "minimumLicenseYears", "identityDocumentRequired", "drivingLicenseRequired",
       "internationalLicenseRequired", "depositRequired", "maxDeliveryRadiusKm",
       "deliveryFeeSameCity", "deliverySameCityRadiusKm", "additionalRequirements",
+      // Sans cette entrée, les options du partenaire seraient silencieusement
+      // ignorées quand un admin enregistre la politique depuis l'administration
+      // — le formulaire afficherait « enregistré » sans rien changer.
+      "rentalOptions",
     ];
     const incoming = req.body?.rentalPolicy || {};
     for (const key of EDITABLE) {

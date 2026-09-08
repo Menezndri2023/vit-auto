@@ -2,15 +2,39 @@ import { useMemo, useState, useEffect, useCallback } from "react"; // useCallbac
 import { useNavigate, Link } from "react-router-dom";
 import { useVehicles } from "../../context/VehicleContext";
 import { useCurrency } from "../../context/CurrencyContext";
+import { useI18n } from "../../context/I18nContext";
 import SearchBar from "../SearchBar/SearchBar";
 import styles from "./HeroSection.module.css";
 
-const STATS = [
-  { icon: "🚗", value: "3 500+", label: "Véhicules disponibles" },
-  { icon: "🌍", value: "20+",    label: "Pays couverts" },
-  { icon: "⭐", value: "4.9/5",  label: "Note moyenne" },
-  { icon: "🚢", value: "Import", label: "Japon · Europe · Dubaï" },
-];
+// Chiffres affichés sous la barre de recherche. Ils étaient écrits en dur —
+// « 3 500+ véhicules », « 20+ pays », « 4.9/5 de note moyenne » — alors que la
+// plateforme comptait 138 véhicules publiés, 3 pays et aucun avis. Un écart de
+// cet ordre ne se rattrape pas : un partenaire qui recoupe une seule valeur
+// cesse de croire toutes les autres, y compris les vraies.
+//
+// Ils viennent désormais de GET /api/vehicles/public-stats et grandissent
+// d'eux-mêmes. La note moyenne n'apparaît que lorsqu'il existe réellement des
+// avis ; sinon la case cède la place à une information vraie et stable.
+const STAT_IMPORT = { icon: "🚢", value: "Import", label: "Japon · Europe · Dubaï" };
+
+function buildStats(stats, t) {
+  if (!stats) return [STAT_IMPORT];
+  const items = [];
+  if (stats.vehicles > 0) {
+    items.push({ icon: "🚗", value: stats.vehicles.toLocaleString("fr-FR"), label: t("home.statVehicles") });
+  }
+  if (stats.countries > 0) {
+    items.push({ icon: "🌍", value: String(stats.countries), label: t(stats.countries > 1 ? "home.statCountries" : "home.statCountry") });
+  }
+  // Seuil volontaire : une moyenne calculée sur deux avis n'est pas une note,
+  // c'est un hasard — et l'afficher comme telle serait le même travers que les
+  // chiffres inventés qu'on retire ici.
+  if (stats.rating && stats.reviewCount >= 5) {
+    items.push({ icon: "⭐", value: `${stats.rating.toLocaleString("fr-FR")}/5`, label: t("home.statRating", { n: stats.reviewCount }) });
+  }
+  items.push(STAT_IMPORT);
+  return items;
+}
 
 // Slides par défaut — données Afrique de l'Ouest, montants en USD (source de
 // vérité de la plateforme, voir server/scripts/migrate-vehicle-booking-to-usd.mjs)
@@ -62,10 +86,22 @@ const DEFAULT_SLIDES = [
 export default function HeroSection() {
   const { vehicles, featuredVehicles } = useVehicles();
   const { fmt, catalogCountry } = useCurrency();
+  const { t } = useI18n();
   const navigate     = useNavigate();
 
   const [current, setCurrent] = useState(0);
   const [fading, setFading]   = useState(false);
+
+  // Chiffres réels de la plateforme — voir buildStats() plus haut.
+  const [publicStats, setPublicStats] = useState(null);
+  useEffect(() => {
+    let annule = false;
+    fetch("/api/vehicles/public-stats")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!annule && d) setPublicStats(d); })
+      .catch(() => { /* la rangée se limite alors à l'offre Import */ });
+    return () => { annule = true; };
+  }, []);
 
   // Contenu piloté par l'admin (titre/sous-titre/carrousel) — bug réel
   // corrigé (audit) : auparavant stocké en localStorage du navigateur admin
@@ -302,7 +338,7 @@ export default function HeroSection() {
 
       {/* ─── STATS ─── */}
       <div className={styles.statsRow}>
-        {STATS.map((s) => (
+        {buildStats(publicStats, t).map((s) => (
           <div key={s.label} className={styles.statItem}>
             <span className={styles.statIcon}>{s.icon}</span>
             <div>

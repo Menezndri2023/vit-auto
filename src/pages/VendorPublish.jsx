@@ -569,10 +569,10 @@ function IEListingForm({ onClose, onSaved, token }) {
 
         {/* Photos */}
         <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: ".82rem", fontWeight: 600, marginBottom: 6 }}>Photos ({photos.length}/8)</div>
+          <div style={{ fontSize: ".82rem", fontWeight: 600, marginBottom: 6 }}>Photos ({photos.length}/20)</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {photos.map((p, i) => <img key={i} src={p} style={{ width: 72, height: 56, objectFit: "cover", borderRadius: 8, border: "1.5px solid #e2e8f0" }} alt={`p-${i}`} />)}
-            {photos.length < 8 && (
+            {photos.length < 20 && (
               <label style={{ width: 72, height: 56, display: "flex", alignItems: "center", justifyContent: "center", border: "2px dashed #cbd5e1", borderRadius: 8, cursor: "pointer", color: "#94a3b8", fontSize: ".78rem", textAlign: "center" }}>
                 <input type="file" accept="image/*" onChange={addPhoto} style={{ display: "none" }} />+ Photo
               </label>

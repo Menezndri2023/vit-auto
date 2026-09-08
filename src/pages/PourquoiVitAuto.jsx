@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 const SERVICE_CARDS = [
   {
@@ -16,7 +18,7 @@ const SERVICE_CARDS = [
     color: "#6366f1",
     bg: "rgba(99,102,241,.08)",
     title: "Location",
-    desc: "Courte ou longue durée, à la journée ou au mois. Plus de 3 500 véhicules disponibles dans 20+ pays. Tarifs transparents, pas de surprises.",
+    desc: "Courte ou longue durée, à la journée ou au mois, dans 28 pays. Tarifs transparents, pas de surprises.",
     cta: "Voir les locations",
     link: "/catalogue?mode=Louer",
   },
@@ -77,11 +79,15 @@ const SERVICE_CARDS = [
   },
 ];
 
-const STATS = [
-  { value: "20+",    label: "pays couverts",        icon: "🌍" },
-  { value: "9",      label: "devises acceptées",    icon: "💱" },
-  { value: "3 500+", label: "véhicules disponibles", icon: "🚗" },
-  { value: "24h",    label: "support client",        icon: "💬" },
+// Chiffres vérifiés sur la configuration réelle de la plateforme
+// (2026-09-08) : 28 pays actifs et 15 devises paramétrées — la page annonçait
+// « 20+ » et « 9 », donc sous-estimait la couverture réelle. Le nombre de
+// véhicules, lui, était SUR-estimé d'un facteur 25 (« 3 500+ » pour 138
+// publiés) : il vient désormais du décompte réel, et grandit tout seul.
+const STATS_FIXES = [
+  { value: "28",  label: "pays couverts",      icon: "🌍" },
+  { value: "15",  label: "devises acceptées",  icon: "💱" },
+  { value: "24h", label: "support client",     icon: "💬" },
 ];
 
 const WHY_ITEMS = [
@@ -94,6 +100,32 @@ const WHY_ITEMS = [
 ];
 
 export default function PourquoiVitAuto() {
+  // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
+  // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
+  // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
+  useDocumentMeta({
+    title: "Pourquoi VIT AUTO",
+    description: "Contrats digitaux, identités vérifiées, paiement séquestré, livraison GPS : ce qui distingue VIT AUTO d'une petite annonce automobile.",
+  });
+
+  // Décompte réel des annonces publiées — voir GET /api/vehicles/public-stats.
+  const [publicStats, setPublicStats] = useState(null);
+  useEffect(() => {
+    let annule = false;
+    fetch("/api/vehicles/public-stats")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!annule && d) setPublicStats(d); })
+      .catch(() => { /* la rangée se limite alors aux valeurs de configuration */ });
+    return () => { annule = true; };
+  }, []);
+
+  const STATS = publicStats?.vehicles
+    ? [
+        { value: publicStats.vehicles.toLocaleString("fr-FR"), label: "véhicules disponibles", icon: "🚗" },
+        ...STATS_FIXES,
+      ]
+    : STATS_FIXES;
+
   return (
     <div style={{ maxWidth: 1000, margin: "0 auto", padding: "48px 24px 96px" }}>
 

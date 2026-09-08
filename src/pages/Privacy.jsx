@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { COMPANY, COMPANY_ADDRESS } from "../constants/company";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 const Section = ({ title, children }) => (
   <div style={{ marginBottom: 40 }}>
@@ -25,6 +26,14 @@ const Li = ({ children }) => (
 );
 
 export default function Privacy() {
+  // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
+  // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
+  // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
+  useDocumentMeta({
+    title: "Politique de confidentialité",
+    description: "Comment VIT AUTO collecte, protège et conserve vos données personnelles et vos documents d'identité.",
+  });
+
   return (
     <div style={{ maxWidth: 820, margin: "0 auto", padding: "48px 24px 96px" }}>
 

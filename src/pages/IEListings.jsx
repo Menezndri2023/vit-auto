@@ -5,6 +5,7 @@ import { useCurrency } from "../context/CurrencyContext";
 import PriceTag from "../components/PriceTag/PriceTag";
 import styles from "./IEListings.module.css";
 import ieModalStyles from "./ImportExport.module.css";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 const BADGE_CFG = {
   silver:   { label: "Silver",   icon: "🥈" },
@@ -178,6 +179,14 @@ function ListingCard({ l, onContact }) {
 // PAGE PRINCIPALE
 // ═════════════════════════════════════════════════════════════════════════
 export default function IEListings() {
+  // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
+  // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
+  // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
+  useDocumentMeta({
+    title: "Annonces Import / Export",
+    description: "Véhicules disponibles à l'import depuis la Chine, Dubaï, l'Europe et le Japon, avec coût rendu-dédouané estimé.",
+  });
+
   const { catalogCountry } = useCurrency();
   const [listings,     setListings]     = useState([]);
   const [loading,      setLoading]      = useState(true);

@@ -20,6 +20,23 @@ const EMPTY_RENTAL_POLICY = {
   additionalRequirements: "",
 };
 
+// Options supplémentaires que le partenaire peut proposer, refuser, ou tarifer
+// à son prix. `offered` vide = aucune règle : l'option reste proposée au tarif
+// global de la plateforme, c'est-à-dire le comportement antérieur. Voir
+// server/services/rentalOptions.js, seule autorité sur le prix facturé.
+const RENTAL_OPTIONS = [
+  { id: "driver",    label: "Chauffeur privé",           icon: "🧑‍✈️" },
+  { id: "babySeat",  label: "Siège bébé",                 icon: "👶" },
+  { id: "insurance", label: "Assurance complémentaire",   icon: "🛡️" },
+  { id: "gps",       label: "GPS",                        icon: "🗺️" },
+];
+
+const OFFERED_OPTIONS = [
+  { value: "",  label: "Tarif plateforme" },
+  { value: "1", label: "Je la propose" },
+  { value: "0", label: "Je ne la propose pas" },
+];
+
 // Représente le tri-état (aucune règle / oui / non) dans un <select> — un
 // simple checkbox ne peut pas représenter "aucune règle" distinctement de "non".
 const TRISTATE_OPTIONS = [
@@ -79,6 +96,10 @@ const PartnerBusinessManager = () => {
         deliveryFeeSameCity:      b.rentalPolicy?.deliveryFeeSameCity ?? "",
         deliverySameCityRadiusKm: b.rentalPolicy?.deliverySameCityRadiusKm ?? "",
         additionalRequirements: b.rentalPolicy?.additionalRequirements || "",
+        rentalOptions: Object.fromEntries(RENTAL_OPTIONS.map((o) => [o.id, {
+          offered:     toTristateValue(b.rentalPolicy?.rentalOptions?.[o.id]?.offered),
+          pricePerDay: b.rentalPolicy?.rentalOptions?.[o.id]?.pricePerDay ?? "",
+        }])),
       },
     });
     setShowForm(true);
@@ -108,6 +129,14 @@ const PartnerBusinessManager = () => {
         drivingLicenseRequired:       fromTristateValue(form.rentalPolicy.drivingLicenseRequired),
         internationalLicenseRequired: fromTristateValue(form.rentalPolicy.internationalLicenseRequired),
         depositRequired:              fromTristateValue(form.rentalPolicy.depositRequired),
+        rentalOptions: Object.fromEntries(RENTAL_OPTIONS.map((o) => {
+          const saisie = form.rentalPolicy.rentalOptions?.[o.id] || {};
+          return [o.id, {
+            offered:     fromTristateValue(saisie.offered),
+            pricePerDay: saisie.pricePerDay === "" || saisie.pricePerDay == null
+              ? null : Number(saisie.pricePerDay),
+          }];
+        })),
       };
       const payload = { ...form, rentalPolicy, coordonnees: coordonnees || undefined };
 
@@ -304,6 +333,41 @@ const PartnerBusinessManager = () => {
               <input value={form.rentalPolicy.additionalRequirements}
                 onChange={(e) => setRP("additionalRequirements", e.target.value)}
                 placeholder="Ex : carte bancaire au nom du conducteur requise" />
+            </div>
+
+            {/* Options supplémentaires — jusqu'ici imposées par la plateforme,
+                identiques pour tout le monde et à son tarif. Un partenaire qui
+                ne fournit pas de chauffeur voyait quand même l'option cochable
+                par le client : le désaccord se découvrait à la remise des clés. */}
+            <div className={`${styles.field} ${styles.colSpan2}`}>
+              <label>Options supplémentaires proposées</label>
+              <p style={{ margin: "0 0 8px", fontSize: ".78rem", color: "#64748b", lineHeight: 1.5 }}>
+                Laissez « Tarif plateforme » si vous n'avez pas de règle particulière.
+                Un prix vide applique le tarif de la plateforme.
+              </p>
+              {RENTAL_OPTIONS.map((o) => {
+                const saisie = form.rentalPolicy.rentalOptions?.[o.id] || { offered: "", pricePerDay: "" };
+                const setOpt = (champ, val) => setRP("rentalOptions", {
+                  ...form.rentalPolicy.rentalOptions,
+                  [o.id]: { ...saisie, [champ]: val },
+                });
+                return (
+                  <div key={o.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+                    <span style={{ minWidth: 190, fontSize: ".85rem" }}>{o.icon} {o.label}</span>
+                    <select value={saisie.offered} onChange={(e) => setOpt("offered", e.target.value)}>
+                      {OFFERED_OPTIONS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+                    </select>
+                    <input
+                      type="number" min="0" step="0.01"
+                      style={{ maxWidth: 140 }}
+                      value={saisie.pricePerDay}
+                      onChange={(e) => setOpt("pricePerDay", e.target.value)}
+                      placeholder="Prix / jour (USD)"
+                      disabled={saisie.offered === "0"}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
 

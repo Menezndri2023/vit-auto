@@ -1993,7 +1993,20 @@ export default function VendorDashboard() {
     try {
       const r = await fetch(`/api/vehicles/${vid}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       const d = await r.json().catch(() => null);
-      const v = d?.vehicle || vehicle;
+      // PERTE DE PHOTOS ÉVITÉE. Le repli `d?.vehicle || vehicle` semblait
+      // prudent : il ne l'était pas. `vehicle` vient de la LISTE, que
+      // getMyVehicles fait passer par limitVehicleImages() — laquelle réduit
+      // l'annonce à sa seule photo de couverture pour alléger la réponse. Le
+      // formulaire s'ouvrait donc pré-rempli avec UNE image, et
+      // l'enregistrement renvoyait ce tableau d'un seul élément : toutes les
+      // autres photos étaient détruites, définitivement.
+      //
+      // Le `catch` en dessous ne protégeait pas de ce cas : une réponse non-ok
+      // mais valide en JSON (404 après suppression, 403, 500 transitoire) ne
+      // lève rien. On échoue donc explicitement, comme le fait déjà le
+      // formulaire équivalent de l'administration.
+      if (!r.ok || !d?.vehicle) throw new Error("Annonce indisponible");
+      const v = d.vehicle;
       // Si un montant exact a déjà été saisi (voir Vehicle.js pricePerDayEntered),
       // le réafficher tel quel avec sa devise d'origine plutôt que de retomber
       // sur le prix USD stocké (arrondi) affiché comme si c'était de l'USD.

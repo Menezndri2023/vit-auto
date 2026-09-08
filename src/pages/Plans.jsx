@@ -5,6 +5,7 @@ import { useCurrency } from "../context/CurrencyContext";
 import { useI18n } from "../context/I18nContext";
 import { SUBSCRIPTIONS_ENABLED } from "../config/featureFlags";
 import styles from "./Plans.module.css";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 // Repli affiché tant que GET /api/pricing/config n'a pas répondu — mêmes
 // valeurs que server/config/defaultPricingConfig.js (source de vérité réelle).
@@ -36,6 +37,14 @@ const HOW_IT_WORKS = [
 const pct = (rate) => rate == null ? "—" : `${Math.round(rate * 1000) / 10} %`;
 
 export default function Plans() {
+  // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
+  // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
+  // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
+  useDocumentMeta({
+    title: "Tarifs et abonnements",
+    description: "Commissions transparentes et abonnements partenaires VIT AUTO. Publier une annonce est gratuit ; vous ne payez qu'à la transaction.",
+  });
+
   const { isAuthenticated, token } = useAuth();
   const { fmtUSD, currentCurrency } = useCurrency();
   const { t } = useI18n();

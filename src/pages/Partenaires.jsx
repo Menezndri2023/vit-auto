@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 const Li = ({ children }) => (
   <li style={{ marginBottom: 8, display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -27,6 +28,14 @@ const STEPS = [
 ];
 
 export default function Partenaires() {
+  // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
+  // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
+  // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
+  useDocumentMeta({
+    title: "Devenir partenaire",
+    description: "Publiez vos véhicules sur VIT AUTO et vendez ou louez dans 28 pays. Commission transparente, paiement sécurisé, contrats automatiques.",
+  });
+
   return (
     <div style={{ maxWidth: 1000, margin: "0 auto", padding: "48px 24px 96px" }}>
 

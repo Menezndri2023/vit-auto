@@ -74,11 +74,13 @@ const Navbar = () => {
         <li><NavLink to="/" end className={navLink} onClick={() => setMenuOpen(false)}>Accueil</NavLink></li>
         <li><NavLink to="/catalogue" className={navLink} onClick={() => setMenuOpen(false)}>Catalogue</NavLink></li>
 
-        {/* Import/Export : c'est l'offre distinctive de VIT AUTO, et elle
-            n'était accessible QUE depuis le pied de page — invisible pour
-            l'essentiel des visiteurs. Ouverte à tous : parcourir la vitrine
-            n'exige aucun compte. */}
-        <li><NavLink to="/import-export" className={navLink} onClick={() => setMenuOpen(false)}>Import / Export</NavLink></li>
+        {/* Import/Export N'EST PAS ici, volontairement. Elle y a figuré
+            brièvement — au motif qu'elle n'était accessible que par le pied de
+            page — puis a été retirée : le catalogue porte déjà un mode
+            Import/Export, et un second point d'entrée dans la barre principale
+            encombrait la navigation sans rien ouvrir de neuf. L'accès reste
+            assuré par le catalogue et par le pied de page, mieux structuré.
+            Une barre de navigation se juge à ce qu'on en retire. */}
 
         {/* Services (assurance, financement, transport…) : réservé jusqu'ici
             aux visiteurs NON connectés, ce qui revenait à le retirer du menu

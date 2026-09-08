@@ -1,4 +1,4 @@
-import { COMPANY_ADDRESS } from "../constants/company.js";
+import { COMPANY, COMPANY_ADDRESS } from "../constants/company.js";
 // Contact centralisé VIT AUTO (backend) — miroir de src/utils/customerServiceContact.js.
 // Numéro + adresse dédiée au pays d'inscription du destinataire, jamais un
 // placeholder générique. CI = agence Abidjan, tout le reste (dont MA) bascule
@@ -7,8 +7,8 @@ import { COMPANY_ADDRESS } from "../constants/company.js";
 export function getCustomerServiceContact(country) {
   const isCI = country === "CI";
   return {
-    tel: isCI ? "+2250748124635" : "+2120607742672",
-    display: isCI ? "🇨🇮 +225 07 48 12 46 35" : "🇲🇦 +212 06 07 74 26 72",
+    tel:     isCI ? COMPANY.phoneCI : COMPANY.phoneMA,
+    display: isCI ? `🇨🇮 ${COMPANY.phoneCIDisplay}` : `🇲🇦 ${COMPANY.phoneMADisplay}`,
     address: isCI ? "Abidjan, Côte d'Ivoire" : COMPANY_ADDRESS,
   };
 }

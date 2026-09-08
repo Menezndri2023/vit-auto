@@ -2,10 +2,18 @@ import React from "react";
 import { Link } from "react-router-dom";
 import styles from "./RouteCTA.module.css";
 
+// Ces arguments annonçaient « 3 500+ véhicules » et « 20+ pays », et le
+// paragraphe ci-dessous « 50 000+ utilisateurs satisfaits sur 5 continents ».
+// Chiffres réels au moment du constat : 138 véhicules publiés, 3 pays,
+// 29 comptes. On ne remplace pas un chiffre faux par un chiffre vrai mais
+// maigre : on met en avant ce que la plateforme SAIT FAIRE — ce qui reste vrai
+// à toute échelle, et ne se démonte pas d'un coup d'œil au catalogue.
+// Le décompte réel des véhicules, lui, est affiché sur la page d'accueil
+// (HeroSection, GET /api/vehicles/public-stats) où il grandit tout seul.
 const HIGHLIGHTS = [
-  { icon: "🚗", text: "3 500+ véhicules" },
-  { icon: "🌍", text: "20+ pays" },
-  { icon: "🚢", text: "Import Chine · Dubaï" },
+  { icon: "🚗", text: "Location & achat" },
+  { icon: "🚢", text: "Import Chine · Dubaï · Europe" },
+  { icon: "🛡️", text: "Paiement séquestré" },
   { icon: "⚡", text: "Livraison GPS" },
 ];
 
@@ -26,8 +34,9 @@ const RouteCTA = () => (
         </h2>
 
         <p className={styles.desc}>
-          Rejoignez 50 000+ utilisateurs satisfaits sur 5 continents. Location, achat,
-          import depuis la Chine ou Dubaï — VIT AUTO gère tout de A à Z.
+          Location, achat, import depuis la Chine, Dubaï ou l'Europe — inspection,
+          transport, dédouanement et livraison gérés de bout en bout, avec paiement
+          séquestré jusqu'à la remise du véhicule.
         </p>
 
         {/* Highlights */}

@@ -15,8 +15,14 @@ import AdBanner       from "../components/AdBanner/AdBanner";
  * 4. Bannière publicitaire admin (invisible si aucune campagne active)
  * 5. Sécurité & Confiance
  * 6. Bannière partenaire (visible pour tous sauf partenaires déjà inscrits)
- * 7. Témoignages clients
+ * 7. Avis clients — RÉELS et modérés ; la section ne s'affiche pas tant qu'il
+ *    n'y en a pas assez (voir Testimonials.jsx, qui remplaçait quatre
+ *    témoignages fabriqués)
  * 8. CTA final
+ *
+ * Les données structurées schema.org de cette page vivent dans index.html, en
+ * statique : c'est la seule version que les robots lisent sans exécuter le
+ * JavaScript, et deux blocs concurrents se contrediraient.
  */
 const Home = () => (
   <>

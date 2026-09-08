@@ -1,6 +1,8 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, Fragment } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import VehicleCard from "../components/VehicleCard/VehicleCard";
+import AdBanner from "../components/AdBanner/AdBanner";
+import { WORLD_COUNTRIES } from "../data/worldCountries";
 import PriceTag from "../components/PriceTag/PriceTag";
 import { useVehicles } from "../context/VehicleContext";
 import { useCurrency } from "../context/CurrencyContext";
@@ -10,6 +12,7 @@ import { haversineKm, getCurrentPosition } from "../utils/geo";
 import { getCountryFlag } from "../data/autocomplete";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "../constants/activityTypes";
 import { useI18n } from "../context/I18nContext";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 const MODES = [
   { key: "Tout",      icon: "⚡", label: "catalogue.all" },
@@ -219,6 +222,14 @@ const SORT_OPTIONS  = [
 ];
 
 const Catalogue = () => {
+  // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
+  // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
+  // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
+  useDocumentMeta({
+    title: "Catalogue de véhicules",
+    description: "Louez ou achetez un véhicule parmi les annonces vérifiées de VIT AUTO : voitures, SUV, utilitaires, chauffeurs privés et activités, dans 28 pays.",
+  });
+
   const { t } = useI18n();
   const { vehicles, drivers, activities, refreshVehicles, vehiclesLoading } = useVehicles();
   const { fmt, catalogCountry, setCatalogCountry, COUNTRIES_CONFIG, COUNTRY_INTERNATIONAL, detectPreciseCountry, rateFromUSD } = useCurrency();
@@ -593,6 +604,15 @@ const Catalogue = () => {
       <div className={styles.body}>
 
         {/* Barre résultats */}
+        {/* Les 4 emplacements publicitaires configurables par l'admin
+            (server/models/Ad.js) n'étaient rendus qu'à UN seul endroit —
+            "featured_section", sur la page d'accueil. Une campagne créée sur
+            "catalogue_top", "catalogue_mid" ou "sidebar" était enregistrée,
+            marquée active, et n'apparaissait jamais nulle part : trois quarts
+            du système publicitaire ne servaient à rien. AdBanner ne rend rien
+            en l'absence de campagne active, donc aucun espace vide. */}
+        <AdBanner position="catalogue_top" />
+
         <div className={styles.resultsBar}>
           <div className={styles.resultsLeft}>
             <span className={styles.resultCount}>
@@ -632,6 +652,20 @@ const Catalogue = () => {
               {COUNTRIES_CONFIG.map((c) => (
                 <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
               ))}
+              {/* L'inscription accepte les 249 pays ISO, mais seuls 28 ont une
+                  configuration (devise, moyens de paiement, frais de
+                  livraison). Un inscrit au Kenya ou au Brésil voyait donc son
+                  pays absent de cette liste : le <select> n'affichait AUCUNE
+                  valeur sélectionnée, alors même que le catalogue était bien
+                  filtré sur ce pays — état illisible, et impossible d'y
+                  revenir après en être sorti. On l'ajoute à la volée. */}
+              {catalogCountry && catalogCountry !== COUNTRY_INTERNATIONAL
+                && !COUNTRIES_CONFIG.some((c) => c.code === catalogCountry) && (
+                  <option value={catalogCountry}>
+                    {(WORLD_COUNTRIES.find((c) => c.code === catalogCountry)?.flag || "🌍")}{" "}
+                    {WORLD_COUNTRIES.find((c) => c.code === catalogCountry)?.name || catalogCountry}
+                  </option>
+              )}
             </select>
 
             <button
@@ -785,6 +819,9 @@ const Catalogue = () => {
                 {activeChips.length > 0 && (
                   <button className={styles.resetBtn} onClick={resetFilters}>{t("catalogue.resetFiltersButton")}</button>
                 )}
+                {/* Quatrième et dernier emplacement configurable — voir le
+                    commentaire sur "catalogue_top" plus haut. */}
+                <AdBanner position="sidebar" />
               </div>
             </aside>
 
@@ -794,12 +831,40 @@ const Catalogue = () => {
               ) : filtered.length === 0 ? (
                 <div className={styles.empty}>
                   <div className={styles.emptyIcon}>🔍</div>
-                  <h3>{t("catalogue.noVehiclesFoundTitle")}</h3>
-                  <p>{t("catalogue.noVehiclesFoundDesc")}</p>
-                  <button className={styles.emptyReset} onClick={resetFilters}>{t("catalogue.viewAllVehicles")}</button>
+                  {/* Le pays est le filtre le plus souvent responsable d'un
+                      catalogue vide, et le SEUL que `resetFilters` ne touche
+                      pas — volontairement : ouvrir sur le pays du visiteur est
+                      le bon défaut. Mais il faut alors une sortie explicite,
+                      sans quoi le visiteur réinitialise les filtres, revoit la
+                      même page vide, et s'en va. */}
+                  {catalogCountry && catalogCountry !== COUNTRY_INTERNATIONAL ? (
+                    <>
+                      <h3>{t("catalogue.emptyCountryTitle")}</h3>
+                      <p>{t("catalogue.emptyCountryDesc", { n: COUNTRIES_CONFIG.length })}</p>
+                      <button className={styles.emptyReset} onClick={() => { setCatalogCountry(COUNTRY_INTERNATIONAL); setPage(1); }}>
+                        {t("catalogue.emptyCountryCta")}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <h3>{t("catalogue.noVehiclesFoundTitle")}</h3>
+                      <p>{t("catalogue.noVehiclesFoundDesc")}</p>
+                      <button className={styles.emptyReset} onClick={resetFilters}>{t("catalogue.viewAllVehicles")}</button>
+                    </>
+                  )}
                 </div>
               ) : (
-                filtered.map((car) => <VehicleCard key={car._id || car.id} car={car} />)
+                filtered.map((car, i) => (
+                  <Fragment key={car._id || car.id}>
+                    <VehicleCard car={car} />
+                    {/* Insérée une seule fois, à mi-liste, et seulement si la
+                        liste est assez longue pour que ce ne soit pas une
+                        coupure arbitraire près du premier résultat. */}
+                    {filtered.length >= 8 && i === Math.floor(filtered.length / 2) - 1 && (
+                      <AdBanner position="catalogue_mid" />
+                    )}
+                  </Fragment>
+                ))
               )}
             </main>
           </div>

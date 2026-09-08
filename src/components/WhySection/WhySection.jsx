@@ -35,7 +35,15 @@ const FEATURES = [
     color: "#f59e0b",
     bg:    "rgba(245,158,11,0.10)",
     title: "Réservation en 2 minutes",
-    desc:  "Réservez en ligne 24h/24, 7j/7. Contrat digital signé immédiatement, confirmation par SMS. Aucun paperasse, aucun déplacement nécessaire.",
+    // Promettait « contrat signé immédiatement, confirmation par SMS ». Deux
+    // affirmations que la plateforme ne tient pas : le SMS est désactivé en dur
+    // depuis l'incident Twilio de 2026-07 (voir server/utils/smsConfigured.js,
+    // SMS_ENABLED = false), et aucune annonce publiée n'a la réservation
+    // instantanée activée — toute demande passe donc par l'acceptation du
+    // partenaire. Promettre l'immédiateté à ce stade ne fait que produire des
+    // clients déçus et des tickets de support.
+    // (« Aucun paperasse » corrigé au passage : aucune paperasse.)
+    desc:  "Réservez en ligne à toute heure. Le contrat est généré automatiquement et signable en ligne ; vous suivez la réponse du partenaire par e-mail et dans votre espace. Aucune paperasse, aucun déplacement.",
   },
   {
     icon:  "🤝",

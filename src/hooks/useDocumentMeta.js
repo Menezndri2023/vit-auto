@@ -4,8 +4,8 @@ import { useEffect } from "react";
 // SSR : ce fichier ne porte qu'un seul jeu de balises meta, partagé par
 // TOUTES les routes tant qu'aucun composant n'appelle ce hook).
 const DEFAULTS = {
-  title:       "VIT AUTO — Location & Vente de Véhicules en Afrique",
-  description: "Louez, achetez ou vendez des véhicules en Afrique de l'Ouest. Catalogue de véhicules, chauffeurs privés, service client 24h/24.",
+  title:       "VIT AUTO — Location, vente et import de véhicules à l'international",
+  description: "Louez, achetez, importez ou exportez un véhicule dans 28 pays. Inspection, transport, dédouanement et livraison gérés de bout en bout, avec paiement sécurisé.",
   image:       "https://vit-auto.com/icons/icon-512x512.png",
   url:         "https://vit-auto.com",
 };

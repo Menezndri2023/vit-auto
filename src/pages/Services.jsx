@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import styles from "./Services.module.css";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 const SERVICES = [
   {
@@ -199,7 +200,16 @@ const COUNTRIES = [
   { flag: "🇹🇬", name: "Togo",          city: "Lomé"        },
 ];
 
-const Services = () => (
+const Services = () => {
+  // Métadonnées propres à cette page — voir hooks/useDocumentMeta.js. Le
+  // composant avait un corps implicite (`=> (`), qui ne peut pas contenir
+  // d'appel de hook : converti en corps explicite.
+  useDocumentMeta({
+    title: "Services automobiles",
+    description: "Assurance, financement, transport, inspection, garantie mécanique : les services VIT AUTO qui accompagnent votre location, votre achat ou votre import.",
+  });
+
+  return (
   <div className={styles.page}>
 
     {/* ── HERO ── */}
@@ -298,6 +308,7 @@ const Services = () => (
       </div>
     </section>
   </div>
-);
+  );
+};
 
 export default Services;

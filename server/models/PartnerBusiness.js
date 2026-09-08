@@ -77,6 +77,33 @@ const partnerBusinessSchema = new mongoose.Schema({
     deliveryFeeSameCity:          { type: Number, default: null },
     deliverySameCityRadiusKm:     { type: Number, default: 15 },
     additionalRequirements:       { type: String, trim: true, default: null },
+
+    // ── Options supplémentaires proposées par CE partenaire ──────────────────
+    // Les options de location (chauffeur privé, siège bébé, GPS, assurance)
+    // étaient une liste FIGÉE, identique pour tout le monde, au tarif global
+    // de PricingConfig.rentalOptions. Deux conséquences fâcheuses :
+    //
+    //   • un client pouvait cocher « chauffeur privé » chez un partenaire qui
+    //     n'en propose pas — la réservation partait, et le désaccord se
+    //     découvrait à la remise des clés ;
+    //   • un partenaire dont le chauffeur coûte réellement plus cher n'avait
+    //     aucun moyen de le dire, et devait l'absorber ou renégocier hors
+    //     plateforme.
+    //
+    // `offered` suit le tri-état de ce bloc (voir plus haut) : `null` = aucune
+    // règle partenaire, on retombe sur le catalogue global ; `false` = le
+    // partenaire ne propose pas cette option (elle disparaît du parcours et
+    // toute réservation la demandant est refusée) ; `true` = proposée, au tarif
+    // `pricePerDay` s'il est renseigné, sinon au tarif global.
+    //
+    // `pricePerDay` est exprimé en USD, comme PricingConfig.rentalOptions —
+    // la conversion d'affichage reste au PriceTag.
+    rentalOptions: {
+      driver:    { offered: { type: Boolean, default: null }, pricePerDay: { type: Number, default: null } },
+      babySeat:  { offered: { type: Boolean, default: null }, pricePerDay: { type: Number, default: null } },
+      gps:       { offered: { type: Boolean, default: null }, pricePerDay: { type: Number, default: null } },
+      insurance: { offered: { type: Boolean, default: null }, pricePerDay: { type: Number, default: null } },
+    },
   },
 
   // Dernière relance envoyée pour "aucune candidature Founding Partner Program
