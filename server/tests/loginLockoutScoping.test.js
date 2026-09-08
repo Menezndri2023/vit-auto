@@ -18,10 +18,21 @@ import { createUser } from "./helpers/fixtures.js";
 
 const MOT_DE_PASSE = "unMotDePasseSolide123";
 
+// Coût bcrypt volontairement BAS pour les comptes de test. `bcrypt.compare` lit
+// le coût dans le hash stocké : à 10, chaque tentative de connexion coûtait
+// ~100 ms, et le test d'escalade — qui en enchaîne trente — frôlait la limite
+// de 15 s. Il passait seul et échouait dès que la machine était chargée.
+//
+// Un test intermittent est pire que pas de test : il apprend à ignorer le
+// rouge. Ce qui est vérifié ici est la logique de VERROUILLAGE, pas la
+// résistance du hachage — laquelle relève de la configuration de production
+// (authController), non de cette fixture.
+const COUT_BCRYPT_TEST = 4;
+
 async function creerCompte(email) {
   return createUser({
     email,
-    password: await bcrypt.hash(MOT_DE_PASSE, 10),
+    password: await bcrypt.hash(MOT_DE_PASSE, COUT_BCRYPT_TEST),
     emailVerified: true,
   });
 }
@@ -82,7 +93,9 @@ describe("Verrouillage de connexion — ciblé sur l'adresse fautive", () => {
     expect(fresh.lockIp).toBeNull();
   });
 
-  it("escalade en verrou GLOBAL au-delà de 30 échecs (attaque distribuée)", async () => {
+  // Délai explicite en plus du coût réduit : trente connexions séquentielles
+  // avec écritures en base restent le test le plus long du fichier.
+  it("escalade en verrou GLOBAL au-delà de 30 échecs (attaque distribuée)", { timeout: 60_000 }, async () => {
     const email = "cible4@example.test";
     const user = await creerCompte(email);
 
