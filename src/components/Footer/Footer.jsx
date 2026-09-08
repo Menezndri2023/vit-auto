@@ -18,9 +18,9 @@ const Footer = () => {
             entre l'Afrique, l'Europe, la Chine et le Moyen-Orient.
           </p>
           <div className={styles.socials}>
-            <a href="https://wa.me/2120607742672" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">📱</a>
+            <a href="https://wa.me/212607742672" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">📱</a>
             <a href="mailto:contact@vit-auto.com" aria-label="Email">✉️</a>
-            <a href="tel:+2120607742672" aria-label="Téléphone">📞</a>
+            <a href="tel:+212607742672" aria-label="Téléphone">📞</a>
           </div>
         </div>
 
@@ -69,7 +69,7 @@ const Footer = () => {
             <ul>
               <li>📍 {COMPANY.street}, {COMPANY.city}</li>
               <li>
-                <a href="tel:+2120607742672">📞 +212 06 07 74 26 72</a>
+                <a href="tel:+212607742672">📞 +212 6 07 74 26 72</a>
               </li>
               <li>
                 <a href="mailto:contact@vit-auto.com">✉️ contact@vit-auto.com</a>

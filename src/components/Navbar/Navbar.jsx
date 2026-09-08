@@ -74,10 +74,16 @@ const Navbar = () => {
         <li><NavLink to="/" end className={navLink} onClick={() => setMenuOpen(false)}>Accueil</NavLink></li>
         <li><NavLink to="/catalogue" className={navLink} onClick={() => setMenuOpen(false)}>Catalogue</NavLink></li>
 
-        {/* Page Services uniquement pour non connectés */}
-        {!isAuthenticated && (
-          <li><NavLink to="/services" className={navLink} onClick={() => setMenuOpen(false)}>Services</NavLink></li>
-        )}
+        {/* Import/Export : c'est l'offre distinctive de VIT AUTO, et elle
+            n'était accessible QUE depuis le pied de page — invisible pour
+            l'essentiel des visiteurs. Ouverte à tous : parcourir la vitrine
+            n'exige aucun compte. */}
+        <li><NavLink to="/import-export" className={navLink} onClick={() => setMenuOpen(false)}>Import / Export</NavLink></li>
+
+        {/* Services (assurance, financement, transport…) : réservé jusqu'ici
+            aux visiteurs NON connectés, ce qui revenait à le retirer du menu
+            au moment précis où le client devient susceptible d'y souscrire. */}
+        <li><NavLink to="/services" className={navLink} onClick={() => setMenuOpen(false)}>Services</NavLink></li>
 
         {/* Liens visibles uniquement par les partenaires */}
         {isPartner && (
@@ -166,7 +172,7 @@ const Navbar = () => {
             accessible uniquement en tapant l'URL ou depuis une transaction déjà
             ouverte, aucun lien de menu n'y menait. */}
         {isAuthenticated && !isPartner && (
-          <li><NavLink to="/import-export/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>📦 Mes achats Import/Export</NavLink></li>
+          <li><NavLink to="/import-export/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>📦 Mes achats</NavLink></li>
         )}
 
         {/* ── Éléments additionnels dans le menu mobile (non connectés) ── */}
@@ -197,6 +203,10 @@ const Navbar = () => {
         {isAuthenticated ? (
           <>
             <NotificationBell />
+            {/* Le Centre d'aide ne figurait que dans le menu des visiteurs NON
+                connectés : un client rencontrant un problème EN COURS de
+                réservation n'avait plus aucun accès au support depuis le menu. */}
+            <NavLink to="/help" className={styles.linkBtn} title="Centre d'aide">💬 Aide</NavLink>
             <button
               className={isPartner ? styles.badgePartner : styles.userBadge}
               onClick={() => navigate("/profile")}

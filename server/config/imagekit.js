@@ -28,6 +28,13 @@ export const FOLDERS = {
   showrooms: "vit-auto/showrooms",
   docs:      "vit-auto/docs",
   drivers:   "vit-auto/drivers",
+  // Sous-dossier SÉPARÉ pour les pièces d'identité et permis des chauffeurs.
+  // "vit-auto/drivers" contient aussi du contenu délibérément PUBLIC — photo de
+  // profil, images du véhicule, et surtout le CV, que le client consulte avant
+  // de réserver (DriverBooking.jsx) et que l'admin ouvre en modération. Rendre
+  // tout le dossier privé cassait ce CV pour chaque nouveau chauffeur, sans
+  // aucune erreur visible. Le sensible vit donc dans son propre sous-dossier.
+  driverDocs: "vit-auto/drivers/identity",
   bookingDocs: "vit-auto/booking-docs",
 };
 
@@ -69,9 +76,17 @@ export async function uploadImage(source, options = {}) {
 // proxy) restait une photo de carte d'identité téléchargeable sans
 // authentification, indéfiniment — y compris après suppression du compte.
 // Le caractère imprévisible du nom de fichier n'est pas un contrôle d'accès.
-const PRIVATE_FOLDERS = [FOLDERS.kyc, FOLDERS.docs, FOLDERS.drivers, FOLDERS.bookingDocs].filter(Boolean);
+// `FOLDERS.drivers` est volontairement ABSENT de cette liste : il contient du
+// contenu public (photo de profil, images du véhicule, CV). Seul son
+// sous-dossier `driverDocs` est privé — voir le commentaire sur FOLDERS.
+const PRIVATE_FOLDERS = [FOLDERS.kyc, FOLDERS.docs, FOLDERS.driverDocs, FOLDERS.bookingDocs].filter(Boolean);
 
 const isPrivateFolder = (folder) => PRIVATE_FOLDERS.some((f) => folder === f || String(folder).startsWith(`${f}/`));
+
+// Exposé pour les tests : la frontière public/privé est une règle métier
+// (le CV d'un chauffeur est public, sa pièce d'identité ne l'est pas), et une
+// erreur de classement casse silencieusement une page publique.
+export const isPrivateFolderForTest = isPrivateFolder;
 
 // Durée de validité d'une URL signée. Assez longue pour consulter et
 // télécharger un document dans la foulée, assez courte pour qu'une URL ayant

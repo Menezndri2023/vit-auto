@@ -73,11 +73,14 @@ async function processDriverDocuments({ identityDocument, licenseDocument }) {
   }
   if (!identityDocument?.frontImage) return { error: "Pièce d'identité (recto) requise pour publier un profil chauffeur." };
   if (!licenseDocument?.frontImage) return { error: "Permis de conduire (recto) requis pour publier un profil chauffeur." };
+  // `driverDocs`, et non `drivers` : ces pièces sont déposées en PRIVÉ (URL
+  // signée obligatoire), tandis que le CV et les photos du même chauffeur
+  // restent publics dans le dossier parent — voir FOLDERS dans config/imagekit.js.
   const [idFront, idBack, licFront, licBack] = await Promise.all([
-    uploadBase64Document(identityDocument.frontImage, FOLDERS.drivers),
-    uploadBase64Document(identityDocument.backImage || null, FOLDERS.drivers),
-    uploadBase64Document(licenseDocument.frontImage, FOLDERS.drivers),
-    uploadBase64Document(licenseDocument.backImage || null, FOLDERS.drivers),
+    uploadBase64Document(identityDocument.frontImage, FOLDERS.driverDocs),
+    uploadBase64Document(identityDocument.backImage || null, FOLDERS.driverDocs),
+    uploadBase64Document(licenseDocument.frontImage, FOLDERS.driverDocs),
+    uploadBase64Document(licenseDocument.backImage || null, FOLDERS.driverDocs),
   ]);
   return {
     error: null,

@@ -1,56 +1,81 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { emailVerificationRequiredForLogin, emailVerificationRequiredForKyc } from "../utils/emailVerificationRequired.js";
+import bcrypt from "bcryptjs";
+import * as module from "../utils/emailVerificationRequired.js";
+import { emailVerificationRequiredForKyc } from "../utils/emailVerificationRequired.js";
+import { login } from "../controllers/authController.js";
+import { createUser } from "./helpers/fixtures.js";
 
-describe("emailVerificationRequired — flags découplés login vs KYC", () => {
-  const ORIGINAL = { login: process.env.REQUIRE_EMAIL_VERIFICATION_LOGIN, kyc: process.env.REQUIRE_EMAIL_VERIFICATION_KYC };
+// RÈGLE PRODUIT, fixée le 2026-09-08 : l'adresse e-mail est vérifiée UNE SEULE
+// FOIS, à l'inscription. La connexion ne l'exige jamais.
+//
+// L'inscription est déjà bloquante sur la saisie du code reçu par e-mail
+// (Register.jsx, étape « code », qui résiste même à un rechargement de page) :
+// la vérification a donc bien lieu, au bon endroit. La réclamer de nouveau à
+// chaque connexion n'ajoutait aucune sécurité — seulement le risque d'enfermer
+// dehors un compte légitime le jour où un e-mail de confirmation se perd.
+//
+// Le parcours KYC, lui, reste conditionné à une adresse confirmée : c'est un
+// parcours d'identité, pas un simple accès au compte.
 
-  beforeEach(() => {
-    delete process.env.REQUIRE_EMAIL_VERIFICATION_LOGIN;
-    delete process.env.REQUIRE_EMAIL_VERIFICATION_KYC;
-  });
+const MOT_DE_PASSE = "unMotDePasseSolide123";
+
+function requete(email, password) {
+  const req = { body: { identifier: email, password }, ip: "203.0.113.5", headers: {}, get: () => undefined };
+  const res = {
+    statusCode: 200,
+    status(c) { this.statusCode = c; return this; },
+    json(b) { this.body = b; return this; },
+  };
+  return { req, res };
+}
+
+describe("Vérification de l'e-mail — uniquement à l'inscription", () => {
+  const ORIGINAL_KYC = process.env.REQUIRE_EMAIL_VERIFICATION_KYC;
+
+  beforeEach(() => { delete process.env.REQUIRE_EMAIL_VERIFICATION_KYC; });
   afterEach(() => {
-    if (ORIGINAL.login === undefined) delete process.env.REQUIRE_EMAIL_VERIFICATION_LOGIN;
-    else process.env.REQUIRE_EMAIL_VERIFICATION_LOGIN = ORIGINAL.login;
-    if (ORIGINAL.kyc === undefined) delete process.env.REQUIRE_EMAIL_VERIFICATION_KYC;
-    else process.env.REQUIRE_EMAIL_VERIFICATION_KYC = ORIGINAL.kyc;
+    if (ORIGINAL_KYC === undefined) delete process.env.REQUIRE_EMAIL_VERIFICATION_KYC;
+    else process.env.REQUIRE_EMAIL_VERIFICATION_KYC = ORIGINAL_KYC;
   });
 
-  // Faille corrigée (audit sécurité 2026-09) : on pouvait s'inscrire avec
-  // l'adresse d'un tiers non contrôlée et obtenir immédiatement une session
-  // valide, sous l'identité e-mail de la victime — en squattant l'adresse au
-  // passage. L'exigence ne peut cependant pas être rétroactive : des comptes
-  // réels n'ont jamais confirmé leur adresse et se retrouveraient verrouillés.
-  // D'où la bascule par DATE DE CRÉATION.
-  it("n'est PAS exigé pour les comptes créés avant la bascule (pas de verrouillage rétroactif)", () => {
-    const ancien = { createdAt: new Date("2026-01-15T10:00:00Z") };
-    expect(emailVerificationRequiredForLogin(ancien)).toBe(false);
+  it("un compte dont l'e-mail n'est pas confirmé peut SE CONNECTER", async () => {
+    const user = await createUser({
+      email: "non-confirme@example.test",
+      password: await bcrypt.hash(MOT_DE_PASSE, 10),
+      emailVerified: false,
+    });
+
+    const { req, res } = requete(user.email, MOT_DE_PASSE);
+    await login(req, res);
+
+    expect(res.statusCode, "la connexion ne doit jamais exiger de vérification").toBe(200);
+    expect(res.body.token).toBeTruthy();
   });
 
-  it("EST exigé pour les comptes créés après la bascule", () => {
-    const nouveau = { createdAt: new Date("2026-12-01T10:00:00Z") };
-    expect(emailVerificationRequiredForLogin(nouveau)).toBe(true);
+  it("un compte confirmé se connecte normalement", async () => {
+    const user = await createUser({
+      email: "confirme@example.test",
+      password: await bcrypt.hash(MOT_DE_PASSE, 10),
+      emailVerified: true,
+    });
+
+    const { req, res } = requete(user.email, MOT_DE_PASSE);
+    await login(req, res);
+    expect(res.statusCode).toBe(200);
   });
 
-  it("sans date de création connue, ne verrouille pas (prudence)", () => {
-    expect(emailVerificationRequiredForLogin(undefined)).toBe(false);
-    expect(emailVerificationRequiredForLogin({})).toBe(false);
+  it("aucune garde de vérification ne subsiste sur la connexion", () => {
+    // Supprimée plutôt que neutralisée : une garde désactivée finit toujours
+    // par être réactivée par mégarde. Ce test échoue si elle réapparaît.
+    expect(module.emailVerificationRequiredForLogin).toBeUndefined();
+    expect(module.EMAIL_VERIFICATION_CUTOFF).toBeUndefined();
   });
 
-  it("le drapeau à \"true\" étend l'exigence à TOUS les comptes", () => {
-    process.env.REQUIRE_EMAIL_VERIFICATION_LOGIN = "true";
-    expect(emailVerificationRequiredForLogin({ createdAt: new Date("2020-01-01") })).toBe(true);
-  });
-
-  it("le drapeau à \"false\" la désactive partout (garde-fou délivrabilité)", () => {
-    process.env.REQUIRE_EMAIL_VERIFICATION_LOGIN = "false";
-    expect(emailVerificationRequiredForLogin({ createdAt: new Date("2026-12-01") })).toBe(false);
-  });
-
-  it("KYC est bloquant par défaut", () => {
+  it("le parcours KYC, lui, exige toujours une adresse confirmée", () => {
     expect(emailVerificationRequiredForKyc()).toBe(true);
   });
 
-  it("KYC peut être désactivé explicitement (garde-fou déliverabilité SMTP)", () => {
+  it("le garde-fou KYC reste débrayable en cas de panne de délivrabilité", () => {
     process.env.REQUIRE_EMAIL_VERIFICATION_KYC = "false";
     expect(emailVerificationRequiredForKyc()).toBe(false);
   });

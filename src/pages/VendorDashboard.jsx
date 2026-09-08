@@ -226,6 +226,19 @@ const LEGACY_STATUS_MAP = {
 };
 const displayStatus = (subType, status) => LEGACY_STATUS_MAP[subType]?.[status] || status;
 
+// Défini au niveau du module, et non dans le rendu de GererModal comme
+// auparavant : un composant recréé à chaque rendu est, pour React, un composant
+// DIFFÉRENT à chaque fois. Il est donc démonté puis remonté — l'arbre DOM est
+// reconstruit à chaque frappe dans la modale, et tout état interne qu'on
+// viendrait à y ajouter serait réinitialisé sans explication. Il ne dépend que
+// de ses props, sa sortie est donc rigoureusement identique.
+const InfoLine = ({ label, value, color, mono }) => value ? (
+  <div style={{ display:"flex", justifyContent:"space-between", fontSize:".82rem", padding:"4px 0", borderBottom:"1px solid #f1f5f9" }}>
+    <span style={{ color:"#64748b", marginRight:8 }}>{label}</span>
+    <strong style={{ color: color||"#0f172a", fontFamily:mono?"monospace":undefined, textAlign:"right" }}>{value}</strong>
+  </div>
+) : null;
+
 /* ══════════════════════════════════════════════════════════════════════════════
    MODAL GÉRER — Gestion complète, identité intégrée, workflow par type VIT-AUTO
    ══════════════════════════════════════════════════════════════════════════════ */
@@ -335,14 +348,6 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
   const totalAmt   = order.montantTotal || order.total || 0;
   const commAmt    = order.commissionAmount || Math.round(totalAmt * commRate);
   const netAmt     = order.partnerPayout    || Math.max(totalAmt - commAmt - SERVICE_FEE, 0);
-
-  // ── Helpers affichage ────────────────────────────────────────────────────
-  const InfoLine = ({ label, value, color, mono }) => value ? (
-    <div style={{ display:"flex", justifyContent:"space-between", fontSize:".82rem", padding:"4px 0", borderBottom:"1px solid #f1f5f9" }}>
-      <span style={{ color:"#64748b", marginRight:8 }}>{label}</span>
-      <strong style={{ color: color||"#0f172a", fontFamily:mono?"monospace":undefined, textAlign:"right" }}>{value}</strong>
-    </div>
-  ) : null;
 
   return (
     <div className={styles.modalBackdrop} onClick={onClose}>
@@ -1762,7 +1767,14 @@ export default function VendorDashboard() {
   // multi-entités (Mes entreprises) ni de l'import de flotte en masse — ces
   // sections lui étaient pourtant montrées comme à n'importe quel partenaire
   // professionnel, sans distinction. Manque réel trouvé en audit.
-  const isIndividualSeller = user.sellerType === "particulier" && !user.isFounder;
+  // `user?.` et non `user.` : c'est le SEUL accès non gardé du composant, et il
+  // suffit à le faire tomber. `user` repasse à null dès qu'une session se
+  // termine — déconnexion volontaire, ou rafraîchissement de jeton refusé,
+  // devenu bien plus fréquent depuis que le jeton d'accès vit une heure au lieu
+  // de sept jours. Le partenaire voyait alors « Une erreur s'est produite » sur
+  // son tableau de bord au lieu d'être redirigé proprement vers la connexion.
+  // Trouvé par les tests de rendu (probe/screens.member).
+  const isIndividualSeller = user?.sellerType === "particulier" && !user?.isFounder;
 
   const PLAN_LABELS = { individuel_plus: "Individuel Plus", business: "Business", exportateur: "Exportateur" };
   const isPro   = subscription?.plan && subscription.plan !== "free" && subscription?.planDetails?.isActive;

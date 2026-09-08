@@ -514,17 +514,18 @@ export const login = async (req, res) => {
       await User.updateOne({ _id: user._id }, { $set: { failedLoginAttempts: 0, lockUntil: null, lockIp: null } });
     }
 
-    // Bloquer si email non vérifié (sauf admin, mode dev sans SMTP, ou tant que la
-    // vérification email n'est pas exigée — voir emailVerificationRequiredForLogin()).
-    // Ne s'applique que si le compte a effectivement un email (comptes inscrits par
-    // téléphone uniquement : user.email est null, rien à vérifier de ce côté).
-    if (user.email && !user.emailVerified && user.role !== "admin" && !isDevNoSmtp() && emailVerificationRequiredForLogin(user)) {
-      return res.status(403).json({
-        code: "EMAIL_NOT_VERIFIED",
-        message: "Veuillez vérifier votre adresse e-mail avant de vous connecter. Vérifiez votre boîte mail ou demandez un nouveau lien.",
-        email: user.email,
-      });
-    }
+    // RÈGLE : l'adresse e-mail est vérifiée UNE SEULE FOIS, à l'inscription.
+    // Se connecter ne l'exige jamais.
+    //
+    // Un portillon avait été ajouté ici lors de l'audit de sécurité, au motif
+    // qu'on pouvait s'inscrire avec l'adresse d'un tiers. Il était à la fois
+    // redondant et contraire au dessein du projet : l'inscription est DÉJÀ
+    // bloquante sur la saisie du code reçu par e-mail (Register.jsx, étape
+    // « code », qui résiste même à un rechargement de page). La vérification a
+    // donc bien lieu — au bon endroit, une seule fois — et la refaire à chaque
+    // connexion n'ajoutait aucune sécurité, seulement des comptes légitimes
+    // enfermés dehors le jour où un e-mail de confirmation se perd.
+    //
     // En dev sans SMTP : auto-vérifier à la première connexion si pas encore fait
     if (!user.emailVerified && isDevNoSmtp()) {
       user.emailVerified = true;

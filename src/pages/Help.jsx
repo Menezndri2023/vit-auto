@@ -115,15 +115,15 @@ const Help = () => {
           <div className={styles.contactIcon}>📞</div>
           <h3>Assistance téléphonique</h3>
           <p>Disponible lundi – samedi, 8h – 20h.</p>
-          <a href="tel:+2120607742672" className={styles.contactBtn}>
-            +212 06 07 74 26 72
+          <a href="tel:+212607742672" className={styles.contactBtn}>
+            +212 6 07 74 26 72
           </a>
         </div>
         <div className={styles.contactCard}>
           <div className={styles.contactIcon}>💬</div>
           <h3>WhatsApp</h3>
           <p>Réponse rapide via WhatsApp.</p>
-          <a href="https://wa.me/2120607742672" target="_blank" rel="noopener noreferrer" className={styles.contactBtn}>
+          <a href="https://wa.me/212607742672" target="_blank" rel="noopener noreferrer" className={styles.contactBtn}>
             Ouvrir WhatsApp
           </a>
         </div>

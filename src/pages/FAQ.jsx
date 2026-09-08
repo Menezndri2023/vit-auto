@@ -120,7 +120,7 @@ const FAQS = [
       },
       {
         q: "Que se passe-t-il en cas d'accident ?",
-        a: "Contactez immédiatement notre service client au +212 06 07 74 26 72 (24h/24). Selon l'option assurance souscrite, la procédure de déclaration sera déclenchée.",
+        a: "Contactez immédiatement notre service client au +212 6 07 74 26 72 (24h/24). Selon l'option assurance souscrite, la procédure de déclaration sera déclenchée.",
       },
       {
         q: "Les véhicules sont-ils vérifiés ?",
@@ -182,7 +182,7 @@ export default function FAQ() {
         </h1>
         <p style={{ color: "#5a6a88", fontSize: "1rem", maxWidth: 520, margin: "0 auto", lineHeight: 1.6 }}>
           Vous ne trouvez pas votre réponse ?{" "}
-          <a href="tel:+2120607742672" style={{ color: "#ff4d2d", fontWeight: 700, textDecoration: "none" }}>
+          <a href="tel:+212607742672" style={{ color: "#ff4d2d", fontWeight: 700, textDecoration: "none" }}>
             Appelez-nous
           </a>{" "}
           ou{" "}
@@ -230,8 +230,8 @@ export default function FAQ() {
         <a href="mailto:contact@vit-auto.com" style={{ color: "#ff4d2d", fontWeight: 700, fontSize: "0.9rem", textDecoration: "none" }}>
           ✉️ contact@vit-auto.com
         </a>
-        <a href="tel:+2120607742672" style={{ color: "#ff4d2d", fontWeight: 700, fontSize: "0.9rem", textDecoration: "none" }}>
-          📞 +212 06 07 74 26 72
+        <a href="tel:+212607742672" style={{ color: "#ff4d2d", fontWeight: 700, fontSize: "0.9rem", textDecoration: "none" }}>
+          📞 +212 6 07 74 26 72
         </a>
       </div>
     </div>

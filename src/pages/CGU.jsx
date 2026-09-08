@@ -147,7 +147,7 @@ export default function CGU() {
           Contact :{" "}
           <a href="mailto:contact@vit-auto.com" style={{ color: "#ff4d2d", fontWeight: 700, textDecoration: "none" }}>contact@vit-auto.com</a>
           {" "}·{" "}
-          <a href="tel:+2120607742672" style={{ color: "#ff4d2d", fontWeight: 700, textDecoration: "none" }}>+212 06 07 74 26 72</a>
+          <a href="tel:+212607742672" style={{ color: "#ff4d2d", fontWeight: 700, textDecoration: "none" }}>+212 6 07 74 26 72</a>
         </p>
       </Art>
 

@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useCurrency } from "../context/CurrencyContext";
 import { useNotifications } from "../context/NotificationContext";
 import PriceTag from "../components/PriceTag/PriceTag";
+import { COMPANY, COMPANY_ADDRESS } from "../constants/company";
 import styles from "./BookingSuccess.module.css";
 
 const CONDITIONS = [
@@ -161,9 +162,13 @@ const BookingSuccess = () => {
             <div className={styles.partiesGrid}>
               <div className={styles.party}>
                 <h3>Le Bailleur</h3>
-                <p><strong>VIT AUTO</strong></p>
-                <p>Plateforme de location & vente de véhicules</p>
-                <p>support@vitauto.ci</p>
+                {/* Bloc de partie contractuelle : il portait « support@vitauto.ci »,
+                    seule occurrence d'un domaine différent des 39 autres du site,
+                    et aucune adresse de siège — sur un contrat. */}
+                <p><strong>{COMPANY.name}</strong></p>
+                <p>Plateforme de location &amp; vente de véhicules</p>
+                <p>{COMPANY_ADDRESS}</p>
+                <p>{COMPANY.email}</p>
               </div>
               <div className={styles.party}>
                 <h3>Le Locataire</h3>
@@ -301,7 +306,7 @@ const BookingSuccess = () => {
       {/* ── Info support ─────────────────────── */}
       <div className={styles.supportBox}>
         <strong>Besoin d'aide ?</strong>
-        <p>Notre support client est disponible 24h/7j — <a href="mailto:support@vitauto.ci">support@vitauto.ci</a></p>
+        <p>Notre support client est disponible 24h/7j — <a href={`mailto:${COMPANY.email}`}>{COMPANY.email}</a></p>
       </div>
     </div>
   );

@@ -53,7 +53,7 @@ export default function MentionsLegales() {
         <Row label="Forme juridique" value="Entreprise individuelle / Startup" />
         <Row label="Siège social" value={COMPANY_ADDRESS} />
         <Row label="Email de contact" value="contact@vit-auto.com" />
-        <Row label="Téléphone" value="+212 06 07 74 26 72" />
+        <Row label="Téléphone" value="+212 6 07 74 26 72" />
         <Row label="Directeur de publication" value="VIT AUTO" />
       </Section>
 
@@ -138,12 +138,12 @@ export default function MentionsLegales() {
           }}>
             ✉️ contact@vit-auto.com
           </a>
-          <a href="tel:+2120607742672" style={{
+          <a href="tel:+212607742672" style={{
             background: "#f8fafc", color: "#0f1b3f", fontWeight: 700, fontSize: "0.88rem",
             padding: "10px 20px", borderRadius: 10, textDecoration: "none",
             border: "1px solid #e2e8f0",
           }}>
-            📞 +212 06 07 74 26 72
+            📞 +212 6 07 74 26 72
           </a>
         </div>
       </Section>

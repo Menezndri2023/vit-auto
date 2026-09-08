@@ -1516,7 +1516,7 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
             VIT AUTO dédié au pays de l'annonce/du chauffeur, pour que l'admin
             puisse gérer la demande à la place du partenaire si besoin. */}
         {isActive && booking.partnerPhone && (
-          <a href={`tel:${booking.country === "CI" ? "+2250748124635" : "+2120607742672"}`} className={styles.btnContact}>
+          <a href={`tel:${booking.country === "CI" ? "+2250748124635" : "+212607742672"}`} className={styles.btnContact}>
             📞 Appeler le service client
           </a>
         )}

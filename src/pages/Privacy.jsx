@@ -50,7 +50,7 @@ export default function Privacy() {
         <p><strong>{COMPANY.name}</strong> — {COMPANY_ADDRESS}.</p>
         <p style={{ marginTop: 8 }}>
           Contact DPO : <a href="mailto:contact@vit-auto.com" style={{ color: "#ff4d2d" }}>contact@vit-auto.com</a>
-          {" "}· <a href="tel:+2120607742672" style={{ color: "#ff4d2d" }}>+212 06 07 74 26 72</a>
+          {" "}· <a href="tel:+212607742672" style={{ color: "#ff4d2d" }}>+212 6 07 74 26 72</a>
         </p>
       </Section>
 
