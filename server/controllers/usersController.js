@@ -61,7 +61,13 @@ export const getUsers = async (req, res) => {
     // fuitait sur cette route précise malgré le transform).
     const [users, total] = await Promise.all([
       User.find(filter)
-        .select("-password -identity.frontImage -identity.backImage -identity.selfie -driverLicenseOcr.frontImage -driverLicenseOcr.backImage -refreshTokens -twoFactor.secret -twoFactor.backupCodes -phoneOtp -passwordResetToken -emailVerificationToken")
+        // `business.logo`, `kycOcrData` et les textes OCR bruts sont eux aussi
+        // exclus : comme les photos ci-dessus, ce sont des champs volumineux
+        // (logo en base64, OCR intégral) qu'aucune colonne de la liste
+        // n'affiche — ils ne servent qu'à la vue détail d'un compte précis.
+        // Sur plusieurs centaines de comptes, ils pesaient plusieurs Mo dans
+        // une réponse retransmise à chaque ouverture de l'onglet.
+        .select("-password -identity.frontImage -identity.backImage -identity.selfie -driverLicenseOcr.frontImage -driverLicenseOcr.backImage -driverLicenseOcr.rawOcrText -driver.rawOcrText -kycOcrData -business.logo -refreshTokens -twoFactor.secret -twoFactor.backupCodes -phoneOtp -passwordResetToken -emailVerificationToken")
         .sort({ createdAt: -1 })
         .skip((Math.max(Number(page), 1) - 1) * safeLimit)
         .limit(safeLimit)

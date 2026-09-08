@@ -701,11 +701,16 @@ const startServer = async () => {
     // la construction avant de résoudre — appelé ici une seule fois au
     // démarrage, jamais réévalué en boucle ensuite.
     try {
-      const [{ default: Invoice }, { default: CommissionLedger }] = await Promise.all([
+      const [{ default: Invoice }, { default: CommissionLedger }, { default: User }] = await Promise.all([
         import("./models/Invoice.js"),
         import("./models/CommissionLedger.js"),
+        import("./models/User.js"),
       ]);
-      await Promise.all([Invoice.init(), CommissionLedger.init()]);
+      // User.init() : construit l'index {createdAt} AVANT d'accepter du trafic.
+      // Sans lui, la liste des comptes admin retomberait sur un tri en mémoire
+      // le temps que la construction en arrière-plan se termine — et échouerait
+      // en 500 sur une collection volumineuse (voir models/User.js).
+      await Promise.all([Invoice.init(), CommissionLedger.init(), User.init()]);
     } catch (err) {
       logger.error("Construction des index critiques échouée (non bloquant) :", err.message);
     }

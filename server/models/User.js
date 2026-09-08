@@ -429,6 +429,20 @@ userSchema.pre("save", function (next) {
 
 userSchema.index({ role: 1 });
 userSchema.index({ kycStatus: 1 });
+
+// Tri de la liste des comptes admin (usersController.getUsers, sort createdAt
+// décroissant). Bug réel corrigé : cet index MANQUAIT — seul modèle listé par
+// l'admin dans ce cas, alors que Booking, Vehicle et Driver l'ont tous. Sans
+// index, MongoDB doit trier la collection ENTIÈRE en mémoire (étape SORT
+// bloquante) et refuse au-delà de 32 Mo : « Sort exceeded memory limit ». Les
+// comptes portant une photo de profil ou un logo en base64, cette limite est
+// atteinte dès quelques centaines d'utilisateurs — l'onglet Comptes renvoyait
+// alors une erreur 500 en production, tout en fonctionnant en développement
+// sur un petit jeu de données.
+userSchema.index({ createdAt: -1 });
+// Variante filtrée par rôle (« Clients », « Partenaires »… dans l'onglet
+// Comptes) : sans elle, le filtre par rôle repasserait par un tri bloquant.
+userSchema.index({ role: 1, createdAt: -1 });
 userSchema.index(
   { email: 1 },
   { unique: true, partialFilterExpression: { email: { $type: "string" } } }
