@@ -1609,7 +1609,7 @@ BETWEEN:
   VIT-AUTO — International Automotive Services Platform
   ${COMPANY_ADDRESS_EN}
   contact@vit-auto.com · vit-auto.com
-  Represented by: ${COMPANY.managerDisplay}, Founder & CEO
+  Represented by: ${COMPANY.manager}, Founder & CEO
 
   (hereinafter "the Platform")
 
@@ -1662,7 +1662,7 @@ All binding obligations will be defined in the Founding Partner Agreement.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 For VIT-AUTO:
-  Manassé N'DRI N'GUESSAN — Founder & CEO
+  ${COMPANY.manager} — Founder & CEO
   Signed: ${date}
 
 For the Partner:
@@ -1713,7 +1713,7 @@ BETWEEN:
   VIT-AUTO — International Automotive Services Platform
   ${COMPANY_ADDRESS_EN}
   contact@vit-auto.com · vit-auto.com
-  Represented by: ${COMPANY.managerDisplay}, Founder & CEO
+  Represented by: ${COMPANY.manager}, Founder & CEO
   (hereinafter "the Platform")
 
 AND:
@@ -1830,7 +1830,7 @@ ARTICLE 10 — GOVERNING LAW
 SIGNATURES
 
 For VIT-AUTO:
-  Manassé N'DRI N'GUESSAN
+  ${COMPANY.manager}
   Founder & CEO, VIT-AUTO
   Signed: ${date}
 

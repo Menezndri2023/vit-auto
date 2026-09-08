@@ -19,7 +19,7 @@ const FRONT = fs.readFileSync(
 const valeurFront = (cle) => (FRONT.match(new RegExp(`${cle}:\\s*"([^"]+)"`)) || [])[1];
 
 describe("Identité de l'entreprise — miroir front / serveur", () => {
-  for (const cle of ["name", "street", "city", "country", "email", "website", "phoneMA", "phoneCI", "manager", "managerDisplay", "managerTitle"]) {
+  for (const cle of ["name", "street", "city", "country", "email", "website", "phoneMA", "phoneCI", "manager", "managerTitle"]) {
     it(`« ${cle} » est identique des deux côtés`, () => {
       expect(valeurFront(cle), `${cle} absent de src/constants/company.js`).toBeTruthy();
       expect(COMPANY[cle], `${cle} diverge entre le serveur et l'interface`).toBe(valeurFront(cle));
@@ -62,20 +62,38 @@ describe("Numéros du service client — composables depuis l'étranger", () => 
     }
   });
 
-  it("le gérant est nommé, et son nom n'est plus écrit en dur dans les contrats", () => {
+  it("le gérant est nommé, en capitales, patronyme d'abord", () => {
     // La loi attend une personne physique nommée comme directeur de
-    // publication ; les mentions légales indiquaient « VIT AUTO ». Le nom
-    // figurait pourtant déjà, EN DUR et en double, dans la LOI et l'Accord
-    // Founding Partner — deux copies qui auraient divergé au premier changement.
+    // publication ; les mentions légales indiquaient « VIT AUTO ».
     expect(COMPANY.manager?.trim()).toBeTruthy();
-    expect(COMPANY.managerDisplay?.trim()).toBeTruthy();
+    expect(COMPANY.manager, "la graphie retenue est en capitales")
+      .toBe(COMPANY.manager.toUpperCase());
+  });
 
+  it("UNE SEULE graphie du nom existe dans tout le dépôt", () => {
+    // Deux formes ont brièvement coexisté : la forme légale, et « Manassé
+    // N'DRI N'GUESSAN » héritée des contrats Founding Partner. Deux écritures
+    // d'un même nom sur des pièces contractuelles, c'est ce qu'un litige vient
+    // contester — ce test interdit qu'une seconde réapparaisse.
+    const fichiers = [
+      "controllers/partnerOnboardingController.js",
+      "constants/company.js",
+      "utils/pdfGenerator.js",
+    ];
+    for (const f of fichiers) {
+      const src = fs.readFileSync(path.join(process.cwd(), f), "utf8");
+      const enDur = src.match(/Manass[ée][^"'`\n]{0,30}N.DRI/gi) || [];
+      expect(enDur, `graphie concurrente trouvée dans ${f} : ${enDur.join(", ")}`).toEqual([]);
+    }
+  });
+
+  it("les contrats tirent le nom de la source unique, jamais d'une copie", () => {
     const controleur = fs.readFileSync(
       path.join(process.cwd(), "controllers/partnerOnboardingController.js"), "utf8"
     );
-    expect(controleur, "le nom du gérant ne doit plus être écrit en dur dans les contrats")
+    expect(controleur).toContain("COMPANY.manager");
+    expect(controleur, "aucun nom de gérant écrit en dur")
       .not.toContain("N'DRI N'GUESSAN, Founder");
-    expect(controleur).toContain("COMPANY.managerDisplay");
   });
 
   it("l'adresse du siège porte bien la ville et le pays", () => {

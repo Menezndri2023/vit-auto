@@ -37,13 +37,19 @@ export const COMPANY = {
   // des mentions légales, qui donnaient « VIT AUTO » là où la loi attend une
   // personne physique nommée. Une seule source désormais.
   //
-  // `manager` : forme légale, patronyme d'abord, telle que communiquée.
-  // `managerDisplay` : forme employée dans les contrats internationaux, prénom
-  // d'abord et accentué — graphie déjà en vigueur dans les documents signés,
-  // conservée telle quelle pour ne pas créer deux identités contractuelles.
-  manager:        "N'DRI N'GUESSAN MANASSE",
-  managerDisplay: "Manassé N'DRI N'GUESSAN",
-  managerTitle:   "Fondateur & Gérant",
+  // UNE SEULE graphie, partout : patronyme d'abord, en capitales.
+  //
+  // Deux formes ont brièvement coexisté — celle-ci, et une variante prénom
+  // d'abord héritée des contrats Founding Partner — au motif de ne pas toucher
+  // aux documents déjà signés. C'était une mauvaise raison : deux écritures
+  // d'un même nom sur des pièces contractuelles, c'est exactement ce qu'un
+  // litige vient contester. Décision du gérant : cette forme, et elle seule.
+  //
+  // Le test companyContact interdit toute graphie concurrente dans le dépôt —
+  // y compris dans un commentaire, une orthographe écrite quelque part
+  // finissant toujours par être recopiée. D'où l'absence de la variante ici.
+  manager:      "N'DRI N'GUESSAN MANASSE",
+  managerTitle: "Fondateur & Gérant",
 };
 
 // « Boulevard Lalla Yacout & Rue El Arrar, Résidence Galis, Casablanca, Maroc »
