@@ -21,6 +21,7 @@ import PartnerOnboarding from "../models/PartnerOnboarding.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
 import PartnerVerification from "../models/PartnerVerification.js";
 import PartnerCertification from "../models/PartnerCertification.js";
+import Vehicle from "../models/Vehicle.js";
 import { dispatch } from "../queue/index.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
@@ -244,18 +245,71 @@ async function checkFoundingPartnerPendingSignature() {
   return sent;
 }
 
+// ── Annonces incomplètes ───────────────────────────────────────────────────
+// Une annonce sans prix ne peut être ni publiée ni réservée : elle reste en
+// brouillon indéfiniment, et le partenaire l'ignore souvent — il a déposé sa
+// flotte et croit le travail fait. C'est le cas de 32 véhicules d'un même
+// partenaire, complets par ailleurs (ville, photos, contact) et bloqués sur ce
+// seul champ.
+//
+// Le compteur de relance vit sur l'utilisateur et non sur l'annonce : un
+// partenaire ayant trente annonces incomplètes doit recevoir UN message, pas
+// trente.
+async function checkIncompleteListings() {
+  const incompletes = await Vehicle.aggregate([
+    { $match: {
+        status: { $in: ["draft", "pending"] },
+        $or: [
+          { type: "location", $or: [{ pricePerDay: null }, { pricePerDay: 0 }, { pricePerDay: { $exists: false } }] },
+          { type: "vente",    $or: [{ priceForSale: null }, { priceForSale: 0 }, { priceForSale: { $exists: false } }] },
+        ],
+    } },
+    { $group: { _id: "$owner", n: { $sum: 1 }, exemples: { $push: "$title" } } },
+  ]);
+
+  let sent = 0;
+  for (const grp of incompletes) {
+    const user = await User.findById(grp._id).select("firstName email lastListingReminderAt").lean();
+    if (!user?.email) continue;
+    if (!isDue(user.lastListingReminderAt)) continue;
+
+    await User.updateOne({ _id: grp._id }, { $set: { lastListingReminderAt: new Date() } });
+
+    const titre = "🚗 Annonces à compléter";
+    const message = `${grp.n} de vos annonce${grp.n > 1 ? "s sont incomplètes" : " est incomplète"} : il manque le tarif, sans lequel elle${grp.n > 1 ? "s ne peuvent" : " ne peut"} être publiée${grp.n > 1 ? "s" : ""} ni réservée${grp.n > 1 ? "s" : ""}. Exemples : ${grp.exemples.slice(0, 3).join(", ")}.`;
+    const notif = await Notification.create({ user: grp._id, titre, message, type: "system" }).catch(() => null);
+    if (notif && global._io) {
+      global._io.to(`user_${grp._id}`).emit("notification_new", {
+        _id: notif._id, type: "system", titre, message, lien: "/vendor/dashboard", lu: false, createdAt: notif.createdAt,
+      });
+    }
+    // Réutilise le gabarit « dossier incomplet » : le besoin est le même —
+    // dire ce qui manque et où le compléter.
+    await dispatch.partnerDocumentsMissing(user.email, String(grp._id), {
+      firstName: user.firstName,
+      companyName: null,
+      missingDocs: [`Tarif manquant sur ${grp.n} annonce${grp.n > 1 ? "s" : ""}`],
+      portalPath: "/vendor/dashboard",
+    }).catch((e) => logger.error("dispatch.partnerDocumentsMissing (annonces):", e.message));
+
+    sent++;
+  }
+  return sent;
+}
+
 export async function checkAndSendPartnerReminders() {
   try {
-    const [pv, cert, fp, fpSig, fpNone] = await Promise.all([
+    const [pv, cert, fp, fpSig, fpNone, annonces] = await Promise.all([
       checkPartnerVerification(),
       checkPartnerCertification(),
       checkFoundingPartnerDrafts(),
       checkFoundingPartnerPendingSignature(),
       checkPartnerBusinessesWithoutOnboarding(),
+      checkIncompleteListings(),
     ]);
-    const total = pv + cert + fp + fpSig + fpNone;
+    const total = pv + cert + fp + fpSig + fpNone + annonces;
     if (total > 0) {
-      logger.info("[PartnerReminders] Relances envoyées", { verification: pv, certification: cert, foundingPartner: fp, foundingPartnerSignature: fpSig, foundingPartnerNotStarted: fpNone });
+      logger.info("[PartnerReminders] Relances envoyées", { verification: pv, certification: cert, foundingPartner: fp, foundingPartnerSignature: fpSig, foundingPartnerNotStarted: fpNone, annoncesIncompletes: annonces });
     }
     return total;
   } catch (err) {

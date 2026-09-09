@@ -346,6 +346,13 @@ const userSchema = new mongoose.Schema({
     default: null,
   },
 
+  // Dernière relance envoyée à ce partenaire au sujet de ses ANNONCES
+  // incomplètes. Distincte de PartnerVerification/PartnerOnboarding.lastReminderSentAt,
+  // qui portent sur les documents et la signature : un partenaire dont le
+  // dossier est complet peut très bien avoir des annonces à finir, et
+  // réutiliser leur compteur le priverait de l'une des deux relances.
+  lastListingReminderAt: { type: Date, default: null },
+
   documentsVerified: { type: Boolean, default: false },
   isActive:          { type: Boolean, default: true },
   lastLogin:         { type: Date,    default: null },
