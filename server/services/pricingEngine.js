@@ -59,14 +59,25 @@ export async function resolveCommissionRate(type, ownerId) {
   const pricingType = BOOKING_TYPE_TO_PRICING_TYPE[type] || type;
   const config = await getConfig();
 
-  // Founding Partner ne s'applique qu'à location/vente/import_export (jamais
-  // chauffeur/leasing — voir Article 3 de l'Agreement).
-  if (["location", "vente", "import_export"].includes(pricingType)) {
+  // Founding Partner couvre location, essai/vente, export ET chauffeur — le
+  // barème commercial arrêté porte les quatre. Le leasing en reste exclu,
+  // faute de taux fondateur défini.
+  if (["location", "vente", "import_export", "chauffeur"].includes(pricingType)) {
     const fp = await isFoundingPartnerActive(ownerId);
     if (fp) {
       const durationMs = config.foundingPartner.durationMonths * 30.4375 * 24 * 60 * 60 * 1000;
       const lockedAt = fp.commissions?.lockedAt;
-      const stillActive = !lockedAt || (Date.now() - new Date(lockedAt).getTime()) < durationMs;
+      // Une date de verrouillage ABSENTE ne vaut plus « réduction éternelle ».
+      // C'est ce que faisait `!lockedAt` : un dossier fondateur sans date —
+      // brouillon jamais signé, donnée d'amorçage — accordait le tarif réduit
+      // indéfiniment, sans qu'aucun accord n'ait été conclu. La fenêtre de
+      // douze mois court à partir d'une signature ; sans elle, il n'y a pas de
+      // fenêtre, donc pas de réduction.
+      //
+      // Les deux vont toujours de pair dans le parcours réel : le contrôleur
+      // pose `isFoundingPartner` et `commissions.lockedAt` au même instant, à
+      // la signature de l'accord (partnerOnboardingController).
+      const stillActive = !!lockedAt && (Date.now() - new Date(lockedAt).getTime()) < durationMs;
       if (stillActive) {
         const tier = fp.legalEntityType === "particulier" ? "particulier" : "entreprise";
         const rate = config.foundingPartner[tier]?.[pricingType];

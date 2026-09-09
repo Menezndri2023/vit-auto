@@ -19,7 +19,13 @@ const rateByType = {
 const foundingRateByType = {
   location:      { type: Number, required: true, min: 0, max: 1 },
   vente:         { type: Number, required: true, min: 0, max: 1 },
-  import_export: { type: Number, default: null, min: 0, max: 1 }, // seul le profil "entreprise" l'utilise
+  import_export: { type: Number, default: null, min: 0, max: 1 },
+  // `chauffeur` manquait : en mode strict, Mongoose supprime SILENCIEUSEMENT
+  // toute écriture sur un chemin non déclaré. Le taux fondateur chauffeur était
+  // donc enregistré sans erreur et n'existait nulle part — même classe de bug
+  // que Vehicle.featured, qui rendait le bouton « mettre en vedette » inopérant
+  // malgré une réponse 200.
+  chauffeur:     { type: Number, default: null, min: 0, max: 1 },
 };
 
 const serviceEntry = {

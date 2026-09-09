@@ -4,13 +4,16 @@ import PricingConfig from "../models/PricingConfig.js";
 import Subscription from "../models/Subscription.js";
 import { DEFAULT_PRICING_CONFIG } from "../config/defaultPricingConfig.js";
 import { createUser } from "./helpers/fixtures.js";
+import PartnerOnboarding from "../models/PartnerOnboarding.js";
 
-// Grille de commissions : location 15 %, essai et vente 3 %, export 3 %,
-// chauffeur 15 %.
+// Deux grilles : FONDATEUR pendant douze mois (location 10 %, essai et vente
+// 3 %, export 3 %, chauffeur 10 %), puis STANDARD (15 %, 5 %, 5 %, 15 %).
 //
-// Le point qui compte : ces taux SONT déjà les taux réduits consentis aux
-// partenaires. Un abonnement ne doit donc plus retrancher quoi que ce soit
-// par-dessus — il se justifie par ce qu'il apporte, pas par une remise.
+// Le point qui compte : la faveur commerciale est déjà portée par l'offre
+// Founding Partner, ouverte aux partenaires actuels comme futurs pendant un an.
+// Un abonnement ne doit donc pas retrancher 20 % de plus par-dessus — il se
+// justifie par ce qu'il apporte, et le plan est accordé sur confirmation du
+// support.
 
 const abonnePremium = async () => {
   const partenaire = await createUser({ role: "partenaire" });
@@ -33,8 +36,8 @@ describe("Grille de commissions", () => {
     const p = await createUser({ role: "partenaire" });
     expect(await resolveCommissionRate("location", p._id)).toBe(0.15);
     expect(await resolveCommissionRate("chauffeur", p._id)).toBe(0.15);
-    expect(await resolveCommissionRate("vente", p._id)).toBe(0.03);
-    expect(await resolveCommissionRate("import_export", p._id)).toBe(0.03);
+    expect(await resolveCommissionRate("vente", p._id)).toBe(0.05);
+    expect(await resolveCommissionRate("import_export", p._id)).toBe(0.05);
   });
 
   it("facture un essai au taux de la vente", async () => {
@@ -42,7 +45,7 @@ describe("Grille de commissions", () => {
     // (pricingEngine.BOOKING_TYPE_TO_PRICING_TYPE). Un taux « essai » distinct
     // ne serait jamais lu.
     const p = await createUser({ role: "partenaire" });
-    expect(await resolveCommissionRate("essai", p._id)).toBe(0.03);
+    expect(await resolveCommissionRate("essai", p._id)).toBe(0.05);
   });
 
   it("un abonné payant ne bénéficie d'AUCUNE réduction supplémentaire", async () => {
@@ -67,5 +70,44 @@ describe("Grille de commissions", () => {
       expect(taux, `${type} hors fourchette`).toBeGreaterThanOrEqual(0.03);
       expect(taux, `${type} hors fourchette`).toBeLessThanOrEqual(0.05);
     }
+  });
+
+  it("un Founding Partner paie la grille fondateur, chauffeur compris", async () => {
+    // Le chauffeur était exclu de la faveur fondateur ; le barème arrêté le
+    // couvre désormais.
+    const p = await createUser({ role: "partenaire" });
+    await PartnerOnboarding.create({
+      userId: p._id, isFoundingPartner: true, legalEntityType: "entreprise",
+      commissions: { lockedAt: new Date() },
+    });
+
+    expect(await resolveCommissionRate("location", p._id)).toBe(0.10);
+    expect(await resolveCommissionRate("vente", p._id)).toBe(0.03);
+    expect(await resolveCommissionRate("import_export", p._id)).toBe(0.03);
+    expect(await resolveCommissionRate("chauffeur", p._id)).toBe(0.10);
+  });
+
+  it("retombe au standard une fois les douze mois écoulés", async () => {
+    const p = await createUser({ role: "partenaire" });
+    await PartnerOnboarding.create({
+      userId: p._id, isFoundingPartner: true, legalEntityType: "entreprise",
+      commissions: { lockedAt: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000) },
+    });
+
+    expect(await resolveCommissionRate("location", p._id)).toBe(0.15);
+    expect(await resolveCommissionRate("chauffeur", p._id)).toBe(0.15);
+  });
+
+  it("un dossier fondateur SANS date de signature n'accorde aucune réduction", async () => {
+    // `!lockedAt` valait auparavant « réduction éternelle » : un brouillon
+    // jamais signé donnait le tarif réduit indéfiniment, sans qu'aucun accord
+    // n'ait été conclu.
+    const p = await createUser({ role: "partenaire" });
+    await PartnerOnboarding.create({
+      userId: p._id, isFoundingPartner: true, legalEntityType: "entreprise",
+      commissions: { lockedAt: null },
+    });
+
+    expect(await resolveCommissionRate("location", p._id)).toBe(0.15);
   });
 });

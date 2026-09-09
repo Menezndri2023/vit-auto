@@ -8,23 +8,32 @@
 // que la migration a tourné une fois.
 export const DEFAULT_PRICING_CONFIG = {
   key: "global",
-  // Grille unique : location 15 %, essai et vente 3 %, export 3 %, chauffeur
-  // 15 %. `essai` est facturé au taux `vente` (voir pricingEngine).
+  // Grille STANDARD, applicable une fois la fenêtre fondateur écoulée :
+  // location 15 %, essai et vente 5 %, export 5 %, chauffeur 15 %. `essai` est
+  // facturé au taux `vente` (voir pricingEngine) — il n'a pas de taux propre.
   //
-  // `premium` est VOLONTAIREMENT identique à `standard` : ces taux sont déjà
-  // les taux réduits consentis aux partenaires, un abonnement ne doit donc plus
-  // retrancher quoi que ce soit par-dessus. L'abonnement se justifie par ce
-  // qu'il APPORTE — mises en avant incluses, classement prioritaire — et non
-  // par une remise supplémentaire. Le mécanisme reste en place et pourra
-  // reprendre du sens si une remise est décidée un jour.
+  // `premium` est VOLONTAIREMENT identique à `standard`. La faveur commerciale
+  // est déjà portée par l'offre Founding Partner — ouverte aux partenaires
+  // actuels comme futurs, pendant un an (foundingPartner.durationMonths). Un
+  // abonnement n'a donc pas à retrancher 20 % de plus par-dessus : il se
+  // justifie par ce qu'il APPORTE, et le plan choisi est accordé dès que le
+  // support l'a confirmé. Le mécanisme premium reste en place et pourra
+  // reprendre du sens si une remise d'abonnement est décidée un jour.
   commissions: {
-    standard: { vente: 0.03, location: 0.15, chauffeur: 0.15, import_export: 0.03, leasing: 0.05 },
-    premium:  { vente: 0.03, location: 0.15, chauffeur: 0.15, import_export: 0.03, leasing: 0.05 },
+    standard: { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05 },
+    premium:  { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05 },
   },
+  // Grille FONDATEUR — la faveur commerciale, pendant douze mois à compter de
+  // la SIGNATURE de l'accord (PartnerOnboarding.commissions.lockedAt). Au-delà,
+  // retour automatique au standard ci-dessus, sans palier intermédiaire.
+  //
+  // Même grille pour les deux types d'entité : le barème arrêté ne distingue
+  // pas. Le chauffeur y figure désormais — il en était exclu — et l'export d'un
+  // particulier, auparavant absent (retour au standard), y est explicite.
   foundingPartner: {
     durationMonths: 12,
-    entreprise:  { location: 0.10, vente: 0.015, import_export: 0.015 },
-    particulier: { location: 0.10, vente: 0.02, import_export: null },
+    entreprise:  { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10 },
+    particulier: { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10 },
   },
   serviceFee: { minUSD: 1, percent: 0.005, maxUSD: 25 },
   importEstimateFee: { percent: 0.03, minUSD: 333, maxUSD: 1666 },

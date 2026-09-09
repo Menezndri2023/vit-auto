@@ -109,19 +109,27 @@ const partnerOnboardingSchema = new mongoose.Schema({
     ip:         { type: String, default: null },
   },
 
-  // ── Commissions (verrouillées à la signature) ─────────────────────────────
-  // Deux paliers dans le temps pour location/vente, décomptés depuis lockedAt —
-  // voir server/utils/foundingPartnerRates.js (seule source de vérité pour le
-  // taux réellement appliqué aux réservations, via bookingController.js) :
-  //   Année 1 (0-12 mois depuis signature) : location 5%, vente 1%
-  //   Année 2+ (au-delà)                    : location 7%, vente 2%
-  // Les valeurs stockées ici reflètent le taux Année 1 (standard : 15%/3%) —
-  // affichées dans la LOI/l'Agreement, mais jamais relues par le moteur de
-  // commission (qui recalcule via foundingRateFor à partir de lockedAt).
+  // ── Commissions fondateur (verrouillées à la signature) ───────────────────
+  // Taux affichés dans la LOI et l'Accord, en POURCENTAGES entiers (10 = 10 %),
+  // contrairement à PricingConfig qui stocke des fractions.
+  //
+  // ⚠️ Ces valeurs sont DÉCLARATIVES : le taux réellement facturé est calculé
+  // par pricingEngine.resolveCommissionRate depuis PricingConfig.foundingPartner
+  // et la date `lockedAt`. Elles doivent donc rester alignées sur cette
+  // configuration — un écart signifierait qu'un partenaire signe un taux et en
+  // paie un autre, ce qui s'est produit : un accord affichait 5 % de commission
+  // sur la location quand le moteur en facturait 10 %.
+  //
+  // Le commentaire précédent décrivait deux paliers dans le temps (5 %/1 % la
+  // première année, 7 %/2 % ensuite) et renvoyait à `foundingPartnerRates.js`
+  // comme « seule source de vérité » : ni ce fichier ni la fonction
+  // `foundingRateFor` n'ont jamais existé dans le dépôt. Grille réelle :
+  // location 10 %, essai et vente 3 %, chauffeur 10 % pendant douze mois, puis
+  // retour au standard (15 %, 5 %, 15 %).
   commissions: {
-    location:  { type: Number, default: 5 },
-    vente:     { type: Number, default: 1 },
-    chauffeur: { type: Number, default: 10 },   // 10% identique, aucun palier
+    location:  { type: Number, default: 10 },
+    vente:     { type: Number, default: 3 },
+    chauffeur: { type: Number, default: 10 },
     lockedAt:  { type: Date, default: null },
   },
 
