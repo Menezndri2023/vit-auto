@@ -1,4 +1,5 @@
 import logger from "../utils/logger.js";
+import { PASSWORD_ROUNDS, CODE_ROUNDS } from "../config/security.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
@@ -329,7 +330,7 @@ export const register = async (req, res) => {
     const userRole = allowedRoles.includes(role) ? role : "client";
     const isPartner = userRole === "partenaire";
     const sellerType = isPartner && entityType ? entityTypeToSellerType(entityType) : null;
-    const hash = await bcrypt.hash(password, 12);
+    const hash = await bcrypt.hash(password, PASSWORD_ROUNDS);
 
     // Parrainage (2026-09) — posé une seule fois ici, jamais réécrit ensuite.
     // Un code invalide/inconnu est silencieusement ignoré (pas de raison de
@@ -349,7 +350,7 @@ export const register = async (req, res) => {
     // bloquante avant de pouvoir continuer l'inscription (même patron que
     // phoneOtp : hashé en base, jamais stocké en clair).
     const code     = autoVerify ? null : crypto.randomInt(100000, 1000000).toString();
-    const codeHash = code ? await bcrypt.hash(code, 10) : null;
+    const codeHash = code ? await bcrypt.hash(code, CODE_ROUNDS) : null;
     const CODE_TTL = 10 * 60 * 1000; // 10 min
 
     const user = await User.create({
@@ -690,7 +691,7 @@ export const oauthGoogle = async (req, res) => {
         return res.status(400).json({ message: "Le numéro de Registre de Commerce (RC/RCCM) est obligatoire pour un compte professionnel ou entreprise." });
       }
       const sellerType = isPartner && entityType ? entityTypeToSellerType(entityType) : null;
-      const randomPassword = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 12);
+      const randomPassword = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), PASSWORD_ROUNDS);
 
       user = await User.create({
         firstName: sanitize(payload.given_name) || "Utilisateur",
@@ -888,7 +889,7 @@ export const resendEmailCode = async (req, res) => {
     if (!user.email) return res.status(400).json({ message: "Aucune adresse e-mail sur ce compte." });
 
     const code = crypto.randomInt(100000, 1000000).toString();
-    user.emailVerificationCode        = await bcrypt.hash(code, 10);
+    user.emailVerificationCode        = await bcrypt.hash(code, CODE_ROUNDS);
     user.emailVerificationCodeExpires = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
 
@@ -1022,7 +1023,7 @@ export const changePassword = async (req, res) => {
       return res.status(401).json({ message: "Mot de passe actuel incorrect." });
     }
 
-    user.password = await bcrypt.hash(newPassword, 12);
+    user.password = await bcrypt.hash(newPassword, PASSWORD_ROUNDS);
     user.refreshTokens = [];
     user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();
@@ -1215,7 +1216,7 @@ export const sendPhoneOtp = async (req, res) => {
 
     // ── Flux OTP maison (Africa's Talking / dev console) ─────────────────
     const otp     = crypto.randomInt(100000, 1000000).toString();
-    const otpHash = await bcrypt.hash(otp, 10);
+    const otpHash = await bcrypt.hash(otp, CODE_ROUNDS);
     user.phoneOtp        = otpHash;
     user.phoneOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
     await user.save();
@@ -1443,7 +1444,7 @@ export const resetPassword = async (req, res) => {
       }
     }
 
-    user.password             = await bcrypt.hash(password, 12);
+    user.password             = await bcrypt.hash(password, PASSWORD_ROUNDS);
     user.passwordResetToken   = null;
     user.passwordResetExpires = null;
     user.refreshTokens        = [];
@@ -1535,7 +1536,7 @@ export const enable2FA = async (req, res) => {
 
     // Générer 10 codes de secours (hashés)
     const rawCodes     = Array.from({ length: 10 }, () => crypto.randomBytes(4).toString("hex").toUpperCase());
-    const hashedCodes  = await Promise.all(rawCodes.map((c) => bcrypt.hash(c, 10)));
+    const hashedCodes  = await Promise.all(rawCodes.map((c) => bcrypt.hash(c, CODE_ROUNDS)));
 
     user.twoFactor.enabled    = true;
     user.twoFactor.enabledAt  = new Date();
