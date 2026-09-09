@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { getUserLoyaltyAdmin } from "../controllers/loyaltyController.js";
 import LoyaltyTransaction from "../models/LoyaltyTransaction.js";
+// Enregistre le schéma Booking auprès de Mongoose : le contrôleur peuple
+// `booking` sur chaque mouvement, et populate() résout la référence via le
+// registre global. En production server.js charge tous les modèles ; dans un
+// fichier de test isolé, il faut l'importer explicitement.
+import "../models/Booking.js";
 import { createUser } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 

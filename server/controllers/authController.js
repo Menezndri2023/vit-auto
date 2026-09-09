@@ -9,7 +9,6 @@ import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { serverValidateIdentity } from "../utils/idValidation.js";
 import { smsConfigured, twilioVerifyConfigured } from "../utils/smsConfigured.js";
-import { emailVerificationRequiredForLogin } from "../utils/emailVerificationRequired.js";
 import { dispatch } from "../queue/index.js";
 import { sendVerification, checkVerification } from "../services/twilioVerify.js";
 import { isValidCountryCode } from "../utils/countries.js";

@@ -72,6 +72,21 @@ const importCostConfigSchema = new mongoose.Schema({
   // n'est configurée pour la paire origine/destination) ──────────────────
   defaultSeaFreightUSD: { type: Number, default: 1200 },
 
+  // ── Traçabilité et péremption ─────────────────────────────────────────────
+  // Un barème douanier n'est pas une constante : un pays peut relever ses
+  // droits ou changer sa limite d'âge d'une loi de finances à l'autre. AUCUNE
+  // administration ne publie ces taux via une interface machine — la mise à
+  // jour ne peut donc pas être automatique, et prétendre le contraire ferait
+  // pire que mieux : un barème périmé qu'on croit à jour est plus dangereux
+  // qu'un barème qu'on sait à vérifier.
+  //
+  // On date et on source donc chaque barème, et on alerte quand il vieillit :
+  // l'administration voit lesquels sont à revoir, et le devis présenté à
+  // l'acheteur peut le signaler plutôt que d'affirmer un montant périmé.
+  source:            { type: String, trim: true, default: null },  // ex. « douane.gov.ma — loi de finances 2026 »
+  lastVerifiedAt:    { type: Date, default: null },
+  reviewEveryMonths: { type: Number, default: 12 },
+
   active: { type: Boolean, default: true },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
 }, { timestamps: true });

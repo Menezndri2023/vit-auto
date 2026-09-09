@@ -23,7 +23,7 @@ import {
   CLIENT_CANCEL_REASONS, PARTNER_CANCEL_REASONS,
   CLIENT_CANCEL_REASON_CODES, PARTNER_CANCEL_REASON_CODES,
 } from "../constants/bookingCancelReasons.js";
-import { resolveTier } from "../constants/loyaltyTiers.js";
+import { resolveTier, POINTS_PER_USD } from "../constants/loyaltyTiers.js";
 import LoyaltyTransaction from "../models/LoyaltyTransaction.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
 import { uploadBase64Document, FOLDERS } from "../config/imagekit.js";
@@ -368,7 +368,7 @@ async function awardLoyaltyPoints(booking) {
     }).catch(() => {});
 
     await notify(booking.client, "system", "🎁 Points de fidélité crédités",
-      `+${points} points pour votre commande ${booking.reference || ""} — 100 points = 1 USD de remise sur votre prochaine réservation.`,
+      `+${points} points pour votre commande ${booking.reference || ""} — ${POINTS_PER_USD} points = 1 USD de remise sur votre prochaine réservation.`,
       "/dashboard");
 
     if (tierAfter.key !== tierBefore.key) {
@@ -863,7 +863,7 @@ export const createBooking = async (req, res) => {
     if (type === "location" && req.user?._id && Number(req.body?.pointsToRedeem) > 0) {
       const requestedPoints = Math.floor(Number(req.body.pointsToRedeem));
       const maxDiscountUSD  = montantBase * 0.2;
-      const maxPointsByCap  = Math.floor(maxDiscountUSD * 100);
+      const maxPointsByCap  = Math.floor(maxDiscountUSD * POINTS_PER_USD);
       const pointsToTry     = Math.min(requestedPoints, maxPointsByCap);
       if (pointsToTry > 0) {
         const debited = await User.updateOne(
@@ -872,7 +872,7 @@ export const createBooking = async (req, res) => {
         );
         if (debited.modifiedCount > 0) {
           loyaltyPointsRedeemed = pointsToTry;
-          loyaltyDiscount = pointsToTry / 100;
+          loyaltyDiscount = pointsToTry / POINTS_PER_USD;
           const afterDebit = await User.findById(req.user._id).select("loyaltyPoints").lean();
           await LoyaltyTransaction.create({
             user: req.user._id, type: "debit", points: pointsToTry, reason: "booking_redeemed",

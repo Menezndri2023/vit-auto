@@ -46,3 +46,24 @@ export function resolveNextTier(lifetimePoints) {
   if (!next) return { nextTier: null, pointsToNextTier: 0 };
   return { nextTier: next, pointsToNextTier: next.minLifetimePoints - points };
 }
+
+// ── Valeur monétaire des points ─────────────────────────────────────────────
+// Taux de conversion unique : 100 points = 1 USD de remise sur la réservation
+// suivante (voir bookingController.createBooking, pointsToRedeem — la remise
+// reste par ailleurs plafonnée à 20% du montant de base). Ce nombre était
+// jusqu'ici écrit en dur à quatre endroits (deux fois dans bookingController,
+// le texte de la notification, et l'affichage de la page fidélité) : le
+// modifier en aurait laissé au moins un en arrière, et le client aurait vu
+// une valeur de points différente de celle réellement déduite au paiement.
+//
+// Le pivot est l'USD, comme tout le reste de la tarification : la conversion
+// vers la devise du client est faite à l'affichage (fmtUSD, CurrencyContext),
+// jamais au stockage — un solde de points ne vaut pas un montant figé dans
+// une devise, il vaut ce que le taux du jour en donne.
+export const POINTS_PER_USD = 100;
+
+// Valeur en USD d'un solde de points, arrondie au centime.
+export function pointsToUSD(points) {
+  const p = Number(points) || 0;
+  return Math.round((p / POINTS_PER_USD) * 100) / 100;
+}

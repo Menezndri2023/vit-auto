@@ -785,6 +785,31 @@ async function runStartupMigrations() {
         );
         logger.info(`[Migration] ie-transaction-admin-validation-backfill : ${result.modifiedCount} transaction(s) traitée(s).`);
       });
+
+      // Annonces Import/Export importées en masse : trois défauts qui rendaient
+      // tout calcul de coût faux, dont deux invisibles à l'œil nu — année du
+      // jour de l'import au lieu du millésime (la limite légale des 5 ans à
+      // l'import ne se déclenchait donc jamais), graphies multiples du pays
+      // d'origine (« CHINA », « chi'na », « 中国 » — or le taux de droit dépend
+      // de l'origine), et une PHRASE en guise de pays de destination
+      // (« Deliveries available worldwide »), alors que le barème douanier est
+      // indexé par pays. Voir scripts/migrateIEListingData.js. Idempotente.
+      await runOnceMigration("ie-listing-data-normalisation-2026-09", async () => {
+        const { migrateIEListingData } = await import("./scripts/migrateIEListingData.js");
+        const r = await migrateIEListingData();
+        logger.info(`[Migration] ie-listing-data : ${r.anneesCorrigees} année(s), ${r.originesNormalisees} origine(s), ${r.destinationsCorrigees} destination(s) corrigées sur ${r.total} annonces.`);
+      });
+
+      // Barèmes douaniers par pays de destination. Sans eux, le moteur de coût
+      // — le différenciateur de la plateforme — répond « Aucun barème
+      // configuré » et l'acheteur ne voit aucun prix rendu. Aucun n'était
+      // renseigné. L'amorçage ne CRÉE que les pays absents : un barème déjà
+      // ajusté par l'admin n'est jamais réécrit.
+      await runOnceMigration("import-cost-config-seed-2026-09", async () => {
+        const { seedImportCostConfigs } = await import("./scripts/seedImportCostConfigs.js");
+        const r = await seedImportCostConfigs();
+        logger.info(`[Migration] import-cost-config-seed : ${r.created} barème(s) créé(s), ${r.skipped} déjà présent(s).`);
+      });
   } catch (err) {
     logger.error("Migrations de démarrage : échec inattendu (non bloquant) :", err.message);
   }
