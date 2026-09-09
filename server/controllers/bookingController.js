@@ -16,6 +16,7 @@ import { evaluateEligibility, ELIGIBILITY_MESSAGES } from "../services/eligibili
 import { computeLocationTotal } from "../utils/seasonalPricing.js";
 import { resolveCommissionRate, computeServiceFee } from "../services/pricingEngine.js";
 import { priceRentalOptions } from "../services/rentalOptions.js";
+import { resolveOriginCode } from "../constants/importOrigins.js";
 import { convertAmount } from "../services/currencyEngine.js";
 import { issueServiceInvoice } from "./serviceInvoiceController.js";
 import { recordPartnerPayout } from "../utils/commissionLedger.js";
@@ -525,6 +526,35 @@ export const createBooking = async (req, res) => {
       // ET la politique de l'entité partenaire (PartnerBusiness.rentalPolicy,
       // absente = comportement Phase 1 inchangé). La zone de livraison est
       // vérifiée plus bas, une fois la distance calculée.
+      // UN VÉHICULE À L'IMPORT NE S'ESSAIE PAS — vérifié AVANT tout contrôle
+      // propre au client.
+      //
+      // Neuf véhicules situés en Chine figuraient au catalogue en
+      // `type: "vente"`, ce qui ouvrait un rendez-vous d'ESSAI pour une voiture
+      // se trouvant à Shanghai. Le client prenait rendez-vous, le partenaire
+      // recevait une demande impossible à honorer.
+      //
+      // L'ORDRE compte : placé après le contrôle d'éligibilité, ce refus était
+      // précédé d'un « vérifiez votre identité ». On demandait donc au client
+      // de fournir ses papiers pour une réservation qui ne pouvait de toute
+      // façon jamais aboutir. Une impossibilité tenant au VÉHICULE doit se dire
+      // avant toute exigence tenant au CLIENT.
+      //
+      // La règle porte sur le pays, jamais sur les neuf annonces du jour :
+      // toute annonce future venue d'une origine d'import est couverte. Un
+      // véhicule situé dans le pays du client reste essayable — c'est la
+      // distance qui rend l'essai absurde, pas la nationalité du véhicule.
+      if (type === "essai") {
+        const origineImport = resolveOriginCode(vehicle.country);
+        const paysClient = req.user?.country || null;
+        if (origineImport && paysClient && vehicle.country !== paysClient) {
+          return res.status(400).json({
+            code: "IMPORT_VEHICLE_NO_TEST_DRIVE",
+            message: "Ce véhicule se trouve à l'étranger : il s'achète à l'import, il ne se visite pas. Demandez plutôt une estimation du coût rendu dans votre pays.",
+          });
+        }
+      }
+
       rentalPolicyBusiness = vehicle.business
         ? await PartnerBusiness.findById(vehicle.business).select("rentalPolicy").lean()
         : null;

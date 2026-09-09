@@ -43,7 +43,7 @@ export const IMPORT_ORIGINS = [
 const ALIAS = {
   chine: "CN", china: "CN", "chi'na": "CN", 中国: "CN", cn: "CN",
   japon: "JP", japan: "JP", 日本: "JP", jp: "JP",
-  "émirats": "AE", emirats: "AE", "emirats arabes unis": "AE", uae: "AE", dubai: "AE", "dubaï": "AE",
+  "émirats": "AE", emirats: "AE", "emirats arabes unis": "AE", uae: "AE", dubai: "AE", "dubaï": "AE", ae: "AE",
   "corée du sud": "KR", "south korea": "KR", korea: "KR", kr: "KR",
   allemagne: "DE", germany: "DE", "德国": "DE", de: "DE",
   france: "FR", fr: "FR",

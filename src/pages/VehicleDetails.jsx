@@ -10,6 +10,7 @@ import ReportButton from "../components/ReportButton/ReportButton";
 import PriceTag from "../components/PriceTag/PriceTag";
 import { optimizedImageUrl } from "../utils/imageOptim";
 import { getCustomerServiceContact } from "../utils/customerServiceContact";
+import { resolveImportOrigin } from "../constants/importOrigins";
 import styles from "./VehicleDetails.module.css";
 
 const fmtN = (n) => n != null ? Number(n).toLocaleString("fr-FR") : "—";
@@ -253,7 +254,7 @@ export default function VehicleDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const vehiclesCtx = useVehicles();
-  const { fmt } = useCurrency();
+  const { fmt, catalogCountry } = useCurrency();
   const { t } = useI18n();
   const { addItem, isInCart } = useCart();
   const { success, error: toastError } = useToast();
@@ -368,6 +369,21 @@ export default function VehicleDetails() {
       : [];
 
   const isSale = vehicle.mode === "Acheter" || vehicle.listingType === "vente";
+
+  // VÉHICULE À L'IMPORT : il s'achète, il ne se visite pas.
+  //
+  // Neuf véhicules situés en Chine proposaient « Réserver un essai » — un
+  // rendez-vous d'essai pour une voiture à Shanghai. Le client prenait
+  // rendez-vous, le partenaire recevait une demande impossible à honorer.
+  //
+  // La règle porte sur le PAYS et non sur ces neuf annonces : toute annonce
+  // future venue d'un pays d'origine d'import est couverte sans nouvelle
+  // intervention. Un véhicule situé dans le pays du visiteur reste essayable —
+  // c'est la distance qui rend l'essai absurde, pas la nationalité du véhicule.
+  // Le serveur applique la même règle (bookingController), seule autorité.
+  const origineImport = resolveImportOrigin(vehicle.country);
+  const estAImporter = isSale && !!origineImport
+    && !!catalogCountry && vehicle.country !== catalogCountry;
   const priceAmountUSD = isSale ? (vehicle.buyPrice || vehicle.priceForSale) : vehicle.pricePerDay;
   const priceSuffix = isSale ? "" : ` ${t("vd.perDay")}`;
 
@@ -635,7 +651,7 @@ export default function VehicleDetails() {
                   className={styles.actionBtn}
                   onClick={() => navigate(`/booking/${vehicle._id || vehicle.id}`)}
                 >
-                  {isSale ? t("vd.testDriveBtn") : t("vd.bookBtn")}
+                  {estAImporter ? "🚢 Acheter à l'import" : isSale ? t("vd.testDriveBtn") : t("vd.bookBtn")}
                 </button>
                 {/* Panier multi-véhicules — uniquement location (le panier ne
                     gère que des réservations "retrait" simples avec
