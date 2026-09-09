@@ -487,3 +487,63 @@
   .left  { padding: 16px 14px 10px; }
   .right { height: 185px; }
 }
+
+/* ── Pays d'origine à l'import (sous la barre de recherche) ─────────────────
+   Bande défilante horizontalement : quinze origines ne tiennent pas sur une
+   ligne en mobile, et les empiler pousserait les statistiques hors de l'écran
+   au premier coup d'œil — c'est-à-dire à l'endroit exact où le visiteur décide
+   s'il reste. */
+.originsRow {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  max-width: 1180px;
+  margin: 1.1rem auto 0;
+  padding: 0 1.25rem;
+}
+
+.originsLabel {
+  flex: 0 0 auto;
+  font-size: .8rem;
+  font-weight: 800;
+  color: rgba(255, 255, 255, .78);
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+
+.originsScroll {
+  display: flex;
+  gap: .45rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.originsScroll::-webkit-scrollbar { display: none; }
+
+.originChip {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  flex: 0 0 auto;
+  padding: .34rem .7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .10);
+  border: 1px solid rgba(255, 255, 255, .18);
+  color: #fff;
+  font-size: .78rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background .18s ease, border-color .18s ease;
+}
+
+.originChip:hover,
+.originChip:focus-visible {
+  background: rgba(255, 255, 255, .2);
+  border-color: rgba(255, 255, 255, .38);
+}
+
+@media (max-width: 700px) {
+  .originsRow { flex-direction: column; align-items: flex-start; gap: .45rem; }
+  .originsScroll { width: 100%; }
+}

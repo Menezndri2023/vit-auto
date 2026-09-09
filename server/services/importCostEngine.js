@@ -92,6 +92,23 @@ export async function computeImportCost({ vehiclePrice, currency, sourceCountry,
       customs:         toCcy(customsTotalUSD),
       delivery:        toCcy(deliveryUSD),
       commission:      toCcy(commissionUSD),
+
+      // Détail du poste « customs », ajouté sans le modifier : les écrans qui
+      // affichent déjà le total agrégé restent justes. `customs` mélangeait
+      // droits de douane, TVA, transit et redevances en un seul montant — le
+      // poste le plus lourd et le plus opaque de l'opération, celui qu'un
+      // acheteur veut précisément décomposer avant de s'engager.
+      customsDuty: toCcy(customsDutyUSD),
+      vat:         toCcy(vatUSD),
+      transit:     toCcy(config.transitFixedFeeUSD + config.redevancesFixedFeeUSD),
+    },
+
+    // Taux appliqués, pour que l'acheteur puisse recouper le calcul avec le
+    // barème officiel de son pays plutôt que de faire confiance à un total.
+    rates: {
+      customsDutyPercent: effectiveDutyPercent,
+      vatPercent:         config.vatPercent,
+      insurancePercent:   config.insurancePercent,
     },
     totalServices: toCcy(totalServicesUSD),
     grandTotal:    toCcy(grandTotalUSD),

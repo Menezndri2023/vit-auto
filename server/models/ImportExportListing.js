@@ -50,8 +50,24 @@ const importExportListingSchema = new mongoose.Schema({
   availableIn:   { type: [String], default: [] },  // pays de livraison disponibles
 
   // ── Prix & conditions ──────────────────────────────────────────
+  // `price` est le prix DEMANDÉ par l'exportateur. Il ne disait pas à quelle
+  // condition de livraison il correspondait : un même montant signifie
+  // « départ usine », « chargé à bord » ou « rendu dédouané » selon l'Incoterm,
+  // avec des milliers de dollars d'écart. L'acheteur comparait donc des prix
+  // incomparables.
   price:         { type: Number, required: true },
   currency:      { type: String, default: "EUR" },
+
+  // Prix FOB — véhicule chargé à bord au port d'embarquement, hors fret,
+  // assurance et droits. C'est la base de comparaison universelle entre
+  // exportateurs, et l'entrée du moteur de calcul (services/importCostEngine.js,
+  // qui en dérive CIF puis droits, TVA, transit et total rendu).
+  //
+  // Renseigné SÉPARÉMENT de `price` : un exportateur qui vend en EXW ou en CIF
+  // garde son prix affiché, et fournit en plus son équivalent FOB. Laissé nul,
+  // le moteur retombe sur `price` — comportement antérieur, inchangé.
+  priceFOB:      { type: Number, default: null },
+
   priceIncludes: { type: [String], default: [] },  // dédouanement, transport...
   negotiable:    { type: Boolean, default: false },
   stockQty:      { type: Number, default: 1 },
@@ -78,6 +94,21 @@ const importExportListingSchema = new mongoose.Schema({
     type: String,
     enum: [...INCOTERM_CODES, null],
     default: null,
+  },
+
+  // Méthodes d'export que l'exportateur sait PROPOSER pour cette annonce —
+  // FOB, CFR, CIF, EXW… `incoterm` ci-dessus reste celle par défaut, retenue
+  // pour l'affichage du prix ; celle-ci ouvre la négociation.
+  //
+  // Un exportateur travaille rarement sous un seul Incoterm : il livre au port
+  // (FOB) pour un acheteur qui a son transitaire, et rendu à destination (CIF)
+  // pour un acheteur qui n'en a pas. N'en stocker qu'un seul obligeait
+  // l'acheteur à demander par message si l'autre était possible — une question
+  // qui se pose à chaque annonce, et qui ne se posera plus.
+  incotermsOffered: {
+    type: [String],
+    enum: INCOTERM_CODES,
+    default: [],
   },
 
   // Moyens de paiement acceptés par l'exportateur pour CETTE annonce — cohérent

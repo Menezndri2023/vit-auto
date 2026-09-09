@@ -567,11 +567,11 @@ export const createListing = async (req, res) => {
       title, make, model, year, mileage, fuelType, transmission,
       bodyType, color, condition, description,
       sourceCountry, sourceCity, availableIn,
-      price, currency, priceIncludes, negotiable, stockQty,
+      price, priceFOB, currency, priceIncludes, negotiable, stockQty,
       photos, mainPhoto,
       vin, vehicleHistory, estimatedShippingCost, shippingCostCurrency,
       estimatedDelay, shippingType, exportDocumentsAvailable, videoUrl,
-      acceptedPaymentMethods, incoterm,
+      acceptedPaymentMethods, incoterm, incotermsOffered,
     } = req.body;
 
     if (!title || !make || !model || !year || !sourceCountry || !price) {
@@ -617,6 +617,14 @@ export const createListing = async (req, res) => {
       videoUrl: videoUrl || null,
       acceptedPaymentMethods: acceptedPaymentMethods || [],
       incoterm: incoterm || null,
+      // Sans ces deux lignes, les champs seraient ignorés SANS ERREUR : le
+      // formulaire afficherait « enregistré » et le prix FOB n'existerait pas.
+      // C'est le motif exact qui avait laissé Vehicle.featured mort pendant
+      // des mois sur ce dépôt.
+      priceFOB: Number.isFinite(Number(priceFOB)) && Number(priceFOB) > 0 ? Number(priceFOB) : null,
+      incotermsOffered: Array.isArray(incotermsOffered)
+        ? incotermsOffered.filter((c) => isIncotermCompatible(c, shippingType))
+        : [],
       status: "pending",
     });
 
@@ -660,11 +668,11 @@ export const updateListing = async (req, res) => {
       title, make, model, year, mileage, fuelType, transmission,
       bodyType, color, condition, description,
       sourceCountry, sourceCity, availableIn,
-      price, currency, priceIncludes, negotiable, stockQty,
+      price, priceFOB, currency, priceIncludes, negotiable, stockQty,
       photos, mainPhoto,
       vin, vehicleHistory, estimatedShippingCost, shippingCostCurrency,
       estimatedDelay, shippingType, exportDocumentsAvailable, videoUrl,
-      acceptedPaymentMethods, incoterm, businessId,
+      acceptedPaymentMethods, incoterm, incotermsOffered, businessId,
     } = req.body;
 
     let business = undefined;
@@ -730,6 +738,17 @@ export const updateListing = async (req, res) => {
       exportDocumentsAvailable: exportDocumentsAvailable || listing.exportDocumentsAvailable,
       videoUrl: videoUrl !== undefined ? videoUrl : listing.videoUrl,
       acceptedPaymentMethods: acceptedPaymentMethods || listing.acceptedPaymentMethods,
+      // `undefined` = champ absent du corps → on garde l'existant. Une chaîne
+      // vide, elle, EFFACE volontairement le prix FOB : le partenaire doit
+      // pouvoir le retirer, pas seulement le modifier.
+      priceFOB: priceFOB === undefined
+        ? listing.priceFOB
+        : (Number.isFinite(Number(priceFOB)) && Number(priceFOB) > 0 ? Number(priceFOB) : null),
+      incotermsOffered: incotermsOffered === undefined
+        ? listing.incotermsOffered
+        : (Array.isArray(incotermsOffered)
+            ? incotermsOffered.filter((c) => isIncotermCompatible(c, effectiveShippingType))
+            : []),
       incoterm: effectiveIncoterm || null,
       business: business !== undefined ? (business?._id || null) : listing.business,
       // Une édition partenaire repasse l'annonce en modération (pas de

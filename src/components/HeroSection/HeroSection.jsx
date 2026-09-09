@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useVehicles } from "../../context/VehicleContext";
 import { useCurrency } from "../../context/CurrencyContext";
 import { useI18n } from "../../context/I18nContext";
+import { IMPORT_ORIGINS } from "../../constants/importOrigins";
 import SearchBar from "../SearchBar/SearchBar";
 import styles from "./HeroSection.module.css";
 
@@ -15,7 +16,11 @@ import styles from "./HeroSection.module.css";
 // Ils viennent désormais de GET /api/vehicles/public-stats et grandissent
 // d'eux-mêmes. La note moyenne n'apparaît que lorsqu'il existe réellement des
 // avis ; sinon la case cède la place à une information vraie et stable.
-const STAT_IMPORT = { icon: "🚢", value: "Import", label: "Japon · Europe · Dubaï" };
+// La tuile n'énumère plus « Japon · Europe · Dubaï » : trois origines sur les
+// quinze réellement ouvertes, dont la Chine — première origine du stock. La
+// bande de pays affichée juste en dessous les porte toutes
+// (constants/importOrigins.js).
+const STAT_IMPORT = { icon: "🚢", value: "Import", label: "Depuis 15 pays" };
 
 function buildStats(stats, t) {
   if (!stats) return [STAT_IMPORT];
@@ -334,6 +339,29 @@ export default function HeroSection() {
       {/* ─── SEARCHBAR ─── */}
       <div className={styles.searchRow}>
         <SearchBar />
+      </div>
+
+      {/* ─── PAYS D'ORIGINE À L'IMPORT ───────────────────────────────────────
+          Placée juste sous la recherche, là où un visiteur se demande « d'où
+          pouvez-vous m'importer un véhicule ? ». La réponse tenait auparavant
+          dans un libellé de trois mots, qui omettait la Chine — d'où provient
+          l'essentiel du catalogue Import/Export. Chaque pays mène au catalogue
+          filtré sur cette origine. */}
+      <div className={styles.originsRow}>
+        <span className={styles.originsLabel}>🚢 Import depuis :</span>
+        <div className={styles.originsScroll}>
+          {IMPORT_ORIGINS.map((o) => (
+            <Link
+              key={o.code}
+              to={`/catalogue?mode=Import&source=${encodeURIComponent(o.name)}`}
+              className={styles.originChip}
+              title={`Véhicules à importer depuis : ${o.name}`}
+            >
+              <span aria-hidden="true">{o.flag}</span>
+              <span>{o.name}</span>
+            </Link>
+          ))}
+        </div>
       </div>
 
       {/* ─── STATS ─── */}

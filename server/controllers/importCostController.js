@@ -13,19 +13,31 @@ export const getListingCostEstimate = async (req, res) => {
     const { destCountry, destCity } = req.query;
     if (!destCountry) return res.status(400).json({ message: "Pays de destination requis." });
 
-    const listing = await ImportExportListing.findById(req.params.id).select("price currency sourceCountry year status").lean();
+    const listing = await ImportExportListing.findById(req.params.id)
+      .select("price priceFOB incoterm currency sourceCountry year status").lean();
     if (!listing) return res.status(404).json({ message: "Annonce introuvable." });
     if (listing.status !== "approved") return res.status(404).json({ message: "Annonce introuvable." });
 
+    // Le moteur part du prix FOB — véhicule chargé à bord, hors fret et droits.
+    // Il recevait jusqu'ici `price`, le prix AFFICHÉ, sans savoir à quel
+    // Incoterm il correspondait : sur une annonce en CIF, le fret et
+    // l'assurance étaient donc comptés deux fois, et le total surestimé de
+    // plusieurs centaines de dollars. `priceFOB` lève l'ambiguïté ; à défaut,
+    // on retombe sur `price` — comportement antérieur, inchangé.
     const result = await computeImportCost({
-      vehiclePrice:  listing.price,
+      vehiclePrice:  listing.priceFOB ?? listing.price,
       currency:      listing.currency,
       sourceCountry: listing.sourceCountry,
       vehicleYear:   listing.year,
       destCountry,
       destCity,
     });
-    res.json(result);
+    res.json({
+      ...result,
+      // L'acheteur doit savoir sur quelle base le total a été calculé, sans
+      // quoi il ne peut ni le recouper ni le contester.
+      basePrice: { amount: listing.priceFOB ?? listing.price, isFOB: listing.priceFOB != null, incoterm: listing.incoterm || null },
+    });
   } catch (err) {
     logger.error("getListingCostEstimate:", err);
     res.status(500).json({ message: "Erreur serveur." });
