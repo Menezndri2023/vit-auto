@@ -15,8 +15,10 @@ const seedPricingConfig = () => PricingConfig.create({
   },
   foundingPartner: {
     durationMonths: 12,
-    entreprise:  { location: 0.10, vente: 0.015, import_export: 0.015 },
-    particulier: { location: 0.10, vente: 0.02, import_export: null },
+    // `chauffeur` volontairement DIFFÉRENT du standard (0.10) : à valeur égale,
+    // une assertion ne prouverait pas quel barème a été appliqué.
+    entreprise:  { location: 0.10, vente: 0.015, import_export: 0.015, chauffeur: 0.08 },
+    particulier: { location: 0.10, vente: 0.02, import_export: null, chauffeur: 0.08 },
   },
   serviceFee: { minUSD: 1, percent: 0.005, maxUSD: 25 },
   boosts: { "24h": 2, "7d": 5, "30d": 12, international: 20 },
@@ -96,13 +98,16 @@ describe("resolveCommissionRate", () => {
     expect(await resolveCommissionRate("essai", owner._id)).toBe(0.02);
   });
 
-  it("ne s'applique jamais à chauffeur/leasing même si Founding Partner actif", async () => {
+  it("couvre le chauffeur, mais jamais le leasing", async () => {
+    // Le chauffeur était exclu de la faveur fondateur ; le barème arrêté le
+    // 2026-09-09 le couvre. Le leasing en reste dehors — aucun taux fondateur
+    // n'est défini pour lui, il retombe donc au standard.
     const owner = await createUser({ role: "partenaire" });
     await PartnerOnboarding.create({
       userId: owner._id, isFoundingPartner: true, legalEntityType: "entreprise",
       commissions: { lockedAt: new Date() },
     });
-    expect(await resolveCommissionRate("chauffeur", owner._id)).toBe(0.10); // taux standard
+    expect(await resolveCommissionRate("chauffeur", owner._id)).toBe(0.08); // taux fondateur
     expect(await resolveCommissionRate("leasing", owner._id)).toBe(0.05);   // taux standard
   });
 
@@ -117,13 +122,24 @@ describe("resolveCommissionRate", () => {
     expect(await resolveCommissionRate("essai", owner._id)).toBe(0.03);
   });
 
-  it("lockedAt absent (Accord pas encore signé) est traité comme fenêtre active", async () => {
+  it("lockedAt absent (Accord pas encore signé) n'accorde AUCUNE réduction", async () => {
+    // Règle INVERSÉE le 2026-09-09. Ce test affirmait l'inverse — une fenêtre
+    // active en l'absence de date — sans en donner la raison. Or la fenêtre
+    // fondateur dure douze mois « à compter de la signature » : sans date de
+    // signature, il n'y a pas de point de départ, donc pas de fenêtre, et un
+    // dossier resté en brouillon obtenait le tarif réduit À VIE sans qu'aucun
+    // accord n'ait jamais été conclu. Un compte était dans ce cas en
+    // production.
+    //
+    // Le parcours réel n'est pas affecté : le contrôleur pose
+    // `isFoundingPartner` et `commissions.lockedAt` au même instant, à la
+    // signature (partnerOnboardingController).
     const owner = await createUser({ role: "partenaire" });
     await PartnerOnboarding.create({
       userId: owner._id, isFoundingPartner: true, legalEntityType: "entreprise",
       commissions: { lockedAt: null },
     });
-    expect(await resolveCommissionRate("location", owner._id)).toBe(0.10);
+    expect(await resolveCommissionRate("location", owner._id)).toBe(0.15);
   });
 
   it("import_export : Founding Partner entreprise a un taux dédié, particulier retombe au standard/premium", async () => {
