@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useI18n } from "../context/I18nContext";
 import { PAYMENTS_ENABLED_FALLBACK, PAYMENTS_DISABLED_NOTICE, PAYMENTS_DISABLED_CTA } from "../config/featureFlags";
+import { PLAN_INCLUDED_BOOSTS } from "../constants/subscriptionPlans";
 import styles from "./Plans.module.css";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
@@ -97,6 +98,7 @@ export default function Plans() {
       desc: "Pour les particuliers — vendeurs, conducteurs, loueurs privés — qui veulent plus de visibilité.",
       features: [
         { ok: true,  text: "Tout du plan Gratuit" },
+        { ok: true,  text: `${PLAN_INCLUDED_BOOSTS.individuel_plus} mises en avant incluses chaque mois` },
         { ok: true,  text: "Commission réduite" },
         { ok: true,  text: "Classement prioritaire" },
         { ok: false, soon: true, text: "Analyses de performance réservées" },
@@ -114,6 +116,7 @@ export default function Plans() {
       desc: "Pour les professionnels — concessionnaires, garages, sociétés de location, gestionnaires de flotte.",
       features: [
         { ok: true,  text: "Tout du plan Individuel Plus" },
+        { ok: true,  text: `${PLAN_INCLUDED_BOOSTS.business} mises en avant incluses chaque mois` },
         { ok: true,  text: "Classement prioritaire renforcé" },
         { ok: false, soon: true, text: "Statistiques avancées & export" },
         { ok: false, soon: true, text: "Assistance premium" },
@@ -130,6 +133,7 @@ export default function Plans() {
       desc: "Pour les exportateurs internationaux — catalogue illimité, outils d'export, accès API, CRM.",
       features: [
         { ok: true,  text: "Catalogue illimité" },
+        { ok: true,  text: `${PLAN_INCLUDED_BOOSTS.exportateur} mises en avant incluses chaque mois` },
         { ok: true,  text: "CRM intégré (leads et devis)" },
         { ok: false, soon: true, text: "Outils d'exportation" },
         { ok: false, soon: true, text: "Accès API" },

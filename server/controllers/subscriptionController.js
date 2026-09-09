@@ -1,6 +1,6 @@
 import logger from "../utils/logger.js";
 import Subscription from "../models/Subscription.js";
-import { planRank } from "../constants/subscriptionPlans.js";
+import { planRank, includedBoosts, INCLUDED_BOOST_TIER, INCLUDED_BOOST_MARK } from "../constants/subscriptionPlans.js";
 import { PAYMENTS_ENABLED, PAYMENTS_DISABLED_MESSAGE } from "../config/featureFlags.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 import Notification from "../models/Notification.js";
@@ -21,6 +21,12 @@ import { isMalformedObjectId } from "../utils/objectId.js";
 
 const PLAN_TIERS  = ["individuel_plus", "business", "exportateur"];
 const BOOST_TIERS = ["24h", "7d", "30d", "international"];
+
+// Poids du palier dans le tri du catalogue : à validité égale, un boost
+// international passe devant un boost 24h. Défini au niveau du module — il
+// vivait dans adminApproveBoost, et l'activation immédiate d'un boost inclus
+// en a besoin aussi.
+const BOOST_WEIGHT = { "24h": 1, "7d": 2, "30d": 3, international: 4 };
 
 // Durée de chaque palier de boost — voir PricingConfig.boosts (montants) et
 // cahier des charges "Options de boost configurables" (durées, elles, ne sont
@@ -44,7 +50,14 @@ export const getMySubscription = async (req, res) => {
     const boostPricing = {};
     for (const tier of BOOST_TIERS) boostPricing[tier] = await getBoostPrice(tier);
 
-    res.json({ subscription: sub, pricing: { plans: pricing, boosts: boostPricing } });
+    // Le quota de mises en avant incluses est ce que le partenaire vient
+    // vérifier : sans lui renvoyé ici, il ne peut pas savoir combien il lui en
+    // reste avant de cliquer, et l'avantage qu'il paie reste invisible.
+    res.json({
+      subscription: sub,
+      includedBoosts: { ...quotaBoosts(sub), tier: INCLUDED_BOOST_TIER },
+      pricing: { plans: pricing, boosts: boostPricing },
+    });
   } catch (err) {
     res.status(500).json({ message: "Erreur récupération abonnement.", error: err.message });
   }
@@ -118,6 +131,29 @@ export const activatePlan = async (req, res) => {
   }
 };
 
+// ── Quota de mises en avant incluses dans l'abonnement ─────────────────────
+// Un plan actif offre chaque mois un nombre de mises en avant (voir
+// PLAN_INCLUDED_BOOSTS). On compte celles DÉJÀ consommées ce mois-ci, en ne
+// retenant que les boosts marqués comme offerts : un boost acheté à l'unité ne
+// doit jamais entamer le quota, sinon le partenaire paierait deux fois.
+function planActif(sub) {
+  return !!(sub?.plan && sub.plan !== "free"
+    && sub.planDetails?.isActive && sub.planDetails?.endDate
+    && new Date(sub.planDetails.endDate) > new Date());
+}
+
+function quotaBoosts(sub) {
+  if (!planActif(sub)) return { total: 0, utilises: 0, restants: 0 };
+  const total = includedBoosts(sub.plan);
+  const debutMois = new Date();
+  debutMois.setDate(1);
+  debutMois.setHours(0, 0, 0, 0);
+  const utilises = (sub.boosts || []).filter(
+    (b) => b.promoCode === INCLUDED_BOOST_MARK && b.startDate && new Date(b.startDate) >= debutMois
+  ).length;
+  return { total, utilises, restants: Math.max(0, total - utilises) };
+}
+
 // Achète un boost pour une annonce — même logique : enregistré "pending", pas d'activation
 // immédiate tant qu'aucune vérification réelle de paiement n'est branchée.
 export const purchaseBoost = async (req, res) => {
@@ -150,6 +186,45 @@ export const purchaseBoost = async (req, res) => {
     let sub = await Subscription.findOne({ vendor: req.user.id });
     if (!sub) sub = new Subscription({ vendor: req.user.id });
 
+    // ── Mise en avant INCLUSE dans l'abonnement ─────────────────────────────
+    // Rien n'est facturé, donc rien n'attend une confirmation de paiement :
+    // elle prend effet immédiatement. C'est tout l'intérêt de l'abonnement pour
+    // le partenaire — il voit ses annonces remonter le jour même, sans geste
+    // supplémentaire ni démarche auprès du support.
+    const quota = quotaBoosts(sub);
+    const incluse = quota.restants > 0 && tier === INCLUDED_BOOST_TIER;
+
+    if (incluse) {
+      const debut = new Date();
+      const fin   = new Date(debut.getTime() + (BOOST_DURATION_MS[tier] ?? BOOST_DURATION_MS["30d"]));
+      sub.boosts.push({
+        vehicle: vehicleId,
+        tier,
+        isActive: true,
+        priceUSD: 0,
+        startDate: debut,
+        endDate: fin,
+        paidAt: debut,
+        // Marque le boost comme offert : c'est ce qui permet de décompter le
+        // quota du mois sans jamais confondre avec un boost acheté.
+        promoCode: INCLUDED_BOOST_MARK,
+      });
+      await sub.save();
+
+      // La mise en avant ne prend effet sur le catalogue que par ces deux
+      // champs (voir vehicleController.getVehicles) — les écrire est ce qui
+      // distingue un boost réel d'une simple ligne dans l'abonnement.
+      await Vehicle.findByIdAndUpdate(vehicleId, {
+        $set: { sponsoredUntil: fin, boostLevel: BOOST_WEIGHT[tier] ?? 1 },
+      });
+
+      return res.status(201).json({
+        message: `Mise en avant activée immédiatement — incluse dans votre plan. Il vous en reste ${quota.restants - 1} ce mois-ci.`,
+        includedBoosts: { ...quota, restants: quota.restants - 1 },
+        subscription: sub,
+      });
+    }
+
     sub.boosts.push({
       vehicle: vehicleId,
       tier,
@@ -174,6 +249,7 @@ export const purchaseBoost = async (req, res) => {
       message: PAYMENTS_ENABLED
         ? "Demande de mise en avant enregistrée, en attente de confirmation du paiement."
         : "Demande envoyée au support. Un administrateur activera votre mise en avant.",
+      includedBoosts: quota,
       subscription: sub,
     });
   } catch (err) {
@@ -303,7 +379,6 @@ export const adminApproveBoost = async (req, res) => {
     // part, le tri se faisant uniquement par date de création).
     // `boostLevel` porte le poids du palier : à date de validité égale, un
     // boost international passe devant un boost 24h.
-    const BOOST_WEIGHT = { "24h": 1, "7d": 2, "30d": 3, international: 4 };
     if (boost.vehicle) {
       await Vehicle.findByIdAndUpdate(boost.vehicle, {
         $set: {

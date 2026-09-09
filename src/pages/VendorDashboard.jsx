@@ -1160,6 +1160,7 @@ export default function VendorDashboard() {
   const [contractsLoading, setContractsLoading] = useState(false);
   const [legalDocuments, setLegalDocuments] = useState([]); // LOI/Agreement — voir contractController.getPartnerContracts
   const [subscription,   setSubscription]   = useState(null);
+  const [includedBoosts, setIncludedBoosts] = useState(null);
   const [subLoading,     setSubLoading]     = useState(true);
   const [commRates,      setCommRates]      = useState(null); // { location, essai, chauffeur, leasing } — depuis /api/pricing/config
   const [partnerStats,   setPartnerStats]   = useState(null); // agrégation serveur — voir loadPartnerStats
@@ -1592,7 +1593,10 @@ export default function VendorDashboard() {
     if (!isAuthenticated || !token) { setSubLoading(false); return; }
     fetch("/api/subscriptions/me", { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
-      .then((d) => { setSubscription(d.subscription); setBoostPricing(d.pricing?.boosts || null); })
+      // Le quota est CALCULÉ par le serveur : l'interface l'affiche, elle ne le
+      // recompte jamais — deux calculs finiraient par diverger, et c'est le
+      // partenaire qui verrait un chiffre faux avant de cliquer.
+      .then((d) => { setSubscription(d.subscription); setBoostPricing(d.pricing?.boosts || null); setIncludedBoosts(d.includedBoosts || null); })
       .catch(() => {}).finally(() => setSubLoading(false));
   }, [isAuthenticated, token]);
 
@@ -2808,6 +2812,14 @@ export default function VendorDashboard() {
         <div className={isPro ? styles.proBanner : styles.freeBanner}>
           <span className={styles.planBadge}>{isPro ? `✨ ${planName}` : "Gratuit"}</span>
           <span>{isPro ? `Plan ${planName} actif jusqu'au ${proEnd}` : "Passez à un plan supérieur pour réduire vos commissions et la mise en avant automatique."}</span>
+          {/* Le quota restant est l'information qui donne sa valeur visible à
+              l'abonnement : sans elle, le partenaire ne sait pas qu'il dispose
+              de mises en avant déjà payées. */}
+          {isPro && includedBoosts?.total > 0 && (
+            <span style={{ fontSize: ".8rem", fontWeight: 700 }}>
+              ⭐ {includedBoosts.restants}/{includedBoosts.total} mise{includedBoosts.total > 1 ? "s" : ""} en avant incluse{includedBoosts.total > 1 ? "s" : ""} ce mois-ci
+            </span>
+          )}
           {!isPro && <Link to="/plans" className={styles.upgradeLink}>Voir les plans →</Link>}
         </div>
       )}
