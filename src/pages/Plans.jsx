@@ -12,8 +12,10 @@ import { useDocumentMeta } from "../hooks/useDocumentMeta";
 // valeurs que server/config/defaultPricingConfig.js (source de vérité réelle).
 const FALLBACK_PRICING = {
   commissions: {
-    standard: { vente: 0.03, location: 0.15, chauffeur: 0.10, import_export: 0.03, leasing: 0.05 },
-    premium:  { vente: 0.02, location: 0.12, chauffeur: 0.08, import_export: 0.02, leasing: 0.04 },
+    // Repli affiché tant que la config n'a pas répondu — doit refléter la
+    // grille réelle, sinon la page annonce brièvement des taux périmés.
+    standard: { vente: 0.03, location: 0.15, chauffeur: 0.15, import_export: 0.03, leasing: 0.05 },
+    premium:  { vente: 0.03, location: 0.15, chauffeur: 0.15, import_export: 0.03, leasing: 0.05 },
   },
   foundingPartner: {
     durationMonths: 12,
@@ -84,7 +86,6 @@ export default function Plans() {
         { ok: true,  text: "Profil partenaire complet" },
         { ok: true,  text: "Réception des demandes clients" },
         { ok: true,  text: "Contrat digital automatique" },
-        { ok: false, text: "Commission réduite" },
         { ok: false, text: "Classement prioritaire" },
         { ok: false, text: "Statistiques avancées" },
         { ok: false, text: "Badge premium" },
@@ -99,7 +100,6 @@ export default function Plans() {
       features: [
         { ok: true,  text: "Tout du plan Gratuit" },
         { ok: true,  text: `${PLAN_INCLUDED_BOOSTS.individuel_plus} mises en avant incluses chaque mois` },
-        { ok: true,  text: "Commission réduite" },
         { ok: true,  text: "Classement prioritaire" },
         { ok: false, soon: true, text: "Analyses de performance réservées" },
         { ok: false, soon: true, text: "Badge premium" },
@@ -139,7 +139,6 @@ export default function Plans() {
         { ok: false, soon: true, text: "Accès API" },
         { ok: false, soon: true, text: "Multi-utilisateurs" },
         { ok: false, soon: true, text: "Assistance premium" },
-        { ok: true,  text: "Commission réduite" },
       ],
       cta: "Choisir Exportateur", ctaDisabled: false, popular: false,
     },
@@ -180,16 +179,15 @@ export default function Plans() {
   };
 
   const std  = pricing.commissions?.standard  || FALLBACK_PRICING.commissions.standard;
-  const prem = pricing.commissions?.premium   || FALLBACK_PRICING.commissions.premium;
   const fp   = pricing.foundingPartner        || FALLBACK_PRICING.foundingPartner;
   const sf   = pricing.serviceFee             || FALLBACK_PRICING.serviceFee;
 
   const COMMISSIONS = [
-    { label: "Location",      color: "#6366f1", standard: std.location,      premium: prem.location,      founder: fp.entreprise?.location },
-    { label: "Vente",         color: "#10b981", standard: std.vente,         premium: prem.vente,         founder: fp.entreprise?.vente },
-    { label: "Chauffeur",     color: "#f59e0b", standard: std.chauffeur,     premium: prem.chauffeur,     founder: null },
-    { label: "Import/Export", color: "#0ea5e9", standard: std.import_export, premium: prem.import_export, founder: fp.entreprise?.import_export },
-    { label: "Leasing",       color: "#8b5cf6", standard: std.leasing,       premium: prem.leasing,       founder: null },
+    { label: "Location",      color: "#6366f1", standard: std.location,      founder: fp.entreprise?.location },
+    { label: "Vente et essai",color: "#10b981", standard: std.vente,         founder: fp.entreprise?.vente },
+    { label: "Chauffeur",     color: "#f59e0b", standard: std.chauffeur,     founder: null },
+    { label: "Import/Export", color: "#0ea5e9", standard: std.import_export, founder: fp.entreprise?.import_export },
+    { label: "Leasing",       color: "#8b5cf6", standard: std.leasing,       founder: null },
   ];
 
   return (
@@ -374,8 +372,12 @@ export default function Plans() {
             {/* Header */}
             <div className={styles.commRow + " " + styles.commHead}>
               <div className={styles.commCell}>{t("plans.comm.service")}</div>
+              {/* La colonne « Abonné » a disparu : les taux d'abonnement sont
+                  désormais identiques au standard — ces taux SONT déjà les taux
+                  réduits, l'abonnement ne retranche plus rien par-dessus.
+                  Afficher deux colonnes au contenu identique laissait croire à
+                  un avantage inexistant. */}
               <div className={`${styles.commCell} ${styles.commCellActive}`}>{t("plans.comm.founder")}</div>
-              <div className={styles.commCell}>Abonné</div>
               <div className={styles.commCell}>{t("plans.comm.standard")}</div>
             </div>
             {/* Rows */}
@@ -390,9 +392,6 @@ export default function Plans() {
                   </span>
                 </div>
                 <div className={styles.commCell}>
-                  <span className={styles.commRate}>{pct(row.premium)}</span>
-                </div>
-                <div className={styles.commCell}>
                   <span className={styles.commRate}>{pct(row.standard)}</span>
                 </div>
               </div>
@@ -402,7 +401,7 @@ export default function Plans() {
               <div className={styles.commCell}>
                 <span style={{ color: "#6366f1", fontWeight: 700 }}>Frais de service client</span>
               </div>
-              <div className={`${styles.commCell} ${styles.commCellActive}`} style={{ gridColumn: "span 3", fontSize: "0.82rem", color: "#64748b" }}>
+              <div className={`${styles.commCell} ${styles.commCellActive}`} style={{ gridColumn: "span 2", fontSize: "0.82rem", color: "#64748b" }}>
                 max({fmtUSD(sf.minUSD)}, {sf.percent * 100}% du montant), plafonné à {fmtUSD(sf.maxUSD)} — à la charge du client
               </div>
             </div>

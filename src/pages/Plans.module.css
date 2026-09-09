@@ -320,7 +320,9 @@
 
 .commRow {
   display: grid;
-  grid-template-columns: 1.2fr repeat(4, 1fr);
+  /* 3 colonnes : service, Fondateur, standard. La colonne « Abonné » a été
+     retiree, les taux d'abonnement etant identiques au standard. */
+  grid-template-columns: 1.2fr repeat(2, 1fr);
   border-bottom: 1px solid #f0f4fa;
 }
 

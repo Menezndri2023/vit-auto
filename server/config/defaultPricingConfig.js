@@ -8,9 +8,18 @@
 // que la migration a tourné une fois.
 export const DEFAULT_PRICING_CONFIG = {
   key: "global",
+  // Grille unique : location 15 %, essai et vente 3 %, export 3 %, chauffeur
+  // 15 %. `essai` est facturé au taux `vente` (voir pricingEngine).
+  //
+  // `premium` est VOLONTAIREMENT identique à `standard` : ces taux sont déjà
+  // les taux réduits consentis aux partenaires, un abonnement ne doit donc plus
+  // retrancher quoi que ce soit par-dessus. L'abonnement se justifie par ce
+  // qu'il APPORTE — mises en avant incluses, classement prioritaire — et non
+  // par une remise supplémentaire. Le mécanisme reste en place et pourra
+  // reprendre du sens si une remise est décidée un jour.
   commissions: {
-    standard: { vente: 0.03, location: 0.15, chauffeur: 0.10, import_export: 0.03, leasing: 0.05 },
-    premium:  { vente: 0.02, location: 0.12, chauffeur: 0.08, import_export: 0.02, leasing: 0.04 },
+    standard: { vente: 0.03, location: 0.15, chauffeur: 0.15, import_export: 0.03, leasing: 0.05 },
+    premium:  { vente: 0.03, location: 0.15, chauffeur: 0.15, import_export: 0.03, leasing: 0.05 },
   },
   foundingPartner: {
     durationMonths: 12,
