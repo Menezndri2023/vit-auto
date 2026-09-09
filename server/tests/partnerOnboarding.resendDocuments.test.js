@@ -1,5 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
 
+// Attend qu'une condition devienne vraie, en scrutant à intervalle court.
+// Rend le test AUSSI RAPIDE que la machine le permet, et déterministe : il
+// n'échoue qu'au bout du délai maximum, jamais parce que 1,5 s n'a pas suffi.
+async function attendreQue(condition, { timeoutMs = 10000, intervalleMs = 25 } = {}) {
+  const limite = Date.now() + timeoutMs;
+  while (Date.now() < limite) {
+    if (condition()) return;
+    await new Promise((r) => setTimeout(r, intervalleMs));
+  }
+}
+
 // sendEmail (le transport bas niveau) est mocké pour capturer le HTML final —
 // contrairement à founderLoiEmail.test.js (qui mocke sendViaEmail parce que
 // pdf.worker.js construit le HTML lui-même), le job "documents_ready_reminder"
@@ -46,7 +57,13 @@ describe("adminResendDocuments", () => {
     expect(reloaded.loi.signingTokenExpires.getTime()).toBeGreaterThan(Date.now()); // repoussé dans le futur
 
     // Laisse le fallback synchrone (Redis indisponible en test) traiter le job.
-    await new Promise((r) => setTimeout(r, 1500));
+    //
+    // Attente ACTIVE et non un délai fixe : le `setTimeout(1500)` d'origine
+    // pariait sur la vitesse de la machine. Sous charge — suite complète, autre
+    // session sur le poste — le job n'était pas encore passé et le test
+    // échouait sans qu'aucun code soit en cause. Vérifié : il passait puis
+    // échouait d'une exécution à l'autre, à code identique.
+    await attendreQue(() => sendEmailMock.mock.calls.length > 0);
     expect(sendEmailMock).toHaveBeenCalled();
     const { html } = sendEmailMock.mock.calls.at(-1)[0];
     expect(html).not.toContain("undefined");
