@@ -10,6 +10,7 @@ import styles from "./Catalogue.module.css";
 import { useToast } from "../context/ToastContext";
 import { haversineKm, getCurrentPosition } from "../utils/geo";
 import { getCountryFlag } from "../data/autocomplete";
+import { slugifyCity } from "../constants/citySlug";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "../constants/activityTypes";
 import { useI18n } from "../context/I18nContext";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
@@ -435,6 +436,24 @@ const Catalogue = () => {
     if (sortKey === "newest")     list = [...list].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
     return list;
   }, [activities, isOthersMode, searchTerm, sortKey, paysOk, nomDuPays, activityTypeFilter]);
+
+  // Villes ayant réellement des annonces de location — alimente le maillage
+  // interne vers les pages locales (/location-voiture/:ville). Sans ces liens,
+  // ces pages ne seraient atteignables que par le sitemap : les moteurs les
+  // exploreraient, mais sans jamais leur transmettre de poids depuis le
+  // catalogue, qui est la page la plus visitée du site.
+  const villesDesservies = useMemo(() => {
+    const compte = new Map();
+    for (const v of vehicles || []) {
+      if (!v.ville || v.listingType !== "location") continue;
+      const slug = slugifyCity(v.ville);
+      if (!slug) continue;
+      compte.set(slug, { slug, nom: v.ville, n: (compte.get(slug)?.n || 0) + 1 });
+    }
+    // Même seuil que le sitemap : une ville à annonce unique n'a pas de quoi
+    // remplir une page.
+    return [...compte.values()].filter((c) => c.n >= 2).sort((a, b) => b.n - a.n).slice(0, 12);
+  }, [vehicles]);
 
   const filtered = useMemo(() => {
     if (isImportMode || isChauffeurMode || isOthersMode) return [];
@@ -892,6 +911,20 @@ const Catalogue = () => {
               )}
             </main>
           </div>
+        )}
+
+        {!isImportMode && !isChauffeurMode && !isOthersMode && villesDesservies.length > 0 && (
+          <section style={{ margin: "28px auto 0", maxWidth: 1180, padding: "18px 1.25rem 0", borderTop: "1.5px solid #e2e8f0" }}>
+            <h2 style={{ fontSize: ".95rem", color: "#0f1b3f", margin: "0 0 10px" }}>Location de voiture par ville</h2>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {villesDesservies.map((c) => (
+                <Link key={c.slug} to={`/location-voiture/${c.slug}`}
+                  style={{ padding: ".35rem .75rem", borderRadius: 999, background: "#fff", border: "1px solid #dbe2ef", color: "#1a3a6e", fontSize: ".8rem", fontWeight: 600, textDecoration: "none" }}>
+                  {c.nom} ({c.n})
+                </Link>
+              ))}
+            </div>
+          </section>
         )}
 
         {/* ── MODE CHAUFFEUR ── */}

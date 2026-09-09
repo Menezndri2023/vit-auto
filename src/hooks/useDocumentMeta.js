@@ -38,7 +38,20 @@ function setStructuredData(data) {
   el.textContent = JSON.stringify(data);
 }
 
-function applyMeta({ title, description, image, url, structuredData }) {
+// Directive d'indexation. Absente = comportement par défaut (indexable) : on
+// RETIRE la balise plutôt que d'écrire "index, follow", pour ne pas laisser une
+// consigne héritée d'une page précédente sur une page qui n'en veut pas.
+function setRobots(valeur) {
+  const el = document.querySelector('meta[name="robots"]');
+  if (!valeur) { el?.remove(); return; }
+  if (el) { el.setAttribute("content", valeur); return; }
+  const nouveau = document.createElement("meta");
+  nouveau.setAttribute("name", "robots");
+  nouveau.setAttribute("content", valeur);
+  document.head.appendChild(nouveau);
+}
+
+function applyMeta({ title, description, image, url, structuredData, robots }) {
   document.title = title ? `${title} — VIT AUTO` : DEFAULTS.title;
   setMeta("description",       description || DEFAULTS.description);
   setMeta("og:title",          title       || DEFAULTS.title,       "property");
@@ -51,6 +64,7 @@ function applyMeta({ title, description, image, url, structuredData }) {
   const canonical = document.querySelector('link[rel="canonical"]');
   if (canonical) canonical.setAttribute("href", url || DEFAULTS.url);
   setStructuredData(structuredData);
+  setRobots(robots);
 }
 
 // Met à jour titre + meta description/Open Graph/Twitter/canonical/JSON-LD
@@ -58,14 +72,14 @@ function applyMeta({ title, description, image, url, structuredData }) {
 // Import/Export partagée sur WhatsApp/Facebook affiche toujours l'aperçu
 // générique de la page d'accueil (titre, description ET image), jamais le
 // contenu réel de la page. Restaure les valeurs par défaut au démontage.
-export function useDocumentMeta({ title, description, image, url, structuredData } = {}) {
+export function useDocumentMeta({ title, description, image, url, structuredData, robots } = {}) {
   // structuredData est un objet reconstruit à chaque rendu par l'appelant —
   // sérialisé pour la dépendance afin de ne réécrire le <script> que quand
   // son CONTENU change réellement, pas à chaque rendu de la page appelante.
   const structuredDataKey = structuredData ? JSON.stringify(structuredData) : null;
   useEffect(() => {
-    applyMeta({ title, description, image, url, structuredData });
+    applyMeta({ title, description, image, url, structuredData, robots });
     return () => applyMeta({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, description, image, url, structuredDataKey]);
+  }, [title, description, image, url, structuredDataKey, robots]);
 }

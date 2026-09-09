@@ -25,6 +25,7 @@ import { SocketProvider } from "./context/SocketContext";
 // ── Lazy loading des pages ─────────────────────────────────────────────────
 const Home                  = lazy(() => import("./pages/Home"));
 const Catalogue             = lazy(() => import("./pages/Catalogue"));
+const LocalLanding          = lazy(() => import("./pages/LocalLanding"));
 const VehicleDetails        = lazy(() => import("./pages/VehicleDetails"));
 const Cart                  = lazy(() => import("./pages/Cart"));
 const Booking               = lazy(() => import("./pages/Booking"));
@@ -104,6 +105,13 @@ function AppRoutes() {
           {/* ── Pages publiques ─────────────────────────────── */}
           <Route path="/"                       element={<Home />} />
           <Route path="/catalogue"              element={<Catalogue />} />
+          {/* Pages d'entrée par ville — référencement local. Le catalogue est
+              une URL unique dont les filtres vivent côté client : sans ces
+              adresses, une recherche « location voiture Abidjan » n'avait
+              aucune page à faire remonter. Listées au sitemap uniquement pour
+              les villes ayant réellement des annonces. */}
+          <Route path="/location-voiture/:ville" element={<LocalLanding mode="location" />} />
+          <Route path="/achat-voiture/:ville"    element={<LocalLanding mode="vente" />} />
           <Route path="/vehicle/:id"            element={<ErrorBoundary><VehicleDetails /></ErrorBoundary>} />
           <Route path="/cart"                   element={<ErrorBoundary><Cart /></ErrorBoundary>} />
           <Route path="/login"                  element={<Login />} />

@@ -363,4 +363,9 @@
   <url><loc>https://vit-auto.com/import-export/listings/6a5c2b1dadcd48a14a80c883</loc><lastmod>2026-09-09</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
   <url><loc>https://vit-auto.com/import-export/listings/6a5b1fc0adcd48a14a80aa2a</loc><lastmod>2026-09-09</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
   <url><loc>https://vit-auto.com/import-export/listings/6a5b1ed1adcd48a14a80a9c5</loc><lastmod>2026-09-09</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://vit-auto.com/location-voiture/paris</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://vit-auto.com/location-voiture/rabat</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://vit-auto.com/location-voiture/casablanca</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://vit-auto.com/location-voiture/tanger</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://vit-auto.com/location-voiture/marrakech</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
 </urlset>

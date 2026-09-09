@@ -8,6 +8,9 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+// Même fonction que l'application (src/pages/LocalLanding.jsx) : deux slugs
+// divergents produiraient des adresses au sitemap que le site ne résout pas.
+import { slugifyCity } from "../src/constants/citySlug.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SITE_URL = "https://vit-auto.com";
@@ -89,6 +92,25 @@ async function main() {
       lastmod: l.updatedAt ? new Date(l.updatedAt).toISOString().slice(0, 10) : undefined,
     }));
   }
+  // ── Pages d'entrée par ville (référencement local) ────────────────────────
+  // Uniquement les villes qui ont RÉELLEMENT des annonces publiées : annoncer
+  // une ville vide fabriquerait des pages minces, que la page elle-même met
+  // d'ailleurs en noindex. Le compte sert aussi de garde-fou — une ville avec
+  // une seule annonce n'a pas assez de contenu pour mériter sa page.
+  const MIN_ANNONCES_PAR_VILLE = 2;
+  const parVille = new Map();
+  for (const v of vehicles) {
+    if (!v.ville) continue;
+    const slug = slugifyCity(v.ville);
+    if (!slug) continue;
+    const clef = `${v.type === "vente" ? "achat" : "location"}-voiture/${slug}`;
+    parVille.set(clef, (parVille.get(clef) || 0) + 1);
+  }
+  for (const [chemin, n] of parVille) {
+    if (n < MIN_ANNONCES_PAR_VILLE) continue;
+    urls.push(urlEntry({ loc: `/${chemin}`, changefreq: "daily", priority: "0.8" }));
+  }
+
   for (const s of showrooms) {
     urls.push(urlEntry({
       loc: `/showroom/${s.slug || s.partnerId}`,
