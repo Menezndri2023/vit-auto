@@ -145,8 +145,24 @@ async function assertOwnBusiness(businessId, partnerId) {
 // c'est un simple filtre optionnel de confort.
 async function safeBusinessFilter(rawBusinessId, partnerId) {
   if (!rawBusinessId || !mongoose.Types.ObjectId.isValid(rawBusinessId)) return undefined;
+  // partnerId null = administrateur non restreint à un partenaire : il n'y a
+  // aucun propriétaire à vérifier, l'entreprise ciblée suffit.
+  if (!partnerId) return rawBusinessId;
   const owned = await assertOwnBusiness(rawBusinessId, partnerId);
   return owned ? rawBusinessId : undefined;
+}
+
+// Partenaire ciblé par une LISTE PMS. Un administrateur supervise TOUS les
+// partenaires : le restreindre à son propre identifiant lui donnait des listes
+// systématiquement vides, puisqu'il ne possède aucune donnée PMS. C'est le
+// trou jumeau de celui corrigé sur les routes unitaires (voir pmsOwnerFilter
+// ci-dessus), resté entier sur les listes et la vue d'ensemble. `?partnerId=`
+// lui permet de cibler un partenaire précis ; sans lui, il voit tout.
+// Renvoie null pour « aucune restriction » — jamais confondu avec un id.
+function pmsTargetPartner(req) {
+  if (req.user.role !== "admin") return req.user._id;
+  const asked = req.query.partnerId;
+  return mongoose.Types.ObjectId.isValid(asked) ? asked : null;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -154,7 +170,9 @@ async function safeBusinessFilter(rawBusinessId, partnerId) {
 // ══════════════════════════════════════════════════════════════
 export async function getPMSOverview(req, res) {
   try {
-    const partnerId = req.user._id;
+    // Un admin qui passe ?partnerId= inspecte le tableau de bord DE CE
+    // partenaire (sa vue globale à lui reste getAdminPMSStats).
+    const partnerId = pmsTargetPartner(req) || req.user._id;
     const businessId = await safeBusinessFilter(req.query.businessId, partnerId);
     const leadFilter  = { partnerId, ...(businessId ? { businessId } : {}) };
     const quoteFilter = { partnerId, ...(businessId ? { businessId } : {}) };
@@ -236,9 +254,10 @@ export async function getLeads(req, res) {
   try {
     const { status, page = 1 } = req.query;
     const limit = Math.min(Number(req.query.limit) || 20, 100);
-    const filter = { partnerId: req.user._id };
+    const target = pmsTargetPartner(req);
+    const filter = target ? { partnerId: target } : {};
     if (status) filter.status = status;
-    const businessId = await safeBusinessFilter(req.query.businessId, req.user._id);
+    const businessId = await safeBusinessFilter(req.query.businessId, target);
     if (businessId) filter.businessId = businessId;
 
     const [leads, total] = await Promise.all([
@@ -246,7 +265,10 @@ export async function getLeads(req, res) {
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
-        .populate("assignedTo", "firstName lastName"),
+        .populate("assignedTo", "firstName lastName")
+        // Sans le partenaire, une liste multi-partenaires (vue admin) est
+        // illisible : chaque ligne doit dire à qui elle appartient.
+        .populate("partnerId", "firstName lastName email business.companyName"),
       Lead.countDocuments(filter),
     ]);
 
@@ -352,13 +374,15 @@ export async function getQuotes(req, res) {
   try {
     const { status, page = 1 } = req.query;
     const limit = Math.min(Number(req.query.limit) || 20, 100);
-    const filter = { partnerId: req.user._id };
+    const target = pmsTargetPartner(req);
+    const filter = target ? { partnerId: target } : {};
     if (status) filter.status = status;
-    const businessId = await safeBusinessFilter(req.query.businessId, req.user._id);
+    const businessId = await safeBusinessFilter(req.query.businessId, target);
     if (businessId) filter.businessId = businessId;
 
     const [quotes, total] = await Promise.all([
-      Quote.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
+      Quote.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit)
+        .populate("partnerId", "firstName lastName email business.companyName"),
       Quote.countDocuments(filter),
     ]);
 

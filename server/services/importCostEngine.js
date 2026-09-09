@@ -3,6 +3,7 @@ import ShippingLaneRate from "../models/ShippingLaneRate.js";
 import { getRateFromUSD } from "./currencyEngine.js";
 import { computeImportEstimateFee } from "./pricingEngine.js";
 import { getIncoterm } from "../constants/incoterms.js";
+import { resolveOriginCode } from "../constants/importOrigins.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -77,13 +78,45 @@ export async function computeImportCost({ vehiclePrice, currency, sourceCountry,
   const ageSurchargeApplies = vehicleAgeYears != null
     && config.ageSurchargePercent > 0
     && vehicleAgeYears > config.ageSurchargeThresholdYears;
-  const effectiveDutyPercent = config.customsDutyPercent + (ageSurchargeApplies ? config.ageSurchargePercent : 0);
+  // ── Limite d'âge : interdiction, pas surtaxe ────────────────────────────
+  // Au Maroc, un véhicule particulier de plus de 5 ans ne peut PAS être
+  // importé. Ce n'est pas une pénalité tarifaire : le véhicule est refusé.
+  // Chiffrer une importation impossible serait la pire des réponses.
+  if (config.maxVehicleAgeYears != null && vehicleAgeYears != null
+      && vehicleAgeYears > config.maxVehicleAgeYears) {
+    return {
+      available: false,
+      importAllowed: false,
+      reason: "AGE_LIMIT",
+      maxVehicleAgeYears: config.maxVehicleAgeYears,
+      vehicleAgeYears,
+      message: `Ce véhicule a ${vehicleAgeYears} ans. « ${destCountry} » n'autorise l'importation que jusqu'à ${config.maxVehicleAgeYears} ans.`,
+    };
+  }
+
+  // ── Droit d'importation : dépend aussi de l'ORIGINE ─────────────────────
+  // Un accord commercial entre le pays de destination et le pays d'origine
+  // change le taux du tout au tout — 2,5 % pour un véhicule d'origine UE
+  // entrant au Maroc contre 17,5 % pour un véhicule chinois. Retenir un taux
+  // unique revenait à se tromper pour la moitié du catalogue.
+  const origine = resolveOriginCode(sourceCountry);
+  const regimePreferentiel = origine
+    ? (config.preferentialDuty || []).find((r) => (r.origins || []).includes(origine))
+    : null;
+  const baseDutyPercent = regimePreferentiel ? regimePreferentiel.percent : config.customsDutyPercent;
+  const effectiveDutyPercent = baseDutyPercent + (ageSurchargeApplies ? config.ageSurchargePercent : 0);
 
   // CIF = Cost + Insurance + Freight, base standard des droits de douane.
   const cifBaseUSD      = vehiclePriceUSD + seaFreightUSD + insuranceUSD;
   const customsDutyUSD  = cifBaseUSD * (effectiveDutyPercent / 100);
-  const vatUSD           = (cifBaseUSD + customsDutyUSD) * (config.vatPercent / 100);
-  const customsTotalUSD = customsDutyUSD + vatUSD + config.transitFixedFeeUSD + config.redevancesFixedFeeUSD;
+  // Taxe parafiscale : pourcentage du CIF, et elle entre DANS l'assiette de la
+  // TVA — au Maroc, l'assiette est CIF + droits + parafiscale, pas CIF +
+  // droits. L'omettre sous-évaluait la TVA. 0 % par défaut : sans effet sur les
+  // barèmes qui ne la déclarent pas.
+  const parafiscalUSD   = cifBaseUSD * ((config.parafiscalPercent || 0) / 100);
+  const vatUSD          = (cifBaseUSD + customsDutyUSD + parafiscalUSD) * (config.vatPercent / 100);
+  const customsTotalUSD = customsDutyUSD + parafiscalUSD + vatUSD
+                        + config.transitFixedFeeUSD + config.redevancesFixedFeeUSD;
 
   const deliveryUSD   = config.deliveryFixedFeeUSD;
   const commissionUSD = await computeImportServiceFeeUSD(vehiclePriceUSD);
@@ -142,6 +175,7 @@ export async function computeImportCost({ vehiclePrice, currency, sourceCountry,
       // poste le plus lourd et le plus opaque de l'opération, celui qu'un
       // acheteur veut précisément décomposer avant de s'engager.
       customsDuty: toCcy(customsDutyUSD),
+      parafiscal:  toCcy(parafiscalUSD),
       vat:         toCcy(vatUSD),
       transit:     toCcy(config.transitFixedFeeUSD + config.redevancesFixedFeeUSD),
     },
@@ -154,10 +188,16 @@ export async function computeImportCost({ vehiclePrice, currency, sourceCountry,
 
     // Taux appliqués, pour que l'acheteur puisse recouper le calcul avec le
     // barème officiel de son pays plutôt que de faire confiance à un total.
+    importAllowed: true,
     rates: {
       customsDutyPercent: effectiveDutyPercent,
+      parafiscalPercent:  config.parafiscalPercent || 0,
       vatPercent:         config.vatPercent,
       insurancePercent:   config.insurancePercent,
+      // Nommer l'accord appliqué : un acheteur qui voit 2,5 % au lieu de 17,5 %
+      // doit savoir pourquoi, sinon il croit à une erreur.
+      preferentialRegime: regimePreferentiel?.label || null,
+      origin: origine,
     },
     totalServices: toCcy(totalServicesUSD),
     grandTotal:    toCcy(grandTotalUSD),

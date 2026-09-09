@@ -218,6 +218,20 @@ export const signContract = async (req, res) => {
 // ── Contrats du partenaire connecté ──────────────────────────────────────
 export const getPartnerContracts = async (req, res) => {
   try {
+    // Un administrateur supervise TOUS les contrats. Le filtre partait des
+    // véhicules/chauffeurs lui appartenant — un admin n'en possède aucun, il
+    // recevait donc systématiquement une liste vide, alors que canAccessContract
+    // l'autorise déjà explicitement sur un contrat pris isolément : il pouvait
+    // ouvrir un contrat dont il connaissait l'identifiant, mais n'avait aucun
+    // moyen d'en obtenir la liste.
+    if (req.user.role === "admin") {
+      const contracts = await Contract.find({})
+        .populate("booking", "reference type status montantTotal")
+        .sort({ createdAt: -1 })
+        .limit(500);
+      return res.json({ contracts });
+    }
+
     const [myVehicles, myDrivers] = await Promise.all([
       Vehicle.find({ owner: req.user._id }).select("_id"),
       Driver.find({ owner: req.user._id }).select("_id"),

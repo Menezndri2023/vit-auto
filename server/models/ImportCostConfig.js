@@ -16,7 +16,42 @@ const importCostConfigSchema = new mongoose.Schema({
 
   // ── Douane / fiscalité import ──────────────────────────────────────────
   customsDutyPercent: { type: Number, default: 20 },   // % appliqué sur la base CIF (prix + fret + assurance)
-  vatPercent:         { type: Number, default: 18 },   // % appliqué sur (CIF + droits de douane)
+  vatPercent:         { type: Number, default: 18 },   // % appliqué sur (CIF + droits + parafiscale)
+
+  // ── Taxe parafiscale à l'importation ──────────────────────────────────────
+  // POURCENTAGE de la valeur CIF, distinct des redevances fixes plus bas. Le
+  // barème ne savait exprimer que des montants fixes : impossible d'y traduire
+  // la TPI marocaine (0,25 % du CIF), qui entre en plus dans l'assiette de la
+  // TVA. Un calcul « exact » qui l'omet ne l'est pas.
+  // 0 par défaut : les barèmes déjà configurés ne changent pas de résultat.
+  parafiscalPercent: { type: Number, default: 0 },
+
+  // ── Taux préférentiels par origine ────────────────────────────────────────
+  // Un droit d'importation ne dépend pas que du pays de DESTINATION : il dépend
+  // aussi de l'ORIGINE, via les accords commerciaux. Au Maroc, un véhicule
+  // d'origine UE relève de l'accord d'association (2,5 %) quand un véhicule
+  // chinois paie le taux plein (17,5 %) — plusieurs milliers de dirhams d'écart
+  // sur la même voiture. Annoncer un taux unique, c'était se tromper pour la
+  // moitié du catalogue.
+  //
+  // `origins` : codes ISO-2 du pays d'origine. La première règle qui contient
+  // l'origine l'emporte ; à défaut, `customsDutyPercent` s'applique.
+  preferentialDuty: [
+    {
+      _id:     false,
+      label:   { type: String, trim: true, default: null },  // ex. « Accord d'association UE »
+      origins: { type: [String], default: [] },
+      percent: { type: Number, required: true },
+    },
+  ],
+
+  // ── Limite d'âge à l'importation ──────────────────────────────────────────
+  // Plusieurs pays INTERDISENT l'importation au-delà d'un certain âge — 5 ans
+  // au Maroc pour un véhicule particulier. Ce n'est pas une surtaxe : le
+  // véhicule ne peut pas entrer. Afficher un prix rendu pour une voiture qui
+  // sera refusée au port est pire que de n'afficher aucun prix.
+  // null = aucune limite déclarée.
+  maxVehicleAgeYears: { type: Number, default: null },
   transitFixedFeeUSD: { type: Number, default: 150 },  // frais de transit/dédouanement fixes
   redevancesFixedFeeUSD: { type: Number, default: 100 }, // redevances diverses (statistique, informatique...)
 

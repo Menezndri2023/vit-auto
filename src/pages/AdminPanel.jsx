@@ -1932,6 +1932,11 @@ export default function AdminPanel() {
   const [insuranceSaving,  setInsuranceSaving]  = useState(false);
 
   // Journal d'audit
+  // Contrats de réservation (Contract) — aucun écran admin n'existait : la
+  // donnée n'était consultable que par le partenaire propriétaire, alors que
+  // c'est une pièce contractuelle (identité client, montants, signature).
+  const [contracts,        setContracts]        = useState([]);
+  const [contractsLoading, setContractsLoading] = useState(false);
   const [auditEntries,     setAuditEntries]     = useState([]);
   const [auditLoading,     setAuditLoading]     = useState(false);
   const [auditFacets,      setAuditFacets]      = useState({ actions: [], resources: [] });
@@ -2011,6 +2016,12 @@ export default function AdminPanel() {
   const [reports,         setReports]         = useState([]);
   const [trustModal,      setTrustModal]      = useState(null);   // utilisateur ciblé
   const [trustOverview,   setTrustOverview]   = useState(null);
+  // Fidélité d'un client (solde, palier, mouvements) — aucune vue admin
+  // n'existait, alors que 100 points = 1 USD de remise à la réservation
+  // suivante. Lecture seule : voir loyaltyController.getUserLoyaltyAdmin.
+  const [loyaltyModal,    setLoyaltyModal]    = useState(null);
+  const [loyaltyData,     setLoyaltyData]     = useState(null);
+  const [loyaltyLoading,  setLoyaltyLoading]  = useState(false);
   const [trustLoading,    setTrustLoading]    = useState(false);
   const [reportsLoading,  setReportsLoading]  = useState(false);
   const [reportFilter,    setReportFilter]    = useState("en_attente");
@@ -3190,6 +3201,16 @@ export default function AdminPanel() {
   };
 
   // ── Journal d'audit ──────────────────────────────────────────────────────────
+  const loadContracts = useCallback(async () => {
+    if (!token) return;
+    setContractsLoading(true);
+    try {
+      const r = await fetch("/api/contracts/mine", { headers });
+      if (r.ok) setContracts((await r.json()).contracts || []);
+    } catch { /* ignore */ }
+    setContractsLoading(false);
+  }, [token, headers]);
+
   const loadAuditLog = useCallback(async () => {
     if (!token) return;
     setAuditLoading(true);
@@ -3231,6 +3252,17 @@ export default function AdminPanel() {
     } catch { /* ignore */ }
     setReportsLoading(false);
   }, [token, headers]);
+
+  const openLoyalty = async (u) => {
+    setLoyaltyModal(u);
+    setLoyaltyData(null);
+    setLoyaltyLoading(true);
+    try {
+      const r = await fetch(`/api/loyalty/admin/${u._id}`, { headers });
+      if (r.ok) setLoyaltyData(await r.json());
+    } catch { /* ignore */ }
+    setLoyaltyLoading(false);
+  };
 
   const openTrustOverview = async (u) => {
     setTrustModal(u);
@@ -3901,6 +3933,7 @@ export default function AdminPanel() {
     if (activeTab === "paiements")         loadSubRequests();
     if (activeTab === "reviews")           loadReviews();
     if (activeTab === "system_health")     loadSystemHealth();
+    if (activeTab === "contrats")          loadContracts();
     if (activeTab === "audit")             loadAuditLog();
     if (activeTab === "analytics")         loadAnalytics();
     if (activeTab === "email_delivery")    loadEmailDelivery();
@@ -4417,6 +4450,7 @@ export default function AdminPanel() {
     bookings:         "bookings",
     pending_validation:"bookings",
     litiges:          "bookings",
+    contrats:         "bookings",
     // Import / Export — la logistique relève de DEUX secteurs : un admin
     // assigné à "import_export" comme un admin assigné à "transitaire" y agit
     // (miroir de requireAnyAdminScope côté serveur).
@@ -4507,6 +4541,7 @@ export default function AdminPanel() {
         { key: "pending_validation", icon: "🕐", label: "Demandes à valider", badge: pendingValidationTotal || undefined },
         { key: "bookings",      icon: "📋", label: "Réservations",          badge: pendingBk },
         { key: "litiges",       icon: "⚖️",  label: "Litiges",              badge: disputedBk + liveDisputes },
+        { key: "contrats",      icon: "📑", label: "Contrats" },
         { key: "chauffeurs",    icon: "👨‍✈️", label: "Chauffeurs",           badge: pendingDrivers },
         { key: "activites",     icon: "🎈", label: "Activités et Loisirs",     badge: pendingActivities },
         { key: "import_export", icon: "🌍", label: "Transactions I/E",      badge: pendingIe },
@@ -5241,6 +5276,11 @@ export default function AdminPanel() {
                                   onClick={() => openTrustOverview(u)}
                                   title="Vue de confiance unifiée">🛡️ Confiance</button>
                               )}
+                              {u.role === "client" && (
+                                <button className={styles.btnGhost} style={{ fontSize: ".72rem" }}
+                                  onClick={() => openLoyalty(u)}
+                                  title="Points de fidélité et historique">🎁 Fidélité</button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -5261,6 +5301,74 @@ export default function AdminPanel() {
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── Modal fidélité client (lecture seule) ── */}
+          {loyaltyModal && (
+            <div className={styles.overlay} onClick={() => setLoyaltyModal(null)}>
+              <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
+                <h3 style={{ margin: "0 0 4px", color: "#0f1b3f", fontSize: "1rem" }}>🎁 Fidélité — {loyaltyModal.firstName} {loyaltyModal.lastName}</h3>
+                <p style={{ margin: "0 0 16px", fontSize: ".78rem", color: "#94a3b8" }}>
+                  Lecture seule — 100 points valent 1 USD de remise. Aucun ajustement manuel : créditer des points revient à créditer de l'argent.
+                </p>
+                {loyaltyLoading ? (
+                  <div style={{ textAlign: "center", padding: "2rem 0", color: "#94a3b8" }}>Chargement…</div>
+                ) : loyaltyData ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: ".85rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                      <span>Solde dépensable</span><strong>{loyaltyData.points} pts</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                      <span>Cumul à vie (base du palier)</span><strong>{loyaltyData.lifetimePoints} pts</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                      <span>Palier</span>
+                      <strong>
+                        {loyaltyData.tier?.label || loyaltyData.tier?.key || "—"}
+                        {/* Le palier recalculé et celui stocké sur le compte doivent
+                            coïncider : un écart est précisément ce qu'un admin vient
+                            chercher ici, il ne doit pas rester invisible. */}
+                        {loyaltyData.storedTier && loyaltyData.tier?.key && loyaltyData.storedTier !== loyaltyData.tier.key && (
+                          <span style={{ color: "#ef4444", marginLeft: 6 }}>⚠️ compte : {loyaltyData.storedTier}</span>
+                        )}
+                      </strong>
+                    </div>
+                    {loyaltyData.nextTier && (
+                      <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                        <span>Prochain palier</span><strong>{loyaltyData.nextTier.label || loyaltyData.nextTier.key} — encore {loyaltyData.pointsToNextTier} pts</strong>
+                      </div>
+                    )}
+                    <div style={{ marginTop: 6 }}>
+                      <div style={{ fontWeight: 700, fontSize: ".8rem", color: "#0f1b3f", marginBottom: 6 }}>
+                        Mouvements ({loyaltyData.total})
+                      </div>
+                      {loyaltyData.transactions?.length ? (
+                        <div style={{ maxHeight: 220, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+                          {loyaltyData.transactions.map((t) => (
+                            <div key={t._id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "7px 12px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: ".78rem" }}>
+                              <span style={{ color: "#64748b" }}>
+                                {new Date(t.createdAt).toLocaleDateString("fr-FR")} · {t.reason}
+                                {t.booking?.reference ? ` (${t.booking.reference})` : ""}
+                              </span>
+                              <strong style={{ color: t.type === "credit" || t.type === "referral" ? "#10b981" : "#ef4444", whiteSpace: "nowrap" }}>
+                                {t.type === "credit" || t.type === "referral" ? "+" : "−"}{t.points} pts
+                              </strong>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p style={{ color: "#94a3b8", fontSize: ".8rem", margin: 0 }}>Aucun mouvement enregistré.</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p style={{ color: "#ef4444", fontSize: ".85rem" }}>Impossible de charger la fidélité de ce compte.</p>
+                )}
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
+                  <button className={styles.btnGhost} onClick={() => setLoyaltyModal(null)}>Fermer</button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -10758,6 +10866,67 @@ export default function AdminPanel() {
       {/* ══════════════════════════════════════════════════
           TAB AUDIT LOGS
       ══════════════════════════════════════════════════ */}
+      {activeTab === "contrats" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>📑 Contrats de réservation</h2>
+            <button className={styles.btnRefresh} onClick={loadContracts}>↻ Actualiser</button>
+          </div>
+
+          {contractsLoading ? (
+            <p style={{ color: "#64748b" }}>Chargement…</p>
+          ) : contracts.length === 0 ? (
+            <p style={{ color: "#64748b" }}>Aucun contrat émis pour l'instant.</p>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>N°</th>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Client</th>
+                    <th>Partenaire</th>
+                    <th>Réservation</th>
+                    <th>Montant</th>
+                    <th>Signature</th>
+                    <th>Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contracts.map((ct) => (
+                    <tr key={ct._id} className={styles.tr}>
+                      <td style={{ fontSize: ".8rem", fontWeight: 700, whiteSpace: "nowrap" }}>{ct.contractNumber || `#${String(ct._id).slice(-6)}`}</td>
+                      <td style={{ fontSize: ".8rem", whiteSpace: "nowrap" }}>{ct.createdAt ? new Date(ct.createdAt).toLocaleDateString("fr-FR") : "—"}</td>
+                      <td style={{ fontSize: ".8rem" }}>{ct.type || "—"}</td>
+                      <td style={{ fontSize: ".8rem" }}>{`${ct.client?.firstName || ""} ${ct.client?.lastName || ""}`.trim() || ct.client?.email || "—"}</td>
+                      <td style={{ fontSize: ".8rem" }}>{ct.vendor?.name || "—"}</td>
+                      <td style={{ fontSize: ".8rem" }}>{ct.booking?.reference || "—"}</td>
+                      {/* Montant affiché dans la devise PROPRE du contrat : les
+                          contrats antérieurs à la refonte du modèle économique
+                          sont en XOF, les suivants en USD (voir Contract.currency).
+                          Les convertir ici afficherait un montant qui ne
+                          correspond plus à la pièce signée. */}
+                      <td style={{ fontSize: ".8rem", whiteSpace: "nowrap" }}>
+                        {ct.terms?.totalXOF != null
+                          ? `${Number(ct.terms.totalXOF).toLocaleString("fr-FR")} ${ct.currency || "USD"}`
+                          : "—"}
+                      </td>
+                      <td style={{ fontSize: ".8rem", whiteSpace: "nowrap" }}>
+                        {ct.isSigned
+                          ? <span style={{ color: "#10b981", fontWeight: 700 }}>✅ {ct.signedAt ? new Date(ct.signedAt).toLocaleDateString("fr-FR") : ""}</span>
+                          : <span style={{ color: "#94a3b8" }}>Non signé</span>}
+                      </td>
+                      <td><span className={styles.badge}>{ct.status || "—"}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {activeTab === "audit" && (
         <div className={styles.tabContent}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>

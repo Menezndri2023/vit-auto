@@ -262,7 +262,11 @@ export const getImportBatch = async (req, res) => {
 // ── Historique des imports du partenaire ─────────────────────────────────────
 export const listImportBatches = async (req, res) => {
   try {
-    const batches = await VehicleImportBatch.find({ owner: req.user._id })
+    // Un administrateur voit les lots de TOUS les partenaires (il n'en importe
+    // aucun lui-même : filtré sur son propre identifiant, cet historique lui
+    // était toujours vide).
+    const filter = req.user.role === "admin" ? {} : { owner: req.user._id };
+    const batches = await VehicleImportBatch.find(filter)
       .select("-pendingRows")
       .sort({ createdAt: -1 })
       .limit(50);
