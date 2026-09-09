@@ -5,7 +5,10 @@
 .hero {
   display: grid;
   grid-template-columns: 46% 54%;
-  grid-template-rows: 1fr auto auto;
+  /* 4 rangées : visuel/contenu, recherche, pays d'origine, statistiques.
+     La rangée des pays n'en avait AUCUNE : elle se plaçait en implicite,
+     donc à un endroit qui dépendait de l'ordre du DOM plutôt que du design. */
+  grid-template-rows: 1fr auto auto auto;
   min-height: calc(100vh - 64px);
   background: #f5f7fa;
   overflow: hidden;
@@ -351,7 +354,7 @@
 /* ─── STATS ROW ─── */
 .statsRow {
   grid-column: 1 / -1;
-  grid-row: 3;
+  grid-row: 4;
   display: flex;
   align-items: stretch;
   background: #fff;
@@ -429,7 +432,8 @@
 @media (max-width: 640px) {
   .hero {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto auto;
+    /* 5 rangées en portrait : visuel, contenu, recherche, pays, statistiques. */
+    grid-template-rows: auto auto auto auto auto;
     min-height: auto;
   }
 
@@ -461,8 +465,9 @@
   .ctas { flex-direction: column; align-items: flex-start; }
   .ctaPrimary, .ctaSecondary { width: 100%; text-align: center; font-size: 0.9rem; padding: 13px 20px; }
 
-  .searchRow { grid-row: 3; padding: 0 16px; }
-  .statsRow  { grid-row: 4; flex-wrap: wrap; }
+  .searchRow  { grid-row: 3; padding: 0 16px; }
+  .originsRow { grid-row: 4; padding: 0 16px; }
+  .statsRow   { grid-row: 5; flex-wrap: wrap; }
   .statItem  { flex: 1 1 45%; padding: 12px 14px; }
 
   .spotName    { font-size: 1rem; }
@@ -494,20 +499,29 @@
    au premier coup d'œil — c'est-à-dire à l'endroit exact où le visiteur décide
    s'il reste. */
 .originsRow {
+  /* Ces styles étaient écrits pour un hero SOMBRE : texte blanc sur pastilles
+     blanches à 10 % d'opacité. Or la bande vit sur `#f5f7fa`, un fond presque
+     blanc — les noms de pays étaient donc quasiment invisibles. Repris en
+     contraste foncé-sur-clair, comme le reste de la page. */
+  grid-column: 1 / -1;
+  grid-row: 3;
+  position: relative;
   display: flex;
   align-items: center;
   gap: .75rem;
+  width: 100%;
   max-width: 1180px;
-  margin: 1.1rem auto 0;
-  padding: 0 1.25rem;
+  margin: .9rem auto .2rem;
+  padding: 0 max(24px, 4vw);
+  background: #f5f7fa;
 }
 
 .originsLabel {
   flex: 0 0 auto;
-  font-size: .8rem;
+  font-size: .82rem;
   font-weight: 800;
-  color: rgba(255, 255, 255, .78);
-  letter-spacing: .02em;
+  color: #0f1b3f;
+  letter-spacing: .01em;
   white-space: nowrap;
 }
 
@@ -516,7 +530,11 @@
   gap: .45rem;
   overflow-x: auto;
   scrollbar-width: none;
-  padding-bottom: 2px;
+  padding: 2px 1.5rem 4px 0;
+  /* Dégradé de fin : sans lui, rien n'indique que la liste continue au-delà
+     du bord — la barre de défilement est masquée, et douze des quinze pays
+     passaient inaperçus. */
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
 }
 .originsScroll::-webkit-scrollbar { display: none; }
 
@@ -525,25 +543,30 @@
   align-items: center;
   gap: .35rem;
   flex: 0 0 auto;
-  padding: .34rem .7rem;
+  padding: .4rem .8rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, .10);
-  border: 1px solid rgba(255, 255, 255, .18);
-  color: #fff;
-  font-size: .78rem;
-  font-weight: 600;
+  background: #fff;
+  border: 1px solid #dbe2ef;
+  color: #1a3a6e;
+  font-size: .8rem;
+  font-weight: 700;
   text-decoration: none;
   white-space: nowrap;
-  transition: background .18s ease, border-color .18s ease;
+  box-shadow: 0 1px 2px rgba(15, 27, 63, .06);
+  transition: background .18s ease, border-color .18s ease, color .18s ease;
 }
 
 .originChip:hover,
 .originChip:focus-visible {
-  background: rgba(255, 255, 255, .2);
-  border-color: rgba(255, 255, 255, .38);
+  background: #eef2ff;
+  border-color: #6366f1;
+  color: #4338ca;
 }
 
 @media (max-width: 700px) {
   .originsRow { flex-direction: column; align-items: flex-start; gap: .45rem; }
   .originsScroll { width: 100%; }
+  /* Cible tactile d'au moins 40 px : ces pastilles sont des liens, pas de la
+     décoration. */
+  .originChip { padding: .5rem .85rem; font-size: .82rem; }
 }
