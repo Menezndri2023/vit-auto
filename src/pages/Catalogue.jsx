@@ -379,22 +379,43 @@ const Catalogue = () => {
     toastSuccess(isImportMode ? t("catalogue.ieRefreshedToast") : t("catalogue.refreshedToast"));
   };
 
+  // Nom en clair du pays d'une annonce — pour que taper "France" retrouve les
+  // annonces françaises, dont le pays n'est stocké qu'en code ISO-2 ("FR").
+  const nomDuPays = useCallback(
+    (code) => (code ? (WORLD_COUNTRIES.find((c) => c.code === code)?.name || code) : ""),
+    []
+  );
+
+  // Une recherche explicite prime sur le pays du catalogue : un visiteur qui
+  // tape "Paris" ou "France" demande CES annonces-là, pas celles de son propre
+  // pays. Sans cette exception, chercher une ville ou un pays étranger ne
+  // renvoyait jamais rien — le filtre pays vidait le résultat en amont.
+  const paysOk = useCallback(
+    (paysAnnonce) =>
+      !!searchTerm.trim()
+      || catalogCountry === COUNTRY_INTERNATIONAL
+      || !paysAnnonce
+      || paysAnnonce === catalogCountry,
+    [searchTerm, catalogCountry, COUNTRY_INTERNATIONAL]
+  );
+
   const chauffeursFiltered = useMemo(() => {
     if (!isChauffeurMode) return [];
     const q = searchTerm.toLowerCase();
     // Un chauffeur sans pays renseigné (créé avant cette fonctionnalité) reste
     // toujours visible, quel que soit le pays sélectionné.
     let list = drivers.filter((d) =>
-      (catalogCountry === COUNTRY_INTERNATIONAL || !d.country || d.country === catalogCountry)
+      paysOk(d.country)
       && (!q
         || `${d.firstName} ${d.lastName}`.toLowerCase().includes(q)
         || (d.zone || d.ville || "").toLowerCase().includes(q)
-        || (d.title || "").toLowerCase().includes(q)));
+        || (d.title || "").toLowerCase().includes(q)
+        || nomDuPays(d.country).toLowerCase().includes(q)));
     if (sortKey === "price_asc")  list = [...list].sort((a,b) => (a.tarifHeure||a.tarif||a.tarifDemiJournee||0) - (b.tarifHeure||b.tarif||b.tarifDemiJournee||0));
     if (sortKey === "price_desc") list = [...list].sort((a,b) => (b.tarifHeure||b.tarif||b.tarifDemiJournee||0) - (a.tarifHeure||a.tarif||a.tarifDemiJournee||0));
     if (sortKey === "newest")     list = [...list].sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
     return list;
-  }, [drivers, isChauffeurMode, searchTerm, sortKey, catalogCountry, COUNTRY_INTERNATIONAL]);
+  }, [drivers, isChauffeurMode, searchTerm, sortKey, paysOk, nomDuPays]);
 
   const activitiesFiltered = useMemo(() => {
     if (!isOthersMode) return [];
@@ -402,17 +423,18 @@ const Catalogue = () => {
     // Une activité sans pays renseigné reste toujours visible, quel que soit
     // le pays sélectionné — même principe que véhicules/chauffeurs.
     let list = activities.filter((a) =>
-      (catalogCountry === COUNTRY_INTERNATIONAL || !a.country || a.country === catalogCountry)
+      paysOk(a.country)
       && (activityTypeFilter === "Tous" || a.activityType === activityTypeFilter)
       && (!q
         || (a.title || "").toLowerCase().includes(q)
         || (a.ville || "").toLowerCase().includes(q)
-        || (ACTIVITY_TYPE_LABELS[a.activityType] || "").toLowerCase().includes(q)));
+        || (ACTIVITY_TYPE_LABELS[a.activityType] || "").toLowerCase().includes(q)
+        || nomDuPays(a.country).toLowerCase().includes(q)));
     if (sortKey === "price_asc")  list = [...list].sort((a, b) => (a.price || 0) - (b.price || 0));
     if (sortKey === "price_desc") list = [...list].sort((a, b) => (b.price || 0) - (a.price || 0));
     if (sortKey === "newest")     list = [...list].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
     return list;
-  }, [activities, isOthersMode, searchTerm, sortKey, catalogCountry, COUNTRY_INTERNATIONAL, activityTypeFilter]);
+  }, [activities, isOthersMode, searchTerm, sortKey, paysOk, nomDuPays, activityTypeFilter]);
 
   const filtered = useMemo(() => {
     if (isImportMode || isChauffeurMode || isOthersMode) return [];
@@ -438,13 +460,15 @@ const Catalogue = () => {
         || v.rentalDurationType === (activeDuree === "Courte" ? "courte" : "longue");
       // Un véhicule sans pays renseigné (créé avant cette fonctionnalité) reste
       // toujours visible, quel que soit le pays sélectionné.
-      const countryOk = catalogCountry === COUNTRY_INTERNATIONAL || !v.country || v.country === catalogCountry;
+      const countryOk = paysOk(v.country);
       const q = searchTerm.toLowerCase();
       const textOk = !q
         || (v.title || v.name || "").toLowerCase().includes(q)
         || (v.description || "").toLowerCase().includes(q)
         || (v.ville || v.city || "").toLowerCase().includes(q)
-        || (v.marque || "").toLowerCase().includes(q);
+        || (v.adresse || "").toLowerCase().includes(q)
+        || (v.marque || "").toLowerCase().includes(q)
+        || nomDuPays(v.country).toLowerCase().includes(q);
       return modeOk && typeOk && etatOk && fuelOk && transOk && priceOk && dureeOk && countryOk && textOk;
     });
 
@@ -462,7 +486,7 @@ const Catalogue = () => {
     if (sortKey === "price_desc") list = [...list].sort((a,b) => (b.pricePerDay||b.priceForSale||0) - (a.pricePerDay||a.priceForSale||0));
     if (sortKey === "newest")     list = [...list].sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
     return list;
-  }, [vehicles, activeMode, activeType, activeEtat, activeDuree, fuelType, transmission, maxPrice, maxSalePrice, searchTerm, sortKey, isImportMode, isChauffeurMode, isOthersMode, catalogCountry, COUNTRY_INTERNATIONAL, nearMeActive, userPos]);
+  }, [vehicles, activeMode, activeType, activeEtat, activeDuree, fuelType, transmission, maxPrice, maxSalePrice, searchTerm, sortKey, isImportMode, isChauffeurMode, isOthersMode, paysOk, nomDuPays, nearMeActive, userPos]);
 
   const isStandardMode = !isImportMode && !isChauffeurMode && !isOthersMode;
 

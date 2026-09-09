@@ -19,7 +19,7 @@ import { validateImageDataUri } from "../utils/imageValidation.js";
 import { ensureImporterProfile } from "../utils/ensureImporterProfile.js";
 import { COUNTRY_CODE_TO_NAME } from "../utils/countries.js";
 import { isIncotermCompatible } from "../constants/incoterms.js";
-import { getActiveRates } from "../services/currencyEngine.js";
+import { getActiveRates, getActiveCountries } from "../services/currencyEngine.js";
 import { uploadBase64Images } from "../config/imagekit.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 
@@ -330,11 +330,22 @@ export const getVehicles = async (req, res) => {
       filter.rentalDurationType = { $in: [dureeLocation, "les_deux"] };
     }
     if (search) {
-      const s = escapeRegex(String(search).slice(0, 100));
+      const raw = String(search).trim().slice(0, 100);
+      const rx  = new RegExp(escapeRegex(raw), "i");
+      // Une recherche porte aussi sur le LIEU, pas seulement sur le véhicule :
+      // un visiteur qui tape "Paris" ou "France" cherche des annonces là-bas.
+      // Le pays est stocké en code ISO-2 ("FR"), jamais en clair — on résout
+      // donc d'abord le nom tapé vers le ou les codes correspondants.
+      const countryCodes = (await getActiveCountries())
+        .filter((c) => rx.test(c.name) || c.code.toLowerCase() === raw.toLowerCase())
+        .map((c) => c.code);
       filter.$or = [
-        { title:  new RegExp(s, "i") },
-        { marque: new RegExp(s, "i") },
-        { modele: new RegExp(s, "i") },
+        { title:  rx },
+        { marque: rx },
+        { modele: rx },
+        { ville:   rx },
+        { adresse: rx },
+        ...(countryCodes.length ? [{ country: { $in: countryCodes } }] : []),
       ];
     }
     if (minPrice || maxPrice) {
@@ -356,14 +367,14 @@ export const getVehicles = async (req, res) => {
     // annonces sans pays renseigné (créées avant cette fonctionnalité) restent
     // toujours visibles, quel que soit le pays demandé — jamais de régression
     // de visibilité pour les annonces existantes.
-    if (country && country !== "INTL") {
-      const countryOr = [{ country: String(country).toUpperCase() }, { country: null }];
-      if (filter.$or) {
-        filter.$and = [{ $or: filter.$or }, { $or: countryOr }];
-        delete filter.$or;
-      } else {
-        filter.$or = countryOr;
-      }
+    //
+    // Une RECHERCHE explicite le désactive : quand un visiteur tape "Paris" ou
+    // "France", il demande CES annonces-là, pas celles de son propre pays.
+    // Sans cette exception, chercher une ville ou un pays étranger ne
+    // renvoyait jamais rien — le filtre pays s'appliquant d'abord, il vidait
+    // le résultat avant même que la recherche ne soit évaluée.
+    if (country && country !== "INTL" && !search) {
+      filter.$or = [{ country: String(country).toUpperCase() }, { country: null }];
     }
 
     const maxLimit  = isAdmin ? 500 : 100;

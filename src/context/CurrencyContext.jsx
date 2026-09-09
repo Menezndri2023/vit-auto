@@ -130,9 +130,17 @@ export function CurrencyProvider({ children }) {
   // explicitement un autre pays de catalogue via le sélecteur.
   useEffect(() => {
     if (catalogManuallySet.current) return;
-    if (user?.country) setCatalogCountryState(user.country);
+    // Un administrateur gère la plateforme ENTIÈRE, pas son seul pays de
+    // résidence : son catalogue s'ouvre donc sur "International" (toutes les
+    // annonces, tous pays). Avant, l'admin héritait du pays de son profil
+    // comme n'importe quel visiteur — un admin déclaré en Côte d'Ivoire ne
+    // voyait tout simplement pas les annonces des autres pays qu'il est censé
+    // superviser, sans rien pour le lui signaler. Le sélecteur reste
+    // disponible pour se restreindre volontairement à un pays.
+    if (user?.role === "admin") setCatalogCountryState(COUNTRY_INTERNATIONAL);
+    else if (user?.country) setCatalogCountryState(user.country);
     else if (detectedCountry) setCatalogCountryState(detectedCountry);
-  }, [user?.country, detectedCountry]);
+  }, [user?.role, user?.country, detectedCountry]);
 
   // Auto-détection pays → devise si aucun choix manuel. Priorité au endpoint
   // serveur (geoip-lite, base locale hors ligne, fiable et sans dépendance
