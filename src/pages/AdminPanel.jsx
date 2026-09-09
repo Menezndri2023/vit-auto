@@ -5317,7 +5317,18 @@ export default function AdminPanel() {
                 ) : loyaltyData ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: ".85rem" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
-                      <span>Solde dépensable</span><strong>{loyaltyData.points} pts</strong>
+                      <span>Solde dépensable</span>
+                      {/* La valeur monétaire est le chiffre utile quand un client
+                          conteste une remise — un solde en points seul ne dit pas
+                          ce qu'il vaut. `pointsValueUSD` est calculé par le
+                          serveur au taux officiel ; fmtUSD l'affiche dans la
+                          devise active. */}
+                      <strong>
+                        {loyaltyData.points} pts
+                        <span style={{ color: "#64748b", fontWeight: 500 }}>
+                          {" "}≈ {fmtUSD(loyaltyData.pointsValueUSD ?? 0)} de remise
+                        </span>
+                      </strong>
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
                       <span>Cumul à vie (base du palier)</span><strong>{loyaltyData.lifetimePoints} pts</strong>

@@ -2,6 +2,7 @@ import { useParams, useNavigate, useSearchParams, useLocation, Link } from "reac
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import { useAuth }     from "../context/AuthContext";
+import { maxRedeemablePoints, pointsToUSD } from "../constants/loyalty";
 import { useCurrency } from "../context/CurrencyContext";
 import { useToast }    from "../context/ToastContext";
 import { haversineKm, geocodeAddress, getCurrentPosition, reverseGeocode } from "../utils/geo";
@@ -397,11 +398,15 @@ export default function Booking() {
     ? (financingTerms?.apportInitial || 0)
     : computeSeasonalLocationTotal(vehicle, form.startDate, Math.max(days, 1));
   // Fidélité — aperçu client uniquement (voir bookingController.createBooking
-  // pour le plafond/débit réels et autoritaires côté serveur, même règle
-  // reproduite ici : 100 points = 1 USD, max 20% de baseTotal).
-  const maxPointsUsable = Math.max(0, Math.min(user?.loyaltyPoints || 0, Math.floor(baseTotal * 0.2 * 100)));
+  // pour le plafond/débit réels et autoritaires côté serveur). Le taux et le
+  // plafond viennent désormais d'une constante partagée plutôt que d'être
+  // réécrits ici : un aperçu calculé avec un taux différent de celui du
+  // serveur annoncerait au client une remise qu'il n'obtiendrait pas.
+  // `loyaltyDiscountPreview` est en USD ; l'affichage passe par fmt() qui le
+  // convertit dans la devise du client.
+  const maxPointsUsable = maxRedeemablePoints(user?.loyaltyPoints, baseTotal);
   const pointsToApply   = applyPoints ? maxPointsUsable : 0;
-  const loyaltyDiscountPreview = pointsToApply / 100;
+  const loyaltyDiscountPreview = pointsToUSD(pointsToApply);
   const totalToPay   = isTrial ? SERVICE_FEE
     : isLeasing ? baseTotal + SERVICE_FEE
     : Math.max(baseTotal + optionsTotal + deliveryFee + SERVICE_FEE - loyaltyDiscountPreview, 0);
@@ -1253,6 +1258,14 @@ export default function Booking() {
                   <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
                     <input type="checkbox" checked={applyPoints} onChange={(e) => setApplyPoints(e.target.checked)} />
                     {t("booking.useLoyaltyPoints", { n: user.loyaltyPoints })}
+                    {/* Ce que les points valent RÉELLEMENT ici : le solde peut
+                        dépasser le plafond de 20% du montant de base, auquel cas
+                        seule une partie est utilisable — annoncer la valeur du
+                        solde entier promettrait une remise plus grosse que celle
+                        appliquée. */}
+                    <span style={{ color: "#64748b", fontSize: ".8rem" }}>
+                      (≈ {fmt(pointsToUSD(maxPointsUsable))})
+                    </span>
                   </label>
                   {applyPoints && <strong style={{ color: "#059669" }}>-{fmt(loyaltyDiscountPreview)}</strong>}
                 </div>

@@ -18,6 +18,14 @@ import { EU_ORIGINS } from "../constants/importOrigins.js";
 //
 // Ne crée que les pays ABSENTS : un barème déjà ajusté par l'admin n'est
 // jamais réécrit.
+//
+// PAYS NON AMORCÉS, faute de source fiable au 2026-09 : Mali, Bénin, Togo,
+// Guinée, Ghana, Nigeria. Le tarif extérieur commun CEDEAO situe les voitures
+// de tourisme entre 5 et 20 %, mais chaque État y ajoute ses propres
+// prélèvements — l'écart entre deux pays voisins dépasse dix points. Les
+// renseigner « au TEC » produirait un devis faux avec l'apparence de la
+// précision. Ils restent donc non configurés : le moteur refuse de chiffrer,
+// et l'annonce affiche un tiret.
 
 const BAREMES = [
   {
@@ -49,6 +57,31 @@ const BAREMES = [
     maxVehicleAgeYears: 5,
     preferentialDuty: [],
     source: "transports.gouv.ci / voitures.ci — droits véhicules particuliers et limite d'âge (2026)",
+  },
+  {
+    country: "Sénégal",
+    // douanes.sn — tableau officiel des taux cumulés, vérifié 2026-09.
+    // Véhicule de TOURISME USAGÉ (SH 87 03) par voie maritime :
+    //   droits (DD + RS + PCS + PCC + COSEC) .... 22,900 % du CIF
+    //   TVA ..................................... 21,780 % du CIF
+    //   droit d'enregistrement .................. 4,283 % du CIF
+    //                                             ─────────────────
+    //                                             48,963 % du CIF
+    // La douane publie ici des taux DÉJÀ rapportés au CIF : les 21,780 % ne
+    // sont pas 18 % appliqués à une base élargie, c'est le résultat final.
+    // Les recalculer en les empilant donnerait un autre chiffre que celui de
+    // l'administration — d'où `rateBasis: "effective_cif"`.
+    rateBasis: "effective_cif",
+    customsDutyPercent:  22.9,
+    vatPercent:          21.78,
+    registrationPercent: 4.283,
+    parafiscalPercent:   0,
+    // Aucune limite d'âge officielle trouvée à une source fiable : on ne
+    // déclare donc AUCUNE interdiction plutôt que d'en inventer une, qui
+    // bloquerait à tort des ventes légitimes.
+    maxVehicleAgeYears: null,
+    preferentialDuty: [],
+    source: "douanes.sn — tableau des taux cumulés, véhicules de tourisme usagés voie maritime (2026)",
   },
 ];
 

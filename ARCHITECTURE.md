@@ -500,7 +500,23 @@ Users ────────────────────────�
   └─── Wallets ──── WalletTransactions ─────────────────────┘
 ```
 
-### 5.2 Liste des 96 collections
+### 5.2 Liste des 96 collections — MODÈLE CIBLE, pas un inventaire
+
+> ⚠️ **Cette liste décrit la base de données visée, pas celle qui tourne.**
+> Elle a été écrite comme plan de conception et n'a jamais été un état des
+> lieux : une bonne partie de ces collections n'a aucun schéma Mongoose
+> (`driver_assignments`, `vehicle_inspections`, `support_messages`,
+> `webhook_logs`…), et trois schémas existants ne sont référencés par aucun
+> contrôleur ni aucune route — `wallets`, `wallet_transactions` et
+> `support_tickets`, dont les collections sont d'ailleurs absentes de la base
+> de production (voir aussi la feuille de route § 10, où « Portefeuille
+> partenaire » et « Support Tickets » figurent en chantiers non faits).
+>
+> **L'inventaire réel, lui, c'est `server/models/` — 51 schémas à ce jour.**
+> Une collection listée ici sans modèle correspondant est une intention, pas
+> une capacité : ne jamais s'y fier pour conclure qu'une donnée est stockée,
+> exposée à l'administration, ou disponible pour un développement.
+
 
 #### A — Identity & Access Management
 | # | Collection | Clés principales | Relations |

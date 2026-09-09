@@ -1,7 +1,7 @@
 import logger from "../utils/logger.js";
 import User from "../models/User.js";
 import LoyaltyTransaction from "../models/LoyaltyTransaction.js";
-import { LOYALTY_TIERS, resolveTier, resolveNextTier } from "../constants/loyaltyTiers.js";
+import { LOYALTY_TIERS, POINTS_PER_USD, pointsToUSD, resolveTier, resolveNextTier } from "../constants/loyaltyTiers.js";
 
 // ── Mon statut fidélité (solde, palier, progression) ──────────────────────
 export const getMyLoyaltyStatus = async (req, res) => {
@@ -17,6 +17,13 @@ export const getMyLoyaltyStatus = async (req, res) => {
     res.json({
       points:         user.loyaltyPoints,
       lifetimePoints: user.loyaltyLifetimePoints,
+      // Ce que le solde vaut réellement, en USD (pivot de toute la
+      // tarification) : l'interface le convertit ensuite dans la devise du
+      // client. Renvoyer le taux évite au front de le réécrire en dur — le
+      // client verrait sinon une valeur qui cesserait de correspondre à la
+      // remise réellement appliquée le jour où le taux change.
+      pointsValueUSD: pointsToUSD(user.loyaltyPoints),
+      pointsPerUSD:   POINTS_PER_USD,
       tier,
       nextTier,
       pointsToNextTier,
@@ -97,6 +104,8 @@ export const getUserLoyaltyAdmin = async (req, res) => {
       },
       points:         user.loyaltyPoints || 0,
       lifetimePoints: user.loyaltyLifetimePoints || 0,
+      pointsValueUSD: pointsToUSD(user.loyaltyPoints),
+      pointsPerUSD:   POINTS_PER_USD,
       tier,
       storedTier:     user.loyaltyTier || null,
       nextTier,
@@ -114,5 +123,5 @@ export const getUserLoyaltyAdmin = async (req, res) => {
 
 // ── Grille des paliers (public — page marketing) ───────────────────────────
 export const getLoyaltyTiers = (req, res) => {
-  res.json({ tiers: LOYALTY_TIERS });
+  res.json({ tiers: LOYALTY_TIERS, pointsPerUSD: POINTS_PER_USD });
 };

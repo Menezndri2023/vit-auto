@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useCurrency } from "../context/CurrencyContext";
+import { pointsToUSD } from "../constants/loyalty";
 import LoyaltyTierBadge from "../components/LoyaltyTierBadge/LoyaltyTierBadge";
 import styles from "./Loyalty.module.css";
 
@@ -28,6 +30,7 @@ const TYPE_STYLE = {
 export default function Loyalty() {
   const { isAuthenticated, authFetch, user } = useAuth();
   const { success: toastSuccess } = useToast();
+  const { fmtUSD } = useCurrency();
   const [status,  setStatus]  = useState(null);
   const [tiers,   setTiers]   = useState([]);
   const [history, setHistory] = useState([]);
@@ -84,7 +87,13 @@ export default function Loyalty() {
           <div className={styles.balances}>
             <div>
               <strong>{status?.points ?? 0}</strong>
-              <span>points disponibles (≈ {((status?.points ?? 0) / 100).toFixed(2)} $ de remise)</span>
+              {/* La valeur du solde était affichée en dollars, symbole en dur :
+                  un client ivoirien lisait « ≈ 3.00 $ » pour une remise qu'il
+                  paiera en francs CFA. On convertit dans SA devise (fmtUSD
+                  applique le taux du jour), comme partout ailleurs sur le site.
+                  `pointsValueUSD` vient du serveur — le taux de conversion des
+                  points n'est plus réécrit ici. */}
+              <span>points disponibles (≈ {fmtUSD(status?.pointsValueUSD ?? pointsToUSD(status?.points))} de remise sur votre prochaine réservation)</span>
             </div>
             <div>
               <strong>{status?.lifetimePoints ?? 0}</strong>

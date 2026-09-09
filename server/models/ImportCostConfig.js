@@ -18,6 +18,26 @@ const importCostConfigSchema = new mongoose.Schema({
   customsDutyPercent: { type: Number, default: 20 },   // % appliqué sur la base CIF (prix + fret + assurance)
   vatPercent:         { type: Number, default: 18 },   // % appliqué sur (CIF + droits + parafiscale)
 
+  // ── Mode de calcul des taux ───────────────────────────────────────────────
+  // Deux pays, deux façons de publier leur fiscalité — et confondre les deux
+  // donne un devis faux de plusieurs points.
+  //
+  // "nested" (défaut, cas marocain) : la TVA porte sur CIF + droits +
+  //   parafiscale. Les taux s'empilent.
+  //
+  // "effective_cif" (cas sénégalais) : la douane publie des taux CUMULÉS déjà
+  //   rapportés au CIF. Pour un véhicule de tourisme usagé par voie maritime,
+  //   elle annonce 22,900 % de droits, 21,780 % de TVA et 4,283 % de droit
+  //   d'enregistrement — soit 48,963 % du CIF. Ces 21,780 % NE SONT PAS 18 %
+  //   appliqués à une base élargie : c'est le résultat final, publié tel quel.
+  //   Les recalculer en les empilant donnerait un autre chiffre que celui de
+  //   l'administration.
+  rateBasis: { type: String, enum: ["nested", "effective_cif"], default: "nested" },
+
+  // Droit d'enregistrement — existe au Sénégal (4,283 % du CIF), absent au
+  // Maroc. 0 par défaut : sans effet sur les barèmes qui ne le déclarent pas.
+  registrationPercent: { type: Number, default: 0 },
+
   // ── Taxe parafiscale à l'importation ──────────────────────────────────────
   // POURCENTAGE de la valeur CIF, distinct des redevances fixes plus bas. Le
   // barème ne savait exprimer que des montants fixes : impossible d'y traduire

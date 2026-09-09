@@ -107,15 +107,29 @@ export async function computeImportCost({ vehiclePrice, currency, sourceCountry,
   const effectiveDutyPercent = baseDutyPercent + (ageSurchargeApplies ? config.ageSurchargePercent : 0);
 
   // CIF = Cost + Insurance + Freight, base standard des droits de douane.
-  const cifBaseUSD      = vehiclePriceUSD + seaFreightUSD + insuranceUSD;
-  const customsDutyUSD  = cifBaseUSD * (effectiveDutyPercent / 100);
-  // Taxe parafiscale : pourcentage du CIF, et elle entre DANS l'assiette de la
-  // TVA — au Maroc, l'assiette est CIF + droits + parafiscale, pas CIF +
-  // droits. L'omettre sous-évaluait la TVA. 0 % par défaut : sans effet sur les
-  // barèmes qui ne la déclarent pas.
-  const parafiscalUSD   = cifBaseUSD * ((config.parafiscalPercent || 0) / 100);
-  const vatUSD          = (cifBaseUSD + customsDutyUSD + parafiscalUSD) * (config.vatPercent / 100);
-  const customsTotalUSD = customsDutyUSD + parafiscalUSD + vatUSD
+  const cifBaseUSD = vehiclePriceUSD + seaFreightUSD + insuranceUSD;
+
+  // Deux façons de publier une fiscalité douanière, et les confondre fausse le
+  // devis de plusieurs points — voir ImportCostConfig.rateBasis.
+  const tauxDirects = config.rateBasis === "effective_cif";
+
+  const customsDutyUSD = cifBaseUSD * (effectiveDutyPercent / 100);
+
+  // Taxe parafiscale : pourcentage du CIF. En mode empilé, elle entre DANS
+  // l'assiette de la TVA — au Maroc, l'assiette est CIF + droits +
+  // parafiscale, pas CIF + droits ; l'omettre sous-évaluait la TVA elle-même.
+  const parafiscalUSD = cifBaseUSD * ((config.parafiscalPercent || 0) / 100);
+
+  // En taux directs, la TVA publiée est déjà rapportée au CIF : la recalculer
+  // en l'empilant donnerait un autre chiffre que celui de l'administration.
+  const vatUSD = tauxDirects
+    ? cifBaseUSD * (config.vatPercent / 100)
+    : (cifBaseUSD + customsDutyUSD + parafiscalUSD) * (config.vatPercent / 100);
+
+  // Droit d'enregistrement — existe au Sénégal, absent au Maroc.
+  const registrationUSD = cifBaseUSD * ((config.registrationPercent || 0) / 100);
+
+  const customsTotalUSD = customsDutyUSD + parafiscalUSD + vatUSD + registrationUSD
                         + config.transitFixedFeeUSD + config.redevancesFixedFeeUSD;
 
   const deliveryUSD   = config.deliveryFixedFeeUSD;
@@ -175,7 +189,8 @@ export async function computeImportCost({ vehiclePrice, currency, sourceCountry,
       // poste le plus lourd et le plus opaque de l'opération, celui qu'un
       // acheteur veut précisément décomposer avant de s'engager.
       customsDuty: toCcy(customsDutyUSD),
-      parafiscal:  toCcy(parafiscalUSD),
+      parafiscal:   toCcy(parafiscalUSD),
+      registration: toCcy(registrationUSD),
       vat:         toCcy(vatUSD),
       transit:     toCcy(config.transitFixedFeeUSD + config.redevancesFixedFeeUSD),
     },
@@ -191,7 +206,9 @@ export async function computeImportCost({ vehiclePrice, currency, sourceCountry,
     importAllowed: true,
     rates: {
       customsDutyPercent: effectiveDutyPercent,
-      parafiscalPercent:  config.parafiscalPercent || 0,
+      parafiscalPercent:   config.parafiscalPercent || 0,
+      registrationPercent: config.registrationPercent || 0,
+      rateBasis:           config.rateBasis || "nested",
       vatPercent:         config.vatPercent,
       insurancePercent:   config.insurancePercent,
       // Nommer l'accord appliqué : un acheteur qui voit 2,5 % au lieu de 17,5 %

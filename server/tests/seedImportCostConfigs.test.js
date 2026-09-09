@@ -25,17 +25,17 @@ describe("Amorçage des barèmes d'importation", () => {
 
   it("crée les barèmes vérifiés, et eux seuls", async () => {
     const r = await seedImportCostConfigs();
-    expect(r.created).toBe(2);
+    expect(r.created).toBe(3);
 
     const pays = (await ImportCostConfig.find({}).lean()).map((c) => c.country).sort();
-    expect(pays).toEqual(["Côte d'Ivoire", "Maroc"]);
+    expect(pays).toEqual(["Côte d'Ivoire", "Maroc", "Sénégal"]);
   });
 
   it("n'invente AUCUN barème pour les pays non vérifiés", async () => {
     await seedImportCostConfigs();
     // Ces marchés sont desservis, mais leurs taux n'ont pas été vérifiés à la
     // source : le moteur doit refuser de chiffrer plutôt que de deviner.
-    for (const pays of ["Sénégal", "Mali", "Bénin", "Togo", "Ghana", "Nigeria", "Guinée"]) {
+    for (const pays of ["Mali", "Bénin", "Togo", "Ghana", "Nigeria", "Guinée"]) {
       const r = await computeImportCost({
         vehiclePrice: 10000, currency: "USD", sourceCountry: "Chine",
         destCountry: pays, vehicleYear: ANNEE,
@@ -67,13 +67,41 @@ describe("Amorçage des barèmes d'importation", () => {
     expect(ci.source).toBeTruthy();
   });
 
+  it("le barème sénégalais reproduit le cumul officiel de 48,963 % du CIF", async () => {
+    // La douane sénégalaise publie des taux DÉJÀ rapportés au CIF. Les
+    // recalculer en les empilant, comme au Maroc, donnerait un autre chiffre
+    // que celui de l'administration — d'où le mode « effective_cif ».
+    await seedImportCostConfigs();
+    const r = await computeImportCost({
+      vehiclePrice: 10000, currency: "USD", sourceCountry: "Chine",
+      destCountry: "Sénégal", vehicleYear: ANNEE,
+    });
+
+    expect(r.available).toBe(true);
+    expect(r.rates.rateBasis).toBe("effective_cif");
+
+    // Le barème sénégalais ne neutralise ni le fret ni l'assurance : on
+    // vérifie donc les TAUX et leur rapport au CIF réel, jamais des montants
+    // absolus qui dépendraient des frais annexes par défaut.
+    expect(r.rates.customsDutyPercent).toBe(22.9);
+    expect(r.rates.vatPercent).toBe(21.78);
+    expect(r.rates.registrationPercent).toBe(4.283);
+    expect(22.9 + 21.78 + 4.283, "cumul publié par douanes.sn").toBeCloseTo(48.963, 3);
+
+    // Chaque poste est bien un pourcentage DIRECT du CIF, non empilé.
+    const cifReel = r.breakdown.vehiclePrice + r.breakdown.seaFreight + r.breakdown.insurance;
+    expect(r.breakdown.customsDuty / cifReel).toBeCloseTo(0.229, 4);
+    expect(r.breakdown.vat / cifReel).toBeCloseTo(0.2178, 4);
+    expect(r.breakdown.registration / cifReel).toBeCloseTo(0.04283, 4);
+  });
+
   it("ne réécrit JAMAIS un barème ajusté par l'admin", async () => {
     await seedImportCostConfigs();
     await ImportCostConfig.updateOne({ country: "Maroc" }, { $set: { customsDutyPercent: 12 } });
 
     const r = await seedImportCostConfigs();
     expect(r.created).toBe(0);
-    expect(r.skipped).toBe(2);
+    expect(r.skipped).toBe(3);
 
     const maroc = await ImportCostConfig.findOne({ country: "Maroc" }).lean();
     expect(maroc.customsDutyPercent, "l'ajustement de l'admin doit survivre").toBe(12);
@@ -89,13 +117,13 @@ describe("Amorçage des barèmes d'importation", () => {
     const dansDeuxAns = new Date();
     dansDeuxAns.setFullYear(dansDeuxAns.getFullYear() + 2);
     const perimes = await stalledImportCostConfigs(dansDeuxAns);
-    expect(perimes).toHaveLength(2);
+    expect(perimes).toHaveLength(3);
     expect(perimes[0].country).toBeTruthy();
   });
 
   it("un barème jamais daté est signalé d'emblée", async () => {
-    await ImportCostConfig.create({ country: "Sénégal", active: true });
+    await ImportCostConfig.create({ country: "Mali", active: true });
     const perimes = await stalledImportCostConfigs();
-    expect(perimes.map((c) => c.country)).toContain("Sénégal");
+    expect(perimes.map((c) => c.country)).toContain("Mali");
   });
 });
