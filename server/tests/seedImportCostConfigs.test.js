@@ -57,14 +57,32 @@ describe("Amorçage des barèmes d'importation", () => {
     expect(maroc.source, "un taux sans source ne peut pas être revérifié").toBeTruthy();
   });
 
-  it("le barème ivoirien porte la TVA à 18 % et la limite de 5 ans", async () => {
+  it("le barème ivoirien reproduit le cumul de 46,438 % du CAF", async () => {
+    // Décomposition officielle : droit de douane 20 % (TEC, voitures
+    // particulières), redevance statistique 1 %, prélèvement communautaire
+    // CEDEAO 0,5 %, taxe additionnelle 2,6 % — soit 24,1 % de prélèvements —
+    // puis TVA 18 % sur CAF + prélèvements.
     await seedImportCostConfigs();
     const ci = await ImportCostConfig.findOne({ country: "Côte d'Ivoire" }).lean();
 
-    expect(ci.vatPercent).toBe(18);
     expect(ci.customsDutyPercent).toBe(20);
+    expect(ci.parafiscalPercent, "RS 1 % + PC 0,5 % + taxe additionnelle 2,6 %").toBe(4.1);
+    expect(ci.vatPercent).toBe(18);
     expect(ci.maxVehicleAgeYears).toBe(5);
+    expect(ci.rateBasis ?? "nested", "les taux ivoiriens s'empilent, ils ne sont pas directs").toBe("nested");
     expect(ci.source).toBeTruthy();
+
+    const r = await computeImportCost({
+      vehiclePrice: 10000, currency: "USD", sourceCountry: "Chine",
+      destCountry: "Côte d'Ivoire", vehicleYear: ANNEE,
+    });
+    expect(r.available).toBe(true);
+
+    const caf = r.breakdown.vehiclePrice + r.breakdown.seaFreight + r.breakdown.insurance;
+    const preleve = r.breakdown.customsDuty + r.breakdown.parafiscal;
+    expect(preleve / caf, "24,1 % de prélèvements avant TVA").toBeCloseTo(0.241, 4);
+    expect(r.breakdown.vat / caf, "TVA effective de 22,338 % du CAF").toBeCloseTo(0.22338, 4);
+    expect((preleve + r.breakdown.vat) / caf, "cumul de 46,438 %").toBeCloseTo(0.46438, 4);
   });
 
   it("le barème sénégalais reproduit le cumul officiel de 48,963 % du CIF", async () => {

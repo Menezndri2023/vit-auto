@@ -45,18 +45,31 @@ const BAREMES = [
   },
   {
     country: "Côte d'Ivoire",
-    // Ministère des Transports / voitures.ci — vérifié 2026-09.
-    // Voitures particulières : droits de 20 à 30 % ; 20 % retenu comme borne
-    // basse, à ajuster par l'admin selon la catégorie réelle. TVA 18 % sur la
-    // valeur CAF augmentée des droits. Limite d'âge : 5 ans depuis la PREMIÈRE
-    // IMMATRICULATION à l'étranger — et non l'année du modèle, nuance que le
-    // moteur ne sait pas encore distinguer (voir plus bas).
+    // douanes.ci (TEC CEDEAO) / transports.gouv.ci / automag.ci — vérifié 2026-09.
+    // Décomposition, tous les taux rapportés à la valeur CAF :
+    //   droit de douane (TEC, voitures particulières) ... 20,0 %
+    //   redevance statistique .......................... 1,0 %
+    //   prélèvement communautaire CEDEAO ............... 0,5 %
+    //   taxe additionnelle ............................. 2,6 %
+    //                                                    ────────
+    //   prélèvements avant TVA ......................... 24,1 %
+    //   TVA 18 % sur CAF + prélèvements (124,1) ........ 22,338 %
+    //                                                    ────────
+    //   CUMUL .......................................... 46,438 % du CAF
+    //
+    // `parafiscalPercent` agrège ici redevance statistique, prélèvement CEDEAO
+    // et taxe additionnelle : trois prélèvements assis sur le CAF et compris
+    // dans l'assiette de la TVA — exactement le rôle de ce champ.
+    //
+    // Le TEC va de 20 à 30 % selon la catégorie : 20 % correspond aux voitures
+    // particulières. Un utilitaire ou un véhicule de forte cylindrée relève
+    // d'un taux supérieur, à ajuster par l'admin.
     customsDutyPercent: 20,
-    parafiscalPercent:  0,
+    parafiscalPercent:  4.1,
     vatPercent:         18,
     maxVehicleAgeYears: 5,
     preferentialDuty: [],
-    source: "transports.gouv.ci / voitures.ci — droits véhicules particuliers et limite d'âge (2026)",
+    source: "douanes.ci (TEC CEDEAO) + transports.gouv.ci — droits, RS 1 %, PC 0,5 %, taxe additionnelle 2,6 %, TVA 18 %, limite 5 ans (2026)",
   },
   {
     country: "Sénégal",

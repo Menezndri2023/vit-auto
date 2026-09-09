@@ -12,6 +12,7 @@ import { COUNTRY_CODE_TO_NAME } from "../utils/countries.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
 import { isIncotermCompatible } from "../constants/incoterms.js";
+import { validateListingForPublication } from "../services/ieListingValidation.js";
 import { resolveDefaultPartnerBusinessId } from "../utils/ensureDefaultPartnerBusiness.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 import { isMalformedObjectId } from "../utils/objectId.js";
@@ -599,17 +600,21 @@ export const createListing = async (req, res) => {
       acceptedPaymentMethods, incoterm, incotermPricing,
     } = req.body;
 
-    if (!title || !make || !model || !year || !sourceCountry || !price) {
-      return res.status(400).json({ message: "Champs obligatoires manquants." });
-    }
-    if (incoterm && !isIncotermCompatible(incoterm, shippingType)) {
-      return res.status(400).json({ message: "Cet Incoterm est réservé au transport maritime — choisissez FAS, FOB, CFR ou CIF uniquement avec un type de transport maritime." });
-    }
-    // Sans pays de destination, l'annonce n'est trouvable par aucun client
-    // (filtre pays du catalogue — voir getListings) : le partenaire doit en
-    // déclarer au moins un.
-    if (!Array.isArray(availableIn) || availableIn.length === 0) {
-      return res.status(400).json({ message: "Indiquez au moins un pays de destination (livraison disponible vers)." });
+    // Contrôle complet avant publication. La validation se résumait à
+    // « Champs obligatoires manquants » — sans dire lesquels : le partenaire
+    // corrigeait au hasard, ou renonçait. Elle distingue désormais ce qui
+    // BLOQUE de ce qui mérite un AVERTISSEMENT, ce dernier étant le plus utile :
+    // une annonce dont le véhicule dépasse la limite d'âge d'un pays de
+    // destination est parfaitement valide, mais le véhicule y serait refusé au
+    // port. Le partenaire doit le savoir avant de publier, pas le découvrir
+    // après le paiement de l'acheteur.
+    const controle = await validateListingForPublication(req.body);
+    if (!controle.valid) {
+      return res.status(400).json({
+        message: controle.errors[0].message,
+        errors: controle.errors,
+        warnings: controle.warnings,
+      });
     }
 
     const imagesError = validateListingImages([...(photos || []), mainPhoto].filter(Boolean));
@@ -657,7 +662,16 @@ export const createListing = async (req, res) => {
       "/admin",
     ).catch((e) => logger.error("notifyAdmins createListing (non bloquant) :", e.message));
 
-    res.status(201).json({ message: "Annonce soumise pour validation.", listing });
+    // Les avertissements accompagnent la réussite : l'annonce est bien créée,
+    // mais le partenaire apprend tout de suite ce qui la desservira — véhicule
+    // refusé au port dans l'un des pays visés, absence d'Incoterm, trop peu de
+    // photos. Le lui dire après coup, c'est le lui laisser découvrir par
+    // l'absence d'acheteurs.
+    res.status(201).json({
+      message: "Annonce soumise pour validation.",
+      listing,
+      warnings: controle.warnings,
+    });
   } catch (err) {
     logger.error("createListing:", err);
     res.status(500).json({ message: "Erreur serveur." });

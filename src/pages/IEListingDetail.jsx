@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useCurrency } from "../context/CurrencyContext";
@@ -186,26 +186,62 @@ const COST_LINE_LABELS = {
   delivery: "Livraison finale", commission: "Frais de service VIT AUTO",
 };
 function ImportCostCalculator({ listingId, availableIn }) {
-  const { fmtFromCurrency } = useCurrency();
-  const [destCountry, setDestCountry] = useState(availableIn?.[0] || "");
+  const { fmtFromCurrency, catalogCountry, COUNTRIES_CONFIG } = useCurrency();
+
+  // Le coût d'importation s'affiche pour LE PAYS DU VISITEUR, pas pour le
+  // premier de la liste du vendeur. Un acheteur à Abidjan qui voit un coût
+  // calculé pour le Maroc n'a aucune raison de s'en méfier — et le chiffre lui
+  // est pourtant inutile. La détection vient du profil ou de l'adresse IP
+  // (CurrencyContext), avec repli sur la première destination proposée.
+  const paysVisiteur = useMemo(() => {
+    if (!availableIn?.length) return "";
+    const nom = COUNTRIES_CONFIG?.find((c) => c.code === catalogCountry)?.name;
+    const correspond = nom && availableIn.find(
+      (d) => d.localeCompare(nom, "fr", { sensitivity: "base" }) === 0
+    );
+    return correspond || availableIn[0] || "";
+  }, [availableIn, catalogCountry, COUNTRIES_CONFIG]);
+
+  const [destCountry, setDestCountry] = useState(paysVisiteur);
   const [destCity, setDestCity]       = useState("");
   const [result, setResult]           = useState(null);
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState(null);
+  // Distingue « pas encore calculé » de « barème absent » : sans cette nuance,
+  // l'écran ne saurait pas s'il doit afficher un tiret ou rien du tout.
+  const [nonConfigure, setNonConfigure] = useState(false);
 
-  const compute = async () => {
-    if (!destCountry) return;
-    setLoading(true); setError(null); setResult(null);
+  const compute = useCallback(async (pays = destCountry, ville = destCity) => {
+    if (!pays) return;
+    setLoading(true); setError(null); setResult(null); setNonConfigure(false);
     try {
-      const params = new URLSearchParams({ destCountry });
-      if (destCity) params.set("destCity", destCity);
+      const params = new URLSearchParams({ destCountry: pays });
+      if (ville) params.set("destCity", ville);
       const res = await fetch(`/api/import-cost/listings/${listingId}/estimate?${params}`);
       const d = await res.json();
-      if (!res.ok || !d.available) { setError(d.message || "Estimation indisponible pour cette destination."); return; }
+      if (!res.ok || !d.available) {
+        // Le barème du pays n'est pas renseigné, ou l'import y est interdit
+        // (limite d'âge). Dans les deux cas on n'invente aucun montant : la
+        // fiche affiche un tiret et la raison, jamais un chiffre approché.
+        setNonConfigure(true);
+        setError(d?.message || "Estimation indisponible pour cette destination.");
+        return;
+      }
       setResult(d);
     } catch { setError("Erreur réseau."); }
     finally { setLoading(false); }
-  };
+  }, [listingId, destCountry, destCity]);
+
+  // Calcul immédiat pour le pays du visiteur : le coût rendu est LA question
+  // qu'il se pose, la lui faire demander d'un clic revient à la lui cacher.
+  useEffect(() => {
+    if (!paysVisiteur) return;
+    setDestCountry(paysVisiteur);
+    compute(paysVisiteur, "");
+    // `compute` change à chaque frappe dans la ville : on ne relance qu'au
+    // changement de pays détecté.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paysVisiteur, listingId]);
 
   if (!availableIn?.length) return null;
 
@@ -222,13 +258,39 @@ function ImportCostCalculator({ listingId, availableIn }) {
         </select>
         <input value={destCity} onChange={(e) => setDestCity(e.target.value)} placeholder="Ville d'arrivée (optionnel)"
           style={{ flex: "1 1 160px", padding: "9px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
-        <button onClick={compute} disabled={loading || !destCountry}
+        <button onClick={() => compute()} disabled={loading || !destCountry}
           style={{ padding: "9px 18px", background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer" }}>
           {loading ? "Calcul…" : "Calculer"}
         </button>
       </div>
 
-      {error && <p style={{ color: "#dc2626", fontSize: ".85rem" }}>❌ {error}</p>}
+      {/* Barème absent ou import interdit : on affiche la GRILLE avec des
+          tirets plutôt qu'un message d'erreur rouge. Un tiret dit « pas encore
+          disponible » ; une erreur rouge dit « quelque chose est cassé », et
+          fait fuir un acheteur qui n'y est pour rien. Aucun montant approché
+          n'est jamais présenté — c'est sur ce chiffre qu'on engage plusieurs
+          millions de francs. */}
+      {nonConfigure && !loading && (
+        <div style={{ background: "#f8fafc", borderRadius: 10, padding: "14px 16px", border: "1.5px dashed #cbd5e1" }}>
+          {Object.keys(COST_LINE_LABELS).map((key) => (
+            <div key={key} style={{ display: "flex", justifyContent: "space-between", fontSize: ".85rem", padding: "5px 0", borderBottom: "1px solid #eef1f8" }}>
+              <span style={{ color: "#94a3b8" }}>{COST_LINE_LABELS[key]}</span>
+              <strong style={{ color: "#94a3b8" }}>—</strong>
+            </div>
+          ))}
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "1rem", fontWeight: 900, paddingTop: 10, marginTop: 4, color: "#64748b" }}>
+            <span>Total à payer</span>
+            <span>En cours</span>
+          </div>
+          <p style={{ fontSize: ".78rem", color: "#64748b", margin: "10px 0 0", lineHeight: 1.5 }}>
+            {error}
+          </p>
+        </div>
+      )}
+
+      {!nonConfigure && error && (
+        <p style={{ color: "#dc2626", fontSize: ".85rem" }}>❌ {error}</p>
+      )}
 
       {result && (
         <div style={{ background: "#f8fafc", borderRadius: 10, padding: "14px 16px", border: "1.5px solid #e2e8f0" }}>
