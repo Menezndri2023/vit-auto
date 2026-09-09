@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { getPublicStats } from "../controllers/vehicleController.js";
+import { getPublicStats, resetPublicStatsCache } from "../controllers/vehicleController.js";
 import { getShowcaseReviews } from "../controllers/reviewController.js";
 import Review from "../models/Review.js";
 import mongoose from "mongoose";
-import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
+import { createUser, createVehicleDoc, createListing } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
 // Allégations commerciales chiffrées — désormais adossées aux données réelles.
@@ -20,6 +20,16 @@ import { mockReqRes } from "./helpers/mockReqRes.js";
 
 const attendreCache = () => new Promise((r) => setTimeout(r, 0));
 
+const stats = async () => {
+  // Le cache vit dans le processus : sans purge, ce test lirait la réponse du
+  // précédent.
+  resetPublicStatsCache();
+  const { req, res } = mockReqRes({});
+  await getPublicStats(req, res);
+  await attendreCache();
+  return res.body;
+};
+
 describe("Chiffres publics — GET /api/vehicles/public-stats", () => {
   it("ne compte que les annonces réellement publiées", async () => {
     const owner = await createUser({ role: "partenaire" });
@@ -34,6 +44,42 @@ describe("Chiffres publics — GET /api/vehicles/public-stats", () => {
 
     expect(res.body.vehicles, "les annonces en attente ou rejetées ne comptent pas").toBe(2);
     expect(res.body.countries, "un seul pays a des annonces publiées").toBe(1);
+  });
+
+  it("compte AUSSI les annonces Import/Export — « tous pays confondus »", async () => {
+    // Le compteur ne portait que sur Vehicle : il annonçait 137 véhicules quand
+    // la plateforme en proposait 348.
+    const owner = await createUser({ role: "partenaire" });
+    await createVehicleDoc({ owner: owner._id, status: "approved", country: "MA" });
+    await createListing({ status: "approved", sourceCountry: "Chine" });
+    await createListing({ status: "approved", sourceCountry: "Chine" });
+
+    const s = await stats();
+    expect(s.vehicles, "1 véhicule + 2 annonces import/export").toBe(3);
+    expect(s.catalogueVehicles).toBe(1);
+    expect(s.ieListings).toBe(2);
+  });
+
+  it("un véhicule réservé ou en pause n'est plus « disponible »", async () => {
+    // Le libellé affiché est « Véhicules disponibles » : compter un véhicule
+    // déjà réservé le rendrait faux dès la première réservation.
+    const owner = await createUser({ role: "partenaire" });
+    await createVehicleDoc({ owner: owner._id, status: "approved", available: true,  country: "MA" });
+    await createVehicleDoc({ owner: owner._id, status: "approved", available: false, country: "MA" });
+
+    const s = await stats();
+    expect(s.vehicles).toBe(1);
+  });
+
+  it("ne compte pas deux fois un pays présent dans les deux catalogues", async () => {
+    // Vehicle stocke un code ISO ("CN"), Import/Export un nom ("Chine") :
+    // additionnés tels quels, ils feraient deux pays au lieu d'un.
+    const owner = await createUser({ role: "partenaire" });
+    await createVehicleDoc({ owner: owner._id, status: "approved", country: "CN" });
+    await createListing({ status: "approved", sourceCountry: "Chine" });
+
+    const s = await stats();
+    expect(s.countries, "la Chine ne compte qu'une fois").toBe(1);
   });
 
   it("ne renvoie AUCUNE note tant qu'il n'existe pas d'avis", async () => {

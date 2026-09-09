@@ -1292,6 +1292,13 @@ export const transferVehicle = async (req, res) => {
 // en mémoire : ces valeurs bougent lentement et la page d'accueil est la plus
 // sollicitée du site.
 let statsCache = { at: 0, data: null };
+
+// Vide le cache des statistiques publiques. Il vit dans le processus, pas dans
+// la base : sans purge, deux tests successifs lisent la réponse mémorisée du
+// premier alors que la base, elle, est bien réinitialisée entre chaque.
+export function resetPublicStatsCache() {
+  statsCache = { at: 0, data: null };
+}
 const PUBLIC_STATS_TTL_MS = 5 * 60 * 1000;
 
 export const getPublicStats = async (req, res) => {
@@ -1300,19 +1307,47 @@ export const getPublicStats = async (req, res) => {
       return res.json(statsCache.data);
     }
 
-    const [vehicles, countries, notes] = await Promise.all([
-      Vehicle.countDocuments({ status: "approved" }),
-      Vehicle.distinct("country", { status: "approved" }),
+    // Le compteur ne portait que sur Vehicle et ignorait les annonces
+    // Import/Export : il annonçait 137 véhicules quand la plateforme en
+    // proposait 348. « Tous pays confondus » veut dire tout le catalogue.
+    //
+    // `available` est désormais exigé, pas seulement `approved` : le libellé
+    // affiché est « Véhicules disponibles ». Sans ce filtre, un véhicule
+    // réservé ou mis en pause par son partenaire resterait compté comme
+    // disponible dès la première réservation.
+    const [vehicles, ieListings, paysVehicules, paysIE, notes] = await Promise.all([
+      Vehicle.countDocuments({ status: "approved", available: true }),
+      ImportExportListing.countDocuments({ status: "approved" }),
+      Vehicle.distinct("country", { status: "approved", available: true }),
+      ImportExportListing.distinct("sourceCountry", { status: "approved" }),
       Review.aggregate([
         { $match: { visible: true, targetType: { $in: ["vehicle", "driver", "partner"] } } },
         { $group: { _id: null, moyenne: { $avg: "$note" }, total: { $sum: 1 } } },
       ]),
     ]);
 
+    // Les deux collections ne stockent pas le pays de la même façon : Vehicle
+    // en code ISO ("MA"), ImportExportListing en nom libre ("Maroc"). Les
+    // additionner tels quels compterait deux fois le même pays — on ramène donc
+    // tout au code avant de dédupliquer. Un nom hors table reste compté sous sa
+    // propre forme : mieux vaut un pays de plus qu'un pays oublié.
+    const nomVersCode = Object.fromEntries(
+      Object.entries(COUNTRY_CODE_TO_NAME).map(([code, nom]) => [nom.toLowerCase(), code])
+    );
+    const pays = new Set([
+      ...paysVehicules.filter(Boolean).map((c) => String(c).toUpperCase()),
+      ...paysIE.filter(Boolean).map((n) => nomVersCode[String(n).toLowerCase()] || String(n).toUpperCase()),
+    ]);
+
     const agg = notes[0] || null;
     const data = {
-      vehicles,
-      countries: countries.filter(Boolean).length,
+      // Total réellement proposé sur la plateforme, catalogue classique ET
+      // import/export réunis. `vehicles`/`ieListings` restent exposés à part
+      // pour que l'interface puisse détailler si elle le souhaite.
+      vehicles: vehicles + ieListings,
+      catalogueVehicles: vehicles,
+      ieListings,
+      countries: pays.size,
       // `null` tant qu'il n'y a pas d'avis : l'interface masque alors la
       // statistique au lieu d'afficher un 0/5 ou une moyenne sur deux avis.
       rating:      agg?.total ? Math.round(agg.moyenne * 10) / 10 : null,
