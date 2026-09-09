@@ -14,18 +14,26 @@ export const getListingCostEstimate = async (req, res) => {
     if (!destCountry) return res.status(400).json({ message: "Pays de destination requis." });
 
     const listing = await ImportExportListing.findById(req.params.id)
-      .select("price priceFOB incoterm currency sourceCountry year status").lean();
+      .select("price incoterm incotermPricing currency sourceCountry year status").lean();
     if (!listing) return res.status(404).json({ message: "Annonce introuvable." });
     if (listing.status !== "approved") return res.status(404).json({ message: "Annonce introuvable." });
 
-    // Le moteur part du prix FOB — véhicule chargé à bord, hors fret et droits.
-    // Il recevait jusqu'ici `price`, le prix AFFICHÉ, sans savoir à quel
-    // Incoterm il correspondait : sur une annonce en CIF, le fret et
-    // l'assurance étaient donc comptés deux fois, et le total surestimé de
-    // plusieurs centaines de dollars. `priceFOB` lève l'ambiguïté ; à défaut,
-    // on retombe sur `price` — comportement antérieur, inchangé.
+    // L'Incoterm de l'exportateur dit ce qui est DÉJÀ inclus dans son prix.
+    // Sans lui, le moteur ajoutait fret, assurance et chargement même sur une
+    // annonce en CIF où l'exportateur les avait déjà facturés : le total était
+    // surestimé de plusieurs centaines de dollars, et l'acheteur renonçait sur
+    // un chiffre faux.
+    //
+    // L'acheteur peut demander une autre règle parmi celles que l'exportateur
+    // accepte (`incotermPricing`) : le prix change alors avec elle.
+    const demande = String(req.query.incoterm || "").toUpperCase();
+    const variante = (listing.incotermPricing || []).find((v) => v.incoterm === demande);
+    const incotermRetenu = variante ? variante.incoterm : (listing.incoterm || null);
+    const prixRetenu = variante?.price ?? listing.price;
+
     const result = await computeImportCost({
-      vehiclePrice:  listing.priceFOB ?? listing.price,
+      vehiclePrice:  prixRetenu,
+      incoterm:      incotermRetenu,
       currency:      listing.currency,
       sourceCountry: listing.sourceCountry,
       vehicleYear:   listing.year,
@@ -36,7 +44,18 @@ export const getListingCostEstimate = async (req, res) => {
       ...result,
       // L'acheteur doit savoir sur quelle base le total a été calculé, sans
       // quoi il ne peut ni le recouper ni le contester.
-      basePrice: { amount: listing.priceFOB ?? listing.price, isFOB: listing.priceFOB != null, incoterm: listing.incoterm || null },
+      basePrice: {
+        amount:   prixRetenu,
+        incoterm: incotermRetenu,
+        // Une variante acceptée mais sans prix convenu : l'annonce affichera un
+        // tiret, jamais un montant deviné.
+        priceKnown: variante ? variante.price != null : listing.price != null,
+      },
+      // Règles que l'exportateur accepte, avec leur prix quand il est fixé.
+      incotermOptions: [
+        { incoterm: listing.incoterm || null, price: listing.price, isDefault: true },
+        ...(listing.incotermPricing || []).map((v) => ({ incoterm: v.incoterm, price: v.price, isDefault: false })),
+      ].filter((o) => o.incoterm),
     });
   } catch (err) {
     logger.error("getListingCostEstimate:", err);

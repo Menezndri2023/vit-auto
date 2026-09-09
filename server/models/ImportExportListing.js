@@ -58,15 +58,6 @@ const importExportListingSchema = new mongoose.Schema({
   price:         { type: Number, required: true },
   currency:      { type: String, default: "EUR" },
 
-  // Prix FOB — véhicule chargé à bord au port d'embarquement, hors fret,
-  // assurance et droits. C'est la base de comparaison universelle entre
-  // exportateurs, et l'entrée du moteur de calcul (services/importCostEngine.js,
-  // qui en dérive CIF puis droits, TVA, transit et total rendu).
-  //
-  // Renseigné SÉPARÉMENT de `price` : un exportateur qui vend en EXW ou en CIF
-  // garde son prix affiché, et fournit en plus son équivalent FOB. Laissé nul,
-  // le moteur retombe sur `price` — comportement antérieur, inchangé.
-  priceFOB:      { type: Number, default: null },
 
   priceIncludes: { type: [String], default: [] },  // dédouanement, transport...
   negotiable:    { type: Boolean, default: false },
@@ -105,11 +96,29 @@ const importExportListingSchema = new mongoose.Schema({
   // pour un acheteur qui n'en a pas. N'en stocker qu'un seul obligeait
   // l'acheteur à demander par message si l'autre était possible — une question
   // qui se pose à chaque annonce, et qui ne se posera plus.
-  incotermsOffered: {
-    type: [String],
-    enum: INCOTERM_CODES,
-    default: [],
-  },
+  // Prix par Incoterm — le choix de l'exportateur.
+  //
+  // Un prix seul ne veut rien dire : « 21 500 $ » signifie chargé à bord (FOB),
+  // fret payé (CFR) ou fret et assurance payés (CIF) selon la règle retenue,
+  // avec des milliers de dollars d'écart entre les trois. Un exportateur
+  // travaille d'ailleurs rarement sous une seule règle : FOB pour l'acheteur
+  // qui a son transitaire, CIF pour celui qui n'en a pas — et son prix diffère
+  // dans chaque cas.
+  //
+  // `incoterm` (ci-dessus) reste la règle par DÉFAUT, celle du prix affiché en
+  // vitrine. Cette table porte les variantes que l'exportateur accepte, chacune
+  // avec SON prix. Vide = une seule règle proposée, comportement antérieur.
+  //
+  // Une entrée sans prix (`price: null`) signifie « je peux organiser cette
+  // règle, prix à convenir » : l'annonce affiche alors un tiret, jamais un
+  // montant deviné.
+  incotermPricing: [
+    {
+      _id:      false,
+      incoterm: { type: String, enum: INCOTERM_CODES, required: true },
+      price:    { type: Number, default: null },
+    },
+  ],
 
   // Moyens de paiement acceptés par l'exportateur pour CETTE annonce — cohérent
   // avec le vocabulaire déjà utilisé par IETransaction.escrow.method. Pas

@@ -501,6 +501,31 @@ export const getListingById = async (req, res) => {
 };
 
 // POST /api/import-export/listings  — Founding Partner uniquement
+// Variantes d'Incoterm proposées par l'exportateur, avec leur prix.
+//
+// Trois garde-fous, chacun pour une raison vécue :
+//  • une règle maritime (FOB/CIF/CFR/FAS) sur un envoi aérien promettrait à
+//    l'acheteur une condition de vente inapplicable ;
+//  • la règle par défaut de l'annonce n'a pas à être répétée ici — son prix,
+//    c'est `price` ;
+//  • un prix nul ou négatif rendrait l'importation gratuite dans le devis. On
+//    l'efface plutôt que de le refuser : `null` signifie « prix à convenir »,
+//    et l'annonce affichera un tiret.
+function sanitizeIncotermPricing(entrees, shippingType, incotermParDefaut) {
+  if (!Array.isArray(entrees)) return [];
+  const vues = new Set();
+  return entrees.reduce((acc, e) => {
+    const code = String(e?.incoterm || "").toUpperCase();
+    if (!code || vues.has(code)) return acc;
+    if (code === incotermParDefaut) return acc;
+    if (!isIncotermCompatible(code, shippingType)) return acc;
+    vues.add(code);
+    const prix = Number(e?.price);
+    acc.push({ incoterm: code, price: Number.isFinite(prix) && prix > 0 ? prix : null });
+    return acc;
+  }, []);
+}
+
 export const createListing = async (req, res) => {
   try {
     if (!req.user.isFounder) {
@@ -567,11 +592,11 @@ export const createListing = async (req, res) => {
       title, make, model, year, mileage, fuelType, transmission,
       bodyType, color, condition, description,
       sourceCountry, sourceCity, availableIn,
-      price, priceFOB, currency, priceIncludes, negotiable, stockQty,
+      price, currency, priceIncludes, negotiable, stockQty,
       photos, mainPhoto,
       vin, vehicleHistory, estimatedShippingCost, shippingCostCurrency,
       estimatedDelay, shippingType, exportDocumentsAvailable, videoUrl,
-      acceptedPaymentMethods, incoterm, incotermsOffered,
+      acceptedPaymentMethods, incoterm, incotermPricing,
     } = req.body;
 
     if (!title || !make || !model || !year || !sourceCountry || !price) {
@@ -617,14 +642,10 @@ export const createListing = async (req, res) => {
       videoUrl: videoUrl || null,
       acceptedPaymentMethods: acceptedPaymentMethods || [],
       incoterm: incoterm || null,
-      // Sans ces deux lignes, les champs seraient ignorés SANS ERREUR : le
-      // formulaire afficherait « enregistré » et le prix FOB n'existerait pas.
-      // C'est le motif exact qui avait laissé Vehicle.featured mort pendant
-      // des mois sur ce dépôt.
-      priceFOB: Number.isFinite(Number(priceFOB)) && Number(priceFOB) > 0 ? Number(priceFOB) : null,
-      incotermsOffered: Array.isArray(incotermsOffered)
-        ? incotermsOffered.filter((c) => isIncotermCompatible(c, shippingType))
-        : [],
+      // Sans cette ligne, le champ serait ignoré SANS ERREUR : le formulaire
+      // afficherait « enregistré » et les variantes n'existeraient pas. C'est
+      // le motif exact qui avait laissé Vehicle.featured mort pendant des mois.
+      incotermPricing: sanitizeIncotermPricing(incotermPricing, shippingType, incoterm),
       status: "pending",
     });
 
@@ -668,11 +689,11 @@ export const updateListing = async (req, res) => {
       title, make, model, year, mileage, fuelType, transmission,
       bodyType, color, condition, description,
       sourceCountry, sourceCity, availableIn,
-      price, priceFOB, currency, priceIncludes, negotiable, stockQty,
+      price, currency, priceIncludes, negotiable, stockQty,
       photos, mainPhoto,
       vin, vehicleHistory, estimatedShippingCost, shippingCostCurrency,
       estimatedDelay, shippingType, exportDocumentsAvailable, videoUrl,
-      acceptedPaymentMethods, incoterm, incotermsOffered, businessId,
+      acceptedPaymentMethods, incoterm, incotermPricing, businessId,
     } = req.body;
 
     let business = undefined;
@@ -738,17 +759,12 @@ export const updateListing = async (req, res) => {
       exportDocumentsAvailable: exportDocumentsAvailable || listing.exportDocumentsAvailable,
       videoUrl: videoUrl !== undefined ? videoUrl : listing.videoUrl,
       acceptedPaymentMethods: acceptedPaymentMethods || listing.acceptedPaymentMethods,
-      // `undefined` = champ absent du corps → on garde l'existant. Une chaîne
-      // vide, elle, EFFACE volontairement le prix FOB : le partenaire doit
-      // pouvoir le retirer, pas seulement le modifier.
-      priceFOB: priceFOB === undefined
-        ? listing.priceFOB
-        : (Number.isFinite(Number(priceFOB)) && Number(priceFOB) > 0 ? Number(priceFOB) : null),
-      incotermsOffered: incotermsOffered === undefined
-        ? listing.incotermsOffered
-        : (Array.isArray(incotermsOffered)
-            ? incotermsOffered.filter((c) => isIncotermCompatible(c, effectiveShippingType))
-            : []),
+      // `undefined` = champ absent du corps → on garde l'existant. Un tableau
+      // vide EFFACE volontairement les variantes : le partenaire doit pouvoir
+      // n'en proposer plus aucune, pas seulement les modifier.
+      incotermPricing: incotermPricing === undefined
+        ? listing.incotermPricing
+        : sanitizeIncotermPricing(incotermPricing, effectiveShippingType, effectiveIncoterm),
       incoterm: effectiveIncoterm || null,
       business: business !== undefined ? (business?._id || null) : listing.business,
       // Une édition partenaire repasse l'annonce en modération (pas de

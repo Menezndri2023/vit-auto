@@ -55,7 +55,7 @@ export function ListingForm({ onClose, onSaved, token, listing }) {
     condition: listing.condition || "occasion", description: listing.description || "",
     sourceCountry: listing.sourceCountry || "", sourceCity: listing.sourceCity || "",
     availableIn: listing.availableIn || [],
-    price: listing.price || "", priceFOB: listing.priceFOB ?? "", currency: listing.currency || "EUR",
+    price: listing.price || "", currency: listing.currency || "EUR",
     negotiable: !!listing.negotiable, stockQty: listing.stockQty || 1,
     vin: listing.vin || "", vehicleHistory: listing.vehicleHistory || "",
     priceIncludes: listing.priceIncludes || [],
@@ -64,18 +64,18 @@ export function ListingForm({ onClose, onSaved, token, listing }) {
     estimatedDelay: listing.estimatedDelay || "", shippingType: listing.shippingType || "",
     exportDocumentsAvailable: listing.exportDocumentsAvailable || [], videoUrl: listing.videoUrl || "",
     acceptedPaymentMethods: listing.acceptedPaymentMethods || [],
-    incoterm: listing.incoterm || "", incotermsOffered: listing.incotermsOffered || [],
+    incoterm: listing.incoterm || "", incotermPricing: listing.incotermPricing || [],
     businessId: listing.business || "",
   } : {
     title: "", make: "", model: "", year: new Date().getFullYear(),
     mileage: 0, fuelType: "essence", transmission: "automatique",
     bodyType: "", color: "", condition: "occasion", description: "",
     sourceCountry: "", sourceCity: "", availableIn: [],
-    price: "", priceFOB: "", currency: "EUR", negotiable: false, stockQty: 1,
+    price: "", currency: "EUR", negotiable: false, stockQty: 1,
     vin: "", vehicleHistory: "", priceIncludes: [],
     estimatedShippingCost: "", shippingCostCurrency: "EUR",
     estimatedDelay: "", shippingType: "", exportDocumentsAvailable: [], videoUrl: "",
-    acceptedPaymentMethods: [], incoterm: "", incotermsOffered: [], businessId: "",
+    acceptedPaymentMethods: [], incoterm: "", incotermPricing: [], businessId: "",
   });
   const [photos, setPhotos]         = useState(() => listing?.photos || []);
   const [availText, setAvailText]   = useState("");
@@ -195,17 +195,6 @@ export function ListingForm({ onClose, onSaved, token, listing }) {
           </div>
           <div className={styles.fGrid3}>
             <label><span>Prix *</span><input type="number" min="0" value={f.price} onChange={(e) => set("price", e.target.value)} placeholder="25000" /></label>
-            {/* Le prix affiché ne disait pas à quelle condition de livraison il
-                correspondait : le même montant signifie « départ usine »,
-                « chargé à bord » ou « rendu dédouané » selon l'Incoterm, avec
-                des milliers de dollars d'écart. Le prix FOB est la base de
-                comparaison universelle entre exportateurs, et l'entrée du
-                calcul de coût rendu présenté à l'acheteur. */}
-            <label>
-              <span>Prix FOB</span>
-              <input type="number" min="0" value={f.priceFOB}
-                onChange={(e) => set("priceFOB", e.target.value)} placeholder="Chargé à bord" />
-            </label>
             <label><span>Devise</span>
               <select value={f.currency} onChange={(e) => set("currency", e.target.value)}>
                 {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
@@ -295,40 +284,49 @@ export function ListingForm({ onClose, onSaved, token, listing }) {
             </div>
           )}
 
-          {/* Autres méthodes d'export proposées ────────────────────────────
-              Un exportateur travaille rarement sous un seul Incoterm : il livre
-              au port (FOB) pour un acheteur qui a son transitaire, et rendu à
-              destination (CIF) pour celui qui n'en a pas. N'en déclarer qu'un
-              obligeait l'acheteur à demander par message si l'autre était
-              possible — une question posée à chaque annonce. */}
+          {/* Prix par Incoterm ────────────────────────────────────────────
+              Un prix seul ne veut rien dire : « 25 000 $ » signifie chargé à
+              bord (FOB), fret payé (CFR) ou fret et assurance payés (CIF), avec
+              des milliers de dollars d'écart. Et un exportateur travaille
+              rarement sous une seule règle — FOB pour l'acheteur qui a son
+              transitaire, CIF pour celui qui n'en a pas — avec un prix
+              différent pour chacune. Sans cette grille, l'acheteur devait
+              écrire pour demander si l'autre règle était possible, et à quel
+              prix : une question posée sur chaque annonce. */}
           <div className={styles.fieldset}>
-            <label className={styles.fsLegend}>Autres méthodes d'export que vous acceptez</label>
-            <p style={{ margin: "0 0 8px", fontSize: ".78rem", color: "#64748b" }}>
-              Facultatif. L'Incoterm ci-dessus reste celui du prix affiché ; ceux-ci indiquent
-              à l'acheteur ce que vous pouvez également organiser.
+            <label className={styles.fsLegend}>Autres règles de vente que vous acceptez</label>
+            <p style={{ margin: "0 0 10px", fontSize: ".78rem", color: "#64748b" }}>
+              Facultatif. L&apos;Incoterm ci-dessus reste celui du prix affiché en vitrine.
+              Laissez un prix vide pour « à convenir » — l&apos;annonce affichera un tiret,
+              jamais un montant deviné.
             </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {INCOTERMS.filter((i) => isIncotermCompatible(i.code, f.shippingType)).map((i) => {
-                const actif = (f.incotermsOffered || []).includes(i.code);
+            {INCOTERMS
+              .filter((i) => i.code !== f.incoterm && isIncotermCompatible(i.code, f.shippingType))
+              .map((i) => {
+                const ligne = (f.incotermPricing || []).find((v) => v.incoterm === i.code);
+                const actif = !!ligne;
+                const majLignes = (lignes) => set("incotermPricing", lignes);
                 return (
-                  <label key={i.code}
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer",
-                      padding: "5px 10px", borderRadius: 8, fontSize: ".8rem",
-                      border: `1.5px solid ${actif ? "#0f1b3f" : "#e2e8f0"}`,
-                      background: actif ? "#0f1b3f" : "#fff", color: actif ? "#fff" : "#334155",
-                    }}
-                    title={getIncoterm(i.code)?.summary || ""}
-                  >
-                    <input type="checkbox" checked={actif} style={{ display: "none" }}
-                      onChange={(e) => set("incotermsOffered", e.target.checked
-                        ? [...(f.incotermsOffered || []), i.code]
-                        : (f.incotermsOffered || []).filter((c) => c !== i.code))} />
-                    {i.code}
-                  </label>
+                  <div key={i.code}
+                    style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 210, cursor: "pointer" }}
+                      title={getIncoterm(i.code)?.summary || ""}>
+                      <input type="checkbox" checked={actif}
+                        onChange={(e) => majLignes(e.target.checked
+                          ? [...(f.incotermPricing || []), { incoterm: i.code, price: "" }]
+                          : (f.incotermPricing || []).filter((v) => v.incoterm !== i.code))} />
+                      <span style={{ fontSize: ".82rem" }}>{i.label}</span>
+                    </label>
+                    {actif && (
+                      <input type="number" min="0" style={{ maxWidth: 160 }}
+                        value={ligne.price ?? ""}
+                        placeholder="Prix — vide = à convenir"
+                        onChange={(e) => majLignes((f.incotermPricing || []).map((v) =>
+                          v.incoterm === i.code ? { ...v, price: e.target.value } : v))} />
+                    )}
+                  </div>
                 );
               })}
-            </div>
           </div>
 
           {/* Moyens de paiement acceptés */}

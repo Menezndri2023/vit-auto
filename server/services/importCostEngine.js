@@ -2,6 +2,7 @@ import ImportCostConfig from "../models/ImportCostConfig.js";
 import ShippingLaneRate from "../models/ShippingLaneRate.js";
 import { getRateFromUSD } from "./currencyEngine.js";
 import { computeImportEstimateFee } from "./pricingEngine.js";
+import { getIncoterm } from "../constants/incoterms.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -25,7 +26,16 @@ export async function computeImportServiceFeeUSD(vehiclePriceUSD) {
 // avec les barèmes ImportCostConfig/ShippingLaneRate) pour éviter d'accumuler
 // des erreurs d'arrondi ligne par ligne — seul le résultat final est converti
 // dans la devise de l'annonce/transaction.
-export async function computeImportCost({ vehiclePrice, currency, sourceCountry, destCountry, destCity, vehicleYear }) {
+// `incoterm` : règle de vente déclarée par l'exportateur. Elle détermine ce qui
+// est DÉJÀ inclus dans son prix, donc ce que l'acheteur doit encore payer.
+// Sans elle, le moteur ajoutait systématiquement fret, assurance et frais de
+// chargement — y compris sur une annonce en CIF, où l'exportateur les a déjà
+// facturés : le total était alors surestimé de plusieurs centaines de dollars,
+// et l'acheteur renonçait sur un chiffre faux.
+//
+// La matrice de responsabilités par étape vit dans constants/incoterms.js —
+// une seule source, partagée avec l'affichage.
+export async function computeImportCost({ vehiclePrice, currency, sourceCountry, destCountry, destCity, vehicleYear, incoterm = null }) {
   if (!destCountry) {
     return { available: false, message: "Pays de destination requis." };
   }
@@ -46,6 +56,14 @@ export async function computeImportCost({ vehiclePrice, currency, sourceCountry,
     return { available: false, message: `Devise "${currency}" non supportée pour le moment.` };
   }
   const vehiclePriceUSD = vehiclePrice / rateFromUSD;
+
+  // Qui paie quoi, selon l'Incoterm. Sans Incoterm déclaré, on retient
+  // l'hypothèse la plus prudente pour l'acheteur — tout à sa charge — qui est
+  // aussi le comportement antérieur : mieux vaut annoncer un coût trop élevé
+  // qu'une bonne surprise qui n'arrivera pas.
+  const regle = incoterm ? getIncoterm(incoterm) : null;
+  const aLaChargeDeLAcheteur = (etape) =>
+    !regle || regle.responsibilities?.[etape] !== "vendeur";
 
   const inlandTransportUSD = lane?.inlandTransportUSD ?? 150;
   const seaFreightUSD      = lane?.seaFreightUSD ?? config.defaultSeaFreightUSD;
@@ -70,8 +88,33 @@ export async function computeImportCost({ vehiclePrice, currency, sourceCountry,
   const deliveryUSD   = config.deliveryFixedFeeUSD;
   const commissionUSD = await computeImportServiceFeeUSD(vehiclePriceUSD);
 
-  const totalServicesUSD = inlandTransportUSD + seaFreightUSD + insuranceUSD + portFeesUSD + customsTotalUSD + deliveryUSD;
-  const grandTotalUSD    = vehiclePriceUSD + totalServicesUSD + commissionUSD;
+  // Ce que l'ACHETEUR paie encore, en plus du prix de l'exportateur.
+  //
+  // La base CIF ci-dessus reste entière, quel que soit le payeur : la douane
+  // valorise la marchandise rendue frontière, elle ne s'intéresse pas à qui a
+  // réglé le fret. Ce sont les postes RESTANT À CHARGE qui varient — sur une
+  // annonce CIF, l'exportateur a déjà facturé fret et assurance, les rajouter
+  // au devis de l'acheteur revenait à les compter deux fois.
+  //
+  // La commission VIT AUTO est toujours due par l'acheteur : elle ne relève
+  // d'aucun Incoterm, c'est le prix du service de la plateforme.
+  const aCharge = {
+    inlandTransport: aLaChargeDeLAcheteur("loadingAtOrigin"),
+    seaFreight:      aLaChargeDeLAcheteur("mainCarriage"),
+    insurance:       aLaChargeDeLAcheteur("insurance"),
+    portFees:        aLaChargeDeLAcheteur("deliveryAtDestination"),
+    customs:         aLaChargeDeLAcheteur("importCustoms"),
+    delivery:        aLaChargeDeLAcheteur("deliveryAtDestination"),
+  };
+
+  const totalServicesUSD =
+      (aCharge.inlandTransport ? inlandTransportUSD : 0)
+    + (aCharge.seaFreight      ? seaFreightUSD      : 0)
+    + (aCharge.insurance       ? insuranceUSD       : 0)
+    + (aCharge.portFees        ? portFeesUSD        : 0)
+    + (aCharge.customs         ? customsTotalUSD    : 0)
+    + (aCharge.delivery        ? deliveryUSD        : 0);
+  const grandTotalUSD = vehiclePriceUSD + totalServicesUSD + commissionUSD;
 
   const toCcy = (amountUSD) => Math.round(amountUSD * rateFromUSD * 100) / 100;
 
@@ -102,6 +145,12 @@ export async function computeImportCost({ vehiclePrice, currency, sourceCountry,
       vat:         toCcy(vatUSD),
       transit:     toCcy(config.transitFixedFeeUSD + config.redevancesFixedFeeUSD),
     },
+
+    // Incoterm retenu et postes déjà couverts par le vendeur — l'acheteur doit
+    // voir POURQUOI une ligne ne lui est pas facturée, sinon il croit à un
+    // oubli et redemande un devis.
+    incoterm: incoterm || null,
+    borneByBuyer: aCharge,
 
     // Taux appliqués, pour que l'acheteur puisse recouper le calcul avec le
     // barème officiel de son pays plutôt que de faire confiance à un total.
