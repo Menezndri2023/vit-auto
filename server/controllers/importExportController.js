@@ -631,7 +631,10 @@ export const createListing = async (req, res) => {
       description,
       sourceCountry, sourceCity,
       availableIn: availableIn || [],
-      price: Number(price), currency: currency || "EUR",
+      // USD par défaut : devise de cotation des exportateurs et pivot de la
+      // plateforme. L'euro par défaut étiquetait « EUR » un prix saisi en
+      // dollars, avec ~8 % d'écart pour l'acheteur.
+      price: Number(price), currency: currency || "USD",
       priceIncludes: priceIncludes || [],
       negotiable: !!negotiable,
       stockQty: Number(stockQty) || 1,
@@ -640,7 +643,7 @@ export const createListing = async (req, res) => {
       vin: vin || null,
       vehicleHistory: vehicleHistory || null,
       estimatedShippingCost: estimatedShippingCost != null ? Number(estimatedShippingCost) : null,
-      shippingCostCurrency: shippingCostCurrency || "EUR",
+      shippingCostCurrency: shippingCostCurrency || "USD",
       estimatedDelay: estimatedDelay || null,
       shippingType: shippingType || null,
       exportDocumentsAvailable: exportDocumentsAvailable || [],

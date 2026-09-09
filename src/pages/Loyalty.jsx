@@ -18,7 +18,14 @@ const REASON_LABEL = {
 // (`referral_<clientId>`, voir bookingController.awardReferralBonusIfEligible)
 // pour garantir qu'un même filleul ne peut jamais déclencher deux fois le
 // bonus — jamais un libellé fixe à faire correspondre dans REASON_LABEL.
-const reasonLabel = (reason) => (reason?.startsWith("referral_") ? "Bonus de parrainage" : REASON_LABEL[reason] || reason);
+// Un ajustement décidé par l'équipe porte son motif en clair après le préfixe
+// (voir MANUAL_ADJUSTMENT_PREFIX côté serveur) : le client doit lire POURQUOI
+// son solde a bougé, pas un code interne.
+const reasonLabel = (reason) => {
+  if (reason?.startsWith("referral_")) return "Bonus de parrainage";
+  if (reason?.startsWith("admin_adjust:")) return `Ajustement par l'équipe VIT AUTO — ${reason.slice("admin_adjust:".length)}`;
+  return REASON_LABEL[reason] || reason;
+};
 
 const TYPE_STYLE = {
   credit:   { emoji: "➕", className: "credit" },

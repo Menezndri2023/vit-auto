@@ -86,11 +86,15 @@ describe("Contrôle avant publication — avertissements", () => {
   });
 
   it("signale les destinations sans barème douanier", async () => {
-    const r = await validateListingForPublication(annonce({ availableIn: ["Maroc", "Mali", "Togo"] }));
+    // Les neuf marchés desservis ont désormais un barème : l'avertissement ne
+    // se déclenche donc que sur un pays hors périmètre. Ce test citait le Mali
+    // et le Togo — il a justement échoué le jour où ils ont été configurés,
+    // ce qui est le comportement attendu d'un test bien écrit.
+    const r = await validateListingForPublication(annonce({ availableIn: ["Maroc", "Ouganda", "Kenya"] }));
 
     const w = r.warnings.find((x) => /barème douanier/i.test(x.message));
-    expect(w.message).toMatch(/Mali/);
-    expect(w.message).toMatch(/Togo/);
+    expect(w.message).toMatch(/Ouganda/);
+    expect(w.message).toMatch(/Kenya/);
     expect(w.message, "le Maroc est configuré, il ne doit pas être cité").not.toMatch(/Maroc/);
     expect(w.message).toMatch(/pas de coût rendu/i);
   });

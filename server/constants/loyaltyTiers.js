@@ -67,3 +67,17 @@ export function pointsToUSD(points) {
   const p = Number(points) || 0;
   return Math.round((p / POINTS_PER_USD) * 100) / 100;
 }
+
+// Plafond d'un ajustement manuel unique par un administrateur (voir
+// loyaltyController.adjustUserLoyalty). 50 000 points = 500 USD de remise :
+// au-delà, ce n'est plus un geste commercial ou une correction, et une saisie
+// erronée (un zéro de trop) coûterait de l'argent réel avant d'être repérée.
+// Un besoin légitime plus gros se fait en plusieurs gestes, chacun motivé et
+// tracé — jamais en relevant ce plafond sans y réfléchir.
+export const MAX_MANUAL_ADJUSTMENT_POINTS = 50000;
+
+// Préfixe des motifs d'ajustement manuel dans LoyaltyTransaction.reason —
+// permet de distinguer d'un coup d'œil un mouvement décidé par un humain d'un
+// mouvement automatique, côté client comme côté administration (même principe
+// que le préfixe `referral_`).
+export const MANUAL_ADJUSTMENT_PREFIX = "admin_adjust:";

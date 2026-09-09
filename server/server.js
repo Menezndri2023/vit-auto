@@ -802,14 +802,22 @@ async function runStartupMigrations() {
 
       // Barèmes douaniers par pays de destination. Sans eux, le moteur de coût
       // — le différenciateur de la plateforme — répond « Aucun barème
-      // configuré » et l'acheteur ne voit aucun prix rendu. Aucun n'était
-      // renseigné. L'amorçage ne CRÉE que les pays absents : un barème déjà
-      // ajusté par l'admin n'est jamais réécrit.
-      await runOnceMigration("import-cost-config-seed-2026-09", async () => {
+      // configuré » et l'acheteur ne voit aucun prix rendu.
+      //
+      // ⚠️ VOLONTAIREMENT HORS `runOnceMigration`. Cet amorçage a d'abord été
+      // écrit comme une migration à usage unique : elle s'est exécutée quand la
+      // liste ne contenait que le Maroc et la Côte d'Ivoire, s'est marquée
+      // faite, et le Sénégal ajouté ensuite N'A JAMAIS ÉTÉ CRÉÉ — silencieusement.
+      //
+      // Un amorçage qui s'ENRICHIT au fil du temps n'est pas une migration :
+      // c'est un état à faire converger à chaque démarrage. La fonction ne crée
+      // que les pays absents et ne réécrit jamais un barème ajusté par l'admin,
+      // donc la rejouer est sans effet de bord — trois lectures indexées.
+      {
         const { seedImportCostConfigs } = await import("./scripts/seedImportCostConfigs.js");
         const r = await seedImportCostConfigs();
-        logger.info(`[Migration] import-cost-config-seed : ${r.created} barème(s) créé(s), ${r.skipped} déjà présent(s).`);
-      });
+        if (r.created) logger.info(`[Amorçage] barèmes d'importation : ${r.created} créé(s), ${r.skipped} déjà présent(s).`);
+      }
   } catch (err) {
     logger.error("Migrations de démarrage : échec inattendu (non bloquant) :", err.message);
   }

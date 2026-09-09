@@ -56,7 +56,13 @@ const importExportListingSchema = new mongoose.Schema({
   // avec des milliers de dollars d'écart. L'acheteur comparait donc des prix
   // incomparables.
   price:         { type: Number, required: true },
-  currency:      { type: String, default: "EUR" },
+  // Le DOLLAR est la devise de référence des annonces d'export : c'est en
+  // dollars que les exportateurs cotent, et c'est la devise pivot de la
+  // plateforme (voir currencyEngine). Le défaut était l'euro, ce qui étiquetait
+  // « EUR » un prix saisi en dollars par un exportateur chinois — sans qu'il
+  // s'en aperçoive, et avec ~8 % d'écart pour l'acheteur.
+  // L'affichage, lui, convertit toujours vers la devise du visiteur (PriceTag).
+  currency:      { type: String, default: "USD" },
 
 
   priceIncludes: { type: [String], default: [] },  // dédouanement, transport...

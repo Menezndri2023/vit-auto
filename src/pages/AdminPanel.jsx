@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useCurrency } from "../context/CurrencyContext";
+import { pointsToUSD } from "../constants/loyalty";
 import { useSocket } from "../context/SocketContext";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import styles from "./AdminPanel.module.css";
@@ -2022,6 +2023,9 @@ export default function AdminPanel() {
   const [loyaltyModal,    setLoyaltyModal]    = useState(null);
   const [loyaltyData,     setLoyaltyData]     = useState(null);
   const [loyaltyLoading,  setLoyaltyLoading]  = useState(false);
+  const VIDE_AJUST = { direction: "credit", points: "", reason: "", countsTowardTier: false };
+  const [loyaltyForm,    setLoyaltyForm]    = useState(VIDE_AJUST);
+  const [loyaltySaving,  setLoyaltySaving]  = useState(false);
   const [trustLoading,    setTrustLoading]    = useState(false);
   const [reportsLoading,  setReportsLoading]  = useState(false);
   const [reportFilter,    setReportFilter]    = useState("en_attente");
@@ -3256,12 +3260,44 @@ export default function AdminPanel() {
   const openLoyalty = async (u) => {
     setLoyaltyModal(u);
     setLoyaltyData(null);
+    // Sans cette remise à zéro, le motif saisi pour le client précédent reste
+    // dans le champ et serait attribué au suivant.
+    setLoyaltyForm(VIDE_AJUST);
     setLoyaltyLoading(true);
     try {
       const r = await fetch(`/api/loyalty/admin/${u._id}`, { headers });
       if (r.ok) setLoyaltyData(await r.json());
     } catch { /* ignore */ }
     setLoyaltyLoading(false);
+  };
+
+  const submitLoyaltyAdjust = async () => {
+    if (!loyaltyModal || loyaltySaving) return;
+    setLoyaltySaving(true);
+    try {
+      const r = await fetch(`/api/loyalty/admin/${loyaltyModal._id}/adjust`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          direction: loyaltyForm.direction,
+          points: Number(loyaltyForm.points),
+          reason: loyaltyForm.reason,
+          countsTowardTier: loyaltyForm.countsTowardTier,
+        }),
+      });
+      const d = await r.json().catch(() => ({}));
+      // Le serveur refuse pour des raisons précises (solde insuffisant, motif
+      // vide, plafond dépassé) : afficher SON message, pas un « erreur » générique
+      // qui laisserait l'admin réessayer à l'aveugle.
+      if (!r.ok) { showToast(d?.message || "Ajustement refusé.", "error"); return; }
+      showToast(`✅ Solde ajusté : ${d.points} points.`);
+      setLoyaltyForm(VIDE_AJUST);
+      await openLoyalty(loyaltyModal); // recharge solde + historique
+    } catch {
+      showToast("Erreur réseau — ajustement non enregistré.", "error");
+    } finally {
+      setLoyaltySaving(false);
+    }
   };
 
   const openTrustOverview = async (u) => {
@@ -4491,6 +4527,12 @@ export default function AdminPanel() {
   const myScopes       = Array.isArray(user?.adminScope) ? user.adminScope : null;
   const isGeneralAdmin = myScopes === null || myScopes.length === 0 || myScopes.includes("super_admin");
 
+  // Ajuster un solde de fidélité relève de la FINANCE, pas de la gestion des
+  // comptes : un point vaut de l'argent. Miroir exact de
+  // requireAdminScope("finance") côté serveur — l'autorité reste le serveur,
+  // ceci évite seulement d'afficher un formulaire qui finirait en 403.
+  const canAdjustLoyalty = isGeneralAdmin || (myScopes?.includes("finance") ?? false);
+
   const canSeeTab = (key) => {
     const scope = TAB_SCOPES[key];
     // L'administrateur général passe partout — y compris quand adminScope est
@@ -5358,8 +5400,15 @@ export default function AdminPanel() {
                         <div style={{ maxHeight: 220, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
                           {loyaltyData.transactions.map((t) => (
                             <div key={t._id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "7px 12px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: ".78rem" }}>
+                              {/* Un ajustement manuel doit se distinguer d'un
+                                  mouvement automatique : c'est une décision
+                                  humaine, et son motif est le seul élément qui
+                                  la rende compréhensible plus tard. */}
                               <span style={{ color: "#64748b" }}>
-                                {new Date(t.createdAt).toLocaleDateString("fr-FR")} · {t.reason}
+                                {new Date(t.createdAt).toLocaleDateString("fr-FR")} ·{" "}
+                                {t.reason?.startsWith("admin_adjust:")
+                                  ? <>✍️ Ajustement manuel — {t.reason.slice("admin_adjust:".length)}</>
+                                  : t.reason}
                                 {t.booking?.reference ? ` (${t.booking.reference})` : ""}
                               </span>
                               <strong style={{ color: t.type === "credit" || t.type === "referral" ? "#10b981" : "#ef4444", whiteSpace: "nowrap" }}>
@@ -5372,6 +5421,54 @@ export default function AdminPanel() {
                         <p style={{ color: "#94a3b8", fontSize: ".8rem", margin: 0 }}>Aucun mouvement enregistré.</p>
                       )}
                     </div>
+
+                    {canAdjustLoyalty && (
+                      <div style={{ marginTop: 10, paddingTop: 12, borderTop: "1.5px solid #e2e8f0" }}>
+                        <div style={{ fontWeight: 700, fontSize: ".8rem", color: "#0f1b3f", marginBottom: 8 }}>
+                          Ajustement manuel
+                        </div>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+                          <select value={loyaltyForm.direction}
+                            onChange={(e) => setLoyaltyForm((f) => ({ ...f, direction: e.target.value }))}
+                            style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 10px", fontSize: ".82rem" }}>
+                            <option value="credit">Créditer</option>
+                            <option value="debit">Débiter</option>
+                          </select>
+                          <input type="number" min="1" step="1" placeholder="Points"
+                            value={loyaltyForm.points}
+                            onChange={(e) => setLoyaltyForm((f) => ({ ...f, points: e.target.value }))}
+                            style={{ width: 110, border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 10px", fontSize: ".82rem" }} />
+                          {/* Ce que l'opération vaut, affiché pendant la saisie :
+                              c'est le chiffre qui fait repérer un zéro de trop
+                              avant de valider, pas après. */}
+                          <span style={{ alignSelf: "center", fontSize: ".8rem", color: "#64748b" }}>
+                            ≈ {fmtUSD(pointsToUSD(Number(loyaltyForm.points) || 0))}
+                          </span>
+                        </div>
+                        <input type="text" placeholder="Motif (obligatoire) — ex. « Geste commercial, dossier #4821 »"
+                          value={loyaltyForm.reason} maxLength={300}
+                          onChange={(e) => setLoyaltyForm((f) => ({ ...f, reason: e.target.value }))}
+                          style={{ width: "100%", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 10px", fontSize: ".82rem", marginBottom: 8 }} />
+                        {loyaltyForm.direction === "credit" && (
+                          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: ".78rem", color: "#64748b", marginBottom: 10, cursor: "pointer" }}>
+                            <input type="checkbox" checked={loyaltyForm.countsTowardTier}
+                              onChange={(e) => setLoyaltyForm((f) => ({ ...f, countsTowardTier: e.target.checked }))} />
+                            Compter dans le cumul à vie (peut faire monter de palier — à réserver au rattrapage de points non attribués, pas à un geste commercial)
+                          </label>
+                        )}
+                        <button
+                          onClick={submitLoyaltyAdjust}
+                          disabled={loyaltySaving || !loyaltyForm.points || loyaltyForm.reason.trim().length < 3}
+                          style={{
+                            padding: "8px 16px", borderRadius: 8, border: "none", fontWeight: 700, fontSize: ".8rem",
+                            background: loyaltyForm.direction === "credit" ? "#16a34a" : "#dc2626", color: "#fff",
+                            cursor: loyaltySaving ? "not-allowed" : "pointer",
+                            opacity: (loyaltySaving || !loyaltyForm.points || loyaltyForm.reason.trim().length < 3) ? 0.5 : 1,
+                          }}>
+                          {loyaltySaving ? "Enregistrement…" : loyaltyForm.direction === "credit" ? "Créditer" : "Débiter"}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <p style={{ color: "#ef4444", fontSize: ".85rem" }}>Impossible de charger la fidélité de ce compte.</p>

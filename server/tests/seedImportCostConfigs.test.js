@@ -25,24 +25,70 @@ describe("Amorçage des barèmes d'importation", () => {
 
   it("crée les barèmes vérifiés, et eux seuls", async () => {
     const r = await seedImportCostConfigs();
-    expect(r.created).toBe(3);
+    expect(r.created).toBe(9);
 
     const pays = (await ImportCostConfig.find({}).lean()).map((c) => c.country).sort();
-    expect(pays).toEqual(["Côte d'Ivoire", "Maroc", "Sénégal"]);
+    expect(pays).toEqual([
+      "Bénin", "Côte d'Ivoire", "Ghana", "Guinée", "Mali", "Maroc", "Nigeria", "Sénégal", "Togo",
+    ]);
   });
 
-  it("n'invente AUCUN barème pour les pays non vérifiés", async () => {
+  it("les barèmes PROVISOIRES se déclarent comme tels", async () => {
+    // Décision du gérant : un barème provisoire assumé vaut mieux qu'un tiret
+    // sur toutes les annonces. Encore faut-il qu'il ne passe jamais pour
+    // définitif — d'où la mention dans `source` et une revue à 6 mois.
     await seedImportCostConfigs();
-    // Ces marchés sont desservis, mais leurs taux n'ont pas été vérifiés à la
-    // source : le moteur doit refuser de chiffrer plutôt que de deviner.
-    for (const pays of ["Mali", "Bénin", "Togo", "Ghana", "Nigeria", "Guinée"]) {
+    for (const pays of ["Bénin", "Mali", "Togo", "Guinée"]) {
+      const c = await ImportCostConfig.findOne({ country: pays }).lean();
+      expect(c.source, `${pays} doit se déclarer provisoire`).toMatch(/^PROVISOIRE/);
+      expect(c.reviewEveryMonths, "revue plus fréquente qu'un barème vérifié").toBe(6);
+    }
+  });
+
+  it("les barèmes VÉRIFIÉS ne portent pas cette mention", async () => {
+    await seedImportCostConfigs();
+    for (const pays of ["Maroc", "Côte d'Ivoire", "Sénégal", "Ghana", "Nigeria"]) {
+      const c = await ImportCostConfig.findOne({ country: pays }).lean();
+      expect(c.source, `${pays}`).not.toMatch(/^PROVISOIRE/);
+    }
+  });
+
+  it("le barème nigérian reproduit le cumul de 36,42 % du CIF", async () => {
+    // Droit 20 %, NAC 5 %, ETLS 0,5 %, surtaxe de 7 % SUR LES DROITS (1,4 % du
+    // CIF) — soit 6,9 % d'annexes — puis TVA 7,5 % sur l'ensemble.
+    await seedImportCostConfigs();
+    const r = await computeImportCost({
+      vehiclePrice: 10000, currency: "USD", sourceCountry: "Chine",
+      destCountry: "Nigeria", vehicleYear: ANNEE,
+    });
+    expect(r.available).toBe(true);
+    const cif = r.breakdown.vehiclePrice + r.breakdown.seaFreight + r.breakdown.insurance;
+    const total = r.breakdown.customsDuty + r.breakdown.parafiscal + r.breakdown.vat;
+    expect(total / cif).toBeCloseTo(0.36418, 4);
+  });
+
+  it("chaque destination desservie est désormais chiffrable", async () => {
+    // Aucun barème n'existait : le moteur répondait « Aucun barème configuré »
+    // pour TOUS les pays, et l'acheteur ne voyait jamais de coût rendu.
+    await seedImportCostConfigs();
+    for (const pays of ["Maroc", "Côte d'Ivoire", "Sénégal", "Mali", "Bénin", "Togo", "Ghana", "Nigeria", "Guinée"]) {
       const r = await computeImportCost({
         vehiclePrice: 10000, currency: "USD", sourceCountry: "Chine",
         destCountry: pays, vehicleYear: ANNEE,
       });
-      expect(r.available, `${pays} ne doit pas être chiffré`).toBe(false);
-      expect(r.grandTotal).toBeUndefined();
+      expect(r.available, `${pays} doit être chiffrable`).toBe(true);
+      expect(r.grandTotal).toBeGreaterThan(0);
     }
+  });
+
+  it("un pays NON desservi reste non chiffrable — rien n'est deviné", async () => {
+    await seedImportCostConfigs();
+    const r = await computeImportCost({
+      vehiclePrice: 10000, currency: "USD", sourceCountry: "Chine",
+      destCountry: "Ouganda", vehicleYear: ANNEE,
+    });
+    expect(r.available).toBe(false);
+    expect(r.grandTotal).toBeUndefined();
   });
 
   it("le barème marocain reproduit le cumul officiel de 41,30 %", async () => {
@@ -119,7 +165,7 @@ describe("Amorçage des barèmes d'importation", () => {
 
     const r = await seedImportCostConfigs();
     expect(r.created).toBe(0);
-    expect(r.skipped).toBe(3);
+    expect(r.skipped).toBe(9);
 
     const maroc = await ImportCostConfig.findOne({ country: "Maroc" }).lean();
     expect(maroc.customsDutyPercent, "l'ajustement de l'admin doit survivre").toBe(12);
@@ -135,13 +181,13 @@ describe("Amorçage des barèmes d'importation", () => {
     const dansDeuxAns = new Date();
     dansDeuxAns.setFullYear(dansDeuxAns.getFullYear() + 2);
     const perimes = await stalledImportCostConfigs(dansDeuxAns);
-    expect(perimes).toHaveLength(3);
+    expect(perimes).toHaveLength(9);
     expect(perimes[0].country).toBeTruthy();
   });
 
   it("un barème jamais daté est signalé d'emblée", async () => {
-    await ImportCostConfig.create({ country: "Mali", active: true });
+    await ImportCostConfig.create({ country: "Ouganda", active: true });
     const perimes = await stalledImportCostConfigs();
-    expect(perimes.map((c) => c.country)).toContain("Mali");
+    expect(perimes.map((c) => c.country)).toContain("Ouganda");
   });
 });

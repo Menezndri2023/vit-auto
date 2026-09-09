@@ -19,13 +19,19 @@ import { EU_ORIGINS } from "../constants/importOrigins.js";
 // Ne crée que les pays ABSENTS : un barème déjà ajusté par l'admin n'est
 // jamais réécrit.
 //
-// PAYS NON AMORCÉS, faute de source fiable au 2026-09 : Mali, Bénin, Togo,
-// Guinée, Ghana, Nigeria. Le tarif extérieur commun CEDEAO situe les voitures
-// de tourisme entre 5 et 20 %, mais chaque État y ajoute ses propres
-// prélèvements — l'écart entre deux pays voisins dépasse dix points. Les
-// renseigner « au TEC » produirait un devis faux avec l'apparence de la
-// précision. Ils restent donc non configurés : le moteur refuse de chiffrer,
-// et l'annonce affiche un tiret.
+// DEUX NIVEAUX DE FIABILITÉ, et la distinction est portée par `source` :
+//
+//   VÉRIFIÉ    — Maroc, Côte d'Ivoire, Sénégal, Ghana, Nigeria : taux relevés
+//                sur une source douanière ou sectorielle identifiée.
+//   PROVISOIRE — Bénin, Mali, Togo, Guinée : seule la base du tarif extérieur
+//                commun CEDEAO a pu être établie ; chaque État y ajoute des
+//                prélèvements nationaux introuvables à une source fiable. Leur
+//                `source` commence par « PROVISOIRE » et leur revue est fixée à
+//                6 mois au lieu de 12.
+//
+// Décision du gérant : un barème provisoire assumé vaut mieux qu'un tiret sur
+// toutes les annonces, dès lors qu'il est ajustable depuis l'administration —
+// ce que les transitaires locaux permettront de faire.
 
 const BAREMES = [
   {
@@ -95,6 +101,78 @@ const BAREMES = [
     maxVehicleAgeYears: null,
     preferentialDuty: [],
     source: "douanes.sn — tableau des taux cumulés, véhicules de tourisme usagés voie maritime (2026)",
+  },
+  // ── CEDEAO / UEMOA — barèmes PROVISOIRES ────────────────────────────────
+  // Ces quatre pays appliquent le tarif extérieur commun CEDEAO, mais chacun y
+  // ajoute ses prélèvements nationaux, que je n'ai pas trouvés à une source
+  // officielle. La base retenue est donc celle du TEC : droit de 20 % pour les
+  // voitures particulières, redevance statistique 1 % et prélèvement
+  // communautaire 0,5 % (les deux seuls prélèvements communs à toute la zone),
+  // TVA au taux UEMOA de 18 %.
+  //
+  // MARQUÉS PROVISOIRES et revus tous les 6 mois : ils donnent un ordre de
+  // grandeur défendable en attendant les tableaux des transitaires locaux, que
+  // l'admin saisira. Un barème provisoire assumé vaut mieux qu'un tiret sur
+  // toutes les annonces — mais il ne doit jamais passer pour définitif.
+  {
+    country: "Bénin",
+    customsDutyPercent: 20, parafiscalPercent: 1.5, vatPercent: 18,
+    maxVehicleAgeYears: null,   // aucune limite trouvée à une source fiable
+    preferentialDuty: [],
+    reviewEveryMonths: 6,
+    source: "PROVISOIRE — TEC CEDEAO (droit 20 %, RS 1 %, PC 0,5 %) + TVA 18 % (finances.bj, automag.bj 2026). À confirmer avec le transitaire.",
+  },
+  {
+    country: "Mali",
+    customsDutyPercent: 20, parafiscalPercent: 1.5, vatPercent: 18,
+    maxVehicleAgeYears: null,
+    preferentialDuty: [],
+    reviewEveryMonths: 6,
+    source: "PROVISOIRE — TEC CEDEAO (droit 20 %, RS 1 %, PC 0,5 %) + TVA 18 % (douanes.gouv.ml, TEC 2022). À confirmer avec le transitaire.",
+  },
+  {
+    country: "Togo",
+    customsDutyPercent: 20, parafiscalPercent: 1.5, vatPercent: 18,
+    maxVehicleAgeYears: null,
+    preferentialDuty: [],
+    reviewEveryMonths: 6,
+    source: "PROVISOIRE — TEC CEDEAO (droit 20 %, RS 1 %, PC 0,5 %) + TVA 18 %. À confirmer avec le transitaire.",
+  },
+  {
+    country: "Guinée",
+    customsDutyPercent: 20, parafiscalPercent: 1.5, vatPercent: 18,
+    maxVehicleAgeYears: null,
+    preferentialDuty: [],
+    reviewEveryMonths: 6,
+    source: "PROVISOIRE — TEC CEDEAO (droit 20 %, RS 1 %, PC 0,5 %) + TVA 18 %. À confirmer avec le transitaire.",
+  },
+  {
+    country: "Ghana",
+    // guazi.com / kitannex.com — vérifié 2026-09.
+    // Droit de 5 à 20 % selon le type ; 20 % retenu pour les voitures
+    // particulières. La fiscalité indirecte cumule TVA 15 %, NHIL 2,5 % et
+    // GETFund 2,5 %, soit 20 % appliqués sur CIF + droits.
+    // Âge : au-delà de 10 ans une PÉNALITÉ de surâge s'ajoute (ce n'est pas une
+    // interdiction) ; l'interdiction, elle, frappe les véhicules de plus de
+    // 15 ans à compter d'octobre 2026 — c'est cette limite qui est déclarée.
+    customsDutyPercent: 20, parafiscalPercent: 0, vatPercent: 20,
+    maxVehicleAgeYears: 15,
+    preferentialDuty: [],
+    reviewEveryMonths: 6,
+    source: "guazi.com / kitannex.com — droit 20 %, TVA 15 % + NHIL 2,5 % + GETFund 2,5 %, interdiction au-delà de 15 ans (oct. 2026). Surâge >10 ans non modélisé.",
+  },
+  {
+    country: "Nigeria",
+    // guazi.com / carawon.com — vérifié 2026-09.
+    // Droit 20 % ; prélèvements annexes : NAC 5 % (ramené de 15 % au
+    // 1er juillet 2026), ETLS 0,5 %, et une surtaxe de 7 % SUR LES DROITS —
+    // soit 1,4 % du CIF, d'où 6,9 % au total. TVA 7,5 % sur l'ensemble.
+    // Cumul : 36,42 % du CIF. Limite d'âge : 12 ans depuis 2022.
+    customsDutyPercent: 20, parafiscalPercent: 6.9, vatPercent: 7.5,
+    maxVehicleAgeYears: 12,
+    preferentialDuty: [],
+    reviewEveryMonths: 6,
+    source: "guazi.com / carawon.com — droit 20 %, NAC 5 %, ETLS 0,5 %, surtaxe 7 % des droits, TVA 7,5 %, limite 12 ans (2026).",
   },
 ];
 

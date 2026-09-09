@@ -22,6 +22,13 @@ const loyaltyTransactionSchema = new mongoose.Schema({
   reason: { type: String, required: true },
   booking: { type: mongoose.Schema.Types.ObjectId, ref: "Booking", default: null },
   ieTransaction: { type: mongoose.Schema.Types.ObjectId, ref: "IETransaction", default: null },
+  // Administrateur auteur d'un ajustement manuel (null pour tout mouvement
+  // automatique). Le journal d'audit garde déjà la trace de l'acte, mais
+  // l'historique doit rester lisible seul : sans ce champ, un client (ou un
+  // support) voyant un mouvement inexpliqué n'a aucun moyen de savoir qu'il
+  // vient d'une décision humaine, ni de laquelle.
+  adjustedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+
   balanceAfter: { type: Number, default: null }, // snapshot du solde dépensable après l'opération
   tierAtTime: { type: String, default: null },
   createdAt: { type: Date, default: Date.now },
