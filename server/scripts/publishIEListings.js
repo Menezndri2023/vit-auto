@@ -48,6 +48,20 @@ const ETAT = { Neuf: "neuf", "Occasion": "occasion", "Reconditionné": "recondit
 // international.
 const PRIX_PLANCHER_USD = 500;
 
+// ── Conversion des prix chinois exprimés en 万元 ────────────────────────────
+// Les neuf véhicules chinois portent un prix de 12,51 à 15,12 sans devise : ce
+// sont des 万元 (dizaines de milliers de yuans), unité de cotation courante en
+// Chine. 1 万元 = 10 000 CNY ≈ 1 408 USD au taux de la plateforme.
+//
+// BORNES VOLONTAIREMENT ÉTROITES. Un dixième véhicule porte « 150 » : au même
+// facteur il vaudrait 211 000 USD, ce qui est absurde pour une Haima V70 de
+// 2016. Les données sont donc incohérentes entre elles, et un facteur appliqué
+// en bloc produirait un prix faux avec l'apparence du sérieux. On ne convertit
+// que la plage plausible et on ÉCARTE le reste, en le nommant.
+const WAN_MIN = 1;
+const WAN_MAX = 100;
+const estWanYuan = (v) => v >= WAN_MIN && v <= WAN_MAX;
+
 async function publierAnnonces() {
   const enAttente = await ImportExportListing.find({ status: "pending" }).lean();
   const publiables = [];
@@ -94,6 +108,11 @@ async function publierAnnonces() {
 }
 
 async function basculerVehiculesEtrangers() {
+  // Taux de la plateforme, jamais une constante figée dans ce script.
+  const { getRateFromUSD } = await import("../services/currencyEngine.js");
+  const tauxCNY = await getRateFromUSD("CNY");
+  if (!tauxCNY) console.log("   ⚠️  taux CNY indisponible — aucune conversion 万元 ne sera tentée");
+
   // Un véhicule dont le pays est une ORIGINE D'IMPORT ne peut pas être essayé
   // sur place par un client d'Afrique de l'Ouest ou du Maroc : il relève de
   // l'import, pas de la vente locale avec rendez-vous d'essai.
@@ -130,13 +149,21 @@ async function basculerVehiculesEtrangers() {
       continue;
     }
 
+    // Prix déjà en dollars : rien à convertir. Sinon, tentative de lecture en
+    // 万元 — et refus net si la valeur sort de la plage plausible.
+    let prixUSD = prix;
+    let converti = false;
     if (prix < PRIX_PLANCHER_USD) {
-      ignores += 1;
-      console.log(`     ⛔ ${String(v.title).slice(0, 44)} — prix invraisemblable : ${prix} (unité d'origine probablement non convertie)`);
-      continue;
+      if (!estWanYuan(prix) || !tauxCNY) {
+        ignores += 1;
+        console.log(`     ⛔ ${String(v.title).slice(0, 44)} — prix invraisemblable : ${prix} (hors plage 万元, non converti)`);
+        continue;
+      }
+      prixUSD = Math.round(prix * (10000 / tauxCNY));
+      converti = true;
     }
 
-    console.log(`     → ${String(v.title).slice(0, 44)} (${v.country}) — ${prix}`);
+    console.log(`     → ${String(v.title).slice(0, 44)} (${v.country}) — ${prix}${converti ? ` 万元 → ${prixUSD} USD` : " USD"}`);
 
     if (CONFIRME) {
       await ImportExportListing.create({
@@ -156,10 +183,18 @@ async function basculerVehiculesEtrangers() {
         // Marchés desservis par VIT AUTO — le véhicule devient importable vers
         // eux, alors qu'il n'était jusqu'ici « essayable » nulle part.
         availableIn: ["Maroc", "Côte d'Ivoire", "Sénégal"],
-        price: prix, currency: "USD",
+        price: prixUSD, currency: "USD",
+        // Négociable : le prix vient d'une conversion d'unité, pas d'une
+        // cotation de l'exportateur.
+        negotiable: converti,
         photos: v.images || [],
         mainPhoto: v.thumbnail || v.images?.[0] || null,
-        status: "approved", approvedAt: new Date(),
+        // EN ATTENTE, jamais publiée d'emblée quand le prix est issu d'une
+        // conversion : un prix incertain ne doit pas être public. L'admin ou
+        // l'exportateur le valide, puis publie. Les annonces déjà cotées en
+        // dollars, elles, partent directement en ligne.
+        status: converti ? "pending" : "approved",
+        ...(converti ? {} : { approvedAt: new Date() }),
       });
 
       await Vehicle.updateOne(
