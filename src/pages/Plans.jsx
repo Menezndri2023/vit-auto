@@ -58,6 +58,11 @@ export default function Plans() {
   // dans la config publique. Repli fermé tant que la réponse n'est pas là.
   const paymentsOpen = pricing?.paymentsEnabled ?? PAYMENTS_ENABLED_FALLBACK;
 
+  // Un plan payant demandé alors que le paiement en ligne n'est pas ouvert :
+  // la demande part au support, qui l'active. « entreprise » (devis manuel) et
+  // « free » ne sont pas concernés.
+  const estDemandeSupport = (plan) => !paymentsOpen && !["entreprise", "free"].includes(plan.id);
+
   useEffect(() => {
     fetch("/api/pricing/config")
       .then((r) => (r.ok ? r.json() : null))
@@ -159,7 +164,10 @@ export default function Plans() {
         body: JSON.stringify({ planTier: plan.planTier, promoCode: promoCode.trim() || undefined }),
       });
       const data = await res.json().catch(() => null);
-      setSuccessMsg(res.ok ? t("plans.success") : (data?.message || t("plans.error")));
+      // Le serveur distingue « demande enregistrée, paiement à confirmer » de
+      // « demande envoyée au support » : son message est plus précis que le
+      // libellé générique, et dit au partenaire ce qui va réellement se passer.
+      setSuccessMsg(res.ok ? (data?.message || t("plans.success")) : (data?.message || t("plans.error")));
     } catch {
       setSuccessMsg(t("plans.error"));
     } finally {
@@ -316,19 +324,23 @@ export default function Plans() {
 
               {/* CTA */}
               {(() => {
-                const forceDisabled = !paymentsOpen && !["entreprise", "free"].includes(plan.id);
-                const isDisabled = plan.ctaDisabled || forceDisabled;
+                // `demandeSupport` n'est plus un blocage : le bouton reste
+                // CLIQUABLE et enregistre une demande que l'administration
+                // confirme. Seul son libellé change, pour que le partenaire
+                // sache qu'il ne paie pas en ligne à cet instant.
+                const demandeSupport = estDemandeSupport(plan);
+                const isDisabled = plan.ctaDisabled;
                 return (
                   <button
                     className={`${styles.planCta} ${isDisabled ? styles.planCtaDisabled : ""} ${plan.popular ? styles.planCtaPopular : ""}`}
                     style={plan.popular ? {} : { borderColor: plan.color, color: isDisabled ? "#94a3b8" : plan.color }}
                     disabled={isDisabled || activating === plan.id}
                     onClick={() => !isDisabled && handleActivate(plan)}
-                    title={forceDisabled ? PAYMENTS_DISABLED_NOTICE : undefined}
+                    title={demandeSupport ? PAYMENTS_DISABLED_NOTICE : undefined}
                   >
                     {activating === plan.id ? t("plans.activating")
                       : plan.id === "entreprise" ? t("plans.contact")
-                      : forceDisabled ? PAYMENTS_DISABLED_CTA
+                      : demandeSupport ? PAYMENTS_DISABLED_CTA
                       : plan.cta}
                   </button>
                 );
@@ -336,7 +348,7 @@ export default function Plans() {
               {/* La notice est écrite, pas seulement en info-bulle : sur mobile
                   un `title=` ne s'affiche jamais, et c'est là que le client
                   doit apprendre qu'il peut passer par le support. */}
-              {!paymentsOpen && !["entreprise", "free"].includes(plan.id) && (
+              {estDemandeSupport(plan) && (
                 <p style={{ fontSize: ".72rem", color: "#b45309", marginTop: 8, lineHeight: 1.4 }}>
                   {PAYMENTS_DISABLED_NOTICE}
                 </p>

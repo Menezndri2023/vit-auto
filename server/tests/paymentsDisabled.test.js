@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
+import Subscription from "../models/Subscription.js";
+import Notification from "../models/Notification.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
 // Aucune passerelle de paiement n'est branchée en production. Tant que
@@ -25,7 +27,7 @@ describe("Paiements fermés — le serveur refuse, il ne se fie pas à l'interfa
   beforeEach(() => { process.env.PAYMENTS_ENABLED = "false"; });
   afterEach(() => { process.env.PAYMENTS_ENABLED = initial; });
 
-  it("refuse l'activation d'un plan payant", async () => {
+  it("refuse un moyen de paiement qui encaisserait réellement", async () => {
     const { activatePlan } = await chargerControleur("false");
     const partenaire = await createUser({ role: "partenaire" });
     const { req, res } = mockReqRes({ user: partenaire, body: { planTier: "business", paymentMethod: "card" } });
@@ -38,7 +40,47 @@ describe("Paiements fermés — le serveur refuse, il ne se fie pas à l'interfa
     expect(res.body.message).toMatch(/support/i);
   });
 
-  it("refuse l'achat d'une mise en avant", async () => {
+  it("ACCEPTE une demande au support et la signale aux administrateurs", async () => {
+    // Le point essentiel : demander un plan ne prend pas d'argent. Refuser
+    // cette demande fermait la seule voie ouverte au partenaire — celle que
+    // l'interface lui annonce.
+    const { activatePlan } = await chargerControleur("false");
+    const [partenaire, admin] = await Promise.all([
+      createUser({ role: "partenaire" }),
+      createUser({ role: "admin" }),
+    ]);
+    const { req, res } = mockReqRes({ user: partenaire, body: { planTier: "business" } });
+
+    await activatePlan(req, res);
+
+    expect(res.statusCode).toBe(202);
+    const sub = await Subscription.findOne({ vendor: partenaire._id }).lean();
+    expect(sub.paymentHistory.at(-1).status, "jamais activé automatiquement").toBe("pending");
+    expect(sub.paymentHistory.at(-1).method).toBe("support");
+    expect(sub.plan, "le plan ne devient actif qu'après confirmation admin").toBe("free");
+
+    // Sans notification, la demande dormirait dans un onglet que personne n'ouvre.
+    const notif = await Notification.findOne({ user: admin._id }).lean();
+    expect(notif, "l'administrateur doit être prévenu").toBeTruthy();
+    expect(notif.message).toMatch(/business/i);
+  });
+
+  it("refuse une mise en avant payée par un moyen encaissant", async () => {
+    const { purchaseBoost } = await chargerControleur("false");
+    const partenaire = await createUser({ role: "partenaire" });
+    const vehicule = await createVehicleDoc({ owner: partenaire._id });
+    const { req, res } = mockReqRes({
+      user: partenaire,
+      body: { vehicleId: String(vehicule._id), tier: "30d", paymentMethod: "card" },
+    });
+
+    await purchaseBoost(req, res);
+
+    expect(res.statusCode).toBe(503);
+    expect(res.body.code).toBe("PAYMENTS_DISABLED");
+  });
+
+  it("ACCEPTE une demande de mise en avant au support", async () => {
     const { purchaseBoost } = await chargerControleur("false");
     const partenaire = await createUser({ role: "partenaire" });
     const vehicule = await createVehicleDoc({ owner: partenaire._id });
@@ -46,8 +88,9 @@ describe("Paiements fermés — le serveur refuse, il ne se fie pas à l'interfa
 
     await purchaseBoost(req, res);
 
-    expect(res.statusCode).toBe(503);
-    expect(res.body.code).toBe("PAYMENTS_DISABLED");
+    expect(res.statusCode).toBe(202);
+    const sub = await Subscription.findOne({ vendor: partenaire._id }).lean();
+    expect(sub.boosts.at(-1).isActive, "jamais activé sans confirmation admin").toBe(false);
   });
 
   it("laisse passer une fois les paiements ouverts", async () => {
@@ -67,7 +110,7 @@ describe("Paiements fermés — le serveur refuse, il ne se fie pas à l'interfa
     // orthographiée ne doit jamais ouvrir les encaissements.
     const { activatePlan } = await chargerControleur("1");
     const partenaire = await createUser({ role: "partenaire" });
-    const { req, res } = mockReqRes({ user: partenaire, body: { planTier: "business" } });
+    const { req, res } = mockReqRes({ user: partenaire, body: { planTier: "business", paymentMethod: "card" } });
 
     await activatePlan(req, res);
 

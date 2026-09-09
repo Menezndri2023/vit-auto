@@ -2,6 +2,18 @@ import logger from "../utils/logger.js";
 import Subscription from "../models/Subscription.js";
 import { planRank } from "../constants/subscriptionPlans.js";
 import { PAYMENTS_ENABLED, PAYMENTS_DISABLED_MESSAGE } from "../config/featureFlags.js";
+import { notifyAdmins } from "../utils/notifyAdmins.js";
+import Notification from "../models/Notification.js";
+
+// Méthodes qui déclencheraient un ENCAISSEMENT réel. Elles seules dépendent
+// d'une passerelle branchée.
+//
+// « support » n'en fait pas partie, et c'est tout l'objet de cette distinction :
+// demander un plan ne prend pas d'argent, cela enregistre une intention qu'un
+// administrateur confirme ensuite à la main. Refuser cette demande revenait à
+// fermer la seule voie ouverte — celle que l'interface annonce au partenaire.
+const METHODES_ENCAISSANTES = ["card", "stripe", "paypal", "orange_money", "wave", "mobile_money", "cash"];
+const encaisse = (methode) => METHODES_ENCAISSANTES.includes(String(methode || "").toLowerCase());
 import User from "../models/User.js";
 import Vehicle from "../models/Vehicle.js";
 import { getSubscriptionPrice, getBoostPrice, applyDiscountCode, redeemDiscountCodeByCode } from "../services/pricingEngine.js";
@@ -44,15 +56,14 @@ export const getMySubscription = async (req, res) => {
 // réelle du paiement (même mécanisme que createPayment/booking).
 export const activatePlan = async (req, res) => {
   try {
-    // Aucune passerelle de paiement n'est branchée : le serveur REFUSE, il ne
-    // se contente pas de compter sur un bouton grisé. Une interface désactivée
-    // n'est pas un contrôle d'accès — l'appel reste atteignable directement.
-    // L'activation manuelle par un administrateur (adminApprovePlanPayment /
-    // adminApproveBoost) reste ouverte : c'est précisément la voie annoncée au
-    // client, « contactez le support ».
-    if (!PAYMENTS_ENABLED) return res.status(503).json({ message: PAYMENTS_DISABLED_MESSAGE, code: "PAYMENTS_DISABLED" });
-
     const { planTier, paymentMethod, promoCode } = req.body;
+
+    // Seul un moyen qui PRÉLÈVE de l'argent dépend d'une passerelle branchée.
+    // Une demande au support n'en prélève aucun : elle doit rester possible,
+    // sans quoi le partenaire n'a plus aucun moyen d'obtenir son plan.
+    if (!PAYMENTS_ENABLED && encaisse(paymentMethod)) {
+      return res.status(503).json({ message: PAYMENTS_DISABLED_MESSAGE, code: "PAYMENTS_DISABLED" });
+    }
     if (!PLAN_TIERS.includes(planTier)) {
       return res.status(400).json({ message: `Palier invalide. Attendu : ${PLAN_TIERS.join(", ")}.` });
     }
@@ -73,7 +84,7 @@ export const activatePlan = async (req, res) => {
     sub.paymentHistory.push({
       planTier,
       amount: priceUSD,
-      method: paymentMethod || "card",
+      method: paymentMethod || (PAYMENTS_ENABLED ? "card" : "support"),
       paidAt: new Date(),
       status: "pending",
       period,
@@ -85,8 +96,21 @@ export const activatePlan = async (req, res) => {
     // demande "pending" ne doit jamais consommer une utilisation limitée.
     await sub.save();
 
+    // Sans cette notification, la demande dormait dans un onglet que personne
+    // n'ouvre : le partenaire attendait une activation que l'administration
+    // ignorait avoir à faire. Non bloquante — une notification manquée ne doit
+    // pas faire échouer une demande déjà enregistrée.
+    await notifyAdmins(
+      "system",
+      "💳 Demande d'abonnement partenaire",
+      `${req.user.firstName || "Un partenaire"} ${req.user.lastName || ""} demande le plan « ${planTier} » (${priceUSD} USD). À confirmer dans Finance › Paiements.`.trim(),
+      "/admin?tab=paiements"
+    ).catch(() => {});
+
     res.status(202).json({
-      message: "Demande d'activation enregistrée, en attente de confirmation du paiement par un administrateur.",
+      message: PAYMENTS_ENABLED
+        ? "Demande d'activation enregistrée, en attente de confirmation du paiement par un administrateur."
+        : "Demande envoyée au support. Un administrateur vous contactera pour activer votre plan.",
       subscription: sub,
     });
   } catch (err) {
@@ -98,9 +122,10 @@ export const activatePlan = async (req, res) => {
 // immédiate tant qu'aucune vérification réelle de paiement n'est branchée.
 export const purchaseBoost = async (req, res) => {
   try {
-    if (!PAYMENTS_ENABLED) return res.status(503).json({ message: PAYMENTS_DISABLED_MESSAGE, code: "PAYMENTS_DISABLED" });
-
-    const { vehicleId, tier, promoCode } = req.body;
+    const { vehicleId, tier, promoCode, paymentMethod } = req.body;
+    if (!PAYMENTS_ENABLED && encaisse(paymentMethod)) {
+      return res.status(503).json({ message: PAYMENTS_DISABLED_MESSAGE, code: "PAYMENTS_DISABLED" });
+    }
     if (!vehicleId) return res.status(400).json({ message: "vehicleId requis." });
     // Sans ce contrôle, un vehicleId malformé lève un CastError → 500.
     if (isMalformedObjectId(vehicleId)) return res.status(400).json({ message: "vehicleId invalide." });
@@ -138,8 +163,17 @@ export const purchaseBoost = async (req, res) => {
     // jamais ici (voir activatePlan ci-dessus pour la même correction).
     await sub.save();
 
+    await notifyAdmins(
+      "system",
+      "⭐ Demande de mise en avant",
+      `${req.user.firstName || "Un partenaire"} demande une mise en avant « ${tier} » (${priceUSD} USD). À confirmer dans Finance › Paiements.`,
+      "/admin?tab=paiements"
+    ).catch(() => {});
+
     res.status(202).json({
-      message: "Demande de mise en avant enregistrée, en attente de confirmation du paiement.",
+      message: PAYMENTS_ENABLED
+        ? "Demande de mise en avant enregistrée, en attente de confirmation du paiement."
+        : "Demande envoyée au support. Un administrateur activera votre mise en avant.",
       subscription: sub,
     });
   } catch (err) {
@@ -200,6 +234,16 @@ export const adminApprovePlanPayment = async (req, res) => {
 
     await sub.save();
     await syncOwnerPlanOnVehicles(sub.vendor, sub.plan, endDate);
+
+    // Le partenaire doit savoir que son plan est actif : sans cela, il attend
+    // une réponse qui ne vient jamais et redemande.
+    await Notification.create({
+      user: sub.vendor,
+      type: "system",
+      titre: "✅ Votre plan est actif",
+      message: `Le plan « ${sub.plan} » est activé jusqu'au ${endDate.toLocaleDateString("fr-FR")} : commission réduite et classement prioritaire de vos annonces.`,
+      lien: "/vendor/dashboard",
+    }).catch((err) => logger.error("notification plan actif (non bloquant) :", err.message));
     // Paiement réellement confirmé — c'est le seul moment où un code promo
     // éventuel est décompté (voir redeemDiscountCode/pricingEngine.js).
     if (entry.promoCode) await redeemDiscountCodeByCode(entry.promoCode);

@@ -16,9 +16,11 @@ export const PAYMENTS_ENABLED_FALLBACK = false;
 // Message affiché à côté de toute action payante tant que les paiements sont
 // fermés. Il doit dire QUOI faire, pas seulement que c'est indisponible.
 export const PAYMENTS_DISABLED_NOTICE =
-  "Paiements pas encore ouverts — contactez le support pour activer cette option sur votre compte.";
+  "Paiement en ligne pas encore ouvert : votre demande part au support, qui active le plan sur votre compte.";
 
-// Libellé court, pour un bouton grisé (le bouton reste VISIBLE : masquer une
-// offre empêche de la découvrir, et c'est elle qui déclenche la demande au
-// support).
-export const PAYMENTS_DISABLED_CTA = "Sur demande au support";
+// Libellé du bouton tant que les paiements ne sont pas ouverts. Le bouton
+// reste ACTIF : demander un plan ne prend pas d'argent, cela enregistre une
+// intention qu'un administrateur confirme à la main (voir
+// subscriptionController.activatePlan). Le griser fermait la seule voie
+// réellement disponible.
+export const PAYMENTS_DISABLED_CTA = "Demander l'activation";

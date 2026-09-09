@@ -3277,14 +3277,13 @@ export default function VendorDashboard() {
                         </button>
                       )}
                       <button className={styles.btnSecondary} onClick={() => handleOpenMaintenance(vehicle)}>🔧 Journal</button>
-                      {/* Le bouton reste AFFICHÉ quand les paiements sont
-                          fermés : masquer l'offre empêche de la découvrir, et
-                          c'est elle qui déclenche la demande au support. */}
+                      {/* Actif même paiements fermés : la demande ne prélève
+                          rien, elle part au support qui l'active. */}
                       {!isBoosted && (
                         <button
                           className={styles.btnBoost}
                           onClick={() => { setBoostTier("30d"); setBoostPromoCode(""); setBoostModal({ vehicleId: vid, title: vehicle.name || vehicle.title }); }}
-                          disabled={boostTarget === vid || !paymentsOpen}
+                          disabled={boostTarget === vid}
                           title={!paymentsOpen ? PAYMENTS_DISABLED_NOTICE : undefined}
                         >
                           {boostTarget === vid ? "…" : "⭐ Booster"}

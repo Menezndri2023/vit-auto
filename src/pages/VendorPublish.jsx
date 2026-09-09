@@ -142,13 +142,12 @@ const VehicleCard = ({ v, bookings, onDelete, onBoost, onLifecycle, paymentsOpen
           <div className={styles.miniStat}><span className={styles.miniVal} style={{ color: "#10b981" }}>{fmt(vst.revenue)}</span><span className={styles.miniLbl}>Revenus</span></div>
         </div>
         <div className={styles.cardActions}>
-          {/* Affiché même paiements fermés : c'est l'offre elle-même qui
-              amène le partenaire à contacter le support. */}
+          {/* Actif même paiements fermés : la demande ne prélève rien, elle
+              part au support qui l'active (voir purchaseBoost). */}
           {v.status === "approved" && (
             <button
               className={styles.boostBtn}
               onClick={() => onBoost(v)}
-              disabled={!paymentsOpen}
               title={!paymentsOpen ? PAYMENTS_DISABLED_NOTICE : undefined}
             >
               ⚡ Booster
