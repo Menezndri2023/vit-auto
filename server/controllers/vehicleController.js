@@ -5,6 +5,8 @@ import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Booking from "../models/Booking.js";
 import PartnerVerification from "../models/PartnerVerification.js";
+import Subscription from "../models/Subscription.js";
+import { planRank } from "../constants/subscriptionPlans.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
 import Review from "../models/Review.js";
 import { resolveRentalOptions } from "../services/rentalOptions.js";
@@ -205,10 +207,21 @@ export const createVehicle = async (req, res) => {
       whitelisted.thumbnail = uploadedThumb;
     }
 
+    // Classement prioritaire : une annonce publiée par un partenaire déjà
+    // abonné doit en bénéficier immédiatement, sans attendre le prochain
+    // changement d'abonnement (qui seul propage le rang aux annonces
+    // existantes — voir subscriptionController.syncOwnerPlanOnVehicles).
+    const abonnement = await Subscription.findOne({ vendor: req.user._id }).lean();
+    const planActif = abonnement?.planDetails?.isActive
+      && abonnement?.planDetails?.endDate
+      && new Date(abonnement.planDetails.endDate) > new Date();
+
     const vehicle = await Vehicle.create({
       ...whitelisted,
       // Champs serveur — jamais depuis req.body
       owner:              req.user._id,
+      ownerPlanRank:      planActif ? planRank(abonnement.plan) : 0,
+      ownerPlanUntil:     planActif ? abonnement.planDetails.endDate : null,
       business:           business?._id || null,
       country:            business?.country || req.user.country || null,
       status:             validation.status,
@@ -445,8 +458,17 @@ export const getVehicles = async (req, res) => {
           { $match: filter },
           { $addFields: {
               _sponsored: { $cond: [{ $gt: ["$sponsoredUntil", now] }, { $ifNull: ["$boostLevel", 1] }, 0] },
+              // Classement prioritaire lié à l'abonnement — vendu sur la page
+              // Tarifs depuis l'origine, sans aucun effet jusqu'ici : seules
+              // les mises en avant ACHETÉES pesaient sur le tri. Le rang est
+              // recopié sur l'annonce (voir Vehicle.ownerPlanRank) pour éviter
+              // une jointure vers les abonnements sur tout le catalogue avant
+              // pagination. Un abonnement échu retombe à 0 sans tâche planifiée.
+              _plan: { $cond: [{ $gt: ["$ownerPlanUntil", now] }, { $ifNull: ["$ownerPlanRank", 0] }, 0] },
           } },
-          { $sort: { _sponsored: -1, createdAt: -1 } },
+          // Le boost payé à l'unité reste DEVANT l'abonnement : sinon
+          // l'abonnement dévaloriserait le produit le plus cher.
+          { $sort: { _sponsored: -1, _plan: -1, createdAt: -1 } },
           { $skip: skip },
           { $limit: safeLimit },
           { $lookup: { from: "users", localField: "owner", foreignField: "_id", as: "owner",
@@ -457,7 +479,7 @@ export const getVehicles = async (req, res) => {
               owner:    { $arrayElemAt: ["$owner", 0] },
               business: { $arrayElemAt: ["$business", 0] },
           } },
-          { $unset: "_sponsored" },
+          { $unset: ["_sponsored", "_plan"] },
         ]),
         Vehicle.countDocuments(filter),
       ]);

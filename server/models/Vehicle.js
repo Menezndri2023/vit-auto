@@ -317,6 +317,20 @@ const vehicleSchema = new mongoose.Schema({
   // Subscription.boosts[], jamais ici) obtient une visibilité accrue dans le
   // CATALOGUE normal, jamais une entrée automatique dans le carousel/vedette
   // sans validation explicite d'un admin.
+  // ── Classement prioritaire lié à l'abonnement du propriétaire ────────────
+  // Copie du rang de plan (voir constants/subscriptionPlans.js) et de sa date
+  // d'expiration, recopiés sur l'annonce plutôt que joints à la volée : le tri
+  // du catalogue se fait sur des centaines d'annonces avant pagination, un
+  // $lookup vers les abonnements y coûterait une jointure complète à chaque
+  // requête non mise en cache.
+  //
+  // `ownerPlanUntil` est comparé à la date du jour AU MOMENT DU TRI — même
+  // principe que `sponsoredUntil` : un abonnement échu cesse de peser sans
+  // qu'aucune tâche planifiée n'ait à l'éteindre, ce qui compte puisque les
+  // planificateurs en mémoire ne tournent pas quand le service est en veille.
+  ownerPlanRank:  { type: Number, default: 0 },
+  ownerPlanUntil: { type: Date,   default: null },
+
   featured:       { type: Boolean, default: false },
   // Poids de la mise en avant PAYANTE (voir subscriptionController.adminApproveBoost) :
   // 1 = 24h, 2 = 7j, 3 = 30j, 4 = international. Utilisé par le tri du catalogue

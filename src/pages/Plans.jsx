@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useI18n } from "../context/I18nContext";
-import { SUBSCRIPTIONS_ENABLED } from "../config/featureFlags";
+import { PAYMENTS_ENABLED_FALLBACK, PAYMENTS_DISABLED_NOTICE, PAYMENTS_DISABLED_CTA } from "../config/featureFlags";
 import styles from "./Plans.module.css";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
@@ -54,6 +54,10 @@ export default function Plans() {
   const [pricing,     setPricing]     = useState(FALLBACK_PRICING);
   const [promoCode,   setPromoCode]   = useState("");
 
+  // Ouverture des paiements : décidée par le SERVEUR (PAYMENTS_ENABLED), lue
+  // dans la config publique. Repli fermé tant que la réponse n'est pas là.
+  const paymentsOpen = pricing?.paymentsEnabled ?? PAYMENTS_ENABLED_FALLBACK;
+
   useEffect(() => {
     fetch("/api/pricing/config")
       .then((r) => (r.ok ? r.json() : null))
@@ -90,8 +94,8 @@ export default function Plans() {
         { ok: true,  text: "Tout du plan Gratuit" },
         { ok: true,  text: "Commission réduite" },
         { ok: true,  text: "Classement prioritaire" },
-        { ok: true,  text: "Analyses de performance" },
-        { ok: true,  text: "Badge premium" },
+        { ok: false, soon: true, text: "Analyses de performance réservées" },
+        { ok: false, soon: true, text: "Badge premium" },
         { ok: false, text: "Outils d'export / API" },
         { ok: false, text: "Multi-utilisateurs" },
         { ok: false, text: "Assistance premium" },
@@ -106,10 +110,9 @@ export default function Plans() {
       features: [
         { ok: true,  text: "Tout du plan Individuel Plus" },
         { ok: true,  text: "Classement prioritaire renforcé" },
-        { ok: true,  text: "Statistiques avancées & export" },
-        { ok: true,  text: "Plus de visibilité média" },
-        { ok: true,  text: "Assistance premium" },
-        { ok: true,  text: "Badge premium" },
+        { ok: false, soon: true, text: "Statistiques avancées & export" },
+        { ok: false, soon: true, text: "Assistance premium" },
+        { ok: false, soon: true, text: "Badge premium" },
         { ok: false, text: "Outils d'export / API" },
         { ok: false, text: "Multi-utilisateurs" },
       ],
@@ -122,12 +125,11 @@ export default function Plans() {
       desc: "Pour les exportateurs internationaux — catalogue illimité, outils d'export, accès API, CRM.",
       features: [
         { ok: true,  text: "Catalogue illimité" },
-        { ok: true,  text: "Outils d'exportation" },
-        { ok: true,  text: "Accès API" },
-        { ok: true,  text: "CRM intégré" },
-        { ok: true,  text: "Badge vérifié" },
-        { ok: true,  text: "Multi-utilisateurs" },
-        { ok: true,  text: "Assistance premium" },
+        { ok: true,  text: "CRM intégré (leads et devis)" },
+        { ok: false, soon: true, text: "Outils d'exportation" },
+        { ok: false, soon: true, text: "Accès API" },
+        { ok: false, soon: true, text: "Multi-utilisateurs" },
+        { ok: false, soon: true, text: "Assistance premium" },
         { ok: true,  text: "Commission réduite" },
       ],
       cta: "Choisir Exportateur", ctaDisabled: false, popular: false,
@@ -293,19 +295,28 @@ export default function Plans() {
 
               {/* Features */}
               <ul className={styles.features}>
+                {/* Trois états, et non deux : un avantage ANNONCÉ mais pas
+                    encore construit ne doit pas porter la même coche qu'un
+                    avantage réel — c'est le client qui paierait la différence.
+                    `soon` le distingue explicitement. */}
                 {plan.features.map((f, i) => (
                   <li key={i} className={f.ok ? styles.featureOk : styles.featureNo}>
-                    <span className={styles.featureIcon} style={{ color: f.ok ? plan.color : "#cbd5e1" }}>
-                      {f.ok ? "✓" : "✗"}
+                    <span className={styles.featureIcon} style={{ color: f.ok ? plan.color : f.soon ? "#f59e0b" : "#cbd5e1" }}>
+                      {f.ok ? "✓" : f.soon ? "🔜" : "✗"}
                     </span>
                     {f.text}
                   </li>
                 ))}
               </ul>
+              {plan.features.some((f) => f.soon) && (
+                <p style={{ fontSize: ".7rem", color: "#94a3b8", marginTop: -4, marginBottom: 10, lineHeight: 1.4 }}>
+                  🔜 en préparation — non inclus aujourd'hui, ne comptez pas dessus pour choisir.
+                </p>
+              )}
 
               {/* CTA */}
               {(() => {
-                const forceDisabled = !SUBSCRIPTIONS_ENABLED && !["entreprise", "free"].includes(plan.id);
+                const forceDisabled = !paymentsOpen && !["entreprise", "free"].includes(plan.id);
                 const isDisabled = plan.ctaDisabled || forceDisabled;
                 return (
                   <button
@@ -313,15 +324,23 @@ export default function Plans() {
                     style={plan.popular ? {} : { borderColor: plan.color, color: isDisabled ? "#94a3b8" : plan.color }}
                     disabled={isDisabled || activating === plan.id}
                     onClick={() => !isDisabled && handleActivate(plan)}
-                    title={forceDisabled ? "Bientôt disponible" : undefined}
+                    title={forceDisabled ? PAYMENTS_DISABLED_NOTICE : undefined}
                   >
                     {activating === plan.id ? t("plans.activating")
                       : plan.id === "entreprise" ? t("plans.contact")
-                      : forceDisabled ? "Bientôt disponible"
+                      : forceDisabled ? PAYMENTS_DISABLED_CTA
                       : plan.cta}
                   </button>
                 );
               })()}
+              {/* La notice est écrite, pas seulement en info-bulle : sur mobile
+                  un `title=` ne s'affiche jamais, et c'est là que le client
+                  doit apprendre qu'il peut passer par le support. */}
+              {!paymentsOpen && !["entreprise", "free"].includes(plan.id) && (
+                <p style={{ fontSize: ".72rem", color: "#b45309", marginTop: 8, lineHeight: 1.4 }}>
+                  {PAYMENTS_DISABLED_NOTICE}
+                </p>
+              )}
             </div>
           ))}
         </div>

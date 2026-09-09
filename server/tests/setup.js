@@ -9,6 +9,12 @@ process.env.FIELD_ENCRYPTION_KEY ||= "d31b4c3c30b59f3cc420e6d16a5429f3ecf6fdfbbb
 process.env.JWT_SECRET ||= "test-jwt-secret";
 process.env.REFRESH_TOKEN_SECRET ||= "test-refresh-token-secret";
 process.env.NODE_ENV ||= "test";
+// Paiements OUVERTS par défaut dans les tests : la quasi-totalité de la suite
+// exerce le parcours d'achat complet (abonnements, mises en avant), qui n'a de
+// sens qu'ouvert. En production le défaut est l'inverse — fermé — et c'est
+// tests/paymentsDisabled.test.js qui couvre explicitement cet état, en posant
+// la variable à "false" puis en rechargeant le module.
+process.env.PAYMENTS_ENABLED ||= "true";
 
 // Un test qui importe server.js (voir tests/http.*.test.js) déclenche
 // dotenv.config(), qui charge server/.env — dotenv ne réécrit jamais une

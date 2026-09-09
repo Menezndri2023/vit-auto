@@ -1,4 +1,5 @@
 import logger from "../utils/logger.js";
+import { PAYMENTS_ENABLED } from "../config/featureFlags.js";
 import { getActiveRates, getActiveCountries } from "../services/currencyEngine.js";
 import { getConfig } from "../services/pricingEngine.js";
 
@@ -44,6 +45,11 @@ export const getPublicConfig = async (_req, res) => {
       services:        config.services,
       ads:             config.ads,
       rentalOptions:   config.rentalOptions,
+      // Interrupteur unique des paiements (server/config/featureFlags.js) :
+      // l'interface le lit ici plutôt que de le redéclarer, sinon les deux
+      // finissent par diverger et un bouton payant redevient cliquable alors
+      // que le serveur refuse toujours.
+      paymentsEnabled: PAYMENTS_ENABLED,
     });
   } catch (err) {
     logger.error("getPublicConfig:", err);

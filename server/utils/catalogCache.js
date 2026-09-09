@@ -29,6 +29,16 @@ export function cacheSet(key, value, ttlMs = 30_000) {
   store.set(key, { value, expiresAt: Date.now() + ttlMs });
 }
 
+// Vide entièrement le cache. Sans elle, deux requêtes catalogue identiques
+// séparées par un changement de données renvoient le même résultat pendant
+// toute la durée de vie de l'entrée — acceptable en production (quelques
+// dizaines de secondes de fraîcheur perdue, c'est le contrat), mais rend des
+// tests successifs dépendants les uns des autres alors que la base, elle, est
+// bien réinitialisée entre chaque.
+export function cacheClear() {
+  store.clear();
+}
+
 export function buildCacheKey(prefix, params) {
   const sorted = Object.keys(params)
     .sort()

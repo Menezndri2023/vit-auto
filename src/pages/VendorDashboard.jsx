@@ -7,7 +7,7 @@ import { useToast } from "../context/ToastContext";
 import { useSocket } from "../context/SocketContext";
 import { useChat } from "../context/ChatContext";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { SUBSCRIPTIONS_ENABLED } from "../config/featureFlags";
+import { PAYMENTS_ENABLED_FALLBACK, PAYMENTS_DISABLED_NOTICE } from "../config/featureFlags";
 import PartnerCalendar from "../components/PartnerCalendar/PartnerCalendar";
 import PartnerBusinessManager from "../components/PartnerBusinessManager/PartnerBusinessManager";
 import { geocodeAddress } from "../utils/geo";
@@ -1599,10 +1599,13 @@ export default function VendorDashboard() {
   // Taux de commission courants (standard ou premium selon l'abonnement actif) —
   // remplace DEFAULT_COMM_RATE dès que la config admin est chargée, pour ne
   // jamais afficher une prévision de commission périmée.
+  // Ouverture des paiements : décidée par le serveur (PAYMENTS_ENABLED) et lue
+  // dans la même config. Repli fermé tant que la réponse n'est pas arrivée.
+  const [paymentsOpen, setPaymentsOpen] = useState(PAYMENTS_ENABLED_FALLBACK);
   useEffect(() => {
     fetch("/api/pricing/config")
       .then((r) => r.json())
-      .then((d) => setCommRates(d.commissions))
+      .then((d) => { setCommRates(d.commissions); setPaymentsOpen(d.paymentsEnabled ?? PAYMENTS_ENABLED_FALLBACK); })
       .catch(() => {});
   }, []);
 
@@ -2805,7 +2808,7 @@ export default function VendorDashboard() {
         <div className={isPro ? styles.proBanner : styles.freeBanner}>
           <span className={styles.planBadge}>{isPro ? `✨ ${planName}` : "Gratuit"}</span>
           <span>{isPro ? `Plan ${planName} actif jusqu'au ${proEnd}` : "Passez à un plan supérieur pour réduire vos commissions et la mise en avant automatique."}</span>
-          {!isPro && SUBSCRIPTIONS_ENABLED && <Link to="/plans" className={styles.upgradeLink}>Voir les plans →</Link>}
+          {!isPro && <Link to="/plans" className={styles.upgradeLink}>Voir les plans →</Link>}
         </div>
       )}
 
@@ -3274,7 +3277,19 @@ export default function VendorDashboard() {
                         </button>
                       )}
                       <button className={styles.btnSecondary} onClick={() => handleOpenMaintenance(vehicle)}>🔧 Journal</button>
-                      {SUBSCRIPTIONS_ENABLED && !isBoosted && <button className={styles.btnBoost} onClick={() => { setBoostTier("30d"); setBoostPromoCode(""); setBoostModal({ vehicleId: vid, title: vehicle.name || vehicle.title }); }} disabled={boostTarget === vid}>{boostTarget === vid ? "…" : "⭐ Booster"}</button>}
+                      {/* Le bouton reste AFFICHÉ quand les paiements sont
+                          fermés : masquer l'offre empêche de la découvrir, et
+                          c'est elle qui déclenche la demande au support. */}
+                      {!isBoosted && (
+                        <button
+                          className={styles.btnBoost}
+                          onClick={() => { setBoostTier("30d"); setBoostPromoCode(""); setBoostModal({ vehicleId: vid, title: vehicle.name || vehicle.title }); }}
+                          disabled={boostTarget === vid || !paymentsOpen}
+                          title={!paymentsOpen ? PAYMENTS_DISABLED_NOTICE : undefined}
+                        >
+                          {boostTarget === vid ? "…" : "⭐ Booster"}
+                        </button>
+                      )}
                       <button className={styles.btnDanger} onClick={() => handleDeleteVehicle(vid)}>Suppr.</button>
                     </div>
                     {(vehicle.validationErrors || []).map((e, i) => <p key={i} className={styles.validErr}>❌ {e}</p>)}

@@ -1,4 +1,7 @@
+import logger from "../utils/logger.js";
 import Subscription from "../models/Subscription.js";
+import { planRank } from "../constants/subscriptionPlans.js";
+import { PAYMENTS_ENABLED, PAYMENTS_DISABLED_MESSAGE } from "../config/featureFlags.js";
 import User from "../models/User.js";
 import Vehicle from "../models/Vehicle.js";
 import { getSubscriptionPrice, getBoostPrice, applyDiscountCode, redeemDiscountCodeByCode } from "../services/pricingEngine.js";
@@ -41,6 +44,14 @@ export const getMySubscription = async (req, res) => {
 // réelle du paiement (même mécanisme que createPayment/booking).
 export const activatePlan = async (req, res) => {
   try {
+    // Aucune passerelle de paiement n'est branchée : le serveur REFUSE, il ne
+    // se contente pas de compter sur un bouton grisé. Une interface désactivée
+    // n'est pas un contrôle d'accès — l'appel reste atteignable directement.
+    // L'activation manuelle par un administrateur (adminApprovePlanPayment /
+    // adminApproveBoost) reste ouverte : c'est précisément la voie annoncée au
+    // client, « contactez le support ».
+    if (!PAYMENTS_ENABLED) return res.status(503).json({ message: PAYMENTS_DISABLED_MESSAGE, code: "PAYMENTS_DISABLED" });
+
     const { planTier, paymentMethod, promoCode } = req.body;
     if (!PLAN_TIERS.includes(planTier)) {
       return res.status(400).json({ message: `Palier invalide. Attendu : ${PLAN_TIERS.join(", ")}.` });
@@ -87,6 +98,8 @@ export const activatePlan = async (req, res) => {
 // immédiate tant qu'aucune vérification réelle de paiement n'est branchée.
 export const purchaseBoost = async (req, res) => {
   try {
+    if (!PAYMENTS_ENABLED) return res.status(503).json({ message: PAYMENTS_DISABLED_MESSAGE, code: "PAYMENTS_DISABLED" });
+
     const { vehicleId, tier, promoCode } = req.body;
     if (!vehicleId) return res.status(400).json({ message: "vehicleId requis." });
     // Sans ce contrôle, un vehicleId malformé lève un CastError → 500.
@@ -149,6 +162,23 @@ export const getPendingSubscriptionRequests = async (_req, res) => {
   }
 };
 
+// Recopie le rang d'abonnement du partenaire sur TOUTES ses annonces, pour que
+// le tri du catalogue en tienne compte sans jointure (voir Vehicle.ownerPlanRank).
+// Appelée à chaque changement d'état d'un plan — activation, rejet, expiration
+// constatée. Jamais bloquante : une annonce mal classée est un défaut de
+// visibilité, pas une raison de faire échouer l'activation d'un abonnement déjà
+// payé.
+async function syncOwnerPlanOnVehicles(vendorId, plan, endDate) {
+  try {
+    await Vehicle.updateMany(
+      { owner: vendorId },
+      { $set: { ownerPlanRank: planRank(plan), ownerPlanUntil: endDate || null } }
+    );
+  } catch (err) {
+    logger.error("syncOwnerPlanOnVehicles:", err.message);
+  }
+}
+
 // ── ADMIN : confirme la réception réelle du paiement → active le plan ───────
 export const adminApprovePlanPayment = async (req, res) => {
   try {
@@ -169,6 +199,7 @@ export const adminApprovePlanPayment = async (req, res) => {
     sub.planDetails = { startDate, endDate, isActive: true, priceUSD: entry.amount };
 
     await sub.save();
+    await syncOwnerPlanOnVehicles(sub.vendor, sub.plan, endDate);
     // Paiement réellement confirmé — c'est le seul moment où un code promo
     // éventuel est décompté (voir redeemDiscountCode/pricingEngine.js).
     if (entry.promoCode) await redeemDiscountCodeByCode(entry.promoCode);

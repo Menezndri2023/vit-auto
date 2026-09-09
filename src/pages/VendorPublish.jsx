@@ -5,7 +5,7 @@ import { useCurrency } from "../context/CurrencyContext";
 import { useVehicles } from "../context/VehicleContext";
 import { useToast } from "../context/ToastContext";
 import { CAR_MAKES, BODY_TYPES, COUNTRIES_ALL, CURRENCIES, getCountryFlag } from "../data/autocomplete";
-import { SUBSCRIPTIONS_ENABLED } from "../config/featureFlags";
+import { PAYMENTS_ENABLED_FALLBACK, PAYMENTS_DISABLED_NOTICE } from "../config/featureFlags";
 import { INCOTERMS, INCOTERM_STAGES, INCOTERM_GROUP_LABELS, getIncoterm, isIncotermCompatible } from "../constants/incoterms";
 import styles from "./VendorPublish.module.css";
 
@@ -94,7 +94,7 @@ const ScoreBar = ({ score }) => {
 };
 
 // ── Carte véhicule standard ───────────────────────────────────────────────────
-const VehicleCard = ({ v, bookings, onDelete, onBoost, onLifecycle }) => {
+const VehicleCard = ({ v, bookings, onDelete, onBoost, onLifecycle, paymentsOpen }) => {
   const [showHistory, setShowHistory] = useState(false);
   const st   = STATUS_CFG[v.status]   || STATUS_CFG.pending;
   const tp   = TYPE_CFG[v.type]       || TYPE_CFG.location;
@@ -142,8 +142,17 @@ const VehicleCard = ({ v, bookings, onDelete, onBoost, onLifecycle }) => {
           <div className={styles.miniStat}><span className={styles.miniVal} style={{ color: "#10b981" }}>{fmt(vst.revenue)}</span><span className={styles.miniLbl}>Revenus</span></div>
         </div>
         <div className={styles.cardActions}>
-          {v.status === "approved" && SUBSCRIPTIONS_ENABLED && (
-            <button className={styles.boostBtn} onClick={() => onBoost(v)}>⚡ Booster</button>
+          {/* Affiché même paiements fermés : c'est l'offre elle-même qui
+              amène le partenaire à contacter le support. */}
+          {v.status === "approved" && (
+            <button
+              className={styles.boostBtn}
+              onClick={() => onBoost(v)}
+              disabled={!paymentsOpen}
+              title={!paymentsOpen ? PAYMENTS_DISABLED_NOTICE : undefined}
+            >
+              ⚡ Booster
+            </button>
           )}
           {v.status === "rejected" && (
             <span className={styles.rejectTip}>Corrigez votre annonce et soumettez à nouveau</span>
@@ -620,6 +629,15 @@ const VendorPublish = () => {
   const [filter, setFilter]         = useState("all");
   const [search, setSearch]         = useState("");
   const [boostVehicle, setBoost]    = useState(null);
+  // Ouverture des paiements — décidée par le serveur (PAYMENTS_ENABLED), lue
+  // dans la config publique ; fermée tant que la réponse n'est pas là.
+  const [paymentsOpen, setPaymentsOpen] = useState(PAYMENTS_ENABLED_FALLBACK);
+  useEffect(() => {
+    fetch("/api/pricing/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setPaymentsOpen(d.paymentsEnabled ?? PAYMENTS_ENABLED_FALLBACK); })
+      .catch(() => {});
+  }, []);
   const [deleteVehicle, setDelete]  = useState(null);
   const [deleting, setDeleting]     = useState(false);
 
@@ -824,7 +842,7 @@ const VendorPublish = () => {
           ) : (
             <div className={styles.cardGrid}>
               {filtered.map((v) => (
-                <VehicleCard key={v.id || v._id} v={v} bookings={partnerBookings || []} onDelete={setDelete} onBoost={setBoost} onLifecycle={handleLifecycle} />
+                <VehicleCard key={v.id || v._id} v={v} bookings={partnerBookings || []} onDelete={setDelete} onBoost={setBoost} onLifecycle={handleLifecycle} paymentsOpen={paymentsOpen} />
               ))}
             </div>
           )}
