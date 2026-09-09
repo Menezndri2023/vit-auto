@@ -26,6 +26,7 @@ import { SocketProvider } from "./context/SocketContext";
 const Home                  = lazy(() => import("./pages/Home"));
 const Catalogue             = lazy(() => import("./pages/Catalogue"));
 const LocalLanding          = lazy(() => import("./pages/LocalLanding"));
+const ImportOriginLanding   = lazy(() => import("./pages/ImportOriginLanding"));
 const VehicleDetails        = lazy(() => import("./pages/VehicleDetails"));
 const Cart                  = lazy(() => import("./pages/Cart"));
 const Booking               = lazy(() => import("./pages/Booking"));
@@ -112,6 +113,11 @@ function AppRoutes() {
               les villes ayant réellement des annonces. */}
           <Route path="/location-voiture/:ville" element={<LocalLanding mode="location" />} />
           <Route path="/achat-voiture/:ville"    element={<LocalLanding mode="vente" />} />
+          {/* Pendant international : une page par pays d'origine à l'import.
+              « Importer une voiture depuis la Chine » est une requête à forte
+              intention sur laquelle rien ne pouvait remonter — les quinze
+              origines n'existaient que comme filtres du catalogue. */}
+          <Route path="/import-voiture/:pays"    element={<ImportOriginLanding />} />
           <Route path="/vehicle/:id"            element={<ErrorBoundary><VehicleDetails /></ErrorBoundary>} />
           <Route path="/cart"                   element={<ErrorBoundary><Cart /></ErrorBoundary>} />
           <Route path="/login"                  element={<Login />} />

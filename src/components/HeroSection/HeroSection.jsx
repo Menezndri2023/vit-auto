@@ -4,6 +4,10 @@ import { useVehicles } from "../../context/VehicleContext";
 import { useCurrency } from "../../context/CurrencyContext";
 import { useI18n } from "../../context/I18nContext";
 import { IMPORT_ORIGINS } from "../../constants/importOrigins";
+// Les pastilles pointaient vers une vue filtrée du catalogue — une URL que les
+// moteurs ne peuvent pas distinguer de la page principale. Elles mènent
+// désormais à la page indexable du corridor.
+import { slugifyCity } from "../../constants/citySlug";
 import SearchBar from "../SearchBar/SearchBar";
 import styles from "./HeroSection.module.css";
 
@@ -353,7 +357,7 @@ export default function HeroSection() {
           {IMPORT_ORIGINS.map((o) => (
             <Link
               key={o.code}
-              to={`/catalogue?mode=Import&source=${encodeURIComponent(o.name)}`}
+              to={`/import-voiture/${slugifyCity(o.name)}`}
               className={styles.originChip}
               title={`Véhicules à importer depuis : ${o.name}`}
             >

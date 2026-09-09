@@ -111,6 +111,22 @@ async function main() {
     urls.push(urlEntry({ loc: `/${chemin}`, changefreq: "daily", priority: "0.8" }));
   }
 
+  // ── Pages d'entrée par PAYS D'ORIGINE (référencement international) ───────
+  // Même règle que les villes : seules les origines qui ont réellement des
+  // annonces sont annoncées. Une origine sans stock reste accessible (le
+  // corridor logistique existe) mais la page se met elle-même en noindex.
+  const parOrigine = new Map();
+  for (const l of listings) {
+    if (!l.sourceCountry) continue;
+    const slug = slugifyCity(l.sourceCountry);
+    if (!slug) continue;
+    parOrigine.set(slug, (parOrigine.get(slug) || 0) + 1);
+  }
+  for (const [slug, n] of parOrigine) {
+    if (n < MIN_ANNONCES_PAR_VILLE) continue;
+    urls.push(urlEntry({ loc: `/import-voiture/${slug}`, changefreq: "daily", priority: "0.8" }));
+  }
+
   for (const s of showrooms) {
     urls.push(urlEntry({
       loc: `/showroom/${s.slug || s.partnerId}`,
