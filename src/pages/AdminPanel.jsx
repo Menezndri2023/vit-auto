@@ -4934,7 +4934,7 @@ export default function AdminPanel() {
               ↻
             </button>
             <button
-              onClick={async () => { await logout(); navigate("/"); }}
+              onClick={() => logout()}
               title="Déconnexion"
               style={{ background: "#fef2f2", color: "#dc2626", border: "1.5px solid #fca5a5", borderRadius: 8, padding: "6px 10px", fontWeight: 700, fontSize: "0.78rem", cursor: "pointer" }}
             >

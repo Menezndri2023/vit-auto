@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { refreshAccessTokenOnce } from "../utils/tokenRefreshLock.js";
 
 const AuthContext = createContext(null);
@@ -44,6 +45,23 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => { saveUser(user);   }, [user]);
   useEffect(() => { saveToken(token); }, [token]);
 
+  const navigate = useNavigate();
+
+  // ── Fin de session (unique point de sortie) ────────────────────────────────
+  // TOUTE déconnexion ramène à l'accueil : le bouton "Déconnexion", la
+  // désactivation de compte, et la session expirée (échec de refresh, événement
+  // "vit:logout" d'apiClient). Avant, chaque appelant décidait seul : la navbar
+  // et la barre du bas ne naviguaient nulle part (l'utilisateur restait sur une
+  // page protégée devenue vide, le temps que la garde de route réagisse),
+  // l'admin allait à "/", le profil à "/login". `replace` pour que le bouton
+  // Retour ne ramène pas sur la page protégée qu'on vient de quitter.
+  const clearSession = useCallback(({ redirectHome = true } = {}) => {
+    setUser(null);
+    setToken(null);
+    saveRefreshToken(null);
+    if (redirectHome) navigate("/", { replace: true });
+  }, [navigate]);
+
   // ── Rotation du refresh token ──────────────────────────────────────────────
   // Bug réel corrigé (audit) : délègue désormais à refreshAccessTokenOnce()
   // (tokenRefreshLock.js), verrou VRAIMENT global partagé avec apiClient.js —
@@ -78,9 +96,7 @@ export const AuthProvider = ({ children }) => {
         res = await fetch(url, { ...options, headers: retryHeaders });
       } else {
         // Refresh échoué → déconnexion
-        setUser(null);
-        setToken(null);
-        saveRefreshToken(null);
+        clearSession();
       }
     }
 
@@ -89,14 +105,10 @@ export const AuthProvider = ({ children }) => {
 
   // ── Écouter l'événement vit:logout émis par apiClient (session expirée) ──
   useEffect(() => {
-    const handleForceLogout = () => {
-      setUser(null);
-      setToken(null);
-      saveRefreshToken(null);
-    };
+    const handleForceLogout = () => clearSession();
     window.addEventListener("vit:logout", handleForceLogout);
     return () => window.removeEventListener("vit:logout", handleForceLogout);
-  }, []);
+  }, [clearSession]);
 
   // ── Rafraîchissement PRÉVENTIF du jeton d'accès ───────────────────────────
   // Le jeton d'accès est passé de 7 jours à 1 heure (audit sécurité 2026-09) :
@@ -302,9 +314,7 @@ export const AuthProvider = ({ children }) => {
         body:    JSON.stringify({ refreshToken: rt }),
       }).catch(() => {}); // Non bloquant
     }
-    setUser(null);
-    setToken(null);
-    saveRefreshToken(null);
+    clearSession();
   };
 
   const updateUser = (updates) => {

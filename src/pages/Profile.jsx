@@ -506,8 +506,8 @@ const Profile = () => {
       // Le token courant est immédiatement invalide côté serveur (isActive:false
       // + tokenVersion incrémenté) — déconnexion locale obligatoire. `logout()`
       // tente aussi de révoquer le refresh token (non bloquant si déjà invalide).
-      await logout();
-      navigate("/login");
+      await logout(); // redirige vers l'accueil
+
     } catch (err) {
       toastError(err.message || "Erreur.");
       setDeactivating(false);
