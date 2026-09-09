@@ -54,7 +54,9 @@ describe("POST /api/auth/register — activity/entityType", () => {
 
   it("crée un partenaire concessionnaire vendeur : sellerType dérivé à entreprise (pas de valeur directe)", async () => {
     const res = await request(app).post("/api/auth/register").send(
-      validPayload({ role: "partenaire", activity: "vendeur", entityType: "concessionnaire" })
+      // Un concessionnaire exerce au nom d'une société : le Registre de
+      // Commerce est exigé depuis le 2026-09-09 (voir registerRccm.test.js).
+      validPayload({ role: "partenaire", activity: "vendeur", entityType: "concessionnaire", rccm: "CI-ABJ-2020-B-00777" })
     );
     expect(res.status).toBe(201);
     expect(res.body.user.entityType).toBe("concessionnaire");
@@ -70,7 +72,7 @@ describe("POST /api/auth/register — activity/entityType", () => {
 
   it("accepte encore l'ancien champ sellerType seul (compat) et en dérive entityType", async () => {
     const res = await request(app).post("/api/auth/register").send(
-      validPayload({ role: "partenaire", activity: "vendeur", sellerType: "professionnel" })
+      validPayload({ role: "partenaire", activity: "vendeur", sellerType: "professionnel", rccm: "CI-ABJ-2020-B-00778" })
     );
     expect(res.status).toBe(201);
     expect(res.body.user.entityType).toBe("professionnel");

@@ -38,6 +38,7 @@ const Register = () => {
     role: searchParams.get("role") === "partenaire" ? "partenaire" : "client",
     activity: "loueur",
     entityType: "particulier",
+    rccm:       "",
   });
 
   // Pré-remplit avec le pays détecté par IP (CurrencyContext) dès qu'il est
@@ -115,6 +116,9 @@ const Register = () => {
     if (form.password.length < 8) {
       error("Le mot de passe doit contenir au moins 8 caractères."); return;
     }
+    if (form.role === "partenaire" && requiresBusinessDocs(form.entityType) && !form.rccm.trim()) {
+      error("Le numéro de Registre de Commerce (RC/RCCM) est obligatoire pour un compte professionnel ou entreprise."); return;
+    }
     const age = (Date.now() - new Date(form.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000);
     if (age < 18) {
       error("Vous devez avoir au moins 18 ans pour créer un compte VIT AUTO."); return;
@@ -133,6 +137,7 @@ const Register = () => {
         birthDate:  form.birthDate,
         activity:   form.role === "partenaire" ? form.activity : undefined,
         entityType: form.role === "partenaire" ? form.entityType : undefined,
+        rccm: form.role === "partenaire" && requiresBusinessDocs(form.entityType) ? form.rccm.trim() : undefined,
         referralCode: searchParams.get("ref") || undefined,
       });
 
@@ -201,6 +206,7 @@ const Register = () => {
         role:       form.role,
         activity:   form.role === "partenaire" ? form.activity : undefined,
         entityType: form.role === "partenaire" ? form.entityType : undefined,
+        rccm: form.role === "partenaire" && requiresBusinessDocs(form.entityType) ? form.rccm.trim() : undefined,
       });
       if (result?.requiresTwoFactor) {
         error("Ce compte a la double authentification activée. Connectez-vous avec votre mot de passe.");
@@ -350,6 +356,20 @@ const Register = () => {
                   <option key={t} value={t}>{ENTITY_TYPE_LABELS[t]}</option>
                 ))}
               </select>
+              {/* Registre de Commerce — demandé dès l'inscription pour toute
+                  entité qui exerce au nom d'une société. Un particulier n'en a
+                  pas : le champ n'apparaît pas pour lui plutôt que d'être
+                  affiché puis ignoré. */}
+              {requiresBusinessDocs(form.entityType) && (
+                <input
+                  name="rccm"
+                  value={form.rccm}
+                  onChange={handleChange}
+                  placeholder="N° de Registre de Commerce (RC/RCCM) *"
+                  autoComplete="off"
+                  maxLength={60}
+                />
+              )}
               <small style={{ color: "#8493b0", fontSize: "0.78rem", display: "block", marginTop: -8, marginBottom: 4 }}>
                 {form.activity === "chauffeur"
                   ? "📍 En tant que chauffeur, une pièce d'identité, un permis de conduire vérifié et un CV vous seront demandés avant de publier."

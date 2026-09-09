@@ -14,7 +14,7 @@ import { sendVerification, checkVerification } from "../services/twilioVerify.js
 import { isValidCountryCode } from "../utils/countries.js";
 import { encryptField, decryptField } from "../utils/fieldEncryption.js";
 import { revokeAccessToken } from "../utils/tokenRevocation.js";
-import { ACTIVITIES, ENTITY_TYPES, entityTypeToSellerType } from "../constants/partnerTaxonomy.js";
+import { ACTIVITIES, ENTITY_TYPES, entityTypeToSellerType, requiresBusinessDocs } from "../constants/partnerTaxonomy.js";
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_OAUTH_CLIENT_ID);
 
@@ -215,6 +215,7 @@ export const register = async (req, res) => {
   const activityIn = sanitize(req.body.activity);
   const entityTypeIn = sanitize(req.body.entityType);
   const legacySellerTypeIn = sanitize(req.body.sellerType);
+  const rccm = sanitize(req.body.rccm);
   const activity = ACTIVITIES.includes(activityIn) ? activityIn : null;
   let entityType = ENTITY_TYPES.includes(entityTypeIn) ? entityTypeIn : null;
   if (!entityType && ["particulier", "professionnel", "entreprise"].includes(legacySellerTypeIn)) {
@@ -226,6 +227,18 @@ export const register = async (req, res) => {
   }
   if (role === "partenaire" && (!activity || !entityType)) {
     return res.status(400).json({ message: "Activité et type de compte requis pour un partenaire." });
+  }
+  // Registre de Commerce — exigé dès l'inscription pour toute entité qui exerce
+  // au nom d'une société (voir requiresBusinessDocs). C'est la pièce qui permet
+  // à l'administration de vérifier l'existence légale du partenaire AVANT de
+  // lui laisser publier : la réclamer plus tard laissait des sociétés non
+  // identifiables entrer dans le catalogue. Un particulier n'en a pas et n'en
+  // reçoit donc jamais la demande.
+  if (role === "partenaire" && requiresBusinessDocs(entityType) && !rccm) {
+    return res.status(400).json({ message: "Le numéro de Registre de Commerce (RC/RCCM) est obligatoire pour un compte professionnel ou entreprise." });
+  }
+  if (rccm && (rccm.length < 3 || rccm.length > 60)) {
+    return res.status(400).json({ message: "Numéro de Registre de Commerce invalide (3 à 60 caractères)." });
   }
   if (country && !(await isValidCountryCode(country))) {
     return res.status(400).json({ message: "Pays invalide." });
@@ -350,6 +363,10 @@ export const register = async (req, res) => {
       sellerType,
       partnerActivity: isPartner ? activity : null,
       entityType: isPartner ? entityType : null,
+      // Stocké sur le compte, consultable uniquement côté administration
+      // (jamais exposé par le profil partenaire public — voir getPublicProfile,
+      // dont la liste de champs est stricte).
+      ...(isPartner && rccm ? { business: { rccm } } : {}),
       referredBy,
       emailVerificationToken:        autoVerify ? null : token,
       emailVerificationExpires:      autoVerify ? null : new Date(Date.now() + VERIFY_TTL),
@@ -597,7 +614,7 @@ export const oauthGoogle = async (req, res) => {
 
   const {
     credential, birthDate: birthDateRaw, country: countryRaw, role: roleRaw,
-    sellerType: sellerTypeRaw, activity: activityRaw, entityType: entityTypeRaw,
+    sellerType: sellerTypeRaw, activity: activityRaw, entityType: entityTypeRaw, rccm: rccmRaw,
   } = req.body;
   if (!credential) return res.status(400).json({ message: "Jeton Google manquant." });
 
@@ -655,6 +672,7 @@ export const oauthGoogle = async (req, res) => {
 
       const activityIn = sanitize(activityRaw);
       const entityTypeIn = sanitize(entityTypeRaw);
+      const rccmIn = sanitize(rccmRaw);
       const legacySellerTypeIn = sanitize(sellerTypeRaw);
       const activity = ACTIVITIES.includes(activityIn) ? activityIn : null;
       let entityType = ENTITY_TYPES.includes(entityTypeIn) ? entityTypeIn : null;
@@ -663,6 +681,13 @@ export const oauthGoogle = async (req, res) => {
       }
       if (isPartner && (!activity || !entityType)) {
         return res.status(400).json({ message: "Activité et type de compte requis pour un partenaire." });
+      }
+      // Même exigence que l'inscription classique : sans cela, l'inscription
+      // par Google serait un contournement pur et simple du Registre de
+      // Commerce, et une société pourrait entrer au catalogue sans jamais être
+      // identifiable.
+      if (isPartner && requiresBusinessDocs(entityType) && !rccmIn) {
+        return res.status(400).json({ message: "Le numéro de Registre de Commerce (RC/RCCM) est obligatoire pour un compte professionnel ou entreprise." });
       }
       const sellerType = isPartner && entityType ? entityTypeToSellerType(entityType) : null;
       const randomPassword = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 12);
@@ -679,6 +704,7 @@ export const oauthGoogle = async (req, res) => {
         sellerType,
         partnerActivity: isPartner ? activity : null,
         entityType: isPartner ? entityType : null,
+        ...(isPartner && rccmIn ? { business: { rccm: rccmIn } } : {}),
         password:      randomPassword,
         emailVerified: true, // Google a déjà vérifié cette adresse
         profilePhoto:  payload.picture || null,

@@ -28,6 +28,12 @@ export const registerSchema = z.object({
   sellerType: z.enum(["particulier", "professionnel", "entreprise"]).optional(),
   activity:   z.enum(ACTIVITIES).optional(),
   entityType: z.enum(ENTITY_TYPES).optional(),
+  // Registre de Commerce — obligatoire côté controller pour les entités qui
+  // exercent au nom d'une société (voir requiresBusinessDocs). Déclaré ici
+  // parce que ce schéma SUPPRIME toute clé non listée : sans cette ligne, le
+  // numéro saisi au formulaire n'atteindrait jamais register(), exactement
+  // comme birthDate et sellerType avant lui.
+  rccm:       z.string().min(3).max(60).trim().optional(),
 }).refine((data) => !!data.email || !!data.phone, {
   message: "Un email ou un numéro de téléphone est requis.",
   path:    ["email"],
@@ -45,6 +51,7 @@ export const oauthGoogleSchema = z.object({
   sellerType: z.enum(["particulier", "professionnel", "entreprise"]).optional(),
   activity:   z.enum(ACTIVITIES).optional(),
   entityType: z.enum(ENTITY_TYPES).optional(),
+  rccm:       z.string().min(3).max(60).trim().optional(),
 });
 
 // identifier : email OU téléphone, saisi dans un champ unique (Login.jsx) — le

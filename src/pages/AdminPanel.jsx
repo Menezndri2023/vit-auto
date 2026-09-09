@@ -5270,6 +5270,17 @@ export default function AdminPanel() {
                               <div>
                                 <strong>{u.firstName} {u.lastName}<CountryFlag code={u.country} countriesConfig={COUNTRIES_CONFIG} /></strong>
                                 {isSelf && <span className={styles.selfTag}>Vous</span>}
+                                {/* Registre de Commerce — saisi à l'inscription
+                                    par les entités professionnelles. Affiché ici
+                                    parce que c'est la seule pièce qui rattache un
+                                    compte à une société réelle ; sans elle sous
+                                    les yeux, l'admin valide un partenaire dont il
+                                    ne peut pas vérifier l'existence légale. */}
+                                {u.business?.rccm && (
+                                  <div style={{ fontSize: ".72rem", color: "#475569" }}>
+                                    RC : <strong>{u.business.rccm}</strong>
+                                  </div>
+                                )}
                                 <div style={{ fontSize:".72rem", color: u.phone ? "#94a3b8" : "#cbd5e1", display: "flex", alignItems: "center", gap: 4 }}>
                                   {u.phone || "— aucun numéro —"}
                                   <button type="button" onClick={() => updatePhone(u._id, u.phone)} title="Modifier le téléphone"
