@@ -1,4 +1,5 @@
 import logger from "../utils/logger.js";
+import { uploadBase64Images, FOLDERS } from "../config/imagekit.js";
 import ImportExportRequest     from "../models/ImportExportRequest.js";
 import ImporterPartnerProfile  from "../models/ImporterPartnerProfile.js";
 import ImportExportListing     from "../models/ImportExportListing.js";
@@ -638,6 +639,23 @@ export const createListing = async (req, res) => {
     const imagesError = validateListingImages([...(photos || []), mainPhoto].filter(Boolean));
     if (imagesError) return res.status(400).json({ message: imagesError });
 
+    // Les photos envoyées par le partenaire arrivent en base64. Stockées telles
+    // quelles DANS le document, elles l'alourdissaient de plusieurs mégaoctets :
+    // 211 annonces pesaient 441 Mo et la route publique de liste finissait par
+    // dépasser le délai maximum — panne réelle du catalogue Import/Export, voir
+    // scripts/migrateIEPhotosToImageKit.mjs. On les héberge donc sur ImageKit
+    // dès la création, et le document ne garde que des URL.
+    //
+    // Le partenaire continue d'envoyer SES vraies photos exactement comme
+    // avant : rien ne change pour lui, seul l'endroit où l'image est rangée
+    // change. Sans identifiants ImageKit, uploadBase64Images renvoie l'entrée
+    // inchangée — la publication reste possible, jamais bloquée par
+    // l'indisponibilité d'un service tiers.
+    const photosHebergees   = await uploadBase64Images(photos || [], FOLDERS.vehicles);
+    const [mainPhotoHeberge] = mainPhoto
+      ? await uploadBase64Images([mainPhoto], FOLDERS.vehicles)
+      : [null];
+
     const listing = await ImportExportListing.create({
       partner: req.user._id,
       business: business?._id || null,
@@ -656,8 +674,8 @@ export const createListing = async (req, res) => {
       priceIncludes: priceIncludes || [],
       negotiable: !!negotiable,
       stockQty: Number(stockQty) || 1,
-      photos: photos || [],
-      mainPhoto: mainPhoto || (photos?.[0] || null),
+      photos: photosHebergees,
+      mainPhoto: mainPhotoHeberge || (photosHebergees?.[0] || null),
       vin: vin || null,
       vehicleHistory: vehicleHistory || null,
       estimatedShippingCost: estimatedShippingCost != null ? Number(estimatedShippingCost) : null,
@@ -744,6 +762,9 @@ export const updateListing = async (req, res) => {
       }
     }
 
+    const photosMaj = photos ? await uploadBase64Images(photos, FOLDERS.vehicles) : undefined;
+    const [mainPhotoMaj] = mainPhoto ? await uploadBase64Images([mainPhoto], FOLDERS.vehicles) : [undefined];
+
     const imagesError = validateListingImages([...(photos || []), mainPhoto].filter(Boolean));
     if (imagesError) return res.status(400).json({ message: imagesError });
     if (availableIn !== undefined && (!Array.isArray(availableIn) || availableIn.length === 0)) {
@@ -783,8 +804,8 @@ export const updateListing = async (req, res) => {
       priceIncludes: priceIncludes || listing.priceIncludes,
       negotiable: negotiable !== undefined ? !!negotiable : listing.negotiable,
       stockQty: stockQty ? Number(stockQty) : listing.stockQty,
-      photos: photos || listing.photos,
-      mainPhoto: mainPhoto || listing.mainPhoto,
+      photos: photosMaj || listing.photos,
+      mainPhoto: mainPhotoMaj || listing.mainPhoto,
       vin: vin !== undefined ? vin : listing.vin,
       vehicleHistory: vehicleHistory !== undefined ? vehicleHistory : listing.vehicleHistory,
       estimatedShippingCost: estimatedShippingCost != null ? Number(estimatedShippingCost) : listing.estimatedShippingCost,
