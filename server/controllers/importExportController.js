@@ -417,8 +417,16 @@ export const getListings = async (req, res) => {
       }
     }
 
+    // `photos` (base64, jusqu'à plusieurs Mo par annonce) n'est jamais affiché
+    // en vue liste — seul `mainPhoto` l'est. Il était pourtant RAPATRIÉ depuis
+    // Atlas puis vidé en mémoire : 211 annonces pèsent 441 Mo, soit ~104 Mo
+    // transférés pour une page de 50 et ~42 Mo pour la page de 20 de
+    // l'interface. En production, la requête dépassait le délai maximum et la
+    // route publique renvoyait 500 — catalogue Import/Export inaccessible.
+    // `-photos` exclut le champ CÔTÉ BASE : plus rien ne transite.
     const [listingsRaw, total] = await Promise.all([
       ImportExportListing.find(filter)
+        .select("-photos")
         .populate("partner", "firstName lastName profilePhoto business")
         .populate("importerProfile", "companyName badgeLevel")
         .sort({ createdAt: -1 })
@@ -427,15 +435,25 @@ export const getListings = async (req, res) => {
         .lean(),
       ImportExportListing.countDocuments(filter),
     ]);
-    // `photos` (base64, jusqu'à plusieurs Mo/annonce) n'est jamais affiché en
-    // vue liste — seul `mainPhoto` l'est (Catalogue/Favorites/IEListings/...).
-    // `photosCount` est conservé pour le badge "📷 N" sans transférer le
-    // tableau complet. Le détail (getListingById) reste seul à tout recevoir.
-    const listings = listingsRaw.map((l) => (
-      Array.isArray(l.photos) && l.photos.length > 0
-        ? { ...l, photosCount: l.photos.length, photos: [] }
-        : l
-    ));
+
+    // Le badge « 📷 N » a toujours besoin du NOMBRE de photos. `$size` le
+    // calcule dans MongoDB et ne renvoie qu'un entier par annonce : le tableau
+    // ne quitte jamais la base. Non bloquant — un badge absent vaut mieux
+    // qu'une liste en erreur.
+    let comptes = new Map();
+    try {
+      const ids = listingsRaw.map((l) => l._id);
+      const res2 = ids.length
+        ? await ImportExportListing.aggregate([
+            { $match: { _id: { $in: ids } } },
+            { $project: { n: { $size: { $ifNull: ["$photos", []] } } } },
+          ])
+        : [];
+      comptes = new Map(res2.map((r) => [String(r._id), r.n]));
+    } catch (err) {
+      logger.warn?.("getListings: comptage des photos indisponible", { error: err.message });
+    }
+    const listings = listingsRaw.map((l) => ({ ...l, photosCount: comptes.get(String(l._id)) ?? 0 }));
 
     const payload = { listings, total, pages: Math.ceil(total / safeLimit) };
     if (cacheKey) cacheSet(cacheKey, payload);
