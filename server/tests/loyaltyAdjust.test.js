@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { adjustUserLoyalty } from "../controllers/loyaltyController.js";
-import { MAX_MANUAL_ADJUSTMENT_POINTS } from "../constants/loyaltyTiers.js";
+import { MAX_LOYALTY_BALANCE_POINTS, MAX_MANUAL_ADJUSTMENT_POINTS } from "../constants/loyaltyTiers.js";
 import LoyaltyTransaction from "../models/LoyaltyTransaction.js";
 import User from "../models/User.js";
 import { createUser } from "./helpers/fixtures.js";
@@ -101,6 +101,21 @@ describe("Fidélité — ajustement manuel par un administrateur", () => {
     }
     const apres = await User.findById(client._id).select("loyaltyPoints").lean();
     expect(apres.loyaltyPoints).toBe(100);
+  });
+
+  it("refuse un crédit qui ferait dépasser le plafond de solde, en disant ce qui est possible", async () => {
+    // Écrêter en silence ferait croire à l'administrateur qu'il a crédité la
+    // totalité — il doit savoir exactement ce qui passe.
+    const [a, client] = await Promise.all([
+      admin(), createUser({ role: "client", loyaltyPoints: MAX_LOYALTY_BALANCE_POINTS - 200 }),
+    ]);
+
+    const res = await ajuster(a, client._id, { direction: "credit", points: 500, reason: "Geste commercial" });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.body.message).toContain("200");
+    const apres = await User.findById(client._id).select("loyaltyPoints").lean();
+    expect(apres.loyaltyPoints).toBe(MAX_LOYALTY_BALANCE_POINTS - 200);
   });
 
   it("un administrateur ne peut pas s'ajuster lui-même", async () => {

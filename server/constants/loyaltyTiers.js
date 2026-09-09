@@ -69,15 +69,32 @@ export function pointsToUSD(points) {
 }
 
 // Plafond d'un ajustement manuel unique par un administrateur (voir
-// loyaltyController.adjustUserLoyalty). 50 000 points = 500 USD de remise :
-// au-delà, ce n'est plus un geste commercial ou une correction, et une saisie
-// erronée (un zéro de trop) coûterait de l'argent réel avant d'être repérée.
-// Un besoin légitime plus gros se fait en plusieurs gestes, chacun motivé et
-// tracé — jamais en relevant ce plafond sans y réfléchir.
-export const MAX_MANUAL_ADJUSTMENT_POINTS = 50000;
+// loyaltyController.adjustUserLoyalty) — aligné sur le plafond de solde
+// ci-dessous : 10 000 points = 100 USD. Créditer davantage serait de toute
+// façon écrêté à l'arrivée.
+export const MAX_MANUAL_ADJUSTMENT_POINTS = 10000;
 
 // Préfixe des motifs d'ajustement manuel dans LoyaltyTransaction.reason —
 // permet de distinguer d'un coup d'œil un mouvement décidé par un humain d'un
 // mouvement automatique, côté client comme côté administration (même principe
 // que le préfixe `referral_`).
 export const MANUAL_ADJUSTMENT_PREFIX = "admin_adjust:";
+
+// ── Plafond du SOLDE d'un client ───────────────────────────────────────────
+// Règle produit : le solde dépensable d'un client ne dépasse jamais 10 000
+// points, soit 100 USD de récompense au total. Les points gagnés au-delà sont
+// simplement écrêtés (voir bookingController.awardLoyaltyPoints).
+//
+// Ne s'applique QUE au solde dépensable : `loyaltyLifetimePoints` continue de
+// grimper sans limite, sans quoi plus aucun client n'atteindrait jamais les
+// paliers Argent (5 000) et Or (20 000), qui se calculent sur le cumul à vie.
+export const MAX_LOYALTY_BALANCE_POINTS = 10000;
+
+// ── Plafond de la remise sur UNE réservation ───────────────────────────────
+// Les 100 USD de récompense ne partent pas d'un coup : ils se déduisent en
+// pourcentage du montant de base, réservation après réservation, et le reliquat
+// reste acquis au client pour les suivantes. Ce plafond est aussi ce qui
+// empêche une location de tomber à un montant quasi nul — la commission et le
+// reversement partenaire se calculant sur le montant TOTAL, une remise sans
+// borne les ferait fondre avec lui.
+export const MAX_LOYALTY_DISCOUNT_RATE = 0.2;

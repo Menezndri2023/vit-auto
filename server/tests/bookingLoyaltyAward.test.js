@@ -4,6 +4,7 @@ import Booking from "../models/Booking.js";
 import User from "../models/User.js";
 import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
+import { MAX_LOYALTY_BALANCE_POINTS, resolveTier } from "../constants/loyaltyTiers.js";
 
 const clientInfo = { firstName: "Jean", lastName: "Client", email: "jean.client@example.test", passportNumber: "P1234567" };
 
@@ -32,6 +33,48 @@ describe("bookingController — attribution de points de fidélité à la compl�
     expect(res.statusCode).toBe(200);
     const updatedClient = await User.findById(client._id);
     expect(updatedClient.loyaltyPoints).toBe(2000); // Math.floor(2000.75)
+  });
+
+  it("écrête le SOLDE au plafond, sans jamais brider le cumul à vie", async () => {
+    // Le cumul à vie doit continuer de grimper : c'est lui qui détermine le
+    // palier. Le brider aussi rendrait les paliers Argent (5 000) et Or
+    // (20 000) définitivement inatteignables.
+    const { client, booking } = await makeBooking();
+    await User.updateOne(
+      { _id: client._id },
+      { $set: { loyaltyPoints: MAX_LOYALTY_BALANCE_POINTS - 100, loyaltyLifetimePoints: MAX_LOYALTY_BALANCE_POINTS - 100 } }
+    );
+    const admin = await createUser({ role: "admin" });
+    const { req, res } = mockReqRes({
+      user: admin, params: { id: booking._id.toString() }, body: { status: "completed" },
+    });
+    await updateBookingStatus(req, res);
+
+    const updated = await User.findById(client._id).select("loyaltyPoints loyaltyLifetimePoints").lean();
+    // 9 900 points cumulés = palier Argent, donc multiplicateur ×1,25 sur les
+    // 2 000 points de la commande — c'est ce multiplicateur qui fait franchir
+    // le plafond, et c'est bien le cas qu'on veut couvrir.
+    const gagnes = Math.floor(2000 * resolveTier(MAX_LOYALTY_BALANCE_POINTS - 100).multiplier);
+    expect(updated.loyaltyPoints, "le solde ne dépasse jamais le plafond").toBe(MAX_LOYALTY_BALANCE_POINTS);
+    expect(updated.loyaltyLifetimePoints, "le cumul à vie, lui, encaisse tout")
+      .toBe(MAX_LOYALTY_BALANCE_POINTS - 100 + gagnes);
+  });
+
+  it("ne rabaisse JAMAIS un solde déjà au-dessus du plafond", async () => {
+    // Si le plafond est un jour abaissé, les clients au-dessus doivent
+    // simplement cesser de gagner — pas se faire amputer en silence, sans
+    // aucun mouvement dans l'historique pour l'expliquer.
+    const { client, booking } = await makeBooking();
+    const soldeExcedentaire = MAX_LOYALTY_BALANCE_POINTS + 5000;
+    await User.updateOne({ _id: client._id }, { $set: { loyaltyPoints: soldeExcedentaire } });
+    const admin = await createUser({ role: "admin" });
+    const { req, res } = mockReqRes({
+      user: admin, params: { id: booking._id.toString() }, body: { status: "completed" },
+    });
+    await updateBookingStatus(req, res);
+
+    const updated = await User.findById(client._id).select("loyaltyPoints").lean();
+    expect(updated.loyaltyPoints).toBe(soldeExcedentaire);
   });
 
   it("ne crédite rien pour une réservation invitée sans compte client", async () => {

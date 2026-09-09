@@ -2,7 +2,7 @@ import { useParams, useNavigate, useSearchParams, useLocation, Link } from "reac
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import { useAuth }     from "../context/AuthContext";
-import { maxRedeemablePoints, pointsToUSD } from "../constants/loyalty";
+import { maxRedeemablePoints, pointsToUSD, MAX_LOYALTY_DISCOUNT_RATE } from "../constants/loyalty";
 import { useCurrency } from "../context/CurrencyContext";
 import { useToast }    from "../context/ToastContext";
 import { haversineKm, geocodeAddress, getCurrentPosition, reverseGeocode } from "../utils/geo";
@@ -317,7 +317,10 @@ export default function Booking() {
   }, [availableOptions]);
   // Fidélité — voir bookingController.createBooking pour le calcul autoritaire
   // (jamais confiance dans ce montant côté client, uniquement un aperçu).
-  const [applyPoints, setApplyPoints] = useState(false);
+  // Cochée par défaut : la remise part d'elle-même à la réservation suivante.
+  // Le client peut décocher pour garder ses points — utile quand une location
+  // plus chère est prévue, puisque le solde est intégralement consommé.
+  const [applyPoints, setApplyPoints] = useState(true);
 
   /* ── STEP 3 : Paiement ─────────────────────────────────────────── */
   const [payMethod,      setPayMethod]      = useState("orange_money");
@@ -407,6 +410,10 @@ export default function Booking() {
   const maxPointsUsable = maxRedeemablePoints(user?.loyaltyPoints, baseTotal);
   const pointsToApply   = applyPoints ? maxPointsUsable : 0;
   const loyaltyDiscountPreview = pointsToUSD(pointsToApply);
+  // Reliquat conservé pour les réservations suivantes — le client doit voir
+  // qu'il ne perd rien, sinon la case cochée par défaut inquiète plus qu'elle
+  // ne sert.
+  const pointsRestants  = Math.max(0, (user?.loyaltyPoints || 0) - maxPointsUsable);
   const totalToPay   = isTrial ? SERVICE_FEE
     : isLeasing ? baseTotal + SERVICE_FEE
     : Math.max(baseTotal + optionsTotal + deliveryFee + SERVICE_FEE - loyaltyDiscountPreview, 0);
@@ -1258,16 +1265,20 @@ export default function Booking() {
                   <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
                     <input type="checkbox" checked={applyPoints} onChange={(e) => setApplyPoints(e.target.checked)} />
                     {t("booking.useLoyaltyPoints", { n: user.loyaltyPoints })}
-                    {/* Ce que les points valent RÉELLEMENT ici : le solde peut
-                        dépasser le plafond de 20% du montant de base, auquel cas
-                        seule une partie est utilisable — annoncer la valeur du
-                        solde entier promettrait une remise plus grosse que celle
-                        appliquée. */}
+                    {/* Ce que les points valent RÉELLEMENT ici : la remise est
+                        plafonnée, et le solde entier part quoi qu'il arrive. */}
                     <span style={{ color: "#64748b", fontSize: ".8rem" }}>
                       (≈ {fmt(pointsToUSD(maxPointsUsable))})
                     </span>
                   </label>
                   {applyPoints && <strong style={{ color: "#059669" }}>-{fmt(loyaltyDiscountPreview)}</strong>}
+                  {applyPoints && pointsRestants > 0 && (
+                    <div style={{ flexBasis: "100%", fontSize: ".76rem", color: "#64748b", marginTop: 4 }}>
+                      {pointsRestants} point{pointsRestants > 1 ? "s" : ""} restent sur votre compte pour vos
+                      prochaines réservations — une réservation ne peut être réglée en points qu'à hauteur de
+                      {" "}{Math.round(MAX_LOYALTY_DISCOUNT_RATE * 100)}%.
+                    </div>
+                  )}
                 </div>
               )}
               <div className={styles.confirmRow}><span>{t("booking.serviceFeeLabel")}</span><strong>{fmt(SERVICE_FEE)}</strong></div>

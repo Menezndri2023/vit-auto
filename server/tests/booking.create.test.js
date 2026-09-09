@@ -5,6 +5,7 @@ import Driver from "../models/Driver.js";
 import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 import User from "../models/User.js";
+import { MAX_LOYALTY_BALANCE_POINTS, MAX_LOYALTY_DISCOUNT_RATE } from "../constants/loyaltyTiers.js";
 
 const clientInfo = { firstName: "Jean", lastName: "Client", email: "jean.client@example.test", passportNumber: "P1234567" };
 
@@ -196,9 +197,13 @@ describe("bookingController.createBooking", () => {
     expect(res.body.booking.status).toBe("pending");
   });
 
+  // Règle produit (2026-09-09) : le SOLDE d'un client est plafonné à
+  // MAX_LOYALTY_BALANCE_POINTS, et il se dépense en pourcentage du montant de
+  // base — le reliquat reste acquis pour les réservations suivantes.
+
   it("applique une remise fidélité et débite les points du client (100 points = 1 USD)", async () => {
     const client = await createUser({ loyaltyPoints: 500, emailVerified: true });
-    const vehicle = await createVehicleDoc({ pricePerDay: 1000 }); // base = 2000 sur 2 jours, plafond 20% = 400 USD = 40000 pts
+    const vehicle = await createVehicleDoc({ pricePerDay: 1000 }); // base = 2000 sur 2 jours
     const { req, res } = mockReqRes({
       user: client,
       body: {
@@ -213,25 +218,29 @@ describe("bookingController.createBooking", () => {
     expect(res.body.booking.loyaltyDiscount).toBe(3);
     expect(res.body.booking.montantTotal).toBe(2000 - 3);
     const updated = await User.findById(client._id);
-    expect(updated.loyaltyPoints).toBe(200);
+    expect(updated.loyaltyPoints, "le reliquat reste acquis").toBe(200);
   });
 
-  it("plafonne la remise fidélité à 20% du montant de base même si le client a plus de points", async () => {
-    const client = await createUser({ loyaltyPoints: 100000, emailVerified: true });
-    const vehicle = await createVehicleDoc({ pricePerDay: 1000 }); // base = 1000 sur 1 jour, plafond 20% = 200 USD = 20000 pts
+  it("ne laisse pas une réservation être payée en points au-delà du pourcentage autorisé", async () => {
+    // Solde au maximum (10 000 pts = 100 USD) sur une petite location : seule
+    // une part part, le reste sert aux réservations suivantes. C'est ce plafond
+    // qui empêche la commission et le reversement partenaire de fondre.
+    const client = await createUser({ loyaltyPoints: MAX_LOYALTY_BALANCE_POINTS, emailVerified: true });
+    const vehicle = await createVehicleDoc({ pricePerDay: 100 }); // base = 100 sur 1 jour
     const { req, res } = mockReqRes({
       user: client,
       body: {
         type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(),
         location: { days: 1, startDate: "2027-05-05", endDate: "2027-05-06" },
-        pointsToRedeem: 100000,
+        pointsToRedeem: MAX_LOYALTY_BALANCE_POINTS,
       },
     });
     await createBooking(req, res);
-    expect(res.body.booking.loyaltyPointsRedeemed).toBe(20000);
-    expect(res.body.booking.loyaltyDiscount).toBe(200);
+    const plafondUSD = 100 * MAX_LOYALTY_DISCOUNT_RATE;
+    expect(res.body.booking.loyaltyDiscount).toBe(plafondUSD);
+    expect(res.body.booking.loyaltyPointsRedeemed).toBe(plafondUSD * 100);
     const updated = await User.findById(client._id);
-    expect(updated.loyaltyPoints).toBe(80000);
+    expect(updated.loyaltyPoints).toBe(MAX_LOYALTY_BALANCE_POINTS - plafondUSD * 100);
   });
 
   it("ignore une demande de remise fidélité si le client n'a pas assez de points (pas de blocage de la réservation)", async () => {
@@ -251,6 +260,24 @@ describe("bookingController.createBooking", () => {
     expect(res.body.booking.montantTotal).toBe(1000);
     const updated = await User.findById(client._id);
     expect(updated.loyaltyPoints).toBe(10);
+  });
+
+  it("sans demande d'utilisation, le solde reste intact", async () => {
+    // La case est cochée par défaut côté interface, mais l'absence de
+    // pointsToRedeem doit rester strictement neutre côté serveur.
+    const client = await createUser({ loyaltyPoints: 800, emailVerified: true });
+    const vehicle = await createVehicleDoc({ pricePerDay: 1000 });
+    const { req, res } = mockReqRes({
+      user: client,
+      body: {
+        type: "location", clientInfo, documents: bookingDocuments, vehicleId: vehicle._id.toString(),
+        location: { days: 1, startDate: "2027-05-14", endDate: "2027-05-15" },
+      },
+    });
+    await createBooking(req, res);
+    expect(res.body.booking.loyaltyPointsRedeemed).toBe(0);
+    const updated = await User.findById(client._id);
+    expect(updated.loyaltyPoints).toBe(800);
   });
 
   it("crée une réservation location et calcule prix/caution côté serveur (jamais depuis le client)", async () => {

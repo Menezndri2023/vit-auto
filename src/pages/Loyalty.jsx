@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../context/CurrencyContext";
-import { pointsToUSD } from "../constants/loyalty";
+import { pointsToUSD, MAX_LOYALTY_BALANCE_POINTS } from "../constants/loyalty";
 import LoyaltyTierBadge from "../components/LoyaltyTierBadge/LoyaltyTierBadge";
 import styles from "./Loyalty.module.css";
 
@@ -100,7 +100,16 @@ export default function Loyalty() {
                   applique le taux du jour), comme partout ailleurs sur le site.
                   `pointsValueUSD` vient du serveur — le taux de conversion des
                   points n'est plus réécrit ici. */}
-              <span>points disponibles (≈ {fmtUSD(status?.pointsValueUSD ?? pointsToUSD(status?.points))} de remise sur votre prochaine réservation)</span>
+              <span>points disponibles (≈ {fmtUSD(status?.pointsValueUSD ?? pointsToUSD(status?.points))} de remise sur vos prochaines réservations)</span>
+              {/* Un solde qui cesse de grimper sans explication ressemble à un
+                  bug. Le plafond n'est annoncé qu'une fois atteint, pour ne pas
+                  encombrer l'écran des clients que ça ne concerne pas. */}
+              {(status?.points ?? 0) >= (status?.maxBalance ?? MAX_LOYALTY_BALANCE_POINTS) && (
+                <span style={{ color: "#b45309" }}>
+                  Solde au maximum ({status?.maxBalance ?? MAX_LOYALTY_BALANCE_POINTS} points) — utilisez vos points
+                  pour en cumuler de nouveaux. Votre cumul à vie, lui, continue de compter pour votre palier.
+                </span>
+              )}
             </div>
             <div>
               <strong>{status?.lifetimePoints ?? 0}</strong>

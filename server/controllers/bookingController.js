@@ -24,7 +24,7 @@ import {
   CLIENT_CANCEL_REASONS, PARTNER_CANCEL_REASONS,
   CLIENT_CANCEL_REASON_CODES, PARTNER_CANCEL_REASON_CODES,
 } from "../constants/bookingCancelReasons.js";
-import { resolveTier, POINTS_PER_USD } from "../constants/loyaltyTiers.js";
+import { resolveTier, MAX_LOYALTY_BALANCE_POINTS, MAX_LOYALTY_DISCOUNT_RATE, POINTS_PER_USD } from "../constants/loyaltyTiers.js";
 import LoyaltyTransaction from "../models/LoyaltyTransaction.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
 import { uploadBase64Document, FOLDERS } from "../config/imagekit.js";
@@ -316,11 +316,7 @@ async function awardReferralBonusIfEligible(booking) {
     const alreadyCredited = await LoyaltyTransaction.exists({ user: client.referredBy, type: "referral", reason: `referral_${booking.client}` });
     if (alreadyCredited) return; // filet de sécurité en plus du compteur ci-dessus
 
-    const referrer = await User.findByIdAndUpdate(
-      client.referredBy,
-      { $inc: { loyaltyPoints: REFERRAL_BONUS_POINTS, loyaltyLifetimePoints: REFERRAL_BONUS_POINTS } },
-      { new: true }
-    ).select("loyaltyPoints loyaltyLifetimePoints loyaltyTier");
+    const referrer = await creditLoyaltyPoints(client.referredBy, REFERRAL_BONUS_POINTS);
     if (!referrer) return;
 
     const tierAfter = resolveTier(referrer.loyaltyLifetimePoints);
@@ -339,6 +335,41 @@ async function awardReferralBonusIfEligible(booking) {
   }
 }
 
+// Crédite des points en gardant le SOLDE sous son plafond, le cumul à vie
+// n'étant lui jamais borné (c'est lui qui détermine le palier).
+//
+// Un `$inc` suivi d'un écrêtage en seconde requête laisserait une fenêtre où le
+// solde dépasse le plafond, et deux crédits concurrents pourraient s'écraser :
+// on passe donc par une mise à jour en PIPELINE, qui calcule le minimum
+// côté serveur Mongo en une seule opération atomique.
+async function creditLoyaltyPoints(userId, points) {
+  return User.findByIdAndUpdate(
+    userId,
+    [{
+      $set: {
+        loyaltyPoints: {
+          // $max autour du $min : un solde DÉJÀ au-dessus du plafond n'est
+          // jamais rabaissé — il cesse simplement de grimper. Sans ce garde-fou,
+          // abaisser un jour MAX_LOYALTY_BALANCE_POINTS détruirait en silence
+          // les points excédentaires de chaque client au premier gain suivant,
+          // sans trace ni mouvement dans LoyaltyTransaction.
+          $max: [
+            { $ifNull: ["$loyaltyPoints", 0] },
+            {
+              $min: [
+                { $add: [{ $ifNull: ["$loyaltyPoints", 0] }, points] },
+                MAX_LOYALTY_BALANCE_POINTS,
+              ],
+            },
+          ],
+        },
+        loyaltyLifetimePoints: { $add: [{ $ifNull: ["$loyaltyLifetimePoints", 0] }, points] },
+      },
+    }],
+    { new: true }
+  ).select("loyaltyPoints loyaltyLifetimePoints loyaltyTier");
+}
+
 async function awardLoyaltyPoints(booking) {
   if (!booking?.client) return; // réservation invité sans compte — rien à créditer
   await awardReferralBonusIfEligible(booking);
@@ -350,11 +381,7 @@ async function awardLoyaltyPoints(booking) {
     const tierBefore = resolveTier(user.loyaltyLifetimePoints);
     const points = Math.floor(basePoints * tierBefore.multiplier);
 
-    const updated = await User.findByIdAndUpdate(
-      booking.client,
-      { $inc: { loyaltyPoints: points, loyaltyLifetimePoints: points } },
-      { new: true }
-    ).select("loyaltyPoints loyaltyLifetimePoints loyaltyTier");
+    const updated = await creditLoyaltyPoints(booking.client, points);
     if (!updated) return;
 
     const tierAfter = resolveTier(updated.loyaltyLifetimePoints);
@@ -369,7 +396,7 @@ async function awardLoyaltyPoints(booking) {
     }).catch(() => {});
 
     await notify(booking.client, "system", "🎁 Points de fidélité crédités",
-      `+${points} points pour votre commande ${booking.reference || ""} — ${POINTS_PER_USD} points = 1 USD de remise sur votre prochaine réservation.`,
+      `+${points} points pour votre commande ${booking.reference || ""} — ${POINTS_PER_USD} points = 1 USD de remise sur vos prochaines réservations (solde plafonné à ${MAX_LOYALTY_BALANCE_POINTS} points).`,
       "/dashboard");
 
     if (tierAfter.key !== tierBefore.key) {
@@ -883,16 +910,20 @@ export const createBooking = async (req, res) => {
     }
 
     // ── Remise fidélité (voir awardLoyaltyPoints ci-dessus) ────────────────────
-    // 100 points = 1 USD, plafonné à 20% de montantBase pour ne jamais réduire
-    // une réservation à un montant quasi nul. Débit atomique conditionnel
-    // (jamais de solde négatif même sous requêtes concurrentes) — le montant
-    // réellement débité (loyaltyPointsRedeemed) est celui qui compte, jamais
-    // celui demandé par le client si le débit échoue ou est partiellement
-    // plafonné.
+    // Le solde d'un client est plafonné à MAX_LOYALTY_BALANCE_POINTS
+    // (100 USD de récompense au total) et se déduit en POURCENTAGE du montant
+    // de base, réservation après réservation : ce qui n'est pas consommé reste
+    // acquis pour les suivantes. Ce plafond par réservation est aussi ce qui
+    // empêche une location de tomber à un montant quasi nul, dont dépendent la
+    // commission et le reversement partenaire.
+    //
+    // Débit atomique conditionnel (jamais de solde négatif, même sous requêtes
+    // concurrentes) — le montant réellement débité est celui qui compte, jamais
+    // celui demandé par le client.
     let loyaltyDiscount = 0;
     if (type === "location" && req.user?._id && Number(req.body?.pointsToRedeem) > 0) {
       const requestedPoints = Math.floor(Number(req.body.pointsToRedeem));
-      const maxDiscountUSD  = montantBase * 0.2;
+      const maxDiscountUSD  = montantBase * MAX_LOYALTY_DISCOUNT_RATE;
       const maxPointsByCap  = Math.floor(maxDiscountUSD * POINTS_PER_USD);
       const pointsToTry     = Math.min(requestedPoints, maxPointsByCap);
       if (pointsToTry > 0) {

@@ -1,7 +1,7 @@
 import logger from "../utils/logger.js";
 import User from "../models/User.js";
 import LoyaltyTransaction from "../models/LoyaltyTransaction.js";
-import { LOYALTY_TIERS, MANUAL_ADJUSTMENT_PREFIX, MAX_MANUAL_ADJUSTMENT_POINTS, POINTS_PER_USD, pointsToUSD, resolveTier, resolveNextTier } from "../constants/loyaltyTiers.js";
+import { LOYALTY_TIERS, MANUAL_ADJUSTMENT_PREFIX, MAX_LOYALTY_BALANCE_POINTS, MAX_MANUAL_ADJUSTMENT_POINTS, POINTS_PER_USD, pointsToUSD, resolveTier, resolveNextTier } from "../constants/loyaltyTiers.js";
 import { logAction } from "../middleware/auditLog.js";
 
 // ── Mon statut fidélité (solde, palier, progression) ──────────────────────
@@ -25,6 +25,7 @@ export const getMyLoyaltyStatus = async (req, res) => {
       // remise réellement appliquée le jour où le taux change.
       pointsValueUSD: pointsToUSD(user.loyaltyPoints),
       pointsPerUSD:   POINTS_PER_USD,
+      maxBalance:     MAX_LOYALTY_BALANCE_POINTS,
       tier,
       nextTier,
       pointsToNextTier,
@@ -107,6 +108,7 @@ export const getUserLoyaltyAdmin = async (req, res) => {
       lifetimePoints: user.loyaltyLifetimePoints || 0,
       pointsValueUSD: pointsToUSD(user.loyaltyPoints),
       pointsPerUSD:   POINTS_PER_USD,
+      maxBalance:     MAX_LOYALTY_BALANCE_POINTS,
       tier,
       storedTier:     user.loyaltyTier || null,
       nextTier,
@@ -194,6 +196,15 @@ export const adjustUserLoyalty = async (req, res) => {
       }
       updated = result;
     } else {
+      // Le solde d'un client est plafonné : plutôt que d'écrêter en silence —
+      // l'administrateur croirait avoir crédité 5 000 points quand seuls 300
+      // sont passés — on refuse en disant exactement ce qui est possible.
+      const soldeActuel = before.loyaltyPoints || 0;
+      if (soldeActuel + points > MAX_LOYALTY_BALANCE_POINTS) {
+        return res.status(409).json({
+          message: `Solde plafonné à ${MAX_LOYALTY_BALANCE_POINTS} points (${pointsToUSD(MAX_LOYALTY_BALANCE_POINTS)} USD). Ce compte en a déjà ${soldeActuel} — crédit maximal possible : ${MAX_LOYALTY_BALANCE_POINTS - soldeActuel}.`,
+        });
+      }
       const inc = { loyaltyPoints: points };
       if (countsTowardTier === true) inc.loyaltyLifetimePoints = points;
       updated = await User.findByIdAndUpdate(userId, { $inc: inc }, { new: true })

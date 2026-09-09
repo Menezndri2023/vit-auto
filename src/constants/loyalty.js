@@ -14,13 +14,20 @@ export function pointsToUSD(points) {
   return Math.round((p / POINTS_PER_USD) * 100) / 100;
 }
 
-// Nombre maximum de points réellement utilisables sur une réservation : limité
-// par le solde du client ET par le plafond de remise (20% du montant de base),
-// exactement comme le serveur le recalcule (bookingController.createBooking).
-// Sans ce plafond côté client, l'aperçu annonçait une remise que le serveur
-// refusait ensuite d'appliquer en totalité.
+// Plafond du solde d'un client — miroir de MAX_LOYALTY_BALANCE_POINTS
+// (server/constants/loyaltyTiers.js) : 10 000 points = 100 USD de récompense
+// au total, écrêtés à l'attribution.
+export const MAX_LOYALTY_BALANCE_POINTS = 10000;
+
+// Part maximale d'une réservation payable en points — miroir de
+// MAX_LOYALTY_DISCOUNT_RATE. Les 100 USD se déduisent donc en plusieurs fois,
+// et le reliquat reste acquis pour les réservations suivantes.
 export const MAX_LOYALTY_DISCOUNT_RATE = 0.2;
 
+// Points réellement utilisables sur CETTE réservation : bornés par le solde du
+// client ET par le plafond en pourcentage, exactement comme le serveur les
+// recalcule (bookingController.createBooking). Sans cette borne côté client,
+// l'aperçu annoncerait une remise que le serveur n'appliquerait pas.
 export function maxRedeemablePoints(balance, baseTotalUSD) {
   const capUSD = (Number(baseTotalUSD) || 0) * MAX_LOYALTY_DISCOUNT_RATE;
   return Math.max(0, Math.min(Number(balance) || 0, Math.floor(capUSD * POINTS_PER_USD)));
