@@ -516,6 +516,24 @@ export const getVehicleById = async (req, res) => {
     }
     const isOwnerViewing = vehicle.owner?._id?.toString() === req.user?._id?.toString();
     if (req.user?.role !== "admin" && !isOwnerViewing) hidePartnerDirectContact(vehicle);
+
+    // ── Compteur de vues ────────────────────────────────────────────────────
+    // `Vehicle.vues` existait depuis toujours, déclaré au schéma et initialisé
+    // à zéro à la création — mais RIEN ne l'incrémentait : 333 annonces
+    // publiées, 0 vue enregistrée. Le champ était affiché au partenaire comme
+    // une donnée réelle.
+    //
+    // Ni le propriétaire ni un administrateur ne sont comptés : un partenaire
+    // qui relit sa propre annonce gonflerait son audience, et la statistique ne
+    // vaudrait plus rien pour décider d'un prix ou d'une photo.
+    //
+    // Volontairement détaché de la réponse : la consultation d'une annonce ne
+    // doit jamais attendre l'écriture d'un compteur, ni échouer avec elle.
+    if (vehicle.status === "approved" && !isOwnerViewing && req.user?.role !== "admin") {
+      Vehicle.updateOne({ _id: id }, { $inc: { vues: 1 } })
+        .catch((err) => logger.warn("compteur de vues (non bloquant) :", err.message));
+    }
+
     res.json({ vehicle });
   } catch (err) {
     logger.error("getVehicleById:", err);

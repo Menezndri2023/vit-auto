@@ -4,6 +4,8 @@ import { planRank, includedBoosts, INCLUDED_BOOST_TIER, INCLUDED_BOOST_MARK } fr
 import { PAYMENTS_ENABLED, PAYMENTS_DISABLED_MESSAGE } from "../config/featureFlags.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 import Notification from "../models/Notification.js";
+import Booking from "../models/Booking.js";
+import Favorite from "../models/Favorite.js";
 
 // Méthodes qui déclencheraient un ENCAISSEMENT réel. Elles seules dépendent
 // d'une passerelle branchée.
@@ -254,6 +256,153 @@ export const purchaseBoost = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: "Erreur boost.", error: err.message });
+  }
+};
+
+// ── Seuils des recommandations ─────────────────────────────────────────────
+// Nommés et commentés plutôt que glissés dans le code : une recommandation
+// repose sur un jugement, et un partenaire qui suit un conseil doit pouvoir
+// savoir à partir de quand il se déclenche.
+//
+// VUES_SIGNIFICATIVES — en dessous, aucun diagnostic n'est honnête : trois
+// visites ne disent rien d'un prix ni d'une photo.
+const VUES_SIGNIFICATIVES = 30;
+// Écart de prix à partir duquel une annonce sort du marché de sa ville.
+const ECART_PRIX_ELEVE = 20;
+// Un visiteur sur vingt qui met en favori sans réserver : l'intérêt est réel,
+// l'obstacle est ailleurs que dans l'attractivité de l'annonce.
+const TAUX_FAVORIS_FORT = 5;
+
+// ── Statistiques de performance — réservées aux abonnés ────────────────────
+// GET /api/subscriptions/insights
+//
+// Ce que le tableau de bord montrait jusqu'ici, c'est de l'ARGENT : revenus,
+// réservations, commissions. Utile, mais rétrospectif — cela ne dit pas
+// POURQUOI une annonce ne part pas. Ces indicateurs-ci sont diagnostiques :
+// vues, taux de conversion, et position du prix face aux autres annonces de la
+// même ville. C'est ce qui permet d'agir sur une annonce plutôt que de
+// constater qu'elle ne rapporte rien.
+//
+// Réservé aux abonnés : c'est l'avantage qui fait RESTER un partenaire une fois
+// le premier mois passé, là où les mises en avant le font souscrire.
+export const getPartnerInsights = async (req, res) => {
+  try {
+    const sub = await Subscription.findOne({ vendor: req.user._id }).lean();
+    if (!planActif(sub)) {
+      // 403 explicite plutôt qu'une réponse vide : le partenaire doit
+      // comprendre que la donnée existe et ce qui l'en sépare.
+      return res.status(403).json({
+        message: "Les statistiques de performance sont réservées aux abonnés. Activez un plan pour savoir quelles annonces sont vues et lesquelles convertissent.",
+        code: "PLAN_REQUIS",
+      });
+    }
+
+    const annonces = await Vehicle.find({ owner: req.user._id, status: "approved" })
+      .select("title ville vues pricePerDay priceForSale type images description caution dureeMinLocation")
+      .lean();
+    if (!annonces.length) return res.json({ annonces: [], resume: null });
+
+    // Réservations par annonce, en UNE agrégation : une requête par annonce
+    // ferait des dizaines d'allers-retours pour une page de tableau de bord.
+    const parVehicule = new Map(
+      (await Booking.aggregate([
+        { $match: { vehicle: { $in: annonces.map((a) => a._id) } } },
+        { $group: { _id: "$vehicle", n: { $sum: 1 } } },
+      ])).map((r) => [String(r._id), r.n])
+    );
+
+    // Mises en favori : un signal d'intérêt distinct de la réservation. Une
+    // annonce très mise en favori mais jamais réservée dit que le véhicule
+    // plaît et que l'obstacle est ailleurs — caution, durée minimale, délai.
+    const favorisParVehicule = new Map(
+      (await Favorite.aggregate([
+        { $match: { itemType: "vehicle", itemId: { $in: annonces.map((a) => a._id) } } },
+        { $group: { _id: "$itemId", n: { $sum: 1 } } },
+      ])).map((r) => [String(r._id), r.n])
+    );
+
+    // Prix médian de la ville, TOUTES annonces confondues et non les seules du
+    // partenaire : se comparer à soi-même n'apprend rien. La médiane plutôt que
+    // la moyenne — un seul véhicule de luxe déplacerait une moyenne.
+    const villes = [...new Set(annonces.map((a) => a.ville).filter(Boolean))];
+    const medianes = new Map();
+    for (const ville of villes) {
+      const prix = (await Vehicle.find({ ville, status: "approved", available: true, type: "location", pricePerDay: { $gt: 0 } })
+        .select("pricePerDay").lean()).map((v) => v.pricePerDay).sort((a, b) => a - b);
+      if (prix.length) medianes.set(ville, prix[Math.floor(prix.length / 2)]);
+    }
+
+    const detail = annonces.map((a) => {
+      const reservations = parVehicule.get(String(a._id)) || 0;
+      const vues = a.vues || 0;
+      const prix = a.type === "vente" ? a.priceForSale : a.pricePerDay;
+      const mediane = medianes.get(a.ville) ?? null;
+      const favoris = favorisParVehicule.get(String(a._id)) || 0;
+      const ecart = prix && mediane ? Math.round(((prix - mediane) / mediane) * 100) : null;
+
+      // ── Recommandations ────────────────────────────────────────────────
+      // Uniquement ce que la donnée soutient. En dessous de
+      // VUES_SIGNIFICATIVES, on se tait sur le prix et les photos : un
+      // diagnostic tiré de trois visites serait une invention.
+      const conseils = [];
+      if (!a.images?.length) {
+        conseils.push("Aucune photo : une annonce sans visuel n'est pratiquement jamais ouverte.");
+      } else if (a.images.length === 1) {
+        conseils.push("Une seule photo — les annonces qui en portent plusieurs retiennent davantage l'attention.");
+      }
+      if (!a.description?.trim()) {
+        conseils.push("Pas de description : le client ne sait pas ce qui distingue ce véhicule.");
+      }
+      if (vues >= VUES_SIGNIFICATIVES) {
+        if (reservations === 0 && ecart != null && ecart >= ECART_PRIX_ELEVE) {
+          conseils.push(`Vue ${vues} fois sans aucune réservation, à ${ecart} % au-dessus de la médiane de ${a.ville} — le prix est le premier suspect.`);
+        }
+        const tauxFavoris = Math.round((favoris / vues) * 1000) / 10;
+        if (reservations === 0 && tauxFavoris >= TAUX_FAVORIS_FORT) {
+          conseils.push(`Mise en favori par ${tauxFavoris} % des visiteurs sans être réservée : le véhicule plaît, l'obstacle est ailleurs — caution, durée minimale ou disponibilité.`);
+        }
+      }
+
+      return {
+        id: a._id,
+        titre: a.title,
+        ville: a.ville || null,
+        vues,
+        favoris,
+        reservations,
+        conseils,
+        // `null` et non 0 tant qu'aucune vue n'est enregistrée : un taux de 0 %
+        // laisserait croire à une annonce qui n'intéresse personne, alors
+        // qu'elle n'a simplement pas encore été vue.
+        tauxConversion: vues > 0 ? Math.round((reservations / vues) * 1000) / 10 : null,
+        prix: prix ?? null,
+        medianeVille: mediane,
+        ecartMediane: ecart,
+      };
+    });
+
+    const vuesTotales = detail.reduce((s2, a) => s2 + a.vues, 0);
+    const vues = detail.filter((a) => a.vues > 0);
+    const resume = {
+      annonces: detail.length,
+      vuesTotales,
+      reservations: detail.reduce((s2, a) => s2 + a.reservations, 0),
+      // Meilleure et pire annonce parmi celles RÉELLEMENT vues : classer une
+      // annonce jamais consultée comme « la moins performante » accuserait le
+      // partenaire d'un problème qui n'existe pas.
+      meilleure: vues.length ? [...vues].sort((a, b) => (b.tauxConversion ?? 0) - (a.tauxConversion ?? 0))[0] : null,
+      aAmeliorer: vues.length ? [...vues].sort((a, b) => (a.tauxConversion ?? 0) - (b.tauxConversion ?? 0))[0] : null,
+      jamaisVues: detail.filter((a) => a.vues === 0).length,
+      favoris: detail.reduce((s2, a) => s2 + a.favoris, 0),
+      // Nombre d'annonces sur lesquelles une action concrète est possible —
+      // c'est le chiffre qui donne envie d'ouvrir l'écran.
+      aCorriger: detail.filter((a) => a.conseils.length > 0).length,
+    };
+
+    res.json({ annonces: detail, resume });
+  } catch (err) {
+    logger.error("getPartnerInsights:", err);
+    res.status(500).json({ message: "Erreur récupération des statistiques.", error: err.message });
   }
 };
 
