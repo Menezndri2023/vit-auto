@@ -367,17 +367,31 @@ const userSchema = new mongoose.Schema({
     default: "none",
   },
 
-  // ── Autorisation de publier AVANT la certification, à durée limitée ────────
+  // ── Autorisation de publier AVANT la certification ─────────────────────────
   // Un partenaire dont l'activité est vérifiable autrement (site professionnel,
   // établissement identifiable, affiliation fédérale) peut être mis en ligne
-  // pendant qu'il rassemble ses pièces. Sans ce champ, la seule façon de le
+  // pendant qu'il rassemble ses pièces. Sans elle, la seule façon de le
   // débloquer était de lui poser `certificationBadge: "verifie"` — c'est-à-dire
   // d'AFFICHER PUBLIQUEMENT un badge « Partenaire Vérifié » que rien ne fonde.
-  //
   // Cette autorisation ne confère donc AUCUN badge : elle ouvre la publication,
-  // rien d'autre. Et elle expire d'elle-même à la date fixée — un oubli
-  // administratif referme la porte au lieu de la laisser ouverte indéfiniment.
-  provisionalPublishingUntil: { type: Date, default: null },
+  // rien d'autre.
+  //
+  // `granted` et `until` sont SÉPARÉS à dessein. La première version n'avait
+  // qu'une date, si bien qu'« autorisé » et « jusqu'à quand » ne faisaient
+  // qu'un : impossible d'exprimer « autorisé jusqu'à nouvel ordre » autrement
+  // qu'en inscrivant une date lointaine — une date fausse, que personne
+  // n'aurait su relire dix mois plus tard. Ici `until: null` dit exactement ce
+  // qu'il veut dire : aucune échéance, le retrait sera une décision, pas
+  // l'effet d'un calendrier.
+  provisionalPublishing: {
+    granted:   { type: Boolean, default: false },
+    // null = aucune échéance. Une date = fermeture automatique ce jour-là.
+    until:     { type: Date, default: null },
+    grantedAt: { type: Date, default: null },
+    grantedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    // Motif de l'octroi : ce qui a fait juger l'activité vérifiable sans pièces.
+    reason:    { type: String, trim: true, default: null },
+  },
   certificationId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "PartnerCertification",

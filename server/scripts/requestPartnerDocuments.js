@@ -15,9 +15,10 @@ dotenv.config();
 // DEMANDE DES PIÈCES LÉGALES À UN PARTENAIRE PUBLIÉ PAR AVANCE
 // ═══════════════════════════════════════════════════════════════════════════
 // S'adresse à un partenaire dont les annonces sont EN LIGNE grâce à une
-// autorisation provisoire (User.provisionalPublishingUntil). L'échéance du
-// message est celle de l'autorisation elle-même, lue en base : une date écrite
-// à la main dans un e-mail se désynchronise dès qu'un admin prolonge ou révoque.
+// autorisation provisoire (User.provisionalPublishing). L'échéance annoncée est
+// celle de l'autorisation elle-même, lue en base : une date écrite à la main
+// dans un e-mail se désynchronise dès qu'un admin prolonge ou révoque. Et quand
+// l'autorisation n'a PAS d'échéance, le message n'en invente pas.
 //
 // SIMULATION PAR DÉFAUT :
 //   node scripts/requestPartnerDocuments.js <email> [--app-url=https://…] [--confirm]
@@ -74,7 +75,8 @@ async function main() {
   console.log(`   entité .................. ${business?.companyName || "—"}`);
   console.log(`   annonces en ligne ....... ${enLigne} (${activites} activités, ${vehicules} véhicules, ${chauffeurs} chauffeurs)`);
   console.log(`   certification ........... ${user.certificationBadge}`);
-  console.log(`   autorisation provisoire   ${provisoire ? `active jusqu'au ${new Date(user.provisionalPublishingUntil).toISOString().slice(0, 10)}` : "aucune"}`);
+  const echeance = user.provisionalPublishing?.until || null;
+  console.log(`   autorisation provisoire   ${provisoire ? (echeance ? `active jusqu'au ${new Date(echeance).toISOString().slice(0, 10)}` : "active, sans échéance") : "aucune"}`);
 
   if (user.certificationBadge !== "none") {
     console.log("\n   ⚠️  Ce partenaire est DÉJÀ certifié — il n'a aucune pièce à fournir. Rien à envoyer.");
@@ -94,7 +96,8 @@ async function main() {
     companyName: business?.companyName || `${user.firstName || ""} ${user.lastName || ""}`.trim() || "votre entreprise",
     annoncesEnLigne: enLigne,
     documents: DOCUMENTS_ENTREPRISE,
-    dateLimite: provisoire ? user.provisionalPublishingUntil : null,
+    dateLimite: provisoire ? echeance : null,
+    sansEcheance: provisoire && !echeance,
     onboardingUrl: `${APP_URL}/partner-onboarding`,
   });
 

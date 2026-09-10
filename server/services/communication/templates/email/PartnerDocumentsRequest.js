@@ -17,6 +17,11 @@ import { btn, heroSection, greeting, signature, infoBox, divider, escapeHtml } f
 export function partnerDocumentsRequestTemplate(
   {
     firstName, companyName, annoncesEnLigne, documents = [], dateLimite, onboardingUrl,
+    // Autorisation accordée sans date de fin : le message ne doit inventer
+    // aucune échéance, mais il ne doit pas non plus laisser croire que le
+    // dossier est facultatif. Il dit donc la vérité : rien ne se ferme à une
+    // date, la régularisation reste attendue.
+    sansEcheance = false,
     // « formule » pour un centre de plongée, « véhicule » pour un loueur : le
     // même message servait les deux et parlait de « formules » à une agence de
     // location, ce qui se remarque immédiatement.
@@ -49,7 +54,7 @@ export function partnerDocumentsRequestTemplate(
     <p style="font-size:14px;color:${BRAND.muted};line-height:1.7;margin:0 0 20px">
       Vos ${escapeHtml(motAnnonce)}s sont en ligne et vos clients peuvent déjà réserver. Nous
       n'avons pas attendu votre dossier administratif pour les publier, parce que
-      votre activité est vérifiable par ailleurs — mais cette avance a une durée.
+      votre activité est vérifiable par ailleurs.${sansEcheance ? "" : " Mais cette avance a une durée."}
     </p>
 
     ${dateLisible ? infoBox(
@@ -58,7 +63,13 @@ export function partnerDocumentsRequestTemplate(
       + `visibles mais vous ne pourrez plus en créer de nouvelles. Un seul envoi `
       + `suffit à lever complètement cette limite.`,
       "warning"
-    ) : ""}
+    ) : (sansEcheance ? infoBox(
+      `<strong>Aucune date butoir de notre côté.</strong><br>`
+      + `Vos annonces restent en ligne, et vous pouvez continuer à en publier. `
+      + `Votre dossier reste néanmoins attendu : c'est lui qui déclenche le badge `
+      + `« Partenaire Vérifié » et qui nous permet d'établir vos factures.`,
+      "neutral"
+    ) : "")}
 
     <p style="font-size:15px;color:${BRAND.text};font-weight:700;margin:26px 0 8px">
       Les pièces à nous transmettre
@@ -100,10 +111,12 @@ export function partnerDocumentsRequestTemplate(
     text:
       `Bonjour ${firstName},\n\n`
       + `${annoncesEnLigne} ${motAnnonce}(s) de ${companyName} sont en ligne sur VIT AUTO et vos clients peuvent déjà réserver.\n\n`
-      + `Nous n'avons pas attendu votre dossier administratif pour les publier, parce que votre activité est vérifiable par ailleurs — mais cette avance a une durée.\n\n`
+      + `Nous n'avons pas attendu votre dossier administratif pour les publier, parce que votre activité est vérifiable par ailleurs.${sansEcheance ? "" : " Mais cette avance a une durée."}\n\n`
       + (dateLisible
         ? `VOTRE PUBLICATION EST OUVERTE JUSQU'AU ${dateLisible.toUpperCase()}.\nPassé cette date, sans dossier complet, vos annonces déjà en ligne restent visibles mais vous ne pourrez plus en créer de nouvelles.\n\n`
-        : "")
+        : (sansEcheance
+          ? `AUCUNE DATE BUTOIR DE NOTRE CÔTÉ.\nVos annonces restent en ligne et vous pouvez continuer à en publier. Votre dossier reste néanmoins attendu : c'est lui qui déclenche le badge « Partenaire Vérifié » et qui nous permet d'établir vos factures.\n\n`
+          : ""))
       + `LES PIÈCES À NOUS TRANSMETTRE\n`
       + documents.map((d) => `- ${d.label}${d.hint ? ` (${d.hint})` : ""}`).join("\n")
       + `\n\nUne photo nette prise au téléphone suffit, il n'est pas nécessaire de scanner.\n\n`

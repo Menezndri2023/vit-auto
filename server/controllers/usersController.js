@@ -401,17 +401,26 @@ export const toggleUserActive = async (req, res) => {
 // d'AFFICHER un badge « Partenaire Vérifié » que rien ne fonde, sur toutes ses
 // annonces et devant tous les clients.
 //
-// Ici, aucun badge : seulement le droit de publier, et une date de fin. Passer
-// `days: 0` (ou null) révoque immédiatement.
-const MAX_JOURS_PROVISOIRE = 180;
+// Ici, aucun badge : seulement le droit de publier.
+//
+// Trois formes, et l'absence d'échéance en est une à part entière :
+//   { days: 90 }      → autorisé, fermeture automatique dans 90 jours
+//   { indefinite: true } → autorisé jusqu'à retrait explicite
+//   { days: 0 }       → révoqué immédiatement
+//
+// « Jusqu'à retrait explicite » n'est pas un oubli déguisé : le retrait devient
+// une décision tracée, au lieu d'arriver un matin par expiration silencieuse.
+const MAX_JOURS_PROVISOIRE = 365;
 
 export const setProvisionalPublishing = async (req, res) => {
   try {
-    const { days } = req.body;
+    const { days, indefinite, reason } = req.body;
+    const sansEcheance = indefinite === true;
     const jours = Number(days);
-    if (!Number.isFinite(jours) || jours < 0 || jours > MAX_JOURS_PROVISOIRE) {
+
+    if (!sansEcheance && (!Number.isFinite(jours) || jours < 0 || jours > MAX_JOURS_PROVISOIRE)) {
       return res.status(400).json({
-        message: `Durée invalide : entre 0 (révoquer) et ${MAX_JOURS_PROVISOIRE} jours.`,
+        message: `Indiquez « days » entre 0 (révoquer) et ${MAX_JOURS_PROVISOIRE}, ou « indefinite: true » pour une autorisation sans échéance.`,
       });
     }
 
@@ -421,20 +430,25 @@ export const setProvisionalPublishing = async (req, res) => {
       return res.status(400).json({ message: "Cette autorisation ne concerne que les partenaires." });
     }
 
-    const avant = user.provisionalPublishingUntil;
-    user.provisionalPublishingUntil = jours > 0
-      ? new Date(Date.now() + jours * 24 * 60 * 60 * 1000)
-      : null;
+    const avant = user.provisionalPublishing?.toObject?.() || null;
+    const accorde = sansEcheance || jours > 0;
+
+    user.provisionalPublishing.granted   = accorde;
+    user.provisionalPublishing.until     = accorde && !sansEcheance ? new Date(Date.now() + jours * 86400000) : null;
+    user.provisionalPublishing.grantedAt = accorde ? new Date() : null;
+    user.provisionalPublishing.grantedBy = accorde ? req.user._id : null;
+    user.provisionalPublishing.reason    = accorde ? (String(reason || "").trim() || null) : null;
     await user.save();
 
     // Action sensible : elle contourne une vérification. Elle doit laisser une
-    // trace nominative, au même titre qu'une activation de compte.
-    await logAction(req, jours > 0 ? "user.provisional_publishing.grant" : "user.provisional_publishing.revoke", "User", req.params.id, {
-      before: { provisionalPublishingUntil: avant },
-      after:  { provisionalPublishingUntil: user.provisionalPublishingUntil },
+    // trace nominative, au même titre qu'une activation de compte — et d'autant
+    // plus lorsqu'elle est accordée sans échéance.
+    await logAction(req, accorde ? "user.provisional_publishing.grant" : "user.provisional_publishing.revoke", "User", req.params.id, {
+      before: avant,
+      after:  user.provisionalPublishing.toObject(),
     });
 
-    res.json({ user: { id: user._id, provisionalPublishingUntil: user.provisionalPublishingUntil } });
+    res.json({ user: { id: user._id, provisionalPublishing: user.provisionalPublishing } });
   } catch (err) {
     logger.error("setProvisionalPublishing:", err);
     res.status(500).json({ message: "Erreur serveur." });

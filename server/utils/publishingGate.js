@@ -17,9 +17,15 @@
 // L'autorisation provisoire ne couvre QUE la certification d'entité, jamais le
 // KYC d'identité d'un particulier. Les deux ne pèsent pas le même risque :
 // l'un atteste d'une entreprise, l'autre de la personne physique responsable.
+//
+// `until: null` = aucune échéance : l'autorisation court jusqu'à ce qu'on la
+// retire explicitement. C'est une décision de l'exploitant, pas un oubli — le
+// champ `granted` porte l'octroi, `until` seulement sa fin éventuelle.
 export function autorisationProvisoireActive(user, now = new Date()) {
-  const jusquA = user?.provisionalPublishingUntil;
-  return !!jusquA && new Date(jusquA).getTime() > now.getTime();
+  const a = user?.provisionalPublishing;
+  if (!a?.granted) return false;
+  if (!a.until) return true;
+  return new Date(a.until).getTime() > now.getTime();
 }
 
 // « avant de publier » mais « avant d'importer » : l'élision devant voyelle.

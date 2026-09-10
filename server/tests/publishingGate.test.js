@@ -11,7 +11,14 @@ import { refusDePublication, autorisationProvisoireActive } from "../utils/publi
 // mauvaise : pour débloquer un partenaire non certifié, on lui posait
 // `certificationBadge: "verifie"`, c'est-à-dire un badge « Partenaire Vérifié »
 // affiché aux clients sans qu'aucune pièce ne le fonde. L'autorisation, elle,
-// ouvre la publication SANS rien afficher, et expire d'elle-même.
+// ouvre la publication SANS rien afficher.
+//
+// Elle porte deux champs distincts, `granted` et `until`, et cette séparation
+// est l'objet de la moitié des cas ci-dessous : l'octroi et son échéance sont
+// deux décisions différentes. Une autorisation sans échéance (`until: null`)
+// court jusqu'à un retrait explicite — c'est le régime choisi par l'exploitant,
+// qui veut que le retrait soit une décision tracée et non l'effet d'un
+// calendrier. Une autorisation datée, elle, se referme toute seule.
 
 const partenaire = (over = {}) => ({
   role: "partenaire",
@@ -19,7 +26,7 @@ const partenaire = (over = {}) => ({
   certificationBadge: "none",
   kycStatus: "EN_ATTENTE",
   isFounder: false,
-  provisionalPublishingUntil: null,
+  provisionalPublishing: { granted: false, until: null },
   ...over,
 });
 
@@ -56,12 +63,12 @@ describe("Droit de publier — règles historiques", () => {
 
 describe("Droit de publier — autorisation provisoire", () => {
   it("ouvre la publication à une entreprise non certifiée, tant qu'elle court", () => {
-    const u = partenaire({ provisionalPublishingUntil: dans(30) });
+    const u = partenaire({ provisionalPublishing: { granted: true, until: dans(30) } });
     expect(refusDePublication(u)).toBeNull();
   });
 
   it("se referme d'elle-même à l'échéance", () => {
-    const u = partenaire({ provisionalPublishingUntil: dans(-1) });
+    const u = partenaire({ provisionalPublishing: { granted: true, until: dans(-1) } });
     // Un oubli administratif doit refermer la porte, jamais la laisser ouverte.
     expect(refusDePublication(u).code).toBe("CERTIFICATION_REQUIRED");
   });
@@ -70,18 +77,33 @@ describe("Droit de publier — autorisation provisoire", () => {
     // Les deux ne pèsent pas le même risque : l'une atteste d'une entreprise,
     // l'autre de la personne physique responsable. Élargir l'autorisation au
     // KYC serait un contournement, pas une facilité.
-    const u = partenaire({ sellerType: "particulier", provisionalPublishingUntil: dans(30) });
+    const u = partenaire({ sellerType: "particulier", provisionalPublishing: { granted: true, until: dans(30) } });
     expect(refusDePublication(u).code).toBe("KYC_REQUIRED");
   });
 
-  it("une date absente ou nulle n'autorise rien", () => {
+  it("court SANS ÉCHÉANCE quand aucune date n'est fixée", () => {
+    // C'est le cas voulu par l'exploitant : le retrait doit être une décision
+    // tracée, pas l'effet d'un calendrier. Une date absente ne referme donc
+    // rien — à la différence de la première version, où « pas de date »
+    // valait « pas d'autorisation ».
+    const u = partenaire({ provisionalPublishing: { granted: true, until: null } });
+    expect(autorisationProvisoireActive(u)).toBe(true);
+    expect(refusDePublication(u)).toBeNull();
+    // Et elle tient encore dans dix ans.
+    expect(autorisationProvisoireActive(u, dans(3650))).toBe(true);
+  });
+
+  it("n'autorise rien tant que l'octroi n'est pas posé, même avec une date", () => {
+    // `granted` porte la décision, `until` seulement sa fin : une date seule ne
+    // vaut pas autorisation.
     expect(autorisationProvisoireActive(partenaire())).toBe(false);
     expect(autorisationProvisoireActive({})).toBe(false);
-    expect(autorisationProvisoireActive(partenaire({ provisionalPublishingUntil: dans(1) }))).toBe(true);
+    expect(autorisationProvisoireActive(partenaire({ provisionalPublishing: { granted: false, until: dans(30) } }))).toBe(false);
+    expect(autorisationProvisoireActive(partenaire({ provisionalPublishing: { granted: true, until: dans(1) } }))).toBe(true);
   });
 
   it("est évaluée à l'instant donné, pas à l'import du module", () => {
-    const u = partenaire({ provisionalPublishingUntil: dans(10) });
+    const u = partenaire({ provisionalPublishing: { granted: true, until: dans(10) } });
     expect(refusDePublication(u, "publier une annonce", dans(20)).code).toBe("CERTIFICATION_REQUIRED");
     expect(refusDePublication(u, "publier une annonce", dans(5))).toBeNull();
   });
