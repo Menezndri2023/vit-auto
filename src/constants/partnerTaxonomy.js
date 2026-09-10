@@ -9,7 +9,14 @@
 // anciens champs pour que le code existant continue de fonctionner pendant la
 // migration progressive.
 
-export const ACTIVITIES = ["loueur", "vendeur", "exportateur", "chauffeur"];
+// "loisirs" couvre les partenaires qui vendent une EXPÉRIENCE et non un
+// véhicule : plongée, quad, jetski, montgolfière, karting… (voir
+// constants/activityTypes.js et models/Activity.js). La plateforme savait
+// depuis longtemps modéliser, publier et réserver ces activités — la rubrique
+// « Loisirs » du catalogue et la page /vendor/submit-activity existaient — mais
+// l'activité manquait ICI : un centre de plongée ne pouvait pas déclarer son
+// métier à l'inscription, et son compte restait typé `null` ou, pire, "loueur".
+export const ACTIVITIES = ["loueur", "vendeur", "exportateur", "chauffeur", "loisirs"];
 
 export const ENTITY_TYPES = ["particulier", "professionnel", "entreprise", "concessionnaire"];
 
@@ -18,6 +25,7 @@ export const ACTIVITY_LABELS = {
   vendeur: "Vendeur — je vends des véhicules",
   exportateur: "Exportateur — import/export de véhicules",
   chauffeur: "Chauffeur — je propose mes services de conduite",
+  loisirs: "Activités & loisirs — plongée, quad, jetski, excursions…",
 };
 
 export const ENTITY_TYPE_LABELS = {
@@ -41,6 +49,7 @@ export const ACTIVITY_TO_PARTNER_TYPE = {
   vendeur: "concessionnaire",
   exportateur: "importateur_exportateur",
   chauffeur: "chauffeur_professionnel",
+  loisirs: "activites_loisirs",
 };
 
 // activity -> PartnerVerification.companyType historique. "chauffeur" n'a pas
@@ -52,6 +61,10 @@ export const ACTIVITY_TO_COMPANY_TYPE = {
   vendeur: "concessionnaire",
   exportateur: "exportateur",
   chauffeur: "autre",
+  // Même cas que "chauffeur" : l'enum historique de PartnerVerification ne
+  // connaît que des métiers automobiles. "autre" est le repli prévu pour ça,
+  // il n'est lu par aucune logique de gating.
+  loisirs: "autre",
 };
 
 export function requiresDriverDocs(activity) {

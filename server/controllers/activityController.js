@@ -9,7 +9,7 @@ import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
 import { logAction } from "../middleware/auditLog.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
-import { uploadBase64Images } from "../config/imagekit.js";
+import { uploadBase64Images, FOLDERS } from "../config/imagekit.js";
 import { ACTIVITY_TYPES, ACTIVITY_PRICE_UNITS } from "../constants/activityTypes.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -116,8 +116,8 @@ export const createActivity = async (req, res) => {
       if (!business) return res.status(400).json({ message: "Entreprise introuvable." });
     }
 
-    const uploadedImages = await uploadBase64Images(images);
-    const [uploadedThumb] = thumbnail ? await uploadBase64Images([thumbnail]) : [null];
+    const uploadedImages = await uploadBase64Images(images, FOLDERS.activities);
+    const [uploadedThumb] = thumbnail ? await uploadBase64Images([thumbnail], FOLDERS.activities) : [null];
 
     const activity = await Activity.create({
       activityType, title, description,
@@ -317,10 +317,10 @@ export const updateActivity = async (req, res) => {
     if (imagesError) return res.status(400).json({ message: imagesError });
 
     if (safeUpdate.images?.length) {
-      safeUpdate.images = await uploadBase64Images(safeUpdate.images);
+      safeUpdate.images = await uploadBase64Images(safeUpdate.images, FOLDERS.activities);
     }
     if (safeUpdate.thumbnail) {
-      [safeUpdate.thumbnail] = await uploadBase64Images([safeUpdate.thumbnail]);
+      [safeUpdate.thumbnail] = await uploadBase64Images([safeUpdate.thumbnail], FOLDERS.activities);
     }
 
     if (req.body.businessId !== undefined) {

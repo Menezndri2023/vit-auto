@@ -72,6 +72,10 @@ const partnerOnboardingSchema = new mongoose.Schema({
       "importateur_exportateur",
       "chauffeur_professionnel",
       "expert_auto",
+      // Partenaire vendant une expérience et non un véhicule (plongée, quad,
+      // jetski…) — cible de ACTIVITY_TO_PARTNER_TYPE.loisirs. Sans cette
+      // valeur, un dossier d'onboarding loisirs échouait à la validation.
+      "activites_loisirs",
       "transitaire_logistique",
       "financement",
       "assurance",

@@ -507,6 +507,21 @@ userSchema.pre("validate", function (next) {
   if (!this.email && !this.phone) {
     return next(new Error("Un compte doit avoir au moins un email ou un numéro de téléphone."));
   }
+  // L'ORDRE DE CES DEUX BLOCS COMPTE, et il était inversé.
+  //
+  // La chaîne est entityType -> sellerType -> partnerCategory. En dérivant
+  // partnerCategory d'abord, un compte créé par le parcours MODERNE (entityType
+  // seul, sans sellerType — c'est-à-dire l'inscription partenaire d'aujourd'hui)
+  // trouvait `sellerType` encore vide : partnerCategory restait donc null, et le
+  // compte ressortait à moitié typé. Le défaut ne se voyait pas sur les comptes
+  // anciens, qui portaient déjà un sellerType explicite.
+  //
+  // entityType -> sellerType : ne backfill que si sellerType n'a jamais été
+  // renseigné (jamais d'écrasement d'une valeur déjà choisie explicitement,
+  // pour ne pas perturber un compte créé avant l'introduction d'entityType).
+  if (this.entityType && !this.sellerType) {
+    this.sellerType = entityTypeToSellerType(this.entityType);
+  }
   // Synchronisation partnerCategory ↔ sellerType : tout code existant qui ne
   // connaît que `sellerType` (Register.jsx, VendorSubmit.jsx) continue de
   // fonctionner sans modification — `partnerCategory` se dérive automatiquement
@@ -514,12 +529,6 @@ userSchema.pre("validate", function (next) {
   // système ("exportateur", qui n'a pas d'équivalent dans sellerType).
   if (!this.partnerCategory && this.sellerType) {
     this.partnerCategory = this.sellerType;
-  }
-  // entityType -> sellerType : ne backfill que si sellerType n'a jamais été
-  // renseigné (jamais d'écrasement d'une valeur déjà choisie explicitement,
-  // pour ne pas perturber un compte créé avant l'introduction d'entityType).
-  if (this.entityType && !this.sellerType) {
-    this.sellerType = entityTypeToSellerType(this.entityType);
   }
   next();
 });

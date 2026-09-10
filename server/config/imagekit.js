@@ -26,6 +26,11 @@ export const FOLDERS = {
   contracts: "vit-auto/contracts",
   avatars:   "vit-auto/avatars",
   showrooms: "vit-auto/showrooms",
+  // Activités de loisir (plongée, quad, jetski…) — voir models/Activity.js.
+  // Leurs photos partaient jusqu'ici dans "vit-auto/vehicles", faute de dossier
+  // dédié : le défaut de uploadBase64Images. Aucune donnée à reprendre, la
+  // collection était vide au moment de la correction.
+  activities: "vit-auto/activities",
   docs:      "vit-auto/docs",
   drivers:   "vit-auto/drivers",
   // Sous-dossier SÉPARÉ pour les pièces d'identité et permis des chauffeurs.
@@ -38,6 +43,27 @@ export const FOLDERS = {
   bookingDocs: "vit-auto/booking-docs",
 };
 
+// Largeur maximale à laquelle une image d'affichage est STOCKÉE.
+//
+// Au-delà d'environ 25 mégapixels, ImageKit accepte le fichier mais REFUSE de
+// le livrer : la page reçoit un 400 « Bad Request » à la place de la photo, sans
+// la moindre erreur côté serveur — l'annonce paraît simplement cassée. Le piège
+// est double, car un fichier de 27 MP peut ne peser qu'un mégaoctet et demi :
+// aucun plafond exprimé en octets ne l'arrête. Constaté en production sur deux
+// photos d'un partenaire (4872×5568).
+//
+// 2560 px suffit largement au plus grand affichage de la plateforme, et la
+// transformation `pre` s'applique AVANT stockage : l'original démesuré n'est
+// jamais conservé. Un appelant qui fournit sa propre transformation garde la
+// main — elle remplace celle-ci.
+//
+// `c-at_max` est indispensable et n'est pas un détail de confort : avec le seul
+// `w-2560`, ImageKit AGRANDIT les images plus petites que la cible. Une vignette
+// de 500 px se retrouvait stockée en 2560 px — 429 Ko au lieu de 53, et floue.
+// `c-at_max` borne sans jamais agrandir.
+const MAX_LARGEUR_STOCKAGE = 2560;
+const PRE_REDIMENSION = `w-${MAX_LARGEUR_STOCKAGE},c-at_max`;
+
 export async function uploadImage(source, options = {}) {
   const ik = getIK();
   if (!ik) return null;
@@ -48,9 +74,9 @@ export async function uploadImage(source, options = {}) {
       fileName: fileName || `img_${Date.now()}`,
       folder,
       useUniqueFileName: true,
+      transformation: transformation || { pre: PRE_REDIMENSION },
     };
     if (tags.length) payload.tags = tags;
-    if (transformation) payload.transformation = transformation;
     const result = await ik.upload(payload);
     return {
       url:          result.url,
