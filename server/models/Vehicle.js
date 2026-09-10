@@ -110,7 +110,14 @@ const vehicleSchema = new mongoose.Schema({
   },
 
   // ── Conditions de location ────────────────────────────────
-  ageMin:               { type: Number, default: 21 },
+  // `min: 18` — l'âge légal de conduire le plus bas des marchés desservis.
+  // Rien ne bornait ce champ : 11 annonces d'un import en masse annonçaient un
+  // âge minimum de 16 ans, dont une réservable en production. Un client de 16
+  // ans passait alors le contrôle d'éligibilité (eligibilityEngine compare
+  // l'âge à CE champ), pour un véhicule qu'il ne peut légalement pas conduire.
+  // `max: 99` écarte symétriquement la faute de frappe qui rendrait une annonce
+  // inréservable par tout le monde.
+  ageMin:               { type: Number, default: 21, min: 18, max: 99 },
   permisRequis:         { type: Boolean, default: true },
   assuranceOptionnelle: { type: Boolean, default: true },
   // Niveau de vérification client minimum exigé pour réserver CE véhicule
