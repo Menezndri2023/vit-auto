@@ -28,9 +28,22 @@ dotenv.config();
 //   node scripts/notifyExporters.js --confirm  → envoi réel
 
 const CONFIRME = process.argv.includes("--confirm");
-const APP_URL = process.env.APP_URL || process.env.FRONTEND_URL || "https://vit-auto.com";
+const OVERRIDE = process.argv.find((a) => a.startsWith("--app-url="))?.slice("--app-url=".length);
+const APP_URL = OVERRIDE || process.env.APP_URL || process.env.FRONTEND_URL || "https://vit-auto.com";
+
+// Voir la note identique dans notifyRentalPartner.js : lancé depuis un poste de
+// développement, APP_URL vaut localhost et le bouton de l'e-mail part vers une
+// adresse injoignable pour le destinataire. Un e-mail ne se rattrape pas.
+const URL_LOCALE = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])/i.test(APP_URL);
 
 async function main() {
+  if (CONFIRME && URL_LOCALE) {
+    console.error(
+      `\n⛔ APP_URL vaut « ${APP_URL} » : le bouton de l'e-mail pointerait vers une adresse locale,`
+      + `\n   injoignable pour le destinataire. Relancez avec --app-url=https://vit-auto.com\n`
+    );
+    process.exit(1);
+  }
   await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI);
   console.log(CONFIRME ? "\n⚡ ENVOI RÉEL" : "\n🔍 SIMULATION — aucun e-mail envoyé (ajouter --confirm)");
 

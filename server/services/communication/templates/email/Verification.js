@@ -1,5 +1,5 @@
 import { baseEmail, BRAND } from "../shared/base.js";
-import { btn, heroSection, greeting, signature, infoBox } from "../shared/components.js";
+import { btn, heroSection, greeting, signature, infoBox, escapeHtml } from "../shared/components.js";
 
 // `code` (6 chiffres) est désormais le moyen principal de confirmation — saisi
 // directement dans le parcours d'inscription (voir Register.jsx), il rend la
@@ -34,12 +34,15 @@ export function emailVerificationTemplate({ firstName, verifyUrl, code, country 
 }
 
 export function emailChangeConfirmationTemplate({ firstName, newEmail, confirmUrl, country }, trackingPixel = "") {
+  // Adresse saisie par l'utilisateur, interpolée dans le corps ET dans le
+  // préheader : dernier champ de ce dossier de templates à échapper.
+  const safeNewEmail = escapeHtml(newEmail);
   const body = `
     ${heroSection("Confirmez votre nouvelle adresse e-mail", "Une dernière étape avant le changement", "📧")}
     ${greeting(firstName)}
     <p style="font-size:14px;color:${BRAND.muted};line-height:1.7;margin:0 0 20px">
       Vous avez demandé à changer l'adresse e-mail de votre compte <strong>VIT AUTO</strong> pour
-      <strong>${newEmail}</strong>. Cliquez ci-dessous pour confirmer — votre ancienne adresse restera
+      <strong>${safeNewEmail}</strong>. Cliquez ci-dessous pour confirmer — votre ancienne adresse restera
       active tant que vous n'aurez pas confirmé.
     </p>
     ${btn("Confirmer ma nouvelle adresse", confirmUrl, "primary")}
@@ -54,7 +57,7 @@ export function emailChangeConfirmationTemplate({ firstName, newEmail, confirmUr
     ${signature()}
     ${trackingPixel}
   `;
-  return baseEmail({ title: "Confirmez votre nouvelle adresse e-mail", preheader: `Confirmez le changement vers ${newEmail}`, body, country });
+  return baseEmail({ title: "Confirmez votre nouvelle adresse e-mail", preheader: `Confirmez le changement vers ${safeNewEmail}`, body, country });
 }
 
 export function passwordResetTemplate({ firstName, resetUrl, country }, trackingPixel = "") {

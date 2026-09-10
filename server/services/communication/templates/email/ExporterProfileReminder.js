@@ -104,7 +104,10 @@ export function exporterProfileReminderTemplate(
   return {
     subject,
     html: baseEmail({
-      title: subject,
+      // Voir la note identique dans PartnerFleetCompletion.js : `subject` est du
+      // texte brut côté en-tête, mais baseEmail l'interpole dans <title> sans
+      // échappement — et `companyName` vient du partenaire.
+      title: subject.replace(companyName, escapeHtml(companyName)),
       preheader: `Vos annonces d'export sont publiées. Trois réglages les rendraient nettement plus efficaces.`,
       body,
     }),
