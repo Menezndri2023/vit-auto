@@ -82,7 +82,14 @@ async function main() {
     return;
   }
 
+  // Le vocabulaire suit ce que le partenaire publie réellement : un centre de
+  // plongée vend des « formules », une agence de location des « véhicules ».
+  const metier = activites > vehicules
+    ? { motAnnonce: "formule", emoji: "🤿", motConcurrent: "centres" }
+    : { motAnnonce: "véhicule", emoji: "🔑", motConcurrent: "agences" };
+
   const message = partnerDocumentsRequestTemplate({
+    ...metier,
     firstName: user.firstName || "Partenaire",
     companyName: business?.companyName || `${user.firstName || ""} ${user.lastName || ""}`.trim() || "votre entreprise",
     annoncesEnLigne: enLigne,

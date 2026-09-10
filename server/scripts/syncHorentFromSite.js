@@ -101,10 +101,19 @@ function faireIndex(parc) {
   };
 }
 
-// Quelques adresses de fiche portent le millésime ; c'est la seule source
-// d'année du site. Aucune autre annonce n'en reçoit.
-const anneeDepuisUrl = (url) => {
-  const m = String(url || "").match(/\b(20[12]\d)\b/);
+// Quelques adresses de fiche portent le millésime dans leur CHEMIN
+// (« …-touareg-elegance-2024-casablanca ») ; c'est la seule source d'année du
+// site. Aucune autre annonce n'en reçoit.
+//
+// La chaîne de requête est retirée AVANT la recherche, et ce n'est pas une
+// précaution théorique : ces adresses portent les dates du formulaire de
+// réservation (`?pickup_date=2026-09-13`). Sans cette coupe, l'année de la
+// RÉSERVATION était lue comme millésime du véhicule — 47 modèles sur 50 se
+// retrouvaient annoncés « 2026 » à des clients, sur la foi d'une date de
+// prise en charge.
+export const anneeDepuisUrl = (url) => {
+  const chemin = String(url || "").split("?")[0].split("#")[0];
+  const m = chemin.match(/\b(20[12]\d)\b/);
   const a = m ? Number(m[1]) : null;
   return a && a >= 2015 && a <= new Date().getFullYear() + 1 ? a : null;
 };
@@ -257,4 +266,9 @@ async function main() {
   await mongoose.disconnect();
 }
 
-main().catch((err) => { console.error("Échec :", err.message); process.exit(1); });
+// `main()` ne s'exécute QUE si le fichier est lancé directement. Sans cette
+// garde, l'importer depuis un test ouvrirait une connexion MongoDB et lirait
+// les arguments du lanceur de tests.
+if (process.argv[1] && process.argv[1].endsWith("syncHorentFromSite.js")) {
+  main().catch((err) => { console.error("Échec :", err.message); process.exit(1); });
+}
