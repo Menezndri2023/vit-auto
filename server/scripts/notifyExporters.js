@@ -36,6 +36,10 @@ const APP_URL = OVERRIDE || process.env.APP_URL || process.env.FRONTEND_URL || "
 // adresse injoignable pour le destinataire. Un e-mail ne se rattrape pas.
 const URL_LOCALE = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])/i.test(APP_URL);
 
+// `--lien-casse` : renvoi après un premier message dont le bouton était mort.
+// Le message le dit alors en tête, plutôt que d'arriver en doublon muet.
+const LIEN_CASSE = process.argv.includes("--lien-casse");
+
 async function main() {
   if (CONFIRME && URL_LOCALE) {
     console.error(
@@ -86,6 +90,7 @@ async function main() {
       paysSansBareme,
       dashboardUrl: `${APP_URL}/importer-dashboard`,
       currency: p.devises.includes("USD") ? "USD" : (p.devises[0] || "USD"),
+      lienPrecedentCasse: LIEN_CASSE,
     });
 
     console.log(`\n── ${user.firstName} ${user.lastName} <${user.email}>`);

@@ -10,6 +10,7 @@ import PartnerVerification from "../models/PartnerVerification.js";
 import Subscription from "../models/Subscription.js";
 import { planRank } from "../constants/subscriptionPlans.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
+import MediaCredit from "../models/MediaCredit.js";
 import Review from "../models/Review.js";
 import { resolveRentalOptions } from "../services/rentalOptions.js";
 import ImportExportListing from "../models/ImportExportListing.js";
@@ -566,6 +567,40 @@ export const getVehicleById = async (req, res) => {
   } catch (err) {
     logger.error("getVehicleById:", err);
     res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Crédits des photos d'une annonce ──────────────────────────────────────────
+// Les annonces dépourvues de photo réelle sont illustrées par des clichés de
+// référence issus de Wikimedia Commons, rapatriés sur notre CDN. La plupart sont
+// sous CC BY ou CC BY-SA : citer l'auteur et la licence à côté de l'image n'est
+// pas une politesse, c'est la condition de la licence — et c'est nous qui la
+// portons depuis que nous hébergeons les fichiers.
+//
+// Point d'accès SÉPARÉ plutôt qu'un champ ajouté à getVehicleById : la fiche
+// détail affiche souvent un véhicule venu du contexte catalogue, sans repasser
+// par l'API. Un seul chemin, qui marche dans les deux cas.
+export const getVehicleImageCredits = async (req, res) => {
+  try {
+    const vehicle = await Vehicle.findById(req.params.id).select("images thumbnail").lean();
+    if (!vehicle) return res.json({ credits: [] });
+
+    const affichees = [...(vehicle.images || []), vehicle.thumbnail].filter(Boolean);
+    if (!affichees.length) return res.json({ credits: [] });
+
+    // `attributionRequired: false` (CC0, domaine public) n'est pas renvoyé :
+    // encombrer la page d'un crédit qui n'est pas dû dessert la lisibilité.
+    const credits = await MediaCredit
+      .find({ hostedUrl: { $in: affichees }, attributionRequired: true })
+      .select("hostedUrl author licence licenceUrl sourceName filePage -_id")
+      .lean();
+
+    res.json({ credits });
+  } catch (err) {
+    // Jamais bloquant : une fiche d'annonce ne doit pas tomber parce qu'un
+    // crédit est introuvable.
+    logger.warn("getVehicleImageCredits (non bloquant) :", err.message);
+    res.json({ credits: [] });
   }
 };
 

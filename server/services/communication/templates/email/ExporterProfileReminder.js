@@ -20,7 +20,15 @@ import { btn, heroSection, greeting, signature, infoBox, divider, escapeHtml } f
 // circulaire.
 
 export function exporterProfileReminderTemplate(
-  { firstName, companyName, totalListings, sansIncoterm, paysSansBareme, dashboardUrl, currency = "USD" },
+  {
+    firstName, companyName, totalListings, sansIncoterm, paysSansBareme,
+    dashboardUrl, currency = "USD",
+    // Renvoi après un premier message dont le bouton pointait vers une adresse
+    // inaccessible. Le dire franchement vaut mieux qu'un doublon silencieux :
+    // le destinataire reconnaît le message, et comprend pourquoi il le reçoit
+    // deux fois au lieu de conclure qu'on le relance sans le lire.
+    lienPrecedentCasse = false,
+  },
   trackingPixel = ""
 ) {
   const lignes = [];
@@ -66,6 +74,13 @@ export function exporterProfileReminderTemplate(
       "🚢"
     )}
     ${greeting(firstName)}
+
+    ${lienPrecedentCasse ? infoBox(
+      `<strong>Nous vous renvoyons ce message : le bouton du précédent ne fonctionnait pas.</strong><br>`
+      + `Une erreur de configuration de notre côté l'avait rendu inutilisable. `
+      + `Celui-ci vous mène bien à votre tableau de bord. Toutes nos excuses pour le détour.`,
+      "warning"
+    ) : ""}
 
     <p style="font-size:14px;color:${BRAND.muted};line-height:1.7;margin:0 0 20px">
       Vos annonces d'export viennent d'être publiées et sont consultables par les
@@ -113,6 +128,9 @@ export function exporterProfileReminderTemplate(
     }),
     text:
       `Bonjour ${firstName},\n\n`
+      + (lienPrecedentCasse
+        ? `NOUS VOUS RENVOYONS CE MESSAGE : LE BOUTON DU PRÉCÉDENT NE FONCTIONNAIT PAS.\nUne erreur de configuration de notre côté l'avait rendu inutilisable. Celui-ci vous mène bien à votre tableau de bord. Toutes nos excuses pour le détour.\n\n`
+        : "")
       + `Vos ${totalListings} annonces d'export sont désormais publiées sur VIT AUTO et visibles par les acheteurs du Maroc, de Côte d'Ivoire et du Sénégal.\n\n`
       + `Nous affichons à chaque acheteur le coût rendu dédouané dans son pays. Vos prix sont en ${currency} et convertis automatiquement dans la devise de celui qui consulte.\n\n`
       + `Trois réglages rendraient vos annonces plus efficaces :\n`

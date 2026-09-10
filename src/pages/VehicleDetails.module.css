@@ -194,6 +194,18 @@
 .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .thumbActive { border-color: #ff4d2d; }
 
+/* Crédit d'une photo d'illustration sous licence CC BY / CC BY-SA. Discret —
+   il ne doit pas concurrencer l'annonce — mais lisible : c'est la condition
+   de la licence, pas une mention légale à enterrer. */
+.imageCredit {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: #94a3b8;
+}
+.imageCredit a { color: #94a3b8; text-decoration: underline; }
+.imageCredit a:hover { color: #64748b; }
+
 /* ── Détails ─────────────────────────────────────────────────────────────── */
 .details {
   display: flex;

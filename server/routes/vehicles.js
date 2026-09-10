@@ -44,6 +44,7 @@ router.post("/backfill-descriptions", authenticate, authorizeAdmin, requireAdmin
 // ── Routes paramétrées (viennent APRÈS les routes statiques) ─────────────────
 router.get("/:id/availability", vid, optionalAuth, v.getVehicleAvailability);    // disponibilité dates
 router.get("/:id/rental-conditions", vid, optionalAuth, v.getVehicleRentalConditions); // options et conditions du partenaire
+router.get("/:id/image-credits", vid, v.getVehicleImageCredits);                 // auteur/licence des photos de référence (public)
 router.get("/:id/inspection-report",  vid, optionalAuth,  getVehicleInspectionReport);   // rapport d'inspection (public)
 router.post("/:id/inspection-report", vid, authenticate,  createVehicleInspectionReport); // publié/mis à jour par le propriétaire
 router.patch("/:id/status",   vid, authenticate, authorizeAdmin, requireAdminScope("catalogue"), v.updateVehicleStatus); // approuver/rejeter

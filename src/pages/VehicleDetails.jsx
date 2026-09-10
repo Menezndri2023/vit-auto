@@ -307,6 +307,31 @@ export default function VehicleDetails() {
 
   useEffect(() => { setImgIdx(0); }, [id]);
 
+  // ── Crédits des photos de référence ───────────────────────────────────────
+  // Les annonces sans photo réelle sont illustrées par des clichés issus de
+  // Wikimedia Commons, hébergés chez nous. La plupart sont sous CC BY ou
+  // CC BY-SA, qui exigent le nom de l'auteur à côté de l'image.
+  //
+  // Requête séparée, et non un champ du véhicule : la fiche affiche souvent un
+  // véhicule venu du contexte catalogue, sans appel à /api/vehicles/:id.
+  // Silencieuse en cas d'échec — un crédit absent ne doit rien casser.
+  // L'identifiant est stocké AVEC les crédits plutôt que remis à zéro à chaque
+  // changement d'annonce : vider l'état en début d'effet déclencherait un rendu
+  // en cascade, et laisserait de toute façon le temps d'un affichage aux
+  // crédits de l'annonce précédente. Ici, un crédit ne s'affiche que s'il porte
+  // l'identifiant de l'annonce en cours.
+  const [credits, setCredits] = useState({ id: null, liste: [] });
+  useEffect(() => {
+    if (!id) return undefined;
+    let annule = false;
+    fetch(`/api/vehicles/${id}/image-credits`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!annule && Array.isArray(d?.credits)) setCredits({ id, liste: d.credits }); })
+      .catch(() => {});
+    return () => { annule = true; };
+  }, [id]);
+  const imageCredits = credits.id === id ? credits.liste : [];
+
   // Titre/description/image de la fiche partagée sur réseaux sociaux/WhatsApp —
   // avant ce hook, un lien vers CETTE voiture affichait toujours l'aperçu
   // générique de la page d'accueil (voir hooks/useDocumentMeta.js).
@@ -486,6 +511,29 @@ export default function VehicleDetails() {
               ))}
             </div>
           )}
+          {/* Crédit de la photo AFFICHÉE, pas de toutes : la licence demande
+              l'attribution à côté de l'œuvre. Rien ne s'affiche pour une photo
+              du partenaire, ni pour une image en CC0. */}
+          {(() => {
+            const credit = imageCredits.find((c) => c.hostedUrl === images[imgIdx]);
+            if (!credit) return null;
+            return (
+              <p className={styles.imageCredit}>
+                Photo d'illustration — {credit.author}
+                {credit.licence && (
+                  <>
+                    {", "}
+                    {credit.licenceUrl
+                      ? <a href={credit.licenceUrl} target="_blank" rel="noopener noreferrer nofollow">{credit.licence}</a>
+                      : credit.licence}
+                  </>
+                )}
+                {credit.filePage && (
+                  <> · <a href={credit.filePage} target="_blank" rel="noopener noreferrer nofollow">{credit.sourceName}</a></>
+                )}
+              </p>
+            );
+          })()}
         </div>
 
         {/* ── Détails ── */}
