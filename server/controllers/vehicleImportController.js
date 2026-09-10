@@ -4,6 +4,7 @@ import PartnerVerification from "../models/PartnerVerification.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
 import { isMalformedObjectId } from "../utils/objectId.js";
 import { dispatch } from "../queue/index.js";
+import { refusDePublication } from "../utils/publishingGate.js";
 import {
   MAX_IMPORT_ROWS,
   IMPORT_COLUMNS,
@@ -35,24 +36,8 @@ const requirePartnerRole = (req, res) => {
 // théorique, un partenaire suspendu pouvait littéralement republier toute sa
 // flotte par ce détour tant que l'admin ne le savait pas.
 async function checkImportPublishGate(req, res) {
-  const isIndividualSeller = req.user.sellerType === "particulier";
-  if (req.user.role === "partenaire" && !req.user.isFounder) {
-    if (isIndividualSeller) {
-      if (req.user.kycStatus !== "VERIFIE") {
-        res.status(403).json({
-          code:    "KYC_REQUIRED",
-          message: "Complétez votre vérification d'identité (pièce d'identité + selfie) avant d'importer une flotte.",
-        });
-        return false;
-      }
-    } else if (req.user.certificationBadge === "none") {
-      res.status(403).json({
-        code:    "CERTIFICATION_REQUIRED",
-        message: "Complétez votre vérification partenaire avant d'importer une flotte.",
-      });
-      return false;
-    }
-  }
+  const refus = refusDePublication(req.user, "importer une flotte");
+  if (refus) { res.status(403).json(refus); return false; }
 
   const suspendedVerif = await PartnerVerification.findOne({
     userId: req.user._id,

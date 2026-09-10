@@ -10,6 +10,7 @@ import { validateImageDataUri } from "../utils/imageValidation.js";
 import { logAction } from "../middleware/auditLog.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 import { uploadBase64Images, FOLDERS } from "../config/imagekit.js";
+import { refusDePublication } from "../utils/publishingGate.js";
 import { ACTIVITY_TYPES, ACTIVITY_PRICE_UNITS } from "../constants/activityTypes.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -54,22 +55,8 @@ export const createActivity = async (req, res) => {
     // Même gating que vehicleController.createVehicle : KYC identité suffit
     // pour un particulier, certification partenaire complète sinon (sauf
     // Founding Partner déjà vérifié).
-    const isIndividualSeller = req.user.sellerType === "particulier";
-    if (req.user.role === "partenaire" && !req.user.isFounder) {
-      if (isIndividualSeller) {
-        if (req.user.kycStatus !== "VERIFIE") {
-          return res.status(403).json({
-            code:    "KYC_REQUIRED",
-            message: "Complétez votre vérification d'identité (pièce d'identité + selfie) avant de publier.",
-          });
-        }
-      } else if (req.user.certificationBadge === "none") {
-        return res.status(403).json({
-          code:    "CERTIFICATION_REQUIRED",
-          message: "Complétez votre vérification partenaire avant de publier une annonce.",
-        });
-      }
-    }
+    const refus = refusDePublication(req.user, "publier une annonce");
+    if (refus) return res.status(403).json(refus);
 
     const suspendedVerif = await PartnerVerification.findOne({
       userId: req.user._id,

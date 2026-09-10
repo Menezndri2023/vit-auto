@@ -11,6 +11,7 @@ import Subscription from "../models/Subscription.js";
 import { planRank } from "../constants/subscriptionPlans.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
 import MediaCredit from "../models/MediaCredit.js";
+import { refusDePublication } from "../utils/publishingGate.js";
 import Review from "../models/Review.js";
 import { resolveRentalOptions } from "../services/rentalOptions.js";
 import ImportExportListing from "../models/ImportExportListing.js";
@@ -97,7 +98,6 @@ export const createVehicle = async (req, res) => {
       req.user.sellerType = req.body.typePubliant;
       await req.user.save();
     }
-    const isIndividualSeller = req.user.sellerType === "particulier";
 
     // ── Vérification requise avant publication ─────────────────────────────
     // Un particulier vendant son propre véhicule ne doit pas franchir le même mur
@@ -108,21 +108,8 @@ export const createVehicle = async (req, res) => {
     // (ou un compte sans type renseigné) reste soumis à la certification partenaire
     // complète, sauf Founding Partner déjà vérifié — code CERTIFICATION_REQUIRED,
     // redirection vers /partner-onboarding.
-    if (req.user.role === "partenaire" && !req.user.isFounder) {
-      if (isIndividualSeller) {
-        if (req.user.kycStatus !== "VERIFIE") {
-          return res.status(403).json({
-            code:    "KYC_REQUIRED",
-            message: "Complétez votre vérification d'identité (pièce d'identité + selfie) avant de publier.",
-          });
-        }
-      } else if (req.user.certificationBadge === "none") {
-        return res.status(403).json({
-          code:    "CERTIFICATION_REQUIRED",
-          message: "Complétez votre vérification partenaire avant de publier une annonce.",
-        });
-      }
-    }
+    const refus = refusDePublication(req.user, "publier une annonce");
+    if (refus) return res.status(403).json(refus);
 
     // ── Suspension/rejet Vérification Partenaire ────────────────────────────
     // certificationBadge (ci-dessus) et PartnerVerification sont deux systèmes

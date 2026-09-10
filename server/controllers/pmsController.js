@@ -10,6 +10,7 @@ import Driver from "../models/Driver.js";
 import User from "../models/User.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
 import { sendViaEmail, sendViaSms } from "../services/communication/CommunicationService.js";
+import { refusDePublication } from "../utils/publishingGate.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
 
@@ -644,22 +645,8 @@ export async function publishShowroom(req, res) {
     // tous. Même garde que vehicleController.createVehicle/driverController
     // .createDriver : Founding Partner toujours exempté, sinon KYC identité
     // pour un particulier, certification pour une entreprise.
-    if (req.user.role === "partenaire" && !req.user.isFounder) {
-      const isIndividual = req.user.sellerType === "particulier";
-      if (isIndividual) {
-        if (req.user.kycStatus !== "VERIFIE") {
-          return res.status(403).json({
-            code: "KYC_REQUIRED",
-            message: "Complétez votre vérification d'identité (pièce d'identité + selfie) avant de publier votre showroom.",
-          });
-        }
-      } else if (req.user.certificationBadge === "none") {
-        return res.status(403).json({
-          code: "CERTIFICATION_REQUIRED",
-          message: "Complétez votre vérification partenaire avant de publier votre showroom.",
-        });
-      }
-    }
+    const refus = refusDePublication(req.user, "publier votre showroom");
+    if (refus) return res.status(403).json(refus);
 
     // Upsert : crée le showroom s'il n'existe pas encore, puis publie
     const showroom = await PartnerShowroom.findOneAndUpdate(

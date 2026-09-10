@@ -11,6 +11,7 @@ import { logAction } from "../middleware/auditLog.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 import { uploadBase64Images, uploadBase64Document, FOLDERS } from "../config/imagekit.js";
 import { getActiveRates } from "../services/currencyEngine.js";
+import { refusDePublication } from "../utils/publishingGate.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -107,23 +108,8 @@ export const createDriver = async (req, res) => {
       req.user.sellerType = req.body.typePubliant;
       await req.user.save();
     }
-    const isIndividualSeller = req.user.sellerType === "particulier";
-
-    if (req.user.role === "partenaire" && !req.user.isFounder) {
-      if (isIndividualSeller) {
-        if (req.user.kycStatus !== "VERIFIE") {
-          return res.status(403).json({
-            code:    "KYC_REQUIRED",
-            message: "Complétez votre vérification d'identité (pièce d'identité + selfie) avant de publier.",
-          });
-        }
-      } else if (req.user.certificationBadge === "none") {
-        return res.status(403).json({
-          code:    "CERTIFICATION_REQUIRED",
-          message: "Complétez votre vérification partenaire avant de publier une annonce.",
-        });
-      }
-    }
+    const refus = refusDePublication(req.user, "publier une annonce");
+    if (refus) return res.status(403).json(refus);
 
     // Suspension/rejet Vérification Partenaire — voir vehicleController.js
     // createVehicle pour l'explication complète (deux systèmes de vérification

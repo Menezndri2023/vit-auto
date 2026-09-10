@@ -366,6 +366,18 @@ const userSchema = new mongoose.Schema({
     enum: ["none", "verifie", "fondateur", "premium"],
     default: "none",
   },
+
+  // ── Autorisation de publier AVANT la certification, à durée limitée ────────
+  // Un partenaire dont l'activité est vérifiable autrement (site professionnel,
+  // établissement identifiable, affiliation fédérale) peut être mis en ligne
+  // pendant qu'il rassemble ses pièces. Sans ce champ, la seule façon de le
+  // débloquer était de lui poser `certificationBadge: "verifie"` — c'est-à-dire
+  // d'AFFICHER PUBLIQUEMENT un badge « Partenaire Vérifié » que rien ne fonde.
+  //
+  // Cette autorisation ne confère donc AUCUN badge : elle ouvre la publication,
+  // rien d'autre. Et elle expire d'elle-même à la date fixée — un oubli
+  // administratif referme la porte au lieu de la laisser ouverte indéfiniment.
+  provisionalPublishingUntil: { type: Date, default: null },
   certificationId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "PartnerCertification",

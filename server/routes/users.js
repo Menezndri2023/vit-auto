@@ -46,6 +46,9 @@ router.get("/:id/trust-overview", authenticate, authorizeAdmin, requireAdminScop
 router.patch("/:id/role",      authenticate, authorizeAdmin, requireAdminScope("users"), validateObjectId(), u.updateUserRole);
 router.patch("/:id/phone",     authenticate, authorizeAdmin, requireAdminScope("users"), validateObjectId(), u.adminUpdatePhone);
 router.patch("/:id/toggle",    authenticate, authorizeAdmin, requireAdminScope("users"), validateObjectId(), u.toggleUserActive);
+// Autorise un partenaire à publier avant sa certification, pour une durée
+// limitée (days: 0 pour révoquer). N'accorde aucun badge public.
+router.patch("/:id/provisional-publishing", authenticate, authorizeAdmin, requireAdminScope("users"), validateObjectId(), u.setProvisionalPublishing);
 router.patch("/:id/verify-identity", authenticate, authorizeAdmin, requireAdminScope("kyc"), validateObjectId(), u.adminVerifyIdentity);
 router.delete("/:id",          authenticate, authorizeAdmin, requireAdminScope("users"), validateObjectId(), u.deleteUser);
 

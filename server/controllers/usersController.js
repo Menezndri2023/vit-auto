@@ -394,6 +394,53 @@ export const toggleUserActive = async (req, res) => {
   }
 };
 
+// ── Autorisation provisoire de publier (admin) ────────────────────────────
+// Ouvre la publication à un partenaire professionnel pas encore certifié, pour
+// une durée limitée. Sans cette route, la seule façon de débloquer un tel
+// partenaire était de lui poser `certificationBadge: "verifie"` — c'est-à-dire
+// d'AFFICHER un badge « Partenaire Vérifié » que rien ne fonde, sur toutes ses
+// annonces et devant tous les clients.
+//
+// Ici, aucun badge : seulement le droit de publier, et une date de fin. Passer
+// `days: 0` (ou null) révoque immédiatement.
+const MAX_JOURS_PROVISOIRE = 180;
+
+export const setProvisionalPublishing = async (req, res) => {
+  try {
+    const { days } = req.body;
+    const jours = Number(days);
+    if (!Number.isFinite(jours) || jours < 0 || jours > MAX_JOURS_PROVISOIRE) {
+      return res.status(400).json({
+        message: `Durée invalide : entre 0 (révoquer) et ${MAX_JOURS_PROVISOIRE} jours.`,
+      });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
+    if (user.role !== "partenaire") {
+      return res.status(400).json({ message: "Cette autorisation ne concerne que les partenaires." });
+    }
+
+    const avant = user.provisionalPublishingUntil;
+    user.provisionalPublishingUntil = jours > 0
+      ? new Date(Date.now() + jours * 24 * 60 * 60 * 1000)
+      : null;
+    await user.save();
+
+    // Action sensible : elle contourne une vérification. Elle doit laisser une
+    // trace nominative, au même titre qu'une activation de compte.
+    await logAction(req, jours > 0 ? "user.provisional_publishing.grant" : "user.provisional_publishing.revoke", "User", req.params.id, {
+      before: { provisionalPublishingUntil: avant },
+      after:  { provisionalPublishingUntil: user.provisionalPublishingUntil },
+    });
+
+    res.json({ user: { id: user._id, provisionalPublishingUntil: user.provisionalPublishingUntil } });
+  } catch (err) {
+    logger.error("setProvisionalPublishing:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
 // ── Supprimer un utilisateur (admin) ──────────────────────────────────────
 export const deleteUser = async (req, res) => {
   try {
