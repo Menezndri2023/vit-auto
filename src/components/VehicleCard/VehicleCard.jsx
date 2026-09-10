@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { estPartenaireAbonne, LIBELLE_BADGE_ABONNE, INFOBULLE_BADGE_ABONNE } from "../../constants/subscriptionPlans";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useCurrency } from "../../context/CurrencyContext";
 import { useFavorites } from "../../context/FavoritesContext";
@@ -149,6 +150,18 @@ const VehicleCard = React.memo(({ car, compact }) => {
               </span>
               {car.ownerId && <span className={styles.publisherArrow}>›</span>}
             </button>
+            {/* Badge « partenaire abonné » — distinct du badge de certification,
+                qu'il ne remplace pas : l'un atteste d'une vérification, l'autre
+                d'un engagement commercial. Un partenaire peut porter les deux. */}
+            {estPartenaireAbonne(car) && (
+              <span
+                className={styles.certBadge}
+                style={{ background: "linear-gradient(135deg,#4338ca,#6366f1)" }}
+                title={INFOBULLE_BADGE_ABONNE}
+              >
+                ⭐ {LIBELLE_BADGE_ABONNE}
+              </span>
+            )}
             {/* Badge certification VIT AUTO */}
             {car.certificationBadge && car.certificationBadge !== "none" && (
               <span
