@@ -1,0 +1,47 @@
+.section { max-width: 1200px; margin: 0 auto; padding: 40px 16px; }
+
+.entete {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 20px;
+}
+.titre { margin: 0; font-size: 1.5rem; font-weight: 800; color: #0f1b3f; }
+.sousTitre { margin: 4px 0 0; font-size: 0.92rem; color: #64748b; }
+.lienTout { font-size: 0.9rem; font-weight: 700; color: #f59e0b; text-decoration: none; white-space: nowrap; }
+
+/* Défilement horizontal contenu dans la piste, jamais dans le corps de page :
+   une bande large ne doit pas faire glisser toute la mise en page. */
+.piste {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(230px, 1fr);
+  gap: 16px; overflow-x: auto; padding-bottom: 8px;
+  scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+}
+.piste::-webkit-scrollbar { height: 6px; }
+.piste::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+.carte {
+  scroll-snap-align: start; text-decoration: none; color: inherit;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+  overflow: hidden; display: flex; flex-direction: column;
+  transition: box-shadow .18s ease, transform .18s ease;
+}
+.carte:hover { box-shadow: 0 10px 28px rgba(15, 27, 63, .12); transform: translateY(-2px); }
+
+.visuel { aspect-ratio: 4 / 3; background: #f1f5f9; display: grid; place-items: center; }
+.visuel img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sansVisuel { font-size: 2rem; }
+
+.corps { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 3px; }
+.nom {
+  margin: 0; font-size: 0.98rem; font-weight: 700; color: #0f1b3f;
+  /* Deux lignes maximum : un titre long ne doit pas déformer la bande. */
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.lieu  { margin: 0; font-size: 0.84rem; color: #64748b; }
+.meta  { margin: 0; font-size: 0.8rem; color: #94a3b8; }
+.prix  { margin: 6px 0 0; font-size: 1rem; font-weight: 800; color: #0f1b3f; }
+.unite { font-size: 0.78rem; font-weight: 600; color: #64748b; }
+
+@media (max-width: 640px) {
+  .titre { font-size: 1.25rem; }
+  .piste { grid-auto-columns: minmax(190px, 1fr); }
+}

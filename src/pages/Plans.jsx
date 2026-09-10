@@ -5,6 +5,7 @@ import { useCurrency } from "../context/CurrencyContext";
 import { useI18n } from "../context/I18nContext";
 import { PAYMENTS_ENABLED_FALLBACK, PAYMENTS_DISABLED_NOTICE, PAYMENTS_DISABLED_CTA } from "../config/featureFlags";
 import { PLAN_INCLUDED_BOOSTS } from "../constants/subscriptionPlans";
+import { PLAN_SEATS, PLAN_SUPPORT_SLA_HOURS, AVANCE_DEMANDES_HEURES, PLACES_VITRINE_PAR_PLAN } from "../constants/planFeatures";
 import styles from "./Plans.module.css";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
@@ -104,9 +105,11 @@ export default function Plans() {
         { ok: true,  text: "Classement prioritaire" },
         { ok: true,  text: "Statistiques de performance : vues, conversion, prix face au marché" },
         { ok: true,  text: "Badge « Pro » sur toutes vos annonces" },
-        { ok: false, text: "Outils d'export / API" },
+        { ok: true,  text: `Assistance sous ${PLAN_SUPPORT_SLA_HOURS.individuel_plus} h` },
+        { ok: true,  text: `${PLACES_VITRINE_PAR_PLAN.individuel_plus} place en vitrine d'accueil, en rotation` },
+        { ok: false, text: "Export des statistiques" },
         { ok: false, text: "Multi-utilisateurs" },
-        { ok: false, text: "Assistance premium" },
+        { ok: false, text: "Accès API" },
       ],
       cta: "Choisir Individuel Plus", ctaDisabled: false, popular: false,
     },
@@ -120,11 +123,14 @@ export default function Plans() {
         { ok: true,  text: `${PLAN_INCLUDED_BOOSTS.business} mises en avant incluses chaque mois` },
         { ok: true,  text: "Classement prioritaire renforcé" },
         { ok: true,  text: "Statistiques de performance par annonce" },
-        { ok: false, soon: true, text: "Export des statistiques" },
-        { ok: false, soon: true, text: "Assistance premium" },
+        { ok: true,  text: "Export des statistiques au format tableur" },
+        { ok: true,  text: `Assistance prioritaire — première réponse sous ${PLAN_SUPPORT_SLA_HOURS.business} h` },
+        { ok: true,  text: `${PLAN_SEATS.business} accès utilisateurs (gérant + agents)` },
+        { ok: true,  text: `Demandes clients ${AVANCE_DEMANDES_HEURES} h avant les autres partenaires` },
+        { ok: true,  text: "Bilan mensuel de vos performances par e-mail" },
         { ok: true,  text: "Badge « Pro » sur toutes vos annonces" },
-        { ok: false, text: "Outils d'export / API" },
-        { ok: false, text: "Multi-utilisateurs" },
+        { ok: false, text: "Accès API" },
+        { ok: true,  text: `${PLACES_VITRINE_PAR_PLAN.business} places en vitrine d'accueil, en rotation` },
       ],
       cta: "Choisir Business", ctaDisabled: false, popular: true,
     },
@@ -137,10 +143,11 @@ export default function Plans() {
         { ok: true,  text: "Catalogue illimité" },
         { ok: true,  text: `${PLAN_INCLUDED_BOOSTS.exportateur} mises en avant incluses chaque mois` },
         { ok: true,  text: "CRM intégré (leads et devis)" },
-        { ok: false, soon: true, text: "Outils d'exportation" },
-        { ok: false, soon: true, text: "Accès API" },
-        { ok: false, soon: true, text: "Multi-utilisateurs" },
-        { ok: false, soon: true, text: "Assistance premium" },
+        { ok: true,  text: "Tout du plan Business" },
+        { ok: true,  text: "Accès API : synchronisez votre parc depuis votre propre logiciel" },
+        { ok: true,  text: `${PLAN_SEATS.exportateur} accès utilisateurs` },
+        { ok: true,  text: `${PLACES_VITRINE_PAR_PLAN.exportateur} places en vitrine d'accueil, en rotation` },
+        { ok: true,  text: `Assistance prioritaire — première réponse sous ${PLAN_SUPPORT_SLA_HOURS.exportateur} h` },
       ],
       cta: "Choisir Exportateur", ctaDisabled: false, popular: false,
     },

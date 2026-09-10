@@ -32,6 +32,20 @@ const userSchema = new mongoose.Schema({
     default: "client",
   },
 
+  // ── Compte d'équipe rattaché à un partenaire (palier Business et au-delà) ──
+  // `teamOf` porte l'identifiant du TITULAIRE. Un compte d'équipe reste un
+  // compte à part entière — son propre mot de passe, son propre 2FA, ses
+  // propres notifications ; seul l'accès aux ANNONCES et aux RÉSERVATIONS du
+  // titulaire lui est délégué (voir middleware/team.js, monté uniquement sur
+  // ces deux routeurs).
+  //
+  // La délégation n'est volontairement PAS globale : montée sur /api/auth ou
+  // /api/users, elle aurait permis à un agent de changer le mot de passe de son
+  // employeur. Le périmètre est donc défini par les routeurs où le middleware
+  // est monté, jamais par ce champ seul.
+  teamOf:   { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  teamRole: { type: String, enum: ["gestionnaire", "lecture"], default: null },
+
   // Permissions fines pour les comptes role="admin" — tableau VIDE = accès
   // complet (rétrocompatible : tous les admins existants avant l'ajout de ce
   // champ gardent un accès total, jamais de verrouillage rétroactif). Non
@@ -443,6 +457,8 @@ userSchema.pre("save", function (next) {
 });
 
 userSchema.index({ role: 1 });
+// Décompte des sièges occupés par titulaire, sans balayage de la collection.
+userSchema.index({ teamOf: 1 });
 userSchema.index({ kycStatus: 1 });
 
 // Tri de la liste des comptes admin (usersController.getUsers, sort createdAt

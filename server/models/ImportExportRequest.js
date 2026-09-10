@@ -47,11 +47,26 @@ const importExportRequestSchema = new mongoose.Schema({
   handledBy:   { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   handledAt:   { type: Date, default: null },
 
+  // ── Partenaires s'étant déclarés capables de répondre ─────────────────────
+  // Une manifestation d'intérêt, pas une attribution : c'est un administrateur
+  // qui met ensuite le demandeur en relation. Les coordonnées du client ne
+  // transitent jamais par le partenaire (même politique que le contact
+  // centralisé des annonces).
+  interestedPartners: [{
+    partner:   { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    note:      { type: String, trim: true, maxlength: 500, default: "" },
+    plan:      { type: String, default: "free" },
+    createdAt: { type: Date, default: Date.now },
+  }],
+
   createdAt: { type: Date, default: Date.now },
 });
 
 importExportRequestSchema.index({ status: 1, createdAt: -1 });
 importExportRequestSchema.index({ email: 1 });
+// Liste partenaire : filtre sur le statut, tri sur la date de création.
+importExportRequestSchema.index({ status: 1, createdAt: 1 });
+importExportRequestSchema.index({ "interestedPartners.partner": 1 });
 
 const ImportExportRequest =
   mongoose.models.ImportExportRequest ||

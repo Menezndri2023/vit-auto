@@ -1338,6 +1338,7 @@ const ADMIN_SCOPE_CFG = [
   { key: "kyc",           label: "KYC & Identités", icon: "🛡️", desc: "Dossiers KYC et pièces d'identité soumises." },
   { key: "import_export", label: "Import / Export", icon: "🌍", desc: "Transactions internationales, annonces export, logistique." },
   { key: "support",       label: "Support client",  icon: "💬", desc: "Conversations, notifications, WhatsApp." },
+  { key: "assistance",    label: "Demandes d'assistance", icon: "🎫", desc: "Billetterie partenaire — file ordonnée par échéance de réponse." },
   { key: "moderation",    label: "Modération",      icon: "🚩", desc: "Avis clients et signalements." },
 ];
 
@@ -2014,6 +2015,22 @@ export default function AdminPanel() {
   const [kycPendingTotal, setKycPendingTotal] = useState(0);
   // Support Client (inbox chats client_support / partner_support)
   const [supportChats,    setSupportChats]    = useState([]);
+  // File de la billetterie d'assistance — distincte des conversations : un
+  // ticket porte une échéance de première réponse dérivée du palier du
+  // partenaire, ce qu'un chat n'a pas.
+  const [tickets,         setTickets]         = useState([]);
+  const [ticketsEnRetard, setTicketsEnRetard] = useState(0);
+  const [ticketOuvert,    setTicketOuvert]    = useState(null);
+  const [ticketReponse,   setTicketReponse]   = useState("");
+
+  // Essai gratuit accordé par le support. Aucune passerelle de paiement n'étant
+  // branchée, c'est aujourd'hui le seul moyen de faire constater à un partenaire
+  // ce qu'un palier contient.
+  const [essaiRecherche, setEssaiRecherche] = useState("");
+  const [essaiResultats, setEssaiResultats] = useState([]);
+  const [essaiVendeur,   setEssaiVendeur]   = useState(null);
+  const [essaiPalier,    setEssaiPalier]    = useState("business");
+  const [essaiRetour,    setEssaiRetour]    = useState(null);
   const [reports,         setReports]         = useState([]);
   const [trustModal,      setTrustModal]      = useState(null);   // utilisateur ciblé
   const [trustOverview,   setTrustOverview]   = useState(null);
@@ -3234,6 +3251,59 @@ export default function AdminPanel() {
   }, [token, headers, auditFilter]);
 
   // ── Support Client ──────────────────────────────────────────────────────────
+  const chercherPartenaireEssai = useCallback(async (query) => {
+    setEssaiRecherche(query);
+    setEssaiVendeur(null);
+    // La liste `users` du tableau de bord est PAGINÉE : s'en servir aurait
+    // rendu invisibles tous les partenaires au-delà de la première page. La
+    // recherche interroge donc le serveur, comme le transfert d'activité.
+    if (query.trim().length < 2) { setEssaiResultats([]); return; }
+    try {
+      const r = await fetch(`/api/users?search=${encodeURIComponent(query.trim())}&role=partenaire&limit=6`, { headers });
+      if (r.ok) { const d = await r.json(); setEssaiResultats(d.users || []); }
+    } catch { /* recherche non bloquante */ }
+  }, [headers]);
+
+  const accorderEssai = useCallback(async () => {
+    if (!essaiVendeur) return;
+    setEssaiRetour(null);
+    // Route ADMIN (`/admin/:vendorId/trial`) — l'omettre visait une route
+    // inexistante et renvoyait un 404 silencieux dans l'interface.
+    const r = await fetch(`/api/subscriptions/admin/${essaiVendeur._id}/trial`, {
+      method: "POST", headers, body: JSON.stringify({ planTier: essaiPalier }),
+    });
+    const d = await r.json().catch(() => ({}));
+    setEssaiRetour({ ok: r.ok, message: d.message || (r.ok ? "Essai accordé." : "Échec.") });
+    if (r.ok) { setEssaiVendeur(null); setEssaiRecherche(""); setEssaiResultats([]); loadSubRequests(); }
+  }, [headers, essaiVendeur, essaiPalier, loadSubRequests]);
+
+  const loadTickets = useCallback(async () => {
+    if (!token) return;
+    try {
+      const r = await fetch("/api/support/admin/tickets", { headers });
+      if (r.ok) {
+        const d = await r.json();
+        setTickets(d.tickets || []);
+        setTicketsEnRetard(d.enRetard || 0);
+      }
+    } catch { /* ignore */ }
+  }, [token, headers]);
+
+  const repondreTicket = useCallback(async (id, content) => {
+    if (!content?.trim()) return;
+    const r = await fetch(`/api/support/tickets/${id}/messages`, {
+      method: "POST", headers, body: JSON.stringify({ content }),
+    });
+    if (r.ok) { setTicketReponse(""); loadTickets(); }
+  }, [headers, loadTickets]);
+
+  const changerStatutTicket = useCallback(async (id, status) => {
+    const r = await fetch(`/api/support/admin/tickets/${id}`, {
+      method: "PATCH", headers, body: JSON.stringify({ status }),
+    });
+    if (r.ok) { setTicketOuvert(null); loadTickets(); }
+  }, [headers, loadTickets]);
+
   const loadSupportChats = useCallback(async () => {
     if (!token) return;
     setSupportLoading(true);
@@ -3964,6 +4034,7 @@ export default function AdminPanel() {
     if (activeTab === "founding_partners") loadFoundingPartners();
     if (activeTab === "partner_crm") { loadPartnerCrm(); loadAdminAccounts(); }
     if (activeTab === "support")           loadSupportChats();
+    if (activeTab === "assistance")        loadTickets();
     if (activeTab === "pending_validation") loadPendingValidation();
     if (activeTab === "chat_supervision")   loadClientPartnerChats();
     if (activeTab === "paiements")         loadSubRequests();
@@ -4507,6 +4578,7 @@ export default function AdminPanel() {
     analytics:        "finance",
     // Support & modération
     support:          "support",
+    assistance:       "support",
     chat_supervision: "support",
     whatsapp:         "support",
     notifications:    "support",
@@ -4623,6 +4695,7 @@ export default function AdminPanel() {
         { key: "reviews",       icon: "⭐", label: "Avis clients" },
         { key: "ads",           icon: "📢", label: "Publicités & Campagnes" },
         { key: "support",       icon: "🎧", label: "Support Client",           badge: pendingSupport || undefined },
+        { key: "assistance",    icon: "🎫", label: "Demandes d'assistance",    badge: ticketsEnRetard || undefined },
         { key: "chat_supervision", icon: "👁️", label: "Chats Client↔Partenaire" },
         { key: "reports",       icon: "🚩", label: "Signalements",             badge: pendingReports || undefined },
         { key: "whatsapp",      icon: "💬", label: "Bot WhatsApp partenaires", badge: pendingWa || undefined },
@@ -9169,6 +9242,55 @@ export default function AdminPanel() {
             <button className={styles.btnRefresh} onClick={loadSubRequests}>↻ Actualiser</button>
           </div>
 
+          {/* ── Essai gratuit ────────────────────────────────────────────
+              Un palier que personne n'a jamais vu fonctionner ne se vend pas.
+              L'essai n'exige aucune plomberie de paiement : l'activation passe
+              déjà par une confirmation manuelle. */}
+          <div className={styles.chartCard} style={{ marginBottom: 20 }}>
+            <h3 className={styles.chartTitle}>🎁 Accorder un essai gratuit de 30 jours</h3>
+            <p style={{ margin: "0 0 12px", fontSize: ".83rem", color: "#64748b" }}>
+              Un seul essai par compte, pour toujours. Refusé si le partenaire a déjà un abonnement actif.
+            </p>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+              <div style={{ flex: "1 1 260px", position: "relative" }}>
+                <input
+                  value={essaiVendeur ? `${[essaiVendeur.firstName, essaiVendeur.lastName].filter(Boolean).join(" ")} — ${essaiVendeur.email || essaiVendeur.phone || ""}` : essaiRecherche}
+                  onChange={(e) => chercherPartenaireEssai(e.target.value)}
+                  placeholder="Rechercher un partenaire (nom ou e-mail)…"
+                  style={{ width: "100%", padding: "9px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: ".88rem", boxSizing: "border-box" }}
+                />
+                {essaiResultats.length > 0 && !essaiVendeur && (
+                  <ul style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, margin: "4px 0 0", padding: 0, listStyle: "none", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, boxShadow: "0 8px 24px rgba(15,27,63,.12)", maxHeight: 220, overflowY: "auto" }}>
+                    {essaiResultats.map((u) => (
+                      <li key={u._id}>
+                        <button type="button"
+                          onClick={() => { setEssaiVendeur(u); setEssaiResultats([]); }}
+                          style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 12px", border: "none", background: "none", cursor: "pointer", fontSize: ".85rem" }}>
+                          {[u.firstName, u.lastName].filter(Boolean).join(" ")} — {u.email || u.phone || "sans contact"}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <select value={essaiPalier} onChange={(e) => setEssaiPalier(e.target.value)}
+                style={{ padding: "9px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: ".88rem" }}>
+                <option value="individuel_plus">Individuel Plus</option>
+                <option value="business">Business</option>
+                <option value="exportateur">Exportateur</option>
+              </select>
+              <button disabled={!essaiVendeur} onClick={accorderEssai}
+                style={{ background: essaiVendeur ? "#16a34a" : "#cbd5e1", color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", cursor: essaiVendeur ? "pointer" : "not-allowed", fontWeight: 700, fontSize: ".85rem" }}>
+                Accorder l'essai
+              </button>
+            </div>
+            {essaiRetour && (
+              <p style={{ margin: "12px 0 0", fontSize: ".85rem", color: essaiRetour.ok ? "#16a34a" : "#dc2626" }}>
+                {essaiRetour.message}
+              </p>
+            )}
+          </div>
+
           {subLoading ? (
             <p style={{ color: "#64748b" }}>Chargement…</p>
           ) : subRequests.length === 0 ? (
@@ -10500,6 +10622,87 @@ export default function AdminPanel() {
           <AdsSection ads={adsList} loading={adsLoading} form={adForm} setForm={setAdForm} saving={adSaving} onSave={saveAd} onToggle={toggleAdActive} onDelete={deleteAd} />
         </div>
       )}
+      {/* ── Billetterie d'assistance ──────────────────────────────────────
+          Ordonnée par ÉCHÉANCE de première réponse, pas par priorité brute :
+          trier d'abord sur la priorité affamerait les comptes gratuits dès
+          qu'un abonné ouvre un ticket, alors que l'échéance fait remonter
+          d'elle-même un dossier gratuit ouvert depuis deux jours. */}
+      {activeTab === "assistance" && (
+        <div className={styles.tabContent}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🎫 Demandes d'assistance</h2>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>
+                File ordonnée par échéance de première réponse.
+                {ticketsEnRetard > 0 && <strong style={{ color: "#dc2626" }}> {ticketsEnRetard} demande{ticketsEnRetard > 1 ? "s" : ""} hors délai.</strong>}
+              </p>
+            </div>
+            <button style={{ background: "#f1f5f9", color: "#0f1b3f", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 700, fontSize: ".8rem" }}
+              onClick={loadTickets}>↻ Actualiser</button>
+          </div>
+
+          {tickets.length === 0 ? (
+            <p style={{ color: "#64748b", fontSize: ".9rem" }}>Aucune demande en cours.</p>
+          ) : (
+            <div style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: 10 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: ".85rem", background: "#fff" }}>
+                <thead>
+                  <tr style={{ background: "#f8fafc" }}>
+                    {["Objet", "Demandeur", "Formule", "Priorité", "Échéance", "État", ""].map((h) => (
+                      <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: "#475569", fontWeight: 600, whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tickets.map((t) => (
+                    <tr key={t._id} style={{ borderTop: "1px solid #f1f5f9", background: t.enRetard ? "#fef2f2" : undefined }}>
+                      <td style={{ padding: "10px 12px" }}>{t.subject}</td>
+                      <td style={{ padding: "10px 12px" }}>{[t.userId?.firstName, t.userId?.lastName].filter(Boolean).join(" ") || t.userId?.email || "—"}</td>
+                      <td style={{ padding: "10px 12px" }}>{t.plan}</td>
+                      <td style={{ padding: "10px 12px" }}>{t.priority}</td>
+                      <td style={{ padding: "10px 12px", color: t.enRetard ? "#dc2626" : "#475569", fontWeight: t.enRetard ? 700 : 400 }}>
+                        {t.slaDueAt ? new Date(t.slaDueAt).toLocaleString("fr-FR") : "—"}
+                      </td>
+                      <td style={{ padding: "10px 12px" }}>{t.status}</td>
+                      <td style={{ padding: "10px 12px" }}>
+                        <button style={{ background: "#f1f5f9", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontWeight: 700, fontSize: ".78rem" }}
+                          onClick={() => { setTicketOuvert(ticketOuvert?._id === t._id ? null : t); setTicketReponse(""); }}>
+                          {ticketOuvert?._id === t._id ? "Fermer" : "Ouvrir"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {ticketOuvert && (
+            <div style={{ marginTop: 20, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 18 }}>
+              <h3 style={{ margin: "0 0 12px", fontSize: "1rem", color: "#0f1b3f" }}>{ticketOuvert.subject}</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+                {(ticketOuvert.messages || []).map((m, i) => (
+                  <div key={i} style={{ padding: "10px 14px", borderRadius: 10, maxWidth: "80%", alignSelf: m.isAdmin ? "flex-end" : "flex-start", background: m.isAdmin ? "#eff6ff" : "#f1f5f9" }}>
+                    <strong style={{ fontSize: ".75rem", color: "#64748b" }}>{m.isAdmin ? "Support" : "Partenaire"}</strong>
+                    <p style={{ margin: "4px 0 0", lineHeight: 1.55 }}>{m.content}</p>
+                  </div>
+                ))}
+              </div>
+              <textarea rows={4} value={ticketReponse} onChange={(e) => setTicketReponse(e.target.value)} placeholder="Votre réponse…"
+                style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontFamily: "inherit", fontSize: ".9rem", boxSizing: "border-box", resize: "vertical" }} />
+              <div style={{ display: "flex", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
+                <button style={{ background: "#f59e0b", color: "#fff", border: "none", borderRadius: 8, padding: "9px 18px", cursor: "pointer", fontWeight: 700, fontSize: ".85rem" }}
+                  onClick={() => repondreTicket(ticketOuvert._id, ticketReponse)}>Répondre</button>
+                <button style={{ background: "#fff", color: "#16a34a", border: "1.5px solid #bbf7d0", borderRadius: 8, padding: "9px 18px", cursor: "pointer", fontWeight: 700, fontSize: ".85rem" }}
+                  onClick={() => changerStatutTicket(ticketOuvert._id, "resolved")}>Marquer résolue</button>
+                <button style={{ background: "#fff", color: "#64748b", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "9px 18px", cursor: "pointer", fontWeight: 700, fontSize: ".85rem" }}
+                  onClick={() => changerStatutTicket(ticketOuvert._id, "closed")}>Clôturer</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {activeTab === "support" && (
         <div className={styles.tabContent}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>

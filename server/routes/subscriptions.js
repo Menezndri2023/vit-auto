@@ -8,6 +8,8 @@ import {
   adminRejectPlanPayment,
   adminApproveBoost,
   getPartnerInsights,
+  exportPartnerInsights,
+  adminGrantTrial,
 } from "../controllers/subscriptionController.js";
 import { authenticate as protect, authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
@@ -23,6 +25,7 @@ router.get("/me",            protect, getMySubscription);
 // actif et répond 403 avec un message explicite, plutôt qu'un middleware
 // générique : le partenaire doit savoir CE QUI l'en sépare.
 router.get("/insights",      protect, getPartnerInsights);
+router.get("/insights/export", protect, exportPartnerInsights);
 router.post("/activate-plan", protect, activatePlan);
 router.post("/boost",         protect, purchaseBoost);
 
@@ -31,6 +34,9 @@ router.post("/boost",         protect, purchaseBoost);
 // validateObjectId() — un identifiant malformé déclenchait un CastError
 // Mongoose non intercepté, remontant en 500 avec le message d'erreur brut
 // Mongoose renvoyé au client au lieu d'un 400 propre.
+// Essai gratuit : un acte commercial, pas un encaissement — même portée
+// "finance" que les autres décisions d'abonnement.
+router.post("/admin/:vendorId/trial",                           protect, authorizeAdmin, requireAdminScope("finance"), validateObjectId("vendorId"), adminGrantTrial);
 router.get("/admin/pending",                                    protect, authorizeAdmin, requireAdminScope("finance"), getPendingSubscriptionRequests);
 router.patch("/admin/:subscriptionId/plan/:paymentId/approve",  protect, authorizeAdmin, requireAdminScope("finance"), validateObjectId("subscriptionId", "paymentId"), adminApprovePlanPayment);
 router.patch("/admin/:subscriptionId/plan/:paymentId/reject",   protect, authorizeAdmin, requireAdminScope("finance"), validateObjectId("subscriptionId", "paymentId"), adminRejectPlanPayment);

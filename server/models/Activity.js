@@ -89,6 +89,14 @@ const activitySchema = new mongoose.Schema({
 
   // ── Disponibilité ─────────────────────────────────────────
   available:      { type: Boolean, default: true },
+
+  // Épinglage administrateur en vitrine d'accueil — FACULTATIF. Le moteur de
+  // mise en avant (services/spotlightEngine.js) compose la vitrine tout seul :
+  // ce drapeau ne sert qu'à imposer une activité précise, jamais à autoriser
+  // les autres. Déclaré ici parce que Mongoose, en mode strict, ignore
+  // SILENCIEUSEMENT toute écriture sur un chemin absent du schéma — le piège
+  // qui avait déjà coûté `Vehicle.featured`.
+  featured: { type: Boolean, default: false },
   manuallyPaused: { type: Boolean, default: false },
 
   // ── Statistiques ──────────────────────────────────────────
@@ -123,6 +131,7 @@ const activitySchema = new mongoose.Schema({
 
 activitySchema.index({ owner: 1 });
 activitySchema.index({ status: 1 });
+activitySchema.index({ status: 1, available: 1, featured: 1 });
 activitySchema.index({ activityType: 1 });
 activitySchema.index({ country: 1 });
 // Couvre le filtre + tri du catalogue public (status:"approved", pays précis,

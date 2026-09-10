@@ -1,6 +1,7 @@
 import logger from "../utils/logger.js";
 import mongoose from "mongoose";
 import Vehicle from "../models/Vehicle.js";
+import { idsVitrine, jourDeRotation } from "../services/spotlightEngine.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Booking from "../models/Booking.js";
@@ -316,7 +317,7 @@ export const getVehicles = async (req, res) => {
     // le catalogue est haute-lecture, une fraîcheur de quelques secondes est
     // largement acceptable et évite de re-taper Mongo à chaque requête identique.
     const cacheKey = !isAdmin && !hasGeo
-      ? buildCacheKey("vehicles", { type, ville, carburant, transmission, minPrice, maxPrice, vehicleType, search, owner, country, dureeLocation, page, limit, featured })
+      ? buildCacheKey("vehicles", { type, ville, carburant, transmission, minPrice, maxPrice, vehicleType, search, owner, country, dureeLocation, page, limit, featured, jourVitrine: featured === "true" ? jourDeRotation() : null })
       : null;
     if (cacheKey) {
       const cached = cacheGet(cacheKey);
@@ -374,7 +375,25 @@ export const getVehicles = async (req, res) => {
     // (voir toggleFeatured, AdminPanel.jsx) : jamais dérivé de available/
     // boostLevel seuls, pour garantir qu'aucune annonce n'apparaisse dans ces
     // emplacements sans validation admin explicite.
-    if (featured === "true") filter.featured = true;
+    if (featured === "true") {
+      // Une SEULE composition fait autorité : celle du moteur de mise en avant
+      // (services/spotlightEngine.js), qui mêle épinglage administrateur,
+      // boosts achetés, places d'abonnement et mérite. Cette route historique
+      // ne servait que la coche admin ; la laisser diverger des nouvelles
+      // sections aurait affiché deux vitrines contradictoires sur la même page.
+      //
+      // Le pays et le type sont transmis : la vitrine d'un visiteur ivoirien
+      // doit montrer des annonces visibles en Côte d'Ivoire, et une vitrine de
+      // location ne doit pas se remplir de véhicules à vendre.
+      //
+      // Composé en `$and` et non en `$or` direct : le filtre pays plus bas
+      // utilise DÉJÀ `filter.$or`, et l'écraser ici ferait disparaître
+      // silencieusement la restriction de pays.
+      const ids = await idsVitrine("vedette", { country, type });
+      // Aucun candidat : on retombe sur la coche admin seule plutôt que sur un
+      // `$in: []`, qui viderait la section sans raison visible.
+      filter.$and = [...(filter.$and || []), ids.length ? { _id: { $in: ids } } : { featured: true }];
+    }
 
     // Filtre pays (International/"INTL" ou absent = aucune restriction). Les
     // annonces sans pays renseigné (créées avant cette fonctionnalité) restent

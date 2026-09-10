@@ -1,7 +1,17 @@
 import express from "express";
 import * as v from "../controllers/vehicleController.js";
 import { createVehicleInspectionReport, getVehicleInspectionReport } from "../controllers/inspectionController.js";
-import { authenticate, authorizeAdmin, optionalAuth, requireAdminScope } from "../middleware/auth.js";
+import { authorizeAdmin, optionalAuth, requireAdminScope } from "../middleware/auth.js";
+// `authenticate` provient de middleware/team.js et non de middleware/auth.js :
+// il enchaîne l'authentification habituelle avec la délégation d'accès des
+// comptes d'équipe (un agent travaille sur les annonces et les réservations de
+// son employeur). Cette délégation est montée ICI et sur les réservations
+// UNIQUEMENT — jamais sur /api/auth ni /api/users, où elle donnerait à un agent
+// la main sur le compte de son employeur.
+//
+// Sans compte d'équipe — le cas de tous les comptes aujourd'hui — le second
+// maillon ressort immédiatement et le comportement est identique à avant.
+import { authenticateEtDeleguer as authenticate } from "../middleware/team.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 
 const router = express.Router();

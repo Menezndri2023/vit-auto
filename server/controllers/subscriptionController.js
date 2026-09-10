@@ -6,6 +6,12 @@ import { notifyAdmins } from "../utils/notifyAdmins.js";
 import Notification from "../models/Notification.js";
 import Booking from "../models/Booking.js";
 import Favorite from "../models/Favorite.js";
+// Définition unique de « abonnement actif », partagée avec les paliers
+// (support prioritaire, équipe, API) : deux copies finiraient par diverger.
+import { planActifDe as planActif, planEffectif, planOuvre, messageRefus } from "../services/planAccess.js";
+import { invokeController } from "../utils/invokeController.js";
+import { accorderEssai, recompenserParrain, consommerCreditParrainage, DUREE_ESSAI_JOURS } from "../services/subscriptionRewards.js";
+import { csvRow } from "../utils/csv.js";
 
 // Méthodes qui déclencheraient un ENCAISSEMENT réel. Elles seules dépendent
 // d'une passerelle branchée.
@@ -138,11 +144,6 @@ export const activatePlan = async (req, res) => {
 // PLAN_INCLUDED_BOOSTS). On compte celles DÉJÀ consommées ce mois-ci, en ne
 // retenant que les boosts marqués comme offerts : un boost acheté à l'unité ne
 // doit jamais entamer le quota, sinon le partenaire paierait deux fois.
-function planActif(sub) {
-  return !!(sub?.plan && sub.plan !== "free"
-    && sub.planDetails?.isActive && sub.planDetails?.endDate
-    && new Date(sub.planDetails.endDate) > new Date());
-}
 
 function quotaBoosts(sub) {
   if (!planActif(sub)) return { total: 0, utilises: 0, restants: 0 };
@@ -288,7 +289,11 @@ const TAUX_FAVORIS_FORT = 5;
 export const getPartnerInsights = async (req, res) => {
   try {
     const sub = await Subscription.findOne({ vendor: req.user._id }).lean();
-    if (!planActif(sub)) {
+    // La matrice constants/planFeatures.js fait autorité, ici comme ailleurs :
+    // un simple « le plan est payant » aurait donné la même réponse aujourd'hui,
+    // mais aurait cessé de suivre si les statistiques passaient un jour à un
+    // palier supérieur.
+    if (!planOuvre(planActif(sub) ? sub.plan : "free", "statistiques")) {
       // 403 explicite plutôt qu'une réponse vide : le partenaire doit
       // comprendre que la donnée existe et ce qui l'en sépare.
       return res.status(403).json({
@@ -406,6 +411,50 @@ export const getPartnerInsights = async (req, res) => {
   }
 };
 
+// ── Export CSV des statistiques — réservé aux abonnés ──────────────────────
+// GET /api/subscriptions/insights/export
+//
+// Un partenaire qui gère trente annonces ne travaille pas dans un tableau de
+// bord : il travaille dans son tableur, où il croise ses propres coûts. Sans
+// export, il recopie à la main — et cesse vite d'exploiter la donnée.
+//
+// Réutilise EXACTEMENT le calcul de getPartnerInsights via invokeController :
+// un second calcul finirait par diverger, et le fichier contredirait l'écran.
+// Le refus par abonnement manquant est hérité au passage, sans le redire ici.
+export const exportPartnerInsights = async (req, res) => {
+  try {
+    const plan = await planEffectif(req.user._id);
+    if (!planOuvre(plan, "exportStatistiques")) {
+      return res.status(403).json({ message: messageRefus("exportStatistiques"), code: "PLAN_REQUIS", feature: "exportStatistiques" });
+    }
+
+    const { statusCode, body } = await invokeController(getPartnerInsights, { user: req.user });
+    if (statusCode !== 200) return res.status(statusCode).json(body);
+
+    const colonnes = ["Annonce", "Ville", "Vues", "Favoris", "Réservations", "Taux de conversion (%)", "Prix", "Médiane ville", "Écart médiane (%)", "Recommandations"];
+    // csvRow (utils/csv.js) et non un join maison : il neutralise aussi les
+    // débuts de formule. Un titre d'annonce commençant par « = » est saisi par
+    // le partenaire lui-même, mais rien n'empêche un titre importé d'une
+    // source tierce d'en porter un.
+    const lignes = (body.annonces || []).map((a) => csvRow([
+      a.titre, a.ville, a.vues, a.favoris, a.reservations,
+      a.tauxConversion ?? "", a.prix ?? "", a.medianeVille ?? "", a.ecartMediane ?? "",
+      (a.conseils || []).join(" · "),
+    ]));
+
+    // BOM UTF-8 : sans lui, Excel ouvre le fichier en latin-1 et affiche
+    // « RÃ©servations » à la place de « Réservations ».
+    const csv = "\uFEFF" + [csvRow(colonnes), ...lignes].join("\r\n");
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="vit-auto-statistiques-${date}.csv"`);
+    res.send(csv);
+  } catch (err) {
+    logger.error("exportPartnerInsights:", err);
+    res.status(500).json({ message: "Erreur export des statistiques.", error: err.message });
+  }
+};
+
 // ── ADMIN : demandes de plan/boost en attente de confirmation de paiement ────
 export const getPendingSubscriptionRequests = async (_req, res) => {
   try {
@@ -455,10 +504,19 @@ export const adminApprovePlanPayment = async (req, res) => {
     const endDate   = new Date();
     endDate.setMonth(endDate.getMonth() + 1);
     sub.plan = entry.planTier;
-    sub.planDetails = { startDate, endDate, isActive: true, priceUSD: entry.amount };
+    sub.planDetails = { startDate, endDate, isActive: true, priceUSD: entry.amount, isTrial: false };
+
+    // Mois de parrainage mis en réserve pendant que le compte n'avait pas
+    // d'abonnement : c'est ici qu'ils s'appliquent, avant l'enregistrement.
+    const moisOfferts = consommerCreditParrainage(sub);
 
     await sub.save();
-    await syncOwnerPlanOnVehicles(sub.vendor, sub.plan, endDate);
+    await syncOwnerPlanOnVehicles(sub.vendor, sub.plan, sub.planDetails.endDate);
+
+    // Le parrain de CE partenaire est récompensé maintenant, et pas à
+    // l'inscription : un filleul qui s'inscrit sans jamais souscrire ne vaut
+    // aucune récompense. Non bloquant — l'activation prime.
+    recompenserParrain(sub.vendor).catch(() => {});
 
     // Le partenaire doit savoir que son plan est actif : sans cela, il attend
     // une réponse qui ne vient jamais et redemande.
@@ -466,8 +524,12 @@ export const adminApprovePlanPayment = async (req, res) => {
       user: sub.vendor,
       type: "system",
       titre: "✅ Votre plan est actif",
-      message: `Le plan « ${sub.plan} » est activé jusqu'au ${endDate.toLocaleDateString("fr-FR")} : commission réduite et classement prioritaire de vos annonces.`,
-      lien: "/vendor/dashboard",
+      // Ne promet plus de « commission réduite » : la faveur commerciale vient
+      // de l'offre Partenaire Fondateur, pas de l'abonnement (décision du
+      // 2026-09-09). Annoncer une réduction que le moteur de commission
+      // n'applique pas produirait une réclamation à la première facture.
+      message: `Le plan « ${sub.plan} » est actif jusqu'au ${sub.planDetails.endDate.toLocaleDateString("fr-FR")}${moisOfferts ? ` (dont ${moisOfferts} mois offert${moisOfferts > 1 ? "s" : ""} par parrainage)` : ""} : classement prioritaire, mises en avant incluses, statistiques et assistance prioritaire.`,
+      lien: "/vendor/pro",
     }).catch((err) => logger.error("notification plan actif (non bloquant) :", err.message));
     // Paiement réellement confirmé — c'est le seul moment où un code promo
     // éventuel est décompté (voir redeemDiscountCode/pricingEngine.js).
@@ -475,6 +537,39 @@ export const adminApprovePlanPayment = async (req, res) => {
     res.json({ message: "Plan activé.", subscription: sub });
   } catch (err) {
     res.status(500).json({ message: "Erreur confirmation du plan.", error: err.message });
+  }
+};
+
+// ── ADMIN : accorde un essai gratuit ────────────────────────────────────────
+// POST /api/subscriptions/admin/:vendorId/trial   { planTier }
+//
+// Aucun encaissement n'étant branché, l'activation d'un plan passe déjà par une
+// confirmation manuelle : un essai ne demande donc AUCUNE plomberie de paiement
+// supplémentaire. C'est aujourd'hui le seul moyen de faire constater les
+// avantages d'un palier à des partenaires qui n'ont aucune raison de les croire
+// sur parole.
+export const adminGrantTrial = async (req, res) => {
+  try {
+    const { vendorId } = req.params;
+    const { planTier } = req.body || {};
+    if (!PLAN_TIERS.includes(planTier)) {
+      return res.status(400).json({ message: `Palier invalide. Attendu : ${PLAN_TIERS.join(", ")}.` });
+    }
+    const vendeur = await User.findById(vendorId).select("_id role isActive").lean();
+    if (!vendeur) return res.status(404).json({ message: "Partenaire introuvable." });
+    if (!vendeur.isActive) return res.status(409).json({ message: "Ce compte est désactivé." });
+
+    const r = await accorderEssai(vendorId, planTier);
+    if (!r.ok) return res.status(409).json({ message: r.message, code: r.code });
+
+    await syncOwnerPlanOnVehicles(vendorId, planTier, r.endDate);
+    res.json({
+      message: `Essai « ${planTier} » de ${DUREE_ESSAI_JOURS} jours accordé.`,
+      subscription: r.subscription,
+    });
+  } catch (err) {
+    logger.error("adminGrantTrial:", err);
+    res.status(500).json({ message: "Erreur attribution de l'essai.", error: err.message });
   }
 };
 

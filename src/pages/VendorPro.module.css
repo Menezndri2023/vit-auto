@@ -1,0 +1,148 @@
+/* Espace Pro — réunit les avantages de l'abonnement en un seul écran. */
+
+.page { max-width: 1180px; margin: 0 auto; padding: 24px 16px 64px; }
+
+.entete {
+  display: flex; flex-wrap: wrap; gap: 16px;
+  align-items: flex-start; justify-content: space-between; margin-bottom: 24px;
+}
+.entete h1 { margin: 0 0 4px; font-size: 1.75rem; color: #0f1b3f; }
+.sousTitre { margin: 0; color: #64748b; font-size: 0.95rem; }
+
+/* Onglets — défilement horizontal sur mobile plutôt qu'un repli qui coupe les
+   libellés (bug déjà rencontré sur les grilles admin : overflow-x caché). */
+.onglets {
+  display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px;
+  border-bottom: 1px solid #e2e8f0; margin-bottom: 24px;
+}
+.onglet, .ongletActif {
+  flex: 0 0 auto; padding: 10px 18px; border: none; background: none;
+  font-size: 0.95rem; font-weight: 600; color: #64748b; cursor: pointer;
+  border-bottom: 3px solid transparent; white-space: nowrap;
+  /* 44 px de haut : cible tactile minimale sur mobile. */
+  min-height: 44px;
+}
+.ongletActif { color: #0f1b3f; border-bottom-color: #f59e0b; }
+.onglet:hover { color: #0f1b3f; }
+
+.contenu { min-height: 240px; }
+.attente { color: #64748b; padding: 32px 0; }
+
+/* ── Verrou ─────────────────────────────────────────────────────────────── */
+.verrou {
+  text-align: center; padding: 48px 24px; background: #f8fafc;
+  border: 1px dashed #cbd5e1; border-radius: 12px;
+}
+.verrouIcone { font-size: 2.5rem; margin-bottom: 12px; }
+.verrou h3 { margin: 0 0 8px; color: #0f1b3f; }
+.verrou p { max-width: 620px; margin: 0 auto 20px; color: #475569; line-height: 1.6; }
+
+/* ── Boutons ────────────────────────────────────────────────────────────── */
+.btnPrimaire, .btnSecondaire, .btnDanger {
+  display: inline-block; padding: 10px 18px; border-radius: 8px;
+  font-weight: 600; font-size: 0.9rem; cursor: pointer; border: 1px solid transparent;
+  text-decoration: none; min-height: 44px;
+}
+.btnPrimaire  { background: #f59e0b; color: #fff; }
+.btnPrimaire:disabled { background: #cbd5e1; cursor: not-allowed; }
+.btnSecondaire { background: #fff; color: #0f1b3f; border-color: #cbd5e1; }
+.btnDanger     { background: #fff; color: #dc2626; border-color: #fecaca; }
+
+.barreAction { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+
+/* ── Cartes de synthèse ─────────────────────────────────────────────────── */
+.cartes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.carte, .carteAccent {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+  padding: 16px; display: flex; flex-direction: column; gap: 4px;
+}
+.carteAccent { border-color: #f59e0b; background: #fffbeb; }
+.carte strong, .carteAccent strong { font-size: 1.6rem; color: #0f1b3f; }
+.carte span,   .carteAccent span   { font-size: 0.82rem; color: #64748b; }
+
+/* ── Tableaux ───────────────────────────────────────────────────────────── */
+/* Le défilement appartient à l'enveloppe, jamais au corps de page : une
+   colonne large ne doit pas faire glisser toute la mise en page. */
+.tableauEnveloppe { overflow-x: auto; margin-bottom: 24px; border: 1px solid #e2e8f0; border-radius: 10px; }
+.tableau { width: 100%; border-collapse: collapse; font-size: 0.9rem; background: #fff; }
+.tableau th, .tableau td { padding: 12px 14px; text-align: left; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+.tableau th { background: #f8fafc; font-weight: 600; color: #475569; white-space: nowrap; }
+.tableau tr:last-child td { border-bottom: none; }
+.ligneEteinte { opacity: 0.5; }
+.eteint { color: #94a3b8; font-size: 0.85rem; }
+
+.conseils { margin: 8px 0 0; padding-left: 18px; color: #b45309; font-size: 0.82rem; line-height: 1.5; }
+
+/* ── Messages ───────────────────────────────────────────────────────────── */
+.info, .infoAccent {
+  padding: 12px 16px; border-radius: 8px; font-size: 0.9rem;
+  margin-bottom: 20px; line-height: 1.6;
+}
+.info       { background: #f1f5f9; color: #475569; }
+.infoAccent { background: #ecfdf5; color: #065f46; }
+.succes {
+  background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px;
+  padding: 16px; margin-bottom: 20px; color: #065f46;
+}
+.succes p { margin: 0 0 8px; }
+.avis { font-size: 0.85rem; color: #047857; }
+.erreur { color: #dc2626; font-size: 0.88rem; }
+
+/* Un secret doit pouvoir être sélectionné d'un coup et ne jamais déborder. */
+.code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem;
+  background: #0f1b3f; color: #e2e8f0; padding: 3px 8px; border-radius: 5px;
+  word-break: break-all; user-select: all;
+}
+
+/* ── Formulaires ────────────────────────────────────────────────────────── */
+.formulaire { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; }
+.formulaire h3 { margin: 0 0 16px; font-size: 1.05rem; color: #0f1b3f; }
+.champs { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.formulaire input, .formulaire select, .formulaire textarea {
+  width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px;
+  font-size: 0.92rem; font-family: inherit; box-sizing: border-box;
+}
+.formulaire textarea { margin-bottom: 12px; resize: vertical; }
+.caseACocher { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 0.9rem; color: #475569; }
+.caseACocher input { width: auto; }
+
+/* ── Documentation API ──────────────────────────────────────────────────── */
+.doc { margin-top: 24px; }
+.doc summary { cursor: pointer; font-weight: 600; color: #0f1b3f; padding: 8px 0; }
+.pre {
+  background: #0f1b3f; color: #e2e8f0; padding: 16px; border-radius: 8px;
+  overflow-x: auto; font-size: 0.82rem; line-height: 1.6;
+}
+
+/* ── Fil de discussion ──────────────────────────────────────────────────── */
+.fil { margin-bottom: 24px; display: flex; flex-direction: column; gap: 12px; }
+.messageAuteur, .messageAdmin { padding: 12px 16px; border-radius: 10px; max-width: 80%; }
+.messageAuteur { background: #f1f5f9; align-self: flex-start; }
+.messageAdmin  { background: #eff6ff; align-self: flex-end; border: 1px solid #bfdbfe; }
+.messageAuteur strong, .messageAdmin strong { font-size: 0.8rem; color: #64748b; }
+.messageAuteur p, .messageAdmin p { margin: 4px 0 0; line-height: 1.55; }
+
+@media (max-width: 640px) {
+  .entete h1 { font-size: 1.4rem; }
+  .messageAuteur, .messageAdmin { max-width: 100%; }
+}
+
+/* ── Demandes clients ────────────────────────────────────────────────────── */
+.cartesDemandes { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.demande {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.demande header { display: flex; flex-direction: column; gap: 3px; }
+.demande header strong { color: #0f1b3f; font-size: 1rem; }
+.demande header span { color: #64748b; font-size: 0.85rem; }
+.detailsDemande { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
+.detailsDemande dt { font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.03em; }
+.detailsDemande dd { margin: 2px 0 0; font-size: 0.88rem; color: #1e293b; }
+.messageDemande { margin: 0; font-size: 0.86rem; color: #475569; font-style: italic; line-height: 1.55; }
+.dejaPositionne { margin: 0; font-size: 0.85rem; color: #065f46; background: #ecfdf5; padding: 8px 12px; border-radius: 8px; }
+.demande input {
+  width: 100%; padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px;
+  font-size: 0.88rem; font-family: inherit; box-sizing: border-box;
+}

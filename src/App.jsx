@@ -41,6 +41,7 @@ const Login                 = lazy(() => import("./pages/Login"));
 const Register              = lazy(() => import("./pages/Register"));
 const VendorSubmit          = lazy(() => import("./pages/VendorSubmit"));
 const VendorDashboard       = lazy(() => import("./pages/VendorDashboard"));
+const VendorPro             = lazy(() => import("./pages/VendorPro"));
 const VendorPublish         = lazy(() => import("./pages/VendorPublish"));
 const Plans                 = lazy(() => import("./pages/Plans"));
 const AdminPanel            = lazy(() => import("./pages/AdminPanel"));
@@ -184,6 +185,9 @@ function AppRoutes() {
           <Route path="/vendor/submit-activity" element={<PartnerRoute><ErrorBoundary><ActivitySubmit /></ErrorBoundary></PartnerRoute>} />
           <Route path="/vendor/dashboard" element={<PartnerRoute><ErrorBoundary><VendorDashboard /></ErrorBoundary></PartnerRoute>} />
           <Route path="/vendor/publish"   element={<PartnerRoute><ErrorBoundary><VendorPublish /></ErrorBoundary></PartnerRoute>} />
+          {/* Espace Pro : statistiques, équipe, clés d'API et assistance — chaque
+              onglet vérifie le palier côté serveur et affiche son verrou sinon. */}
+          <Route path="/vendor/pro"       element={<PartnerRoute><ErrorBoundary><VendorPro /></ErrorBoundary></PartnerRoute>} />
           <Route path="/importer-apply"   element={<PartnerRoute><ErrorBoundary><ImporterApply /></ErrorBoundary></PartnerRoute>} />
           <Route path="/importer-dashboard" element={<PartnerRoute><ErrorBoundary><ImporterDashboard /></ErrorBoundary></PartnerRoute>} />
           <Route path="/partner-certification" element={<PartnerRoute><ErrorBoundary><PartnerCertification /></ErrorBoundary></PartnerRoute>} />

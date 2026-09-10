@@ -13,6 +13,7 @@ import { runOnceMigration } from "./utils/runOnceMigration.js";
 import { initSentry, sentryRequestHandler, sentryTracingHandler, sentryErrorHandler, captureException } from "./config/sentry.js";
 import { initQueues, isReady as isQueuesReady, getQueueStats } from "./queue/index.js";
 import { startPartnerReminderScheduler } from "./utils/partnerReminders.js";
+import { startMonthlyReportScheduler } from "./utils/monthlyPartnerReport.js";
 import { startBookingReminderScheduler } from "./utils/bookingReminders.js";
 import { startPartnerResponseScheduler } from "./utils/partnerResponseReminders.js";
 import { startAccountHealthScheduler } from "./utils/accountHealthCheck.js";
@@ -59,6 +60,12 @@ import driverEmploymentRoutes from "./routes/driverEmployment.js";
 import serviceInvoiceRoutes   from "./routes/serviceInvoices.js";
 import commissionLedgerRoutes from "./routes/commissionLedger.js";
 import loyaltyRoutes from "./routes/loyalty.js";
+import supportRoutes from "./routes/support.js";
+import teamRoutes from "./routes/team.js";
+import apiKeyRoutes from "./routes/apiKeys.js";
+import publicApiRoutes from "./routes/publicApi.js";
+import partnerRequestRoutes from "./routes/partnerRequests.js";
+import spotlightRoutes from "./routes/spotlight.js";
 import { authenticate, authorizeAdmin } from "./middleware/auth.js";
 
 dotenv.config();
@@ -447,6 +454,12 @@ app.use("/api/driver-employment",     apiLimiter, driverEmploymentRoutes); // Em
 app.use("/api/service-invoices",      apiLimiter, serviceInvoiceRoutes);   // Facture de prestation au partenaire après service
 app.use("/api/commission-ledger",     apiLimiter, commissionLedgerRoutes); // Suivi des reversements partenaire (dû vs déjà versé)
 app.use("/api/loyalty",               apiLimiter, loyaltyRoutes);          // Programme de fidélité à paliers (solde, historique)
+app.use("/api/support",               apiLimiter, supportRoutes);         // Billetterie d'assistance — file prioritaire pour les abonnés
+app.use("/api/team",                  apiLimiter, teamRoutes);            // Comptes d'équipe rattachés à un partenaire (palier Business)
+app.use("/api/api-keys",              apiLimiter, apiKeyRoutes);          // Clés d'API partenaire (palier Exportateur)
+app.use("/api/v1",                    apiLimiter, publicApiRoutes);       // API partenaire v1 — authentifiée par clé, pas par session
+app.use("/api/partner-requests",       apiLimiter, partnerRequestRoutes);  // Demandes clients ouvertes — avance de 2 h pour les abonnés
+app.use("/api/spotlight",             catalogueLimiter, spotlightRoutes);  // Vitrines de mise en avant — public, consulté à chaque visite
 
 // ── Communication tracking (pixel ouverture + clic email) ────────────────────
 const TRANSPARENT_GIF = Buffer.from(
@@ -885,6 +898,10 @@ const startServer = async () => {
     // ── Relance automatique des dossiers partenaire incomplets ───────────
     // En mémoire (pas de job Redis) — voir utils/partnerReminders.js.
     startPartnerReminderScheduler();
+
+    // ── Rapport mensuel de performance (abonnés Business et au-delà) ─────
+    // En mémoire (pas de job Redis) — voir utils/monthlyPartnerReport.js.
+    startMonthlyReportScheduler();
 
     // ── Rappel automatique avant prise en charge (location) ──────────────
     // En mémoire (pas de job Redis) — voir utils/bookingReminders.js.

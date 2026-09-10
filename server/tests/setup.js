@@ -1,6 +1,7 @@
 import { beforeAll, afterAll, afterEach } from "vitest";
 import mongoose from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
+import { cacheClear } from "../utils/catalogCache.js";
 
 // Positionné avant toute connexion/appel — FIELD_ENCRYPTION_KEY est lue de
 // façon paresseuse par server/utils/fieldEncryption.js (KYC), pas besoin
@@ -44,6 +45,13 @@ beforeAll(async () => {
 // fichier, pour qu'un test ne dépende jamais de l'état laissé par un autre.
 afterEach(async () => {
   await mongoose.connection.dropDatabase();
+  // Le cache catalogue vit en MÉMOIRE du processus : il survivait au vidage de
+  // la base, et un test suivant recevait des identifiants pointant vers des
+  // documents détruits — donc une liste vide, sans rapport avec le code testé.
+  // Deux fichiers le contournaient déjà par un `beforeEach(cacheClear)` de leur
+  // côté ; le faire ici couvre tous les tests, y compris ceux à écrire. Un
+  // cache qui survit à ses données est périmé par construction.
+  cacheClear();
 });
 
 afterAll(async () => {

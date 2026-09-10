@@ -75,6 +75,12 @@ const notificationSchema = new mongoose.Schema({
       "new_review",
       // Chat
       "new_message",
+      // Assistance (billetterie support — supportController.js). Le type doit
+      // figurer ici AVANT d'être émis : absent de l'enum, la validation lève,
+      // le catch avale l'erreur, et le partenaire n'apprend jamais qu'on lui a
+      // répondu.
+      "support_ticket",
+      "support_reply",
       // Drivers
       "driver_assigned",
       "driver_completed",

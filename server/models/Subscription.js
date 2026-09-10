@@ -25,7 +25,34 @@ const subscriptionSchema = new mongoose.Schema({
     endDate:   { type: Date },
     isActive:  { type: Boolean, default: false },
     priceUSD:  { type: Number, default: 0 },
+    // Période d'essai accordée par le support. Le plan est ACTIF au sens plein
+    // — mêmes avantages, mêmes gardes — mais rien n'a été facturé, et le
+    // partenaire doit le savoir : lui laisser croire à un abonnement payé
+    // rendrait son expiration incompréhensible.
+    isTrial:   { type: Boolean, default: false },
   },
+
+  // ── Essai gratuit ────────────────────────────────────────────────────────
+  // Un seul essai par compte, pour toujours. Sans cette trace, un partenaire
+  // enchaînerait les essais et n'aurait aucune raison de payer.
+  trialUsedAt: { type: Date, default: null },
+
+  // ── Parrainage ───────────────────────────────────────────────────────────
+  // Mois gagnés en amenant d'autres partenaires, en attente d'application.
+  // Stockés plutôt qu'appliqués immédiatement : un parrain sans abonnement
+  // actif au moment où son filleul souscrit perdrait sa récompense si elle
+  // n'était qu'une prolongation de date.
+  referralCreditMonths: { type: Number, default: 0 },
+
+  // Filleuls déjà récompensés — empêche qu'un même filleul rapporte deux fois
+  // (réactivation, second paiement confirmé, double clic de l'administrateur).
+  referralRewarded: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
+  // Dernier rapport mensuel de performance envoyé (voir
+  // utils/monthlyPartnerReport.js). Sert de verrou d'idempotence : le
+  // planificateur passe tous les jours, et sans cette date un redémarrage du
+  // serveur le 1ᵉʳ du mois enverrait le rapport deux fois.
+  lastMonthlyReportAt: { type: Date, default: null },
 
   // Mises en avant (boosts d'annonces) — 4 paliers, voir PricingConfig.boosts.
   boosts: [
