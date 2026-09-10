@@ -12,15 +12,16 @@ import { useDocumentMeta } from "../hooks/useDocumentMeta";
 // valeurs que server/config/defaultPricingConfig.js (source de vérité réelle).
 const FALLBACK_PRICING = {
   commissions: {
-    // Repli affiché tant que la config n'a pas répondu — doit refléter la
-    // grille réelle, sinon la page annonce brièvement des taux périmés.
-    standard: { vente: 0.03, location: 0.15, chauffeur: 0.15, import_export: 0.03, leasing: 0.05 },
-    premium:  { vente: 0.03, location: 0.15, chauffeur: 0.15, import_export: 0.03, leasing: 0.05 },
+    // Ce repli s'affiche une fraction de seconde sur une page de TARIFS : des
+    // valeurs périmées y annoncent brièvement des taux que le client ne paiera
+    // pas. Il doit rester le miroir exact de server/config/defaultPricingConfig.js.
+    standard: { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05 },
+    premium:  { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05 },
   },
   foundingPartner: {
     durationMonths: 12,
-    entreprise:  { location: 0.10, vente: 0.015 },
-    particulier: { location: 0.10, vente: 0.02 },
+    entreprise:  { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10 },
+    particulier: { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10 },
   },
   serviceFee: { minUSD: 1, percent: 0.005, maxUSD: 25 },
   subscriptions: {
