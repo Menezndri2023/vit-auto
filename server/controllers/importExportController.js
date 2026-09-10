@@ -1,4 +1,5 @@
 import logger from "../utils/logger.js";
+import { imageLegereOuRien } from "../utils/imagePayload.js";
 import { uploadBase64Images, FOLDERS } from "../config/imagekit.js";
 import ImportExportRequest     from "../models/ImportExportRequest.js";
 import ImporterPartnerProfile  from "../models/ImporterPartnerProfile.js";
@@ -454,7 +455,16 @@ export const getListings = async (req, res) => {
     } catch (err) {
       logger.warn?.("getListings: comptage des photos indisponible", { error: err.message });
     }
-    const listings = listingsRaw.map((l) => ({ ...l, photosCount: comptes.get(String(l._id)) ?? 0 }));
+    // Même filet que pour les véhicules : `mainPhoto` doit être une URL. La
+    // migration a converti l'existant et la création téléverse désormais vers
+    // ImageKit, mais cette conversion reste non bloquante — une annonce publiée
+    // pendant une indisponibilité du service garderait son base64, et vingt
+    // d'entre elles feraient de nouveau tomber la page.
+    const listings = listingsRaw.map((l) => ({
+      ...l,
+      mainPhoto: imageLegereOuRien(l.mainPhoto),
+      photosCount: comptes.get(String(l._id)) ?? 0,
+    }));
 
     const payload = { listings, total, pages: Math.ceil(total / safeLimit) };
     if (cacheKey) cacheSet(cacheKey, payload);

@@ -1,3 +1,4 @@
+import { estImageEncodee, imageLegereOuRien } from "../utils/imagePayload.js";
 // ══════════════════════════════════════════════════════════════════════════════
 // MOTEUR DE VALIDATION AUTOMATIQUE DES ANNONCES
 // Score sur 100 — décision : approved / pending / rejected
@@ -129,9 +130,16 @@ export const scoreAnnonce = (data) => {
 // bénéficie du gain sans modification, aucun ne lit `images[1+]` en vue liste.
 export const limitVehicleImages = (v) => {
   if (!v) return v;
-  const cover = v.thumbnail || (Array.isArray(v.images) ? v.images[0] : null);
-  if (!cover) return v;
-  return { ...v, images: [cover] };
+  const brut = v.thumbnail || (Array.isArray(v.images) ? v.images[0] : null);
+  // Une image ENCODÉE dans le document ne part jamais en vue liste : vingt
+  // annonces d'une page en feraient plusieurs mégaoctets, et c'est exactement
+  // ce qui a fait tomber le catalogue Import/Export. La conversion vers
+  // ImageKit à la création est non bloquante — une annonce publiée pendant une
+  // indisponibilité du service garde donc son base64, et ce filet est ce qui
+  // l'empêche de peser sur tout le catalogue.
+  const cover = imageLegereOuRien(brut);
+  if (!cover) return { ...v, images: [], thumbnail: null };
+  return { ...v, images: [cover], thumbnail: v.thumbnail && !estImageEncodee(v.thumbnail) ? v.thumbnail : null };
 };
 
 // ── Whitelist des champs légitimes d'une annonce véhicule ────────────────────
