@@ -14,7 +14,19 @@ export async function createUser(overrides = {}) {
   return User.create({
     firstName: "Test",
     lastName: uniq("User"),
-    email: `${uniq("user")}@example.test`,
+    // Domaine NON réservé, volontairement.
+    //
+    // `@example.test` serait le choix normal — c'est précisément un domaine que
+    // la norme réserve aux tests. Mais la production traite désormais les
+    // domaines réservés (RFC 2606/6761) comme des comptes de test et les masque
+    // de toutes les surfaces publiques : catalogue, statistiques, vitrines.
+    // Un compte de fixture sur `@example.test` devenait donc invisible, et
+    // vingt et un tests de vitrine échouaient sans rapport avec leur objet.
+    //
+    // Les tests qui veulent EXERCER le masquage passent une adresse réservée
+    // explicitement (voir tests/comptesDeTest.test.js) — ce qui rend leur
+    // intention lisible, au lieu de dépendre d'un défaut du harnais.
+    email: `${uniq("user")}@vitauto-fixtures.fr`,
     password: "not-hashed-fixture-password",
     role: "client",
     ...overrides,

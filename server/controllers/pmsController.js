@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { clauseHorsComptesDeTest } from "../utils/comptesDeTest.js";
 import logger from "../utils/logger.js";
 import Lead from "../models/Lead.js";
 import Quote from "../models/Quote.js";
@@ -709,6 +710,11 @@ export async function getPublicShowrooms(req, res) {
     const { country, brand, page = 1 } = req.query;
     const limit = Math.min(Number(req.query.limit) || 20, 50);
     const filter = { isPublished: true };
+
+    // Annuaire PUBLIC : les comptes de test n'y figurent pas. Ils restent
+    // pleinement fonctionnels et visibles côté administration.
+    const horsTest = await clauseHorsComptesDeTest("partnerId");
+    if (horsTest) Object.assign(filter, horsTest);
 
     if (country) filter.exportCountries = { $in: [country] };
     if (brand) {

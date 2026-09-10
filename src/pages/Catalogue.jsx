@@ -455,9 +455,19 @@ const Catalogue = () => {
     return [...compte.values()].filter((c) => c.n >= 2).sort((a, b) => b.n - a.n).slice(0, 12);
   }, [vehicles]);
 
+  // Filtre « annonces d'un partenaire » (`?owner=<id>`) — destination des
+  // vignettes de la vitrine d'accueil pour un partenaire qui n'a pas encore de
+  // showroom publié. Sans ce filtre, le lien ouvrait le catalogue COMPLET, ce
+  // que le visiteur lirait comme une erreur.
+  const ownerFilter = useMemo(() => {
+    const o = searchParams.get("owner");
+    return o && /^[0-9a-f]{24}$/i.test(o) ? o : null;
+  }, [searchParams]);
+
   const filtered = useMemo(() => {
     if (isImportMode || isChauffeurMode || isOthersMode) return [];
     let list = vehicles.filter((v) => {
+      if (ownerFilter && String(v.ownerId || "") !== ownerFilter) return false;
       const modeOk = activeMode === "Tout" || v.mode === activeMode;
       const typeOk = activeType === "Tous" || (v.vehicleType || v.type) === activeType;
       const etatOk = activeEtat === "Tous"
@@ -505,7 +515,7 @@ const Catalogue = () => {
     if (sortKey === "price_desc") list = [...list].sort((a,b) => (b.pricePerDay||b.priceForSale||0) - (a.pricePerDay||a.priceForSale||0));
     if (sortKey === "newest")     list = [...list].sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
     return list;
-  }, [vehicles, activeMode, activeType, activeEtat, activeDuree, fuelType, transmission, maxPrice, maxSalePrice, searchTerm, sortKey, isImportMode, isChauffeurMode, isOthersMode, paysOk, nomDuPays, nearMeActive, userPos]);
+  }, [vehicles, ownerFilter, activeMode, activeType, activeEtat, activeDuree, fuelType, transmission, maxPrice, maxSalePrice, searchTerm, sortKey, isImportMode, isChauffeurMode, isOthersMode, paysOk, nomDuPays, nearMeActive, userPos]);
 
   const isStandardMode = !isImportMode && !isChauffeurMode && !isOthersMode;
 

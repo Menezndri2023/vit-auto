@@ -387,6 +387,14 @@ vehicleSchema.index({ status: 1, available: 1, createdAt: -1 });
 // Même couverture mais avec le pays en tête — sert le filtrage international du
 // catalogue (le cas le plus fréquent en usage réel : un pays précis, pas "INTL").
 vehicleSchema.index({ status: 1, available: 1, country: 1, createdAt: -1 });
+// ── Index du moteur de mise en avant ───────────────────────────────────────
+// Ces requêtes ne lisent QUE le champ `owner` (distinct) ou quelques nombres
+// (agrégat de signaux). Sans index les couvrant, Mongo doit ouvrir chaque
+// document — et un document véhicule pèse plus d'un mégaoctet, photos base64
+// comprises. Mesuré en production avant correction : 23 s sur une seule page.
+vehicleSchema.index({ owner: 1, status: 1, available: 1 });
+vehicleSchema.index({ owner: 1, sponsoredUntil: 1 });
+vehicleSchema.index({ owner: 1, status: 1, vues: 1, noteMoyenne: 1, nombreAvis: 1, updatedAt: 1 });
 // Géolocalisation (recherche "près de moi") — nécessite le format GeoJSON, voir
 // le hook pre("save") ci-dessous qui synchronise `location` depuis `coordonnees`.
 vehicleSchema.index({ location: "2dsphere" });

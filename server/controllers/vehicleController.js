@@ -2,6 +2,7 @@ import logger from "../utils/logger.js";
 import mongoose from "mongoose";
 import Vehicle from "../models/Vehicle.js";
 import { idsVitrine, jourDeRotation } from "../services/spotlightEngine.js";
+import { clauseHorsComptesDeTest } from "../utils/comptesDeTest.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Booking from "../models/Booking.js";
@@ -407,6 +408,14 @@ export const getVehicles = async (req, res) => {
     // le résultat avant même que la recherche ne soit évaluée.
     if (country && country !== "INTL" && !search) {
       filter.$or = [{ country: String(country).toUpperCase() }, { country: null }];
+    }
+
+    // Comptes de test masqués du catalogue PUBLIC uniquement : un
+    // administrateur doit continuer à les voir, sinon il ne pourrait plus les
+    // administrer. Composé en `$and` — `filter.$or` sert déjà au filtre pays.
+    if (!isAdmin) {
+      const horsTest = await clauseHorsComptesDeTest("owner");
+      if (horsTest) filter.$and = [...(filter.$and || []), horsTest];
     }
 
     const maxLimit  = isAdmin ? 500 : 100;
@@ -1353,9 +1362,9 @@ export const getPublicStats = async (req, res) => {
     // réservé ou mis en pause par son partenaire resterait compté comme
     // disponible dès la première réservation.
     const [vehicles, ieListings, paysVehicules, paysIE, notes] = await Promise.all([
-      Vehicle.countDocuments({ status: "approved", available: true }),
+      Vehicle.countDocuments({ status: "approved", available: true, ...(await clauseHorsComptesDeTest("owner") || {}) }),
       ImportExportListing.countDocuments({ status: "approved" }),
-      Vehicle.distinct("country", { status: "approved", available: true }),
+      Vehicle.distinct("country", { status: "approved", available: true, ...(await clauseHorsComptesDeTest("owner") || {}) }),
       ImportExportListing.distinct("sourceCountry", { status: "approved" }),
       Review.aggregate([
         { $match: { visible: true, targetType: { $in: ["vehicle", "driver", "partner"] } } },

@@ -43,6 +43,18 @@ const userSchema = new mongoose.Schema({
   // /api/users, elle aurait permis à un agent de changer le mot de passe de son
   // employeur. Le périmètre est donc défini par les routeurs où le middleware
   // est monté, jamais par ce champ seul.
+  // ── Compte de test ───────────────────────────────────────────────────────
+  // Marque un compte créé par un script de test ou un audit. Il reste
+  // PLEINEMENT fonctionnel — connexion, publication, réservation — mais
+  // n'apparaît sur aucune surface publique. Marquer plutôt que supprimer :
+  // ces comptes resservent, et une suppression est irréversible.
+  //
+  // Complète la détection par domaine réservé (constants/testAccounts.js) : ce
+  // drapeau couvre les comptes dont l'adresse ne suit aucune convention, comme
+  // « t-partner-...@ex.com », qu'aucune règle automatique ne peut reconnaître
+  // sans risquer d'emporter un compte légitime.
+  isTestAccount: { type: Boolean, default: false },
+
   teamOf:   { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   teamRole: { type: String, enum: ["gestionnaire", "lecture"], default: null },
 
@@ -459,6 +471,8 @@ userSchema.pre("save", function (next) {
 userSchema.index({ role: 1 });
 // Décompte des sièges occupés par titulaire, sans balayage de la collection.
 userSchema.index({ teamOf: 1 });
+// Résolution de la liste des comptes de test à chaque page publique.
+userSchema.index({ isTestAccount: 1 });
 userSchema.index({ kycStatus: 1 });
 
 // Tri de la liste des comptes admin (usersController.getUsers, sort createdAt

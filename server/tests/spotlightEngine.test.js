@@ -1,12 +1,16 @@
 import { describe, it, expect } from "vitest";
 import {
   composerVitrine, scoreDeMerite, fenetreDuJour, jourDeRotation,
-  PLACES_PAR_PLAN, MAX_PAR_PARTENAIRE, EMPLACEMENTS, POIDS, PART_MAX_BOOSTS, idsVitrine,
+  PLACES_PAR_PLAN, MAX_PAR_PARTENAIRE, EMPLACEMENTS, POIDS, PART_MAX_BOOSTS, PART_MAX_EPINGLES, idsVitrine,
+  FIN_VITRINE_PARTENAIRES_GRATUITE, vitrinePartenairesOuverte,
 } from "../services/spotlightEngine.js";
+import fs from "fs";
+import path from "path";
 import mongoose from "mongoose";
 import { getSpotlight } from "../controllers/spotlightController.js";
 import Subscription from "../models/Subscription.js";
 import Activity from "../models/Activity.js";
+import PartnerShowroom from "../models/PartnerShowroom.js";
 import Vehicle from "../models/Vehicle.js";
 import Favorite from "../models/Favorite.js";
 import Booking from "../models/Booking.js";
@@ -20,6 +24,16 @@ const abonner = (user, plan) => Subscription.create({
   vendor: user._id, plan,
   planDetails: { startDate: new Date(), endDate: new Date(Date.now() + 30 * JOUR), isActive: true, priceUSD: 19.99 },
 });
+
+// Partenaire dont l'adresse n'est PAS sur un domaine réservé.
+//
+// Les fixtures créent leurs comptes sur `@example.test` — un domaine réservé par
+// la norme, donc exactement ce que la vitrine partenaires exclut. C'est correct
+// des deux côtés : un compte de fixture EST un compte de test. Les cas qui
+// veulent un partenaire affichable doivent donc le dire explicitement.
+let compteur = 0;
+const partenaireReel = (extra = {}) =>
+  createUser({ role: "partenaire", email: `pro${++compteur}.vitauto@gmail.com`, ...extra });
 
 // Annonce « complète » par défaut : sans cela, toutes les fixtures auraient un
 // score de mérite nul et les tests de classement ne prouveraient rien.
@@ -105,6 +119,59 @@ describe("Composition d'une vitrine", () => {
     const v = await composerVitrine("vedette");
     expect(v.items[0].id).toBe(String(epinglee._id));
     expect(v.items[0].origine).toBe("epingle");
+  });
+
+  it("remplit toutes les places même quand un seul partenaire domine le vivier", async () => {
+    // Défaut RÉEL constaté en production : le plafond par partenaire
+    // s'appliquait au moment d'insérer, après troncature du vivier. Un
+    // partenaire à 267 annonces remplissait donc tout le vivier de ses propres
+    // annonces, dont deux seulement étaient retenues — et les places restantes
+    // n'étaient offertes à personne. Quatre places sur huit restaient vides
+    // alors que 333 annonces étaient éligibles.
+    const gros = await createUser({ role: "partenaire" });
+    for (let i = 0; i < 60; i++) await annonce({ owner: gros._id, vues: 500 });
+    // Trois petits partenaires, volontairement MOINS bien notés : ils ne
+    // doivent leur place qu'à la libération du plafond, pas à leur score.
+    // Deux annonces chacun : avec un plafond de 2 par partenaire, il faut au
+    // moins quatre partenaires pour pourvoir huit places.
+    const petits = [];
+    for (let i = 0; i < 3; i++) {
+      const u = await createUser({ role: "partenaire" });
+      petits.push(await annonce({ owner: u._id, vues: 0 }));
+      petits.push(await annonce({ owner: u._id, vues: 0 }));
+    }
+
+    const v = await composerVitrine("vedette");
+    const ids = v.items.map((i) => i.id);
+    expect(v.items).toHaveLength(EMPLACEMENTS.vedette.capacite);
+    // Le partenaire dominant garde exactement son plafond, ni plus ni moins.
+    const idsGros = (await Vehicle.find({ owner: gros._id }).select("_id").lean()).map((x) => String(x._id));
+    expect(ids.filter((id) => idsGros.includes(id))).toHaveLength(MAX_PAR_PARTENAIRE);
+    // Et les six annonces des petits partenaires occupent le reste.
+    expect(ids.filter((id) => petits.some((p) => String(p._id) === id))).toHaveLength(6);
+  });
+
+  it("plafonne l'épinglage administrateur, et le fait tourner au-delà", async () => {
+    // Treize annonces épinglées vivent en production. Sans plafond, elles
+    // occuperaient toute la vitrine et les places vendues aux abonnés
+    // n'existeraient plus.
+    const admin = await createUser({ role: "partenaire" });
+    const epinglees = [];
+    for (let i = 0; i < 10; i++) epinglees.push(await annonce({ owner: admin._id, featured: true }));
+    for (let i = 0; i < 6; i++) await annonce();
+
+    const plafond = Math.floor(EMPLACEMENTS.vedette.capacite * PART_MAX_EPINGLES);
+    const v = await composerVitrine("vedette");
+    expect(v.composition.epingle).toBe(plafond);
+    expect(v.items).toHaveLength(EMPLACEMENTS.vedette.capacite);
+
+    // Et sur plusieurs jours, chaque annonce épinglée finit par passer.
+    const vus = new Set();
+    for (let j = 0; j < 10; j++) {
+      const jour = await composerVitrine("vedette", { maintenant: new Date(Date.now() + j * JOUR) });
+      jour.items.filter((i) => i.origine === "epingle").forEach((i) => vus.add(i.id));
+    }
+    expect(vus.size).toBe(epinglees.length);
   });
 
   it("donne à chaque palier son quota, sans qu'un palier supérieur mange celui du dessous", async () => {
@@ -373,26 +440,191 @@ describe("Vitrine des partenaires", () => {
   it("classe sur l'activité RÉELLE du partenaire, pas sur son compte seul", async () => {
     // `User` ne porte ni photos ni vues : sans signaux tirés de ses annonces, la
     // section serait figée sur l'ordre de création.
-    const actif = await createUser({ role: "partenaire", certificationBadge: "verifie" });
+    const actif = await partenaireReel({ certificationBadge: "verifie" });
+    await PartnerShowroom.create({ partnerId: actif._id, companyName: "Actif", isPublished: true });
     for (let i = 0; i < 5; i++) await annonce({ owner: actif._id, vues: 200, noteMoyenne: 5, nombreAvis: 10 });
-    const inactif = await createUser({ role: "partenaire" });
+    // Publie une annonce, mais une seule et sans engagement : éligible, donc
+    // réellement comparable — un compte sans annonce serait simplement exclu.
+    const inactif = await partenaireReel();
+    await PartnerShowroom.create({ partnerId: inactif._id, companyName: "Inactif", isPublished: true });
+    await annonce({ owner: inactif._id, vues: 0 });
 
     const v = await composerVitrine("partenaires");
     const rang = (id) => v.items.findIndex((i) => i.id === String(id));
     expect(rang(actif._id)).toBeLessThan(rang(inactif._id));
-    expect(v.items.find((i) => i.id === String(actif._id)).lien).toBe(`/showroom/${actif._id}`);
+    expect(v.items.find((i) => i.id === String(actif._id)).lien).toBe("/showroom/actif");
+  });
+
+  it("n'affiche pas les comptes de test présents en production", async () => {
+    // Six comptes créés par des scripts d'audit vivent dans la base de
+    // production. Invisibles tant que rien ne mettait de partenaires en avant,
+    // ils sont devenus visibles des visiteurs avec la nouvelle section.
+    //
+    // Le filtre porte sur les domaines RÉSERVÉS par la norme (RFC 2606/6761),
+    // qui n'appartiennent à personne — jamais sur le mot « test » dans un nom,
+    // qui écarterait des patronymes réels.
+    const reels = [];
+    for (const email of ["ho.rentacar@gmail.com", "913824211@qq.com", "testa@exemple.fr"]) {
+      const u = await createUser({ role: "partenaire", email });
+      await PartnerShowroom.create({ partnerId: u._id, companyName: email, isPublished: true });
+      reels.push(u);
+    }
+    for (const email of ["sec-p-178@vit-auto-test.local", "test.kenya.98@example.com", "ie-partner@vit-auto-test.local", "x@example.org"]) {
+      const u = await createUser({ role: "partenaire", email });
+      // Même avec un showroom publié : un compte de test n'a rien à faire en
+      // page d'accueil.
+      await PartnerShowroom.create({ partnerId: u._id, companyName: email, isPublished: true });
+    }
+
+    // Vérifié dans les DEUX régimes : la fenêtre d'ouverture lève la condition
+    // commerciale, jamais l'exclusion des comptes de test.
+    for (const maintenant of [new Date(), new Date(FIN_VITRINE_PARTENAIRES_GRATUITE.getTime() + 86400000)]) {
+      const v = await composerVitrine("partenaires", { maintenant });
+      expect(v.items.map((i) => i.id).sort(), maintenant.toISOString())
+        .toEqual(reels.map((u) => String(u._id)).sort());
+    }
+  });
+
+  it("n'affiche QUE showroom publié, boost en cours ou abonnement actif — APRÈS la fenêtre", async () => {
+    // Trois portes d'entrée, et seulement trois. La vignette mène à
+    // `/showroom/:id` : sans showroom publié, elle mène à une page vide — et
+    // pour ceux qui n'en ont pas, seul un engagement commercial justifie la
+    // place la plus vue du site.
+    const avecShowroom = await partenaireReel();
+    await PartnerShowroom.create({ partnerId: avecShowroom._id, companyName: "Garage Atlas", isPublished: true });
+
+    // Boost et abonnement doivent être valides À LA DATE ÉVALUÉE, pas
+    // aujourd'hui : un engagement expiré ne vaut plus rien, et c'est bien ce
+    // que le moteur doit constater.
+    const apresLaFenetre = new Date(FIN_VITRINE_PARTENAIRES_GRATUITE.getTime() + 86400000);
+    const encoreValide = new Date(apresLaFenetre.getTime() + 30 * JOUR);
+
+    const avecBoost = await partenaireReel();
+    await annonce({ owner: avecBoost._id, sponsoredUntil: encoreValide, boostLevel: 2 });
+
+    const avecAbonnement = await partenaireReel();
+    await Subscription.create({
+      vendor: avecAbonnement._id, plan: "business",
+      planDetails: { startDate: new Date(), endDate: encoreValide, isActive: true, priceUSD: 19.99 },
+    });
+    await annonce({ owner: avecAbonnement._id });
+
+    // Écartés : beaucoup d'annonces mais aucun engagement ni showroom.
+    const sansRien = await partenaireReel();
+    for (let i = 0; i < 5; i++) await annonce({ owner: sansRien._id, vues: 900 });
+    // Showroom existant mais NON publié : un brouillon ne vaut pas une vitrine.
+    const brouillon = await partenaireReel();
+    await PartnerShowroom.create({ partnerId: brouillon._id, companyName: "Brouillon", isPublished: false });
+    await annonce({ owner: brouillon._id });
+    // Boost échu à la date évaluée : ne vaut plus rien.
+    const boostEchu = await partenaireReel();
+    await annonce({ owner: boostEchu._id, sponsoredUntil: new Date(Date.now() + 7 * JOUR), boostLevel: 3 });
+
+    const v = await composerVitrine("partenaires", { maintenant: apresLaFenetre });
+    expect(v.items.map((i) => i.id).sort())
+      .toEqual([avecShowroom, avecBoost, avecAbonnement].map((u) => String(u._id)).sort());
+  });
+
+  it("pendant les douze premiers mois, TOUS les partenaires sont visibles sans condition commerciale", async () => {
+    // La plateforme est jeune : réserver la page d'accueil aux abonnés d'une
+    // offre que personne n'a encore souscrite la laisserait vide. Même geste et
+    // même durée que l'offre Partenaire Fondateur.
+    expect(vitrinePartenairesOuverte(new Date())).toBe(true);
+
+    const sansRien = await partenaireReel();
+    await annonce({ owner: sansRien._id });
+    const avecShowroom = await partenaireReel();
+    await PartnerShowroom.create({ partnerId: avecShowroom._id, companyName: "Atlas", isPublished: true });
+
+    const v = await composerVitrine("partenaires");
+    expect(v.items.map((i) => i.id).sort())
+      .toEqual([sansRien, avecShowroom].map((u) => String(u._id)).sort());
+  });
+
+  it("la règle commerciale reprend D'ELLE-MÊME à l'échéance, sans redéploiement", async () => {
+    // La date est comparée à l'instant de la requête, exactement comme l'est la
+    // validité d'un boost : aucune tâche planifiée n'a à basculer le régime.
+    const sansEngagement = await partenaireReel();
+    await annonce({ owner: sansEngagement._id });
+
+    const veille = new Date(FIN_VITRINE_PARTENAIRES_GRATUITE.getTime() - 86400000);
+    const lendemain = new Date(FIN_VITRINE_PARTENAIRES_GRATUITE.getTime() + 86400000);
+    expect((await composerVitrine("partenaires", { maintenant: veille })).items).toHaveLength(1);
+    expect((await composerVitrine("partenaires", { maintenant: lendemain })).items).toHaveLength(0);
+  });
+
+  it("un partenaire sans showroom mène à ses annonces, jamais à une page « introuvable »", async () => {
+    // `/showroom/:id` sans showroom publié affiche « Showroom introuvable ».
+    // Ses annonces, elles, existent : le catalogue filtré sur lui est la bonne
+    // destination.
+    const u = await partenaireReel();
+    await annonce({ owner: u._id });
+
+    const v = await composerVitrine("partenaires");
+    expect(v.items[0].lien).toBe(`/catalogue?owner=${u._id}`);
+  });
+
+  it("un partenaire sans showroom ET sans annonce reste exclu, même pendant la fenêtre", async () => {
+    // Ce n'est pas une barrière commerciale, c'est l'absence de contenu : sa
+    // vignette ne mènerait nulle part.
+    const vide = await partenaireReel();
+    const avecAnnonce = await partenaireReel();
+    await annonce({ owner: avecAnnonce._id });
+
+    const v = await composerVitrine("partenaires");
+    expect(v.items.map((i) => i.id)).toEqual([String(avecAnnonce._id)]);
+    expect(v.items.map((i) => i.id)).not.toContain(String(vide._id));
+  });
+
+  it("pointe sur le slug du showroom quand il en existe un", async () => {
+    // Deux adresses pour la même page dilueraient son référencement : la
+    // vignette doit mener à la MÊME URL que le plan de site.
+    const u = await partenaireReel();
+    await PartnerShowroom.create({ partnerId: u._id, companyName: "Garage Atlas", isPublished: true, slug: "garage-atlas" });
+
+    const v = await composerVitrine("partenaires");
+    expect(v.items[0].lien).toBe("/showroom/garage-atlas");
   });
 
   it("exclut les comptes d'équipe et les comptes désactivés", async () => {
     // Un compte d'équipe n'est pas un partenaire distinct : l'afficher
     // montrerait deux fois la même entreprise.
-    const titulaire = await createUser({ role: "partenaire" });
-    await createUser({ role: "partenaire", teamOf: titulaire._id, teamRole: "gestionnaire" });
-    await createUser({ role: "partenaire", isActive: false });
+    const titulaire = await partenaireReel();
+    await PartnerShowroom.create({ partnerId: titulaire._id, companyName: "Titulaire", isPublished: true });
+    const membre = await partenaireReel({ teamOf: titulaire._id, teamRole: "gestionnaire" });
+    await PartnerShowroom.create({ partnerId: membre._id, companyName: "Membre", isPublished: true });
+    const desactive = await partenaireReel({ isActive: false });
+    await PartnerShowroom.create({ partnerId: desactive._id, companyName: "Désactivé", isPublished: true });
     await createUser({ role: "client" });
 
     const v = await composerVitrine("partenaires");
     expect(v.items.map((i) => i.id)).toEqual([String(titulaire._id)]);
+  });
+});
+
+describe("Coût de composition", () => {
+  it("ne charge JAMAIS la photo de profil dans le vivier de candidats", async () => {
+    // `User.profilePhoto` contient une image en base64 — jusqu'à 1,9 Mo pour un
+    // seul compte, et 45 Mo sur toute la collection. La charger pour les ~108
+    // candidats afin d'en afficher six coûtait 20 s mesurées en base réelle, et
+    // 23 s sur l'endpoint public. Les photos sont désormais lues APRÈS la
+    // sélection, pour la poignée d'éléments retenus.
+    //
+    // Test sur la source, faute de pouvoir observer la projection depuis le
+    // test : c'est la seule façon d'empêcher qu'on la remette dans la liste des
+    // champs par simple commodité.
+    const src = fs.readFileSync(path.join(process.cwd(), "services", "spotlightEngine.js"), "utf8");
+    const ligneChamps = src.split("\n").find((l) => l.includes("champs:") && l.includes("certificationBadge"));
+    expect(ligneChamps).toBeTruthy();
+    expect(ligneChamps).not.toMatch(/profilePhoto/);
+    expect(src).toMatch(/enrichir:/); // la récupération tardive existe bien
+  });
+
+  it("renvoie tout de même la photo des partenaires retenus", async () => {
+    const u = await partenaireReel({ profilePhoto: "data:image/png;base64,AAAA" });
+    await annonce({ owner: u._id });
+    const v = await composerVitrine("partenaires");
+    expect(v.items[0].image).toBe("data:image/png;base64,AAAA");
   });
 });
 

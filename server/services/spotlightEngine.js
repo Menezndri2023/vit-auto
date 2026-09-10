@@ -41,9 +41,11 @@ import User from "../models/User.js";
 import Booking from "../models/Booking.js";
 import Favorite from "../models/Favorite.js";
 import Subscription from "../models/Subscription.js";
+import PartnerShowroom from "../models/PartnerShowroom.js";
 import { PLAN_RANK } from "../constants/subscriptionPlans.js";
 import { planActifDe } from "./planAccess.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
+import { clauseHorsComptesDeTest } from "../utils/comptesDeTest.js";
 
 // ── Places réservées par palier d'abonnement ───────────────────────────────
 // Le nombre progresse avec la formule : c'est la contrepartie visible de
@@ -69,6 +71,27 @@ export const MAX_PAR_PARTENAIRE = 2;
 // promises aux abonnés, qui ont payé elles aussi. Au-delà du plafond, les
 // boosts tournent entre eux : chacun passe, aucun ne confisque.
 export const PART_MAX_BOOSTS = 0.5;
+
+// Même plafond pour l'épinglage administrateur. Treize annonces épinglées
+// vivent en production : sans plafond, elles occuperaient toute la vitrine et
+// les places vendues aux abonnés n'existeraient plus. Au-delà, les épinglées
+// tournent entre elles — chacune passe, aucune ne confisque.
+export const PART_MAX_EPINGLES = 0.5;
+
+// ── Fenêtre d'ouverture de la vitrine partenaires ──────────────────────────
+// Pendant douze mois, TOUS les partenaires y figurent, sans condition
+// commerciale : la plateforme est jeune, et réserver sa page d'accueil aux
+// abonnés d'une offre que personne n'a encore souscrite la laisserait vide.
+// C'est le même geste que l'offre Partenaire Fondateur, et la même durée.
+//
+// À l'échéance, la règle commerciale s'applique D'ELLE-MÊME — showroom publié,
+// boost en cours ou abonnement actif — sans redéploiement ni intervention :
+// la date est comparée à l'instant de la requête, exactement comme l'est la
+// validité d'un boost.
+export const FIN_VITRINE_PARTENAIRES_GRATUITE = new Date("2027-09-10T00:00:00.000Z");
+
+export const vitrinePartenairesOuverte = (maintenant = new Date()) =>
+  maintenant < FIN_VITRINE_PARTENAIRES_GRATUITE;
 
 // Taille du vivier au mérite avant rotation : trois fois les places à pourvoir.
 // Trop étroit, ce sont toujours les mêmes ; trop large, la vitrine descend vers
@@ -236,12 +259,70 @@ const ADAPTATEURS = {
     // `User` ne porte ni ville ni `updatedAt` : les signaux d'un partenaire
     // viennent de SES ANNONCES — nombre publié, vues cumulées, note, date de la
     // plus récente — agrégées en une requête pour tout le vivier.
-    champs: "firstName lastName country certificationBadge isFounder profilePhoto createdAt role isActive",
+    // `profilePhoto` VOLONTAIREMENT ABSENT du vivier : ce champ contient une
+    // image en base64 — jusqu'à 1,9 Mo pour un seul compte. Le charger pour les
+    // ~108 candidats afin d'en afficher six coûtait 20 s mesurées, et 23 s sur
+    // l'endpoint public. Les photos des seuls partenaires RETENUS sont
+    // récupérées après la sélection (voir `enrichir`).
+    champs: "firstName lastName country certificationBadge isFounder createdAt role isActive",
     // `teamOf: null` exclut les comptes d'équipe : ils ne sont pas des
     // partenaires distincts, et les afficher montrerait deux fois la même
     // entreprise. Le filtre couvre aussi les comptes créés avant ce champ, où
     // la clé est absente — `null` les apparie.
+    // Comptes de test EXCLUS : la base de production en porte plusieurs, créés
+    // par des scripts d'audit. Invisibles tant que rien ne mettait de
+    // partenaires en avant ; visibles des visiteurs depuis.
     filtreBase: () => ({ role: "partenaire", isActive: true, teamOf: null }),
+    // Éligibilité en DEUX régimes.
+    //
+    // Pendant la fenêtre d'ouverture (douze mois) : tout partenaire ayant
+    // quelque chose à montrer — un showroom publié ou au moins une annonce
+    // publiée. Aucune condition commerciale.
+    //
+    // Après : trois portes d'entrée, et seulement trois — showroom RÉELLEMENT
+    // publié, mise en avant achetée, ou abonnement en cours.
+    //
+    // Dans les deux régimes, un partenaire sans showroom ET sans annonce reste
+    // exclu : sa vignette ne mènerait nulle part. Ce n'est pas une barrière
+    // commerciale, c'est l'absence de contenu.
+    //
+    // La règle écarte d'elle-même les comptes de test restants, y compris ceux
+    // dont le domaine n'est pas réservé.
+    prefiltrer: async (docs, { maintenant }) => {
+      if (!docs.length) return docs;
+      const ids = docs.map((d) => d._id);
+      const [showrooms, boostes, abonnes, avecAnnonces] = await Promise.all([
+        PartnerShowroom.find({ partnerId: { $in: ids }, isPublished: true }).select("partnerId slug").lean(),
+        // Boost en cours sur au moins une annonce du partenaire — même critère
+        // que partout ailleurs : la validité se compare à l'instant présent,
+        // aucune tâche n'a à éteindre un boost échu.
+        Vehicle.distinct("owner", { owner: { $in: ids }, sponsoredUntil: { $gt: maintenant } }),
+        Subscription.distinct("vendor", {
+          vendor: { $in: ids }, plan: { $ne: "free" },
+          "planDetails.isActive": true, "planDetails.endDate": { $gt: maintenant },
+        }),
+        Vehicle.distinct("owner", { owner: { $in: ids }, status: "approved", available: true }),
+      ]);
+      const slugs = new Map(showrooms.filter((sh) => sh.slug).map((sh) => [String(sh.partnerId), sh.slug]));
+      const publiants = new Set(avecAnnonces.map(String));
+      const eligibles = new Set([
+        ...showrooms.map((sh) => sh.partnerId),
+        ...boostes, ...abonnes,
+        ...(vitrinePartenairesOuverte(maintenant) ? avecAnnonces : []),
+      ].map(String));
+
+      return docs
+        .filter((d) => eligibles.has(String(d._id)))
+        // Le lien de la vignette utilise le slug du showroom quand il existe :
+        // une URL lisible, et la MÊME que celle du plan de site — deux adresses
+        // pour la même page dilueraient son référencement.
+        .map((d) => ({
+          ...d,
+          _slugShowroom: slugs.get(String(d._id)) || null,
+          _aShowroom: showrooms.some((sh) => String(sh.partnerId) === String(d._id)),
+          _aAnnonces: publiants.has(String(d._id)),
+        }));
+    },
     profil: (d, sig) => ({
       // Un partenaire « complet » est un partenaire qui a réellement publié.
       // Cinq annonces saturent le critère : au-delà, la quantité ne dit plus
@@ -251,13 +332,29 @@ const ADAPTATEURS = {
       note: sig.note, avis: sig.avis, badge: d.certificationBadge || "none",
       majLe: sig.derniereActivite,
     }),
+    // Appelé sur les SEULS éléments retenus — une poignée — juste avant
+    // l'affichage. C'est la différence entre lire six photos et en lire cent.
+    enrichir: async (docs) => {
+      if (!docs.length) return docs;
+      const photos = new Map(
+        (await User.find({ _id: { $in: docs.map((d) => d._id) } }).select("profilePhoto").lean())
+          .map((u) => [String(u._id), u.profilePhoto || null])
+      );
+      return docs.map((d) => ({ ...d, profilePhoto: photos.get(String(d._id)) || null }));
+    },
     presenter: (d) => ({
       id: String(d._id), source: "partenaire",
       titre: [d.firstName, d.lastName].filter(Boolean).join(" ") || "Partenaire VIT AUTO",
       sousTitre: d.certificationBadge && d.certificationBadge !== "none" ? d.certificationBadge : null,
       ville: null, pays: d.country || null,
       image: d.profilePhoto || null,
-      lien: `/showroom/${d._id}`,
+      // Un partenaire sans showroom publié n'a pas de page showroom : y
+      // renvoyer afficherait « Showroom introuvable ». Ses annonces, elles,
+      // existent — le catalogue filtré sur lui est la bonne destination.
+      // Avec showroom, on utilise son `slug` quand il en a un : une URL lisible,
+      // et la MÊME que celle du plan de site (deux adresses pour une seule page
+      // dilueraient son référencement).
+      lien: d._aShowroom ? `/showroom/${d._slugShowroom || d._id}` : `/catalogue?owner=${d._id}`,
     }),
   },
 };
@@ -294,9 +391,23 @@ const clausePays = (country) =>
   country ? { $or: [{ country: String(country).toUpperCase() }, { country: null }] } : {};
 
 async function candidats(adaptateur, { country, type, limite }) {
+  // Comptes de test écartés de TOUTES les vitrines, pas seulement de celle des
+  // partenaires : sinon leurs annonces continuaient d'apparaître en page
+  // d'accueil pendant que leur compte en était masqué. Appliqué ici, une seule
+  // fois, plutôt que dans chaque adaptateur — l'oubli d'un adaptateur est
+  // exactement le défaut que ce test a trouvé.
+  const horsTest = await clauseHorsComptesDeTest(adaptateur.champProprietaire);
   return adaptateur.modele
-    .find({ ...adaptateur.filtreBase(type), ...clausePays(country) })
+    .find({ ...adaptateur.filtreBase(type), ...clausePays(country), ...(horsTest || {}) })
+    // `$slice: 1` sur les photos, et ce n'est pas une micro-optimisation : les
+    // images sont stockées en base64 DANS le document (voir Vehicle.images), ce
+    // qui donne des documents de plus d'un mégaoctet. Charger le tableau complet
+    // de 144 candidats revenait à lire près de deux cents mégaoctets pour
+    // n'afficher qu'une vignette par carte — exactement la cause de la panne
+    // Import/Export de la veille. Mesuré en production : 23 s sur la vitrine
+    // partenaires.
     .select(adaptateur.champs)
+    .slice("images", 1)
     .sort({ createdAt: -1 })
     .limit(limite)
     .lean();
@@ -315,6 +426,10 @@ async function signaux(source, docs, adaptateur) {
     const ids = docs.map((d) => d._id);
     const agg = await Vehicle.aggregate([
       { $match: { owner: { $in: ids }, status: "approved" } },
+      // Projection AVANT le regroupement : sans elle, chaque document — photos
+      // base64 comprises — traverse le pipeline pour n'en tirer que cinq
+      // nombres.
+      { $project: { owner: 1, vues: 1, noteMoyenne: 1, nombreAvis: 1, updatedAt: 1 } },
       { $group: {
         _id: "$owner",
         annonces: { $sum: 1 },
@@ -373,12 +488,20 @@ function accumulateur(capacite) {
     retenus,
     contient: (id) => vus.has(String(id)),
     reste: () => capacite - retenus.length,
-    ajouter(doc, origine, proprietaire, score) {
+    // Places encore ouvertes à ce partenaire, pour composer un vivier qui tienne
+    // déjà compte du plafond au lieu de le découvrir au moment d'insérer.
+    budget: (proprietaire) => MAX_PAR_PARTENAIRE - (parPartenaire.get(String(proprietaire || "")) || 0),
+    // `ignorerPlafond` sert au seul épinglage administrateur : c'est une
+    // décision humaine sur une annonce précise, pas un choix algorithmique. La
+    // brider silencieusement contredirait l'administrateur. Le compteur est
+    // tout de même incrémenté, pour que les places suivantes du même partenaire
+    // restent limitées.
+    ajouter(doc, origine, proprietaire, score, ignorerPlafond = false) {
       if (retenus.length >= capacite) return false;
       const id = String(doc._id);
       if (vus.has(id)) return false;
       const p = String(proprietaire || "");
-      if (p && (parPartenaire.get(p) || 0) >= MAX_PAR_PARTENAIRE) return false;
+      if (!ignorerPlafond && p && (parPartenaire.get(p) || 0) >= MAX_PAR_PARTENAIRE) return false;
       vus.add(id);
       if (p) parPartenaire.set(p, (parPartenaire.get(p) || 0) + 1);
       retenus.push({ doc, origine, score });
@@ -403,10 +526,13 @@ export async function composerVitrine(nomEmplacement, { country = null, type = n
   const capacite = emplacement.capacite;
   const typeVoulu = type || emplacement.type;
 
-  const [rangs, vivier] = await Promise.all([
+  const [rangs, bruts] = await Promise.all([
     rangsParProprietaire(),
     candidats(adaptateur, { country, type: typeVoulu, limite: capacite * FACTEUR_VIVIER * 6 }),
   ]);
+  // Éligibilité que la seule requête ne peut pas exprimer — par exemple
+  // « ce partenaire a-t-il au moins une annonce publiée ».
+  const vivier = adaptateur.prefiltrer ? await adaptateur.prefiltrer(bruts, { maintenant }) : bruts;
 
   const proprioDe = (d) =>
     String(adaptateur.champProprietaire === "_id" ? d._id : d[adaptateur.champProprietaire] || "");
@@ -416,7 +542,13 @@ export async function composerVitrine(nomEmplacement, { country = null, type = n
   // Facultatif, et volontairement servi en premier : un administrateur doit
   // pouvoir imposer une annonce sans que le moteur la déclasse.
   if (adaptateur.supporteEpinglage) {
-    for (const d of vivier.filter((v) => v.featured)) acc.ajouter(d, "epingle", proprioDe(d), null);
+    const epinglees = vivier
+      .filter((v) => v.featured)
+      .sort((a, b) => String(a._id).localeCompare(String(b._id)));
+    const plafond = Math.min(Math.floor(capacite * PART_MAX_EPINGLES), capacite);
+    for (const d of fenetreDuJour(epinglees, plafond, maintenant)) {
+      acc.ajouter(d, "epingle", proprioDe(d), null, true);
+    }
   }
 
   // ── 2. Boosts achetés ───────────────────────────────────────────────────
@@ -469,14 +601,35 @@ export async function composerVitrine(nomEmplacement, { country = null, type = n
       // au gré de Mongo et la vitrine changerait sans raison entre deux appels.
       .sort((a, b) => b.score - a.score || String(a.d._id).localeCompare(String(b.d._id)));
 
-    // Rotation DANS le vivier des meilleurs : les bonnes annonces dominent,
-    // mais pas éternellement les mêmes.
-    const vivierMerite = notes.slice(0, Math.max(acc.reste() * FACTEUR_VIVIER, acc.reste()));
+    // Le plafond par partenaire s'applique À LA CONSTRUCTION du vivier, pas au
+    // moment d'insérer. Tronquer d'abord puis plafonner laissait un partenaire
+    // dominant remplir tout le vivier de ses propres annonces, dont deux
+    // seulement étaient retenues — les places restantes n'étaient alors offertes
+    // à personne. Constaté en production : quatre places sur huit vides alors
+    // que 333 annonces étaient éligibles.
+    const budgets = new Map();
+    const vivierMerite = [];
+    const plafondVivier = Math.max(acc.reste() * FACTEUR_VIVIER, acc.reste());
+    for (const n of notes) {
+      if (vivierMerite.length >= plafondVivier) break;
+      const p = proprioDe(n.d);
+      if (!budgets.has(p)) budgets.set(p, acc.budget(p));
+      if (budgets.get(p) <= 0) continue;
+      budgets.set(p, budgets.get(p) - 1);
+      vivierMerite.push(n);
+    }
     for (const n of fenetreDuJour(vivierMerite, vivierMerite.length, maintenant)) {
       if (acc.reste() <= 0) break;
       acc.ajouter(n.d, "merite", proprioDe(n.d), n.score);
     }
   }
+
+  // Enrichissement TARDIF : les champs lourds (photos) ne sont lus que pour les
+  // éléments effectivement retenus.
+  const retenus = adaptateur.enrichir
+    ? await adaptateur.enrichir(acc.retenus.map((r) => r.doc)).then((docs) =>
+        acc.retenus.map((r, i) => ({ ...r, doc: docs[i] })))
+    : acc.retenus;
 
   return {
     emplacement: nomEmplacement,
@@ -486,8 +639,8 @@ export async function composerVitrine(nomEmplacement, { country = null, type = n
     // les injecte dans un `$match` d'agrégation, où Mongoose ne convertit RIEN :
     // une chaîne hexadécimale n'y apparie aucun ObjectId, et la vitrine
     // revenait vide sans la moindre erreur. Attrapé par un test préexistant.
-    ids: acc.retenus.map(({ doc }) => doc._id),
-    items: acc.retenus.map(({ doc, origine, score }) => ({
+    ids: retenus.map(({ doc }) => doc._id),
+    items: retenus.map(({ doc, origine, score }) => ({
       ...adaptateur.presenter(doc),
       // `origine` est renvoyée pour que l'interface et l'administration
       // puissent expliquer POURQUOI un élément est là. Un classement qu'on ne
@@ -495,7 +648,7 @@ export async function composerVitrine(nomEmplacement, { country = null, type = n
       origine,
       ...(score != null ? { score } : {}),
     })),
-    composition: acc.retenus.reduce((c, r) => ({ ...c, [r.origine]: (c[r.origine] || 0) + 1 }), {}),
+    composition: retenus.reduce((c, r) => ({ ...c, [r.origine]: (c[r.origine] || 0) + 1 }), {}),
   };
 }
 
