@@ -76,11 +76,32 @@ describe("Service worker", () => {
     expect(nav).toMatch(/new Response\(/);
   });
 
+  it("ne relaie AUCUNE requête vers un autre domaine — polices comprises", async () => {
+    // Un `fetch()` exécuté DANS le worker relève de la directive `connect-src`
+    // de sa CSP, pas de `font-src`/`img-src` comme la même requête émise par
+    // la page. `connect-src` ne liste que notre API : tout ce que le worker
+    // relayait vers un tiers était bloqué, et la promesse rejetée faisait
+    // échouer la requête. Mesuré en production : Poppins absente sur toute
+    // page à partir de la deuxième navigation — la première n'est pas encore
+    // contrôlée par le worker, ce qui masquait le défaut à toute vérification
+    // faite dans un contexte neuf.
+    // La garde doit précéder TOUT respondWith : on vérifie qu'elle apparaît
+    // avant le premier, sans condition sur la destination.
+    // …et avant la branche image, qui porte SA PROPRE garde d'origine — une
+    // garde limitée aux images ne couvre ni les polices ni le reste. Validé à
+    // l'envers : la garde générale retirée, celle de la branche image ne doit
+    // pas suffire à faire passer ce test.
+    const brancheImage = SRC.indexOf("destination === 'image'");
+    const avant = SRC.slice(0, brancheImage);
+    expect(avant).toMatch(/^  if \(url\.origin !== self\.location\.origin\) return;/m);
+  });
+
   it("change de version de cache pour purger celui qui a causé la panne", async () => {
     // Sans montée de version, le cache saturé des visiteurs survivrait au
     // déploiement et la panne persisterait chez eux.
     const version = SRC.match(/CACHE_NAME\s*=\s*'([^']+)'/)?.[1];
     expect(version).toBeTruthy();
-    expect(version).not.toBe("vit-auto-v4"); // la version en panne
+    expect(version).not.toBe("vit-auto-v4"); // la version en panne des images
+    expect(version).not.toBe("vit-auto-v5"); // celle qui relayait encore les polices
   });
 });

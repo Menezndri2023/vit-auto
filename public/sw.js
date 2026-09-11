@@ -1,4 +1,4 @@
-// VIT AUTO — Service Worker v4.0
+// VIT AUTO — Service Worker v6
 //
 // ═══════════════════════════════════════════════════════════════════════════
 // PANNE DU 2026-09-11 — PLUS AUCUNE IMAGE NE S'AFFICHAIT
@@ -26,7 +26,7 @@
 //     ImageKit les sert déjà avec `max-age=31536000`, et le cache HTTP du
 //     navigateur fait ce travail mieux que nous, sans consommer le quota du
 //     Cache Storage.
-const CACHE_NAME    = 'vit-auto-v5';
+const CACHE_NAME    = 'vit-auto-v6';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -81,6 +81,22 @@ self.addEventListener('fetch', (event) => {
 
   // JS/CSS avec hash Vite → toujours réseau
   if (request.destination === 'script' || request.destination === 'style') return;
+
+  // AUCUNE requête vers un autre domaine n'est relayée par ce service worker.
+  //
+  // Un `fetch()` exécuté ICI relève de la directive `connect-src` de la CSP
+  // du worker — pas de `font-src`, `img-src` ou `style-src` comme le ferait
+  // la même requête émise par la page. Or `connect-src` ne liste que notre API
+  // et quelques services de données : tout ce que le worker relayait vers un
+  // tiers était donc BLOQUÉ, et la promesse rejetée faisait échouer la
+  // requête (`net::ERR_FAILED`) au lieu de la laisser passer.
+  // Mesuré en production le 2026-09-11 : Poppins ne se chargeait sur AUCUNE
+  // page à partir de la deuxième navigation — la première n'est pas encore
+  // contrôlée par le worker, ce qui masquait le défaut à toute vérification
+  // faite dans un contexte neuf. Même mécanisme que la panne des images.
+  // Les ressources tierces (polices Google, images ImageKit) arrivent avec un
+  // cache HTTP d'un an : les recopier dans le Cache Storage n'apportait rien.
+  if (url.origin !== self.location.origin) return;
 
   if (request.destination === 'image') {
     // Images d'un AUTRE domaine (ImageKit, Unsplash) : jamais interceptées.
