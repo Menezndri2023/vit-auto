@@ -12,11 +12,19 @@
  * --with-photos : il ne provoque pas la panne, et représente à lui seul six
  * fois plus de données à téléverser.
  *
- * Idempotent : une URL déjà migrée est ignorée. Simulation par défaut.
- * Usage : node server/scripts/migrateIEPhotosToImageKit.mjs [--apply] [--with-photos]
+ * Idempotent : une URL déjà migrée est ignorée. Simulation par défaut. Les
+ * originaux sont écrits sur disque avant toute réécriture (--sauvegarde=chemin).
+ *
+ * ÉTAT : exécuté avec --with-photos le 2026-09-11 — 210 annonces, 1252 photos,
+ * 369 Mo sortis de la base (372 Mo → 0,7 Mo). Il ne reste rien à migrer, et les
+ * créations/modifications téléversent déjà vers ImageKit (voir createListing) :
+ * ce script est conservé pour un éventuel rattrapage, pas pour un usage courant.
+ *
+ * Usage : node server/scripts/migrateIEPhotosToImageKit.mjs [--apply] [--with-photos] [--sauvegarde=fichier.jsonl]
  */
 import mongoose from "mongoose";
 import dotenv from "dotenv";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 
@@ -33,6 +41,16 @@ const ko = (v) => (typeof v === "string" ? Math.round(v.length / 1024) : 0);
 async function main() {
   const apply = process.argv.includes("--apply");
   const avecPhotos = process.argv.includes("--with-photos");
+
+// Sauvegarde des originaux AVANT réécriture. Une migration base64 → URL est à
+// sens unique : le document réécrit ne contient plus l'image, et ces photos
+// sont celles des partenaires, pas les nôtres. Une ligne JSON par annonce,
+// écrite et vidée sur le disque avant l'écriture en base : si le processus
+// s'arrête entre les deux, l'original est déjà à l'abri.
+// (Ajouté après la migration du 2026-09-11, qui a sorti 369 Mo de la base :
+// une reprise, même improbable, doit pouvoir tout replacer.)
+const SAUVEGARDE = process.argv.find((a) => a.startsWith("--sauvegarde="))?.split("=")[1]
+  || join(__dirname, `../../sauvegarde-photos-ie-${new Date().toISOString().slice(0, 10)}.jsonl`);
   const uri = process.env.MONGO_URI || process.env.MONGODB_URI;
   if (!uri) throw new Error("MONGO_URI non défini");
 
@@ -93,6 +111,7 @@ async function main() {
     }
 
     if (Object.keys(maj).length) {
+      fs.appendFileSync(SAUVEGARDE, JSON.stringify({ _id: String(_id), mainPhoto: a.mainPhoto, photos: a.photos }) + "\n");
       await ImportExportListing.updateOne({ _id }, { $set: maj });
       docs++;
       if (docs % 20 === 0) console.log(`  … ${docs} annonce(s) migrée(s)`);
