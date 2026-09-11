@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { adminGrantTrial, adminApprovePlanPayment } from "../controllers/subscriptionController.js";
-import { accorderEssai, recompenserParrain, consommerCreditParrainage, prolonger, DUREE_ESSAI_JOURS } from "../services/subscriptionRewards.js";
+import { accorderEssai, recompenserParrain, prolonger, DUREE_ESSAI_JOURS } from "../services/subscriptionRewards.js";
 import { rapportDu, composerMessage, envoyerRapportsMensuels } from "../utils/monthlyPartnerReport.js";
 import { listOpenRequests, declareInterest, AVANCE_ABONNE_MS } from "../controllers/partnerRequestsController.js";
 import Subscription from "../models/Subscription.js";

@@ -1,5 +1,5 @@
 import { baseEmail, BRAND } from "../shared/base.js";
-import { btn, heroSection, greeting, signature, infoBox, dataTable, divider, escapeHtml } from "../shared/components.js";
+import { btn, heroSection, greeting, signature, infoBox, dataTable, escapeHtml } from "../shared/components.js";
 
 export function contractReadyTemplate({ firstName, contractTitle, contractRef, signUrl, expiresAt, amount, devise = "USD", country }, trackingPixel = "") {
   const safeContractTitle = escapeHtml(contractTitle);

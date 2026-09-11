@@ -6,7 +6,6 @@
  * Les controllers existants n'ont pas besoin d'être modifiés.
  */
 import { sendViaEmail } from "../services/communication/CommunicationService.js";
-import logger from "../utils/logger.js";
 
 export const FROM_ADDRESS = () => process.env.EMAIL_FROM || "VIT AUTO <noreply@vit-auto.com>";
 

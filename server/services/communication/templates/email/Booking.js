@@ -1,5 +1,5 @@
 import { baseEmail, BRAND } from "../shared/base.js";
-import { btn, heroSection, greeting, signature, dataTable, divider, badge, infoBox, escapeHtml } from "../shared/components.js";
+import { btn, heroSection, greeting, signature, dataTable, badge, infoBox, escapeHtml } from "../shared/components.js";
 
 function formatDate(d) {
   if (!d) return "—";

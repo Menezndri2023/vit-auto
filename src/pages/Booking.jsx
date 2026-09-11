@@ -489,6 +489,10 @@ export default function Booking() {
   }, [pickupPosition, pickupMethod]);
 
   /* ── Soumission finale ─────────────────────────────────────────── */
+  // Dépendances volontairement vides : la référence est attribuée UNE fois à
+  // l'ouverture du formulaire et ne doit jamais changer en cours de saisie —
+  // c'est elle qui figure sur le reçu et dans les échanges avec le partenaire.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const bookingRef = useMemo(() => generateBookingRef(isTrial ? "essai" : isLeasing ? "leasing" : "location"), []);
 
   const [submitting, setSubmitting] = useState(false);
@@ -761,7 +765,7 @@ export default function Booking() {
 
     setSubmitting(false);
     navigate("/booking/success", { state: { booking: bookingData, trial: isTrial, payment: { paymentMethod: payMethod, mobileNumber } } });
-  }, [submitting, form, pickupMethod, pickupAddress, pickupPosition, deliveryCity, deliveryPostalCode, deliveryInstructions, selectedOptions, payMethod, mobileNumber, cardNumber, cardHolder, days, deliveryFee, geoDistance, baseTotal, optionsTotal, totalToPay, kycOk, kycScore, kycBadge, bookingRef, isTrial, isLeasing, financingType, financingTerms, vehicle, token, user, addBooking, removeLocalBooking, navigate, location, agencyFull, toastError, showDocumentStep, idType, idFrontImage, idBackImage, licenseFrontImage, licenseBackImage]);
+  }, [submitting, form, pickupMethod, pickupAddress, pickupPosition, deliveryCity, deliveryPostalCode, deliveryInstructions, selectedOptions, payMethod, mobileNumber, cardNumber, cardHolder, days, deliveryFee, geoDistance, baseTotal, optionsTotal, totalToPay, kycOk, kycScore, kycBadge, bookingRef, isTrial, isLeasing, financingType, financingTerms, vehicle, token, user, addBooking, removeLocalBooking, navigate, location, agencyFull, toastError, showDocumentStep, idType, idFrontImage, idBackImage, licenseFrontImage, licenseBackImage, pointsToApply, kycStatus, t]);
 
   /* ════════════════════════════════════════════════════════════════
      RENDU

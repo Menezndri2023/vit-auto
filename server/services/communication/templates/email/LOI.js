@@ -1,5 +1,5 @@
 import { baseEmail, BRAND } from "../shared/base.js";
-import { btn, heroSection, greeting, signature, infoBox, dataTable, divider, stepTimeline, escapeHtml } from "../shared/components.js";
+import { btn, heroSection, greeting, signature, infoBox, dataTable, stepTimeline, escapeHtml } from "../shared/components.js";
 
 export function loiSignedTemplate({ firstName, companyName, loiRef, nextStepDate, country }, trackingPixel = "") {
   const body = `

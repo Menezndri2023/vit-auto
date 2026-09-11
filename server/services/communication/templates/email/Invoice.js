@@ -1,5 +1,5 @@
 import { baseEmail, BRAND } from "../shared/base.js";
-import { btn, heroSection, greeting, signature, dataTable, divider, infoBox, escapeHtml } from "../shared/components.js";
+import { btn, heroSection, greeting, signature, dataTable, divider, escapeHtml } from "../shared/components.js";
 
 export function invoiceTemplate({ firstName, invoice, downloadUrl, country }, trackingPixel = "") {
   const {

@@ -1,5 +1,5 @@
 import { baseEmail, BRAND } from "../shared/base.js";
-import { btn, heroSection, greeting, signature, infoBox, dataTable, divider, badge, stepTimeline, escapeHtml } from "../shared/components.js";
+import { btn, heroSection, greeting, signature, infoBox, dataTable, stepTimeline, escapeHtml } from "../shared/components.js";
 
 export function welcomePartnerTemplate({ firstName, companyName, partnerType, dashboardUrl, refNumber, country }, trackingPixel = "") {
   const typeLabel = {

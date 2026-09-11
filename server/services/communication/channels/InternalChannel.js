@@ -1,4 +1,3 @@
-import mongoose from "mongoose";
 import logger from "../../../utils/logger.js";
 import { sendPush, isAvailable as pushAvailable } from "./PushChannel.js";
 

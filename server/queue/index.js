@@ -10,7 +10,7 @@
 import { Queue } from "bullmq";
 import logger from "../utils/logger.js";
 import { QUEUE_NAMES, QUEUE_OPTIONS, PRIORITY } from "./definitions.js";
-import { initQueueConnection, isQueueConnected, isConnectionHardBroken } from "./connection.js";
+import { initQueueConnection, isConnectionHardBroken } from "./connection.js";
 import { newBookingPartnerPush, newBookingClientPush, bookingConfirmedClientPush } from "../services/communication/templates/push/BookingPush.js";
 
 // ── Registre des queues ───────────────────────────────────────────────────────

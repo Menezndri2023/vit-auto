@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authenticate as protect, authorizeAdmin, requireAdminScope, requireGeneralAdmin } from "../middleware/auth.js";
+import { authenticate as protect, authorizeAdmin, requireGeneralAdmin } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 import {
   adminList,

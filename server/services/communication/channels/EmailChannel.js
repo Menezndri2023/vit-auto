@@ -1,6 +1,5 @@
 import { Resend } from "resend";
 import nodemailer from "nodemailer";
-import { randomUUID } from "crypto";
 import logger from "../../../utils/logger.js";
 
 const FROM = () => process.env.EMAIL_FROM || "VIT AUTO <noreply@vit-auto.com>";
