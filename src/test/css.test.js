@@ -117,3 +117,33 @@ describe("Images recadrées dans leur boîte", () => {
     expect(declare(css, ".visuel img", /object-fit:\s*cover/)).toBe(true);
   });
 });
+
+describe("Cibles tactiles hors des cartes", () => {
+  // Mesuré dans un navigateur : barre de navigation 34–39 px, liens du pied
+  // de page 20 px, icônes sociales 36 px — sous le seuil de 44 px.
+  // La condition porte sur le POINTEUR et non sur la largeur : une tablette
+  // de 1024 px se touche, un portable de 1280 px se clique. Une règle
+  // `max-width` raterait la première et écarterait inutilement la seconde.
+  const REGLE_TACTILE = /@media\s*\(hover:\s*none\)\s*and\s*\(pointer:\s*coarse\)/;
+
+  it("la barre de navigation vise le pointeur tactile, pas une largeur", () => {
+    const css = lire("src", "components", "Navbar", "Navbar.module.css");
+    expect(css).toMatch(REGLE_TACTILE);
+    const bloc = css.slice(css.search(REGLE_TACTILE));
+    expect(bloc).toMatch(/min-height:\s*44px/);
+    expect(bloc).toMatch(/\.navLinks a/);
+  });
+
+  it("les liens du pied de page atteignent 44 px sans se chevaucher", () => {
+    const css = lire("src", "components", "Footer", "Footer.module.css");
+    expect(css).toMatch(REGLE_TACTILE);
+    const bloc = css.slice(css.search(REGLE_TACTILE));
+    // Le remplissage vertical SEUL ferait se chevaucher deux liens voisins,
+    // séparés de 9 px seulement : l'espacement de la liste doit tomber à 0
+    // en même temps. Deux zones cliquables qui se recouvrent sont pires
+    // qu'une petite : on touche le mauvais lien.
+    expect(bloc, "remplissage vertical des liens").toMatch(/padding:\s*12px 0/);
+    expect(bloc, "espacement de liste ramené à 0").toMatch(/\.col ul\s*\{\s*gap:\s*0/);
+    expect(bloc, "icônes sociales portées à 44 px").toMatch(/width:\s*44px/);
+  });
+});

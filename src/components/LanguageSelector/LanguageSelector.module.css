@@ -117,3 +117,10 @@
     padding: 5px 7px;
   }
 }
+
+/* Mesuré à 34 px de haut, sous le seuil tactile de 44 px. Condition sur le
+   pointeur et non sur la largeur : une tablette se touche, un portable se
+   clique (voir Navbar.module.css). */
+@media (hover: none) and (pointer: coarse) {
+  .trigger { min-height: 44px; }
+}

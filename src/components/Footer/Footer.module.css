@@ -200,3 +200,34 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Cibles tactiles ────────────────────────────────────────────
+   Mesuré : les liens des colonnes et de la barre du bas faisaient 20 px de
+   haut, les icônes sociales 36 px — loin des 44 px d'une pastille de doigt,
+   et serrés les uns contre les autres.
+   L'espacement de la liste passe à 0 en même temps que le lien gagne son
+   remplissage vertical : sans ça le pied de page gagnerait 9 px par lien en
+   plus des 24 px de la cible. Le rendu reste donc proche, avec des zones
+   cliquables qui ne se chevauchent plus.
+   Condition sur le POINTEUR et non sur la largeur : à la souris, un lien de
+   20 px se vise très bien et les écarter n'apporterait rien. */
+@media (hover: none) and (pointer: coarse) {
+  .col ul { gap: 0; }
+
+  .col a {
+    display: block;
+    padding: 12px 0;
+  }
+
+  .bottomLinks { gap: 0 20px; }
+
+  .bottomLinks a {
+    display: block;
+    padding: 12px 0;
+  }
+
+  .socials a {
+    width: 44px;
+    height: 44px;
+  }
+}

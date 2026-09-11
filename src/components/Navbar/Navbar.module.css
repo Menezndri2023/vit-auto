@@ -609,3 +609,24 @@
     box-shadow: 0 8px 24px rgba(0,0,0,.18);
   }
 }
+
+/* ── Cibles tactiles ────────────────────────────────────────────
+   Mesuré dans un navigateur : les liens de la barre faisaient 35 px, le
+   déclencheur Loisirs 38 px, le sélecteur de langue 34 px et le bouton Menu
+   39 px — tous sous le seuil de 44 px d'une pastille de doigt.
+   La condition porte sur le POINTEUR, pas sur la largeur : une tablette de
+   1024 px se touche, un portable de 1280 px se clique. Élargir à la souris
+   n'apporterait rien et écarterait les éléments sans raison.
+   La barre fait 64 px de haut : 44 px y tiennent sans la déformer. */
+@media (hover: none) and (pointer: coarse) {
+  .navLinks a,
+  .linkBtn,
+  .ctaBtn,
+  .activitiesTrigger,
+  .dropdownTrigger,
+  .burger {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+}
