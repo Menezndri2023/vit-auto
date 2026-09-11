@@ -391,13 +391,35 @@ const Catalogue = () => {
   // tape "Paris" ou "France" demande CES annonces-là, pas celles de son propre
   // pays. Sans cette exception, chercher une ville ou un pays étranger ne
   // renvoyait jamais rien — le filtre pays vidait le résultat en amont.
+  // ── Repli mondial ────────────────────────────────────────────────────────
+  // Incident du 2026-09-11 : les annonces publiées étaient toutes au Maroc et
+  // en France. Un visiteur en Côte d'Ivoire voyait une page ENTIÈREMENT vide —
+  // ni véhicule, ni image. De sa fenêtre, le site était cassé.
+  //
+  // Le filtre pays est un CONFORT : il rapproche l'offre du visiteur quand il y
+  // en a près de lui. Quand il n'y en a aucune, montrer l'international vaut
+  // infiniment mieux qu'une page blanche.
+  //
+  // Calculé sur le jeu de données de la section affichée, et pas globalement :
+  // il peut y avoir des véhicules dans son pays mais aucune activité de loisir,
+  // et chaque section doit répondre pour elle-même.
+  const jeuCourant = isChauffeurMode ? drivers : isOthersMode ? activities : vehicles;
+  const repliMondial = useMemo(() => {
+    if (searchTerm.trim() || catalogCountry === COUNTRY_INTERNATIONAL) return false;
+    // Rien n'est encore chargé : se taire plutôt qu'annoncer un repli qui n'a
+    // pas lieu d'être.
+    if (!jeuCourant.length) return false;
+    return !jeuCourant.some((x) => !x.country || x.country === catalogCountry);
+  }, [jeuCourant, searchTerm, catalogCountry, COUNTRY_INTERNATIONAL]);
+
   const paysOk = useCallback(
     (paysAnnonce) =>
       !!searchTerm.trim()
       || catalogCountry === COUNTRY_INTERNATIONAL
+      || repliMondial
       || !paysAnnonce
       || paysAnnonce === catalogCountry,
-    [searchTerm, catalogCountry, COUNTRY_INTERNATIONAL]
+    [searchTerm, catalogCountry, COUNTRY_INTERNATIONAL, repliMondial]
   );
 
   const chauffeursFiltered = useMemo(() => {
@@ -665,6 +687,20 @@ const Catalogue = () => {
             du système publicitaire ne servaient à rien. AdBanner ne rend rien
             en l'absence de campagne active, donc aucun espace vide. */}
         <AdBanner position="catalogue_top" />
+
+        {/* Un visiteur à qui l'on montre des annonces d'un autre pays sans le
+            dire croit à une erreur. La phrase transforme un résultat
+            déroutant en information utile. */}
+        {repliMondial && (
+          <p style={{
+            margin: "0 auto 14px", maxWidth: 1180, padding: "10px 14px",
+            background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10,
+            color: "#1e40af", fontSize: ".88rem", lineHeight: 1.6,
+          }}>
+            Aucune annonce disponible en {nomDuPays(catalogCountry) || "votre pays"} pour le moment —
+            voici les annonces disponibles à l'international.
+          </p>
+        )}
 
         <div className={styles.resultsBar}>
           <div className={styles.resultsLeft}>

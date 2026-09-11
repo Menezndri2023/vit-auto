@@ -403,8 +403,10 @@ export const getVehicles = async (req, res) => {
     // Sans cette exception, chercher une ville ou un pays étranger ne
     // renvoyait jamais rien — le filtre pays s'appliquant d'abord, il vidait
     // le résultat avant même que la recherche ne soit évaluée.
+    let clausePaysAppliquee = false;
     if (country && country !== "INTL" && !search) {
       filter.$or = [{ country: String(country).toUpperCase() }, { country: null }];
+      clausePaysAppliquee = true;
     }
 
     // Comptes de test masqués du catalogue PUBLIC uniquement : un
@@ -511,7 +513,39 @@ export const getVehicles = async (req, res) => {
       vehicles = vehicles.map((v) => hidePartnerDirectContact(limitVehicleImages(v)));
     }
 
-    const payload = { vehicles, total, page: Number(page), pages: Math.ceil(total / safeLimit) };
+    // ── Repli mondial ────────────────────────────────────────────────────────
+    // Un visiteur dont le pays ne contient AUCUNE annonce voyait une page
+    // entièrement vide : ni véhicule, ni image, rien. C'est arrivé en
+    // production le 2026-09-11 — les 345 annonces publiées étaient au Maroc et
+    // en France, et le catalogue ivoirien s'est vidé à la seconde où sa
+    // dernière annonce a été retirée.
+    //
+    // Le filtre pays est un CONFORT, pas une règle : il rapproche l'offre du
+    // visiteur quand il y en a. Quand il n'y en a pas, montrer l'international
+    // vaut infiniment mieux qu'une page blanche — c'est déjà la règle appliquée
+    // à la vitrine d'accueil et au moteur de mise en avant.
+    //
+    // `repliMondial` est renvoyé pour que l'interface puisse le DIRE : un
+    // visiteur ivoirien à qui l'on montre des voitures marocaines sans
+    // explication croit à une erreur.
+    let repliMondial = false;
+    if (total === 0 && clausePaysAppliquee && !isAdmin) {
+      const { $or: _paysRetire, ...filtreMondial } = filter;
+      const [vMondial, tMondial] = await Promise.all([
+        Vehicle.find(filtreMondial)
+          .populate("owner", "firstName ville certificationBadge")
+          .populate("business", "companyName isConcessionnaire")
+          .sort({ createdAt: -1 }).skip(skip).limit(safeLimit).lean(),
+        Vehicle.countDocuments(filtreMondial),
+      ]);
+      if (tMondial > 0) {
+        vehicles = vMondial.map((v) => hidePartnerDirectContact(limitVehicleImages(v)));
+        total = tMondial;
+        repliMondial = true;
+      }
+    }
+
+    const payload = { vehicles, total, page: Number(page), pages: Math.ceil(total / safeLimit), ...(repliMondial ? { repliMondial: true } : {}) };
     if (cacheKey) cacheSet(cacheKey, payload);
     res.json(payload);
   } catch (err) {
