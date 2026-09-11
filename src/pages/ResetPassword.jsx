@@ -18,16 +18,16 @@ const ResetPassword = () => {
     return (
       <div className={styles.page}>
         <div className={styles.card}>
-          <div className={styles.logo}>🚗 VIT AUTO</div>
-          <div style={{ fontSize: "3rem", textAlign: "center", marginBottom: 12 }}>⚠️</div>
-          <h1 style={{ textAlign: "center", color: "#0f1b3f", margin: "0 0 12px" }}>Lien invalide</h1>
-          <p style={{ textAlign: "center", color: "#64748b" }}>
-            Ce lien est incomplet ou corrompu. Recommencez la procédure depuis la page de connexion.
-          </p>
-          <Link to="/forgot-password" className={styles.submitBtn}
-            style={{ display: "block", textAlign: "center", marginTop: 24, textDecoration: "none" }}>
-            Redemander un lien
-          </Link>
+          <div className={styles.statut}>
+            <div className={styles.statutIcone}>⚠️</div>
+            <h1 className={styles.statutTitre}>Lien invalide</h1>
+            <p className={styles.statutTexte}>
+              Ce lien est incomplet ou corrompu. Recommencez la procédure depuis la page de connexion.
+            </p>
+            <Link to="/forgot-password" className={`${styles.submitBtn} ${styles.btnLien}`}>
+              Redemander un lien
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -60,53 +60,70 @@ const ResetPassword = () => {
   return (
     <div className={styles.page}>
       <div className={styles.card}>
-        <div className={styles.logo}>🚗 VIT AUTO</div>
-
         {success ? (
-          <>
-            <div style={{ fontSize: "3rem", textAlign: "center", marginBottom: 12 }}>✅</div>
-            <h1 style={{ textAlign: "center", color: "#0f1b3f", margin: "0 0 12px" }}>Mot de passe modifié !</h1>
-            <p style={{ textAlign: "center", color: "#64748b" }}>
+          <div className={styles.statut}>
+            <div className={styles.statutIcone}>✅</div>
+            <h1 className={styles.statutTitre}>Mot de passe modifié !</h1>
+            <p className={styles.statutTexte}>
               Votre mot de passe a été réinitialisé. Redirection vers la connexion…
             </p>
-          </>
+          </div>
         ) : (
           <>
-            <h1 style={{ textAlign: "center", color: "#0f1b3f", margin: "0 0 8px" }}>Nouveau mot de passe</h1>
-            <p style={{ textAlign: "center", color: "#64748b", marginBottom: 24 }}>
-              Choisissez un mot de passe sécurisé d'au moins 8 caractères.
-            </p>
+            <div className={styles.logo}>
+              <div className={styles.logoIcon}>🔒</div>
+              <h1>Nouveau mot de passe</h1>
+              <p>Choisissez un mot de passe sécurisé d'au moins 8 caractères.</p>
+            </div>
 
             {errMsg && (
-              <div style={{ background: "#fef2f2", border: "1.5px solid #fecaca", borderRadius: 10, padding: "10px 14px", marginBottom: 16, color: "#991b1b", fontSize: "0.88rem" }}>
-                {errMsg}
+              <div className={`${styles.encart} ${styles.encartErreur}`} role="alert">
+                <p>{errMsg}</p>
               </div>
             )}
 
             <form onSubmit={handleSubmit} className={styles.form}>
-              <div className={styles.inputGroup}>
-                <label>Nouveau mot de passe</label>
-                <div style={{ position: "relative" }}>
-                  <input type={showPass ? "text" : "password"} placeholder="Minimum 8 caractères"
-                    value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus
-                    style={{ paddingRight: 44 }} />
+              <div className={styles.pwField}>
+                <label htmlFor="reset-password">Nouveau mot de passe</label>
+                <div className={styles.pwWrap}>
+                  <input id="reset-password" name="password" autoComplete="new-password"
+                    type={showPass ? "text" : "password"} placeholder="Minimum 8 caractères"
+                    value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus />
                   <button type="button" onClick={() => setShowPass((p) => !p)}
-                    style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem" }}>
+                    className={styles.pwToggle}
+                    aria-label={showPass ? "Masquer le mot de passe" : "Afficher le mot de passe"}>
                     {showPass ? "🙈" : "👁️"}
                   </button>
                 </div>
               </div>
 
-              <div className={styles.inputGroup}>
-                <label>Confirmer le mot de passe</label>
-                <input type={showPass ? "text" : "password"} placeholder="Retapez le mot de passe"
-                  value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+              <div className={styles.pwField}>
+                <label htmlFor="reset-confirm">Confirmer le mot de passe</label>
+                <div className={styles.pwWrap}>
+                  <input id="reset-confirm" name="confirmPassword" autoComplete="new-password"
+                    type={showPass ? "text" : "password"} placeholder="Retapez le mot de passe"
+                    value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+                  <button type="button" onClick={() => setShowPass((p) => !p)}
+                    className={styles.pwToggle}
+                    aria-label={showPass ? "Masquer le mot de passe" : "Afficher le mot de passe"}>
+                    {showPass ? "🙈" : "👁️"}
+                  </button>
+                </div>
+                {confirm && (
+                  <p className={`${styles.concordance} ${password === confirm ? styles.concordanceOk : styles.concordanceNon}`}>
+                    {password === confirm ? "✓ Les mots de passe correspondent" : "✗ Les mots de passe ne correspondent pas"}
+                  </p>
+                )}
               </div>
 
               <button type="submit" className={styles.submitBtn} disabled={loading}>
-                {loading ? "Réinitialisation…" : "Enregistrer le nouveau mot de passe"}
+                {loading ? "Réinitialisation…" : "Enregistrer le mot de passe"}
               </button>
             </form>
+
+            <div className={styles.footerLink}>
+              <Link to="/login">← Retour à la connexion</Link>
+            </div>
           </>
         )}
       </div>

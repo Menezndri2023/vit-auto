@@ -1,17 +1,33 @@
-/* ─── Full page background ─────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   AUTHENTIFICATION — feuille commune à 5 écrans
+   Login, Register, ForgotPassword, ResetPassword, VerifyEmail.
+   Toute classe retirée ici casse l'un d'eux : les noms historiques (page,
+   card, logo, logoIcon, form, inputGroup, row, divider, footerLink,
+   submitBtn, srOnly) sont conservés tels quels.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Fond pleine page ──────────────────────────────────────── */
 .page {
-  min-height: 100vh;
+  /* Ces écrans sont rendus ENTRE la barre de navigation et le pied de page,
+     pas seuls dans la fenêtre. Un `100vh` sec ajoutait donc systématiquement
+     la hauteur de la navbar : la page défilait toujours, et la carte était
+     poussée sous la ligne de flottaison. Mesuré à 390 px : 2265 px de page
+     pour 844 px de fenêtre.
+     `dvh` suit en plus la barre d'adresse mobile, qui se rétracte au
+     défilement — `vh` s'en tient à sa hauteur maximale et déborde. */
+  min-height: calc(100vh - var(--navbar-h, 64px));
+  min-height: calc(100dvh - var(--navbar-h, 64px));
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: clamp(16px, 4vw, 40px) clamp(12px, 4vw, 24px);
   box-sizing: border-box;
   background: linear-gradient(135deg, #0f1b3f 0%, #1e3a6e 50%, #0f1b3f 100%);
   position: relative;
   overflow: hidden;
 }
 
-/* decorative blobs */
+/* Halos décoratifs */
 .page::before,
 .page::after {
   content: "";
@@ -38,12 +54,12 @@
   left: -100px;
 }
 
-/* ─── Card ──────────────────────────────────────────────── */
+/* ─── Carte ─────────────────────────────────────────────────── */
 .card {
   width: min(460px, 100%);
   background: #ffffff;
   border-radius: var(--r-xl, 24px);
-  padding: clamp(24px, 5vw, 44px) clamp(20px, 5vw, 40px);
+  padding: clamp(24px, 5vw, 40px) clamp(20px, 5vw, 36px);
   box-shadow: 0 32px 80px rgba(0, 0, 0, 0.35);
   position: relative;
   z-index: 1;
@@ -51,15 +67,25 @@
   font-family: var(--font-base, "Poppins", sans-serif);
 }
 
+/* L'inscription porte trois fois plus de champs que la connexion : elle a
+   besoin de deux colonnes dès la tablette, donc d'une carte plus large. */
+.cardLarge {
+  width: min(600px, 100%);
+}
+
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(30px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ─── Logo / header ─────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .card { animation: none; }
+}
+
+/* ─── En-tête ───────────────────────────────────────────────── */
 .logo {
   text-align: center;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 
 .logoIcon {
@@ -89,31 +115,84 @@
   color: #8493b0;
 }
 
-/* ─── Form ──────────────────────────────────────────────── */
+/* ─── Formulaire ────────────────────────────────────────────── */
 .form {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
+/* ─── Groupes de champs ─────────────────────────────────────────
+   L'inscription empilait treize champs d'affilée, sans aucun repère : on ne
+   savait ni où on en était, ni combien il en restait. Les champs sont
+   désormais réunis par sujet, chaque groupe portant son intitulé. */
+.groupe {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.legende {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  margin: 8px 0 2px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.legende::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #eef2f9;
+}
+
+/* ─── Champ (intitulé visible + saisie) ─────────────────────────
+   Le libellé était porté par le seul `placeholder` : il disparaissait dès la
+   première frappe, et l'utilisateur qui relisait son formulaire ne savait
+   plus quel champ il regardait. Il est maintenant affiché en permanence. */
+.field,
 .inputGroup {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 
-.inputGroup label {
-  font-size: 0.82rem;
+.field > label,
+.inputGroup label,
+.label {
+  font-size: 0.78rem;
   font-weight: 700;
-  color: #374151;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: #475569;
+  letter-spacing: 0.02em;
+}
+
+.requis {
+  color: #ff4d2d;
+  font-weight: 800;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: #8493b0;
 }
 
 .inputGroup input,
 .form input,
 .form select {
   width: 100%;
+  min-height: 48px;
   padding: 12px 16px;
   border: 1.5px solid #e5e9f4;
   border-radius: 12px;
@@ -136,13 +215,15 @@
   color: #b0bcd0;
 }
 
+/* Deux champs côte à côte. `minmax(0, 1fr)` et non `1fr` : une colonne de
+   grille a un `min-width: auto` implicite, qu'un champ large fait déborder. */
 .row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
 }
 
-/* ─── Role select ───────────────────────────────────────── */
+/* ─── Sélecteur ─────────────────────────────────────────────── */
 .form select {
   cursor: pointer;
   appearance: none;
@@ -152,9 +233,139 @@
   padding-right: 38px;
 }
 
-/* ─── Submit button ─────────────────────────────────────── */
+/* ─── Choix du profil (client / partenaire) ─────────────────────
+   C'était un menu déroulant : le choix le plus structurant de l'inscription
+   — il change la nature du compte et fait apparaître trois champs — était
+   caché derrière un contrôle qu'il fallait ouvrir pour voir les options. */
+.choix {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.choixOption {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  min-height: 48px;
+  border: 1.5px solid #e5e9f4;
+  border-radius: 14px;
+  background: #f8faff;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.choixOption:hover {
+  border-color: #c8d3e8;
+}
+
+.choixOption input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.choixActif {
+  border-color: #ff4d2d;
+  background: #fff5f3;
+  box-shadow: 0 0 0 3px rgba(255, 77, 45, 0.12);
+}
+
+.choixTitre {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #0f1b3f;
+}
+
+.choixDesc {
+  font-size: 0.76rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+/* ─── Mot de passe ──────────────────────────────────────────── */
+.pwField {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pwWrap {
+  position: relative;
+}
+
+.pwWrap input {
+  padding-right: 52px;
+}
+
+/* 44 × 44 px : l'œil faisait 28 px de haut, sous le seuil tactile. */
+.pwToggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.pwToggle:hover {
+  background: #eef2f9;
+}
+
+.force {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.forceRail {
+  flex: 1;
+  height: 5px;
+  background: #e2e8f0;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.forceBarre {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.forceTexte {
+  font-size: 0.74rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.concordance {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.concordanceOk  { color: #10b981; }
+.concordanceNon { color: #ef4444; }
+
+/* ─── Bouton principal ──────────────────────────────────────── */
 .submitBtn {
   width: 100%;
+  min-height: 52px;
   padding: 14px;
   background: linear-gradient(135deg, #ff4d2d 0%, #e03519 100%);
   color: white;
@@ -163,31 +374,60 @@
   font-size: 1rem;
   font-weight: 800;
   cursor: pointer;
-  transition: all 0.25s ease;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, opacity 0.25s ease;
   box-shadow: 0 6px 20px rgba(255, 77, 45, 0.38);
   margin-top: 4px;
   letter-spacing: 0.01em;
 }
 
-.submitBtn:hover {
+.submitBtn:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 10px 28px rgba(255, 77, 45, 0.48);
 }
 
-.submitBtn:active {
+.submitBtn:active:not(:disabled) {
   transform: translateY(0);
   box-shadow: 0 4px 12px rgba(255, 77, 45, 0.3);
 }
 
-/* ─── Divider ───────────────────────────────────────────── */
+/* L'état occupé n'était signalé que par le texte du bouton : rien n'indiquait
+   qu'il ne répondait plus au clic. */
+.submitBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Action secondaire — retour, annulation. */
+.btnSecondaire {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.btnSecondaire:hover {
+  background: #e8eef7;
+  border-color: #c8d3e8;
+}
+
+/* ─── Séparateur ────────────────────────────────────────────── */
 .divider {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 4px 0;
+  margin: 10px 0 6px;
   color: #b0bcd0;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 600;
+  text-align: center;
 }
 
 .divider::before,
@@ -198,7 +438,109 @@
   background: #e5e9f4;
 }
 
-/* ─── Footer link ───────────────────────────────────────── */
+/* ─── Encarts d'information ─────────────────────────────────────
+   Ces blocs étaient écrits en styles en ligne, recopiés d'un écran à
+   l'autre avec des valeurs légèrement différentes à chaque fois. */
+.encart {
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.encart p { margin: 0; }
+
+.encartInfo {
+  background: #eff6ff;
+  border: 1.5px solid #bfdbfe;
+  color: #1e40af;
+}
+
+.encartAttention {
+  background: #fffbeb;
+  border: 1.5px solid #f59e0b;
+  color: #78350f;
+}
+
+.encartErreur {
+  background: #fef2f2;
+  border: 1.5px solid #fecaca;
+  color: #991b1b;
+}
+
+.encartTitre {
+  font-weight: 800;
+  color: #92400e;
+}
+
+.encartSucces {
+  color: #10b981;
+  font-weight: 700;
+}
+
+.encartBtn {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  background: #f59e0b;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.86rem;
+}
+
+.encartBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.encartLien {
+  font-weight: 700;
+  color: #1d4ed8;
+  align-self: flex-start;
+}
+
+/* ─── Écrans d'état (envoyé, réussi, lien invalide) ─────────────
+   Ces blocs étaient recopiés en styles en ligne sur trois écrans, avec des
+   valeurs légèrement différentes à chaque endroit. */
+.statut {
+  text-align: center;
+}
+
+.statutIcone {
+  font-size: 3rem;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+
+.statutTitre {
+  margin: 0 0 12px;
+  font-size: 1.35rem;
+  color: #0f1b3f;
+}
+
+.statutTexte {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+/* Un lien qui prend l'apparence du bouton principal. */
+.btnLien {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  margin-top: 24px;
+  box-sizing: border-box;
+}
+
+/* ─── Liens de bas de carte ─────────────────────────────────────
+   `display: block` et un padding vertical : ces liens faisaient 20 px de
+   haut, très en dessous du seuil tactile de 44 px. */
 .footerLink {
   text-align: center;
   font-size: 0.88rem;
@@ -206,21 +548,31 @@
   margin-top: 4px;
 }
 
-.footerLink a {
+.footerLink a,
+.footerLink button {
+  display: inline-block;
+  padding: 12px 4px;
   color: #ff4d2d;
   font-weight: 800;
   text-decoration: none;
   transition: color 0.2s;
 }
 
-.footerLink a:hover {
-  color: #c73012;
+.footerLink button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  color: #64748b;
+  text-decoration: underline;
 }
 
-/* ─── Accessibilité ─────────────────────────────────────── */
-/* Label associé à un champ mais masqué visuellement — le placeholder reste
-   l'indice visuel, ce label existe pour les lecteurs d'écran (formulaires
-   sans <label> = champ annoncé sans nom pour un utilisateur non-voyant). */
+.footerLink a:hover { color: #c73012; }
+
+/* ─── Accessibilité ─────────────────────────────────────────── */
+/* Intitulé associé à un champ mais masqué visuellement — utilisé là où
+   l'intitulé visible ferait doublon (code à 6 chiffres, par exemple). */
 .srOnly {
   position: absolute;
   width: 1px;
@@ -233,14 +585,17 @@
   border: 0;
 }
 
-/* ─── Responsive ────────────────────────────────────────── */
+/* ─── Responsive ────────────────────────────────────────────── */
 @media (max-width: 520px) {
   .card {
-    padding: 32px 24px;
+    padding: 28px 20px;
     border-radius: 20px;
   }
 
-  .row {
-    grid-template-columns: 1fr;
+  /* Une colonne : deux champs côte à côte sur 390 px donnent des zones de
+     saisie de 150 px, trop étroites pour un nom ou un mot de passe. */
+  .row,
+  .choix {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

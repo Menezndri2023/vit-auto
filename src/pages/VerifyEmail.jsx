@@ -56,58 +56,59 @@ const VerifyEmail = () => {
   return (
     <div className={styles.page}>
       <div className={styles.card}>
-        <div className={styles.logo}>🚗 VIT AUTO</div>
-
+        {/* Quatre états pour un même écran : ils partagent désormais la même
+            structure (icône, titre, explication, action) au lieu de quatre
+            empilements de styles en ligne légèrement différents. */}
         {status === "loading" && (
-          <>
-            <h1 style={{ textAlign: "center", color: "#0f1b3f", margin: "0 0 8px" }}>Vérification en cours…</h1>
-            <p style={{ textAlign: "center", color: "#64748b", margin: 0 }}>Un instant, nous vérifions votre lien.</p>
-            <div style={{ textAlign: "center", marginTop: "24px", fontSize: "2rem" }}>⏳</div>
-          </>
+          <div className={styles.statut}>
+            <div className={styles.statutIcone}>⏳</div>
+            <h1 className={styles.statutTitre}>Vérification en cours…</h1>
+            <p className={styles.statutTexte}>Un instant, nous vérifions votre lien.</p>
+          </div>
         )}
 
         {status === "success" && (
-          <>
-            <div style={{ fontSize: "3rem", marginBottom: "12px", textAlign: "center" }}>✅</div>
-            <h1 style={{ textAlign: "center", color: "#0f1b3f", margin: "0 0 12px" }}>Vérification réussie !</h1>
-            <p style={{ textAlign: "center", color: "#64748b", margin: 0 }}>
+          <div className={styles.statut}>
+            <div className={styles.statutIcone}>✅</div>
+            <h1 className={styles.statutTitre}>Vérification réussie !</h1>
+            <p className={styles.statutTexte}>
               {dest.startsWith("/kyc")
                 ? "Votre adresse e-mail a été confirmée. Redirection vers la vérification d'identité (KYC), nécessaire avant de publier…"
                 : "Votre adresse e-mail a été confirmée. Redirection vers votre espace…"}
             </p>
-            <Link to={dest} className={styles.submitBtn} style={{ display: "block", textAlign: "center", marginTop: "24px", textDecoration: "none" }}>
+            <Link to={dest} className={`${styles.submitBtn} ${styles.btnLien}`}>
               {dest.startsWith("/kyc")
                 ? "Continuer vers la vérification d'identité →"
                 : "Accéder à mon espace →"}
             </Link>
-          </>
+          </div>
         )}
 
         {status === "error" && (
-          <>
-            <div style={{ fontSize: "3rem", marginBottom: "12px", textAlign: "center" }}>❌</div>
-            <h1 style={{ textAlign: "center", color: "#0f1b3f", margin: "0 0 12px" }}>Lien invalide</h1>
-            <p style={{ textAlign: "center", color: "#64748b", margin: "0 0 8px" }}>{message}</p>
-            <p style={{ textAlign: "center", color: "#64748b", margin: 0 }}>
+          <div className={styles.statut}>
+            <div className={styles.statutIcone}>❌</div>
+            <h1 className={styles.statutTitre}>Lien invalide</h1>
+            <p className={styles.statutTexte}>{message}</p>
+            <p className={styles.statutTexte}>
               Si votre lien a expiré, vous pouvez en demander un nouveau depuis la page de connexion.
             </p>
-            <Link to="/login" className={styles.submitBtn} style={{ display: "block", textAlign: "center", marginTop: "24px", textDecoration: "none" }}>
+            <Link to="/login" className={`${styles.submitBtn} ${styles.btnLien}`}>
               Retour à la connexion
             </Link>
-          </>
+          </div>
         )}
 
         {status === "missing" && (
-          <>
-            <div style={{ fontSize: "3rem", marginBottom: "12px", textAlign: "center" }}>⚠️</div>
-            <h1 style={{ textAlign: "center", color: "#0f1b3f", margin: "0 0 12px" }}>Lien manquant</h1>
-            <p style={{ textAlign: "center", color: "#64748b", margin: 0 }}>
+          <div className={styles.statut}>
+            <div className={styles.statutIcone}>⚠️</div>
+            <h1 className={styles.statutTitre}>Lien manquant</h1>
+            <p className={styles.statutTexte}>
               Ce lien de vérification est incomplet. Cliquez sur le lien exact reçu par e-mail.
             </p>
-            <Link to="/" className={styles.submitBtn} style={{ display: "block", textAlign: "center", marginTop: "24px", textDecoration: "none" }}>
+            <Link to="/" className={`${styles.submitBtn} ${styles.btnLien}`}>
               Retour à l'accueil
             </Link>
-          </>
+          </div>
         )}
       </div>
     </div>

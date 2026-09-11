@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -46,6 +46,17 @@ const Register = () => {
   useEffect(() => {
     if (countryCode) setForm((prev) => (prev.country ? prev : { ...prev, country: countryCode }));
   }, [countryCode]);
+
+  // Le bouton Google exige la date de naissance et le pays. Grisé, il avalait
+  // le clic sans rien dire ; il amène désormais au champ qui manque.
+  const champDateRef = useRef(null);
+  const champPaysRef = useRef(null);
+  const allerAuChampManquant = () => {
+    const cible = (!form.birthDate ? champDateRef : champPaysRef).current;
+    if (!cible) return;
+    cible.scrollIntoView({ behavior: "smooth", block: "center" });
+    cible.focus({ preventScroll: true });
+  };
 
   const [submitting,   setSubmitting]   = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -232,25 +243,29 @@ const Register = () => {
           </div>
 
           <form className={styles.form} onSubmit={onVerifyCode}>
-            <input
-              name="emailCode"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              value={emailCode}
-              onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="Code à 6 chiffres"
-              style={{ textAlign: "center", letterSpacing: "8px", fontSize: "1.3rem", fontWeight: 700 }}
-              autoFocus
-              required
-            />
+            <div className={styles.field}>
+              <label htmlFor="register-code">Code à 6 chiffres</label>
+              <input
+                id="register-code"
+                name="emailCode"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={emailCode}
+                onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="000000"
+                style={{ textAlign: "center", letterSpacing: "8px", fontSize: "1.3rem", fontWeight: 700 }}
+                autoFocus
+                required
+              />
+            </div>
 
             <button type="submit" className={styles.submitBtn} disabled={codeSubmitting || emailCode.length !== 6}>
               {codeSubmitting ? "Vérification…" : "Confirmer mon e-mail"}
             </button>
 
             <div className={styles.footerLink}>
-              <button type="button" onClick={onResendCode} disabled={resending} style={{ background: "none", border: "none", color: "inherit", cursor: resending ? "not-allowed" : "pointer", textDecoration: "underline", padding: 0, font: "inherit" }}>
+              <button type="button" onClick={onResendCode} disabled={resending}>
                 {resending ? "Envoi…" : "Renvoyer le code"}
               </button>
             </div>
@@ -260,221 +275,293 @@ const Register = () => {
     );
   }
 
+  const forceMotDePasse = (() => {
+    const mdp = form.password;
+    const score = (mdp.length >= 8 ? 1 : 0) + (/[A-Z]/.test(mdp) ? 1 : 0) + (/\d/.test(mdp) ? 1 : 0);
+    return {
+      score,
+      texte:   ["Faible", "Faible", "Moyen", "Fort"][score],
+      couleur: ["#ef4444", "#ef4444", "#f59e0b", "#10b981"][score],
+    };
+  })();
+
   return (
     <div className={styles.page}>
-      <div className={styles.card}>
+      <div className={`${styles.card} ${styles.cardLarge}`}>
         <div className={styles.logo}>
           <div className={styles.logoIcon}>🚗</div>
           <h1>VIT AUTO</h1>
           <p>Créez votre compte gratuitement</p>
         </div>
 
+        {/* Raccourci Google en tête : c'est le chemin le plus court vers un
+            compte. Il était jusqu'ici coincé au MILIEU du formulaire, entre
+            les champs partenaire et les mots de passe — donc découvert après
+            avoir rempli la moitié de ce qu'il permet justement d'éviter. */}
+        <GoogleAuthButton
+          onCredential={handleGoogleCredential}
+          disabled={googleDisabled}
+          onDisabledClick={allerAuChampManquant}
+          disabledHint={googleDisabled ? "Renseignez votre date de naissance et votre pays ci-dessous pour continuer avec Google." : null}
+        />
+        <div className={styles.divider}>ou remplissez le formulaire</div>
+
         <form className={styles.form} onSubmit={onSubmit} autoComplete="on">
-          <div className={styles.row}>
-            <label htmlFor="register-firstName" className={styles.srOnly}>Prénom</label>
-            <input
-              id="register-firstName"
-              name="firstName"
-              autoComplete="given-name"
-              value={form.firstName}
-              onChange={handleChange}
-              placeholder="Prénom *"
-              required
-            />
-            <label htmlFor="register-lastName" className={styles.srOnly}>Nom</label>
-            <input
-              id="register-lastName"
-              name="lastName"
-              autoComplete="family-name"
-              value={form.lastName}
-              onChange={handleChange}
-              placeholder="Nom *"
-              required
-            />
-          </div>
+          <fieldset className={styles.groupe}>
+            <legend className={styles.legende}>Votre identité</legend>
 
-          <label htmlFor="register-email" className={styles.srOnly}>Adresse e-mail</label>
-          <input
-            id="register-email"
-            type="email"
-            name="email"
-            autoComplete="email"
-            value={form.email}
-            onChange={handleChange}
-            placeholder="Adresse e-mail *"
-            required
-          />
-
-          <label htmlFor="register-phone" className={styles.srOnly}>Téléphone</label>
-          <input
-            id="register-phone"
-            type="tel"
-            name="phone"
-            autoComplete="tel"
-            value={form.phone}
-            onChange={handleChange}
-            placeholder="Téléphone (optionnel, ex : +225 07 00 00 00)"
-          />
-
-          <label style={{ display: "block", fontSize: "0.82rem", color: "#4a5876", marginBottom: 4 }}>
-            Date de naissance * <span style={{ color: "#94a3b8" }}>(vous devez avoir 18 ans ou plus)</span>
-          </label>
-          <input
-            type="date"
-            name="birthDate"
-            autoComplete="bday"
-            value={form.birthDate}
-            onChange={handleChange}
-            max={new Date(Date.now() - 18 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)}
-            required
-          />
-
-          <select name="country" value={form.country} onChange={handleChange} autoComplete="country" required>
-            <option value="" disabled>Pays *</option>
-            {WORLD_COUNTRIES.map((c) => (
-              <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
-            ))}
-          </select>
-          <small style={{ color: "#8493b0", fontSize: "0.78rem", display: "block", marginTop: -8, marginBottom: 4 }}>
-            📍 Utilisé pour vous montrer les annonces de votre pays.
-          </small>
-
-          <select name="role" value={form.role} onChange={handleChange} autoComplete="off">
-            <option value="client">🧑 Client — Louer des véhicules</option>
-            <option value="partenaire">🤝 Partenaire — Publier des annonces</option>
-          </select>
-
-          {form.role === "partenaire" && (
-            <>
-              <select name="activity" value={form.activity} onChange={handleChange} autoComplete="off">
-                {ACTIVITIES.map((a) => (
-                  <option key={a} value={a}>{ACTIVITY_LABELS[a]}</option>
-                ))}
-              </select>
-              <select name="entityType" value={form.entityType} onChange={handleChange} autoComplete="off">
-                {ENTITY_TYPES.map((t) => (
-                  <option key={t} value={t}>{ENTITY_TYPE_LABELS[t]}</option>
-                ))}
-              </select>
-              {/* Registre de Commerce — demandé dès l'inscription pour toute
-                  entité qui exerce au nom d'une société. Un particulier n'en a
-                  pas : le champ n'apparaît pas pour lui plutôt que d'être
-                  affiché puis ignoré. */}
-              {requiresBusinessDocs(form.entityType) && (
+            <div className={styles.row}>
+              <div className={styles.field}>
+                <label htmlFor="register-firstName">Prénom <span className={styles.requis}>*</span></label>
                 <input
-                  name="rccm"
-                  value={form.rccm}
+                  id="register-firstName"
+                  name="firstName"
+                  autoComplete="given-name"
+                  value={form.firstName}
                   onChange={handleChange}
-                  placeholder="N° de Registre de Commerce (RC/RCCM) *"
-                  autoComplete="off"
-                  maxLength={60}
+                  placeholder="Awa"
+                  required
                 />
-              )}
-              <small style={{ color: "#8493b0", fontSize: "0.78rem", display: "block", marginTop: -8, marginBottom: 4 }}>
-                {form.activity === "chauffeur"
-                  ? "📍 En tant que chauffeur, une pièce d'identité, un permis de conduire vérifié et un CV vous seront demandés avant de publier."
-                  : requiresBusinessDocs(form.entityType)
-                    ? "📍 Une vérification entreprise (documents légaux) sera nécessaire pour publier, en plus de votre pièce d'identité."
-                    : "📍 En tant que particulier, seule une vérification d'identité (pièce + selfie) vous sera demandée pour publier."}
-              </small>
-            </>
-          )}
-
-          <div className={styles.divider}>OU</div>
-          <GoogleAuthButton
-            onCredential={handleGoogleCredential}
-            disabled={googleDisabled}
-            disabledHint={googleDisabled ? "Renseignez votre date de naissance et votre pays pour continuer avec Google." : null}
-          />
-
-          <div className={styles.row}>
-            <div style={{ position: "relative" }}>
-              <label htmlFor="register-password" className={styles.srOnly}>Mot de passe</label>
-              <input
-                id="register-password"
-                type={showPassword ? "text" : "password"}
-                name="password"
-                autoComplete="new-password"
-                value={form.password}
-                onChange={handleChange}
-                placeholder="Mot de passe *"
-                required
-                minLength="8"
-                style={{ width: "100%", boxSizing: "border-box", paddingRight: 40 }}
-              />
-              <button type="button" onClick={() => setShowPassword((p) => !p)}
-                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-                style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: "1rem" }}>
-                {showPassword ? "🙈" : "👁️"}
-              </button>
+              </div>
+              <div className={styles.field}>
+                <label htmlFor="register-lastName">Nom <span className={styles.requis}>*</span></label>
+                <input
+                  id="register-lastName"
+                  name="lastName"
+                  autoComplete="family-name"
+                  value={form.lastName}
+                  onChange={handleChange}
+                  placeholder="Koné"
+                  required
+                />
+              </div>
             </div>
-            <div style={{ position: "relative" }}>
-              <label htmlFor="register-confirmPassword" className={styles.srOnly}>Confirmer le mot de passe</label>
-              <input
-                id="register-confirmPassword"
-                type={showPassword ? "text" : "password"}
-                name="confirmPassword"
-                autoComplete="new-password"
-                value={form.confirmPassword}
-                onChange={handleChange}
-                placeholder="Confirmer *"
-                required
-                style={{ width: "100%", boxSizing: "border-box", paddingRight: 40 }}
-              />
-              <button type="button" onClick={() => setShowPassword((p) => !p)}
-                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-                style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: "1rem" }}>
-                {showPassword ? "🙈" : "👁️"}
-              </button>
-            </div>
-          </div>
 
-          {/* Indicateur force mot de passe */}
-          {form.password && (
-            <div style={{ marginTop: -8, marginBottom: 4 }}>
-              {(() => {
-                const len   = form.password.length;
-                const hasUp = /[A-Z]/.test(form.password);
-                const hasNum = /\d/.test(form.password);
-                const score = (len >= 8 ? 1 : 0) + (hasUp ? 1 : 0) + (hasNum ? 1 : 0);
-                const label = ["Faible", "Moyen", "Fort"][score] || "Faible";
-                const color = ["#ef4444", "#f59e0b", "#10b981"][score] || "#ef4444";
-                return (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ flex: 1, height: 4, background: "#e2e8f0", borderRadius: 99 }}>
-                      <div style={{ width: `${(score + 1) * 33}%`, height: "100%", background: color, borderRadius: 99, transition: "width .3s" }} />
-                    </div>
-                    <span style={{ fontSize: ".72rem", color, fontWeight: 700 }}>{label}</span>
+            <div className={styles.row}>
+              <div className={styles.field}>
+                <label htmlFor="register-birthDate">Date de naissance <span className={styles.requis}>*</span></label>
+                <input
+                  id="register-birthDate"
+                  ref={champDateRef}
+                  type="date"
+                  name="birthDate"
+                  autoComplete="bday"
+                  value={form.birthDate}
+                  onChange={handleChange}
+                  max={new Date(Date.now() - 18 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)}
+                  required
+                />
+                <p className={styles.hint}>Vous devez avoir 18 ans ou plus.</p>
+              </div>
+              <div className={styles.field}>
+                <label htmlFor="register-country">Pays <span className={styles.requis}>*</span></label>
+                <select
+                  id="register-country"
+                  ref={champPaysRef}
+                  name="country"
+                  value={form.country}
+                  onChange={handleChange}
+                  autoComplete="country"
+                  required
+                >
+                  <option value="" disabled>Sélectionnez votre pays</option>
+                  {WORLD_COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
+                  ))}
+                </select>
+                <p className={styles.hint}>Détermine les annonces qui vous sont montrées.</p>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset className={styles.groupe}>
+            <legend className={styles.legende}>Vos coordonnées</legend>
+
+            <div className={styles.field}>
+              <label htmlFor="register-email">Adresse e-mail <span className={styles.requis}>*</span></label>
+              <input
+                id="register-email"
+                type="email"
+                name="email"
+                autoComplete="email"
+                value={form.email}
+                onChange={handleChange}
+                placeholder="vous@exemple.com"
+                required
+              />
+              <p className={styles.hint}>Un code de confirmation y sera envoyé.</p>
+            </div>
+
+            <div className={styles.field}>
+              <label htmlFor="register-phone">Téléphone <span style={{ color: "#94a3b8", fontWeight: 600 }}>(facultatif)</span></label>
+              <input
+                id="register-phone"
+                type="tel"
+                name="phone"
+                autoComplete="tel"
+                value={form.phone}
+                onChange={handleChange}
+                placeholder="+225 07 00 00 00 00"
+              />
+            </div>
+          </fieldset>
+
+          <fieldset className={styles.groupe}>
+            <legend className={styles.legende}>Vous êtes</legend>
+
+            {/* C'était un menu déroulant : le choix le plus structurant de
+                l'inscription — il change la nature du compte et fait
+                apparaître trois champs — était caché derrière un contrôle
+                qu'il fallait ouvrir pour voir les deux options. */}
+            <div className={styles.choix} role="radiogroup" aria-label="Type de compte">
+              {[
+                { valeur: "client",     titre: "🧑 Client",     desc: "Louer, acheter, importer" },
+                { valeur: "partenaire", titre: "🤝 Partenaire", desc: "Publier des annonces" },
+              ].map((option) => (
+                <label
+                  key={option.valeur}
+                  className={`${styles.choixOption} ${form.role === option.valeur ? styles.choixActif : ""}`}
+                >
+                  <input
+                    type="radio"
+                    name="role"
+                    value={option.valeur}
+                    checked={form.role === option.valeur}
+                    onChange={handleChange}
+                  />
+                  <span className={styles.choixTitre}>{option.titre}</span>
+                  <span className={styles.choixDesc}>{option.desc}</span>
+                </label>
+              ))}
+            </div>
+
+            {form.role === "partenaire" && (
+              <>
+                <div className={styles.row}>
+                  <div className={styles.field}>
+                    <label htmlFor="register-activity">Votre activité</label>
+                    <select id="register-activity" name="activity" value={form.activity} onChange={handleChange} autoComplete="off">
+                      {ACTIVITIES.map((a) => (
+                        <option key={a} value={a}>{ACTIVITY_LABELS[a]}</option>
+                      ))}
+                    </select>
                   </div>
-                );
-              })()}
-            </div>
-          )}
+                  <div className={styles.field}>
+                    <label htmlFor="register-entityType">Vous exercez en tant que</label>
+                    <select id="register-entityType" name="entityType" value={form.entityType} onChange={handleChange} autoComplete="off">
+                      {ENTITY_TYPES.map((t) => (
+                        <option key={t} value={t}>{ENTITY_TYPE_LABELS[t]}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
-          {/* Correspondance des mots de passe — feedback instantané, même
-              principe que l'indicateur de force ci-dessus. Bug UX corrigé
-              (audit) : jusqu'ici la seule façon de savoir que les deux
-              mots de passe ne correspondaient pas était de soumettre le
-              formulaire et de lire un toast générique. */}
-          {form.confirmPassword && (
-            <p style={{
-              margin: "-8px 0 4px", fontSize: ".78rem", fontWeight: 700,
-              color: form.password === form.confirmPassword ? "#10b981" : "#ef4444",
-            }}>
-              {form.password === form.confirmPassword ? "✓ Les mots de passe correspondent" : "✗ Les mots de passe ne correspondent pas"}
-            </p>
-          )}
+                {/* Registre de Commerce — demandé dès l'inscription pour toute
+                    entité qui exerce au nom d'une société. Un particulier n'en a
+                    pas : le champ n'apparaît pas pour lui plutôt que d'être
+                    affiché puis ignoré. */}
+                {requiresBusinessDocs(form.entityType) && (
+                  <div className={styles.field}>
+                    <label htmlFor="register-rccm">N° de Registre de Commerce (RC/RCCM) <span className={styles.requis}>*</span></label>
+                    <input
+                      id="register-rccm"
+                      name="rccm"
+                      value={form.rccm}
+                      onChange={handleChange}
+                      placeholder="CI-ABJ-2024-B-12345"
+                      autoComplete="off"
+                      maxLength={60}
+                    />
+                  </div>
+                )}
+
+                <p className={styles.hint}>
+                  {form.activity === "chauffeur"
+                    ? "📍 En tant que chauffeur, une pièce d'identité, un permis de conduire vérifié et un CV vous seront demandés avant de publier."
+                    : requiresBusinessDocs(form.entityType)
+                      ? "📍 Une vérification entreprise (documents légaux) sera nécessaire pour publier, en plus de votre pièce d'identité."
+                      : "📍 En tant que particulier, seule une vérification d'identité (pièce + selfie) vous sera demandée pour publier."}
+                </p>
+              </>
+            )}
+          </fieldset>
+
+          <fieldset className={styles.groupe}>
+            <legend className={styles.legende}>Sécurité</legend>
+
+            {/* Les deux mots de passe étaient côte à côte : sur téléphone comme
+                sur ordinateur, chaque champ tombait sous 200 px alors qu'il
+                faut y lire une saisie masquée. Ils sont désormais empilés. */}
+            <div className={styles.pwField}>
+              <label htmlFor="register-password">Mot de passe <span className={styles.requis}>*</span></label>
+              <div className={styles.pwWrap}>
+                <input
+                  id="register-password"
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  autoComplete="new-password"
+                  value={form.password}
+                  onChange={handleChange}
+                  placeholder="8 caractères minimum"
+                  required
+                  minLength="8"
+                />
+                <button type="button" onClick={() => setShowPassword((p) => !p)}
+                  className={styles.pwToggle}
+                  aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}>
+                  {showPassword ? "🙈" : "👁️"}
+                </button>
+              </div>
+              {form.password && (
+                <div className={styles.force}>
+                  <div className={styles.forceRail}>
+                    <div className={styles.forceBarre}
+                      style={{ width: `${forceMotDePasse.score * 33.3 + 1}%`, background: forceMotDePasse.couleur }} />
+                  </div>
+                  <span className={styles.forceTexte} style={{ color: forceMotDePasse.couleur }}>
+                    {forceMotDePasse.texte}
+                  </span>
+                </div>
+              )}
+              <p className={styles.hint}>Au moins 8 caractères, une majuscule et un chiffre.</p>
+            </div>
+
+            <div className={styles.pwField}>
+              <label htmlFor="register-confirmPassword">Confirmer le mot de passe <span className={styles.requis}>*</span></label>
+              <div className={styles.pwWrap}>
+                <input
+                  id="register-confirmPassword"
+                  type={showPassword ? "text" : "password"}
+                  name="confirmPassword"
+                  autoComplete="new-password"
+                  value={form.confirmPassword}
+                  onChange={handleChange}
+                  placeholder="Retapez votre mot de passe"
+                  required
+                />
+                <button type="button" onClick={() => setShowPassword((p) => !p)}
+                  className={styles.pwToggle}
+                  aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}>
+                  {showPassword ? "🙈" : "👁️"}
+                </button>
+              </div>
+              {/* Feedback instantané : jusqu'ici la seule façon de savoir que
+                  les deux mots de passe différaient était de soumettre le
+                  formulaire et de lire un toast générique. */}
+              {form.confirmPassword && (
+                <p className={`${styles.concordance} ${form.password === form.confirmPassword ? styles.concordanceOk : styles.concordanceNon}`}>
+                  {form.password === form.confirmPassword ? "✓ Les mots de passe correspondent" : "✗ Les mots de passe ne correspondent pas"}
+                </p>
+              )}
+            </div>
+          </fieldset>
 
           {duplicateAccount && (
-            <div style={{
-              background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10,
-              padding: "12px 16px", marginBottom: 12, fontSize: ".88rem", color: "#1e3a8a",
-              display: "flex", flexDirection: "column", gap: 8,
-            }}>
-              <span>Un compte existe déjà avec ces informations.</span>
+            <div className={`${styles.encart} ${styles.encartInfo}`}>
+              <p>Un compte existe déjà avec ces informations.</p>
               <Link
+                className={styles.encartLien}
                 to={redirectParam ? `/login?redirect=${encodeURIComponent(redirectParam)}` : "/login"}
-                style={{ fontWeight: 700, color: "#1d4ed8", alignSelf: "flex-start" }}
               >
                 Se connecter →
               </Link>

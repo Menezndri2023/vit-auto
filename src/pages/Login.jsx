@@ -151,8 +151,8 @@ const Login = () => {
 
         {/* Bloc redirection depuis page protégée */}
         {fromPage && !notVerified && (
-          <div style={{ background: "#eff6ff", border: "1.5px solid #bfdbfe", borderRadius: 12, padding: "12px 16px", marginBottom: 16 }}>
-            <p style={{ margin: 0, fontSize: "0.85rem", color: "#1e40af", fontWeight: 600 }}>
+          <div className={`${styles.encart} ${styles.encartInfo}`}>
+            <p>
               🔒 Connectez-vous pour accéder à{" "}
               <strong>{fromPage === "/vendor" || fromPage === "/vendor/dashboard" ? "l'espace partenaire"
                       : fromPage.startsWith("/booking") ? "votre réservation"
@@ -164,20 +164,16 @@ const Login = () => {
 
         {/* Bloc email non vérifié */}
         {notVerified && (
-          <div style={{ background: "#fffbeb", border: "1.5px solid #f59e0b", borderRadius: 12, padding: "16px 18px", marginBottom: 16 }}>
-            <p style={{ margin: "0 0 8px", fontWeight: 700, color: "#92400e" }}>📧 E-mail non vérifié</p>
-            <p style={{ margin: "0 0 12px", fontSize: "0.88rem", color: "#78350f" }}>
+          <div className={`${styles.encart} ${styles.encartAttention}`}>
+            <p className={styles.encartTitre}>📧 E-mail non vérifié</p>
+            <p>
               Votre adresse <strong>{notVerified}</strong> n'a pas encore été confirmée.
               Vérifiez votre boîte mail ou cliquez ci-dessous pour recevoir un nouveau lien.
             </p>
             {resendDone ? (
-              <p style={{ margin: 0, color: "#10b981", fontWeight: 600, fontSize: "0.88rem" }}>
-                ✅ Lien envoyé ! Vérifiez votre boîte mail.
-              </p>
+              <p className={styles.encartSucces}>✅ Lien envoyé ! Vérifiez votre boîte mail.</p>
             ) : (
-              <button onClick={handleResendEmail} disabled={resendLoading}
-                style={{ padding: "8px 18px", borderRadius: 8, border: "none", cursor: "pointer",
-                  background: "#f59e0b", color: "#fff", fontWeight: 700, fontSize: "0.88rem" }}>
+              <button type="button" onClick={handleResendEmail} disabled={resendLoading} className={styles.encartBtn}>
                 {resendLoading ? "Envoi…" : "📤 Renvoyer le lien de vérification"}
               </button>
             )}
@@ -186,67 +182,83 @@ const Login = () => {
 
         {twoFaChallenge ? (
           <form className={styles.form} onSubmit={onVerifyTwoFa} autoComplete="off">
-            <p style={{ margin: "0 0 8px", fontSize: "0.9rem", color: "#4a5876" }}>
-              🔐 Ce compte est protégé par la double authentification. Saisissez le code de votre
-              application d'authentification, ou l'un de vos codes de secours.
-            </p>
-            <input
-              type="text"
-              inputMode="text"
-              value={twoFaCode}
-              onChange={(e) => setTwoFaCode(e.target.value)}
-              placeholder="Code à 6 chiffres ou code de secours"
-              autoFocus
-              required
-            />
+            <div className={`${styles.encart} ${styles.encartInfo}`}>
+              <p>
+                🔐 Ce compte est protégé par la double authentification. Saisissez le code de votre
+                application d'authentification, ou l'un de vos codes de secours.
+              </p>
+            </div>
+            <div className={styles.field}>
+              <label htmlFor="login-2fa">Code de vérification</label>
+              <input
+                id="login-2fa"
+                type="text"
+                inputMode="text"
+                value={twoFaCode}
+                onChange={(e) => setTwoFaCode(e.target.value)}
+                placeholder="Code à 6 chiffres ou code de secours"
+                autoFocus
+                required
+              />
+            </div>
             <button type="submit" className={styles.submitBtn} disabled={twoFaVerifying}>
               {twoFaVerifying ? `${t("common.loading")}` : "Vérifier"}
             </button>
             <div className={styles.footerLink}>
-              <button type="button" onClick={() => { setTwoFaChallenge(null); setTwoFaCode(""); }}
-                style={{ background: "none", border: "none", color: "#4a5876", cursor: "pointer", textDecoration: "underline" }}>
+              <button type="button" onClick={() => { setTwoFaChallenge(null); setTwoFaCode(""); }}>
                 ← Retour
               </button>
             </div>
           </form>
         ) : (
           <form className={styles.form} onSubmit={onSubmit} autoComplete="on">
-            <label htmlFor="login-identifier" className={styles.srOnly}>Email ou téléphone</label>
-            <input
-              id="login-identifier"
-              type="text"
-              name="identifier"
-              autoComplete="username"
-              value={form.identifier}
-              onChange={handleChange}
-              placeholder="Email ou téléphone"
-              required
-            />
-            <div style={{ position: "relative" }}>
-              <label htmlFor="login-password" className={styles.srOnly}>{t("auth.password")}</label>
+            {/* La connexion Google est placée AVANT le formulaire : c'est le
+                chemin le plus court, et elle n'a besoin d'aucune saisie
+                préalable. Elle était jusqu'ici reléguée sous le bouton
+                d'envoi, après le formulaire qu'elle sert justement à éviter. */}
+            <GoogleAuthButton onCredential={handleGoogleCredential} />
+            <div className={styles.divider}>ou avec vos identifiants</div>
+
+            <div className={styles.field}>
+              <label htmlFor="login-identifier">E-mail ou téléphone</label>
               <input
-                id="login-password"
-                type={showPassword ? "text" : "password"}
-                name="password"
-                autoComplete="current-password"
-                value={form.password}
+                id="login-identifier"
+                type="text"
+                name="identifier"
+                autoComplete="username"
+                value={form.identifier}
                 onChange={handleChange}
-                placeholder={t("auth.password")}
+                placeholder="vous@exemple.com"
                 required
-                minLength="8"
-                style={{ width: "100%", boxSizing: "border-box", paddingRight: 44 }}
               />
-              <button type="button" onClick={() => setShowPassword((p) => !p)}
-                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-                style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem" }}>
-                {showPassword ? "🙈" : "👁️"}
-              </button>
             </div>
+
+            <div className={styles.pwField}>
+              <label htmlFor="login-password">{t("auth.password")}</label>
+              <div className={styles.pwWrap}>
+                <input
+                  id="login-password"
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  autoComplete="current-password"
+                  value={form.password}
+                  onChange={handleChange}
+                  placeholder="••••••••"
+                  required
+                  minLength="8"
+                />
+                <button type="button" onClick={() => setShowPassword((p) => !p)}
+                  className={styles.pwToggle}
+                  aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}>
+                  {showPassword ? "🙈" : "👁️"}
+                </button>
+              </div>
+            </div>
+
             <button type="submit" className={styles.submitBtn} disabled={loading}>
               {loading ? `${t("common.loading")}` : t("auth.loginBtn")}
             </button>
-            <div className={styles.divider}>OU</div>
-            <GoogleAuthButton onCredential={handleGoogleCredential} />
+
             <div className={styles.footerLink}>
               <Link to="/forgot-password">{t("auth.forgotPwd")}</Link>
             </div>

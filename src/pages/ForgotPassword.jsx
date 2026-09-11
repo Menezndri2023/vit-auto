@@ -32,50 +32,51 @@ const ForgotPassword = () => {
   return (
     <div className={styles.page}>
       <div className={styles.card}>
-        <div className={styles.logo}>🚗 VIT AUTO</div>
-
         {sent ? (
-          <>
-            <div style={{ fontSize: "3rem", textAlign: "center", marginBottom: 12 }}>📧</div>
-            <h1 style={{ textAlign: "center", color: "#0f1b3f", margin: "0 0 12px" }}>E-mail envoyé !</h1>
-            <p style={{ textAlign: "center", color: "#64748b", margin: 0 }}>
+          <div className={styles.statut}>
+            <div className={styles.statutIcone}>📧</div>
+            <h1 className={styles.statutTitre}>E-mail envoyé !</h1>
+            <p className={styles.statutTexte}>
               Si un compte est associé à <strong>{email}</strong>, vous recevrez un lien
               de réinitialisation dans quelques minutes. Vérifiez également vos spams.
             </p>
-            <Link to="/login" className={styles.submitBtn}
-              style={{ display: "block", textAlign: "center", marginTop: 24, textDecoration: "none" }}>
+            <Link to="/login" className={`${styles.submitBtn} ${styles.btnLien}`}>
               Retour à la connexion
             </Link>
-          </>
+          </div>
         ) : (
           <>
-            <h1 style={{ textAlign: "center", color: "#0f1b3f", margin: "0 0 8px" }}>Mot de passe oublié</h1>
-            <p style={{ textAlign: "center", color: "#64748b", marginBottom: 24 }}>
-              Saisissez votre adresse e-mail : nous vous enverrons un lien pour
-              réinitialiser votre mot de passe.
-            </p>
+            <div className={styles.logo}>
+              <div className={styles.logoIcon}>🔑</div>
+              <h1>Mot de passe oublié</h1>
+              <p>Saisissez votre adresse e-mail : nous vous enverrons un lien pour réinitialiser votre mot de passe.</p>
+            </div>
 
             {errMsg && (
-              <div style={{ background: "#fef2f2", border: "1.5px solid #fecaca", borderRadius: 10, padding: "10px 14px", marginBottom: 16, color: "#991b1b", fontSize: "0.88rem" }}>
-                {errMsg}
+              <div className={`${styles.encart} ${styles.encartErreur}`} role="alert">
+                <p>{errMsg}</p>
               </div>
             )}
 
             <form onSubmit={handleSubmit} className={styles.form}>
               <div className={styles.inputGroup}>
-                <label>Adresse e-mail</label>
-                <input type="email" placeholder="votre@email.com" value={email}
+                {/* `htmlFor` + `id` : sans eux l'intitulé n'est lié à rien —
+                    le clic dessus ne place pas le curseur, et un lecteur
+                    d'écran annonce un champ sans nom. */}
+                <label htmlFor="forgot-email">Adresse e-mail</label>
+                <input id="forgot-email" name="email" type="email" autoComplete="email"
+                  placeholder="votre@email.com" value={email}
                   onChange={(e) => setEmail(e.target.value)} required autoFocus />
               </div>
 
               <button type="submit" className={styles.submitBtn} disabled={loading}>
-                {loading ? "Envoi en cours…" : "Envoyer"}
+                {loading ? "Envoi en cours…" : "Envoyer le lien"}
               </button>
             </form>
 
-            <p className={styles.footerLink} style={{ marginTop: 20 }}>
+            <div className={styles.footerLink}>
               <Link to="/login">← Retour à la connexion</Link>
-            </p>
+            </div>
           </>
         )}
       </div>
