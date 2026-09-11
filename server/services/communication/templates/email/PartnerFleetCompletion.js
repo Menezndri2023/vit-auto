@@ -23,6 +23,11 @@ export function partnerFleetCompletionTemplate(
     brouillons = [],        // [{ titre, manques: ["année", "tarif"] }]
     manquesCommuns = [],    // ["carburant", "description"] — sur toute la flotte
     photosProvisoires = false,
+    // Vrai quand le partenaire peut CRÉER de nouvelles annonces lui-même. La
+    // modification n'a jamais été bridée ; l'ajout l'était tant que la
+    // certification n'était pas faite. Le dire seulement quand c'est vrai :
+    // inviter quelqu'un à publier alors qu'il sera refusé est pire que se taire.
+    peutPublier = false,
     dashboardUrl,
   },
   trackingPixel = ""
@@ -116,8 +121,10 @@ export function partnerFleetCompletionTemplate(
     ${divider()}
     <p style="font-size:13px;color:${BRAND.muted};line-height:1.6;margin:0">
       Vous pouvez tout modifier vous-même depuis votre tableau de bord : tarifs,
-      photos, caractéristiques et conditions de location. Une question, ou besoin
-      que nous le fassions pour vous ? Répondez simplement à cet e-mail.
+      photos, caractéristiques et conditions de location.${peutPublier
+        ? " Et vous pouvez désormais <strong>ajouter de nouveaux véhicules</strong> directement, sans attendre de notre part."
+        : ""} Une question, ou besoin que nous le fassions pour vous ? Répondez
+      simplement à cet e-mail.
     </p>
 
     ${signature()}
@@ -163,6 +170,7 @@ export function partnerFleetCompletionTemplate(
       + (manquesCommuns.length
         ? `SUR L'ENSEMBLE DE LA FLOTTE\nIl manque encore ${manquesCommuns.join(", ")}. Ce sont les filtres que les clients utilisent pour choisir.\n\n`
         : "")
+      + (peutPublier ? `Vous pouvez désormais ajouter de nouveaux véhicules directement depuis votre tableau de bord, sans attendre de notre part.\n\n` : "")
       + `Compléter ma flotte : ${dashboardUrl}\n\n`
       + `Une question ? Répondez simplement à cet e-mail.\n\nL'équipe VIT AUTO`,
   };

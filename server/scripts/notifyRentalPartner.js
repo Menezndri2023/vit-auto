@@ -5,6 +5,7 @@ import PartnerBusiness from "../models/PartnerBusiness.js";
 import Vehicle from "../models/Vehicle.js";
 import { sendEmail } from "../services/communication/channels/EmailChannel.js";
 import { partnerFleetCompletionTemplate } from "../services/communication/templates/email/PartnerFleetCompletion.js";
+import { refusDePublication } from "../utils/publishingGate.js";
 
 dotenv.config();
 
@@ -71,7 +72,13 @@ async function main() {
   await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI);
   console.log(CONFIRME ? "\n⚡ ENVOI RÉEL" : "\n🔍 SIMULATION — aucun e-mail envoyé (ajouter --confirm)");
 
-  const user = await User.findOne({ email: CIBLE }).select("firstName lastName email").lean();
+  // La projection DOIT porter tout ce que lit refusDePublication : sans `role`,
+  // le garde conclut « ce n'est pas un partenaire, la règle ne le concerne pas »
+  // et renvoie « autorisé » pour n'importe qui. L'e-mail aurait alors invité à
+  // publier un partenaire qui se serait fait refuser à l'écran.
+  const user = await User.findOne({ email: CIBLE })
+    .select("firstName lastName email role sellerType kycStatus certificationBadge isFounder provisionalPublishing")
+    .lean();
   if (!user) { console.error(`Aucun compte pour ${CIBLE}`); process.exit(1); }
 
   const business = await PartnerBusiness.findOne({ owner: user._id }).select("companyName").lean();
@@ -108,12 +115,16 @@ async function main() {
     .map((v) => ({ titre: v.title, manques: manquesDe(v).filter((m) => !communs.has(m)) }))
     .filter((v) => v.manques.length);
 
-  // Photos de référence posées par la plateforme faute de photos réelles : elles
-  // pointent vers un dépôt externe, jamais vers notre stockage ni vers un envoi
-  // du partenaire. C'est le marqueur le plus fiable dont on dispose.
-  const photosProvisoires = flotte.some((v) =>
-    (v.images || []).some((u) => typeof u === "string" && u.includes("wikimedia.org"))
-  );
+  // Photos de référence posées par la plateforme faute de photos réelles.
+  //
+  // Le marqueur était « wikimedia.org », l'adresse d'où elles venaient. Depuis
+  // qu'elles sont rapatriées sur notre CDN, ce test ne trouve plus rien et
+  // l'avertissement disparaissait en silence — alors que les photos sont
+  // toujours des photos de référence. Le dossier `/reference/` est le marqueur
+  // durable : il dit ce que l'image EST, pas d'où elle venait.
+  const estPhotoDeReference = (u) =>
+    typeof u === "string" && (u.includes("wikimedia.org") || u.includes("/vehicles/reference/"));
+  const photosProvisoires = flotte.some((v) => (v.images || []).some(estPhotoDeReference));
 
   const message = partnerFleetCompletionTemplate({
     firstName: user.firstName || "Partenaire",
@@ -122,6 +133,9 @@ async function main() {
     brouillons,
     manquesCommuns,
     photosProvisoires,
+    // Lu depuis le garde lui-même, jamais supposé : c'est la seule source qui
+    // dise vraiment si ce partenaire sera accepté au moment de publier.
+    peutPublier: !refusDePublication(user),
     dashboardUrl: `${APP_URL}/vendor/dashboard`,
   });
 

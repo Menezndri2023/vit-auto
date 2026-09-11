@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { composerVitrine } from "../services/spotlightEngine.js";
+import { composerVitrine, MAX_PAR_PARTENAIRE } from "../services/spotlightEngine.js";
 import { cacheClear } from "../utils/catalogCache.js";
 import Activity from "../models/Activity.js";
 import Vehicle from "../models/Vehicle.js";
@@ -80,5 +80,91 @@ describe("Vitrine — unité du prix", () => {
     const items = Array.isArray(r) ? r : r?.items || [];
     expect(items[0].sousTitre).toBe("Plongée");
     expect(items[0].type, "la valeur brute reste disponible pour le filtrage").toBe("PLONGEE");
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DEUX MISES EN AVANT PAR PARTENAIRE, POUR CHAQUE SERVICE
+// ══════════════════════════════════════════════════════════════════════════════
+// La règle de l'exploitant : chaque partenaire dispose de deux places dans la
+// vitrine d'accueil, par service. Elle vaut pour les véhicules en vedette comme
+// pour les activités de loisir — c'est le même accumulateur générique qui les
+// compose, et ces tests le vérifient DES DEUX CÔTÉS.
+//
+// Sans plafond, un partenaire à trois cents annonces prendrait toute la page :
+// la vitrine cesserait de représenter la plateforme pour ne montrer que son
+// plus gros catalogue.
+
+const compterParProprietaire = (items, docs) => {
+  const proprioParId = new Map(docs.map((d) => [String(d._id), String(d.owner)]));
+  const n = new Map();
+  for (const it of items) {
+    const p = proprioParId.get(String(it.id));
+    if (p) n.set(p, (n.get(p) || 0) + 1);
+  }
+  return n;
+};
+
+describe("Vitrine — deux places par partenaire, pour chaque service", () => {
+  beforeEach(async () => {
+    await Promise.all([Activity.deleteMany({}), Vehicle.deleteMany({})]);
+    cacheClear?.();
+  });
+
+  it("limite chaque partenaire à deux ACTIVITÉS, même s'il en publie davantage", async () => {
+    const a = await createUser({ role: "partenaire", country: "MA" });
+    const b = await createUser({ role: "partenaire", country: "MA" });
+    const docs = [];
+    for (const owner of [a, b]) {
+      for (let i = 0; i < 4; i++) {
+        docs.push(await Activity.create({ ...ACTIVITE, owner: owner._id, title: `Sortie ${owner._id}-${i}` }));
+      }
+    }
+
+    const r = await composerVitrine("loisirs", { pays: "MA" });
+    const items = Array.isArray(r) ? r : r?.items || [];
+    const parProprio = compterParProprietaire(items, docs);
+
+    // Huit activités publiées, deux partenaires : quatre places occupées.
+    expect(items.length).toBe(2 * MAX_PAR_PARTENAIRE);
+    for (const [proprio, n] of parProprio) {
+      expect(n, `le partenaire ${proprio} dépasse son quota`).toBeLessThanOrEqual(MAX_PAR_PARTENAIRE);
+    }
+    expect(parProprio.size, "les deux partenaires doivent être représentés").toBe(2);
+  });
+
+  it("applique exactement le même quota aux VÉHICULES en vedette", async () => {
+    const a = await createUser({ role: "partenaire", country: "MA" });
+    const b = await createUser({ role: "partenaire", country: "MA" });
+    const docs = [];
+    for (const owner of [a, b]) {
+      for (let i = 0; i < 6; i++) {
+        docs.push(await Vehicle.create({
+          owner: owner._id, title: `Voiture ${owner._id}-${i}`, marque: "Dacia", modele: "Logan",
+          type: "location", pricePerDay: 25, images: ["https://ik.imagekit.io/vitauto/z.jpg"],
+          ville: "Casablanca", country: "MA", status: "approved", available: true,
+        }));
+      }
+    }
+
+    const r = await composerVitrine("vedette", { pays: "MA" });
+    const items = Array.isArray(r) ? r : r?.items || [];
+    const parProprio = compterParProprietaire(items, docs);
+
+    // Douze véhicules publiés, deux partenaires : quatre places, pas huit.
+    expect(items.length).toBe(2 * MAX_PAR_PARTENAIRE);
+    for (const [, n] of parProprio) expect(n).toBeLessThanOrEqual(MAX_PAR_PARTENAIRE);
+  });
+
+  it("un partenaire seul n'occupe pas la vitrine à lui tout seul", async () => {
+    // Le cas qui a motivé le plafond : un catalogue de trois cents annonces.
+    const solo = await createUser({ role: "partenaire", country: "MA" });
+    for (let i = 0; i < 20; i++) {
+      await Activity.create({ ...ACTIVITE, owner: solo._id, title: `Plongée ${i}` });
+    }
+
+    const r = await composerVitrine("loisirs", { pays: "MA" });
+    const items = Array.isArray(r) ? r : r?.items || [];
+    expect(items.length).toBe(MAX_PAR_PARTENAIRE);
   });
 });
