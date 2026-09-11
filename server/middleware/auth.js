@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import logger from "../utils/logger.js";
 import { isAccessTokenRevoked } from "../utils/tokenRevocation.js";
+import { signerDocumentsPrives } from "../utils/signerDocuments.js";
 
 // ── Authentification JWT ────────────────────────────────────────────────────
 export const authenticate = async (req, res, next) => {
@@ -52,7 +53,11 @@ export const authenticate = async (req, res, next) => {
     }
 
     req.user = user;
-    next();
+    // Les documents privés (pièces d'identité, documents d'entreprise) ne sont
+    // lisibles que par URL signée. Installé ICI, une fois pour toutes les
+    // requêtes authentifiées, plutôt que dans chacun des contrôleurs qui les
+    // renvoient — voir utils/signerDocuments.js.
+    signerDocumentsPrives(req, res, next);
   } catch (err) {
     if (err.name === "JsonWebTokenError" || err.name === "TokenExpiredError") {
       return res.status(401).json({ message: "Token invalide ou expiré." });
@@ -75,6 +80,10 @@ export const optionalAuth = async (req, res, next) => {
   } catch {
     // Token invalide → mode invité
   }
+  // Même traitement que `authenticate` dès qu'un utilisateur est reconnu : une
+  // route à authentification facultative peut renvoyer un document privé à
+  // son propriétaire (pièce jointe d'une réservation, par exemple).
+  if (req.user) return signerDocumentsPrives(req, res, next);
   next();
 };
 
