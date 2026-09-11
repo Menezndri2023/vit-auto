@@ -11,10 +11,15 @@ import styles from "./SpotlightRow.module.css";
  * sélection n'est faite ici.
  *
  * La section ne s'affiche PAS en dessous de `minimum` éléments : une bande à
- * deux vignettes donne l'impression d'un site vide, ce qui coûte plus qu'elle
- * ne rapporte. C'est le cas aujourd'hui pour les loisirs — aucune activité
- * n'est encore publiée — et la section apparaîtra d'elle-même dès qu'il y en
- * aura assez.
+ * une seule vignette donne l'impression d'un site vide, ce qui coûte plus
+ * qu'elle ne rapporte.
+ *
+ * Le défaut de 3 ne convient pas à toutes les bandes. Le moteur limite chaque
+ * partenaire à deux entrées (MAX_PAR_PARTENAIRE) : une rubrique servie par un
+ * seul partenaire plafonne donc à deux éléments et resterait invisible pour
+ * toujours, quel que soit le nombre d'annonces publiées. C'est arrivé aux
+ * loisirs — dix activités en ligne, section jamais affichée. Une rubrique
+ * jeune passe donc `minimum={2}` explicitement.
  */
 export default function SpotlightRow({ emplacement, titre, sousTitre, minimum = 3, lienTout = null, libelleTout = null }) {
   const { chargement, items } = useSpotlight(emplacement);

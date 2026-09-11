@@ -35,10 +35,15 @@ const Home = () => (
   <>
     <HeroSection />
     <VehicleList />
+    {/* `minimum={2}` et non le défaut de 3 : le moteur plafonne chaque
+        partenaire à deux entrées, or les loisirs ne comptent aujourd'hui qu'un
+        seul partenaire. Au seuil de 3, la rubrique serait restée invisible
+        quel que soit le nombre d'activités publiées. */}
     <SpotlightRow
       emplacement="loisirs"
+      minimum={2}
       titre="Activités et loisirs"
-      sousTitre="Quad, jetski, montgolfière — à faire près de chez vous."
+      sousTitre="Plongée, quad, jetski — à faire près de chez vous."
       lienTout="/catalogue?mode=Autres"
       libelleTout="Toutes les activités"
     />

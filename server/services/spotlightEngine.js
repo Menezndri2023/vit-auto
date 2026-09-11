@@ -43,6 +43,7 @@ import Favorite from "../models/Favorite.js";
 import Subscription from "../models/Subscription.js";
 import PartnerShowroom from "../models/PartnerShowroom.js";
 import { PLAN_RANK } from "../constants/subscriptionPlans.js";
+import { ACTIVITY_TYPE_LABELS } from "../constants/activityTypes.js";
 import { planActifDe } from "./planAccess.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 import { clauseHorsComptesDeTest } from "../utils/comptesDeTest.js";
@@ -216,7 +217,15 @@ const ADAPTATEURS = {
       type: d.type, ville: d.ville || null, pays: d.country || null,
       prix: d.type === "vente" ? (d.priceForSale ?? null) : (d.pricePerDay ?? null),
       unite: d.type === "vente" ? null : "jour",
-      devise: d.currency || "USD",
+      // `prix` est TOUJOURS en USD — c'est l'unité de stockage de la
+      // plateforme, et c'est ce qu'attend fmt() côté interface, qui convertit
+      // vers la devise du visiteur. `Vehicle.currency` est autre chose : la
+      // devise d'AFFICHAGE épinglée par le partenaire. Les apparier revenait à
+      // étiqueter 40,33 (USD) comme des dirhams — un prix divisé par dix dans
+      // le repli d'affichage.
+      devise: "USD",
+      // Devise épinglée par le partenaire, si une surface veut la rappeler.
+      deviseAffichage: d.currency || null,
       image: d.images?.[0] || null,
       note: d.noteMoyenne || 0, avis: d.nombreAvis || 0,
       lien: `/vehicle/${d._id}`,
@@ -239,11 +248,17 @@ const ADAPTATEURS = {
     presenter: (d) => ({
       id: String(d._id), source: "activite",
       titre: d.title,
-      sousTitre: d.activityType || null,
+      // Le libellé, pas la valeur d'énumération : la vitrine affichait
+      // « PLONGEE » sous le titre de l'annonce, criée en majuscules et sans
+      // accent. `type` conserve la valeur brute pour le filtrage.
+      sousTitre: ACTIVITY_TYPE_LABELS[d.activityType] || d.activityType || null,
       type: d.activityType, ville: d.ville || null, pays: d.country || null,
       prix: d.price ?? null,
       unite: d.priceUnit === "per_person" ? "personne" : "session",
-      devise: d.currency || "USD",
+      // Même règle que pour les véhicules : `Activity.price` est en USD, et
+      // `Activity.currency` n'est que la devise d'affichage épinglée.
+      devise: "USD",
+      deviseAffichage: d.currency || null,
       image: d.thumbnail || d.images?.[0] || null,
       note: d.noteMoyenne || 0, avis: d.nombreAvis || 0,
       dureeMinutes: d.durationMinutes || null,
