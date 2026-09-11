@@ -1,0 +1,131 @@
+name: VIT AUTO — Publication iOS (TestFlight / App Store)
+
+# Compile, signe et ENVOIE l'app à App Store Connect depuis le runner macOS de
+# GitHub : aucune installation locale (Xcode, certificat, profil) n'est requise.
+#
+# La signature est entièrement déléguée à Apple (« cloud signing ») grâce à une
+# clé d'API App Store Connect : Xcode crée lui-même le certificat de
+# distribution, l'App ID (com.vitauto.app, avec la capacité Push) et le profil
+# de provisionnement. Il faut pour cela QUATRE secrets GitHub, que seul un
+# compte Apple Developer ACTIF peut fournir — tant que l'inscription est « en
+# attente », ce workflow s'arrête à la première étape avec la liste de ce qui
+# manque. Marche à suivre complète : docs/manuels/publication-app-store.md.
+#
+#   APPLE_TEAM_ID                  Team ID (10 caractères), page Membership
+#   APP_STORE_CONNECT_KEY_ID       identifiant de la clé d'API (rôle Admin)
+#   APP_STORE_CONNECT_ISSUER_ID    Issuer ID affiché au-dessus des clés
+#   APP_STORE_CONNECT_PRIVATE_KEY  contenu intégral du fichier AuthKey_XXXX.p8
+#
+# Le numéro de build (CURRENT_PROJECT_VERSION) est le numéro d'exécution du
+# workflow : strictement croissant, donc jamais refusé par App Store Connect
+# pour doublon. La version affichée (MARKETING_VERSION) est saisie au lancement.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version affichée sur l'App Store (ex. 1.0.0)"
+        required: true
+        default: "1.0.0"
+
+env:
+  NODE_VERSION: "22"
+  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+  APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+  APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+  APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+
+jobs:
+  publier:
+    name: iOS — Archive signée + envoi App Store Connect
+    runs-on: macos-latest
+    steps:
+      - name: Vérifier la présence des secrets Apple
+        run: |
+          manquants=""
+          for v in APPLE_TEAM_ID APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_PRIVATE_KEY; do
+            if [ -z "${!v}" ]; then manquants="$manquants $v"; fi
+          done
+          if [ -n "$manquants" ]; then
+            echo "::error::Secrets GitHub manquants :$manquants. Ils ne peuvent être créés qu'avec un compte Apple Developer ACTIF — voir docs/manuels/publication-app-store.md"
+            exit 1
+          fi
+          echo "Secrets présents. Team ID : ${APPLE_TEAM_ID:0:2}******** ; clé API : ${APP_STORE_CONNECT_KEY_ID}"
+
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web (dist/)
+        run: npm run build
+
+      - name: Sync Capacitor iOS
+        run: npx cap sync ios
+
+      - name: Installer la clé d'API App Store Connect
+        run: |
+          mkdir -p "$HOME/private_keys"
+          printf '%s\n' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          chmod 600 "$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          head -1 "$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8" | grep -q "BEGIN PRIVATE KEY" \
+            || { echo "::error::APP_STORE_CONNECT_PRIVATE_KEY ne ressemble pas à un fichier .p8 (doit commencer par -----BEGIN PRIVATE KEY-----)"; exit 1; }
+
+      - name: Archiver (Release, signature gérée par Apple)
+        working-directory: ios/App
+        run: |
+          set -o pipefail
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8" \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
+            -skipPackagePluginValidation \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            MARKETING_VERSION="${{ inputs.version }}" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            archive | tail -300
+
+      - name: Exporter et envoyer vers App Store Connect (TestFlight)
+        working-directory: ios/App
+        run: |
+          set -o pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8" \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" | tail -300
+          echo "Build ${{ github.run_number }} (version ${{ inputs.version }}) envoyé. Il apparaît dans App Store Connect → TestFlight après le traitement Apple (10 à 30 min)."
+
+      - name: Conserver les journaux d'export
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-export-logs-${{ github.run_number }}
+          path: ${{ runner.temp }}/export
+          if-no-files-found: ignore

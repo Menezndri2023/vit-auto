@@ -11,9 +11,13 @@ name: VIT AUTO — Mobile Build (Android/iOS)
 #     mais pas publiable sur le Play Store en l'état.
 #   - iOS : build SIMULATEUR uniquement (aucune signature de code requise) —
 #     valide que le projet compile, mais ne produit pas d'.ipa installable sur
-#     un vrai iPhone ni publiable sur l'App Store.
-# Passer à des builds signés/publiables nécessitera : un compte Apple Developer
-# Program (99 $/an) + certificat de distribution + provisioning profile, et une
+#     un vrai iPhone ni publiable sur l'App Store. La publication App Store
+#     passe par le workflow dédié `ios-release.yml` (signature et envoi vers
+#     App Store Connect depuis le runner, dès que le compte Apple est actif).
+# Le projet iOS est en Swift Package Manager (ios/App/CapApp-SPM), PAS en
+# CocoaPods : on compile le .xcodeproj directement, sans `pod install`.
+# Capacitor 8 exige Node ≥ 22 — avec Node 20, `cap sync` refuse de démarrer.
+# Passer à des builds Android publiables nécessitera une
 # vraie keystore de release Android (signingConfigs dans android/app/build.gradle,
 # absent aujourd'hui).
 
@@ -30,7 +34,7 @@ on:
   workflow_dispatch:
 
 env:
-  NODE_VERSION: "20"
+  NODE_VERSION: "22"
 
 jobs:
   android:
@@ -92,13 +96,11 @@ jobs:
       - name: Sync Capacitor iOS
         run: npx cap sync ios
 
-      - name: Install CocoaPods dependencies
-        working-directory: ios/App
-        run: pod install
-
       - name: Build for iOS Simulator (sans signature)
         working-directory: ios/App
         run: |
-          xcodebuild -workspace App.xcworkspace -scheme App \
-            -sdk iphonesimulator -configuration Debug \
-            CODE_SIGNING_ALLOWED=NO build
+          set -o pipefail
+          xcodebuild -project App.xcodeproj -scheme App \
+            -destination "generic/platform=iOS Simulator" -configuration Debug \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO build | tail -200

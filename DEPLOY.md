@@ -128,9 +128,14 @@ npm run cap:ios
 # OU
 npx cap open ios
 
-# Dans Xcode :
+# Dans Xcode (projet Swift Package Manager : ouvrir App.xcodeproj, pas de pod install) :
 # Product → Archive → Distribute App → App Store Connect (ou Ad Hoc pour test)
 ```
+
+**Sans Xcode local** : le workflow GitHub `ios-release.yml` archive, signe et
+envoie l'app à App Store Connect depuis le runner macOS. Marche à suivre
+complète (compte Apple, clé d'API, secrets, fiche, review) :
+[`docs/manuels/publication-app-store.md`](docs/manuels/publication-app-store.md).
 
 ### Configuration importante avant build mobile
 
