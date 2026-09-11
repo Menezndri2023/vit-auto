@@ -472,6 +472,15 @@
 
 /* ── Mobile ── */
 @media (max-width: 640px) {
+  /* Cible tactile : 34 px de côté au doigt, c'est sous le minimum recommandé
+     (44 px). Mesuré sur la production : ce bouton est le plus fréquent du
+     catalogue — 190 occurrences sur une page mobile, une par annonce. Il est
+     posé en absolu dans le coin de la photo : l'agrandir ne déplace rien. */
+  .favBtn {
+    width: 44px;
+    height: 44px;
+  }
+
   .cover img,
   .coverPlaceholder { height: 170px; }
 

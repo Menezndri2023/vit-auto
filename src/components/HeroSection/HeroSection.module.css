@@ -430,6 +430,13 @@
 
 /* Mobile portrait — empilage vertical */
 @media (max-width: 640px) {
+  /* 38 px au doigt reste sous le minimum recommandé de 44. Les flèches sont
+     posées en absolu par-dessus la photo : les agrandir ne décale rien. */
+  .carouselArrow {
+    width: 44px;
+    height: 44px;
+  }
+
   .hero {
     grid-template-columns: 1fr;
     /* 5 rangées en portrait : visuel, contenu, recherche, pays, statistiques. */
