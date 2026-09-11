@@ -21,7 +21,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "cap:android": "npx cap open android",
-    "cap:ios": "npx cap open ios"
+    "cap:ios": "npx cap open ios",
+    "verify:local": "node scripts/verifierLocalement.mjs",
+    "verify:prod": "node scripts/verifierLocalement.mjs https://vit-auto.com"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.1",
@@ -62,6 +64,7 @@
     "globals": "^17.4.0",
     "jsdom": "^30.0.1",
     "kill-port": "^2.0.1",
+    "playwright-core": "^1.63.0",
     "sharp": "^0.35.3",
     "vite": "^8.0.0",
     "vitest": "^5.0.0"

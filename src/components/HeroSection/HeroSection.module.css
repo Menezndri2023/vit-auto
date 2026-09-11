@@ -4,7 +4,14 @@
 
 .hero {
   display: grid;
-  grid-template-columns: 46% 54%;
+  /* `minmax(0, …)` et non `46% 54%` seuls : une colonne de grille a un
+     `min-width: auto` implicite, si bien qu'une rangée flex non enveloppante
+     (la bande des pays d'origine) élargissait la colonne jusqu'à sa largeur de
+     contenu — 1180 px mesurés sur un écran de 390. `overflow: hidden` plus bas
+     transformait ce débordement en ROGNAGE silencieux : sur mobile, la moitié
+     droite du hero était simplement coupée, sans barre de défilement pour le
+     signaler. */
+  grid-template-columns: minmax(0, 46%) minmax(0, 54%);
   /* 4 rangées : visuel/contenu, recherche, pays d'origine, statistiques.
      La rangée des pays n'en avait AUCUNE : elle se plaçait en implicite,
      donc à un endroit qui dépendait de l'ordre du DOM plutôt que du design. */
@@ -18,6 +25,8 @@
 /* ─── LEFT PANEL ─── */
 .left {
   grid-column: 1;
+  /* Un enfant de grille ne doit jamais imposer sa largeur à la colonne. */
+  min-width: 0;
   grid-row: 1;
   display: flex;
   flex-direction: column;
@@ -128,6 +137,8 @@
 /* ─── RIGHT PANEL ─── */
 .right {
   grid-column: 2;
+  /* Un enfant de grille ne doit jamais imposer sa largeur à la colonne. */
+  min-width: 0;
   grid-row: 1;
   position: relative;
   overflow: hidden;
@@ -216,6 +227,10 @@
   margin: 0;
   font-size: 0.76rem;
   color: rgba(255,255,255,0.70);
+  /* Le texte repose sur une photo dont on ne maîtrise ni la couleur ni la
+     luminosité : l'ombre garantit la lisibilité sur un capot blanc comme sur
+     un fond sombre. */
+  text-shadow: 0 2px 6px rgba(0, 0, 0, .55);
 }
 
 .spotPublisher strong {
@@ -290,8 +305,16 @@
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  align-items: center;
   gap: 6px;
   z-index: 6;
+  /* Fond propre : posées à nu, des pastilles blanches sur une carrosserie
+     blanche formaient une tache illisible — constaté en capture. Le voile
+     sombre les détache de n'importe quelle photo. */
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(15, 27, 63, 0.42);
+  backdrop-filter: blur(4px);
 }
 
 .spotDot {
@@ -303,6 +326,21 @@
   cursor: pointer;
   padding: 0;
   transition: all 0.25s ease;
+  /* La règle globale `button { min-height: 44px }` (index.css, mobile) protège
+     les vraies commandes, mais elle étirait ces indicateurs en ellipses de
+     7 × 44 px — mesuré, et parfaitement visible en capture. On l'annule ICI, et
+     on rend la zone TACTILE aux 44 px par un pseudo-élément invisible : la
+     pastille reste un point, le doigt garde sa cible. */
+  min-height: 0;
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.spotDot::after {
+  content: "";
+  position: absolute;
+  /* 7 px de haut + 2 × 18,5 = 44 px de zone tactile. */
+  inset: -18.5px -8px;
 }
 
 .spotDotActive {
@@ -344,6 +382,9 @@
 /* ─── SEARCH ROW ─── */
 .searchRow {
   grid-column: 1 / -1;
+  /* Sans `min-width: 0`, le contenu de cette rangée impose sa largeur à
+     toute la grille (voir .hero). */
+  min-width: 0;
   grid-row: 2;
   padding: 0 max(24px, 4vw);
   margin-top: -2px;
@@ -398,7 +439,7 @@
    RESPONSIVE
    ═══════════════════════════════════ */
 @media (max-width: 1024px) {
-  .hero { grid-template-columns: 52% 48%; }
+  .hero { grid-template-columns: minmax(0, 52%) minmax(0, 48%); }
   .title { font-size: clamp(1.6rem, 3vw, 2.2rem); }
   .left { padding: 36px 24px 24px 32px; }
 }
@@ -406,7 +447,10 @@
 /* Tablette & petite tablette — reste en 2 colonnes mais compact */
 @media (max-width: 768px) {
   .hero {
-    grid-template-columns: 48% 52%;
+    /* Bornées comme la règle de base : sans `minmax(0, …)`, une rangée flex
+       élargit la colonne jusqu'à son contenu, et `overflow: hidden` rogne le
+       reste sans le signaler. Le défaut réapparaissait sur tablette. */
+    grid-template-columns: minmax(0, 48%) minmax(0, 52%);
     min-height: 340px;
   }
 
@@ -430,6 +474,26 @@
 
 /* Mobile portrait — empilage vertical */
 @media (max-width: 640px) {
+  /* ── Carte de mise en avant sur petit écran ────────────────────────────
+     Mesuré à 390 px : les flèches latérales se superposaient au titre de
+     l'annonce et à son badge — « Geely GX3 » passait littéralement sous le
+     chevron. Une carte de cette largeur n'a pas la place pour des commandes
+     latérales. Elles disparaissent ; les pastilles restent, et le carrousel
+     tourne seul.
+     Les pastilles remontent en haut : en bas, elles tombaient sur la ligne du
+     prix et du bouton. */
+  .carouselArrow { display: none; }
+
+  .spotDots {
+    /* Coin HAUT-GAUCHE : le seul libre de la carte à cette largeur. En bas
+       elles tombaient sur la ligne prix/bouton ; au centre en haut, sur le
+       badge « Sélection du moment ». */
+    top: 12px;
+    bottom: auto;
+    left: 12px;
+    transform: none;
+  }
+
   /* 38 px au doigt reste sous le minimum recommandé de 44. Les flèches sont
      posées en absolu par-dessus la photo : les agrandir ne décale rien. */
   .carouselArrow {
@@ -438,7 +502,7 @@
   }
 
   .hero {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     /* 5 rangées en portrait : visuel, contenu, recherche, pays, statistiques. */
     grid-template-rows: auto auto auto auto auto;
     min-height: auto;
@@ -511,6 +575,9 @@
      blanc — les noms de pays étaient donc quasiment invisibles. Repris en
      contraste foncé-sur-clair, comme le reste de la page. */
   grid-column: 1 / -1;
+  /* Sans `min-width: 0`, le contenu de cette rangée impose sa largeur à
+     toute la grille (voir .hero). */
+  min-width: 0;
   grid-row: 3;
   position: relative;
   display: flex;
@@ -521,7 +588,14 @@
   margin: .9rem auto .2rem;
   padding: 0 max(24px, 4vw);
   background: #f5f7fa;
+  /* Une liste de pays ne s'enveloppe pas bien : elle défile. Le défilement
+     appartient à CETTE bande, jamais à la page — sans quoi tout le hero partait
+     de travers. */
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+
+.originsRow::-webkit-scrollbar { display: none; }
 
 .originsLabel {
   flex: 0 0 auto;

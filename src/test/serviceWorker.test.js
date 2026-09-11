@@ -1,3 +1,10 @@
+/* global process */
+//
+// `process` est bien disponible sous Vitest (Node + globals jsdom) ; seul
+// ESLint l'ignore dans le périmètre navigateur, d'où la déclaration ci-dessus.
+// L'environnement reste jsdom : le fichier de configuration partagé
+// (src/test/setup.js) s'appuie sur `window`, et le passer en Node casserait
+// toute la suite.
 import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";

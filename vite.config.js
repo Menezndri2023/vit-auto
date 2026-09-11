@@ -52,6 +52,30 @@ export default defineConfig(({ mode }) => ({
     },
   },
 
+  // ── Vérification LOCALE du paquet construit ──────────────────────────────
+  // Consigne du 2026-09-11 : rien ne part en production sans avoir été exercé
+  // localement. `vite preview` sert le contenu de dist/ — c'est-à-dire
+  // exactement ce qui sera déployé, service worker compris — mais il n'avait
+  // aucun relais d'API : la page se chargeait sans données, et ne montrait donc
+  // rien de ce qu'un visiteur verrait.
+  //
+  // Le relais pointe sur l'API de PRODUCTION et non sur un serveur local : on
+  // veut vérifier le rendu avec les vraies annonces et les vraies images, sans
+  // dépendre d'une base locale ni risquer d'écrire dans la vraie par
+  // inadvertance. Aucun effet sur le build : `preview` ne sert qu'au contrôle
+  // avant publication.
+  preview: {
+    port: 4173,
+    strictPort: true,
+    proxy: {
+      '/api': {
+        target:       'https://vit-auto-api.onrender.com',
+        changeOrigin: true,
+        secure:       true,
+      },
+    },
+  },
+
   build: {
     outDir:           'dist',
     sourcemap:        mode === 'development',

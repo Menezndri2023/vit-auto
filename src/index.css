@@ -159,7 +159,18 @@ body {
 h1, h2, h3, h4, h5, h6 {
   font-weight: var(--fw-bold);
   line-height: 1.25;
-  color: var(--c-text-primary);
+  /* `inherit` et non `var(--c-text-primary)` : une règle d'élément, si faible
+     soit-elle, bat TOUJOURS l'héritage. Un `<h1>` sans classe placé dans une
+     section sombre qui a pourtant déclaré `color: #fff` recevait donc le bleu
+     nuit de la charte — invisible sur son propre fond. C'était le cas du titre
+     de la page Tarifs et de ceux des six pages légales : mesuré, 15 titres
+     illisibles sur le site.
+     La couleur par défaut reste la même : `body` porte `--c-text-primary`, dont
+     les titres héritent partout ailleurs. Vérifié dans le navigateur, page par
+     page : 15 corrections, aucun autre titre déplacé — ceux qui portent une
+     classe (logo orange, pied de page) gardent la leur, une règle de classe
+     l'emportant sur une règle d'élément. */
+  color: inherit;
 }
 
 p {
