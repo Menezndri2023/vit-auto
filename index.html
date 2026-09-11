@@ -62,15 +62,20 @@
       as="style"
       href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"
     />
+    <!-- Chargée normalement, et non par l'astuce `media="print"` +
+         `onload="this.media='all'"` : la CSP de production interdit les
+         gestionnaires en ligne (`script-src` sans `unsafe-inline`), donc ce
+         `onload` ne s'exécutait JAMAIS en ligne. La feuille restait en
+         `media="print"`, Poppins n'était jamais appliquée à l'écran et tout
+         le site s'affichait dans la police de secours du système.
+         Mesuré : `document.fonts` vide en production, `Poppins` en local (où
+         aucune CSP ne s'applique) — d'où un défaut invisible en local.
+         Le `rel="preload" as="style"` ci-dessus lance déjà le téléchargement :
+         le lien normal ne fait qu'appliquer une feuille déjà en vol. -->
     <link
       rel="stylesheet"
-      media="print"
-      onload="this.media='all';this.onload=null"
       href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"
     />
-    <noscript>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" />
-    </noscript>
 
     <!-- CSS critique inline pour éviter le FOUT avant chargement Poppins -->
     <style>

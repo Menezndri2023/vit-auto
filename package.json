@@ -23,7 +23,8 @@
     "cap:android": "npx cap open android",
     "cap:ios": "npx cap open ios",
     "verify:local": "node scripts/verifierLocalement.mjs",
-    "verify:prod": "node scripts/verifierLocalement.mjs https://vit-auto.com"
+    "verify:prod": "node scripts/verifierLocalement.mjs https://vit-auto.com",
+    "preview:csp": "node scripts/servirAvecCsp.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.1",

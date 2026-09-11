@@ -66,3 +66,35 @@ describe("Content-Security-Policy", () => {
     expect(directive("script-src")).not.toContain("'unsafe-eval'");
   });
 });
+
+describe("Rien dans la page d'accueil ne dépend d'un script en ligne", () => {
+  // `script-src` ne contient pas `'unsafe-inline'` — c'est voulu, c'est la
+  // protection principale contre l'injection de script. Conséquence : tout
+  // gestionnaire écrit en attribut HTML (`onload=`, `onclick=`…) est bloqué
+  // EN PRODUCTION, et nulle part ailleurs.
+  //
+  // C'est exactement ce qui est arrivé à la police de la marque. index.html
+  // chargeait Poppins avec l'astuce `media="print"` + `onload="this.media='all'"` :
+  // le gestionnaire ne s'exécutait jamais en ligne, la feuille restait en
+  // `media="print"` et n'était donc JAMAIS appliquée à l'écran. Tout le site
+  // s'affichait dans la police de secours du système.
+  // Invisible en local : ni `vite dev` ni `vite preview` ne posent d'en-tête
+  // CSP, le gestionnaire s'y exécutait normalement.
+  const html = fs.readFileSync(path.join(process.cwd(), "index.html"), "utf8")
+    .replace(/<!--[\s\S]*?-->/g, "");   // les commentaires citent le code fautif
+
+  it("index.html ne contient aucun gestionnaire d'événement en attribut", () => {
+    const enLigne = [...html.matchAll(/\son[a-z]+\s*=\s*["']/gi)].map((m) => m[0].trim());
+    expect(enLigne, "gestionnaires en ligne, bloqués par la CSP en production").toEqual([]);
+  });
+
+  it("script-src n'autorise pas 'unsafe-inline' (sinon la garde ci-dessus n'a plus d'objet)", () => {
+    expect(directive("script-src")).not.toContain("'unsafe-inline'");
+  });
+
+  it("la feuille de police est appliquée sans condition", () => {
+    const lien = html.match(/<link[^>]*fonts\.googleapis[^>]*rel="stylesheet"[^>]*>|<link[^>]*rel="stylesheet"[^>]*fonts\.googleapis[^>]*>/s);
+    expect(lien, "un lien stylesheet vers fonts.googleapis doit exister").toBeTruthy();
+    expect(lien[0], "pas de media=print : la feuille doit valoir pour l'écran").not.toMatch(/media\s*=\s*["']print/);
+  });
+});
