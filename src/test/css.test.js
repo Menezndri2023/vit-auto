@@ -97,3 +97,23 @@ describe("Cibles tactiles", () => {
     expect(css).toMatch(/button\s*\{\s*min-height:\s*44px/);
   });
 });
+
+describe("Images recadrées dans leur boîte", () => {
+  it("l'image d'une carte de mise en avant est retirée du calcul de taille", async () => {
+    // `.visuel` est une grille dont la rangée est dimensionnée en `auto`. La
+    // hauteur `100%` d'une image qui s'y trouve est alors cyclique, donc
+    // traitée comme `auto` : l'image reprend son ratio naturel et ÉTIRE la
+    // boîte au lieu d'être recadrée. Invisible avec une photo paysage (plus
+    // courte que le 4/3 demandé), flagrant avec une photo portrait. Mesuré à
+    // 390 px sur la bande « Activités et loisirs » : 215 px au lieu de 141,
+    // l'image débordait de la carte et recouvrait le titre.
+    // La sortir du flux (position absolue) est ce qui casse le cycle ; le
+    // `overflow: hidden` sur la boîte n'est qu'une seconde barrière.
+    const css = lire("src", "components", "SpotlightRow", "SpotlightRow.module.css");
+    expect(declare(css, ".visuel {", /position:\s*relative/)).toBe(true);
+    expect(declare(css, ".visuel {", /overflow:\s*hidden/)).toBe(true);
+    expect(declare(css, ".visuel img", /position:\s*absolute/)).toBe(true);
+    expect(declare(css, ".visuel img", /inset:\s*0/)).toBe(true);
+    expect(declare(css, ".visuel img", /object-fit:\s*cover/)).toBe(true);
+  });
+});

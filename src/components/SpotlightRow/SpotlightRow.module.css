@@ -26,8 +26,21 @@
 }
 .carte:hover { box-shadow: 0 10px 28px rgba(15, 27, 63, .12); transform: translateY(-2px); }
 
-.visuel { aspect-ratio: 4 / 3; background: #f1f5f9; display: grid; place-items: center; }
-.visuel img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* L'image est positionnée en absolu, donc retirée du calcul de taille de la
+   boîte. Sans ça, `.visuel` est une grille dont la rangée est dimensionnée en
+   `auto` : la hauteur `100%` de l'image y est cyclique, donc traitée comme
+   `auto`, l'image reprenait son ratio naturel et ÉTIRAIT la boîte au lieu
+   d'être recadrée. Invisible avec une photo paysage (plus courte que le 4/3),
+   flagrant avec une photo portrait : mesuré 215px au lieu de 141px, l'image
+   débordait de la carte et recouvrait le titre. */
+.visuel {
+  position: relative; aspect-ratio: 4 / 3; overflow: hidden;
+  background: #f1f5f9; display: grid; place-items: center;
+}
+.visuel img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
 .sansVisuel { font-size: 2rem; }
 
 .corps { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 3px; }
