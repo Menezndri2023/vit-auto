@@ -215,15 +215,23 @@
   .col ul { gap: 0; }
 
   .col a {
-    display: block;
-    padding: 12px 0;
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 4px 0;
   }
 
   .bottomLinks { gap: 0 20px; }
 
+  /* `min-height` et pas seulement un remplissage : ces liens sont en 0.82rem,
+     leur ligne fait ~16 px et 16 + 24 donnait 40 px. Mesuré en production —
+     en local la police de secours donnait une ligne plus haute et masquait
+     l'écart. La hauteur est donc imposée, pas déduite. */
   .bottomLinks a {
-    display: block;
-    padding: 12px 0;
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0;
   }
 
   .socials a {

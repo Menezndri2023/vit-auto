@@ -142,7 +142,11 @@ describe("Cibles tactiles hors des cartes", () => {
     // séparés de 9 px seulement : l'espacement de la liste doit tomber à 0
     // en même temps. Deux zones cliquables qui se recouvrent sont pires
     // qu'une petite : on touche le mauvais lien.
-    expect(bloc, "remplissage vertical des liens").toMatch(/padding:\s*12px 0/);
+    // Une hauteur IMPOSÉE, pas déduite d'un remplissage : ces liens sont en
+    // 0.82rem, leur ligne fait ~16 px et 16 + 24 ne donnait que 40 px. Le
+    // défaut n'était visible qu'en production, la police de secours utilisée
+    // en local donnant une ligne plus haute.
+    expect(bloc, "hauteur minimale imposée").toMatch(/min-height:\s*44px/);
     expect(bloc, "espacement de liste ramené à 0").toMatch(/\.col ul\s*\{\s*gap:\s*0/);
     expect(bloc, "icônes sociales portées à 44 px").toMatch(/width:\s*44px/);
   });
