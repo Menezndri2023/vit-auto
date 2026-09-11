@@ -1,4 +1,5 @@
 import logger from "../utils/logger.js";
+import { especesUniquement, MESSAGE_ESPECES } from "../constants/paiement.js";
 import mongoose from "mongoose";
 import Booking from "../models/Booking.js";
 import Vehicle from "../models/Vehicle.js";
@@ -1191,7 +1192,11 @@ export const createBooking = async (req, res) => {
     // ne propose déjà plus que "cash" pour ce type, mais on ne fait jamais
     // confiance au client pour une règle métier).
     const VALID_PAY_METHODS = ["card", "orange_money", "wave", "mtn", "moov", "paypal", "applepay", "virement", "test"];
-    const payMethod = type === "location" ? null : paymentData?.method;
+    // Périmètre défini dans constants/paiement.js — il couvrait la seule
+    // location, et les activités de loisir passaient à travers : un client
+    // pouvait déclarer un paiement par carte sur une sortie en quad, sans
+    // qu'aucun prestataire ne le vérifie.
+    const payMethod = especesUniquement(type) ? null : paymentData?.method;
     if (payMethod && payMethod !== "cash" && VALID_PAY_METHODS.includes(payMethod)) {
       try {
         const paiement = await Payment.create({

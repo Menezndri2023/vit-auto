@@ -13,6 +13,7 @@ import { getCustomerServiceContact } from "../utils/customerServiceContact";
 import { useI18n } from "../context/I18nContext";
 import PriceTag from "../components/PriceTag/PriceTag";
 import DeliveryMapPicker from "../components/DeliveryMapPicker/DeliveryMapPicker";
+import { especesUniquement } from "../constants/paiement";
 import styles from "./Booking.module.css";
 
 /* ── Constantes financières (USD — voir PricingConfig.serviceFee/rentalOptions
@@ -786,7 +787,9 @@ export default function Booking() {
   // ci-dessus) passe exclusivement en espèces en attendant la configuration
   // des vraies clés de paiement — bookingController.createBooking applique le
   // même filet côté serveur, indépendamment de ce que ce composant envoie.
-  const isRentalOnly = !isTrial && !isLeasing;
+  // Le périmètre vit dans src/constants/paiement.js, miroir du serveur : il
+  // couvrait la seule location, et les activités de loisir y échappaient.
+  const isRentalOnly = especesUniquement(isTrial ? "essai" : isLeasing ? "leasing" : "location");
   const visiblePaymentMethods = isRentalOnly
     ? PAYMENT_METHODS.filter((pm) => pm.value === "cash")
     : allowedPaymentMethods

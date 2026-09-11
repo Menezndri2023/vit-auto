@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import Vehicle from "../models/Vehicle.js";
 import { idsVitrine, jourDeRotation } from "../services/spotlightEngine.js";
 import { clauseHorsComptesDeTest } from "../utils/comptesDeTest.js";
+import { prixInvraisemblable } from "../constants/plausibilitePrix.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Booking from "../models/Booking.js";
@@ -201,6 +202,14 @@ export const createVehicle = async (req, res) => {
     // abonné doit en bénéficier immédiatement, sans attendre le prochain
     // changement d'abonnement (qui seul propage le rang aux annonces
     // existantes — voir subscriptionController.syncOwnerPlanOnVehicles).
+    // Plausibilité des montants, AVANT toute écriture : une annonce publiée à
+    // 6 110 USD la journée est restée réservable plus d'un mois en production,
+    // sans que rien ne la signale (voir constants/plausibilitePrix.js).
+    const aberration = prixInvraisemblable(whitelisted);
+    if (aberration) {
+      return res.status(400).json({ message: aberration.message, champ: aberration.champ });
+    }
+
     const abonnement = await Subscription.findOne({ vendor: req.user._id }).lean();
     const planActif = abonnement?.planDetails?.isActive
       && abonnement?.planDetails?.endDate
@@ -781,6 +790,25 @@ export const updateVehicle = async (req, res) => {
     // même temps — sinon l'affichage garderait l'ancien montant "exact",
     // désormais incohérent avec le nouveau prix (ex: modification du prix
     // depuis l'admin, qui n'envoie pas ce champ).
+    // Même garde à la modification : sans elle, il suffirait de publier un prix
+    // correct puis de l'éditer pour contourner le contrôle.
+    //
+    // Mais on ne valide QUE les montants que la requête touche réellement. Une
+    // annonce ancienne peut porter un tarif hérité d'avant ce contrôle ; refuser
+    // alors une correction de description ou de photos enfermerait le partenaire
+    // dans son erreur au lieu de l'aider à en sortir. Le montant non touché
+    // reste signalé par l'audit, pas par un blocage qui ne mène nulle part.
+    const montantsTouches = {
+      type: safeUpdate.type ?? vehicle.type,
+      ...(safeUpdate.pricePerDay  !== undefined ? { pricePerDay:  safeUpdate.pricePerDay }  : {}),
+      ...(safeUpdate.priceForSale !== undefined ? { priceForSale: safeUpdate.priceForSale } : {}),
+      ...(safeUpdate.caution      !== undefined ? { caution:      safeUpdate.caution }      : {}),
+    };
+    const aberrationMaj = prixInvraisemblable(montantsTouches);
+    if (aberrationMaj) {
+      return res.status(400).json({ message: aberrationMaj.message, champ: aberrationMaj.champ });
+    }
+
     if (safeUpdate.pricePerDay !== undefined && req.body.pricePerDayEntered === undefined) {
       safeUpdate.pricePerDayEntered = null;
     }

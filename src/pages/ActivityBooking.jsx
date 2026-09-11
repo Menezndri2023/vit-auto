@@ -8,6 +8,7 @@ import ReportButton from "../components/ReportButton/ReportButton";
 import PriceTag from "../components/PriceTag/PriceTag";
 import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "../constants/activityTypes";
 import styles from "./Booking.module.css";
+import { especesUniquement, MESSAGE_ESPECES } from "../constants/paiement";
 import dbStyles from "./DriverBooking.module.css";
 
 // Mêmes moyens de paiement que DriverBooking.jsx/Booking.jsx (voir Checkout.jsx).
@@ -41,7 +42,10 @@ const ActivityBooking = () => {
   const [wantEssai, setWantEssai] = useState(false);
   const [notes, setNotes] = useState("");
   const [occupiedSlots, setOccupiedSlots] = useState([]);
-  const [selectedMethod, setSelectedMethod] = useState("orange_money");
+  // « cash » et non « orange_money » : le premier moyen affiché doit être celui
+  // qu'on accepte réellement, sinon un client validant sans toucher au
+  // sélecteur enverrait un mode de paiement refusé côté serveur.
+  const [selectedMethod, setSelectedMethod] = useState(especesUniquement("activite") ? "cash" : "orange_money");
   const [mobileNumber, setMobileNumber] = useState("");
   const [cardNumber,   setCardNumber]   = useState("");
   const [cardHolder,   setCardHolder]   = useState("");
@@ -108,10 +112,17 @@ const ActivityBooking = () => {
   const isMobile = ["orange_money", "wave", "mtn", "moov"].includes(selectedMethod);
   const isCard   = selectedMethod === "card";
 
+  // Les activités de loisir se règlent EXCLUSIVEMENT en espèces, sur place
+  // (voir src/constants/paiement.js, miroir du serveur). Cet écran proposait
+  // encore Orange Money par défaut et la carte bancaire, alors qu'aucun
+  // prestataire n'est branché : un client pouvait croire avoir payé sa sortie
+  // en quad, et le partenaire le recevoir sans avoir rien encaissé.
   const allowedMethods = getPaymentMethodsForCountry(activity.country || catalogCountry || countryCode);
-  const visibleMethodLabels = allowedMethods
-    ? Object.fromEntries(Object.entries(METHOD_LABELS).filter(([val]) => allowedMethods.includes(val)))
-    : METHOD_LABELS;
+  const visibleMethodLabels = especesUniquement("activite")
+    ? { cash: METHOD_LABELS.cash }
+    : allowedMethods
+      ? Object.fromEntries(Object.entries(METHOD_LABELS).filter(([val]) => allowedMethods.includes(val)))
+      : METHOD_LABELS;
 
   const handleSubmit = async () => {
     if (submitting) return;
@@ -305,6 +316,15 @@ const ActivityBooking = () => {
           </label>
         ))}
       </div>
+
+      {/* Dire au client CE QU'IL DEVRA FAIRE : sans cette phrase, un seul choix
+          affiché ressemble à une option manquante, et il découvre qu'il doit
+          payer sur place au moment de la prestation. */}
+      {especesUniquement("activite") && (
+        <p style={{ margin: "10px 0 0", fontSize: ".86rem", color: "#475569", lineHeight: 1.55 }}>
+          {MESSAGE_ESPECES}
+        </p>
+      )}
 
       {isMobile && (
         <div className={dbStyles.fieldBlock}>
