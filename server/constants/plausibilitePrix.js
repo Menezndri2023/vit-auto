@@ -14,6 +14,17 @@
 // Le contrôle REFUSE plutôt qu'il n'avertit : un avertissement dans une réponse
 // HTTP n'est lu par personne, et le partenaire découvrirait son erreur à la
 // première réservation.
+// Marqueur inscrit en tête d'un avertissement de montant par le moteur de
+// validation (services/vehicleScoring.js). La vitrine d'accueil s'en sert pour
+// écarter une annonce au prix douteux : un avertissement non bloquant a déjà
+// été ignoré à l'approbation, et l'annonce est restée cinq semaines en
+// première page à 6 110 USD la journée. Un prix douteux en vitrine coûte plus
+// qu'il ne rapporte.
+//
+// Un marqueur plutôt qu'une recherche de tournure : reformuler le message
+// suffirait sinon à rouvrir la porte sans que personne s'en aperçoive.
+export const MARQUEUR_MONTANT_DOUTEUX = "[MONTANT]";
+
 export const PRIX_JOUR_MAX_USD = 2000;
 export const PRIX_VENTE_MAX_USD = 5_000_000;
 export const CAUTION_MAX_USD = 200_000;

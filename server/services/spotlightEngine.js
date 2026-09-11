@@ -47,6 +47,7 @@ import { ACTIVITY_TYPE_LABELS } from "../constants/activityTypes.js";
 import { planActifDe } from "./planAccess.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 import { clauseHorsComptesDeTest } from "../utils/comptesDeTest.js";
+import { MARQUEUR_MONTANT_DOUTEUX } from "../constants/plausibilitePrix.js";
 
 // ── Places réservées par palier d'abonnement ───────────────────────────────
 // Le nombre progresse avec la formule : c'est la contrepartie visible de
@@ -204,7 +205,17 @@ const ADAPTATEURS = {
     // activités le pourront, il suffira de passer ce drapeau à `true`.
     supporteBoost: true,
     champs: "title type marque modele annee ville country pricePerDay priceForSale currency images vues noteMoyenne nombreAvis description updatedAt owner featured sponsoredUntil boostLevel",
-    filtreBase: (type) => ({ status: "approved", available: true, ...(type ? { type } : {}) }),
+    filtreBase: (type) => ({
+      status: "approved", available: true,
+      // Une annonce dont le moteur de validation a signalé un montant douteux
+      // n'entre pas en vitrine, même approuvée. L'avertissement n'est pas
+      // bloquant et a déjà été ignoré à l'approbation : une Changan à 6 110 USD
+      // la journée est restée cinq semaines en première page. Un prix douteux
+      // en vitrine coûte plus qu'il ne rapporte — l'annonce reste au catalogue,
+      // où le visiteur arrive en cherchant, pas en ouvrant la page d'accueil.
+      validationWarnings: { $not: { $elemMatch: { $regex: escapeRegex(MARQUEUR_MONTANT_DOUTEUX) } } },
+      ...(type ? { type } : {}),
+    }),
     profil: (d, sig) => ({
       qualite: qualiteAnnonce(d),
       vues: d.vues, favoris: sig.favoris, reservations: sig.reservations,
@@ -402,6 +413,11 @@ async function rangsParProprietaire() {
 // Le filtre pays applique la même règle que le catalogue : une annonce sans
 // pays renseigné — créée avant l'internationalisation — reste visible partout.
 // Jamais de régression de visibilité pour une annonce existante.
+// `[MONTANT]` contient des crochets, qui sont des classes de caractères en
+// expression régulière : sans échappement, le filtre ne correspondrait à rien
+// et la garde serait silencieusement inopérante.
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const clausePays = (country) =>
   country ? { $or: [{ country: String(country).toUpperCase() }, { country: null }] } : {};
 

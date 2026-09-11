@@ -1,3 +1,4 @@
+import { MARQUEUR_MONTANT_DOUTEUX } from "../constants/plausibilitePrix.js";
 import { describe, it, expect } from "vitest";
 import {
   composerVitrine, scoreDeMerite, fenetreDuJour, jourDeRotation,
@@ -293,6 +294,32 @@ describe("Composition d'une vitrine", () => {
     const v = await composerVitrine("vedette");
     expect(new Set(v.items.map((i) => i.origine))).toEqual(new Set(["epingle", "abonnement", "merite"]));
     expect(v.composition).toMatchObject({ epingle: 1, abonnement: 1, merite: 1 });
+  });
+
+  it("écarte une annonce dont un montant a été signalé comme douteux", async () => {
+    // L'avertissement du moteur de validation n'est PAS bloquant : une Changan
+    // à 6 110 USD la journée a été approuvée malgré lui et est restée cinq
+    // semaines en première page. Elle reste au catalogue — le visiteur y arrive
+    // en cherchant — mais pas en vitrine, où un prix douteux coûte plus qu'il
+    // ne rapporte.
+    const saine = await annonce({ title: "Tarif normal" });
+    const douteuse = await annonce({
+      title: "Tarif suspect",
+      validationWarnings: [`${MARQUEUR_MONTANT_DOUTEUX} Tarif journalier très élevé — vérifiez le montant`],
+    });
+
+    const v = await composerVitrine("vedette");
+    const ids = v.items.map((i) => i.id);
+    expect(ids).toContain(String(saine._id));
+    expect(ids).not.toContain(String(douteuse._id));
+  });
+
+  it("n'écarte pas une annonce portant un avertissement SANS rapport avec un montant", async () => {
+    // Le filtre doit viser le marqueur, pas « tout avertissement » : une annonce
+    // sans description porte elle aussi un avertissement, et elle a parfaitement
+    // sa place en vitrine.
+    const a = await annonce({ title: "Avertissement anodin", validationWarnings: ["Description courte"] });
+    expect((await composerVitrine("vedette")).items.map((i) => i.id)).toContain(String(a._id));
   });
 
   it("renvoie une vitrine vide plutôt que d'inventer, quand rien n'est publiable", async () => {

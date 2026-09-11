@@ -1,4 +1,5 @@
 import { estImageEncodee, imageLegereOuRien } from "../utils/imagePayload.js";
+import { MARQUEUR_MONTANT_DOUTEUX } from "../constants/plausibilitePrix.js";
 // ══════════════════════════════════════════════════════════════════════════════
 // MOTEUR DE VALIDATION AUTOMATIQUE DES ANNONCES
 // Score sur 100 — décision : approved / pending / rejected
@@ -68,8 +69,12 @@ export const scoreAnnonce = (data) => {
   const price = Number(data.pricePerDay || data.priceForSale || 0);
   if (price >= 1) {
     score += 12;
-    if (data.pricePerDay  > 1_000) warnings.push("Tarif journalier très élevé — vérifiez le montant");
-    if (data.priceForSale > 500_000) warnings.push("Prix de vente très élevé — vérifiez le montant");
+    // Marqueur stable en tête de message : la vitrine d'accueil écarte les
+    // annonces dont un montant est douteux (voir spotlightEngine), et elle ne
+    // peut pas le faire en cherchant une tournure de phrase — la reformuler
+    // suffirait à rouvrir la porte sans que personne s'en aperçoive.
+    if (data.pricePerDay  > 1_000) warnings.push(`${MARQUEUR_MONTANT_DOUTEUX} Tarif journalier très élevé — vérifiez le montant`);
+    if (data.priceForSale > 500_000) warnings.push(`${MARQUEUR_MONTANT_DOUTEUX} Prix de vente très élevé — vérifiez le montant`);
   } else {
     errors.push("Prix manquant ou invalide (minimum 1 USD)");
   }
