@@ -293,11 +293,18 @@ export const getImporterProfiles = async (req, res) => {
 
     const [profiles, total] = await Promise.all([
       ImporterPartnerProfile.find(filter)
+        // `documents` porte les pièces justificatives en base64 — un seul
+        // profil en production en contient 5 Mo. Elles ne sont affichées que
+        // dans la fiche détail, jamais dans la liste : le panneau les charge
+        // via GET /api/import-export/importer-profiles/:id à l'ouverture de la
+        // fiche. Les renvoyer ici faisait échouer l'onglet après 90 s.
+        .select("-documents")
         .populate("userId", "firstName lastName email phone profilePhoto role business")
         .populate("reviewedBy", "firstName lastName")
         .sort({ submittedAt: -1 })
         .skip((safePage - 1) * safeLimit)
-        .limit(safeLimit),
+        .limit(safeLimit)
+        .lean(),
       ImporterPartnerProfile.countDocuments(filter),
     ]);
 
@@ -927,6 +934,10 @@ export const getAdminListings = async (req, res) => {
 
     const [listingsRaw, total] = await Promise.all([
       ImportExportListing.find(filter)
+        // `photos` (base64, 1,7 Mo par annonce en moyenne, 372 Mo au total)
+        // était écarté APRÈS la requête — donc lu en base et transféré pour
+        // rien. L'exclusion se fait maintenant au niveau de la requête.
+        .select("-photos")
         .populate("partner", "firstName lastName email profilePhoto")
         .populate("importerProfile", "companyName badgeLevel")
         .sort({ createdAt: -1 })
@@ -935,12 +946,11 @@ export const getAdminListings = async (req, res) => {
         .lean(),
       ImportExportListing.countDocuments(filter),
     ]);
-    // `photos` (base64, jusqu'à plusieurs Mo/annonce) n'est jamais affiché en
-    // vue liste — seul `mainPhoto` l'est (Catalogue/Favorites/IEListings/...).
-    // Le détail (getListingById) reste seul à recevoir le tableau complet.
-    const listings = listingsRaw.map((l) => (
-      Array.isArray(l.photos) && l.photos.length > 0 ? { ...l, photos: [] } : l
-    ));
+    // `photos` n'est jamais affiché en vue liste — seul `mainPhoto` l'est
+    // (Catalogue/Favorites/IEListings/...). Le détail (getListingById) reste
+    // seul à recevoir le tableau complet. Le tableau vide est conservé pour ne
+    // pas changer la forme de la réponse attendue par le panneau.
+    const listings = listingsRaw.map((l) => ({ ...l, photos: [] }));
 
     res.json({ listings, total, pages: Math.ceil(total / safeLimit) });
   } catch (err) {

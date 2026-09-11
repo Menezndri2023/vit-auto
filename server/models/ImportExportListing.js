@@ -167,6 +167,15 @@ const importExportListingSchema = new mongoose.Schema({
 });
 
 importExportListingSchema.index({ status: 1, createdAt: -1 });
+
+// La liste admin (GET /api/import-export/listings/admin) n'applique AUCUN
+// filtre de statut : l'index composé ci-dessus ne peut donc pas servir son tri
+// sur createdAt seul — un index composé n'est utilisable pour un tri que si les
+// champs qui précèdent sont contraints par une égalité. MongoDB retombait sur
+// un tri en mémoire, plafonné à 32 Mo, alors que la collection pèse 372 Mo pour
+// 219 annonces (photos base64, 1,7 Mo par annonce en moyenne). D'où un 500 sur
+// l'onglet « Partenaires Export », à n'importe quelle pagination.
+importExportListingSchema.index({ createdAt: -1 });
 importExportListingSchema.index({ partner: 1 });
 importExportListingSchema.index({ sourceCountry: 1 });
 // Le filtrage pays teste sourceCountry OU availableIn (voir getListings) —

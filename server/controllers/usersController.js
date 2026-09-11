@@ -754,9 +754,18 @@ export const adminVerifyIdentity = async (req, res) => {
 // ── Liste des identités en attente (admin) ────────────────────────────────
 export const getPendingIdentities = async (req, res) => {
   try {
+    // `.select("-password")` renvoyait TOUT le reste, dont les pièces
+    // d'identité en base64 : mesuré en production le 2026-09-11, deux dossiers
+    // en attente pesaient 12,6 Mo et 8,6 Mo, soit 20,8 Mo dans une seule
+    // réponse. L'appel mettait 90 s puis échouait en 500, et l'onglet
+    // Paiements restait sur « Chargement impossible ».
+    // La liste ne porte plus que ce qu'elle affiche ; le panneau charge les
+    // images d'un dossier précis via GET /api/kyc/admin/:userId, qui les sert
+    // déjà déchiffrées (voir kycController.getKycDetail).
     const users = await User.find({ "identity.status": "pending" })
-      .select("-password")
-      .sort({ "identity.submittedAt": 1 });
+      .select("firstName lastName email phone role country identity.type identity.number identity.status identity.submittedAt identity.expiryDate")
+      .sort({ "identity.submittedAt": 1 })
+      .lean();
     res.json({ users });
   } catch (err) {
     logger.error("getPendingIdentities:", err);

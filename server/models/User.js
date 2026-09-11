@@ -511,6 +511,20 @@ userSchema.index({ kycStatus: 1 });
 // alors une erreur 500 en production, tout en fonctionnant en développement
 // sur un petit jeu de données.
 userSchema.index({ createdAt: -1 });
+
+// Tri de la liste KYC admin (GET /api/kyc/admin/list). SANS cet index, MongoDB
+// trie EN MÉMOIRE, plafonné à 32 Mo : la collection `users` pèse 43 Mo pour 33
+// documents (photos d'identité en base64, jusqu'à 12 Mo par compte), donc le
+// tri dépassait le plafond et l'onglet KYC/Identités renvoyait 500.
+// Mesuré en production le 2026-09-11 : « Sort exceeded memory limit of
+// 33554432 bytes ». Un tri servi par un index n'est pas bloquant et échappe à
+// cette limite, quelle que soit la taille des documents.
+userSchema.index({ kycSubmittedAt: -1 });
+
+// Même raison pour la revue des pièces d'identité
+// (GET /api/users/pending-identity) : filtre sur identity.status puis tri sur
+// identity.submittedAt, aucun des deux indexé.
+userSchema.index({ "identity.status": 1, "identity.submittedAt": 1 });
 // Variante filtrée par rôle (« Clients », « Partenaires »… dans l'onglet
 // Comptes) : sans elle, le filtre par rôle repasserait par un tri bloquant.
 userSchema.index({ role: 1, createdAt: -1 });

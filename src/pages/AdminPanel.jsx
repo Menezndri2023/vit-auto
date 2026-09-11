@@ -698,6 +698,21 @@ function PendingIdentitiesSection({ token, showToast }) {
   const [acting, setActing]   = useState(null);
   const [rejectFor, setRejectFor] = useState(null);
   const [reason, setReason]   = useState("");
+  // Les pièces d'identité (base64, jusqu'à 12 Mo par dossier) ne sont plus
+  // renvoyées par la liste : elles écrasaient la réponse et l'appel échouait
+  // après 90 s. Elles sont chargées dossier par dossier, à la demande.
+  const [pieces, setPieces]   = useState({});   // { [userId]: {frontImage, backImage, selfie} | "chargement" | "erreur" }
+
+  const voirPieces = useCallback(async (userId) => {
+    setPieces((p) => ({ ...p, [userId]: "chargement" }));
+    try {
+      const r = await fetch(`/api/kyc/admin/${userId}`, { headers: { Authorization: `Bearer ${token}` } });
+      const d = await r.json().catch(() => null);
+      if (!r.ok) { setPieces((p) => ({ ...p, [userId]: "erreur" })); return; }
+      const i = d?.user?.identity || d?.identity || {};
+      setPieces((p) => ({ ...p, [userId]: { frontImage: i.frontImage, backImage: i.backImage, selfie: i.selfie } }));
+    } catch { setPieces((p) => ({ ...p, [userId]: "erreur" })); }
+  }, [token]);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -764,10 +779,21 @@ function PendingIdentitiesSection({ token, showToast }) {
             </div>
           </div>
 
-          <ClientDocuments
-            docs={{ frontImage: u.identity?.frontImage, backImage: u.identity?.backImage, selfie: u.identity?.selfie }}
-            reference={`identite-${u._id.slice(-6)}`}
-          />
+          {pieces[u._id] && pieces[u._id] !== "chargement" && pieces[u._id] !== "erreur" ? (
+            <ClientDocuments
+              docs={pieces[u._id]}
+              reference={`identite-${u._id.slice(-6)}`}
+            />
+          ) : (
+            <button type="button" onClick={() => voirPieces(u._id)}
+              disabled={pieces[u._id] === "chargement"}
+              style={{ background: "#f1f5f9", color: "#334155", border: "1.5px solid #e2e8f0", borderRadius: 8,
+                       padding: "9px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
+              {pieces[u._id] === "chargement" ? "Chargement des pièces…"
+                : pieces[u._id] === "erreur" ? "↻ Réessayer — chargement des pièces impossible"
+                : "📄 Afficher les pièces justificatives"}
+            </button>
+          )}
 
           {rejectFor === u._id && (
             <div style={{ marginTop: 12, borderTop: "1px solid #f1f5f9", paddingTop: 12 }}>
@@ -6065,7 +6091,20 @@ export default function AdminPanel() {
                                   {/* Visualiser le dossier complet */}
                                   <button
                                     title="Voir le dossier complet"
-                                    onClick={() => setExporterDetail(p)}
+                                    // La liste ne porte plus `documents` (base64,
+                                    // jusqu'à 5 Mo par profil — la réponse échouait
+                                    // après 90 s). La fiche complète est chargée à
+                                    // l'ouverture ; le dossier s'affiche d'abord
+                                    // avec ce qu'on a déjà, puis se complète.
+                                    onClick={async () => {
+                                      setExporterDetail(p);
+                                      try {
+                                        const r = await fetch(`/api/import-export/importer-profiles/${p._id}`, { headers });
+                                        const d = await r.json().catch(() => null);
+                                        const complet = d?.profile || d;
+                                        if (r.ok && complet?._id) setExporterDetail(complet);
+                                      } catch { /* la fiche reste affichée sans les pièces */ }
+                                    }}
                                     style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#eff6ff", color: "#2563eb", border: "1.5px solid #bfdbfe", borderRadius: 6, cursor: "pointer" }}>
                                     👁 Visualiser
                                   </button>
