@@ -270,6 +270,7 @@ Tout ce qui précède est construit et vérifié :
 - L'ancien `Booking` type `essai` reste en base et dans les onglets Commandes/Réservations pour
   l'historique ; il n'est plus proposé depuis la fiche véhicule. `/booking/:id` reste utilisé pour
   la location, le leasing/crédit et l'achat à l'import.
+- Poussé le 2026-09-12 : c935e6d (serveur) puis 8f800dc (front), garde pre-push verte.
 - À faire par l'exploitant : inscrire la règle d'attribution (90 jours) et la commission (3 %)
   dans les conditions partenaires ; configurer WhatsApp (`WHATSAPP_TOKEN`/`WHATSAPP_PHONE_ID`)
   pour que les relances partenaires partent aussi par ce canal (silencieux sinon).
