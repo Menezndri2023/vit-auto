@@ -16,13 +16,13 @@ const FALLBACK_PRICING = {
     // Ce repli s'affiche une fraction de seconde sur une page de TARIFS : des
     // valeurs périmées y annoncent brièvement des taux que le client ne paiera
     // pas. Il doit rester le miroir exact de server/config/defaultPricingConfig.js.
-    standard: { vente: 0.03, location: 0.15, chauffeur: 0.10, import_export: 0.05, leasing: 0.05 },
-    premium:  { vente: 0.03, location: 0.15, chauffeur: 0.10, import_export: 0.05, leasing: 0.05 },
+    standard: { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05, activite: 0.15 },
+    premium:  { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05, activite: 0.15 },
   },
   foundingPartner: {
     durationMonths: 12,
-    entreprise:  { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10 },
-    particulier: { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10 },
+    entreprise:  { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10, activite: 0.10 },
+    particulier: { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10, activite: 0.10 },
   },
   serviceFee: { minUSD: 1, percent: 0.005, maxUSD: 25 },
   subscriptions: {
@@ -194,8 +194,9 @@ export default function Plans() {
   const COMMISSIONS = [
     { label: "Location",      color: "#6366f1", standard: std.location,      founder: fp.entreprise?.location },
     { label: "Vente et essai",color: "#10b981", standard: std.vente,         founder: fp.entreprise?.vente },
-    { label: "Chauffeur",     color: "#f59e0b", standard: std.chauffeur,     founder: null },
+    { label: "Chauffeur",     color: "#f59e0b", standard: std.chauffeur,     founder: fp.entreprise?.chauffeur },
     { label: "Import/Export", color: "#0ea5e9", standard: std.import_export, founder: fp.entreprise?.import_export },
+    { label: "Activités et loisirs", color: "#ec4899", standard: std.activite ?? FALLBACK_PRICING.commissions.standard.activite, founder: fp.entreprise?.activite ?? FALLBACK_PRICING.foundingPartner.entreprise.activite },
     { label: "Leasing",       color: "#8b5cf6", standard: std.leasing,       founder: null },
   ];
 

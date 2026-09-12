@@ -7,7 +7,7 @@ import { createUser } from "./helpers/fixtures.js";
 import PartnerOnboarding from "../models/PartnerOnboarding.js";
 
 // Deux grilles : FONDATEUR pendant douze mois (location 10 %, essai et vente
-// 3 %, export 3 %, chauffeur 10 %), puis STANDARD (15 %, 3 %, 5 %, 10 %).
+// 3 %, export 3 %, chauffeur 10 %, loisirs 10 %), puis STANDARD (15 %, 5 %, 5 %, 15 %, 15 %).
 //
 // Le point qui compte : la faveur commerciale est déjà portée par l'offre
 // Founding Partner, ouverte aux partenaires actuels comme futurs pendant un an.
@@ -35,10 +35,10 @@ describe("Grille de commissions", () => {
   it("applique la grille décidée", async () => {
     const p = await createUser({ role: "partenaire" });
     expect(await resolveCommissionRate("location", p._id)).toBe(0.15);
-    // Chauffeur : 10 % pour tous (décision de l'exploitant, 2026-09-12).
-    expect(await resolveCommissionRate("chauffeur", p._id)).toBe(0.10);
-    // 3 % depuis le 2026-09-12 : même taux que la vente par demande d'essai (salesLead).
-    expect(await resolveCommissionRate("vente", p._id)).toBe(0.03);
+    // Grille définitive de l'exploitant (2026-09-12) : standard 15 / 5 / 5 / 15 / 15.
+    expect(await resolveCommissionRate("chauffeur", p._id)).toBe(0.15);
+    expect(await resolveCommissionRate("vente", p._id)).toBe(0.05);
+    expect(await resolveCommissionRate("activite", p._id)).toBe(0.15);
     expect(await resolveCommissionRate("import_export", p._id)).toBe(0.05);
   });
 
@@ -47,7 +47,7 @@ describe("Grille de commissions", () => {
     // (pricingEngine.BOOKING_TYPE_TO_PRICING_TYPE). Un taux « essai » distinct
     // ne serait jamais lu.
     const p = await createUser({ role: "partenaire" });
-    expect(await resolveCommissionRate("essai", p._id)).toBe(0.03);
+    expect(await resolveCommissionRate("essai", p._id)).toBe(0.05);
   });
 
   it("un abonné payant ne bénéficie d'AUCUNE réduction supplémentaire", async () => {
@@ -87,6 +87,7 @@ describe("Grille de commissions", () => {
     expect(await resolveCommissionRate("vente", p._id)).toBe(0.03);
     expect(await resolveCommissionRate("import_export", p._id)).toBe(0.03);
     expect(await resolveCommissionRate("chauffeur", p._id)).toBe(0.10);
+    expect(await resolveCommissionRate("activite", p._id)).toBe(0.10);
   });
 
   it("retombe au standard une fois les douze mois écoulés", async () => {
@@ -97,8 +98,8 @@ describe("Grille de commissions", () => {
     });
 
     expect(await resolveCommissionRate("location", p._id)).toBe(0.15);
-    // Chauffeur : 10 % pour tous (décision de l'exploitant, 2026-09-12).
-    expect(await resolveCommissionRate("chauffeur", p._id)).toBe(0.10);
+    expect(await resolveCommissionRate("chauffeur", p._id)).toBe(0.15);
+    expect(await resolveCommissionRate("vente", p._id)).toBe(0.05);
   });
 
   it("un dossier fondateur SANS date de signature n'accorde aucune réduction", async () => {

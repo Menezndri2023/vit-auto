@@ -14,6 +14,8 @@ const rateByType = {
   chauffeur:     { type: Number, required: true, min: 0, max: 1 },
   import_export: { type: Number, required: true, min: 0, max: 1 },
   leasing:       { type: Number, required: true, min: 0, max: 1 },
+  // Activités et loisirs (Quad, plongée…) — 15 % standard, 10 % fondateur.
+  activite:      { type: Number, default: 0.15, min: 0, max: 1 },
 };
 
 const foundingRateByType = {
@@ -26,6 +28,7 @@ const foundingRateByType = {
   // que Vehicle.featured, qui rendait le bouton « mettre en vedette » inopérant
   // malgré une réponse 200.
   chauffeur:     { type: Number, default: null, min: 0, max: 1 },
+  activite:      { type: Number, default: null, min: 0, max: 1 },
 };
 
 const serviceEntry = {
@@ -119,8 +122,10 @@ const pricingConfigSchema = new mongoose.Schema({
   // « essai » conclus sur place) : la vente est ici conclue HORS plateforme,
   // entre partenaire et client, et la commission n'est due que si un prospect
   // apporté par VIT AUTO achète pendant la fenêtre d'attribution.
+  // Le taux de commission n'est PAS ici : la vente par demande d'essai suit
+  // la grille commissions.*.vente / foundingPartner.*.vente (5 % standard,
+  // 3 % fondateur), résolue par pricingEngine.resolveCommissionRate.
   salesLead: {
-    commissionRate:          { type: Number, default: 0.03, min: 0, max: 1 },
     attributionDays:         { type: Number, default: 90, min: 1 },
     // Délai de réponse partenaire (§7) — en minutes.
     responseSlaMinutes:      { type: Number, default: 120, min: 5 },

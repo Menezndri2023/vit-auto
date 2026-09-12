@@ -28,6 +28,9 @@ const BOOKING_TYPE_TO_PRICING_TYPE = {
   essai:     "vente",
   chauffeur: "chauffeur",
   leasing:   "leasing",
+  // Activités et loisirs : sans cette entrée, le type retombait sur un taux
+  // absent de la grille → 5 % par défaut, au lieu de 15 % / 10 % fondateur.
+  activite:  "activite",
 };
 
 async function isFoundingPartnerActive(userId) {
@@ -62,7 +65,7 @@ export async function resolveCommissionRate(type, ownerId) {
   // Founding Partner couvre location, essai/vente, export ET chauffeur — le
   // barème commercial arrêté porte les quatre. Le leasing en reste exclu,
   // faute de taux fondateur défini.
-  if (["location", "vente", "import_export", "chauffeur"].includes(pricingType)) {
+  if (["location", "vente", "import_export", "chauffeur", "activite"].includes(pricingType)) {
     const fp = await isFoundingPartnerActive(ownerId);
     if (fp) {
       const durationMs = config.foundingPartner.durationMonths * 30.4375 * 24 * 60 * 60 * 1000;

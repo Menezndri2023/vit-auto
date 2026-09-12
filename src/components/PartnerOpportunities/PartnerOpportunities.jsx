@@ -275,7 +275,7 @@ export default function PartnerOpportunities({ businessId = "" }) {
                       </label>
                       <label>Date de vente<input type="date" max={todayISO()} value={f.data.soldAt} onChange={(e) => setData(lead, { soldAt: e.target.value })} /></label>
                     </div>
-                    <p className={styles.hint}>Commission VIT AUTO : 3 % du prix de vente final, due uniquement pour une vente issue de ce prospect dans la fenêtre d'attribution ({lead.attribution?.windowDays || 90} jours). VIT AUTO confirme la vente avant facturation.</p>
+                    <p className={styles.hint}>Commission VIT AUTO : 5 % du prix de vente final (3 % pendant vos 12 mois Partenaire Fondateur), due uniquement pour une vente issue de ce prospect dans la fenêtre d'attribution ({lead.attribution?.windowDays || 90} jours). VIT AUTO confirme la vente avant facturation.</p>
                     <div className={styles.actions}>
                       <button className={styles.success} disabled={isBusy || !(Number(f.data.finalPrice) > 0)} onClick={() => act(lead, "declare-sale", f.data, "Vente déclarée — en attente de confirmation VIT AUTO.")}>Déclarer la vente</button>
                       <button className={styles.ghost} onClick={() => openForm(lead, null)}>Annuler</button>

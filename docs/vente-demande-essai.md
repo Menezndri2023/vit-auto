@@ -9,7 +9,7 @@ construit. Il répond point par point à la consigne « avant de coder, fournir�
 |---|---|---|
 | Annonce | `Vehicle` avec `type:"vente"`, véhicule situé dans le pays du visiteur | `ImportExportListing` (et `Vehicle` dont `country` est un pays d'origine d'import) |
 | Parcours | Visibilité → lead → **demande d'essai** → RDV → essai → opportunité → vente conclue **hors plateforme** | Réservation gratuite + négociation, ou **achat direct** au prix affiché, paiement escrow sur la plateforme (`IETransaction`, 14 étapes) |
-| Commission | 3 % du prix final déclaré, due uniquement si vente conclue dans la fenêtre d'attribution | `commissions.*.import_export`, prélevée à la libération des fonds |
+| Commission | 5 % (3 % fondateur) du prix final déclaré, due uniquement si vente conclue dans la fenêtre d'attribution | `commissions.*.import_export`, prélevée à la libération des fonds |
 | Code | `SalesLead` (nouveau) | `ieTransactionController.js`, `createDirectPurchase` |
 
 Le CTA de la fiche véhicule tranche : `estAImporter` (pays d'origine d'import ≠ pays
@@ -80,7 +80,7 @@ d'historique horodaté), `PartnerBusiness.businessId`, `Vehicle.status:"sold"`.
 
 ### Modifié : `PricingConfig` + `config/defaultPricingConfig.js`
 Bloc `salesLead` (strict Mongoose : un champ non déclaré est perdu en silence) :
-`commissionRate 0.03`, `attributionDays 90`, `responseSlaMinutes 120`,
+`attributionDays 90`, `responseSlaMinutes 120`,
 `reminderMinutes 120`, `escalationMinutes 360`, `adminInterventionMinutes 1440`,
 `highValueUSD 40000`, `mediumValueUSD 15000`, `contactDisclosureStage`.
 
@@ -185,7 +185,10 @@ SMS (`generic`) + WhatsApp texte, chacun silencieux si non configuré.
 
 ## 7. Règles de commission
 
-- Taux `PricingConfig.salesLead.commissionRate` = **0,03** (3 %), éditable admin.
+- Taux = ligne **« vente »** de la grille (`resolveCommissionRate("vente", partenaire)`) :
+  **5 % standard, 3 % pendant les 12 mois Partenaire Fondateur** — grille définitive de
+  l'exploitant (2026-09-12) : location 15/10, vente 5/3, export 5/3, chauffeur 15/10,
+  activités-loisirs 15/10. Pas de taux à part dans `salesLead`.
 - Assiette : prix de vente final déclaré, converti en USD (`currencyEngine`).
 - Due uniquement si `status` atteint `SOLD` **et** `sale.soldAt ≤ attribution.expiresAt`.
 - Écriture `CommissionLedger` `{transactionType:"sale", transactionId: lead._id,
@@ -248,7 +251,7 @@ Tout ce qui précède est construit et vérifié :
   onglet admin « Leads vente (essais) » (`AdminSalesLeads`), constantes `src/constants/salesLeads.js`.
 - Tests : `server/tests/salesLead.test.js` (16 tests : création, qualification 1/2/3,
   auto-transmission, doublon, masquage des coordonnées, autre créneau par jeton, refus, SLA
-  en trois paliers, résultat d'essai, suivi client, vente en XOF → commission 3 % en USD,
+  en trois paliers, résultat d'essai, suivi client, vente en XOF → commission 5 % (3 % fondateur) en USD,
   ledger, attribution expirée, rejet admin, funnel, transitions interdites) ;
   `src/pages/screens.essai.render.test.jsx` (3 écrans).
 - Vérification bout en bout en conditions de production (dist/ sous CSP de `vercel.json`, API
@@ -271,6 +274,6 @@ Tout ce qui précède est construit et vérifié :
   l'historique ; il n'est plus proposé depuis la fiche véhicule. `/booking/:id` reste utilisé pour
   la location, le leasing/crédit et l'achat à l'import.
 - Poussé le 2026-09-12 : c935e6d (serveur) puis 8f800dc (front), garde pre-push verte.
-- À faire par l'exploitant : inscrire la règle d'attribution (90 jours) et la commission (3 %)
-  dans les conditions partenaires ; configurer WhatsApp (`WHATSAPP_TOKEN`/`WHATSAPP_PHONE_ID`)
+- Fait (2026-09-12) : règle d'attribution (90 jours) et commission « vente » (5 % / 3 % fondateur)
+  inscrites dans les conditions partenaires (§5) et l'Accord fondateur (article 3.4) ; configurer WhatsApp (`WHATSAPP_TOKEN`/`WHATSAPP_PHONE_ID`)
   pour que les relances partenaires partent aussi par ce canal (silencieux sinon).

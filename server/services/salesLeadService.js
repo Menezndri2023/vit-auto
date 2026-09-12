@@ -11,7 +11,7 @@ import SalesLead from "../models/SalesLead.js";
 import Vehicle from "../models/Vehicle.js";
 import CommissionLedger from "../models/CommissionLedger.js";
 import logger from "../utils/logger.js";
-import { getConfig } from "./pricingEngine.js";
+import { getConfig, resolveCommissionRate } from "./pricingEngine.js";
 import { convertAmount } from "./currencyEngine.js";
 import { DEFAULT_PRICING_CONFIG } from "../config/defaultPricingConfig.js";
 import { resolveOriginCode } from "../constants/importOrigins.js";
@@ -622,9 +622,10 @@ export async function declareSale(lead, { actorId, source = "DASHBOARD", finalPr
   const priceUSD = await convertAmount(price, cur, "USD");
   if (priceUSD == null) throw new LeadError(400, `Devise ${cur} inconnue.`);
 
-  const cfg = await getSalesLeadConfig();
   const within = !lead.attribution.expiresAt || date <= new Date(lead.attribution.expiresAt);
-  const rate = cfg.commissionRate;
+  // Ligne « vente » de la grille : 5 % standard, 3 % pendant les douze mois
+  // Partenaire Fondateur du VENDEUR (grille définitive de l'exploitant).
+  const rate = await resolveCommissionRate("vente", lead.partner?._id || lead.partner);
   const amountUSD = within ? Math.round(priceUSD * rate * 100) / 100 : 0;
 
   transition(lead, "SALE_PENDING", { actorType: "PARTNER", actorId, source, action: "sale_declared", metadata: { finalPrice: price, currency: cur, finalPriceUSD: priceUSD, soldAt: date } });

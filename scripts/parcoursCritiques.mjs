@@ -113,8 +113,10 @@ async function demandeEssai(browser) {
   r = await admin(`/api/sales-leads/${lead._id}/outcome`, { method: "POST", body: { testDrive: "completed", commercial: "interested" } });
   if (r.status !== 200) throw new Error(`outcome ${r.status}`);
   r = await admin(`/api/sales-leads/${lead._id}/declare-sale`, { method: "POST", body: { finalPrice: 18000, currency: "USD" } });
-  if (r.status !== 200 || r.data.lead?.commission?.amountUSD !== 540) throw new Error(`declare-sale ${r.status} commission=${r.data.lead?.commission?.amountUSD}`);
-  ok("vendeur : essai réalisé, vente déclarée 18 000 USD → commission 540 USD");
+  const com = r.data.lead?.commission;
+  // Grille : 5 % standard, 3 % fondateur — la commission doit être exactement prix × taux.
+  if (r.status !== 200 || !com?.rate || Math.abs(com.amountUSD - 18000 * com.rate) > 0.01) throw new Error(`declare-sale ${r.status} commission=${JSON.stringify(com)}`);
+  ok(`vendeur : essai réalisé, vente déclarée 18 000 USD → commission ${com.amountUSD} USD (${com.rate * 100} %)`);
 
   await pa.goto(`${BASE}/admin?tab=sales_leads&lead=${lead._id}`, { waitUntil: "domcontentloaded", timeout: 60000 });
   await pa.getByRole("button", { name: /Confirmer la vente/ }).click({ timeout: 60000 });

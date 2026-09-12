@@ -122,7 +122,7 @@ export default function Partenaires() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", gap: 16, marginBottom: 28 }}>
           {[
             { icon: "🎁", label: "Gratuit 12 mois", desc: "Aucun abonnement, aucune carte requise pendant un an complet." },
-            { icon: "💸", label: "Commission réduite", desc: "Location : 10 % pendant 12 mois (au lieu de 15 %). Vente : 3 % du prix final pour tous, due seulement sur une vente conclue avec un prospect VIT AUTO." },
+            { icon: "💸", label: "Commission réduite", desc: "Pendant 12 mois, entreprise comme particulier : location 10 % (au lieu de 15 %), vente et export 3 % (au lieu de 5 %), chauffeur et loisirs 10 % (au lieu de 15 %)." },
             { icon: "🏅", label: "Badge Fondateur", desc: "Mention exclusive \"Partenaire Fondateur\" sur toutes vos annonces." },
             { icon: "📢", label: "Mise en avant permanente", desc: "Vos annonces apparaissent en premier dans le catalogue et les recherches." },
             { icon: "🔓", label: "Accès anticipé", desc: "Accès prioritaire aux nouvelles fonctionnalités avant tous les autres." },
@@ -247,9 +247,11 @@ export default function Partenaires() {
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px,1fr))", gap: 16 }}>
           {[
-            { label: "Location", standard: "15 %", founder: "10 %", icon: "🚗", note: "Ex. 500 DH → 75 DH commission · Partenaire Fondateur (entreprise ou particulier) : 10 % pendant 12 mois" },
-            { label: "Vente", standard: "3 %", founder: "3 %", icon: "🏷️", note: "Du prix de vente final, uniquement si la vente est conclue avec un prospect apporté par VIT AUTO (90 jours). Ex. 100 000 DH → 3 000 DH" },
-            { label: "Chauffeur", standard: "10 %", founder: "10 %", icon: "👨‍✈️", note: "Ex. 300 DH → 30 DH commission" },
+            { label: "Location", standard: "15 %", founder: "10 %", icon: "🚗", note: "Ex. 500 DH → 75 DH commission (50 DH en Partenaire Fondateur)" },
+            { label: "Vente", standard: "5 %", founder: "3 %", icon: "🏷️", note: "Du prix de vente final, uniquement si la vente est conclue avec un prospect apporté par VIT AUTO (90 jours). Ex. 100 000 DH → 5 000 DH (3 000 DH fondateur)" },
+            { label: "Vente à l'export", standard: "5 %", founder: "3 %", icon: "🌍", note: "Prélevée à la libération des fonds (séquestre)" },
+            { label: "Chauffeur", standard: "15 %", founder: "10 %", icon: "👨‍✈️", note: "Ex. 300 DH → 45 DH commission (30 DH fondateur)" },
+            { label: "Activités et loisirs", standard: "15 %", founder: "10 %", icon: "🎈", note: "Quad, plongée, jetski… Ex. 400 DH → 60 DH (40 DH fondateur)" },
             { label: "Assurance", standard: "Négociée", founder: "Négociée", icon: "🛡️", note: "Selon accord partenaire" },
             { label: "Frais service client", standard: "15 DH fixe", founder: "15 DH fixe", icon: "⚙️", note: "À la charge du client" },
           ].map((c) => (

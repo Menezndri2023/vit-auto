@@ -82,7 +82,7 @@ export default function AdminSalesLeads() {
       <div className={styles.headRow}>
         <div>
           <h2 className={styles.h2}>🎯 Leads vente — demandes d'essai</h2>
-          <p className={styles.sub}>Visibilité → prospect → demande d'essai → rendez-vous → essai → opportunité → vente. Commission 3 % due uniquement sur une vente conclue dans la fenêtre d'attribution.</p>
+          <p className={styles.sub}>Visibilité → prospect → demande d'essai → rendez-vous → essai → opportunité → vente. Commission « vente » de la grille (5 %, 3 % fondateur) due uniquement sur une vente conclue dans la fenêtre d'attribution.</p>
         </div>
         <button className={styles.ghost} onClick={load} disabled={loading}>↻ Actualiser</button>
       </div>

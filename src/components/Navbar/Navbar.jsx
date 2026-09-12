@@ -5,6 +5,7 @@ import { useCart } from "../../context/CartContext";
 import NotificationBell from "../NotificationBell/NotificationBell";
 import LanguageSelector from "../LanguageSelector/LanguageSelector";
 import VitAutoLogo from "../Logo/VitAutoLogo";
+import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "../../constants/activityTypes";
 import styles from "./Navbar.module.css";
 
 const Navbar = () => {
@@ -16,6 +17,11 @@ const Navbar = () => {
   const dropdownRef = useRef(null);
 
   const menuRef = useRef(null);
+  // Section OTHERS (activités culturelles/loisir — Quad, Surf, Montgolfière,
+  // Jetski, Jet privé, Bateau...) — remplace l'ancien lien navbar "❤️
+  // Favoris" (déplacé dans le tableau de bord client, voir Dashboard.jsx).
+  const [activitiesOpen, setActivitiesOpen] = useState(false);
+  const activitiesRef = useRef(null);
   const isPartner = user?.role === "partenaire" || user?.role === "admin";
   const isAdmin   = user?.role === "admin";
 
@@ -47,6 +53,31 @@ const Navbar = () => {
     if (dropdownOpen) document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [dropdownOpen]);
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (activitiesRef.current && !activitiesRef.current.contains(e.target)) {
+        setActivitiesOpen(false);
+      }
+    };
+    const handleEscape = (e) => { if (e.key === "Escape") setActivitiesOpen(false); };
+    if (activitiesOpen) {
+      document.addEventListener("mousedown", handleClick);
+      document.addEventListener("keydown", handleEscape);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [activitiesOpen]);
+
+  const goToActivity = (activityType) => {
+    setActivitiesOpen(false);
+    setMenuOpen(false);
+    const params = new URLSearchParams({ mode: "Autres" });
+    if (activityType) params.set("activityType", activityType);
+    navigate(`/catalogue?${params.toString()}`);
+  };
 
   return (
     <nav className={styles.navbar} ref={menuRef}>
@@ -109,6 +140,46 @@ const Navbar = () => {
         {isAuthenticated && !isPartner && (
           <li><NavLink to="/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>Tableau de bord</NavLink></li>
         )}
+
+        {/* Section Activités et Loisirs — ouverte à tous (pas de garde
+            isAuthenticated : parcourir le catalogue ne nécessite jamais de
+            compte, voir Catalogue.jsx). Grande barre (bureau) uniquement :
+            retirée du menu burger mobile, où l'onglet Loisirs de la barre du
+            bas la remplace (décision de l'exploitant, 2026-09-12). */}
+        <li className={`${styles.activitiesDropdownWrapper} ${styles.desktopOnly}`} ref={activitiesRef}>
+          <button
+            type="button"
+            className={`${styles.activitiesTrigger} ${activitiesOpen ? styles.activitiesTriggerOpen : ""}`}
+            onClick={() => setActivitiesOpen((o) => !o)}
+          >
+            🎈 Loisirs
+          </button>
+          {activitiesOpen && (
+            <>
+              {/* Toile de fond : commence sous la navbar (jamais par-dessus),
+                  qui reste donc pleinement visible et utilisable — rend
+                  explicite que c'est un état d'overlay volontaire plutôt
+                  qu'un panneau qui cache le reste du site sans raison. */}
+              <div className={styles.activitiesBackdrop} onClick={() => setActivitiesOpen(false)} />
+              <div className={styles.activitiesMenu}>
+                <div className={styles.activitiesMenuHeader}>
+                  <span className={styles.activitiesMenuTitle}>🎈 Activités et Loisirs</span>
+                  <button className={styles.activitiesMenuAll} onClick={() => goToActivity(null)}>
+                    Toutes les activités →
+                  </button>
+                </div>
+                <div className={styles.activitiesGrid}>
+                  {ACTIVITY_TYPES.filter((t) => t !== "AUTRE").map((t) => (
+                    <button key={t} className={styles.activitiesGridItem} onClick={() => goToActivity(t)}>
+                      <span className={styles.activitiesGridIcon}>{ACTIVITY_TYPE_ICONS[t] || "🎟️"}</span>
+                      <span>{ACTIVITY_TYPE_LABELS[t] || t}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </li>
 
         {isAuthenticated && !isPartner && (
           <li>

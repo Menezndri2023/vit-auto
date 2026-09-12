@@ -8,23 +8,17 @@
 // que la migration a tourné une fois.
 export const DEFAULT_PRICING_CONFIG = {
   key: "global",
-  // Grille STANDARD, applicable une fois la fenêtre fondateur écoulée :
-  // location 15 %, essai et vente 3 % (règle de l'exploitant, 2026-09-12 — même
-  // taux que la vente par demande d'essai, voir salesLead), export 5 %,
-  // chauffeur 10 % (décision de l'exploitant, 2026-09-12 : même taux fondateur ou
-  // non). `essai` est
-  // facturé au taux `vente` (voir pricingEngine) — il n'a pas de taux propre.
+  // GRILLE DÉFINITIVE (exploitant, 2026-09-12) — standard / fondateur :
+  //   location 15 / 10 · vente (essai) 5 / 3 · export 5 / 3 · chauffeur 15 / 10
+  //   · activités et loisirs 15 / 10. `essai` est facturé au taux `vente`
+  // (voir pricingEngine) ; la vente par demande d'essai (SalesLead) suit la
+  // même ligne `vente`.
   //
-  // `premium` est VOLONTAIREMENT identique à `standard`. La faveur commerciale
-  // est déjà portée par l'offre Founding Partner — ouverte aux partenaires
-  // actuels comme futurs, pendant un an (foundingPartner.durationMonths). Un
-  // abonnement n'a donc pas à retrancher 20 % de plus par-dessus : il se
-  // justifie par ce qu'il APPORTE, et le plan choisi est accordé dès que le
-  // support l'a confirmé. Le mécanisme premium reste en place et pourra
-  // reprendre du sens si une remise d'abonnement est décidée un jour.
+  // `premium` est VOLONTAIREMENT identique à `standard` : l'abonnement ne
+  // change rien aux commissions (voir subscription.test.js).
   commissions: {
-    standard: { vente: 0.03, location: 0.15, chauffeur: 0.10, import_export: 0.05, leasing: 0.05 },
-    premium:  { vente: 0.03, location: 0.15, chauffeur: 0.10, import_export: 0.05, leasing: 0.05 },
+    standard: { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05, activite: 0.15 },
+    premium:  { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05, activite: 0.15 },
   },
   // Grille FONDATEUR — la faveur commerciale, pendant douze mois à compter de
   // la SIGNATURE de l'accord (PartnerOnboarding.commissions.lockedAt). Au-delà,
@@ -35,8 +29,8 @@ export const DEFAULT_PRICING_CONFIG = {
   // particulier, auparavant absent (retour au standard), y est explicite.
   foundingPartner: {
     durationMonths: 12,
-    entreprise:  { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10 },
-    particulier: { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10 },
+    entreprise:  { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10, activite: 0.10 },
+    particulier: { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10, activite: 0.10 },
   },
   serviceFee: { minUSD: 1, percent: 0.005, maxUSD: 25 },
   importEstimateFee: { percent: 0.03, minUSD: 333, maxUSD: 1666 },
@@ -62,10 +56,10 @@ export const DEFAULT_PRICING_CONFIG = {
     sequestre:        { enabled: true, commissionRate: 0, fixedFeeUSD: 0 },
     change_devises:   { enabled: true, commissionRate: 0, fixedFeeUSD: 0 },
   },
-  // Vente par demande d'essai — 3 % du prix final, attribution 90 jours,
-  // réponse partenaire attendue sous 2 h (voir docs/vente-demande-essai.md).
+  // Vente par demande d'essai — commission = ligne `vente` de la grille
+  // (5 % / 3 % fondateur) ; ici seulement attribution 90 jours et délais
+  // (voir docs/vente-demande-essai.md).
   salesLead: {
-    commissionRate: 0.03,
     attributionDays: 90,
     responseSlaMinutes: 120,
     escalationMinutes: 360,

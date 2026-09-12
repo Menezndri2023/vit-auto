@@ -1699,11 +1699,15 @@ export async function generateAgreement(doc, user, date) {
   const stdVente    = Math.round(config.commissions.standard.vente * 100);
   const stdDrv      = Math.round(config.commissions.standard.chauffeur * 100);
   const drvRate     = doc.commissions?.chauffeur || stdDrv;
-  // Vente par demande d'essai (docs/vente-demande-essai.md) : commission sur
-  // le prix final et fenêtre d'attribution, lues dans PricingConfig.salesLead.
+  // Vente par demande d'essai (docs/vente-demande-essai.md) : même ligne
+  // « vente » de la grille (standard / fondateur) ; fenêtre d'attribution
+  // dans PricingConfig.salesLead.
   const leadCfg     = { ...DEFAULT_PRICING_CONFIG.salesLead, ...(config.salesLead || {}) };
-  const leadRate    = Math.round(leadCfg.commissionRate * 10000) / 100;
   const leadWindow  = leadCfg.attributionDays;
+  const stdExport   = Math.round((config.commissions.standard.import_export ?? 0.05) * 100);
+  const stdActivite = Math.round((config.commissions.standard.activite ?? 0.15) * 100);
+  const fpExport    = Math.round((fpRate.import_export ?? 0.03) * 100);
+  const fpActivite  = Math.round((fpRate.activite ?? 0.10) * 100);
 
   return `FOUNDING PARTNER AGREEMENT
 ══════════════════════════════════════════════════════════════
@@ -1761,7 +1765,9 @@ ARTICLE 3 — COMMERCIAL CONDITIONS
      ─────────────────────────────────────────────────────────────────
      Vehicle Rental         ${stdLocation}%             ${fpRate.location * 100}%
      Vehicle Sales          ${stdVente}%              ${fpRate.vente * 100}%
+     Export Sales           ${stdExport}%              ${fpExport}%
      Professional Driver    ${stdDrv}%             ${drvRate}%
+     Activities & Leisure   ${stdActivite}%             ${fpActivite}%
      Premium Subscription   Paid            FREE (${fpDuration} months)
 
 3.2  The Founding Partner rate above applies for the first ${fpDuration} months
@@ -1778,10 +1784,11 @@ ARTICLE 3 — COMMERCIAL CONDITIONS
      identified by a unique reference, and follows the process to its outcome.
      a) Attribution window: any prospect supplied by VIT-AUTO remains
         attributed to VIT-AUTO for ${leadWindow} days from the request date.
-     b) Commission: ${leadRate}% of the final sale price, due only when such a
-        prospect purchases the vehicle concerned from the Partner within the
-        attribution window. No subscription, registration or listing fee
-        applies to vehicle sales.
+     b) Commission: the "Vehicle Sales" rate of Article 3.1 (${fpRate.vente * 100}%
+        during the Founding Partner period, then ${stdVente}%), applied to the
+        final sale price and due only when such a prospect purchases the
+        vehicle concerned from the Partner within the attribution window. No
+        subscription, registration or listing fee applies to vehicle sales.
      c) Declaration: the Partner declares the sale (final price, date) from
         the partner dashboard; VIT-AUTO confirms it before invoicing.
         Obtaining a prospect's contact details through VIT-AUTO and concluding
