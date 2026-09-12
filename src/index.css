@@ -336,3 +336,27 @@ input, select, textarea {
     padding-bottom: var(--safe-bottom);
   }
 }
+
+/* ─── Champs date sur iPhone ──────────────────────────────────────────────
+   Safari iOS rend <input type="date"> comme un bouton natif : texte centré,
+   hauteur qui s'effondre tant qu'aucune date n'est saisie, apparence
+   différente des autres champs. Règle globale (inscription, réservation,
+   demande d'essai, filtres admin) ; chaque formulaire garde sa hauteur. */
+input[type="date"],
+input[type="time"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  text-align: left;
+}
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 1.3em;
+}
+[dir="rtl"] input[type="date"],
+[dir="rtl"] input[type="time"],
+[dir="rtl"] input[type="date"]::-webkit-date-and-time-value,
+[dir="rtl"] input[type="time"]::-webkit-date-and-time-value {
+  text-align: right;
+}

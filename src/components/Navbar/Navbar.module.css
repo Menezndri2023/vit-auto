@@ -260,151 +260,6 @@
   opacity: 0.85;
 }
 
-/* ── Section OTHERS (activités) — remplace l'ancien lien "❤️ Favoris" ──── */
-.activitiesDropdownWrapper {
-  position: relative;
-}
-
-/* Typographie strictement identique à .navLinks a (même famille/poids/
-   taille/padding que Accueil, Catalogue, Publier...) — aucun traitement
-   spécial, juste un <button> plutôt qu'un <a> (+ override mobile dédié plus
-   bas, un <button> n'est jamais atteint par le sélecteur ".navLinks a"). */
-.activitiesTrigger {
-  background: transparent;
-  border: none;
-  color: rgba(255, 255, 255, 0.78);
-  font-weight: 500;
-  font-size: 0.9rem;
-  padding: 7px 13px;
-  border-radius: var(--r-sm, 10px);
-  cursor: pointer;
-  font-family: inherit;
-  transition: color var(--t-base), background var(--t-base);
-}
-
-.activitiesTrigger:hover,
-.activitiesTriggerOpen {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.09);
-}
-
-/* Toile de fond sous le méga-menu — commence sous la navbar (jamais
-   par-dessus elle) pour qu'elle reste pleinement utilisable. Corrigé (retour
-   utilisateur) : un fond sombre à 45% + flou masquait le reste du site,
-   donnant l'impression qu'il "barre" la page plutôt que de la laisser
-   consultable derrière le menu. Désormais à peine visible — même teinte que
-   --c-primary-soft (déjà utilisée ailleurs sur le site pour les états actifs/
-   survol) plutôt qu'un gris/noir générique — juste assez pour capter le clic
-   de fermeture, jamais pour gêner la lecture du reste de la page. */
-.activitiesBackdrop {
-  position: fixed;
-  top: var(--navbar-h, 64px);
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--c-primary-soft, rgba(255, 77, 45, 0.12));
-  z-index: 550;
-  animation: activitiesFadeIn .15s ease;
-}
-
-@keyframes activitiesFadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-/* Méga-menu — panneau clair (se distingue volontairement du dropdown sombre
-   du burger) avec une grille d'activités plutôt qu'une simple liste. */
-.activitiesMenu {
-  position: absolute;
-  top: calc(100% + 12px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 560;
-  width: 560px;
-  max-width: calc(100vw - 32px);
-  background: #fff;
-  border-radius: var(--r-lg, 18px);
-  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.28), 0 0 0 1px rgba(15, 23, 42, 0.04);
-  padding: 18px;
-  animation: slideDown 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.activitiesMenuHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.activitiesMenuTitle {
-  font-size: 0.95rem;
-  font-weight: 800;
-  color: #0f1b3f;
-}
-
-.activitiesMenuAll {
-  background: transparent;
-  border: none;
-  color: #ff4d2d;
-  font-weight: 700;
-  font-size: 0.85rem;
-  cursor: pointer;
-  padding: 6px 10px;
-  border-radius: var(--r-sm, 10px);
-  font-family: inherit;
-  transition: background var(--t-fast, .15s);
-  white-space: nowrap;
-}
-
-.activitiesMenuAll:hover {
-  background: rgba(255, 77, 45, 0.08);
-}
-
-.activitiesGrid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-
-.activitiesGridItem {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  background: #f8fafc;
-  border: 1.5px solid transparent;
-  border-radius: 14px;
-  padding: 14px 8px;
-  cursor: pointer;
-  font-family: inherit;
-  color: #334155;
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-align: center;
-  transition: background var(--t-fast, .15s), border-color var(--t-fast, .15s), transform var(--t-fast, .15s);
-}
-
-.activitiesGridItem:hover {
-  background: #fff5f2;
-  border-color: rgba(255, 77, 45, 0.3);
-  transform: translateY(-2px);
-}
-
-.activitiesGridIcon {
-  font-size: 1.5rem;
-  line-height: 1;
-}
-
-@media (max-width: 640px) {
-  .activitiesGrid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .activitiesMenu {
-    width: calc(100vw - 32px);
-  }
-}
-
 .partnerItem {
   color: #f59e0b !important;
 }
@@ -484,17 +339,26 @@
     display: none;
   }
 
-  /* Le burger/menu déroulant est remplacé par la BottomNav (Accueil/Catalogue/
-     Favoris/Chat/Profil) + son onglet "Plus" (Tableau de bord/Aide/Connexion...)
-     en dessous de 900px — voir src/components/BottomNav. On le garde caché ici. */
+  /* Burger : ouvre le menu principal sous la ligne logo/langue. Il était
+     déclaré caché ici mais réaffiché par la règle tactile plus bas — donc
+     visible sur les téléphones, invisible en émulation : on l'assume et on
+     l'affiche pour tous les écrans étroits. La ligne du haut (logo, langue,
+     burger) reste en place quand le menu s'ouvre grâce à `order`. */
   .burger {
-    display: none;
+    display: flex;
+  }
+  .navRight {
+    order: 2;
+    margin-left: auto;
   }
 
   /* Menu déroulant mobile */
   .navLinks {
     display: none;
-    width: 100%;
+    order: 3;
+    /* Pleine largeur : `width:100%` + marges négatives laissait 32 px de vide à
+       droite (la boîte gardait la largeur du parent, décalée à gauche). */
+    width: calc(100% + 32px);
     flex-direction: column;
     gap: 2px;
     background: #13151d;
@@ -512,6 +376,8 @@
 
   .navLinks a {
     display: flex;
+    width: 100%;
+    box-sizing: border-box;
     align-items: center;
     padding: 12px 16px;
     border-radius: var(--r-sm);
@@ -522,25 +388,6 @@
 
   .navLinks a:hover {
     background: rgba(255,255,255,0.06);
-  }
-
-  /* .activitiesTrigger est un <button>, pas un <a> — l'override mobile
-     ci-dessus (.navLinks a) ne l'atteint donc jamais : il restait au format
-     desktop (petit bouton pilule) au milieu des lignes pleine largeur du
-     menu mobile, visiblement plus petit/différent de ses voisins. Même
-     traitement ici, à l'identique. */
-  .activitiesDropdownWrapper {
-    width: 100%;
-  }
-  .activitiesTrigger {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    padding: 12px 16px;
-    border-radius: var(--r-sm);
-    font-size: 0.95rem;
-    min-height: 48px;
-    text-align: left;
   }
 
   .navOpen {
@@ -578,6 +425,10 @@
     color: #f59e0b !important;
     font-weight: 600;
   }
+
+  .mobileLogout {
+    color: #fca5a5 !important;
+  }
 }
 
 /* Très petits écrans */
@@ -593,6 +444,7 @@
   }
 
   .navbar { padding: 0 12px; }
+  .navLinks { width: calc(100% + 24px); margin: 0 -12px; }
 }
 
 /* Amélioration du menu mobile ouvert */
@@ -619,14 +471,16 @@
    n'apporterait rien et écarterait les éléments sans raison.
    La barre fait 64 px de haut : 44 px y tiennent sans la déformer. */
 @media (hover: none) and (pointer: coarse) {
+  /* Hauteur tactile seulement — ne jamais imposer `display` ici : cette
+     règle forçait .burger en inline-flex sur les téléphones (visible sur
+     tactile, absent en émulation) et réduisait les liens du menu mobile à
+     la largeur de leur texte, d'où une pastille active plus courte que la
+     ligne. */
   .navLinks a,
   .linkBtn,
   .ctaBtn,
-  .activitiesTrigger,
-  .dropdownTrigger,
-  .burger {
+  .dropdownTrigger {
     min-height: 44px;
-    display: inline-flex;
     align-items: center;
   }
 }

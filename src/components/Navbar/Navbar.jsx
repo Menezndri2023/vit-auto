@@ -5,7 +5,6 @@ import { useCart } from "../../context/CartContext";
 import NotificationBell from "../NotificationBell/NotificationBell";
 import LanguageSelector from "../LanguageSelector/LanguageSelector";
 import VitAutoLogo from "../Logo/VitAutoLogo";
-import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "../../constants/activityTypes";
 import styles from "./Navbar.module.css";
 
 const Navbar = () => {
@@ -15,16 +14,28 @@ const Navbar = () => {
   const [menuOpen, setMenuOpen]       = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
-  // Section OTHERS (activités culturelles/loisir — Quad, Surf, Montgolfière,
-  // Jetski, Jet privé, Bateau...) — remplace l'ancien lien navbar "❤️
-  // Favoris" (déplacé dans le tableau de bord client, voir Dashboard.jsx).
-  const [activitiesOpen, setActivitiesOpen] = useState(false);
-  const activitiesRef = useRef(null);
 
+  const menuRef = useRef(null);
   const isPartner = user?.role === "partenaire" || user?.role === "admin";
   const isAdmin   = user?.role === "admin";
 
   const navLink = ({ isActive }) => isActive ? styles.active : undefined;
+
+  // Menu mobile (burger) : se ferme à Échap ou au toucher hors du menu — il
+  // restait ouvert tant qu'on ne cliquait pas un lien ou la croix.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClick = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
+    const handleEscape = (e) => { if (e.key === "Escape") setMenuOpen(false); };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("touchstart", handleClick, { passive: true });
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("touchstart", handleClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [menuOpen]);
 
   // Fermer le dropdown si clic en dehors
   useEffect(() => {
@@ -37,40 +48,15 @@ const Navbar = () => {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [dropdownOpen]);
 
-  useEffect(() => {
-    const handleClick = (e) => {
-      if (activitiesRef.current && !activitiesRef.current.contains(e.target)) {
-        setActivitiesOpen(false);
-      }
-    };
-    const handleEscape = (e) => { if (e.key === "Escape") setActivitiesOpen(false); };
-    if (activitiesOpen) {
-      document.addEventListener("mousedown", handleClick);
-      document.addEventListener("keydown", handleEscape);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [activitiesOpen]);
-
-  const goToActivity = (activityType) => {
-    setActivitiesOpen(false);
-    setMenuOpen(false);
-    const params = new URLSearchParams({ mode: "Autres" });
-    if (activityType) params.set("activityType", activityType);
-    navigate(`/catalogue?${params.toString()}`);
-  };
-
   return (
-    <nav className={styles.navbar}>
+    <nav className={styles.navbar} ref={menuRef}>
       {/* Logo */}
       <div className={styles.logo} onClick={() => navigate("/")} style={{ cursor: "pointer" }}>
         <VitAutoLogo iconSize={40} variant="white" showText tagline={false} />
       </div>
 
-      {/* Liens principaux */}
-      <ul className={`${styles.navLinks} ${menuOpen ? styles.navOpen : ""}`}>
+      {/* Liens principaux — sur mobile, c'est le menu ouvert par le burger */}
+      <ul id="navigation-principale" className={`${styles.navLinks} ${menuOpen ? styles.navOpen : ""}`}>
         <li><NavLink to="/" end className={navLink} onClick={() => setMenuOpen(false)}>Accueil</NavLink></li>
         <li><NavLink to="/catalogue" className={navLink} onClick={() => setMenuOpen(false)}>Catalogue</NavLink></li>
 
@@ -124,44 +110,6 @@ const Navbar = () => {
           <li><NavLink to="/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>Tableau de bord</NavLink></li>
         )}
 
-        {/* Section Activités et Loisirs — ouverte à tous (pas de garde
-            isAuthenticated : parcourir le catalogue ne nécessite jamais de
-            compte, voir Catalogue.jsx). */}
-        <li className={styles.activitiesDropdownWrapper} ref={activitiesRef}>
-          <button
-            type="button"
-            className={`${styles.activitiesTrigger} ${activitiesOpen ? styles.activitiesTriggerOpen : ""}`}
-            onClick={() => setActivitiesOpen((o) => !o)}
-          >
-            🎈 Loisirs
-          </button>
-          {activitiesOpen && (
-            <>
-              {/* Toile de fond : commence sous la navbar (jamais par-dessus),
-                  qui reste donc pleinement visible et utilisable — rend
-                  explicite que c'est un état d'overlay volontaire plutôt
-                  qu'un panneau qui cache le reste du site sans raison. */}
-              <div className={styles.activitiesBackdrop} onClick={() => setActivitiesOpen(false)} />
-              <div className={styles.activitiesMenu}>
-                <div className={styles.activitiesMenuHeader}>
-                  <span className={styles.activitiesMenuTitle}>🎈 Activités et Loisirs</span>
-                  <button className={styles.activitiesMenuAll} onClick={() => goToActivity(null)}>
-                    Toutes les activités →
-                  </button>
-                </div>
-                <div className={styles.activitiesGrid}>
-                  {ACTIVITY_TYPES.filter((t) => t !== "AUTRE").map((t) => (
-                    <button key={t} className={styles.activitiesGridItem} onClick={() => goToActivity(t)}>
-                      <span className={styles.activitiesGridIcon}>{ACTIVITY_TYPE_ICONS[t] || "🎟️"}</span>
-                      <span>{ACTIVITY_TYPE_LABELS[t] || t}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-        </li>
-
         {isAuthenticated && !isPartner && (
           <li>
             <NavLink to="/cart" className={navLink} onClick={() => setMenuOpen(false)}>
@@ -175,6 +123,27 @@ const Navbar = () => {
             ouverte, aucun lien de menu n'y menait. */}
         {isAuthenticated && !isPartner && (
           <li><NavLink to="/import-export/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>📦 Mes achats</NavLink></li>
+        )}
+
+        {/* ── Menu mobile, connecté : profil, aide, déconnexion — le badge
+            profil et « Déconnexion » de la barre sont masqués sous 900 px,
+            le menu burger doit donc les porter lui-même (cohérence avec le
+            menu non connecté ci-dessous). ── */}
+        {isAuthenticated && (
+          <>
+            <li className={styles.mobileDivider} />
+            <li className={styles.mobileOnly}>
+              <NavLink to="/profile" className={navLink} onClick={() => setMenuOpen(false)}>
+                {isPartner ? "🤝" : "👤"} Mon profil{user?.firstName ? ` · ${user.firstName}` : ""}
+              </NavLink>
+            </li>
+            <li className={styles.mobileOnly}>
+              <NavLink to="/help" className={navLink} onClick={() => setMenuOpen(false)}>Centre d'aide</NavLink>
+            </li>
+            <li className={styles.mobileOnly}>
+              <a href="/" className={styles.mobileLogout} onClick={(e) => { e.preventDefault(); setMenuOpen(false); logout(); }}>Déconnexion</a>
+            </li>
+          </>
         )}
 
         {/* ── Éléments additionnels dans le menu mobile (non connectés) ── */}
@@ -265,7 +234,9 @@ const Navbar = () => {
         <button
           className={`${styles.burger} ${menuOpen ? styles.burgerOpen : ""}`}
           onClick={() => setMenuOpen((o) => !o)}
-          aria-label="Navigation"
+          aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"}
+          aria-expanded={menuOpen}
+          aria-controls="navigation-principale"
         >
           <span /><span /><span />
         </button>
