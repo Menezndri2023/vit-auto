@@ -20,6 +20,7 @@ import ImporterPartnerProfile from "../models/ImporterPartnerProfile.js";
 import PartnerShowroom from "../models/PartnerShowroom.js";
 import Review from "../models/Review.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
+import { nonBloquant } from "../utils/nonBloquant.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -876,7 +877,7 @@ export const requestEmailChange = async (req, res) => {
     await user.save();
 
     const confirmUrl = `${APP_URL()}/confirm-email-change?token=${token}`;
-    await dispatch.emailChangeConfirmation(newEmail, user._id.toString(), confirmUrl, user.firstName, newEmail).catch(() => {});
+    await dispatch.emailChangeConfirmation(newEmail, user._id.toString(), confirmUrl, user.firstName, newEmail).catch(nonBloquant("usersController"));
 
     res.json({ message: "Un e-mail de confirmation a été envoyé à votre nouvelle adresse.", pendingEmail: newEmail });
   } catch (err) {

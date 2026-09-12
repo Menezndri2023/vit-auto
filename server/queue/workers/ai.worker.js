@@ -15,6 +15,7 @@ import logger from "../../utils/logger.js";
 import { captureException } from "../../config/sentry.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
 import { noteRedisError } from "../connection.js";
+import { nonBloquant } from "../../utils/nonBloquant.js";
 
 // Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
 // Redis/BullMQ est indisponible.
@@ -76,14 +77,14 @@ export async function processAiJob(job) {
           titre:   "⚠️ Alerte fraude potentielle",
           message: `Réservation ${bookingId} — Risque: ${riskLevel} — Flags: ${flags.join(", ")}`,
           lien:    `/admin`,
-        }).catch(() => {});
+        }).catch(nonBloquant("ai.worker"));
         // Risque élevé : reste "pending" pour la revue humaine d'exception
         // (queue admin existante, getPendingValidationBookings) — on écrit
         // quand même fraudCheck pour que l'admin voie le détail des drapeaux.
         const Booking = (await import("../../models/Booking.js")).default;
         await Booking.findByIdAndUpdate(bookingId, {
           $set: { fraudCheck: { riskLevel, flags, checkedAt: new Date() } },
-        }).catch(() => {});
+        }).catch(nonBloquant("ai.worker"));
       } else if (bookingId && bookingType === "essai") {
         // Restructuration réservation (2026-09) : un essai reste TOUJOURS
         // soumis à une revue admin humaine avant transmission au partenaire —
@@ -94,7 +95,7 @@ export async function processAiJob(job) {
         const Booking = (await import("../../models/Booking.js")).default;
         await Booking.findByIdAndUpdate(bookingId, {
           $set: { fraudCheck: { riskLevel, flags, checkedAt: new Date() } },
-        }).catch(() => {});
+        }).catch(nonBloquant("ai.worker"));
       } else if (bookingId) {
         // Booking Engine (2026-09) : risque faible/moyen → approbation
         // automatique, remplace le gate admin manuel par défaut (voir
@@ -140,7 +141,7 @@ export async function processAiJob(job) {
         { partnerId },
         { $set: { "stats.aiPerformanceScore": score, "stats.avgRating": avgRating, "stats.totalReviews": reviews.length } },
         { upsert: false }
-      ).catch(() => {});
+      ).catch(nonBloquant("ai.worker"));
 
       return { partnerId, performanceScore: score, avgRating, reviewCount: reviews.length };
     }

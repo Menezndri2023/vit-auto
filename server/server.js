@@ -17,6 +17,8 @@ import { startMonthlyReportScheduler } from "./utils/monthlyPartnerReport.js";
 import { startBookingReminderScheduler } from "./utils/bookingReminders.js";
 import { startPartnerResponseScheduler } from "./utils/partnerResponseReminders.js";
 import { startSalesLeadScheduler } from "./utils/salesLeadScheduler.js";
+import { startWeeklyFunnelReportScheduler } from "./utils/weeklyFunnelReport.js";
+import { startCommunicationHealthScheduler } from "./utils/communicationHealthCheck.js";
 import { startAccountHealthScheduler } from "./utils/accountHealthCheck.js";
 
 import authRoutes          from "./routes/auth.js";
@@ -921,6 +923,12 @@ const startServer = async () => {
     // ── Demandes d'essai : SLA partenaire, résultat, suivi client ─────────
     // En mémoire (pas de job Redis) — voir utils/salesLeadScheduler.js.
     startSalesLeadScheduler();
+
+    // ── Rapport hebdomadaire du funnel vente aux admins (lundi) ──────────
+    startWeeklyFunnelReportScheduler();
+
+    // ── Alerte quotidienne sur les échecs d'envoi e-mail/SMS/WhatsApp/push ─
+    startCommunicationHealthScheduler();
 
     // ── Relance automatique des profils/comptes incomplets (tous rôles) ──
     startAccountHealthScheduler();

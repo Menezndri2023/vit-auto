@@ -29,6 +29,7 @@ import { isIncotermCompatible } from "../constants/incoterms.js";
 import { getActiveRates, getActiveCountries } from "../services/currencyEngine.js";
 import { uploadBase64Images } from "../config/imagekit.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
+import { nonBloquant } from "../utils/nonBloquant.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -284,7 +285,7 @@ export const createVehicle = async (req, res) => {
     }
 
     // Calcul du score AI en arrière-plan
-    dispatch.vehicleCreated(vehicle._id.toString()).catch(() => {});
+    dispatch.vehicleCreated(vehicle._id.toString()).catch(nonBloquant("vehicleController"));
 
     res.status(201).json({ vehicle, validation });
   } catch (err) {

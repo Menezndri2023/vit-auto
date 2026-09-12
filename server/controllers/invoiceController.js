@@ -8,6 +8,7 @@ import User    from "../models/User.js";
 import Notification from "../models/Notification.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
 import { dispatch } from "../queue/index.js";
+import { nonBloquant } from "../utils/nonBloquant.js";
 
 // Clé de regroupement stable pour un couple (partenaire, entité) — "none" sert
 // de bucket pour les véhicules/chauffeurs sans entité assignée (voir
@@ -153,7 +154,7 @@ export const generatePartnerInvoice = async (req, res) => {
 
     // Envoi email de la facture PDF en pièce jointe
     if (partner.email) {
-      dispatch.partnerInvoiceReady(invoice, partner.email, partnerId, partner.firstName).catch(() => {});
+      dispatch.partnerInvoiceReady(invoice, partner.email, partnerId, partner.firstName).catch(nonBloquant("invoiceController"));
     }
 
     res.status(201).json({ invoice, message: `Facture ${reference} générée avec ${lines.length} transaction(s).` });
@@ -271,7 +272,7 @@ export const generateAllMonthlyInvoices = async (req, res) => {
       // Envoi email de la facture PDF en pièce jointe
       const partner = await User.findById(partnerId).select("email firstName");
       if (partner?.email) {
-        dispatch.partnerInvoiceReady(invoice, partner.email, partnerId, partner.firstName).catch(() => {});
+        dispatch.partnerInvoiceReady(invoice, partner.email, partnerId, partner.firstName).catch(nonBloquant("invoiceController"));
       }
 
       results.push({ partnerId, businessId, status: "created", reference, totalCommission, lines: lines.length });

@@ -12,10 +12,12 @@
  * relances partenaire, une prise en charge étant datée à l'heure près).
  */
 import logger from "./logger.js";
+import { avecVerrou } from "./schedulerLock.js";
 import Booking from "../models/Booking.js";
 import Notification from "../models/Notification.js";
 import { dispatch } from "../queue/index.js";
 import { sendViaWhatsApp } from "../services/communication/CommunicationService.js";
+import { nonBloquant } from "./nonBloquant.js";
 
 const ACTIVE_STATUSES = ["confirmed", "preparing", "ready"];
 const REMINDER_WINDOW_MS = 26 * 60 * 60 * 1000; // fenêtre "commence dans les 26h"
@@ -28,7 +30,7 @@ async function notifyClient(userId, titre, message, lien) {
       _id: notif._id, type: "system", titre, message, lien, lu: false, createdAt: notif.createdAt,
     });
   }
-  dispatch.pushNotification(userId, titre, message, { lien, type: "system" }).catch(() => {});
+  dispatch.pushNotification(userId, titre, message, { lien, type: "system" }).catch(nonBloquant("bookingReminders"));
 }
 
 // Booking Engine — livraison (2026-09). Boutons interactifs Meta (quick_reply)
@@ -119,9 +121,11 @@ export async function checkAndSendPickupReminders() {
   }
 }
 
+// Chaque cycle passe par le verrou partagé entre instances (voir
+// utils/schedulerLock.js) : jamais deux exécutions simultanées du même cycle.
 let _interval = null;
 export function startBookingReminderScheduler() {
   if (_interval) return;
-  setTimeout(() => checkAndSendPickupReminders(), 5 * 60 * 1000); // 5 min après le démarrage
-  _interval = setInterval(() => checkAndSendPickupReminders(), 60 * 60 * 1000); // toutes les heures
+  setTimeout(() => avecVerrou("bookingReminders", 10 * 60 * 1000, () => checkAndSendPickupReminders()).catch(nonBloquant("bookingReminders")), 5 * 60 * 1000); // 5 min après le démarrage
+  _interval = setInterval(() => avecVerrou("bookingReminders", 10 * 60 * 1000, () => checkAndSendPickupReminders()).catch(nonBloquant("bookingReminders")), 60 * 60 * 1000); // toutes les heures
 }

@@ -11,10 +11,12 @@
  * grossier).
  */
 import logger from "./logger.js";
+import { avecVerrou } from "./schedulerLock.js";
 import Booking from "../models/Booking.js";
 import User from "../models/User.js";
 import { dispatch } from "../queue/index.js";
 import { notify } from "../controllers/bookingController.js";
+import { nonBloquant } from "./nonBloquant.js";
 
 const REMINDER_15_MS = 15 * 60 * 1000;
 const REMINDER_25_MS = 25 * 60 * 1000;
@@ -60,7 +62,7 @@ export async function checkPartnerResponseTimeouts() {
       if (ownerId) {
         await notify(ownerId, "system", "⏰ Rappel — réservation en attente",
           `Réservation ${booking.reference} toujours en attente de votre réponse.`, "/vendor/dashboard");
-        dispatch.partnerBookingApproved(booking, ownerId, serviceTitleOf(booking)).catch(() => {});
+        dispatch.partnerBookingApproved(booking, ownerId, serviceTitleOf(booking)).catch(nonBloquant("partnerResponseReminders"));
       }
       await Booking.updateOne({ _id: booking._id, reminder15SentAt: null }, { $set: { reminder15SentAt: new Date() } });
       reminded15 += 1;
@@ -73,7 +75,7 @@ export async function checkPartnerResponseTimeouts() {
       if (ownerId) {
         await notify(ownerId, "system", "⏰ Dernier rappel — réservation en attente",
           `Réservation ${booking.reference} expire dans 5 minutes sans réponse de votre part.`, "/vendor/dashboard");
-        dispatch.partnerBookingApproved(booking, ownerId, serviceTitleOf(booking)).catch(() => {});
+        dispatch.partnerBookingApproved(booking, ownerId, serviceTitleOf(booking)).catch(nonBloquant("partnerResponseReminders"));
       }
       await Booking.updateOne({ _id: booking._id, reminder25SentAt: null }, { $set: { reminder25SentAt: new Date() } });
       reminded25 += 1;
@@ -101,14 +103,14 @@ export async function checkPartnerResponseTimeouts() {
       if (booking.client) {
         await notify(booking.client, "booking_cancelled", "❌ Réservation expirée",
           `Votre réservation ${booking.reference} a expiré faute de réponse du partenaire. Nous vous invitons à réserver un autre véhicule.`,
-          "/dashboard").catch(() => {});
+          "/dashboard").catch(nonBloquant("partnerResponseReminders"));
       }
       const ownerId = resolveOwnerId(booking);
       if (ownerId) {
         await User.find({ role: "admin", isActive: true }).select("_id").lean().then((admins) =>
           Promise.all(admins.map((a) => notify(a._id, "system", "⚠️ Expiration partenaire",
             `Réservation ${booking.reference} auto-annulée — le partenaire n'a jamais répondu.`, "/admin")))
-        ).catch(() => {});
+        ).catch(nonBloquant("partnerResponseReminders"));
       }
       expired += 1;
     }
@@ -123,9 +125,11 @@ export async function checkPartnerResponseTimeouts() {
   }
 }
 
+// Chaque cycle passe par le verrou partagé entre instances (voir
+// utils/schedulerLock.js) : jamais deux exécutions simultanées du même cycle.
 let _interval = null;
 export function startPartnerResponseScheduler() {
   if (_interval) return;
-  setTimeout(() => checkPartnerResponseTimeouts(), 2 * 60 * 1000); // 2 min après le démarrage
-  _interval = setInterval(() => checkPartnerResponseTimeouts(), 5 * 60 * 1000); // toutes les 5 min
+  setTimeout(() => avecVerrou("partnerResponseReminders", 4 * 60 * 1000, () => checkPartnerResponseTimeouts()).catch(nonBloquant("partnerResponseReminders")), 2 * 60 * 1000); // 2 min après le démarrage
+  _interval = setInterval(() => avecVerrou("partnerResponseReminders", 4 * 60 * 1000, () => checkPartnerResponseTimeouts()).catch(nonBloquant("partnerResponseReminders")), 5 * 60 * 1000); // toutes les 5 min
 }

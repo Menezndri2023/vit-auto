@@ -15,6 +15,7 @@
  */
 import crypto from "crypto";
 import logger from "./logger.js";
+import { avecVerrou } from "./schedulerLock.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import PartnerOnboarding from "../models/PartnerOnboarding.js";
@@ -23,6 +24,7 @@ import PartnerVerification from "../models/PartnerVerification.js";
 import PartnerCertification from "../models/PartnerCertification.js";
 import Vehicle from "../models/Vehicle.js";
 import { dispatch } from "../queue/index.js";
+import { nonBloquant } from "./nonBloquant.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
 
@@ -319,9 +321,11 @@ export async function checkAndSendPartnerReminders() {
 }
 
 // ── Démarrage : premier passage différé, puis toutes les 24h ──────────────
+// Chaque cycle passe par le verrou partagé entre instances (voir
+// utils/schedulerLock.js) : jamais deux exécutions simultanées du même cycle.
 let _interval = null;
 export function startPartnerReminderScheduler() {
   if (_interval) return;
-  setTimeout(() => checkAndSendPartnerReminders(), 5 * 60 * 1000); // 5 min après le démarrage
-  _interval = setInterval(() => checkAndSendPartnerReminders(), 24 * 60 * 60 * 1000);
+  setTimeout(() => avecVerrou("partnerReminders", 30 * 60 * 1000, () => checkAndSendPartnerReminders()).catch(nonBloquant("partnerReminders")), 5 * 60 * 1000); // 5 min après le démarrage
+  _interval = setInterval(() => avecVerrou("partnerReminders", 30 * 60 * 1000, () => checkAndSendPartnerReminders()).catch(nonBloquant("partnerReminders")), 24 * 60 * 60 * 1000);
 }

@@ -12,6 +12,7 @@ import { completeIEEscrowPayment } from "./ieTransactionController.js";
 import { dispatch } from "../queue/index.js";
 import { captureException } from "../config/sentry.js";
 import { isMalformedObjectId } from "../utils/objectId.js";
+import { nonBloquant } from "../utils/nonBloquant.js";
 
 // Trace un changement d'état financier (webhook fournisseur ou simulation
 // sandbox) — ces événements n'ont pas de req.user (appels serveur-à-serveur),
@@ -115,7 +116,7 @@ async function completePayment(payment, { providerRef, source = payment.method }
     const bookingForReceipt = booking.transaction?.paymentMethod
       ? booking
       : { ...booking.toObject(), transaction: { ...(booking.transaction?.toObject?.() || booking.transaction), paymentMethod: payment.method } };
-    dispatch.transactionReceiptReady(bookingForReceipt, booking.clientInfo?.email, booking.client).catch(() => {});
+    dispatch.transactionReceiptReady(bookingForReceipt, booking.clientInfo?.email, booking.client).catch(nonBloquant("paymentController"));
   } else if (type === "serviceRequest" && doc && !doc.isPaid) {
     doc.isPaid = true;
     doc.paidAt = new Date();

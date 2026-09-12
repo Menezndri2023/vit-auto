@@ -15,6 +15,7 @@
  * le quota Redis est déjà sous tension, et un scan quotidien en mémoire suffit.
  */
 import logger from "./logger.js";
+import { avecVerrou } from "./schedulerLock.js";
 import Subscription from "../models/Subscription.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
@@ -22,6 +23,7 @@ import { invokeController } from "./invokeController.js";
 import { getPartnerInsights } from "../controllers/subscriptionController.js";
 import { planOuvre } from "../constants/planFeatures.js";
 import { planActifDe } from "../services/planAccess.js";
+import { nonBloquant } from "./nonBloquant.js";
 
 const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin",
               "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
@@ -107,10 +109,12 @@ export async function envoyerRapportsMensuels(maintenant = new Date()) {
   return envoyes;
 }
 
+// Chaque cycle passe par le verrou partagé entre instances (voir
+// utils/schedulerLock.js) : jamais deux exécutions simultanées du même cycle.
 let _interval = null;
 export function startMonthlyReportScheduler() {
   if (_interval) return;
-  setTimeout(() => envoyerRapportsMensuels(), 10 * 60 * 1000); // 10 min après le démarrage
-  _interval = setInterval(() => envoyerRapportsMensuels(), 24 * 60 * 60 * 1000);
+  setTimeout(() => avecVerrou("monthlyPartnerReport", 60 * 60 * 1000, () => envoyerRapportsMensuels()).catch(nonBloquant("monthlyPartnerReport")), 10 * 60 * 1000); // 10 min après le démarrage
+  _interval = setInterval(() => avecVerrou("monthlyPartnerReport", 60 * 60 * 1000, () => envoyerRapportsMensuels()).catch(nonBloquant("monthlyPartnerReport")), 24 * 60 * 60 * 1000);
   _interval.unref?.();
 }

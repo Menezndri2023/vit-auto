@@ -12,12 +12,14 @@ import { dispatch } from "../queue/index.js";
 import { validateDocumentDataUri } from "../utils/imageValidation.js";
 import { computeScore, computeBadge, syncUserBadge } from "./partnerCertificationController.js";
 import { getConfig } from "../services/pricingEngine.js";
+import { DEFAULT_PRICING_CONFIG } from "../config/defaultPricingConfig.js";
 import { decryptField } from "../utils/fieldEncryption.js";
 import { combinePaginated } from "../utils/paginateWithOrphans.js";
 import { ensureDefaultPartnerBusiness } from "../utils/ensureDefaultPartnerBusiness.js";
 import { ACTIVITIES, ACTIVITY_TO_PARTNER_TYPE } from "../constants/partnerTaxonomy.js";
 import { autoLinkProspect } from "./partnerCrmController.js";
 import { COMPANY, COMPANY_ADDRESS_EN } from "../constants/company.js";
+import { nonBloquant, signalerNonBloquant } from "../utils/nonBloquant.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
 
@@ -93,14 +95,14 @@ async function notify(userId, title, message, lien = null, celebrate = false, sk
         _id: notif._id, type: "system", titre: title, message, lien, lu: false, createdAt: notif.createdAt, celebrate,
       });
     }
-  } catch { /* non-bloquant */ }
+  } catch (err) { signalerNonBloquant("partnerOnboardingController", err); }
 }
 
 // ── Audit helper ──────────────────────────────────────────────────────────────
 async function addAudit(docId, action, performedBy, note = "") {
   await PartnerOnboarding.findByIdAndUpdate(docId, {
     $push: { auditLog: { action, performedBy: performedBy || null, note, timestamp: new Date() } },
-  }).catch(() => {});
+  }).catch(nonBloquant("partnerOnboardingController"));
 }
 
 // ── Cascade Founding Partner ──────────────────────────────────────────────────
@@ -592,7 +594,7 @@ export const submitApplication = async (req, res) => {
       userId: req.user.id,
       businessId: doc.businessId,
       onboardingId: doc._id,
-    }).catch(() => {});
+    }).catch(nonBloquant("partnerOnboardingController"));
 
     const admins = await User.find({ role: "admin", isActive: true }).select("_id").lean();
     for (const admin of admins) {
@@ -1697,6 +1699,11 @@ export async function generateAgreement(doc, user, date) {
   const stdVente    = Math.round(config.commissions.standard.vente * 100);
   const stdDrv      = Math.round(config.commissions.standard.chauffeur * 100);
   const drvRate     = doc.commissions?.chauffeur || stdDrv;
+  // Vente par demande d'essai (docs/vente-demande-essai.md) : commission sur
+  // le prix final et fenêtre d'attribution, lues dans PricingConfig.salesLead.
+  const leadCfg     = { ...DEFAULT_PRICING_CONFIG.salesLead, ...(config.salesLead || {}) };
+  const leadRate    = Math.round(leadCfg.commissionRate * 10000) / 100;
+  const leadWindow  = leadCfg.attributionDays;
 
   return `FOUNDING PARTNER AGREEMENT
 ══════════════════════════════════════════════════════════════
@@ -1763,6 +1770,22 @@ ARTICLE 3 — COMMERCIAL CONDITIONS
      a new agreement or admin action.
 
 3.3  Commission rates locked from Agreement signing date: ${date}
+
+3.4  Vehicle sales originated by VIT-AUTO (test-drive and call-back requests).
+     VIT-AUTO is not an online vehicle store: the sale is concluded directly
+     between the Partner and the buyer, on the Partner's own terms (vehicle,
+     price, negotiation, financing, delivery). VIT-AUTO supplies the prospect,
+     identified by a unique reference, and follows the process to its outcome.
+     a) Attribution window: any prospect supplied by VIT-AUTO remains
+        attributed to VIT-AUTO for ${leadWindow} days from the request date.
+     b) Commission: ${leadRate}% of the final sale price, due only when such a
+        prospect purchases the vehicle concerned from the Partner within the
+        attribution window. No subscription, registration or listing fee
+        applies to vehicle sales.
+     c) Declaration: the Partner declares the sale (final price, date) from
+        the partner dashboard; VIT-AUTO confirms it before invoicing.
+        Obtaining a prospect's contact details through VIT-AUTO and concluding
+        the sale without declaring it is a breach of Article 4.
 
 ARTICLE 4 — PARTNER OBLIGATIONS
 

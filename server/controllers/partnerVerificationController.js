@@ -8,6 +8,7 @@ import { logAction } from "../middleware/auditLog.js";
 import { decryptField } from "../utils/fieldEncryption.js";
 import { unpublishPartnerListings } from "../utils/partnerListings.js";
 import { combinePaginated } from "../utils/paginateWithOrphans.js";
+import { nonBloquant, signalerNonBloquant } from "../utils/nonBloquant.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -17,7 +18,7 @@ const CRITERIA_LIST = Object.keys(CRITERIA_WEIGHTS);
 async function addAudit(docId, action, criterion, performedBy, note) {
   await PartnerVerification.findByIdAndUpdate(docId, {
     $push: { auditLog: { action, criterion: criterion || null, performedBy: performedBy || null, note: note || "", timestamp: new Date() } },
-  }).catch(() => {});
+  }).catch(nonBloquant("partnerVerificationController"));
 }
 
 // ── Notifier le partenaire ────────────────────────────────────────────────────
@@ -34,7 +35,7 @@ async function notifyPartner(userId, title, message, lien = "/vendor/dashboard")
         _id: notif._id, type: "system", titre: title, message, lien, lu: false, createdAt: notif.createdAt,
       });
     }
-  } catch { /* non-bloquant */ }
+  } catch (err) { signalerNonBloquant("partnerVerificationController", err); }
 }
 
 // ── GET /api/partner-verification/admin/list ──────────────────────────────────

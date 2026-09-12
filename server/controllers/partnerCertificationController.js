@@ -8,6 +8,7 @@ import { validateDocumentDataUri } from "../utils/imageValidation.js";
 import { encryptField, decryptField } from "../utils/fieldEncryption.js";
 import { combinePaginated } from "../utils/paginateWithOrphans.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
+import { nonBloquant } from "../utils/nonBloquant.js";
 
 // Champs chiffrés au repos (AES-256-GCM, voir utils/fieldEncryption.js) :
 // coordonnées bancaires du niveau 4 et identifiant fiscal du niveau 1. Ils
@@ -120,7 +121,7 @@ export async function syncUserBadge(userId, certBadge) {
 async function addAudit(certId, action, level, performedBy, note) {
   await PartnerCertification.findByIdAndUpdate(certId, {
     $push: { auditLog: { action, level, performedBy: performedBy || null, note, timestamp: new Date() } },
-  }).catch(() => {});
+  }).catch(nonBloquant("partnerCertificationController"));
 }
 
 // Déchiffre les champs bancaires/fiscaux d'un dossier avant de le renvoyer.
@@ -509,7 +510,7 @@ export const adminReviewLevel = async (req, res) => {
         ${cert.certificationBadge !== "none" ? `<p>🎉 Badge obtenu : <strong>${cert.certificationBadge.toUpperCase()}</strong></p>` : ""}
         <p style="color:#64748b;font-size:0.85rem">L'équipe VIT AUTO</p>
       </div>`,
-    }).catch(() => {});
+    }).catch(nonBloquant("partnerCertificationController"));
 
     res.json({
       success:             true,
@@ -594,7 +595,7 @@ export const adminAssignBadge = async (req, res) => {
         <p>Votre badge est désormais visible sur votre profil et vos annonces.</p>
         <p style="color:#64748b;font-size:0.85rem">L'équipe VIT AUTO — certification@vit-auto.com</p>
       </div>`,
-    }).catch(() => {});
+    }).catch(nonBloquant("partnerCertificationController"));
 
     res.json({ success: true, badge, message: `Badge ${badgeLabels[badge]} attribué.` });
   } catch (err) {

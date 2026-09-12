@@ -11,11 +11,13 @@
  * Chaque envoi est idempotent grâce aux horodatages écrits sur le lead.
  */
 import logger from "./logger.js";
+import { avecVerrou } from "./schedulerLock.js";
 import SalesLead from "../models/SalesLead.js";
 import {
   getSalesLeadConfig, sendToPartner, sendCustomerFollowUp, logEvent,
 } from "../services/salesLeadService.js";
 import { notifyPartner, notifyAdminsLead } from "../services/salesLeadNotifier.js";
+import { nonBloquant } from "./nonBloquant.js";
 
 const min = (n) => n * 60 * 1000;
 
@@ -131,9 +133,11 @@ export async function runSalesLeadScheduler(now = new Date()) {
   return stats;
 }
 
+// Chaque cycle passe par le verrou partagé entre instances (voir
+// utils/schedulerLock.js) : jamais deux exécutions simultanées du même cycle.
 let _interval = null;
 export function startSalesLeadScheduler() {
   if (_interval) return;
-  setTimeout(() => runSalesLeadScheduler().catch(() => {}), 3 * 60 * 1000);
-  _interval = setInterval(() => runSalesLeadScheduler().catch(() => {}), 5 * 60 * 1000);
+  setTimeout(() => avecVerrou("salesLeadScheduler", 4 * 60 * 1000, () => runSalesLeadScheduler()).catch(nonBloquant("salesLeadScheduler")), 3 * 60 * 1000);
+  _interval = setInterval(() => avecVerrou("salesLeadScheduler", 4 * 60 * 1000, () => runSalesLeadScheduler()).catch(nonBloquant("salesLeadScheduler")), 5 * 60 * 1000);
 }

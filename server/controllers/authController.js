@@ -16,6 +16,7 @@ import { isValidCountryCode } from "../utils/countries.js";
 import { encryptField, decryptField } from "../utils/fieldEncryption.js";
 import { revokeAccessToken } from "../utils/tokenRevocation.js";
 import { ACTIVITIES, ENTITY_TYPES, entityTypeToSellerType, requiresBusinessDocs } from "../constants/partnerTaxonomy.js";
+import { nonBloquant } from "../utils/nonBloquant.js";
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_OAUTH_CLIENT_ID);
 
@@ -399,7 +400,7 @@ export const register = async (req, res) => {
     }
 
     const verifyUrl = `${APP_URL()}/verify-email?token=${token}`;
-    dispatch.emailVerification(user.email, user._id.toString(), verifyUrl, user.firstName, code).catch(() => {});
+    dispatch.emailVerification(user.email, user._id.toString(), verifyUrl, user.firstName, code).catch(nonBloquant("authController"));
 
     // Le JWT est délivré immédiatement (l'utilisateur navigue déjà connecté) — cette
     // notification in-app est donc visible tout de suite, en plus de l'email, au cas
@@ -514,7 +515,7 @@ export const login = async (req, res) => {
         logger.warn("[SECURITY] Attaque par force brute distribuée — verrou global", {
           userId: user._id.toString(), attempts,
         });
-        notifyBruteForceAttempt(user).catch(() => {});
+        notifyBruteForceAttempt(user).catch(nonBloquant("authController"));
         return res.status(429).json({ message: "Compte temporairement verrouillé après trop de tentatives. Réessayez dans 15 min." });
       }
 
@@ -894,7 +895,7 @@ export const resendEmailCode = async (req, res) => {
     await user.save();
 
     const verifyUrl = `${APP_URL()}/verify-email?token=${user.emailVerificationToken || ""}`;
-    dispatch.emailVerification(user.email, user._id.toString(), verifyUrl, user.firstName, code).catch(() => {});
+    dispatch.emailVerification(user.email, user._id.toString(), verifyUrl, user.firstName, code).catch(nonBloquant("authController"));
 
     res.json({ message: `Nouveau code envoyé à ${user.email}.` });
   } catch (err) {
@@ -976,7 +977,7 @@ export const resendVerification = async (req, res) => {
     await user.save();
 
     const verifyUrl = `${APP_URL()}/verify-email?token=${token}`;
-    await dispatch.emailVerification(user.email, user._id.toString(), verifyUrl, user.firstName).catch(() => {});
+    await dispatch.emailVerification(user.email, user._id.toString(), verifyUrl, user.firstName).catch(nonBloquant("authController"));
 
     genericRes();
   } catch (err) {
@@ -1109,7 +1110,7 @@ export const forgotPassword = async (req, res) => {
       await user.save();
 
       const resetUrl = `${APP_URL()}/reset-password?token=${token}`;
-      dispatch.passwordReset(user.email, user._id.toString(), resetUrl, user.firstName).catch(() => {});
+      dispatch.passwordReset(user.email, user._id.toString(), resetUrl, user.firstName).catch(nonBloquant("authController"));
     } else if (twilioVerifyConfigured()) {
       await sendVerification(user.phone).catch((err) => logger.error("forgotPassword (Twilio Verify):", err.message));
     }
@@ -1365,7 +1366,7 @@ export const refreshToken = async (req, res) => {
         logger.warn("[SECURITY] Réutilisation d'un refresh token — toutes les sessions révoquées", {
           userId: user._id.toString(),
         });
-        notifyBruteForceAttempt(user).catch(() => {});
+        notifyBruteForceAttempt(user).catch(nonBloquant("authController"));
         return res.status(401).json({
           message: "Session compromise : toutes vos sessions ont été fermées par sécurité. Reconnectez-vous.",
           code: "REFRESH_TOKEN_REUSE",

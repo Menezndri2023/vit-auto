@@ -18,6 +18,7 @@ import { uploadImage, isAvailable as imageKitAvailable } from "../config/imageki
 import { ensureImporterProfile } from "../utils/ensureImporterProfile.js";
 import { getActiveRates } from "./currencyEngine.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
+import { nonBloquant } from "../utils/nonBloquant.js";
 
 // Demande explicite : plus de limite significative par import. On garde un
 // plafond technique très large (jamais business) plutôt qu'un nombre
@@ -780,7 +781,7 @@ async function processVehicleImportRow(batch, rawRow, rowIndex, budgetDeadline, 
       vues: 0, noteMoyenne: 0, nombreAvis: 0,
     });
 
-    dispatch.vehicleCreated(vehicle._id.toString()).catch(() => {});
+    dispatch.vehicleCreated(vehicle._id.toString()).catch(nonBloquant("vehicleImportService"));
 
     return {
       rowIndex,
@@ -1020,7 +1021,7 @@ export async function processImportBatch(batchId) {
     logger.error("Import véhicule — échec fatal du batch", { batchId, error: fatalErr.message });
     batch.status = "failed";
     batch.errorMessage = fatalErr.message || "Erreur inconnue pendant le traitement du batch.";
-    await batch.save().catch(() => {});
+    await batch.save().catch(nonBloquant("vehicleImportService"));
     throw fatalErr;
   }
 }

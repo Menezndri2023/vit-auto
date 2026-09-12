@@ -1,5 +1,6 @@
 import logger from "../utils/logger.js";
 import Ad from "../models/Ad.js";
+import { nonBloquant } from "../utils/nonBloquant.js";
 
 export const getAds = async (req, res) => {
   try {
@@ -21,7 +22,7 @@ export const getAds = async (req, res) => {
     // Comptabilise une impression par annonce effectivement renvoyée au
     // visiteur — best-effort, ne doit jamais bloquer/retarder la réponse.
     if (ads.length) {
-      Ad.updateMany({ _id: { $in: ads.map((a) => a._id) } }, { $inc: { views: 1 } }).catch(() => {});
+      Ad.updateMany({ _id: { $in: ads.map((a) => a._id) } }, { $inc: { views: 1 } }).catch(nonBloquant("adsController"));
     }
 
     res.json(ads);

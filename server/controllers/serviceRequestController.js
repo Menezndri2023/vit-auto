@@ -4,6 +4,7 @@ import Notification from "../models/Notification.js";
 import { getServiceConfig } from "../services/pricingEngine.js";
 import { generateGenericReceiptPDF } from "../utils/pdfGenerator.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
+import { signalerNonBloquant } from "../utils/nonBloquant.js";
 
 const CATEGORY_LABELS = {
   inspection:      "Inspection indépendante",
@@ -29,7 +30,7 @@ async function notify(userId, titre, message, lien = "/services") {
         _id: notif._id, type: "system", titre, message, lien, lu: false, createdAt: notif.createdAt,
       });
     }
-  } catch { /* non-bloquant */ }
+  } catch (err) { signalerNonBloquant("serviceRequestController", err); }
 }
 
 // ── POST /api/service-requests ───────────────────────────────────────────────

@@ -11,6 +11,7 @@ import Vehicle from "../models/Vehicle.js";
 import logger from "../utils/logger.js";
 import { invokeController } from "../utils/invokeController.js";
 import { computeLocationTotal } from "../utils/seasonalPricing.js";
+import { nonBloquant } from "../utils/nonBloquant.js";
 
 // Import dynamique pour éviter un cycle d'imports au chargement du module
 // (bookingController.js n'a pas besoin d'importer ce fichier en retour).
@@ -50,7 +51,7 @@ export async function acceptBooking({ bookingId, actorId, source = "API" }) {
           booking.client, "system", "📍 Livraison confirmée",
           `Votre véhicule (réservation ${booking.reference}) sera livré à ${addr}${when ? ` le ${when}` : ""}. Vous serez informé lorsqu'il sera en route.`,
           "/dashboard",
-        ).catch(() => {});
+        ).catch(nonBloquant("bookingActionService"));
       }
     }
   }
@@ -172,7 +173,7 @@ export async function proposeAlternative({ bookingId, actorId, proposedVehicleId
       booking.client, "system", "🔄 Alternative proposée",
       `Votre véhicule initial n'est plus disponible pour ${booking.reference}. Le partenaire propose une alternative — consultez votre tableau de bord.`,
       "/dashboard",
-    ).catch(() => {});
+    ).catch(nonBloquant("bookingActionService"));
   }
 
   return { statusCode: 200, body: { booking } };
@@ -228,12 +229,12 @@ export async function respondToAlternative({ bookingId, clientId, accept }) {
 
   const { emitBookingUpdate, syncVehicleAvailability, ensureBookingContract } = await getBookingController();
   emitBookingUpdate?.(booking);
-  syncVehicleAvailability(booking.vehicle?._id || booking.vehicle).catch(() => {});
+  syncVehicleAvailability(booking.vehicle?._id || booking.vehicle).catch(nonBloquant("bookingActionService"));
   // Troisième chemin qui confirme une réservation sans passer par
   // updateBookingStatus : sans ceci, accepter un créneau alternatif laissait
   // la réservation confirmée mais sans reçu tripartite.
   if (booking.status === "confirmed") {
-    await ensureBookingContract?.(booking).catch(() => {});
+    await ensureBookingContract?.(booking).catch(nonBloquant("bookingActionService"));
   }
 
   return { statusCode: 200, body: { booking } };
@@ -342,7 +343,7 @@ export async function markVehicleDelivered({ bookingId, actorId, source = "API" 
   if (result.statusCode < 400 && booking.client) {
     const { notify: notifyClient } = await getBookingController();
     await notifyClient(booking.client, "system", "📦 Véhicule livré",
-      `Votre véhicule (réservation ${booking.reference}) a été livré.`, "/dashboard").catch(() => {});
+      `Votre véhicule (réservation ${booking.reference}) a été livré.`, "/dashboard").catch(nonBloquant("bookingActionService"));
   }
   return result;
 }

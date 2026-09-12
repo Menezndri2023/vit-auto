@@ -11,6 +11,7 @@ import { encryptField, decryptField, hmacIndex } from "../utils/fieldEncryption.
 import { captureException } from "../config/sentry.js";
 import { unpublishPartnerListings } from "../utils/partnerListings.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
+import { nonBloquant } from "../utils/nonBloquant.js";
 
 const MAX_KYC_IMAGE_BYTES = 6 * 1024 * 1024; // 6 Mo — cohérent avec usersController/partnerOnboarding
 
@@ -18,7 +19,7 @@ const MAX_KYC_IMAGE_BYTES = 6 * 1024 * 1024; // 6 Mo — cohérent avec usersCon
 async function addAuditLog(userId, action, performedBy = null, note = null) {
   await User.findByIdAndUpdate(userId, {
     $push: { kycAuditLog: { action, performedBy, note, timestamp: new Date() } },
-  }).catch(() => {});
+  }).catch(nonBloquant("kycController"));
 }
 
 // ── GET /api/kyc/status ───────────────────────────────────────────────────────
@@ -602,7 +603,7 @@ export const adminReviewKyc = async (req, res) => {
           ${decision === "VERIFIE" ? `<p>${isPartner ? `Rendez-vous sur votre <a href="${process.env.APP_URL || "http://localhost:5173"}/vendor/dashboard">tableau de bord partenaire</a> pour publier votre première annonce.` : `Vous pouvez maintenant réserver des véhicules sur <a href="${process.env.APP_URL || "http://localhost:5173"}/catalogue">notre catalogue</a>.`}</p>` : ""}
           <p style="color:#64748b;font-size:0.85rem">L'équipe VIT AUTO</p>
         </div>`,
-      }).catch(() => {}); // non-bloquant
+      }).catch(nonBloquant("kycController")); // non-bloquant
     }
 
     res.json({

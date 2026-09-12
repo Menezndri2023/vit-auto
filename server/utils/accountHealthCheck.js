@@ -13,9 +13,11 @@
  * pas cogner Mongo au même instant exact.
  */
 import logger from "./logger.js";
+import { avecVerrou } from "./schedulerLock.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { dispatch } from "../queue/index.js";
+import { nonBloquant } from "./nonBloquant.js";
 
 const COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000; // 14 jours entre deux relances du même compte
 const STALE_MS    = 3 * 24 * 60 * 60 * 1000;  // ignore les comptes créés il y a moins de 3 jours
@@ -96,9 +98,11 @@ export async function checkAndNotifyIncompleteAccounts() {
   }
 }
 
+// Chaque cycle passe par le verrou partagé entre instances (voir
+// utils/schedulerLock.js) : jamais deux exécutions simultanées du même cycle.
 let _interval = null;
 export function startAccountHealthScheduler() {
   if (_interval) return;
-  setTimeout(() => checkAndNotifyIncompleteAccounts(), 35 * 60 * 1000); // 35 min après le démarrage
-  _interval = setInterval(() => checkAndNotifyIncompleteAccounts(), 24 * 60 * 60 * 1000);
+  setTimeout(() => avecVerrou("accountHealthCheck", 30 * 60 * 1000, () => checkAndNotifyIncompleteAccounts()).catch(nonBloquant("accountHealthCheck")), 35 * 60 * 1000); // 35 min après le démarrage
+  _interval = setInterval(() => avecVerrou("accountHealthCheck", 30 * 60 * 1000, () => checkAndNotifyIncompleteAccounts()).catch(nonBloquant("accountHealthCheck")), 24 * 60 * 60 * 1000);
 }

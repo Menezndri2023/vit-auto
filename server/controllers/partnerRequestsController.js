@@ -14,6 +14,7 @@ import logger from "../utils/logger.js";
 import ImportExportRequest from "../models/ImportExportRequest.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 import { planEffectif, planOuvre } from "../services/planAccess.js";
+import { nonBloquant } from "../utils/nonBloquant.js";
 
 // Avance accordée aux abonnés. Deux heures : assez pour qu'un partenaire
 // réactif prenne l'affaire, trop court pour qu'une demande dorme si aucun
@@ -133,7 +134,7 @@ export const declareInterest = async (req, res) => {
       "Un partenaire se positionne sur une demande",
       `${[req.user.firstName, req.user.lastName].filter(Boolean).join(" ") || req.user.email} (plan ${plan}) peut répondre à la demande ${demande.sourceCountry || "?"} → ${demande.destCountry || "?"}.`,
       "/admin?tab=import_export"
-    ).catch(() => {});
+    ).catch(nonBloquant("partnerRequestsController"));
 
     res.status(201).json({ demande: vuePartenaire(demande, req.user._id) });
   } catch (err) {

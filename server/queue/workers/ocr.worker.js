@@ -16,6 +16,7 @@ import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
 import { noteRedisError } from "../connection.js";
 import { smsConfigured } from "../../utils/smsConfigured.js";
 import { emailVerificationRequiredForKyc } from "../../utils/emailVerificationRequired.js";
+import { nonBloquant } from "../../utils/nonBloquant.js";
 
 // Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
 // Redis/BullMQ est indisponible.
@@ -87,7 +88,7 @@ export async function processOcrJob(job) {
           type:    "kyc",
           titre:   "✅ Identité vérifiée automatiquement",
           message: "Votre dossier KYC a été validé. Vous pouvez effectuer des réservations.",
-        }).catch(() => {});
+        }).catch(nonBloquant("ocr.worker"));
       }
 
       return { userId, score, badge, autoApprove };

@@ -19,6 +19,7 @@ import { validateDocumentDataUri } from "../utils/imageValidation.js";
 import { recordIEPartnerPayout } from "../utils/commissionLedger.js";
 import { isMalformedObjectId } from "../utils/objectId.js";
 import { csvCell } from "../utils/csv.js";
+import { nonBloquant } from "../utils/nonBloquant.js";
 
 const MAX_EXPORT_DOC_BYTES = 8 * 1024 * 1024; // 8 Mo — cohérent avec les autres documents (CV, KYC)
 
@@ -1196,7 +1197,7 @@ export const confirmDelivery = async (req, res) => {
 
     // Étape 13 : vérification escrow automatique en arrière-plan
     dispatch.ieStepTransition(tx._id.toString(), 13, req.user._id.toString(), "Livraison confirmée par le client")
-      .catch(() => {});
+      .catch(nonBloquant("ieTransactionController"));
 
     res.json({ message: "Livraison confirmée. Les fonds vont être libérés.", transaction: tx });
   } catch (err) {
@@ -1258,7 +1259,7 @@ export const releaseFunds = async (req, res) => {
 
     // Étape 14 : invitation évaluation planifiée à 24h
     dispatch.ieStepTransition(tx._id.toString(), 14, req.user._id.toString(), "Fonds libérés — transaction finalisée")
-      .catch(() => {});
+      .catch(nonBloquant("ieTransactionController"));
 
     res.json({ message: "Fonds libérés avec succès.", transaction: tx });
   } catch (err) {

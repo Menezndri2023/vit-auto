@@ -5,6 +5,7 @@
  * Les Queues et Workers la partagent via initQueueConnection().
  */
 import logger from "../utils/logger.js";
+import { nonBloquant } from "../utils/nonBloquant.js";
 
 let _conn = null;
 
@@ -96,5 +97,5 @@ export function isQueueConnected() {
 }
 
 export async function closeQueueConnection() {
-  if (_conn) { await _conn.quit().catch(() => {}); _conn = null; }
+  if (_conn) { await _conn.quit().catch(nonBloquant("connection")); _conn = null; }
 }

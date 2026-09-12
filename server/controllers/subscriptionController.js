@@ -26,6 +26,7 @@ import User from "../models/User.js";
 import Vehicle from "../models/Vehicle.js";
 import { getSubscriptionPrice, getBoostPrice, applyDiscountCode, redeemDiscountCodeByCode } from "../services/pricingEngine.js";
 import { isMalformedObjectId } from "../utils/objectId.js";
+import { nonBloquant } from "../utils/nonBloquant.js";
 
 const PLAN_TIERS  = ["individuel_plus", "business", "exportateur"];
 const BOOST_TIERS = ["24h", "7d", "30d", "international"];
@@ -126,7 +127,7 @@ export const activatePlan = async (req, res) => {
       "💳 Demande d'abonnement partenaire",
       `${req.user.firstName || "Un partenaire"} ${req.user.lastName || ""} demande le plan « ${planTier} » (${priceUSD} USD). À confirmer dans Finance › Paiements.`.trim(),
       "/admin?tab=paiements"
-    ).catch(() => {});
+    ).catch(nonBloquant("subscriptionController"));
 
     res.status(202).json({
       message: PAYMENTS_ENABLED
@@ -246,7 +247,7 @@ export const purchaseBoost = async (req, res) => {
       "⭐ Demande de mise en avant",
       `${req.user.firstName || "Un partenaire"} demande une mise en avant « ${tier} » (${priceUSD} USD). À confirmer dans Finance › Paiements.`,
       "/admin?tab=paiements"
-    ).catch(() => {});
+    ).catch(nonBloquant("subscriptionController"));
 
     res.status(202).json({
       message: PAYMENTS_ENABLED
@@ -516,7 +517,7 @@ export const adminApprovePlanPayment = async (req, res) => {
     // Le parrain de CE partenaire est récompensé maintenant, et pas à
     // l'inscription : un filleul qui s'inscrit sans jamais souscrire ne vaut
     // aucune récompense. Non bloquant — l'activation prime.
-    recompenserParrain(sub.vendor).catch(() => {});
+    recompenserParrain(sub.vendor).catch(nonBloquant("subscriptionController"));
 
     // Le partenaire doit savoir que son plan est actif : sans cela, il attend
     // une réponse qui ne vient jamais et redemande.

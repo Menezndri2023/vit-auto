@@ -12,6 +12,7 @@ import logger from "../utils/logger.js";
 import { QUEUE_NAMES, QUEUE_OPTIONS, PRIORITY } from "./definitions.js";
 import { initQueueConnection, isConnectionHardBroken } from "./connection.js";
 import { newBookingPartnerPush, newBookingClientPush, bookingConfirmedClientPush } from "../services/communication/templates/push/BookingPush.js";
+import { nonBloquant } from "../utils/nonBloquant.js";
 
 // ── Registre des queues ───────────────────────────────────────────────────────
 let _queues = {};
@@ -56,7 +57,7 @@ function startPauseMonitor() {
     const broken = isConnectionHardBroken();
     if (broken && !_workersPaused) {
       _workersPaused = true;
-      _workers.forEach((w) => w.pause(true).catch(() => {}));
+      _workers.forEach((w) => w.pause(true).catch(nonBloquant("index")));
       logger.warn("[Queue] Workers mis en pause (panne Redis dure)");
     } else if (!broken && _workersPaused) {
       _workersPaused = false;
@@ -119,8 +120,8 @@ export async function getQueueStats() {
 
 export async function closeQueues() {
   if (_pauseMonitor) { clearInterval(_pauseMonitor); _pauseMonitor = null; }
-  await Promise.all(_workers.map((w) => w.close?.().catch(() => {})));
-  await Promise.all(Object.values(_queues).map((q) => q.close?.().catch(() => {})));
+  await Promise.all(_workers.map((w) => w.close?.().catch(nonBloquant("index"))));
+  await Promise.all(Object.values(_queues).map((q) => q.close?.().catch(nonBloquant("index"))));
   const { closeQueueConnection } = await import("./connection.js");
   await closeQueueConnection();
   _ready = false;

@@ -11,6 +11,7 @@ import User from "../models/User.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
 import { sendViaEmail, sendViaSms } from "../services/communication/CommunicationService.js";
 import { refusDePublication } from "../utils/publishingGate.js";
+import { nonBloquant, signalerNonBloquant } from "../utils/nonBloquant.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
 
@@ -429,7 +430,7 @@ async function dispatchQuoteToBuyer(quote, partnerId) {
     // Filtré par partnerId en défense en profondeur (voir updateQuote — leadId
     // est désormais validé à l'écriture, mais un devis créé avant ce correctif
     // pourrait encore porter un leadId hors périmètre).
-    await Lead.findOneAndUpdate({ _id: quote.leadId, partnerId }, { status: "devis_envoye", quoteId: quote._id }).catch(() => {});
+    await Lead.findOneAndUpdate({ _id: quote.leadId, partnerId }, { status: "devis_envoye", quoteId: quote._id }).catch(nonBloquant("pmsController"));
   }
 }
 
@@ -454,7 +455,7 @@ export async function createQuote(req, res) {
     const quote = await Quote.create(data);
 
     if (quote.leadId) {
-      await Lead.findByIdAndUpdate(quote.leadId, { quoteId: quote._id }).catch(() => {});
+      await Lead.findByIdAndUpdate(quote.leadId, { quoteId: quote._id }).catch(nonBloquant("pmsController"));
     }
     if (quote.status === "envoye") {
       quote.sentAt = new Date();
@@ -572,7 +573,7 @@ export async function respondPublicQuote(req, res) {
       await Lead.findOneAndUpdate({ _id: quote.leadId, partnerId: quote.partnerId }, {
         status: action === "accept" ? "negociation" : "perdu",
         ...(action === "refuse" ? { lostReason: "Devis refusé par l'acheteur" } : {}),
-      }).catch(() => {});
+      }).catch(nonBloquant("pmsController"));
     }
 
     // Notifier le partenaire de la réponse — sans quoi il ne l'apprendrait
@@ -591,7 +592,7 @@ export async function respondPublicQuote(req, res) {
           _id: quoteRespNotifDoc._id, ...quoteRespNotif, lu: false, createdAt: quoteRespNotifDoc.createdAt,
         });
       }
-    } catch { /* non-bloquant */ }
+    } catch (err) { signalerNonBloquant("pmsController", err); }
 
     res.json(quote);
   } catch (err) {

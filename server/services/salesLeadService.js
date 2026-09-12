@@ -15,10 +15,12 @@ import { getConfig } from "./pricingEngine.js";
 import { convertAmount } from "./currencyEngine.js";
 import { DEFAULT_PRICING_CONFIG } from "../config/defaultPricingConfig.js";
 import { resolveOriginCode } from "../constants/importOrigins.js";
+import { prochainNumero, formatReference } from "../utils/sequence.js";
 import {
   canTransition, getWorkflow, SALE_LEAD_LABELS, TEST_DRIVE_OUTCOMES, COMMERCIAL_OUTCOMES, FOLLOW_UP_RESPONSES,
 } from "../constants/leadWorkflows.js";
 import { notifyPartner, notifyClient, notifyAdminsLead } from "./salesLeadNotifier.js";
+import { nonBloquant } from "../utils/nonBloquant.js";
 
 const SLOT_LABELS = { morning: "Matin", afternoon: "Après-midi", evening: "Soir", custom: "Créneau personnalisé" };
 const TEST_DRIVE_DURATION_MS = 60 * 60 * 1000;
@@ -55,12 +57,11 @@ function clean(v, max = 500) {
 
 async function generateReference() {
   const year = new Date().getFullYear();
-  const pattern = new RegExp(`^VA-LEAD-${year}-`);
-  // Même principe que Booking.generateReference (compteur par année) ; l'index
-  // unique sur `reference` couvre la course entre deux créations simultanées
-  // (voir la reprise sur E11000 dans createLead).
-  const count = await SalesLead.countDocuments({ reference: { $regex: pattern } });
-  return `VA-LEAD-${year}-${String(count + 1).padStart(6, "0")}`;
+  // Compteur atomique par année (utils/sequence.js), amorcé depuis les
+  // références existantes ; l'index unique reste le filet de dernier recours.
+  const numero = await prochainNumero(`salesLead:${year}`, () =>
+    SalesLead.countDocuments({ reference: { $regex: new RegExp(`^VA-LEAD-${year}-`) } }));
+  return formatReference("VA-LEAD", year, numero);
 }
 
 export function slotLabel(slot, customSlot) {
@@ -675,7 +676,7 @@ export async function confirmSale(lead, { actorId, source = "DASHBOARD" } = {}) 
   lead.sale.confirmedBy = actorId;
   await lead.save();
   if (lead.commission?.ledgerId) {
-    await CommissionLedger.updateOne({ _id: lead.commission.ledgerId }, { $set: { status: "confirmed", confirmedAt: new Date() } }).catch(() => {});
+    await CommissionLedger.updateOne({ _id: lead.commission.ledgerId }, { $set: { status: "confirmed", confirmedAt: new Date() } }).catch(nonBloquant("salesLeadService"));
   }
   // Retire le véhicule vendu du catalogue (même geste que markVehicleSoldIfApplicable).
   try {
@@ -710,7 +711,7 @@ export async function rejectSale(lead, { actorId, source = "DASHBOARD", reason =
   lead.commission.computedAt           = null;
   await lead.save();
   if (lead.commission?.ledgerId) {
-    await CommissionLedger.updateOne({ _id: lead.commission.ledgerId }, { $set: { status: "cancelled" } }).catch(() => {});
+    await CommissionLedger.updateOne({ _id: lead.commission.ledgerId }, { $set: { status: "cancelled" } }).catch(nonBloquant("salesLeadService"));
   }
   await notifyPartner(lead, { titre: "Vente non confirmée", message: `${lead.reference} — la déclaration de vente n'a pas été confirmée${reason ? ` : ${clean(reason, 200)}` : ""}. Le dossier reste en négociation.` });
   return lead;

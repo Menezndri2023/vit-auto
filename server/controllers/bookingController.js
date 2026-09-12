@@ -30,10 +30,12 @@ import LoyaltyTransaction from "../models/LoyaltyTransaction.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
 import { uploadBase64Document, FOLDERS } from "../config/imagekit.js";
 import { isMalformedObjectId } from "../utils/objectId.js";
+import { prochainNumero, formatReference } from "../utils/sequence.js";
 import { csvCell } from "../utils/csv.js";
 import { encryptField, decryptField } from "../utils/fieldEncryption.js";
 import { signedDocumentUrl } from "../config/imagekit.js";
 import { logAction } from "../middleware/auditLog.js";
+import { nonBloquant, signalerNonBloquant } from "../utils/nonBloquant.js";
 
 const CLIENT_CANCEL_REASONS_MAP  = Object.fromEntries(CLIENT_CANCEL_REASONS);
 const PARTNER_CANCEL_REASONS_MAP = Object.fromEntries(PARTNER_CANCEL_REASONS);
@@ -158,7 +160,7 @@ export async function syncVehicleAvailability(vehicleId) {
     if (vehicle?.status === "sold") return;
 
     await Vehicle.findByIdAndUpdate(vehicleId, { available: !vehicle?.manuallyPaused && !hasActiveBooking });
-  } catch { /* non-bloquant */ }
+  } catch (err) { signalerNonBloquant("bookingController", err); }
 }
 
 // ── Retire un véhicule vendu de la disponibilité — bug réel trouvé en audit :
@@ -183,7 +185,7 @@ async function markVehicleSoldIfApplicable(booking) {
     vehicle.statusHistory = vehicle.statusHistory || [];
     vehicle.statusHistory.push({ status: "sold", changedAt: new Date() });
     await vehicle.save();
-  } catch { /* non-bloquant */ }
+  } catch (err) { signalerNonBloquant("bookingController", err); }
 }
 
 // Tarifs options (gps/babySeat/insurance/driver) : voir
@@ -208,9 +210,11 @@ const REF_PREFIX = { location: "LOC", essai: "VENTE", chauffeur: "CHAUFF", leasi
 async function generateReference(type) {
   const year   = new Date().getFullYear();
   const prefix = REF_PREFIX[type] || "SVC";
-  const pattern = new RegExp(`^VIT-${prefix}-${year}-`);
-  const count  = await Booking.countDocuments({ reference: { $regex: pattern } });
-  return `VIT-${prefix}-${year}-${String(count + 1).padStart(6, "0")}`;
+  // Compteur atomique (utils/sequence.js), amorcé depuis les références
+  // existantes la première fois — plus de scan regex ni de course.
+  const numero = await prochainNumero(`booking:${prefix}:${year}`, () =>
+    Booking.countDocuments({ reference: { $regex: new RegExp(`^VIT-${prefix}-${year}-`) } }));
+  return formatReference(`VIT-${prefix}`, year, numero);
 }
 
 // ── Notifier un utilisateur ────────────────────────────────────────────────────
@@ -233,7 +237,7 @@ export async function notify(userId, type, titre, message, lien = "/dashboard") 
   // plan ; le Socket.io ci-dessus ne fonctionne que si l'app est ouverte. Voir
   // dispatch.pushNotification (no-op silencieux si l'utilisateur n'a pas
   // enregistré d'appareil natif ou si Firebase n'est pas configuré).
-  dispatch.pushNotification(userId, titre, message, { lien, type }).catch(() => {});
+  dispatch.pushNotification(userId, titre, message, { lien, type }).catch(nonBloquant("bookingController"));
 }
 
 // ── Notifier tous les admins ────────────────────────────────────────────────
@@ -281,7 +285,7 @@ function schedulePostServiceSurvey(booking) {
     titre:     "⭐ Comment s'est passée votre expérience ?",
     message:   `Donnez votre avis sur votre commande ${booking.reference || ""} — ça aide les autres clients à choisir en confiance.`,
     lien:      "/dashboard",
-  }, 24 * 3600 * 1000).catch(() => {});
+  }, 24 * 3600 * 1000).catch(nonBloquant("bookingController"));
 }
 
 // ── Fidélité client (Bug produit corrigé — audit) ───────────────────────────
@@ -326,7 +330,7 @@ async function awardReferralBonusIfEligible(booking) {
     await LoyaltyTransaction.create({
       user: client.referredBy, type: "referral", points: REFERRAL_BONUS_POINTS,
       reason: `referral_${booking.client}`, balanceAfter: referrer.loyaltyPoints, tierAtTime: tierAfter.key,
-    }).catch(() => {});
+    }).catch(nonBloquant("bookingController"));
 
     await notify(client.referredBy, "system", "🎉 Bonus de parrainage !",
       `Votre filleul a terminé sa première réservation — +${REFERRAL_BONUS_POINTS} points crédités sur votre compte.`,
@@ -394,7 +398,7 @@ async function awardLoyaltyPoints(booking) {
     await LoyaltyTransaction.create({
       user: booking.client, type: "credit", points, reason: "booking_completed",
       booking: booking._id, balanceAfter: updated.loyaltyPoints, tierAtTime: tierAfter.key,
-    }).catch(() => {});
+    }).catch(nonBloquant("bookingController"));
 
     await notify(booking.client, "system", "🎁 Points de fidélité crédités",
       `+${points} points pour votre commande ${booking.reference || ""} — ${POINTS_PER_USD} points = 1 USD de remise sur vos prochaines réservations (solde plafonné à ${MAX_LOYALTY_BALANCE_POINTS} points).`,
@@ -939,7 +943,7 @@ export const createBooking = async (req, res) => {
           await LoyaltyTransaction.create({
             user: req.user._id, type: "debit", points: pointsToTry, reason: "booking_redeemed",
             balanceAfter: afterDebit?.loyaltyPoints ?? null,
-          }).catch(() => {});
+          }).catch(nonBloquant("bookingController"));
         }
       }
     }
@@ -1230,7 +1234,7 @@ export const createBooking = async (req, res) => {
     // et le nom affiché dans l'email de confirmation client (vehicleTitle)
     // sautaient silencieusement. Le seul filet de sécurité restant était
     // l'appel direct notify() ci-dessous, dont les erreurs sont avalées
-    // (.catch(() => {})) sans retry BullMQ, contrairement aux autres types de
+    // (.catch(nonBloquant("bookingController"))) sans retry BullMQ, contrairement aux autres types de
     // booking. On construit un objet "vehicle"-compatible à partir du
     // chauffeur pour réutiliser exactement le même chemin que les autres types.
     const vehicleOrDriverForDispatch = vehicle
@@ -1254,7 +1258,7 @@ export const createBooking = async (req, res) => {
     notifyAdmins("booking_pending_review", "🕐 Nouvelle demande à valider",
       `${clientInfo.firstName} ${clientInfo.lastName} — ${type} ${reference}${instantConfirm ? " (instantanée — priorité)" : ""}`,
       "/admin"
-    ).catch(() => {});
+    ).catch(nonBloquant("bookingController"));
 
     // 1ère réservation de ce client (tous types confondus) — signalée
     // directement dans la réponse plutôt que via une notification/socket :
@@ -1276,10 +1280,10 @@ export const createBooking = async (req, res) => {
     // (erreur inattendue plus bas), les points sont recrédités plutôt que
     // perdus silencieusement.
     if (typeof loyaltyPointsRedeemed === "number" && loyaltyPointsRedeemed > 0 && req.user?._id) {
-      await User.updateOne({ _id: req.user._id }, { $inc: { loyaltyPoints: loyaltyPointsRedeemed } }).catch(() => {});
+      await User.updateOne({ _id: req.user._id }, { $inc: { loyaltyPoints: loyaltyPointsRedeemed } }).catch(nonBloquant("bookingController"));
       await LoyaltyTransaction.create({
         user: req.user._id, type: "rollback", points: loyaltyPointsRedeemed, reason: "booking_creation_failed",
-      }).catch(() => {});
+      }).catch(nonBloquant("bookingController"));
     }
     res.status(500).json({ message: "Erreur serveur." });
   }
@@ -1471,12 +1475,12 @@ export const createBookingsBatch = async (req, res) => {
           await session.endSession();
         }
 
-        syncVehicleAvailability(vehicle._id).catch(() => {});
+        syncVehicleAvailability(vehicle._id).catch(nonBloquant("bookingController"));
         // Gate admin obligatoire (audit 2026-08) — même règle que createBooking :
         // le partenaire n'est jamais notifié avant validation admin.
         notifyAdmins("booking_pending_review", "🕐 Nouvelle demande à valider",
           `${clientInfo.firstName} ${clientInfo.lastName} — location ${reference} (panier)`, "/admin"
-        ).catch(() => {});
+        ).catch(nonBloquant("bookingController"));
         dispatch.bookingCreated(
           { _id: booking._id, reference, type: "location", montantTotal, location: bookingData.location, status: booking.status },
           { _id: req.user._id, email: req.user.email, phone: req.user.phone, firstName: req.user.firstName },
@@ -1900,7 +1904,7 @@ export const updateBookingStatus = async (req, res) => {
           user: booking.client, type: "rollback", points: booking.loyaltyPointsRedeemed,
           reason: "booking_cancelled", booking: booking._id,
           balanceAfter: afterRollback?.loyaltyPoints ?? null,
-        }).catch(() => {});
+        }).catch(nonBloquant("bookingController"));
       }
     }
 
@@ -1970,7 +1974,7 @@ export const updateBookingStatus = async (req, res) => {
           source:    req.source || "DASHBOARD",
         },
       },
-    }).catch(() => {});
+    }).catch(nonBloquant("bookingController"));
 
     res.json({ booking: decryptClientInfo(booking) });
   } catch (err) {
@@ -2161,7 +2165,7 @@ export const validateTransaction = async (req, res) => {
 
       // Reçu PDF automatique par email — couvre notamment le règlement en
       // espèces sur place, qui ne passe jamais par un webhook de paiement.
-      dispatch.transactionReceiptReady(booking, booking.clientInfo?.email, booking.client).catch(() => {});
+      dispatch.transactionReceiptReady(booking, booking.clientInfo?.email, booking.client).catch(nonBloquant("bookingController"));
       schedulePostServiceSurvey(booking);
       issueServiceInvoice(booking);
       await recordPartnerPayout(booking);
@@ -2187,7 +2191,7 @@ export const validateTransaction = async (req, res) => {
         "⚠️ Nouveau litige à traiter",
         `Litige ouvert sur la commande ${booking.reference} : ${disputeReason || "Aucun détail fourni."}`,
         "/admin"
-      ).catch(() => {});
+      ).catch(nonBloquant("bookingController"));
     }
 
     await booking.save();
@@ -3761,7 +3765,7 @@ export const respondToDispute = async (req, res) => {
       "💬 Réponse du partenaire au litige",
       `Le partenaire a répondu au litige sur la commande ${booking.reference}.`,
       "/admin"
-    ).catch(() => {});
+    ).catch(nonBloquant("bookingController"));
 
     res.json({ booking, message: "Réponse envoyée à l'administration." });
   } catch (err) {
@@ -3872,7 +3876,7 @@ export const adminDeleteBooking = async (req, res) => {
         user: booking.client, type: "rollback", points: booking.loyaltyPointsRedeemed,
         reason: "booking_deleted_by_admin", booking: booking._id,
         balanceAfter: afterRollback?.loyaltyPoints ?? null,
-      }).catch(() => {});
+      }).catch(nonBloquant("bookingController"));
     }
 
     await Booking.findByIdAndDelete(id);
@@ -3882,7 +3886,7 @@ export const adminDeleteBooking = async (req, res) => {
     // alors qu'une suppression est irréversible.
     await logAction(req, "booking.delete", "Booking", id, {
       before: { reference: booking.reference, status: booking.status, type: booking.type, montantTotal: booking.montantTotal },
-    }).catch(() => {});
+    }).catch(nonBloquant("bookingController"));
 
     res.json({ success: true, message: "Commande supprimée." });
   } catch (err) {
@@ -4170,7 +4174,7 @@ export const adminValidateBooking = async (req, res) => {
         await LoyaltyTransaction.create({
           user: booking.client, type: "rollback", points: booking.loyaltyPointsRedeemed,
           reason: "booking_admin_rejected", booking: booking._id, balanceAfter: afterRollback?.loyaltyPoints ?? null,
-        }).catch(() => {});
+        }).catch(nonBloquant("bookingController"));
       }
     } else if (booking.adminValidation.fastTrack) {
       // Ex-instantConfirm : approuvé directement en "confirmed" pour préserver
@@ -4208,7 +4212,7 @@ export const adminValidateBooking = async (req, res) => {
       // Base du délai de réponse partenaire (15/25/30 min, voir
       // server/utils/partnerResponseReminders.js) — écrit ici pour couvrir à
       // la fois l'approbation admin manuelle (risque élevé) et automatique.
-      await Booking.findByIdAndUpdate(booking._id, { $set: { partnerNotifiedAt: new Date() } }).catch(() => {});
+      await Booking.findByIdAndUpdate(booking._id, { $set: { partnerNotifiedAt: new Date() } }).catch(nonBloquant("bookingController"));
     }
     if (decision === "rejected" && booking.client) {
       await notify(booking.client, "booking_admin_rejected", "❌ Demande refusée",
@@ -4227,7 +4231,7 @@ export const adminValidateBooking = async (req, res) => {
           metadata:  req.body?.fraudCheck || null,
         },
       },
-    }).catch(() => {});
+    }).catch(nonBloquant("bookingController"));
 
     res.json({ booking: decryptClientInfo(booking) });
   } catch (err) {
