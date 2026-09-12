@@ -86,6 +86,8 @@ const notificationSchema = new mongoose.Schema({
       "driver_completed",
       // Fidélité
       "loyalty_tier_up",
+      // Prospects vente (demande d'essai) — voir services/salesLeadService.js
+      "sales_lead",
       // Système
       "system",
       "info",

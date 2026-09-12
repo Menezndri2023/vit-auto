@@ -59,6 +59,19 @@ export const DEFAULT_PRICING_CONFIG = {
     sequestre:        { enabled: true, commissionRate: 0, fixedFeeUSD: 0 },
     change_devises:   { enabled: true, commissionRate: 0, fixedFeeUSD: 0 },
   },
+  // Vente par demande d'essai — 3 % du prix final, attribution 90 jours,
+  // réponse partenaire attendue sous 2 h (voir docs/vente-demande-essai.md).
+  salesLead: {
+    commissionRate: 0.03,
+    attributionDays: 90,
+    responseSlaMinutes: 120,
+    escalationMinutes: 360,
+    adminInterventionMinutes: 1440,
+    mediumValueUSD: 15000,
+    highValueUSD: 40000,
+    level2AutoSendMinutes: 240,
+    contactDisclosureStage: "PARTNER_ACCEPTED",
+  },
   ads: {
     banner:            { priceUSD: 10, durationDays: 7 },
     homepage_feature:  { priceUSD: 20, durationDays: 7 },

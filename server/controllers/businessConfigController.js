@@ -10,7 +10,7 @@ import { logAction } from "../middleware/auditLog.js";
 // éviter qu'un formulaire partiel n'écrase involontairement les autres
 // sections — même whitelist-par-section que ImportCostConfig/COST_CONFIG_FIELDS).
 // ═══════════════════════════════════════════════════════════════════════════
-const SECTIONS = ["commissions", "foundingPartner", "serviceFee", "importEstimateFee", "boosts", "subscriptions", "services", "ads", "rentalOptions"];
+const SECTIONS = ["commissions", "foundingPartner", "serviceFee", "importEstimateFee", "boosts", "subscriptions", "services", "ads", "rentalOptions", "salesLead"];
 
 export const getPricingConfig = async (_req, res) => {
   try {

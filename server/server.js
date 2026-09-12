@@ -16,6 +16,7 @@ import { startPartnerReminderScheduler } from "./utils/partnerReminders.js";
 import { startMonthlyReportScheduler } from "./utils/monthlyPartnerReport.js";
 import { startBookingReminderScheduler } from "./utils/bookingReminders.js";
 import { startPartnerResponseScheduler } from "./utils/partnerResponseReminders.js";
+import { startSalesLeadScheduler } from "./utils/salesLeadScheduler.js";
 import { startAccountHealthScheduler } from "./utils/accountHealthCheck.js";
 
 import authRoutes          from "./routes/auth.js";
@@ -66,6 +67,7 @@ import apiKeyRoutes from "./routes/apiKeys.js";
 import publicApiRoutes from "./routes/publicApi.js";
 import partnerRequestRoutes from "./routes/partnerRequests.js";
 import spotlightRoutes from "./routes/spotlight.js";
+import salesLeadRoutes from "./routes/salesLeads.js";
 import { authenticate, authorizeAdmin } from "./middleware/auth.js";
 
 dotenv.config();
@@ -460,6 +462,7 @@ app.use("/api/api-keys",              apiLimiter, apiKeyRoutes);          // Cl�
 app.use("/api/v1",                    apiLimiter, publicApiRoutes);       // API partenaire v1 — authentifiée par clé, pas par session
 app.use("/api/partner-requests",       apiLimiter, partnerRequestRoutes);  // Demandes clients ouvertes — avance de 2 h pour les abonnés
 app.use("/api/spotlight",             catalogueLimiter, spotlightRoutes);  // Vitrines de mise en avant — public, consulté à chaque visite
+app.use("/api/sales-leads",           apiLimiter, salesLeadRoutes);        // Vente par demande d'essai — leads, RDV, résultat, commission (docs/vente-demande-essai.md)
 
 // ── Communication tracking (pixel ouverture + clic email) ────────────────────
 const TRANSPARENT_GIF = Buffer.from(
@@ -910,6 +913,10 @@ const startServer = async () => {
     // ── Délai de réponse partenaire — Booking Engine (2026-09) ───────────
     // En mémoire (pas de job Redis) — voir utils/partnerResponseReminders.js.
     startPartnerResponseScheduler();
+
+    // ── Demandes d'essai : SLA partenaire, résultat, suivi client ─────────
+    // En mémoire (pas de job Redis) — voir utils/salesLeadScheduler.js.
+    startSalesLeadScheduler();
 
     // ── Relance automatique des profils/comptes incomplets (tous rôles) ──
     startAccountHealthScheduler();

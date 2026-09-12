@@ -23,8 +23,12 @@ const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/cs
 // `/api` est relayé vers l'API de production, comme le fait `vite preview` :
 // sans cela, impossible de se connecter, donc impossible de tester sous CSP
 // les pages réservées (KYC, espace partenaire, administration).
+// API_CIBLE=http://localhost:5001 relaie vers une API locale (vérification
+// bout en bout d'une fonctionnalité serveur sans toucher à la production).
 const API = process.env.API_CIBLE || "https://vit-auto-api.onrender.com";
 import https from "https";
+import net from "net";
+const API_EN_CLAIR = new URL(API).protocol === "http:";
 function relayerApi(req, res) {
   const cible = new URL(req.url, API);
   // L'API refuse (403) toute origine inconnue — c'est sa protection CORS.
@@ -33,7 +37,7 @@ function relayerApi(req, res) {
   const ORIGINE = process.env.ORIGINE_SITE || "https://vit-auto.com";
   const entetes = { ...req.headers, host: cible.host, origin: ORIGINE, referer: ORIGINE + "/" };
   delete entetes["accept-encoding"];
-  const r = https.request(cible, { method: req.method, headers: entetes }, (rep) => {
+  const r = (API_EN_CLAIR ? http : https).request(cible, { method: req.method, headers: entetes }, (rep) => {
     res.writeHead(rep.statusCode, rep.headers);
     rep.pipe(res);
   });
@@ -48,7 +52,10 @@ function relayerApi(req, res) {
 import tls from "tls";
 function relayerUpgrade(req, socket, head) {
   const cible = new URL(API);
-  const distant = tls.connect({ host: cible.hostname, port: 443, servername: cible.hostname }, () => {
+  const ouvrir = (cb) => API_EN_CLAIR
+    ? net.connect({ host: cible.hostname, port: Number(cible.port) || 80 }, cb)
+    : tls.connect({ host: cible.hostname, port: 443, servername: cible.hostname }, cb);
+  const distant = ouvrir(() => {
     const lignes = [`${req.method} ${req.url} HTTP/1.1`];
     for (let i = 0; i < req.rawHeaders.length; i += 2) {
       const k = req.rawHeaders[i], v = req.rawHeaders[i + 1];

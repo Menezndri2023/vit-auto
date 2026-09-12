@@ -51,7 +51,11 @@ export async function logSend({
       messageId: messageId || null,
       status: status || "sent",
       errorMessage: errorMessage || null,
-      trackingId: trackingId || null,
+      // `undefined`, jamais `null` : l'index unique est `sparse`, ce qui
+      // n'exclut que le champ ABSENT — un `null` explicite est indexé, et le
+      // deuxième SMS/WhatsApp/push (sans trackingId, réservé à l'e-mail)
+      // échouait en E11000, donc n'était jamais journalisé.
+      trackingId: trackingId || undefined,
       context, tags, priority,
       sentAt: new Date(),
     });

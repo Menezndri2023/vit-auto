@@ -114,6 +114,27 @@ const pricingConfigSchema = new mongoose.Schema({
     seo:               adEntry,
   },
 
+  // ── Vente par demande d'essai (docs/vente-demande-essai.md) ──────────────
+  // Distinct de commissions.*.vente (qui reste le taux des anciens Booking
+  // « essai » conclus sur place) : la vente est ici conclue HORS plateforme,
+  // entre partenaire et client, et la commission n'est due que si un prospect
+  // apporté par VIT AUTO achète pendant la fenêtre d'attribution.
+  salesLead: {
+    commissionRate:          { type: Number, default: 0.03, min: 0, max: 1 },
+    attributionDays:         { type: Number, default: 90, min: 1 },
+    // Délai de réponse partenaire (§7) — en minutes.
+    responseSlaMinutes:      { type: Number, default: 120, min: 5 },
+    escalationMinutes:       { type: Number, default: 360, min: 5 },
+    adminInterventionMinutes:{ type: Number, default: 1440, min: 5 },
+    // Seuils de qualification (§3) — prix de l'annonce en USD.
+    mediumValueUSD:          { type: Number, default: 15000, min: 0 },
+    highValueUSD:            { type: Number, default: 40000, min: 0 },
+    // Niveau 2 sans action admin : transmis automatiquement après ce délai.
+    level2AutoSendMinutes:   { type: Number, default: 240, min: 0 },
+    // Stade à partir duquel le partenaire voit les coordonnées du client (§19).
+    contactDisclosureStage:  { type: String, enum: ["SENT_TO_PARTNER", "PARTNER_ACCEPTED"], default: "PARTNER_ACCEPTED" },
+  },
+
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
 }, { timestamps: true });
 
