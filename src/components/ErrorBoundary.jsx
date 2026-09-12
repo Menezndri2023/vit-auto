@@ -20,15 +20,21 @@ function getLang() {
 // la page AVANT, puis navigue APRÈS, demande un fichier à empreinte de
 // l'ancienne version, que l'hébergeur ne sert plus. Ce n'est pas un bug de
 // l'application, c'est la nouvelle version qui attend — il suffit de
-// recharger. Une seule fois, gardé par sessionStorage, pour ne jamais boucler
-// si le fichier manque pour une autre raison.
+// recharger. Pas plus d'une fois par demi-minute : le rechargement est daté
+// dans sessionStorage, et si le fichier manque encore juste après, on affiche
+// l'écran d'erreur plutôt que de boucler. Un drapeau « déjà rechargé » sans
+// date ne suffisait pas — effacé au chargement suivant pour couvrir un second
+// déploiement, il l'était aussi quand le fichier manquait DURABLEMENT, et la
+// page se rechargeait sans fin.
 const ERREUR_DE_CHARGEMENT = /Failed to fetch dynamically imported module|Importing a module script failed|Loading (CSS )?chunk|ChunkLoadError|error loading dynamically imported module/i;
 const CLE_RECHARGEMENT = "vit-auto-rechargement-apres-deploiement";
+const DELAI_MINIMAL_MS = 30_000;
 
 function rechargerUneFoisSiNouvelleVersion(error) {
   if (!ERREUR_DE_CHARGEMENT.test(String(error?.message || error))) return false;
   try {
-    if (sessionStorage.getItem(CLE_RECHARGEMENT)) return false;
+    const dernier = Number(sessionStorage.getItem(CLE_RECHARGEMENT) || 0);
+    if (Date.now() - dernier < DELAI_MINIMAL_MS) return false;
     sessionStorage.setItem(CLE_RECHARGEMENT, String(Date.now()));
   } catch { return false; }
   window.location.reload();

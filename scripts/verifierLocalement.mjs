@@ -70,9 +70,12 @@ const ECRANS = [
 // Bruit connu, sans effet utilisateur : repli géoloc pour une IP non
 // localisable, télémétrie, favicon, et le 403 VOULU d'une statistique
 // réservée aux abonnés (PLAN_REQUIS) sur /vendor/pro.
-// « Warning: Parameter not found: … » : avertissements internes du cœur
-// Tesseract, émis en console.error, sans effet sur la reconnaissance.
-const BRUIT_COMMUN = /ipapi\.co|sentry|favicon|subscriptions\/insights|Parameter not found:/;
+// Messages internes du cœur Tesseract en initialisation multilingue, émis en
+// console.error, sans effet : reproduits en Node sans navigateur ni CSP, la
+// reconnaissance aboutit ensuite (vérifié : « ABC 123 » lu à 81 %).
+// Filtrés à l'expression exacte — un vrai échec de chargement (importScripts,
+// WebAssembly, 4xx sur le CDN) reste signalé.
+const BRUIT_COMMUN = /ipapi\.co|sentry|favicon|subscriptions\/insights|Parameter not found:|Error opening data file \.\/\.traineddata|TESSDATA_PREFIX|Failed loading language ''/;
 // En local, Google Sign-In refuse l'origine localhost, non enregistrée chez
 // Google (« The given origin is not allowed for the given client ID ») —
 // artefact du harnais, pas un défaut du site. Jamais ignoré en production.
@@ -155,6 +158,55 @@ for (const ecran of ECRANS) {
     await page.waitForTimeout(6000);
     signaler(ecran.nom, chemin, problemesDe(await mesurer(page), e));
   }
+  await ctx.close();
+}
+
+// ═══ LE VISITEUR QUI REVIENT ═══════════════════════════════════════════════
+// Tout ce qui précède est vu par un visiteur neuf. Celui qui REVIENT après un
+// déploiement a un service worker installé et une page déjà chargée — c'est
+// lui qui a vu du HTML nu le 2026-09-12. Deux situations rejouées :
+{
+  const ctx = await nav.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await ctx.newPage();
+  await page.goto(BASE + "/", { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
+  await page.waitForTimeout(4000);
+  await page.goto(BASE + "/plans", { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
+  await page.waitForTimeout(4000);
+
+  // 1) Réseau coupé : il doit voir la page hors ligne autonome — jamais un
+  //    index.html en cache dont les fichiers n'existent plus.
+  await ctx.setOffline(true);
+  await page.goto(BASE + "/services", { waitUntil: "domcontentloaded", timeout: 20000 }).catch(() => {});
+  await page.waitForTimeout(1500);
+  const horsLigne = await page.evaluate(() => ({
+    texte: (document.body.innerText || "").slice(0, 200),
+    styles: document.styleSheets.length,
+    racine: !!document.getElementById("root"),
+  }));
+  await ctx.setOffline(false);
+  const pbHL = [];
+  if (!/Connexion indisponible/.test(horsLigne.texte)) pbHL.push("hors ligne : page de repli non servie — " + JSON.stringify(horsLigne.texte.slice(0, 80)));
+  if (horsLigne.racine && horsLigne.styles === 0) pbHL.push("hors ligne : index.html servi SANS ses styles (HTML nu)");
+  signaler("retour", "réseau coupé", pbHL);
+
+  // 2) Fichier de l'ancienne version manquant après un déploiement : la page
+  //    se recharge UNE fois, puis, si le fichier manque toujours, affiche
+  //    l'écran d'erreur — sans jamais boucler.
+  let chargements = 0;
+  page.on("load", () => { chargements++; });
+  await page.route(/\/assets\/Plans-[^/]+\.js$/, (r) => r.abort());
+  await page.goto(BASE + "/plans", { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
+  await page.waitForTimeout(9000);
+  const apres = await page.evaluate(() => ({
+    boundary: /Une erreur s'est produite|Something went wrong/i.test(document.body.innerText || ""),
+    drapeau: (() => { try { return !!sessionStorage.getItem("vit-auto-rechargement-apres-deploiement"); } catch { return false; } })(),
+  }));
+  await page.unroute(/\/assets\/Plans-[^/]+\.js$/);
+  const pbDep = [];
+  if (!apres.drapeau) pbDep.push("fichier manquant : aucun rechargement tenté");
+  if (chargements > 3) pbDep.push(`fichier manquant : ${chargements} chargements — la page BOUCLE`);
+  if (!apres.boundary && chargements >= 2) pbDep.push("fichier toujours absent après rechargement : l'écran d'erreur devrait s'afficher");
+  signaler("retour", "fichier manquant après déploiement", pbDep);
   await ctx.close();
 }
 

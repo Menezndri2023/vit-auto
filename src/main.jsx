@@ -4,12 +4,6 @@ import { GoogleOAuthProvider } from '@react-oauth/google'
 import './index.css'
 import App from './App.jsx'
 
-// L'ErrorBoundary recharge la page UNE fois quand un fichier de l'ancienne
-// version manque après un déploiement (voir ErrorBoundary.jsx). Le drapeau
-// est levé ici, une fois la nouvelle version chargée : un second déploiement
-// dans la même session est couvert à son tour.
-try { sessionStorage.removeItem("vit-auto-rechargement-apres-deploiement"); } catch { /* stockage indisponible */ }
-
 // No-op silencieux si VITE_SENTRY_DSN n'est pas configurée (même logique
 // défensive que server/config/sentry.js côté backend).
 if (import.meta.env.VITE_SENTRY_DSN) {

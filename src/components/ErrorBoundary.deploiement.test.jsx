@@ -27,11 +27,18 @@ describe("ErrorBoundary après un déploiement", () => {
     expect(sessionStorage.getItem(CLE)).toBeTruthy();
   });
 
-  it("ne recharge qu'UNE fois : si le fichier manque pour une autre raison, on ne boucle pas", () => {
-    sessionStorage.setItem(CLE, "déjà");
+  it("ne recharge pas une seconde fois dans la demi-minute : un fichier durablement absent ne fait pas boucler", () => {
+    // Rechargé il y a 5 s, et le fichier manque toujours : écran d'erreur.
+    sessionStorage.setItem(CLE, String(Date.now() - 5_000));
     render(<ErrorBoundary><Casse message="Importing a module script failed." /></ErrorBoundary>);
     expect(reload).not.toHaveBeenCalled();
     expect(screen.getByText(/Une erreur s'est produite|Something went wrong/)).toBeTruthy();
+  });
+
+  it("recharge à nouveau pour un second déploiement plus tard dans la session", () => {
+    sessionStorage.setItem(CLE, String(Date.now() - 10 * 60_000));
+    render(<ErrorBoundary><Casse message="Failed to fetch dynamically imported module: /assets/Plans-xyz.js" /></ErrorBoundary>);
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 
   it("une erreur ordinaire affiche l'écran d'erreur, sans recharger", () => {
