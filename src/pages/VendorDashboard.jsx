@@ -2828,7 +2828,11 @@ export default function VendorDashboard() {
       {!subLoading && (
         <div className={isPro ? styles.proBanner : styles.freeBanner}>
           <span className={styles.planBadge}>{isPro ? `✨ ${planName}` : "Gratuit"}</span>
-          <span>{isPro ? `Plan ${planName} actif jusqu'au ${proEnd}` : "Passez à un plan supérieur pour réduire vos commissions et la mise en avant automatique."}</span>
+          {/* Depuis le 2026-09-09 l'abonnement ne réduit plus la commission (voir
+              defaultPricingConfig.js, grille premium = standard) : le bandeau
+              promettait une réduction qui n'existait pas. Il annonce ce que le
+              plan APPORTE (voir src/constants/planFeatures.js). */}
+          <span>{isPro ? `Plan ${planName} actif jusqu'au ${proEnd}` : "Gratuit, sans frais d'inscription ni de publication. Les plans ajoutent des statistiques détaillées, des mises en avant incluses et une avance sur les demandes clients."}</span>
           {/* Le quota restant est l'information qui donne sa valeur visible à
               l'abonnement : sans elle, le partenaire ne sait pas qu'il dispose
               de mises en avant déjà payées. */}

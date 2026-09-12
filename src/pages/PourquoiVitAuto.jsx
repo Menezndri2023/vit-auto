@@ -27,7 +27,7 @@ const SERVICE_CARDS = [
     color: "#10b981",
     bg: "rgba(16,185,129,.08)",
     title: "Vente",
-    desc: "Achetez un véhicule neuf ou d'occasion en toute sécurité. Contrat digital, vérification du vendeur, paiement sécurisé inclus.",
+    desc: "Trouvez un véhicule neuf ou d'occasion chez un professionnel vérifié, demandez un essai en un clic et concluez directement avec le vendeur. VIT AUTO vous accompagne du premier contact jusqu'à la vente.",
     cta: "Voir les ventes",
     link: "/catalogue?mode=Acheter",
   },

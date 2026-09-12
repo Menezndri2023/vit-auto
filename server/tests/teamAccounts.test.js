@@ -222,7 +222,7 @@ describe("Comptes d'équipe — délégation d'accès", () => {
 });
 
 describe("Comptes d'équipe — périmètre de la délégation", () => {
-  it("la délégation n'est montée QUE sur les annonces et les réservations", async () => {
+  it("la délégation n'est montée QUE sur les annonces, les réservations et les demandes d'essai", async () => {
     // Ce test garde une frontière de SÉCURITÉ, pas une convention : montée sur
     // /api/auth ou /api/users, la délégation donnerait à un agent le droit de
     // changer le mot de passe de son employeur, ou de supprimer son compte.
@@ -233,7 +233,10 @@ describe("Comptes d'équipe — périmètre de la délégation", () => {
     const utilisateurs = fichiers.filter((f) =>
       fs.readFileSync(path.join(dossier, f), "utf8").includes("authenticateEtDeleguer")
     ).sort();
-    expect(utilisateurs).toEqual(["bookings.js", "vehicles.js"]);
+    // salesLeads.js (2026-09-12) : les demandes d'essai sont, comme les
+    // réservations, des données du titulaire qu'un agent traite pour lui
+    // (accepter, proposer un créneau, déclarer une vente) — jamais le compte.
+    expect(utilisateurs).toEqual(["bookings.js", "salesLeads.js", "vehicles.js"]);
   });
 
   it("un membre d'équipe ne gère ni l'équipe ni les clés d'API", async () => {

@@ -16,8 +16,8 @@ const FALLBACK_PRICING = {
     // Ce repli s'affiche une fraction de seconde sur une page de TARIFS : des
     // valeurs périmées y annoncent brièvement des taux que le client ne paiera
     // pas. Il doit rester le miroir exact de server/config/defaultPricingConfig.js.
-    standard: { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05 },
-    premium:  { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05 },
+    standard: { vente: 0.03, location: 0.15, chauffeur: 0.10, import_export: 0.05, leasing: 0.05 },
+    premium:  { vente: 0.03, location: 0.15, chauffeur: 0.10, import_export: 0.05, leasing: 0.05 },
   },
   foundingPartner: {
     durationMonths: 12,

@@ -125,7 +125,7 @@ export default function ConditionsPartenaires() {
         <p>Les commissions appliquées sont les suivantes :</p>
         <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
           <Li><strong>Location :</strong> 15 % du montant de la réservation (10 % pendant 12 mois pour tout Partenaire Fondateur, entreprise comme particulier, puis retour au tarif standard)</Li>
-          <Li><strong>Vente :</strong> 3 % du prix de vente (1,5 % pendant 12 mois pour un Partenaire Fondateur entreprise/professionnel/exportateur, 2 % pour un particulier, puis retour au tarif standard)</Li>
+          <Li><strong>Vente :</strong> 3 % du prix de vente final, dû uniquement lorsqu'une vente issue d'un prospect apporté par VIT AUTO est effectivement conclue (voir ci-dessous « Attribution des prospects »)</Li>
           <Li><strong>Chauffeur :</strong> 10 % du montant de la course</Li>
           <Li><strong>Assurance :</strong> commission négociée directement avec le partenaire assureur (généralement 5–15 %)</Li>
           <Li><strong>Crédit / Leasing :</strong> commission négociée avec la banque ou le courtier (généralement 1–3 % du montant financé)</Li>
@@ -133,8 +133,21 @@ export default function ConditionsPartenaires() {
           <Li><strong>Livraison GPS :</strong> 15 DH de base + 3 DH/km, calculée dynamiquement, à la charge du client</Li>
         </ul>
         <p style={{ marginTop: 12 }}>
-          Les commissions sont automatiquement déduites à chaque transaction. Le solde net est viré
+          Les commissions sur les réservations (location, chauffeur, activités) sont automatiquement déduites à chaque transaction. Le solde net est viré
           au partenaire dans un délai de <strong>2 à 5 jours ouvrés</strong> après confirmation de la réservation.
+        </p>
+        <p style={{ marginTop: 12 }}>
+          <strong>Vente de véhicules — attribution des prospects.</strong> VIT AUTO n'est pas une place de marché
+          d'achat en ligne : la vente est conclue directement entre le partenaire et l'acheteur, aux conditions
+          fixées par le partenaire (véhicule, prix, négociation, financement, livraison). VIT AUTO apporte le
+          prospect — demande d'essai ou de rappel, identifiée par une référence unique — et assure le suivi du
+          parcours jusqu'au résultat. Tout prospect apporté par VIT AUTO reste attribué à VIT AUTO pendant
+          <strong> 90 jours</strong> à compter de sa demande : si, durant cette période, ce prospect achète
+          auprès du partenaire le véhicule concerné, la vente est réputée provenir de VIT AUTO et la commission
+          de 3 % du prix de vente final est due. Le partenaire déclare la vente (prix final, date) depuis son
+          espace ; VIT AUTO la confirme avant facturation. Aucun abonnement, frais d'inscription ni frais de
+          publication n'est exigé pour la mise en vente. Le contournement du parcours (coordonnées obtenues via
+          VIT AUTO puis vente non déclarée) constitue un manquement au sens de l'article 3.
         </p>
       </Art>
 
@@ -147,13 +160,13 @@ export default function ConditionsPartenaires() {
         </p>
         <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
           <Li>Accès gratuit à toutes les fonctionnalités (sans abonnement mensuel)</Li>
-          <Li>Commission réduite pendant 12 mois : 10 % sur location (tous profils), 1,5 % sur vente (entreprise/professionnel/exportateur) ou 2 % (particulier)</Li>
+          <Li>Commission réduite pendant 12 mois : 10 % sur location (tous profils) — la commission sur les ventes reste de 3 % pour tous</Li>
           <Li>Badge "Partenaire Fondateur" affiché sur toutes les annonces</Li>
           <Li>Mise en avant prioritaire dans les résultats de recherche et le catalogue</Li>
         </ul>
         <p style={{ marginTop: 12 }}>
           Passé les 12 premiers mois, chaque Partenaire Fondateur revient automatiquement au tarif standard
-          (15 % / 3 %). VIT AUTO se réserve le droit d'ajuster cette offre avec un préavis de <strong>30 jours</strong>.
+          (15 % sur la location). VIT AUTO se réserve le droit d'ajuster cette offre avec un préavis de <strong>30 jours</strong>.
         </p>
       </Art>
 

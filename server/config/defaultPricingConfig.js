@@ -9,7 +9,10 @@
 export const DEFAULT_PRICING_CONFIG = {
   key: "global",
   // Grille STANDARD, applicable une fois la fenêtre fondateur écoulée :
-  // location 15 %, essai et vente 5 %, export 5 %, chauffeur 15 %. `essai` est
+  // location 15 %, essai et vente 3 % (règle de l'exploitant, 2026-09-12 — même
+  // taux que la vente par demande d'essai, voir salesLead), export 5 %,
+  // chauffeur 10 % (décision de l'exploitant, 2026-09-12 : même taux fondateur ou
+  // non). `essai` est
   // facturé au taux `vente` (voir pricingEngine) — il n'a pas de taux propre.
   //
   // `premium` est VOLONTAIREMENT identique à `standard`. La faveur commerciale
@@ -20,8 +23,8 @@ export const DEFAULT_PRICING_CONFIG = {
   // support l'a confirmé. Le mécanisme premium reste en place et pourra
   // reprendre du sens si une remise d'abonnement est décidée un jour.
   commissions: {
-    standard: { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05 },
-    premium:  { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05 },
+    standard: { vente: 0.03, location: 0.15, chauffeur: 0.10, import_export: 0.05, leasing: 0.05 },
+    premium:  { vente: 0.03, location: 0.15, chauffeur: 0.10, import_export: 0.05, leasing: 0.05 },
   },
   // Grille FONDATEUR — la faveur commerciale, pendant douze mois à compter de
   // la SIGNATURE de l'accord (PartnerOnboarding.commissions.lockedAt). Au-delà,
