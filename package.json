@@ -24,7 +24,8 @@
     "cap:ios": "npx cap open ios",
     "verify:local": "node scripts/verifierLocalement.mjs",
     "verify:prod": "node scripts/verifierLocalement.mjs https://vit-auto.com",
-    "preview:csp": "node scripts/servirAvecCsp.mjs"
+    "preview:csp": "node scripts/servirAvecCsp.mjs",
+    "hooks:install": "git config core.hooksPath .githooks && echo 'hook pre-push installé'"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.1",

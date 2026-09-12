@@ -1,4 +1,4 @@
-// VIT AUTO — Service Worker v6
+// VIT AUTO — Service Worker v7
 //
 // ═══════════════════════════════════════════════════════════════════════════
 // PANNE DU 2026-09-11 — PLUS AUCUNE IMAGE NE S'AFFICHAIT
@@ -26,9 +26,16 @@
 //     ImageKit les sert déjà avec `max-age=31536000`, et le cache HTTP du
 //     navigateur fait ce travail mieux que nous, sans consommer le quota du
 //     Cache Storage.
-const CACHE_NAME    = 'vit-auto-v6';
+const CACHE_NAME    = 'vit-auto-v7';
+// `'/'` (index.html) n'est PLUS précaché. Un index.html mis en cache référence
+// les fichiers JS/CSS à empreinte du déploiement de ce moment-là ; après le
+// déploiement suivant, l'hébergeur ne les sert plus. Servi depuis le cache à
+// la moindre coupure réseau, il donnait une page sans style ni script — du
+// HTML nu. Constaté par l'exploitant le 2026-09-12, après douze déploiements
+// la veille. Le repli hors ligne est une page autonome, sans aucun fichier à
+// empreinte, qui ne peut donc pas se périmer.
 const STATIC_ASSETS = [
-  '/',
+  '/offline.html',
   '/manifest.json',
   '/favicon.svg',
 ];
@@ -124,19 +131,13 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (request.mode === 'navigate') {
+    // Toujours le réseau, JAMAIS un index.html en cache (voir STATIC_ASSETS).
+    // Hors ligne : la page autonome. `Response` de repli explicite plutôt
+    // qu'`undefined`, qui ferait échouer la navigation au lieu d'afficher
+    // quelque chose.
     event.respondWith(
       fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            caches.open(CACHE_NAME).then((cache) => mettreEnCache(cache, request, response)).catch(() => {});
-          }
-          return response;
-        })
-        // Hors ligne : on sert la coquille de l'application. `Response` de
-        // repli explicite plutôt qu'`undefined`, qui ferait échouer la
-        // navigation au lieu d'afficher quelque chose.
-        .catch(() => caches.match('/')
-          .then((r) => r || caches.match(request))
+        .catch(() => caches.match('/offline.html')
           .then((r) => r || new Response(
             '<!doctype html><meta charset="utf-8"><title>Hors ligne</title>'
             + '<p style="font-family:system-ui;padding:2rem">Connexion indisponible. Réessayez.</p>',

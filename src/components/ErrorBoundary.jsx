@@ -14,6 +14,27 @@ function getLang() {
   try { return localStorage.getItem("vit_lang") || "fr"; } catch { return "fr"; }
 }
 
+// Échec de chargement d'un morceau de page (import dynamique) : la signature
+// que donnent Chrome, Safari et Firefox quand le fichier JS ou CSS demandé
+// n'existe plus. Cela arrive à chaque déploiement : un visiteur qui a chargé
+// la page AVANT, puis navigue APRÈS, demande un fichier à empreinte de
+// l'ancienne version, que l'hébergeur ne sert plus. Ce n'est pas un bug de
+// l'application, c'est la nouvelle version qui attend — il suffit de
+// recharger. Une seule fois, gardé par sessionStorage, pour ne jamais boucler
+// si le fichier manque pour une autre raison.
+const ERREUR_DE_CHARGEMENT = /Failed to fetch dynamically imported module|Importing a module script failed|Loading (CSS )?chunk|ChunkLoadError|error loading dynamically imported module/i;
+const CLE_RECHARGEMENT = "vit-auto-rechargement-apres-deploiement";
+
+function rechargerUneFoisSiNouvelleVersion(error) {
+  if (!ERREUR_DE_CHARGEMENT.test(String(error?.message || error))) return false;
+  try {
+    if (sessionStorage.getItem(CLE_RECHARGEMENT)) return false;
+    sessionStorage.setItem(CLE_RECHARGEMENT, String(Date.now()));
+  } catch { return false; }
+  window.location.reload();
+  return true;
+}
+
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -25,6 +46,7 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, info) {
+    if (rechargerUneFoisSiNouvelleVersion(error)) return;
     console.error('[ErrorBoundary]', error, info?.componentStack?.slice(0, 200));
     // No-op silencieux si Sentry n'a jamais été initialisé (VITE_SENTRY_DSN absente).
     Sentry.captureException(error, { extra: { componentStack: info?.componentStack } });

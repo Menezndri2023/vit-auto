@@ -1,20 +1,29 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// VÉRIFICATION LOCALE AVANT PUBLICATION
+// VÉRIFICATION LOCALE AVANT PUBLICATION — dans les conditions de la production
 // ═══════════════════════════════════════════════════════════════════════════
-// Exerce le paquet CONSTRUIT (dist/) dans un vrai navigateur, sur plusieurs
-// écrans, avant qu'il n'atteigne la production. Ce que les suites de tests ne
-// voient pas : le service worker, la politique de sécurité, le rendu réel, les
-// images cassées, le défilement horizontal.
+// Exerce le paquet CONSTRUIT (dist/) dans un vrai navigateur, servi AVEC les
+// en-têtes de vercel.json (CSP comprise) par `npm run preview:csp`. Chaque
+// contrôle ci-dessous correspond à un incident réel qu'aucune suite de tests
+// ne pouvait voir :
+//   • service worker sur une DEUXIÈME navigation — la première n'est jamais
+//     sous son contrôle (panne des images, puis des polices) ;
+//   • police de la marque réellement chargée (media="print", puis connect-src
+//     du worker) ;
+//   • requêtes en échec et HTTP ≥ 400, pas seulement les erreurs JS ;
+//   • pages CONNECTÉES : KYC (worker OCR sous CSP), espaces client/partenaire,
+//     et les 43 onglets d'administration — la sonde publique ne les voit pas ;
+//   • contenu coupé mesuré par la position des éléments, pas par scrollWidth,
+//     qu'un overflow:hidden rend aveugle.
 //
-//   npm run build && npm run preview          (dans un terminal)
+//   npm run build && npm run preview:csp      (dans un terminal)
 //   npm run verify:local                      (dans un autre)
 //
-// Sort en code 1 si une page présente une anomalie : utilisable tel quel comme
-// garde avant publication.
+//   VERIF_ADMIN_ID=… VERIF_ADMIN_PWD=… npm run verify:local
+//       → ajoute les pages connectées et le panneau d'administration.
+//
+// Sort en code 1 à la moindre anomalie. Branché sur le hook pre-push
+// (.githooks/pre-push) : rien ne part en production sans être passé ici.
 import { chromium } from "playwright-core";
-// Chromium de Playwright, cherché dans son cache plutôt que codé en dur : la
-// version change à chaque mise à jour, et un chemin figé ferait échouer le
-// contrôle chez quelqu'un d'autre — ou ici, au prochain `playwright install`.
 import { readdirSync, existsSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
@@ -47,59 +56,152 @@ if (!EXE) {
   console.error("Ou indiquez son chemin : CHROMIUM_PATH=/chemin/vers/chromium node scripts/verifierLocalement.mjs");
   process.exit(2);
 }
-const BASE = process.argv[2] || "http://localhost:4173";
+const BASE = process.argv[2] || "http://localhost:4180";
+const ADMIN_ID = process.env.VERIF_ADMIN_ID, ADMIN_PWD = process.env.VERIF_ADMIN_PWD;
 
-const PAGES = ["/", "/catalogue", "/catalogue?mode=Autres", "/plans", "/login", "/register", "/pourquoi", "/partenaires"];
+const PAGES_PUBLIQUES = ["/", "/catalogue", "/catalogue?mode=Acheter", "/plans", "/services", "/login", "/register",
+  "/pourquoi", "/partenaires", "/faq", "/import-export", "/import-export/listings", "/cgu", "/privacy", "/stats"];
+const PAGES_CONNECTEES = ["/dashboard", "/profile", "/favorites", "/loyalty", "/kyc", "/cart", "/vendor/dashboard",
+  "/vendor/pro", "/vendor/publish", "/partner-onboarding", "/partner-certification", "/partner-pms", "/importer-dashboard"];
 const ECRANS = [
-  { nom: "mobile",  width: 390, height: 844,  mobile: true },
-  { nom: "tablette", width: 768, height: 1024, mobile: true },
-  { nom: "bureau",  width: 1280, height: 900, mobile: false },
+  { nom: "mobile", width: 390, height: 844, mobile: true },
+  { nom: "bureau", width: 1440, height: 900, mobile: false },
 ];
-const GRAVE = /before initialization|is not a function|Cannot read propert|is not defined|Rendered (more|fewer) hooks|Maximum update depth|Minified React error/i;
+// Bruit connu, sans effet utilisateur : repli géoloc pour une IP non
+// localisable, télémétrie, favicon, et le 403 VOULU d'une statistique
+// réservée aux abonnés (PLAN_REQUIS) sur /vendor/pro.
+// « Warning: Parameter not found: … » : avertissements internes du cœur
+// Tesseract, émis en console.error, sans effet sur la reconnaissance.
+const BRUIT_COMMUN = /ipapi\.co|sentry|favicon|subscriptions\/insights|Parameter not found:/;
+// En local, Google Sign-In refuse l'origine localhost, non enregistrée chez
+// Google (« The given origin is not allowed for the given client ID ») —
+// artefact du harnais, pas un défaut du site. Jamais ignoré en production.
+const LOCAL = /^https?:\/\/(localhost|127\.0\.0\.1)/.test(BASE);
+const BRUIT = LOCAL ? new RegExp(BRUIT_COMMUN.source + "|accounts\\.google\\.com\\/gsi|GSI_LOGGER") : BRUIT_COMMUN;
+
+let anomalies = 0;
+const signaler = (ecran, chemin, problemes) => {
+  const ok = problemes.length === 0;
+  if (!ok) anomalies += 1;
+  console.log(`${ok ? "✓" : "✗"} ${ecran.padEnd(7)} ${chemin.padEnd(28)}${ok ? "" : "\n     " + problemes.join("\n     ")}`);
+};
+
+function ecouter(page) {
+  const js = [], echecs = [], http = [];
+  page.on("pageerror", (e) => js.push(String(e).slice(0, 140)));
+  // Le message « Failed to load resource » ne contient pas l'URL : elle est
+  // dans m.location(). Filtrer sur le seul texte laissait passer le bruit.
+  page.on("console", (m) => {
+    if (m.type() !== "error") return;
+    const texte = m.text(), url = m.location()?.url || "";
+    if (BRUIT.test(texte) || BRUIT.test(url)) return;
+    js.push("console: " + texte.slice(0, 140) + (url ? ` [${url.slice(0, 70)}]` : ""));
+  });
+  page.on("requestfailed", (r) => { if (!BRUIT.test(r.url())) echecs.push(`${r.failure()?.errorText} ${r.url().slice(0, 90)}`); });
+  page.on("response", (r) => { if (r.status() >= 400 && !BRUIT.test(r.url())) http.push(`${r.status()} ${r.url().slice(0, 90)}`); });
+  return { js, echecs, http, vider() { js.length = 0; echecs.length = 0; http.length = 0; } };
+}
+
+async function mesurer(page) {
+  return page.evaluate(async () => {
+    await document.fonts.ready;
+    const coupes = [...document.querySelectorAll("body *")].filter((e) => {
+      const b = e.getBoundingClientRect();
+      if (b.width < 4 || b.right <= window.innerWidth + 2) return false;
+      const s = getComputedStyle(e);
+      if (["fixed", "sticky"].includes(s.position) || !(e.textContent || "").trim()) return false;
+      for (let p = e.parentElement; p; p = p.parentElement) if (/(auto|scroll)/.test(getComputedStyle(p).overflowX)) return false;
+      return true;
+    }).length;
+    return {
+      sw: !!navigator.serviceWorker?.controller,
+      poppins: [...document.fonts].filter((f) => f.family === "Poppins" && f.status === "loaded").length,
+      imgKo: [...document.images].filter((i) => i.currentSrc && i.complete && i.naturalWidth === 0 && !/^data:/.test(i.currentSrc)).length,
+      coupes,
+      vide: (document.body.innerText || "").trim().length < 120,
+      boundary: /Une erreur s'est produite/i.test(document.body.innerText || ""),
+      racineVide: !document.getElementById("root")?.children.length,
+    };
+  });
+}
+
+function problemesDe(m, e, { exigerSw = true } = {}) {
+  const p = [];
+  if (m.racineVide) p.push("RACINE VIDE — la page ne s'est pas rendue (fichiers JS/CSS manquants ?)");
+  if (m.boundary) p.push("ErrorBoundary déclenché");
+  if (m.vide) p.push("page quasi vide");
+  if (exigerSw && !m.sw) p.push("service worker non actif sur une navigation suivante");
+  if (m.poppins === 0) p.push("police Poppins NON chargée");
+  if (m.imgKo) p.push(`${m.imgKo} image(s) cassée(s)`);
+  if (m.coupes) p.push(`${m.coupes} élément(s) avec texte coupé(s) à droite`);
+  if (e.js.length) p.push("JS : " + [...new Set(e.js)].slice(0, 2).join(" ; "));
+  if (e.echecs.length) p.push("requêtes en échec : " + [...new Set(e.echecs)].slice(0, 2).join(" ; "));
+  if (e.http.length) p.push("HTTP ≥ 400 : " + [...new Set(e.http)].slice(0, 3).join(" ; "));
+  return p;
+}
 
 const nav = await chromium.launch({ executablePath: EXE, headless: true });
-let anomalies = 0;
 
-for (const e of ECRANS) {
-  const ctx = await nav.newContext({
-    viewport: { width: e.width, height: e.height },
-    isMobile: e.mobile, hasTouch: e.mobile,
-  });
-  for (const chemin of PAGES) {
-    const page = await ctx.newPage();
-    const js = [], imgKo = [];
-    page.on("pageerror", (x) => { if (GRAVE.test(x.message)) js.push(x.message.slice(0, 110)); });
-    page.on("response", (r) => { if (r.request().resourceType() === "image" && !r.ok()) imgKo.push(r.status()); });
-
-    // `domcontentloaded` et non `networkidle` : le websocket Socket.io reste
-    // ouvert par conception, `networkidle` n'arrive jamais sur certaines pages.
-    await page.goto(BASE + chemin, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
+for (const ecran of ECRANS) {
+  const ctx = await nav.newContext({ viewport: { width: ecran.width, height: ecran.height }, isMobile: ecran.mobile, hasTouch: ecran.mobile });
+  const page = await ctx.newPage();
+  const e = ecouter(page);
+  // Amorçage : la première navigation n'est jamais contrôlée par le worker.
+  await page.goto(BASE + "/", { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
+  await page.waitForTimeout(5000);
+  for (const chemin of PAGES_PUBLIQUES) {
+    e.vider();
+    await page.goto(BASE + chemin, { waitUntil: "domcontentloaded", timeout: 60000 }).catch((x) => e.js.push("navigation : " + x.message.slice(0, 80)));
     await page.waitForTimeout(6000);
-
-    const m = await page.evaluate(() => {
-      const imgs = [...document.querySelectorAll("img")];
-      const html = document.documentElement;
-      return {
-        imgKo: imgs.filter((i) => i.complete && i.naturalWidth === 0).length,
-        imgOk: imgs.filter((i) => i.complete && i.naturalWidth > 0).length,
-        debordement: Math.max(0, html.scrollWidth - html.clientWidth),
-        vide: document.body.innerText.trim().length < 120,
-      };
-    });
-
-    const souci = m.imgKo > 0 || m.debordement > 2 || m.vide || js.length > 0;
-    if (souci) anomalies += 1;
-    console.log(
-      `${souci ? "✗" : "✓"} ${e.nom.padEnd(9)} ${chemin.padEnd(26)}`
-      + ` images ${m.imgOk} ok / ${m.imgKo} cassées`
-      + ` | débordement ${m.debordement}px`
-      + (m.vide ? " | PAGE VIDE" : "")
-      + (js.length ? ` | JS: ${js[0]}` : "")
-    );
-    await page.close();
+    signaler(ecran.nom, chemin, problemesDe(await mesurer(page), e));
   }
   await ctx.close();
 }
+
+if (ADMIN_ID && ADMIN_PWD) {
+  const ctx = await nav.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await ctx.newPage();
+  const e = ecouter(page);
+  await page.goto(BASE + "/login", { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
+  await page.waitForTimeout(5000);
+  await page.fill("#login-identifier", ADMIN_ID); await page.fill("#login-password", ADMIN_PWD);
+  await page.click("form button[type=submit]"); await page.waitForTimeout(8000);
+  const connecte = await page.evaluate(() => !!localStorage.getItem("vit-auto-token"));
+  if (!connecte) { signaler("connecté", "/login", ["connexion impossible avec les identifiants fournis"]); }
+  else {
+    for (const chemin of PAGES_CONNECTEES) {
+      e.vider();
+      await page.goto(BASE + chemin, { waitUntil: "domcontentloaded", timeout: 60000 }).catch((x) => e.js.push("navigation : " + x.message.slice(0, 80)));
+      await page.waitForTimeout(chemin === "/kyc" ? 12000 : 7000);
+      // /kyc : le worker OCR (Tesseract) charge son script, son cœur WASM et
+      // ses modèles depuis un CDN — chacun soumis à la CSP. Une erreur
+      // importScripts/WebAssembly ici = soumission KYC impossible.
+      signaler("connecté", chemin, problemesDe(await mesurer(page), e));
+    }
+
+    // Panneau d'administration : chaque entrée du menu, comme un vrai admin.
+    e.vider();
+    await page.goto(BASE + "/admin", { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
+    await page.waitForTimeout(10000);
+    const nbOnglets = await page.evaluate(() => [...document.querySelectorAll("button")].filter((b) => {
+      const s = b.querySelectorAll(":scope > span"); return s.length >= 2 && (s[1].textContent || "").trim().length > 2; }).length);
+    if (nbOnglets < 40) signaler("admin", "/admin", [`${nbOnglets} onglet(s) trouvé(s), au moins 40 attendus`]);
+    for (let i = 0; i < nbOnglets; i++) {
+      e.vider();
+      const nom = await page.evaluate((idx) => {
+        const b = [...document.querySelectorAll("button")].filter((x) => { const s = x.querySelectorAll(":scope > span"); return s.length >= 2 && (s[1].textContent || "").trim().length > 2; })[idx];
+        b?.click(); return (b?.textContent || "").trim().slice(0, 28);
+      }, i);
+      await page.waitForTimeout(3000);
+      const m = await mesurer(page);
+      signaler("admin", nom, problemesDe({ ...m, coupes: 0 }, e, { exigerSw: false }));
+    }
+  }
+  await ctx.close();
+} else {
+  console.log("\n(pages connectées et administration non vérifiées : VERIF_ADMIN_ID / VERIF_ADMIN_PWD absents)");
+}
+
 await nav.close();
-console.log(anomalies === 0 ? "\n✓ Aucune anomalie — publication possible." : `\n✗ ${anomalies} page(s) en anomalie — NE PAS pousser.`);
+console.log(anomalies === 0 ? "\n✓ Aucune anomalie — publication possible." : `\n✗ ${anomalies} anomalie(s) — NE PAS pousser.`);
 process.exit(anomalies === 0 ? 0 : 1);

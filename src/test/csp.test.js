@@ -98,3 +98,29 @@ describe("Rien dans la page d'accueil ne dépend d'un script en ligne", () => {
     expect(lien[0], "pas de media=print : la feuille doit valoir pour l'écran").not.toMatch(/media\s*=\s*["']print/);
   });
 });
+
+describe("Le moteur OCR du KYC passe la CSP", () => {
+  // Trouvé le 2026-09-12 en parcourant les pages CONNECTÉES : sur /kyc,
+  // « Failed to execute 'importScripts' on 'WorkerGlobalScope' ». Tesseract v7
+  // charge son worker, son cœur WebAssembly et ses modèles de langue depuis
+  // cdn.jsdelivr.net ; dans un worker, importScripts relève de script-src et
+  // le chargement des modèles de connect-src. Rien de tout cela n'était
+  // autorisé : la soumission d'une pièce d'identité échouait en production.
+  // Les chemins sont scellés à la version : ouvrir tout le CDN reviendrait à
+  // autoriser n'importe quel script tiers.
+  it("autorise le worker, le cœur WASM et les modèles de Tesseract, et rien de plus large", () => {
+    const script = directive("script-src"), connect = directive("connect-src");
+    expect(script).toContain("https://cdn.jsdelivr.net/npm/tesseract.js@v7.0.0/dist/");
+    expect(script).toContain("https://cdn.jsdelivr.net/npm/tesseract.js-core@v7.0.0/");
+    // Compiler du WebAssembly exige cette autorisation, limitée au WASM.
+    expect(script).toContain("'wasm-unsafe-eval'");
+    expect(script).not.toContain("'unsafe-eval'");
+    expect(script).not.toContain("https://cdn.jsdelivr.net");   // jamais le CDN entier
+    expect(connect).toContain("https://cdn.jsdelivr.net/npm/@tesseract.js-data/");
+  });
+
+  it("la version scellée dans la CSP est celle réellement installée", () => {
+    const installee = JSON.parse(fs.readFileSync(path.join(process.cwd(), "node_modules", "tesseract.js", "package.json"), "utf8")).version;
+    expect(directive("script-src").join(" ")).toContain(`tesseract.js@v${installee}/`);
+  });
+});

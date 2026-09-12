@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hors ligne — VIT AUTO</title>
+<!-- Page servie par le service worker quand le réseau est indisponible.
+     Volontairement AUTONOME : aucun fichier JS/CSS à empreinte. Un index.html
+     mis en cache référençait des fichiers d'un déploiement précédent, que
+     l'hébergeur ne sert plus : le visiteur voyait du HTML nu, sans style ni
+     script. Cette page, elle, ne peut pas se périmer. -->
+<style>
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+         font-family: "Poppins", system-ui, -apple-system, sans-serif; background: #0f1b3f; color: #fff; text-align: center; padding: 24px; box-sizing: border-box; }
+  .carte { max-width: 420px; }
+  .logo { font-size: 1.6rem; font-weight: 800; color: #ff4d2d; letter-spacing: -0.02em; margin-bottom: 20px; }
+  h1 { font-size: 1.3rem; margin: 0 0 10px; }
+  p { color: #b8c2dc; line-height: 1.6; margin: 0 0 24px; }
+  a { display: inline-block; min-height: 48px; line-height: 48px; padding: 0 28px; background: #ff4d2d; color: #fff;
+      border-radius: 12px; font-weight: 700; text-decoration: none; }
+</style>
+</head>
+<body>
+  <div class="carte">
+    <div class="logo">VIT-AUTO</div>
+    <h1>Connexion indisponible</h1>
+    <p>Impossible de joindre le site pour le moment. Vérifiez votre connexion, puis réessayez.</p>
+    <a href="/">Réessayer</a>
+  </div>
+</body>
+</html>

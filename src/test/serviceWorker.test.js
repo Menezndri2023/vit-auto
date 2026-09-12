@@ -105,3 +105,33 @@ describe("Service worker", () => {
     expect(version).not.toBe("vit-auto-v5"); // celle qui relayait encore les polices
   });
 });
+
+describe("Le service worker ne sert jamais un index.html en cache", () => {
+  // Constaté par l'exploitant le 2026-09-12 : une page en HTML nu, sans style
+  // ni script. Un index.html mis en cache référence les fichiers JS/CSS à
+  // empreinte du déploiement de ce moment-là ; après le déploiement suivant,
+  // l'hébergeur ne les sert plus. Servi à la moindre coupure réseau, il donnait
+  // exactement ce symptôme — et il y avait eu douze déploiements la veille.
+  it("index.html n'est ni précaché ni lu depuis le cache", () => {
+    const precache = SRC.match(/STATIC_ASSETS\s*=\s*\[([^\]]*)\]/)?.[1] || "";
+    expect(precache).not.toMatch(/'\/'/);
+    expect(SRC).not.toMatch(/caches\.match\(\s*'\/'\s*\)/);
+    // La branche navigation ne met pas non plus la réponse en cache.
+    const debut = SRC.indexOf("mode === 'navigate'");
+    const nav = SRC.slice(debut, SRC.indexOf("return;", debut));   // la branche, jusqu'à son return
+    expect(nav).not.toMatch(/mettreEnCache|cache\.put/);
+  });
+
+  it("le repli hors ligne est une page autonome, sans fichier à empreinte ni script", () => {
+    expect(SRC).toMatch(/caches\.match\(\s*'\/offline\.html'\s*\)/);
+    const offline = fs.readFileSync(path.join(process.cwd(), "public", "offline.html"), "utf8");
+    expect(offline).not.toMatch(/\/assets\//);
+    expect(offline).not.toMatch(/<script/i);      // la CSP interdit les scripts en ligne
+    expect(offline).toMatch(/href="\/"/);          // un lien pour réessayer
+  });
+
+  it("change encore de version de cache : celle qui contenait un index.html périmé doit être purgée", () => {
+    const version = SRC.match(/CACHE_NAME\s*=\s*'([^']+)'/)?.[1];
+    expect(["vit-auto-v4", "vit-auto-v5", "vit-auto-v6"]).not.toContain(version);
+  });
+});

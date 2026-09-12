@@ -1,0 +1,59 @@
+#!/bin/sh
+# ═══════════════════════════════════════════════════════════════════════════
+# GARDE AVANT PUSH — rien ne part en production sans vérification locale
+# ═══════════════════════════════════════════════════════════════════════════
+# Consigne de l'exploitant (2026-09-11, réaffirmée le 2026-09-12 après une
+# page servie en HTML nu) : toute modification est testée localement avant
+# d'être poussée. Ce hook rend la règle mécanique. Installation :
+#     npm run hooks:install        (git config core.hooksPath .githooks)
+#
+# Étapes, chacune bloquante :
+#   1. tests front               2. build
+#   3. serveur local avec la CSP DE PRODUCTION et relais /api
+#   4. balayage navigateur : pages publiques sous service worker, police,
+#      requêtes en échec ; et si VERIF_ADMIN_ID/VERIF_ADMIN_PWD sont définis,
+#      pages connectées, KYC (worker OCR sous CSP) et les 43 onglets admin
+#   5. si des fichiers serveur sont poussés : les tests serveur qui les
+#      concernent, plus un socle (sécurité, portée admin, listes, signature)
+#
+# La suite serveur COMPLÈTE (≈ 1 h) reste à lancer à la main avant toute
+# modification lourde du serveur :  cd server && npx vitest run --maxWorkers=1
+#
+# Contournement conscient et exceptionnel :  git push --no-verify
+set -e
+cd "$(git rev-parse --show-toplevel)"
+
+echo "── 1/5  tests front ──"
+npx vitest run --reporter=dot 2>&1 | tail -3
+
+echo "── 2/5  build ──"
+npm run build 2>&1 | tail -1
+
+echo "── 3/5  serveur local avec la CSP de production ──"
+node scripts/servirAvecCsp.mjs > /tmp/vit-auto-preview-csp.log 2>&1 &
+PREVIEW=$!
+trap 'kill $PREVIEW 2>/dev/null' EXIT
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  curl -s -o /dev/null http://localhost:4180/ && break
+  sleep 1
+done
+
+echo "── 4/5  balayage navigateur (CSP + service worker) ──"
+node scripts/verifierLocalement.mjs http://localhost:4180
+
+echo "── 5/5  tests serveur ciblés ──"
+# Fichiers serveur dans les commits poussés : on relie chaque nom de fichier
+# aux tests qui le citent, plus un socle fixe.
+FICHIERS=$(git diff --name-only "@{push}"...HEAD 2>/dev/null | grep '^server/' | grep -vE '^server/tests/' || true)
+if [ -n "$FICHIERS" ]; then
+  MOTS=$(echo "$FICHIERS" | xargs -n1 basename | sed 's/\.[a-z]*$//' | sort -u)
+  CIBLES=$(for m in $MOTS; do grep -l "$m" server/tests/*.test.js 2>/dev/null || true; done | sort -u)
+  SOCLE="server/tests/auth.security.test.js server/tests/adminGlobalScope.test.js server/tests/listesAdminSansBase64.test.js server/tests/signerDocuments.test.js"
+  LISTE=$(echo "$CIBLES $SOCLE" | tr ' ' '\n' | sort -u | sed 's|^server/||' | tr '\n' ' ')
+  echo "   $(echo $LISTE | wc -w | tr -d ' ') fichier(s) de test"
+  (cd server && npx vitest run $LISTE --maxWorkers=1 --reporter=dot 2>&1 | tail -3)
+else
+  echo "   aucun fichier serveur dans ce push"
+fi
+
+echo "✓ vérification locale passée — push autorisé"
