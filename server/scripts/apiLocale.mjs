@@ -82,7 +82,7 @@ async function semer(uri) {
   await mongoose.connect(uri);
   const { createUser, createVehicleDoc, createActivityDoc, makeTestPartnerBusiness } = await import("../tests/helpers/fixtures.js");
 
-  await createUser({ role: "admin", email: ADMIN.email, password: await bcrypt.hash(ADMIN.password, 10),
+  const admin = await createUser({ role: "admin", email: ADMIN.email, password: await bcrypt.hash(ADMIN.password, 10),
     emailVerified: true, firstName: "Admin", lastName: "Vérification", adminScope: ["super_admin"], country: "MA" });
 
   const partenaires = [];
@@ -95,15 +95,40 @@ async function semer(uri) {
 
   const modeles = [["Toyota", "Corolla"], ["Dacia", "Duster"], ["Renault", "Clio"], ["Hyundai", "Tucson"],
     ["Kia", "Sportage"], ["Peugeot", "208"], ["Volkswagen", "Touareg"], ["Mercedes", "Classe C"]];
+  const vehicules = [];
   for (const [i, [marque, modele]] of modeles.entries()) {
-    await createVehicleDoc({
+    vehicules.push(await createVehicleDoc({
       owner: partenaires[i % 2]._id, marque, modele, annee: 2020 + (i % 5), title: `${marque} ${modele} ${2020 + (i % 5)}`,
       type: i < 6 ? "location" : "vente", pricePerDay: i < 6 ? 25 + i * 5 : undefined, priceForSale: i >= 6 ? 12000 + i * 1000 : undefined,
       currency: "MAD", ville: i % 2 ? "Casablanca" : "Marrakech", country: "MA",
       images: [PHOTOS[i % 2], PHOTOS[(i + 1) % 2]], thumbnail: PHOTOS[i % 2], carburant: "Essence", transmission: "Automatique",
       featured: i < 3, description: "Véhicule de démonstration pour la vérification locale.",
-    });
+    }));
   }
+
+  // Demandes d'essai (vente par prospect, docs/vente-demande-essai.md) à trois
+  // stades, pour que « Mes opportunités » (partenaire) et « Leads vente »
+  // (admin) ne soient pas vérifiés à vide. Créées par le service lui-même :
+  // historique, jalons et commission sont ceux de la production.
+  const lead = await import("../services/salesLeadService.js");
+  const enVente = vehicules.filter((v) => v.type === "vente");
+  const dans = (j) => new Date(Date.now() + j * 86400000).toISOString().slice(0, 10);
+  const demande = async (vehicle, extra = {}) => (await lead.createLead({
+    vehicleId: vehicle._id.toString(), source: "SYSTEM",
+    body: { firstName: "Awa", lastName: "Koné", phone: `+2126000000${extra.n || 1}`, city: "Casablanca", country: "MA",
+      date: dans(3), slot: "morning", message: "Disponible le matin.", consent: true, ...extra },
+  })).lead;
+  // Prix ≥ 15 000 USD → niveau 2, en qualification chez VIT AUTO : le premier
+  // y reste (bandeau « À qualifier »), les deux autres sont validés par l'admin.
+  await demande(enVente[0], { n: 1 });
+  const l2 = await demande(enVente[1], { n: 2 });
+  await lead.adminQualify(l2, { actorId: admin._id, transmit: true });
+  await lead.partnerAccept(l2, { actorId: partenaires[1]._id, time: "10:00", address: "Agence Médina Cars, Casablanca" });
+  const l3 = await demande(enVente[0], { n: 3, firstName: "Yacine", lastName: "B." });
+  await lead.adminQualify(l3, { actorId: admin._id, transmit: true });
+  await lead.partnerAccept(l3, { actorId: partenaires[0]._id, time: "15:00", address: "Agence Atlas, Marrakech" });
+  await lead.reportOutcome(l3, { actorId: partenaires[0]._id, testDrive: "completed", commercial: "negotiation" });
+  await lead.declareSale(l3, { actorId: partenaires[0]._id, finalPrice: 17500, currency: "USD" });
 
   for (let i = 0; i < 4; i++) {
     await createActivityDoc({ owner: partenaires[i % 2]._id, activityType: i % 2 ? "QUAD" : "PLONGEE",
