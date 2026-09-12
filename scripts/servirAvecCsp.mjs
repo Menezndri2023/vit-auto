@@ -84,4 +84,7 @@ const serveur = http.createServer((req, res) => {
 serveur.on("upgrade", (req, socket, head) => {
   if (req.url.startsWith("/socket.io/")) relayerUpgrade(req, socket, head); else socket.destroy();
 });
-serveur.listen(4180, () => console.log("prêt sur 4180 avec la CSP de production"));
+// PORT_CSP : deux vérifications peuvent coexister sur la même machine (deux
+// sessions, ou une garde pendant qu'un développeur regarde le site).
+const PORT_CSP = Number(process.env.PORT_CSP || 4180);
+serveur.listen(PORT_CSP, () => console.log(`prêt sur ${PORT_CSP} avec la CSP de production — API relayée : ${API}`));

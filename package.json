@@ -25,7 +25,8 @@
     "verify:local": "node scripts/verifierLocalement.mjs",
     "verify:prod": "node scripts/verifierLocalement.mjs https://vit-auto.com",
     "preview:csp": "node scripts/servirAvecCsp.mjs",
-    "hooks:install": "git config core.hooksPath .githooks && echo 'hook pre-push installé'"
+    "hooks:install": "git config core.hooksPath .githooks && echo 'hook pre-push installé'",
+    "api:local": "node server/scripts/apiLocale.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.1",

@@ -15,11 +15,15 @@ Le hook `.githooks/pre-push` la rend mécanique — l'installer une fois par clo
 
     npm run hooks:install
 
-Il enchaîne : tests front → build → `preview:csp` (dist/ servi avec les en-têtes de
-vercel.json, CSP comprise, relais /api et /socket.io vers l'API) → balayage navigateur
-(`scripts/verifierLocalement.mjs` : service worker sur 2ᵉ navigation, police, requêtes en
-échec, images, débordements ; avec `VERIF_ADMIN_ID`/`VERIF_ADMIN_PWD` : pages connectées,
-OCR du KYC sous CSP, 43 onglets admin) → tests serveur ciblés.
+Il enchaîne : tests front → build → **API locale** (`npm run api:local` : MongoDB en
+mémoire, données semées, administrateur jetable — rien ne touche la production ni son
+limiteur, aucun mot de passe réel) → `preview:csp` (dist/ servi avec les en-têtes de
+vercel.json, CSP comprise, relais /api et /socket.io vers l'API locale) → balayage
+navigateur (`scripts/verifierLocalement.mjs` : service worker sur 2ᵉ navigation, police,
+requêtes en échec, images, débordements, visiteur qui revient, pages connectées, OCR du KYC
+sous CSP, tous les onglets admin) → tests serveur ciblés.
+Contre la production, à la main : `VERIF_ADMIN_ID=… VERIF_ADMIN_PWD=… node
+scripts/verifierLocalement.mjs https://vit-auto.com` (attention au limiteur 200 req/5 min).
 
 Avant une modification lourde du serveur, lancer aussi la suite complète, SEULE :
 `cd server && npx vitest run --maxWorkers=1` (≈ 1 h). Ne jamais lancer deux tâches lourdes

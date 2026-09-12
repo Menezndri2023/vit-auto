@@ -310,6 +310,10 @@ const apiLimiter = rateLimit({
   message:         { message: "Trop de requêtes. Réessayez dans quelques minutes." },
   standardHeaders: true,
   legacyHeaders:   false,
+  // Exempté en test comme authLimiter : la garde avant push exerce 43 onglets
+  // d'administration depuis 127.0.0.1 en quelques minutes, bien au-delà de
+  // 300 requêtes. Aucun effet hors NODE_ENV=test.
+  skip:            skipInTest,
 });
 
 // Limiter catalogue public (anti-scraping bots)

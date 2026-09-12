@@ -92,6 +92,12 @@ const signaler = (ecran, chemin, problemes) => {
   console.log(`${ok ? "✓" : "✗"} ${ecran.padEnd(7)} ${chemin.padEnd(28)}${ok ? "" : "\n     " + problemes.join("\n     ")}`);
 };
 
+// Un 404 sur /partner-onboarding/my est la réponse normale de l'API à un
+// compte qui n'a pas commencé son dossier partenaire — la page le gère
+// (« Devenir partenaire »). Seul CE statut sur CETTE route est ignoré : un
+// 500 y resterait signalé.
+const ATTENDU = (statut, url) => statut === 404 && /\/api\/partner-onboarding\/my(\?|$)/.test(url);
+
 function ecouter(page) {
   const js = [], echecs = [], http = [];
   page.on("pageerror", (e) => js.push(String(e).slice(0, 140)));
@@ -101,10 +107,11 @@ function ecouter(page) {
     if (m.type() !== "error") return;
     const texte = m.text(), url = m.location()?.url || "";
     if (BRUIT.test(texte) || BRUIT.test(url)) return;
+    if (/status of 404/.test(texte) && ATTENDU(404, url)) return;
     js.push("console: " + texte.slice(0, 140) + (url ? ` [${url.slice(0, 70)}]` : ""));
   });
   page.on("requestfailed", (r) => { if (!BRUIT.test(r.url())) echecs.push(`${r.failure()?.errorText} ${r.url().slice(0, 90)}`); });
-  page.on("response", (r) => { if (r.status() >= 400 && !BRUIT.test(r.url())) http.push(`${r.status()} ${r.url().slice(0, 90)}`); });
+  page.on("response", (r) => { if (r.status() >= 400 && !BRUIT.test(r.url()) && !ATTENDU(r.status(), r.url())) http.push(`${r.status()} ${r.url().slice(0, 90)}`); });
   return { js, echecs, http, vider() { js.length = 0; echecs.length = 0; http.length = 0; } };
 }
 
