@@ -29,6 +29,11 @@ jobs:
       - name: Lint
         run: npm run lint --if-present || true
 
+      # Tests de rendu React (src/**/*.test.jsx) — la même suite que l'étape 1
+      # de la garde avant push (.githooks/pre-push), ici pour tout push.
+      - name: Tests front (rendu)
+        run: npm test
+
       - name: Build production
         run: npm run build
         env:
@@ -43,8 +48,13 @@ jobs:
 
   # ── Check Backend ────────────────────────────────────────────────────────────
   backend:
-    name: Backend — Syntax & Security Check
+    name: Backend — Tests & Security Check
     runs-on: ubuntu-latest
+    # La suite complète dure ≈ 1 h en mono-worker sur un poste de dev ; sur le
+    # runner (2 CPU) on plafonne à 2 fichiers en parallèle — le parallélisme
+    # par défaut (4) saturait la machine et produisait des échecs par manque
+    # de ressources, pas par défaut du code (voir server/vitest.config.js).
+    timeout-minutes: 120
     defaults:
       run:
         working-directory: server
@@ -67,8 +77,10 @@ jobs:
       - name: Syntax check — controllers
         run: find controllers -name "*.js" -exec node --check {} \;
 
-      - name: Tests
-        run: npm test
+      - name: Tests (suite complète, MongoDB en mémoire)
+        run: npx vitest run --maxWorkers=2 --reporter=dot
+        env:
+          NODE_ENV: test
 
       - name: Security audit
         # audit-level=high cassait systématiquement ce job : les 9 vulnérabilités

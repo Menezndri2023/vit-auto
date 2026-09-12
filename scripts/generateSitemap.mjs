@@ -6,6 +6,7 @@
 // jamais échouer à cause de ce script.
 
 import { writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 // Même fonction que l'application (src/pages/LocalLanding.jsx) : deux slugs
@@ -61,6 +62,8 @@ function urlEntry({ loc, changefreq, priority, lastmod }) {
   return lines.join("");
 }
 
+const wrap = (urls) => `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>\n`;
+
 async function main() {
   const urls = [...STATIC_URLS.map(urlEntry)];
 
@@ -72,7 +75,16 @@ async function main() {
       fetchAllPages("/pms/showrooms", "showrooms", 50),
     ]);
   } catch (err) {
-    console.warn(`⚠️  sitemap: API injoignable (${err.message}) — sitemap.xml existant conservé tel quel.`);
+    // Le fichier n'est plus versionné (il changeait à chaque build et
+    // polluait l'arbre de travail de toutes les sessions) : sur un clone
+    // frais avec l'API injoignable, on écrit au moins les pages statiques
+    // plutôt que de laisser le site sans sitemap.
+    if (existsSync(OUTPUT_PATH)) {
+      console.warn(`⚠️  sitemap: API injoignable (${err.message}) — sitemap.xml existant conservé tel quel.`);
+      return;
+    }
+    console.warn(`⚠️  sitemap: API injoignable (${err.message}) — sitemap.xml limité aux pages statiques.`);
+    await writeFile(OUTPUT_PATH, wrap(urls), "utf8").catch(() => {});
     return;
   }
 
@@ -137,7 +149,7 @@ async function main() {
 
   console.log(`sitemap: ${vehicles.length} véhicules, ${listings.length} annonces IE, ${showrooms.length} showrooms`);
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>\n`;
+  const xml = wrap(urls);
 
   try {
     await writeFile(OUTPUT_PATH, xml, "utf8");

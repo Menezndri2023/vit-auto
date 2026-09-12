@@ -15,8 +15,16 @@
 #   4. balayage navigateur : pages publiques sous service worker, police,
 #      requêtes en échec, visiteur qui revient, pages connectées, KYC (worker
 #      OCR sous CSP) et tous les onglets d'administration
-#   5. si des fichiers serveur sont poussés : les tests serveur qui les
+#   5. parcours critiques : scénarios bout en bout (demande d'essai…) qui
+#      vérifient que les parcours ABOUTISSENT, pas seulement que les écrans
+#      se rendent (scripts/parcoursCritiques.mjs)
+#   6. si des fichiers serveur sont poussés : les tests serveur qui les
 #      concernent, plus un socle (sécurité, portée admin, listes, signature)
+#
+# Une seule garde à la fois sur ce poste : plusieurs sessions poussent depuis
+# le même clone, et deux gardes simultanées se tuent mutuellement (mêmes ports
+# 5001/4180). Un fichier de verrou (.git/vit-auto-garde.lock, PID) refuse la
+# seconde — réessayer une fois la première terminée.
 #
 # La suite serveur COMPLÈTE (≈ 1 h) reste à lancer à la main avant toute
 # modification lourde du serveur :  cd server && npx vitest run --maxWorkers=1
@@ -25,20 +33,27 @@
 set -e
 cd "$(git rev-parse --show-toplevel)"
 
+VERROU="$(git rev-parse --git-common-dir)/vit-auto-garde.lock"
+if [ -f "$VERROU" ] && kill -0 "$(cat "$VERROU" 2>/dev/null)" 2>/dev/null; then
+  echo "✗ une autre garde avant push tourne déjà (PID $(cat "$VERROU")) — réessayez quand elle sera terminée."
+  exit 1
+fi
+echo $$ > "$VERROU"
+trap 'rm -f "$VERROU"' EXIT
 
-echo "── 1/5  tests front ──"
+echo "── 1/6  tests front ──"
 npx vitest run --reporter=dot 2>&1 | tail -3
 
-echo "── 2/5  build ──"
+echo "── 2/6  build ──"
 npm run build 2>&1 | tail -1
 
-echo "── 3/5  API locale (MongoDB en mémoire) + serveur avec la CSP de production ──"
+echo "── 3/6  API locale (MongoDB en mémoire) + serveur avec la CSP de production ──"
 # Tout est LOCAL : rien ne touche la production ni son limiteur de débit, et
 # la garde n'a pas besoin du mot de passe de l'administrateur réel — l'API
 # locale sème son propre administrateur et publie ses identifiants.
 node server/scripts/apiLocale.mjs > /tmp/vit-auto-api-locale.log 2>&1 &
 API=$!
-trap 'kill $API $PREVIEW 2>/dev/null' EXIT
+trap 'kill $API $PREVIEW 2>/dev/null; rm -f "$VERROU"' EXIT
 for i in $(seq 1 90); do
   grep -q "VERIF_ADMIN_ID=" /tmp/vit-auto-api-locale.log 2>/dev/null && break
   if ! kill -0 $API 2>/dev/null; then echo "✗ l'API locale s'est arrêtée :"; tail -20 /tmp/vit-auto-api-locale.log; exit 1; fi
@@ -53,10 +68,13 @@ for i in 1 2 3 4 5 6 7 8 9 10; do
   sleep 1
 done
 
-echo "── 4/5  balayage navigateur (CSP + service worker) ──"
+echo "── 4/6  balayage navigateur (CSP + service worker) ──"
 node scripts/verifierLocalement.mjs http://localhost:4180
 
-echo "── 5/5  tests serveur ciblés ──"
+echo "── 5/6  parcours critiques (bout en bout) ──"
+API_LOCALE_URL=http://localhost:5001 node scripts/parcoursCritiques.mjs http://localhost:4180
+
+echo "── 6/6  tests serveur ciblés ──"
 # Fichiers serveur dans les commits poussés : on relie chaque nom de fichier
 # aux tests qui le citent, plus un socle fixe.
 FICHIERS=$(git diff --name-only "@{push}"...HEAD 2>/dev/null | grep '^server/' | grep -vE '^server/tests/' || true)

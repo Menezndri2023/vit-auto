@@ -39,3 +39,6 @@ graphify-out/
 
 # Identifiants pour la garde avant push (pages connectées, admin) — jamais versionnés
 .verif.env
+
+# Généré à chaque build (prebuild) depuis l'API — jamais versionné
+public/sitemap.xml
