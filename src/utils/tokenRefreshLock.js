@@ -22,14 +22,55 @@ const setRefreshToken = (rt) => { try { rt ? localStorage.setItem(KEY_REFRESH, r
 
 let inFlight = null;
 
+// ── Verrou ENTRE ONGLETS ────────────────────────────────────────────────────
+// `inFlight` ne vaut que pour un onglet. Deux onglets du même site partagent
+// le même refresh token dans localStorage et ont chacun leur minuteur de
+// rafraîchissement préventif, synchronisés s'ils ont été ouverts ensemble :
+// ils envoyaient le MÊME jeton au même instant. Le second passait pour un
+// rejeu, et le serveur fermait toutes les sessions du compte — déconnexion
+// « au hasard » des deux onglets (bug réel, 2026-09-12).
+// Le verrou est posé dans localStorage, partagé par les onglets : celui qui
+// le trouve frais attend que l'autre ait écrit le nouveau jeton, et le reprend
+// tel quel au lieu de rafraîchir à son tour.
+const KEY_LOCK    = "vit-auto-refresh-lock";
+const LOCK_TTL_MS = 10_000;
+const attendre = (ms) => new Promise((r) => setTimeout(r, ms));
+const getToken = () => { try { return localStorage.getItem(KEY_TOKEN) || ""; } catch { return ""; } };
+function poserVerrou() {
+  try {
+    const existant = Number(localStorage.getItem(KEY_LOCK) || 0);
+    if (Date.now() - existant < LOCK_TTL_MS) return false;
+    localStorage.setItem(KEY_LOCK, String(Date.now()));
+    return true;
+  } catch { return true; }   // stockage indisponible : un seul onglet possible
+}
+function leverVerrou() { try { localStorage.removeItem(KEY_LOCK); } catch { /* ignore */ } }
+
 async function doRefreshRequest() {
   const rt = getRefreshToken();
   if (!rt) return null;
+  if (!poserVerrou()) {
+    // Un autre onglet rafraîchit : on attend qu'il ait écrit le nouveau jeton
+    // d'accès (jusqu'au TTL du verrou), puis on le réutilise tel quel.
+    const avant = getToken();
+    for (let i = 0; i < LOCK_TTL_MS / 250; i++) {
+      await attendre(250);
+      const maintenant = getToken();
+      if (maintenant && maintenant !== avant) return maintenant;
+      let verrou = null; try { verrou = localStorage.getItem(KEY_LOCK); } catch { /* ignore */ }
+      if (!verrou) break;
+    }
+    // L'autre onglet n'a rien écrit : on tente à notre tour.
+    if (!poserVerrou()) return getToken() || null;
+  }
+  // Relu APRÈS l'attente : l'autre onglet a pu faire tourner le refresh token.
+  const rtCourant = getRefreshToken();
+  if (!rtCourant) { leverVerrou(); return null; }
   try {
     const res = await fetch("/api/auth/refresh-token", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ refreshToken: rt }),
+      body:    JSON.stringify({ refreshToken: rtCourant }),
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -39,6 +80,8 @@ async function doRefreshRequest() {
     return data.token;
   } catch {
     return null;
+  } finally {
+    leverVerrou();
   }
 }
 

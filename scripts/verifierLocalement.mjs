@@ -251,6 +251,22 @@ if (ADMIN_ID && ADMIN_PWD) {
       const m = await mesurer(page);
       signaler("admin", nom, problemesDe({ ...m, coupes: 0 }, e, { exigerSw: false }));
     }
+
+    // Déconnexion PROPRE en fin de vérification : chaque connexion ajoute un
+    // appareil à la session du compte, plafonnée à cinq. Sans cela, quelques
+    // pushs suffisaient à évincer la session de l'exploitant sur son propre
+    // téléphone. Même appel que le bouton « Déconnexion » de l'interface.
+    const deconnexion = await page.evaluate(async () => {
+      try {
+        const r = await fetch("/api/auth/revoke-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("vit-auto-token")}` },
+          body: JSON.stringify({ refreshToken: localStorage.getItem("vit-auto-refresh") }),
+        });
+        return r.status;
+      } catch { return 0; }
+    });
+    if (deconnexion !== 200) signaler("admin", "déconnexion de la session de vérification", [`HTTP ${deconnexion} — la session restera comptée parmi les cinq appareils`]);
   }
   await ctx.close();
 } else {

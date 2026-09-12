@@ -324,6 +324,36 @@ describe("refreshToken / revokeRefreshToken", () => {
     expect(res3.statusCode).toBe(401);
   });
 
+  it("deux appareils qui rafraîchissent AU MÊME INSTANT gardent chacun leur session", async () => {
+    // Bug réel (2026-09-12). La rotation lisait la liste des jetons, la filtrait
+    // en mémoire et la réécrivait ENTIÈRE : deux sessions du même compte
+    // rafraîchissant en même temps s'écrasaient l'une l'autre — le jeton émis à
+    // la première était perdu, son rafraîchissement suivant passait pour un
+    // rejeu, et TOUTES les sessions du compte étaient fermées. Déconnexions
+    // « au hasard » sur téléphone et ordinateur.
+    const user = await withPassword();
+    const connexion = async () => {
+      const { req, res } = mockReqRes({ body: { identifier: user.email, password: PASSWORD } });
+      await login(req, res); return res.body.refreshToken;
+    };
+    const [telephone, ordinateur] = [await connexion(), await connexion()];
+
+    // Les deux rafraîchissements partent EN MÊME TEMPS.
+    const [rTel, rOrd] = [mockReqRes({ body: { refreshToken: telephone } }), mockReqRes({ body: { refreshToken: ordinateur } })];
+    await Promise.all([refreshTokenCtrl(rTel.req, rTel.res), refreshTokenCtrl(rOrd.req, rOrd.res)]);
+    expect(rTel.res.statusCode, JSON.stringify(rTel.res.body)).toBe(200);
+    expect(rOrd.res.statusCode, JSON.stringify(rOrd.res.body)).toBe(200);
+
+    // Et chacun des deux NOUVEAUX jetons est toujours accepté ensuite : aucun
+    // n'a été perdu par l'écriture de l'autre, personne n'a été déconnecté.
+    const [sTel, sOrd] = [mockReqRes({ body: { refreshToken: rTel.res.body.refreshToken } }), mockReqRes({ body: { refreshToken: rOrd.res.body.refreshToken } })];
+    await refreshTokenCtrl(sTel.req, sTel.res); await refreshTokenCtrl(sOrd.req, sOrd.res);
+    expect(sTel.res.statusCode, "session du téléphone perdue").toBe(200);
+    expect(sOrd.res.statusCode, "session de l'ordinateur perdue").toBe(200);
+    const apres = await User.findById(user._id).lean();
+    expect(apres.tokenVersion || 0, "aucune révocation générale ne doit avoir eu lieu").toBe(user.tokenVersion || 0);
+  });
+
   it("rejouer un refresh token déjà consommé révoque TOUTE la famille de sessions", async () => {
     // Contre-mesure ajoutée à l'audit sécurité 2026-09. Avant, un jeton rejoué
     // renvoyait un simple 401 : un attaquant ayant volé un refresh token et

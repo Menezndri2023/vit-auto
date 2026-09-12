@@ -1329,7 +1329,23 @@ export const refreshToken = async (req, res) => {
       return res.status(401).json({ message: "Utilisateur invalide." });
     }
     const tokenHash = hashRefreshToken(token);
-    if (!user.refreshTokens || !user.refreshTokens.includes(tokenHash)) {
+
+    // REVENDICATION ATOMIQUE du jeton (bug réel, 2026-09-12). L'ancienne
+    // rotation lisait la liste, la filtrait en mémoire et la RÉÉCRIVAIT
+    // entière : deux sessions du même compte (téléphone + ordinateur, ou deux
+    // onglets) rafraîchissant au même instant s'écrasaient l'une l'autre —
+    // le jeton fraîchement émis à la première était perdu, son rafraîchissement
+    // suivant ne le trouvait plus, et la détection de rejeu ci-dessous fermait
+    // TOUTES les sessions du compte. Déconnexions « au hasard » sur tous les
+    // appareils, et jusqu'à trois fois de suite lors d'une même vérification.
+    // `$pull` conditionné à la présence du jeton : un seul appel peut le
+    // retirer, et rien d'autre dans la liste n'est touché.
+    const revendique = await User.findOneAndUpdate(
+      { _id: user._id, refreshTokens: tokenHash },
+      { $pull: { refreshTokens: tokenHash } },
+      { new: false }
+    );
+    if (!revendique) {
       // DÉTECTION DE RÉUTILISATION (audit sécurité 2026-09). La rotation était
       // bien en place, mais un jeton déjà consommé renvoyait un simple 401 : un
       // attaquant ayant volé un refresh token et l'utilisant AVANT la victime
@@ -1358,13 +1374,14 @@ export const refreshToken = async (req, res) => {
       return res.status(401).json({ message: "Refresh token révoqué ou invalide." });
     }
 
-    // Rotation : remplacer l'ancien refresh token par un nouveau
+    // Rotation : l'ancien jeton a été retiré atomiquement ci-dessus, le
+    // nouveau est ajouté de même — `$slice: -5` conserve les cinq plus récents
+    // (max 5 appareils), sans jamais réécrire la liste entière.
     const newRefreshToken = signRefreshToken(user);
-    user.refreshTokens = user.refreshTokens
-      .filter((t) => t !== tokenHash)
-      .concat(hashRefreshToken(newRefreshToken))
-      .slice(-5);  // max 5 devices
-    await user.save();
+    await User.updateOne(
+      { _id: user._id },
+      { $push: { refreshTokens: { $each: [hashRefreshToken(newRefreshToken)], $slice: -5 } } }
+    );
 
     const newAccessToken = signJWT(user);
     res.json({ token: newAccessToken, refreshToken: newRefreshToken });
