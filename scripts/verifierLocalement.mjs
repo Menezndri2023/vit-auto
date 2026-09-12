@@ -75,7 +75,10 @@ const ECRANS = [
 // reconnaissance aboutit ensuite (vérifié : « ABC 123 » lu à 81 %).
 // Filtrés à l'expression exacte — un vrai échec de chargement (importScripts,
 // WebAssembly, 4xx sur le CDN) reste signalé.
-const BRUIT_COMMUN = /ipapi\.co|sentry|favicon|subscriptions\/insights|Parameter not found:|Error opening data file \.\/\.traineddata|TESSDATA_PREFIX|Failed loading language ''/;
+// La « langue vide » contient en réalité un caractère de contrôle (U+0012),
+// invisible dans un terminal : le motif tolère 0 à 2 caractères entre les
+// apostrophes, et rien de plus large.
+const BRUIT_COMMUN = /ipapi\.co|sentry|favicon|subscriptions\/insights|Parameter not found:|Error opening data file \.\/.{0,2}\.traineddata|TESSDATA_PREFIX|Failed loading language '.{0,2}'/;
 // En local, Google Sign-In refuse l'origine localhost, non enregistrée chez
 // Google (« The given origin is not allowed for the given client ID ») —
 // artefact du harnais, pas un défaut du site. Jamais ignoré en production.

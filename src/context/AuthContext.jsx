@@ -79,7 +79,12 @@ export const AuthProvider = ({ children }) => {
 
   // ── fetch avec intercepteur automatique 401 → refresh → retry ─────────────
   const authFetch = async (url, options = {}) => {
-    const currentToken = loadToken();
+    // L'état React d'abord, localStorage ensuite. Le jeton n'atteint
+    // localStorage que par un effet de CE fournisseur, qui s'exécute APRÈS les
+    // effets des fournisseurs enfants : au rendu qui suit la connexion, les
+    // favoris demandaient déjà leurs identifiants, sans jeton — 401, puis un
+    // rafraîchissement de jeton pour rien, à chaque connexion.
+    const currentToken = token || loadToken();
     const headers = {
       "Content-Type": "application/json",
       ...options.headers,
@@ -330,7 +335,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const value = useMemo(
-    () => ({ user, token, isAuthenticated: !!user, authReady, authFetch, register, login, oauthGoogle, verifyTwoFactor, verifyEmailCode, resendEmailCode, logout, updateUser, setSession }),
+    () => ({ user, token, isAuthenticated: !!user && !!token, authReady, authFetch, register, login, oauthGoogle, verifyTwoFactor, verifyEmailCode, resendEmailCode, logout, updateUser, setSession }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [user, token, authReady]
   );
