@@ -36,3 +36,6 @@ server/backups/
 
 # graphify — graphe de connaissances généré localement
 graphify-out/
+
+# Identifiants pour la garde avant push (pages connectées, admin) — jamais versionnés
+.verif.env
