@@ -10,6 +10,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { PAYMENTS_ENABLED_FALLBACK, PAYMENTS_DISABLED_NOTICE } from "../config/featureFlags";
 import PartnerCalendar from "../components/PartnerCalendar/PartnerCalendar";
 import PartnerBusinessManager from "../components/PartnerBusinessManager/PartnerBusinessManager";
+import PartnerOpportunities from "../components/PartnerOpportunities/PartnerOpportunities";
 import { geocodeAddress } from "../utils/geo";
 import { PARTNER_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import { LICENSE_CATEGORIES, LICENSE_CATEGORY_LABELS } from "../constants/licenseCategories";
@@ -1171,6 +1172,15 @@ export default function VendorDashboard() {
   // Le sélecteur ne s'affiche que s'il y a au moins 2 entités.
   const [businesses, setBusinesses] = useState([]);
   const [filterBusinessId, setFilterBusinessId] = useState("");
+  // Pastille « Mes opportunités » : demandes d'essai en attente de réponse.
+  const [opportunitesEnAttente, setOpportunitesEnAttente] = useState(0);
+  useEffect(() => {
+    if (!token) return;
+    fetch("/api/sales-leads/partner?status=SENT_TO_PARTNER", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.ok ? r.json() : { leads: [] })
+      .then((d) => setOpportunitesEnAttente((d.leads || []).length))
+      .catch(() => {});
+  }, [token, activeTab]);
   useEffect(() => {
     if (!token) return;
     fetch("/api/partner/businesses", { headers: { Authorization: `Bearer ${token}` } })
@@ -2836,6 +2846,8 @@ export default function VendorDashboard() {
         {[
           { id: "dashboard",    icon: "📊", label: "Dashboard" },
           { id: "commandes",    icon: "📋", label: "Commandes",       count: stats.totalOrders,    alert: newOrdersCount },
+          // Vente par demande d'essai — leads apportés par VIT AUTO (docs/vente-demande-essai.md §15)
+          { id: "opportunites", icon: "🎯", label: "Mes opportunités", count: opportunitesEnAttente || null, alert: opportunitesEnAttente || null },
           { id: "annonces",     icon: "🚗", label: "Annonces",        count: stats.totalVehicles },
           !isIndividualSeller && { id: "entreprises",  icon: "🏢", label: "Mes entreprises" },
           { id: "calendrier",   icon: "📅", label: "Calendrier" },
@@ -3527,6 +3539,13 @@ export default function VendorDashboard() {
       {activeTab === "entreprises" && (
         <div className={styles.tabContent}>
           <PartnerBusinessManager />
+        </div>
+      )}
+
+      {/* ══ TAB : MES OPPORTUNITÉS (demandes d'essai) ═══════════════════════ */}
+      {activeTab === "opportunites" && (
+        <div className={styles.tabContent}>
+          <PartnerOpportunities businessId={filterBusinessId} />
         </div>
       )}
 

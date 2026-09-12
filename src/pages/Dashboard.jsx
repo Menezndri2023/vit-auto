@@ -10,6 +10,7 @@ import { useChat } from "../context/ChatContext";
 import { CLIENT_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import VehicleCard from "../components/VehicleCard/VehicleCard";
 import LoyaltyTierBadge from "../components/LoyaltyTierBadge/LoyaltyTierBadge";
+import MyTestDriveLeads from "../components/MyTestDriveLeads/MyTestDriveLeads";
 import { downloadAuthFile } from "../utils/downloadAuthFile";
 import styles from "./Dashboard.module.css";
 
@@ -991,6 +992,9 @@ const Dashboard = () => {
           ))}
         </div>
       )}
+
+      {/* ── Mes demandes d'essai (vente — docs/vente-demande-essai.md) ── */}
+      <MyTestDriveLeads />
 
       {/* ── Mes favoris (déplacé depuis la navbar, voir Navbar.jsx) ── */}
       {!favoritesLoading && favorites.length > 0 && (

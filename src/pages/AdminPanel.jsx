@@ -11,6 +11,7 @@ import { INCOTERMS as IE_LISTING_INCOTERMS } from "../constants/incoterms";
 import { PARTNER_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import { ACTIVITY_TYPE_LABELS } from "../constants/activityTypes";
 import { downloadAuthFile } from "../utils/downloadAuthFile";
+import AdminSalesLeads from "../components/AdminSalesLeads/AdminSalesLeads";
 
 // Drapeau pays — reconnaissance rapide du pays d'un partenaire/client par
 // l'admin, à partir du code ISO stocké sur User/Vehicle/Driver (voir
@@ -4581,6 +4582,7 @@ export default function AdminPanel() {
     marketing:        "catalogue",
     // Réservations
     bookings:         "bookings",
+    sales_leads:      "bookings",
     pending_validation:"bookings",
     litiges:          "bookings",
     contrats:         "bookings",
@@ -4680,6 +4682,7 @@ export default function AdminPanel() {
       items: [
         { key: "pending_validation", icon: "🕐", label: "Demandes à valider", badge: pendingValidationTotal || undefined },
         { key: "bookings",      icon: "📋", label: "Réservations",          badge: pendingBk },
+        { key: "sales_leads",   icon: "🎯", label: "Leads vente (essais)" },
         { key: "litiges",       icon: "⚖️",  label: "Litiges",              badge: disputedBk + liveDisputes },
         { key: "contrats",      icon: "📑", label: "Contrats" },
         { key: "chauffeurs",    icon: "👨‍✈️", label: "Chauffeurs",           badge: pendingDrivers },
@@ -11227,6 +11230,13 @@ export default function AdminPanel() {
       {/* ══════════════════════════════════════════════════
           TAB AUDIT LOGS
       ══════════════════════════════════════════════════ */}
+      {/* ══ LEADS VENTE — demandes d'essai (docs/vente-demande-essai.md §17) ══ */}
+      {activeTab === "sales_leads" && (
+        <div className={styles.tabContent}>
+          <AdminSalesLeads />
+        </div>
+      )}
+
       {activeTab === "contrats" && (
         <div className={styles.tabContent}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>

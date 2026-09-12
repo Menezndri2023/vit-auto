@@ -685,6 +685,8 @@ const translations = {
   "vd.call":             { fr: "📞 Appeler",                           en: "📞 Call",                       ar: "📞 اتصل",               es: "📞 Llamar",                zh: "📞 致电"        },
   "vd.bookBtn":          { fr: "📅 Réserver ce véhicule",              en: "📅 Book this vehicle",          ar: "📅 احجز هذه السيارة",   es: "📅 Reservar este vehículo", zh: "📅 预订此车辆" },
   "vd.testDriveBtn":     { fr: "🔑 Demander un essai",                en: "🔑 Request a test drive",       ar: "🔑 طلب تجربة قيادة",    es: "🔑 Solicitar prueba",      zh: "🔑 申请试驾"   },
+  "vd.callbackBtn":      { fr: "📞 Être rappelé",                     en: "📞 Request a call back",        ar: "📞 اطلب معاودة الاتصال", es: "📞 Que me llamen",         zh: "📞 请回电"     },
+  "vd.contactSellerBtn": { fr: "💬 Contacter le vendeur",             en: "💬 Contact the seller",         ar: "💬 اتصل بالبائع",        es: "💬 Contactar al vendedor", zh: "💬 联系卖家"   },
   "vd.unavailMsg":       { fr: "Ce véhicule n'est pas disponible pour le moment.", en: "This vehicle is not available at the moment.", ar: "هذه السيارة غير متاحة في الوقت الحالي.", es: "Este vehículo no está disponible por el momento.", zh: "该车辆目前不可用。" },
   "vd.seeOther":         { fr: "Voir d'autres véhicules",             en: "See other vehicles",            ar: "عرض سيارات أخرى",       es: "Ver otros vehículos",      zh: "查看其他车辆"   },
   "vd.agency":           { fr: "Agence de location",                  en: "Rental agency",                 ar: "وكالة تأجير",           es: "Agencia de alquiler",      zh: "租车公司"       },

@@ -11,6 +11,7 @@ import PriceTag from "../components/PriceTag/PriceTag";
 import { optimizedImageUrl } from "../utils/imageOptim";
 import { getCustomerServiceContact } from "../utils/customerServiceContact";
 import { resolveImportOrigin } from "../constants/importOrigins";
+import TestDriveRequestModal from "../components/TestDriveRequest/TestDriveRequestModal";
 import styles from "./VehicleDetails.module.css";
 
 const fmtN = (n) => n != null ? Number(n).toLocaleString("fr-FR") : "—";
@@ -304,6 +305,9 @@ export default function VehicleDetails() {
 
   const [imgIdx, setImgIdx] = useState(0);
   const [copied, setCopied] = useState(false);
+  // Vente classique : « Demander un essai » / « Être rappelé » ouvrent le
+  // formulaire de prospect (docs/vente-demande-essai.md) — null = fermé.
+  const [leadMode, setLeadMode] = useState(null);
 
   useEffect(() => { setImgIdx(0); }, [id]);
 
@@ -695,12 +699,32 @@ export default function VehicleDetails() {
           <div className={styles.ctaBlock}>
             {vehicle.available !== false ? (
               <>
-                <button
-                  className={styles.actionBtn}
-                  onClick={() => navigate(`/booking/${vehicle._id || vehicle.id}`)}
-                >
-                  {estAImporter ? "🚢 Acheter à l'import" : isSale ? t("vd.testDriveBtn") : t("vd.bookBtn")}
-                </button>
+                {/* Vente classique : pas d'achat en ligne — VIT AUTO apporte le
+                    prospect (demande d'essai), la vente se conclut chez le
+                    vendeur. L'import garde son parcours d'achat (IE) et la
+                    location sa réservation. Voir docs/vente-demande-essai.md. */}
+                {isSale && !estAImporter ? (
+                  <>
+                    <button className={styles.actionBtn} onClick={() => setLeadMode("test_drive")}>
+                      {t("vd.testDriveBtn")}
+                    </button>
+                    <div className={styles.secondaryRow}>
+                      <button type="button" className={styles.secondaryBtn} onClick={() => setLeadMode("callback")}>
+                        {t("vd.callbackBtn")}
+                      </button>
+                      <a href={`tel:${getCustomerServiceContact(vehicle.country).tel}`} className={styles.secondaryBtn}>
+                        {t("vd.contactSellerBtn")}
+                      </a>
+                    </div>
+                  </>
+                ) : (
+                  <button
+                    className={styles.actionBtn}
+                    onClick={() => navigate(`/booking/${vehicle._id || vehicle.id}`)}
+                  >
+                    {estAImporter ? "🚢 Acheter à l'import" : t("vd.bookBtn")}
+                  </button>
+                )}
                 {/* Panier multi-véhicules — uniquement location (le panier ne
                     gère que des réservations "retrait" simples avec
                     pricePerDay, voir CartContext.jsx). Volontairement absent
@@ -745,6 +769,12 @@ export default function VehicleDetails() {
           </div>
         </div>
       </div>
+      <TestDriveRequestModal
+        open={!!leadMode}
+        mode={leadMode || "test_drive"}
+        vehicle={vehicle}
+        onClose={() => setLeadMode(null)}
+      />
     </div>
   );
 }

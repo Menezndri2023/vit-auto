@@ -35,6 +35,7 @@ const DriverEmployment      = lazy(() => import("./pages/DriverEmployment"));
 const ActivityBooking       = lazy(() => import("./pages/ActivityBooking"));
 const ActivitySubmit        = lazy(() => import("./pages/ActivitySubmit"));
 const BookingSuccess        = lazy(() => import("./pages/BookingSuccess"));
+const TestDriveLead         = lazy(() => import("./pages/TestDriveLead"));
 const Dashboard             = lazy(() => import("./pages/Dashboard"));
 const Profile               = lazy(() => import("./pages/Profile"));
 const Login                 = lazy(() => import("./pages/Login"));
@@ -155,6 +156,8 @@ function AppRoutes() {
 
           {/* ── Réservation (auth optionnelle, KYC gate interne) ── */}
           <Route path="/booking/success"        element={<BookingSuccess />} />
+          {/* Suivi d'une demande d'essai (vente) — connecté ou par lien signé ?t= */}
+          <Route path="/essai/:reference"       element={<ErrorBoundary><TestDriveLead /></ErrorBoundary>} />
           <Route path="/booking/:id"            element={
             <ErrorBoundary><Booking /></ErrorBoundary>
           } />

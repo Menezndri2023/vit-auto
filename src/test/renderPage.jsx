@@ -96,7 +96,9 @@ export function surveillerErreurs() {
 export const MOTIFS_DE_PLANTAGE =
   /before initialization|is not a function|Cannot read propert|is not defined|Rendered (more|fewer) hooks|Maximum update depth/;
 
-export function renderPage(ui, { route = "/" } = {}) {
+// `path` : motif de route (ex. "/vehicle/:id") quand l'écran lit useParams —
+// sans lui, le motif serait l'URL littérale et le paramètre resterait vide.
+export function renderPage(ui, { route = "/", path = route } = {}) {
   // GoogleOAuthProvider vit dans main.jsx, pas dans App.jsx — mais Login et
   // Register en dépendent (bouton « Continuer avec Google »). L'omettre faisait
   // échouer ces deux écrans sur « Google OAuth components must be used within
@@ -127,7 +129,7 @@ export function renderPage(ui, { route = "/" } = {}) {
                                 navigation démonte l'écran, exactement comme
                                 en production. */}
                             <Routes>
-                              <Route path={route} element={ui} />
+                              <Route path={path} element={ui} />
                               <Route path="*" element={<div data-testid="redirige" />} />
                             </Routes>
                           </CartProvider>
