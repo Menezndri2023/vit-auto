@@ -79,12 +79,18 @@ export const AuthProvider = ({ children }) => {
 
   // ── fetch avec intercepteur automatique 401 → refresh → retry ─────────────
   const authFetch = async (url, options = {}) => {
-    // L'état React d'abord, localStorage ensuite. Le jeton n'atteint
-    // localStorage que par un effet de CE fournisseur, qui s'exécute APRÈS les
-    // effets des fournisseurs enfants : au rendu qui suit la connexion, les
-    // favoris demandaient déjà leurs identifiants, sans jeton — 401, puis un
-    // rafraîchissement de jeton pour rien, à chaque connexion.
-    const currentToken = token || loadToken();
+    // localStorage D'ABORD, l'état React en repli — l'ordre compte.
+    // localStorage porte toujours le jeton courant, y compris après un
+    // rafraîchissement ; l'état `token` est celui de la fermeture, donc périmé
+    // chez un composant qui a capturé un ancien authFetch. Le préférer envoyait
+    // un jeton révoqué, le serveur y voyait un rejeu et révoquait la session
+    // entière : 401 en cascade sur tout le panneau d'administration (garde
+    // avant push, 2026-09-12).
+    // Le repli sur l'état ne sert qu'à la connexion : le jeton n'atteint
+    // localStorage que par un effet de CE fournisseur, exécuté APRÈS les effets
+    // des fournisseurs enfants — les favoris demandaient déjà leurs
+    // identifiants sans jeton, 401, puis un rafraîchissement pour rien.
+    const currentToken = loadToken() || token;
     const headers = {
       "Content-Type": "application/json",
       ...options.headers,
