@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import Notification from "../models/Notification.js";
 import SalesLead from "../models/SalesLead.js";
 import CommunicationLog from "../models/CommunicationLog.js";
-import { envoyerRapportHebdo, rapportDu, debutDeSemaine, composerMessage, calculerResume } from "../utils/weeklyFunnelReport.js";
+import { envoyerRapportHebdo, rapportDu, debutDeSemaine, composerMessage } from "../utils/weeklyFunnelReport.js";
 import { verifierCommunications, analyserCanaux } from "../utils/communicationHealthCheck.js";
 import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
 import * as svc from "../services/salesLeadService.js";

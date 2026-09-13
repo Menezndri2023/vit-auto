@@ -5,6 +5,7 @@
  * Tous les envois passent par ce service → log centralisé + analytics.
  */
 import { randomUUID } from "crypto";
+import { estEmailDeTest } from "../../constants/testAccounts.js";
 import logger from "../../utils/logger.js";
 import User from "../../models/User.js";
 import { logSend } from "./analytics/CommunicationAnalytics.js";
@@ -59,6 +60,18 @@ export async function sendViaEmail({
   priority = "normal", tags = [], context = {}, attachments = [],
 }) {
   const trackingId = randomUUID();
+
+  // Adresse de compte de test (domaine réservé RFC 2606/6761 — example.com,
+  // *.test, *.local…) : jamais transmise au fournisseur. Vu en production :
+  // 59 envois en 48 h vers ces adresses, tous refusés ou rebondis par Resend —
+  // chaque rebond dégrade la réputation du domaine expéditeur pour les vrais
+  // clients. Journalisé « simulated » pour rester visible dans l'onglet
+  // Emails & Livraison sans polluer les statistiques d'échec.
+  const destinataires = Array.isArray(to) ? to : [to];
+  if (destinataires.length && destinataires.every((d) => estEmailDeTest(d))) {
+    await logSend({ userId, to, channel: "email", template, subject, preview: subject, provider: "console", status: "simulated", trackingId, context: { ...context, motif: "compte de test" }, tags, priority });
+    return { sent: true, simulated: true, messageId: `test-${trackingId}`, trackingId };
+  }
 
   try {
     let finalHtml = html;

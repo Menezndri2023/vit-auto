@@ -14,9 +14,9 @@ import logger from "./logger.js";
 import { avecVerrou } from "./schedulerLock.js";
 import SalesLead from "../models/SalesLead.js";
 import {
-  getSalesLeadConfig, sendToPartner, sendCustomerFollowUp, logEvent,
+  getSalesLeadConfig, sendToPartner, sendCustomerFollowUp, logEvent, transition,
 } from "../services/salesLeadService.js";
-import { notifyPartner, notifyAdminsLead } from "../services/salesLeadNotifier.js";
+import { notifyPartner, notifyClient, notifyAdminsLead } from "../services/salesLeadNotifier.js";
 import { nonBloquant } from "./nonBloquant.js";
 
 const min = (n) => n * 60 * 1000;
@@ -128,6 +128,31 @@ export async function runSalesLeadScheduler(now = new Date()) {
       if (isReminder) stats.thinkingReminders += 1; else stats.followUps += 1;
     }
   } catch (err) { logger.error("salesLeadScheduler followUp:", err); }
+
+  // ── Dossiers morts : sans réponse du vendeur depuis staleAfterDays, ou
+  //    fenêtre d'attribution écoulée sans vente — clôturés, pipeline propre ──
+  try {
+    const stale = await SalesLead.find({
+      $or: [
+        { status: { $in: ["SENT_TO_PARTNER", "ALTERNATIVE_PROPOSED"] }, updatedAt: { $lte: new Date(now.getTime() - (cfg.staleAfterDays || 14) * 86400000) } },
+        { status: { $in: ["QUALIFYING", "SENT_TO_PARTNER", "PARTNER_ACCEPTED", "ALTERNATIVE_PROPOSED", "CUSTOMER_CONFIRMED", "TEST_DRIVE_SCHEDULED", "CUSTOMER_NO_SHOW", "TEST_DRIVE_COMPLETED", "CUSTOMER_INTERESTED", "NEGOTIATION"] }, "attribution.expiresAt": { $ne: null, $lte: now } },
+      ],
+    });
+    for (const lead of stale) {
+      const expire = lead.attribution?.expiresAt && lead.attribution.expiresAt <= now;
+      transition(lead, "LOST", { actorType: "SYSTEM", source: "SYSTEM", action: expire ? "attribution_expired" : "lead_stale_closed", force: true });
+      lead.lostReason = expire ? "Fenêtre d'attribution écoulée sans vente" : "Sans réponse du vendeur";
+      await lead.save();
+      if (!expire) {
+        await notifyClient(lead, {
+          titre:   "Demande d'essai clôturée",
+          message: `Le vendeur n'a pas donné suite à votre demande pour ${lead.listingSnapshot?.title || "ce véhicule"}. Nous en sommes désolés — d'autres véhicules vous attendent sur VIT AUTO.`,
+        });
+        await notifyAdminsLead(lead, "Demande clôturée sans réponse du vendeur", `${lead.reference} — ${lead.listingSnapshot?.title} : aucune action du partenaire depuis ${cfg.staleAfterDays || 14} jours.`);
+      }
+      stats.closed = (stats.closed || 0) + 1;
+    }
+  } catch (err) { logger.error("salesLeadScheduler stale:", err); }
 
   if (Object.values(stats).some(Boolean)) logger.info("[SalesLeadScheduler] Cycle terminé", stats);
   return stats;

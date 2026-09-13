@@ -692,6 +692,25 @@ export async function confirmSale(lead, { actorId, source = "DASHBOARD" } = {}) 
   } catch (err) {
     logger.warn("confirmSale — véhicule (non bloquant) :", err.message);
   }
+  // Les autres demandes encore ouvertes sur CE véhicule n'ont plus d'objet :
+  // clôturées « véhicule vendu à un autre client », chaque client prévenu.
+  try {
+    const wf = getWorkflow(lead.workflow);
+    const autres = await SalesLead.find({ vehicle: lead.vehicle, _id: { $ne: lead._id }, status: { $nin: [...wf.terminal, "SALE_PENDING"] } });
+    for (const autre of autres) {
+      transition(autre, "LOST", { actorType: "SYSTEM", source: "SYSTEM", action: "outcome_sold_elsewhere", metadata: { soldVia: lead.reference }, force: true });
+      autre.lostReason = "Véhicule vendu à un autre client";
+      autre.outcome.commercial = "sold_elsewhere";
+      await autre.save();
+      await notifyClient(autre, {
+        titre:   "Véhicule plus disponible",
+        message: `${autre.listingSnapshot.title} vient d'être vendu. Découvrez d'autres véhicules similaires sur VIT AUTO.`,
+        sms:     `${autre.listingSnapshot.title} vient d'être vendu. Voir d'autres véhicules :`,
+      });
+    }
+  } catch (err) {
+    logger.warn("confirmSale — autres demandes (non bloquant) :", err.message);
+  }
   await notifyPartner(lead, {
     titre:   "🎉 Vente confirmée",
     message: `${lead.reference} — ${lead.listingSnapshot.title} : vente confirmée par VIT AUTO. Commission : ${lead.commission.amountUSD} USD (${Math.round(lead.commission.rate * 10000) / 100} % du prix final).`,
@@ -760,12 +779,15 @@ export function partnerView(leadDoc) {
   const client = disclosed
     ? { firstName: lead.client.firstName, lastName: lead.client.lastName, phone: lead.client.phone, whatsapp: lead.client.whatsapp, email: lead.client.email, city: lead.client.city, country: lead.client.country }
     : { firstName: lead.client.firstName, lastName: lead.client.lastName ? `${lead.client.lastName.charAt(0)}.` : "", phone: maskPhone(lead.client.phone), whatsapp: null, email: null, city: lead.client.city, country: lead.client.country };
+  // Destructuration d'exclusion : les champs nommés ne doivent jamais sortir.
+  // eslint-disable-next-line no-unused-vars
   const { clientAccessToken, internalNotes, assignedAdmin, ...rest } = lead;
   return { ...rest, client, contactDisclosed: disclosed, statusLabel: SALE_LEAD_LABELS[lead.status] };
 }
 
 export function clientView(leadDoc) {
   const lead = leadDoc.toObject ? leadDoc.toObject() : leadDoc;
+  // eslint-disable-next-line no-unused-vars
   const { clientAccessToken, internalNotes, partnerNotes, assignedAdmin, commission, sla, qualification, history, ...rest } = lead;
   return {
     ...rest,
@@ -777,6 +799,7 @@ export function clientView(leadDoc) {
 
 export function adminView(leadDoc) {
   const lead = leadDoc.toObject ? leadDoc.toObject() : leadDoc;
+  // eslint-disable-next-line no-unused-vars
   const { clientAccessToken, ...rest } = lead;
   return { ...rest, statusLabel: SALE_LEAD_LABELS[lead.status] };
 }

@@ -133,6 +133,9 @@ const notificationSchema = new mongoose.Schema({
 notificationSchema.index({ user: 1, lu: 1 });
 notificationSchema.index({ user: 1, createdAt: -1 });
 notificationSchema.index({ createdAt: -1 });
+// Purge automatique après un an : une notification n'a pas de valeur
+// d'archive (l'audit vit dans AuditLog) et la collection croissait sans fin.
+notificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 365 * 24 * 3600 });
 
 // ── Copie email des notifications admin (voir utils/adminAlertEmail.js) ──────
 // Centralisé ici (plutôt que dans chacun des ~50 appels Notification.create/

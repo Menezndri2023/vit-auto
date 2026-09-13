@@ -136,6 +136,10 @@ const pricingConfigSchema = new mongoose.Schema({
     highValueUSD:            { type: Number, default: 40000, min: 0 },
     // Niveau 2 sans action admin : transmis automatiquement après ce délai.
     level2AutoSendMinutes:   { type: Number, default: 240, min: 0 },
+    // Demande sans réponse du vendeur (transmise ou autre créneau proposé) ni
+    // action depuis ce nombre de jours : clôturée « sans réponse », client et
+    // admins prévenus — sinon le pipeline s'encombre de dossiers morts.
+    staleAfterDays:          { type: Number, default: 14, min: 1 },
     // Stade à partir duquel le partenaire voit les coordonnées du client (§19).
     contactDisclosureStage:  { type: String, enum: ["SENT_TO_PARTNER", "PARTNER_ACCEPTED"], default: "PARTNER_ACCEPTED" },
   },

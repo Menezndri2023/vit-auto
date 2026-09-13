@@ -67,6 +67,7 @@ export const DEFAULT_PRICING_CONFIG = {
     mediumValueUSD: 15000,
     highValueUSD: 40000,
     level2AutoSendMinutes: 240,
+    staleAfterDays: 14,
     contactDisclosureStage: "PARTNER_ACCEPTED",
   },
   ads: {
