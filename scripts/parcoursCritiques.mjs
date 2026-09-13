@@ -75,13 +75,36 @@ async function demandeEssai(browser) {
   const pc = await ctx.newPage(); surveiller(pc, "client", journal);
   await pc.goto(`${BASE}/vehicle/${vehicule._id}`, { waitUntil: "domcontentloaded", timeout: 60000 });
   await pc.getByRole("button", { name: /Demander un essai|Request a test drive/i }).click({ timeout: 60000 });
-  await pc.fill("input[autocomplete=given-name]", "Parcours");
-  await pc.fill("input[autocomplete=tel]", `+212600${String(Date.now()).slice(-6)}`);
-  await pc.fill("input[autocomplete=address-level2]", "Casablanca");
-  await pc.fill("input[type=date]", dateISO(3));
+  // Saisie puis VÉRIFICATION de chaque valeur : sous charge (build ou tests
+  // en parallèle), une frappe peut être perdue et le bouton reste désactivé
+  // sans qu'on sache quel champ manque — on relit le formulaire avant d'envoyer.
+  const telephone = `+212600${String(Date.now()).slice(-6)}`;
+  const saisir = async (selector, valeur) => {
+    for (let essai = 0; essai < 3; essai++) {
+      await pc.fill(selector, valeur);
+      if ((await pc.inputValue(selector)) === valeur) return;
+    }
+    throw new Error(`saisie perdue : ${selector}`);
+  };
+  await saisir("input[autocomplete=given-name]", "Parcours");
+  await saisir("input[autocomplete=tel]", telephone);
+  await saisir("input[autocomplete=address-level2]", "Casablanca");
+  await saisir("input[type=date]", dateISO(3));
   await pc.getByRole("radio", { name: "Matin" }).click();
-  await pc.getByText(/J'accepte d'être contacté/).click();
-  await pc.getByRole("button", { name: /Envoyer ma demande d'essai/ }).click();
+  await pc.getByRole("checkbox").last().check(); // consentement (le premier est « même numéro WhatsApp »)
+  const envoyer = pc.getByRole("button", { name: /Envoyer ma demande d'essai/ });
+  try {
+    await envoyer.waitFor({ state: "visible", timeout: 10000 });
+    await pc.waitForFunction(() => { const b = [...document.querySelectorAll("button")].find((x) => /Envoyer ma demande/.test(x.textContent)); return b && !b.disabled; }, null, { timeout: 15000 });
+  } catch {
+    const etat = await pc.evaluate(() => ({
+      prenom: document.querySelector("input[autocomplete=given-name]")?.value, tel: document.querySelector("input[autocomplete=tel]")?.value,
+      date: document.querySelector("input[type=date]")?.value, creneau: document.querySelector("[role=radio][aria-checked=true]")?.textContent,
+      consentement: [...document.querySelectorAll("input[type=checkbox]")].map((c) => c.checked),
+    }));
+    throw new Error(`bouton d'envoi toujours désactivé — état du formulaire : ${JSON.stringify(etat)}`);
+  }
+  await envoyer.click();
   await pc.getByText(/Demande d'essai envoyée/).first().waitFor({ timeout: 30000 });
   const ref = (await pc.locator("strong").filter({ hasText: /VA-LEAD-/ }).first().textContent()).trim();
   ok(`demande d'essai créée (${ref})`);
