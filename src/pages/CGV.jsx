@@ -131,6 +131,26 @@ export default function CGV() {
         </p>
       </Art>
 
+      <Art n="5 bis" title="Pièces détachées : livraison, acompte, retours et garantie">
+        <p>
+          Une pièce détachée commandée sur VIT AUTO est <strong>toujours livrée</strong> à l'adresse indiquée par le
+          client ; les frais de livraison (offerte, forfait ou barème au kilomètre) et, pour une pièce importée à la
+          commande, les <strong>frais d'importation</strong> et le <strong>délai annoncé</strong> figurent sur
+          l'annonce et sur le récapitulatif avant validation. Le règlement s'effectue en espèces au livreur, à la
+          réception ; une pièce importée peut exiger un <strong>acompte</strong> (pourcentage annoncé sur l'annonce),
+          réglé au vendeur à la confirmation et non remboursable une fois la pièce commandée chez le fournisseur,
+          sauf défaut de conformité.
+        </p>
+        <p>
+          À la livraison, le client dispose de <strong>48 heures</strong> pour confirmer la réception ou signaler un
+          problème depuis son espace (pièce non conforme, endommagée, référence erronée). Un signalement ouvre un
+          litige tranché par VIT AUTO après examen des éléments des deux parties ; le vendeur reste responsable de la
+          conformité de la pièce à sa description (référence, compatibilité, état neuf / reconditionné / occasion)
+          et de la garantie légale ou constructeur qu'il annonce. Une pièce montée, modifiée ou dont l'emballage
+          d'origine a été détruit n'est pas reprise, hors défaut de conformité.
+        </p>
+      </Art>
+
       <Art n="6" title="Droit de rétractation">
         <p>
           ⚠️ <strong>À confirmer par un juriste selon la juridiction de l'acheteur</strong> — l'existence et l'étendue d'un

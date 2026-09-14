@@ -72,8 +72,10 @@ export default function CGU() {
           <Li><strong>Clients</strong> — personnes souhaitant louer, acheter ou tester un véhicule</Li>
           <Li><strong>Partenaires</strong> — agences, concessionnaires ou particuliers proposant des véhicules</Li>
           <Li><strong>Chauffeurs</strong> — professionnels proposant un service avec conducteur</Li>
+          <Li><strong>Prestataires d'activités &amp; loisirs</strong> — sorties et formations réservables (plongée, quad, jetski…)</Li>
+          <Li><strong>Vendeurs de pièces détachées</strong> — pièces en stock ou importées à la commande, livrées au client</Li>
         </ul>
-        <p style={{ marginTop: 10 }}>VIT AUTO agit comme intermédiaire et n'est pas propriétaire des véhicules proposés.</p>
+        <p style={{ marginTop: 10 }}>VIT AUTO agit comme intermédiaire et n'est pas propriétaire des véhicules, pièces ou prestations proposés. Un compte est nécessaire pour utiliser un service (réserver, commander, demander un essai ou une importation).</p>
       </Art>
 
       <Art n="3" title="Inscription et compte">

@@ -21,6 +21,7 @@ import { startBookingReminderScheduler } from "./utils/bookingReminders.js";
 import { startPartnerResponseScheduler } from "./utils/partnerResponseReminders.js";
 import { startSalesLeadScheduler } from "./utils/salesLeadScheduler.js";
 import { startWeeklyFunnelReportScheduler } from "./utils/weeklyFunnelReport.js";
+import { startDailyOpsDigestScheduler } from "./utils/dailyOpsDigest.js";
 import { startCommunicationHealthScheduler } from "./utils/communicationHealthCheck.js";
 import { startAccountHealthScheduler } from "./utils/accountHealthCheck.js";
 
@@ -934,6 +935,8 @@ const startServer = async () => {
 
     // ── Rapport hebdomadaire du funnel vente aux admins (lundi) ──────────
     startWeeklyFunnelReportScheduler();
+    // Digest quotidien « à traiter aujourd'hui » des admins (suivi sans gate).
+    startDailyOpsDigestScheduler();
 
     // ── Alerte quotidienne sur les échecs d'envoi e-mail/SMS/WhatsApp/push ─
     startCommunicationHealthScheduler();

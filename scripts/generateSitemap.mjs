@@ -21,6 +21,8 @@ const OUTPUT_PATH = path.join(__dirname, "..", "public", "sitemap.xml");
 const STATIC_URLS = [
   { loc: "/",                       changefreq: "daily",   priority: "1.0" },
   { loc: "/catalogue",              changefreq: "hourly",  priority: "0.9" },
+  { loc: "/catalogue?mode=Autres",  changefreq: "daily",   priority: "0.8" },
+  { loc: "/catalogue?mode=Pieces",  changefreq: "daily",   priority: "0.8" },
   { loc: "/import-export",          changefreq: "daily",   priority: "0.8" },
   { loc: "/import-export/listings", changefreq: "hourly",  priority: "0.8" },
   { loc: "/services",               changefreq: "monthly", priority: "0.6" },
@@ -137,6 +139,35 @@ async function main() {
   for (const [slug, n] of parOrigine) {
     if (n < MIN_ANNONCES_PAR_VILLE) continue;
     urls.push(urlEntry({ loc: `/import-voiture/${slug}`, changefreq: "daily", priority: "0.8" }));
+  }
+
+  // ── Pages d'entrée des secteurs loisirs (par ville) et pièces (par marque) ─
+  // Listes publiques non paginées ; même garde-fou (≥ 2 annonces) et même
+  // règle : l'API injoignable ne fait pas échouer le build.
+  const fetchListe = async (endpoint) => {
+    try { const r = await fetch(`${API_BASE}${endpoint}`); return r.ok ? (await r.json()) : []; }
+    catch { return []; }
+  };
+  const [activites, pieces] = await Promise.all([fetchListe("/activities"), fetchListe("/parts")]);
+  const parVilleActivite = new Map();
+  for (const a of Array.isArray(activites) ? activites : []) {
+    const slug = a.ville ? slugifyCity(a.ville) : null;
+    if (slug) parVilleActivite.set(slug, (parVilleActivite.get(slug) || 0) + 1);
+  }
+  for (const [slug, n] of parVilleActivite) {
+    if (n < MIN_ANNONCES_PAR_VILLE) continue;
+    urls.push(urlEntry({ loc: `/activites/${slug}`, changefreq: "daily", priority: "0.7" }));
+  }
+  const parMarquePiece = new Map();
+  for (const p of Array.isArray(pieces) ? pieces : []) {
+    for (const m of new Set((p.compatibility || []).map((c) => c.marque).filter(Boolean))) {
+      const slug = slugifyCity(m);
+      if (slug) parMarquePiece.set(slug, (parMarquePiece.get(slug) || 0) + 1);
+    }
+  }
+  for (const [slug, n] of parMarquePiece) {
+    if (n < MIN_ANNONCES_PAR_VILLE) continue;
+    urls.push(urlEntry({ loc: `/pieces-detachees/${slug}`, changefreq: "daily", priority: "0.7" }));
   }
 
   for (const s of showrooms) {

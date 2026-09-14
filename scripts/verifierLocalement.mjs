@@ -59,7 +59,7 @@ if (!EXE) {
 const BASE = process.argv[2] || "http://localhost:4180";
 const ADMIN_ID = process.env.VERIF_ADMIN_ID, ADMIN_PWD = process.env.VERIF_ADMIN_PWD;
 
-const PAGES_PUBLIQUES = ["/", "/catalogue", "/catalogue?mode=Acheter", "/catalogue?mode=Autres", "/catalogue?mode=Pieces", "/plans", "/services", "/login", "/register",
+const PAGES_PUBLIQUES = ["/", "/catalogue", "/catalogue?mode=Acheter", "/catalogue?mode=Autres", "/catalogue?mode=Pieces", "/activites/marrakech", "/pieces-detachees/volkswagen", "/plans", "/services", "/login", "/register",
   "/pourquoi", "/partenaires", "/faq", "/import-export", "/import-export/listings", "/cgu", "/privacy", "/stats"];
 const PAGES_CONNECTEES = ["/dashboard", "/profile", "/favorites", "/loyalty", "/kyc", "/cart", "/vendor/dashboard",
   "/vendor/pro", "/vendor/publish", "/vendor/submit-activity", "/vendor/submit-part", "/partner-onboarding", "/partner-certification", "/partner-pms", "/importer-dashboard"];

@@ -47,7 +47,7 @@ inclut `piece` — aucun paiement en ligne tant qu'aucun prestataire n'est
 branché). Pour une importation, l'acompte annoncé sur l'annonce est réglé au
 vendeur à la confirmation ; le vendeur le déclare reçu.
 
-## 3. Commission (proposition appliquée, modifiable dans PricingConfig)
+## 3. Commission (validée par l'exploitant le 2026-09-14, modifiable dans PricingConfig)
 
 | Mode | Standard | Partenaire Fondateur |
 |---|---|---|
@@ -61,7 +61,28 @@ Justification : marges de la pièce détachée (20–40 % sur le neuf) plus
 (eBay Motors / Amazon Automotive 12 %, Jumia 10–15 %) ; l'importation porte
 un risque logistique et des paniers plus élevés → taux réduit.
 
-## 4. Vérification
+## 4. Import en masse
+
+`POST /api/parts/import { fileBase64, fileName, dryRun? }` (partenaire du
+secteur ; gates publication/périmètre/quota) — CSV « ; » ou « , », ou .xlsx,
+≤ 500 lignes, lu par `vehicleImportService.parseUploadedFile`. Colonnes
+reconnues (alias FR/EN, accents ignorés) : titre, categorie (code ou libellé),
+fabricant, reference, etat, prix, devise (converti en USD), stock, qte_min,
+mode (direct/import), pays_origine, delai_jours, frais_import, acompte,
+livraison (gratuit/forfait/distance), forfait_livraison, offerte_des,
+delai_min, delai_max, compatibilite (« Marque Modèle 2004-2012 | … »), photos
+(URL http séparées par |, au moins une), description, ville. Chaque ligne
+passe par `normaliserChamps` ; les refus sont rapportés par ligne, les autres
+créées `pending`. Bouton « Modèle CSV » + « Importer un fichier » dans
+« Mes pièces détachées ».
+
+## 5. Pages d'entrée (référencement)
+
+`/activites/:ville` et `/pieces-detachees/:marque` (SectorLanding.jsx) :
+contenu dérivé des annonces, noindex sans annonce, sitemap ≥ 2 annonces,
+maillage depuis le catalogue.
+
+## 6. Vérification
 
 - Tests : `server/tests/spareParts.test.js` (publication, périmètre,
   catalogue, devis, commande, stock, transitions, réception, annulation).

@@ -551,6 +551,28 @@ const Catalogue = () => {
     return [...compte.values()].filter((c) => c.n >= 2).sort((a, b) => b.n - a.n).slice(0, 12);
   }, [vehicles]);
 
+  // Maillage interne des deux secteurs récents : villes d'activités et
+  // marques de pièces (même seuil ≥ 2 que le sitemap) → /activites/:ville,
+  // /pieces-detachees/:marque (voir SectorLanding.jsx).
+  const villesActivites = useMemo(() => {
+    const compte = new Map();
+    for (const a of activities || []) {
+      const slug = a.ville ? slugifyCity(a.ville) : null;
+      if (slug) compte.set(slug, { slug, nom: a.ville, n: (compte.get(slug)?.n || 0) + 1 });
+    }
+    return [...compte.values()].filter((c) => c.n >= 2).sort((a, b) => b.n - a.n).slice(0, 12);
+  }, [activities]);
+  const marquesPieces = useMemo(() => {
+    const compte = new Map();
+    for (const p of parts || []) {
+      for (const m of new Set((p.compatibility || []).map((c) => c.marque).filter(Boolean))) {
+        const slug = slugifyCity(m);
+        if (slug) compte.set(slug, { slug, nom: m, n: (compte.get(slug)?.n || 0) + 1 });
+      }
+    }
+    return [...compte.values()].filter((c) => c.n >= 2).sort((a, b) => b.n - a.n).slice(0, 12);
+  }, [parts]);
+
   // Filtre « annonces d'un partenaire » (`?owner=<id>`) — destination des
   // vignettes de la vitrine d'accueil pour un partenaire qui n'a pas encore de
   // showroom publié. Sans ce filtre, le lien ouvrait le catalogue COMPLET, ce
@@ -1052,6 +1074,33 @@ const Catalogue = () => {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {villesDesservies.map((c) => (
                 <Link key={c.slug} to={`/location-voiture/${c.slug}`}
+                  style={{ padding: ".35rem .75rem", borderRadius: 999, background: "#fff", border: "1px solid #dbe2ef", color: "#1a3a6e", fontSize: ".8rem", fontWeight: 600, textDecoration: "none" }}>
+                  {c.nom} ({c.n})
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {isOthersMode && villesActivites.length > 0 && (
+          <section style={{ margin: "28px auto 0", maxWidth: 1180, padding: "18px 1.25rem 0", borderTop: "1.5px solid #e2e8f0" }}>
+            <h2 style={{ fontSize: ".95rem", color: "#0f1b3f", margin: "0 0 10px" }}>Activités & loisirs par ville</h2>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {villesActivites.map((c) => (
+                <Link key={c.slug} to={`/activites/${c.slug}`}
+                  style={{ padding: ".35rem .75rem", borderRadius: 999, background: "#fff", border: "1px solid #dbe2ef", color: "#1a3a6e", fontSize: ".8rem", fontWeight: 600, textDecoration: "none" }}>
+                  {c.nom} ({c.n})
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+        {isPartsMode && marquesPieces.length > 0 && (
+          <section style={{ margin: "28px auto 0", maxWidth: 1180, padding: "18px 1.25rem 0", borderTop: "1.5px solid #e2e8f0" }}>
+            <h2 style={{ fontSize: ".95rem", color: "#0f1b3f", margin: "0 0 10px" }}>Pièces détachées par marque</h2>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {marquesPieces.map((c) => (
+                <Link key={c.slug} to={`/pieces-detachees/${c.slug}`}
                   style={{ padding: ".35rem .75rem", borderRadius: 999, background: "#fff", border: "1px solid #dbe2ef", color: "#1a3a6e", fontSize: ".8rem", fontWeight: 600, textDecoration: "none" }}>
                   {c.nom} ({c.n})
                 </Link>

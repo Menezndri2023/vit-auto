@@ -27,6 +27,7 @@ const Home                  = lazy(() => import("./pages/Home"));
 const Catalogue             = lazy(() => import("./pages/Catalogue"));
 const LocalLanding          = lazy(() => import("./pages/LocalLanding"));
 const ImportOriginLanding   = lazy(() => import("./pages/ImportOriginLanding"));
+const SectorLanding         = lazy(() => import("./pages/SectorLanding"));
 const VehicleDetails        = lazy(() => import("./pages/VehicleDetails"));
 const Cart                  = lazy(() => import("./pages/Cart"));
 const Booking               = lazy(() => import("./pages/Booking"));
@@ -122,6 +123,9 @@ function AppRoutes() {
               intention sur laquelle rien ne pouvait remonter — les quinze
               origines n'existaient que comme filtres du catalogue. */}
           <Route path="/import-voiture/:pays"    element={<ImportOriginLanding />} />
+          {/* Pages d'entrée des secteurs loisirs (par ville) et pièces (par marque) */}
+          <Route path="/activites/:ville"        element={<SectorLanding mode="activites" />} />
+          <Route path="/pieces-detachees/:marque" element={<SectorLanding mode="pieces" />} />
           <Route path="/vehicle/:id"            element={<ErrorBoundary><VehicleDetails /></ErrorBoundary>} />
           <Route path="/cart"                   element={<ErrorBoundary><Cart /></ErrorBoundary>} />
           <Route path="/login"                  element={<Login />} />

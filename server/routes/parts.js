@@ -12,6 +12,8 @@ router.get("/", p.getParts);
 router.post("/", authenticate, p.createPart);
 router.get("/mine", authenticate, p.getMyParts);
 router.post("/bulk-delete", authenticate, p.bulkDeleteParts);
+// Import en masse CSV/XLSX (fichier en base64, voir importParts).
+router.post("/import", authenticate, p.importParts);
 
 // ── Admin ─────────────────────────────────────────────────
 router.get("/pending", authenticate, authorizeAdmin, requireAdminScope("catalogue"), p.getPendingParts);

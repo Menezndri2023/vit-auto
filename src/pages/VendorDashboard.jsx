@@ -1667,6 +1667,8 @@ export default function VendorDashboard() {
   const [partEditModal,     setPartEditModal]     = useState(null);
   const [partEditForm,      setPartEditForm]      = useState(null);
   const [partEditSaving,    setPartEditSaving]    = useState(false);
+  const [partImportBusy,    setPartImportBusy]    = useState(false);
+  const [partImportResult,  setPartImportResult]  = useState(null); // { crees, erreurs[], lignes }
   const [employmentRequests, setEmploymentRequests] = useState([]);
   const [employmentLoading,  setEmploymentLoading]  = useState(false);
   const [employmentDeclining, setEmploymentDeclining] = useState(null); // id en cours de refus
@@ -2703,6 +2705,36 @@ export default function VendorDashboard() {
     } finally { setPartEditSaving(false); }
   };
 
+  // Import en masse de pièces (CSV « ; » ou « , », .xlsx) — même convention
+  // que l'import de flotte : fichier lu en base64, traité par POST /api/parts/import.
+  const MODELE_IMPORT_PIECES = "titre;categorie;fabricant;reference;etat;prix;devise;stock;qte_min;mode;pays_origine;delai_jours;frais_import;acompte;livraison;forfait_livraison;offerte_des;delai_min;delai_max;compatibilite;photos;description;ville\n"
+    + "Plaquettes de frein avant;Freinage;Bosch;0986424797;neuf;400;MAD;10;1;direct;;;;;forfait;40;1500;1;3;Volkswagen Golf 2004-2012 | Seat Leon 2005-2012;https://exemple.com/photo1.jpg | https://exemple.com/photo2.jpg;Jeu de 4 plaquettes;Casablanca\n"
+    + "Alternateur 150 A;Électrique / batterie;Valeo;439731;reconditionné;1600;MAD;;1;import;FR;15;250;50;gratuit;;;2;5;Dacia Duster 2010-2018;https://exemple.com/alternateur.jpg;Garantie 6 mois;Casablanca\n";
+  const telechargerModelePieces = () => {
+    const blob = new Blob(["\ufeff" + MODELE_IMPORT_PIECES], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "modele-import-pieces.csv"; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const importerPieces = async (file) => {
+    if (!file || !token) return;
+    setPartImportBusy(true); setPartImportResult(null);
+    try {
+      const fileBase64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+      const r = await fetch("/api/parts/import", {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ fileBase64, fileName: file.name }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.message || "Import impossible.");
+      setPartImportResult(d);
+      if (d.crees > 0) { toastSuccess(`✅ ${d.crees} pièce(s) importée(s), en attente de validation.`); loadMyParts(); }
+      else toastError("Aucune ligne valide dans le fichier.");
+    } catch (e) {
+      toastError(e.message || "Import impossible.");
+    } finally { setPartImportBusy(false); }
+  };
+
   const loadMyActivities = useCallback(async () => {
     if (!token) return;
     setActivityLoading(true);
@@ -3661,8 +3693,27 @@ export default function VendorDashboard() {
           {(couvreSecteur(user, "pieces") || myParts.length > 0) && (<>
           <div className={styles.sectionToolbar} style={{ marginTop: 32 }}>
             <h2 className={styles.sectionTitle}>🔩 Mes pièces détachées ({myParts.length})</h2>
-            <Link to="/vendor/submit-part" className={styles.btnPrimary}>+ Ajouter</Link>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button type="button" className={styles.btnSecondary} onClick={telechargerModelePieces}>📄 Modèle CSV</button>
+              <label className={styles.btnSecondary} style={{ cursor: partImportBusy ? "wait" : "pointer", margin: 0 }}>
+                {partImportBusy ? "Import…" : "📥 Importer un fichier"}
+                <input type="file" accept=".csv,.xlsx" hidden disabled={partImportBusy} onChange={(e) => { importerPieces(e.target.files?.[0]); e.target.value = ""; }} />
+              </label>
+              <Link to="/vendor/submit-part" className={styles.btnPrimary}>+ Ajouter</Link>
+            </div>
           </div>
+          {partImportResult && (
+            <div style={{ background: partImportResult.erreurs?.length ? "#fffbeb" : "#f0fdf4", border: `1.5px solid ${partImportResult.erreurs?.length ? "#fde68a" : "#bbf7d0"}`, borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: ".85rem" }}>
+              <strong>Import : {partImportResult.crees} pièce(s) créée(s) sur {partImportResult.lignes} ligne(s).</strong>
+              {partImportResult.erreurs?.length > 0 && (
+                <ul style={{ margin: "6px 0 0", paddingLeft: 18, color: "#92400e" }}>
+                  {partImportResult.erreurs.slice(0, 20).map((e) => <li key={e.ligne}>Ligne {e.ligne} : {e.message}</li>)}
+                  {partImportResult.erreurs.length > 20 && <li>… et {partImportResult.erreurs.length - 20} autre(s)</li>}
+                </ul>
+              )}
+              <button type="button" onClick={() => setPartImportResult(null)} style={{ marginTop: 6, background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: ".8rem" }}>Fermer</button>
+            </div>
+          )}
           {partLoading ? <p className={styles.loadingMsg}>Chargement…</p> : myParts.length === 0 ? (
             <div className={styles.emptyFull} style={{ padding: "28px 20px" }}>
               <div className={styles.emptyIcon}>🔩</div>

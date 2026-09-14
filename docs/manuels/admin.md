@@ -19,7 +19,8 @@
 - **Contenu & Mise en avant** : gestion des mises en avant catalogue.
 
 ## SERVICES
-- **Réservations** : toutes les commandes (location/vente/essai/chauffeur/leasing). **Toutes sont transmises directement au partenaire** à la création (acteur SYSTÈME, décision de l'exploitant 2026-09-14) — la file « à valider » ne se remplit plus ; le score de fraude reste calculé à titre d'information (fiche réservation, alerte en risque élevé) pour une intervention a posteriori. Même règle pour les propositions d'embauche chauffeur (l'admin peut encore retirer une demande tant que le partenaire n'a pas répondu) et pour les demandes d'essai, tous niveaux (`salesLead.directTransmission`).
+- **Digest quotidien** : chaque matin (à partir de 7 h), une notification « À traiter aujourd'hui » liste ce qui attend une action — demandes sans réponse partenaire depuis 24 h, demandes d'essai hors délai, litiges, alertes fraude des dernières 24 h, pièces livrées sans confirmation client depuis 3 j, acomptes d'importation non déclarés reçus, propositions d'embauche sans réponse, demandes de secteur. Rien n'est envoyé quand il n'y a rien à traiter.
+- **Réservations** : toutes les commandes (location/vente/essai/chauffeur/leasing/pièces). **Toutes sont transmises directement au partenaire** à la création (acteur SYSTÈME, décision de l'exploitant 2026-09-14) — la file « à valider » ne se remplit plus ; le score de fraude reste calculé à titre d'information (fiche réservation, alerte en risque élevé) pour une intervention a posteriori. Même règle pour les propositions d'embauche chauffeur (l'admin peut encore retirer une demande tant que le partenaire n'a pas répondu) et pour les demandes d'essai, tous niveaux (`salesLead.directTransmission`).
 - **Litiges** : voir Manuel du Support §3.1.
 - **Chauffeurs** : approbation des profils chauffeurs.
 - **Transactions I/E** : suivi des transactions Import/Export en cours, litiges Import/Export.

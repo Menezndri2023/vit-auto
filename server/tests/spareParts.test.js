@@ -270,3 +270,55 @@ describe("Pièces détachées — commande, de la transmission à la réception"
     expect((await SparePart.findById(part._id)).status).toBe("archived");
   });
 });
+
+describe("Pièces détachées — import CSV en masse", () => {
+  const csv = [
+    "titre;categorie;fabricant;reference;etat;prix;devise;stock;mode;pays_origine;delai_jours;frais_import;acompte;livraison;forfait_livraison;compatibilite;photos",
+    "Plaquettes avant;Freinage;Bosch;0986424797;neuf;400;MAD;10;direct;;;;;forfait;40;Volkswagen Golf 2004-2012 | Seat Leon;https://ik.imagekit.io/vitauto/x.jpg",
+    "Alternateur;Électrique / batterie;Valeo;439731;reconditionné;1600;MAD;;import;FR;15;250;50;gratuit;;Dacia Duster 2010-2018;https://ik.imagekit.io/vitauto/y.jpg",
+    "Sans photo;Moteur;;;neuf;100;USD;1;direct;;;;;forfait;5;;",
+    "Catégorie inconnue;Licorne;;;neuf;100;USD;1;direct;;;;;forfait;5;;https://ik.imagekit.io/vitauto/z.jpg",
+  ].join("\n");
+  const b64 = "data:text/csv;base64," + Buffer.from(csv, "utf8").toString("base64");
+
+  it("crée les lignes valides en attente de validation, rapporte les autres ligne par ligne", async () => {
+    const { importParts } = await import("../controllers/partController.js");
+    const ExchangeRate = (await import("../models/ExchangeRate.js")).default;
+    await ExchangeRate.create({ code: "MAD", symbol: "DH", name: "Dirham", rateFromUSD: 10 });
+    const owner = await partenaire();
+    const dry = mockReqRes({ user: owner, body: { fileBase64: b64, fileName: "pieces.csv", dryRun: true } });
+    await importParts(dry.req, dry.res);
+    expect(dry.res.statusCode).toBe(200);
+    expect(dry.res.body.valides).toBe(2);
+    expect(dry.res.body.erreurs.map((e) => e.ligne)).toEqual([4, 5]);
+    expect(await SparePart.countDocuments({ owner: owner._id })).toBe(0);
+
+    const { req, res } = mockReqRes({ user: owner, body: { fileBase64: b64, fileName: "pieces.csv" } });
+    await importParts(req, res);
+    expect(res.statusCode).toBe(201);
+    expect(res.body.crees).toBe(2);
+    const parts = await SparePart.find({ owner: owner._id }).sort({ title: 1 }).lean();
+    const alt = parts.find((p) => p.title === "Alternateur");
+    expect(alt.status).toBe("pending");
+    expect(alt.saleMode).toBe("import");
+    expect(alt.importInfo.originCountry).toBe("FR");
+    expect(alt.price).toBe(160);            // 1600 MAD → USD au taux 10
+    expect(alt.currency).toBe("MAD");
+    expect(alt.condition).toBe("reconditionne");
+    expect(alt.shipping.mode).toBe("gratuit");
+    const plaq = parts.find((p) => p.title === "Plaquettes avant");
+    expect(plaq.compatibility).toHaveLength(2);
+    expect(plaq.compatibility[0]).toMatchObject({ marque: "Volkswagen", modele: "Golf", anneeDebut: 2004, anneeFin: 2012 });
+    expect(plaq.stock).toBe(10);
+    expect(plaq.shipping.forfaitUSD).toBe(40);
+  });
+
+  it("un partenaire d'un autre secteur est refusé", async () => {
+    const { importParts } = await import("../controllers/partController.js");
+    const loueur = await createUser({ role: "partenaire", isFounder: true, partnerActivity: "loueur" });
+    const { req, res } = mockReqRes({ user: loueur, body: { fileBase64: b64, fileName: "pieces.csv" } });
+    await importParts(req, res);
+    expect(res.statusCode).toBe(403);
+    expect(res.body.code).toBe("SECTEUR_REQUIS");
+  });
+});
