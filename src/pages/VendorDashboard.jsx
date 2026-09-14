@@ -244,7 +244,7 @@ const InfoLine = ({ label, value, color, mono }) => value ? (
    MODAL GÉRER — Gestion complète, identité intégrée, workflow par type VIT-AUTO
    ══════════════════════════════════════════════════════════════════════════════ */
 function GererModal({ order, orderDetail, detailLoading, detailError, onClose, onConfirm, onPrepare, onReady, onInProgress,
-  onClientArrived, onClientAbsent, onRecordTransaction, onPartnerConfirm, onComplete, onReject, onTransactionNotConcluded, onRespondToDispute, onPartnerVerifyKyc, onContactClient,
+  onClientArrived, onClientAbsent, onRecordTransaction, onPartnerConfirm, onReject, onTransactionNotConcluded, onRespondToDispute, onContactClient,
   onClaimCaution, onRateClient, commRates = DEFAULT_COMM_RATE }) {
   // Tous les hooks AVANT tout return conditionnel (règles des hooks React)
   const { fmt: fmtXOF } = useCurrency();
@@ -291,7 +291,6 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
   const kycCfg = KYC_CFG[order.clientInfo?.kycStatus] || null;
   const isNew  = !order.status || order.status === "À confirmer" || order.status === "pending";
   const isActive = !isNew && !["cancelled","disputed","completed"].includes(order.status);
-  const isDone   = ["completed","cancelled","disputed"].includes(order.status);
 
   // Action unique selon statut + sous-type (AUCUN doublon)
   const ACTION =

@@ -81,8 +81,8 @@ export const generatePartnerInvoice = async (req, res) => {
     const vehicleFilter = { owner: partnerId, business: businessId || null };
     const driverFilter  = { owner: partnerId, business: businessId || null };
     const [myVehicles, myDrivers] = await Promise.all([
-      Vehicle.find(vehicleFilter).select("_id"),
-      Driver.find(driverFilter).select("_id"),
+      Vehicle.find(vehicleFilter).limit(0).select("_id"),
+      Driver.find(driverFilter).limit(0).select("_id"),
     ]);
     const vehicleIds = myVehicles.map((v) => v._id);
     const driverIds  = myDrivers.map((d) => d._id);
@@ -96,7 +96,7 @@ export const generatePartnerInvoice = async (req, res) => {
       status:    "completed",
       invoiced:  false,
       paidAt:    { $gte: startOfMonth, $lt: endOfMonth },
-    }).select("reference type transaction montantTotal commissionAmount commissionRate devise paidAt");
+    }).limit(0).select("reference type transaction montantTotal commissionAmount commissionRate devise paidAt"); // facturation : jamais tronquée
 
     if (bookings.length === 0) {
       return res.status(404).json({ message: "Aucune transaction facturée à générer pour cette période." });
@@ -183,7 +183,7 @@ export const generateAllMonthlyInvoices = async (req, res) => {
       status:   "completed",
       invoiced: false,
       paidAt:   { $gte: startOfMonth, $lt: endOfMonth },
-    })
+    }).limit(0) // facturation : jamais tronquée
       .populate("vehicle", "owner business")
       .populate("driver",  "owner business");
 
@@ -328,8 +328,8 @@ export const getAllInvoices = async (req, res) => {
     ]);
 
     // Totaux globaux
-    const allCompleted = await Invoice.find({ status: "paid" }).select("totalCommission");
-    const allPending   = await Invoice.find({ status: "pending" }).select("totalCommission");
+    const allCompleted = await Invoice.find({ status: "paid" }).limit(0).select("totalCommission");
+    const allPending   = await Invoice.find({ status: "pending" }).limit(0).select("totalCommission");
     const totalPaid    = allCompleted.reduce((s, i) => s + (i.totalCommission || 0), 0);
     const totalPending = allPending.reduce((s, i) => s + (i.totalCommission || 0), 0);
 
@@ -389,8 +389,8 @@ export const markInvoicePaid = async (req, res) => {
 export const getPartnerTransactions = async (req, res) => {
   try {
     const [myVehicles, myDrivers] = await Promise.all([
-      Vehicle.find({ owner: req.user._id }).select("_id"),
-      Driver.find({ owner: req.user._id }).select("_id"),
+      Vehicle.find({ owner: req.user._id }).limit(0).select("_id"),
+      Driver.find({ owner: req.user._id }).limit(0).select("_id"),
     ]);
     const vehicleIds = myVehicles.map((v) => v._id);
     const driverIds  = myDrivers.map((d) => d._id);

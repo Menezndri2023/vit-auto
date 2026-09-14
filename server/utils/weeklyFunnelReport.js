@@ -39,9 +39,9 @@ export function rapportDu(lastSentAt, maintenant = new Date()) {
 }
 
 export async function calculerResume(depuis, jusqua, cfg) {
-  const leads = await SalesLead.find({ createdAt: { $gte: depuis, $lt: jusqua } })
+  const leads = await SalesLead.find({ createdAt: { $gte: depuis, $lt: jusqua } }).limit(0)
     .select("status milestones sla sale commission qualification partner").lean();
-  const enCours = await SalesLead.find({ status: { $in: ["QUALIFYING", "SALE_PENDING", "SENT_TO_PARTNER"] } })
+  const enCours = await SalesLead.find({ status: { $in: ["QUALIFYING", "SALE_PENDING", "SENT_TO_PARTNER"] } }).limit(0)
     .select("status milestones partner reference").populate("partner", "firstName lastName").lean();
 
   const sold = leads.filter((l) => l.status === "SOLD");

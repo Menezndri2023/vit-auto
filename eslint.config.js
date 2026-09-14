@@ -25,7 +25,19 @@ export default defineConfig([
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
       'react-hooks/purity': 'off', // faux positifs sur les event handlers (React Compiler non utilisé)
+      // Règles du React Compiler (non utilisé ici) : « preserve-manual-memoization »
+      // et « immutability » signalent des motifs que le compilateur ne saurait
+      // pas optimiser, pas des défauts à l'exécution — une fonction déclarée
+      // (hoistée) appelée plus haut dans le composant n'est pas une TDZ.
+      'react-hooks/preserve-manual-memoization': 'off',
+      'react-hooks/immutability': 'off',
     },
+  },
+  {
+    // Les contextes exportent volontairement leur fournisseur ET leur hook
+    // (useAuth, useCart…) : c'est leur interface, pas un oubli de découpe.
+    files: ['src/context/*.jsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
   },
   {
     files: ['server/**/*.js'],

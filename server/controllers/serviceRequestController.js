@@ -73,7 +73,7 @@ export const getMyRequests = async (req, res) => {
   try {
     const requests = await ServiceRequest.find({ client: req.user._id }).sort({ createdAt: -1 }).lean();
     res.json({ requests });
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

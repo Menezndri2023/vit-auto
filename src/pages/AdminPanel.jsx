@@ -478,12 +478,10 @@ export default function AdminPanel() {
   const [userSearch,  setUserSearch]  = useState("");
   const [userRole,    setUserRole]    = useState("all");
   const [userCountry, setUserCountry] = useState("all");
-  const [vehStatus,   setVehStatus]   = useState("all");
   const [bkStatus,    setBkStatus]    = useState("all");
 
   // Pagination
   const [userPage,  setUserPage]  = useState(1);
-  const [vehPage,   setVehPage]   = useState(1);
   const [bkPage,    setBkPage]    = useState(1);
   const PAGE_SIZE = 10;
 
@@ -925,7 +923,7 @@ export default function AdminPanel() {
       ]);
       if (pRes.ok) { const d = await pRes.json(); setImporterProfiles(d.profiles || []); }
       if (lRes.ok) { const d = await lRes.json(); setImporterListings(d.listings || []); setImporterListingsTotal(d.total || 0); }
-    } catch {}
+    } catch { /* ignoré volontairement */ }
     setImporterLoading(false);
   }, [token, headers, importerListingsLimit]);
 
@@ -2751,11 +2749,6 @@ export default function AdminPanel() {
     }
     return r;
   }, [users, userRole, userCountry, userSearch]);
-
-  const filteredVehicles = useMemo(() =>
-    vehStatus === "all" ? vehicles : vehicles.filter((v) => v.status === vehStatus),
-    [vehicles, vehStatus]
-  );
 
   const filteredBookings = useMemo(() => {
     let list = bookings;

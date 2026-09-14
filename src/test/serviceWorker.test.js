@@ -93,7 +93,7 @@ describe("Service worker", () => {
     // pas suffire à faire passer ce test.
     const brancheImage = SRC.indexOf("destination === 'image'");
     const avant = SRC.slice(0, brancheImage);
-    expect(avant).toMatch(/^  if \(url\.origin !== self\.location\.origin\) return;/m);
+    expect(avant).toMatch(/^ {2}if \(url\.origin !== self\.location\.origin\) return;/m);
   });
 
   it("change de version de cache pour purger celui qui a causé la panne", async () => {

@@ -49,7 +49,7 @@ export async function autoLinkProspect({ email, userId, businessId = null, onboa
 async function computeLinkedStats(linkedUserId) {
   if (!linkedUserId) return { nombreAnnonces: 0, transactionsCount: 0, chiffreAffairesGenere: 0 };
 
-  const vehicles = await Vehicle.find({ owner: linkedUserId }).select("_id").lean();
+  const vehicles = await Vehicle.find({ owner: linkedUserId }).limit(0).select("_id").lean();
   const vehicleIds = vehicles.map((v) => v._id);
 
   const [bookingAgg, ieAgg] = await Promise.all([

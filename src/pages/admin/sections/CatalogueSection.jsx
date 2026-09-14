@@ -9,7 +9,7 @@ import { MOIS_LONGS } from "../shared.jsx";
 // ═══════════════════════════════════════════════════════════════════════════════
 // CATALOGUE SECTION — Annonces & Validations (combiné)
 // ═══════════════════════════════════════════════════════════════════════════════
-export function CatalogueSection({ vehicles, drivers, bookings, vehiclesTotal, loadMoreVehicles, headers, token, onRefresh, showToast, setConfirm, rejectModal, setRejectModal, rejectReason, setRejectReason, driverRejectModal, setDriverRejectModal, driverRejectReason, setDriverRejectReason, updateVehicleStatus, deleteVehicle, updateDriverStatusInPlace }) {
+export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVehicles, headers, token, onRefresh, showToast, setConfirm, rejectModal, setRejectModal, rejectReason, setRejectReason, driverRejectModal, setDriverRejectModal, driverRejectReason, setDriverRejectReason, updateVehicleStatus, deleteVehicle, updateDriverStatusInPlace }) {
   const { COUNTRIES_CONFIG, fmtUSD, fmtPinned, CURRENCIES, rateFromUSD } = useCurrency();
   const [subTab,         setSubTab]         = useState("pending");
   const [vehSearch,      setVehSearch]      = useState("");

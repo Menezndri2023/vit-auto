@@ -103,7 +103,7 @@ export const getMyEmploymentRequests = async (req, res) => {
 // avant transmission.
 export const getReceivedEmploymentRequests = async (req, res) => {
   try {
-    const myDriverIds = await Driver.find({ owner: req.user._id }).select("_id").lean();
+    const myDriverIds = await Driver.find({ owner: req.user._id }).limit(0).select("_id").lean();
     const requests = await DriverEmployment.find({
       driver: { $in: myDriverIds.map((d) => d._id) },
       "adminReview.status": "forwarded",

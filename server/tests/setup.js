@@ -1,4 +1,6 @@
 import { beforeAll, afterAll, afterEach } from "vitest";
+// Même plafond global qu'en production (premier import, avant tout modèle).
+import "../utils/plafondRequetes.js";
 import mongoose from "mongoose";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { cacheClear } from "../utils/catalogCache.js";

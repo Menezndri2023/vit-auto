@@ -103,7 +103,7 @@ export const sendAdminNotification = async (req, res) => {
     if (targetRole === "importateur") filter["importerProfile.status"] = { $ne: "none" };
     else if (targetRole && targetRole !== "all") filter.role = targetRole;
 
-    const users = await User.find(filter).select("_id");
+    const users = await User.find(filter).limit(0).select("_id");
     if (!users.length) return res.status(404).json({ message: "Aucun utilisateur trouvé." });
 
     const docs = users.map((u) => ({

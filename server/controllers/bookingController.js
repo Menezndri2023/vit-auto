@@ -246,7 +246,7 @@ export async function notify(userId, type, titre, message, lien = "/dashboard") 
 // partenaire était réellement notifié — l'admin ne découvrait un litige qu'en
 // rechargeant manuellement l'onglet Litiges.
 async function notifyAdmins(type, titre, message, lien = "/admin") {
-  const admins = await User.find({ role: "admin", isActive: true }).select("_id").lean();
+  const admins = await User.find({ role: "admin", isActive: true }).limit(0).select("_id").lean();
   await Promise.all(admins.map((a) => notify(a._id, type, titre, message, lien)));
 }
 
@@ -1565,9 +1565,9 @@ export const getPartnerBookings = async (req, res) => {
       activityFilter.business = businessId;
     }
     const [myVehicles, myDrivers, myActivities] = await Promise.all([
-      Vehicle.find(vehicleFilter).select("_id"),
-      Driver.find(driverFilter).select("_id"),
-      Activity.find(activityFilter).select("_id"),
+      Vehicle.find(vehicleFilter).limit(0).select("_id"),
+      Driver.find(driverFilter).limit(0).select("_id"),
+      Activity.find(activityFilter).limit(0).select("_id"),
     ]);
     const vehicleIds  = myVehicles.map((v) => v._id);
     const driverIds   = myDrivers.map((d) => d._id);
@@ -2417,8 +2417,8 @@ export const getPartnerStats = async (req, res) => {
       driverFilter.business  = businessId;
     }
     const [myVehicles, myDrivers] = await Promise.all([
-      Vehicle.find(vehicleFilter).select("_id"),
-      Driver.find(driverFilter).select("_id"),
+      Vehicle.find(vehicleFilter).limit(0).select("_id"),
+      Driver.find(driverFilter).limit(0).select("_id"),
     ]);
     const vehicleIds = myVehicles.map((v) => v._id);
     const driverIds  = myDrivers.map((d) => d._id);
@@ -2497,7 +2497,7 @@ export const getPartnerAnalytics = async (req, res) => {
     }
     const [myVehicles, myDrivers] = await Promise.all([
       Vehicle.find(vehicleFilter).select("_id title marque modele"),
-      Driver.find(driverFilter).select("_id"),
+      Driver.find(driverFilter).limit(0).select("_id"),
     ]);
     const vehicleIds = myVehicles.map((v) => v._id);
     const driverIds  = myDrivers.map((d) => d._id);
@@ -2652,9 +2652,9 @@ export const exportPartnerBookings = async (req, res) => {
       activityFilter.business = businessId;
     }
     const [myVehicles, myDrivers, myActivities] = await Promise.all([
-      Vehicle.find(vehicleFilter).select("_id"),
-      Driver.find(driverFilter).select("_id"),
-      Activity.find(activityFilter).select("_id"),
+      Vehicle.find(vehicleFilter).limit(0).select("_id"),
+      Driver.find(driverFilter).limit(0).select("_id"),
+      Activity.find(activityFilter).limit(0).select("_id"),
     ]);
     const vehicleIds  = myVehicles.map((v) => v._id);
     const driverIds   = myDrivers.map((d) => d._id);

@@ -1148,7 +1148,7 @@ function PerformanceSection({ token, user }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // SECTION: SOCIÉTÉ (liens vers certification existante)
 // ══════════════════════════════════════════════════════════════════════════════
-function CompanySection({ user }) {
+function CompanySection() {
   const levels = [
     { n:1, icon:"🏢", label:"Entreprise",          route:"/partner-certification?level=1" },
     { n:2, icon:"👤", label:"Représentant",         route:"/partner-certification?level=2" },

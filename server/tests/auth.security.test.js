@@ -96,7 +96,7 @@ describe("authController.login — verrouillage de compte", () => {
   // ("Identifiants invalides") même pour le bon compte avec le bon mot de
   // passe. Voir phoneDigits (authController.js).
   it("connecte par téléphone même si le format de saisie diffère de celui stocké à l'inscription", async () => {
-    const user = await withPassword({ phone: "+212 612-345.678", email: null });
+    await withPassword({ phone: "+212 612-345.678", email: null });
     const { req, res } = mockReqRes({ body: { identifier: "0612345678", password: PASSWORD } });
     await login(req, res);
     expect(res.statusCode).toBe(200);

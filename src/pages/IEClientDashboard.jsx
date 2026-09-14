@@ -87,7 +87,7 @@ function TxCard({ tx }) {
 }
 
 export default function IEClientDashboard() {
-  const { user, token } = useAuth();
+  const { token } = useAuth();
   const navigate        = useNavigate();
 
   const [txList,   setTxList]   = useState([]);

@@ -106,8 +106,8 @@ export const getPublicProfile = async (req, res) => {
     // n'existe qu'au niveau d'un véhicule/chauffeur individuel (voir Review.js
     // recalcTargetStats) ; aucune moyenne au niveau partenaire n'existait avant.
     const [vehicleIds, driverIds] = await Promise.all([
-      Vehicle.find({ owner: user._id }).select("_id").lean(),
-      Driver.find({ owner: user._id }).select("_id").lean(),
+      Vehicle.find({ owner: user._id }).limit(0).select("_id").lean(),
+      Driver.find({ owner: user._id }).limit(0).select("_id").lean(),
     ]);
     const targets = [
       ...vehicleIds.map((v) => ({ targetType: "vehicle", targetId: v._id })),
@@ -478,8 +478,8 @@ export const deleteUser = async (req, res) => {
     // client qui a réservé) — dans ce seul cas, on archive à la place
     // (retiré du catalogue public, jamais supprimé).
     const [ownedVehicles, ownedDrivers] = await Promise.all([
-      Vehicle.find({ owner: req.params.id }).select("_id").lean(),
-      Driver.find({ owner: req.params.id }).select("_id").lean(),
+      Vehicle.find({ owner: req.params.id }).limit(0).select("_id").lean(),
+      Driver.find({ owner: req.params.id }).limit(0).select("_id").lean(),
     ]);
     const vehicleIds = ownedVehicles.map((v) => v._id);
     const driverIds  = ownedDrivers.map((d) => d._id);

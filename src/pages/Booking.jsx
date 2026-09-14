@@ -7,7 +7,7 @@ import { useCurrency } from "../context/CurrencyContext";
 import { useToast }    from "../context/ToastContext";
 import { haversineKm, geocodeAddress, getCurrentPosition, reverseGeocode } from "../utils/geo";
 import { getKycBadge, generateBookingRef } from "../utils/kycEngine.js";
-import { selectBestPromotionRule, effectivePricePerDay as computeEffectivePricePerDay } from "../utils/promotion";
+import { selectBestPromotionRule } from "../utils/promotion";
 import { computeLocationTotal as computeSeasonalLocationTotal } from "../utils/seasonalPricing";
 import { getCustomerServiceContact } from "../utils/customerServiceContact";
 import { useI18n } from "../context/I18nContext";
@@ -393,7 +393,6 @@ export default function Booking() {
   const promoBaseTotal = (vehicle?.pricePerDay || 0) * Math.max(days, 1);
   const activePromo = selectBestPromotionRule(vehicle?.promotions, Math.max(days, 1), promoBaseTotal);
   const promoActive = !!activePromo;
-  const effectivePricePerDay = Math.round(computeEffectivePricePerDay(vehicle?.pricePerDay || 0, Math.max(days, 1), vehicle?.promotions));
   // Tarification saisonnière (Vehicle.seasonalRates, voir src/utils/seasonalPricing.js) —
   // même calcul jour par jour que le serveur (bookingController.createBooking),
   // pour que l'estimation affichée avant envoi corresponde au montant réellement
@@ -471,7 +470,7 @@ export default function Booking() {
           const data = await res.json();
           if (data.fee != null) { setGeoDistance(data.distanceKm); setGeoFee(data.fee); setGeoFeeLoading(false); return; }
         }
-      } catch {}
+      } catch { /* ignoré volontairement */ }
       // Fallback Haversine
       if (agencyFull) {
         const pPos = await geocodeAddress(agencyFull);

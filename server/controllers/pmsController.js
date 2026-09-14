@@ -81,7 +81,8 @@ function calcTotals(data) {
   // laisser passer tels quels (sinon un appel direct à l'API, hors UI, peut
   // fixer un total arbitraire — bug réel trouvé en audit).
   if (!data.lines?.length) {
-    const { subtotal, discountAmount, taxAmount, total, ...rest } = data;
+    // eslint-disable-next-line no-unused-vars -- exclusion : montants toujours recalculés serveur
+  const { subtotal, discountAmount, taxAmount, total, ...rest } = data;
     return rest;
   }
   const subtotal      = data.lines.reduce((s, l) => s + (Number(l.qty) || 1) * (Number(l.unitPrice) || 0), 0);
@@ -106,8 +107,8 @@ async function getPartnerBookings(partnerId, businessId) {
     driverFilter.business  = businessId;
   }
   const [vehicles, drivers] = await Promise.all([
-    Vehicle.find(vehicleFilter).select("_id"),
-    Driver.find(driverFilter).select("_id"),
+    Vehicle.find(vehicleFilter).limit(0).select("_id"),
+    Driver.find(driverFilter).limit(0).select("_id"),
   ]);
   const vehicleIds = vehicles.map((v) => v._id);
   const driverIds  = drivers.map((d) => d._id);
@@ -124,7 +125,7 @@ async function getPartnerBookings(partnerId, businessId) {
       ...(vehicleIds.length ? [{ vehicle: { $in: vehicleIds } }] : []),
       ...(driverIds.length  ? [{ driver:  { $in: driverIds } }]  : []),
     ],
-  }).lean();
+  }).limit(0) /* statistiques partenaire : exactes */.lean();
 }
 
 // Échappe les caractères spéciaux pour une regex sûre
@@ -182,10 +183,10 @@ export async function getPMSOverview(req, res) {
     const vehicleFilter = { owner: partnerId, ...(businessId ? { business: businessId } : {}) };
 
     const [leads, quotes, bookings, vehicles, showroom] = await Promise.all([
-      Lead.find(leadFilter).lean(),
-      Quote.find(quoteFilter).lean(),
+      Lead.find(leadFilter).limit(0).lean(), // statistiques : exactes
+      Quote.find(quoteFilter).limit(0).lean(),
       getPartnerBookings(partnerId, businessId),
-      Vehicle.find(vehicleFilter).select("-images").lean(),
+      Vehicle.find(vehicleFilter).limit(0).select("-images").lean(),
       PartnerShowroom.findOne({ partnerId }).lean(),
     ]);
 
@@ -686,6 +687,7 @@ export async function getPublicShowroom(req, res) {
     // phone/whatsapp/email étaient renvoyés bruts via le spread du document
     // showroom complet — retirés explicitement, le frontend doit utiliser le
     // service client centralisé (customerServiceContact.js) ou le chat supervisé.
+    // eslint-disable-next-line no-unused-vars -- exclusion : contacts jamais exposés
     const { phone, whatsapp, email, ...safeShowroom } = showroom;
     res.json({ ...safeShowroom, partnerInfo: partner });
   } catch (err) {
@@ -736,8 +738,8 @@ export async function getPerformanceScore(req, res) {
     const partnerId = req.user._id;
 
     const [leads, quotes, bookings] = await Promise.all([
-      Lead.find({ partnerId }).lean(),
-      Quote.find({ partnerId }).lean(),
+      Lead.find({ partnerId }).limit(0).lean(),
+      Quote.find({ partnerId }).limit(0).lean(),
       getPartnerBookings(partnerId),
     ]);
 

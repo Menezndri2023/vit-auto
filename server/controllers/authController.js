@@ -627,7 +627,7 @@ export const oauthGoogle = async (req, res) => {
       audience: process.env.GOOGLE_OAUTH_CLIENT_ID,
     });
     payload = ticket.getPayload();
-  } catch (err) {
+  } catch {
     return res.status(401).json({ message: "Authentification Google invalide ou expirée." });
   }
 
@@ -1081,7 +1081,7 @@ export const devVerify = async (req, res) => {
     const token = signJWT(user);
     logger.info("[DEV] Email vérifié manuellement", { email: user.email });
     res.json({ message: `Email vérifié pour ${user.email}. Vous pouvez vous connecter.`, token, user: safeUser(user) });
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

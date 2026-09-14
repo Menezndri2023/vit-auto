@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import { useCurrency } from "../context/CurrencyContext";
@@ -15,7 +15,6 @@ export default function Cart() {
   const { items, removeItem, updateItemDates, clear } = useCart();
   const { fmt } = useCurrency();
   const { error: toastError } = useToast();
-  const navigate = useNavigate();
 
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState(null); // [{ vehicleId, ok, message, title }]

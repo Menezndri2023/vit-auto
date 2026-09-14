@@ -277,3 +277,12 @@ Tout ce qui précède est construit et vérifié :
 - Fait (2026-09-12) : règle d'attribution (90 jours) et commission « vente » (5 % / 3 % fondateur)
   inscrites dans les conditions partenaires (§5) et l'Accord fondateur (article 3.4) ; configurer WhatsApp (`WHATSAPP_TOKEN`/`WHATSAPP_PHONE_ID`)
   pour que les relances partenaires partent aussi par ce canal (silencieux sinon).
+
+### Robustesse (2026-09-13)
+- Vente confirmée → les autres demandes ouvertes sur le véhicule passent `LOST`
+  (« véhicule vendu à un autre client »), clients prévenus.
+- Dossier sans réponse du vendeur depuis `salesLead.staleAfterDays` (14) ou fenêtre
+  d'attribution écoulée sans vente → `LOST` par le planificateur.
+- Toute requête `find()` sans limite est plafonnée à 2 000 documents
+  (`server/utils/plafondRequetes.js`) ; les statistiques et le funnel utilisent
+  `.limit(0)` (exact). Un plafond atteint remonte à Sentry : c'est le signal pour paginer.

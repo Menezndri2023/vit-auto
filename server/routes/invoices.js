@@ -31,7 +31,7 @@ router.get("/:id",           vid, authenticate,               async (req, res) =
       return res.status(403).json({ message: "Accès refusé." });
     }
     res.json({ invoice });
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Erreur serveur." });
   }
 });
@@ -46,7 +46,7 @@ router.get("/:id/pdf",       vid, authenticate,               async (req, res) =
     const isOwner = invoice.partner?._id?.toString() === req.user._id.toString();
     if (req.user.role !== "admin" && !isOwner) return res.status(403).json({ message: "Accès refusé." });
     generateInvoicePDF(invoice, res);
-  } catch (err) { res.status(500).json({ message: "Erreur génération PDF." }); }
+  } catch { res.status(500).json({ message: "Erreur génération PDF." }); }
 });
 
 // ── Admin ─────────────────────────────────────────────────

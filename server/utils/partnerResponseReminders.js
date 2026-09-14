@@ -107,7 +107,7 @@ export async function checkPartnerResponseTimeouts() {
       }
       const ownerId = resolveOwnerId(booking);
       if (ownerId) {
-        await User.find({ role: "admin", isActive: true }).select("_id").lean().then((admins) =>
+        await User.find({ role: "admin", isActive: true }).limit(0).select("_id").lean().then((admins) =>
           Promise.all(admins.map((a) => notify(a._id, "system", "⚠️ Expiration partenaire",
             `Réservation ${booking.reference} auto-annulée — le partenaire n'a jamais répondu.`, "/admin")))
         ).catch(nonBloquant("partnerResponseReminders"));

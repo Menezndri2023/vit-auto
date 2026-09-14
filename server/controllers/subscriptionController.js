@@ -303,7 +303,7 @@ export const getPartnerInsights = async (req, res) => {
       });
     }
 
-    const annonces = await Vehicle.find({ owner: req.user._id, status: "approved" })
+    const annonces = await Vehicle.find({ owner: req.user._id, status: "approved" }).limit(0)
       .select("title ville vues pricePerDay priceForSale type images description caution dureeMinLocation")
       .lean();
     if (!annonces.length) return res.json({ annonces: [], resume: null });
@@ -333,7 +333,7 @@ export const getPartnerInsights = async (req, res) => {
     const villes = [...new Set(annonces.map((a) => a.ville).filter(Boolean))];
     const medianes = new Map();
     for (const ville of villes) {
-      const prix = (await Vehicle.find({ ville, status: "approved", available: true, type: "location", pricePerDay: { $gt: 0 } })
+      const prix = (await Vehicle.find({ ville, status: "approved", available: true, type: "location", pricePerDay: { $gt: 0 } }).limit(0)
         .select("pricePerDay").lean()).map((v) => v.pricePerDay).sort((a, b) => a - b);
       if (prix.length) medianes.set(ville, prix[Math.floor(prix.length / 2)]);
     }

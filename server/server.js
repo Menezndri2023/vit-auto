@@ -1,3 +1,6 @@
+// Plafond global des find() sans limite — DOIT rester le premier import
+// (voir utils/plafondRequetes.js : s'applique aux schémas compilés ensuite).
+import "./utils/plafondRequetes.js";
 import { pathToFileURL } from "url";
 import express from "express";
 import compression from "compression";
@@ -1034,11 +1037,11 @@ const startServer = async () => {
         try {
           const { closeQueues } = await import("./queue/index.js");
           await closeQueues();
-        } catch (_) {}
+        } catch { /* ignoré volontairement */ }
         try {
           const mongoose = (await import("mongoose")).default;
           await mongoose.connection.close();
-        } catch (_) {}
+        } catch { /* ignoré volontairement */ }
         process.exit(0);
       });
       setTimeout(() => { logger.error("Timeout shutdown — force exit"); process.exit(1); }, 30000);

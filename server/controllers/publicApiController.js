@@ -133,7 +133,7 @@ export const apiListBookings = async (req, res) => {
     // Les réservations n'ont pas de champ « propriétaire » : elles se rattachent
     // au partenaire par le véhicule. Sans cette résolution préalable, filtrer
     // directement exposerait les réservations de toute la plateforme.
-    const ids = (await Vehicle.find({ owner: req.apiOwner._id }).select("_id").lean()).map((v) => v._id);
+    const ids = (await Vehicle.find({ owner: req.apiOwner._id }).limit(0).select("_id").lean()).map((v) => v._id);
     if (!ids.length) return res.json({ total: 0, limit: limite, offset: saut, data: [] });
 
     const filtre = { vehicle: { $in: ids } };

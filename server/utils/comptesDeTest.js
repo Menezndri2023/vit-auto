@@ -24,7 +24,7 @@ export const CLAUSE_COMPTE_DE_TEST = {
 export async function idsComptesDeTest() {
   const enCache = cacheGet(CLE_CACHE);
   if (enCache) return enCache;
-  const ids = (await User.find(CLAUSE_COMPTE_DE_TEST).select("_id").lean()).map((u) => u._id);
+  const ids = (await User.find(CLAUSE_COMPTE_DE_TEST).limit(0).select("_id").lean()).map((u) => u._id);
   cacheSet(CLE_CACHE, ids, TTL_MS);
   return ids;
 }

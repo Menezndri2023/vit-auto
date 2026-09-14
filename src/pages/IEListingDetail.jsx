@@ -572,7 +572,7 @@ function DirectPurchaseModal({ listing, onClose, onSuccess }) {
 export default function IEListingDetail() {
   const { id }        = useParams();
   const navigate      = useNavigate();
-  const { user, token } = useAuth();
+  const { user } = useAuth();
 
   const [listing,     setListing]     = useState(null);
   const [loading,     setLoading]     = useState(true);

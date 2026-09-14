@@ -349,7 +349,7 @@ const Catalogue = () => {
         setIeListings(list);
         setIeTotal(d.total || list.length);
       }
-    } catch {}
+    } catch { /* ignoré volontairement */ }
     setIeLoading(false);
   }, [ieSource, ieSearch, ieSortKey, catalogCountry, ieMaxPrice, rateFromUSD]);
 

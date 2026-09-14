@@ -579,7 +579,7 @@ export const getBookingPayment = async (req, res) => {
     if (!isOwner && !isAdmin) return res.status(403).json({ message: "Accès refusé." });
 
     res.json({ payment: booking.payment || null });
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

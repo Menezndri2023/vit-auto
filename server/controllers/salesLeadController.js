@@ -119,7 +119,7 @@ export const getPartnerStats = async (req, res) => {
     const filter = partnerFilter(req);
     delete filter.status;
     filter.status = { $nin: ["NEW", "QUALIFYING"] };
-    const leads = await SalesLead.find(filter).select("status requestType milestones sla sale commission").lean();
+    const leads = await SalesLead.find(filter).limit(0).select("status requestType milestones sla sale commission").lean(); // limit(0) : statistiques exactes, jamais plafonnées
     const stats = computeStats(leads);
     res.json({ stats });
   } catch (err) { fail(res, err, "getPartnerStats"); }
@@ -245,7 +245,7 @@ export const adminFunnel = async (req, res) => {
       if (req.query.from) filter.createdAt.$gte = new Date(req.query.from);
       if (req.query.to)   filter.createdAt.$lte = new Date(req.query.to);
     }
-    const leads = await SalesLead.find(filter).select("status requestType milestones sla sale commission qualification").lean();
+    const leads = await SalesLead.find(filter).limit(0).select("status requestType milestones sla sale commission qualification").lean(); // funnel exact
     // Funnel cumulatif : un lead vendu a aussi été une demande, un essai, une
     // opportunité — chaque étape compte les leads qui l'ont ATTEINTE.
     const reached = {

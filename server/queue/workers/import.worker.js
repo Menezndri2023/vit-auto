@@ -39,7 +39,7 @@ export async function processImportJob(job) {
 
   switch (type) {
     case "step_transition": {
-      const { newStep, triggerUserId, note } = data;
+      const { newStep, note } = data;
       const IETransaction = (await import("../../models/IETransaction.js")).default;
       const tx = await IETransaction.findById(transactionId);
       if (!tx) throw new Error(`Transaction ${transactionId} introuvable`);

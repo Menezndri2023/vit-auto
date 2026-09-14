@@ -401,7 +401,7 @@ async function rangsParProprietaire() {
   const abonnements = await Subscription.find({
     plan: { $ne: "free" }, "planDetails.isActive": true,
     "planDetails.endDate": { $gt: new Date() },
-  }).select("vendor plan planDetails").lean();
+  }).limit(0).select("vendor plan planDetails").lean();
 
   const rangs = new Map();
   for (const s of abonnements) {

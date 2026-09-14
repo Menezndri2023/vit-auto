@@ -150,7 +150,7 @@ function StatusDonut({ bookings }) {
 }
 
 /* ── Top véhicules ── */
-function TopVehicles({ vehicles, bookings, isAdmin, fmt }) {
+function TopVehicles({ bookings, isAdmin, fmt }) {
   const ranked = useMemo(() => {
     const map = {};
     bookings.forEach((b) => {

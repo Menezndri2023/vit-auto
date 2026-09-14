@@ -6,7 +6,7 @@ function fmt(d) {
 }
 
 export function reservationCreatedTemplate({ firstName, reservation, vehicleName, destCountry, dashboardUrl, country }, trackingPixel = "") {
-  const { reference, createdAt, status } = reservation || {};
+  const { reference, createdAt } = reservation || {};
   const safeVehicleName = escapeHtml(vehicleName);
 
   const body = `

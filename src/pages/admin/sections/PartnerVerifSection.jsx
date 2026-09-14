@@ -25,7 +25,7 @@ function TrustScoreRing({ score }) {
   );
 }
 
-export function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading, pvFilter, setPvFilter, pvDetail, setPvDetail, pvCreateModal, setPvCreateModal, pvCreateForm, setPvCreateForm, pvSaving, setPvSaving, pvCriterionLoading, setPvCriterionLoading, users, onOpenTrustOverview, onRefresh, showToast }) {
+export function PartnerVerifSection({ headers, pvList, pvStats, pvLoading, pvFilter, setPvFilter, pvDetail, setPvDetail, pvCreateModal, setPvCreateModal, pvCreateForm, setPvCreateForm, pvSaving, setPvSaving, pvCriterionLoading, setPvCriterionLoading, users, onOpenTrustOverview, onRefresh, showToast }) {
   const { COUNTRIES_CONFIG } = useCurrency();
   const [detailTab, setDetailTab] = useState("dossier");
   const [editInfoMode, setEditInfoMode] = useState(false);
@@ -226,8 +226,7 @@ export function PartnerVerifSection({ token, headers, pvList, pvStats, pvLoading
               </td></tr>
             )}
             {pvList.map((pv) => {
-              const verified = CRITERIA_CONFIG.filter((c) => pv.criteria?.[c.key]?.verified).length;
-              const sl = STATUS_PV_CONFIG[pv.status] || STATUS_PV_CONFIG.en_cours;
+                        const sl = STATUS_PV_CONFIG[pv.status] || STATUS_PV_CONFIG.en_cours;
               const tl = TRUST_LEVEL_CONFIG[pv.trustLevel] || TRUST_LEVEL_CONFIG.non_verifie;
               return (
                 <tr key={pv._id} style={{ cursor: "pointer" }} onClick={() => openDetail(pv.userId?._id || pv.userId)}>

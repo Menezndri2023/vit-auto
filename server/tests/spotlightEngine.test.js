@@ -98,7 +98,9 @@ describe("Rotation", () => {
   });
 
   it("est stable dans la journée", async () => {
-    const t = new Date();
+    // Heure FIXE (midi) : avec `new Date()`, ce test échouait entre 23 h et
+    // minuit — t + 1 h tombait le lendemain (vu en suite complète le 2026-09-13).
+    const t = new Date(); t.setHours(12, 0, 0, 0);
     expect(jourDeRotation(t)).toBe(jourDeRotation(new Date(t.getTime() + 3600 * 1000)));
   });
 });

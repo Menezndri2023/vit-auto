@@ -22,7 +22,6 @@ const VitAutoLogo = ({
   const navy   = variant === "white" ? "#ffffff" : "#162040";
   const orange = "#f47d20";
 
-  const textNavy  = navy;
   const borderCol = navy;
 
   return (

@@ -26,7 +26,7 @@ describe("pdf.worker — email LOI/Accord prêts à signer", () => {
         sendEmail: true,
         data: {
           userId: "user123",
-          partnerEmail: "partner@example.test",
+          partnerEmail: "partner@vitauto-fixtures.fr",
           partnerName: "Jean Dupont",
           companyName: "Jean Dupont SARL",
           loiContent: "Contenu de test de la LOI",
@@ -54,7 +54,7 @@ describe("pdf.worker — email LOI/Accord prêts à signer", () => {
         sendEmail: true,
         data: {
           userId: "user123",
-          partnerEmail: "partner@example.test",
+          partnerEmail: "partner@vitauto-fixtures.fr",
           partnerName: "Jean Dupont",
           loiContent: "Contenu de test",
           referenceNumber: "VA-FP-2026-998",
@@ -78,7 +78,7 @@ describe("pdf.worker — email LOI/Accord prêts à signer", () => {
         sendEmail: true,
         data: {
           userId: "user123",
-          partnerEmail: "partner@example.test",
+          partnerEmail: "partner@vitauto-fixtures.fr",
           partnerName: "Marie Export",
           companyName: "Marie Export SARL",
           agreementContent: "Contenu de test de l'accord",

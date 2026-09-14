@@ -14,7 +14,6 @@ import { resolveImportOrigin } from "../constants/importOrigins";
 import TestDriveRequestModal from "../components/TestDriveRequest/TestDriveRequestModal";
 import styles from "./VehicleDetails.module.css";
 
-const fmtN = (n) => n != null ? Number(n).toLocaleString("fr-FR") : "—";
 const fmtInspDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" }) : null;
 const RATING_LABEL = { excellent: "Excellent", bon: "Bon", moyen: "Moyen", mauvais: "Mauvais", na: "N/A" };
 const RATING_COLOR = { excellent: "#10b981", bon: "#3b82f6", moyen: "#f59e0b", mauvais: "#ef4444", na: "#94a3b8" };
@@ -122,7 +121,7 @@ function InspectionSection({ vehicleId }) {
   );
 }
 
-function LeasingCard({ leasing, priceForSale, vehicleId, navigate, fmt, t }) {
+function LeasingCard({ leasing, fmt, t }) {
   const totalEstime = (leasing.apportInitial || 0) + (leasing.mensualite || 0) * (leasing.duree || 36);
   return (
     <div className={styles.leasingCard}>

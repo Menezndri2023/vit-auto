@@ -458,7 +458,7 @@ export const updatePartnerType = async (req, res) => {
     doc.partnerType = partnerType;
     await doc.save();
     res.json({ success: true, onboarding: doc.toObject({ virtuals: true }) });
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -596,7 +596,7 @@ export const submitApplication = async (req, res) => {
       onboardingId: doc._id,
     }).catch(nonBloquant("partnerOnboardingController"));
 
-    const admins = await User.find({ role: "admin", isActive: true }).select("_id").lean();
+    const admins = await User.find({ role: "admin", isActive: true }).limit(0).select("_id").lean();
     for (const admin of admins) {
       await notify(admin._id,
         "📋 Nouvelle candidature Founding Partner",
@@ -662,7 +662,7 @@ export const signLOI = async (req, res) => {
       loiRef:      doc.referenceNumber,
     }).catch((e) => logger.error("dispatch.loiSigned:", e.message));
 
-    const admins = await User.find({ role: "admin", isActive: true }).select("_id").lean();
+    const admins = await User.find({ role: "admin", isActive: true }).limit(0).select("_id").lean();
     for (const admin of admins) {
       await notify(admin._id, "LOI signée",
         chained
@@ -875,7 +875,7 @@ export const adminStats = async (req, res) => {
       byStatus:  Object.fromEntries(byStatus.map((x) => [x._id, x.count])),
       byType:    Object.fromEntries(byType.map((x)   => [x._id, x.count])),
     });
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -891,7 +891,7 @@ export const adminGetOne = async (req, res) => {
       .lean({ virtuals: true });
     if (!doc) return res.status(404).json({ message: "Dossier introuvable." });
     res.json({ onboarding: doc });
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -1156,7 +1156,7 @@ export const adminReject = async (req, res) => {
     );
 
     res.json({ success: true, status: "rejete" });
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -1231,7 +1231,7 @@ export const adminUpdateStatus = async (req, res) => {
 
     await addAudit(doc._id, "STATUT_MODIFIE", req.user.id, `Statut → ${status}${note ? ` (${note})` : ""}`);
     res.json({ success: true, status });
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
@@ -1401,7 +1401,7 @@ export const signByToken = async (req, res) => {
         }).catch((e) => logger.error("dispatch.loiSigned:", e.message));
       }
 
-      const admins = await User.find({ role: "admin", isActive: true }).select("_id").lean();
+      const admins = await User.find({ role: "admin", isActive: true }).limit(0).select("_id").lean();
       for (const admin of admins) {
         await notify(admin._id, "LOI signée (lien sécurisé)",
           chained
@@ -1456,7 +1456,7 @@ export const signByToken = async (req, res) => {
         }).catch((e) => logger.error("dispatch.agreementSigned:", e.message));
       }
 
-      const admins = await User.find({ role: "admin", isActive: true }).select("_id").lean();
+      const admins = await User.find({ role: "admin", isActive: true }).limit(0).select("_id").lean();
       for (const admin of admins) {
         await notify(admin._id, "Accord signé (lien sécurisé)",
           `${doc.companyInfo?.legalName} (${doc.referenceNumber}) a signé l'accord. Partenaire Fondateur activé.`);

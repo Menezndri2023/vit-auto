@@ -320,7 +320,7 @@ export const getUnreadCount = async (req, res) => {
     const chats = await Chat.find({ participants: myId });
     const total = chats.reduce((sum, c) => sum + (c.unreadCount?.get?.(myId) || 0), 0);
     res.json({ unread: total });
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

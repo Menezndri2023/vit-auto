@@ -28,6 +28,7 @@ export const getSpotlight = async (req, res) => {
     // `ids` (ObjectId bruts) ne sert qu'au filtre interne du catalogue : chaque
     // item porte déjà son identifiant en chaîne. L'exposer publierait deux
     // représentations du même champ, dont une que le client ne saurait pas lire.
+    // eslint-disable-next-line no-unused-vars -- `ids` sert au cache, pas à la réponse
     const { ids, ...vitrine } = await vitrineEnCache(emplacement, { country, type });
     res.json(vitrine);
   } catch (err) {

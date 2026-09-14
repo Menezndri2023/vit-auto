@@ -4,7 +4,6 @@ import VehicleCard from "../components/VehicleCard/VehicleCard";
 import ReportButton from "../components/ReportButton/ReportButton";
 import { getCustomerServiceContact } from "../utils/customerServiceContact";
 
-const fmtNum = (n) => Number(n || 0).toLocaleString("fr-FR");
 
 // ── Score donut ────────────────────────────────────────────────────────────────
 const ScoreDonut = ({ score = 0 }) => {

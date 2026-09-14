@@ -10,6 +10,24 @@ import { emailVerificationRequiredForKyc } from "../utils/emailVerificationRequi
 import { encryptField, decryptField, hmacIndex } from "../utils/fieldEncryption.js";
 import { captureException } from "../config/sentry.js";
 import { unpublishPartnerListings } from "../utils/partnerListings.js";
+import { uploadDocument, isImageKitConfigured, FOLDERS } from "../config/imagekit.js";
+
+// ── Dépôt d'une pièce (recto/verso/selfie/permis) sur ImageKit PRIVÉ ────────
+// Les pièces déjà en base ont été sorties des documents User (migration du
+// 2026-09-12 : 43 Mo → 0,1 Mo) ; ce chemin d'écriture continuait pourtant de
+// stocker le base64 chiffré, réintroduisant le problème à chaque nouveau
+// dossier. On dépose désormais le fichier dans un dossier privé (fichier
+// « isPrivateFile », URL signée à la lecture par utils/signerDocuments.js) et
+// on ne chiffre plus que l'URL. Sans ImageKit configuré (dev, tests) ou en cas
+// d'échec de dépôt, on retombe sur l'ancien stockage : un dossier ne doit
+// jamais être perdu parce que le CDN est indisponible. L'OCR (Tesseract côté
+// client) a déjà lu le data URI avant l'envoi, rien ne change pour lui.
+async function deposerPiece(dataUri, folder, nom) {
+  if (!dataUri) return null;
+  if (!isImageKitConfigured()) return dataUri;
+  const r = await uploadDocument(dataUri, folder, nom);
+  return r?.url || dataUri;
+}
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 import { nonBloquant } from "../utils/nonBloquant.js";
 
@@ -68,7 +86,6 @@ export const submitKyc = async (req, res) => {
       ocrData,         // { firstName, lastName, birthDate, gender, documentNumber, expiryDate, issuingCountry, documentType, rawOcrText, ocrConfidence }
       documentType,    // type sélectionné par l'utilisateur
       frontImageHash,  // SHA-256 de l'image recto
-      backImageHash,   // SHA-256 de l'image verso
       selfieUploaded,  // boolean
       faceMatchScore,  // score 0–100 de correspondance visage-document
       // Images base64 (stockées pour le partenaire)
@@ -250,10 +267,11 @@ export const submitKyc = async (req, res) => {
         "identity.status":  newKycStatus === "VERIFIE" ? "verified" : "pending",
         "identity.submittedAt": new Date(),
         "identity.verifiedAt":  newKycStatus === "VERIFIE" ? new Date() : null,
-        // Images du document — chiffrées au repos (AES-256-GCM, voir fieldEncryption.js)
-        ...(frontImageData ? { "identity.frontImage": encryptField(frontImageData) } : {}),
-        ...(backImageData  ? { "identity.backImage":  encryptField(backImageData)  } : {}),
-        ...(selfieData     ? { "identity.selfie":     encryptField(selfieData)     } : {}),
+        // Images du document — déposées sur ImageKit privé, URL chiffrée au
+        // repos (AES-256-GCM, voir fieldEncryption.js et deposerPiece ci-dessus)
+        ...(frontImageData ? { "identity.frontImage": encryptField(await deposerPiece(frontImageData, FOLDERS.kyc, `kyc_${req.user.id}_recto`)) } : {}),
+        ...(backImageData  ? { "identity.backImage":  encryptField(await deposerPiece(backImageData,  FOLDERS.kyc, `kyc_${req.user.id}_verso`)) } : {}),
+        ...(selfieData     ? { "identity.selfie":     encryptField(await deposerPiece(selfieData,     FOLDERS.kyc, `kyc_${req.user.id}_selfie`)) } : {}),
       },
     });
 
@@ -349,9 +367,9 @@ export const submitDriverLicense = async (req, res) => {
           isExpired:       isExpired,
           rawOcrText:      encryptField(licenseOcrData.rawOcrText) || null,
           processedAt:     new Date(),
-          // Images du permis — chiffrées au repos (AES-256-GCM, voir fieldEncryption.js)
-          frontImage:      encryptField(frontImageData) || null,
-          backImage:       encryptField(backImageData)  || null,
+          // Images du permis — ImageKit privé, URL chiffrée au repos (voir deposerPiece)
+          frontImage:      encryptField(await deposerPiece(frontImageData, FOLDERS.driverDocs, `permis_${req.user.id}_recto`)) || null,
+          backImage:       encryptField(await deposerPiece(backImageData,  FOLDERS.driverDocs, `permis_${req.user.id}_verso`)) || null,
         },
       },
     });

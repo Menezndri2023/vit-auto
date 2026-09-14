@@ -60,7 +60,7 @@ const notify = async (userId, type, titre, message, lien) => {
 };
 
 const notifyAdmins = async (type, titre, message, lien) => {
-  const admins = await User.find({ role: "admin", isActive: true }).select("_id");
+  const admins = await User.find({ role: "admin", isActive: true }).limit(0).select("_id");
   if (!admins.length) return;
   const docs = await Notification.insertMany(admins.map((a) => ({ user: a._id, type, titre, message, lien })));
   if (global._io) {
@@ -178,7 +178,7 @@ const parseDate = (d) => {
 };
 
 // ── Créer un chat lié à la transaction ────────────────────────────────────
-const createTransactionChat = async (clientId, partnerId, txId) => {
+const createTransactionChat = async (clientId, partnerId) => {
   const chat = await Chat.create({
     participants: [clientId, partnerId],
     type: "client_partner",

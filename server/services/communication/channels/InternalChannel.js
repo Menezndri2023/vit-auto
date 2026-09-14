@@ -35,7 +35,7 @@ const EVENT_ICONS = {
   invoice:           "🧾",
 };
 
-export async function sendInternal({ userId, type = "system", titre, message, lien, priority = "normal", metadata = {}, skipEmail = false, pushTitle, pushBody }) {
+export async function sendInternal({ userId, type = "system", titre, message, lien, priority = "normal", skipEmail = false, pushTitle, pushBody }) {
   if (!userId) {
     logger.warn("[InternalChannel] userId manquant");
     return { sent: false };

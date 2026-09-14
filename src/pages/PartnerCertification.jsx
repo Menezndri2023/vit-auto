@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
 import { api } from "../utils/apiClient";
 import styles from "./PartnerCertification.module.css";
 
@@ -105,7 +104,6 @@ function MultiCheck({ label, options, value = [], onChange }) {
 
 // ── Composant principal ───────────────────────────────────────────────────────
 export default function PartnerCertification() {
-  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [cert,          setCert]          = useState(null);
@@ -235,12 +233,6 @@ export default function PartnerCertification() {
   const levelApproved = (n) => levelStatus(n) === "approved";
   // Niveaux 2-6 requièrent que le précédent soit au moins soumis ou approuvé.
   // Niveau 7 est déjà protégé côté serveur (tous 1-6 doivent être approuvés).
-  const isLocked = (n) => {
-    if (n === 1) return false;
-    if (n === 8) return true; // attribution admin uniquement
-    return !["submitted", "approved"].includes(levelStatus(n - 1));
-  };
-
   const badge = BADGE_CONFIG[cert?.certificationBadge || "none"];
 
   if (loading) {
@@ -756,7 +748,7 @@ function Level7Form({ data, setData, onSubmit, submitting, approved, cert }) {
 }
 
 // ── NIVEAU 8 — Badge final (panel info) ──────────────────────────────────────
-function Level8Panel({ cert, badge }) {
+function Level8Panel({ cert }) {
   const l8 = cert?.level8;
   return (
     <div className={styles.level8Panel}>

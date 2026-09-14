@@ -17,7 +17,7 @@ export async function notifyAdmins(type, titre, message, lien = "/admin") {
   // notifications in-app + temps réel qu'il ne recevait plus avant. Corrigé
   // ici plutôt que par site d'appel : un admin désactivé ne doit jamais être
   // notifié, quel que soit le chemin.
-  const admins = await User.find({ role: "admin", isActive: true }).select("_id").lean();
+  const admins = await User.find({ role: "admin", isActive: true }).limit(0).select("_id").lean();
   await Promise.all(admins.map(async (a) => {
     const notif = await Notification.create({ user: a._id, type, titre, message, lien }).catch((err) => {
       logger.error("notifyAdmins (non bloquant) :", err.message);

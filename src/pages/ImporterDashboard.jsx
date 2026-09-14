@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import styles from "./ImporterDashboard.module.css";
 import { CAR_MAKES, BODY_TYPES, COUNTRIES_ALL, CURRENCIES, getCountryFlag } from "../data/autocomplete";
@@ -455,7 +455,6 @@ const TX_STATUS_CFG = {
 /* ═══════════════════════════════════════════════════════════════════════════ */
 export default function ImporterDashboard() {
   const { user, isAuthenticated, token } = useAuth();
-  const navigate = useNavigate();
 
   const [activeTab, setActiveTab]   = useState("overview");
   const [profile, setProfile]       = useState(null);
@@ -488,7 +487,7 @@ export default function ImporterDashboard() {
       if (lRes.ok)  { const d = await lRes.json();  setListings(d.listings || []); }
       if (txRes.ok) { const d = await txRes.json(); setTransactions(d.transactions || []); }
       if (aRes.ok)  { const d = await aRes.json();  setIeAnalytics(d.byCurrency || []); }
-    } catch {}
+    } catch { /* ignoré volontairement */ }
     setLoading(false);
   }, [token]);
 

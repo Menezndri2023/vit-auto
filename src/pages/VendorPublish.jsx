@@ -659,7 +659,7 @@ const VendorPublish = () => {
       ]);
       if (pRes.ok) { const d = await pRes.json(); setIeProfile(d.profile); }
       if (lRes.ok) { const d = await lRes.json(); setIeListings(d.listings || []); }
-    } catch {}
+    } catch { /* ignoré volontairement */ }
     setIeLoading(false);
   }, [token]);
 
@@ -727,7 +727,6 @@ const VendorPublish = () => {
     } catch { toastErr("Erreur réseau — réessayez."); }
   };
 
-  const pStatus    = PROFILE_STATUS[ieProfile?.status || "none"];
   const badgeIcon  = BADGE_ICONS[ieProfile?.badgeLevel || "none"];
   const isVerified = ieProfile?.status === "verified";
 

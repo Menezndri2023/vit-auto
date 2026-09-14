@@ -233,15 +233,15 @@ export const getPartnerContracts = async (req, res) => {
     }
 
     const [myVehicles, myDrivers] = await Promise.all([
-      Vehicle.find({ owner: req.user._id }).select("_id"),
-      Driver.find({ owner: req.user._id }).select("_id"),
+      Vehicle.find({ owner: req.user._id }).limit(0).select("_id"),
+      Driver.find({ owner: req.user._id }).limit(0).select("_id"),
     ]);
     const vehicleIds = myVehicles.map((v) => v._id);
     const driverIds  = myDrivers.map((d) => d._id);
 
     const myBookings = await Booking.find({
       $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }],
-    }).select("_id");
+    }).limit(0).select("_id");
 
     const bookingIds = myBookings.map((b) => b._id);
 

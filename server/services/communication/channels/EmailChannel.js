@@ -71,7 +71,7 @@ function buildProvider() {
   return _provider;
 }
 
-export async function sendEmail({ to, subject, html, text, attachments, trackingId, userId } = {}) {
+export async function sendEmail({ to, subject, html, text, attachments, trackingId } = {}) {
   const provider = buildProvider();
 
   // Injecter pixel de tracking si trackingId présent

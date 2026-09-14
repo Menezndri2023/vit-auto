@@ -30,7 +30,7 @@ export async function initQueues() {
   }
 
   // Créer toutes les queues
-  for (const [key, name] of Object.entries(QUEUE_NAMES)) {
+  for (const name of Object.values(QUEUE_NAMES)) {
     _queues[name] = new Queue(name, {
       connection:         conn,
       defaultJobOptions:  QUEUE_OPTIONS[name] || {},
@@ -267,7 +267,6 @@ export const dispatch = {
   async bookingCreated(booking, client, vehicle) {
     const bId  = booking._id?.toString() || booking.id;
     const ref  = booking.reference;
-    const partnerPhone = vehicle?.owner?.phone || null;
 
     await Promise.allSettled([
       // Email confirmation client
@@ -340,7 +339,6 @@ export const dispatch = {
   },
 
   async bookingStatusChanged(booking, client, vehicle, newStatus) {
-    const bId = booking._id?.toString() || booking.id;
     const ref = booking.reference;
 
     // `type` doit être une valeur existante de l'enum Notification.type — "booking"

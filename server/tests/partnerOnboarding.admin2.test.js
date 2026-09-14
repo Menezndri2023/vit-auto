@@ -121,7 +121,7 @@ describe("verifySigningToken", () => {
 
   it("valide un token LOI en cours et signale déjà signé le cas échéant", async () => {
     const partner = await createUser({ role: "partenaire" });
-    const doc = await PartnerOnboarding.create({
+    await PartnerOnboarding.create({
       userId: partner._id, status: "loi_envoyee", companyInfo: { legalName: "Test SARL" },
       loi: { content: "Contenu LOI", signingToken: "b".repeat(64), signingTokenExpires: new Date(Date.now() + 3600_000) },
     });

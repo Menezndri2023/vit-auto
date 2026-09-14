@@ -37,7 +37,7 @@ async function sendEmailOrThrow(payload) {
 // Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
 // Redis/BullMQ est indisponible.
 export async function processPdfJob(job) {
-  const { type, data, uploadToImageKit = false, sendEmail = false } = job.data;
+  const { type, data, sendEmail = false } = job.data;
 
   const { buildOnboardingPDFBuffer } = await import("../../utils/pdfGenerator.js");
 

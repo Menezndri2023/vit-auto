@@ -25,7 +25,7 @@ export function isConfigured() {
   return !!process.env.WAVE_API_KEY;
 }
 
-export async function createCheckout({ payment, booking, successUrl, cancelUrl }) {
+export async function createCheckout({ payment, successUrl, cancelUrl }) {
   const apiKey = process.env.WAVE_API_KEY;
   const res = await fetch(`${API_BASE}/checkout/sessions`, {
     method: "POST",

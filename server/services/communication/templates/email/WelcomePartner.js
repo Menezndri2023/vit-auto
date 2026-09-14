@@ -91,7 +91,7 @@ export function loiReadyTemplate({ firstName, companyName, loiUrl, expiresAt, co
   });
 }
 
-export function agreementReadyTemplate({ firstName, companyName, agreementUrl, expiresAt, country }, trackingPixel = "") {
+export function agreementReadyTemplate({ firstName, companyName, agreementUrl, country }, trackingPixel = "") {
   const body = `
     ${heroSection("Votre Accord Partenaire est prêt", "Dernière étape avant l'activation de votre compte", "🤝")}
     ${greeting(firstName)}

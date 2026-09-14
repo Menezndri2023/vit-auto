@@ -104,7 +104,7 @@ function QuickRequestModal({ listing, onClose }) {
 }
 
 // ── Carte annonce ──────────────────────────────────────────────────────────
-function ListingCard({ l, onContact }) {
+function ListingCard({ l }) {
   const badge = BADGE_CFG[l.importerProfile?.badgeLevel || "none"];
   return (
     <div className={styles.card}>
@@ -222,7 +222,7 @@ export default function IEListings() {
         setListings(list);
         setTotal(d.total || list.length);
       }
-    } catch {}
+    } catch { /* ignoré volontairement */ }
     setLoading(false);
   }, [page, filterCountry, searchMake, sortOrder, catalogCountry]);
 

@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import styles from "./ImporterApply.module.css";
 import { COUNTRIES_ALL, CITIES_CI, CITIES_AFRIQUE, PARTNER_REFERENCES } from "../data/autocomplete";
@@ -29,7 +29,6 @@ const STEPS = ["Entreprise", "Documents", "Activité", "Récapitulatif"];
 
 export default function ImporterApply() {
   const { user, isAuthenticated, token } = useAuth();
-  const navigate = useNavigate();
 
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -67,7 +66,6 @@ export default function ImporterApply() {
     description: "",
   });
 
-  const countryInput = useState("")[0];
   const [countryText, setCountryText] = useState("");
 
   // ── Handlers ──────────────────────────────────────────────────────────────
