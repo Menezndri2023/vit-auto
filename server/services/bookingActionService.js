@@ -136,7 +136,7 @@ export async function proposeAlternative({ bookingId, actorId, proposedVehicleId
   const booking = await Booking.findById(bookingId)
     .populate("vehicle", "owner")
     .populate("driver", "owner")
-    .populate("activity", "owner");
+    .populate("activity", "owner").populate("part", "owner");
   if (!booking) return { statusCode: 404, body: { message: "Réservation introuvable." } };
 
   // Garde fermée par défaut — voir assertOwner : refuse un acteur non identifié
@@ -247,7 +247,7 @@ export async function respondToAlternative({ bookingId, clientId, accept }) {
 // ci-dessous, construite en `if (actorId && ownerId && ...)`, s'ouvrait alors à
 // TOUT compte authentifié. Couvre désormais les trois types de support.
 function resolveOwnerId(booking) {
-  const owner = booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner;
+  const owner = booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner || booking.part?.owner;
   return owner?._id?.toString() || owner?.toString() || null;
 }
 
@@ -278,7 +278,7 @@ export async function markVehicleOnTheWay({ bookingId, actorId, source = "API" }
   const booking = await Booking.findById(bookingId)
     .populate("vehicle", "owner")
     .populate("driver", "owner")
-    .populate("activity", "owner");
+    .populate("activity", "owner").populate("part", "owner");
   if (!booking) return { statusCode: 404, body: { message: "Réservation introuvable." } };
   const denied = await assertDeliveryActor(booking, actorId);
   if (denied) return denied;
@@ -316,7 +316,7 @@ export async function markVehicleDelivered({ bookingId, actorId, source = "API" 
   const booking = await Booking.findById(bookingId)
     .populate("vehicle", "owner")
     .populate("driver", "owner")
-    .populate("activity", "owner");
+    .populate("activity", "owner").populate("part", "owner");
   if (!booking) return { statusCode: 404, body: { message: "Réservation introuvable." } };
   const denied = await assertDeliveryActor(booking, actorId);
   if (denied) return denied;

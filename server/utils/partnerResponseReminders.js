@@ -25,7 +25,7 @@ const EXPIRE_30_MS   = 30 * 60 * 1000;
 function resolveOwnerId(booking) {
   return booking.vehicle?.owner?._id?.toString()  || booking.vehicle?.owner?.toString()
     || booking.driver?.owner?._id?.toString()   || booking.driver?.owner?.toString()
-    || booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString()
+    || booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString() || booking.part?.owner?.toString()
     || null;
 }
 
@@ -33,6 +33,7 @@ function serviceTitleOf(booking) {
   return booking.vehicle?.title
     || (booking.driver ? `${booking.driver.firstName || ""} ${booking.driver.lastName || ""}`.trim() : null)
     || booking.activity?.title
+    || booking.part?.title
     || "votre annonce";
 }
 
@@ -49,7 +50,7 @@ async function findAwaitingPartnerAction(olderThanMs, notOlderThanMs) {
   return Booking.find(query)
     .populate("vehicle",  "owner title")
     .populate("driver",   "owner firstName lastName")
-    .populate("activity", "owner title");
+    .populate("activity", "owner title").populate("part", "owner title");
 }
 
 export async function checkPartnerResponseTimeouts() {

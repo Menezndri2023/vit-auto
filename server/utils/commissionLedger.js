@@ -23,7 +23,8 @@ export async function recordPartnerPayout(booking) {
     // était donc invisible pour lui comme pour l'admin.
     const ownerId = booking.vehicle?.owner?._id || booking.vehicle?.owner
       || booking.driver?.owner?._id || booking.driver?.owner
-      || booking.activity?.owner?._id || booking.activity?.owner;
+      || booking.activity?.owner?._id || booking.activity?.owner
+      || booking.part?.owner?._id || booking.part?.owner;
     if (!ownerId) return;
     if (!booking.partnerPayout || booking.partnerPayout <= 0) return;
 

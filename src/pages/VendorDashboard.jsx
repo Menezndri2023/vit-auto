@@ -16,6 +16,7 @@ import { geocodeAddress } from "../utils/geo";
 import { PARTNER_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import { LICENSE_CATEGORIES, LICENSE_CATEGORY_LABELS } from "../constants/licenseCategories";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, ACTIVITY_PRICE_UNITS, isWeatherDependent } from "../constants/activityTypes";
+import { PART_CATEGORY_LABELS, PART_CATEGORY_ICONS, PART_CONDITIONS, PART_CONDITION_LABELS, PART_SALE_MODE_LABELS, PART_SHIPPING_MODES, PART_SHIPPING_MODE_LABELS } from "../constants/spareParts";
 import { estUniquementLoisirs, couvreSecteur } from "../constants/partnerTaxonomy";
 import PartnerSectors from "../components/PartnerSectors/PartnerSectors";
 import styles from "./VendorDashboard.module.css";
@@ -75,10 +76,14 @@ const PAY_LABELS = {
    CONFIGURATION WORKFLOWS PAR TYPE DE COMMANDE VIT-AUTO
    ══════════════════════════════════════════════════════════════════════════════ */
 
+// Style des champs des modales d'édition (même rendu que la modale activité).
+const MI = { width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem", marginTop: 4 };
+
 const getOrderSubType = (order) => {
   if (order.vehicleMode === "Import/Export" || order.mode === "Import/Export") return "import_export";
   if (order.type === "leasing")   return "leasing";
   if (order.type === "chauffeur") return "chauffeur";
+  if (order.type === "piece")     return "piece";
   if (order.type === "essai")     return "vente";
   if (order.type === "location") {
     // Priorité : pickupMethod persisté en DB → GPS présent → absence de "Retrait" dans l'adresse
@@ -198,6 +203,23 @@ const ORDER_WORKFLOWS = {
     rdvPresentLabel: "Signé — Enregistrer la transaction",
     rdvAbsentLabel: "Client absent — Reporter",
   },
+  // Pièce détachée (secteur « pièces », 2026-09-14) : commande livrée. Les
+  // deux dernières étapes (expédiée / livrée) ont leur propre bloc dans la
+  // modale (suivi d'expédition, acompte) — voir ACTION "piece_progress".
+  piece: {
+    badge: "🔩 Pièce détachée · Livraison", color: "#0f766e",
+    steps: [
+      { s:"confirmed",    l:"Confirmée",        i:"✓",  c:"#059669", desc:"Commande confirmée — préparez la pièce (ou commandez-la chez votre fournisseur)" },
+      { s:"preparing",    l:"En préparation",   i:"📦", c:"#0891b2", desc:"Pièce en préparation / en cours d'importation" },
+      { s:"in_progress",  l:"Expédiée",         i:"🚚", c:"#2563eb", desc:"En cours de livraison chez le client" },
+      { s:"waiting_client_validation", l:"Livrée", i:"✋", c:"#b45309", desc:"Le client confirme la réception" },
+      { s:"completed",    l:"Terminée",         i:"🏁", c:"#475569", desc:"Réception confirmée — commande terminée" },
+    ],
+    nextBtn: {
+      confirmed: { fn:"onPrepare", label:"Pièce en préparation", icon:"📦" },
+    },
+    rdvAtStatus: null,
+  },
   import_export: {
     badge: "🌍 Import / Export", color: "#dc2626",
     steps: [
@@ -248,7 +270,9 @@ const InfoLine = ({ label, value, color, mono }) => value ? (
    ══════════════════════════════════════════════════════════════════════════════ */
 function GererModal({ order, orderDetail, detailLoading, detailError, onClose, onConfirm, onPrepare, onReady, onInProgress,
   onClientArrived, onClientAbsent, onRecordTransaction, onPartnerConfirm, onReject, onTransactionNotConcluded, onRespondToDispute, onContactClient,
-  onClaimCaution, onRateClient, commRates = DEFAULT_COMM_RATE }) {
+  onClaimCaution, onRateClient, onShipPart, onDeliverPart, commRates = DEFAULT_COMM_RATE }) {
+  // Pièce détachée : suivi d'expédition saisi à l'expédition, acompte déclaré reçu.
+  const [shipForm, setShipForm] = useState({ carrier: "", trackingNumber: "", depositReceived: false });
   // Tous les hooks AVANT tout return conditionnel (règles des hooks React)
   const { fmt: fmtXOF } = useCurrency();
   const [cautionForm, setCautionForm] = useState({ retain: false, amount: "", reason: "" });
@@ -302,6 +326,7 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
     : order.status === "client_arrived"                        ? "transaction"
     : order.status === "transaction_not_concluded"              ? "transaction_failed"
     : order.status === "waiting_client_validation"             ? "waiting"
+    : subType === "piece" && ["preparing", "in_progress"].includes(order.status) ? "piece_progress"
     : order.status === "completed"                             ? "done"
     : order.status === "cancelled"                             ? "cancelled"
     : order.status === "disputed"                              ? "disputed"
@@ -548,6 +573,16 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
                     <div className={styles.detailItem}><span className={styles.detailLabel}>Destination</span><span className={styles.detailValue}>{order.chauffeur?.destination||"—"}</span></div>
                     {order.chauffeur?.notes && <div className={styles.detailItem} style={{gridColumn:"span 2"}}><span className={styles.detailLabel}>Notes</span><span className={styles.detailValue}>{order.chauffeur.notes}</span></div>}
                   </>}
+                  {subType==="piece" && <>
+                    <div className={styles.detailItem}><span className={styles.detailLabel}>Quantité</span><span className={styles.detailValue}>{order.piece?.quantity||1} × {fmtXOF(order.piece?.unitPriceUSD||0)}</span></div>
+                    <div className={styles.detailItem}><span className={styles.detailLabel}>Mode</span><span className={styles.detailValue}>{order.piece?.saleMode==="import" ? "🌍 Importation" : "📦 Vente directe"}</span></div>
+                    <div className={styles.detailItem} style={{gridColumn:"span 2"}}><span className={styles.detailLabel}>Adresse de livraison</span><span className={styles.detailValue}>{order.piece?.delivery?.address}, {order.piece?.delivery?.ville} ({order.piece?.delivery?.country})</span></div>
+                    {order.piece?.delivery?.instructions && <div className={styles.detailItem} style={{gridColumn:"span 2"}}><span className={styles.detailLabel}>Instructions livreur</span><span className={styles.detailValue}>{order.piece.delivery.instructions}</span></div>}
+                    <div className={styles.detailItem}><span className={styles.detailLabel}>Livraison</span><span className={styles.detailValue}>{fmtXOF(order.piece?.delivery?.feeUSD||0)}{order.piece?.delivery?.distanceKm ? ` (${order.piece.delivery.distanceKm} km)` : ""}</span></div>
+                    {order.piece?.importFeesUSD > 0 && <div className={styles.detailItem}><span className={styles.detailLabel}>Frais d'importation</span><span className={styles.detailValue}>{fmtXOF(order.piece.importFeesUSD)}</span></div>}
+                    {order.piece?.depositUSD > 0 && <div className={styles.detailItem}><span className={styles.detailLabel}>Acompte</span><span className={styles.detailValue} style={{ color: order.piece.depositReceivedAt ? "#059669" : "#b45309" }}>{fmtXOF(order.piece.depositUSD)} — {order.piece.depositReceivedAt ? "reçu" : "à recevoir"}</span></div>}
+                    {order.piece?.tracking?.trackingNumber && <div className={styles.detailItem}><span className={styles.detailLabel}>Suivi</span><span className={styles.detailValue}>{order.piece.tracking.carrier || ""} {order.piece.tracking.trackingNumber}</span></div>}
+                  </>}
                   {subType==="leasing" && <>
                     <div className={styles.detailItem}><span className={styles.detailLabel}>Apport initial</span><span className={styles.detailValue}>{fmtXOF(order.leasing?.apportInitial||0)}</span></div>
                     <div className={styles.detailItem}><span className={styles.detailLabel}>Mensualité</span><span className={styles.detailValue}>{fmtXOF(order.leasing?.mensualite||0)}</span></div>
@@ -728,6 +763,39 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
                 )}
                 <li>Imprimez ou ayez sous la main le <Link to={`/contract/${order.id}`} target="_blank" rel="noopener noreferrer" style={{ color: "#2563eb", fontWeight: 600 }}>reçu de réservation</Link> — à faire signer par le client {subType === "location_agence" ? "à l'agence" : "à la livraison"}.</li>
               </ul>
+            </div>
+          )}
+
+          {/* ── Pièce détachée : expédier (suivi) puis marquer livrée ────── */}
+          {ACTION === "piece_progress" && (
+            <div className={styles.sectionCard}>
+              <div className={styles.sectionCardTitle} style={{ color: wf.color }}>
+                ⚙️ Étape en cours — {wf.steps.find(s=>s.s===order.status)?.l || "Avancement"}
+              </div>
+              <p className={styles.decisionHelp}>{wf.steps.find(s=>s.s===order.status)?.desc}</p>
+              {order.piece?.depositUSD > 0 && !order.piece?.depositReceivedAt && (
+                <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:".85rem", marginBottom:10, cursor:"pointer" }}>
+                  <input type="checkbox" checked={shipForm.depositReceived} onChange={(e) => setShipForm((f) => ({ ...f, depositReceived: e.target.checked }))} />
+                  Acompte de {fmtXOF(order.piece.depositUSD)} reçu du client
+                </label>
+              )}
+              {order.status === "preparing" ? (
+                <>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
+                    <input placeholder="Transporteur (ex : Amana, DHL)" value={shipForm.carrier} onChange={(e) => setShipForm((f) => ({ ...f, carrier: e.target.value }))}
+                      style={{ padding:"9px 12px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".88rem" }} />
+                    <input placeholder="N° de suivi (optionnel)" value={shipForm.trackingNumber} onChange={(e) => setShipForm((f) => ({ ...f, trackingNumber: e.target.value }))}
+                      style={{ padding:"9px 12px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".88rem" }} />
+                  </div>
+                  <button className={styles.nextStepBtn} onClick={() => onShipPart(order.id, shipForm)}>
+                    🚚 Pièce expédiée →
+                  </button>
+                </>
+              ) : (
+                <button className={styles.nextStepBtn} onClick={() => onDeliverPart(order.id, shipForm)}>
+                  ✋ Pièce livrée — demander la confirmation du client →
+                </button>
+              )}
             </div>
           )}
 
@@ -1593,6 +1661,12 @@ export default function VendorDashboard() {
   // Bateau...) — même principe que myDrivers/driverLoading ci-dessus.
   const [myActivities,      setMyActivities]      = useState([]);
   const [activityLoading,   setActivityLoading]   = useState(false);
+  // Pièces détachées (secteur « pièces », 2026-09-14) — voir SparePart.js
+  const [myParts,           setMyParts]           = useState([]);
+  const [partLoading,       setPartLoading]       = useState(false);
+  const [partEditModal,     setPartEditModal]     = useState(null);
+  const [partEditForm,      setPartEditForm]      = useState(null);
+  const [partEditSaving,    setPartEditSaving]    = useState(false);
   const [employmentRequests, setEmploymentRequests] = useState([]);
   const [employmentLoading,  setEmploymentLoading]  = useState(false);
   const [employmentDeclining, setEmploymentDeclining] = useState(null); // id en cours de refus
@@ -2404,6 +2478,16 @@ export default function VendorDashboard() {
     const r = await doUpdateStatus(id, "in_progress");
     if (r.ok) toastSuccess("🚀 En route !"); else toastError(r.message || "Impossible de démarrer la course.");
   }, [doUpdateStatus, toastSuccess, toastError]);
+  // Pièce détachée : expédition (suivi) et livraison — l'acompte reçu part
+  // avec le changement de statut (voir bookingController.updateBookingStatus).
+  const handleShipPart = useCallback(async (id, form = {}) => {
+    const r = await updateBookingStatus(id, "in_progress", "", null, { tracking: { carrier: form.carrier, trackingNumber: form.trackingNumber }, depositReceived: !!form.depositReceived });
+    if (r.ok) { toastSuccess("🚚 Pièce expédiée."); setTimeout(() => refreshOrders(), 800); } else toastError(r.message || "Impossible de marquer l'expédition.");
+  }, [updateBookingStatus, refreshOrders, toastSuccess, toastError]);
+  const handleDeliverPart = useCallback(async (id, form = {}) => {
+    const r = await updateBookingStatus(id, "waiting_client_validation", "", null, { depositReceived: !!form.depositReceived });
+    if (r.ok) { toastSuccess("✋ Livrée — en attente de la confirmation du client."); setTimeout(() => refreshOrders(), 800); } else toastError(r.message || "Impossible de marquer la livraison.");
+  }, [updateBookingStatus, refreshOrders, toastSuccess, toastError]);
   const handleClientArrived = useCallback(async (id) => {
     const r = await doUpdateStatus(id, "client_arrived");
     if (r.ok) toastSuccess("📍 Client arrivé."); else toastError(r.message || "Impossible d'enregistrer l'arrivée du client.");
@@ -2564,6 +2648,60 @@ export default function VendorDashboard() {
     catch { /* ignore */ }
     finally { setDriverLoading(false); }
   }, [token]);
+
+  const loadMyParts = useCallback(async () => {
+    if (!token) return;
+    setPartLoading(true);
+    try { const r = await fetch("/api/parts/mine", { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) { const d = await r.json(); setMyParts(d.parts || []); } }
+    catch { /* ignore */ }
+    finally { setPartLoading(false); }
+  }, [token]);
+  useEffect(() => { loadMyParts(); }, [loadMyParts]);
+
+  const openPartEdit = (part) => {
+    setPartEditModal(part);
+    setPartEditForm({
+      title: part.title || "", description: part.description || "", brand: part.brand || "", reference: part.reference || "",
+      condition: part.condition || "neuf", saleMode: part.saleMode || "direct",
+      priceEntry: part.priceEntered != null ? String(part.priceEntered) : String(part.price ?? ""), priceCurrency: part.priceEntryCurrency || part.currency || "USD",
+      stock: part.stock == null ? "" : String(part.stock), minOrderQty: part.minOrderQty || 1,
+      shippingMode: part.shipping?.mode || "forfait", forfaitUSD: part.shipping?.forfaitUSD ?? 0, freeAboveUSD: part.shipping?.freeAboveUSD ?? "",
+      deliveryDaysMin: part.shipping?.deliveryDaysMin ?? 1, deliveryDaysMax: part.shipping?.deliveryDaysMax ?? 5,
+      originCountry: part.importInfo?.originCountry || "", leadTimeDays: part.importInfo?.leadTimeDays || 21, importFeesUSD: part.importInfo?.feesUSD ?? 0,
+      customsIncluded: part.importInfo?.customsIncluded !== false, depositPercent: part.importInfo?.depositPercent ?? 50,
+      compatibilityText: part.compatibilityText || "", ville: part.ville || "",
+      images: Array.isArray(part.images) ? part.images : [],
+    });
+  };
+  const handleSavePartEdit = async () => {
+    if (!partEditModal || !partEditForm || !token) return;
+    const f = partEditForm;
+    const priceNum = Number(f.priceEntry);
+    if (!(priceNum > 0)) { toastError("Prix invalide."); return; }
+    if (f.images.length === 0) { toastError("Au moins une photo est requise."); return; }
+    const priceUSD = f.priceCurrency === "USD" ? priceNum : Math.round((priceNum / rateFromUSD(f.priceCurrency)) * 100) / 100;
+    setPartEditSaving(true);
+    try {
+      const r = await fetch(`/api/parts/${partEditModal._id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          title: f.title, description: f.description, brand: f.brand, reference: f.reference, condition: f.condition, saleMode: f.saleMode,
+          price: priceUSD, currency: f.priceCurrency !== "USD" ? f.priceCurrency : null, priceEntered: priceNum, priceEntryCurrency: f.priceCurrency,
+          stock: f.stock === "" ? null : Number(f.stock), minOrderQty: Number(f.minOrderQty) || 1,
+          shipping: { mode: f.shippingMode, forfaitUSD: Number(f.forfaitUSD) || 0, freeAboveUSD: f.freeAboveUSD === "" ? null : Number(f.freeAboveUSD), deliveryDaysMin: Number(f.deliveryDaysMin) || 0, deliveryDaysMax: Number(f.deliveryDaysMax) || 0, countries: partEditModal.shipping?.countries || [] },
+          importInfo: f.saleMode === "import" ? { originCountry: f.originCountry, leadTimeDays: Number(f.leadTimeDays) || 21, feesUSD: Number(f.importFeesUSD) || 0, customsIncluded: !!f.customsIncluded, depositPercent: Number(f.depositPercent) || 0 } : undefined,
+          compatibilityText: f.compatibilityText, ville: f.ville, images: f.images, thumbnail: f.images[0] || null,
+        }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.message || "Erreur serveur.");
+      toastSuccess("✅ Pièce mise à jour.");
+      setMyParts((prev) => prev.map((x) => (x._id === d.part._id ? d.part : x)));
+      setPartEditModal(null); setPartEditForm(null);
+    } catch (e) {
+      toastError(e.message || "Impossible d'enregistrer.");
+    } finally { setPartEditSaving(false); }
+  };
 
   const loadMyActivities = useCallback(async () => {
     if (!token) return;
@@ -3155,6 +3293,10 @@ export default function VendorDashboard() {
                           <div className={styles.orderDetailItem}><span>🗓️</span><span>{fmtDate(order.chauffeur?.date||order.startDate)} · {libelleDureeChauffeur(order.chauffeur)}</span></div>
                           {order.chauffeur?.lieuDepart && <div className={styles.orderDetailItem}><span>🚀</span><span>{order.chauffeur.lieuDepart} → {order.chauffeur?.destination||"?"}</span></div>}
                         </>}
+                        {subT==="piece" && <>
+                          <div className={styles.orderDetailItem}><span>🔩</span><span>{order.piece?.quantity||1} × {fmtXOF(order.piece?.unitPriceUSD||0)} · {order.piece?.saleMode==="import" ? "importation" : "en stock"}</span></div>
+                          <div className={styles.orderDetailItem}><span>🚚</span><span>{order.piece?.delivery?.ville} ({order.piece?.delivery?.country}){order.piece?.tracking?.trackingNumber ? ` · suivi ${order.piece.tracking.trackingNumber}` : ""}</span></div>
+                        </>}
                         {subT==="leasing" && <>
                           <div className={styles.orderDetailItem}><span>💰</span><span>Apport : {fmtXOF(order.leasing?.apportInitial||0)} · {order.leasing?.duree||"?"}mois</span></div>
                         </>}
@@ -3507,6 +3649,69 @@ export default function VendorDashboard() {
                       </button>
                       <button className={styles.btnSecondary} onClick={() => { setActivityBlackoutModal(act); setActivityBlackoutForm({ start: "", end: "", reason: "" }); }}>🚫 Congés</button>
                       <button className={styles.btnDanger} onClick={() => { if (confirm("Supprimer cette annonce ?")) { fetch(`/api/activities/${act._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).then(async (res) => { if (!res.ok) { const data = await res.json().catch(() => ({})); toastError(data.message || "Impossible de supprimer cette annonce."); return; } toastSuccess("Annonce activité supprimée."); setMyActivities((p) => p.filter((a) => a._id !== act._id)); }).catch(() => toastError("Erreur réseau — l'annonce n'a pas été supprimée.")); } }}>Supprimer</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          </>)}
+
+          {/* Pièces détachées (secteur « pièces ») */}
+          {(couvreSecteur(user, "pieces") || myParts.length > 0) && (<>
+          <div className={styles.sectionToolbar} style={{ marginTop: 32 }}>
+            <h2 className={styles.sectionTitle}>🔩 Mes pièces détachées ({myParts.length})</h2>
+            <Link to="/vendor/submit-part" className={styles.btnPrimary}>+ Ajouter</Link>
+          </div>
+          {partLoading ? <p className={styles.loadingMsg}>Chargement…</p> : myParts.length === 0 ? (
+            <div className={styles.emptyFull} style={{ padding: "28px 20px" }}>
+              <div className={styles.emptyIcon}>🔩</div>
+              <h3>Aucune pièce</h3>
+              <p>Publiez une pièce en stock ou importée à la commande depuis « Nouvelle annonce ».</p>
+            </div>
+          ) : (
+            <div className={styles.vehicleGrid}>
+              {myParts.map((part) => {
+                const sc = { approved: { l: "Validée", c: "#059669", bg: "#d1fae5" }, pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, rejected: { l: "Rejetée", c: "#dc2626", bg: "#fee2e2" }, archived: { l: "Archivée", c: "#64748b", bg: "#f1f5f9" } }[part.status || "pending"]
+                  || { l: part.status || "—", c: "#64748b", bg: "#f1f5f9" };
+                return (
+                  <div key={part._id} className={styles.vehicleCard}>
+                    <div className={styles.vehicleImgWrap} style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", fontSize: "3rem", height: 120 }}>
+                      {part.thumbnail || part.images?.[0] ? <img src={part.thumbnail || part.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (PART_CATEGORY_ICONS[part.category] || "📦")}
+                    </div>
+                    <div className={styles.vehicleCardBody}>
+                      <div className={styles.vehicleCardTop}>
+                        <h3 className={styles.vehicleName}>{part.title}</h3>
+                        <span className={styles.vehicleStatusBadge} style={{ background: sc.bg, color: sc.c }}>{sc.l}</span>
+                      </div>
+                      <div className={styles.vehicleTags}>
+                        <span className={styles.vTag}>{PART_CATEGORY_LABELS[part.category] || part.category}</span>
+                        <span className={styles.vTag}>{part.saleMode === "import" ? "🌍 Importation" : "📦 En stock"}</span>
+                        {part.reference && <span className={styles.vTag}>réf. {part.reference}</span>}
+                        {part.stock != null && <span className={styles.vTag} style={part.stock === 0 ? { color: "#dc2626" } : undefined}>{part.stock} en stock</span>}
+                        {part.ventes > 0 && <span className={styles.vTag}>{part.ventes} vendue(s)</span>}
+                      </div>
+                      <div className={styles.vehiclePrice}>{part.price ? `${fmtXOF(part.price)} / unité` : "Prix non renseigné"}</div>
+                      {part.status === "rejected" && part.rejectionReason && (
+                        <div style={{ fontSize: ".78rem", color: "#dc2626", marginTop: 4 }}>Motif : {part.rejectionReason}</div>
+                      )}
+                    </div>
+                    <div className={styles.vehicleCardActions}>
+                      <button className={styles.btnSecondary} onClick={() => openPartEdit(part)}>✏️ Modifier</button>
+                      <button className={styles.btnSecondary}
+                        onClick={() => {
+                          fetch(`/api/parts/${part._id}`, {
+                            method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                            body: JSON.stringify({ manuallyPaused: !part.manuallyPaused }),
+                          }).then(async (res) => {
+                            if (!res.ok) { toastError("Impossible de mettre à jour."); return; }
+                            const data = await res.json();
+                            setMyParts((p) => p.map((x) => (x._id === part._id ? (data.part || data) : x)));
+                          }).catch(() => toastError("Erreur réseau."));
+                        }}>
+                        {part.manuallyPaused ? "▶️ Réactiver" : "⏸️ Mettre en pause"}
+                      </button>
+                      <button className={styles.btnDanger} onClick={() => { if (confirm("Supprimer cette annonce ?")) { fetch(`/api/parts/${part._id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).then(async (res) => { const data = await res.json().catch(() => ({})); if (!res.ok) { toastError(data.message || "Impossible de supprimer cette annonce."); return; } toastSuccess(data.archived ? "Annonce archivée (des commandes y font référence)." : "Annonce supprimée."); if (data.archived) loadMyParts(); else setMyParts((p) => p.filter((x) => x._id !== part._id)); }).catch(() => toastError("Erreur réseau — l'annonce n'a pas été supprimée.")); } }}>Supprimer</button>
                     </div>
                   </div>
                 );
@@ -3977,6 +4182,8 @@ export default function VendorDashboard() {
           onContactClient={handleContactClient}
           onRateClient={handleRateClient}
           onClaimCaution={handleClaimCaution}
+          onShipPart={handleShipPart}
+          onDeliverPart={handleDeliverPart}
         />
       )}
 
@@ -4596,6 +4803,108 @@ export default function VendorDashboard() {
               <button className={styles.btnAccept} disabled={driverEditSaving} onClick={handleSaveDriverEdit}>
                 {driverEditSaving ? "Enregistrement…" : "Enregistrer"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {partEditModal && partEditForm && (
+        <div className={styles.modalBackdrop} onClick={() => { setPartEditModal(null); setPartEditForm(null); }}>
+          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640, maxHeight: "85vh", overflowY: "auto" }}>
+            <h3>✏️ Modifier — {partEditModal.title}</h3>
+            <div style={{ display: "grid", gap: 10 }}>
+              <label style={{ fontSize: ".78rem", color: "#64748b" }}>Titre
+                <input type="text" value={partEditForm.title} onChange={(e) => setPartEditForm((p) => ({ ...p, title: e.target.value }))} style={MI} maxLength={160} />
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Fabricant
+                  <input type="text" value={partEditForm.brand} onChange={(e) => setPartEditForm((p) => ({ ...p, brand: e.target.value }))} style={MI} /></label>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Référence
+                  <input type="text" value={partEditForm.reference} onChange={(e) => setPartEditForm((p) => ({ ...p, reference: e.target.value }))} style={MI} /></label>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>État
+                  <select value={partEditForm.condition} onChange={(e) => setPartEditForm((p) => ({ ...p, condition: e.target.value }))} style={MI}>
+                    {PART_CONDITIONS.map((c) => <option key={c} value={c}>{PART_CONDITION_LABELS[c]}</option>)}
+                  </select></label>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Mode de vente
+                  <select value={partEditForm.saleMode} onChange={(e) => setPartEditForm((p) => ({ ...p, saleMode: e.target.value }))} style={MI}>
+                    {Object.entries(PART_SALE_MODE_LABELS).map(([m, l]) => <option key={m} value={m}>{l}</option>)}
+                  </select></label>
+              </div>
+              {partEditForm.saleMode === "import" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <label style={{ fontSize: ".78rem", color: "#64748b" }}>Pays d'origine
+                    <select value={partEditForm.originCountry} onChange={(e) => setPartEditForm((p) => ({ ...p, originCountry: e.target.value }))} style={MI}>
+                      <option value="">—</option>
+                      {COUNTRIES_CONFIG.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+                    </select></label>
+                  <label style={{ fontSize: ".78rem", color: "#64748b" }}>Délai (jours)
+                    <input type="number" min="1" max="120" value={partEditForm.leadTimeDays} onChange={(e) => setPartEditForm((p) => ({ ...p, leadTimeDays: e.target.value }))} style={MI} /></label>
+                  <label style={{ fontSize: ".78rem", color: "#64748b" }}>Frais d'importation (USD / commande)
+                    <input type="number" min="0" value={partEditForm.importFeesUSD} onChange={(e) => setPartEditForm((p) => ({ ...p, importFeesUSD: e.target.value }))} style={MI} /></label>
+                  <label style={{ fontSize: ".78rem", color: "#64748b" }}>Acompte (%)
+                    <input type="number" min="0" max="100" value={partEditForm.depositPercent} onChange={(e) => setPartEditForm((p) => ({ ...p, depositPercent: e.target.value }))} style={MI} /></label>
+                </div>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 10 }}>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Prix unitaire
+                  <input type="number" min="0" value={partEditForm.priceEntry} onChange={(e) => setPartEditForm((p) => ({ ...p, priceEntry: e.target.value }))} style={MI} /></label>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Devise
+                  <select value={partEditForm.priceCurrency} onChange={(e) => setPartEditForm((p) => ({ ...p, priceCurrency: e.target.value }))} style={MI}>
+                    {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                  </select></label>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Stock
+                  <input type="number" min="0" value={partEditForm.stock} placeholder="sur cde" onChange={(e) => setPartEditForm((p) => ({ ...p, stock: e.target.value }))} style={MI} /></label>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Qté min.
+                  <input type="number" min="1" value={partEditForm.minOrderQty} onChange={(e) => setPartEditForm((p) => ({ ...p, minOrderQty: e.target.value }))} style={MI} /></label>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10 }}>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Livraison
+                  <select value={partEditForm.shippingMode} onChange={(e) => setPartEditForm((p) => ({ ...p, shippingMode: e.target.value }))} style={MI}>
+                    {PART_SHIPPING_MODES.map((m) => <option key={m} value={m}>{PART_SHIPPING_MODE_LABELS[m]}</option>)}
+                  </select></label>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Forfait (USD)
+                  <input type="number" min="0" value={partEditForm.forfaitUSD} disabled={partEditForm.shippingMode !== "forfait"} onChange={(e) => setPartEditForm((p) => ({ ...p, forfaitUSD: e.target.value }))} style={MI} /></label>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Offerte dès (USD)
+                  <input type="number" min="0" value={partEditForm.freeAboveUSD} disabled={partEditForm.shippingMode !== "forfait"} onChange={(e) => setPartEditForm((p) => ({ ...p, freeAboveUSD: e.target.value }))} style={MI} /></label>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 2fr", gap: 10 }}>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Délai min (j)
+                  <input type="number" min="0" value={partEditForm.deliveryDaysMin} onChange={(e) => setPartEditForm((p) => ({ ...p, deliveryDaysMin: e.target.value }))} style={MI} /></label>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Délai max (j)
+                  <input type="number" min="0" value={partEditForm.deliveryDaysMax} onChange={(e) => setPartEditForm((p) => ({ ...p, deliveryDaysMax: e.target.value }))} style={MI} /></label>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Ville d'expédition
+                  <input type="text" value={partEditForm.ville} onChange={(e) => setPartEditForm((p) => ({ ...p, ville: e.target.value }))} style={MI} /></label>
+              </div>
+              <label style={{ fontSize: ".78rem", color: "#64748b" }}>Compatibilité (texte)
+                <input type="text" value={partEditForm.compatibilityText} onChange={(e) => setPartEditForm((p) => ({ ...p, compatibilityText: e.target.value }))} style={MI} maxLength={500} /></label>
+              <label style={{ fontSize: ".78rem", color: "#64748b" }}>Description
+                <textarea rows={3} value={partEditForm.description} onChange={(e) => setPartEditForm((p) => ({ ...p, description: e.target.value }))} style={MI} maxLength={4000} /></label>
+              <div>
+                <span style={{ fontSize: ".78rem", color: "#64748b" }}>Photos ({partEditForm.images.length}/8)</span>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+                  {partEditForm.images.map((img, i) => (
+                    <div key={i} style={{ position: "relative" }}>
+                      <img src={img} alt="" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8, border: "1px solid #e2e8f0" }} />
+                      <button type="button" onClick={() => setPartEditForm((p) => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))}
+                        style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", border: "none", background: "#dc2626", color: "#fff", fontSize: 11, cursor: "pointer" }}>✕</button>
+                    </div>
+                  ))}
+                  {partEditForm.images.length < 8 && (
+                    <label style={{ width: 64, height: 64, border: "1.5px dashed #cbd5e1", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 20 }}>
+                      +
+                      <input type="file" accept="image/*" multiple hidden onChange={async (e) => {
+                        const files = Array.from(e.target.files || []).slice(0, 8 - partEditForm.images.length);
+                        const lus = await Promise.all(files.map((f) => new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(f); })));
+                        setPartEditForm((p) => ({ ...p, images: [...p.images, ...lus] }));
+                      }} />
+                    </label>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 14 }}>
+              <button className={styles.btnSecondary} onClick={() => { setPartEditModal(null); setPartEditForm(null); }}>Annuler</button>
+              <button className={styles.btnAccept} disabled={partEditSaving} onClick={handleSavePartEdit}>{partEditSaving ? "Enregistrement…" : "Enregistrer"}</button>
             </div>
           </div>
         </div>

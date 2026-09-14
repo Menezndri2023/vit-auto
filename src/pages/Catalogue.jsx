@@ -12,6 +12,7 @@ import { haversineKm, getCurrentPosition } from "../utils/geo";
 import { getCountryFlag } from "../data/autocomplete";
 import { slugifyCity } from "../constants/citySlug";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, isWeatherDependent } from "../constants/activityTypes";
+import { PART_CATEGORIES, PART_CATEGORY_LABELS, PART_CATEGORY_ICONS, PART_CONDITION_LABELS } from "../constants/spareParts";
 import { useI18n } from "../context/I18nContext";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
@@ -24,9 +25,13 @@ const MODES = [
   // Section OTHERS — activités culturelles/loisir (Quad, Surf, Montgolfière,
   // Jetski, Jet privé, Bateau...) — voir Activity.js/activityController.js.
   { key: "Autres",    icon: "🎈", label: "catalogue.modeActivities" },
+  // Pièces détachées (secteur « pièces », 2026-09-14) — vente directe ou
+  // importation, toujours livrées — voir SparePart.js/partController.js.
+  { key: "Pieces",    icon: "🔩", label: "catalogue.modeParts" },
 ];
 
 const ACTIVITY_TYPE_PILLS = ["Tous", ...ACTIVITY_TYPES];
+const PART_CATEGORY_PILLS = ["Tous", ...PART_CATEGORIES];
 
 const TYPE_ICONS = {
   "Tous": "🚘", "SUV": "🚙", "Berline": "🚗", "Viano": "🚐",
@@ -208,6 +213,48 @@ export function ActivityCard({ a }) {
   );
 }
 
+/* ── Carte Pièce détachée ── */
+export function PartCard({ p }) {
+  const { t } = useI18n();
+  const isImport = p.saleMode === "import";
+  return (
+    <div className={styles.ieCard}>
+      <div className={styles.ieCardImg}>
+        {p.thumbnail || p.images?.[0]
+          ? <img src={p.thumbnail || p.images[0]} alt={p.title} loading="lazy" width="320" height="200" />
+          : <div className={styles.ieCardImgFallback}>{PART_CATEGORY_ICONS[p.category] || "📦"}</div>
+        }
+        <div className={styles.ieCardTypeBadge}>{PART_CATEGORY_ICONS[p.category] || "📦"} {PART_CATEGORY_LABELS[p.category] || p.category}</div>
+        <div className={styles.ieCardIncoterm}>{isImport ? t("catalogue.partImport") : t("catalogue.partDirect")}</div>
+      </div>
+      <div className={styles.ieCardBody}>
+        <strong className={styles.ieCardTitle}>{p.title}</strong>
+        <span className={styles.ieCardMeta}>
+          {PART_CONDITION_LABELS[p.condition] || p.condition}
+          {p.brand && <> · {p.brand}</>}
+          {p.reference && <> · réf. {p.reference}</>}
+        </span>
+        <span className={styles.ieCardMeta}>
+          📍 {p.ville || "—"} · 🚚 {p.shipping?.mode === "gratuit" ? t("catalogue.partFreeShipping") : t("catalogue.partDelivered")}
+          {p.stock != null && p.stock > 0 && <> · {p.stock} {t("catalogue.partInStock")}</>}
+          {p.noteMoyenne > 0 && <> · ⭐ {p.noteMoyenne.toFixed(1)} ({p.nombreAvis || 0})</>}
+        </span>
+        {(p.compatibility?.length > 0) && (
+          <span className={styles.ieCardMeta}>🚗 {p.compatibility.slice(0, 3).map((c) => `${c.marque}${c.modele ? ` ${c.modele}` : ""}`).join(", ")}{p.compatibility.length > 3 ? "…" : ""}</span>
+        )}
+        <div className={styles.ieCardFooter}>
+          <div>
+            <div className={styles.ieCardPrice}>
+              <PriceTag amountUSD={p.price} pinnedCurrency={p.currency} enteredAmount={p.priceEntered} enteredCurrency={p.priceEntryCurrency} />
+            </div>
+          </div>
+          <Link to={`/part/${p._id}`} className={styles.ieCardLink}>{t("catalogue.orderPart")}</Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const types         = Object.keys(TYPE_ICONS);
 const etats         = ["Tous", "Neuf", "Occasion"];
 const ETAT_LABEL_KEYS = { "Tous": "catalogue.filterAllShort", "Neuf": "catalogue.conditionNew", "Occasion": "catalogue.conditionUsed" };
@@ -233,7 +280,7 @@ const Catalogue = () => {
   });
 
   const { t } = useI18n();
-  const { vehicles, drivers, activities, refreshVehicles, vehiclesLoading } = useVehicles();
+  const { vehicles, drivers, activities, parts, refreshVehicles, vehiclesLoading } = useVehicles();
   const { fmt, catalogCountry, setCatalogCountry, COUNTRIES_CONFIG, COUNTRY_INTERNATIONAL, detectPreciseCountry, rateFromUSD } = useCurrency();
   const { success: toastSuccess, error: toastError } = useToast();
   const [detectingCountry, setDetectingCountry] = useState(false);
@@ -268,6 +315,11 @@ const Catalogue = () => {
   const [activityTypeFilter, setActivityTypeFilter] = useState(() => {
     const t = searchParams.get("activityType");
     return t && ACTIVITY_TYPES.includes(t) ? t : "Tous";
+  });
+  // Pièces détachées — catégorie
+  const [partCategoryFilter, setPartCategoryFilter] = useState(() => {
+    const c = searchParams.get("partCategory");
+    return c && PART_CATEGORIES.includes(c) ? c : "Tous";
   });
   const [maxPrice,     setMaxPrice]     = useState(300);
   // Prix max vente/import — échelle totalement différente de la location
@@ -314,6 +366,7 @@ const Catalogue = () => {
   const isImportMode    = activeMode === "Import";
   const isChauffeurMode = activeMode === "Chauffeur";
   const isOthersMode    = activeMode === "Autres";
+  const isPartsMode     = activeMode === "Pieces";
 
   const loadIEListings = useCallback(async () => {
     setIeLoading(true);
@@ -404,7 +457,7 @@ const Catalogue = () => {
   // Calculé sur le jeu de données de la section affichée, et pas globalement :
   // il peut y avoir des véhicules dans son pays mais aucune activité de loisir,
   // et chaque section doit répondre pour elle-même.
-  const jeuCourant = isChauffeurMode ? drivers : isOthersMode ? activities : vehicles;
+  const jeuCourant = isChauffeurMode ? drivers : isOthersMode ? activities : isPartsMode ? (parts || []) : vehicles;
   const repliMondial = useMemo(() => {
     if (searchTerm.trim() || catalogCountry === COUNTRY_INTERNATIONAL) return false;
     // Rien n'est encore chargé : se taire plutôt qu'annoncer un repli qui n'a
@@ -459,6 +512,26 @@ const Catalogue = () => {
     if (sortKey === "newest")     list = [...list].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
     return list;
   }, [activities, isOthersMode, searchTerm, sortKey, paysOk, nomDuPays, activityTypeFilter]);
+
+  const partsFiltered = useMemo(() => {
+    if (!isPartsMode) return [];
+    const q = searchTerm.toLowerCase();
+    let list = (parts || []).filter((p) =>
+      paysOk(p.country)
+      && (partCategoryFilter === "Tous" || p.category === partCategoryFilter)
+      && (!q
+        || (p.title || "").toLowerCase().includes(q)
+        || (p.reference || "").toLowerCase().includes(q)
+        || (p.brand || "").toLowerCase().includes(q)
+        || (p.compatibilityText || "").toLowerCase().includes(q)
+        || (p.compatibility || []).some((c) => `${c.marque} ${c.modele || ""}`.toLowerCase().includes(q))
+        || (p.ville || "").toLowerCase().includes(q)
+        || nomDuPays(p.country).toLowerCase().includes(q)));
+    if (sortKey === "price_asc")  list = [...list].sort((a, b) => (a.price || 0) - (b.price || 0));
+    if (sortKey === "price_desc") list = [...list].sort((a, b) => (b.price || 0) - (a.price || 0));
+    if (sortKey === "newest")     list = [...list].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    return list;
+  }, [parts, isPartsMode, searchTerm, sortKey, paysOk, nomDuPays, partCategoryFilter]);
 
   // Villes ayant réellement des annonces de location — alimente le maillage
   // interne vers les pages locales (/location-voiture/:ville). Sans ces liens,
@@ -540,7 +613,7 @@ const Catalogue = () => {
     return list;
   }, [vehicles, ownerFilter, activeMode, activeType, activeEtat, activeDuree, fuelType, transmission, maxPrice, maxSalePrice, searchTerm, sortKey, isImportMode, isChauffeurMode, isOthersMode, paysOk, nomDuPays, nearMeActive, userPos]);
 
-  const isStandardMode = !isImportMode && !isChauffeurMode && !isOthersMode;
+  const isStandardMode = !isImportMode && !isChauffeurMode && !isOthersMode && !isPartsMode;
 
   const activeChips = isStandardMode ? [
     activeMode !== "Tout"   && { label: t(MODES.find((m) => m.key === activeMode)?.label || "catalogue.all"), clear: () => { setActiveMode("Tout"); setParam("mode",""); } },
@@ -642,6 +715,17 @@ const Catalogue = () => {
                   style={{ flex: 1, minWidth: 160, maxWidth: 320, accentColor: "#ff4d2d" }} />
               </div>
             </>
+          ) : isPartsMode ? (
+            <div className={styles.typePillsRow}>
+              {PART_CATEGORY_PILLS.map((pc) => (
+                <button key={pc} type="button"
+                  className={`${styles.typePill} ${partCategoryFilter === pc ? styles.typePillActive : ""}`}
+                  onClick={() => { setPartCategoryFilter(pc); setParam("partCategory", pc); }}>
+                  <span>{pc === "Tous" ? "🔩" : (PART_CATEGORY_ICONS[pc] || "📦")}</span>
+                  <span>{pc === "Tous" ? t("catalogue.filterAll") : (PART_CATEGORY_LABELS[pc] || pc)}</span>
+                </button>
+              ))}
+            </div>
           ) : isOthersMode ? (
             <div className={styles.typePillsRow}>
               {ACTIVITY_TYPE_PILLS.map((at) => (
@@ -712,6 +796,8 @@ const Catalogue = () => {
                 ? t("catalogue.resultsCountDrivers", { n: chauffeursFiltered.length })
                 : isOthersMode
                 ? t("catalogue.resultsCountActivities", { n: activitiesFiltered.length })
+                : isPartsMode
+                ? t("catalogue.resultsCountParts", { n: partsFiltered.length })
                 : t("catalogue.resultsCountVehicles", { n: filtered.length })
               }
             </span>
@@ -1073,6 +1159,35 @@ const Catalogue = () => {
             ) : (
               <div className={styles.ieGrid}>
                 {activitiesFiltered.map((a) => <ActivityCard key={a._id} a={a} />)}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── MODE PIÈCES DÉTACHÉES ── */}
+        {isPartsMode && (
+          <div className={styles.ieSection}>
+            <div className={styles.ieBanner}>
+              <div className={styles.ieBannerText}>
+                <strong>{t("catalogue.partsBannerTitle")}</strong>
+                <p>{t("catalogue.partsBannerDesc")}</p>
+              </div>
+            </div>
+
+            {partsFiltered.length === 0 ? (
+              <div className={styles.ieEmpty}>
+                <span style={{ fontSize: "3rem" }}>🔩</span>
+                <h3>{searchTerm || partCategoryFilter !== "Tous" ? t("catalogue.noFilterResults") : t("catalogue.noPartsAvailable")}</h3>
+                <p>{searchTerm || partCategoryFilter !== "Tous" ? t("catalogue.tryAnotherFilter") : t("catalogue.partsComingSoon")}</p>
+                {(searchTerm || partCategoryFilter !== "Tous") && (
+                  <button className={styles.ieEmptyBtn} onClick={() => { setSearchTerm(""); setPartCategoryFilter("Tous"); setParam("partCategory", ""); }}>
+                    {t("catalogue.clearFilters")}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className={styles.ieGrid}>
+                {partsFiltered.map((p) => <PartCard key={p._id} p={p} />)}
               </div>
             )}
           </div>

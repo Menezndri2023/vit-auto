@@ -122,12 +122,12 @@ export const getOrCreateChat = async (req, res) => {
         // pourtant affiché pour une réservation d'activité (jet-ski, excursion…),
         // et renvoyait « Réservation introuvable » puisque aucun propriétaire
         // n'était résolu.
-        .populate("activity", "owner");
+        .populate("activity", "owner").populate("part", "owner");
 
       if (!booking) return notPartyErr();
 
       const clientId = booking.client?.toString();
-      const ownerId  = (booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner)?.toString();
+      const ownerId  = (booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner || booking.part?.owner)?.toString();
       if (!ownerId) return notPartyErr();
 
       if (myId === clientId)      targetId = ownerId;

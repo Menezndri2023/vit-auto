@@ -34,6 +34,8 @@ const DriverBooking         = lazy(() => import("./pages/DriverBooking"));
 const DriverEmployment      = lazy(() => import("./pages/DriverEmployment"));
 const ActivityBooking       = lazy(() => import("./pages/ActivityBooking"));
 const ActivitySubmit        = lazy(() => import("./pages/ActivitySubmit"));
+const PartOrder             = lazy(() => import("./pages/PartOrder"));
+const PartSubmit            = lazy(() => import("./pages/PartSubmit"));
 const BookingSuccess        = lazy(() => import("./pages/BookingSuccess"));
 const TestDriveLead         = lazy(() => import("./pages/TestDriveLead"));
 const Dashboard             = lazy(() => import("./pages/Dashboard"));
@@ -170,6 +172,10 @@ function AppRoutes() {
           <Route path="/activity-booking/:id"   element={
             <ErrorBoundary><ActivityBooking /></ErrorBoundary>
           } />
+          {/* Pièces détachées : fiche + commande (livraison) — secteur « pièces » */}
+          <Route path="/part/:id"               element={
+            <ErrorBoundary><PartOrder /></ErrorBoundary>
+          } />
           {/* ── Paiement (redirection fournisseur ou mode sandbox) ─── */}
           <Route path="/payment/simulate/:paymentId" element={<PaymentSimulate />} />
           <Route path="/payment/success"        element={<PaymentResult />} />
@@ -186,6 +192,7 @@ function AppRoutes() {
           {/* ── Espace partenaire (PartnerRoute = auth + rôle partenaire/admin) ── */}
           <Route path="/vendor"           element={<PartnerRoute><ErrorBoundary><VendorSubmit /></ErrorBoundary></PartnerRoute>} />
           <Route path="/vendor/submit-activity" element={<PartnerRoute><ErrorBoundary><ActivitySubmit /></ErrorBoundary></PartnerRoute>} />
+          <Route path="/vendor/submit-part" element={<PartnerRoute><ErrorBoundary><PartSubmit /></ErrorBoundary></PartnerRoute>} />
           <Route path="/vendor/dashboard" element={<PartnerRoute><ErrorBoundary><VendorDashboard /></ErrorBoundary></PartnerRoute>} />
           <Route path="/vendor/publish"   element={<PartnerRoute><ErrorBoundary><VendorPublish /></ErrorBoundary></PartnerRoute>} />
           {/* Espace Pro : statistiques, équipe, clés d'API et assistance — chaque

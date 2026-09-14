@@ -12,7 +12,7 @@
 - **Certifications** : dossiers de certification partenaire (7 niveaux) pour les comptes professionnel/entreprise.
 
 ## CATALOGUE
-- **Annonces & Validations** : sous-onglets En attente / Publiées / Rejetées / Chauffeurs / Toutes. Actions par ligne : 👁 Prévisualiser, ✏️ Modifier (modale complète : photos, tous les champs, bascule Location/Vente/**Exportation**), ✅ Approuver, ✕ Rejeter (avec motif), 🗑️ Supprimer.
+- **Annonces & Validations** : sous-onglets En attente / Publiées / Rejetées / Chauffeurs / Activités / **Pièces** / Toutes. Actions par ligne : 👁 Prévisualiser, ✏️ Modifier (modale complète : photos, tous les champs, bascule Location/Vente/**Exportation**), ✅ Approuver, ✕ Rejeter (avec motif), 🗑️ Supprimer.
 - Bouton "🖼️ Générer les vignettes manquantes" : régénère la vignette compressée des véhicules qui n'en ont pas (utile après un import en masse ou pour rattraper d'anciennes annonces).
 
 ## MARKETING & CMS

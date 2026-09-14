@@ -5,6 +5,10 @@ import Booking from "../models/Booking.js";
 import Vehicle from "../models/Vehicle.js";
 import Driver from "../models/Driver.js";
 import Activity from "../models/Activity.js";
+import SparePart from "../models/SparePart.js";
+import { calculerLivraisonPiece, fraisImportationPiece } from "../services/partShipping.js";
+import { reserverStockPiece, restituerStockPiece, enregistrerVentePiece } from "../services/partStock.js";
+import { MAX_PART_QUANTITY } from "../constants/spareParts.js";
 import Payment from "../models/Payment.js";
 import Notification from "../models/Notification.js";
 import Contract from "../models/Contract.js";
@@ -123,9 +127,11 @@ export function emitBookingUpdate(booking, eventName = "booking_updated", extra 
   const vOwner = booking.vehicle?.owner?._id?.toString()   || booking.vehicle?.owner?.toString();
   const dOwner = booking.driver?.owner?._id?.toString()    || booking.driver?.owner?.toString();
   const aOwner = booking.activity?.owner?._id?.toString()  || booking.activity?.owner?.toString();
+  const pOwner = booking.part?.owner?._id?.toString()      || booking.part?.owner?.toString();
   if (vOwner) io.to(`partner_${vOwner}`).emit(eventName, payload);
   if (dOwner && dOwner !== vOwner) io.to(`partner_${dOwner}`).emit(eventName, payload);
   if (aOwner && aOwner !== vOwner && aOwner !== dOwner) io.to(`partner_${aOwner}`).emit(eventName, payload);
+  if (pOwner && ![vOwner, dOwner, aOwner].includes(pOwner)) io.to(`partner_${pOwner}`).emit(eventName, payload);
   // → Admins
   io.to("admins").emit(eventName, payload);
 }
@@ -207,7 +213,7 @@ const ESSAI_DURATION_MS = 60 * 60 * 1000;
 // server/models/PricingConfig.js), éditable admin sans redéploiement.
 
 // ── Génération référence unique ────────────────────────────────────────────────
-const REF_PREFIX = { location: "LOC", essai: "VENTE", chauffeur: "CHAUFF", leasing: "LEAS", activite: "ACT" };
+const REF_PREFIX = { location: "LOC", essai: "VENTE", chauffeur: "CHAUFF", leasing: "LEAS", activite: "ACT", piece: "PIECE" };
 
 async function generateReference(type) {
   const year   = new Date().getFullYear();
@@ -378,6 +384,10 @@ async function creditLoyaltyPoints(userId, points) {
 }
 
 async function awardLoyaltyPoints(booking) {
+  // Point de passage commun à TOUTES les clôtures (updateBookingStatus,
+  // validateTransaction, forceComplete, résolution de litige) : une pièce
+  // détachée compte sa vente ici, pour ne pas dupliquer l'appel à chaque chemin.
+  if (booking?.type === "piece") await enregistrerVentePiece(booking).catch(nonBloquant("bookingController"));
   if (!booking?.client) return; // réservation invité sans compte — rien à créditer
   await awardReferralBonusIfEligible(booking);
   const basePoints = Math.floor(Number(booking.montantTotal) || 0);
@@ -426,7 +436,7 @@ export const createBooking = async (req, res) => {
   // visible dans le catch (scope de bloc).
   let loyaltyPointsRedeemed = 0;
   try {
-    const { type, clientInfo, vehicleId, driverId, activityId, location, essai, chauffeur, activite, leasing: leasingData, payment: paymentData } = req.body;
+    const { type, clientInfo, vehicleId, driverId, activityId, partId, location, essai, chauffeur, activite, piece, leasing: leasingData, payment: paymentData } = req.body;
 
     if (!type || !clientInfo?.firstName || !clientInfo?.email) {
       return res.status(400).json({ message: "Type et informations client requis." });
@@ -436,7 +446,7 @@ export const createBooking = async (req, res) => {
     // ce contrôle, findById lève un CastError rattrapé par le catch en bas de
     // fonction et renvoyé en 500 "Erreur serveur." — une réservation qui échoue
     // sans explication utilisable côté client.
-    for (const [label, value] of [["vehicleId", vehicleId], ["driverId", driverId], ["activityId", activityId]]) {
+    for (const [label, value] of [["vehicleId", vehicleId], ["driverId", driverId], ["activityId", activityId], ["partId", partId]]) {
       if (isMalformedObjectId(value)) {
         return res.status(400).json({ message: `${label} invalide.` });
       }
@@ -508,6 +518,12 @@ export const createBooking = async (req, res) => {
       const participants = Number(activite.participants);
       if (!Number.isFinite(participants) || participants <= 0) {
         return res.status(400).json({ message: "Nombre de participants invalide." });
+      }
+    }
+    if (type === "piece") {
+      const q = Number(piece?.quantity ?? 1);
+      if (!Number.isInteger(q) || q <= 0 || q > MAX_PART_QUANTITY) {
+        return res.status(400).json({ message: `Quantité invalide (1 à ${MAX_PART_QUANTITY}).` });
       }
     }
     if (type === "leasing" && leasingData?.apportInitial !== undefined) {
@@ -878,6 +894,58 @@ export const createBooking = async (req, res) => {
       montantBase = activityObj.priceUnit === "per_person" ? unitPrice * activityParticipants : unitPrice;
     }
 
+    // ── Pièce détachée (secteur « pièces », 2026-09-14) ───────────────────────
+    // Toujours livrée : adresse obligatoire, frais de livraison et
+    // d'importation recalculés côté serveur (services/partShipping.js), stock
+    // réservé atomiquement (services/partStock.js). La commande part
+    // directement chez le vendeur, comme tout service.
+    let partObj = null;
+    let pieceData = null;
+    if (type === "piece") {
+      if (!partId) return res.status(400).json({ message: "partId requis." });
+      partObj = await SparePart.findById(partId);
+      if (!partObj) return res.status(404).json({ message: "Pièce introuvable." });
+      if (partObj.status !== "approved") return res.status(409).json({ message: "Pièce non disponible." });
+      if (!partObj.available || partObj.manuallyPaused) return res.status(409).json({ message: "Pièce temporairement indisponible." });
+      ownerId = partObj.owner;
+
+      const quantity = Math.max(1, Math.floor(Number(piece?.quantity) || 1));
+      if (quantity < (partObj.minOrderQty || 1)) {
+        return res.status(400).json({ message: `Quantité minimale : ${partObj.minOrderQty}.`, code: "MIN_ORDER_QTY" });
+      }
+      const d = piece?.delivery || {};
+      const address = String(d.address || "").trim().slice(0, 300);
+      const ville   = String(d.ville || "").trim().slice(0, 120);
+      const country = String(d.country || "").trim().toUpperCase().slice(0, 2);
+      if (!address || !ville || !country) {
+        return res.status(400).json({ message: "Adresse de livraison complète requise (adresse, ville, pays).", code: "DELIVERY_ADDRESS_REQUIRED" });
+      }
+      const zones = [partObj.country, ...(partObj.shipping?.countries || [])].filter(Boolean);
+      if (zones.length && !zones.includes(country)) {
+        return res.status(400).json({ message: "Ce vendeur ne livre pas dans ce pays.", code: "DELIVERY_COUNTRY_NOT_SERVED" });
+      }
+      const lat = d.lat != null && d.lat !== "" ? Number(d.lat) : null;
+      const lng = d.lng != null && d.lng !== "" ? Number(d.lng) : null;
+      const livraison = await calculerLivraisonPiece(partObj, { quantity, clientLat: lat, clientLng: lng });
+      if (livraison.feeUSD == null) {
+        return res.status(400).json({ message: "Placez votre adresse sur la carte : ce vendeur facture la livraison selon la distance.", code: "DELIVERY_POSITION_REQUIRED" });
+      }
+      const importFeesUSD = fraisImportationPiece(partObj);
+      const depositPercent = partObj.saleMode === "import" ? (Number(partObj.importInfo?.depositPercent) || 0) : 0;
+      montantBase = Math.round(partObj.price * quantity * 100) / 100;
+      pieceData = {
+        quantity, unitPriceUSD: partObj.price, saleMode: partObj.saleMode,
+        importFeesUSD, depositPercent,
+        depositUSD: Math.round((montantBase + importFeesUSD) * (depositPercent / 100) * 100) / 100,
+        delivery: {
+          address, ville, country, lat, lng,
+          instructions: d.instructions ? String(d.instructions).trim().slice(0, 500) : null,
+          feeUSD: livraison.feeUSD, distanceKm: livraison.distanceKm ?? null,
+          daysMin: partObj.shipping?.deliveryDaysMin ?? null, daysMax: partObj.shipping?.deliveryDaysMax ?? null,
+        },
+      };
+    }
+
     // ── Options location ───────────────────────────────────────────────────────
     // Tarifées d'après les conditions du PARTENAIRE, avec repli sur le
     // catalogue global (voir services/rentalOptions.js). Auparavant, toute
@@ -969,9 +1037,16 @@ export const createBooking = async (req, res) => {
       }
     }
 
+    if (type === "piece" && pieceData) {
+      // Livraison + frais d'importation s'ajoutent au total ; la commission ne
+      // porte que sur le prix de la pièce (montantBase) — les frais de
+      // logistique reviennent intégralement au vendeur.
+      deliveryFee = pieceData.delivery.feeUSD;
+      montantOptions = pieceData.importFeesUSD;
+    }
     const montantTotal    = Math.max(montantBase + montantOptions + deliveryFee - loyaltyDiscount, 0);
-    const commissionRate  = await resolveCommissionRate(type, ownerId);
-    const commissionAmount = Math.round(montantTotal * commissionRate * 100) / 100;
+    const commissionRate  = await resolveCommissionRate(type === "piece" ? (pieceData?.saleMode === "import" ? "piece_import" : "piece") : type, ownerId);
+    const commissionAmount = Math.round((type === "piece" ? montantBase : montantTotal) * commissionRate * 100) / 100;
     const serviceFeeFCFA  = await computeServiceFee(montantTotal);
     const partnerPayout   = Math.max(montantTotal - commissionAmount - serviceFeeFCFA, 0);
 
@@ -1039,6 +1114,8 @@ export const createBooking = async (req, res) => {
       vehicle:  vehicle?._id  || null,
       driver:   driver?._id   || null,
       activity: activityObj?._id || null,
+      part:     partObj?._id || null,
+      piece:    type === "piece" ? pieceData : undefined,
       // deliveryFee toujours écrasé par la valeur calculée serveur ci-dessus, jamais celle du client
       location: type === "location" && location ? { ...location, deliveryFee } : (type === "location" ? location : undefined),
       // Suivi de livraison (Booking Engine, 2026-09) — voir Booking.js. Démarre
@@ -1204,6 +1281,23 @@ export const createBooking = async (req, res) => {
       } finally {
         await session.endSession();
       }
+    } else if (type === "piece" && partObj) {
+      // Stock réservé AVANT la création (décrément conditionnel atomique) ;
+      // restitué si l'insertion échoue.
+      const reservation = await reserverStockPiece(partObj._id, pieceData.quantity);
+      if (!reservation.ok) {
+        return res.status(409).json({
+          message: reservation.reason === "stock" ? `Stock insuffisant : ${reservation.stock} disponible(s).` : "Pièce indisponible.",
+          code: "PART_STOCK", stock: reservation.stock ?? 0,
+        });
+      }
+      bookingData.piece.stockReserved = reservation.tracked;
+      try {
+        booking = await Booking.create(bookingData);
+      } catch (createErr) {
+        if (reservation.tracked) await SparePart.updateOne({ _id: partObj._id }, { $inc: { stock: pieceData.quantity } }).catch(nonBloquant("bookingController"));
+        throw createErr;
+      }
     } else {
       booking = await Booking.create(bookingData);
     }
@@ -1265,7 +1359,9 @@ export const createBooking = async (req, res) => {
         ? { _id: driver._id, title: driver.title || `${driver.firstName} ${driver.lastName}`, owner: { _id: ownerId } }
         : activityObj
           ? { _id: activityObj._id, title: activityObj.title, owner: { _id: ownerId } }
-          : null;
+          : partObj
+            ? { _id: partObj._id, title: partObj.title, owner: { _id: ownerId } }
+            : null;
     dispatch.bookingCreated(
       { _id: booking._id, reference, type, montantTotal, location, status: booking.status },
       req.user ? { _id: req.user._id, email: req.user.email, phone: req.user.phone, firstName: req.user.firstName } : null,
@@ -1562,6 +1658,7 @@ export const getMyBookings = async (req, res) => {
         .populate("vehicle", "title marque modele pricePerDay ville contactTel contactNom owner country")
         .populate("driver",  "firstName lastName profilePhoto tarif zone phone owner country")
         .populate("activity", "title activityType price priceUnit owner country ville")
+        .populate("part", "title category price saleMode owner country ville")
         .populate("payment", "method status amount devise")
         .lean(),
       Booking.countDocuments(filter),
@@ -1596,20 +1693,22 @@ export const getPartnerBookings = async (req, res) => {
       driverFilter.business   = businessId;
       activityFilter.business = businessId;
     }
-    const [myVehicles, myDrivers, myActivities] = await Promise.all([
+    const [myVehicles, myDrivers, myActivities, myParts] = await Promise.all([
       Vehicle.find(vehicleFilter).limit(0).select("_id"),
       Driver.find(driverFilter).limit(0).select("_id"),
       Activity.find(activityFilter).limit(0).select("_id"),
+      SparePart.find(activityFilter).limit(0).select("_id"),
     ]);
     const vehicleIds  = myVehicles.map((v) => v._id);
     const driverIds   = myDrivers.map((d) => d._id);
     const activityIds = myActivities.map((a) => a._id);
+    const partIds     = myParts.map((p) => p._id);
     // Gate admin obligatoire (audit 2026-08) : un partenaire ne doit jamais
     // voir une demande (ni ses coordonnées client) tant qu'un admin ne l'a pas
     // explicitement approuvée — voir Booking.adminValidation, createBooking,
     // adminValidateBooking.
     const filter = {
-      $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }, { activity: { $in: activityIds } }],
+      $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }, { activity: { $in: activityIds } }, { part: { $in: partIds } }],
       "adminValidation.status": "approved",
     };
 
@@ -1621,6 +1720,7 @@ export const getPartnerBookings = async (req, res) => {
         .populate("vehicle", "title marque modele owner pricePerDay contactNom contactTel")
         .populate("driver",  "firstName lastName owner tarif phone")
         .populate("activity", "title activityType owner price")
+        .populate("part", "title category owner price")
         .populate("payment", "method status amount")
         // Données KYC limitées : le partenaire voit le statut et le score, pas les données biométriques brutes
         .populate("client",  "firstName lastName email phone kycStatus kycScore kycBadge emailVerified phoneVerified")
@@ -1684,6 +1784,7 @@ export const getAllBookings = async (req, res) => {
         .populate("vehicle", "title marque modele owner ville")
         .populate("driver",  "firstName lastName owner")
         .populate("activity", "title activityType owner")
+        .populate("part", "title category owner")
         .lean(),
       Booking.countDocuments(filter),
     ]);
@@ -1836,7 +1937,9 @@ export const updateBookingStatus = async (req, res) => {
       confirmed:                  ["preparing", "ready", "in_progress", "cancelled"],
       preparing:                  ["ready", "in_progress", "cancelled"],
       ready:                      ["in_progress", "client_arrived", "cancelled"],
-      in_progress:                ["client_arrived", "client_absent", "driver_arrived", "cancelled"],
+      // "waiting_client_validation" depuis in_progress : pièce détachée
+      // livrée, le client confirme la réception (validateTransaction).
+      in_progress:                ["client_arrived", "client_absent", "driver_arrived", "waiting_client_validation", "cancelled"],
       // Sorties d'une mission chauffeur dont le client a confirmé l'arrivée :
       // le partenaire ou l'admin peuvent la clore même si le client ne le fait
       // jamais (completeMission reste la voie normale, côté client).
@@ -1858,19 +1961,22 @@ export const updateBookingStatus = async (req, res) => {
     const booking = await Booking.findById(id)
       .populate("vehicle", "owner title marque modele contactNom contactTel pricePerDay")
       .populate("driver",  "owner firstName lastName")
-      .populate("activity", "owner title activityType price");
+      .populate("activity", "owner title activityType price")
+      .populate("part", "owner title category price");
 
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
 
     // Ownership robuste : vérifier que l'ID propriétaire est bien défini avant comparaison
     const vehicleOwnerId  = booking.vehicle?.owner?._id?.toString()  || booking.vehicle?.owner?.toString();
     const driverOwnerId   = booking.driver?.owner?._id?.toString()   || booking.driver?.owner?.toString();
-    const activityOwnerId = booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString();
+    const activityOwnerId = booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString() || booking.part?.owner?._id?.toString() || booking.part?.owner?.toString();
+    const partOwnerId     = booking.part?.owner?._id?.toString()     || booking.part?.owner?.toString();
     const userId          = req.user._id.toString();
 
     const isOwner = (vehicleOwnerId && vehicleOwnerId === userId) ||
                     (driverOwnerId  && driverOwnerId  === userId) ||
-                    (activityOwnerId && activityOwnerId === userId);
+                    (activityOwnerId && activityOwnerId === userId) ||
+                    (partOwnerId && partOwnerId === userId);
 
     if (req.user.role !== "admin" && !isOwner) {
       return res.status(403).json({ message: "Accès refusé." });
@@ -1886,7 +1992,11 @@ export const updateBookingStatus = async (req, res) => {
     // d'urgence même hors machine à états, réservé à ce rôle (pas au
     // partenaire, pour ne pas contourner le workflow transaction/litige).
     const isAdminEmergencyCancel = req.user.role === "admin" && status === "cancelled";
-    const allowed = VALID_TRANSITIONS[booking.status] ?? [];
+    const allowed = (VALID_TRANSITIONS[booking.status] ?? []).filter((next) =>
+      // Le passage in_progress → waiting_client_validation est propre à la
+      // pièce détachée (livrée) ; les autres services y arrivent par
+      // concludeTransaction.
+      !(booking.status === "in_progress" && next === "waiting_client_validation" && booking.type !== "piece"));
     if (!allowed.includes(status) && !isAdminEmergencyCancel) {
       return res.status(409).json({
         message: `Transition invalide : ${booking.status} → ${status}.`,
@@ -1915,7 +2025,19 @@ export const updateBookingStatus = async (req, res) => {
       booking.cancelReasonCode = cancelReasonCode;
       booking.cancelledBy      = req.user.role === "admin" ? "admin" : "partenaire";
     }
+    if (booking.type === "piece") {
+      // Suivi d'expédition transmis par le vendeur avec le changement de statut.
+      const t = req.body.tracking || {};
+      if (status === "in_progress") {
+        booking.piece.tracking.shippedAt = booking.piece.tracking.shippedAt || new Date();
+        if (t.carrier !== undefined)        booking.piece.tracking.carrier = String(t.carrier || "").trim().slice(0, 80) || null;
+        if (t.trackingNumber !== undefined) booking.piece.tracking.trackingNumber = String(t.trackingNumber || "").trim().slice(0, 80) || null;
+      }
+      if (status === "waiting_client_validation") booking.piece.tracking.deliveredAt = new Date();
+      if (req.body.depositReceived === true && booking.piece.depositUSD > 0 && !booking.piece.depositReceivedAt) booking.piece.depositReceivedAt = new Date();
+    }
     await booking.save();
+    if (status === "cancelled") await restituerStockPiece(booking).catch(nonBloquant("bookingController"));
 
     // Points de fidélité : ils étaient rendus au client lors d'un rejet à la
     // validation admin (adminValidateBooking) et lors d'un échec de création,
@@ -2047,7 +2169,8 @@ export const recordTransaction = async (req, res) => {
     const booking = await Booking.findById(id)
       .populate("vehicle", "owner")
       .populate("driver",  "owner")
-      .populate("activity", "owner");
+      .populate("activity", "owner")
+      .populate("part", "owner");
 
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
 
@@ -2058,7 +2181,7 @@ export const recordTransaction = async (req, res) => {
 
     const _vOwnerId = booking.vehicle?.owner?._id?.toString() || booking.vehicle?.owner?.toString();
     const _dOwnerId  = booking.driver?.owner?._id?.toString()  || booking.driver?.owner?.toString();
-    const _aOwnerId  = booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString();
+    const _aOwnerId  = booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString() || booking.part?.owner?._id?.toString() || booking.part?.owner?.toString();
     const _userId    = req.user._id.toString();
     const isOwner = (_vOwnerId && _vOwnerId === _userId) || (_dOwnerId && _dOwnerId === _userId) || (_aOwnerId && _aOwnerId === _userId);
 
@@ -2156,7 +2279,8 @@ export const validateTransaction = async (req, res) => {
     const booking = await Booking.findById(id)
       .populate("vehicle", "owner title marque modele")
       .populate("driver",  "owner firstName lastName")
-      .populate("activity", "owner title activityType");
+      .populate("activity", "owner title activityType")
+      .populate("part", "owner title category");
 
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
 
@@ -2173,7 +2297,7 @@ export const validateTransaction = async (req, res) => {
 
     // activity.owner inclus : sans lui, une réservation d'activité ne notifiait
     // jamais son partenaire (vehicle/driver sont null dans ce cas).
-    const ownerId = booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner;
+    const ownerId = booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner || booking.part?.owner;
 
     if (action === "validate") {
       booking.status = "completed";
@@ -2683,17 +2807,19 @@ export const exportPartnerBookings = async (req, res) => {
       driverFilter.business   = businessId;
       activityFilter.business = businessId;
     }
-    const [myVehicles, myDrivers, myActivities] = await Promise.all([
+    const [myVehicles, myDrivers, myActivities, myParts] = await Promise.all([
       Vehicle.find(vehicleFilter).limit(0).select("_id"),
       Driver.find(driverFilter).limit(0).select("_id"),
       Activity.find(activityFilter).limit(0).select("_id"),
+      SparePart.find(activityFilter).limit(0).select("_id"),
     ]);
     const vehicleIds  = myVehicles.map((v) => v._id);
     const driverIds   = myDrivers.map((d) => d._id);
     const activityIds = myActivities.map((a) => a._id);
+    const partIds     = myParts.map((p) => p._id);
 
     const filter = {
-      $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }, { activity: { $in: activityIds } }],
+      $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }, { activity: { $in: activityIds } }, { part: { $in: partIds } }],
       "adminValidation.status": "approved",
     };
     if (dateFrom || dateTo) {
@@ -2708,6 +2834,7 @@ export const exportPartnerBookings = async (req, res) => {
       .populate("vehicle", "title marque modele")
       .populate("driver",  "firstName lastName")
       .populate("activity", "title activityType")
+      .populate("part", "title category")
       .lean();
 
     const rows = [
@@ -2767,13 +2894,14 @@ export const partnerConfirm = async (req, res) => {
     const booking = await Booking.findById(id)
       .populate("vehicle", "owner title")
       .populate("driver",  "owner firstName lastName")
-      .populate("activity", "owner title");
+      .populate("activity", "owner title")
+      .populate("part", "owner title");
 
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
 
     const _vOwnerId = booking.vehicle?.owner?._id?.toString() || booking.vehicle?.owner?.toString();
     const _dOwnerId  = booking.driver?.owner?._id?.toString()  || booking.driver?.owner?.toString();
-    const _aOwnerId  = booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString();
+    const _aOwnerId  = booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString() || booking.part?.owner?._id?.toString() || booking.part?.owner?.toString();
     const _userId    = req.user._id.toString();
     const isOwner = (_vOwnerId && _vOwnerId === _userId) || (_dOwnerId && _dOwnerId === _userId) || (_aOwnerId && _aOwnerId === _userId);
 
@@ -2912,10 +3040,11 @@ export const getBookingDetail = async (req, res) => {
 
     // Vérification d'autorisation AVANT de charger les données sensibles
     const rawBooking = await Booking.findById(id)
-      .select("vehicle driver activity client adminValidation")
+      .select("vehicle driver activity part client adminValidation")
       .populate("vehicle", "owner")
       .populate("driver",  "owner")
-      .populate("activity", "owner");
+      .populate("activity", "owner")
+      .populate("part", "owner");
 
     if (!rawBooking) return res.status(404).json({ message: "Commande introuvable." });
 
@@ -2923,7 +3052,7 @@ export const getBookingDetail = async (req, res) => {
       const uid      = req.user._id.toString();
       const vOwner   = rawBooking.vehicle?.owner?._id?.toString() || rawBooking.vehicle?.owner?.toString();
       const dOwner   = rawBooking.driver?.owner?._id?.toString()  || rawBooking.driver?.owner?.toString();
-      const aOwner   = rawBooking.activity?.owner?._id?.toString() || rawBooking.activity?.owner?.toString();
+      const aOwner   = rawBooking.activity?.owner?._id?.toString() || rawBooking.activity?.owner?.toString() || rawBooking.part?.owner?._id?.toString() || rawBooking.part?.owner?.toString();
       const clientId = rawBooking.client?.toString();
       const hasAccess = (vOwner && vOwner === uid) || (dOwner && dOwner === uid) || (aOwner && aOwner === uid) || (clientId && clientId === uid);
       if (!hasAccess) return res.status(403).json({ message: "Accès refusé." });
@@ -2935,7 +3064,7 @@ export const getBookingDetail = async (req, res) => {
     const uid = req.user._id.toString();
     const vOwner = rawBooking.vehicle?.owner?._id?.toString() || rawBooking.vehicle?.owner?.toString();
     const dOwner = rawBooking.driver?.owner?._id?.toString()  || rawBooking.driver?.owner?.toString();
-    const aOwner = rawBooking.activity?.owner?._id?.toString() || rawBooking.activity?.owner?.toString();
+    const aOwner = rawBooking.activity?.owner?._id?.toString() || rawBooking.activity?.owner?.toString() || rawBooking.part?.owner?._id?.toString() || rawBooking.part?.owner?.toString();
     const isPartnerOwner = (vOwner && vOwner === uid) || (dOwner && dOwner === uid) || (aOwner && aOwner === uid);
 
     // Gate admin obligatoire (audit 2026-08) : seule la branche PARTENAIRE est
@@ -2968,6 +3097,7 @@ export const getBookingDetail = async (req, res) => {
       .populate("vehicle",  "title marque modele owner images pricePerDay contactNom contactTel")
       .populate("driver",   "firstName lastName phone owner tarif")
       .populate("activity", "title activityType owner images price priceUnit")
+      .populate("part", "title category owner images price saleMode")
       .populate("payment",  "method status amount devise createdAt")
       .populate("contract", "reference status createdAt");
 
@@ -3009,12 +3139,13 @@ export const partnerVerifyKyc = async (req, res) => {
     const booking = await Booking.findById(id)
       .populate("vehicle", "owner")
       .populate("driver",  "owner")
-      .populate("activity", "owner");
+      .populate("activity", "owner")
+      .populate("part", "owner");
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
 
     const _vOwnerId = booking.vehicle?.owner?._id?.toString() || booking.vehicle?.owner?.toString();
     const _dOwnerId  = booking.driver?.owner?._id?.toString()  || booking.driver?.owner?.toString();
-    const _aOwnerId  = booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString();
+    const _aOwnerId  = booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString() || booking.part?.owner?._id?.toString() || booking.part?.owner?.toString();
     const _userId    = req.user._id.toString();
     const isOwner = (_vOwnerId && _vOwnerId === _userId) || (_dOwnerId && _dOwnerId === _userId) || (_aOwnerId && _aOwnerId === _userId);
 
@@ -3361,7 +3492,8 @@ export const cancelBookingByClient = async (req, res) => {
     const booking = await Booking.findById(id)
       .populate("vehicle", "title owner")
       .populate("driver",  "firstName lastName owner")
-      .populate("activity", "title owner");
+      .populate("activity", "title owner")
+      .populate("part", "title owner");
     if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
 
     // Vérifie que c'est bien le client de cette réservation
@@ -3414,6 +3546,7 @@ export const cancelBookingByClient = async (req, res) => {
     }
     booking.status = updated.status;
     booking.cancelledAt = updated.cancelledAt;
+    await restituerStockPiece(booking).catch(nonBloquant("bookingController"));
 
     emitBookingUpdate(booking); // ← temps réel partenaire
     await syncVehicleAvailability(booking.vehicle?._id || booking.vehicle);
@@ -3421,7 +3554,7 @@ export const cancelBookingByClient = async (req, res) => {
     const reasonLabel = CLIENT_CANCEL_REASONS_MAP[reasonCode] || reasonCode;
 
     // Notifier le partenaire (propriétaire véhicule, chauffeur OU activité selon le type de commande)
-    const cancelOwnerId = booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner;
+    const cancelOwnerId = booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner || booking.part?.owner;
     if (cancelOwnerId) {
       await notify(
         cancelOwnerId,
@@ -3690,7 +3823,8 @@ export const resolveDispute = async (req, res) => {
       .populate("client",  "firstName lastName email")
       .populate("vehicle", "title owner")
       .populate("driver",  "firstName lastName owner")
-      .populate("activity", "title owner");
+      .populate("activity", "title owner")
+      .populate("part", "title owner");
 
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
     if (booking.status !== "disputed") {
@@ -3737,7 +3871,7 @@ export const resolveDispute = async (req, res) => {
       compensated:  "✅ Le litige a été résolu — une compensation vous sera versée.",
     }[resolution];
 
-    const disputeOwnerId = booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner;
+    const disputeOwnerId = booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner || booking.part?.owner;
     if (booking.client?._id) await notify(booking.client._id, "system", "Litige résolu", clientMsg, "/dashboard");
     if (disputeOwnerId) await notify(disputeOwnerId, "system", "Litige résolu",
       `Le litige sur la commande ${booking.reference} a été résolu par l'administration.`, "/vendor/dashboard");
@@ -3773,7 +3907,8 @@ export const respondToDispute = async (req, res) => {
     const booking = await Booking.findById(id)
       .populate("vehicle", "owner")
       .populate("driver",  "owner")
-      .populate("activity", "owner");
+      .populate("activity", "owner")
+      .populate("part", "owner");
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
     if (booking.status !== "disputed") {
       return res.status(409).json({ message: "Cette commande n'est pas en litige." });
@@ -3782,8 +3917,9 @@ export const respondToDispute = async (req, res) => {
     const vehicleOwnerId  = booking.vehicle?.owner?.toString();
     const driverOwnerId   = booking.driver?.owner?.toString();
     const activityOwnerId = booking.activity?.owner?.toString();
+    const partOwnerId     = booking.part?.owner?.toString();
     const userId          = req.user._id.toString();
-    const isOwner = (vehicleOwnerId && vehicleOwnerId === userId) || (driverOwnerId && driverOwnerId === userId) || (activityOwnerId && activityOwnerId === userId);
+    const isOwner = (vehicleOwnerId && vehicleOwnerId === userId) || (driverOwnerId && driverOwnerId === userId) || (activityOwnerId && activityOwnerId === userId) || (partOwnerId && partOwnerId === userId);
     if (req.user.role !== "admin" && !isOwner) {
       return res.status(403).json({ message: "Accès refusé." });
     }
@@ -3822,7 +3958,8 @@ export const adminForceComplete = async (req, res) => {
       .populate("client",  "firstName lastName")
       .populate("vehicle", "owner title")
       .populate("driver",  "firstName lastName owner")
-      .populate("activity", "owner title");
+      .populate("activity", "owner title")
+      .populate("part", "owner title");
 
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
     if (["completed", "cancelled"].includes(booking.status)) {
@@ -3841,7 +3978,7 @@ export const adminForceComplete = async (req, res) => {
       }
       amount = parsed;
     }
-    const commRate = await resolveCommissionRate(booking.type, booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner);
+    const commRate = await resolveCommissionRate(booking.type, booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner || booking.part?.owner);
 
     booking.status           = "completed";
     booking.isPaid           = true;
@@ -3861,7 +3998,7 @@ export const adminForceComplete = async (req, res) => {
     await markVehicleSoldIfApplicable(booking);
     syncVehicleAvailability(booking.vehicle?._id);
 
-    const forceCompleteOwnerId = booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner;
+    const forceCompleteOwnerId = booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner || booking.part?.owner;
     if (booking.client?._id) await notify(booking.client._id, "system", "✅ Commande finalisée", `Votre commande ${booking.reference} a été finalisée par l'administration.`, "/dashboard");
     if (forceCompleteOwnerId) await notify(forceCompleteOwnerId, "system", "✅ Commande finalisée", `La commande ${booking.reference} a été finalisée.`, "/vendor/dashboard");
     schedulePostServiceSurvey(booking);
@@ -3953,6 +4090,7 @@ export const exportBookings = async (req, res) => {
       .populate("vehicle", "title marque modele ville")
       .populate("driver",  "firstName lastName")
       .populate("activity", "title activityType")
+      .populate("part", "title category")
       .lean();
 
     if (format === "csv") {
@@ -4145,6 +4283,7 @@ export const getPendingValidationBookings = async (req, res) => {
       .populate("vehicle",  "title marque modele owner")
       .populate("driver",   "firstName lastName owner")
       .populate("activity", "title owner")
+      .populate("part", "title owner")
       .populate("client",   "firstName lastName email phone kycStatus")
       // Les demandes fastTrack (ex-instantConfirm) en tête de file : le
       // partenaire les attend en confirmation immédiate, elles méritent un
@@ -4170,7 +4309,8 @@ export const adminValidateBooking = async (req, res) => {
     const booking = await Booking.findById(req.params.id)
       .populate("vehicle",  "owner title")
       .populate("driver",   "owner firstName lastName")
-      .populate("activity", "owner title");
+      .populate("activity", "owner title")
+      .populate("part", "owner title");
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
     if (booking.adminValidation.status !== "pending") {
       return res.status(409).json({ message: "Cette demande a déjà été traitée." });
@@ -4189,7 +4329,7 @@ export const adminValidateBooking = async (req, res) => {
 
     const ownerId = booking.vehicle?.owner?._id?.toString()  || booking.vehicle?.owner?.toString()
       || booking.driver?.owner?._id?.toString()   || booking.driver?.owner?.toString()
-      || booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString();
+      || booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString() || booking.part?.owner?._id?.toString() || booking.part?.owner?.toString();
 
     if (decision === "rejected") {
       booking.adminValidation.refusalReason = refusalReason || null;
@@ -4237,7 +4377,7 @@ export const adminValidateBooking = async (req, res) => {
       // tant que WHATSAPP_TOKEN/WHATSAPP_PHONE_ID ne sont pas configurés).
       const serviceTitle = booking.vehicle?.title
         || (booking.driver ? `${booking.driver.firstName || ""} ${booking.driver.lastName || ""}`.trim() : null)
-        || booking.activity?.title
+        || booking.activity?.title || booking.part?.title
         || null;
       dispatch.partnerBookingApproved(booking, ownerId, serviceTitle)
         .catch((e) => logger.error("dispatch.partnerBookingApproved:", { error: e.message }));
@@ -4313,6 +4453,7 @@ export const getAllBookingsEnhanced = async (req, res) => {
         .populate("vehicle", "title marque modele owner ville")
         .populate("driver",  "firstName lastName owner")
         .populate("activity", "title activityType owner")
+        .populate("part", "title category owner")
         .lean(),
       Booking.countDocuments(filter),
     ]);

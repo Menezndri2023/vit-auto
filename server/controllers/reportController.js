@@ -9,6 +9,7 @@ const TARGET_MODELS = {
   driver:     "Driver",
   user:       "User",
   activity:   "Activity",
+  part:       "SparePart",
 };
 
 // ── POST /api/reports — créer un signalement ──────────────────────────────

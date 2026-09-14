@@ -1,4 +1,9 @@
 import mongoose from "mongoose";
+// Enregistre le modèle SparePart dès que Booking est chargé : `populate("part")`
+// est appelé depuis des modules (chat, WhatsApp, rappels, workers) qui
+// n'importent jamais SparePart directement — sans cet import, Mongoose lève
+// MissingSchemaError hors du serveur complet (tests, workers isolés).
+import "./SparePart.js";
 
 /**
  * Booking couvre 5 types de commandes :
@@ -15,7 +20,9 @@ const bookingSchema = new mongoose.Schema({
   // ── Type de commande ──────────────────────────────────────
   type: {
     type: String,
-    enum: ["location", "essai", "chauffeur", "leasing", "activite"],
+    // "piece" : commande d'une pièce détachée, livrée (secteur « pièces »,
+    // 2026-09-14 — voir SparePart.js et Booking.piece ci-dessous).
+    enum: ["location", "essai", "chauffeur", "leasing", "activite", "piece"],
     required: true,
   },
 
@@ -173,6 +180,13 @@ const bookingSchema = new mongoose.Schema({
     ref: "Activity",
     default: null,
   },
+  // Pièce détachée commandée (type "piece") — même rôle que vehicle/driver/
+  // activity : porte le propriétaire (partenaire vendeur).
+  part: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SparePart",
+    default: null,
+  },
 
   // ── Champs spécifiques : LOCATION ─────────────────────────
   location: {
@@ -290,6 +304,46 @@ const bookingSchema = new mongoose.Schema({
     // Le client a accepté que la sortie soit soumise à la météo (activités
     // Activity.weatherDependent / WEATHER_DEPENDENT_TYPES) — exigé à la création.
     weatherAcknowledged: { type: Boolean, default: false },
+  },
+
+  // ── Commande de pièce détachée (type "piece") ─────────────
+  // Montants recalculés côté serveur (jamais depuis le client) : prix unitaire
+  // figé à la commande, frais d'importation de l'annonce, livraison calculée
+  // par services/partShipping.js. Étapes : pending (vendeur à confirmer) →
+  // confirmed → preparing (préparation / commande fournisseur) → in_progress
+  // (expédiée) → waiting_client_validation (livrée) → completed (réception
+  // confirmée par le client, voir validateTransaction).
+  piece: {
+    quantity:       { type: Number, min: 1, default: 1 },
+    unitPriceUSD:   { type: Number, default: 0 },
+    saleMode:       { type: String, enum: ["direct", "import", null], default: null },
+    importFeesUSD:  { type: Number, default: 0 },
+    depositPercent: { type: Number, default: 0 },
+    depositUSD:     { type: Number, default: 0 },
+    depositReceivedAt: { type: Date, default: null },
+    delivery: {
+      address:      { type: String, default: null },
+      ville:        { type: String, default: null },
+      country:      { type: String, default: null },
+      lat:          { type: Number, default: null },
+      lng:          { type: Number, default: null },
+      instructions: { type: String, default: null },
+      feeUSD:       { type: Number, default: 0 },
+      distanceKm:   { type: Number, default: null },
+      daysMin:      { type: Number, default: null },
+      daysMax:      { type: Number, default: null },
+    },
+    tracking: {
+      carrier:        { type: String, default: null },
+      trackingNumber: { type: String, default: null },
+      shippedAt:      { type: Date, default: null },
+      deliveredAt:    { type: Date, default: null },
+    },
+    // Stock réservé à la création (voir services/partStock.js) ; les deux
+    // drapeaux suivants rendent restitution et comptage de vente idempotents.
+    stockReserved: { type: Boolean, default: false },
+    stockRestored: { type: Boolean, default: false },
+    saleCounted:   { type: Boolean, default: false },
   },
 
   // ── Financier (USD — voir server/scripts/migrate-vehicle-booking-to-usd.mjs

@@ -292,7 +292,70 @@ async function profilPartenaire(browser) {
   for (const j of journal) ko(`profil partenaire — ${j}`);
 }
 
-const PARCOURS = [["Vente par demande d'essai", demandeEssai], ["Chauffeur — mission et embauche", chauffeur], ["Profil partenaire — présentation publique", profilPartenaire]];
+// ── Parcours 4 : pièce détachée — commande livrée, de la fiche au « reçu » ──
+// Client (UI) → commande d'une pièce en stock avec adresse → transmise au
+// vendeur → vendeur confirme, prépare, expédie (suivi), livre → client
+// confirme la réception → completed, commission sur la pièce seule.
+async function pieceDetachee(browser) {
+  const journal = [];
+  const PWD = process.env.VERIF_SEME_PWD, CLIENT = process.env.VERIF_CLIENT_ID, PARTNER = process.env.VERIF_PARTNER_ID;
+  if (!PWD || !CLIENT || !PARTNER) throw new Error("VERIF_CLIENT_ID / VERIF_PARTNER_ID / VERIF_SEME_PWD requis");
+  const apiAs = async (id) => {
+    const r = await fetch(`${API}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://vit-auto.com" }, body: JSON.stringify({ identifier: id, password: PWD }) });
+    const d = await r.json().catch(() => ({}));
+    if (!d.token) throw new Error(`connexion ${id} impossible (${r.status})`);
+    return async (path, { method = "GET", body } = {}) => {
+      const res = await fetch(`${API}${path}`, { method, headers: { "Content-Type": "application/json", Origin: "https://vit-auto.com", Authorization: `Bearer ${d.token}` }, body: body ? JSON.stringify(body) : undefined });
+      return { status: res.status, data: await res.json().catch(() => ({})) };
+    };
+  };
+  const partner = await apiAs(PARTNER);
+  const client = await apiAs(CLIENT);
+  const miennes = (await partner("/api/parts/mine")).data.parts || [];
+  const piece = miennes.find((p) => p.status === "approved" && p.saleMode === "direct" && p.stock > 0);
+  if (!piece) throw new Error("le partenaire semé n'a aucune pièce en stock approuvée");
+  const stockAvant = piece.stock;
+
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const pc = await ctx.newPage(); surveiller(pc, "client", journal);
+  await connecter(pc, CLIENT, PWD);
+  await pc.goto(`${BASE}/part/${piece._id}`, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await pc.getByRole("button", { name: /Commander cette pièce/ }).waitFor({ timeout: 60000 });
+  await pc.fill("input[autocomplete=street-address]", "12 rue des Orangers, résidence Yasmine");
+  await pc.fill("input[autocomplete=address-level2]", "Marrakech");
+  await pc.locator("select").filter({ hasText: "Pays" }).selectOption("MA");
+  await pc.fill("input[type=number]", "2");
+  await pc.getByText(/Total estimé/).waitFor({ timeout: 30000 });
+  await pc.getByRole("button", { name: /Commander cette pièce/ }).click();
+  await pc.waitForURL(/booking\/success/, { timeout: 30000 });
+  ok("client : pièce commandée (×2, livraison) depuis le site");
+
+  const mine = (await client("/api/bookings/mine")).data;
+  const cmd = (mine.bookings || mine).find((b) => b.type === "piece");
+  if (!cmd) throw new Error("commande pièce absente de « mes réservations »");
+  if (cmd.piece?.quantity !== 2 || Math.abs(cmd.montantBase - piece.price * 2) > 0.01) throw new Error(`quantité/montant inattendus : ${JSON.stringify(cmd.piece)} ${cmd.montantBase}`);
+  if (cmd.adminValidation?.status !== "approved") throw new Error("commande non transmise directement au vendeur");
+  const apres = (await partner("/api/parts/mine")).data.parts.find((p) => p._id === piece._id);
+  if (apres.stock !== stockAvant - 2) throw new Error(`stock non réservé : ${stockAvant} → ${apres.stock}`);
+  ok(`montant = prix × 2 + livraison = ${cmd.montantTotal} USD, stock ${stockAvant} → ${apres.stock}, transmise au vendeur`);
+
+  let r;
+  for (const [status, extra] of [["confirmed", {}], ["preparing", {}], ["in_progress", { tracking: { carrier: "Amana", trackingNumber: "AM-VERIF-1" } }], ["waiting_client_validation", {}]]) {
+    r = await partner(`/api/bookings/${cmd._id}/status`, { method: "PATCH", body: { status, ...extra } });
+    if (r.status !== 200) throw new Error(`vendeur → ${status} : ${r.status} ${JSON.stringify(r.data).slice(0, 120)}`);
+  }
+  ok("vendeur : confirmée → préparée → expédiée (suivi Amana) → livrée");
+  r = await client(`/api/bookings/${cmd._id}/validate`, { method: "PATCH", body: { action: "validate" } });
+  if (r.status !== 200) throw new Error(`réception : ${r.status} ${JSON.stringify(r.data).slice(0, 120)}`);
+  const fini = (await client(`/api/bookings/${cmd._id}/detail`)).data.booking;
+  if (fini?.status !== "completed") throw new Error(`statut final ${fini?.status}`);
+  if (Math.abs(fini.commissionAmount - fini.montantBase * fini.commissionRate) > 0.01) throw new Error(`commission ${fini.commissionAmount} ≠ pièce × taux`);
+  ok(`client : réception confirmée → completed, commission ${fini.commissionAmount} USD (${Math.round(fini.commissionRate * 100)} % de la pièce seule)`);
+  await ctx.close();
+  for (const j of journal) ko(`pièce détachée — ${j}`);
+}
+
+const PARCOURS = [["Vente par demande d'essai", demandeEssai], ["Chauffeur — mission et embauche", chauffeur], ["Profil partenaire — présentation publique", profilPartenaire], ["Pièce détachée — commande livrée", pieceDetachee]];
 
 const browser = await chromium.launch({ executablePath: EXE, headless: true });
 for (const [nom, fn] of PARCOURS) {

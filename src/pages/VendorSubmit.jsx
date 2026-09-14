@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { estUniquementLoisirs } from "../constants/partnerTaxonomy";
+import { estUniquementLoisirs, estUniquementPieces } from "../constants/partnerTaxonomy";
 import { useVehicles } from "../context/VehicleContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useToast } from "../context/ToastContext";
@@ -44,6 +44,7 @@ const VendorSubmit = () => {
   // véhicule/chauffeur ne le concerne pas, il va droit au formulaire activité.
   useEffect(() => {
     if (user && estUniquementLoisirs(user)) navigate("/vendor/submit-activity", { replace: true });
+    else if (user && estUniquementPieces(user)) navigate("/vendor/submit-part", { replace: true });
   }, [user, navigate]);
 
   const [step, setStep] = useState(1);
@@ -981,6 +982,20 @@ const VendorSubmit = () => {
                   <li>✓ Prix par personne ou par sortie</li>
                   <li>✓ Capacité & durée de session</li>
                   <li>✓ Essai/découverte activable</li>
+                </ul>
+              </button>
+
+              {/* Pièce détachée (secteur « pièces », 2026-09-14) — vente directe
+                  ou importation, toujours livrée — formulaire dédié. */}
+              <button type="button" className={styles.adTypeCard}
+                onClick={() => navigate("/vendor/submit-part")}>
+                <div className={styles.adTypeIcon}>🔩</div>
+                <h3>Pièce détachée</h3>
+                <p>Pièce en stock ou importée à la commande, livrée au client — paiement à la réception.</p>
+                <ul className={styles.adTypeList}>
+                  <li>✓ Référence, compatibilité véhicules</li>
+                  <li>✓ Stock, livraison, délai</li>
+                  <li>✓ Vente directe ou importation</li>
                 </ul>
               </button>
             </div>

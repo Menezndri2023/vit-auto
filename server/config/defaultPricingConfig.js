@@ -17,8 +17,8 @@ export const DEFAULT_PRICING_CONFIG = {
   // `premium` est VOLONTAIREMENT identique à `standard` : l'abonnement ne
   // change rien aux commissions (voir subscription.test.js).
   commissions: {
-    standard: { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05, activite: 0.15 },
-    premium:  { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05, activite: 0.15 },
+    standard: { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05, activite: 0.15, piece: 0.10, piece_import: 0.07 },
+    premium:  { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05, activite: 0.15, piece: 0.10, piece_import: 0.07 },
   },
   // Grille FONDATEUR — la faveur commerciale, pendant douze mois à compter de
   // la SIGNATURE de l'accord (PartnerOnboarding.commissions.lockedAt). Au-delà,
@@ -29,8 +29,8 @@ export const DEFAULT_PRICING_CONFIG = {
   // particulier, auparavant absent (retour au standard), y est explicite.
   foundingPartner: {
     durationMonths: 12,
-    entreprise:  { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10, activite: 0.10 },
-    particulier: { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10, activite: 0.10 },
+    entreprise:  { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.07, piece_import: 0.05 },
+    particulier: { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.07, piece_import: 0.05 },
   },
   serviceFee: { minUSD: 1, percent: 0.005, maxUSD: 25 },
   importEstimateFee: { percent: 0.03, minUSD: 333, maxUSD: 1666 },

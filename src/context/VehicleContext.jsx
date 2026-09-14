@@ -18,9 +18,12 @@ const normalizeBackendBooking = (b) => {
     reference:     b.reference,
     vehicleName:   veh
       ? [veh.title, veh.marque, veh.modele].filter(Boolean).join(" ")
-      : (drv ? `${drv.firstName || ""} ${drv.lastName || ""}`.trim() : "Véhicule"),
+      : (drv ? `${drv.firstName || ""} ${drv.lastName || ""}`.trim() : (b.activity?.title || b.part?.title || "Véhicule")),
     vehicleId:     veh?._id?.toString() || (typeof veh === "string" ? veh : null),
     vehicleMode:   veh?.type === "vente" ? "Acheter" : (veh?.type || null),
+    // Pièce détachée (secteur « pièces ») — commande livrée
+    piece:         b.piece || null,
+    partId:        b.part?._id?.toString() || (typeof b.part === "string" ? b.part : null),
     // Client
     firstName:     b.clientInfo?.firstName,
     lastName:      b.clientInfo?.lastName,
@@ -188,6 +191,8 @@ export const VehicleProvider = ({ children }) => {
   const [partnerBookings, setPartnerBookings] = useState([]); // Commandes reçues (partenaire) — depuis backend
   const [drivers, setDrivers] = useState([]);
   const [activities, setActivities] = useState([]);
+  // Pièces détachées (secteur « pièces », 2026-09-14) — voir SparePart.js.
+  const [parts, setParts] = useState([]);
   const [bookings, setBookings] = useState(() => loadBookings());
   const [vehiclesLoading, setVehiclesLoading] = useState(false);
 
@@ -410,13 +415,32 @@ export const VehicleProvider = ({ children }) => {
     return () => cancelIdle(id);
   }, []);
 
+  // Pièces détachées — même chargement différé que activities ci-dessus.
+  useEffect(() => {
+    const loadParts = async () => {
+      try {
+        const response = await fetch("/api/parts");
+        if (!response.ok) { setParts([]); return; }
+        const data = await response.json();
+        if (Array.isArray(data)) setParts(data);
+      } catch {
+        setParts([]);
+      }
+    };
+    const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 200));
+    const cancelIdle = window.cancelIdleCallback || clearTimeout;
+    const id = idle(loadParts);
+    return () => cancelIdle(id);
+  }, []);
+
   const getItemById = (id) => {
     const sid = String(id);
     return (
       vehicles.find((v) => v._id === sid || String(v.id) === sid) ||
       partnerVehicles.find((v) => v._id === sid || String(v.id) === sid) ||
       drivers.find((d) => d._id === sid || String(d.id) === sid) ||
-      activities.find((a) => a._id === sid || String(a.id) === sid)
+      activities.find((a) => a._id === sid || String(a.id) === sid) ||
+      parts.find((p) => p._id === sid || String(p.id) === sid)
     );
   };
 
@@ -532,6 +556,45 @@ export const VehicleProvider = ({ children }) => {
       throw new Error(data?.message || `Erreur serveur (${response.status}).`);
     }
     setActivities((prev) => prev.filter((a) => a._id !== id));
+  };
+
+  // Pièces détachées — même contrat que addActivity/updateActivity/deleteActivity.
+  const addPart = async (newPart) => {
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch("/api/parts", { method: "POST", headers, body: JSON.stringify(newPart) });
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      const err = new Error(data?.message || `Erreur serveur (${response.status}).`);
+      if (data?.code) err.code = data.code;
+      throw err;
+    }
+    const data = await response.json();
+    const saved = data.part || data;
+    setParts((prev) => [saved, ...prev]);
+    return saved;
+  };
+
+  const updatePart = async (id, patch) => {
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch(`/api/parts/${id}`, { method: "PATCH", headers, body: JSON.stringify(patch) });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(data?.message || `Erreur serveur (${response.status}).`);
+    const saved = data.part || data;
+    setParts((prev) => prev.map((p) => (p._id === saved._id ? saved : p)));
+    return saved;
+  };
+
+  const deletePart = async (id) => {
+    const headers = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch(`/api/parts/${id}`, { method: "DELETE", headers });
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      throw new Error(data?.message || `Erreur serveur (${response.status}).`);
+    }
+    setParts((prev) => prev.filter((p) => p._id !== id));
   };
 
   const getMyActivities = useCallback(async () => {
@@ -665,7 +728,9 @@ export const VehicleProvider = ({ children }) => {
   // updateBookingStatus) ; avant ce correctif l'échec était avalé en silence
   // (fetch().catch(() => {})) et l'appelant affichait quand même un toast de
   // succès, laissant le partenaire croire que le changement avait eu lieu.
-  const updateBookingStatus = useCallback(async (id, status, note = "", cancelReasonCode = null) => {
+  // `extra` : champs métier joints au changement de statut (pièce détachée :
+  // suivi d'expédition, acompte reçu — voir bookingController.updateBookingStatus).
+  const updateBookingStatus = useCallback(async (id, status, note = "", cancelReasonCode = null, extra = {}) => {
     const sid = String(id);
     const validStatuses = [
       "pending", "confirmed", "preparing", "ready", "in_progress",
@@ -699,7 +764,7 @@ export const VehicleProvider = ({ children }) => {
       const res = await fetch(`/api/bookings/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status, cancelReason: note, cancelReasonCode }),
+        body: JSON.stringify({ status, cancelReason: note, cancelReasonCode, ...extra }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -723,6 +788,7 @@ export const VehicleProvider = ({ children }) => {
       partnerBookings,
       drivers,
       activities,
+      parts,
       bookings,
       getItemById,
       addVehicle,
@@ -732,6 +798,9 @@ export const VehicleProvider = ({ children }) => {
       updateActivity,
       deleteActivity,
       getMyActivities,
+      addPart,
+      updatePart,
+      deletePart,
       addBooking,
       removeLocalBooking,
       removeBooking,
@@ -745,7 +814,7 @@ export const VehicleProvider = ({ children }) => {
       refreshVehicles: loadVehicles,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [vehicles, vehiclesLoading, featuredVehicles, featuredLoading, partnerVehicles, partnerBookings, drivers, activities, bookings, loadPartnerVehicles, loadPartnerOrders, loadMyOrders, updateBookingStatus, loadVehicles, getMyActivities, approveActivity]
+    [vehicles, vehiclesLoading, featuredVehicles, featuredLoading, partnerVehicles, partnerBookings, drivers, activities, parts, bookings, loadPartnerVehicles, loadPartnerOrders, loadMyOrders, updateBookingStatus, loadVehicles, getMyActivities, approveActivity]
   );
 
   return <VehicleContext.Provider value={value}>{children}</VehicleContext.Provider>;

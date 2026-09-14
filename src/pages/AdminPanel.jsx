@@ -23,6 +23,7 @@ import { FinancingSection } from "./admin/sections/FinancingSection.jsx";
 import { RolesSection } from "./admin/sections/RolesSection.jsx";
 import { AdsSection } from "./admin/sections/AdsSection.jsx";
 import { InsuranceSection } from "./admin/sections/InsuranceSection.jsx";
+import { PartsSection } from "./admin/sections/PartsSection.jsx";
 import { ServiceRequestsSection } from "./admin/sections/ServiceRequestsSection.jsx";
 import { PartnerVerifSection } from "./admin/sections/PartnerVerifSection.jsx";
 import { SectorRequestsSection } from "./admin/sections/SectorRequestsSection.jsx";
@@ -2956,6 +2957,7 @@ export default function AdminPanel() {
         { key: "contrats",      icon: "📑", label: "Contrats" },
         { key: "chauffeurs",    icon: "👨‍✈️", label: "Chauffeurs",           badge: pendingDrivers },
         { key: "activites",     icon: "🎈", label: "Activités et Loisirs",     badge: pendingActivities },
+        { key: "pieces",        icon: "🔩", label: "Pièces détachées" },
         { key: "import_export", icon: "🌍", label: "Transactions I/E",      badge: pendingIe },
         { key: "exportateurs",  icon: "📦", label: "Partenaires Export",    badge: pendingImp },
         { key: "transport",     icon: "🚢", label: "Transport Intl." },
@@ -6312,6 +6314,10 @@ export default function AdminPanel() {
       )}
 
       {/* ══════════════════════ TAB ACTIVITÉS (OTHERS) ══════════════════════ */}
+      {activeTab === "pieces" && (
+        <PartsSection headers={headers} bookings={bookings} onToast={showToast} />
+      )}
+
       {activeTab === "activites" && (
         <div className={styles.tabContent}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>

@@ -10,7 +10,7 @@
 // dans le contrôleur pour la seule location, et les activités y échappaient.
 // Une liste nommée rend l'oubli visible, et l'ouverture future d'un type se
 // fait en retirant une ligne.
-export const TYPES_ESPECES_UNIQUEMENT = ["location", "activite", "chauffeur"];
+export const TYPES_ESPECES_UNIQUEMENT = ["location", "activite", "chauffeur", "piece"];
 
 export const especesUniquement = (type) => TYPES_ESPECES_UNIQUEMENT.includes(type);
 
@@ -19,3 +19,9 @@ export const especesUniquement = (type) => TYPES_ESPECES_UNIQUEMENT.includes(typ
 // versement ne se règle pas au comptoir.
 export const MESSAGE_ESPECES =
   "Le règlement se fait en espèces, directement auprès du partenaire, au moment de la prestation.";
+
+// Pièce détachée (secteur « pièces », 2026-09-14) : toujours livrée, réglée à
+// la réception ; une importation peut exiger un acompte à la confirmation,
+// annoncé sur l'annonce (SparePart.importInfo.depositPercent).
+export const MESSAGE_ESPECES_PIECE =
+  "Le règlement se fait en espèces au livreur, à la réception de la pièce. Pour une pièce importée, l'acompte annoncé sur l'annonce est réglé au vendeur à la confirmation de la commande.";

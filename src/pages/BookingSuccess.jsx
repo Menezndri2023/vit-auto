@@ -84,6 +84,9 @@ const BookingSuccess = () => {
   }
 
   const isEssai = booking.type === "essai";
+  // Pièce détachée : commande livrée, pas de contrat de location — un
+  // récapitulatif de commande remplace le bloc contrat ci-dessous.
+  const isPiece = booking.type === "piece";
   // Bug réel corrigé (audit conversion) : le bandeau affichait "Réservation
   // confirmée !" de façon inconditionnelle, alors que le statut réel à ce
   // stade est TOUJOURS "pending" (Booking.js default — le partenaire dispose
@@ -109,7 +112,7 @@ const BookingSuccess = () => {
               : isPendingConfirmation ? "Réservation enregistrée !"
               : "Réservation confirmée !"}
           </h1>
-          <p>Merci {booking.firstName || booking.clientInfo?.firstName || ""} {booking.lastName || booking.clientInfo?.lastName || ""}. Votre contrat numérique est généré ci-dessous.</p>
+          <p>Merci {booking.firstName || booking.clientInfo?.firstName || ""} {booking.lastName || booking.clientInfo?.lastName || ""}. {isPiece ? "Le récapitulatif de votre commande est ci-dessous." : "Votre contrat numérique est généré ci-dessous."}</p>
         </div>
       </div>
 
@@ -136,7 +139,44 @@ const BookingSuccess = () => {
         </div>
       )}
 
+      {/* ── Récapitulatif de commande (pièce détachée) ─── */}
+      {isPiece && (
+        <div className={styles.contract} id="contract-to-print">
+          <div className={styles.contractHeader}>
+            <div className={styles.contractLogo}><strong>VIT AUTO</strong><span>Pièces détachées</span></div>
+            <div className={styles.contractMeta}>
+              <div><span>Référence</span><strong>{booking.reference}</strong></div>
+              <div><span>Date</span><strong>{today}</strong></div>
+              <div><span>Type</span><strong className={styles.tagLocation}>{booking.piece?.saleMode === "import" ? "Importation" : "Vente directe"}</strong></div>
+            </div>
+          </div>
+          <div className={styles.contractBody}>
+            <div className={styles.contractSection}>
+              <h2>Commande</h2>
+              <div className={styles.infoGrid}>
+                <div className={styles.infoItem}><span>Quantité</span><strong>{booking.piece?.quantity || 1}</strong></div>
+                <div className={styles.infoItem}><span>Prix unitaire</span><strong><PriceTag amountUSD={booking.piece?.unitPriceUSD || 0} /></strong></div>
+                <div className={styles.infoItem}><span>Livraison</span><strong><PriceTag amountUSD={booking.piece?.delivery?.feeUSD || 0} /></strong></div>
+                {booking.piece?.importFeesUSD > 0 && <div className={styles.infoItem}><span>Frais d'importation</span><strong><PriceTag amountUSD={booking.piece.importFeesUSD} /></strong></div>}
+                <div className={styles.infoItem}><span>Total</span><strong><PriceTag amountUSD={booking.montantTotal || 0} /></strong></div>
+                {booking.piece?.depositUSD > 0 && <div className={styles.infoItem}><span>Acompte à la confirmation</span><strong><PriceTag amountUSD={booking.piece.depositUSD} /></strong></div>}
+              </div>
+            </div>
+            <div className={styles.contractSection}>
+              <h2>Adresse de livraison</h2>
+              <p>{booking.piece?.delivery?.address}, {booking.piece?.delivery?.ville} ({booking.piece?.delivery?.country})</p>
+              {booking.piece?.delivery?.daysMin != null && <p>Délai annoncé : {booking.piece.delivery.daysMin}–{booking.piece.delivery.daysMax} jours{booking.piece?.saleMode === "import" ? " après réception de la pièce importée" : ""}.</p>}
+              <p>Règlement en espèces au livreur, à la réception. Vous confirmerez la réception depuis votre tableau de bord.</p>
+            </div>
+          </div>
+          <div className={styles.contractFooter}>
+            <p>VIT AUTO — {today} — Réf. {booking.reference}</p>
+          </div>
+        </div>
+      )}
+
       {/* ── Contrat digital ───────────────────── */}
+      {!isPiece && (
       <div className={styles.contract} id="contract-to-print">
         {/* En-tête contrat */}
         <div className={styles.contractHeader}>
@@ -290,14 +330,15 @@ const BookingSuccess = () => {
           <p>VIT AUTO — {today} — Réf. {contractNumber}</p>
         </div>
       </div>
+      )}
 
       {/* ── Actions ──────────────────────────── */}
       <div className={styles.actions}>
         <button className={styles.btnPrint} onClick={handlePrint}>
           Imprimer / Télécharger PDF
         </button>
-        <Link to="/catalogue" className={styles.btnPrimary}>
-          Voir d'autres véhicules
+        <Link to={isPiece ? "/catalogue?mode=Pieces" : "/catalogue"} className={styles.btnPrimary}>
+          {isPiece ? "Voir d'autres pièces" : "Voir d'autres véhicules"}
         </Link>
         <Link to="/dashboard" className={styles.btnSecondary}>
           Mon tableau de bord

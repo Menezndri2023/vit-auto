@@ -34,6 +34,7 @@ import * as paymentController from "./controllers/paymentController.js";
 import userRoutes          from "./routes/users.js";
 import driverRoutes        from "./routes/drivers.js";
 import activityRoutes      from "./routes/activities.js";
+import partRoutes from "./routes/parts.js";
 import reviewRoutes        from "./routes/reviews.js";
 import notificationRoutes  from "./routes/notifications.js";
 import subscriptionRoutes  from "./routes/subscriptions.js";
@@ -432,6 +433,8 @@ app.use("/api/payments",       apiLimiter,       paymentRoutes);
 app.use("/api/users",          apiLimiter,       userRoutes);
 app.use("/api/drivers",        apiLimiter,       driverRoutes);
 app.use("/api/activities",     apiLimiter,       activityRoutes);
+// Pièces détachées (secteur « pieces », 2026-09-14) — voir docs/pieces-detachees.md.
+app.use("/api/parts",          apiLimiter,       partRoutes);
 app.use("/api/reviews",        apiLimiter,       reviewRoutes);
 app.use("/api/notifications",  apiLimiter,       notificationRoutes);
 app.use("/api/subscriptions",  apiLimiter,       subscriptionRoutes);

@@ -76,9 +76,9 @@ async function handleInteractiveButton(message, phone) {
   if (!owner) return;
 
   const booking = await Booking.findById(bookingId)
-    .populate("vehicle", "owner").populate("driver", "owner").populate("activity", "owner").lean();
+    .populate("vehicle", "owner").populate("driver", "owner").populate("activity", "owner").populate("part", "owner").lean();
   if (!booking) return;
-  const ownerId = booking.vehicle?.owner?.toString() || booking.driver?.owner?.toString() || booking.activity?.owner?.toString();
+  const ownerId = booking.vehicle?.owner?.toString() || booking.driver?.owner?.toString() || booking.activity?.owner?.toString() || booking.part?.owner?.toString();
   if (!ownerId || ownerId !== owner._id.toString()) {
     logger.warn("[WhatsApp] Bouton reçu d'un numéro non associé à cette réservation", { phone, bookingId });
     return;

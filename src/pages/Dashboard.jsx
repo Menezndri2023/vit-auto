@@ -9,6 +9,7 @@ import { useI18n } from "../context/I18nContext";
 import { useChat } from "../context/ChatContext";
 import { CLIENT_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import VehicleCard from "../components/VehicleCard/VehicleCard";
+import PriceTag from "../components/PriceTag/PriceTag";
 import LoyaltyTierBadge from "../components/LoyaltyTierBadge/LoyaltyTierBadge";
 import MyTestDriveLeads from "../components/MyTestDriveLeads/MyTestDriveLeads";
 import { libelleDureeChauffeur } from "../constants/chauffeur";
@@ -30,6 +31,10 @@ const FINANCING_DECISION_CFG = {
 const normalizeBooking = (b) => {
   const veh = b.vehicle;
   const drv = b.driver;
+  // Activité et pièce détachée : titre de l'annonce — sans ces deux lignes la
+  // carte affichait « Véhicule » pour une sortie en quad ou un alternateur.
+  const act = b.activity && typeof b.activity === "object" ? b.activity : null;
+  const prt = b.part && typeof b.part === "object" ? b.part : null;
   return {
     id:            b._id?.toString() || b.id,
     _id:           b._id?.toString() || b.id,
@@ -40,7 +45,7 @@ const normalizeBooking = (b) => {
     reference:     b.reference,
     vehicleName:   veh
       ? [veh.title, veh.marque, veh.modele].filter(Boolean).join(" ")
-      : (drv ? `${drv.firstName || ""} ${drv.lastName || ""}`.trim() : "Véhicule"),
+      : (drv ? `${drv.firstName || ""} ${drv.lastName || ""}`.trim() : (act?.title || prt?.title || "Véhicule")),
     vehicleId:     veh?._id?.toString() || (typeof veh === "string" ? veh : null),
     // Réservation chauffeur — cible d'avis distincte du véhicule (voir Review.targetType).
     driverId:      drv?._id?.toString() || (typeof drv === "string" ? drv : null),
@@ -81,6 +86,9 @@ const normalizeBooking = (b) => {
     chauffeurDuree:       libelleDureeChauffeur(b.chauffeur),
     chauffeurLieuDepart:  b.chauffeur?.lieuDepart,
     chauffeurDestination: b.chauffeur?.destination,
+    // Pièce détachée (livrée)
+    piece:         b.piece || null,
+    partId:        prt?._id?.toString() || (typeof b.part === "string" ? b.part : null),
     // Leasing / Crédit classique
     leasingApportInitial: b.leasing?.apportInitial,
     leasingMensualite:    b.leasing?.mensualite,
@@ -107,7 +115,7 @@ const normalizeBooking = (b) => {
     // Partenaire
     partnerPhone:  veh?.contactTel || drv?.phone || null,
     partnerName:   veh?.contactNom || (drv ? `${drv.firstName} ${drv.lastName}` : null),
-    ownerId:       (veh?.owner?._id || veh?.owner)?.toString?.() || (drv?.owner?._id || drv?.owner)?.toString?.() || null,
+    ownerId:       (veh?.owner?._id || veh?.owner)?.toString?.() || (drv?.owner?._id || drv?.owner)?.toString?.() || (act?.owner?._id || act?.owner)?.toString?.() || (prt?.owner?._id || prt?.owner)?.toString?.() || null,
     country:       veh?.country || drv?.country || null,
     // Contrat
     contract:      b.contract?._id || b.contract,
@@ -1246,7 +1254,8 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
   const isTrial        = booking.type === "essai";
   const isChauffeur    = booking.type === "chauffeur";
   const isLeasing      = booking.type === "leasing";
-  const TYPE_TAG = { essai: "🔑 Essai", chauffeur: "🧑‍✈️ Chauffeur", leasing: "📊 Leasing", location: "🚗 Location" };
+  const TYPE_TAG = { essai: "🔑 Essai", chauffeur: "🧑‍✈️ Chauffeur", leasing: "📊 Leasing", location: "🚗 Location", activite: "🎈 Activité", piece: "🔩 Pièce détachée" };
+  const isPiece        = booking.type === "piece";
   const needsValidation = booking.status === "waiting_client_validation" || booking.status === "transaction_concluded";
   const isEnRoute      = booking.status === "in_progress";
 
@@ -1290,6 +1299,40 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
           {status.label}
         </span>
       </div>
+
+      {/* ── Pièce détachée : quantité, livraison, suivi d'expédition ── */}
+      {isPiece && booking.piece && (
+        <div className={styles.deliveryBlock}>
+          <div className={styles.deliveryHeader}>
+            <strong>🚚 Livraison de la pièce</strong>
+          </div>
+          <p style={{ margin: "4px 0", fontSize: ".88rem", color: "#334155" }}>
+            {booking.piece.quantity} × <PriceTag amountUSD={booking.piece.unitPriceUSD || 0} compact />
+            {booking.piece.saleMode === "import" && <> · importation{booking.piece.importFeesUSD > 0 && <> (frais <PriceTag amountUSD={booking.piece.importFeesUSD} compact />)</>}</>}
+            {booking.piece.delivery?.feeUSD > 0 && <> · livraison <PriceTag amountUSD={booking.piece.delivery.feeUSD} compact /></>}
+          </p>
+          <p style={{ margin: "4px 0", fontSize: ".88rem", color: "#334155" }}>
+            📍 {booking.piece.delivery?.address}, {booking.piece.delivery?.ville} ({booking.piece.delivery?.country})
+          </p>
+          {booking.piece.depositUSD > 0 && (
+            <p style={{ margin: "4px 0", fontSize: ".85rem", color: booking.piece.depositReceivedAt ? "#059669" : "#b45309" }}>
+              Acompte <PriceTag amountUSD={booking.piece.depositUSD} compact /> — {booking.piece.depositReceivedAt ? "reçu par le vendeur" : "à régler au vendeur à la confirmation"}
+            </p>
+          )}
+          {booking.piece.tracking?.shippedAt && (
+            <p style={{ margin: "4px 0", fontSize: ".85rem", color: "#334155" }}>
+              📦 Expédiée le {new Date(booking.piece.tracking.shippedAt).toLocaleDateString("fr-FR")}
+              {booking.piece.tracking.carrier && <> via {booking.piece.tracking.carrier}</>}
+              {booking.piece.tracking.trackingNumber && <> — n° {booking.piece.tracking.trackingNumber}</>}
+            </p>
+          )}
+          {booking.status === "waiting_client_validation" && (
+            <p style={{ margin: "6px 0 0", fontSize: ".85rem", fontWeight: 700, color: "#1e3a8a" }}>
+              Pièce livrée : confirmez la réception ci-dessous (ou signalez un problème).
+            </p>
+          )}
+        </div>
+      )}
 
       {/* ── Timeline suivi (tous types — indispensable pour valider/contester la transaction) ── */}
       <DeliveryTimeline booking={booking} onValidate={onValidate} onDispute={onDispute} validating={validating} />

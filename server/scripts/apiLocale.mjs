@@ -140,6 +140,25 @@ async function semer(uri) {
       images: [PHOTOS_LOISIRS[i % 2]], ville: "Marrakech", country: "MA", description: "Activité de démonstration." });
   }
 
+  // Pièces détachées (secteur « pièces », 2026-09-14) — une en stock (vente
+  // directe, forfait de livraison), une importée à la commande (acompte).
+  const SparePart = (await import("../models/SparePart.js")).default;
+  for (const [i, piece] of [
+    { category: "FREINAGE", title: "Plaquettes de frein avant Bosch — Golf 5/6", brand: "Bosch", reference: "0986424797", condition: "neuf",
+      compatibility: [{ marque: "Volkswagen", modele: "Golf", anneeDebut: 2004, anneeFin: 2012 }], saleMode: "direct",
+      price: 38, currency: "MAD", priceEntered: 380, priceEntryCurrency: "MAD", stock: 12,
+      shipping: { mode: "forfait", forfaitUSD: 4, freeAboveUSD: 150, deliveryDaysMin: 1, deliveryDaysMax: 3 } },
+    { category: "ELECTRIQUE", title: "Alternateur Valeo 150 A — Dacia Duster", brand: "Valeo", reference: "439731", condition: "reconditionne",
+      compatibility: [{ marque: "Dacia", modele: "Duster", anneeDebut: 2010, anneeFin: 2018 }], saleMode: "import",
+      importInfo: { originCountry: "FR", leadTimeDays: 15, feesUSD: 25, customsIncluded: true, depositPercent: 50 },
+      price: 160, currency: "MAD", priceEntered: 1600, priceEntryCurrency: "MAD", stock: null,
+      shipping: { mode: "gratuit", deliveryDaysMin: 2, deliveryDaysMax: 5 } },
+  ].entries()) {
+    await SparePart.create({ ...piece, owner: partenaires[i % 2]._id, country: "MA", ville: i ? "Casablanca" : "Marrakech",
+      coordonnees: i ? { lat: 33.5731, lng: -7.5898 } : { lat: 31.6295, lng: -7.9811 },
+      images: [PHOTOS[i % 2]], thumbnail: PHOTOS[i % 2], status: "approved", description: "Pièce de démonstration pour la vérification locale." });
+  }
+
   // Chauffeurs professionnels (module chauffeur : mission à la journée,
   // embauche CDD/CDI) — un par partenaire.
   const { createDriverDoc } = await import("../tests/helpers/fixtures.js");

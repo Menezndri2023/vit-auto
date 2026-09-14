@@ -31,6 +31,8 @@ export const FOLDERS = {
   // dédié : le défaut de uploadBase64Images. Aucune donnée à reprendre, la
   // collection était vide au moment de la correction.
   activities: "vit-auto/activities",
+  // Pièces détachées (2026-09-14) — voir models/SparePart.js.
+  parts:      "vit-auto/parts",
   docs:      "vit-auto/docs",
   drivers:   "vit-auto/drivers",
   // Sous-dossier SÉPARÉ pour les pièces d'identité et permis des chauffeurs.
