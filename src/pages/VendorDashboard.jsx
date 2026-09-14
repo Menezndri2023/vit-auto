@@ -16,7 +16,8 @@ import { geocodeAddress } from "../utils/geo";
 import { PARTNER_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import { LICENSE_CATEGORIES, LICENSE_CATEGORY_LABELS } from "../constants/licenseCategories";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, ACTIVITY_PRICE_UNITS, isWeatherDependent } from "../constants/activityTypes";
-import { estUniquementLoisirs } from "../constants/partnerTaxonomy";
+import { estUniquementLoisirs, couvreSecteur } from "../constants/partnerTaxonomy";
+import PartnerSectors from "../components/PartnerSectors/PartnerSectors";
 import styles from "./VendorDashboard.module.css";
 
 /* ── Utilitaires ────────────────────────────────────────────────────────── */
@@ -3202,9 +3203,19 @@ export default function VendorDashboard() {
       {/* ══ TAB : ANNONCES ════════════════════════════════════════════════ */}
       {activeTab === "annonces" && (
         <div className={styles.tabContent}>
-          {/* Secteur loisirs seul : ni véhicules ni chauffeurs (sauf s'il en
-              reste d'anciens à gérer) — ses annonces sont des activités. */}
-          {(!estUniquementLoisirs(user) || filteredVehicles.length > 0) && (<>
+          {/* Secteurs du compte : ce qu'il publie, ce qu'il voit, et la
+              demande d'ajout (validée par l'administration, cumul selon le
+              plan). Chaque section ci-dessous n'apparaît que si le compte
+              couvre son secteur — ou s'il lui reste d'anciennes annonces à
+              gérer. Le serveur applique la même règle (SECTEUR_REQUIS). */}
+          <div className={styles.sectionToolbar}>
+            <h2 className={styles.sectionTitle}>🧭 Mes secteurs</h2>
+          </div>
+          <div style={{ marginBottom: 28 }}>
+            <PartnerSectors />
+          </div>
+
+          {(couvreSecteur(user, "loueur", "vendeur") || filteredVehicles.length > 0) && (<>
           <div className={styles.sectionToolbar}>
             <h2 className={styles.sectionTitle}>Mes véhicules ({filteredVehicles.length})</h2>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -3343,8 +3354,8 @@ export default function VendorDashboard() {
 
           </>)}
 
-          {/* Chauffeurs — jamais pour un partenaire loisirs */}
-          {(!estUniquementLoisirs(user) || myDrivers.length > 0) && (<>
+          {/* Chauffeurs — secteur Chauffeur uniquement */}
+          {(couvreSecteur(user, "chauffeur") || myDrivers.length > 0) && (<>
           <div className={styles.sectionToolbar} style={{ marginTop: 32 }}>
             <h2 className={styles.sectionTitle}>Mes chauffeurs ({myDrivers.length})</h2>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -3439,7 +3450,8 @@ export default function VendorDashboard() {
 
           {/* Activités (section OTHERS — Quad, Surf, Montgolfière, Jetski, Jet
               privé, Bateau...) */}
-          <div className={styles.sectionToolbar} style={{ marginTop: estUniquementLoisirs(user) && !filteredVehicles.length && !myDrivers.length ? 0 : 32 }}>
+          {(couvreSecteur(user, "loisirs") || myActivities.length > 0) && (<>
+          <div className={styles.sectionToolbar} style={{ marginTop: 32 }}>
             <h2 className={styles.sectionTitle}>🎈 Mes activités ({myActivities.length})</h2>
             <Link to="/vendor/submit-activity" className={styles.btnPrimary}>+ Ajouter</Link>
           </div>
@@ -3501,8 +3513,10 @@ export default function VendorDashboard() {
               })}
             </div>
           )}
+          </>)}
 
-          {/* Propositions d'embauche CDD/CDI reçues (voir DriverEmployment.jsx côté client) */}
+          {/* Propositions d'embauche CDD/CDI reçues (voir DriverEmployment.jsx côté client) — secteur Chauffeur */}
+          {(couvreSecteur(user, "chauffeur") || employmentRequests.length > 0) && (<>
           <div className={styles.sectionToolbar} style={{ marginTop: 32 }}>
             <h2 className={styles.sectionTitle}>💼 Propositions d'embauche ({employmentRequests.filter((r) => r.status === "pending").length} en attente)</h2>
           </div>
@@ -3548,6 +3562,7 @@ export default function VendorDashboard() {
               })}
             </div>
           )}
+          </>)}
         </div>
       )}
 

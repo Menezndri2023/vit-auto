@@ -40,6 +40,10 @@ const notificationSchema = new mongoose.Schema({
       // Partners
       "partner_approved",
       "partner_suspended",
+      // Secteurs d'activité (location, vente, export, chauffeur, loisirs)
+      "sector_requested",
+      "sector_approved",
+      "sector_rejected",
       "loi_ready",
       "agreement_ready",
       "onboarding_step",

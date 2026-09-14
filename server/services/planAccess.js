@@ -25,10 +25,13 @@ export async function planEffectif(vendorId) {
 
 // Libellés des paliers, pour composer un refus qui dit ce qui manque plutôt
 // qu'un « accès refusé » qui laisse le partenaire sans action possible.
+// Noms commerciaux — miroir de src/constants/planFeatures.LIBELLE_PLAN. Les
+// identifiants restent figés ; « Exportateur » ne nomme plus un palier, il
+// nommait déjà un secteur d'activité.
 const LIBELLE_PLAN = {
-  individuel_plus: "Individuel+",
+  individuel_plus: "Essentiel",
   business:        "Business",
-  exportateur:     "Exportateur",
+  exportateur:     "Premium",
 };
 
 export function messageRefus(feature) {

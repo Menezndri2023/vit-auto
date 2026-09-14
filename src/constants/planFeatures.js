@@ -53,9 +53,111 @@ export const PLACES_VITRINE_PAR_PLAN = {
 // Durée de l'essai gratuit ouvert par le support.
 export const DUREE_ESSAI_JOURS = 30;
 
+// Noms COMMERCIAUX des paliers. Les identifiants (individuel_plus,
+// exportateur…) sont figés en base et dans les routes ; seuls les libellés
+// changent. « Exportateur » désignait à la fois un palier et un secteur
+// d'activité — un loueur professionnel ne savait pas s'il devait prendre
+// Business ou Exportateur. Les paliers portent désormais des noms qui ne sont
+// ni un métier ni un type d'entité : ils vendent des outils et de la
+// visibilité, pas une identité.
 export const LIBELLE_PLAN = {
   free:            "Gratuit",
-  individuel_plus: "Individuel Plus",
+  individuel_plus: "Essentiel",
   business:        "Business",
-  exportateur:     "Exportateur",
+  exportateur:     "Premium",
+  entreprise:      "Entreprise",
+};
+
+// ── Secteurs cumulables et quota d'annonces — miroir de server/constants/planFeatures.js
+// `null` = sans limite.
+export const PLAN_SECTEURS = {
+  free:            1,
+  individuel_plus: 1,
+  business:        2,
+  exportateur:     null,
+};
+
+export const PLAN_QUOTA_ANNONCES = {
+  free:            5,
+  individuel_plus: 15,
+  business:        60,
+  exportateur:     null,
+};
+
+// Jusqu'à cette date, aucun quota ne s'applique (immunité de lancement) ; les
+// Partenaires Fondateurs restent exemptés pendant leurs douze mois au-delà.
+export const FIN_IMMUNITE_QUOTAS = new Date("2027-09-10T00:00:00Z");
+
+// ── Outils par secteur, par palier ─────────────────────────────────────────
+// Même prix et même palier pour tous les métiers ; ce qui change, c'est le
+// contenu montré à chaque partenaire. UNIQUEMENT ce qui existe : la page
+// Tarifs ne vend pas de « bientôt » (un test le verrouille) — les outils à
+// construire sont listés dans docs/manuels/acces-partenaires.md, pas ici.
+export const OUTILS_PAR_SECTEUR = {
+  loueur: {
+    individuel_plus: [
+      { text: "Tarifs saisonniers et promotions multi-paliers" },
+    ],
+    business: [
+      { text: "Import de flotte par fichier (CSV, Excel, Google Sheets)" },
+      { text: "Gestion de parc : planning, entretien, journal de chaque véhicule" },
+    ],
+    exportateur: [
+      { text: "Synchronisation du parc par API depuis votre logiciel" },
+    ],
+  },
+  vendeur: {
+    individuel_plus: [
+      { text: "Prix face au marché sur chaque annonce" },
+    ],
+    business: [
+      { text: "CRM intégré : demandes d'essai, leads et devis" },
+      { text: "Showroom public personnalisé" },
+      { text: "Bilan mensuel des ventes et des essais par e-mail" },
+    ],
+    exportateur: [
+      { text: "Synchronisation du stock par API" },
+      { text: "Dossier financement et crédit intégré à la vente" },
+    ],
+  },
+  exportateur: {
+    individuel_plus: [
+      { text: "Calculateur Incoterms 2020 sur chaque annonce" },
+    ],
+    business: [
+      { text: "Suivi de dossier complet : inspection, séquestre, transport" },
+      { text: "Demandes import/export des visiteurs reçues en avance" },
+      { text: "Documents LOI et accord partenaire" },
+    ],
+    exportateur: [
+      { text: "CRM export multi-devises" },
+      { text: "API catalogue pour vos revendeurs" },
+      { text: "Estimation du coût d'import affichée au client" },
+    ],
+  },
+  chauffeur: {
+    individuel_plus: [
+      { text: "Profil mis en avant dans la rubrique Chauffeurs" },
+      { text: "Planning et indisponibilités" },
+    ],
+    business: [
+      { text: "Société de chauffeurs : plusieurs chauffeurs sous un même compte" },
+    ],
+    exportateur: [],
+  },
+  // Secteur créé le 2026-09-14 : aucun outil spécifique construit à ce jour.
+  pieces: { individuel_plus: [], business: [], exportateur: [] },
+  loisirs: {
+    individuel_plus: [
+      { text: "Mise en avant dans la rubrique Loisirs" },
+      { text: "Créneaux et capacité par séance" },
+    ],
+    business: [
+      { text: "Fermeture automatique selon la météo" },
+      { text: "Tarifs de groupe et de saison" },
+      { text: "Équipe de moniteurs sous un même compte" },
+    ],
+    exportateur: [
+    ],
+  },
 };

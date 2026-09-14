@@ -68,6 +68,7 @@ import commissionLedgerRoutes from "./routes/commissionLedger.js";
 import loyaltyRoutes from "./routes/loyalty.js";
 import supportRoutes from "./routes/support.js";
 import teamRoutes from "./routes/team.js";
+import partnerSectorRoutes from "./routes/partnerSectors.js";
 import apiKeyRoutes from "./routes/apiKeys.js";
 import publicApiRoutes from "./routes/publicApi.js";
 import partnerRequestRoutes from "./routes/partnerRequests.js";
@@ -467,6 +468,7 @@ app.use("/api/commission-ledger",     apiLimiter, commissionLedgerRoutes); // Su
 app.use("/api/loyalty",               apiLimiter, loyaltyRoutes);          // Programme de fidélité à paliers (solde, historique)
 app.use("/api/support",               apiLimiter, supportRoutes);         // Billetterie d'assistance — file prioritaire pour les abonnés
 app.use("/api/team",                  apiLimiter, teamRoutes);            // Comptes d'équipe rattachés à un partenaire (palier Business)
+app.use("/api/partner-sectors",       apiLimiter, partnerSectorRoutes);   // Secteurs d'activité d'un partenaire — ajout validé par l'administration, cumul selon le plan
 app.use("/api/api-keys",              apiLimiter, apiKeyRoutes);          // Clés d'API partenaire (palier Exportateur)
 app.use("/api/v1",                    apiLimiter, publicApiRoutes);       // API partenaire v1 — authentifiée par clé, pas par session
 app.use("/api/partner-requests",       apiLimiter, partnerRequestRoutes);  // Demandes clients ouvertes — avance de 2 h pour les abonnés

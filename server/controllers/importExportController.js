@@ -18,6 +18,8 @@ import { validateListingForPublication } from "../services/ieListingValidation.j
 import { resolveDefaultPartnerBusinessId } from "../utils/ensureDefaultPartnerBusiness.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 import { isMalformedObjectId } from "../utils/objectId.js";
+import { refusDePerimetre } from "../utils/perimetre.js";
+import { refusDeQuota } from "../services/quotaAnnonces.js";
 
 const MAX_LISTING_IMAGE_BYTES = 6 * 1024 * 1024;
 const MAX_IMAGE_URL_LENGTH    = 2048;
@@ -571,6 +573,12 @@ export const createListing = async (req, res) => {
         message: "Devenez Founding Partner pour publier des annonces d'export.",
       });
     }
+    // Secteur Import / Export, puis quota du plan (voir perimetre.js et
+    // quotaAnnonces.js) — le dashboard masque, le serveur refuse.
+    const refusSecteur = refusDePerimetre(req.user, "exportateur", "publier une annonce d'export");
+    if (refusSecteur) return res.status(403).json(refusSecteur);
+    const refusQuota = await refusDeQuota(req.user, "exportateur");
+    if (refusQuota) return res.status(403).json(refusQuota);
     // Suspension/rejet Vérification Partenaire — voir vehicleController.js
     // createVehicle pour l'explication complète : isFounder ne communique
     // jamais avec PartnerVerification, un admin "suspendant" un Founding

@@ -76,6 +76,8 @@ const partnerOnboardingSchema = new mongoose.Schema({
       // jetski…) — cible de ACTIVITY_TO_PARTNER_TYPE.loisirs. Sans cette
       // valeur, un dossier d'onboarding loisirs échouait à la validation.
       "activites_loisirs",
+      // Vente de pièces détachées — cible de ACTIVITY_TO_PARTNER_TYPE.pieces.
+      "pieces_detachees",
       "transitaire_logistique",
       "financement",
       "assurance",

@@ -33,7 +33,7 @@ export const MOIS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "
 // Tarification saisonnière (CatalogueSection, voir openSeasonalModal) — noms complets pour le sélecteur.
 export const MOIS_LONGS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 
-export const PLAN_TIER_LABELS = { individuel_plus: "Individuel Plus", business: "Business", exportateur: "Exportateur" };
+export const PLAN_TIER_LABELS = { individuel_plus: "Essentiel", business: "Business", exportateur: "Premium" };
 
 // Sanitise une URL avant de l'utiliser dans href (bloque javascript: et autres schémas dangereux)
 export const safeHref = (url) => {

@@ -16,7 +16,10 @@
 // « Loisirs » du catalogue et la page /vendor/submit-activity existaient — mais
 // l'activité manquait ICI : un centre de plongée ne pouvait pas déclarer son
 // métier à l'inscription, et son compte restait typé `null` ou, pire, "loueur".
-export const ACTIVITIES = ["loueur", "vendeur", "exportateur", "chauffeur", "loisirs"];
+// "pieces" (2026-09-14) : vente de pièces détachées, directe ou par
+// importation, toujours en livraison — un secteur à part entière, distinct de
+// la vente de véhicules (autre catalogue, autre parcours d'achat).
+export const ACTIVITIES = ["loueur", "vendeur", "exportateur", "chauffeur", "loisirs", "pieces"];
 
 export const ENTITY_TYPES = ["particulier", "professionnel", "entreprise", "concessionnaire"];
 
@@ -26,6 +29,7 @@ export const ACTIVITY_LABELS = {
   exportateur: "Exportateur — import/export de véhicules",
   chauffeur: "Chauffeur — je propose mes services de conduite",
   loisirs: "Activités & loisirs — plongée, quad, jetski, excursions…",
+  pieces: "Pièces détachées — vente directe ou importation, livraison",
 };
 
 export const ENTITY_TYPE_LABELS = {
@@ -50,6 +54,7 @@ export const ACTIVITY_TO_PARTNER_TYPE = {
   exportateur: "importateur_exportateur",
   chauffeur: "chauffeur_professionnel",
   loisirs: "activites_loisirs",
+  pieces: "pieces_detachees",
 };
 
 // activity -> PartnerVerification.companyType historique. "chauffeur" n'a pas
@@ -65,6 +70,7 @@ export const ACTIVITY_TO_COMPANY_TYPE = {
   // connaît que des métiers automobiles. "autre" est le repli prévu pour ça,
   // il n'est lu par aucune logique de gating.
   loisirs: "autre",
+  pieces: "autre",
 };
 
 export function requiresDriverDocs(activity) {
@@ -74,3 +80,36 @@ export function requiresDriverDocs(activity) {
 export function requiresBusinessDocs(entityType) {
   return ["professionnel", "entreprise", "concessionnaire"].includes(entityType);
 }
+
+// ── Secteurs d'un compte ───────────────────────────────────────────────────
+// Miroir des helpers de src/constants/partnerTaxonomy.js (même règle des deux
+// côtés : le dashboard masque, le serveur refuse — jamais l'un sans l'autre).
+//
+// Secteurs d'un compte partenaire : celui de l'inscription (`partnerActivity`)
+// + ceux accordés ensuite (`partnerActivities`, via une demande validée par
+// l'administration). Vide = compte historique sans secteur déclaré : on ne
+// refuse alors rien, sinon des centaines d'annonces existantes deviendraient
+// impossibles à compléter du jour au lendemain.
+export const secteursDuPartenaire = (user) => {
+  const s = new Set([user?.partnerActivity || user?.activity, ...(user?.partnerActivities || [])].filter(Boolean));
+  return [...s];
+};
+
+export const estUniquementLoisirs = (user) => {
+  const s = secteursDuPartenaire(user);
+  return s.length > 0 && s.every((a) => a === "loisirs");
+};
+
+// Libellés courts, pour les messages de refus (« secteur Location »).
+export const SECTEUR_LABELS = {
+  loueur:      "Location",
+  vendeur:     "Vente",
+  exportateur: "Import / Export",
+  chauffeur:   "Chauffeur",
+  loisirs:     "Activités & loisirs",
+  pieces:      "Pièces détachées",
+};
+
+// Une annonce véhicule relève du secteur Location ou Vente selon son type :
+// « location » → loueur, « vente » → vendeur. Tout autre type est inconnu.
+export const secteurPourTypeVehicule = (type) => ({ location: "loueur", vente: "vendeur" })[type] || null;

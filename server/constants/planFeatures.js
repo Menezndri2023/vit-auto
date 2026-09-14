@@ -60,5 +60,40 @@ export const planOuvre = (plan, feature) => {
   return planRank(plan) >= PLAN_RANK[min];
 };
 
+// ── Secteurs cumulables ────────────────────────────────────────────────────
+// Un secteur (location, vente, export, chauffeur, loisirs) est une IDENTITÉ
+// validée par l'administration, jamais un droit qu'un plan ouvre. Ce que le
+// plan fixe, c'est COMBIEN de secteurs un même compte peut cumuler : l'agence
+// qui loue ET vend relève de Business, le groupe qui loue, vend et exporte du
+// palier supérieur. `null` = sans limite.
+export const PLAN_SECTEURS = {
+  free:            1,
+  individuel_plus: 1,
+  business:        2,
+  exportateur:     null,
+};
+
+// ── Quota d'annonces ACTIVES par secteur ───────────────────────────────────
+// Compte les annonces en attente ou approuvées (brouillons, archivées,
+// vendues, rejetées exclues). Le quota ne dépublie jamais l'existant : il
+// bloque uniquement la publication AU-DELÀ, à la création. `null` = illimité.
+export const PLAN_QUOTA_ANNONCES = {
+  free:            5,
+  individuel_plus: 15,
+  business:        60,
+  exportateur:     null,
+};
+
+// Immunité de lancement : jusqu'à cette date, tout partenaire publie sans
+// quota, quel que soit son plan — même geste et même durée que l'offre
+// Partenaire Fondateur et que la vitrine partenaires gratuite
+// (spotlightEngine.FIN_VITRINE_PARTENAIRES_GRATUITE). Comparée à l'instant de
+// la requête : la règle reprend d'elle-même, sans redéploiement. Au-delà, les
+// Partenaires Fondateurs restent exemptés pendant leurs douze mois.
+export const FIN_IMMUNITE_QUOTAS = new Date("2027-09-10T00:00:00Z");
+
+export const secteursDuPlan      = (plan) => (plan in PLAN_SECTEURS ? PLAN_SECTEURS[plan] : PLAN_SECTEURS.free);
+export const quotaAnnoncesDuPlan = (plan) => (plan in PLAN_QUOTA_ANNONCES ? PLAN_QUOTA_ANNONCES[plan] : PLAN_QUOTA_ANNONCES.free);
+
 export const seatsDuPlan     = (plan) => PLAN_SEATS[plan] ?? 1;
 export const slaHeuresDuPlan = (plan) => PLAN_SUPPORT_SLA_HOURS[plan] ?? PLAN_SUPPORT_SLA_HOURS.free;

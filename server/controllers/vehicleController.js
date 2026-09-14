@@ -13,6 +13,9 @@ import { planRank } from "../constants/subscriptionPlans.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
 import MediaCredit from "../models/MediaCredit.js";
 import { refusDePublication } from "../utils/publishingGate.js";
+import { refusDePerimetre } from "../utils/perimetre.js";
+import { refusDeQuota } from "../services/quotaAnnonces.js";
+import { secteurPourTypeVehicule } from "../constants/partnerTaxonomy.js";
 import Review from "../models/Review.js";
 import { resolveRentalOptions } from "../services/rentalOptions.js";
 import ImportExportListing from "../models/ImportExportListing.js";
@@ -112,6 +115,19 @@ export const createVehicle = async (req, res) => {
     // redirection vers /partner-onboarding.
     const refus = refusDePublication(req.user, "publier une annonce");
     if (refus) return res.status(403).json(refus);
+
+    // ── Périmètre et quota du secteur ──────────────────────────────────────
+    // Une annonce « location » relève du secteur Location, une annonce
+    // « vente » du secteur Vente : un compte qui ne couvre pas ce secteur ne
+    // publie pas ici (le dashboard le lui cache déjà, le serveur le refuse
+    // aussi). Puis le quota du plan, compté par secteur — voir quotaAnnonces.js.
+    const secteur = secteurPourTypeVehicule(req.body.type);
+    if (secteur) {
+      const refusSecteur = refusDePerimetre(req.user, secteur, "publier une annonce de ce type");
+      if (refusSecteur) return res.status(403).json(refusSecteur);
+      const refusQuota = await refusDeQuota(req.user, secteur);
+      if (refusQuota) return res.status(403).json(refusQuota);
+    }
 
     // ── Suspension/rejet Vérification Partenaire ────────────────────────────
     // certificationBadge (ci-dessus) et PartnerVerification sont deux systèmes
@@ -956,6 +972,12 @@ export const convertVehicleToExport = async (req, res) => {
         message: "Le propriétaire doit être Founding Partner pour publier une annonce d'export.",
       });
     }
+    // Secteur Import / Export du propriétaire, et son quota — la conversion
+    // crée une annonce export comme le ferait createListing.
+    const refusSecteur = refusDePerimetre(ownerUser, "exportateur", "publier une annonce d'export");
+    if (refusSecteur) return res.status(403).json(refusSecteur);
+    const refusQuota = await refusDeQuota(ownerUser, "exportateur");
+    if (refusQuota) return res.status(403).json(refusQuota);
     const suspendedVerif = await PartnerVerification.findOne({
       userId: ownerUser._id,
       status: { $in: ["suspendu", "rejete"] },

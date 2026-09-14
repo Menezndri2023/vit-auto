@@ -7,6 +7,7 @@ Rédigés le 2026-07-16, basés sur l'état réel vérifié de la plateforme à 
 - [Administrateurs](./admin.md) — tour complet de l'Admin Panel
 - [Modérateurs](./moderateurs.md) — modération de contenu, avis, vérification partenaires
 - [Commercial](./commercial.md) — argumentaire de vente aux partenaires, ce qu'il ne faut pas promettre
+- [Accès partenaires](./acces-partenaires.md) — secteurs, plans, quotas, cumul de secteurs, ce que chaque métier voit et peut publier
 - [Publication App Store](./publication-app-store.md) — débloquer le compte Apple, secrets GitHub, workflow de publication, fiche et review
 
 Voir aussi [`ARCHITECTURE.md`](../../ARCHITECTURE.md) (référence technique) à la racine du projet.

@@ -16,7 +16,10 @@
 // « Loisirs » du catalogue et la page /vendor/submit-activity existaient — mais
 // l'activité manquait ICI : un centre de plongée ne pouvait pas déclarer son
 // métier à l'inscription, et son compte restait typé `null` ou, pire, "loueur".
-export const ACTIVITIES = ["loueur", "vendeur", "exportateur", "chauffeur", "loisirs"];
+// "pieces" (2026-09-14) : vente de pièces détachées, directe ou par
+// importation, toujours en livraison — un secteur à part entière, distinct de
+// la vente de véhicules (autre catalogue, autre parcours d'achat).
+export const ACTIVITIES = ["loueur", "vendeur", "exportateur", "chauffeur", "loisirs", "pieces"];
 
 export const ENTITY_TYPES = ["particulier", "professionnel", "entreprise", "concessionnaire"];
 
@@ -26,6 +29,7 @@ export const ACTIVITY_LABELS = {
   exportateur: "Exportateur — import/export de véhicules",
   chauffeur: "Chauffeur — je propose mes services de conduite",
   loisirs: "Activités & loisirs — plongée, quad, jetski, excursions…",
+  pieces: "Pièces détachées — vente directe ou importation, livraison",
 };
 
 export const ENTITY_TYPE_LABELS = {
@@ -50,6 +54,7 @@ export const ACTIVITY_TO_PARTNER_TYPE = {
   exportateur: "importateur_exportateur",
   chauffeur: "chauffeur_professionnel",
   loisirs: "activites_loisirs",
+  pieces: "pieces_detachees",
 };
 
 // activity -> PartnerVerification.companyType historique. "chauffeur" n'a pas
@@ -65,6 +70,7 @@ export const ACTIVITY_TO_COMPANY_TYPE = {
   // connaît que des métiers automobiles. "autre" est le repli prévu pour ça,
   // il n'est lu par aucune logique de gating.
   loisirs: "autre",
+  pieces: "autre",
 };
 
 export function requiresDriverDocs(activity) {
@@ -90,4 +96,30 @@ export const secteursDuPartenaire = (user) => {
 export const estUniquementLoisirs = (user) => {
   const s = secteursDuPartenaire(user);
   return s.length > 0 && s.every((a) => a === "loisirs");
+};
+
+// Libellés courts des secteurs (onglets, messages) — miroir de
+// server/constants/partnerTaxonomy.js.
+export const SECTEUR_LABELS = {
+  loueur:      "Location",
+  vendeur:     "Vente",
+  exportateur: "Import / Export",
+  chauffeur:   "Chauffeur",
+  loisirs:     "Activités & loisirs",
+  pieces:      "Pièces détachées",
+};
+
+// Le compte couvre-t-il l'un de ces secteurs ? Un compte sans secteur déclaré
+// (historique) couvre tout — même règle que côté serveur (perimetre.js) : on
+// masque et on refuse sur la même base, jamais l'un sans l'autre.
+export const couvreSecteur = (user, ...secteurs) => {
+  const s = secteursDuPartenaire(user);
+  return s.length === 0 || secteurs.some((x) => s.includes(x));
+};
+
+// Même règle pour le secteur « pièces détachées » (2026-09-14) : un partenaire
+// dont c'est le seul secteur ne voit que ses pièces.
+export const estUniquementPieces = (user) => {
+  const s = secteursDuPartenaire(user);
+  return s.length > 0 && s.every((a) => a === "pieces");
 };

@@ -25,6 +25,7 @@ import { AdsSection } from "./admin/sections/AdsSection.jsx";
 import { InsuranceSection } from "./admin/sections/InsuranceSection.jsx";
 import { ServiceRequestsSection } from "./admin/sections/ServiceRequestsSection.jsx";
 import { PartnerVerifSection } from "./admin/sections/PartnerVerifSection.jsx";
+import { SectorRequestsSection } from "./admin/sections/SectorRequestsSection.jsx";
 import { CatalogueSection } from "./admin/sections/CatalogueSection.jsx";
 import { MarketingSection } from "./admin/sections/MarketingSection.jsx";
 
@@ -62,6 +63,8 @@ export default function AdminPanel() {
   // tableau de bord. Tout le flux d'escalade reposait sur un lien inerte.
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab]   = useState(() => searchParams.get("tab") || "dashboard");
+  // Demandes d'ajout de secteur en attente — compteur remonté par l'onglet lui-même.
+  const [secteursPending, setSecteursPending] = useState(0);
 
   // Suit les changements d'URL ultérieurs (clic sur une notification alors que
   // le panneau est déjà ouvert).
@@ -2835,6 +2838,7 @@ export default function AdminPanel() {
     kyc:              "kyc",
     certification:    "partners",
     partner_verif:    "partners",
+    secteurs:         "partners",
     pms_partners:     "partners",
     founding_partners:"partners",
     partner_crm:      "partners",
@@ -2966,6 +2970,7 @@ export default function AdminPanel() {
       label: "PARTENAIRES",
       items: [
         { key: "partner_verif",    icon: "🔍", label: "Vérification Partenaires", badge: pendingPv },
+        { key: "secteurs",         icon: "🧭", label: "Secteurs d'activité",     badge: secteursPending || undefined },
         { key: "pms_partners",     icon: "🏪", label: "Partner Hub PMS",          badge: pmsShowrooms.filter(s => !s.isPublished).length || undefined },
         { key: "founding_partners",icon: "🌟", label: "Founding Partners",        badge: foundingPending || undefined },
         { key: "partner_crm",      icon: "🎯", label: "CRM Partenaires" },
@@ -7783,6 +7788,9 @@ export default function AdminPanel() {
           </div>
           <EscrowSection ieTransactions={ieTransactions} loading={ieTxLoading} />
         </div>
+      )}
+      {activeTab === "secteurs" && (
+        <SectorRequestsSection headers={headers} onCountChange={setSecteursPending} />
       )}
       {activeTab === "partner_verif" && (
         <PartnerVerifSection

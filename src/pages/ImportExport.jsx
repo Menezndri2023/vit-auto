@@ -4,6 +4,7 @@ import styles from "./ImportExport.module.css";
 import { COUNTRIES_ALL, VEHICLE_TYPES } from "../data/autocomplete";
 import { useCurrency } from "../context/CurrencyContext";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
+import { LIBELLE_PLAN } from "../constants/planFeatures";
 
 // Repli tant que GET /api/pricing/config n'a pas répondu — mêmes valeurs que
 // server/config/defaultPricingConfig.js (source de vérité réelle).
@@ -353,10 +354,12 @@ const ImportExport = () => {
   // /plans, présentés ici dans le contexte Import/Export. "Enterprise" reste
   // à devis manuel (pas de self-service, voir PricingConfig.subscriptions).
   const PLANS = [
-    { name: "Individuel Plus", price: `${fmtUSD(pricing.subscriptions.individuel_plus.priceUSD)}/mois`, features: ["Commission réduite", "Classement prioritaire", "Statistiques de base"] },
-    { name: "Business",        price: `${fmtUSD(pricing.subscriptions.business.priceUSD)}/mois`,        features: ["Commission réduite", "Badge vérifié", "Statistiques avancées", "Mise en avant"] },
-    { name: "Exportateur",     price: `${fmtUSD(pricing.subscriptions.exportateur.priceUSD)}/mois`,     highlight: true, features: ["Catalogue illimité", "Outils export & API", "CRM", "Badge vérifié", "Multi-utilisateur"] },
-    { name: "Enterprise",      price: "Sur devis", features: ["Tout Exportateur inclus", "Tarification personnalisée", "Fonctionnalités illimitées"] },
+    // Pas de « commission réduite » : depuis la grille du 2026-09-09, un
+    // abonnement ouvre des outils et de la visibilité, jamais une remise.
+    { name: LIBELLE_PLAN.individuel_plus, price: `${fmtUSD(pricing.subscriptions.individuel_plus.priceUSD)}/mois`, features: ["Classement prioritaire", "Calculateur Incoterms", "Statistiques de performance"] },
+    { name: LIBELLE_PLAN.business,        price: `${fmtUSD(pricing.subscriptions.business.priceUSD)}/mois`,        features: ["Suivi de dossier complet", "Demandes clients en avance", "Équipe de 3 accès", "Mises en avant incluses"] },
+    { name: LIBELLE_PLAN.exportateur,     price: `${fmtUSD(pricing.subscriptions.exportateur.priceUSD)}/mois`,     highlight: true, features: ["Annonces illimitées", "CRM export multi-devises", "API catalogue", "Tous les secteurs", "10 accès"] },
+    { name: LIBELLE_PLAN.entreprise,      price: "Sur devis", features: [`Tout ${LIBELLE_PLAN.exportateur} inclus`, "Tarification personnalisée", "Fonctionnalités illimitées"] },
   ];
 
   return (

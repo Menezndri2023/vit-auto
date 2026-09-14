@@ -5,7 +5,8 @@ import { useCurrency } from "../context/CurrencyContext";
 import { useI18n } from "../context/I18nContext";
 import { PAYMENTS_ENABLED_FALLBACK, PAYMENTS_DISABLED_NOTICE, PAYMENTS_DISABLED_CTA } from "../config/featureFlags";
 import { PLAN_INCLUDED_BOOSTS } from "../constants/subscriptionPlans";
-import { PLAN_SEATS, PLAN_SUPPORT_SLA_HOURS, AVANCE_DEMANDES_HEURES, PLACES_VITRINE_PAR_PLAN } from "../constants/planFeatures";
+import { PLAN_SEATS, PLAN_SUPPORT_SLA_HOURS, AVANCE_DEMANDES_HEURES, PLACES_VITRINE_PAR_PLAN, LIBELLE_PLAN, PLAN_SECTEURS, PLAN_QUOTA_ANNONCES, FIN_IMMUNITE_QUOTAS, OUTILS_PAR_SECTEUR } from "../constants/planFeatures";
+import { ACTIVITIES, SECTEUR_LABELS, secteursDuPartenaire } from "../constants/partnerTaxonomy";
 import styles from "./Plans.module.css";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
@@ -50,7 +51,18 @@ export default function Plans() {
     description: "Commissions transparentes et abonnements partenaires VIT AUTO. Publier une annonce est gratuit ; vous ne payez qu'à la transaction.",
   });
 
-  const { isAuthenticated, token } = useAuth();
+  const { isAuthenticated, token, user } = useAuth();
+  // Secteur dont on montre les outils : celui du partenaire connecté, sinon
+  // Location — le visiteur change d'onglet. Même prix et même palier pour
+  // tous les métiers ; seul le contenu affiché varie.
+  const [secteur, setSecteur] = useState(() => secteursDuPartenaire(user)[0] || "loueur");
+  const [secteurChoisi, setSecteurChoisi] = useState(false);
+  // La session se résout après le premier rendu : on suit le secteur du
+  // compte dès qu'il arrive, sauf si le visiteur a déjà cliqué un onglet.
+  const secteurDuCompte = secteursDuPartenaire(user)[0] || null;
+  useEffect(() => {
+    if (secteurDuCompte && !secteurChoisi) setSecteur(secteurDuCompte);
+  }, [secteurDuCompte, secteurChoisi]);
   const { fmtUSD, currentCurrency } = useCurrency();
   const { t } = useI18n();
   const navigate = useNavigate();
@@ -75,16 +87,35 @@ export default function Plans() {
       .catch(() => {}); // repli déjà en place
   }, []);
 
+  const immuniteEnCours = new Date() < FIN_IMMUNITE_QUOTAS;
+  const finImmunite = FIN_IMMUNITE_QUOTAS.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  const texteSecteurs = (plan) => {
+    const n = PLAN_SECTEURS[plan];
+    return n === null ? "Tous les secteurs d'activité sur un même compte" : `${n} secteur${n > 1 ? "s" : ""} d'activité (location, vente, export, chauffeur ou loisirs)`;
+  };
+  // Le quota ne s'applique qu'après l'immunité de lancement ; d'ici là, on le
+  // dit tel quel — annoncer une limite qui ne s'applique pas encore ferait
+  // fuir sans raison.
+  const texteQuota = (plan) => {
+    const q = PLAN_QUOTA_ANNONCES[plan];
+    if (q === null) return "Annonces illimitées";
+    return immuniteEnCours
+      ? `Annonces illimitées jusqu'au ${finImmunite}, puis ${q} annonces actives par secteur`
+      : `${q} annonces actives par secteur`;
+  };
+  const outils = (plan) => (OUTILS_PAR_SECTEUR[secteur]?.[plan] || []).map((o) => ({ ok: true, text: o.text }));
+
   // Construit la liste des offres à partir de la tarification live — chaque
   // catégorie du cahier des charges (Particulier/Professionnel/Exportateur/
   // Entreprise) correspond à un palier Subscription.plan (voir server/models/Subscription.js).
   const PLANS = [
     {
-      id: "free", planTier: null, name: "Gratuit", price: 0, period: null,
+      id: "free", planTier: null, name: LIBELLE_PLAN.free, price: 0, period: null,
       badge: null, color: "#64748b", icon: "🚀",
-      desc: "Toute catégorie de partenaire peut démarrer gratuitement, sans engagement.",
+      desc: "Le strict nécessaire pour encaisser votre première transaction, quel que soit votre métier.",
       features: [
-        { ok: true,  text: "Publication d'annonces illimitée" },
+        { ok: true,  text: texteSecteurs("free") },
+        { ok: true,  text: texteQuota("free") },
         { ok: true,  text: "Profil partenaire complet" },
         { ok: true,  text: "Réception des demandes clients" },
         { ok: true,  text: "Contrat digital automatique" },
@@ -95,12 +126,15 @@ export default function Plans() {
       cta: "Plan actuel", ctaDisabled: true, popular: false,
     },
     {
-      id: "individuel_plus", planTier: "individuel_plus", name: "Individuel Plus",
+      id: "individuel_plus", planTier: "individuel_plus", name: LIBELLE_PLAN.individuel_plus,
       price: pricing.subscriptions?.individuel_plus?.priceUSD, period: "mois",
       badge: null, color: "#6366f1", icon: "⚡",
-      desc: "Pour les particuliers — vendeurs, conducteurs, loueurs privés — qui veulent plus de visibilité.",
+      desc: "Plus de visibilité dans votre métier, pour un indépendant comme pour une petite structure.",
       features: [
-        { ok: true,  text: "Tout du plan Gratuit" },
+        { ok: true,  text: `Tout du plan ${LIBELLE_PLAN.free}` },
+        { ok: true,  text: texteSecteurs("individuel_plus") },
+        { ok: true,  text: texteQuota("individuel_plus") },
+        ...outils("individuel_plus"),
         { ok: true,  text: `${PLAN_INCLUDED_BOOSTS.individuel_plus} mises en avant incluses chaque mois` },
         { ok: true,  text: "Classement prioritaire" },
         { ok: true,  text: "Statistiques de performance : vues, conversion, prix face au marché" },
@@ -111,15 +145,18 @@ export default function Plans() {
         { ok: false, text: "Multi-utilisateurs" },
         { ok: false, text: "Accès API" },
       ],
-      cta: "Choisir Individuel Plus", ctaDisabled: false, popular: false,
+      cta: `Choisir ${LIBELLE_PLAN.individuel_plus}`, ctaDisabled: false, popular: false,
     },
     {
-      id: "business", planTier: "business", name: "Business",
+      id: "business", planTier: "business", name: LIBELLE_PLAN.business,
       price: pricing.subscriptions?.business?.priceUSD, period: "mois",
       badge: "⭐ Recommandé", color: "#f59e0b", icon: "🏆",
-      desc: "Pour les professionnels — concessionnaires, garages, sociétés de location, gestionnaires de flotte.",
+      desc: "Une structure avec une équipe, ou deux métiers sur un même compte — l'agence qui loue et vend.",
       features: [
-        { ok: true,  text: "Tout du plan Individuel Plus" },
+        { ok: true,  text: `Tout du plan ${LIBELLE_PLAN.individuel_plus}` },
+        { ok: true,  text: texteSecteurs("business") },
+        { ok: true,  text: texteQuota("business") },
+        ...outils("business"),
         { ok: true,  text: `${PLAN_INCLUDED_BOOSTS.business} mises en avant incluses chaque mois` },
         { ok: true,  text: "Classement prioritaire renforcé" },
         { ok: true,  text: "Statistiques de performance par annonce" },
@@ -132,27 +169,29 @@ export default function Plans() {
         { ok: false, text: "Accès API" },
         { ok: true,  text: `${PLACES_VITRINE_PAR_PLAN.business} places en vitrine d'accueil, en rotation` },
       ],
-      cta: "Choisir Business", ctaDisabled: false, popular: true,
+      cta: `Choisir ${LIBELLE_PLAN.business}`, ctaDisabled: false, popular: true,
     },
     {
-      id: "exportateur", planTier: "exportateur", name: "Exportateur",
+      id: "exportateur", planTier: "exportateur", name: LIBELLE_PLAN.exportateur,
       price: pricing.subscriptions?.exportateur?.priceUSD, period: "mois",
-      badge: "🌍 International", color: "#0ea5e9", icon: "🌍",
-      desc: "Pour les exportateurs internationaux — catalogue illimité, outils d'export, accès API, CRM.",
+      badge: "🌍 Volume", color: "#0ea5e9", icon: "🌍",
+      desc: "Volume, API et CRM, tous secteurs confondus — le groupe qui loue, vend et exporte.",
       features: [
-        { ok: true,  text: "Catalogue illimité" },
+        { ok: true,  text: `Tout du plan ${LIBELLE_PLAN.business}` },
+        { ok: true,  text: texteSecteurs("exportateur") },
+        { ok: true,  text: texteQuota("exportateur") },
+        ...outils("exportateur"),
         { ok: true,  text: `${PLAN_INCLUDED_BOOSTS.exportateur} mises en avant incluses chaque mois` },
         { ok: true,  text: "CRM intégré (leads et devis)" },
-        { ok: true,  text: "Tout du plan Business" },
         { ok: true,  text: "Accès API : synchronisez votre parc depuis votre propre logiciel" },
         { ok: true,  text: `${PLAN_SEATS.exportateur} accès utilisateurs` },
         { ok: true,  text: `${PLACES_VITRINE_PAR_PLAN.exportateur} places en vitrine d'accueil, en rotation` },
         { ok: true,  text: `Assistance prioritaire — première réponse sous ${PLAN_SUPPORT_SLA_HOURS.exportateur} h` },
       ],
-      cta: "Choisir Exportateur", ctaDisabled: false, popular: false,
+      cta: `Choisir ${LIBELLE_PLAN.exportateur}`, ctaDisabled: false, popular: false,
     },
     {
-      id: "entreprise", planTier: null, name: "Entreprise", price: null, period: null,
+      id: "entreprise", planTier: null, name: LIBELLE_PLAN.entreprise, price: null, period: null,
       badge: "🏢 Sur devis", color: "#0f1b3f", icon: "🏛️",
       desc: "Pour les grands réseaux, flottes multi-pays et volumes importants — tarification personnalisée.",
       features: [
@@ -257,12 +296,31 @@ export default function Plans() {
       <section className={styles.plansSection}>
         <div className={styles.sectionHeader}>
           <h2>{t("plans.choose.title")}</h2>
-          <p>Gratuit pour démarrer — les abonnements restent facultatifs, avec commission réduite et plus de visibilité en option.</p>
+          <p>Gratuit pour démarrer — les abonnements restent facultatifs : ils ouvrent des outils et de la visibilité, jamais une remise sur la commission. Même prix pour tous les métiers ; les outils affichés dépendent du vôtre.</p>
         </div>
 
         {successMsg && (
           <div className={styles.successBanner}>{successMsg}</div>
         )}
+
+        <div role="tablist" aria-label="Votre secteur d'activité" style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8, marginBottom: "1rem" }}>
+          {ACTIVITIES.map((a) => (
+            <button
+              key={a}
+              type="button"
+              role="tab"
+              aria-selected={secteur === a}
+              onClick={() => { setSecteur(a); setSecteurChoisi(true); }}
+              style={{
+                padding: "8px 14px", borderRadius: 999, fontSize: ".82rem", fontWeight: 600, cursor: "pointer",
+                border: `1.5px solid ${secteur === a ? "#0f1b3f" : "#e2e8f0"}`,
+                background: secteur === a ? "#0f1b3f" : "#fff", color: secteur === a ? "#fff" : "#334155",
+              }}
+            >
+              {SECTEUR_LABELS[a]}
+            </button>
+          ))}
+        </div>
 
         <div style={{ display: "flex", justifyContent: "center", marginBottom: "1.25rem" }}>
           <input

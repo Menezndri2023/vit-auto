@@ -267,7 +267,7 @@ function Demandes({ appel }) {
         {prioritaire
           ? `Vous voyez chaque demande dès son dépôt, ${AVANCE_DEMANDES_HEURES} h avant les partenaires non abonnés.`
           : <>Les demandes vous parviennent {AVANCE_DEMANDES_HEURES} h après leur dépôt.
-              {enAttenteDeliberation > 0 && <> <strong>{enAttenteDeliberation} demande{enAttenteDeliberation > 1 ? "s" : ""}</strong> {enAttenteDeliberation > 1 ? "sont" : "est"} en ce moment réservée{enAttenteDeliberation > 1 ? "s" : ""} aux abonnés Business et Exportateur.</>}
+              {enAttenteDeliberation > 0 && <> <strong>{enAttenteDeliberation} demande{enAttenteDeliberation > 1 ? "s" : ""}</strong> {enAttenteDeliberation > 1 ? "sont" : "est"} en ce moment réservée{enAttenteDeliberation > 1 ? "s" : ""} aux abonnés Business et Premium.</>}
               {" "}<Link to="/plans">Voir les formules</Link>.</>}
       </p>
 

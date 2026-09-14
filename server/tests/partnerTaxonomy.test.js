@@ -40,7 +40,7 @@ describe("partnerTaxonomy — mapping vers les anciens champs", () => {
   it("ACTIVITIES/ENTITY_TYPES exposent bien les valeurs attendues", () => {
     // "loisirs" (plongée, quad, jetski…) : la plateforme savait modéliser et
     // réserver ces activités bien avant que la taxonomie sache les nommer.
-    expect(ACTIVITIES).toEqual(["loueur", "vendeur", "exportateur", "chauffeur", "loisirs"]);
+    expect(ACTIVITIES).toEqual(["loueur", "vendeur", "exportateur", "chauffeur", "loisirs", "pieces"]);
     expect(ENTITY_TYPES).toEqual(["particulier", "professionnel", "entreprise", "concessionnaire"]);
   });
 
