@@ -268,7 +268,8 @@ async function profilPartenaire(browser) {
   await pp.fill("textarea[placeholder*='Décrivez votre activité']", texte);
   await pp.fill("input[type=url]", "https://exemple.test/atlas");
   await pp.getByRole("button", { name: /Enregistrer|Sauvegarder|Save/i }).first().click();
-  await pp.getByText(/Profil mis à jour/).waitFor({ timeout: 30000 });
+  await pp.getByText(/Profil mis à jour/).first().waitFor({ timeout: 30000 }); // toast + bouton « ✓ »
+  await pp.getByText(/Erreur/).first().waitFor({ timeout: 1500 }).then(() => { throw new Error("la sauvegarde du profil a échoué"); }, () => {});
   ok("partenaire : présentation publique enregistrée depuis la page profil");
 
   const moi = await (await fetch(`${API}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://vit-auto.com" }, body: JSON.stringify({ identifier: PARTNER, password: PWD }) })).json();

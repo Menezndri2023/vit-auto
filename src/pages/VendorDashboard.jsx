@@ -16,6 +16,7 @@ import { geocodeAddress } from "../utils/geo";
 import { PARTNER_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import { LICENSE_CATEGORIES, LICENSE_CATEGORY_LABELS } from "../constants/licenseCategories";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, ACTIVITY_PRICE_UNITS, isWeatherDependent } from "../constants/activityTypes";
+import { estUniquementLoisirs } from "../constants/partnerTaxonomy";
 import styles from "./VendorDashboard.module.css";
 
 /* ── Utilitaires ────────────────────────────────────────────────────────── */
@@ -2856,7 +2857,7 @@ export default function VendorDashboard() {
           { id: "commandes",    icon: "📋", label: "Commandes",       count: stats.totalOrders,    alert: newOrdersCount },
           // Vente par demande d'essai — leads apportés par VIT AUTO (docs/vente-demande-essai.md §15)
           { id: "opportunites", icon: "🎯", label: "Mes opportunités", count: opportunitesEnAttente || null, alert: opportunitesEnAttente || null },
-          { id: "annonces",     icon: "🚗", label: "Annonces",        count: stats.totalVehicles },
+          { id: "annonces",     icon: estUniquementLoisirs(user) ? "🎈" : "🚗", label: "Annonces", count: estUniquementLoisirs(user) ? myActivities.length : stats.totalVehicles },
           !isIndividualSeller && { id: "entreprises",  icon: "🏢", label: "Mes entreprises" },
           { id: "calendrier",   icon: "📅", label: "Calendrier" },
           { id: "clients",      icon: "👥", label: "Clients",         count: analytics?.topClients?.length || null },
@@ -3201,6 +3202,9 @@ export default function VendorDashboard() {
       {/* ══ TAB : ANNONCES ════════════════════════════════════════════════ */}
       {activeTab === "annonces" && (
         <div className={styles.tabContent}>
+          {/* Secteur loisirs seul : ni véhicules ni chauffeurs (sauf s'il en
+              reste d'anciens à gérer) — ses annonces sont des activités. */}
+          {(!estUniquementLoisirs(user) || filteredVehicles.length > 0) && (<>
           <div className={styles.sectionToolbar}>
             <h2 className={styles.sectionTitle}>Mes véhicules ({filteredVehicles.length})</h2>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -3337,7 +3341,10 @@ export default function VendorDashboard() {
             </div>
           )}
 
-          {/* Chauffeurs */}
+          </>)}
+
+          {/* Chauffeurs — jamais pour un partenaire loisirs */}
+          {(!estUniquementLoisirs(user) || myDrivers.length > 0) && (<>
           <div className={styles.sectionToolbar} style={{ marginTop: 32 }}>
             <h2 className={styles.sectionTitle}>Mes chauffeurs ({myDrivers.length})</h2>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -3428,10 +3435,11 @@ export default function VendorDashboard() {
               </div>
             </>
           )}
+          </>)}
 
           {/* Activités (section OTHERS — Quad, Surf, Montgolfière, Jetski, Jet
               privé, Bateau...) */}
-          <div className={styles.sectionToolbar} style={{ marginTop: 32 }}>
+          <div className={styles.sectionToolbar} style={{ marginTop: estUniquementLoisirs(user) && !filteredVehicles.length && !myDrivers.length ? 0 : 32 }}>
             <h2 className={styles.sectionTitle}>🎈 Mes activités ({myActivities.length})</h2>
             <Link to="/vendor/submit-activity" className={styles.btnPrimary}>+ Ajouter</Link>
           </div>

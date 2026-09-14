@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { estUniquementLoisirs } from "../constants/partnerTaxonomy";
 import { useVehicles } from "../context/VehicleContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useToast } from "../context/ToastContext";
@@ -38,6 +39,12 @@ const VendorSubmit = () => {
   const { addVehicle, drivers } = useVehicles();
   const { CURRENCIES, rateFromUSD } = useCurrency();
   const navigate = useNavigate();
+  // Un partenaire du seul secteur activités & loisirs ne publie ni véhicule
+  // ni chauffeur (précision de l'exploitant, 2026-09-14) : l'assistant
+  // véhicule/chauffeur ne le concerne pas, il va droit au formulaire activité.
+  useEffect(() => {
+    if (user && estUniquementLoisirs(user)) navigate("/vendor/submit-activity", { replace: true });
+  }, [user, navigate]);
 
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);

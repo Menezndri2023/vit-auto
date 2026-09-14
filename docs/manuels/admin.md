@@ -19,7 +19,7 @@
 - **Contenu & Mise en avant** : gestion des mises en avant catalogue.
 
 ## SERVICES
-- **Réservations** : toutes les commandes (location/vente/essai/chauffeur/leasing).
+- **Réservations** : toutes les commandes (location/vente/essai/chauffeur/leasing). Les demandes location/activité attendent votre validation avant transmission au partenaire ; les **missions chauffeur sont transmises directement** au partenaire à la création (acteur SYSTÈME, décision de l'exploitant 2026-09-14) — elles n'apparaissent jamais dans la file « à valider ».
 - **Litiges** : voir Manuel du Support §3.1.
 - **Chauffeurs** : approbation des profils chauffeurs.
 - **Transactions I/E** : suivi des transactions Import/Export en cours, litiges Import/Export.

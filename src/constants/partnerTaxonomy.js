@@ -74,3 +74,20 @@ export function requiresDriverDocs(activity) {
 export function requiresBusinessDocs(entityType) {
   return ["professionnel", "entreprise", "concessionnaire"].includes(entityType);
 }
+
+// Secteurs d'un compte partenaire : celui de l'inscription (`partnerActivity`,
+// exposé `activity` par safeUser) + ceux ajoutés depuis le dashboard. Vide =
+// compte historique sans secteur déclaré (on ne cache alors rien).
+export const secteursDuPartenaire = (user) => {
+  const s = new Set([user?.partnerActivity || user?.activity, ...(user?.partnerActivities || [])].filter(Boolean));
+  return [...s];
+};
+
+// « Le secteur activités & loisirs n'inclut pas de chauffeur » (précision de
+// l'exploitant, 2026-09-14) : un partenaire dont le seul secteur est
+// « loisirs » ne voit ni véhicules ni chauffeurs dans son espace — ses
+// annonces sont des activités.
+export const estUniquementLoisirs = (user) => {
+  const s = secteursDuPartenaire(user);
+  return s.length > 0 && s.every((a) => a === "loisirs");
+};
