@@ -45,7 +45,7 @@ const toUSD = (entry, currency, rateFromUSD) =>
 const PartSubmit = () => {
   const { token } = useAuth();
   const { addPart } = useVehicles();
-  const { CURRENCIES, COUNTRIES_CONFIG, rateFromUSD } = useCurrency();
+  const { CURRENCIES, COUNTRIES_CONFIG, rateFromUSD, currencyCode } = useCurrency();
   const { success, error } = useToast();
   const navigate = useNavigate();
 
@@ -72,7 +72,8 @@ const PartSubmit = () => {
   const [customsIncluded, setCustomsIncluded] = useState(true);
   const [depositPercent,  setDepositPercent]  = useState(50);
 
-  const [priceCurrency, setPriceCurrency] = useState("USD");
+  // Devise de saisie : celle affichée au partenaire (son pays), pas USD par défaut.
+  const [priceCurrency, setPriceCurrency] = useState(currencyCode || "USD");
   const [priceEntry,    setPriceEntry]    = useState("");
   const [stock,         setStock]         = useState("");
   const [minOrderQty,   setMinOrderQty]   = useState(1);
@@ -91,6 +92,7 @@ const PartSubmit = () => {
   const [errors,     setErrors]     = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [result,     setResult]     = useState(null);
+  const [avance,     setAvance]     = useState(false);
 
   const priceUSD      = toUSD(priceEntry, priceCurrency, rateFromUSD);
   const forfaitUSD    = toUSD(forfaitEntry, priceCurrency, rateFromUSD);
@@ -193,213 +195,12 @@ const PartSubmit = () => {
     <div className={styles.page}>
       <div className={styles.header}>
         <h1>🔩 Publier une pièce détachée</h1>
-        <p>Pièce en stock (vente directe) ou importée à la commande (vente importation) — toujours livrée au client.</p>
+        <p>Trois choses suffisent : des photos, un titre et un prix. Le reste est facultatif.</p>
       </div>
 
+      {/* 1. Photos — en premier : c'est ce qui vend, et c'est obligatoire. */}
       <div className={styles.card}>
-        <h2 className={styles.cardTitle}>Catégorie</h2>
-        <div className={styles.grid3}>
-          {PART_CATEGORIES.map((c) => (
-            <button key={c} type="button" className={`${styles.adTypeCard} ${category === c ? styles.adTypeActive : ""}`} onClick={() => setCategory(c)}>
-              <div className={styles.adTypeIcon}>{PART_CATEGORY_ICONS[c] || "📦"}</div>
-              <h3>{PART_CATEGORY_LABELS[c] || c}</h3>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {businesses.length > 0 && (
-        <div className={styles.card}>
-          <h2 className={styles.cardTitle}>Entreprise</h2>
-          <select className={styles.field} value={businessId} onChange={(e) => setBusinessId(e.target.value)}>
-            <option value="">— Compte personnel —</option>
-            {businesses.map((b) => <option key={b._id} value={b._id}>{b.name || b.companyName}</option>)}
-          </select>
-        </div>
-      )}
-
-      <div className={styles.card}>
-        <h2 className={styles.cardTitle}>La pièce</h2>
-        <label className={styles.field}>
-          <span>Titre de l'annonce *</span>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex : Plaquettes de frein avant Bosch — Golf 5/6" maxLength={160} />
-        </label>
-        {errors.title && <p className={styles.err}>{errors.title}</p>}
-        <div className={styles.grid2}>
-          <label className={styles.field}>
-            <span>Fabricant / marque de la pièce</span>
-            <input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Ex : Bosch, Valeo, origine constructeur" maxLength={80} />
-          </label>
-          <label className={styles.field}>
-            <span>Référence (OEM / constructeur)</span>
-            <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Ex : 1K0698151" maxLength={80} />
-          </label>
-        </div>
-        <div className={styles.grid2}>
-          <label className={styles.field}>
-            <span>État</span>
-            <select value={condition} onChange={(e) => setCondition(e.target.value)}>
-              {PART_CONDITIONS.map((c) => <option key={c} value={c}>{PART_CONDITION_LABELS[c]}</option>)}
-            </select>
-          </label>
-          <label className={styles.field}>
-            <span>Poids (kg, optionnel)</span>
-            <input type="number" min="0" step="0.1" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />
-          </label>
-        </div>
-        <label className={styles.field}>
-          <span>Description</span>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} maxLength={4000}
-            placeholder="Caractéristiques, garantie, contenu du lot…" />
-        </label>
-      </div>
-
-      <div className={styles.card}>
-        <h2 className={styles.cardTitle}>Véhicules compatibles</h2>
-        {compat.map((c, i) => (
-          <div key={i} className={styles.grid2} style={{ gridTemplateColumns: "1.2fr 1.2fr .7fr .7fr auto", alignItems: "end" }}>
-            <label className={styles.field}><span>Marque</span><input value={c.marque} onChange={(e) => setCompatField(i, "marque", e.target.value)} placeholder="Volkswagen" /></label>
-            <label className={styles.field}><span>Modèle</span><input value={c.modele} onChange={(e) => setCompatField(i, "modele", e.target.value)} placeholder="Golf" /></label>
-            <label className={styles.field}><span>De</span><input type="number" min="1950" max="2100" value={c.anneeDebut} onChange={(e) => setCompatField(i, "anneeDebut", e.target.value)} placeholder="2004" /></label>
-            <label className={styles.field}><span>À</span><input type="number" min="1950" max="2100" value={c.anneeFin} onChange={(e) => setCompatField(i, "anneeFin", e.target.value)} placeholder="2012" /></label>
-            <button type="button" className={styles.secondaryBtn} onClick={() => setCompat((prev) => prev.filter((_, idx) => idx !== i))} disabled={compat.length === 1} aria-label="Retirer">✕</button>
-          </div>
-        ))}
-        <button type="button" className={styles.secondaryBtn} onClick={() => setCompat((prev) => [...prev, { marque: "", modele: "", anneeDebut: "", anneeFin: "" }])} disabled={compat.length >= 30}>
-          + Ajouter un véhicule compatible
-        </button>
-        <label className={styles.field} style={{ marginTop: 12 }}>
-          <span>Précisions (texte libre)</span>
-          <input value={compatibilityText} onChange={(e) => setCompatibilityText(e.target.value)} placeholder="Ex : toutes motorisations diesel, sauf 4Motion" maxLength={500} />
-        </label>
-      </div>
-
-      <div className={styles.card}>
-        <h2 className={styles.cardTitle}>Mode de vente</h2>
-        <div className={styles.grid2}>
-          {Object.entries(PART_SALE_MODE_LABELS).map(([mode, label]) => (
-            <button key={mode} type="button" className={`${styles.adTypeCard} ${saleMode === mode ? styles.adTypeActive : ""}`} onClick={() => setSaleMode(mode)}>
-              <div className={styles.adTypeIcon}>{mode === "direct" ? "📦" : "🌍"}</div>
-              <h3>{label}</h3>
-              <p>{mode === "direct" ? "Pièce disponible chez vous, expédiée dès confirmation." : "Pièce commandée à l'étranger : délai, origine et frais d'importation annoncés au client."}</p>
-            </button>
-          ))}
-        </div>
-        {saleMode === "import" && (
-          <>
-            <div className={styles.grid2} style={{ marginTop: 12 }}>
-              <label className={styles.field}>
-                <span>Pays d'origine *</span>
-                <select value={originCountry} onChange={(e) => setOriginCountry(e.target.value)}>
-                  <option value="">— Sélectionner —</option>
-                  {COUNTRIES_CONFIG.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
-                </select>
-              </label>
-              <label className={styles.field}>
-                <span>Délai d'importation annoncé (jours)</span>
-                <input type="number" min="1" max="120" value={leadTimeDays} onChange={(e) => setLeadTimeDays(e.target.value)} />
-              </label>
-            </div>
-            {errors.originCountry && <p className={styles.err}>{errors.originCountry}</p>}
-            <div className={styles.grid2}>
-              <label className={styles.field}>
-                <span>Frais d'importation par commande ({priceCurrency})</span>
-                <input type="number" min="0" value={importFeesEntry} onChange={(e) => setImportFeesEntry(e.target.value)} placeholder="Transport international + douane" />
-              </label>
-              <label className={styles.field}>
-                <span>Acompte exigé à la confirmation (%)</span>
-                <input type="number" min="0" max="100" value={depositPercent} onChange={(e) => setDepositPercent(e.target.value)} />
-              </label>
-            </div>
-            <label className={styles.switchLabel}>
-              <input type="checkbox" className={styles.switchInput} checked={customsIncluded} onChange={(e) => setCustomsIncluded(e.target.checked)} />
-              <span className={styles.switchSlider} />
-              Droits de douane inclus dans les frais d'importation
-            </label>
-          </>
-        )}
-      </div>
-
-      <div className={styles.card}>
-        <h2 className={styles.cardTitle}>Prix et stock</h2>
-        <div className={styles.grid2}>
-          <label className={styles.field}>
-            <span>Prix unitaire *</span>
-            <div className={styles.inputAffix}>
-              <input type="number" min="0" value={priceEntry} onChange={(e) => setPriceEntry(e.target.value)} />
-              <select value={priceCurrency} onChange={(e) => setPriceCurrency(e.target.value)}>
-                {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
-              </select>
-            </div>
-          </label>
-          <label className={styles.field}>
-            <span>Stock disponible (vide = sur commande)</span>
-            <input type="number" min="0" value={stock} onChange={(e) => setStock(e.target.value)} placeholder="Ex : 12" />
-          </label>
-        </div>
-        {errors.priceEntry && <p className={styles.err}>{errors.priceEntry}</p>}
-        <label className={styles.field}>
-          <span>Quantité minimale par commande (max. {MAX_PART_QUANTITY})</span>
-          <input type="number" min="1" max={MAX_PART_QUANTITY} value={minOrderQty} onChange={(e) => setMinOrderQty(e.target.value)} />
-        </label>
-      </div>
-
-      <div className={styles.card}>
-        <h2 className={styles.cardTitle}>Livraison</h2>
-        <p className={styles.hint}>Une pièce est toujours livrée — jamais retirée sur place. Choisissez comment vous facturez la livraison.</p>
-        <label className={styles.field}>
-          <span>Frais de livraison</span>
-          <select value={shippingMode} onChange={(e) => setShippingMode(e.target.value)}>
-            {PART_SHIPPING_MODES.map((m) => <option key={m} value={m}>{PART_SHIPPING_MODE_LABELS[m]}</option>)}
-          </select>
-        </label>
-        {shippingMode === "forfait" && (
-          <div className={styles.grid2}>
-            <label className={styles.field}>
-              <span>Forfait ({priceCurrency})</span>
-              <input type="number" min="0" value={forfaitEntry} onChange={(e) => setForfaitEntry(e.target.value)} />
-            </label>
-            <label className={styles.field}>
-              <span>Offerte à partir de ({priceCurrency}, optionnel)</span>
-              <input type="number" min="0" value={freeAboveEntry} onChange={(e) => setFreeAboveEntry(e.target.value)} />
-            </label>
-          </div>
-        )}
-        {shippingMode === "distance" && (
-          <p className={styles.hint}>Le barème au kilomètre du pays s'applique entre votre adresse (ci-dessous) et celle du client.</p>
-        )}
-        {errors.forfait && <p className={styles.err}>{errors.forfait}</p>}
-        <div className={styles.grid2}>
-          <label className={styles.field}>
-            <span>Délai de livraison minimum (jours)</span>
-            <input type="number" min="0" max="120" value={deliveryDaysMin} onChange={(e) => setDeliveryDaysMin(e.target.value)} />
-          </label>
-          <label className={styles.field}>
-            <span>Délai de livraison maximum (jours)</span>
-            <input type="number" min="0" max="120" value={deliveryDaysMax} onChange={(e) => setDeliveryDaysMax(e.target.value)} />
-          </label>
-        </div>
-        {errors.delivery && <p className={styles.err}>{errors.delivery}</p>}
-        <label className={styles.field}>
-          <span>Autres pays desservis (optionnel — votre pays l'est toujours)</span>
-          <select multiple value={shipCountries} onChange={(e) => setShipCountries([...e.target.selectedOptions].map((o) => o.value))} style={{ minHeight: 96 }}>
-            {COUNTRIES_CONFIG.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
-          </select>
-        </label>
-        <div className={styles.grid2}>
-          <label className={styles.field}>
-            <span>Ville d'expédition</span>
-            <input value={ville} onChange={(e) => setVille(e.target.value)} />
-          </label>
-          <label className={styles.field}>
-            <span>Adresse</span>
-            <input value={adresse} onChange={(e) => setAdresse(e.target.value)} />
-          </label>
-        </div>
-      </div>
-
-      <div className={styles.card}>
-        <h2 className={styles.cardTitle}>Photos *</h2>
+        <h2 className={styles.cardTitle}>1. Photos de la pièce *</h2>
         <div className={styles.photoGrid}>
           {photos.map((p) => (
             <div key={p.id} className={styles.previewBox}>
@@ -416,6 +217,210 @@ const PartSubmit = () => {
           )}
         </div>
         {errors.photos && <p className={styles.err}>{errors.photos}</p>}
+      </div>
+
+      {/* 2. L'essentiel */}
+      <div className={styles.card}>
+        <h2 className={styles.cardTitle}>2. La pièce</h2>
+        <label className={styles.field}>
+          <span>Titre de l'annonce *</span>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex : Plaquettes de frein avant Bosch — Golf 5/6" maxLength={160} />
+        </label>
+        {errors.title && <p className={styles.err}>{errors.title}</p>}
+        <div className={styles.grid2}>
+          <label className={styles.field}>
+            <span>Catégorie *</span>
+            <select value={category} onChange={(e) => setCategory(e.target.value)}>
+              {PART_CATEGORIES.map((c) => <option key={c} value={c}>{PART_CATEGORY_ICONS[c] || "📦"} {PART_CATEGORY_LABELS[c] || c}</option>)}
+            </select>
+          </label>
+          <label className={styles.field}>
+            <span>État</span>
+            <select value={condition} onChange={(e) => setCondition(e.target.value)}>
+              {PART_CONDITIONS.map((c) => <option key={c} value={c}>{PART_CONDITION_LABELS[c]}</option>)}
+            </select>
+          </label>
+        </div>
+        <div className={styles.grid2}>
+          <label className={styles.field}>
+            <span>Prix unitaire *</span>
+            <div className={styles.inputAffix}>
+              <input type="number" min="0" value={priceEntry} onChange={(e) => setPriceEntry(e.target.value)} placeholder="Ex : 380" />
+              <select value={priceCurrency} onChange={(e) => setPriceCurrency(e.target.value)}>
+                {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+              </select>
+            </div>
+          </label>
+          <label className={styles.field}>
+            <span>Stock disponible <small style={{ fontWeight: 400, color: "#6d7a95" }}>(vide = sur commande)</small></span>
+            <input type="number" min="0" value={stock} onChange={(e) => setStock(e.target.value)} placeholder="Ex : 12" />
+          </label>
+        </div>
+        {errors.priceEntry && <p className={styles.err}>{errors.priceEntry}</p>}
+        <div className={styles.grid2}>
+          <label className={styles.field}>
+            <span>Référence (OEM / constructeur)</span>
+            <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Ex : 1K0698151" maxLength={80} />
+          </label>
+          <label className={styles.field}>
+            <span>Véhicules compatibles</span>
+            <input value={compatibilityText} onChange={(e) => setCompatibilityText(e.target.value)} placeholder="Ex : Golf 5 et 6, toutes motorisations" maxLength={500} />
+          </label>
+        </div>
+      </div>
+
+      {/* 3. Mode de vente */}
+      <div className={styles.card}>
+        <h2 className={styles.cardTitle}>3. En stock ou importée ?</h2>
+        <div className={styles.grid2}>
+          {Object.entries(PART_SALE_MODE_LABELS).map(([mode, label]) => (
+            <button key={mode} type="button" className={`${styles.adTypeCard} ${saleMode === mode ? styles.adTypeActive : ""}`} onClick={() => setSaleMode(mode)}>
+              <div className={styles.adTypeIcon}>{mode === "direct" ? "📦" : "🌍"}</div>
+              <h3>{label}</h3>
+              <p>{mode === "direct" ? "Vous l'avez : expédiée dès confirmation." : "Vous la commandez à l'étranger : délai, origine et frais annoncés au client."}</p>
+            </button>
+          ))}
+        </div>
+        {saleMode === "import" && (
+          <>
+            <div className={styles.grid2} style={{ marginTop: 12 }}>
+              <label className={styles.field}>
+                <span>Pays d'origine *</span>
+                <select value={originCountry} onChange={(e) => setOriginCountry(e.target.value)}>
+                  <option value="">— Sélectionner —</option>
+                  {COUNTRIES_CONFIG.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span>Délai annoncé (jours)</span>
+                <input type="number" min="1" max="120" value={leadTimeDays} onChange={(e) => setLeadTimeDays(e.target.value)} />
+              </label>
+            </div>
+            {errors.originCountry && <p className={styles.err}>{errors.originCountry}</p>}
+            <div className={styles.grid2}>
+              <label className={styles.field}>
+                <span>Frais d'importation par commande ({priceCurrency})</span>
+                <input type="number" min="0" value={importFeesEntry} onChange={(e) => setImportFeesEntry(e.target.value)} placeholder="Transport + douane" />
+              </label>
+              <label className={styles.field}>
+                <span>Acompte à la confirmation (%)</span>
+                <input type="number" min="0" max="100" value={depositPercent} onChange={(e) => setDepositPercent(e.target.value)} />
+              </label>
+            </div>
+            <label className={styles.switchLabel}>
+              <input type="checkbox" className={styles.switchInput} checked={customsIncluded} onChange={(e) => setCustomsIncluded(e.target.checked)} />
+              <span className={styles.switchSlider} />
+              Droits de douane inclus dans les frais d'importation
+            </label>
+          </>
+        )}
+      </div>
+
+      {/* 4. Livraison — une ligne suffit dans la plupart des cas */}
+      <div className={styles.card}>
+        <h2 className={styles.cardTitle}>4. Livraison</h2>
+        <div className={styles.grid2}>
+          <label className={styles.field}>
+            <span>Frais de livraison</span>
+            <select value={shippingMode} onChange={(e) => setShippingMode(e.target.value)}>
+              {PART_SHIPPING_MODES.map((m) => <option key={m} value={m}>{PART_SHIPPING_MODE_LABELS[m]}</option>)}
+            </select>
+          </label>
+          {shippingMode === "forfait" && (
+            <label className={styles.field}>
+              <span>Montant du forfait ({priceCurrency})</span>
+              <input type="number" min="0" value={forfaitEntry} onChange={(e) => setForfaitEntry(e.target.value)} placeholder="0 = offerte" />
+            </label>
+          )}
+          {shippingMode === "distance" && (
+            <p className={styles.hint} style={{ alignSelf: "end" }}>Barème au kilomètre du pays, entre votre ville et l'adresse du client.</p>
+          )}
+        </div>
+        {errors.forfait && <p className={styles.err}>{errors.forfait}</p>}
+        <label className={styles.field}>
+          <span>Ville d'expédition</span>
+          <input value={ville} onChange={(e) => setVille(e.target.value)} placeholder="Ex : Casablanca" />
+        </label>
+      </div>
+
+      {/* 5. Options avancées, repliées */}
+      <div className={styles.card}>
+        <button type="button" onClick={() => setAvance((v) => !v)}
+          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontWeight: 800, color: "#0f1b3f", fontSize: "1rem", display: "flex", alignItems: "center", gap: 8 }}>
+          {avance ? "▾" : "▸"} Options avancées <span style={{ fontWeight: 400, color: "#6d7a95", fontSize: ".85rem" }}>(fabricant, description, délais, pays desservis, entreprise)</span>
+        </button>
+        {avance && (
+          <div style={{ marginTop: 14 }}>
+            <div className={styles.grid2}>
+              <label className={styles.field}>
+                <span>Fabricant / marque de la pièce</span>
+                <input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Ex : Bosch, Valeo, origine constructeur" maxLength={80} />
+              </label>
+              <label className={styles.field}>
+                <span>Poids (kg)</span>
+                <input type="number" min="0" step="0.1" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />
+              </label>
+            </div>
+            <label className={styles.field}>
+              <span>Description</span>
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} maxLength={4000} placeholder="Caractéristiques, garantie, contenu du lot…" />
+            </label>
+            <h3 style={{ fontSize: ".9rem", color: "#0f1b3f", margin: "14px 0 6px" }}>Compatibilité détaillée</h3>
+            {compat.map((c, i) => (
+              <div key={i} className={styles.grid2} style={{ gridTemplateColumns: "1.2fr 1.2fr .7fr .7fr auto", alignItems: "end" }}>
+                <label className={styles.field}><span>Marque</span><input value={c.marque} onChange={(e) => setCompatField(i, "marque", e.target.value)} placeholder="Volkswagen" /></label>
+                <label className={styles.field}><span>Modèle</span><input value={c.modele} onChange={(e) => setCompatField(i, "modele", e.target.value)} placeholder="Golf" /></label>
+                <label className={styles.field}><span>De</span><input type="number" min="1950" max="2100" value={c.anneeDebut} onChange={(e) => setCompatField(i, "anneeDebut", e.target.value)} placeholder="2004" /></label>
+                <label className={styles.field}><span>À</span><input type="number" min="1950" max="2100" value={c.anneeFin} onChange={(e) => setCompatField(i, "anneeFin", e.target.value)} placeholder="2012" /></label>
+                <button type="button" className={styles.secondaryBtn} onClick={() => setCompat((prev) => prev.filter((_, idx) => idx !== i))} disabled={compat.length === 1} aria-label="Retirer">✕</button>
+              </div>
+            ))}
+            <button type="button" className={styles.secondaryBtn} onClick={() => setCompat((prev) => [...prev, { marque: "", modele: "", anneeDebut: "", anneeFin: "" }])} disabled={compat.length >= 30}>
+              + Ajouter un véhicule compatible
+            </button>
+            <h3 style={{ fontSize: ".9rem", color: "#0f1b3f", margin: "18px 0 6px" }}>Livraison — détails</h3>
+            <div className={styles.grid2}>
+              {shippingMode === "forfait" && (
+                <label className={styles.field}>
+                  <span>Livraison offerte à partir de ({priceCurrency})</span>
+                  <input type="number" min="0" value={freeAboveEntry} onChange={(e) => setFreeAboveEntry(e.target.value)} />
+                </label>
+              )}
+              <label className={styles.field}>
+                <span>Quantité minimale par commande (max. {MAX_PART_QUANTITY})</span>
+                <input type="number" min="1" max={MAX_PART_QUANTITY} value={minOrderQty} onChange={(e) => setMinOrderQty(e.target.value)} />
+              </label>
+              <label className={styles.field}>
+                <span>Délai de livraison minimum (jours)</span>
+                <input type="number" min="0" max="120" value={deliveryDaysMin} onChange={(e) => setDeliveryDaysMin(e.target.value)} />
+              </label>
+              <label className={styles.field}>
+                <span>Délai de livraison maximum (jours)</span>
+                <input type="number" min="0" max="120" value={deliveryDaysMax} onChange={(e) => setDeliveryDaysMax(e.target.value)} />
+              </label>
+            </div>
+            {errors.delivery && <p className={styles.err}>{errors.delivery}</p>}
+            <label className={styles.field}>
+              <span>Autres pays desservis (votre pays l'est toujours)</span>
+              <select multiple value={shipCountries} onChange={(e) => setShipCountries([...e.target.selectedOptions].map((o) => o.value))} style={{ minHeight: 96 }}>
+                {COUNTRIES_CONFIG.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+              </select>
+            </label>
+            <label className={styles.field}>
+              <span>Adresse d'expédition</span>
+              <input value={adresse} onChange={(e) => setAdresse(e.target.value)} />
+            </label>
+            {businesses.length > 0 && (
+              <label className={styles.field}>
+                <span>Entreprise</span>
+                <select value={businessId} onChange={(e) => setBusinessId(e.target.value)}>
+                  <option value="">— Compte personnel —</option>
+                  {businesses.map((b) => <option key={b._id} value={b._id}>{b.name || b.companyName}</option>)}
+                </select>
+              </label>
+            )}
+          </div>
+        )}
       </div>
 
       <div className={styles.nav}>

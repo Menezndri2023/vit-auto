@@ -109,6 +109,7 @@ const BookingSuccess = () => {
         <div>
           <h1>
             {isEssai ? "Demande d'essai envoyée !"
+              : isPiece ? "Commande enregistrée !"
               : isPendingConfirmation ? "Réservation enregistrée !"
               : "Réservation confirmée !"}
           </h1>
@@ -122,7 +123,7 @@ const BookingSuccess = () => {
           <strong style={{ color: "#1e3a8a", display: "block", marginBottom: 8 }}>📋 Ce qui se passe maintenant</strong>
           <ol style={{ margin: 0, paddingLeft: 20, color: "#1e3a8a", fontSize: ".88rem", lineHeight: 1.7 }}>
             <li>Votre demande a été <strong>transmise directement au partenaire</strong> — aucune étape intermédiaire.</li>
-            <li>Le partenaire dispose de <strong>24 heures</strong> pour confirmer votre {booking.type === "chauffeur" ? "mission" : "réservation"}.</li>
+            <li>Le {isPiece ? "vendeur" : "partenaire"} dispose de <strong>24 heures</strong> pour confirmer votre {booking.type === "chauffeur" ? "mission" : isPiece ? "commande" : "réservation"}.</li>
             <li>Vous recevrez un e-mail et une notification dès qu'il aura répondu.</li>
             <li>Une fois confirmée, retrouvez tous les détails depuis votre <Link to="/dashboard" style={{ color: "#1d4ed8", fontWeight: 700 }}>tableau de bord</Link>.</li>
           </ol>
@@ -155,11 +156,11 @@ const BookingSuccess = () => {
               <h2>Commande</h2>
               <div className={styles.infoGrid}>
                 <div className={styles.infoItem}><span>Quantité</span><strong>{booking.piece?.quantity || 1}</strong></div>
-                <div className={styles.infoItem}><span>Prix unitaire</span><strong><PriceTag amountUSD={booking.piece?.unitPriceUSD || 0} /></strong></div>
-                <div className={styles.infoItem}><span>Livraison</span><strong><PriceTag amountUSD={booking.piece?.delivery?.feeUSD || 0} /></strong></div>
-                {booking.piece?.importFeesUSD > 0 && <div className={styles.infoItem}><span>Frais d'importation</span><strong><PriceTag amountUSD={booking.piece.importFeesUSD} /></strong></div>}
-                <div className={styles.infoItem}><span>Total</span><strong><PriceTag amountUSD={booking.montantTotal || 0} /></strong></div>
-                {booking.piece?.depositUSD > 0 && <div className={styles.infoItem}><span>Acompte à la confirmation</span><strong><PriceTag amountUSD={booking.piece.depositUSD} /></strong></div>}
+                <div className={styles.infoItem}><span>Prix unitaire</span><strong><PriceTag amountUSD={booking.piece?.unitPriceUSD || 0} pinnedCurrency={booking.piece?.currency} enteredAmount={booking.piece?.unitPriceEntered} enteredCurrency={booking.piece?.currency} /></strong></div>
+                <div className={styles.infoItem}><span>Livraison</span><strong><PriceTag amountUSD={booking.piece?.delivery?.feeUSD || 0} pinnedCurrency={booking.piece?.currency} /></strong></div>
+                {booking.piece?.importFeesUSD > 0 && <div className={styles.infoItem}><span>Frais d'importation</span><strong><PriceTag amountUSD={booking.piece.importFeesUSD} pinnedCurrency={booking.piece?.currency} /></strong></div>}
+                <div className={styles.infoItem}><span>Total</span><strong><PriceTag amountUSD={booking.montantTotal || 0} pinnedCurrency={booking.piece?.currency} /></strong></div>
+                {booking.piece?.depositUSD > 0 && <div className={styles.infoItem}><span>Acompte à la confirmation</span><strong><PriceTag amountUSD={booking.piece.depositUSD} pinnedCurrency={booking.piece?.currency} /></strong></div>}
               </div>
             </div>
             <div className={styles.contractSection}>

@@ -454,6 +454,13 @@
   white-space: nowrap;
 }
 
+/* Sur téléphone, cinq ou six libellés côte à côte se chevauchaient
+   (« ReçueAcceptéeExpédiée… ») : on les laisse passer à la ligne et on
+   réduit légèrement la taille. */
+@media (max-width: 480px) {
+  .timelineLabel { white-space: normal; font-size: 0.6rem; line-height: 1.15; max-width: 56px; overflow-wrap: anywhere; }
+}
+
 .timelineLabelActive {
   color: #3b82f6;
   font-weight: 700;

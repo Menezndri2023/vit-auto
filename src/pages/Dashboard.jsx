@@ -211,8 +211,8 @@ const TRACKING_STEPS_GENERIC = [
 // Pièce détachée (livrée) : les étapes réelles de la commande — le générique
 // parlait de « véhicule prêt » et « point de remise ».
 const TRACKING_STEPS_PIECE = [
-  STEP_RECUE, STEP_ACCEPTEE,
-  { key: "preparing",   label: "Préparation", icon: "📦", desc: "Le vendeur prépare la pièce (ou la commande chez son fournisseur)" },
+  STEP_RECUE,
+  { key: "confirmed",   label: "Acceptée",    icon: "✅", desc: "Le vendeur a confirmé et prépare la pièce" },
   { key: "in_progress", label: "Expédiée",    icon: "🚚", desc: "La pièce est en cours de livraison" },
   { key: "waiting_client_validation", label: "Livrée", icon: "✋", desc: "Confirmez la réception de la pièce (ou signalez un problème)" },
   { key: "completed", label: "Terminée", icon: "🏁", desc: "Réception confirmée — merci !" },
@@ -1318,7 +1318,7 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
             <strong>🚚 Livraison de la pièce</strong>
           </div>
           <p style={{ margin: "4px 0", fontSize: ".88rem", color: "#334155" }}>
-            {booking.piece.quantity} × <PriceTag amountUSD={booking.piece.unitPriceUSD || 0} compact />
+            {booking.piece.quantity} × <PriceTag amountUSD={booking.piece.unitPriceUSD || 0} pinnedCurrency={booking.piece.currency} enteredAmount={booking.piece.unitPriceEntered} enteredCurrency={booking.piece.currency} compact />
             {booking.piece.saleMode === "import" && <> · importation{booking.piece.importFeesUSD > 0 && <> (frais <PriceTag amountUSD={booking.piece.importFeesUSD} compact />)</>}</>}
             {booking.piece.delivery?.feeUSD > 0 && <> · livraison <PriceTag amountUSD={booking.piece.delivery.feeUSD} compact /></>}
           </p>
@@ -1450,7 +1450,7 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
                 value={`${startDate} → ${endDate}  (${booking.days} jour${booking.days > 1 ? "s" : ""})`}
               />
             )}
-            {booking.pickupMethod && !isLivraison && (
+            {booking.pickupMethod && !isLivraison && !isPiece && (
               <DetailRow
                 icon="📍"
                 label="Prise en charge"
@@ -1493,12 +1493,23 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
             <span>{fmt(booking.deliveryFee)}</span>
           </div>
         )}
+        {/* Pièce détachée : le client règle exactement le total annoncé (pièces +
+            livraison + frais d'import) — les frais de service sont retenus sur
+            le reversement au vendeur, pas ajoutés au client. */}
+        {isPiece ? (
+          <>
+            <div className={styles.finRow}><span>Pièce{booking.piece?.quantity > 1 ? "s" : ""} × {booking.piece?.quantity || 1}</span><span>{fmt((booking.piece?.unitPriceUSD || 0) * (booking.piece?.quantity || 1))}</span></div>
+            {booking.piece?.importFeesUSD > 0 && <div className={styles.finRow}><span>Frais d'importation</span><span>{fmt(booking.piece.importFeesUSD)}</span></div>}
+            <div className={styles.finRow}><span>Livraison</span><span>{booking.piece?.delivery?.feeUSD > 0 ? fmt(booking.piece.delivery.feeUSD) : "Offerte"}</span></div>
+          </>
+        ) : (
         <div className={styles.finRow}>
           <span>Frais de service VIT AUTO</span>
           <span>{fmt(booking.serviceFeeFCFA || 1)}</span>
         </div>
+        )}
         <div className={`${styles.finRow} ${styles.finTotal}`}>
-          <span>Total réglé</span>
+          <span>{isPiece ? (booking.status === "completed" ? "Total réglé au livreur" : "Total à régler au livreur") : "Total réglé"}</span>
           <strong>{fmt(booking.total || booking.serviceFeeFCFA || 1)}</strong>
         </div>
         {booking.type === "location" && booking.cautionAmount > 0 && !booking.cautionClaim?.claimedAt && (
@@ -1537,7 +1548,9 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
             transaction_concluded, waiting_client_validation) et en cas de
             litige : le client arrivait à l'agence, le partenaire le marquait
             « arrivé », et le document à présenter s'évanouissait de son écran. */}
-        {["confirmed", "preparing", "ready", "in_progress", "client_arrived", "client_absent",
+        {/* Pièce détachée : pas de contrat de location — seul le reçu (après
+            réception) a un sens. */}
+        {!isPiece && ["confirmed", "preparing", "ready", "in_progress", "client_arrived", "client_absent",
           "transaction_concluded", "transaction_not_concluded", "waiting_client_validation",
           "driver_arrived", "disputed", "completed"].includes(booking.status) && booking.id && (
           <>

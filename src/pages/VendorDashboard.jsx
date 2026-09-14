@@ -372,7 +372,10 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
 
   // ── Contrat & finances ────────────────────────────────────────────────────
   const contractId = orderDetail?.contract?._id || order.contract || null;
-  const commRate   = commRates[order.type] ?? DEFAULT_COMM_RATE[order.type] ?? 0.15;
+  // Taux RÉEL de la commande quand il est connu (pièce : 10 %/7 % sur la
+  // pièce seule) — le barème par type affichait « 15 % » à côté d'un montant
+  // calculé à 10 %.
+  const commRate   = order.commissionRate ?? commRates[order.type] ?? DEFAULT_COMM_RATE[order.type] ?? 0.15;
   const totalAmt   = order.montantTotal || order.total || 0;
   const commAmt    = order.commissionAmount || Math.round(totalAmt * commRate);
   const netAmt     = order.partnerPayout    || Math.max(totalAmt - commAmt - SERVICE_FEE, 0);
@@ -601,6 +604,8 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
                   <div className={styles.finTitle}>Décomposition financière</div>
                   <div className={styles.finRow}><span>Total client</span><strong>{fmtXOF(totalAmt)}</strong></div>
                   {order.deliveryFee > 0 && <div className={styles.finRow}><span>dont livraison</span><strong>{fmtXOF(order.deliveryFee)}</strong></div>}
+                  {order.piece?.delivery?.feeUSD > 0 && <div className={styles.finRow}><span>dont livraison (reversée intégralement)</span><strong>{fmtXOF(order.piece.delivery.feeUSD)}</strong></div>}
+                  {order.piece?.importFeesUSD > 0 && <div className={styles.finRow}><span>dont frais d'importation (reversés intégralement)</span><strong>{fmtXOF(order.piece.importFeesUSD)}</strong></div>}
                   <div className={styles.finRow} style={{color:"#dc2626"}}><span>Commission VIT-AUTO ({Math.round(commRate*100)}%)</span><strong>− {fmtXOF(commAmt)}</strong></div>
                   <div className={styles.finRow} style={{color:"#dc2626"}}><span>Frais de service</span><strong>− {fmtXOF(SERVICE_FEE)}</strong></div>
                   <div className={styles.finRowNet}><span>Votre net partenaire</span><strong>{fmtXOF(netAmt)}</strong></div>

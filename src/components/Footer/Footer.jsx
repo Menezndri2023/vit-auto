@@ -42,6 +42,7 @@ const Footer = () => {
               <li><Link to="/catalogue?mode=Acheter">Vente de véhicules</Link></li>
               <li><Link to="/catalogue?mode=Chauffeur">Service chauffeur</Link></li>
               <li><Link to="/catalogue?mode=Autres">Activités &amp; loisirs</Link></li>
+              <li><Link to="/catalogue?mode=Pieces">Pièces détachées</Link></li>
               <li><Link to="/import-export">Import / Export international</Link></li>
               <li><Link to="/import-export/listings">Annonces Import / Export</Link></li>
             </ul>

@@ -316,6 +316,10 @@ const bookingSchema = new mongoose.Schema({
   piece: {
     quantity:       { type: Number, min: 1, default: 1 },
     unitPriceUSD:   { type: Number, default: 0 },
+    // Prix saisi par le vendeur et sa devise (380 DH) — pour afficher au client
+    // le montant exact de l'annonce, pas une conversion arrondie.
+    unitPriceEntered: { type: Number, default: null },
+    currency:       { type: String, default: null },
     saleMode:       { type: String, enum: ["direct", "import", null], default: null },
     importFeesUSD:  { type: Number, default: 0 },
     depositPercent: { type: Number, default: 0 },

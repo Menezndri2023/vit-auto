@@ -935,6 +935,7 @@ export const createBooking = async (req, res) => {
       montantBase = Math.round(partObj.price * quantity * 100) / 100;
       pieceData = {
         quantity, unitPriceUSD: partObj.price, saleMode: partObj.saleMode,
+        unitPriceEntered: partObj.priceEntered ?? null, currency: partObj.priceEntryCurrency || partObj.currency || null,
         importFeesUSD, depositPercent,
         depositUSD: Math.round((montantBase + importFeesUSD) * (depositPercent / 100) * 100) / 100,
         delivery: {

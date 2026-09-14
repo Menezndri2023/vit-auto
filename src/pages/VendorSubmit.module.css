@@ -1105,3 +1105,22 @@
   .typeBtn { text-align: center; }
   .adTypeIcon { width: 44px; height: 44px; font-size: 1.4rem; }
 }
+
+/* Champ montant + devise (formulaires activité et pièce) : la règle
+   `.field select { width: 100% }` s'appliquait aussi au sélecteur de devise
+   placé DANS .inputAffix (flex en ligne) — il occupait toute la largeur et
+   la saisie du prix disparaissait (largeur 0). Bug observé sur les deux
+   formulaires le 2026-09-14. */
+.inputAffix input { min-width: 0; }
+.inputAffix select {
+  width: auto;
+  flex: 0 0 auto;
+  border: none;
+  border-left: 1px solid #e5e9f4;
+  border-radius: 0;
+  background: #edf1fb;
+  color: #3d4a66;
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 11px 12px;
+}
