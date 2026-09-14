@@ -561,6 +561,7 @@ bookingSchema.index({ client: 1 });
 bookingSchema.index({ vehicle: 1 });
 bookingSchema.index({ driver: 1 });
 bookingSchema.index({ activity: 1 });
+bookingSchema.index({ part: 1 });
 bookingSchema.index({ status: 1 });
 bookingSchema.index({ type: 1 });
 bookingSchema.index({ createdAt: -1 });

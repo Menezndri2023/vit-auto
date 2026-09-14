@@ -128,6 +128,13 @@ const ActivityBooking = () => {
 
   const handleSubmit = async () => {
     if (submitting) return;
+    // POST /api/bookings exige un compte (routes/bookings.js) : sans ce
+    // renvoi, un visiteur non connecté recevait « Token manquant » en toast
+    // (Booking.jsx avait déjà ce garde, pas les autres tunnels).
+    if (!token) {
+      navigate("/login", { state: { from: { pathname: window.location.pathname + window.location.search } } });
+      return;
+    }
     if (isWeatherDependent(activity) && !weatherAck) {
       error("Merci de confirmer que vous avez pris connaissance de la condition météo.");
       return;

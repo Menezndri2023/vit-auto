@@ -25,7 +25,10 @@ const createLeadLimiter = rateLimit({
 });
 
 // ── Client ────────────────────────────────────────────────────────────────
-router.post("/",                                   createLeadLimiter, optionalAuth, c.createLead);
+// Tout service exige un compte (règle de l'exploitant, 2026-09-14) : plus de
+// demande d'essai invitée — le front renvoie le visiteur vers la connexion.
+// Les routes /public/:reference restent pour les dossiers invités antérieurs.
+router.post("/",                                   createLeadLimiter, authOnly, c.createLead);
 router.get ("/mine",                               authOnly, c.getMyLeads);
 router.get ("/public/:reference",                  optionalAuth, c.getPublicLead);
 router.post("/public/:reference/alternative",      optionalAuth, c.clientRespondAlternative);

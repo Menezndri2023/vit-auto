@@ -99,6 +99,13 @@ const PartOrder = () => {
 
   const handleSubmit = async () => {
     if (submitting) return;
+    // POST /api/bookings exige un compte (routes/bookings.js) : sans ce
+    // renvoi, un visiteur non connecté recevait « Token manquant » en toast
+    // (Booking.jsx avait déjà ce garde, pas les autres tunnels).
+    if (!token) {
+      navigate("/login", { state: { from: { pathname: window.location.pathname + window.location.search } } });
+      return;
+    }
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) { error("Veuillez remplir toutes vos informations."); return; }
     if (!address.trim() || !ville.trim() || !country) { error("Adresse de livraison complète requise (adresse, ville, pays)."); return; }
     if (qty < (part.minOrderQty || 1) || qty > MAX_PART_QUANTITY) { error(`Quantité invalide (minimum ${part.minOrderQty || 1}, maximum ${MAX_PART_QUANTITY}).`); return; }

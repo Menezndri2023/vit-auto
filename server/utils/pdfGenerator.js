@@ -367,8 +367,17 @@ function drawReceipt(doc, booking) {
   doc.moveDown();
 
   section(doc, "Prestation");
-  row(doc, "Type",     booking.type === "location" ? "Location de véhicule" : booking.type === "essai" ? "Essai / Vente" : booking.type === "chauffeur" ? "Service Chauffeur" : booking.type || "—");
-  row(doc, "Véhicule", booking.vehicle?.title || "—");
+  const TYPE_LIBELLE = { location: "Location de véhicule", essai: "Essai / Vente", chauffeur: "Service Chauffeur", activite: "Activité & loisirs", piece: "Pièce détachée (livrée)", leasing: "Financement" };
+  row(doc, "Type",     TYPE_LIBELLE[booking.type] || booking.type || "—");
+  // Le reçu affichait « Véhicule — » pour une activité ou une pièce : l'objet de
+  // la prestation est celui de la commande, quel qu'en soit le type.
+  const objet = booking.vehicle?.title || booking.activity?.title || booking.part?.title
+    || (booking.driver ? `${booking.driver.firstName || ""} ${booking.driver.lastName || ""}`.trim() : null);
+  row(doc, booking.type === "piece" ? "Pièce" : booking.type === "activite" ? "Activité" : booking.type === "chauffeur" ? "Chauffeur" : "Véhicule", objet || "—");
+  if (booking.type === "piece" && booking.piece) {
+    row(doc, "Quantité",  String(booking.piece.quantity || 1));
+    row(doc, "Livraison", [booking.piece.delivery?.address, booking.piece.delivery?.ville, booking.piece.delivery?.country].filter(Boolean).join(", ") || "—");
+  }
   if (booking.location?.startDate) {
     row(doc, "Période",  `${fmtDate(booking.location.startDate)} → ${fmtDate(booking.location.endDate)}`);
     row(doc, "Durée",    `${booking.location.days || "?"} jour(s)`);

@@ -112,6 +112,13 @@ const DriverBooking = () => {
 
   const handleSubmit = async () => {
     if (submitting) return;
+    // POST /api/bookings exige un compte (routes/bookings.js) : sans ce
+    // renvoi, un visiteur non connecté recevait « Token manquant » en toast
+    // (Booking.jsx avait déjà ce garde, pas les autres tunnels).
+    if (!token) {
+      navigate("/login", { state: { from: { pathname: window.location.pathname + window.location.search } } });
+      return;
+    }
     if (!uniteActive) {
       error("Ce chauffeur n'a pas encore de tarif réservable en ligne.");
       return;

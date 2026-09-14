@@ -208,7 +208,18 @@ const TRACKING_STEPS_GENERIC = [
   STEP_VALIDATION, STEP_TERMINEE,
 ];
 
+// Pièce détachée (livrée) : les étapes réelles de la commande — le générique
+// parlait de « véhicule prêt » et « point de remise ».
+const TRACKING_STEPS_PIECE = [
+  STEP_RECUE, STEP_ACCEPTEE,
+  { key: "preparing",   label: "Préparation", icon: "📦", desc: "Le vendeur prépare la pièce (ou la commande chez son fournisseur)" },
+  { key: "in_progress", label: "Expédiée",    icon: "🚚", desc: "La pièce est en cours de livraison" },
+  { key: "waiting_client_validation", label: "Livrée", icon: "✋", desc: "Confirmez la réception de la pièce (ou signalez un problème)" },
+  { key: "completed", label: "Terminée", icon: "🏁", desc: "Réception confirmée — merci !" },
+];
+
 function getTrackingSteps(booking) {
+  if (booking.type === "piece") return TRACKING_STEPS_PIECE;
   if (booking.type !== "location") return TRACKING_STEPS_GENERIC;
   return booking.pickupMethod === "livraison" ? TRACKING_STEPS_LIVRAISON : TRACKING_STEPS_AGENCE;
 }

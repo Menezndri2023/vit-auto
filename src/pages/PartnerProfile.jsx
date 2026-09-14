@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import VehicleCard from "../components/VehicleCard/VehicleCard";
-import { DriverCard, ActivityCard } from "./Catalogue";
+import { DriverCard, ActivityCard, PartCard } from "./Catalogue";
 import ReportButton from "../components/ReportButton/ReportButton";
 import { getCustomerServiceContact } from "../utils/customerServiceContact";
 import styles from "./PartnerProfile.module.css";
@@ -16,7 +16,7 @@ const CERT_BADGE = {
 export default function PartnerProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { vehicles, drivers, activities } = useVehicles();
+  const { vehicles, drivers, activities, parts } = useVehicles();
   const [partner, setPartner] = useState(null);
   const [loading, setLoading] = useState(true);
   const [certBadge, setCertBadge] = useState(null);
@@ -46,7 +46,9 @@ export default function PartnerProfile() {
   const ownerOf = (x) => String(x.ownerId || x.owner?._id || x.owner?.id || x.owner);
   const partnerDrivers    = (drivers || []).filter((d) => ownerOf(d) === String(id));
   const partnerActivities = (activities || []).filter((a) => ownerOf(a) === String(id));
-  const totalListings = partnerVehicles.length + partnerDrivers.length + partnerActivities.length;
+  // Pièces détachées : secteur distinct des loisirs, section à part.
+  const partnerParts = (parts || []).filter((p) => ownerOf(p) === String(id));
+  const totalListings = partnerVehicles.length + partnerDrivers.length + partnerActivities.length + partnerParts.length;
 
   const displayName = partner?.business?.companyName
     || (partner ? `${partner.firstName || ""} ${partner.lastName || ""}`.trim() : null)
@@ -64,6 +66,7 @@ export default function PartnerProfile() {
     exportateur: "Import / export de véhicules",
     chauffeur:   "Chauffeur professionnel",
     loisirs:     "Activités & loisirs",
+    pieces:      "Pièces détachées",
   }[partner?.partnerActivity] || "Partenaire";
 
   const logo = partner?.business?.logo || partner?.profilePhoto || null;
@@ -205,6 +208,14 @@ export default function PartnerProfile() {
                 <h3 className={styles.subTitle}>🎈 Activités & loisirs ({partnerActivities.length})</h3>
                 <div className={styles.grid}>
                   {partnerActivities.map((a) => <ActivityCard key={a._id} a={a} />)}
+                </div>
+              </>
+            )}
+            {partnerParts.length > 0 && (
+              <>
+                <h3 className={styles.subTitle}>🔩 Pièces détachées ({partnerParts.length})</h3>
+                <div className={styles.grid}>
+                  {partnerParts.map((p) => <PartCard key={p._id} p={p} />)}
                 </div>
               </>
             )}

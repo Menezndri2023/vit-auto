@@ -11,7 +11,7 @@ import { mockReqRes } from "./helpers/mockReqRes.js";
 const makeDriver = async (owner) => Driver.create({
   owner: owner._id, firstName: "Jean", lastName: "Chauffeur", title: "Chauffeur pro Abidjan",
   disponibilite: "Temps plein", zone: "Abidjan", experience: "5 ans",
-  tarif: 20000, status: "approved",
+  tarif: 20000, tarifHeure: 5000, status: "approved",
 });
 
 describe("driverController — congés bloqués", () => {

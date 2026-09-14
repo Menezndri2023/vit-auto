@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import { COUNTRIES_ALL, CAR_MAKES, getCountryFlag } from "../data/autocomplete";
 import { useCurrency } from "../context/CurrencyContext";
 import PriceTag from "../components/PriceTag/PriceTag";
@@ -22,6 +23,8 @@ const FUEL_LABELS = {
 
 // ── Modal de demande rapide ────────────────────────────────────────────────
 function QuickRequestModal({ listing, onClose }) {
+  const { token } = useAuth();
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     firstName: "", lastName: "", email: "", phone: "",
     serviceType: "import", pack: "Silver",
@@ -40,11 +43,13 @@ function QuickRequestModal({ listing, onClose }) {
   const submit = async (e) => {
     e.preventDefault();
     if (!form.firstName || !form.lastName || !form.email) return;
+    // Tout service exige un compte (règle de l'exploitant, 2026-09-14).
+    if (!token) { navigate("/login", { state: { from: { pathname: window.location.pathname + window.location.search } } }); return; }
     setSending(true); setError(null);
     try {
       const res = await fetch("/api/import-export/requests", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ ...form, budget: form.budget ? Number(form.budget) : undefined }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message); }

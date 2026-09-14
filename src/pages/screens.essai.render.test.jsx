@@ -37,8 +37,19 @@ describe("Vente par demande d'essai — rendu", () => {
     expect(screen.queryByText(/Une erreur s'est produite/i), `${nom} : ErrorBoundary déclenché`).toBeNull();
   };
 
-  it("fiche véhicule en vente : « Demander un essai » ouvre le formulaire, pas la réservation", async () => {
+  it("fiche véhicule en vente, visiteur : « Demander un essai » renvoie vers la connexion (tout service exige un compte)", async () => {
     simulerApi({ routes: { [`/api/vehicles/${VEHICULE_VENTE._id}`]: { vehicle: VEHICULE_VENTE } } });
+    renderPage(<VehicleDetails />, { route: `/vehicle/${VEHICULE_VENTE._id}`, path: "/vehicle/:id" });
+    const cta = await screen.findByRole("button", { name: /Demander un essai|Request a test drive/i });
+    fireEvent.click(cta);
+    expect(await screen.findByRole("link", { name: /Se connecter/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Envoyer ma demande d'essai/i })).toBeNull();
+    verifier("Fiche véhicule vente — visiteur");
+  });
+
+  it("fiche véhicule en vente, client connecté : « Demander un essai » ouvre le formulaire, pas la réservation", async () => {
+    connecter(utilisateurTest("client"));
+    simulerApi({ user: utilisateurTest("client"), routes: { [`/api/vehicles/${VEHICULE_VENTE._id}`]: { vehicle: VEHICULE_VENTE } } });
     renderPage(<VehicleDetails />, { route: `/vehicle/${VEHICULE_VENTE._id}`, path: "/vehicle/:id" });
     const cta = await screen.findByRole("button", { name: /Demander un essai|Request a test drive/i });
     expect(screen.getByRole("button", { name: /Être rappelé|Request a call back/i })).toBeTruthy();

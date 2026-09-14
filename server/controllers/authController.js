@@ -128,6 +128,11 @@ function safeUser(u) {
     adminScope:       u.role === "admin" ? (u.adminScope || []) : undefined,
     sellerType:       u.sellerType || null,
     activity:         u.partnerActivity || null,
+    // Secteurs ajoutés après l'inscription (voir partnerSectorController) : le
+    // dashboard masque les modules hors secteur via couvreSecteur(user, …), qui
+    // lit ce tableau sur l'utilisateur connecté — sans lui, un secteur approuvé
+    // par l'admin restait invisible jusqu'à un passage par /profile.
+    partnerActivities: u.partnerActivities || [],
     entityType:       u.entityType || null,
     emailVerified:    u.emailVerified,
     phoneVerified:    u.phoneVerified,

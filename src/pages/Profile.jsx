@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useI18n } from "../context/I18nContext";
+import { estUniquementLoisirs, estUniquementPieces } from "../constants/partnerTaxonomy";
 import TwoFactorSetup from "../components/TwoFactorSetup/TwoFactorSetup";
 import ConfirmDialog from "../components/ConfirmDialog/ConfirmDialog";
 import styles from "./Profile.module.css";
@@ -937,21 +938,28 @@ const Profile = () => {
                 </button>
               </div>
 
-              {partnerVehicles.length === 0 && (user?.partnerActivity === "loisirs" || user?.partnerActivities?.includes?.("loisirs")) ? (
-                // Un partenaire loisirs n'a pas de véhicule : ses annonces
-                // (activités) se gèrent dans l'espace partenaire — sans ce
-                // renvoi, cet onglet lui affirmait « Aucune publication ».
+              {partnerVehicles.length === 0 && estUniquementLoisirs(user) ? (
+                // Secteur activités & loisirs : ses annonces sont des activités,
+                // gérées depuis l'espace partenaire.
                 <div className={styles.emptyState}>
                   <div className={styles.emptyIcon}>🎈</div>
                   <h3>Vos activités & loisirs</h3>
                   <p>Vos annonces d'activités se modifient depuis votre espace partenaire (onglet Annonces → Mes activités).</p>
                   <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-                    <button className={styles.primaryBtn} onClick={() => navigate("/vendor/dashboard")}>
-                      Gérer mes activités
-                    </button>
-                    <button className={styles.secondaryBtn} onClick={() => navigate("/vendor/submit-activity")}>
-                      + Nouvelle activité
-                    </button>
+                    <button className={styles.primaryBtn} onClick={() => navigate("/vendor/dashboard")}>Gérer mes activités</button>
+                    <button className={styles.secondaryBtn} onClick={() => navigate("/vendor/submit-activity")}>+ Nouvelle activité</button>
+                  </div>
+                </div>
+              ) : partnerVehicles.length === 0 && estUniquementPieces(user) ? (
+                // Secteur pièces détachées — distinct des loisirs : ses annonces
+                // sont des pièces (vente directe ou importation, livrées).
+                <div className={styles.emptyState}>
+                  <div className={styles.emptyIcon}>🔩</div>
+                  <h3>Vos pièces détachées</h3>
+                  <p>Vos annonces de pièces se modifient depuis votre espace partenaire (onglet Annonces → Mes pièces détachées).</p>
+                  <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                    <button className={styles.primaryBtn} onClick={() => navigate("/vendor/dashboard")}>Gérer mes pièces</button>
+                    <button className={styles.secondaryBtn} onClick={() => navigate("/vendor/submit-part")}>+ Nouvelle pièce</button>
                   </div>
                 </div>
               ) : partnerVehicles.length === 0 ? (

@@ -16,7 +16,8 @@ const logisticsScope = requireAnyAdminScope("import_export", "transitaire");
 router.get("/stats", authenticate, authorizeAdmin, ieScope, ie.getStats);
 
 // ── Demandes client (formulaire public) ───────────────────────────────────────
-router.post  ("/requests",             optionalAuth,                            ie.createRequest);
+// Tout service exige un compte (règle de l'exploitant, 2026-09-14).
+router.post  ("/requests",             authenticate,                            ie.createRequest);
 router.get   ("/requests",             authenticate, authorizeAdmin, ieScope,            ie.getRequests);
 router.patch ("/requests/:id/status",  authenticate, authorizeAdmin, ieScope, vid,       ie.updateRequestStatus);
 router.delete("/requests/:id",         authenticate, authorizeAdmin, requireAdminScope("import_export"), ieScope, vid,       ie.deleteRequest);

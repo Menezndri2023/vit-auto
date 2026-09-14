@@ -17,7 +17,7 @@ import { PARTNER_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import { LICENSE_CATEGORIES, LICENSE_CATEGORY_LABELS } from "../constants/licenseCategories";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, ACTIVITY_PRICE_UNITS, isWeatherDependent } from "../constants/activityTypes";
 import { PART_CATEGORY_LABELS, PART_CATEGORY_ICONS, PART_CONDITIONS, PART_CONDITION_LABELS, PART_SALE_MODE_LABELS, PART_SHIPPING_MODES, PART_SHIPPING_MODE_LABELS } from "../constants/spareParts";
-import { estUniquementLoisirs, couvreSecteur } from "../constants/partnerTaxonomy";
+import { estUniquementLoisirs, estUniquementPieces, couvreSecteur } from "../constants/partnerTaxonomy";
 import PartnerSectors from "../components/PartnerSectors/PartnerSectors";
 import styles from "./VendorDashboard.module.css";
 
@@ -2996,7 +2996,7 @@ export default function VendorDashboard() {
           { id: "commandes",    icon: "📋", label: "Commandes",       count: stats.totalOrders,    alert: newOrdersCount },
           // Vente par demande d'essai — leads apportés par VIT AUTO (docs/vente-demande-essai.md §15)
           { id: "opportunites", icon: "🎯", label: "Mes opportunités", count: opportunitesEnAttente || null, alert: opportunitesEnAttente || null },
-          { id: "annonces",     icon: estUniquementLoisirs(user) ? "🎈" : "🚗", label: "Annonces", count: estUniquementLoisirs(user) ? myActivities.length : stats.totalVehicles },
+          { id: "annonces",     icon: estUniquementLoisirs(user) ? "🎈" : estUniquementPieces(user) ? "🔩" : "🚗", label: "Annonces", count: estUniquementLoisirs(user) ? myActivities.length : estUniquementPieces(user) ? myParts.length : stats.totalVehicles },
           !isIndividualSeller && { id: "entreprises",  icon: "🏢", label: "Mes entreprises" },
           { id: "calendrier",   icon: "📅", label: "Calendrier" },
           { id: "clients",      icon: "👥", label: "Clients",         count: analytics?.topClients?.length || null },

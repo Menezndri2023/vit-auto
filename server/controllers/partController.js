@@ -194,7 +194,7 @@ export const createPart = async (req, res) => {
 
     let business = null;
     if (req.body.businessId) {
-      business = await PartnerBusiness.findOne({ _id: req.body.businessId, owner: req.user._id }).lean();
+      business = await (mongoose.Types.ObjectId.isValid(req.body.businessId) ? PartnerBusiness.findOne({ _id: req.body.businessId, owner: req.user._id }).lean() : null);
       if (!business) return res.status(400).json({ message: "Entreprise introuvable." });
     }
 
@@ -357,7 +357,7 @@ export const updatePart = async (req, res) => {
       if (req.body.businessId === null || req.body.businessId === "") {
         data.business = null;
       } else {
-        const business = await PartnerBusiness.findOne({ _id: req.body.businessId, owner: part.owner }).lean();
+        const business = await (mongoose.Types.ObjectId.isValid(req.body.businessId) ? PartnerBusiness.findOne({ _id: req.body.businessId, owner: part.owner }).lean() : null);
         if (!business) return res.status(400).json({ message: "Entreprise introuvable." });
         data.business = business._id;
       }

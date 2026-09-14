@@ -73,6 +73,15 @@ async function demandeEssai(browser) {
 
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const pc = await ctx.newPage(); surveiller(pc, "client", journal);
+  // Tout service exige un compte (règle de l'exploitant, 2026-09-14) : le
+  // client se connecte d'abord — un visiteur est renvoyé vers la connexion.
+  const PWD = process.env.VERIF_SEME_PWD, CLIENT = process.env.VERIF_CLIENT_ID;
+  if (!PWD || !CLIENT) throw new Error("VERIF_CLIENT_ID / VERIF_SEME_PWD requis");
+  await pc.goto(`${BASE}/vehicle/${vehicule._id}`, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await pc.getByRole("button", { name: /Demander un essai|Request a test drive/i }).click({ timeout: 60000 });
+  await pc.getByRole("link", { name: /Se connecter/ }).first().waitFor({ timeout: 30000 });
+  ok("visiteur : la demande d'essai renvoie vers la connexion");
+  await connecter(pc, CLIENT, PWD);
   await pc.goto(`${BASE}/vehicle/${vehicule._id}`, { waitUntil: "domcontentloaded", timeout: 60000 });
   await pc.getByRole("button", { name: /Demander un essai|Request a test drive/i }).click({ timeout: 60000 });
   // Saisie puis VÉRIFICATION de chaque valeur : sous charge (build ou tests

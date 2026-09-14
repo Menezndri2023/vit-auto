@@ -1382,7 +1382,16 @@ export const createBooking = async (req, res) => {
       user: { role: "system" }, source: "SYSTEM",
     });
     if (direct.statusCode >= 400) {
-      logger.warn("transmission directe au partenaire refusée", { reference, type, message: direct.body?.message });
+      // Filet : une erreur dans la chaîne d'approbation (notification, WhatsApp,
+      // reçu) ne doit jamais laisser la demande invisible du partenaire —
+      // getPartnerBookings ne montre que les commandes approuvées.
+      logger.error("transmission directe au partenaire refusée — filet appliqué", { reference, type, message: direct.body?.message });
+      await Booking.updateOne({ _id: booking._id, "adminValidation.status": "pending" }, { $set: {
+        "adminValidation.status": "approved", "adminValidation.validatedByType": "SYSTEM", "adminValidation.validatedAt": new Date(), partnerNotifiedAt: new Date(),
+      } }).catch(nonBloquant("bookingController"));
+      booking.adminValidation.status = "approved";
+      if (ownerId) notify(ownerId, "booking_admin_approved", "📋 Nouvelle commande transmise",
+        `${clientInfo.firstName} ${clientInfo.lastName} — ${type} ${reference}, à traiter.`, "/vendor/dashboard").catch(nonBloquant("bookingController"));
     } else {
       booking.adminValidation.status = "approved";
       if (direct.body?.booking?.status) booking.status = direct.body.booking.status;
@@ -2849,7 +2858,7 @@ export const exportPartnerBookings = async (req, res) => {
         b.status,
         `${b.clientInfo?.firstName || ""} ${b.clientInfo?.lastName || ""}`.trim(),
         b.clientInfo?.email || "",
-        b.vehicle?.title || b.activity?.title || (b.driver ? `${b.driver.firstName || ""} ${b.driver.lastName || ""}`.trim() : ""),
+        b.vehicle?.title || b.activity?.title || b.part?.title || (b.driver ? `${b.driver.firstName || ""} ${b.driver.lastName || ""}`.trim() : ""),
         b.montantTotal || 0,
         b.commissionAmount || 0,
         b.partnerPayout || 0,
@@ -4113,7 +4122,7 @@ export const exportBookings = async (req, res) => {
           b.clientInfo?.email || "",
           b.clientInfo?.phone || "",
           decryptField(b.clientInfo?.passportNumber) || "",
-          b.vehicle?.title || b.activity?.title || (b.driver ? `${b.driver.firstName || ""} ${b.driver.lastName || ""}`.trim() : ""),
+          b.vehicle?.title || b.activity?.title || b.part?.title || (b.driver ? `${b.driver.firstName || ""} ${b.driver.lastName || ""}`.trim() : ""),
           b.montantTotal || 0,
           b.commissionAmount || 0,
           b.partnerPayout || 0,

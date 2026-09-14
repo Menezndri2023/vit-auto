@@ -85,7 +85,9 @@ export async function processOcrJob(job) {
         const { sendViaInternal } = await import("../../services/communication/CommunicationService.js");
         await sendViaInternal({
           userId,
-          type:    "kyc",
+          // "kyc" n'est pas dans l'enum Notification.type : la création échouait
+          // en silence (nonBloquant) — le client n'a jamais reçu cette notification.
+          type:    "kyc_approved",
           titre:   "✅ Identité vérifiée automatiquement",
           message: "Votre dossier KYC a été validé. Vous pouvez effectuer des réservations.",
         }).catch(nonBloquant("ocr.worker"));

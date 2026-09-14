@@ -105,13 +105,14 @@ router.get("/:id/receipt",             vid, authenticate, async (req, res) => {
     const booking = await Booking.findById(req.params.id)
       .populate("vehicle",  "title marque modele owner")
       .populate("driver",   "owner")
-      .populate("activity", "owner")
+      .populate("activity", "owner title")
+      .populate("part",     "owner title")
       .populate("client",   "firstName lastName email");
     if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
     const uid      = req.user._id.toString();
     const clientId = booking.client?._id?.toString() || booking.client?.toString();
     const isClient = clientId && clientId === uid;
-    const isOwner  = [booking.vehicle?.owner, booking.driver?.owner, booking.activity?.owner]
+    const isOwner  = [booking.vehicle?.owner, booking.driver?.owner, booking.activity?.owner, booking.part?.owner]
       .some((o) => o && (o._id?.toString() || o.toString()) === uid);
     if (!isClient && !isOwner && req.user.role !== "admin") {
       return res.status(403).json({ message: "Accès refusé." });

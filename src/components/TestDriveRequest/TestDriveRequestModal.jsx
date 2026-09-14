@@ -74,8 +74,7 @@ export default function TestDriveRequestModal({ open, vehicle, mode = "test_driv
     try {
       // Connecté : authFetch lie le lead au compte (suivi depuis l'espace
       // client) ; invité : fetch nu, le serveur renvoie un lien signé.
-      const doFetch = isAuthenticated ? authFetch : (url, opts) => fetch(url, { ...opts, headers: { "Content-Type": "application/json", ...opts.headers } });
-      const res = await doFetch("/api/sales-leads", {
+      const res = await authFetch("/api/sales-leads", {
         method: "POST",
         body: JSON.stringify({
           vehicleId: vehicle._id || vehicle.id,
@@ -118,6 +117,16 @@ export default function TestDriveRequestModal({ open, vehicle, mode = "test_driv
             {!isAuthenticated && (
               <p className={styles.hint}>Conservez le lien reçu : il vous permet d'accepter un autre créneau ou d'annuler sans créer de compte.</p>
             )}
+          </div>
+        ) : !isAuthenticated ? (
+          // Tout service exige un compte (règle de l'exploitant, 2026-09-14) :
+          // un visiteur est renvoyé vers la connexion, puis revient sur l'annonce.
+          <div className={styles.success}>
+            <div className={styles.successIcon}>🔐</div>
+            <h2 id="tdr-title" className={styles.title}>{isCallback ? "📞 Être rappelé" : "🔑 Demander un essai"}</h2>
+            <p className={styles.lead}>Connectez-vous (ou créez un compte en une minute) pour envoyer votre demande et la suivre depuis votre espace.</p>
+            <Link to="/login" state={{ from: { pathname: window.location.pathname + window.location.search } }} className={styles.primary} onClick={onClose}>Se connecter</Link>
+            <Link to="/register" state={{ from: { pathname: window.location.pathname + window.location.search } }} className={styles.hint} onClick={onClose} style={{ display: "block", marginTop: 10 }}>Créer un compte</Link>
           </div>
         ) : (
           <form onSubmit={submit} className={styles.form} noValidate>
