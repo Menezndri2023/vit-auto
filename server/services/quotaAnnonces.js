@@ -13,9 +13,8 @@ import Vehicle from "../models/Vehicle.js";
 import ImportExportListing from "../models/ImportExportListing.js";
 import Activity from "../models/Activity.js";
 import Driver from "../models/Driver.js";
-import PartnerOnboarding from "../models/PartnerOnboarding.js";
 import { planEffectif } from "./planAccess.js";
-import { getConfig } from "./pricingEngine.js";
+import { fondateurActif } from "./fondateur.js";
 import { FIN_IMMUNITE_QUOTAS, quotaAnnoncesDuPlan } from "../constants/planFeatures.js";
 import { SECTEUR_LABELS } from "../constants/partnerTaxonomy.js";
 
@@ -49,19 +48,7 @@ export async function annoncesActives(ownerId, secteur) {
   }
 }
 
-// Même règle que pricingEngine.resolveCommissionRate : fondateur = dossier
-// signé (`lockedAt` posé) ET douze mois non écoulés. Un dossier sans date
-// n'exempte pas — c'était le défaut « réduction éternelle » corrigé le
-// 2026-09-09, on ne le réintroduit pas ici.
-export async function fondateurActif(userId, now = new Date()) {
-  const fp = await PartnerOnboarding.findOne({ userId, isFoundingPartner: true })
-    .select("commissions.lockedAt").lean();
-  const lockedAt = fp?.commissions?.lockedAt;
-  if (!lockedAt) return false;
-  const config = await getConfig();
-  const dureeMs = (config.foundingPartner?.durationMonths ?? 12) * 30.4375 * 24 * 60 * 60 * 1000;
-  return now.getTime() - new Date(lockedAt).getTime() < dureeMs;
-}
+export { fondateurActif };
 
 export async function refusDeQuota(user, secteur, now = new Date()) {
   if (!user || user.role === "admin") return null;

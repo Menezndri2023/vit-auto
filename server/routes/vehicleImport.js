@@ -4,6 +4,7 @@ import * as vi from "../controllers/vehicleImportController.js";
 import { authenticate } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 import { makeRateLimitStore } from "../utils/rateLimitStore.js";
+import { exigeOutil } from "../services/planAccess.js";
 
 const router = express.Router();
 const vid = validateObjectId("batchId");
@@ -21,8 +22,9 @@ const importCreateLimiter = rateLimit({
 });
 
 // ── IMPORTANT : routes statiques AVANT les routes paramétrées ────────────────
-router.post("/preview",  authenticate, importCreateLimiter, vi.previewImportFile);
-router.post("/",         authenticate, importCreateLimiter, vi.createImportBatch);
+// Import de flotte : outil du palier Business (planFeatures.importFlotte).
+router.post("/preview",  authenticate, exigeOutil("importFlotte"), importCreateLimiter, vi.previewImportFile);
+router.post("/",         authenticate, exigeOutil("importFlotte"), importCreateLimiter, vi.createImportBatch);
 router.get("/",          authenticate, vi.listImportBatches);
 router.get("/:batchId",  vid, authenticate, vi.getImportBatch);
 

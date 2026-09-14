@@ -123,15 +123,43 @@ l'occupation (loueur) ; relance automatique des leads dormants (vendeur) ;
 séquestre prioritaire (exportateur) ; dispatch des missions (chauffeur) ;
 multi-sites et bons cadeaux (loisirs).
 
+## Verrouillage des outils par plan
+
+Les outils vendus par palier sont **verrouillés côté serveur** par
+`exigeOutil(feature)` (`server/services/planAccess.js`), posé sur les
+ÉCRITURES seulement — un partenaire rétrogradé garde la lecture de ce qu'il a
+créé :
+
+| Outil | Palier | Routes |
+|---|---|---|
+| Tarifs saisonniers | Essentiel | `PATCH /api/vehicles/:id/seasonal-rates` |
+| Promotions | Essentiel | `PATCH /api/vehicles/:id/promotion` |
+| Journal du véhicule (entretien, incidents) | Business | `POST/DELETE /api/vehicles/:id/maintenance` |
+| Import de flotte | Business | `POST /api/vehicle-import[/preview]` |
+| Showroom personnalisé | Business | `PUT /api/pms/showroom/me`, `POST …/publish` |
+| CRM leads et devis | Business | écritures `/api/pms/leads*`, `/api/pms/quotes*` |
+
+Trois passe-droits, dans cet ordre : administrateur ; **immunité de lancement
+jusqu'au 10 septembre 2027** (même date que les quotas — aucun partenaire ne
+perd aujourd'hui un outil qu'il utilise, la règle prend effet à la date
+prévue) ; **Partenaire Fondateur en cours** (dossier signé, douze mois). Un
+membre d'équipe hérite du plan du titulaire. Refus : `403`, code
+`PLAN_REQUIS`, message avec le nom commercial du palier ; l'interface affiche
+ce message tel quel (toast) et renvoie vers la page Tarifs.
+
+Les avantages transversaux (statistiques, export, équipe, API, assistance,
+demandes en avance, bilan mensuel) restent régis par `exigeFonctionnalite`,
+sans immunité : ils n'ont jamais été ouverts aux comptes gratuits.
+
+Pour activer les verrous plus tôt que la date : avancer `FIN_IMMUNITE_QUOTAS`
+(`server/constants/planFeatures.js` et son miroir `src/`), ce qui active
+quotas ET verrous d'outils en même temps — les deux vont ensemble.
+
 ## Ce que cette version ne fait pas encore
 
-- **Verrouillage serveur des outils par secteur et par plan.** Les outils
-  ci-dessus sont *présentés* par palier ; plusieurs restent aujourd'hui
-  accessibles à tous (import de flotte, PMS, showroom, tarifs saisonniers).
-  Prochaine étape : une entrée `FEATURE_MIN_PLAN` par outil et
-  `exigeFonctionnalite(...)` sur sa route — un compte gratuit reçoit alors
-  plus que promis, jamais moins.
 - **Retrait d'un secteur** par le partenaire ou l'administration.
 - **Quota vu depuis le formulaire de publication** : le refus arrive à
   l'envoi, avec le message du serveur ; un compteur avant saisie serait plus
   aimable.
+- **Verrous visibles avant le clic** : après l'immunité, les boutons des
+  outils non inclus devraient afficher un cadenas plutôt qu'un refus au clic.

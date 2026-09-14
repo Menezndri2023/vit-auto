@@ -12,6 +12,7 @@ import { authorizeAdmin, optionalAuth, requireAdminScope } from "../middleware/a
 // Sans compte d'équipe — le cas de tous les comptes aujourd'hui — le second
 // maillon ressort immédiatement et le comportement est identique à avant.
 import { authenticateEtDeleguer as authenticate } from "../middleware/team.js";
+import { exigeOutil } from "../services/planAccess.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 
 const router = express.Router();
@@ -50,13 +51,13 @@ router.post("/:id/inspection-report", vid, authenticate,  createVehicleInspectio
 router.patch("/:id/status",   vid, authenticate, authorizeAdmin, requireAdminScope("catalogue"), v.updateVehicleStatus); // approuver/rejeter
 router.patch("/:id/transfer", vid, authenticate, authorizeAdmin, requireAdminScope("catalogue"), v.transferVehicle); // réassigner compte/entreprise/pays/ville (admin)
 router.patch("/:id/lifecycle",vid, authenticate, v.updateVehicleLifecycle);               // brouillon/vendu/archivé (partenaire)
-router.patch("/:id/promotion",vid, authenticate, v.updatePromotion);                      // activer/désactiver une promotion
-router.patch("/:id/seasonal-rates", vid, authenticate, v.updateSeasonalRates);            // tarifs saisonniers (haute/basse saison)
+router.patch("/:id/promotion",vid, authenticate, exigeOutil("promotions"), v.updatePromotion);        // activer/désactiver une promotion — outil par plan
+router.patch("/:id/seasonal-rates", vid, authenticate, exigeOutil("tarifsSaisonniers"), v.updateSeasonalRates); // tarifs saisonniers — outil par plan
 router.post("/:id/convert-to-export", vid, authenticate, v.convertVehicleToExport);       // transforme en annonce Import/Export
 router.post("/:id/generate-description", vid, authenticate, v.generateDescription);       // description automatique (propriétaire/admin)
 router.get("/:id/maintenance",              vid, authenticate, v.getMaintenanceLogs);     // journal entretien/incident/dommage
-router.post("/:id/maintenance",             vid, authenticate, v.addMaintenanceLog);
-router.delete("/:id/maintenance/:logId", vid, logVid, authenticate, v.deleteMaintenanceLog);
+router.post("/:id/maintenance",             vid, authenticate, exigeOutil("journalVehicule"), v.addMaintenanceLog); // écriture = outil par plan ; la lecture reste ouverte
+router.delete("/:id/maintenance/:logId", vid, logVid, authenticate, exigeOutil("journalVehicule"), v.deleteMaintenanceLog);
 router.patch("/:id",          vid, authenticate, v.updateVehicle);                        // mise à jour partielle (featured, etc.)
 router.put("/:id",            vid, authenticate, v.updateVehicle);                        // modifier annonce (compat)
 router.delete("/:id", vid, authenticate, v.deleteVehicle);                        // supprimer annonce

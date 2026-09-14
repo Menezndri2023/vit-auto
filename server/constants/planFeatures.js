@@ -25,6 +25,19 @@ export const FEATURE_MIN_PLAN = {
   carrouselReserve:  "exportateur",
   // Rapport mensuel de performance envoyé par e-mail.
   rapportMensuel:    "business",
+
+  // ── Outils par secteur (2026-09-14) ──────────────────────────────────────
+  // Vendus par palier sur la page Tarifs (src/constants/planFeatures.
+  // OUTILS_PAR_SECTEUR) ; verrouillés ici par `exigeOutil`, qui applique la
+  // même immunité de lancement et la même exemption fondateur que les quotas
+  // d'annonces — un outil déjà utilisé par un partenaire gratuit ne lui est
+  // pas retiré du jour au lendemain, la règle prend effet à la date prévue.
+  tarifsSaisonniers: "individuel_plus", // loueur
+  promotions:        "individuel_plus", // loueur, vendeur
+  journalVehicule:   "business",        // gestion de parc : entretien, incidents
+  importFlotte:      "business",        // import CSV / Excel / Google Sheets
+  showroom:          "business",        // page showroom publique personnalisée
+  crmLeadsDevis:     "business",        // leads et devis du PMS
 };
 
 // Sièges d'équipe INCLUS, titulaire compris. `business` en ouvre trois : un

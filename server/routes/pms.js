@@ -1,6 +1,7 @@
 import express from "express";
 import { authenticate as protect, requireAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
+import { exigeOutil } from "../services/planAccess.js";
 import {
   getPMSOverview,
   getLeads, createLead, getLead, updateLead, deleteLead, addLeadFollowUp, addLeadMessage,
@@ -34,6 +35,11 @@ const requirePartner = (req, res, next) => {
 };
 
 const isPartner = [protect, requirePartner];
+// Outils du PMS vendus par palier : CRM (leads et devis) et showroom. Les
+// LECTURES restent ouvertes — un partenaire rétrogradé garde l'accès à ce
+// qu'il a créé — seules les écritures exigent le palier.
+const crm      = [...isPartner, exigeOutil("crmLeadsDevis")];
+const showroom = [...isPartner, exigeOutil("showroom")];
 
 // Vue d'ensemble dashboard PMS
 router.get("/overview", isPartner, getPMSOverview);
@@ -42,25 +48,25 @@ const vid = validateObjectId();
 
 // Leads
 router.get   ("/leads",               isPartner, getLeads);
-router.post  ("/leads",               isPartner, createLead);
+router.post  ("/leads",               crm, createLead);
 router.get   ("/leads/:id",           vid, isPartner, getLead);
-router.put   ("/leads/:id",           vid, isPartner, updateLead);
+router.put   ("/leads/:id",           vid, crm, updateLead);
 router.delete("/leads/:id",           vid, isPartner, deleteLead);
-router.post  ("/leads/:id/followup",  vid, isPartner, addLeadFollowUp);
-router.post  ("/leads/:id/message",   vid, isPartner, addLeadMessage);
+router.post  ("/leads/:id/followup",  vid, crm, addLeadFollowUp);
+router.post  ("/leads/:id/message",   vid, crm, addLeadMessage);
 
 // Devis
 router.get   ("/quotes",              isPartner, getQuotes);
-router.post  ("/quotes",              isPartner, createQuote);
+router.post  ("/quotes",              crm, createQuote);
 router.get   ("/quotes/:id",          vid, isPartner, getQuote);
-router.put   ("/quotes/:id",          vid, isPartner, updateQuote);
-router.post  ("/quotes/:id/send",     vid, isPartner, sendQuote);
+router.put   ("/quotes/:id",          vid, crm, updateQuote);
+router.post  ("/quotes/:id/send",     vid, crm, sendQuote);
 router.delete("/quotes/:id",          vid, isPartner, deleteQuote);
 
 // Showroom
 router.get   ("/showroom/me",         isPartner, getMyShowroom);
-router.put   ("/showroom/me",         isPartner, upsertShowroom);
-router.post  ("/showroom/me/publish", isPartner, publishShowroom);
+router.put   ("/showroom/me",         showroom, upsertShowroom);
+router.post  ("/showroom/me/publish", showroom, publishShowroom);
 
 // Performance
 router.get   ("/performance",         isPartner, getPerformanceScore);

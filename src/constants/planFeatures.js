@@ -33,6 +33,14 @@ export const FEATURE_MIN_PLAN = {
   demandesPrioritaires: "business",
   carrouselReserve:     "exportateur",
   rapportMensuel:       "business",
+  // Outils par secteur — verrouillés côté serveur par `exigeOutil`, avec la
+  // même immunité de lancement et la même exemption fondateur que les quotas.
+  tarifsSaisonniers:    "individuel_plus",
+  promotions:           "individuel_plus",
+  journalVehicule:      "business",
+  importFlotte:         "business",
+  showroom:             "business",
+  crmLeadsDevis:        "business",
 };
 
 // Avance, en heures, sur les demandes clients fraîchement déposées.
