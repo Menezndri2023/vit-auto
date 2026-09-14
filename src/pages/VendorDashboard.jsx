@@ -11,6 +11,7 @@ import { PAYMENTS_ENABLED_FALLBACK, PAYMENTS_DISABLED_NOTICE } from "../config/f
 import PartnerCalendar from "../components/PartnerCalendar/PartnerCalendar";
 import PartnerBusinessManager from "../components/PartnerBusinessManager/PartnerBusinessManager";
 import PartnerOpportunities from "../components/PartnerOpportunities/PartnerOpportunities";
+import { libelleDureeChauffeur } from "../constants/chauffeur";
 import { geocodeAddress } from "../utils/geo";
 import { PARTNER_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import { LICENSE_CATEGORIES, LICENSE_CATEGORY_LABELS } from "../constants/licenseCategories";
@@ -540,7 +541,7 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
                   </>}
                   {subType==="chauffeur" && <>
                     <div className={styles.detailItem}><span className={styles.detailLabel}>Date</span><span className={styles.detailValue}>{fmtDate(order.chauffeur?.date||order.startDate)}</span></div>
-                    <div className={styles.detailItem}><span className={styles.detailLabel}>Durée</span><span className={styles.detailValue}>{order.chauffeur?.heures||"—"} h</span></div>
+                    <div className={styles.detailItem}><span className={styles.detailLabel}>Durée</span><span className={styles.detailValue}>{libelleDureeChauffeur(order.chauffeur)}</span></div>
                     <div className={styles.detailItem}><span className={styles.detailLabel}>Départ</span><span className={styles.detailValue}>{order.chauffeur?.lieuDepart||"—"}</span></div>
                     <div className={styles.detailItem}><span className={styles.detailLabel}>Destination</span><span className={styles.detailValue}>{order.chauffeur?.destination||"—"}</span></div>
                     {order.chauffeur?.notes && <div className={styles.detailItem} style={{gridColumn:"span 2"}}><span className={styles.detailLabel}>Notes</span><span className={styles.detailValue}>{order.chauffeur.notes}</span></div>}
@@ -1137,7 +1138,7 @@ export default function VendorDashboard() {
   const { success: toastSuccess, error: toastError } = useToast();
   const { on } = useSocket();
   const { openOrCreateChat } = useChat();
-  const { COUNTRIES_CONFIG, fmt: fmtXOF, CURRENCIES, rateFromUSD } = useCurrency();
+  const { COUNTRIES_CONFIG, fmt: fmtXOF, CURRENCIES, rateFromUSD, formatLiteral } = useCurrency();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -3145,7 +3146,7 @@ export default function VendorDashboard() {
                           </div>
                         )}
                         {subT==="chauffeur" && <>
-                          <div className={styles.orderDetailItem}><span>🗓️</span><span>{fmtDate(order.chauffeur?.date||order.startDate)} · {order.chauffeur?.heures||"?"}h</span></div>
+                          <div className={styles.orderDetailItem}><span>🗓️</span><span>{fmtDate(order.chauffeur?.date||order.startDate)} · {libelleDureeChauffeur(order.chauffeur)}</span></div>
                           {order.chauffeur?.lieuDepart && <div className={styles.orderDetailItem}><span>🚀</span><span>{order.chauffeur.lieuDepart} → {order.chauffeur?.destination||"?"}</span></div>}
                         </>}
                         {subT==="leasing" && <>
@@ -3514,7 +3515,7 @@ export default function VendorDashboard() {
                         <span className={styles.vTag}>{reqm.employer?.firstName} {reqm.employer?.lastName}</span>
                         {reqm.employer?.phone && <span className={styles.vTag}>{reqm.employer.phone}</span>}
                       </div>
-                      <div className={styles.vehiclePrice}>{fmtXOF(reqm.proposedSalary)} / mois</div>
+                      <div className={styles.vehiclePrice}>{formatLiteral(reqm.proposedSalary, reqm.currency || "USD")} / mois</div>
                       <p style={{ margin: "6px 0 0", fontSize: ".78rem", color: "#64748b" }}>
                         Début : {reqm.startDate ? new Date(reqm.startDate).toLocaleDateString("fr-FR") : "—"}
                         {reqm.endDate && ` · Fin : ${new Date(reqm.endDate).toLocaleDateString("fr-FR")}`}

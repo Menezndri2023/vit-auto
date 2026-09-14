@@ -5,7 +5,7 @@ import { useVehicles } from "../context/VehicleContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useToast } from "../context/ToastContext";
 import { api } from "../utils/apiClient";
-import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "../constants/activityTypes";
+import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, WEATHER_DEPENDENT_TYPES, WEATHER_CONDITION_TEXT } from "../constants/activityTypes";
 import styles from "./VendorSubmit.module.css";
 
 const MAX_PHOTOS = 8;
@@ -61,6 +61,8 @@ const ActivitySubmit = () => {
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [capacity,     setCapacity]     = useState(1);
   const [essaiDisponible, setEssaiDisponible] = useState(false);
+  // null = décidé par le type d'activité (mer, air → soumis à la météo)
+  const [weatherDependent, setWeatherDependent] = useState(null);
   const [essaiDurationMinutes, setEssaiDurationMinutes] = useState(30);
   const [essaiPriceEntry, setEssaiPriceEntry] = useState("");
   const [ville,        setVille]        = useState("");
@@ -122,6 +124,7 @@ const ActivitySubmit = () => {
         durationMinutes: Number(durationMinutes) || 60,
         capacity: Number(capacity) || 1,
         essaiDisponible,
+        weatherDependent,
         essaiDurationMinutes: Number(essaiDurationMinutes) || 30,
         essaiPrice: essaiDisponible && essaiPriceUSD != null ? essaiPriceUSD : null,
         ville: ville.trim(), adresse: adresse.trim(),
@@ -257,6 +260,18 @@ const ActivitySubmit = () => {
             <input type="number" min="1" value={capacity} onChange={(e) => setCapacity(e.target.value)} />
           </label>
         </div>
+      </div>
+
+      <div className={styles.card}>
+        <h2 className={styles.cardTitle}>Conditions météo</h2>
+        <label className={styles.switchLabel}>
+          <input type="checkbox" className={styles.switchInput}
+            checked={weatherDependent ?? WEATHER_DEPENDENT_TYPES.includes(activityType)}
+            onChange={(e) => setWeatherDependent(e.target.checked)} />
+          <span className={styles.switchSlider} />
+          Sortie soumise aux conditions météo (affichée et acceptée par le client à la réservation)
+        </label>
+        <p className={styles.hint} style={{ marginTop: 8 }}>{WEATHER_CONDITION_TEXT}</p>
       </div>
 
       <div className={styles.card}>

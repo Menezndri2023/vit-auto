@@ -11,7 +11,7 @@ import { useToast } from "../context/ToastContext";
 import { haversineKm, getCurrentPosition } from "../utils/geo";
 import { getCountryFlag } from "../data/autocomplete";
 import { slugifyCity } from "../constants/citySlug";
-import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "../constants/activityTypes";
+import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, isWeatherDependent } from "../constants/activityTypes";
 import { useI18n } from "../context/I18nContext";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
@@ -193,6 +193,7 @@ function ActivityCard({ a }) {
         </span>
         <span className={styles.ieCardMeta}>
           {t("catalogue.activityDurationCapacity", { min: a.durationMinutes || 60, n: a.capacity || 1 })}
+          {isWeatherDependent(a) && <> · 🌤️ selon météo</>}
         </span>
         <div className={styles.ieCardFooter}>
           <div>

@@ -18,6 +18,7 @@ import { computeLocationTotal } from "../utils/seasonalPricing.js";
 import { resolveCommissionRate, computeServiceFee } from "../services/pricingEngine.js";
 import { priceRentalOptions } from "../services/rentalOptions.js";
 import { resolveOriginCode } from "../constants/importOrigins.js";
+import { isWeatherDependent } from "../constants/activityTypes.js";
 import { convertAmount } from "../services/currencyEngine.js";
 import { issueServiceInvoice } from "./serviceInvoiceController.js";
 import { recordPartnerPayout } from "../utils/commissionLedger.js";
@@ -730,10 +731,21 @@ export const createBooking = async (req, res) => {
         const failure = ELIGIBILITY_MESSAGES[chauffeurEligibility.reasons[0]];
         return res.status(403).json({ message: failure.message, code: failure.code });
       }
-      // `tarif` est le tarif JOURNÉE (voir VendorSubmit.jsx), `tarifHeure` le tarif
-      // HORAIRE — utiliser le second pour une facturation à l'heure, sinon on
-      // surfacture massivement (ex: tarif journée × nombre d'heures).
-      montantBase = (driver.tarifHeure || driver.tarif || 0) * (chauffeur?.heures || 1);
+      // Unité de facturation (2026-09-14) : à l'heure (tarifHeure), à la
+      // demi-journée (tarifDemiJournee) ou à la journée (tarif). Le repli
+      // « tarif journée × nombre d'heures » d'avant surfacturait dès qu'un
+      // chauffeur n'avait pas de tarif horaire ; désormais l'unité choisie doit
+      // avoir un tarif, sinon 400. Un client sans unité explicite est facturé à
+      // l'heure (comportement historique), jamais au tarif journée × heures.
+      const UNITES = { heure: { tarif: driver.tarifHeure, heuresParUnite: 1 }, demi_journee: { tarif: driver.tarifDemiJournee, heuresParUnite: 4 }, journee: { tarif: driver.tarif, heuresParUnite: 24 } };
+      const unite = chauffeur?.unite && UNITES[chauffeur.unite] ? chauffeur.unite : "heure";
+      const quantite = Math.max(1, Math.floor(Number(chauffeur?.quantite ?? (unite === "heure" ? chauffeur?.heures : 1)) || 1));
+      if (!(UNITES[unite].tarif > 0)) {
+        const libelle = { heure: "à l'heure", demi_journee: "à la demi-journée", journee: "à la journée" }[unite];
+        return res.status(400).json({ message: `Ce chauffeur ne propose pas de tarif ${libelle}.`, code: "DRIVER_RATE_UNAVAILABLE" });
+      }
+      montantBase = UNITES[unite].tarif * quantite;
+      if (chauffeur) { chauffeur.unite = unite; chauffeur.quantite = quantite; chauffeur.heures = quantite * UNITES[unite].heuresParUnite; }
       ownerId = driver.owner;
 
       // Date/heure de mission requise pour pouvoir détecter les conflits de
@@ -801,6 +813,14 @@ export const createBooking = async (req, res) => {
       activityIsEssai = !!activite?.essai;
       if (activityIsEssai && !activityObj.essaiDisponible) {
         return res.status(400).json({ message: "Cette activité ne propose pas d'essai." });
+      }
+      // Sortie soumise à la météo (plongée, mer, air) : la condition est
+      // affichée à la réservation et doit être acceptée explicitement.
+      if (isWeatherDependent(activityObj) && !activite?.weatherAcknowledged) {
+        return res.status(400).json({
+          message: "Cette sortie est soumise aux conditions météo : merci de confirmer que vous en avez pris connaissance.",
+          code: "WEATHER_ACK_REQUIRED",
+        });
       }
 
       const activityDate = activite?.date ? new Date(activite.date) : null;
@@ -1039,6 +1059,7 @@ export const createBooking = async (req, res) => {
         ...activite,
         date: activityDateStart, dateFin: activityDateFin,
         participants: activityParticipants, essai: activityIsEssai,
+        weatherAcknowledged: !!activite?.weatherAcknowledged,
       } : undefined,
       leasing:  type === "leasing"  ? leasingData : undefined,
       montantBase,

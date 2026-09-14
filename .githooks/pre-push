@@ -60,7 +60,8 @@ for i in $(seq 1 90); do
   sleep 1
 done
 eval "$(grep -m1 "^VERIF_ADMIN_ID=" /tmp/vit-auto-api-locale.log)"
-export VERIF_ADMIN_ID VERIF_ADMIN_PWD
+eval "$(grep -m1 "^VERIF_PARTNER_ID=" /tmp/vit-auto-api-locale.log)"
+export VERIF_ADMIN_ID VERIF_ADMIN_PWD VERIF_PARTNER_ID VERIF_CLIENT_ID VERIF_SEME_PWD
 API_CIBLE=http://localhost:5001 node scripts/servirAvecCsp.mjs > /tmp/vit-auto-preview-csp.log 2>&1 &
 PREVIEW=$!
 for i in 1 2 3 4 5 6 7 8 9 10; do

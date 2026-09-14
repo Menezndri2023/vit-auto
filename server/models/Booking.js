@@ -262,7 +262,13 @@ const bookingSchema = new mongoose.Schema({
     // une détection de conflit de planning efficace au niveau requête Mongo,
     // sur le même principe que location.startDate/endDate pour les véhicules.
     dateFin:     { type: Date },
+    // Durée totale en heures (facturation + détection de conflit).
     heures:      { type: Number },
+    // Unité de facturation choisie par le client (2026-09-14) : jusqu'ici seul
+    // le tarif horaire était réservable en ligne — un chauffeur à la journée
+    // ou demi-journée (le cas le plus courant) ne l'était pas du tout.
+    unite:       { type: String, enum: ["heure", "demi_journee", "journee", null], default: null },
+    quantite:    { type: Number, default: null },
     lieuDepart:  { type: String },
     destination: { type: String },
     notes:       { type: String },
@@ -281,6 +287,9 @@ const bookingSchema = new mongoose.Schema({
     // false = session complète — distingue le tarif et la durée appliqués.
     essai:        { type: Boolean, default: false },
     notes:        { type: String },
+    // Le client a accepté que la sortie soit soumise à la météo (activités
+    // Activity.weatherDependent / WEATHER_DEPENDENT_TYPES) — exigé à la création.
+    weatherAcknowledged: { type: Boolean, default: false },
   },
 
   // ── Financier (USD — voir server/scripts/migrate-vehicle-booking-to-usd.mjs

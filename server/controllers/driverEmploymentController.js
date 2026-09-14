@@ -73,7 +73,7 @@ export const createEmploymentRequest = async (req, res) => {
       "system",
       "💼 Nouvelle demande d'embauche à valider",
       `${req.user.firstName} ${req.user.lastName} propose un contrat ${contractType.toUpperCase()} à ${driver.firstName} ${driver.lastName} — à transmettre ou rejeter.`,
-      "/admin?tab=drivers"
+      "/admin?tab=catalogue&sub=drivers"
     );
 
     res.status(201).json({ request });

@@ -11,6 +11,7 @@ import { CLIENT_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import VehicleCard from "../components/VehicleCard/VehicleCard";
 import LoyaltyTierBadge from "../components/LoyaltyTierBadge/LoyaltyTierBadge";
 import MyTestDriveLeads from "../components/MyTestDriveLeads/MyTestDriveLeads";
+import { libelleDureeChauffeur } from "../constants/chauffeur";
 import { downloadAuthFile } from "../utils/downloadAuthFile";
 import styles from "./Dashboard.module.css";
 
@@ -77,6 +78,7 @@ const normalizeBooking = (b) => {
     // Chauffeur
     chauffeurDate:        b.chauffeur?.date,
     chauffeurHeures:      b.chauffeur?.heures,
+    chauffeurDuree:       libelleDureeChauffeur(b.chauffeur),
     chauffeurLieuDepart:  b.chauffeur?.lieuDepart,
     chauffeurDestination: b.chauffeur?.destination,
     // Leasing / Crédit classique
@@ -567,7 +569,7 @@ const Dashboard = () => {
   const { user, isAuthenticated, token } = useAuth();
   const { removeBooking } = useVehicles();
   const { success: toastSuccess, error: toastError } = useToast();
-  const { fmt } = useCurrency();
+  const { fmt, formatLiteral } = useCurrency();
   const { on } = useSocket();
   const { t } = useI18n();
 
@@ -1045,7 +1047,7 @@ const Dashboard = () => {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div>
                       <strong style={{ color: "#0f1b3f" }}>{reqm.contractType?.toUpperCase()} — {reqm.driver?.firstName} {reqm.driver?.lastName}</strong>
-                      <p style={{ margin: "4px 0", color: "#64748b", fontSize: "0.85rem" }}>{fmt(reqm.proposedSalary)} / mois</p>
+                      <p style={{ margin: "4px 0", color: "#64748b", fontSize: "0.85rem" }}>{formatLiteral(reqm.proposedSalary, reqm.currency || "USD")} / mois</p>
                       <p style={{ margin: 0, color: "#94a3b8", fontSize: "0.8rem" }}>
                         Début : {reqm.startDate ? new Date(reqm.startDate).toLocaleDateString("fr-FR") : "—"}
                         {reqm.endDate && ` · Fin : ${new Date(reqm.endDate).toLocaleDateString("fr-FR")}`}
@@ -1347,7 +1349,7 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
             {booking.chauffeurDate && (
               <DetailRow icon="📅" label="Date" value={new Date(booking.chauffeurDate).toLocaleDateString("fr-FR")} />
             )}
-            {booking.chauffeurHeures && <DetailRow icon="⏱️" label="Durée" value={`${booking.chauffeurHeures} h`} />}
+            {booking.chauffeurHeures && <DetailRow icon="⏱️" label="Durée" value={booking.chauffeurDuree} />}
             {booking.chauffeurLieuDepart && <DetailRow icon="📍" label="Départ" value={booking.chauffeurLieuDepart} />}
             {booking.chauffeurDestination && <DetailRow icon="🏁" label="Destination" value={booking.chauffeurDestination} />}
             {booking.notes && <DetailRow icon="💬" label="Message" value={booking.notes} />}
@@ -1422,7 +1424,7 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
         )}
         {isChauffeur && booking.baseTotal > 0 && (
           <div className={styles.finRow}>
-            <span>Prestation chauffeur ({booking.chauffeurHeures || 0} h)</span>
+            <span>Prestation chauffeur ({booking.chauffeurDuree})</span>
             <span>{fmt(booking.baseTotal)}</span>
           </div>
         )}

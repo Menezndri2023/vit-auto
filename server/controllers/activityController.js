@@ -40,6 +40,7 @@ const EDITABLE = [
   "price", "priceUnit", "currency", "priceEntered", "priceEntryCurrency",
   "durationMinutes", "capacity",
   "essaiDisponible", "essaiDurationMinutes", "essaiPrice",
+  "weatherDependent",
   "images", "thumbnail",
   "ville", "adresse", "coordonnees",
   "available", "manuallyPaused",
@@ -75,7 +76,7 @@ export const createActivity = async (req, res) => {
       activityType, title, description,
       price, priceUnit, currency, priceEntered, priceEntryCurrency,
       durationMinutes, capacity,
-      essaiDisponible, essaiDurationMinutes, essaiPrice,
+      essaiDisponible, essaiDurationMinutes, essaiPrice, weatherDependent,
       images, thumbnail, ville, adresse, coordonnees,
     } = req.body;
 
@@ -118,6 +119,8 @@ export const createActivity = async (req, res) => {
       essaiDisponible: !!essaiDisponible,
       essaiDurationMinutes: Number(essaiDurationMinutes) > 0 ? Number(essaiDurationMinutes) : 30,
       essaiPrice: essaiPrice != null && essaiPrice !== "" ? Number(essaiPrice) : null,
+      // null = décidé par le type (WEATHER_DEPENDENT_TYPES) ; true/false = choix du partenaire
+      weatherDependent: weatherDependent === true || weatherDependent === "true" ? true : weatherDependent === false || weatherDependent === "false" ? false : null,
       images: uploadedImages,
       thumbnail: uploadedThumb,
       ville, adresse, coordonnees,

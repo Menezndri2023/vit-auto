@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useCurrency } from "../context/CurrencyContext";
 import styles from "./Booking.module.css";
 
 // ── Demande d'embauche chauffeur à temps plein (CDD/CDI) ─────────────────────
@@ -16,6 +17,7 @@ const DriverEmployment = () => {
   const { getItemById } = useVehicles();
   const { user, token } = useAuth();
   const { success, error } = useToast();
+  const { currency: displayCurrency, CURRENCIES } = useCurrency();
 
   const driver = getItemById(id);
 
@@ -23,6 +25,10 @@ const DriverEmployment = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [proposedSalary, setProposedSalary] = useState("");
+  // Devise du salaire : celle affichée au client par défaut (MAD, XOF…), pas
+  // un USD imposé — le partenaire et l'admin voient le montant dans SA devise.
+  const [salaryCurrency, setSalaryCurrency] = useState(displayCurrency?.code || "USD");
+  const [ville, setVille] = useState("");
   const [workSchedule, setWorkSchedule] = useState("");
   const [missionDescription, setMissionDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -68,6 +74,9 @@ const DriverEmployment = () => {
           startDate,
           endDate: contractType === "cdd" ? endDate : undefined,
           proposedSalary: Number(proposedSalary),
+          currency: salaryCurrency,
+          country: user?.country || undefined,
+          ville: ville.trim() || undefined,
           workSchedule,
           missionDescription,
         }),
@@ -92,7 +101,7 @@ const DriverEmployment = () => {
         <div style={{ fontSize: "3rem", marginBottom: 12 }}>💼</div>
         <h1 style={{ color: "#0f1b3f" }}>Proposition envoyée !</h1>
         <p style={{ color: "#64748b" }}>
-          {driver.firstName} {driver.lastName} a été notifié(e) de votre proposition {contractType.toUpperCase()}.
+          Votre proposition {contractType.toUpperCase()} pour {driver.firstName} {driver.lastName} est transmise à VIT AUTO pour validation, puis au chauffeur. Vous serez prévenu de sa réponse par notification et e-mail, et vous pouvez la suivre depuis votre tableau de bord.
           Vous recevrez une notification dès sa réponse.
         </p>
         <Link to="/dashboard" style={{ color: "#ff4d2d", fontWeight: 700 }}>← Voir mon tableau de bord</Link>
@@ -160,10 +169,25 @@ const DriverEmployment = () => {
 
       <div style={{ marginBottom: 20 }}>
         <label style={{ fontWeight: 700, color: "#374151", fontSize: "0.85rem", display: "block", marginBottom: 6 }}>
-          Salaire mensuel proposé (USD) *
+          Salaire mensuel proposé *
         </label>
-        <input type="number" min="1" placeholder="Ex : 400" value={proposedSalary}
-          onChange={(e) => setProposedSalary(e.target.value)}
+        <div style={{ display: "flex", gap: 8 }}>
+          <input type="number" min="1" inputMode="decimal" placeholder="Ex : 4 000" value={proposedSalary}
+            onChange={(e) => setProposedSalary(e.target.value)}
+            style={{ flex: 1, minWidth: 0, padding: "12px 16px", borderRadius: 12, border: "1.5px solid #e5e9f4", fontSize: "0.95rem", boxSizing: "border-box" }} />
+          <select value={salaryCurrency} onChange={(e) => setSalaryCurrency(e.target.value)} aria-label="Devise du salaire"
+            style={{ padding: "12px 12px", borderRadius: 12, border: "1.5px solid #e5e9f4", fontSize: "0.95rem", background: "#fff" }}>
+            {(CURRENCIES || []).map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 20 }}>
+        <label style={{ fontWeight: 700, color: "#374151", fontSize: "0.85rem", display: "block", marginBottom: 6 }}>
+          Ville du poste (optionnel)
+        </label>
+        <input type="text" placeholder="Ex : Casablanca" value={ville}
+          onChange={(e) => setVille(e.target.value)}
           style={{ width: "100%", padding: "12px 16px", borderRadius: 12, border: "1.5px solid #e5e9f4", fontSize: "0.95rem", boxSizing: "border-box" }} />
       </div>
 

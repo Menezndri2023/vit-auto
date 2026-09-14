@@ -69,6 +69,11 @@ const activitySchema = new mongoose.Schema({
   // généralement inférieur (découverte).
   essaiPrice: { type: Number, default: null, min: 0 },
 
+  // Sortie soumise aux conditions météo (plongée, mer, air) : la réservation
+  // affiche la condition et exige son acceptation ; null = décidé par le type
+  // (voir constants/activityTypes.js WEATHER_DEPENDENT_TYPES).
+  weatherDependent: { type: Boolean, default: null },
+
   // ── Médias ────────────────────────────────────────────────
   images:    { type: [String], default: [] },
   thumbnail: { type: String, default: null },

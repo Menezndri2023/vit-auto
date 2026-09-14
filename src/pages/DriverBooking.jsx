@@ -58,7 +58,11 @@ const DriverBooking = () => {
   const [missionDate, setMissionDate] = useState("");
   const [missionTime, setMissionTime] = useState("");
   const [lieuDepart,  setLieuDepart]  = useState("");
-  const [heures,    setHeures]    = useState(4);
+  // Unité de facturation : à l'heure, à la demi-journée ou à la journée —
+  // choisie parmi celles que le chauffeur tarife (2026-09-14 : auparavant seul
+  // le tarif horaire était réservable en ligne).
+  const [unite,     setUnite]     = useState(null);
+  const [quantite,  setQuantite]  = useState(1);
   const [occupiedSlots, setOccupiedSlots] = useState([]);
   const [selectedMethod, setSelectedMethod] = useState("orange_money");
   const [mobileNumber, setMobileNumber] = useState("");
@@ -83,6 +87,23 @@ const DriverBooking = () => {
     return isNaN(dt.getTime()) ? null : dt;
   }, [missionDate, missionTime]);
 
+  // Unités de facturation proposées par CE chauffeur (mêmes règles que le
+  // serveur, bookingController type "chauffeur") : chaque unité a son tarif,
+  // jamais de repli d'une unité sur l'autre (le tarif journée × heures
+  // surfacturait ×24).
+  const UNITES = [
+    { key: "heure",        label: "À l'heure",        tarif: Number(driver?.tarifHeure) || 0,       entered: driver?.tarifHeureEntered,       heures: 1,  unitLabel: "heure",        max: 24 },
+    { key: "demi_journee", label: "Demi-journée",     tarif: Number(driver?.tarifDemiJournee) || 0, entered: driver?.tarifDemiJourneeEntered, heures: 4,  unitLabel: "demi-journée", max: 14 },
+    { key: "journee",      label: "Journée complète", tarif: Number(driver?.tarif) || 0,            entered: driver?.tarifEntered,            heures: 24, unitLabel: "jour",         max: 31 },
+  ].filter((u) => u.tarif > 0);
+  const uniteActive = UNITES.find((u) => u.key === unite) || UNITES[0] || null;
+  const qte = Math.max(1, Math.floor(Number(quantite) || 1));
+  const heures = uniteActive ? uniteActive.heures * qte : 0;
+  const total = uniteActive ? uniteActive.tarif * qte : 0;
+  // Multiplier le montant SAISI (pas l'USD reconverti) préserve l'exactitude —
+  // même principe que PriceTag (voir son commentaire) appliqué à un total calculé.
+  const enteredTotal = uniteActive && uniteActive.entered != null ? uniteActive.entered * qte : null;
+
   const missionEnd = useMemo(() => {
     if (!missionStart) return null;
     return new Date(missionStart.getTime() + (Number(heures) || 0) * 3600000);
@@ -103,17 +124,6 @@ const DriverBooking = () => {
     );
   }
 
-  // Cette page ne facture qu'à l'heure (durée de mission en heures) — utiliser le
-  // tarif JOURNÉE en repli aurait multiplié la facture par ~24 pour une mission de
-  // quelques heures (bug réel : {tarifHeure || tarif} confondait les deux unités).
-  // Sans tarif horaire renseigné, on affiche le tarif journée/demi-journée à titre
-  // indicatif et on bloque la réservation en ligne (voir handleSubmit).
-  const hasHourlyRate = Number(driver.tarifHeure) > 0;
-  const tarifHeure = hasHourlyRate ? Number(driver.tarifHeure) : 0;
-  const total = tarifHeure * (Number(heures) || 0);
-  // Multiplier le montant SAISI (pas l'USD reconverti) préserve l'exactitude —
-  // même principe que PriceTag (voir son commentaire) appliqué à un total calculé.
-  const enteredTotal = driver.tarifHeureEntered != null ? driver.tarifHeureEntered * (Number(heures) || 0) : null;
 
   const isMobile = ["orange_money", "wave", "mtn", "moov"].includes(selectedMethod);
   const isCard   = selectedMethod === "card";
@@ -127,8 +137,8 @@ const DriverBooking = () => {
 
   const handleSubmit = async () => {
     if (submitting) return;
-    if (!hasHourlyRate) {
-      error("Ce chauffeur n'a pas de tarif horaire — contactez-le directement pour une mission à la journée ou demi-journée.");
+    if (!uniteActive) {
+      error("Ce chauffeur n'a pas encore de tarif réservable en ligne.");
       return;
     }
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) {
@@ -147,8 +157,8 @@ const DriverBooking = () => {
       error("La date de la mission ne peut pas être dans le passé.");
       return;
     }
-    if (!Number.isFinite(Number(heures)) || Number(heures) <= 0) {
-      error("Nombre d'heures invalide.");
+    if (!Number.isFinite(Number(quantite)) || Number(quantite) <= 0) {
+      error(`Nombre de ${uniteActive.unitLabel}s invalide.`);
       return;
     }
     if (slotConflict) {
@@ -177,7 +187,7 @@ const DriverBooking = () => {
           driverId: id,
           clientInfo: { firstName, lastName, email, phone },
           ...(idFrontImage ? { documents: { identity: { type: idType, frontImage: idFrontImage, backImage: idBackImage || undefined } } } : {}),
-          chauffeur: { date: missionStart.toISOString(), heures: Number(heures), lieuDepart: lieuDepart.trim() || undefined },
+          chauffeur: { date: missionStart.toISOString(), unite: uniteActive.key, quantite: qte, heures, lieuDepart: lieuDepart.trim() || undefined },
           payment: {
             method: selectedMethod,
             mobileNumber: isMobile ? mobileNumber : undefined,
@@ -340,25 +350,31 @@ const DriverBooking = () => {
           className={dbStyles.textInput} />
       </div>
       <div className={dbStyles.fieldBlock}>
-        <label className={dbStyles.fieldLabel}>Nombre d'heures</label>
-        <input type="number" min="1" max="24" value={heures} disabled={!hasHourlyRate}
-          onChange={(e) => setHeures(e.target.value)}
-          className={dbStyles.textInput} />
-        {hasHourlyRate ? (
-          <p className={dbStyles.hoursHint}>
-            Tarif horaire : <PriceTag amountUSD={tarifHeure} pinnedCurrency={driver.currency} enteredAmount={driver.tarifHeureEntered} enteredCurrency={driver.priceEntryCurrency} compact /> / heure
-          </p>
+        <label className={dbStyles.fieldLabel}>Formule</label>
+        {UNITES.length > 0 ? (
+          <>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+              {UNITES.map((u) => (
+                <button key={u.key} type="button" onClick={() => { setUnite(u.key); setQuantite(1); }}
+                  aria-pressed={uniteActive?.key === u.key}
+                  style={{ minHeight: 44, padding: "8px 14px", borderRadius: 999, border: `1.5px solid ${uniteActive?.key === u.key ? "#ff4d2d" : "#cbd5e1"}`, background: uniteActive?.key === u.key ? "#fff5f3" : "#fff", color: uniteActive?.key === u.key ? "#c2410c" : "#0f1b3f", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                  {u.label} · <PriceTag amountUSD={u.tarif} pinnedCurrency={driver.currency} enteredAmount={u.entered} enteredCurrency={driver.priceEntryCurrency} compact />
+                </button>
+              ))}
+            </div>
+            <label className={dbStyles.fieldLabel}>Nombre de {uniteActive.unitLabel}s</label>
+            <input type="number" min="1" max={uniteActive.max} value={quantite}
+              onChange={(e) => setQuantite(e.target.value)}
+              className={dbStyles.textInput} />
+            <p className={dbStyles.hoursHint}>
+              {uniteActive.key === "heure" && "Mission facturée à l'heure, à partir de l'heure de départ."}
+              {uniteActive.key === "demi_journee" && "Une demi-journée = 4 heures de mise à disposition."}
+              {uniteActive.key === "journee" && "Journée complète : le chauffeur est réservé pour la ou les journées choisies."}
+            </p>
+          </>
         ) : (
           <div className={dbStyles.noRateWarning}>
-            ⚠️ Ce chauffeur ne propose pas de tarif horaire — réservation en ligne indisponible.
-            {(driver.tarif > 0 || driver.tarifDemiJournee > 0) && (
-              <>
-                {" "}Contactez-le directement pour ses tarifs
-                {driver.tarif > 0 && <> journée (<PriceTag amountUSD={driver.tarif} pinnedCurrency={driver.currency} enteredAmount={driver.tarifEntered} enteredCurrency={driver.priceEntryCurrency} compact />)</>}
-                {driver.tarif > 0 && driver.tarifDemiJournee > 0 && " / "}
-                {driver.tarifDemiJournee > 0 && <> demi-journée (<PriceTag amountUSD={driver.tarifDemiJournee} pinnedCurrency={driver.currency} enteredAmount={driver.tarifDemiJourneeEntered} enteredCurrency={driver.priceEntryCurrency} compact />)</>}.
-              </>
-            )}
+            ⚠️ Ce chauffeur n'a pas encore de tarif réservable en ligne. Le service client VIT AUTO peut organiser la mission pour vous.
           </div>
         )}
       </div>
@@ -440,9 +456,9 @@ const DriverBooking = () => {
         </strong>
       </div>
 
-      <button onClick={handleSubmit} disabled={submitting || !missionStart || !!slotConflict || !hasHourlyRate || !identitySatisfied}
+      <button onClick={handleSubmit} disabled={submitting || !missionStart || !!slotConflict || !uniteActive || !identitySatisfied}
         className={dbStyles.submitBtn}>
-        {submitting ? "Envoi en cours…" : "Employer ce chauffeur"}
+        {submitting ? "Envoi en cours…" : "Réserver ce chauffeur"}
       </button>
     </div>
   );

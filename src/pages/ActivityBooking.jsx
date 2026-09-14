@@ -6,7 +6,7 @@ import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../context/CurrencyContext";
 import ReportButton from "../components/ReportButton/ReportButton";
 import PriceTag from "../components/PriceTag/PriceTag";
-import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "../constants/activityTypes";
+import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, isWeatherDependent, WEATHER_CONDITION_TEXT } from "../constants/activityTypes";
 import styles from "./Booking.module.css";
 import { especesUniquement, MESSAGE_ESPECES } from "../constants/paiement";
 import dbStyles from "./DriverBooking.module.css";
@@ -40,6 +40,8 @@ const ActivityBooking = () => {
   const [activityTime, setActivityTime] = useState("");
   const [participants, setParticipants] = useState(1);
   const [wantEssai, setWantEssai] = useState(false);
+  // Sortie soumise à la météo (plongée, mer, air) : condition à accepter.
+  const [weatherAck, setWeatherAck] = useState(false);
   const [notes, setNotes] = useState("");
   const [occupiedSlots, setOccupiedSlots] = useState([]);
   // « cash » et non « orange_money » : le premier moyen affiché doit être celui
@@ -126,6 +128,10 @@ const ActivityBooking = () => {
 
   const handleSubmit = async () => {
     if (submitting) return;
+    if (isWeatherDependent(activity) && !weatherAck) {
+      error("Merci de confirmer que vous avez pris connaissance de la condition météo.");
+      return;
+    }
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) {
       error("Veuillez remplir toutes vos informations.");
       return;
@@ -175,6 +181,7 @@ const ActivityBooking = () => {
             date: activityStart.toISOString(),
             participants: Number(participants),
             essai: wantEssai,
+            weatherAcknowledged: isWeatherDependent(activity) ? weatherAck : undefined,
             notes: notes.trim() || undefined,
           },
           payment: {
@@ -264,6 +271,17 @@ const ActivityBooking = () => {
           <label className={dbStyles.fieldLabel} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
             <input type="checkbox" checked={wantEssai} onChange={(e) => setWantEssai(e.target.checked)} />
             🔰 Réserver un essai/découverte ({activity.essaiDurationMinutes || 30} min{activity.essaiPrice != null && <>, <PriceTag amountUSD={activity.essaiPrice} pinnedCurrency={activity.currency} compact /></>}) au lieu de la session complète
+          </label>
+        </div>
+      )}
+
+      {isWeatherDependent(activity) && (
+        <div className={dbStyles.fieldBlockTight} style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 12, padding: "12px 14px" }}>
+          <p style={{ margin: "0 0 8px", fontWeight: 800, color: "#1e3a8a", fontSize: ".92rem" }}>🌤️ Condition météo</p>
+          <p style={{ margin: "0 0 10px", fontSize: ".86rem", color: "#1e3a8a", lineHeight: 1.5 }}>{WEATHER_CONDITION_TEXT}</p>
+          <label className={dbStyles.fieldLabel} style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", minHeight: 44 }}>
+            <input type="checkbox" checked={weatherAck} onChange={(e) => setWeatherAck(e.target.checked)} style={{ width: 20, height: 20, marginTop: 2, flex: "0 0 auto" }} />
+            <span>J'ai compris que cette sortie est soumise aux conditions météo et qu'elle peut être reportée ou remboursée en cas de conditions défavorables. *</span>
           </label>
         </div>
       )}
@@ -359,7 +377,7 @@ const ActivityBooking = () => {
         </strong>
       </div>
 
-      <button onClick={handleSubmit} disabled={submitting || !activityStart || capacityExceeded}
+      <button onClick={handleSubmit} disabled={submitting || !activityStart || capacityExceeded || (isWeatherDependent(activity) && !weatherAck)}
         className={dbStyles.submitBtn}>
         {submitting ? "Envoi en cours…" : wantEssai ? "Réserver l'essai" : "Réserver"}
       </button>

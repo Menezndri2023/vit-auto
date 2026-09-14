@@ -186,3 +186,36 @@ describe("bookingController.createBooking — type 'activite' (section OTHERS)",
     expect(res.status).toHaveBeenCalledWith(400);
   });
 });
+
+// Condition météo (demande NEMO Diving, 2026-09-14) : une sortie soumise à la
+// météo (plongée, mer, air — WEATHER_DEPENDENT_TYPES, ou Activity.weatherDependent)
+// n'est réservable qu'après acceptation explicite de la condition.
+describe("createBooking activité — condition météo", () => {
+  it("refuse une plongée sans accusé météo, l'accepte avec, et ignore la condition pour un karting", async () => {
+    const client = await createUser({ role: "client", emailVerified: true });
+    const plongee = await createActivityDoc({ activityType: "PLONGEE", price: 60, priceUnit: "per_person", capacity: 6 });
+    const base = { type: "activite", clientInfo, activityId: plongee._id.toString() };
+
+    let m = mockReqRes({ user: client, body: { ...base, activite: { date: "2027-06-01T10:00:00.000Z", participants: 1 } } });
+    await createBooking(m.req, m.res);
+    expect(m.res.statusCode).toBe(400);
+    expect(m.res.body.code).toBe("WEATHER_ACK_REQUIRED");
+
+    m = mockReqRes({ user: client, body: { ...base, activite: { date: "2027-06-01T10:00:00.000Z", participants: 1, weatherAcknowledged: true } } });
+    await createBooking(m.req, m.res);
+    expect(m.res.statusCode).toBe(201);
+    const b = await Booking.findOne({ activity: plongee._id });
+    expect(b.activite.weatherAcknowledged).toBe(true);
+
+    // Le partenaire peut désactiver la condition sur une annonce précise.
+    const plongeeAbri = await createActivityDoc({ activityType: "PLONGEE", weatherDependent: false, price: 60, priceUnit: "per_person", capacity: 6 });
+    m = mockReqRes({ user: client, body: { type: "activite", clientInfo, activityId: plongeeAbri._id.toString(), activite: { date: "2027-06-02T10:00:00.000Z", participants: 1 } } });
+    await createBooking(m.req, m.res);
+    expect(m.res.statusCode).toBe(201);
+
+    const karting = await createActivityDoc({ activityType: "KARTING", price: 30, priceUnit: "per_person", capacity: 6 });
+    m = mockReqRes({ user: client, body: { type: "activite", clientInfo, activityId: karting._id.toString(), activite: { date: "2027-06-03T10:00:00.000Z", participants: 1 } } });
+    await createBooking(m.req, m.res);
+    expect(m.res.statusCode).toBe(201);
+  });
+});

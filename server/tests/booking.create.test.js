@@ -416,6 +416,40 @@ describe("bookingController.createBooking", () => {
     expect(second.res.status).toHaveBeenCalledWith(409);
   });
 
+  it("facture à l'unité choisie — journée, demi-journée — et refuse une unité sans tarif (2026-09-14)", async () => {
+    const client = await verifiedClient();
+    const owner = await createUser({ role: "partenaire" });
+    // Chauffeur SANS tarif horaire : réservable à la journée et à la demi-journée.
+    const driver = await Driver.create({
+      owner: owner._id, firstName: "Youssef", lastName: "Benali", title: "Chauffeur à la journée",
+      tarif: 40, tarifDemiJournee: 25,
+      disponibilite: "Temps plein", zone: "Marrakech", experience: "6 ans",
+    });
+    const date = new Date(Date.now() + 10 * 24 * 3600 * 1000).toISOString();
+
+    let m = mockReqRes({ user: client, body: { type: "chauffeur", clientInfo, documents: bookingDocuments, driverId: driver._id.toString(), chauffeur: { date, unite: "journee", quantite: 2 } } });
+    await createBooking(m.req, m.res);
+    expect(m.res.statusCode).toBe(201);
+    expect(m.res.body.booking.montantBase).toBe(80);
+    expect(m.res.body.booking.chauffeur.heures).toBe(48);           // 2 jours bloqués
+    expect(m.res.body.booking.chauffeur.unite).toBe("journee");
+
+    // Demi-journée, créneau distinct (après les 2 jours).
+    const date2 = new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString();
+    m = mockReqRes({ user: client, body: { type: "chauffeur", clientInfo, documents: bookingDocuments, driverId: driver._id.toString(), chauffeur: { date: date2, unite: "demi_journee", quantite: 1 } } });
+    await createBooking(m.req, m.res);
+    expect(m.res.statusCode).toBe(201);
+    expect(m.res.body.booking.montantBase).toBe(25);
+    expect(m.res.body.booking.chauffeur.heures).toBe(4);
+
+    // À l'heure : pas de tarif horaire → 400, jamais « tarif journée × heures ».
+    const date3 = new Date(Date.now() + 20 * 24 * 3600 * 1000).toISOString();
+    m = mockReqRes({ user: client, body: { type: "chauffeur", clientInfo, documents: bookingDocuments, driverId: driver._id.toString(), chauffeur: { date: date3, unite: "heure", quantite: 3 } } });
+    await createBooking(m.req, m.res);
+    expect(m.res.statusCode).toBe(400);
+    expect(m.res.body.code).toBe("DRIVER_RATE_UNAVAILABLE");
+  });
+
   it("exige une pièce d'identité pour réserver un chauffeur professionnel, mais jamais de permis (le chauffeur conduit) — restructuration 2026-09", async () => {
     const client = await verifiedClient();
     const owner = await createUser({ role: "partenaire" });

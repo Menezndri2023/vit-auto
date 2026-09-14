@@ -11,7 +11,9 @@ import { MOIS_LONGS } from "../shared.jsx";
 // ═══════════════════════════════════════════════════════════════════════════════
 export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVehicles, headers, token, onRefresh, showToast, setConfirm, rejectModal, setRejectModal, rejectReason, setRejectReason, driverRejectModal, setDriverRejectModal, driverRejectReason, setDriverRejectReason, updateVehicleStatus, deleteVehicle, updateDriverStatusInPlace }) {
   const { COUNTRIES_CONFIG, fmtUSD, fmtPinned, CURRENCIES, rateFromUSD } = useCurrency();
-  const [subTab,         setSubTab]         = useState("pending");
+  // `?sub=drivers` : les notifications d'embauche pointent directement sur la
+  // liste des propositions (voir driverEmploymentController).
+  const [subTab,         setSubTab]         = useState(() => new URLSearchParams(window.location.search).get("sub") || "pending");
   const [vehSearch,      setVehSearch]      = useState("");
   const [vehPage,        setVehPage]        = useState(1);
   // Filtres pays/ville/type — purement côté client (comme vehSearch), le

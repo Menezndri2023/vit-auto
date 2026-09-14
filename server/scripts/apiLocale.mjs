@@ -42,6 +42,9 @@ const RACINE_SERVEUR = join(__dirname, "..");
 const PORT = Number(process.env.PORT_API || 5001);
 
 export const ADMIN = { email: "admin@vitauto-fixtures.fr", password: "Verification-Locale-2026!" };
+// Même mot de passe pour le premier partenaire et le client semés : les
+// parcours critiques (scripts/parcoursCritiques.mjs) se connectent avec.
+export const MOT_DE_PASSE_SEME = ADMIN.password;
 
 // ── Environnement : rien de réel, tout de vérifiable ──────────────────────
 const ENV = {
@@ -87,8 +90,9 @@ async function semer(uri) {
 
   const partenaires = [];
   for (const [i, nom] of ["Atlas Location", "Médina Cars"].entries()) {
-    const p = await createUser({ role: "partenaire", email: `partenaire${i + 1}@vitauto-fixtures.fr`, emailVerified: true,
-      firstName: nom, lastName: "SARL", country: "MA", kycStatus: "VERIFIE" });
+    const p = await createUser({ role: "partenaire", email: `partenaire${i + 1}@vitauto-fixtures.fr`, emailVerified: true, phoneVerified: true,
+      password: await bcrypt.hash(MOT_DE_PASSE_SEME, 10), phone: `+21260000010${i + 1}`,
+      firstName: nom, lastName: "SARL", country: "MA", kycStatus: "VERIFIE", isFounder: true });
     try { await makeTestPartnerBusiness(p._id, { companyName: nom }); } catch { /* signature différente : sans entité */ }
     partenaires.push(p);
   }
@@ -136,7 +140,18 @@ async function semer(uri) {
       images: [PHOTOS_LOISIRS[i % 2]], ville: "Marrakech", country: "MA", description: "Activité de démonstration." });
   }
 
-  await createUser({ role: "client", email: "client@vitauto-fixtures.fr", emailVerified: true, firstName: "Client", lastName: "Démo", country: "CI",
+  // Chauffeurs professionnels (module chauffeur : mission à la journée,
+  // embauche CDD/CDI) — un par partenaire.
+  const { createDriverDoc } = await import("../tests/helpers/fixtures.js");
+  for (const [i, [prenom, nom]] of [["Youssef", "Benali"], ["Karim", "El Amrani"]].entries()) {
+    await createDriverDoc({ owner: partenaires[i]._id, firstName: prenom, lastName: nom, title: `Chauffeur professionnel — ${prenom}`,
+      tarif: 40 + i * 10, tarifDemiJournee: 25 + i * 5, tarifHeure: 6 + i, currency: "MAD", zone: i ? "Casablanca" : "Marrakech", ville: i ? "Casablanca" : "Marrakech", country: "MA",
+      experience: `${5 + i * 3} ans`, langues: ["Français", "Arabe", "Anglais"], vehiculePersonnel: !!i, typeVehicule: i ? "Berline" : undefined,
+      profilePhoto: PHOTOS[i % 2], images: [PHOTOS[i % 2]], cv: null, description: "Chauffeur de démonstration pour la vérification locale." });
+  }
+
+  await createUser({ role: "client", email: "client@vitauto-fixtures.fr", emailVerified: true, phoneVerified: true, phone: "+212600000200",
+    password: await bcrypt.hash(MOT_DE_PASSE_SEME, 10), firstName: "Client", lastName: "Démo", country: "CI", kycStatus: "VERIFIE",
     identity: { type: "cni", number: "CI-DEMO-1", status: "pending", submittedAt: new Date(), frontImage: PHOTOS[0], selfie: PHOTOS[1] } });
 
   // Configuration tarifaire : document singleton (key "global") que la
@@ -174,6 +189,7 @@ if (await attendre(`http://localhost:${PORT}/api/health`)) {
   // Ligne lisible par la garde (.githooks/pre-push) : les identifiants de
   // l'administrateur SEMÉ, sans valeur hors de cette base jetable.
   console.log(`VERIF_ADMIN_ID=${ADMIN.email} VERIF_ADMIN_PWD=${ADMIN.password}`);
+  console.log(`VERIF_PARTNER_ID=partenaire1@vitauto-fixtures.fr VERIF_CLIENT_ID=client@vitauto-fixtures.fr VERIF_SEME_PWD=${MOT_DE_PASSE_SEME}`);
 } else {
   console.error("API locale : /api/health ne répond pas après 30 s");
   await arret();

@@ -152,7 +152,108 @@ async function demandeEssai(browser) {
   for (const j of journal) ko(`demande d'essai — ${j}`);
 }
 
-const PARCOURS = [["Vente par demande d'essai", demandeEssai]];
+// ── Parcours 2 : chauffeur — mission à la journée puis embauche CDD ────────
+// Client (UI) → réservation d'une mission → validation auto → partenaire
+// accepte → mission → client confirme l'arrivée et clôt → commission.
+// Puis proposition d'embauche (UI) → admin transmet → partenaire accepte →
+// contrat PDF téléchargeable par l'employeur.
+async function chauffeur(browser) {
+  const journal = [];
+  const admin = await apiAdmin();
+  const PWD = process.env.VERIF_SEME_PWD, CLIENT = process.env.VERIF_CLIENT_ID, PARTNER = process.env.VERIF_PARTNER_ID;
+  if (!PWD || !CLIENT || !PARTNER) throw new Error("VERIF_CLIENT_ID / VERIF_PARTNER_ID / VERIF_SEME_PWD requis (apiLocale les publie)");
+  const apiAs = async (id) => {
+    const r = await fetch(`${API}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://vit-auto.com" }, body: JSON.stringify({ identifier: id, password: PWD }) });
+    const d = await r.json().catch(() => ({}));
+    if (!d.token) throw new Error(`connexion ${id} impossible (${r.status})`);
+    return async (path, { method = "GET", body } = {}) => {
+      const res = await fetch(`${API}${path}`, { method, headers: { "Content-Type": "application/json", Origin: "https://vit-auto.com", Authorization: `Bearer ${d.token}` }, body: body ? JSON.stringify(body) : undefined });
+      return { status: res.status, data: await res.json().catch(() => ({})), raw: res };
+    };
+  };
+  const partner = await apiAs(PARTNER);
+  const client = await apiAs(CLIENT);
+  // Le chauffeur du partenaire connecté (un autre partenaire recevrait 403 — c'est voulu).
+  const miens = (await partner("/api/drivers/mine")).data;
+  const chauffeurDoc = (miens.drivers || miens).find((d) => d.status === "approved" && d.tarif > 0);
+  if (!chauffeurDoc) throw new Error("le partenaire semé n'a aucun chauffeur avec tarif journée");
+
+  // 1. Client : réservation d'une mission à la JOURNÉE (2 jours) depuis la page.
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const pc = await ctx.newPage(); surveiller(pc, "client", journal);
+  await connecter(pc, CLIENT, PWD);
+  await pc.goto(`${BASE}/driver-booking/${chauffeurDoc._id}`, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await pc.getByRole("button", { name: /Journée complète/ }).click({ timeout: 60000 });
+  await pc.fill("input[type=number]", "2");
+  await pc.fill("input[type=date]", dateISO(5));
+  await pc.fill("input[type=time]", "08:00");
+  await pc.fill("input[placeholder*='Aéroport']", "Gare de Casa-Voyageurs");
+  const especes = pc.getByText(/Espèces/i).first();
+  if (await especes.count()) await especes.click();
+  await pc.getByRole("button", { name: /Réserver ce chauffeur/ }).click();
+  await pc.waitForURL(/booking\/success/, { timeout: 30000 });
+  ok("client : mission chauffeur réservée (journée × 2) depuis le site");
+
+  const mine = (await client("/api/bookings/mine")).data;
+  const booking = (mine.bookings || mine).find((b) => b.type === "chauffeur");
+  if (!booking) throw new Error("réservation chauffeur absente de « mes réservations »");
+  if (booking.chauffeur?.unite !== "journee" || booking.chauffeur?.quantite !== 2 || booking.chauffeur?.heures !== 48) throw new Error(`unité/quantité inattendues : ${JSON.stringify(booking.chauffeur)}`);
+  if (Math.abs(booking.montantBase - chauffeurDoc.tarif * 2) > 0.01) throw new Error(`montant ${booking.montantBase} ≠ tarif journée × 2 (${chauffeurDoc.tarif * 2})`);
+  ok(`montant = tarif journée × 2 = ${booking.montantBase} USD, 48 h bloquées`);
+
+  // 2. Validation admin si nécessaire (le score de fraude l'a normalement déjà faite), puis partenaire.
+  const detail = (await admin(`/api/bookings/${booking._id}/detail`)).data.booking || booking;
+  if (detail.adminValidation?.status !== "approved") {
+    const r = await admin(`/api/bookings/${booking._id}/admin-validate`, { method: "PATCH", body: { decision: "approved" } });
+    if (r.status !== 200) throw new Error(`admin-validate ${r.status} ${JSON.stringify(r.data).slice(0, 100)}`);
+  }
+  let r = await partner(`/api/bookings/${booking._id}/status`, { method: "PATCH", body: { status: "confirmed" } });
+  if (r.status !== 200) throw new Error(`partenaire confirme : ${r.status} ${JSON.stringify(r.data).slice(0, 120)}`);
+  r = await partner(`/api/bookings/${booking._id}/status`, { method: "PATCH", body: { status: "in_progress" } });
+  if (r.status !== 200) throw new Error(`in_progress : ${r.status} ${JSON.stringify(r.data).slice(0, 120)}`);
+  ok("partenaire : mission acceptée puis démarrée");
+  r = await client(`/api/bookings/${booking._id}/driver-arrived`, { method: "PATCH" });
+  if (r.status !== 200) throw new Error(`driver-arrived : ${r.status} ${JSON.stringify(r.data).slice(0, 120)}`);
+  r = await client(`/api/bookings/${booking._id}/complete-mission`, { method: "PATCH" });
+  if (r.status !== 200) throw new Error(`complete-mission : ${r.status} ${JSON.stringify(r.data).slice(0, 120)}`);
+  const fini = (await client(`/api/bookings/${booking._id}/detail`)).data.booking;
+  if (fini?.status !== "completed") throw new Error(`statut final ${fini?.status}`);
+  if (!(fini.commissionAmount > 0)) throw new Error("commission non calculée");
+  ok(`client : arrivée confirmée, mission clôturée → completed, commission ${fini.commissionAmount} USD (${Math.round(fini.commissionRate * 100)} %)`);
+
+  // 3. Embauche CDD depuis la page employeur.
+  await pc.goto(`${BASE}/driver-employment/${chauffeurDoc._id}`, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await pc.locator("input[type=radio][value=cdd]").check();
+  const dates = pc.locator("input[type=date]");
+  await dates.nth(1).waitFor({ timeout: 10000 });
+  await dates.nth(0).fill(dateISO(10));
+  await dates.nth(1).fill(dateISO(100));
+  await pc.fill("input[type=number]", "4000");
+  await pc.locator("select[aria-label='Devise du salaire']").selectOption("MAD");
+  await pc.fill("input[placeholder*='Casablanca']", "Casablanca");
+  await pc.getByRole("button", { name: /Envoyer la proposition|Proposer|Envoyer/ }).first().click();
+  await pc.getByText(/Proposition envoyée/).first().waitFor({ timeout: 30000 });
+  ok("employeur : proposition CDD envoyée (4 000 MAD/mois)");
+  const reqs = (await client("/api/driver-employment/mine")).data.requests || [];
+  const dem = reqs[0];
+  if (!dem || dem.currency !== "MAD" || dem.proposedSalary !== 4000) throw new Error(`demande d'embauche inattendue : ${JSON.stringify(dem).slice(0, 160)}`);
+  // Le partenaire ne doit rien voir avant la validation admin.
+  let recu = (await partner("/api/driver-employment/received")).data.requests || [];
+  if (recu.some((x) => x._id === dem._id)) throw new Error("le partenaire voit la demande avant validation admin");
+  r = await admin(`/api/driver-employment/${dem._id}/admin-review`, { method: "PATCH", body: { action: "forward" } });
+  if (r.status !== 200) throw new Error(`admin-review : ${r.status} ${JSON.stringify(r.data).slice(0, 100)}`);
+  recu = (await partner("/api/driver-employment/received")).data.requests || [];
+  if (!recu.some((x) => x._id === dem._id)) throw new Error("le partenaire ne voit pas la demande transmise");
+  r = await partner(`/api/driver-employment/${dem._id}/respond`, { method: "PATCH", body: { action: "accept" } });
+  if (r.status !== 200) throw new Error(`respond : ${r.status} ${JSON.stringify(r.data).slice(0, 100)}`);
+  const pdf = await client(`/api/driver-employment/${dem._id}/contract-pdf`);
+  if (pdf.status !== 200 || !(pdf.raw.headers.get("content-type") || "").includes("pdf")) throw new Error(`contrat PDF : ${pdf.status} ${pdf.raw.headers.get("content-type")}`);
+  ok("admin transmet → partenaire accepte → contrat PDF servi à l'employeur");
+  await ctx.close();
+  for (const j of journal) ko(`chauffeur — ${j}`);
+}
+
+const PARCOURS = [["Vente par demande d'essai", demandeEssai], ["Chauffeur — mission et embauche", chauffeur]];
 
 const browser = await chromium.launch({ executablePath: EXE, headless: true });
 for (const [nom, fn] of PARCOURS) {
