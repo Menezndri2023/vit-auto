@@ -146,6 +146,9 @@ Admin (scope `bookings`)
 ```
 createLead  → NEW → qualify()
    niveau 1 → sendToPartner()      → SENT_TO_PARTNER (partenaire notifié)
+   niveau 2 / 3 → SENT_TO_PARTNER aussi (transmission directe, décision de
+   l'exploitant 2026-09-14 : `salesLead.directTransmission`, défaut true) —
+   les admins sont seulement informés. Avec directTransmission=false :
    niveau 2 → QUALIFYING (admins notifiés) ; auto-transmis après 4 h sans action
    niveau 3 → QUALIFYING (admins notifiés, prioritaire) ; jamais auto-transmis
 partnerAccept        → PARTNER_ACCEPTED ⇒ TEST_DRIVE_SCHEDULED (client confirmé implicitement : c'est SON créneau)

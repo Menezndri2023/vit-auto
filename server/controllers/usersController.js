@@ -96,7 +96,10 @@ export const getPublicProfile = async (req, res) => {
     // les inclure entiers exposait ces données à tout visiteur anonyme sans
     // qu'aucun usage frontend ne les consomme. Fuite PII trouvée en audit (2026-07).
     const user = await User.findById(req.params.id)
-      .select("firstName lastName country profilePhoto business.companyName business.logo business.description business.website partnerType partnerActivity defaultLocation.city isFounder certificationBadge role isActive")
+      // Le site web du partenaire n'est JAMAIS public (décision de
+      // l'exploitant, 2026-09-14) : il servirait de contact direct hors
+      // plateforme. Il reste visible de l'admin.
+      .select("firstName lastName country profilePhoto business.companyName business.logo business.description partnerType partnerActivity defaultLocation.city isFounder certificationBadge role isActive")
       .lean();
     if (!user || !user.isActive || !["partenaire", "admin"].includes(user.role)) {
       return res.status(404).json({ message: "Partenaire introuvable." });

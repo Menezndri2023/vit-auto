@@ -134,7 +134,13 @@ const pricingConfigSchema = new mongoose.Schema({
     // Seuils de qualification (§3) — prix de l'annonce en USD.
     mediumValueUSD:          { type: Number, default: 15000, min: 0 },
     highValueUSD:            { type: Number, default: 40000, min: 0 },
-    // Niveau 2 sans action admin : transmis automatiquement après ce délai.
+    // Transmission directe au vendeur quel que soit le niveau (décision de
+    // l'exploitant, 2026-09-14 : aucun service n'attend une validation admin).
+    // Les niveaux restent calculés pour l'information et la priorité admin.
+    // À false : les niveaux 2 et 3 passent d'abord par la qualification admin.
+    directTransmission:      { type: Boolean, default: true },
+    // Niveau 2 sans action admin (seulement si directTransmission = false) :
+    // transmis automatiquement après ce délai.
     level2AutoSendMinutes:   { type: Number, default: 240, min: 0 },
     // Demande sans réponse du vendeur (transmise ou autre créneau proposé) ni
     // action depuis ce nombre de jours : clôturée « sans réponse », client et

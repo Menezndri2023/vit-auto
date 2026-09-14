@@ -2634,7 +2634,7 @@ export default function VendorDashboard() {
         const d = await r.json().catch(() => null);
         if (cancelled) return;
         if (r.ok && d?.booking) setOrderDetail(d.booking);
-        else if (r.status === 403) setDetailError("Fiche non accessible : la réservation n'a pas encore été validée par VIT AUTO.");
+        else if (r.status === 403) setDetailError("Fiche non accessible pour cette réservation.");
         else if (r.status === 404) setDetailError("Réservation introuvable côté serveur.");
         else setDetailError(d?.message || "Impossible de charger les documents de cette réservation.");
       })

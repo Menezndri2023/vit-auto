@@ -118,11 +118,11 @@ async function demandeEssai(browser) {
   const pa = await ctxA.newPage(); surveiller(pa, "admin", journal);
   await connecter(pa, ADMIN_ID, ADMIN_PWD);
   await pa.goto(`${BASE}/admin?tab=sales_leads&lead=${lead._id}`, { waitUntil: "domcontentloaded", timeout: 60000 });
-  if (lead.status === "QUALIFYING") {
-    await pa.getByRole("button", { name: /Valider et transmettre/ }).click({ timeout: 60000 });
-    await pa.locator("aside").filter({ hasText: "VA-LEAD-" }).getByText("Transmise au vendeur").first().waitFor({ timeout: 30000 });
-    ok("admin : lead qualifié et transmis depuis le site");
-  }
+  // Transmission directe (2026-09-14) : le lead est déjà chez le vendeur,
+  // quel que soit son niveau — l'admin le voit transmis, sans rien à valider.
+  if (lead.status !== "SENT_TO_PARTNER") throw new Error(`lead non transmis directement au vendeur (statut ${lead.status})`);
+  await pa.locator("aside").filter({ hasText: "VA-LEAD-" }).getByText("Transmise au vendeur").first().waitFor({ timeout: 30000 });
+  ok("admin : lead déjà transmis au vendeur (transmission directe), visible dans l'onglet Leads vente");
 
   // Vendeur (via API, l'admin peut agir sur le lead) : autre créneau → client accepte sur le site.
   let r = await admin(`/api/sales-leads/${lead._id}/propose-alternative`, { method: "POST", body: { date: dateISO(4), time: "15:00" } });
@@ -237,17 +237,17 @@ async function chauffeur(browser) {
   const dem = reqs[0];
   if (!dem || dem.currency !== "MAD" || dem.proposedSalary !== 4000) throw new Error(`demande d'embauche inattendue : ${JSON.stringify(dem).slice(0, 160)}`);
   // Le partenaire ne doit rien voir avant la validation admin.
-  let recu = (await partner("/api/driver-employment/received")).data.requests || [];
-  if (recu.some((x) => x._id === dem._id)) throw new Error("le partenaire voit la demande avant validation admin");
+  // Transmission directe (2026-09-14) : le partenaire voit la demande à
+  // l'instant ; « forward » admin n'a plus d'objet (409).
+  const recu = (await partner("/api/driver-employment/received")).data.requests || [];
+  if (!recu.some((x) => x._id === dem._id)) throw new Error("le partenaire ne voit pas la demande d'embauche transmise directement");
   r = await admin(`/api/driver-employment/${dem._id}/admin-review`, { method: "PATCH", body: { action: "forward" } });
-  if (r.status !== 200) throw new Error(`admin-review : ${r.status} ${JSON.stringify(r.data).slice(0, 100)}`);
-  recu = (await partner("/api/driver-employment/received")).data.requests || [];
-  if (!recu.some((x) => x._id === dem._id)) throw new Error("le partenaire ne voit pas la demande transmise");
+  if (r.status !== 409) throw new Error(`admin-review forward attendu 409 (déjà transmise), obtenu ${r.status}`);
   r = await partner(`/api/driver-employment/${dem._id}/respond`, { method: "PATCH", body: { action: "accept" } });
   if (r.status !== 200) throw new Error(`respond : ${r.status} ${JSON.stringify(r.data).slice(0, 100)}`);
   const pdf = await client(`/api/driver-employment/${dem._id}/contract-pdf`);
   if (pdf.status !== 200 || !(pdf.raw.headers.get("content-type") || "").includes("pdf")) throw new Error(`contrat PDF : ${pdf.status} ${pdf.raw.headers.get("content-type")}`);
-  ok("admin transmet → partenaire accepte → contrat PDF servi à l'employeur");
+  ok("demande transmise directement → partenaire accepte → contrat PDF servi à l'employeur");
   await ctx.close();
   for (const j of journal) ko(`chauffeur — ${j}`);
 }
@@ -276,7 +276,8 @@ async function profilPartenaire(browser) {
   const id = moi.user?._id || moi.user?.id;
   if (!id) throw new Error("identifiant du partenaire introuvable après connexion");
   const pub = await (await fetch(`${API}/api/users/${id}/public`)).json();
-  if (pub.business?.description !== texte || pub.business?.website !== "https://exemple.test/atlas" || pub.defaultLocation?.city !== "Marrakech") throw new Error(`profil public incomplet : ${JSON.stringify(pub).slice(0, 200)}`);
+  if (pub.business?.description !== texte || pub.defaultLocation?.city !== "Marrakech") throw new Error(`profil public incomplet : ${JSON.stringify(pub).slice(0, 200)}`);
+  if (pub.business?.website !== undefined) throw new Error("le site web du partenaire est exposé au public");
 
   const pv = await ctx.newPage(); surveiller(pv, "visiteur", journal);
   await pv.goto(`${BASE}/partner/${id}`, { waitUntil: "domcontentloaded", timeout: 60000 });
@@ -285,7 +286,8 @@ async function profilPartenaire(browser) {
   await pv.getByText(/Activités & loisirs \(\d+\)/).waitFor({ timeout: 30000 });
   const reserver = await pv.getByRole("link", { name: /Réserver/ }).count();
   if (reserver < 1) throw new Error("aucune activité réservable sur la page publique du partenaire");
-  ok(`visiteur : page publique avec présentation, site et ${reserver} annonce(s) réservable(s)`);
+  if (await pv.getByText(/exemple\.test/).count()) throw new Error("le site web du partenaire apparaît sur la page publique");
+  ok(`visiteur : page publique avec présentation (sans site web) et ${reserver} annonce(s) réservable(s)`);
   await ctx.close();
   for (const j of journal) ko(`profil partenaire — ${j}`);
 }

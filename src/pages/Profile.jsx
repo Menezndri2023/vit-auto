@@ -764,7 +764,7 @@ const Profile = () => {
                     </div>
                     <div className={styles.row}>
                       <div className={styles.field}>
-                        <label>Site web</label>
+                        <label>Site web <span style={{ fontWeight: 400, color: "var(--c-text-muted)" }}>(réservé à VIT AUTO, jamais affiché au public)</span></label>
                         <input type="url" placeholder="https://www.votre-site.com" maxLength={300}
                           value={profileData.business.website}
                           onChange={(e) => handleBusinessChange("website", e.target.value)} />

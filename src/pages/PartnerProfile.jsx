@@ -67,7 +67,6 @@ export default function PartnerProfile() {
   }[partner?.partnerActivity] || "Partenaire";
 
   const logo = partner?.business?.logo || partner?.profilePhoto || null;
-  const website = partner?.business?.website || null;
 
   if (loading) {
     return (
@@ -126,11 +125,6 @@ export default function PartnerProfile() {
           )}
           {partner?.business?.description && (
             <p className={styles.description}>{partner.business.description}</p>
-          )}
-          {website && (
-            <a href={website} target="_blank" rel="noopener noreferrer" className={styles.website}>
-              🌐 {website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-            </a>
           )}
           {/* Aucun contact direct partenaire n'est plus jamais exposé (audit
               2026-08) — l'appel passe uniquement par le service client VIT AUTO

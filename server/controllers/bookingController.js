@@ -1272,29 +1272,24 @@ export const createBooking = async (req, res) => {
       vehicleOrDriverForDispatch
     ).catch((e) => logger.error("dispatch.bookingCreated:", { error: e.message }));
 
-    if (type === "chauffeur") {
-      // Transmission DIRECTE au partenaire (décision de l'exploitant,
-      // 2026-09-14) : une mission chauffeur n'attend ni le score de fraude ni
-      // un admin — le partenaire la reçoit à l'instant et l'accepte ou la
-      // refuse (délai de réponse et rappels inchangés, voir
-      // partnerResponseReminders). Même chemin que l'approbation admin, pour
-      // que notification, WhatsApp et partnerNotifiedAt restent uniques.
-      const direct = await invokeController(adminValidateBooking, {
-        params: { id: booking._id.toString() }, body: { decision: "approved" },
-        user: { role: "system" }, source: "SYSTEM",
-      });
-      if (direct.statusCode >= 400) logger.warn("chauffeur — transmission directe refusée", { reference, message: direct.body?.message });
-      booking.adminValidation.status = "approved";
+    // Transmission DIRECTE au partenaire, pour TOUS les services (décision de
+    // l'exploitant, 2026-09-14 : « location et activités comme tous les autres
+    // services doivent être directs chez le partenaire, sans validation
+    // obligatoire admin »). La gate admin de l'audit 2026-08 est levée : le
+    // partenaire reçoit la demande à l'instant et l'accepte ou la refuse
+    // (délai de réponse et rappels inchangés, voir partnerResponseReminders).
+    // Même chemin que l'ancienne approbation admin, pour que notification,
+    // WhatsApp, reçu (fastTrack → confirmed) et partnerNotifiedAt restent
+    // uniques. Le score de fraude (queue AI) devient purement informatif.
+    const direct = await invokeController(adminValidateBooking, {
+      params: { id: booking._id.toString() }, body: { decision: "approved" },
+      user: { role: "system" }, source: "SYSTEM",
+    });
+    if (direct.statusCode >= 400) {
+      logger.warn("transmission directe au partenaire refusée", { reference, type, message: direct.body?.message });
     } else {
-      // Gate admin obligatoire (audit 2026-08) : le partenaire n'est plus
-      // notifié à la création — il ne doit rien savoir d'une demande tant
-      // qu'un admin ne l'a pas validée (voir adminValidateBooking, qui envoie
-      // ce même type de notification au moment de l'approbation). Seuls les
-      // admins sont alertés ici, pour traiter la file de validation.
-      notifyAdmins("booking_pending_review", "🕐 Nouvelle demande à valider",
-        `${clientInfo.firstName} ${clientInfo.lastName} — ${type} ${reference}${instantConfirm ? " (instantanée — priorité)" : ""}`,
-        "/admin"
-      ).catch(nonBloquant("bookingController"));
+      booking.adminValidation.status = "approved";
+      if (direct.body?.booking?.status) booking.status = direct.body.booking.status;
     }
 
     // 1ère réservation de ce client (tous types confondus) — signalée

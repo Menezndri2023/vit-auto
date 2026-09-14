@@ -5,6 +5,7 @@ import Driver from "../models/Driver.js";
 import Notification from "../models/Notification.js";
 import { generateEmploymentContractPDF } from "../utils/pdfGenerator.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
+import { nonBloquant } from "../utils/nonBloquant.js";
 
 // ── Notifier un utilisateur (même schéma que bookingController.notify) ──────
 async function notify(userId, type, titre, message, lien = "/dashboard") {
@@ -65,16 +66,26 @@ export const createEmploymentRequest = async (req, res) => {
       missionDescription,
       location: { country: country || null, ville: ville || null },
       status: "pending",
+      // Transmission DIRECTE au partenaire (décision de l'exploitant,
+      // 2026-09-14 : aucun service n'attend plus une validation admin). La
+      // revue admin reste possible a posteriori (adminReviewEmploymentRequest
+      // pour rejeter, processEmploymentRequest pour le contrat).
+      adminReview: { status: "forwarded", reviewedBy: null, reviewedAt: new Date() },
     });
 
-    // Le partenaire n'est PAS notifié ici — la demande doit d'abord être
-    // validée par l'admin (voir adminReview ci-dessus / adminForwardEmploymentRequest).
-    await notifyAdmins(
+    await notify(
+      driver.owner,
       "system",
-      "💼 Nouvelle demande d'embauche à valider",
-      `${req.user.firstName} ${req.user.lastName} propose un contrat ${contractType.toUpperCase()} à ${driver.firstName} ${driver.lastName} — à transmettre ou rejeter.`,
-      "/admin?tab=catalogue&sub=drivers"
+      "💼 Nouvelle proposition d'embauche",
+      `${req.user.firstName} ${req.user.lastName} propose un contrat ${contractType.toUpperCase()} à ${driver.firstName} ${driver.lastName}.`,
+      "/vendor/dashboard"
     );
+    notifyAdmins(
+      "system",
+      "💼 Nouvelle demande d'embauche (transmise au partenaire)",
+      `${req.user.firstName} ${req.user.lastName} propose un contrat ${contractType.toUpperCase()} à ${driver.firstName} ${driver.lastName}.`,
+      "/admin?tab=catalogue&sub=drivers"
+    ).catch(nonBloquant("driverEmploymentController"));
 
     res.status(201).json({ request });
   } catch (err) {
@@ -226,8 +237,15 @@ export const adminReviewEmploymentRequest = async (req, res) => {
       .populate("driver", "owner firstName lastName")
       .populate("employer", "firstName lastName");
     if (!request) return res.status(404).json({ message: "Demande introuvable." });
-    if (request.adminReview?.status !== "pending") {
-      return res.status(409).json({ message: "Cette demande a déjà été validée ou rejetée par l'administration." });
+    // Depuis la transmission directe (2026-09-14) une demande naît
+    // « forwarded » : « forward » n'a plus rien à faire, mais un admin peut
+    // encore retirer (« reject ») une demande tant que le partenaire n'y a
+    // pas répondu.
+    if (action === "forward" && request.adminReview?.status !== "pending") {
+      return res.status(409).json({ message: "Cette demande a déjà été transmise au partenaire." });
+    }
+    if (action === "reject" && (request.adminReview?.status === "rejected" || request.status !== "pending")) {
+      return res.status(409).json({ message: "Cette demande a déjà été traitée." });
     }
 
     request.adminReview.reviewedBy = req.user._id;

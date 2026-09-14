@@ -319,13 +319,11 @@ export const dispatch = {
         ...(() => { const p = newBookingPartnerPush({ reference: ref, clientName: client?.firstName, vehicleTitle: vehicle?.title }); return { pushTitle: p.title, pushBody: p.body }; })(),
       }),
 
-      // AI : analyse risque — décide désormais l'auto-approbation (Booking
-      // Engine, 2026-09), remonté de LOW à NORMAL car il conditionne
-      // maintenant une action visible client/partenaire, plus seulement une
-      // alerte (voir ai.worker.js fraud_detection).
-      // Chauffeur : transmis directement au partenaire à la création (voir
-      // bookingController) — le score de fraude n'a plus de décision à prendre.
-      client?._id && booking.type !== "chauffeur" && enqueue(QUEUE_NAMES.AI, "fraud_check", {
+      // AI : analyse risque — purement INFORMATIVE depuis la transmission
+      // directe au partenaire (2026-09-14, voir bookingController) : elle
+      // renseigne Booking.fraudCheck et alerte les admins en risque élevé,
+      // sans plus décider d'aucune approbation (voir ai.worker.js).
+      client?._id && enqueue(QUEUE_NAMES.AI, "fraud_check", {
         type: "fraud_detection",
         data: {
           bookingId:   bId,

@@ -286,8 +286,16 @@ export async function createLead({ vehicleId, user = null, body = {}, source = "
     whatsapp: `VIT AUTO — Demande d'essai ${lead.reference} bien reçue pour ${lead.listingSnapshot.title}. Suivi :`,
   });
 
-  if (level === 1) {
+  if (level === 1 || cfg.directTransmission !== false) {
+    // Transmission directe au vendeur (2026-09-14) : les niveaux 2 et 3 ne
+    // passent plus par la qualification admin — les admins sont seulement
+    // informés des dossiers à forte valeur, pour un suivi de proximité.
     await sendToPartner(lead, { actorType: "SYSTEM", source: "SYSTEM" });
+    if (level >= 2) {
+      await notifyAdminsLead(lead,
+        level === 3 ? "🔥 Lead à forte valeur transmis au vendeur" : "🔎 Lead qualifié transmis au vendeur",
+        `${lead.reference} — ${lead.listingSnapshot.title} — ${lead.client.firstName} (${lead.client.city || "ville inconnue"}) — ${lead.qualification.reasons.join(", ")}.`);
+    }
   } else {
     transition(lead, "QUALIFYING", { actorType: "SYSTEM", source: "SYSTEM", action: "qualification_required", metadata: { level } });
     await lead.save();

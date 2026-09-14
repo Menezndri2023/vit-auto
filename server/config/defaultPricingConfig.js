@@ -66,6 +66,7 @@ export const DEFAULT_PRICING_CONFIG = {
     adminInterventionMinutes: 1440,
     mediumValueUSD: 15000,
     highValueUSD: 40000,
+    directTransmission: true,
     level2AutoSendMinutes: 240,
     staleAfterDays: 14,
     contactDisclosureStage: "PARTNER_ACCEPTED",

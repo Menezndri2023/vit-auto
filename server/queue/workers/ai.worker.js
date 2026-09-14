@@ -68,43 +68,29 @@ export async function processAiJob(job) {
 
       const riskLevel = flags.length >= 3 ? "high" : flags.length >= 1 ? "medium" : "low";
 
+      // Transmission directe au partenaire (2026-09-14, voir
+      // bookingController.createBooking) : ce score n'approuve ni ne retient
+      // plus rien — la demande est déjà chez le partenaire. Il reste
+      // INFORMATIF : détail des drapeaux sur la réservation (fiche admin) et
+      // alerte des admins en risque élevé, pour une intervention a posteriori
+      // (annulation, blocage du compte) si nécessaire.
       if (riskLevel === "high") {
-        logger.warn("[AiWorker] Fraude potentielle détectée", { bookingId, userId, flags });
-        const { sendViaInternal } = await import("../../services/communication/CommunicationService.js");
-        await sendViaInternal({
-          userId:  null, // admins
-          type:    "system",
-          titre:   "⚠️ Alerte fraude potentielle",
-          message: `Réservation ${bookingId} — Risque: ${riskLevel} — Flags: ${flags.join(", ")}`,
-          lien:    `/admin`,
-        }).catch(nonBloquant("ai.worker"));
-        // Risque élevé : reste "pending" pour la revue humaine d'exception
-        // (queue admin existante, getPendingValidationBookings) — on écrit
-        // quand même fraudCheck pour que l'admin voie le détail des drapeaux.
-        const Booking = (await import("../../models/Booking.js")).default;
+        logger.warn("[AiWorker] Fraude potentielle détectée", { bookingId, userId, bookingType, flags });
+        // Bug réel corrigé au passage : `sendViaInternal({ userId: null })`
+        // ne délivrait JAMAIS l'alerte (InternalChannel refuse un userId
+        // vide) — les admins n'ont donc jamais reçu une seule alerte fraude.
+        const { notifyAdmins } = await import("../../utils/notifyAdmins.js");
+        await notifyAdmins(
+          "warning",
+          "⚠️ Alerte fraude potentielle",
+          `Réservation ${bookingId} (déjà transmise au partenaire) — Risque: ${riskLevel} — Flags: ${flags.join(", ")}`,
+          "/admin"
+        ).catch(nonBloquant("ai.worker"));
+      }
+      if (bookingId) {
         await Booking.findByIdAndUpdate(bookingId, {
           $set: { fraudCheck: { riskLevel, flags, checkedAt: new Date() } },
         }).catch(nonBloquant("ai.worker"));
-      } else if (bookingId && bookingType === "essai") {
-        // Restructuration réservation (2026-09) : un essai reste TOUJOURS
-        // soumis à une revue admin humaine avant transmission au partenaire —
-        // jamais à ce score automatique, quel que soit le risque calculé (le
-        // client conduit seul le véhicule d'un tiers sans engagement encore
-        // pris). On enregistre quand même fraudCheck pour info admin, mais on
-        // ne touche jamais adminValidation.status ici.
-        const Booking = (await import("../../models/Booking.js")).default;
-        await Booking.findByIdAndUpdate(bookingId, {
-          $set: { fraudCheck: { riskLevel, flags, checkedAt: new Date() } },
-        }).catch(nonBloquant("ai.worker"));
-      } else if (bookingId) {
-        // Booking Engine (2026-09) : risque faible/moyen → approbation
-        // automatique, remplace le gate admin manuel par défaut (voir
-        // bookingActionService.autoApproveBooking, qui réutilise
-        // adminValidateBooking tel quel).
-        const { autoApproveBooking } = await import("../../services/bookingActionService.js");
-        await autoApproveBooking({ bookingId, riskLevel, flags }).catch((e) =>
-          logger.error("[AiWorker] autoApproveBooking échoué:", { bookingId, error: e.message })
-        );
       }
 
       return { bookingId, riskLevel, flags };

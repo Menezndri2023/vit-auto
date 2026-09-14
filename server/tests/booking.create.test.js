@@ -163,7 +163,7 @@ describe("bookingController.createBooking", () => {
     expect(res.status).not.toHaveBeenCalledWith(403);
   });
 
-  it("marque une réservation instantanée fastTrack mais la fait quand même passer par la validation admin (audit 2026-08)", async () => {
+  it("réservation instantanée (partenaire certifié) : transmise directement et confirmée d'emblée (fastTrack, 2026-09-14)", async () => {
     const client = await verifiedClient();
     const certifiedOwner = await createUser({ role: "partenaire", certificationBadge: "verifie" });
     const vehicle = await createVehicleDoc({ owner: certifiedOwner._id, instantBook: true, pricePerDay: 1000 });
@@ -176,11 +176,13 @@ describe("bookingController.createBooking", () => {
     });
     await createBooking(req, res);
     expect(res.status).not.toHaveBeenCalledWith(400);
-    // Gate admin obligatoire : instantBook ne bypass plus jamais la validation
-    // admin — il priorise seulement la demande dans la file (fastTrack).
-    expect(res.body.booking.status).toBe("pending");
-    expect(res.body.booking.adminValidation.status).toBe("pending");
+    // Transmission directe : plus de file admin — fastTrack passe la
+    // réservation en "confirmed" à la création (voir adminValidateBooking).
+    expect(res.body.booking.adminValidation.status).toBe("approved");
     expect(res.body.booking.adminValidation.fastTrack).toBe(true);
+    const stored = await Booking.findById(res.body.booking._id);
+    expect(stored.status).toBe("confirmed");
+    expect(res.body.booking.status).toBe("confirmed");
   });
 
   it("ignore instantBook si le propriétaire n'est plus certifié (jamais confiance dans le seul booléen)", async () => {
@@ -478,14 +480,17 @@ describe("bookingController.createBooking", () => {
     expect(adminNotifs.length).toBe(0);
   });
 
-  it("location : la gate admin reste en place (jamais transmise directement)", async () => {
+  it("location : transmise directement elle aussi — aucun service n'attend une validation admin (2026-09-14)", async () => {
     const client = await verifiedClient();
     const vehicle = await createVehicleDoc({ pricePerDay: 1000, withDriver: true });
     const { req, res } = mockReqRes({ user: client, body: { type: "location", vehicleId: vehicle._id.toString(), clientInfo, documents: { identity: bookingDocuments.identity }, location: { days: 2, startDate: "2027-10-02", endDate: "2027-10-04" } } });
     await createBooking(req, res);
     expect(res.statusCode).toBe(201);
     const stored = await Booking.findById(res.body.booking._id);
-    expect(stored.adminValidation.status).toBe("pending");
+    expect(stored.adminValidation.status).toBe("approved");
+    expect(stored.adminValidation.validatedByType).toBe("SYSTEM");
+    expect(stored.partnerNotifiedAt).toBeTruthy();
+    expect(stored.status).toBe("pending"); // au partenaire de confirmer
   });
 
   it("exige une pièce d'identité pour réserver un chauffeur professionnel, mais jamais de permis (le chauffeur conduit) — restructuration 2026-09", async () => {

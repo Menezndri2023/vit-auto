@@ -25,12 +25,16 @@ describe("Rapport hebdomadaire du funnel", () => {
     await svc.partnerAccept(lead, { actorId: partner._id, time: "10:00" });
     await svc.declareSale(lead, { actorId: partner._id, finalPrice: 9000, currency: "USD" });
     const { lead: enRetard } = await svc.createLead({ vehicleId: vehicle._id.toString(), body: { ...body, phone: "+2250700000302" } });
-    // Semaine précédente : on antidate la création, et le second lead attend depuis 5 h.
-    const ilYA = new Date(Date.now() - 3 * 86400000);
+    // Le rapport, lancé un jeudi, couvre la semaine PRÉCÉDENTE (lundi → lundi).
+    // On antidate la création au mercredi de cette semaine-là — calculé depuis
+    // `maintenant`, pas depuis Date.now() : lancé un lundi, « il y a 3 jours »
+    // tombait dans la semaine d'avant et le rapport ne voyait aucun lead
+    // (échec observé le lundi 2026-09-14). Le second lead attend depuis 5 h.
+    const maintenant = new Date(debutDeSemaine(new Date()).getTime() + 11 * 86400000); // jeudi de la semaine suivante
+    const ilYA = new Date(debutDeSemaine(maintenant).getTime() - 4 * 86400000); // jeudi de la semaine écoulée
     await SalesLead.updateMany({}, { $set: { createdAt: ilYA } });
     await SalesLead.updateOne({ _id: enRetard._id }, { $set: { "milestones.sentToPartnerAt": new Date(Date.now() - 5 * 3600000) } });
 
-    const maintenant = new Date(debutDeSemaine(new Date()).getTime() + 11 * 86400000); // jeudi de la semaine suivante
     const r = await envoyerRapportHebdo(maintenant);
     expect(r.sent).toBe(true);
     expect(r.resume.leads).toBe(2);

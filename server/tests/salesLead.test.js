@@ -10,6 +10,7 @@ import { runSalesLeadScheduler } from "../utils/salesLeadScheduler.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
 import PartnerOnboarding from "../models/PartnerOnboarding.js";
+import PricingConfig from "../models/PricingConfig.js";
 
 // Vente par demande d'essai — docs/vente-demande-essai.md.
 // Contrôleurs appelés directement sur la base en mémoire (voir mockReqRes).
@@ -76,7 +77,29 @@ describe("Demande d'essai — création, qualification, transmission", () => {
     expect(r.statusCode).toBe(400); expect(r.body.code).toBe("IMPORT_VEHICLE_NO_TEST_DRIVE");
   });
 
-  it("qualifie en niveau 2 (prix moyen) sans transmettre, puis l'admin transmet ; niveau 3 pour forte valeur", async () => {
+  it("transmission directe (défaut, 2026-09-14) : un niveau 2 ou 3 part chez le vendeur à l'instant, les admins informés", async () => {
+    const { partner, vehicle, admin } = await setup({ price: 20000 });
+    const r = await createViaController(vehicle);
+    const lead = await SalesLead.findOne({ reference: r.body.lead.reference });
+    expect(lead.qualification.level).toBe(2);
+    expect(lead.status).toBe("SENT_TO_PARTNER");
+    expect(lead.milestones.sentToPartnerAt).toBeTruthy();
+    const { req: pr, res: pres } = mockReqRes({ user: partner });
+    await c.getPartnerLeads(pr, pres);
+    expect(pres.body.leads).toHaveLength(1);
+    const info = await Notification.findOne({ user: admin._id, type: "sales_lead" });
+    expect(info).toBeTruthy();
+    expect(info.titre).toMatch(/transmis au vendeur/);
+
+    const { vehicle: luxe } = await setup({ price: 60000 });
+    const r3 = await createViaController(luxe, { phone: "+2250700000078" });
+    const lead3 = await SalesLead.findOne({ reference: r3.body.lead.reference });
+    expect(lead3.qualification.level).toBe(3);
+    expect(lead3.status).toBe("SENT_TO_PARTNER");
+  });
+
+  it("directTransmission désactivée : qualifie en niveau 2 sans transmettre, puis l'admin transmet ; niveau 3 pour forte valeur", async () => {
+    await PricingConfig.updateOne({ key: "global" }, { $set: { key: "global", "salesLead.directTransmission": false } }, { upsert: true });
     const { partner, vehicle, admin } = await setup({ price: 20000 });
     const r = await createViaController(vehicle);
     let lead = await SalesLead.findOne({ reference: r.body.lead.reference });
@@ -105,7 +128,8 @@ describe("Demande d'essai — création, qualification, transmission", () => {
     expect(lead3.qualification.autoSendAt).toBeNull();
   });
 
-  it("le planificateur transmet un niveau 2 oublié par l'admin après le délai", async () => {
+  it("le planificateur transmet un niveau 2 oublié par l'admin après le délai (directTransmission désactivée)", async () => {
+    await PricingConfig.updateOne({ key: "global" }, { $set: { key: "global", "salesLead.directTransmission": false } }, { upsert: true });
     const { vehicle } = await setup({ price: 20000 });
     const r = await createViaController(vehicle);
     await SalesLead.updateOne({ reference: r.body.lead.reference }, { $set: { "qualification.autoSendAt": new Date(Date.now() - 1000) } });

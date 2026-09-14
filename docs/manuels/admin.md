@@ -19,7 +19,7 @@
 - **Contenu & Mise en avant** : gestion des mises en avant catalogue.
 
 ## SERVICES
-- **Réservations** : toutes les commandes (location/vente/essai/chauffeur/leasing). Les demandes location/activité attendent votre validation avant transmission au partenaire ; les **missions chauffeur sont transmises directement** au partenaire à la création (acteur SYSTÈME, décision de l'exploitant 2026-09-14) — elles n'apparaissent jamais dans la file « à valider ».
+- **Réservations** : toutes les commandes (location/vente/essai/chauffeur/leasing). **Toutes sont transmises directement au partenaire** à la création (acteur SYSTÈME, décision de l'exploitant 2026-09-14) — la file « à valider » ne se remplit plus ; le score de fraude reste calculé à titre d'information (fiche réservation, alerte en risque élevé) pour une intervention a posteriori. Même règle pour les propositions d'embauche chauffeur (l'admin peut encore retirer une demande tant que le partenaire n'a pas répondu) et pour les demandes d'essai, tous niveaux (`salesLead.directTransmission`).
 - **Litiges** : voir Manuel du Support §3.1.
 - **Chauffeurs** : approbation des profils chauffeurs.
 - **Transactions I/E** : suivi des transactions Import/Export en cours, litiges Import/Export.

@@ -487,6 +487,15 @@ describe("updateMyProfile", () => {
     expect(res.body.user.defaultLocation.city).toBe("Fnideq");
   });
 
+  it("le site web du partenaire n'est jamais exposé par le profil public (décision 2026-09-14)", async () => {
+    const user = await createUser({ role: "partenaire", business: { companyName: "Atlas", website: "https://atlas.example.test", description: "Loueur à Marrakech" } });
+    const { req, res } = mockReqRes({ params: { id: user._id.toString() } });
+    await getPublicProfile(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.business.description).toBe("Loueur à Marrakech");
+    expect(res.body.business.website).toBeUndefined();
+  });
+
   it("partenaire : refuse un site web qui n'est pas une adresse http(s)", async () => {
     const user = await createUser({ role: "partenaire" });
     const { req, res } = mockReqRes({ user, body: { business: { website: "javascript:alert(1)" } } });
