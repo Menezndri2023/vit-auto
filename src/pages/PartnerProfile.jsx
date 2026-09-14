@@ -2,6 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import VehicleCard from "../components/VehicleCard/VehicleCard";
+import { DriverCard, ActivityCard } from "./Catalogue";
 import ReportButton from "../components/ReportButton/ReportButton";
 import { getCustomerServiceContact } from "../utils/customerServiceContact";
 import styles from "./PartnerProfile.module.css";
@@ -15,7 +16,7 @@ const CERT_BADGE = {
 export default function PartnerProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { vehicles } = useVehicles();
+  const { vehicles, drivers, activities } = useVehicles();
   const [partner, setPartner] = useState(null);
   const [loading, setLoading] = useState(true);
   const [certBadge, setCertBadge] = useState(null);
@@ -38,6 +39,14 @@ export default function PartnerProfile() {
     const vid = v.ownerId || v.owner?._id || v.owner?.id || v.owner;
     return String(vid) === String(id) && v.available !== false;
   });
+  // Un partenaire loisirs ou chauffeur n'a AUCUN véhicule : sa page publique
+  // affichait « Aucun véhicule disponible » alors qu'il a des annonces
+  // (2026-09-14, NEMO Diving). Les chauffeurs et activités viennent du même
+  // contexte que le catalogue.
+  const ownerOf = (x) => String(x.ownerId || x.owner?._id || x.owner?.id || x.owner);
+  const partnerDrivers    = (drivers || []).filter((d) => ownerOf(d) === String(id));
+  const partnerActivities = (activities || []).filter((a) => ownerOf(a) === String(id));
+  const totalListings = partnerVehicles.length + partnerDrivers.length + partnerActivities.length;
 
   const displayName = partner?.business?.companyName
     || (partner ? `${partner.firstName || ""} ${partner.lastName || ""}`.trim() : null)
@@ -49,7 +58,16 @@ export default function PartnerProfile() {
     individual: "Particulier",
     fleet:      "Gestionnaire de flotte",
     leasing_co: "Société de leasing",
-  }[partner?.partnerType] || "Partenaire";
+  }[partner?.partnerType] || {
+    loueur:      "Location de véhicules",
+    vendeur:     "Vente de véhicules",
+    exportateur: "Import / export de véhicules",
+    chauffeur:   "Chauffeur professionnel",
+    loisirs:     "Activités & loisirs",
+  }[partner?.partnerActivity] || "Partenaire";
+
+  const logo = partner?.business?.logo || partner?.profilePhoto || null;
+  const website = partner?.business?.website || null;
 
   if (loading) {
     return (
@@ -66,8 +84,8 @@ export default function PartnerProfile() {
       {/* ── En-tête partenaire ── */}
       <div className={styles.header}>
         <div className={styles.avatar}>
-          {partner?.profilePhoto ? (
-            <img src={partner.profilePhoto} alt={displayName} />
+          {logo ? (
+            <img src={logo} alt={displayName} />
           ) : (
             <span className={styles.avatarIcon}>🤝</span>
           )}
@@ -105,6 +123,14 @@ export default function PartnerProfile() {
           )}
           {partner?.business?.companyName && partner?.firstName && (
             <p className={styles.contact}>👤 {partner.firstName} {partner.lastName}</p>
+          )}
+          {partner?.business?.description && (
+            <p className={styles.description}>{partner.business.description}</p>
+          )}
+          {website && (
+            <a href={website} target="_blank" rel="noopener noreferrer" className={styles.website}>
+              🌐 {website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+            </a>
           )}
           {/* Aucun contact direct partenaire n'est plus jamais exposé (audit
               2026-08) — l'appel passe uniquement par le service client VIT AUTO
@@ -162,21 +188,41 @@ export default function PartnerProfile() {
       <div className={styles.catalogueSection}>
         <h2>
           Catalogue de {displayName}
-          <span className={styles.count}>{partnerVehicles.length} annonce{partnerVehicles.length !== 1 ? "s" : ""}</span>
+          <span className={styles.count}>{totalListings} annonce{totalListings !== 1 ? "s" : ""}</span>
         </h2>
 
-        {partnerVehicles.length === 0 ? (
+        {totalListings === 0 ? (
           <div className={styles.empty}>
-            <span>🚗</span>
-            <p>Aucun véhicule disponible pour ce partenaire.</p>
+            <span>🗂️</span>
+            <p>Aucune annonce disponible pour ce partenaire.</p>
             <button onClick={() => navigate("/catalogue")}>Voir le catalogue général</button>
           </div>
         ) : (
-          <div className={styles.grid}>
-            {partnerVehicles.map((car) => (
-              <VehicleCard key={car._id || car.id} car={car} />
-            ))}
-          </div>
+          <>
+            {partnerVehicles.length > 0 && (
+              <div className={styles.grid}>
+                {partnerVehicles.map((car) => (
+                  <VehicleCard key={car._id || car.id} car={car} />
+                ))}
+              </div>
+            )}
+            {partnerActivities.length > 0 && (
+              <>
+                <h3 className={styles.subTitle}>🎈 Activités & loisirs ({partnerActivities.length})</h3>
+                <div className={styles.grid}>
+                  {partnerActivities.map((a) => <ActivityCard key={a._id} a={a} />)}
+                </div>
+              </>
+            )}
+            {partnerDrivers.length > 0 && (
+              <>
+                <h3 className={styles.subTitle}>🧑‍✈️ Chauffeurs ({partnerDrivers.length})</h3>
+                <div className={styles.grid}>
+                  {partnerDrivers.map((d) => <DriverCard key={d._id} d={d} />)}
+                </div>
+              </>
+            )}
+          </>
         )}
       </div>
     </div>

@@ -3,21 +3,11 @@ import { useState, useEffect, useMemo } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { useCurrency } from "../context/CurrencyContext";
 import ReportButton from "../components/ReportButton/ReportButton";
 import PriceTag from "../components/PriceTag/PriceTag";
 import styles from "./Booking.module.css";
 import dbStyles from "./DriverBooking.module.css";
-
-// Moyens de paiement disponibles au choix du client (voir Checkout.jsx).
-const METHOD_LABELS = {
-  orange_money: "Orange Money",
-  wave:         "Wave",
-  mtn:          "MTN Mobile Money",
-  moov:         "Moov Money",
-  card:         "Carte bancaire",
-  cash:         "Espèces à la livraison",
-};
+import { MESSAGE_ESPECES } from "../constants/paiement";
 
 const DriverBooking = () => {
   const { id } = useParams();
@@ -25,7 +15,6 @@ const DriverBooking = () => {
   const { getItemById } = useVehicles();
   const { user, token } = useAuth();
   const { success, error } = useToast();
-  const { getPaymentMethodsForCountry, catalogCountry, countryCode } = useCurrency();
 
   const driver = getItemById(id);
 
@@ -64,10 +53,6 @@ const DriverBooking = () => {
   const [unite,     setUnite]     = useState(null);
   const [quantite,  setQuantite]  = useState(1);
   const [occupiedSlots, setOccupiedSlots] = useState([]);
-  const [selectedMethod, setSelectedMethod] = useState("orange_money");
-  const [mobileNumber, setMobileNumber] = useState("");
-  const [cardNumber,   setCardNumber]   = useState("");
-  const [cardHolder,   setCardHolder]   = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   // Créneaux déjà réservés pour ce chauffeur — permet d'avertir le client
@@ -125,16 +110,6 @@ const DriverBooking = () => {
   }
 
 
-  const isMobile = ["orange_money", "wave", "mtn", "moov"].includes(selectedMethod);
-  const isCard   = selectedMethod === "card";
-
-  // Restreint les moyens de paiement à ceux activés par l'admin pour le pays du
-  // chauffeur (CountryConfig.paymentMethods) — voir Checkout.jsx pour le même mécanisme.
-  const allowedMethods = getPaymentMethodsForCountry(driver.country || catalogCountry || countryCode);
-  const visibleMethodLabels = allowedMethods
-    ? Object.fromEntries(Object.entries(METHOD_LABELS).filter(([val]) => allowedMethods.includes(val)))
-    : METHOD_LABELS;
-
   const handleSubmit = async () => {
     if (submitting) return;
     if (!uniteActive) {
@@ -165,14 +140,6 @@ const DriverBooking = () => {
       error("Ce chauffeur est déjà réservé sur ce créneau. Choisissez une autre date/heure.");
       return;
     }
-    if (isMobile && !mobileNumber.trim()) {
-      error("Veuillez saisir votre numéro de téléphone mobile.");
-      return;
-    }
-    if (isCard && (!cardNumber.trim() || !cardHolder.trim())) {
-      error("Veuillez remplir les informations de carte.");
-      return;
-    }
 
     setSubmitting(true);
     try {
@@ -188,50 +155,20 @@ const DriverBooking = () => {
           clientInfo: { firstName, lastName, email, phone },
           ...(idFrontImage ? { documents: { identity: { type: idType, frontImage: idFrontImage, backImage: idBackImage || undefined } } } : {}),
           chauffeur: { date: missionStart.toISOString(), unite: uniteActive.key, quantite: qte, heures, lieuDepart: lieuDepart.trim() || undefined },
-          payment: {
-            method: selectedMethod,
-            mobileNumber: isMobile ? mobileNumber : undefined,
-            // Seuls les 4 derniers chiffres quittent le navigateur (voir Booking.jsx/Checkout.jsx).
-            cardLast4: isCard ? cardNumber.replace(/\s/g, "").slice(-4) : undefined,
-            cardHolder: isCard ? cardHolder : undefined,
-          },
+          // Chauffeur = espèces auprès du partenaire (TYPES_ESPECES_UNIQUEMENT,
+          // règle serveur) : aucun choix à faire ici.
+          payment: { method: "cash" },
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Erreur lors de la réservation.");
 
-      // Paiement en ligne (carte/Orange Money/Wave) : redirection vers la
-      // passerelle réelle — même logique que Booking.jsx. Les autres méthodes
-      // (mtn/moov/cash) n'ont aucune intégration en ligne côté serveur (voir
-      // paymentController.ONLINE_METHODS) et gardent la confirmation directe.
-      if (["card", "orange_money", "wave"].includes(selectedMethod) && data.booking?._id) {
-        try {
-          const initRes = await fetch("/api/payments/initiate", {
-            method: "POST", headers,
-            body: JSON.stringify({ bookingId: data.booking._id, method: selectedMethod }),
-          });
-          const initData = await initRes.json().catch(() => ({}));
-          if (initRes.ok && initData.checkoutUrl) {
-            window.location.href = initData.checkoutUrl;
-            return;
-          }
-          error("La passerelle de paiement est momentanément indisponible. Votre réservation est enregistrée, complétez le paiement depuis votre tableau de bord.");
-          navigate("/booking/success", {
-            state: { booking: data.booking, payment: { paymentMethod: selectedMethod, mobileNumber, initFailed: true } },
-          });
-          return;
-        } catch {
-          error("La passerelle de paiement est momentanément indisponible. Votre réservation est enregistrée, complétez le paiement depuis votre tableau de bord.");
-          navigate("/booking/success", {
-            state: { booking: data.booking, payment: { paymentMethod: selectedMethod, mobileNumber, initFailed: true } },
-          });
-          return;
-        }
-      }
-
-      success("Réservation chauffeur envoyée ! En attente de confirmation.");
+      // Transmission directe (2026-09-14) : la demande part chez le
+      // partenaire à l'instant, sans validation admin — voir
+      // bookingController.createBooking (type "chauffeur").
+      success("Demande transmise au partenaire ! Il vous répond dans les plus brefs délais.");
       navigate("/booking/success", {
-        state: { booking: data.booking, payment: { paymentMethod: selectedMethod, mobileNumber } },
+        state: { booking: data.booking, payment: { paymentMethod: "cash" } },
       });
     } catch (err) {
       error(err.message || "Erreur lors de la réservation.");
@@ -379,43 +316,16 @@ const DriverBooking = () => {
         )}
       </div>
 
-      {/* Paiement */}
-      <h2 className={dbStyles.sectionTitle}>Mode de paiement</h2>
-      <div className={dbStyles.paymentGrid}>
-        {Object.entries(visibleMethodLabels).map(([val, label]) => (
-          <label key={val} className={`${dbStyles.paymentOption} ${selectedMethod === val ? dbStyles.paymentOptionActive : ""}`}>
-            <input type="radio" name="method" value={val} checked={selectedMethod === val}
-              onChange={() => setSelectedMethod(val)} className={dbStyles.paymentRadio} />
-            {label}
-          </label>
-        ))}
-      </div>
-
-      {isMobile && (
-        <div className={dbStyles.fieldBlock}>
-          <label className={dbStyles.fieldLabel}>Numéro Mobile Money</label>
-          <input type="tel" placeholder="Ex: +225 07 00 00 00 00" value={mobileNumber}
-            onChange={(e) => setMobileNumber(e.target.value)}
-            className={dbStyles.textInput} />
-        </div>
-      )}
-
-      {isCard && (
-        <div className={dbStyles.cardFieldsWrap}>
-          <div>
-            <label className={dbStyles.fieldLabel}>Numéro de carte</label>
-            <input type="text" placeholder="1234 5678 9012 3456" maxLength={19} value={cardNumber}
-              onChange={(e) => setCardNumber(e.target.value)}
-              className={dbStyles.textInput} />
-          </div>
-          <div>
-            <label className={dbStyles.fieldLabel}>Titulaire de la carte</label>
-            <input type="text" placeholder="NOM PRÉNOM" value={cardHolder}
-              onChange={(e) => setCardHolder(e.target.value)}
-              className={dbStyles.textInput} />
-          </div>
-        </div>
-      )}
+      {/* Paiement : espèces uniquement pour une mission chauffeur (voir
+          src/constants/paiement.js) — la demande part directement chez le
+          partenaire, qui l'accepte ou la refuse. */}
+      <h2 className={dbStyles.sectionTitle}>Paiement et transmission</h2>
+      <p style={{ margin: "0 0 4px", fontSize: ".86rem", color: "#475569", lineHeight: 1.55 }}>
+        {MESSAGE_ESPECES}
+      </p>
+      <p style={{ margin: "0 0 18px", fontSize: ".86rem", color: "#475569", lineHeight: 1.55 }}>
+        Votre demande est transmise <strong>directement au partenaire</strong>, sans étape intermédiaire : vous êtes prévenu(e) dès sa réponse.
+      </p>
 
       {/* Document lié à LA RÉSERVATION (restructuration 2026-09) — demandé ici,
           en dernière étape, pour conclure la réservation. Transmis directement

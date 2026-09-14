@@ -118,7 +118,10 @@ const BookingSuccess = () => {
         <div style={{ background: "#eff6ff", border: "1.5px solid #bfdbfe", borderRadius: 12, padding: "16px 18px", margin: "0 auto 1.5rem", maxWidth: 900 }}>
           <strong style={{ color: "#1e3a8a", display: "block", marginBottom: 8 }}>📋 Ce qui se passe maintenant</strong>
           <ol style={{ margin: 0, paddingLeft: 20, color: "#1e3a8a", fontSize: ".88rem", lineHeight: 1.7 }}>
-            <li>Le partenaire dispose de <strong>24 heures</strong> pour confirmer votre réservation.</li>
+            {booking.type === "chauffeur" && (
+              <li>Votre demande a été <strong>transmise directement au partenaire</strong> — aucune étape intermédiaire.</li>
+            )}
+            <li>Le partenaire dispose de <strong>24 heures</strong> pour confirmer votre {booking.type === "chauffeur" ? "mission" : "réservation"}.</li>
             <li>Vous recevrez un e-mail et une notification dès qu'il aura répondu.</li>
             <li>Une fois confirmée, retrouvez tous les détails depuis votre <Link to="/dashboard" style={{ color: "#1d4ed8", fontWeight: 700 }}>tableau de bord</Link>.</li>
           </ol>

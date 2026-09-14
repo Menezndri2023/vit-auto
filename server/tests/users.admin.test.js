@@ -461,6 +461,47 @@ describe("updateMyProfile", () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it("n'exige plus une data URI quand la photo renvoyée est déjà une URL hébergée (comptes migrés vers ImageKit)", async () => {
+    const user = await createUser({ profilePhoto: "https://ik.imagekit.io/vitauto/vit-auto/avatars/x.webp" });
+    const { req, res } = mockReqRes({ user, body: { firstName: "Migré", profilePhoto: user.profilePhoto } });
+    await updateMyProfile(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.user.firstName).toBe("Migré");
+    expect(res.body.user.profilePhoto).toBe("https://ik.imagekit.io/vitauto/vit-auto/avatars/x.webp");
+  });
+
+  it("partenaire : enregistre sa présentation publique (nom, description, site, ville) sans toucher rccm/taxId", async () => {
+    const user = await createUser({ role: "partenaire", business: { rccm: "RC-123", taxId: "TX-9" } });
+    const { req, res } = mockReqRes({ user, body: {
+      business: { companyName: "  NEMO Diving ", description: "Centre de plongée à Fnideq.", website: "https://www.nemodiving.ma/", logo: "" },
+      defaultLocation: { city: "Fnideq" },
+    } });
+    await updateMyProfile(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.user.business.companyName).toBe("NEMO Diving");
+    expect(res.body.user.business.description).toBe("Centre de plongée à Fnideq.");
+    expect(res.body.user.business.website).toBe("https://www.nemodiving.ma/");
+    expect(res.body.user.business.logo).toBeNull();
+    expect(res.body.user.business.rccm).toBe("RC-123");
+    expect(res.body.user.business.taxId).toBe("TX-9");
+    expect(res.body.user.defaultLocation.city).toBe("Fnideq");
+  });
+
+  it("partenaire : refuse un site web qui n'est pas une adresse http(s)", async () => {
+    const user = await createUser({ role: "partenaire" });
+    const { req, res } = mockReqRes({ user, body: { business: { website: "javascript:alert(1)" } } });
+    await updateMyProfile(req, res);
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("client : la présentation d'entreprise est ignorée (réservée aux partenaires)", async () => {
+    const user = await createUser({ role: "client" });
+    const { req, res } = mockReqRes({ user, body: { business: { companyName: "Faux", description: "x" } } });
+    await updateMyProfile(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.user.business?.companyName ?? null).toBeNull();
+  });
+
   it("ignore les champs hors whitelist (mass assignment) — ex: role", async () => {
     const user = await createUser({ role: "client" });
     const { req, res } = mockReqRes({ user, body: { role: "admin", firstName: "Renommé" } });

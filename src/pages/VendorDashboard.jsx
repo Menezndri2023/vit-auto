@@ -15,7 +15,7 @@ import { libelleDureeChauffeur } from "../constants/chauffeur";
 import { geocodeAddress } from "../utils/geo";
 import { PARTNER_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import { LICENSE_CATEGORIES, LICENSE_CATEGORY_LABELS } from "../constants/licenseCategories";
-import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, ACTIVITY_PRICE_UNITS } from "../constants/activityTypes";
+import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, ACTIVITY_PRICE_UNITS, isWeatherDependent } from "../constants/activityTypes";
 import styles from "./VendorDashboard.module.css";
 
 /* ── Utilitaires ────────────────────────────────────────────────────────── */
@@ -1424,6 +1424,9 @@ export default function VendorDashboard() {
       capacity: act.capacity ?? 1,
       essaiDisponible: !!act.essaiDisponible,
       essaiDurationMinutes: act.essaiDurationMinutes ?? 30,
+      // Météo : valeur explicite de l'annonce, sinon celle déduite du type
+      // (voir isWeatherDependent) — le partenaire voit l'état réel et le fixe.
+      weatherDependent: isWeatherDependent(act),
       images: Array.isArray(act.images) ? act.images : [],
       thumbnail: act.thumbnail || null,
     });
@@ -1471,6 +1474,7 @@ export default function VendorDashboard() {
         durationMinutes: Number(activityEditForm.durationMinutes) || 60,
         capacity: Number(activityEditForm.capacity) || 1,
         essaiDisponible: activityEditForm.essaiDisponible,
+        weatherDependent: !!activityEditForm.weatherDependent,
         essaiDurationMinutes: Number(activityEditForm.essaiDurationMinutes) || 30,
         essaiPrice: activityEditForm.essaiDisponible ? essaiPriceUSD : null,
         images: activityEditForm.images,
@@ -3429,7 +3433,7 @@ export default function VendorDashboard() {
               privé, Bateau...) */}
           <div className={styles.sectionToolbar} style={{ marginTop: 32 }}>
             <h2 className={styles.sectionTitle}>🎈 Mes activités ({myActivities.length})</h2>
-            <Link to="/vendor" className={styles.btnPrimary}>+ Ajouter</Link>
+            <Link to="/vendor/submit-activity" className={styles.btnPrimary}>+ Ajouter</Link>
           </div>
 
           {activityLoading ? <p className={styles.loadingMsg}>Chargement…</p> : myActivities.length === 0 ? (
@@ -4654,6 +4658,12 @@ export default function VendorDashboard() {
                   style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
               </div>
             </div>
+
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, fontSize: ".85rem", cursor: "pointer" }}>
+              <input type="checkbox" checked={!!activityEditForm.weatherDependent}
+                onChange={(e) => setActivityEditForm((p) => ({ ...p, weatherDependent: e.target.checked }))} />
+              🌤️ Sortie soumise aux conditions météo (affichée et acceptée par le client à la réservation)
+            </label>
 
             <label style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, fontSize: ".85rem", cursor: "pointer" }}>
               <input type="checkbox" checked={activityEditForm.essaiDisponible}

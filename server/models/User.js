@@ -265,6 +265,11 @@ const userSchema = new mongoose.Schema({
     taxId:        { type: String, default: null },
     address:      { type: String, default: null },
     logo:         { type: String, default: null },
+    // Présentation publique (page /partner/:id) — rédigée par le partenaire
+    // lui-même depuis son profil (2026-09-14). Jamais de contact direct
+    // dedans : la mise en relation passe par VIT AUTO (audit 2026-08).
+    description:  { type: String, default: null, maxlength: 1500 },
+    website:      { type: String, default: null, maxlength: 300 },
   },
 
   // ── Chauffeur : infos spécifiques ─────────────────────────────

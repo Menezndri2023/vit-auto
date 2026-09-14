@@ -120,7 +120,7 @@ function IECard({ l }) {
 }
 
 /* ── Carte Chauffeur ── */
-function DriverCard({ d }) {
+export function DriverCard({ d }) {
   const { t } = useI18n();
   // Priorité à l'unité réellement renseignée — afficher un tarif jour avec un
   // suffixe "/h" (bug précédent : tarifHeure||tarif sans jamais changer le
@@ -172,7 +172,7 @@ function DriverCard({ d }) {
 }
 
 /* ── Carte Activité (section OTHERS) ── */
-function ActivityCard({ a }) {
+export function ActivityCard({ a }) {
   const { t } = useI18n();
   const suffix = t(a.priceUnit === "per_session" ? "catalogue.perSessionSuffix" : "catalogue.perPersonSuffix");
   return (

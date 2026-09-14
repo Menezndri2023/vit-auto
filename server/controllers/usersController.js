@@ -9,6 +9,7 @@ import Driver from "../models/Driver.js";
 import Notification from "../models/Notification.js";
 import { sendEmail, identityRejectedTemplate } from "../config/email.js";
 import { logAction } from "../middleware/auditLog.js";
+import { uploadBase64Images, FOLDERS } from "../config/imagekit.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
 import { isValidCountryCode } from "../utils/countries.js";
 import { ADMIN_SCOPES, isGeneralAdmin } from "../constants/adminScopes.js";
@@ -95,7 +96,7 @@ export const getPublicProfile = async (req, res) => {
     // les inclure entiers exposait ces données à tout visiteur anonyme sans
     // qu'aucun usage frontend ne les consomme. Fuite PII trouvée en audit (2026-07).
     const user = await User.findById(req.params.id)
-      .select("firstName lastName country profilePhoto business.companyName partnerType defaultLocation.city isFounder certificationBadge role isActive")
+      .select("firstName lastName country profilePhoto business.companyName business.logo business.description business.website partnerType partnerActivity defaultLocation.city isFounder certificationBadge role isActive")
       .lean();
     if (!user || !user.isActive || !["partenaire", "admin"].includes(user.role)) {
       return res.status(404).json({ message: "Partenaire introuvable." });
@@ -795,8 +796,50 @@ export const updateMyProfile = async (req, res) => {
     }
 
     if (updates.profilePhoto) {
-      const check = validateImageDataUri(updates.profilePhoto, 4 * 1024 * 1024);
-      if (!check.ok) return res.status(400).json({ message: check.message });
+      // Depuis la migration des photos vers ImageKit (2026-09-11), la photo
+      // en base est une URL — que le formulaire de profil renvoie telle
+      // quelle à chaque sauvegarde. La valider comme data URI refusait TOUTE
+      // modification de profil aux comptes migrés (« Format d'image
+      // invalide »). Une valeur qui n'est pas une nouvelle image est ignorée.
+      if (!String(updates.profilePhoto).startsWith("data:")) {
+        delete updates.profilePhoto;
+      } else {
+        const check = validateImageDataUri(updates.profilePhoto, 4 * 1024 * 1024);
+        if (!check.ok) return res.status(400).json({ message: check.message });
+        // Hébergée sur ImageKit, jamais stockée en base64 dans le document
+        // (le poids de `users` faisait tomber la vitrine, voir la migration).
+        [updates.profilePhoto] = await uploadBase64Images([updates.profilePhoto], FOLDERS.avatars);
+      }
+    }
+
+    // Présentation publique du partenaire (voir getPublicProfile) — champs
+    // imbriqués écrits un à un pour ne jamais écraser rccm/taxId/address.
+    if (["partenaire", "admin"].includes(req.user.role)) {
+      const b = req.body.business;
+      if (b && typeof b === "object") {
+        const texte = (v, max) => (v === null || v === undefined ? null : String(v).trim().slice(0, max) || null);
+        if (b.companyName !== undefined) updates["business.companyName"] = texte(b.companyName, 120);
+        if (b.description !== undefined) updates["business.description"] = texte(b.description, 1500);
+        if (b.website !== undefined) {
+          const site = texte(b.website, 300);
+          if (site && !/^https?:\/\/[^\s<>"']+$/i.test(site)) {
+            return res.status(400).json({ message: "Site web invalide : une adresse http(s) est attendue." });
+          }
+          updates["business.website"] = site;
+        }
+        if (b.logo !== undefined) {
+          if (!b.logo) {
+            updates["business.logo"] = null;
+          } else if (String(b.logo).startsWith("data:")) {
+            const check = validateImageDataUri(b.logo, 2 * 1024 * 1024);
+            if (!check.ok) return res.status(400).json({ message: check.message });
+            [updates["business.logo"]] = await uploadBase64Images([b.logo], FOLDERS.partners);
+          }
+          // URL déjà hébergée renvoyée telle quelle par le formulaire : rien à faire.
+        }
+      }
+      const city = req.body.defaultLocation?.city;
+      if (city !== undefined) updates["defaultLocation.city"] = city === null ? null : String(city).trim().slice(0, 80) || null;
     }
 
     // Changer de numéro ici doit repasser par une vérification OTP (send/verify-phone-otp) :

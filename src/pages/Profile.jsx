@@ -208,6 +208,15 @@ const Profile = () => {
     // <input type="date"> exige strictement "YYYY-MM-DD", sinon reste vide.
     licenseExpiry: user?.licenseExpiry ? String(user.licenseExpiry).slice(0, 10) : "",
     profilePhoto:  user?.profilePhoto  || "",
+    // Présentation publique du partenaire (page /partner/:id) — jusqu'ici
+    // aucun écran ne permettait de la renseigner (2026-09-14, NEMO Diving).
+    business: {
+      companyName: user?.business?.companyName || "",
+      description: user?.business?.description || "",
+      website:     user?.business?.website     || "",
+      logo:        user?.business?.logo        || "",
+    },
+    defaultLocation: { city: user?.defaultLocation?.city || "" },
   });
 
   const [notifications, setNotifications] = useState({
@@ -362,6 +371,22 @@ const Profile = () => {
       // compter sur la fermeture de `profileData` au lieu de cette valeur fraîche.
       handleSave(null, { profilePhoto: photo });
     };
+    reader.readAsDataURL(file);
+  };
+
+  const handleBusinessChange = (field, value) =>
+    setProfileData((p) => ({ ...p, business: { ...p.business, [field]: value } }));
+
+  const handleLogoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/") || file.type === "image/svg+xml") {
+      toastError("Format d'image invalide (SVG non accepté).");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) { toastError("Logo trop lourd (max 2 Mo)."); return; }
+    const reader = new FileReader();
+    reader.onload = () => handleBusinessChange("logo", reader.result);
     reader.readAsDataURL(file);
   };
 
@@ -708,6 +733,66 @@ const Profile = () => {
                   </div>
                 )}
 
+                {/* Présentation publique (partenaires) — ce que voient les
+                    visiteurs sur /partner/:id */}
+                {isPartner && (
+                  <>
+                    <div className={styles.sectionDivider}><span>🏢 Mon entreprise — page publique</span></div>
+                    <div className={styles.row}>
+                      <div className={styles.field}>
+                        <label>Nom commercial</label>
+                        <input type="text" placeholder="Ex : NEMO Diving" maxLength={120}
+                          value={profileData.business.companyName}
+                          onChange={(e) => handleBusinessChange("companyName", e.target.value)} />
+                      </div>
+                      <div className={styles.field}>
+                        <label>Ville</label>
+                        <input type="text" placeholder="Ex : Fnideq" maxLength={80}
+                          value={profileData.defaultLocation.city}
+                          onChange={(e) => setProfileData((p) => ({ ...p, defaultLocation: { ...p.defaultLocation, city: e.target.value } }))} />
+                      </div>
+                    </div>
+                    <div className={styles.field}>
+                      <label>Présentation</label>
+                      <textarea rows={4} maxLength={1500}
+                        placeholder="Décrivez votre activité, votre équipe, vos agréments… (affiché aux visiteurs)"
+                        value={profileData.business.description}
+                        onChange={(e) => handleBusinessChange("description", e.target.value)} />
+                      <small style={{ color: "var(--c-text-muted)", fontSize: "0.78rem" }}>
+                        {profileData.business.description.length}/1500 — aucun numéro ni e-mail : les clients vous joignent via VIT AUTO.
+                      </small>
+                    </div>
+                    <div className={styles.row}>
+                      <div className={styles.field}>
+                        <label>Site web</label>
+                        <input type="url" placeholder="https://www.votre-site.com" maxLength={300}
+                          value={profileData.business.website}
+                          onChange={(e) => handleBusinessChange("website", e.target.value)} />
+                      </div>
+                      <div className={styles.field}>
+                        <label>Logo</label>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          {profileData.business.logo ? (
+                            <img src={profileData.business.logo} alt="Logo" style={{ width: 56, height: 56, objectFit: "contain", borderRadius: 10, border: "1px solid var(--c-border, #e2e8f0)", background: "#fff" }} />
+                          ) : (
+                            <span style={{ width: 56, height: 56, borderRadius: 10, border: "1px dashed var(--c-border, #cbd5e1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--c-text-muted)" }}>🏢</span>
+                          )}
+                          <label className={styles.secondaryBtn} style={{ cursor: "pointer", margin: 0 }}>
+                            {profileData.business.logo ? "Changer" : "Ajouter un logo"}
+                            <input type="file" accept="image/*" onChange={handleLogoChange} style={{ display: "none" }} />
+                          </label>
+                          {profileData.business.logo && (
+                            <button type="button" className={styles.secondaryBtn} style={{ margin: 0 }} onClick={() => handleBusinessChange("logo", "")}>Retirer</button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <small style={{ color: "var(--c-text-muted)", fontSize: "0.78rem" }}>
+                      Votre page publique : <Link to={`/partner/${user?._id || user?.id}`}>voir comme un visiteur →</Link>
+                    </small>
+                  </>
+                )}
+
                 {/* Permis (seulement clients) */}
                 {!isPartner && (
                   <>
@@ -852,7 +937,24 @@ const Profile = () => {
                 </button>
               </div>
 
-              {partnerVehicles.length === 0 ? (
+              {partnerVehicles.length === 0 && (user?.partnerActivity === "loisirs" || user?.partnerActivities?.includes?.("loisirs")) ? (
+                // Un partenaire loisirs n'a pas de véhicule : ses annonces
+                // (activités) se gèrent dans l'espace partenaire — sans ce
+                // renvoi, cet onglet lui affirmait « Aucune publication ».
+                <div className={styles.emptyState}>
+                  <div className={styles.emptyIcon}>🎈</div>
+                  <h3>Vos activités & loisirs</h3>
+                  <p>Vos annonces d'activités se modifient depuis votre espace partenaire (onglet Annonces → Mes activités).</p>
+                  <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                    <button className={styles.primaryBtn} onClick={() => navigate("/vendor/dashboard")}>
+                      Gérer mes activités
+                    </button>
+                    <button className={styles.secondaryBtn} onClick={() => navigate("/vendor/submit-activity")}>
+                      + Nouvelle activité
+                    </button>
+                  </div>
+                </div>
+              ) : partnerVehicles.length === 0 ? (
                 <div className={styles.emptyState}>
                   <div className={styles.emptyIcon}>🚗</div>
                   <h3>Aucune publication</h3>

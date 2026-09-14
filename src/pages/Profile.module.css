@@ -225,7 +225,8 @@
   color: #0f1b3f;
 }
 
-.field input {
+.field input,
+.field textarea {
   padding: 11px 14px;
   border: 1.5px solid #d8e0ed;
   border-radius: 9px;
@@ -236,13 +237,21 @@
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.field input:focus {
+.field textarea {
+  font-family: inherit;
+  resize: vertical;
+  min-height: 96px;
+}
+
+.field input:focus,
+.field textarea:focus {
   border-color: #ff4d2d;
   background: white;
   box-shadow: 0 0 0 3px rgba(255,77,45,0.12);
 }
 
-.field input::placeholder {
+.field input::placeholder,
+.field textarea::placeholder {
   color: #b0bbc9;
 }
 

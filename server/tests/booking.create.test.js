@@ -5,6 +5,7 @@ import Driver from "../models/Driver.js";
 import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 import User from "../models/User.js";
+import Notification from "../models/Notification.js";
 import { MAX_LOYALTY_BALANCE_POINTS, MAX_LOYALTY_DISCOUNT_RATE } from "../constants/loyaltyTiers.js";
 
 const clientInfo = { firstName: "Jean", lastName: "Client", email: "jean.client@example.test", passportNumber: "P1234567" };
@@ -448,6 +449,43 @@ describe("bookingController.createBooking", () => {
     await createBooking(m.req, m.res);
     expect(m.res.statusCode).toBe(400);
     expect(m.res.body.code).toBe("DRIVER_RATE_UNAVAILABLE");
+  });
+
+  it("chauffeur : la demande est transmise DIRECTEMENT au partenaire, sans validation admin (2026-09-14)", async () => {
+    const client = await verifiedClient();
+    const owner = await createUser({ role: "partenaire" });
+    const driver = await Driver.create({
+      owner: owner._id, firstName: "Karim", lastName: "Direct", title: "Chauffeur transmis",
+      tarifHeure: 10, disponibilite: "Temps plein", zone: "Casablanca", experience: "4 ans",
+    });
+    const date = new Date(Date.now() + 9 * 24 * 3600 * 1000).toISOString();
+    const m = mockReqRes({ user: client, body: { type: "chauffeur", clientInfo, documents: bookingDocuments, driverId: driver._id.toString(), chauffeur: { date, unite: "heure", quantite: 2 } } });
+    await createBooking(m.req, m.res);
+    expect(m.res.statusCode).toBe(201);
+    expect(m.res.body.booking.adminValidation.status).toBe("approved");
+
+    const stored = await Booking.findById(m.res.body.booking._id);
+    expect(stored.adminValidation.status).toBe("approved");
+    expect(stored.adminValidation.validatedByType).toBe("SYSTEM");
+    expect(stored.adminValidation.validatedBy).toBeNull();
+    expect(stored.partnerNotifiedAt).toBeTruthy();        // le délai de réponse partenaire court
+    expect(stored.status).toBe("pending");                // reste au partenaire d'accepter
+    // Le partenaire est prévenu ; aucune file « à valider » côté admin.
+    const partnerNotifs = await Notification.find({ user: owner._id }).lean();
+    expect(partnerNotifs.some((n) => n.type === "booking_admin_approved")).toBe(true);
+    const adminUsers = await User.find({ role: "admin" }).select("_id").lean();
+    const adminNotifs = adminUsers.length ? await Notification.find({ user: { $in: adminUsers.map((a) => a._id) }, type: "booking_pending_review" }).lean() : [];
+    expect(adminNotifs.length).toBe(0);
+  });
+
+  it("location : la gate admin reste en place (jamais transmise directement)", async () => {
+    const client = await verifiedClient();
+    const vehicle = await createVehicleDoc({ pricePerDay: 1000, withDriver: true });
+    const { req, res } = mockReqRes({ user: client, body: { type: "location", vehicleId: vehicle._id.toString(), clientInfo, documents: { identity: bookingDocuments.identity }, location: { days: 2, startDate: "2027-10-02", endDate: "2027-10-04" } } });
+    await createBooking(req, res);
+    expect(res.statusCode).toBe(201);
+    const stored = await Booking.findById(res.body.booking._id);
+    expect(stored.adminValidation.status).toBe("pending");
   });
 
   it("exige une pièce d'identité pour réserver un chauffeur professionnel, mais jamais de permis (le chauffeur conduit) — restructuration 2026-09", async () => {

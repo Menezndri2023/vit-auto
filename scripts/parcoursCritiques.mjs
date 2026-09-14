@@ -188,8 +188,6 @@ async function chauffeur(browser) {
   await pc.fill("input[type=date]", dateISO(5));
   await pc.fill("input[type=time]", "08:00");
   await pc.fill("input[placeholder*='Aéroport']", "Gare de Casa-Voyageurs");
-  const especes = pc.getByText(/Espèces/i).first();
-  if (await especes.count()) await especes.click();
   await pc.getByRole("button", { name: /Réserver ce chauffeur/ }).click();
   await pc.waitForURL(/booking\/success/, { timeout: 30000 });
   ok("client : mission chauffeur réservée (journée × 2) depuis le site");
@@ -201,12 +199,13 @@ async function chauffeur(browser) {
   if (Math.abs(booking.montantBase - chauffeurDoc.tarif * 2) > 0.01) throw new Error(`montant ${booking.montantBase} ≠ tarif journée × 2 (${chauffeurDoc.tarif * 2})`);
   ok(`montant = tarif journée × 2 = ${booking.montantBase} USD, 48 h bloquées`);
 
-  // 2. Validation admin si nécessaire (le score de fraude l'a normalement déjà faite), puis partenaire.
+  // 2. Transmission DIRECTE (2026-09-14) : aucune validation admin, le
+  //    partenaire voit la mission immédiatement et l'accepte.
   const detail = (await admin(`/api/bookings/${booking._id}/detail`)).data.booking || booking;
-  if (detail.adminValidation?.status !== "approved") {
-    const r = await admin(`/api/bookings/${booking._id}/admin-validate`, { method: "PATCH", body: { decision: "approved" } });
-    if (r.status !== 200) throw new Error(`admin-validate ${r.status} ${JSON.stringify(r.data).slice(0, 100)}`);
-  }
+  if (detail.adminValidation?.status !== "approved") throw new Error(`mission chauffeur non transmise au partenaire (adminValidation ${detail.adminValidation?.status})`);
+  if (detail.adminValidation?.validatedByType !== "SYSTEM") throw new Error(`transmission attendue par le SYSTÈME, obtenue ${detail.adminValidation?.validatedByType}`);
+  if (!detail.partnerNotifiedAt) throw new Error("partnerNotifiedAt absent : le délai de réponse partenaire ne court pas");
+  ok("mission transmise directement au partenaire (sans validation admin)");
   let r = await partner(`/api/bookings/${booking._id}/status`, { method: "PATCH", body: { status: "confirmed" } });
   if (r.status !== 200) throw new Error(`partenaire confirme : ${r.status} ${JSON.stringify(r.data).slice(0, 120)}`);
   r = await partner(`/api/bookings/${booking._id}/status`, { method: "PATCH", body: { status: "in_progress" } });
@@ -253,7 +252,44 @@ async function chauffeur(browser) {
   for (const j of journal) ko(`chauffeur — ${j}`);
 }
 
-const PARCOURS = [["Vente par demande d'essai", demandeEssai], ["Chauffeur — mission et embauche", chauffeur]];
+// ── Profil partenaire : présentation publique rédigée depuis /profile,
+//    visible par un visiteur sur /partner/:id avec les annonces (2026-09-14).
+async function profilPartenaire(browser) {
+  const journal = [];
+  const PWD = process.env.VERIF_SEME_PWD, PARTNER = process.env.VERIF_PARTNER_ID;
+  if (!PWD || !PARTNER) throw new Error("VERIF_PARTNER_ID / VERIF_SEME_PWD requis");
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const pp = await ctx.newPage(); surveiller(pp, "partenaire", journal);
+  await connecter(pp, PARTNER, PWD);
+  await pp.goto(`${BASE}/profile`, { waitUntil: "domcontentloaded", timeout: 60000 });
+  const texte = `Centre de démonstration — vérification ${Date.now()}`;
+  await pp.fill("input[placeholder='Ex : NEMO Diving']", "Atlas Loisirs Démo");
+  await pp.fill("input[placeholder='Ex : Fnideq']", "Marrakech");
+  await pp.fill("textarea[placeholder*='Décrivez votre activité']", texte);
+  await pp.fill("input[type=url]", "https://exemple.test/atlas");
+  await pp.getByRole("button", { name: /Enregistrer|Sauvegarder|Save/i }).first().click();
+  await pp.getByText(/Profil mis à jour/).waitFor({ timeout: 30000 });
+  ok("partenaire : présentation publique enregistrée depuis la page profil");
+
+  const moi = await (await fetch(`${API}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://vit-auto.com" }, body: JSON.stringify({ identifier: PARTNER, password: PWD }) })).json();
+  const id = moi.user?._id || moi.user?.id;
+  if (!id) throw new Error("identifiant du partenaire introuvable après connexion");
+  const pub = await (await fetch(`${API}/api/users/${id}/public`)).json();
+  if (pub.business?.description !== texte || pub.business?.website !== "https://exemple.test/atlas" || pub.defaultLocation?.city !== "Marrakech") throw new Error(`profil public incomplet : ${JSON.stringify(pub).slice(0, 200)}`);
+
+  const pv = await ctx.newPage(); surveiller(pv, "visiteur", journal);
+  await pv.goto(`${BASE}/partner/${id}`, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await pv.getByText(texte).waitFor({ timeout: 30000 });
+  await pv.getByRole("heading", { name: /Atlas Loisirs Démo/ }).first().waitFor({ timeout: 30000 });
+  await pv.getByText(/Activités & loisirs \(\d+\)/).waitFor({ timeout: 30000 });
+  const reserver = await pv.getByRole("link", { name: /Réserver/ }).count();
+  if (reserver < 1) throw new Error("aucune activité réservable sur la page publique du partenaire");
+  ok(`visiteur : page publique avec présentation, site et ${reserver} annonce(s) réservable(s)`);
+  await ctx.close();
+  for (const j of journal) ko(`profil partenaire — ${j}`);
+}
+
+const PARCOURS = [["Vente par demande d'essai", demandeEssai], ["Chauffeur — mission et embauche", chauffeur], ["Profil partenaire — présentation publique", profilPartenaire]];
 
 const browser = await chromium.launch({ executablePath: EXE, headless: true });
 for (const [nom, fn] of PARCOURS) {

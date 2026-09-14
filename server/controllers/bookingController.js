@@ -32,6 +32,7 @@ import { validateImageDataUri } from "../utils/imageValidation.js";
 import { uploadBase64Document, FOLDERS } from "../config/imagekit.js";
 import { isMalformedObjectId } from "../utils/objectId.js";
 import { prochainNumero, formatReference } from "../utils/sequence.js";
+import { invokeController } from "../utils/invokeController.js";
 import { csvCell } from "../utils/csv.js";
 import { encryptField, decryptField } from "../utils/fieldEncryption.js";
 import { signedDocumentUrl } from "../config/imagekit.js";
@@ -1271,15 +1272,30 @@ export const createBooking = async (req, res) => {
       vehicleOrDriverForDispatch
     ).catch((e) => logger.error("dispatch.bookingCreated:", { error: e.message }));
 
-    // Gate admin obligatoire (audit 2026-08) : le partenaire n'est plus
-    // notifié à la création — il ne doit rien savoir d'une demande tant
-    // qu'un admin ne l'a pas validée (voir adminValidateBooking, qui envoie
-    // ce même type de notification au moment de l'approbation). Seuls les
-    // admins sont alertés ici, pour traiter la file de validation.
-    notifyAdmins("booking_pending_review", "🕐 Nouvelle demande à valider",
-      `${clientInfo.firstName} ${clientInfo.lastName} — ${type} ${reference}${instantConfirm ? " (instantanée — priorité)" : ""}`,
-      "/admin"
-    ).catch(nonBloquant("bookingController"));
+    if (type === "chauffeur") {
+      // Transmission DIRECTE au partenaire (décision de l'exploitant,
+      // 2026-09-14) : une mission chauffeur n'attend ni le score de fraude ni
+      // un admin — le partenaire la reçoit à l'instant et l'accepte ou la
+      // refuse (délai de réponse et rappels inchangés, voir
+      // partnerResponseReminders). Même chemin que l'approbation admin, pour
+      // que notification, WhatsApp et partnerNotifiedAt restent uniques.
+      const direct = await invokeController(adminValidateBooking, {
+        params: { id: booking._id.toString() }, body: { decision: "approved" },
+        user: { role: "system" }, source: "SYSTEM",
+      });
+      if (direct.statusCode >= 400) logger.warn("chauffeur — transmission directe refusée", { reference, message: direct.body?.message });
+      booking.adminValidation.status = "approved";
+    } else {
+      // Gate admin obligatoire (audit 2026-08) : le partenaire n'est plus
+      // notifié à la création — il ne doit rien savoir d'une demande tant
+      // qu'un admin ne l'a pas validée (voir adminValidateBooking, qui envoie
+      // ce même type de notification au moment de l'approbation). Seuls les
+      // admins sont alertés ici, pour traiter la file de validation.
+      notifyAdmins("booking_pending_review", "🕐 Nouvelle demande à valider",
+        `${clientInfo.firstName} ${clientInfo.lastName} — ${type} ${reference}${instantConfirm ? " (instantanée — priorité)" : ""}`,
+        "/admin"
+      ).catch(nonBloquant("bookingController"));
+    }
 
     // 1ère réservation de ce client (tous types confondus) — signalée
     // directement dans la réponse plutôt que via une notification/socket :

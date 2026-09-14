@@ -323,7 +323,9 @@ export const dispatch = {
       // Engine, 2026-09), remonté de LOW à NORMAL car il conditionne
       // maintenant une action visible client/partenaire, plus seulement une
       // alerte (voir ai.worker.js fraud_detection).
-      client?._id && enqueue(QUEUE_NAMES.AI, "fraud_check", {
+      // Chauffeur : transmis directement au partenaire à la création (voir
+      // bookingController) — le score de fraude n'a plus de décision à prendre.
+      client?._id && booking.type !== "chauffeur" && enqueue(QUEUE_NAMES.AI, "fraud_check", {
         type: "fraud_detection",
         data: {
           bookingId:   bId,
