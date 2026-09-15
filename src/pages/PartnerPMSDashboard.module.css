@@ -1104,3 +1104,12 @@
   .leadLayout        { grid-template-columns: 1fr; }
   .formGrid2, .formGrid3 { grid-template-columns: 1fr; }
 }
+
+/* ── Cibles tactiles — audit d'affichage 2026-09-15 ─────────────────────
+   Condition sur le POINTEUR (un iPad se touche à 1024 px). Hauteur imposée
+   par min-height, jamais additionnée par du padding. */
+@media (hover: none) and (pointer: coarse) {
+  .topBarAction, .sidebarFooterLink { display: inline-flex; align-items: center; min-height: 44px; }
+  .menuBtn, .sidebarClose { min-width: 44px; min-height: 44px; }
+}
+.miniBarLabel { font-size: 0.7rem; }

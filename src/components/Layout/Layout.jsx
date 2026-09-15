@@ -132,14 +132,14 @@ const Layout = ({ children }) => {
   }
 
   return (
-    <div className={styles.page}>
+    <div className={`${styles.page} ${isMobile ? styles.pageWithBottomNav : ""}`}>
       <ScrollToTop />
       <OfflineBanner />
       <Navbar />
       {showBanner && <EmailBanner email={user.email} />}
       <Celebration celebration={celebration} onDismiss={dismissCelebration} />
       <WelcomeGuide />
-      <main className={`${styles.main} ${isMobile ? styles.mainWithBottomNav : ""}`}>{children}</main>
+      <main className={styles.main}>{children}</main>
       <Footer />
       <BackToTop />
       {isMobile && <BottomNav />}

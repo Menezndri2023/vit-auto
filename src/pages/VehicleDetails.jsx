@@ -680,7 +680,7 @@ export default function VehicleDetails() {
                 </div>
                 <div className={styles.publisherMeta} style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 3 }}>
                   <strong style={{ fontSize: ".78rem" }}>{t("vd.customerService")}</strong>
-                  <a href={`tel:${serviceTel}`} style={{ color: "#ff4d2d", fontWeight: 700, textDecoration: "none", fontSize: ".85rem" }}>
+                  <a href={`tel:${serviceTel}`} style={{ color: "#ff4d2d", fontWeight: 700, textDecoration: "none", fontSize: ".85rem", display: "inline-flex", alignItems: "center", minHeight: 44 }}>
                     {serviceDisplay}
                   </a>
                 </div>

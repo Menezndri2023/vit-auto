@@ -641,3 +641,10 @@
 .defectPhoto { width: 100%; max-width: 200px; border-radius: 6px; margin-top: 8px; }
 .inspPhotos { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .inspPhotos img { width: 120px; height: 80px; object-fit: cover; border-radius: 8px; }
+
+/* ── Cibles tactiles — audit d'affichage 2026-09-15 ─────────────────────
+   Condition sur le POINTEUR (un iPad se touche à 1024 px). Hauteur imposée
+   par min-height, jamais additionnée par du padding. */
+@media (hover: none) and (pointer: coarse) {
+  .publisherProfile, .publisherCall { min-height: 44px; display: inline-flex; align-items: center; }
+}

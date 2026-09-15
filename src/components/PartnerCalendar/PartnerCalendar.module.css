@@ -218,3 +218,10 @@
   font-size: 0.76rem;
   color: #64748b;
 }
+
+/* ── Cibles tactiles — audit d'affichage 2026-09-15 ─────────────────────
+   Condition sur le POINTEUR (un iPad se touche à 1024 px). Hauteur imposée
+   par min-height, jamais additionnée par du padding. */
+@media (hover: none) and (pointer: coarse) {
+  .navBtn { min-width: 44px; min-height: 44px; }
+}

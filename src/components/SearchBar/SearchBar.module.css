@@ -430,7 +430,7 @@
   .toggleBtn {
     justify-content: center;
     padding: 8px 3px;
-    font-size: 0.68rem;
+    font-size: 0.7rem;
     gap: 2px;
     border-radius: 0;
   }
@@ -464,7 +464,7 @@
 
   .etatBtn {
     padding: 4px 3px;
-    font-size: 0.64rem;
+    font-size: 0.7rem;
     white-space: nowrap;
   }
 
@@ -506,7 +506,7 @@
 
   /* Labels dans les champs */
   .field label {
-    font-size: 0.62rem;
+    font-size: 0.7rem;
   }
 
   .inputWrapper input,
@@ -554,7 +554,17 @@
   }
 
   .etatBtn {
-    font-size: 0.64rem;
+    font-size: 0.7rem;
     padding: 4px 3px;
   }
 }
+
+/* ── Cibles tactiles — audit d'affichage 2026-09-15 ─────────────────────
+   Condition sur le POINTEUR (un iPad se touche à 1024 px). Hauteur imposée
+   par min-height, jamais additionnée par du padding. */
+@media (hover: none) and (pointer: coarse) {
+  .gpsBtn { min-width: 44px; min-height: 44px; }
+  .etatBtn { min-width: 44px; }
+}
+/* 9,9 px et 10,9 px → 11,2 px (minimum Apple). */
+.field label { font-size: 0.7rem; }

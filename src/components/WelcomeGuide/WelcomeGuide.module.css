@@ -27,6 +27,18 @@
 }
 .close:hover { background: var(--c-bg-subtle, #f0f4ff); color: var(--c-text-primary, #0f1b3f); }
 
+/* Sous 900 px la BottomNav fixe occupe les 58 derniers pixels : posée à
+   18 px du bas, la carte la recouvrait (mesuré : bas de carte à 834 px sur
+   844, barre à partir de 787) — les onglets Accueil/Catalogue devenaient
+   injoignables tant que le guide était ouvert. Même valeur de réserve que
+   Layout.pageWithBottomNav. */
+@media (max-width: 900px) {
+  .card { bottom: calc(18px + 58px + var(--safe-bottom, 0px)); }
+}
+@media (hover: none) and (pointer: coarse) {
+  .close { min-width: 44px; min-height: 44px; }
+}
+
 .header {
   display: flex;
   align-items: center;

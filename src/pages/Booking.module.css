@@ -731,3 +731,6 @@
   .stepBtn      { font-size: 0.68rem; padding: 8px 4px; }
   .content      { padding: 18px 16px; }
 }
+
+/* 10,9 px → 11,2 px (audit 2026-09-15, minimum Apple 11 pt). */
+.stepBtn { font-size: 0.7rem; }

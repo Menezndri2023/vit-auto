@@ -1014,3 +1014,6 @@
   .modalBox   { padding: 28px 18px; border-radius: 14px; }
   .formRow    { grid-template-columns: 1fr; }
 }
+
+/* 10,6 px → 11,2 px (audit 2026-09-15). */
+.zoneTag { font-size: 0.7rem; }

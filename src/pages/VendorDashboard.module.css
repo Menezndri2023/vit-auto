@@ -532,3 +532,21 @@
   .filterTab { padding: 5px 10px; font-size: .78rem; }
   .orderCardFinance { grid-template-columns: 1fr; }
 }
+
+/* ── Cibles tactiles — audit d'affichage 2026-09-15 ─────────────────────
+   Condition sur le POINTEUR (un iPad se touche à 1024 px). Hauteur imposée
+   par min-height, jamais additionnée par du padding. */
+@media (hover: none) and (pointer: coarse) {
+  .refreshBtn { min-width: 44px; min-height: 44px; }
+  .btnPrimary, .btnSecondary { min-height: 44px; }
+  /* Le lien « Voir les plans → » se repliait sur 41 px de large (84 px de
+     haut, trois lignes) dans la bannière : une seule ligne, tapable. */
+  .upgradeLink { display: inline-flex; align-items: center; min-height: 44px; white-space: nowrap; flex-shrink: 0; }
+}
+/* Sur téléphone, la bannière du plan (badge + texte + lien) ne tient pas
+   sur une ligne : le lien passe dessous, sur toute la largeur, au lieu
+   d'écraser le texte en colonne étroite. */
+@media (max-width: 640px) {
+  .proBanner, .freeBanner { flex-wrap: wrap; }
+  .upgradeLink { margin-left: 0; flex-basis: 100%; }
+}

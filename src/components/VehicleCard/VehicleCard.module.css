@@ -521,3 +521,15 @@
 
   .actions button { font-size: .76rem; padding: 10px 6px; }
 }
+
+/* ── Cibles tactiles — audit d'affichage 2026-09-15 ─────────────────────
+   Condition sur le POINTEUR (un iPad se touche à 1024 px). Hauteur imposée
+   par min-height, jamais additionnée par du padding. */
+@media (hover: none) and (pointer: coarse) {
+  .favBtn { width: 44px; height: 44px; }
+  /* `.actions button { min-height: 40px }` et la variante compacte à 36 px
+     l'emportent sur la règle globale de index.css (spécificité) : 42 px
+     mesurés sur iPad. */
+  .actions button, .compact .actions button { min-height: 44px; }
+}
+.badge { font-size: 0.7rem; }

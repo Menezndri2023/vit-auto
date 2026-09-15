@@ -29,7 +29,12 @@
   }
 }
 
-/* ── Espace réservé au-dessus de la BottomNav fixe (56px + safe-area) ── */
-.mainWithBottomNav {
-  padding-bottom: calc(56px + var(--safe-bottom, 0px));
+/* ── Espace réservé au-dessus de la BottomNav fixe ──────────────────────
+   Sur la PAGE entière, pas sur <main> : le pied de page vient après <main>,
+   et ses derniers liens (Partenaires, Mentions légales, FAQ) restaient sous
+   la barre en bas de défilement — injoignables au doigt (audit 2026-09-15,
+   204 occurrences sur 34 pages). La barre mesure 57 px (56 + bordure) :
+   58 px de réserve, pas 56. */
+.pageWithBottomNav {
+  padding-bottom: calc(58px + var(--safe-bottom, 0px));
 }

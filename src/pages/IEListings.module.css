@@ -657,3 +657,10 @@
 .cardTitleLink:hover .cardTitle { color: #6366f1; }
 .cardInspected { position: absolute; top: 8px; left: 8px; background: rgba(16,185,129,.9); color: #fff; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px; backdrop-filter: blur(4px); }
 .cardDelay { font-size: 11px; color: #6366f1; margin: 4px 0 0; }
+
+/* ── Cibles tactiles — audit d'affichage 2026-09-15 ─────────────────────
+   Condition sur le POINTEUR (un iPad se touche à 1024 px). Hauteur imposée
+   par min-height, jamais additionnée par du padding. */
+@media (hover: none) and (pointer: coarse) {
+  .backLink { display: inline-flex; align-items: center; min-height: 44px; }
+}

@@ -1074,7 +1074,7 @@ const Catalogue = () => {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {villesDesservies.map((c) => (
                 <Link key={c.slug} to={`/location-voiture/${c.slug}`}
-                  style={{ padding: ".35rem .75rem", borderRadius: 999, background: "#fff", border: "1px solid #dbe2ef", color: "#1a3a6e", fontSize: ".8rem", fontWeight: 600, textDecoration: "none" }}>
+                  style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 .75rem", borderRadius: 999, background: "#fff", border: "1px solid #dbe2ef", color: "#1a3a6e", fontSize: ".8rem", fontWeight: 600, textDecoration: "none" }}>
                   {c.nom} ({c.n})
                 </Link>
               ))}
@@ -1088,7 +1088,7 @@ const Catalogue = () => {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {villesActivites.map((c) => (
                 <Link key={c.slug} to={`/activites/${c.slug}`}
-                  style={{ padding: ".35rem .75rem", borderRadius: 999, background: "#fff", border: "1px solid #dbe2ef", color: "#1a3a6e", fontSize: ".8rem", fontWeight: 600, textDecoration: "none" }}>
+                  style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 .75rem", borderRadius: 999, background: "#fff", border: "1px solid #dbe2ef", color: "#1a3a6e", fontSize: ".8rem", fontWeight: 600, textDecoration: "none" }}>
                   {c.nom} ({c.n})
                 </Link>
               ))}
@@ -1101,7 +1101,7 @@ const Catalogue = () => {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {marquesPieces.map((c) => (
                 <Link key={c.slug} to={`/pieces-detachees/${c.slug}`}
-                  style={{ padding: ".35rem .75rem", borderRadius: 999, background: "#fff", border: "1px solid #dbe2ef", color: "#1a3a6e", fontSize: ".8rem", fontWeight: 600, textDecoration: "none" }}>
+                  style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 .75rem", borderRadius: 999, background: "#fff", border: "1px solid #dbe2ef", color: "#1a3a6e", fontSize: ".8rem", fontWeight: 600, textDecoration: "none" }}>
                   {c.nom} ({c.n})
                 </Link>
               ))}

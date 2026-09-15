@@ -87,3 +87,10 @@
 .resultOk { background: #ecfdf5; color: #047857; }
 .resultFail { background: #fef2f2; color: #b91c1c; }
 .resultActions { margin-top: 0.3rem; }
+
+/* ── Cibles tactiles — audit d'affichage 2026-09-15 ─────────────────────
+   Condition sur le POINTEUR (un iPad se touche à 1024 px). Hauteur imposée
+   par min-height, jamais additionnée par du padding. */
+@media (hover: none) and (pointer: coarse) {
+  .cta { min-height: 44px; display: inline-flex; align-items: center; }
+}

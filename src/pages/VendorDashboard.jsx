@@ -2965,7 +2965,7 @@ export default function VendorDashboard() {
             <span style={{ display: "inline-block", animation: refreshing ? "spin .8s linear infinite" : "none" }}>↻</span>
           </button>
           {!isIndividualSeller && (
-            <Link to="/partner-fleet-import" style={{ display: "inline-flex", alignItems: "center", padding: "0 18px", background: "#6366f1", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem", whiteSpace: "nowrap" }}>
+            <Link to="/partner-fleet-import" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 18px", background: "#6366f1", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem", whiteSpace: "nowrap" }}>
               📦 Importer ma flotte
             </Link>
           )}
@@ -2973,7 +2973,7 @@ export default function VendorDashboard() {
               par TOUS les partenaires, y compris hors abonnement : chaque onglet
               montre ce qu'il contient et ce qui l'ouvre. Le cacher aux non-abonnés
               reviendrait à ne jamais leur donner de raison de s'abonner. */}
-          <Link to="/vendor/pro" style={{ display: "inline-flex", alignItems: "center", padding: "0 18px", background: "#0f1b3f", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem", whiteSpace: "nowrap" }}>
+          <Link to="/vendor/pro" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 18px", background: "#0f1b3f", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem", whiteSpace: "nowrap" }}>
             ⭐ Espace Pro
           </Link>
           <Link to="/vendor" className={styles.btnPrimary}>+ Nouvelle annonce</Link>

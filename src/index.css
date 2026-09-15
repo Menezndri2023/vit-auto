@@ -322,6 +322,21 @@ input, select, textarea {
   .overflow-x-hidden { overflow-x: hidden; }
 }
 
+/* ── Écrans tactiles, quelle que soit la largeur ───────────────────────────
+   Les règles ci-dessus sont conditionnées à 640 px : un iPad (1024 px, un
+   doigt) n'en recevait aucune — l'audit du 2026-09-15 y trouvait 180 boutons,
+   champs et listes sous 44 px là où le téléphone était propre. La condition
+   juste est le POINTEUR. Hauteur IMPOSÉE (min-height), jamais additionnée
+   par du padding : la hauteur d'une ligne dépend de la police, qui diffère
+   entre le poste de développement et l'appareil. Cases, boutons radio et
+   curseurs exclus : leur zone tactile est celle de leur libellé. */
+@media (hover: none) and (pointer: coarse) {
+  button, [role="button"], select,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]) {
+    min-height: 44px;
+  }
+}
+
 @media (max-width: 380px) {
   /* Très petits écrans : réduire les paddings */
   body { font-size: 14px; }

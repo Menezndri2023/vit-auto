@@ -651,3 +651,13 @@
      décoration. */
   .originChip { padding: .5rem .85rem; font-size: .82rem; }
 }
+
+/* ── Cibles tactiles — audit d'affichage 2026-09-15 ─────────────────────
+   Condition sur le POINTEUR (un iPad se touche à 1024 px). Hauteur imposée
+   par min-height, jamais additionnée par du padding. */
+@media (hover: none) and (pointer: coarse) {
+  .originChip { min-height: 44px; display: inline-flex; align-items: center; }
+  .carouselArrow { min-width: 44px; min-height: 44px; }
+}
+/* 10,9 px → 11,2 px : minimum lisible des règles Apple (11 pt). */
+.spotBadge { font-size: 0.7rem; }

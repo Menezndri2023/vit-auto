@@ -207,7 +207,7 @@ export default function PourquoiVitAuto() {
             {s.highlight && (
               <div style={{
                 position: "absolute", top: 12, right: 14,
-                background: s.color, color: "#fff", fontSize: "0.68rem",
+                background: s.color, color: "#fff", fontSize: "0.7rem",
                 fontWeight: 800, padding: "3px 10px", borderRadius: 99,
               }}>NOUVEAU ⚡</div>
             )}
@@ -219,7 +219,7 @@ export default function PourquoiVitAuto() {
             <h3 style={{ margin: "0 0 10px", fontWeight: 800, color: "#0f1b3f", fontSize: "1.05rem" }}>{s.title}</h3>
             <p style={{ margin: "0 0 18px", color: "#64748b", fontSize: "0.88rem", lineHeight: 1.65 }}>{s.desc}</p>
             <Link to={s.link} style={{
-              color: s.color, fontWeight: 700, fontSize: "0.85rem",
+              color: s.color, fontWeight: 700, fontSize: "0.85rem", minHeight: 44,
               textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5,
             }}>
               {s.cta} <span>→</span>

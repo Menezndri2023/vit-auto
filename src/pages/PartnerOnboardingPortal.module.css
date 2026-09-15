@@ -147,7 +147,7 @@
   display: flex; align-items: center; justify-content: center;
   font-size: .8rem; font-weight: 700; color: rgba(255,255,255,.6);
 }
-.stepDot span:last-child { font-size: .62rem; color: rgba(255,255,255,.5); text-align: center; }
+.stepDot span:last-child { font-size: .7rem; color: rgba(255,255,255,.5); text-align: center; }
 .stepActive span:first-child { background: var(--po-orange); color: var(--po-dark); }
 .stepActive span:last-child { color: var(--po-orange); font-weight: 600; }
 .stepDone span:first-child { background: var(--po-success); color: white; }

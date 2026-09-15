@@ -312,7 +312,7 @@
   border-color: #ef4444;
 }
 
-.activeChip span { font-size: .6rem; opacity: .7; }
+.activeChip span { font-size: .7rem; opacity: .7; }
 
 .clearAllBtn {
   font-size: .75rem;
@@ -449,7 +449,7 @@
 .rangeLimits {
   display: flex;
   justify-content: space-between;
-  font-size: .68rem;
+  font-size: .7rem;
   color: #94a3b8;
 }
 
@@ -1030,3 +1030,12 @@
   .modeTabs::-webkit-scrollbar { display: none; }
   .modeTab { flex-shrink: 0; }
 }
+
+/* ── Cibles tactiles — audit d'affichage 2026-09-15 ─────────────────────
+   Condition sur le POINTEUR (un iPad se touche à 1024 px). Hauteur imposée
+   par min-height, jamais additionnée par du padding. */
+@media (hover: none) and (pointer: coarse) {
+  .refreshBtn { width: 44px; height: 44px; }
+  .ieCardLink { min-height: 44px; display: inline-flex; align-items: center; }
+}
+.headerTag { font-size: 0.7rem; }

@@ -625,4 +625,11 @@
     min-height: 44px;
     align-items: center;
   }
+  /* Mesurés le 2026-09-15 : Loisirs 38 px, badge partenaire 31 px, badge
+     profil 34 px — absents de la liste ci-dessus. Boutons : min-height suffit. */
+  .activitiesTrigger,
+  .badgePartner,
+  .userBadge {
+    min-height: 44px;
+  }
 }
