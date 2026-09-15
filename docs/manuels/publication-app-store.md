@@ -59,7 +59,40 @@ Le compte est actif quand <https://developer.apple.com/account> affiche
 4. Noter le **Key ID** (colonne de la clé) et l'**Issuer ID** (au-dessus de la
    liste).
 
-## Étape 3 — Renseigner les 4 secrets GitHub
+## Étape 3 — Le certificat de distribution et le profil (10 minutes)
+
+La signature « cloud » via la clé d'API a été essayée le 2026-09-15 : Xcode la
+refuse à l'archivage en ligne de commande. On signe donc avec un vrai
+certificat, la méthode classique.
+
+1. Sur un Mac, générer une clé privée et une demande de certificat (CSR),
+   hors du dépôt :
+   ```bash
+   mkdir -p ~/vit-auto-signing && cd ~/vit-auto-signing
+   openssl genrsa -out distribution.key 2048
+   openssl req -new -key distribution.key -out VIT-AUTO-distribution.certSigningRequest \
+     -subj "/emailAddress=VOTRE_EMAIL/CN=VIT AUTO Distribution/C=CI"
+   ```
+2. <https://developer.apple.com/account/resources/certificates/add> → **Apple
+   Distribution** → Choose File (le `.certSigningRequest`) → Continue →
+   Download → `distribution.cer`.
+3. <https://developer.apple.com/account/resources/profiles/add> →
+   **App Store Connect** (Distribution) → App ID `com.vitauto.app` → le
+   certificat créé → nom **`VIT AUTO App Store`** → Generate → Download →
+   `VIT_AUTO_App_Store.mobileprovision`.
+4. Fabriquer le `.p12` **au format legacy** (le format par défaut d'OpenSSL 3
+   est refusé par `security import` sur macOS : « MAC verification failed ») :
+   ```bash
+   openssl x509 -inform der -in distribution.cer -out distribution.pem
+   openssl pkcs12 -export -legacy -inkey distribution.key -in distribution.pem \
+     -name "Apple Distribution VIT AUTO" -out distribution.p12 -passout pass:UN_MOT_DE_PASSE
+   base64 -i distribution.p12 | tr -d '\n'                    # → APPLE_CERTIFICATE_P12
+   base64 -i VIT_AUTO_App_Store.mobileprovision | tr -d '\n'  # → APPLE_PROVISIONING_PROFILE
+   ```
+   Le certificat expire au bout d'un an : refaire les étapes 2 à 4 et
+   remplacer les secrets.
+
+## Étape 3 bis — Renseigner les 7 secrets GitHub
 
 Dépôt GitHub → **Settings** → **Secrets and variables** → **Actions** →
 **New repository secret** :
@@ -69,7 +102,10 @@ Dépôt GitHub → **Settings** → **Secrets and variables** → **Actions** �
 | `APPLE_TEAM_ID` | Team ID (page Membership details) |
 | `APP_STORE_CONNECT_KEY_ID` | Key ID de l'étape 2 |
 | `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID de l'étape 2 |
-| `APP_STORE_CONNECT_PRIVATE_KEY` | **contenu intégral** du fichier `.p8` (de `-----BEGIN PRIVATE KEY-----` à `-----END PRIVATE KEY-----`) |
+| `APP_STORE_CONNECT_PRIVATE_KEY` | contenu du fichier `.p8` (avec ou sans les lignes BEGIN/END) |
+| `APPLE_CERTIFICATE_P12` | le `.p12` en base64 (une ligne) |
+| `APPLE_CERTIFICATE_PASSWORD` | le mot de passe du `.p12` |
+| `APPLE_PROVISIONING_PROFILE` | le `.mobileprovision` en base64 (une ligne) |
 
 ## Étape 4 — Créer la fiche de l'app dans App Store Connect
 
