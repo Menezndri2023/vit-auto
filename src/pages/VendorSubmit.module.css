@@ -304,6 +304,11 @@
   margin-top: 1rem;
 }
 
+.adTypeCard:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+  filter: grayscale(.6);
+}
 .adTypeCard {
   border: 2px solid #e5e9f4;
   border-radius: 18px;

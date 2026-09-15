@@ -279,6 +279,13 @@ export const submitImporterProfile = async (req, res) => {
 
     res.status(201).json({ message: "Candidature soumise avec succès.", profile });
   } catch (err) {
+    // Une valeur hors énumération (activityType inconnu, par exemple) est une
+    // erreur du client, pas du serveur : 400 avec le champ en cause, au lieu
+    // d'un 500 muet qui laissait le partenaire sans rien à corriger.
+    if (err?.name === "ValidationError") {
+      const champ = Object.keys(err.errors || {})[0];
+      return res.status(400).json({ message: champ ? `Champ invalide : ${champ}.` : "Données invalides." });
+    }
     logger.error("submitImporterProfile:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }

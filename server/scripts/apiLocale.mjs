@@ -180,6 +180,15 @@ async function semer(uri) {
   const { DEFAULT_PRICING_CONFIG } = await import("../config/defaultPricingConfig.js");
   await PricingConfig.findOneAndUpdate({ key: "global" }, { $setOnInsert: { key: "global", ...DEFAULT_PRICING_CONFIG } }, { upsert: true });
 
+  // Devises et pays actifs, comme en production : sans eux, toute devise
+  // d'affichage choisie à la publication était refusée et les prix convertis
+  // n'étaient jamais exercés par la garde.
+  const { default: ExchangeRate } = await import("../models/ExchangeRate.js");
+  const { default: CountryConfig } = await import("../models/CountryConfig.js");
+  const { CURRENCIES, COUNTRIES } = await import("../config/defaultCurrencies.js");
+  await ExchangeRate.insertMany(CURRENCIES, { ordered: false }).catch(() => {});
+  await CountryConfig.insertMany(COUNTRIES, { ordered: false }).catch(() => {});
+
   await mongoose.disconnect();
 }
 

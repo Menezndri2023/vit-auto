@@ -623,9 +623,30 @@ export async function getMyShowroom(req, res) {
   }
 }
 
+// Slug public du showroom (/showroom/:slug). Le modèle le dérive du nom dans
+// un hook pre("save") — que findOneAndUpdate n'exécute JAMAIS : un showroom
+// créé puis publié par ces deux routes n'avait pas d'adresse publique, et la
+// vignette de la vitrine pointait sur /showroom/undefined (audit des parcours,
+// 2026-09-15). Calculé ici, unique, avec repli sur l'identifiant du partenaire
+// quand le nom n'est pas encore renseigné.
+async function slugDisponible(base, partnerId) {
+  const racine = (base || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+    || `partenaire-${String(partnerId).slice(-6)}`;
+  let slug = racine;
+  for (let i = 2; await PartnerShowroom.exists({ slug, partnerId: { $ne: partnerId } }); i++) slug = `${racine}-${i}`;
+  return slug;
+}
+
 export async function upsertShowroom(req, res) {
   try {
     const safe = pick(req.body, SHOWROOM_SAFE_FIELDS);
+    const existant = await PartnerShowroom.findOne({ partnerId: req.user._id }).select("slug companyName isPublished").lean();
+    const nom = safe.companyName ?? existant?.companyName;
+    // Le slug suit le nom tant que le showroom n'est pas publié ; publié, il
+    // reste stable (une adresse partagée ne doit pas casser au premier renommage).
+    if (!existant?.slug || (!existant?.isPublished && safe.companyName && safe.companyName !== existant?.companyName)) {
+      safe.slug = await slugDisponible(nom, req.user._id);
+    }
     const showroom = await PartnerShowroom.findOneAndUpdate(
       { partnerId: req.user._id },
       { $set: { ...safe, updatedAt: new Date() }, $setOnInsert: { partnerId: req.user._id } },
@@ -650,10 +671,14 @@ export async function publishShowroom(req, res) {
     const refus = refusDePublication(req.user, "publier votre showroom");
     if (refus) return res.status(403).json(refus);
 
-    // Upsert : crée le showroom s'il n'existe pas encore, puis publie
+    // Upsert : crée le showroom s'il n'existe pas encore, puis publie — avec
+    // un slug garanti, sans quoi la page publique n'existe pas.
+    const existant = await PartnerShowroom.findOne({ partnerId: req.user._id }).select("slug companyName").lean();
+    const set = { isPublished: true, publishedAt: new Date() };
+    if (!existant?.slug) set.slug = await slugDisponible(existant?.companyName, req.user._id);
     const showroom = await PartnerShowroom.findOneAndUpdate(
       { partnerId: req.user._id },
-      { $set: { isPublished: true, publishedAt: new Date() }, $setOnInsert: { partnerId: req.user._id } },
+      { $set: set, $setOnInsert: { partnerId: req.user._id } },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     res.json(showroom);

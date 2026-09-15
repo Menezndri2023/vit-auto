@@ -74,6 +74,11 @@ node scripts/verifierLocalement.mjs http://localhost:4180
 
 echo "── 5/6  parcours critiques (bout en bout) ──"
 API_LOCALE_URL=http://localhost:5001 node scripts/parcoursCritiques.mjs http://localhost:4180
+# Parcours de service (location, loisirs, import/export, partenaire, compte
+# client) : mêmes comptes semés, ~4 min. Ajoutés le 2026-09-15 après un audit
+# qui a trouvé un showroom sans adresse publique et un assistant de
+# publication qui laissait choisir un secteur non couvert.
+API_LOCALE_URL=http://localhost:5001 node scripts/parcoursServices.mjs http://localhost:4180
 
 echo "── 6/6  tests serveur ciblés ──"
 # Fichiers serveur dans les commits poussés : on relie chaque nom de fichier

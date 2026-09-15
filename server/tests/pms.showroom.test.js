@@ -90,4 +90,48 @@ describe("pmsController — showroom", () => {
     const updated = await PartnerShowroom.findById(showroom._id);
     expect(updated.viewCount).toBeGreaterThan(0);
   });
+
+  // Le slug naissait dans un hook pre("save") que findOneAndUpdate n'exécute
+  // jamais : un showroom créé puis publié par les deux routes n'avait pas
+  // d'adresse publique (audit des parcours, 2026-09-15).
+  it("donne un slug public au showroom dès l'upsert, unique entre partenaires, stable une fois publié", async () => {
+    const a = await createUser({ role: "partenaire", isFounder: true });
+    const b = await createUser({ role: "partenaire", isFounder: true });
+
+    const ca = mockReqRes({ user: a, body: { companyName: "Médina Cars", city: "Casablanca" } });
+    await upsertShowroom(ca.req, ca.res);
+    expect(ca.res.body.slug).toBe("medina-cars");
+
+    const cb = mockReqRes({ user: b, body: { companyName: "Médina Cars" } });
+    await upsertShowroom(cb.req, cb.res);
+    expect(cb.res.body.slug).toBe("medina-cars-2");
+
+    // Renommage avant publication : le slug suit.
+    const ra = mockReqRes({ user: a, body: { companyName: "Atlas Location" } });
+    await upsertShowroom(ra.req, ra.res);
+    expect(ra.res.body.slug).toBe("atlas-location");
+
+    const pa = mockReqRes({ user: a });
+    await publishShowroom(pa.req, pa.res);
+    expect(pa.res.body.isPublished).toBe(true);
+    expect(pa.res.body.slug).toBe("atlas-location");
+
+    // Renommage après publication : l'adresse partagée ne bouge plus.
+    const ra2 = mockReqRes({ user: a, body: { companyName: "Atlas Premium" } });
+    await upsertShowroom(ra2.req, ra2.res);
+    expect(ra2.res.body.slug).toBe("atlas-location");
+
+    const pub = mockReqRes({ params: { id: "atlas-location" } });
+    await getPublicShowroom(pub.req, pub.res);
+    expect(pub.res.statusCode).toBe(200);
+    expect(pub.res.body.companyName).toBe("Atlas Premium");
+  });
+
+  it("publishShowroom sans upsert préalable crée le showroom avec un slug de repli", async () => {
+    const p = await createUser({ role: "partenaire", isFounder: true });
+    const r = mockReqRes({ user: p });
+    await publishShowroom(r.req, r.res);
+    expect(r.res.body.isPublished).toBe(true);
+    expect(r.res.body.slug).toMatch(/^partenaire-[0-9a-f]{6}$/);
+  });
 });

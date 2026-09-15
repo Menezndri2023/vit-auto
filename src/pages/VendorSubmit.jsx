@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { estUniquementLoisirs, estUniquementPieces } from "../constants/partnerTaxonomy";
+import { estUniquementLoisirs, estUniquementPieces, couvreSecteur, SECTEUR_LABELS } from "../constants/partnerTaxonomy";
 import { useVehicles } from "../context/VehicleContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useToast } from "../context/ToastContext";
@@ -601,6 +601,9 @@ const VendorSubmit = () => {
     }
     if (step === 2) {
       if (!adType) e.adType = "Choisissez un type d'annonce";
+      // Un brouillon peut porter un type choisi avant un changement de secteur.
+      const secteurDuType = { location: "loueur", vente: "vendeur", chauffeur: "chauffeur" }[adType];
+      if (secteurDuType && !couvreSecteur(user, secteurDuType)) e.adType = `Votre compte ne couvre pas le secteur ${SECTEUR_LABELS[secteurDuType]} — demandez son ajout depuis « Mes secteurs ».`;
     }
     if (step === 3) {
       if (adType !== "chauffeur") {
@@ -931,9 +934,22 @@ const VendorSubmit = () => {
             <h2 className={styles.cardTitle}>📋 Type d'annonce</h2>
             <p className={styles.cardSub}>Quel service souhaitez-vous proposer ?</p>
             {errors.adType && <p className={styles.err}>{errors.adType}</p>}
+            {/* Un type hors des secteurs du compte reste visible mais verrouillé :
+                le serveur le refuserait de toute façon à la publication
+                (SECTEUR_REQUIS), et échouer à l'étape 7 après six écrans
+                remplis est le pire moment pour l'apprendre. Le renvoi va vers
+                « Mes secteurs », où l'ajout se demande. */}
+            {[["location", "loueur"], ["vente", "vendeur"], ["chauffeur", "chauffeur"]].some(([, s]) => !couvreSecteur(user, s)) && (
+              <p className={styles.hint} style={{ marginBottom: 12 }}>
+                🔒 Les types grisés relèvent d'un secteur que votre compte ne couvre pas encore —
+                <Link to="/vendor/dashboard?tab=annonces" style={{ marginLeft: 4, fontWeight: 700 }}>demander un secteur</Link>.
+              </p>
+            )}
 
             <div className={styles.adTypeGrid}>
               <button type="button" className={`${styles.adTypeCard} ${adType === "location" ? styles.adTypeActive : ""}`}
+                disabled={!couvreSecteur(user, "loueur")} aria-disabled={!couvreSecteur(user, "loueur")}
+                title={couvreSecteur(user, "loueur") ? undefined : `Secteur ${SECTEUR_LABELS.loueur} non couvert par votre compte`}
                 onClick={() => setAdType("location")}>
                 <div className={styles.adTypeIcon}>🚗</div>
                 <h3>Location de véhicule</h3>
@@ -946,6 +962,8 @@ const VendorSubmit = () => {
               </button>
 
               <button type="button" className={`${styles.adTypeCard} ${adType === "vente" ? styles.adTypeActive : ""}`}
+                disabled={!couvreSecteur(user, "vendeur")} aria-disabled={!couvreSecteur(user, "vendeur")}
+                title={couvreSecteur(user, "vendeur") ? undefined : `Secteur ${SECTEUR_LABELS.vendeur} non couvert par votre compte`}
                 onClick={() => setAdType("vente")}>
                 <div className={styles.adTypeIcon}>💰</div>
                 <h3>Vente de véhicule</h3>
@@ -958,6 +976,8 @@ const VendorSubmit = () => {
               </button>
 
               <button type="button" className={`${styles.adTypeCard} ${adType === "chauffeur" ? styles.adTypeActive : ""}`}
+                disabled={!couvreSecteur(user, "chauffeur")} aria-disabled={!couvreSecteur(user, "chauffeur")}
+                title={couvreSecteur(user, "chauffeur") ? undefined : `Secteur ${SECTEUR_LABELS.chauffeur} non couvert par votre compte`}
                 onClick={() => setAdType("chauffeur")}>
                 <div className={styles.adTypeIcon}>👨‍✈️</div>
                 <h3>Service chauffeur</h3>
@@ -974,6 +994,8 @@ const VendorSubmit = () => {
                   dédié (champs trop différents des véhicules/chauffeur pour
                   s'insérer dans les étapes suivantes de cet assistant). */}
               <button type="button" className={styles.adTypeCard}
+                disabled={!couvreSecteur(user, "loisirs")} aria-disabled={!couvreSecteur(user, "loisirs")}
+                title={couvreSecteur(user, "loisirs") ? undefined : `Secteur ${SECTEUR_LABELS.loisirs} non couvert par votre compte`}
                 onClick={() => navigate("/vendor/submit-activity")}>
                 <div className={styles.adTypeIcon}>🎈</div>
                 <h3>Activité (Activités et Loisirs)</h3>
@@ -988,6 +1010,8 @@ const VendorSubmit = () => {
               {/* Pièce détachée (secteur « pièces », 2026-09-14) — vente directe
                   ou importation, toujours livrée — formulaire dédié. */}
               <button type="button" className={styles.adTypeCard}
+                disabled={!couvreSecteur(user, "pieces")} aria-disabled={!couvreSecteur(user, "pieces")}
+                title={couvreSecteur(user, "pieces") ? undefined : `Secteur ${SECTEUR_LABELS.pieces} non couvert par votre compte`}
                 onClick={() => navigate("/vendor/submit-part")}>
                 <div className={styles.adTypeIcon}>🔩</div>
                 <h3>Pièce détachée</h3>
