@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { cacheClear } from "../utils/catalogCache.js";
 import { PART_CATEGORIES, PART_CONDITIONS, PART_SALE_MODES, PART_SHIPPING_MODES } from "../constants/spareParts.js";
 
 /**
@@ -119,6 +120,12 @@ sparePartSchema.pre("save", function (next) {
   }
   next();
 });
+
+// Même règle que Vehicle/Activity/Driver (2026-09-15) : le cache catalogue
+// (utils/catalogCache.js, clé « parts », 30 s) est vidé à toute écriture —
+// une pièce publiée, mise en pause, épuisée (stock décrémenté par la commande)
+// ou supprimée ne doit pas rester listée trente secondes de plus.
+sparePartSchema.post(["save", "findOneAndUpdate", "updateOne", "updateMany", "deleteOne", "deleteMany", "findOneAndDelete", "insertMany"], function () { cacheClear(); });
 
 const SparePart = mongoose.models.SparePart || mongoose.model("SparePart", sparePartSchema);
 export default SparePart;

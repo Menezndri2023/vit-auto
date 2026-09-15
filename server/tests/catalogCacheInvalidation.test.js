@@ -4,6 +4,7 @@ import Vehicle from "../models/Vehicle.js";
 import ImportExportListing from "../models/ImportExportListing.js";
 import Activity from "../models/Activity.js";
 import Driver from "../models/Driver.js";
+import SparePart from "../models/SparePart.js";
 import { createUser, createVehicleDoc, createActivityDoc, createDriverDoc, createListing } from "./helpers/fixtures.js";
 
 // Le cache catalogue n'était jamais invalidé : une annonce vendue restait
@@ -28,6 +29,16 @@ describe("Cache catalogue — invalidation à l'écriture", () => {
     remplir();
     await ImportExportListing.findByIdAndUpdate(l._id, { status: "sold" });
     expect(cacheGet("v:test")).toBeUndefined();
+  });
+
+  it("SparePart : publication, import en masse, réservation de stock (updateOne) et suppression vident le cache", async () => {
+    const owner = await createUser({ role: "partenaire" });
+    const base = { owner: owner._id, category: "FREINAGE", title: "Plaquettes", price: 40, images: ["https://example.test/p.jpg"], status: "approved" };
+    remplir(); const p = await SparePart.create(base); expect(cacheGet("v:test")).toBeUndefined();
+    remplir(); await SparePart.updateOne({ _id: p._id, stock: { $gte: 0 } }, { $inc: { stock: -1 } }); expect(cacheGet("v:test")).toBeUndefined();
+    remplir(); await SparePart.insertMany([{ ...base, title: "Filtre" }]); expect(cacheGet("v:test")).toBeUndefined();
+    remplir(); await SparePart.findByIdAndUpdate(p._id, { status: "archived" }); expect(cacheGet("v:test")).toBeUndefined();
+    remplir(); await SparePart.deleteOne({ _id: p._id }); expect(cacheGet("v:test")).toBeUndefined();
   });
 
   it("Activity et Driver : idem", async () => {
