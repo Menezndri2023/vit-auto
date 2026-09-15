@@ -20,7 +20,7 @@
   },
   "ios": {
     "backgroundColor": "#0f1b3f",
-    "contentInset": "automatic",
+    "contentInset": "never",
     "overrideUserAgent": "VIT-AUTO-iOS",
     "scheme": "vitauto"
   },

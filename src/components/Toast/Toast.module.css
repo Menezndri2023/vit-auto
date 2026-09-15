@@ -92,7 +92,9 @@
 
 @media (max-width: 600px) {
   .container {
-    bottom: 10px;
+    /* Au-dessus de la BottomNav (58 px) et de la zone de sécurité du bas :
+       à 10 px du bord, un message d'erreur passait sous la barre dans l'app. */
+    bottom: calc(10px + 58px + var(--safe-bottom, 0px));
     right: 10px;
     left: 10px;
     max-width: none;

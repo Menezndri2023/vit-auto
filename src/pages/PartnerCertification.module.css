@@ -48,7 +48,7 @@
 /* ── Toast ─────────────────────────────────────────────────── */
 .toast {
   position: fixed;
-  top: 80px; right: 20px;
+  top: calc(80px + var(--safe-top, 0px)); right: 20px;
   z-index: 9999;
   padding: 14px 20px;
   border-radius: 12px;

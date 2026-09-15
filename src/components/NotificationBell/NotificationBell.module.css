@@ -260,7 +260,7 @@
   /* Panel plein largeur sur mobile */
   .panel {
     position: fixed;
-    top: var(--navbar-h, 64px);
+    top: var(--navbar-total, var(--navbar-h, 64px));
     right: 0;
     left: 0;
     width: 100%;

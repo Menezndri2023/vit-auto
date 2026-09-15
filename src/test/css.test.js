@@ -150,4 +150,30 @@ describe("Cibles tactiles hors des cartes", () => {
     expect(bloc, "espacement de liste ramené à 0").toMatch(/\.col ul\s*\{\s*gap:\s*0/);
     expect(bloc, "icônes sociales portées à 44 px").toMatch(/width:\s*44px/);
   });
+
+  // ── Encoche iOS : une seule réserve, dans la barre de navigation ─────────
+  // Dans l'app iOS (2026-09-15), une bande claire vide séparait la barre
+  // d'état de l'en-tête : body réservait la zone de sécurité du haut, le
+  // conteneur natif la réservait aussi (contentInset automatic), et la barre
+  // de navigation — la seule qui devrait l'absorber, sombre sous une barre
+  // d'état claire — perdait son padding-top sous 900 px, écrasé par un
+  // `padding` en raccourci. Ces trois assertions verrouillent le schéma.
+  it("body ne réserve pas la zone d'encoche : c'est la barre de navigation qui l'absorbe", () => {
+    const base = lire("src", "index.css");
+    const bodyBlocs = [...base.matchAll(/(?:^|\n)\s*body\s*\{([^}]*)\}/g)].map((m) => m[1]);
+    expect(bodyBlocs.length).toBeGreaterThan(0);
+    for (const b of bodyBlocs) expect(b, "padding-top: var(--safe-top) sur body").not.toMatch(/padding-top:\s*var\(--safe-top/);
+    const nav = lire("src", "components", "Navbar", "Navbar.module.css");
+    const blocsNavbar = [...nav.matchAll(/\.navbar\s*\{([^}]*)\}/g)].map((m) => m[1]);
+    expect(blocsNavbar.length).toBeGreaterThanOrEqual(3);
+    for (const b of blocsNavbar) {
+      // Tout bloc qui redéfinit `padding` en raccourci doit remettre la réserve.
+      if (/(^|\s)padding:\s*0/.test(b)) expect(b, "un raccourci padding sans padding-top: var(--safe-top)").toMatch(/padding-top:\s*var\(--safe-top/);
+    }
+  });
+
+  it("le conteneur natif ne réserve pas la zone d'encoche une seconde fois", () => {
+    const config = JSON.parse(fs.readFileSync(path.join(process.cwd(), "capacitor.config.json"), "utf8"));
+    expect(config.ios?.contentInset).toBe("never");
+  });
 });

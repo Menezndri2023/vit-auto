@@ -16,8 +16,11 @@
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   color: white;
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-  /* Safe area iOS notch */
-  padding-top: max(0px, var(--safe-top, 0px));
+  /* Encoche iOS : la barre absorbe la zone de la barre d'état — elle est
+     sombre, la barre d'état est claire, l'ensemble ne fait qu'un. Répété dans
+     chaque bloc responsive qui redéfinit `padding` en raccourci, sinon le
+     raccourci remettait ce padding-top à 0 sous 900 px. */
+  padding-top: var(--safe-top, 0px);
   transition: background var(--t-base, 0.25s ease);
 }
 
@@ -298,7 +301,7 @@
    de fermeture, jamais pour gêner la lecture du reste de la page. */
 .activitiesBackdrop {
   position: fixed;
-  top: var(--navbar-h, 64px);
+  top: var(--navbar-total, var(--navbar-h, 64px));
   left: 0;
   right: 0;
   bottom: 0;
@@ -456,8 +459,9 @@
 @media (max-width: 900px) {
   .navbar {
     padding: 0 16px;
+    padding-top: var(--safe-top, 0px);
     height: auto;
-    min-height: var(--navbar-h, 64px);
+    min-height: var(--navbar-total, var(--navbar-h, 64px));
     flex-wrap: wrap;
     align-items: center;
     gap: 0;
@@ -585,7 +589,7 @@
     min-height: 44px;
   }
 
-  .navbar { padding: 0 12px; }
+  .navbar { padding: 0 12px; padding-top: var(--safe-top, 0px); }
   .navLinks { width: calc(100% + 24px); margin: 0 -12px; }
 }
 

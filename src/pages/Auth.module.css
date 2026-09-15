@@ -15,8 +15,8 @@
      pour 844 px de fenêtre.
      `dvh` suit en plus la barre d'adresse mobile, qui se rétracte au
      défilement — `vh` s'en tient à sa hauteur maximale et déborde. */
-  min-height: calc(100vh - var(--navbar-h, 64px));
-  min-height: calc(100dvh - var(--navbar-h, 64px));
+  min-height: calc(100vh - var(--navbar-total, var(--navbar-h, 64px)));
+  min-height: calc(100dvh - var(--navbar-total, var(--navbar-h, 64px)));
   display: flex;
   align-items: center;
   justify-content: center;

@@ -95,6 +95,9 @@
   /* Layout */
   --max-w:      1240px;
   --navbar-h:   64px;
+  /* Hauteur réelle de l'en-tête collant : la barre + la zone d'encoche qu'elle
+     absorbe. À utiliser pour tout ce qui se cale sous l'en-tête. */
+  --navbar-total: calc(var(--navbar-h) + var(--safe-top, 0px));
 
   /* Safe area (notch iOS / barre Android) */
   --safe-top:    env(safe-area-inset-top,    0px);
@@ -131,8 +134,10 @@ body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Padding safe area pour Capacitor (notch) */
-  padding-top: var(--safe-top);
+  /* Aucune réserve d'encoche ICI : c'est la barre de navigation, sombre et
+     collante, qui s'étend sous la barre d'état (Navbar.module.css). Réservée
+     sur body, la zone apparaissait comme une bande claire vide entre la
+     barre d'état et l'en-tête dans l'app iOS (constaté le 2026-09-15). */
 }
 
 /* ── Base RTL (arabe) ──────────────────────────────────────────────────────
@@ -265,7 +270,7 @@ input, select, textarea {
 /* ── Utilitaires globaux ────────────────────────────────────── */
 .vit-page {
   width: 100%;
-  min-height: calc(100vh - var(--navbar-h));
+  min-height: calc(100vh - var(--navbar-total, var(--navbar-h)));
   max-width: var(--max-w);
   margin: 0 auto;
   padding: var(--sp-6);
@@ -344,13 +349,9 @@ input, select, textarea {
 }
 
 /* ── Capacitor / Mobile app ─────────────────────────────────── */
-@media (display-mode: standalone) {
-  /* Mode PWA / Capacitor installé */
-  body {
-    padding-top: var(--safe-top);
-    padding-bottom: var(--safe-bottom);
-  }
-}
+/* Mode PWA / Capacitor installé : aucune réserve globale — l'en-tête prend
+   la zone du haut (Navbar), la barre du bas celle du bas (BottomNav et
+   Layout.pageWithBottomNav). Une réserve sur body s'additionnait aux deux. */
 
 /* ─── Champs date sur iPhone ──────────────────────────────────────────────
    Safari iOS rend <input type="date"> comme un bouton natif : texte centré,
