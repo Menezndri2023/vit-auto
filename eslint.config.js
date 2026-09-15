@@ -3,6 +3,7 @@ import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
+import lectureAvantDeclaration from './eslint-rules/lecture-avant-declaration.js'
 
 export default defineConfig([
   globalIgnores(['dist']),
@@ -22,8 +23,11 @@ export default defineConfig([
         sourceType: 'module',
       },
     },
+    plugins: { vit: { rules: { 'lecture-avant-declaration': lectureAvantDeclaration } } },
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // Zone morte temporelle au rendu — voir eslint-rules/lecture-avant-declaration.js.
+      'vit/lecture-avant-declaration': 'error',
       'react-hooks/purity': 'off', // faux positifs sur les event handlers (React Compiler non utilisé)
       // Règles du React Compiler (non utilisé ici) : « preserve-manual-memoization »
       // et « immutability » signalent des motifs que le compilateur ne saurait

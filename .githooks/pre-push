@@ -41,6 +41,9 @@ fi
 echo $$ > "$VERROU"
 trap 'rm -f "$VERROU"' EXIT
 
+echo "── 0/6  lecture avant déclaration (TDZ au rendu) ──"
+node scripts/verifierTDZ.mjs
+
 echo "── 1/6  tests front ──"
 npx vitest run --reporter=dot 2>&1 | tail -3
 

@@ -479,12 +479,62 @@ async function compteClient(browser) {
   for (const j of journal) ko(`client — ${j}`);
 }
 
+// ── VISITEUR et client NON VÉRIFIÉ : chaque page dynamique se rend sans page de secours ──
+// La garde visitait ces pages connectée en admin ; la réservation d'un
+// chauffeur plantait pour tout visiteur (2026-09-15, production). Ici : les
+// mêmes pages hors connexion, puis avec un client tout juste inscrit (KYC
+// EN_ATTENTE) — le profil de la majorité des vrais utilisateurs.
+async function visiteur(browser) {
+  const journal = [];
+  const client = await apiAs(CLIENT);
+  const api = async (chemin) => (await fetch(`${API}${chemin}`)).json().catch(() => ({}));
+  const veh = ((await api("/api/vehicles?limit=1")).vehicles || [])[0];
+  const drv = ((await api("/api/drivers")) || [])[0];
+  const act = (((await api("/api/activities?limit=1")).activities) || [])[0];
+  const ie = (((await api("/api/import-export/listings")).listings) || [])[0];
+  const showroom = (((await api("/api/pms/showrooms")).showrooms) || [])[0];
+  const pages = [
+    veh && `/vehicle/${veh._id}`, veh && `/booking/${veh._id}`,
+    drv && `/driver-booking/${drv._id}`, drv && `/driver-employment/${drv._id}`,
+    act && `/activity-booking/${act._id}`,
+    ie && `/import-export/listings/${ie._id}`,
+    showroom && `/showroom/${showroom.slug}`,
+    veh?.owner && `/partner/${veh.owner._id || veh.owner}`,
+    "/activites/casablanca", "/pieces-detachees/bosch", "/location-voiture/casablanca",
+    "/catalogue?mode=Chauffeur", "/catalogue?mode=Autres", "/catalogue?mode=Pieces", "/catalogue?mode=Acheter",
+  ].filter(Boolean);
+  // Client non vérifié : inscrit à l'instant par l'API (hors prod, e-mail vérifié d'office).
+  const email = `visiteur-${DECALAGE}-${Date.now()}@vitauto-fixtures.fr`;
+  const inscription = await fetch(`${API}/api/auth/register`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://vit-auto.com" }, body: JSON.stringify({ firstName: "Nouveau", lastName: "Client", email, password: "Verif-Locale-2026!", phone: `+2250701${String(100000 + (DECALAGE * 53) % 900000)}`, role: "client", country: "CI", birthDate: "1995-03-03" }) });
+  if (![200, 201].includes(inscription.status)) throw new Error(`inscription API : ${inscription.status} ${(await inscription.text()).slice(0, 120)}`);
+  for (const [role, id] of [["visiteur", null], ["client non vérifié", email]]) {
+    const { ctx, page } = await contexte(browser, role, journal);
+    if (id) await connecter(page, id, "Verif-Locale-2026!");
+    let rendues = 0;
+    for (const chemin of pages) {
+      await page.goto(`${BASE}${chemin}`, { waitUntil: "networkidle", timeout: 60000 }).catch(() => {});
+      await page.waitForTimeout(1200);
+      const t = await texte(page);
+      if (/Une erreur s'est produite/.test(t)) {
+        await page.getByText(/Détails techniques/).click().catch(() => {});
+        const detail = await page.evaluate(() => (document.querySelector("details")?.innerText || "").replace(/\s+/g, " ").slice(0, 160));
+        journal.push(`[${role}] page de secours sur ${chemin} — ${detail}`);
+      } else if (t.trim().length < 80) journal.push(`[${role}] page vide sur ${chemin}`);
+      else rendues++;
+    }
+    ok(`${role} : ${rendues}/${pages.length} pages dynamiques rendues sans page de secours`);
+    await ctx.close();
+  }
+  for (const j of journal) ko(`visiteur — ${j}`);
+}
+
 const PARCOURS = [
   ["Location — réservation, prolongation, clôture, avis", "location", location],
   ["Loisirs — réservation, séance, clôture", "loisirs", loisirs],
   ["Import/Export — du profil importateur aux fonds libérés", "ie", importExport],
   ["Partenaire — publication, approbation, secteurs, PMS, import de flotte", "partenaire", partenaire],
   ["Client — inscription, favoris, panier, profil, notifications, chat, fidélité, KYC", "client", compteClient],
+  ["Visiteur et client non vérifié — pages dynamiques sans page de secours", "visiteur", visiteur],
 ];
 const browser = await chromium.launch({ executablePath: EXE, headless: true });
 for (const [nom, cle, fn] of PARCOURS) {

@@ -18,8 +18,6 @@ const DriverBooking = () => {
 
   const driver = getItemById(id);
 
-  const identitySatisfied = user?.kycStatus === "VERIFIE" || !!idFrontImage;
-
   const readImageFile = (file, setter) => {
     if (!file) return;
     const allowed = ["image/jpeg", "image/png", "image/webp"];
@@ -44,6 +42,12 @@ const DriverBooking = () => {
   const [idFrontImage, setIdFrontImage] = useState(null);
   const [idBackImage, setIdBackImage] = useState(null);
   const [docError, setDocError] = useState("");
+  // Déclaré APRÈS idFrontImage : placé plus haut, `!!idFrontImage` lisait une
+  // constante avant sa déclaration (zone morte temporelle). Le `||` masquait le
+  // défaut pour un client déjà vérifié — court-circuit — et le révélait pour
+  // tout visiteur non connecté ou non vérifié : page de secours à la place du
+  // formulaire de réservation d'un chauffeur (constaté en production, iPhone).
+  const identitySatisfied = user?.kycStatus === "VERIFIE" || !!idFrontImage;
   const [missionDate, setMissionDate] = useState("");
   const [missionTime, setMissionTime] = useState("");
   const [lieuDepart,  setLieuDepart]  = useState("");

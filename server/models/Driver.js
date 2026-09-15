@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { cacheClear } from "../utils/catalogCache.js";
 import { LICENSE_CATEGORIES } from "../constants/licenseCategories.js";
 
 const driverSchema = new mongoose.Schema({
@@ -173,6 +174,14 @@ driverSchema.pre("save", function (next) {
   this.updatedAt = new Date();
   next();
 });
+
+// Le cache catalogue (utils/catalogCache.js, 30 s, par processus) n'était
+// jamais invalidé : une annonce vendue ou archivée restait listée jusqu'à
+// trente secondes, et son ouverture répondait « introuvable » (constaté par
+// le parcours visiteur, 2026-09-15). Toute écriture sur ce modèle — quel que
+// soit le chemin, y compris findByIdAndUpdate depuis les transactions — vide
+// le cache ; il se reconstruit à la lecture suivante.
+driverSchema.post(["save", "findOneAndUpdate", "updateOne", "updateMany", "deleteOne", "deleteMany", "findOneAndDelete", "insertMany"], function () { cacheClear(); });
 
 const Driver = mongoose.models.Driver || mongoose.model("Driver", driverSchema);
 export default Driver;

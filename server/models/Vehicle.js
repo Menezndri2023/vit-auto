@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { cacheClear } from "../utils/catalogCache.js";
 
 const vehicleSchema = new mongoose.Schema({
   // ── Informations principales ──────────────────────────────
@@ -420,6 +421,14 @@ vehicleSchema.pre("save", function (next) {
   }
   next();
 });
+
+// Le cache catalogue (utils/catalogCache.js, 30 s, par processus) n'était
+// jamais invalidé : une annonce vendue ou archivée restait listée jusqu'à
+// trente secondes, et son ouverture répondait « introuvable » (constaté par
+// le parcours visiteur, 2026-09-15). Toute écriture sur ce modèle — quel que
+// soit le chemin, y compris findByIdAndUpdate depuis les transactions — vide
+// le cache ; il se reconstruit à la lecture suivante.
+vehicleSchema.post(["save", "findOneAndUpdate", "updateOne", "updateMany", "deleteOne", "deleteMany", "findOneAndDelete", "insertMany"], function () { cacheClear(); });
 
 const Vehicle = mongoose.models.Vehicle || mongoose.model("Vehicle", vehicleSchema);
 export default Vehicle;
