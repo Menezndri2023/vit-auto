@@ -76,8 +76,12 @@ Produites par `node scripts/capturesAppStore.mjs` (Chromium de la garde,
 site de production, User-Agent iPhone/iPad, compte de démonstration
 connecté) dans `~/Desktop/Captures-App-Store/` :
 
-- `iphone/` — 7 captures **1290 × 2796** (iPhone 6,7") ;
-- `ipad/` — 7 captures **2064 × 2752** (iPad 13").
+- `iphone-6.7/` 1290 × 2796 · `iphone-6.5/` 1284 × 2778 ;
+- `ipad-13/` 2064 × 2752 · `ipad-12.9/` 2048 × 2732.
+
+Le créneau proposé par App Store Connect varie (le compte VIT AUTO demande
+l'iPhone 6,5" : « 1242 × 2688 ou 1284 × 2778 ») — prendre le dossier dont
+les dimensions correspondent au message du créneau.
 
 Ordre : accueil, catalogue, fiche véhicule, import/export, réservation
 (badge CERTIFIÉ), espace client, vérification d'identité. Glisser les 7 dans

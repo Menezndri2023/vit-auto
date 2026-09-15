@@ -1,5 +1,5 @@
 import { chromium } from "playwright-core";
-import { readdirSync, existsSync, readFileSync } from "fs";
+import { readdirSync, existsSync, readFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 
@@ -15,11 +15,16 @@ const password = creds.match(/Password  : (.*)/)[1].trim();
 const OUT = join(homedir(), "Desktop", "Captures-App-Store");
 
 // Apple : iPhone 6,7" = 1290×2796 (430×932 @3x) ; iPad 13" = 2064×2752 (1032×1376 @2x)
+// Apple accepte, selon le créneau : iPhone 6,9" 1320×2868 · 6,7" 1290×2796 ·
+// 6,5" 1284×2778 · iPad 13" 2064×2752 · 12,9" 2048×2732. Le créneau proposé
+// par App Store Connect varie selon le compte : on produit les quatre.
+const UA_IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 VIT-AUTO-iOS";
+const UA_IPAD   = "Mozilla/5.0 (iPad; CPU OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 VIT-AUTO-iOS";
 const APPAREILS = {
-  iphone: { viewport: { width: 430, height: 932 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true,
-    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 VIT-AUTO-iOS" },
-  ipad:   { viewport: { width: 1032, height: 1376 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true,
-    userAgent: "Mozilla/5.0 (iPad; CPU OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 VIT-AUTO-iOS" },
+  "iphone-6.7": { viewport: { width: 430,  height: 932  }, deviceScaleFactor: 3, isMobile: true, hasTouch: true, userAgent: UA_IPHONE },
+  "iphone-6.5": { viewport: { width: 428,  height: 926  }, deviceScaleFactor: 3, isMobile: true, hasTouch: true, userAgent: UA_IPHONE },
+  "ipad-13":    { viewport: { width: 1032, height: 1376 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: UA_IPAD },
+  "ipad-12.9":  { viewport: { width: 1024, height: 1366 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: UA_IPAD },
 };
 
 const r = await fetch(`${API}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identifier: email, password }) });
@@ -41,6 +46,7 @@ for (const [nom, cfg] of Object.entries(APPAREILS)) {
   const ctx = await browser.newContext({ ...cfg, locale: "fr-FR", timezoneId: "Africa/Abidjan" });
   // Pas de splash/service worker : on capture le site rendu, comme l'app.
   await ctx.addInitScript(() => { try { localStorage.setItem("vit-auto-splash-seen", "1"); localStorage.setItem("vit-auto-guide-client", "1"); } catch {} });
+  mkdirSync(join(OUT, nom), { recursive: true });
   const page = await ctx.newPage();
   for (const [fichier, chemin, connecte] of PAGES) {
     if (connecte) {
