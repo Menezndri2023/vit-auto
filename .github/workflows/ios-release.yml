@@ -70,12 +70,33 @@ jobs:
         run: npx cap sync ios
 
       - name: Installer la clé d'API App Store Connect
+        # Le secret est accepté sous deux formes : le fichier .p8 complet
+        # (avec ses lignes BEGIN/END), ou seulement son corps base64 — c'est
+        # ce qu'on obtient en copiant depuis certains éditeurs. Espaces, lignes
+        # vides et retours Windows sont nettoyés : la première tentative réelle
+        # a échoué sur un en-tête absent, pas sur une clé fausse.
         run: |
           mkdir -p "$HOME/private_keys"
-          printf '%s\n' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
-          chmod 600 "$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
-          head -1 "$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8" | grep -q "BEGIN PRIVATE KEY" \
-            || { echo "::error::APP_STORE_CONNECT_PRIVATE_KEY ne ressemble pas à un fichier .p8 (doit commencer par -----BEGIN PRIVATE KEY-----)"; exit 1; }
+          FICHIER="$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          CORPS=$(printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" | tr -d '\r' | grep -v "PRIVATE KEY" | tr -d ' \t\n')
+          if [ -z "$CORPS" ]; then
+            echo "::error::APP_STORE_CONNECT_PRIVATE_KEY est vide après nettoyage — recollez le contenu du fichier AuthKey_XXXX.p8."
+            exit 1
+          fi
+          {
+            echo "-----BEGIN PRIVATE KEY-----"
+            printf '%s' "$CORPS" | fold -w 64
+            echo
+            echo "-----END PRIVATE KEY-----"
+          } > "$FICHIER"
+          chmod 600 "$FICHIER"
+          # Une clé .p8 d'App Store Connect fait ~200 caractères base64 ; en
+          # dessous, ce n'est pas une clé (souvent le Key ID collé par erreur).
+          if [ "${#CORPS}" -lt 150 ]; then
+            echo "::error::APP_STORE_CONNECT_PRIVATE_KEY est trop court (${#CORPS} caractères) : ce n'est pas le contenu du fichier .p8 — vérifiez que vous n'avez pas collé le Key ID à la place."
+            exit 1
+          fi
+          echo "Clé installée (${#CORPS} caractères base64)."
 
       - name: Archiver (Release, signature gérée par Apple)
         working-directory: ios/App
