@@ -123,6 +123,16 @@ describe("eligibilityEngine.evaluateEligibility", () => {
     expect(result.eligible).toBe(true);
   });
 
+  it("n'exige ni identité ni permis pour une mission chauffeur : le chauffeur partenaire a fourni les siens", () => {
+    // Décision de l'exploitant (2026-09-15) : un client non vérifié réserve
+    // un chauffeur sans joindre de document ; c'est le partenaire chauffeur
+    // qui a remis identité et permis à la publication de son profil.
+    const r = evaluateEligibility({ user: { kycStatus: "EN_ATTENTE", phoneVerified: true }, vehicle: { withDriver: true }, bookingType: "chauffeur", providedDocuments: { identity: false, license: false } });
+    expect(r.eligible).toBe(true);
+    expect(r.requiredVerification.identityDocument).toBe(false);
+    expect(r.requiredVerification.drivingLicense).toBe(false);
+  });
+
   it("n'exige aucun permis pour une location avec chauffeur (Vehicle.withDriver)", () => {
     const vehicle = { withDriver: true };
     const result = evaluateEligibility({

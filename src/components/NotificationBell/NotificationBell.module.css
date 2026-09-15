@@ -257,6 +257,14 @@
 
 /* ── Mobile ── */
 @media (max-width: 640px) {
+  /* Même gabarit que la langue et le burger de la barre (44 px, coins 10) */
+  .bell {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 10px;
+  }
+
   /* Panel plein largeur sur mobile */
   .panel {
     position: fixed;

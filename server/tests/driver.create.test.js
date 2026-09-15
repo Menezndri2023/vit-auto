@@ -45,13 +45,26 @@ describe("driverController.createDriver — contrôle d'accès à la publication
     expect(saved.owner.toString()).toBe(founder._id.toString());
   });
 
-  it("bloque un particulier non-fondateur sans KYC vérifié (KYC_REQUIRED)", async () => {
+  it("un particulier sans KYC préalable publie dès que identité et permis sont joints : ce sont ses documents (2026-09-15)", async () => {
+    // Décision de l'exploitant : les documents suivent le service et l'entité.
+    // Pour un chauffeur particulier, la pièce et le permis joints au profil
+    // sont sa vérification — l'admin les examine à la modération. Un KYC
+    // préalable par /kyc bloquait un vrai chauffeur pendant cinq jours.
     const seller = await createUser({ role: "partenaire", sellerType: "particulier", kycStatus: "EN_ATTENTE" });
     const { req, res } = mockReqRes({ user: seller, body: minimalDriver() });
     await createDriver(req, res);
 
-    expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.body.code).toBe("KYC_REQUIRED");
+    expect(res.status).not.toHaveBeenCalledWith(403);
+    expect(res.body.driver.status).toBe("pending");
+  });
+
+  it("un particulier sans KYC préalable reste bloqué s'il ne joint pas ses documents", async () => {
+    const seller = await createUser({ role: "partenaire", sellerType: "particulier", kycStatus: "EN_ATTENTE" });
+    const { req, res } = mockReqRes({ user: seller, body: minimalDriver({ identityDocument: undefined }) });
+    await createDriver(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.body.code).toBe("DRIVER_DOCS_REQUIRED");
   });
 
   it("bloque un professionnel sans badge de certification (CERTIFICATION_REQUIRED)", async () => {

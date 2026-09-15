@@ -5,11 +5,13 @@ import { useCart } from "../../context/CartContext";
 import NotificationBell from "../NotificationBell/NotificationBell";
 import LanguageSelector from "../LanguageSelector/LanguageSelector";
 import VitAutoLogo from "../Logo/VitAutoLogo";
+import useIsMobile from "../../hooks/useIsMobile";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "../../constants/activityTypes";
 import styles from "./Navbar.module.css";
 
 const Navbar = () => {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const { user, isAuthenticated, logout } = useAuth();
   const { count: cartCount } = useCart();
   const [menuOpen, setMenuOpen]       = useState(false);
@@ -83,7 +85,9 @@ const Navbar = () => {
     <nav className={styles.navbar} ref={menuRef}>
       {/* Logo */}
       <div className={styles.logo} onClick={() => navigate("/")} style={{ cursor: "pointer" }}>
-        <VitAutoLogo iconSize={40} variant="white" showText tagline={false} />
+        {/* Le logo dimensionne son texte d'après l'icône (styles en ligne) :
+            on le réduit par la prop plutôt que par un !important en CSS. */}
+        <VitAutoLogo iconSize={isMobile ? 32 : 40} variant="white" showText tagline={false} />
       </div>
 
       {/* Liens principaux — sur mobile, c'est le menu ouvert par le burger */}

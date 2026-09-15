@@ -302,6 +302,10 @@ input, select, textarea {
 }
 
 @media (max-width: 640px) {
+  /* En-tête d'application sur téléphone : 56 px (barre Android, 44 pt + marge
+     iOS) au lieu des 64 px du bureau. Tout ce qui se cale sous l'en-tête suit
+     la variable, l'encoche s'ajoute par --navbar-total. */
+  :root { --navbar-h: 56px; }
   body { background: #f8f9fc; }
 
   /* Typographie fluide */

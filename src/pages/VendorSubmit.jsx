@@ -150,24 +150,11 @@ const VendorSubmit = () => {
   // ── Étape 2 : Type d'annonce
   const [adType, setAdType] = useState(""); // "location" | "vente" | "chauffeur"
 
-  // Vérification en amont des prérequis chauffeur (identité + permis) — avant
-  // ce correctif, un partenaire ne découvrait le blocage qu'après avoir rempli
-  // les 8 étapes du formulaire (photos, CV, tarifs…), au moment du clic final
-  // sur "Publier" (voir DRIVER_DOCS_REQUIRED plus bas). Un compte réel est
-  // resté bloqué 5 jours sans jamais republier après avoir complété son KYC,
-  // faute d'indication claire de ce qu'il restait à faire. Récapitulatif
-  // affiché dès le choix "Service chauffeur", avec lien direct vers ce qui
-  // manque encore.
-  const [driverReq, setDriverReq] = useState(null);
-  useEffect(() => {
-    if (adType !== "chauffeur" || !token || driverReq) return;
-    api.get("/api/kyc/status")
-      .then((d) => setDriverReq({
-        identityOk: d?.identityStatus === "verified",
-        licenseOk:  !!(d?.driverLicenseOcr?.licenseNumber && !d?.driverLicenseOcr?.isExpired),
-      }))
-      .catch(() => {});
-  }, [adType, token, driverReq]);
+  // Documents d'un profil chauffeur (identité + permis) : joints DANS ce
+  // formulaire, à l'étape 6, sans vérification préalable — pour un
+  // particulier, ce sont sa vérification (décision de l'exploitant,
+  // 2026-09-15). L'ancien récapitulatif renvoyait vers /kyc avant même de
+  // commencer : un compte réel y est resté bloqué cinq jours.
 
   // ── Leasing (LOA — pour vente uniquement)
   const [leasing, setLeasing] = useState({
@@ -1024,29 +1011,19 @@ const VendorSubmit = () => {
               </button>
             </div>
 
-            {adType === "chauffeur" && driverReq && (!driverReq.identityOk || !driverReq.licenseOk) && (
-              <div className={styles.infoBanner} style={{ marginTop: 16, borderColor: "#f59e0b", background: "#fffbeb" }}>
-                <p style={{ margin: "0 0 8px", fontWeight: 700, color: "#92400e" }}>
-                  ⚠️ Avant de continuer : deux vérifications sont nécessaires pour publier un profil chauffeur
+            {adType === "chauffeur" && (
+              <div className={styles.infoBanner} style={{ marginTop: 16 }}>
+                <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#0f1b3f" }}>
+                  📄 Deux documents vous seront demandés à l'étape 6 — dans ce formulaire, sans vérification préalable
                 </p>
-                <ul style={{ margin: "0 0 10px", paddingLeft: 20, fontSize: ".88rem", color: "#78350f" }}>
-                  <li>{driverReq.identityOk ? "✅" : "❌"} Pièce d'identité vérifiée</li>
-                  <li>{driverReq.licenseOk ? "✅" : "❌"} Permis de conduire enregistré</li>
+                <ul style={{ margin: 0, paddingLeft: 20, fontSize: ".88rem", color: "#334155" }}>
+                  <li>Pièce d'identité (carte nationale, passeport ou carte de séjour) — recto, verso si présent</li>
+                  <li>Permis de conduire — recto, verso si présent</li>
                 </ul>
-                <p style={{ margin: "0 0 10px", fontSize: ".82rem", color: "#78350f" }}>
-                  Autant les compléter maintenant — le formulaire suivant (photos, tarifs…) ne sera utile
-                  que si ces deux étapes sont validées.
+                <p style={{ margin: "8px 0 0", fontSize: ".82rem", color: "#64748b" }}>
+                  Ils sont transmis à l'équipe VIT AUTO avec votre profil et examinés à sa validation. Une entreprise fournit en plus la certification de l'entité.
                 </p>
-                <button type="button" className={styles.secondaryBtn}
-                  onClick={() => { try { localStorage.setItem(DRIVER_INTENT_KEY, "1"); } catch { /* ignore */ } navigate("/kyc?next=driver-docs"); }}>
-                  Compléter maintenant →
-                </button>
               </div>
-            )}
-            {adType === "chauffeur" && driverReq && driverReq.identityOk && driverReq.licenseOk && (
-              <p style={{ marginTop: 16, fontSize: ".85rem", color: "#059669", fontWeight: 600 }}>
-                ✅ Identité et permis déjà vérifiés — vous pouvez publier directement.
-              </p>
             )}
           </div>
         );

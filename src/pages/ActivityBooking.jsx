@@ -143,10 +143,10 @@ const ActivityBooking = () => {
       error("Veuillez remplir toutes vos informations.");
       return;
     }
-    if (!passportNumber.trim()) {
-      error("Le numéro de passeport est obligatoire.");
-      return;
-    }
+    // Aucun document exigé pour une activité (décision de l'exploitant,
+    // 2026-09-15 : les documents suivent le service ; le client ne conduit
+    // pas). Le numéro de passeport reste possible, pour les prestataires qui
+    // le demandent à l'accueil (plongée, sorties en mer), jamais obligatoire.
     if (!activityStart) {
       error("Veuillez choisir la date et l'heure de l'activité.");
       return;
@@ -270,7 +270,7 @@ const ActivityBooking = () => {
         <input className={styles.input} placeholder="Nom *" value={lastName} onChange={(e) => setLastName(e.target.value)} />
         <input className={styles.input} type="email" placeholder="E-mail *" value={email} onChange={(e) => setEmail(e.target.value)} />
         <input className={styles.input} type="tel" placeholder="Téléphone *" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        <input className={`${styles.input} ${dbStyles.fieldFull}`} placeholder="N° de passeport *" value={passportNumber} onChange={(e) => setPassportNumber(e.target.value)} />
+        <input className={`${styles.input} ${dbStyles.fieldFull}`} placeholder="N° de passeport (facultatif)" value={passportNumber} onChange={(e) => setPassportNumber(e.target.value)} />
       </div>
 
       {activity.essaiDisponible && (

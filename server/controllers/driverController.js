@@ -110,7 +110,14 @@ export const createDriver = async (req, res) => {
       req.user.sellerType = req.body.typePubliant;
       await req.user.save();
     }
-    const refus = refusDePublication(req.user, "publier une annonce");
+    // Documents adaptés au service (décision de l'exploitant, 2026-09-15) :
+    // pour un chauffeur PARTICULIER, la pièce d'identité et le permis joints
+    // à ce profil (obligatoires, voir processDriverDocuments ci-dessous) SONT
+    // sa vérification — l'admin les voit à la modération de la fiche. Exiger
+    // en plus un KYC préalable par /kyc bloquait un vrai chauffeur cinq jours
+    // sans qu'il sache quoi faire (VendorSubmit.jsx). Une entreprise reste
+    // soumise à la certification de l'entité : ce sont SES documents.
+    const refus = req.user.sellerType === "particulier" ? null : refusDePublication(req.user, "publier un profil chauffeur");
     if (refus) return res.status(403).json(refus);
 
     // Secteur Chauffeur, puis quota du plan (voir perimetre.js et

@@ -18,17 +18,6 @@ const DriverBooking = () => {
 
   const driver = getItemById(id);
 
-  const readImageFile = (file, setter) => {
-    if (!file) return;
-    const allowed = ["image/jpeg", "image/png", "image/webp"];
-    if (!allowed.includes(file.type)) { setDocError("Format non autorisé. Utilisez JPG, PNG ou WebP."); return; }
-    if (file.size > 6 * 1024 * 1024) { setDocError("Fichier trop volumineux (max 6 Mo)."); return; }
-    setDocError("");
-    const reader = new FileReader();
-    reader.onload = (e) => setter(e.target.result);
-    reader.readAsDataURL(file);
-  };
-
   const [firstName, setFirstName] = useState(user?.firstName || "");
   const [lastName,  setLastName]  = useState(user?.lastName  || "");
   const [email,     setEmail]     = useState(user?.email     || "");
@@ -38,16 +27,6 @@ const DriverBooking = () => {
   // client — seule la pièce d'identité est demandée, jamais de permis
   // (voir eligibilityEngine.js, bookingType "chauffeur" avec withDriver:true).
   // Demandée en dernière étape, pour conclure la réservation.
-  const [idType, setIdType] = useState("cni");
-  const [idFrontImage, setIdFrontImage] = useState(null);
-  const [idBackImage, setIdBackImage] = useState(null);
-  const [docError, setDocError] = useState("");
-  // Déclaré APRÈS idFrontImage : placé plus haut, `!!idFrontImage` lisait une
-  // constante avant sa déclaration (zone morte temporelle). Le `||` masquait le
-  // défaut pour un client déjà vérifié — court-circuit — et le révélait pour
-  // tout visiteur non connecté ou non vérifié : page de secours à la place du
-  // formulaire de réservation d'un chauffeur (constaté en production, iPhone).
-  const identitySatisfied = user?.kycStatus === "VERIFIE" || !!idFrontImage;
   const [missionDate, setMissionDate] = useState("");
   const [missionTime, setMissionTime] = useState("");
   const [lieuDepart,  setLieuDepart]  = useState("");
@@ -131,10 +110,6 @@ const DriverBooking = () => {
       error("Veuillez remplir toutes vos informations.");
       return;
     }
-    if (!identitySatisfied) {
-      error("Veuillez ajouter votre pièce d'identité pour conclure la réservation.");
-      return;
-    }
     if (!missionStart) {
       error("Veuillez choisir la date et l'heure de la mission.");
       return;
@@ -164,7 +139,6 @@ const DriverBooking = () => {
           type: "chauffeur",
           driverId: id,
           clientInfo: { firstName, lastName, email, phone },
-          ...(idFrontImage ? { documents: { identity: { type: idType, frontImage: idFrontImage, backImage: idBackImage || undefined } } } : {}),
           chauffeur: { date: missionStart.toISOString(), unite: uniteActive.key, quantite: qte, heures, lieuDepart: lieuDepart.trim() || undefined },
           // Chauffeur = espèces auprès du partenaire (TYPES_ESPECES_UNIQUEMENT,
           // règle serveur) : aucun choix à faire ici.
@@ -338,36 +312,10 @@ const DriverBooking = () => {
         Votre demande est transmise <strong>directement au partenaire</strong>, sans étape intermédiaire : vous êtes prévenu(e) dès sa réponse.
       </p>
 
-      {/* Document lié à LA RÉSERVATION (restructuration 2026-09) — demandé ici,
-          en dernière étape, pour conclure la réservation. Transmis directement
-          au chauffeur/partenaire, conservé pour l'admin en cas de litige. */}
-      <h2 className={dbStyles.sectionTitle}>📄 Votre pièce d'identité</h2>
-      {user?.kycStatus === "VERIFIE" ? (
-        <p style={{ fontSize: "0.85rem", color: "#059669", margin: "0 0 12px" }}>✅ Identité déjà vérifiée sur votre compte.</p>
-      ) : (
-        <>
-          <div className={dbStyles.formGrid2}>
-            <select className={styles.input} value={idType} onChange={(e) => setIdType(e.target.value)}>
-              <option value="cni">Carte d'identité</option>
-              <option value="passport">Passeport</option>
-              <option value="carte_sejour">Carte de séjour</option>
-            </select>
-          </div>
-          <div className={dbStyles.formGrid2}>
-            <label style={{ cursor: "pointer", border: "1.5px dashed #cbd5e1", borderRadius: 10, padding: 14, textAlign: "center", fontSize: "0.85rem" }}>
-              <input type="file" accept="image/*" capture="environment" style={{ display: "none" }}
-                onChange={(e) => readImageFile(e.target.files?.[0], setIdFrontImage)} />
-              {idFrontImage ? <img src={idFrontImage} alt="" style={{ maxHeight: 90, borderRadius: 8 }} /> : <span>Ajouter le recto</span>}
-            </label>
-            <label style={{ cursor: "pointer", border: "1.5px dashed #cbd5e1", borderRadius: 10, padding: 14, textAlign: "center", fontSize: "0.85rem" }}>
-              <input type="file" accept="image/*" capture="environment" style={{ display: "none" }}
-                onChange={(e) => readImageFile(e.target.files?.[0], setIdBackImage)} />
-              {idBackImage ? <img src={idBackImage} alt="" style={{ maxHeight: 90, borderRadius: 8 }} /> : <span>Ajouter le verso (optionnel)</span>}
-            </label>
-          </div>
-          {docError && <p style={{ color: "#dc2626", fontSize: "0.85rem" }}>⚠️ {docError}</p>}
-        </>
-      )}
+      {/* Aucun document demandé au client pour une mission chauffeur (décision
+          de l'exploitant, 2026-09-15) : c'est le chauffeur partenaire qui a
+          fourni identité et permis à la publication de son profil. Le client
+          ne conduit pas. Même règle côté serveur (eligibilityEngine). */}
 
       {/* Total + confirmation */}
       <div className={dbStyles.totalBar}>
@@ -377,7 +325,7 @@ const DriverBooking = () => {
         </strong>
       </div>
 
-      <button onClick={handleSubmit} disabled={submitting || !missionStart || !!slotConflict || !uniteActive || !identitySatisfied}
+      <button onClick={handleSubmit} disabled={submitting || !missionStart || !!slotConflict || !uniteActive}
         className={dbStyles.submitBtn}>
         {submitting ? "Envoi en cours…" : "Réserver ce chauffeur"}
       </button>

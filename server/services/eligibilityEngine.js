@@ -78,11 +78,17 @@ export function evaluateEligibility({
   // score de fraude automatique (voir queue/workers/ai.worker.js). Les autres
   // types (leasing, activité, chauffeur) gardent l'ancien déclenchement,
   // opt-in par véhicule/politique.
+  // Décision de l'exploitant (2026-09-15) : les documents demandés au client
+  // suivent le service. Une mission ou une embauche de CHAUFFEUR n'en demande
+  // aucun — c'est le partenaire chauffeur qui fournit identité et permis à la
+  // publication (driverController, DRIVER_DOCS_REQUIRED). Idem activités et
+  // pièces détachées en vente directe. Identité et permis restent liés au
+  // volant : location et essai.
   const identityRequired =
     vehicle?.requiredVerificationLevel === "IDENTITY_VERIFIED" ||
     vehicle?.requiredVerificationLevel === "RENTAL_VERIFIED" ||
     rentalPolicy?.identityDocumentRequired === true ||
-    bookingType === "location" || bookingType === "essai" || bookingType === "chauffeur";
+    bookingType === "location" || bookingType === "essai";
   if (identityRequired) {
     requiredVerification.identityDocument = true;
     const satisfied = user?.kycStatus === "VERIFIE" || providedDocuments?.identity === true;

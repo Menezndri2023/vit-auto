@@ -589,8 +589,7 @@
     min-height: 44px;
   }
 
-  .navbar { padding: 0 12px; padding-top: var(--safe-top, 0px); }
-  .navLinks { width: calc(100% + 24px); margin: 0 -12px; }
+  .navbar { padding: 0 8px; padding-top: var(--safe-top, 0px); }
 }
 
 /* Amélioration du menu mobile ouvert */
@@ -636,4 +635,60 @@
   .userBadge {
     min-height: 44px;
   }
+}
+
+/* ── Téléphone : en-tête d'application ──────────────────────────────
+   Mesuré le 2026-09-15 à 320/375/430 px : trois commandes de trois styles
+   (langue encadrée de 47 px, cloche nue, burger encadré de 44 px), un logo
+   de 161 px, et à 320 px connecté la rangée de droite PASSAIT À LA LIGNE —
+   barre de 129 px, deux étages. Ici : barre de 56 px (index.css), logo
+   réduit par sa prop (Navbar.jsx), trois commandes identiques de 44 px sans
+   cadre, aucun retour à la ligne possible. */
+@media (max-width: 640px) {
+  .navbar {
+    padding: 0 10px;
+    padding-top: var(--safe-top, 0px);
+    flex-wrap: nowrap;
+  }
+  .logo, .navRight { height: var(--navbar-h, 56px); }
+  .logo { min-width: 0; }
+  .navRight {
+    gap: 2px;
+    flex-wrap: nowrap;
+  }
+  .navRight > * { flex-shrink: 0; }
+
+  /* Même gabarit que la langue et la cloche (44 px, sans cadre au repos) */
+  .burger {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    gap: 4px;
+    background: transparent;
+    border-color: transparent;
+    border-radius: 10px;
+  }
+  .burger span { width: 18px; }
+  .burgerOpen {
+    background: rgba(255,255,255,0.12);
+    border-color: rgba(255,255,255,0.18);
+  }
+  .burgerOpen span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+  .burgerOpen span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+  /* Le menu ouvert se pose sous la barre, en superposition, sans la
+     déformer : la barre garde ses 56 px et le menu défile seul. */
+  .navLinks {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    width: auto;
+    margin: 0;
+    border-radius: 0 0 16px 16px;
+    max-height: calc(100dvh - var(--navbar-total, 56px) - 72px);
+  }
+  .navLinks a { padding: 12px 14px; min-height: 46px; }
 }

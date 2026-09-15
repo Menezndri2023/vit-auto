@@ -155,6 +155,38 @@ Pour activer les verrous plus tôt que la date : avancer `FIN_IMMUNITE_QUOTAS`
 (`server/constants/planFeatures.js` et son miroir `src/`), ce qui active
 quotas ET verrous d'outils en même temps — les deux vont ensemble.
 
+## Documents demandés — adaptés au service et à l'entité (2026-09-15)
+
+Règle de l'exploitant : on ne demande que les documents qu'exige le service,
+à celui qui porte le risque. Un client qui ne conduit pas ne fournit rien ;
+un partenaire fournit les documents de SON entité et de SON métier.
+
+**Côté client**
+
+| Service | Documents à la réservation |
+|---|---|
+| Location | pièce d'identité (ou compte déjà vérifié) + permis, sauf véhicule avec chauffeur |
+| Achat / essai | pièce d'identité + permis (l'essai se conduit) |
+| Chauffeur — mission ou embauche | **aucun** |
+| Activités & loisirs | **aucun** (n° de passeport facultatif) |
+| Pièces détachées — vente directe | **aucun** ; à l'importation, les documents relèvent de la transaction d'import |
+| Import/Export de véhicule | aucun à la réservation ; documents d'import fournis dans la transaction (séquestre, douane) |
+
+Source : `server/services/eligibilityEngine.js` (identité et permis liés aux
+seuls types `location` et `essai`) ; formulaires `Booking.jsx`,
+`DriverBooking.jsx`, `ActivityBooking.jsx`.
+
+**Côté partenaire**
+
+| Entité | À la publication |
+|---|---|
+| Particulier — chauffeur | pièce d'identité + permis **joints au profil**, obligatoires (`DRIVER_DOCS_REQUIRED`) ; aucun KYC préalable — l'admin les examine à la modération |
+| Particulier — loueur, vendeur, loisirs, pièces | vérification d'identité du compte (KYC) |
+| Professionnel, entreprise, concessionnaire | certification de l'entité (RCCM, IBAN, documents export), ou autorisation provisoire accordée par l'admin ; un chauffeur salarié fournit en plus identité + permis sur son profil |
+| Partenaire Fondateur | exempté des deux (accord signé) |
+
+Source : `server/utils/publishingGate.js` (`refusDePublication`), `driverController.createDriver`.
+
 ## Ce que cette version ne fait pas encore
 
 - **Retrait d'un secteur** par le partenaire ou l'administration.
