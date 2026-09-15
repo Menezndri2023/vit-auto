@@ -99,21 +99,41 @@ jobs:
           echo "Clé installée (${#CORPS} caractères base64)."
 
       - name: Archiver (Release, signature gérée par Apple)
+        # Par défaut, `archive` signe en DÉVELOPPEMENT, ce qui exige un
+        # appareil enregistré et un certificat dont la clé privée vit sur la
+        # machine — deux choses qu'un runner neuf n'a pas (premier lancement
+        # réel : « Your team has no devices », « No profiles for
+        # com.vitauto.app »). On demande donc la signature de DISTRIBUTION dès
+        # l'archive : Apple génère le profil App Store sans appareil et gère
+        # le certificat dans le cloud. Si Xcode la refuse malgré tout, repli :
+        # archive NON signée, la signature étant alors faite à l'export.
         working-directory: ios/App
         run: |
           set -o pipefail
-          xcodebuild -project App.xcodeproj -scheme App -configuration Release \
-            -destination "generic/platform=iOS" \
-            -archivePath "$RUNNER_TEMP/App.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8" \
-            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
-            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
-            -skipPackagePluginValidation \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            MARKETING_VERSION="${{ inputs.version }}" \
-            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-            archive | tail -300
+          KEY="$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          COMMUN=(-project App.xcodeproj -scheme App -configuration Release
+            -destination "generic/platform=iOS"
+            -archivePath "$RUNNER_TEMP/App.xcarchive"
+            -allowProvisioningUpdates
+            -authenticationKeyPath "$KEY"
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID"
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+            -skipPackagePluginValidation
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
+            MARKETING_VERSION="${{ inputs.version }}"
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}")
+          echo "── Tentative 1 : archive signée en distribution (cloud) ──"
+          if xcodebuild "${COMMUN[@]}" CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Distribution" archive 2>&1 | tee "$RUNNER_TEMP/archive-1.log" | tail -120; then
+            echo "archive=signee" >> "$GITHUB_ENV"
+          else
+            echo "── Tentative 1 refusée ; erreurs : ──"
+            grep -E "error:" "$RUNNER_TEMP/archive-1.log" | sort -u | head -20 || true
+            echo "── Tentative 2 : archive non signée, signature à l'export ──"
+            rm -rf "$RUNNER_TEMP/App.xcarchive"
+            xcodebuild "${COMMUN[@]}" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO archive 2>&1 | tee "$RUNNER_TEMP/archive-2.log" | tail -120
+            echo "archive=non_signee" >> "$GITHUB_ENV"
+          fi
+          echo "Archive produite (mode : $(grep -h '^archive=' "$GITHUB_ENV" | tail -1))."
 
       - name: Exporter et envoyer vers App Store Connect (TestFlight)
         working-directory: ios/App
@@ -148,5 +168,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ios-export-logs-${{ github.run_number }}
-          path: ${{ runner.temp }}/export
+          path: |
+            ${{ runner.temp }}/export
+            ${{ runner.temp }}/archive-*.log
           if-no-files-found: ignore
