@@ -99,8 +99,23 @@ une divergence entraîne un rejet. Réponse à « Do you collect data ? » :
 
 ## Classification par âge
 
-Toutes les questions : **Aucun / Non** → classification **4+**.
-(Pas de contenu violent, sexuel, de jeu d'argent, ni d'achats intégrés.)
+**Contenu** (violence, sexualité, jeux d'argent, alcool, horreur, médical…) :
+**Aucun / Non** partout.
+
+**Fonctionnalités** — répondre honnêtement, c'est vérifié à la review :
+
+| Question | Réponse |
+|---|---|
+| Messagerie / chat entre utilisateurs | **Oui** (chat client ↔ partenaire, supervisé) |
+| Contenu généré par les utilisateurs | **Oui** (annonces, photos, avis) — modération, signalement : **Oui** |
+| Accès web non restreint | **Non** (l'app n'ouvre que vit-auto.com) |
+| Publicité de tiers | **Non** (bannières internes seulement) |
+| Achats intégrés | **Non** (paiements de services réels, pas d'IAP) |
+| Concours, loteries | **Non** |
+
+Résultat attendu : **12+ / 13+** — normal pour une place de marché avec
+messagerie ; déclarer « Non » au chat pour obtenir 4+ serait une fausse
+déclaration, motif de rejet.
 
 ## Prix et disponibilité
 
