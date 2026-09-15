@@ -72,15 +72,19 @@ VIT AUTO est aussi l'espace des partenaires : publiez vos véhicules, vos activi
 
 ## Captures d'écran
 
-- **iPhone 6,7"** (1290 × 2796) : 3 à 10 captures — obligatoire.
-- **iPad 13"** (2064 × 2752) : obligatoire tant que le projet cible l'iPad
-  (`TARGETED_DEVICE_FAMILY = 1,2`). Sans iPad sous la main : demander à passer
-  le projet en iPhone seul pour la 1.0 (un réglage), ce qui lève l'exigence.
+Produites par `node scripts/capturesAppStore.mjs` (Chromium de la garde,
+site de production, User-Agent iPhone/iPad, compte de démonstration
+connecté) dans `~/Desktop/Captures-App-Store/` :
 
-Écrans conseillés, dans cet ordre : accueil, catalogue filtré, fiche
-véhicule, réservation (récapitulatif avec frais de livraison), espace
-client (réservations), vérification d'identité, import/export.
-Produits depuis TestFlight sur iPhone : bouton latéral + volume haut.
+- `iphone/` — 7 captures **1290 × 2796** (iPhone 6,7") ;
+- `ipad/` — 7 captures **2064 × 2752** (iPad 13").
+
+Ordre : accueil, catalogue, fiche véhicule, import/export, réservation
+(badge CERTIFIÉ), espace client, vérification d'identité. Glisser les 7 dans
+l'ordre sur chaque onglet d'App Store Connect (3 minimum, 10 maximum).
+L'app affichant le site en direct, ces captures sont fidèles à ce que le
+reviewer verra ; le catalogue a besoin de ~8 s pour se remplir (le script
+attend).
 
 ## App Privacy (étiquettes)
 
@@ -124,14 +128,15 @@ Gratuit · tous les pays et régions (ou la liste des 28 pays configurés).
 ## App Review Information — OBLIGATOIRE
 
 L'app exige une connexion : sans compte de démonstration, rejet automatique
-(règle 2.1). À créer **en production** avant de soumettre :
+(règle 2.1). Le compte existe en production, créé par
+`node server/scripts/creerCompteReviewApple.mjs --apply` (relancer pour
+réinitialiser le mot de passe, `--supprimer` pour l'effacer) :
 
-1. Un compte **client** avec une adresse dédiée (ex. `review-apple@vit-auto.com`),
-   e-mail vérifié, **KYC validé par l'administration** (sinon le testeur bloque
-   à la vérification d'identité), quelques favoris et une réservation.
-2. Un compte **partenaire** approuvé, avec une ou deux annonces publiées.
-3. Ne pas marquer ces comptes comme comptes de test (`isTestAccount`) : ils
-   doivent voir le catalogue public complet.
+- **User name** : `review-apple@vit-auto.com`
+- **Password** : dans `~/Desktop/COMPTE-REVIEW-APPLE.txt` (jamais dans le dépôt)
+- Client, e-mail et téléphone vérifiés, identité VERIFIE avec score 96/100 —
+  le reviewer arrive directement sur un compte prêt à réserver. Pas marqué
+  compte de test : il voit le catalogue public complet.
 
 Champs : Sign-in required **Oui** · User name / Password : ceux du compte
 client · Contact : prénom, nom, téléphone, e-mail de la personne joignable
