@@ -146,17 +146,20 @@ jobs:
           echo "PROFIL_UUID=$UUID" >> "$GITHUB_ENV"
 
       - name: Archiver (Release, signature manuelle)
+        # La signature (identité, équipe, profil « VIT AUTO App Store ») est
+        # fixée sur la CIBLE App, configuration Release, dans le projet Xcode —
+        # pas en ligne de commande : un réglage passé à xcodebuild s'applique à
+        # toutes les cibles, et les bibliothèques Swift Package (IONCameraLib…)
+        # refusent un profil (« does not support provisioning profiles »).
         working-directory: ios/App
         run: |
+          # Le profil installé doit être celui que le projet nomme.
+          [ "$PROFIL_NOM" = "VIT AUTO App Store" ] || { echo "::error::Le profil fourni s'appelle « $PROFIL_NOM » ; le projet attend « VIT AUTO App Store » (PROVISIONING_PROFILE_SPECIFIER de la cible App)."; exit 1; }
           set -o pipefail
           xcodebuild -project App.xcodeproj -scheme App -configuration Release \
             -destination "generic/platform=iOS" \
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
             -skipPackagePluginValidation \
-            CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFIL_NOM" \
             MARKETING_VERSION="${{ inputs.version }}" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             archive 2>&1 | tee "$RUNNER_TEMP/archive.log" | tail -150
