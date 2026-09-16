@@ -96,6 +96,11 @@ const pricingConfigSchema = new mongoose.Schema({
     babySeat:  { type: Number, default: 0, min: 0 },
     insurance: { type: Number, default: 0, min: 0 },
     driver:    { type: Number, default: 0, min: 0 },
+    // Suppléments sans tarif plateforme (0) : proposés seulement par les
+    // partenaires qui les tarifent — voir services/rentalOptions.js.
+    additionalDriver: { type: Number, default: 0, min: 0 },
+    unlimitedMileage: { type: Number, default: 0, min: 0 },
+    airportDelivery:  { type: Number, default: 0, min: 0 },
   },
 
   subscriptions: {

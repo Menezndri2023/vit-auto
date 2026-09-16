@@ -24,11 +24,24 @@ const EMPTY_RENTAL_POLICY = {
 // à son prix. `offered` vide = aucune règle : l'option reste proposée au tarif
 // global de la plateforme, c'est-à-dire le comportement antérieur. Voir
 // server/services/rentalOptions.js, seule autorité sur le prix facturé.
+//
+// Les trois suppléments d'agence (2026-09-16) n'ont pas de tarif plateforme :
+// ils n'apparaissent au client que si le partenaire les propose à son prix.
+// `unit` : unité par défaut de l'option ; le partenaire peut la changer
+// (siège enfant au forfait par location plutôt qu'au jour, par exemple).
 const RENTAL_OPTIONS = [
-  { id: "driver",    label: "Chauffeur privé",           icon: "🧑‍✈️" },
-  { id: "babySeat",  label: "Siège bébé",                 icon: "👶" },
-  { id: "insurance", label: "Assurance complémentaire",   icon: "🛡️" },
-  { id: "gps",       label: "GPS",                        icon: "🗺️" },
+  { id: "driver",           label: "Chauffeur privé",                          icon: "🧑‍✈️", unit: "day" },
+  { id: "babySeat",         label: "Siège bébé",                                icon: "👶",  unit: "day" },
+  { id: "insurance",        label: "Assurance complémentaire",                  icon: "🛡️", unit: "day" },
+  { id: "gps",              label: "GPS",                                       icon: "🗺️", unit: "day" },
+  { id: "additionalDriver", label: "Conducteur additionnel",                    icon: "🧑‍🤝‍🧑", unit: "day",    partnerOnly: true },
+  { id: "unlimitedMileage", label: "Kilométrage illimité",                      icon: "🛣️", unit: "day",    partnerOnly: true },
+  { id: "airportDelivery",  label: "Remise / restitution en gare ou aéroport",  icon: "✈️",  unit: "rental", partnerOnly: true },
+];
+
+const UNIT_OPTIONS = [
+  { value: "day",    label: "par jour" },
+  { value: "rental", label: "par location (forfait)" },
 ];
 
 const OFFERED_OPTIONS = [
@@ -99,6 +112,7 @@ const PartnerBusinessManager = () => {
         rentalOptions: Object.fromEntries(RENTAL_OPTIONS.map((o) => [o.id, {
           offered:     toTristateValue(b.rentalPolicy?.rentalOptions?.[o.id]?.offered),
           pricePerDay: b.rentalPolicy?.rentalOptions?.[o.id]?.pricePerDay ?? "",
+          unit:        b.rentalPolicy?.rentalOptions?.[o.id]?.unit || o.unit,
         }])),
       },
     });
@@ -135,6 +149,7 @@ const PartnerBusinessManager = () => {
             offered:     fromTristateValue(saisie.offered),
             pricePerDay: saisie.pricePerDay === "" || saisie.pricePerDay == null
               ? null : Number(saisie.pricePerDay),
+            unit: saisie.unit || o.unit,
           }];
         })),
       };
@@ -343,10 +358,12 @@ const PartnerBusinessManager = () => {
               <label>Options supplémentaires proposées</label>
               <p style={{ margin: "0 0 8px", fontSize: ".78rem", color: "#64748b", lineHeight: 1.5 }}>
                 Laissez « Tarif plateforme » si vous n'avez pas de règle particulière.
-                Un prix vide applique le tarif de la plateforme.
+                Un prix vide applique le tarif de la plateforme. Toutes ces options restent au choix du client.
+                Les suppléments d'agence (conducteur additionnel, kilométrage illimité, remise en gare ou aéroport)
+                n'ont pas de tarif plateforme : ils ne sont proposés que si vous les tarifez.
               </p>
               {RENTAL_OPTIONS.map((o) => {
-                const saisie = form.rentalPolicy.rentalOptions?.[o.id] || { offered: "", pricePerDay: "" };
+                const saisie = form.rentalPolicy.rentalOptions?.[o.id] || { offered: "", pricePerDay: "", unit: o.unit };
                 const setOpt = (champ, val) => setRP("rentalOptions", {
                   ...form.rentalPolicy.rentalOptions,
                   [o.id]: { ...saisie, [champ]: val },
@@ -355,16 +372,23 @@ const PartnerBusinessManager = () => {
                   <div key={o.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
                     <span style={{ minWidth: 190, fontSize: ".85rem" }}>{o.icon} {o.label}</span>
                     <select value={saisie.offered} onChange={(e) => setOpt("offered", e.target.value)}>
-                      {OFFERED_OPTIONS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+                      {OFFERED_OPTIONS.map((x) => (
+                        <option key={x.value} value={x.value}>
+                          {o.partnerOnly && x.value === "" ? "Non proposée" : x.label}
+                        </option>
+                      ))}
                     </select>
                     <input
                       type="number" min="0" step="0.01"
                       style={{ maxWidth: 140 }}
                       value={saisie.pricePerDay}
                       onChange={(e) => setOpt("pricePerDay", e.target.value)}
-                      placeholder="Prix / jour (USD)"
+                      placeholder="Prix (USD)"
                       disabled={saisie.offered === "0"}
                     />
+                    <select value={saisie.unit || o.unit} onChange={(e) => setOpt("unit", e.target.value)} disabled={saisie.offered === "0"}>
+                      {UNIT_OPTIONS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+                    </select>
                   </div>
                 );
               })}

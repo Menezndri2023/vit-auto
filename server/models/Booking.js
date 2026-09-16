@@ -228,6 +228,10 @@ const bookingSchema = new mongoose.Schema({
       babySeat:  { type: Boolean, default: false },
       insurance: { type: Boolean, default: false },
       driver:    { type: Boolean, default: false },
+      // Suppléments d'agence (2026-09-16), au tarif du partenaire uniquement.
+      additionalDriver: { type: Boolean, default: false },
+      unlimitedMileage: { type: Boolean, default: false },
+      airportDelivery:  { type: Boolean, default: false },
     },
   },
 

@@ -6876,8 +6876,13 @@ export default function AdminPanel() {
                   {rentalOptsForm && (
                     <div className={styles.chartCard}>
                       <h3 className={styles.chartTitle}>🚗 Options de location (par jour, USD)</h3>
+                      <p style={{ fontSize: ".78rem", color: "#64748b", margin: "4px 0 0" }}>
+                        Tarif plateforme, appliqué quand le partenaire n'a pas fixé le sien. Les suppléments d'agence
+                        (conducteur additionnel, km illimité, remise gare/aéroport) restent à 0 : proposés seulement par
+                        les partenaires qui les tarifent — un montant ici les rendrait payants chez tous les loueurs.
+                      </p>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, maxWidth: 700, marginTop: 10 }}>
-                        {[["gps", "GPS"], ["babySeat", "Siège bébé"], ["insurance", "Assurance"], ["driver", "Chauffeur"]].map(([key, label]) => (
+                        {[["gps", "GPS"], ["babySeat", "Siège bébé"], ["insurance", "Assurance"], ["driver", "Chauffeur"], ["additionalDriver", "Conducteur additionnel"], ["unlimitedMileage", "Km illimité"], ["airportDelivery", "Remise gare/aéroport (forfait)"]].map(([key, label]) => (
                           <div key={key}>
                             <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>{label} ($)</label>
                             <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}

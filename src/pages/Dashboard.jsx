@@ -168,6 +168,9 @@ const OPTIONS_LABELS = {
   babySeat:  "Siège bébé",
   insurance: "Assurance",
   driver:    "Chauffeur privé",
+  additionalDriver: "Conducteur additionnel",
+  unlimitedMileage: "Kilométrage illimité",
+  airportDelivery:  "Remise / restitution gare ou aéroport",
 };
 
 // ── Étapes de suivi client — adaptées au mode de récupération (2026-09) ──────

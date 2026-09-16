@@ -98,11 +98,20 @@ const partnerBusinessSchema = new mongoose.Schema({
     //
     // `pricePerDay` est exprimé en USD, comme PricingConfig.rentalOptions —
     // la conversion d'affichage reste au PriceTag.
+    //
+    // `unit` (2026-09-16) : « day » = prix × durée, « rental » = forfait compté
+    // une fois ; null = unité par défaut de l'option (voir
+    // services/rentalOptions.js RENTAL_OPTION_DEFAULT_UNIT). Les trois
+    // suppléments additionalDriver/unlimitedMileage/airportDelivery n'ont pas
+    // de tarif plateforme : ils n'existent que chez le partenaire qui les tarife.
     rentalOptions: {
-      driver:    { offered: { type: Boolean, default: null }, pricePerDay: { type: Number, default: null } },
-      babySeat:  { offered: { type: Boolean, default: null }, pricePerDay: { type: Number, default: null } },
-      gps:       { offered: { type: Boolean, default: null }, pricePerDay: { type: Number, default: null } },
-      insurance: { offered: { type: Boolean, default: null }, pricePerDay: { type: Number, default: null } },
+      driver:           { offered: { type: Boolean, default: null }, pricePerDay: { type: Number, default: null }, unit: { type: String, enum: ["day", "rental", null], default: null } },
+      babySeat:         { offered: { type: Boolean, default: null }, pricePerDay: { type: Number, default: null }, unit: { type: String, enum: ["day", "rental", null], default: null } },
+      gps:              { offered: { type: Boolean, default: null }, pricePerDay: { type: Number, default: null }, unit: { type: String, enum: ["day", "rental", null], default: null } },
+      insurance:        { offered: { type: Boolean, default: null }, pricePerDay: { type: Number, default: null }, unit: { type: String, enum: ["day", "rental", null], default: null } },
+      additionalDriver: { offered: { type: Boolean, default: null }, pricePerDay: { type: Number, default: null }, unit: { type: String, enum: ["day", "rental", null], default: null } },
+      unlimitedMileage: { offered: { type: Boolean, default: null }, pricePerDay: { type: Number, default: null }, unit: { type: String, enum: ["day", "rental", null], default: null } },
+      airportDelivery:  { offered: { type: Boolean, default: null }, pricePerDay: { type: Number, default: null }, unit: { type: String, enum: ["day", "rental", null], default: null } },
     },
   },
 

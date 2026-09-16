@@ -21,6 +21,9 @@ const OPTION_LABELS = {
   babySeat: "Siège bébé",
   insurance: "Prime d'assurance",
   driver: "Chauffeur privé",
+  additionalDriver: "Conducteur additionnel",
+  unlimitedMileage: "Kilométrage illimité",
+  airportDelivery: "Remise / restitution gare ou aéroport",
 };
 
 // Formate une date ISO ou YYYY-MM-DD en "20 décembre 2025"

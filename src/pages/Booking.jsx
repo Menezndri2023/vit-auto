@@ -26,12 +26,21 @@ const DELIVERY_PER_KM = 0.5;    // repli si /api/geo/delivery-fee échoue
 // label = clé de traduction (voir src/i18n/translations.js), résolue via t()
 // au moment du rendu — ces constantes vivent hors du composant donc ne
 // peuvent pas appeler le hook useI18n() directement.
+// `unit` : "day" = prix × durée, "rental" = forfait compté une fois (le
+// serveur renvoie l'unité choisie par le partenaire — voir rental-conditions).
+// Les trois suppléments d'agence (conducteur additionnel, km illimité, remise
+// en gare/aéroport) n'ont pas de tarif plateforme : ils ne s'affichent que
+// chez un partenaire qui les propose, jamais depuis ce repli.
 const OPTIONS_CATALOG = [
-  { id: "babySeat",  label: "booking.optionBabySeat",  price: 11.67, icon: "👶" },
-  { id: "insurance", label: "booking.optionInsurance", price: 25,    icon: "🛡️" },
-  { id: "driver",    label: "booking.optionDriver",    price: 83.33, icon: "🧑‍✈️" },
-  { id: "gps",       label: "booking.optionGps",       price: 16.67, icon: "🗺️" },
+  { id: "babySeat",         label: "booking.optionBabySeat",         price: 11.67, icon: "👶",  unit: "day" },
+  { id: "insurance",        label: "booking.optionInsurance",        price: 25,    icon: "🛡️", unit: "day" },
+  { id: "driver",           label: "booking.optionDriver",           price: 83.33, icon: "🧑‍✈️", unit: "day" },
+  { id: "gps",              label: "booking.optionGps",              price: 16.67, icon: "🗺️", unit: "day" },
+  { id: "additionalDriver", label: "booking.optionAdditionalDriver", price: 0,     icon: "🧑‍🤝‍🧑", unit: "day",    partnerOnly: true },
+  { id: "unlimitedMileage", label: "booking.optionUnlimitedMileage", price: 0,     icon: "🛣️", unit: "day",    partnerOnly: true },
+  { id: "airportDelivery",  label: "booking.optionAirportDelivery",  price: 0,     icon: "✈️",  unit: "rental", partnerOnly: true },
 ];
+const OPTIONS_SANS_REGLE = OPTIONS_CATALOG.filter((o) => !o.partnerOnly);
 
 // Moyens de paiement disponibles au choix du client (voir Checkout.jsx/DriverBooking.jsx).
 // Orange Money/Wave/MTN/Moov sont des noms de marque, jamais traduits.
@@ -265,7 +274,7 @@ export default function Booking() {
   const documentsReady = !showDocumentStep || (identitySatisfied && licenseSatisfied);
 
   /* ── STEP 2 : Options ──────────────────────────────────────────── */
-  const [selectedOptions, setSelectedOptions] = useState({ babySeat: false, insurance: false, driver: false, gps: false });
+  const [selectedOptions, setSelectedOptions] = useState({ babySeat: false, insurance: false, driver: false, gps: false, additionalDriver: false, unlimitedMileage: false, airportDelivery: false });
 
   /* ── Conditions du partenaire ───────────────────────────────────────────
      Les options supplémentaires étaient une liste FIGÉE, au tarif global,
@@ -296,11 +305,11 @@ export default function Booking() {
   // — ou si l'appel échoue — on retombe sur le catalogue global : le parcours
   // ne doit jamais se retrouver sans aucune option à cause d'un aléa réseau.
   const availableOptions = useMemo(() => {
-    if (!rentalConditions?.options?.length) return OPTIONS_CATALOG;
+    if (!rentalConditions?.options?.length) return OPTIONS_SANS_REGLE;
     const parId = Object.fromEntries(OPTIONS_CATALOG.map((o) => [o.id, o]));
     return rentalConditions.options
       .filter((o) => parId[o.id])
-      .map((o) => ({ ...parId[o.id], price: o.pricePerDay }));
+      .map((o) => ({ ...parId[o.id], price: o.pricePerDay, unit: o.unit || parId[o.id].unit }));
   }, [rentalConditions]);
 
   // Une option retirée par le partenaire ne doit pas rester cochée d'un choix
@@ -357,7 +366,7 @@ export default function Booking() {
   const optionsTotal = useMemo(() => {
     return availableOptions.reduce((acc, opt) => {
       if (!selectedOptions[opt.id]) return acc;
-      return acc + opt.price * Math.max(days, 1);
+      return acc + (opt.unit === "rental" ? opt.price : opt.price * Math.max(days, 1));
     }, 0);
   }, [selectedOptions, days, availableOptions]);
 
@@ -1089,7 +1098,10 @@ export default function Booking() {
         {step === 2 && (
           <div className={styles.section}>
             <h3 className={styles.sectionTitle}>{t("booking.optionsTitle")}</h3>
-            <p className={styles.optionsNote}>{t("booking.optionsRateNote", { n: Math.max(days, 1) })}</p>
+            <p className={styles.optionsNote}>
+              {t("booking.optionsRateNote", { n: Math.max(days, 1) })}
+              {availableOptions.some((o) => o.unit === "rental") && ` · ${t("booking.optionsFlatNote")}`}
+            </p>
 
             <div className={styles.optionsGrid}>
               {availableOptions.map((opt) => (
@@ -1100,7 +1112,7 @@ export default function Booking() {
                   <span className={styles.optionIcon}>{opt.icon}</span>
                   <div className={styles.optionInfo}>
                     <strong>{t(opt.label)}</strong>
-                    <span>{t("booking.optionPricePerDay", { price: fmt(opt.price) })}</span>
+                    <span>{t(opt.unit === "rental" ? "booking.optionPricePerRental" : "booking.optionPricePerDay", { price: fmt(opt.price) })}</span>
                   </div>
                   {selectedOptions[opt.id] && <span className={styles.optionCheck}>✓</span>}
                 </label>

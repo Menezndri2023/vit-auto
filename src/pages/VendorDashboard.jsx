@@ -619,6 +619,9 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
                     {order.location.options.babySeat  && <span className={styles.optionTag}>👶 Siège bébé</span>}
                     {order.location.options.insurance && <span className={styles.optionTag}>🛡️ Assurance</span>}
                     {order.location.options.driver    && <span className={styles.optionTag}>🧑‍✈️ Chauffeur</span>}
+                    {order.location.options.additionalDriver && <span className={styles.optionTag}>🧑‍🤝‍🧑 Conducteur additionnel</span>}
+                    {order.location.options.unlimitedMileage && <span className={styles.optionTag}>🛣️ Km illimité</span>}
+                    {order.location.options.airportDelivery  && <span className={styles.optionTag}>✈️ Remise gare/aéroport</span>}
                   </div>
                 )}
 

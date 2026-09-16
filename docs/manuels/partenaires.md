@@ -14,6 +14,20 @@
 ### 2.1 Véhicule (location ou vente)
 Formulaire complet : marque/modèle/année/état, caractéristiques techniques, photos (jusqu'à 6, la première devient la vignette de couverture), tarification, pays/ville/adresse (pré-remplis automatiquement par géolocalisation IP puis GPS), options (climatisation, chauffeur, durée de location courte/longue).
 
+### 2.1 bis Options et suppléments de location (règle commune à tous les loueurs)
+Réglés une fois pour toute l'entité, dans **Mes entreprises → Politique de location**. Toutes ces options sont **facultatives et au choix du client** à l'étape 2 de sa réservation ; le serveur les facture au prix du partenaire, jamais à un prix envoyé par le client.
+
+| Option | Tarif plateforme par défaut | Unité par défaut |
+|---|---|---|
+| Chauffeur privé, siège bébé, assurance complémentaire, GPS | oui (grille admin) | par jour |
+| Conducteur additionnel | aucun | par jour |
+| Kilométrage illimité | aucun | par jour |
+| Remise / restitution en gare ou aéroport | aucun | forfait par location |
+
+- Pour chaque option : « Tarif plateforme » (aucune règle), « Je la propose » (à votre prix, en USD, converti à l'affichage) ou « Je ne la propose pas » (elle disparaît du parcours ; une réservation qui la demanderait est refusée).
+- L'**unité** se change par option : *par jour* (prix × durée) ou *par location* (forfait compté une fois — un siège enfant à 30 € la location, par exemple).
+- Les trois suppléments d'agence n'ont **pas de tarif plateforme** : ils n'apparaissent au client que chez un partenaire qui les tarife. Un supplément « proposé » sans prix n'est pas proposé.
+
 ### 2.2 Annonce Import/Export
 Réservé aux **Founding Partners**. Formulaire dédié : véhicule, pays d'origine, **prix et devise**, **au moins un pays de destination** (obligatoire), moyens de paiement acceptés, documents d'export disponibles, coût de transport estimé.
 

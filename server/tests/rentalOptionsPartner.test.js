@@ -27,12 +27,58 @@ describe("Options de location — conditions du partenaire", () => {
 
   it("sans aucune règle partenaire, le catalogue global s'applique inchangé", async () => {
     const options = await resolveRentalOptions(null);
-    expect(options).toHaveLength(4);
-    for (const o of options) {
+    expect(options).toHaveLength(7);
+    for (const o of options.filter((x) => TARIFS_GLOBAUX[x.id] > 0)) {
       expect(o.offered, `${o.id} doit rester proposée`).toBe(true);
       expect(o.pricePerDay).toBe(TARIFS_GLOBAUX[o.id]);
       expect(o.source).toBe("global");
+      expect(o.unit).toBe("day");
     }
+  });
+
+  // Suppléments d'agence (2026-09-16) : conducteur additionnel, kilométrage
+  // illimité, remise en gare/aéroport. Pas de tarif plateforme — sans cette
+  // règle, ils apparaîtraient GRATUITS chez tous les loueurs jamais configurés.
+  describe("suppléments sans tarif plateforme", () => {
+    const SUPPLEMENTS = ["additionalDriver", "unlimitedMileage", "airportDelivery"];
+
+    it("ne sont PAS proposés sans règle ni prix partenaire", async () => {
+      const options = await resolveRentalOptions(null);
+      for (const id of SUPPLEMENTS) {
+        expect(options.find((o) => o.id === id).offered, `${id} ne doit pas être proposé`).toBe(false);
+      }
+    });
+
+    it("« proposé » sans prix reste non proposé : jamais un service gratuit par accident", async () => {
+      const options = await resolveRentalOptions(politique({ unlimitedMileage: { offered: true } }));
+      expect(options.find((o) => o.id === "unlimitedMileage").offered).toBe(false);
+      const { refusees } = await priceRentalOptions({ unlimitedMileage: true }, politique({ unlimitedMileage: { offered: true } }), 3);
+      expect(refusees).toEqual(["Kilométrage illimité"]);
+    });
+
+    it("apparaissent au prix et à l'unité du partenaire", async () => {
+      const options = await resolveRentalOptions(politique({
+        additionalDriver: { offered: true, pricePerDay: 11 },
+        airportDelivery:  { offered: true, pricePerDay: 65 },
+      }));
+      const conducteur = options.find((o) => o.id === "additionalDriver");
+      expect(conducteur).toMatchObject({ offered: true, pricePerDay: 11, unit: "day", source: "partenaire" });
+      // La remise en gare/aéroport est un forfait par défaut.
+      expect(options.find((o) => o.id === "airportDelivery")).toMatchObject({ offered: true, pricePerDay: 65, unit: "rental" });
+    });
+  });
+
+  describe("unité de facturation", () => {
+    it("un forfait « par location » est compté UNE fois, quelle que soit la durée", async () => {
+      const pol = politique({ babySeat: { offered: true, pricePerDay: 33, unit: "rental" }, airportDelivery: { offered: true, pricePerDay: 65 } });
+      const { montant } = await priceRentalOptions({ babySeat: true, airportDelivery: true }, pol, 10);
+      expect(montant).toBe(33 + 65);
+    });
+
+    it("une unité inconnue retombe sur l'unité par défaut de l'option", async () => {
+      const options = await resolveRentalOptions(politique({ gps: { offered: true, pricePerDay: 5, unit: "hour" } }));
+      expect(options.find((o) => o.id === "gps").unit).toBe("day");
+    });
   });
 
   it("le partenaire peut RETIRER une option qu'il ne propose pas", async () => {

@@ -38,7 +38,7 @@ export const DEFAULT_PRICING_CONFIG = {
   // Repli des anciens PRIX_OPTIONS FCFA (bookingController.js) convertis au
   // taux ~600 XOF/USD en vigueur à la migration : 10000→16.67, 7000→11.67,
   // 15000→25, 50000→83.33.
-  rentalOptions: { gps: 16.67, babySeat: 11.67, insurance: 25, driver: 83.33 },
+  rentalOptions: { gps: 16.67, babySeat: 11.67, insurance: 25, driver: 83.33, additionalDriver: 0, unlimitedMileage: 0, airportDelivery: 0 },
   subscriptions: {
     individuel_plus: { priceUSD: 9.99 },
     business:         { priceUSD: 19.99 },

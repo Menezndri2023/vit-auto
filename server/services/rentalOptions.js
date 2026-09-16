@@ -18,15 +18,35 @@ import { getRentalOptionPrice } from "./pricingEngine.js";
 
 // Identifiants figés par le schéma Booking.location.options : ajouter une
 // option ici suppose d'ajouter le champ correspondant au modèle.
-export const RENTAL_OPTION_IDS = ["driver", "babySeat", "insurance", "gps"];
+//
+// Les trois derniers (2026-09-16) sont les suppléments qu'une agence facture
+// couramment en plus du tarif journalier — relevés chez RENT À CAR CÔTE
+// D'AZUR, mais règle commune à tous les loueurs : conducteur additionnel,
+// kilométrage illimité, remise ou restitution en gare/aéroport. Ils n'ont
+// pas de tarif plateforme (0 dans PricingConfig) : ils n'apparaissent au
+// client que chez un partenaire qui les propose à son prix.
+export const RENTAL_OPTION_IDS = ["driver", "babySeat", "insurance", "gps", "additionalDriver", "unlimitedMileage", "airportDelivery"];
 
 // Libellés de repli, employés côté serveur (e-mails, contrats, messages
 // d'erreur). L'interface, elle, passe par ses propres traductions.
 export const RENTAL_OPTION_LABELS = {
-  driver:    "Chauffeur privé",
-  babySeat:  "Siège bébé",
-  insurance: "Assurance complémentaire",
-  gps:       "GPS",
+  driver:           "Chauffeur privé",
+  babySeat:         "Siège bébé",
+  insurance:        "Assurance complémentaire",
+  gps:              "GPS",
+  additionalDriver: "Conducteur additionnel",
+  unlimitedMileage: "Kilométrage illimité",
+  airportDelivery:  "Remise / restitution en gare ou aéroport",
+};
+
+// Unité de facturation : « day » = le prix est multiplié par la durée, « rental »
+// = forfait par location, compté une fois. Le partenaire peut la changer par
+// option (un siège enfant à 30 € la location, pas par jour) ; sans choix de sa
+// part, l'unité ci-dessous s'applique.
+export const RENTAL_OPTION_UNITS = ["day", "rental"];
+export const RENTAL_OPTION_DEFAULT_UNIT = {
+  driver: "day", babySeat: "day", insurance: "day", gps: "day",
+  additionalDriver: "day", unlimitedMileage: "day", airportDelivery: "rental",
 };
 
 /**
@@ -36,7 +56,7 @@ export const RENTAL_OPTION_LABELS = {
  * @param {object|null} rentalPolicy  PartnerBusiness.rentalPolicy, ou null
  *                                    lorsque l'annonce n'est rattachée à
  *                                    aucune entité partenaire.
- * @returns {Promise<Array<{id, label, offered, pricePerDay, source}>>}
+ * @returns {Promise<Array<{id, label, offered, pricePerDay, unit, source}>>}
  *
  * `offered: null` dans la politique = aucune règle partenaire : on retombe
  * intégralement sur le catalogue global, c'est-à-dire le comportement
@@ -50,8 +70,9 @@ export async function resolveRentalOptions(rentalPolicy = null) {
     const prixGlobal = await getRentalOptionPrice(id);
 
     // Refus explicite du partenaire : l'option disparaît du parcours.
+    const unit = RENTAL_OPTION_UNITS.includes(regle.unit) ? regle.unit : RENTAL_OPTION_DEFAULT_UNIT[id];
     if (regle.offered === false) {
-      return { id, label: RENTAL_OPTION_LABELS[id], offered: false, pricePerDay: 0, source: "partenaire" };
+      return { id, label: RENTAL_OPTION_LABELS[id], offered: false, pricePerDay: 0, unit, source: "partenaire" };
     }
 
     // Prix partenaire : accepté seulement s'il est fini et positif. Un 0 ou un
@@ -60,11 +81,16 @@ export async function resolveRentalOptions(rentalPolicy = null) {
     const prixPartenaire = Number(regle.pricePerDay);
     const prixPartenaireValide = Number.isFinite(prixPartenaire) && prixPartenaire > 0;
 
+    const pricePerDay = prixPartenaireValide ? prixPartenaire : prixGlobal;
     return {
       id,
       label:       RENTAL_OPTION_LABELS[id],
-      offered:     true,
-      pricePerDay: prixPartenaireValide ? prixPartenaire : prixGlobal,
+      // Ni prix partenaire ni tarif plateforme : l'option n'existe pas ici.
+      // Sans cette règle, les suppléments sans tarif global apparaîtraient
+      // gratuits chez tous les loueurs qui ne les ont jamais configurés.
+      offered:     pricePerDay > 0,
+      pricePerDay,
+      unit,
       source:      prixPartenaireValide ? "partenaire" : "global",
     };
   }));
@@ -75,7 +101,8 @@ export async function resolveRentalOptions(rentalPolicy = null) {
  * propose pas.
  *
  * @returns {Promise<{ montant:number, refusees:string[] }>}
- *   `montant` : total pour toute la durée, dans la devise de PricingConfig.
+ *   `montant` : total pour toute la durée, dans la devise de PricingConfig
+ *   (les options au forfait « rental » comptent une fois, quelle que soit la durée).
  *   `refusees` : libellés des options demandées mais non proposées — la
  *   réservation doit être rejetée, jamais silencieusement allégée : le client
  *   a choisi ces options, il ne doit pas découvrir leur absence sur place.
@@ -93,7 +120,7 @@ export async function priceRentalOptions(optionsDemandees, rentalPolicy, jours =
     const option = parId[id];
     if (!option) continue;               // identifiant inconnu : ignoré, comme avant
     if (!option.offered) { refusees.push(option.label); continue; }
-    montant += option.pricePerDay * duree;
+    montant += option.unit === "rental" ? option.pricePerDay : option.pricePerDay * duree;
   }
 
   return { montant, refusees };

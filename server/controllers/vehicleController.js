@@ -1549,8 +1549,8 @@ export const getVehicleRentalConditions = async (req, res) => {
     res.json({
       // Seules les options réellement proposées sont renvoyées : le parcours
       // ne doit pas afficher une case que la réservation refusera ensuite.
-      options: options.filter((o) => o.offered).map(({ id: optId, label, pricePerDay }) => ({
-        id: optId, label, pricePerDay,
+      options: options.filter((o) => o.offered).map(({ id: optId, label, pricePerDay, unit }) => ({
+        id: optId, label, pricePerDay, unit,
       })),
       conditions: {
         minimumAge:                   policy?.minimumAge ?? vehicle.ageMin ?? null,

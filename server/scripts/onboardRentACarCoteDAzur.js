@@ -57,6 +57,14 @@ const CONDITIONS = {
   ancienneteDuPermisAnnees: 1,
   cautionEUR: 1000,
   kmInclusParJour: 100,
+  // Suppléments de leur page, en EUR — convertis en USD à l'exécution (les
+  // options partenaire sont stockées en USD, voir PartnerBusiness.rentalOptions).
+  supplementsEUR: {
+    additionalDriver: { prix: 10, unit: "day" },     // conducteur additionnel, par jour
+    babySeat:         { prix: 30, unit: "rental" },  // siège enfant ou rehausseur, par location
+    unlimitedMileage: { prix: 20, unit: "day" },     // kilométrage illimité, par jour
+    airportDelivery:  { prix: 60, unit: "rental" },  // gare ou aéroport de Nice, par trajet (de jour)
+  },
   politiqueAnnulation: "Annulation entre 72 h et 24 h avant le départ : 50 % du montant de la location. Moins de 24 h avant, ou absence au rendez-vous : 100 %.",
   autresExigences:
     "Permis de conduire au nom du conducteur principal, détenu depuis au moins un an sans infraction majeure, et pièce d'identité officielle avec photo (passeport ou carte d'identité). "
@@ -139,7 +147,7 @@ async function main() {
 
   let motDePasse = null;
   let user = existant;
-  const logoUrl = fs.existsSync(`${DOSSIER}/logo-carre.jpg`)
+  const logoUrl = !existant && fs.existsSync(`${DOSSIER}/logo-carre.jpg`)
     ? await televerser(`${DOSSIER}/logo-carre.jpg`, FOLDERS.avatars, "rentacar-cote-dazur.jpg", ["rentacar-azur", "partenaire"])
     : null;
   if (!user) {
@@ -173,16 +181,21 @@ async function main() {
   business.rentalPolicy.internationalLicenseRequired = false;
   business.rentalPolicy.depositRequired             = true;
   business.rentalPolicy.additionalRequirements      = CONDITIONS.autresExigences;
-  // Chauffeur, siège enfant et GPS annoncés ; le conducteur additionnel et le
-  // siège enfant sont tarifés par eux (10 €/j, 30 €/location) mais notre
-  // grille ne connaît que le tarif journalier : chauffeur/siège/GPS proposés au
-  // tarif global, assurance incluse (CDW) donc non proposée en option payante.
-  business.rentalPolicy.rentalOptions.driver.offered   = true;
-  business.rentalPolicy.rentalOptions.babySeat.offered = true;
-  business.rentalPolicy.rentalOptions.gps.offered      = true;
+  // Chauffeur et GPS annoncés sans prix : proposés au tarif plateforme.
+  // Assurance (CDW) incluse : pas d'option payante. Leurs suppléments tarifés
+  // (conducteur additionnel, siège enfant, km illimité, gare/aéroport) sont
+  // repris à leur prix et à leur unité.
+  business.rentalPolicy.rentalOptions.driver.offered    = true;
+  business.rentalPolicy.rentalOptions.gps.offered       = true;
   business.rentalPolicy.rentalOptions.insurance.offered = false;
+  for (const [id, { prix, unit }] of Object.entries(CONDITIONS.supplementsEUR)) {
+    business.rentalPolicy.rentalOptions[id].offered     = true;
+    business.rentalPolicy.rentalOptions[id].pricePerDay = enUSD(prix);
+    business.rentalPolicy.rentalOptions[id].unit        = unit;
+  }
   await business.save();
-  console.log(`✓ compte ${user.email}${motDePasse ? "" : "  (déjà existant)"}\n✓ entité ${business.companyName}${logoUrl ? "\n✓ logo hébergé" : ""}\n`);
+  console.log(`✓ compte ${user.email}${motDePasse ? "" : "  (déjà existant)"}\n✓ entité ${business.companyName}${logoUrl ? "\n✓ logo hébergé" : ""}`);
+  console.log("✓ suppléments : " + Object.entries(CONDITIONS.supplementsEUR).map(([id, s]) => `${id} ${s.prix} €/${s.unit === "day" ? "j" : "location"}`).join(", ") + "\n");
 
   let creees = 0;
   for (const [i, v] of PARC.entries()) {
