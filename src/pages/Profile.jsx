@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useOngletVisible } from "../hooks/useOngletVisible";
 import { Link, useNavigate, Navigate, useLocation } from "react-router-dom";
 import { useVehicles } from "../context/VehicleContext";
 import { useAuth } from "../context/AuthContext";
@@ -166,6 +167,8 @@ const Profile = () => {
 
   // ── Tous les hooks avant le return conditionnel ────────────
   const [activeTab, setActiveTab] = useState("personal");
+  const barreOnglets = useRef(null);
+  useOngletVisible(barreOnglets, activeTab, `.${styles.activeTab}`);
   const [saving, setSaving]       = useState(false);
   const [saved, setSaved]         = useState(false);
 
@@ -648,7 +651,7 @@ const Profile = () => {
 
       {/* ── Onglets ─────────────────────────────────────── */}
       <div className={styles.content}>
-        <nav className={styles.tabs}>
+        <nav className={styles.tabs} ref={barreOnglets}>
           {tabs.map(({ key, label }) => (
             <button
               key={key}

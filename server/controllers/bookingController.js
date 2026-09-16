@@ -754,11 +754,11 @@ export const createBooking = async (req, res) => {
       // chauffeur n'avait pas de tarif horaire ; désormais l'unité choisie doit
       // avoir un tarif, sinon 400. Un client sans unité explicite est facturé à
       // l'heure (comportement historique), jamais au tarif journée × heures.
-      const UNITES = { heure: { tarif: driver.tarifHeure, heuresParUnite: 1 }, demi_journee: { tarif: driver.tarifDemiJournee, heuresParUnite: 4 }, journee: { tarif: driver.tarif, heuresParUnite: 24 } };
+      const UNITES = { heure: { tarif: driver.tarifHeure, heuresParUnite: 1 }, demi_journee: { tarif: driver.tarifDemiJournee, heuresParUnite: 4 }, journee: { tarif: driver.tarif, heuresParUnite: 24 }, mois: { tarif: driver.tarifMois, heuresParUnite: 24 * 30 } };
       const unite = chauffeur?.unite && UNITES[chauffeur.unite] ? chauffeur.unite : "heure";
       const quantite = Math.max(1, Math.floor(Number(chauffeur?.quantite ?? (unite === "heure" ? chauffeur?.heures : 1)) || 1));
       if (!(UNITES[unite].tarif > 0)) {
-        const libelle = { heure: "à l'heure", demi_journee: "à la demi-journée", journee: "à la journée" }[unite];
+        const libelle = { heure: "à l'heure", demi_journee: "à la demi-journée", journee: "à la journée", mois: "au mois" }[unite];
         return res.status(400).json({ message: `Ce chauffeur ne propose pas de tarif ${libelle}.`, code: "DRIVER_RATE_UNAVAILABLE" });
       }
       montantBase = UNITES[unite].tarif * quantite;

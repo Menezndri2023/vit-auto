@@ -77,6 +77,13 @@ const vehicleSchema = new mongoose.Schema({
   pricePerDayEntered:  { type: Number, default: null },
   priceForSaleEntered: { type: Number, default: null },
   cautionEntered:      { type: Number, default: null },
+
+  // Tarif mensuel facultatif (2026-09-16, demande de l'exploitant) : dès 30
+  // jours, chaque tranche de 30 jours est facturée à ce tarif (voir
+  // utils/seasonalPricing.js computeLocationTotal). Affiché sur l'annonce
+  // « ou X / mois ». Toujours en USD, montant saisi conservé à côté.
+  pricePerMonth:        { type: Number, default: null },
+  pricePerMonthEntered: { type: Number, default: null },
   priceEntryCurrency:  { type: String, default: null },
 
   // Durée de location proposée (uniquement pertinent pour type "location") —

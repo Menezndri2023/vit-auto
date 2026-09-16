@@ -285,7 +285,7 @@ const bookingSchema = new mongoose.Schema({
     // Unité de facturation choisie par le client (2026-09-14) : jusqu'ici seul
     // le tarif horaire était réservable en ligne — un chauffeur à la journée
     // ou demi-journée (le cas le plus courant) ne l'était pas du tout.
-    unite:       { type: String, enum: ["heure", "demi_journee", "journee", null], default: null },
+    unite:       { type: String, enum: ["heure", "demi_journee", "journee", "mois", null], default: null },
     quantite:    { type: Number, default: null },
     lieuDepart:  { type: String },
     destination: { type: String },

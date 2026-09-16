@@ -32,6 +32,15 @@
   color: #64748b;
 }
 
+/* Rangée d'actions de l'en-tête : sur téléphone, deux boutons « nowrap »
+   côte à côte débordaient de 16 px hors de l'écran (audit mobile 2026-09-16) —
+   ils se replient et prennent chacun toute la largeur. */
+.headerActions { display: flex; gap: 10px; flex-wrap: wrap; }
+.importBtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 11px 20px; background: #6366f1; color: #fff; border-radius: 10px;
+  font-weight: 700; text-decoration: none; font-size: .88rem; white-space: nowrap;
+}
 .newBtn {
   background: linear-gradient(135deg, #ff4d2d, #e03519);
   color: #fff;
@@ -659,6 +668,8 @@
   .page { padding: 20px 16px 48px; }
   .kpiRow { grid-template-columns: repeat(2, 1fr); }
   .header { flex-direction: column; }
+  .headerActions { width: 100%; }
+  .headerActions > * { flex: 1 1 auto; justify-content: center; }
   .cardThumb { width: 90px; min-height: 90px; }
   .boostPackPopular { transform: none; }
 }

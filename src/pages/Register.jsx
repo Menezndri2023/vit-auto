@@ -298,12 +298,50 @@ const Register = () => {
             compte. Il était jusqu'ici coincé au MILIEU du formulaire, entre
             les champs partenaire et les mots de passe — donc découvert après
             avoir rempli la moitié de ce qu'il permet justement d'éviter. */}
-        <GoogleAuthButton
-          onCredential={handleGoogleCredential}
-          disabled={googleDisabled}
-          onDisabledClick={allerAuChampManquant}
-          disabledHint={googleDisabled ? "Renseignez votre date de naissance et votre pays ci-dessous pour continuer avec Google." : null}
-        />
+        {/* Google ne transmet ni la date de naissance ni le pays : plutôt
+            qu'un bouton grisé renvoyant vers des champs deux écrans plus bas
+            (téléphone), les deux champs manquants s'affichent JUSTE sous le
+            bouton, liés aux mêmes valeurs que le formulaire complet. */}
+        <div className={styles.googleBloc}>
+          <GoogleAuthButton
+            onCredential={handleGoogleCredential}
+            disabled={googleDisabled}
+            onDisabledClick={allerAuChampManquant}
+          />
+          {googleDisabled && (
+            <div className={styles.googleChamps}>
+              <p className={styles.googleNote}>Pour continuer avec Google, indiquez :</p>
+              <div className={styles.row}>
+                {!form.birthDate && (
+                  <div className={styles.field}>
+                    <label htmlFor="google-birthDate">Date de naissance</label>
+                    <input
+                      id="google-birthDate"
+                      type="date"
+                      name="birthDate"
+                      autoComplete="bday"
+                      value={form.birthDate}
+                      onChange={handleChange}
+                      max={new Date(Date.now() - 18 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)}
+                    />
+                  </div>
+                )}
+                {!form.country && (
+                  <div className={styles.field}>
+                    <label htmlFor="google-country">Pays</label>
+                    <select id="google-country" name="country" value={form.country} onChange={handleChange} autoComplete="country">
+                      <option value="" disabled>Sélectionnez votre pays</option>
+                      {WORLD_COUNTRIES.map((c) => (
+                        <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+              <p className={styles.hint}>Vous êtes partenaire ? Choisissez « Partenaire » dans le formulaire avant de continuer avec Google.</p>
+            </div>
+          )}
+        </div>
         <div className={styles.divider}>ou remplissez le formulaire</div>
 
         <form className={styles.form} onSubmit={onSubmit} autoComplete="on">

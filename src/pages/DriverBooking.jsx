@@ -63,6 +63,7 @@ const DriverBooking = () => {
     { key: "heure",        label: "À l'heure",        tarif: Number(driver?.tarifHeure) || 0,       entered: driver?.tarifHeureEntered,       heures: 1,  unitLabel: "heure",        max: 24 },
     { key: "demi_journee", label: "Demi-journée",     tarif: Number(driver?.tarifDemiJournee) || 0, entered: driver?.tarifDemiJourneeEntered, heures: 4,  unitLabel: "demi-journée", max: 14 },
     { key: "journee",      label: "Journée complète", tarif: Number(driver?.tarif) || 0,            entered: driver?.tarifEntered,            heures: 24, unitLabel: "jour",         max: 31 },
+    { key: "mois",         label: "Au mois",          tarif: Number(driver?.tarifMois) || 0,        entered: driver?.tarifMoisEntered,        heures: 24 * 30, unitLabel: "mois",    max: 12 },
   ].filter((u) => u.tarif > 0);
   const uniteActive = UNITES.find((u) => u.key === unite) || UNITES[0] || null;
   const qte = Math.max(1, Math.floor(Number(quantite) || 1));

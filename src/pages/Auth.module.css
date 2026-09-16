@@ -190,7 +190,9 @@
 
 .inputGroup input,
 .form input,
-.form select {
+.form select,
+.googleChamps input,
+.googleChamps select {
   width: 100%;
   min-height: 48px;
   padding: 12px 16px;
@@ -205,7 +207,9 @@
 }
 
 .form input:focus,
-.form select:focus {
+.form select:focus,
+.googleChamps input:focus,
+.googleChamps select:focus {
   border-color: #ff4d2d;
   background: #ffffff;
   box-shadow: 0 0 0 4px rgba(255, 77, 45, 0.1);
@@ -221,7 +225,8 @@
    dès que la police est sous 16 px. On lui impose l'apparence des autres
    champs (appearance:none), une hauteur MINIMALE fixe (jamais additive, voir
    les cibles tactiles), un texte à gauche et 16 px. */
-.form input[type="date"] {
+.form input[type="date"],
+.googleChamps input[type="date"] {
   -webkit-appearance: none;
   appearance: none;
   display: block;
@@ -250,7 +255,8 @@
 }
 
 /* ─── Sélecteur ─────────────────────────────────────────────── */
-.form select {
+.form select,
+.googleChamps select {
   cursor: pointer;
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238493b0' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
@@ -445,6 +451,28 @@
 }
 
 /* ─── Séparateur ────────────────────────────────────────────── */
+/* Bloc « Continuer avec Google » de l'inscription : bouton + les deux champs
+   que Google ne fournit pas, dans un cadre discret. */
+.googleBloc {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.googleChamps {
+  background: #f8fafc;
+  border: 1px solid #e6ecf8;
+  border-radius: 12px;
+  padding: 12px 14px 8px;
+}
+.googleNote {
+  margin: 0 0 8px;
+  font-size: .82rem;
+  font-weight: 700;
+  color: #0f1b3f;
+}
+.googleChamps .row { margin-bottom: 4px; }
+.googleChamps .field > label { font-size: .8rem; }
+
 .divider {
   display: flex;
   align-items: center;

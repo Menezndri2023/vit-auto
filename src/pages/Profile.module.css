@@ -567,9 +567,12 @@
 }
 
 /* ── Avatar partenaire (dégradé doré) ────────────────────── */
+/* Sans !important : le `!important` sur le fond passait AU-DESSUS de la
+   photo posée en style inline — aucun partenaire ne voyait sa photo de
+   profil ici (audit mobile 2026-09-16). Le dégradé ne sert que sans photo. */
 .avatarPartner {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
-  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4) !important;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);
 }
 
 /* ── Bouton espace partenaire ─────────────────────────────── */
@@ -772,10 +775,14 @@
     grid-template-columns: 1fr;
   }
 
+  /* Quatre onglets « nowrap » forcés à 90 px se chevauchaient
+     (« Publications (11) » sur « Mes commandes ») : la barre défile, chaque
+     onglet garde la largeur de son libellé. */
   .tabs button {
     font-size: 0.82rem;
-    padding: 14px 10px;
-    min-width: 90px;
+    padding: 14px 12px;
+    flex: 0 0 auto;
+    min-width: 0;
   }
 
   .tabContent {

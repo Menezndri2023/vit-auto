@@ -267,16 +267,18 @@
 
 .verifyInfo {
   flex: 1;
+  min-width: 0; /* une adresse e-mail longue se coupe ici, elle ne pousse plus le badge hors de la carte */
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
+.verifyValue { overflow-wrap: anywhere; }
 .verifyLabel { font-size: 0.78rem; font-weight: 600; color: var(--kyc-sub); text-transform: uppercase; letter-spacing: .04em; }
 .verifyValue { font-size: 0.9rem; font-weight: 600; color: var(--kyc-text); }
 
 .verifyRight { margin-left: auto; }
-.badgeOk      { background: #d1fae5; color: var(--kyc-success); font-size: 0.78rem; font-weight: 700; padding: 3px 12px; border-radius: 99px; }
-.badgePending { background: #fef3c7; color: var(--kyc-warning); font-size: 0.78rem; font-weight: 700; padding: 3px 12px; border-radius: 99px; }
+.badgeOk      { background: #d1fae5; color: var(--kyc-success); font-size: 0.78rem; font-weight: 700; padding: 3px 12px; border-radius: 99px; flex-shrink: 0; white-space: nowrap; }
+.badgePending { background: #fef3c7; color: var(--kyc-warning); font-size: 0.78rem; font-weight: 700; padding: 3px 12px; border-radius: 99px; flex-shrink: 0; }
 
 .verifyAction { margin-top: 12px; }
 

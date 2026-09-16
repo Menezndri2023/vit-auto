@@ -10,6 +10,7 @@ import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { serverValidateIdentity } from "../utils/idValidation.js";
 import { smsConfigured, twilioVerifyConfigured } from "../utils/smsConfigured.js";
+import { autorisationProvisoireActive } from "../utils/publishingGate.js";
 import { dispatch } from "../queue/index.js";
 import { sendVerification, checkVerification } from "../services/twilioVerify.js";
 import { isValidCountryCode } from "../utils/countries.js";
@@ -157,6 +158,11 @@ function safeUser(u) {
     // limité à `.status` ci-dessus).
     isFounder:          !!u.isFounder,
     certificationBadge: u.certificationBadge || "none",
+    // Publication ouverte par l'exploitant avant les pièces (voir
+    // utils/publishingGate.js) : sans ce booléen, l'espace partenaire
+    // affichait « Certification requise pour publier » à un partenaire dont
+    // les annonces sont déjà en ligne. Jamais les détails de l'octroi.
+    publishingGranted:  autorisationProvisoireActive(u),
     loyaltyPoints:      u.loyaltyPoints ?? 0,
     driverLicenseOcr: u.driverLicenseOcr ? {
       expiryDate: u.driverLicenseOcr.expiryDate || null,

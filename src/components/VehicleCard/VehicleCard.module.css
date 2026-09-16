@@ -397,6 +397,13 @@
   line-height: 1.2;
 }
 
+.priceMonth {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #475569;
+}
+
 .buyPrice {
   margin: 2px 0 0;
   font-size: 0.75rem;

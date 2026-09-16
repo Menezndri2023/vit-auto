@@ -168,6 +168,12 @@ export function DriverCard({ d }) {
                 ? <PriceTag amountUSD={priceUnit.amount} pinnedCurrency={d.currency} enteredAmount={priceUnit.entered} enteredCurrency={d.priceEntryCurrency} suffix={priceUnit.suffix} />
                 : t("catalogue.priceOnRequest")}
             </div>
+            {/* Tarif mensuel facultatif du chauffeur (2026-09-16). */}
+            {d.tarifMois > 0 && (
+              <div style={{ fontSize: ".78rem", fontWeight: 700, color: "#475569", marginTop: 2 }}>
+                ou <PriceTag amountUSD={d.tarifMois} pinnedCurrency={d.currency} enteredAmount={d.tarifMoisEntered} enteredCurrency={d.priceEntryCurrency} suffix="/mois" compact />
+              </div>
+            )}
           </div>
           <Link to={`/driver-booking/${d._id}`} className={styles.ieCardLink}>{t("catalogue.hireDriver")}</Link>
         </div>

@@ -2,6 +2,15 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  width: 100%;
+}
+
+/* Le bouton Google mesure au plus 400 px : centré quand le formulaire est
+   plus large (bureau), pleine largeur sur téléphone. */
+.inner, .disabled {
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
 }
 
 .disabled {

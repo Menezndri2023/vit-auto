@@ -335,6 +335,8 @@ const translations = {
   "booking.paymentMethodTitle": { fr: "Méthode de paiement", en: "Payment method", ar: "طريقة الدفع", es: "Método de pago", zh: "支付方式" },
   "booking.mobileNumberLabel":  { fr: "Numéro mobile *", en: "Mobile number *", ar: "رقم الهاتف المحمول *", es: "Número de móvil *", zh: "手机号码 *" },
   "booking.optionPricePerDay": { fr: "+{price}/jour", en: "+{price}/day", ar: "+{price}/يوم", es: "+{price}/día", zh: "+{price}/天" },
+  "booking.monthlyRateApplied": { fr: "Tarif mensuel × {n} mois", en: "Monthly rate × {n} month(s)", ar: "السعر الشهري × {n} شهر", es: "Tarifa mensual × {n} mes(es)", zh: "月租价 × {n} 个月" },
+  "booking.perMonthSuffix": { fr: "/mois", en: "/month", ar: "/شهر", es: "/mes", zh: "/月" },
   "booking.optionPricePerRental": { fr: "+{price} par location", en: "+{price} per rental", ar: "+{price} لكل تأجير", es: "+{price} por alquiler", zh: "+{price}/次租赁" },
   "booking.optionsFlatNote": { fr: "les forfaits sont comptés une seule fois", en: "flat fees are charged once", ar: "الرسوم الثابتة تُحسب مرة واحدة", es: "las tarifas fijas se cobran una vez", zh: "固定费用仅收取一次" },
   "booking.optionAdditionalDriver": { fr: "Conducteur additionnel", en: "Additional driver", ar: "سائق إضافي", es: "Conductor adicional", zh: "额外驾驶员" },

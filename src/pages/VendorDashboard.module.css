@@ -38,6 +38,14 @@
   display: flex; align-items: center; justify-content: center;
   font-size: 1.3rem; font-weight: 800; color: #fff; flex-shrink: 0;
 }
+.headerAvatarImg { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+.headerAvatar { overflow: hidden; }
+.headerLink {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px;
+  color: #fff; border-radius: 10px; font-weight: 700; text-decoration: none; font-size: .88rem; white-space: nowrap;
+}
+.headerLinkImport { background: #6366f1; }
+.headerLinkPro    { background: #0f1b3f; border: 1px solid rgba(255,255,255,.25); }
 .headerTitle { font-size: 1.2rem; font-weight: 800; color: #fff; margin: 0 0 2px; }
 .headerSub   { font-size: .85rem; color: #94a3b8; margin: 0; }
 .headerSub strong { color: #c7d2fe; }
@@ -547,6 +555,11 @@
    sur une ligne : le lien passe dessous, sur toute la largeur, au lieu
    d'écraser le texte en colonne étroite. */
 @media (max-width: 640px) {
-  .proBanner, .freeBanner { flex-wrap: wrap; }
-  .upgradeLink { margin-left: 0; flex-basis: 100%; }
+  .proBanner, .freeBanner { flex-wrap: wrap; padding: 10px 16px; }
+  .upgradeLink { margin-left: 0; flex-basis: 100%; min-height: 40px; }
+  /* Actions de l'en-tête : quatre boutons en désordre sur deux lignes →
+     bouton ↻ seul à gauche, puis deux colonnes égales (audit mobile 2026-09-16). */
+  .headerRight { width: 100%; gap: 8px; }
+  .headerRight .headerLink, .headerRight .btnPrimary { flex: 1 1 calc(50% - 30px); justify-content: center; padding-left: 10px; padding-right: 10px; }
+  .headerRight .btnPrimary { flex-basis: 100%; }
 }

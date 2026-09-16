@@ -201,6 +201,33 @@
   }
 }
 
+/* ── Colonnes repliables (téléphone, voir Footer.jsx) ─────────────────── */
+.colRepliable summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.colRepliable summary::-webkit-details-marker { display: none; }
+.colRepliable summary h3 { margin: 0; }
+.colRepliable summary::after {
+  content: "+";
+  color: #8a9bbf;
+  font-size: 1.1rem;
+  font-weight: 700;
+  transition: transform .2s;
+}
+.colRepliable[open] summary::after { content: "–"; }
+.colRepliable ul { padding-top: 12px; padding-bottom: 6px; }
+.colRepliable .colSubTitle { margin-top: 14px !important; }
+@media (max-width: 900px) {
+  .cols { grid-template-columns: 1fr; gap: 0; }
+  .top { gap: 20px; }
+}
+
 /* ── Cibles tactiles ────────────────────────────────────────────
    Mesuré : les liens des colonnes et de la barre du bas faisaient 20 px de
    haut, les icônes sociales 36 px — loin des 44 px d'une pastille de doigt,

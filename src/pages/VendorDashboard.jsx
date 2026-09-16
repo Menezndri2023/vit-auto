@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { useOngletVisible } from "../hooks/useOngletVisible";
 import { useAuth } from "../context/AuthContext";
 import { useVehicles } from "../context/VehicleContext";
 import { useCurrency } from "../context/CurrencyContext";
@@ -1217,10 +1218,20 @@ export default function VendorDashboard() {
   const { on } = useSocket();
   const { openOrCreateChat } = useChat();
   const { COUNTRIES_CONFIG, fmt: fmtXOF, CURRENCIES, rateFromUSD, formatLiteral } = useCurrency();
+  // Le partenaire voit SON prix, tel qu'il l'a saisi (65 € — pas « 704 DH »
+  // converti dans la devise du visiteur) ; repli sur la devise épinglée de
+  // l'annonce, puis sur la devise d'affichage (audit mobile 2026-09-16).
+  const prixDuPartenaire = (v, champUSD, champSaisi) => {
+    if (v[champSaisi] != null && v.priceEntryCurrency) return formatLiteral(v[champSaisi], v.priceEntryCurrency);
+    if (v.currency && v.currency !== "USD") return formatLiteral(v[champUSD] * rateFromUSD(v.currency), v.currency);
+    return fmtXOF(v[champUSD]);
+  };
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
   const [activeTab,      setActiveTab]      = useState(searchParams.get("tab") || "dashboard");
+  const barreOnglets = useRef(null);
+  useOngletVisible(barreOnglets, activeTab, `.${styles.navTabActive}`);
   const [contactingOrder, setContactingOrder] = useState(null);
   const [invoices,       setInvoices]       = useState([]);
   const [serviceInvoices, setServiceInvoices] = useState([]);
@@ -1650,6 +1661,7 @@ export default function VendorDashboard() {
   // aucune conversion (contrairement au prix) — voir VendorSubmit.jsx pour le
   // même correctif à la création.
   const [editCautionEntry, setEditCautionEntry] = useState("");
+  const [editMonthEntry,   setEditMonthEntry]   = useState(""); // tarif mensuel facultatif (2026-09-16)
   const [editSaving, setEditSaving] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [editPhotos, setEditPhotos] = useState([]); // [{ id, preview }] — photos actuelles + nouvelles
@@ -2127,6 +2139,9 @@ export default function VendorDashboard() {
       setEditCautionEntry(
         v.cautionEntered != null ? String(v.cautionEntered) : (v.caution ? String(v.caution) : "")
       );
+      setEditMonthEntry(
+        v.pricePerMonthEntered != null ? String(v.pricePerMonthEntered) : (v.pricePerMonth ? String(v.pricePerMonth) : "")
+      );
       setEditForm({
         type:        v.type || (vehicle.mode === "Acheter" ? "vente" : "location"),
         title:       v.title || vehicle.name || "",
@@ -2146,6 +2161,7 @@ export default function VendorDashboard() {
         pricePerDay: v.pricePerDay || "",
         priceForSale: v.priceForSale || "",
         caution:     v.caution || "",
+        pricePerMonth: v.pricePerMonth || "",
         country:     v.country || "",
         ville:       v.ville || "",
         adresse:     v.adresse || "",
@@ -2197,6 +2213,7 @@ export default function VendorDashboard() {
   const handleEditPriceEntryChange = (field, raw) => {
     if (field === "pricePerDay") setEditPriceEntryPerDay(raw);
     else if (field === "priceForSale") setEditPriceEntryForSale(raw);
+    else if (field === "pricePerMonth") setEditMonthEntry(raw);
     else setEditCautionEntry(raw);
     if (raw === "" || isNaN(Number(raw))) { setEditForm((p) => ({ ...p, [field]: "" })); return; }
     const num = Number(raw);
@@ -2217,6 +2234,10 @@ export default function VendorDashboard() {
     if (editCautionEntry !== "" && !isNaN(Number(editCautionEntry))) {
       const num = Number(editCautionEntry);
       setEditForm((p) => ({ ...p, caution: code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100 }));
+    }
+    if (editMonthEntry !== "" && !isNaN(Number(editMonthEntry))) {
+      const num = Number(editMonthEntry);
+      setEditForm((p) => ({ ...p, pricePerMonth: code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100 }));
     }
   };
 
@@ -2245,6 +2266,8 @@ export default function VendorDashboard() {
         rentalDurationType: editForm.rentalDurationType,
         caution:     Number(editForm.caution) || 0,
         cautionEntered: editCautionEntry !== "" && !isNaN(Number(editCautionEntry)) ? Number(editCautionEntry) : null,
+        pricePerMonth: editForm.type !== "vente" && editForm.pricePerMonth !== "" ? Number(editForm.pricePerMonth) || null : null,
+        pricePerMonthEntered: editForm.type !== "vente" && editMonthEntry !== "" && !isNaN(Number(editMonthEntry)) ? Number(editMonthEntry) : null,
         description: editForm.description,
         country:     editForm.country || null,
         ville:       editForm.ville,
@@ -2947,7 +2970,11 @@ export default function VendorDashboard() {
       {/* ══ HEADER PARTENAIRE ══════════════════════════════════════════════ */}
       <header className={styles.header}>
         <div className={styles.headerLeft}>
-          <div className={styles.headerAvatar}>{(user.firstName || "P").charAt(0)}</div>
+          <div className={styles.headerAvatar}>
+            {user.profilePhoto
+              ? <img src={user.profilePhoto} alt="" className={styles.headerAvatarImg} />
+              : (user.firstName || "P").charAt(0)}
+          </div>
           <div>
             <h1 className={styles.headerTitle}>Espace Partenaire</h1>
             <p className={styles.headerSub}>Bienvenue, <strong>{user.firstName} {user.lastName}</strong></p>
@@ -2968,7 +2995,7 @@ export default function VendorDashboard() {
             <span style={{ display: "inline-block", animation: refreshing ? "spin .8s linear infinite" : "none" }}>↻</span>
           </button>
           {!isIndividualSeller && (
-            <Link to="/partner-fleet-import" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 18px", background: "#6366f1", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem", whiteSpace: "nowrap" }}>
+            <Link to="/partner-fleet-import" className={`${styles.headerLink} ${styles.headerLinkImport}`}>
               📦 Importer ma flotte
             </Link>
           )}
@@ -2976,7 +3003,7 @@ export default function VendorDashboard() {
               par TOUS les partenaires, y compris hors abonnement : chaque onglet
               montre ce qu'il contient et ce qui l'ouvre. Le cacher aux non-abonnés
               reviendrait à ne jamais leur donner de raison de s'abonner. */}
-          <Link to="/vendor/pro" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 18px", background: "#0f1b3f", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem", whiteSpace: "nowrap" }}>
+          <Link to="/vendor/pro" className={`${styles.headerLink} ${styles.headerLinkPro}`}>
             ⭐ Espace Pro
           </Link>
           <Link to="/vendor" className={styles.btnPrimary}>+ Nouvelle annonce</Link>
@@ -2987,7 +3014,17 @@ export default function VendorDashboard() {
           Un partenaire bloqué par KYC/certification (voir createVehicle) n'avait
           aucune indication proactive dans son propre espace — seulement une
           erreur 403 au moment de publier. Manque réel trouvé en audit. */}
-      {!user.isFounder && isIndividualSeller && user.kycStatus !== "VERIFIE" && (
+      {/* Publication déjà ouverte par l'exploitant (autorisation provisoire) :
+          un simple rappel, jamais « requis pour publier » à un partenaire dont
+          les annonces sont en ligne. */}
+      {!user.isFounder && user.publishingGranted && (isIndividualSeller ? user.kycStatus !== "VERIFIE" : user.certificationBadge === "none") && (
+        <div className={styles.freeBanner} style={{ borderColor: "#a5b4fc" }}>
+          <span className={styles.planBadge} style={{ background: "#e0e7ff", color: "#4338ca" }}>✓ Publication ouverte</span>
+          <span>Vos annonces sont en ligne. Complétez votre dossier quand vous le souhaitez pour obtenir le badge vérifié.</span>
+          <Link to={isIndividualSeller ? "/kyc" : "/partner-certification"} className={styles.upgradeLink}>Compléter mon dossier →</Link>
+        </div>
+      )}
+      {!user.isFounder && !user.publishingGranted && isIndividualSeller && user.kycStatus !== "VERIFIE" && (
         <div className={styles.freeBanner} style={{ borderColor: user.kycStatus === "REFUSE" ? "#fca5a5" : "#fde68a" }}>
           <span className={styles.planBadge} style={{ background: user.kycStatus === "REFUSE" ? "#fee2e2" : "#fef3c7", color: user.kycStatus === "REFUSE" ? "#dc2626" : "#d97706" }}>
             {user.kycStatus === "REFUSE" ? "❌ KYC refusé" : "⏳ KYC en attente"}
@@ -3000,7 +3037,7 @@ export default function VendorDashboard() {
           <Link to="/kyc" className={styles.upgradeLink}>{user.kycStatus === "REFUSE" ? "Resoumettre →" : "Vérifier mon identité →"}</Link>
         </div>
       )}
-      {!user.isFounder && !isIndividualSeller && user.certificationBadge === "none" && (
+      {!user.isFounder && !user.publishingGranted && !isIndividualSeller && user.certificationBadge === "none" && (
         <div className={styles.freeBanner} style={{ borderColor: "#fde68a" }}>
           <span className={styles.planBadge} style={{ background: "#fef3c7", color: "#d97706" }}>⏳ Certification requise</span>
           <span>Complétez votre vérification partenaire (entreprise/professionnel) pour pouvoir publier vos annonces.</span>
@@ -3030,7 +3067,7 @@ export default function VendorDashboard() {
       )}
 
       {/* ══ NAVIGATION ════════════════════════════════════════════════════ */}
-      <nav className={styles.nav}>
+      <nav className={styles.nav} ref={barreOnglets}>
         {[
           { id: "dashboard",    icon: "📊", label: "Dashboard" },
           { id: "commandes",    icon: "📋", label: "Commandes",       count: stats.totalOrders,    alert: newOrdersCount },
@@ -3488,7 +3525,7 @@ export default function VendorDashboard() {
                         {vehicle.fuel && <span className={styles.vTag}>{vehicle.fuel}</span>}
                       </div>
                       <div className={styles.vehiclePrice}>
-                        {vehicle.pricePerDay ? `${fmtXOF(vehicle.pricePerDay)} / jour` : vehicle.buyPrice ? fmtXOF(vehicle.buyPrice) : "—"}
+                        {vehicle.pricePerDay ? `${prixDuPartenaire(vehicle, "pricePerDay", "pricePerDayEntered")} / jour` : vehicle.buyPrice ? prixDuPartenaire(vehicle, "buyPrice", "priceForSaleEntered") : "—"}
                         {(vehicle.promotions || []).filter((r) => r.active).map((r, i) => (
                           <span key={i} style={{ marginLeft: 8, background: "#fee2e2", color: "#dc2626", fontSize: "0.72rem", fontWeight: 800, padding: "2px 8px", borderRadius: 999 }}>
                             {r.type === "percent" ? `-${r.value}%` : `-${fmtXOF(r.value)}`}{r.minDays > 1 ? ` dès ${r.minDays}j` : ""}
@@ -5422,6 +5459,19 @@ export default function VendorDashboard() {
                       </div>
                       {editPriceCurrency !== "USD" && (
                         <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>≈ {Number(editForm.caution || 0).toLocaleString("fr-FR")} USD (converti automatiquement)</span>
+                      )}
+                    </div>
+                  )}
+                  {editForm.type !== "vente" && (
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Tarif mensuel (optionnel)</label>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <input type="number" min="0" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px", flex: 1 }}
+                          value={editMonthEntry} onChange={(e) => handleEditPriceEntryChange("pricePerMonth", e.target.value)} placeholder="dès 30 jours" />
+                        <span style={{ display: "flex", alignItems: "center", padding: "0 8px", fontSize: "0.82rem", color: "#64748b" }}>{editPriceCurrency}</span>
+                      </div>
+                      {editPriceCurrency !== "USD" && editForm.pricePerMonth !== "" && (
+                        <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>≈ {Number(editForm.pricePerMonth || 0).toLocaleString("fr-FR")} USD / mois</span>
                       )}
                     </div>
                   )}

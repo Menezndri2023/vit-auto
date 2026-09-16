@@ -199,6 +199,13 @@ const VehicleCard = React.memo(({ car, compact }) => {
               : <PriceTag amountUSD={car.pricePerDay || 0} pinnedCurrency={car.currency}
                   enteredAmount={car.pricePerDayEntered} enteredCurrency={car.priceEntryCurrency} suffix=" / jour" compact />}
           </p>
+          {/* Tarif mensuel facultatif du loueur (2026-09-16), affiché dès qu'il existe. */}
+          {!(car.mode === "Acheter" || car.listingType === "vente") && car.pricePerMonth > 0 && (
+            <p className={styles.priceMonth}>
+              ou <PriceTag amountUSD={car.pricePerMonth} pinnedCurrency={car.currency}
+                enteredAmount={car.pricePerMonthEntered} enteredCurrency={car.priceEntryCurrency} suffix=" / mois" compact />
+            </p>
+          )}
           {(car.ville || car.city) && (
             <p className={styles.ville}>📍 {car.ville || car.city}</p>
           )}

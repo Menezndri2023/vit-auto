@@ -740,10 +740,10 @@ const VendorPublish = () => {
           <h1 className={styles.title}>Gestion des publications</h1>
           <p className={styles.sub}>Gérez, boostez et suivez vos annonces — véhicules & import/export.</p>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
+        <div className={styles.headerActions}>
           {mainTab === "vehicles" && (
             <>
-              <Link to="/partner-fleet-import" style={{ display: "inline-flex", alignItems: "center", padding: "11px 20px", background: "#6366f1", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem", whiteSpace: "nowrap" }}>
+              <Link to="/partner-fleet-import" className={styles.importBtn}>
                 📦 Importer ma flotte
               </Link>
               <button className={styles.newBtn} onClick={() => navigate("/vendor")}>+ Nouvelle annonce</button>

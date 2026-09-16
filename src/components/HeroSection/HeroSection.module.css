@@ -544,11 +544,23 @@
   .spotName    { font-size: 1rem; }
   .spotPrice   { font-size: 0.95rem; }
   .spotOverlay { padding: 22px 14px 36px; }
+
+  /* À cette hauteur, le texte occupe toute la carte : « Publié par HORENT »
+     et les étiquettes tombaient sur le capot blanc, dans la zone où le dégradé
+     est transparent (audit mobile 2026-09-16). Le voile monte jusqu'en haut. */
+  .spotGradient {
+    background: linear-gradient(
+      to top,
+      rgba(8, 12, 30, 0.92) 0%,
+      rgba(8, 12, 30, 0.62) 55%,
+      rgba(8, 12, 30, 0.30) 100%
+    );
+  }
 }
 
 /* Petit mobile */
 @media (max-width: 480px) {
-  .right  { height: 210px; }
+  .right  { height: 250px; }
   .title  { font-size: 1.5rem; }
   .subtitle { font-size: 0.84rem; }
 

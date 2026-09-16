@@ -183,7 +183,7 @@ const VendorSubmit = () => {
     carburant: "Essence", transmission: "Automatique",
     nombrePlaces: 5, nombrePortes: 4, climatisation: true, withDriver: false,
     kilometrage: "",
-    pricePerDay: "", priceForSale: "", caution: "",
+    pricePerDay: "", priceForSale: "", caution: "", pricePerMonth: "",
     rentalDurationType: "les_deux", // courte | longue | les_deux — location uniquement
     ageMin: 21, permisRequis: true, assuranceOptionnelle: true, dureeMinLocation: 1, instantBook: false,
     conditionsLocation: "", conditionsVente: "",
@@ -220,13 +220,17 @@ const VendorSubmit = () => {
   const [tarifEntry,            setTarifEntry]            = useState("");
   const [tarifDemiJourneeEntry, setTarifDemiJourneeEntry]  = useState("");
   const [tarifHeureEntry,       setTarifHeureEntry]        = useState("");
+  const [tarifMoisEntry,        setTarifMoisEntry]         = useState("");
+  // Tarif mensuel facultatif du véhicule (2026-09-16) — même mécanique que la caution.
+  const [pricePerMonthEntry,    setPricePerMonthEntry]     = useState("");
 
-  const DRIVER_ENTRY_FIELDS = { tarif: setTarifEntry, tarifDemiJournee: setTarifDemiJourneeEntry, tarifHeure: setTarifHeureEntry };
+  const DRIVER_ENTRY_FIELDS = { tarif: setTarifEntry, tarifDemiJournee: setTarifDemiJourneeEntry, tarifHeure: setTarifHeureEntry, tarifMois: setTarifMoisEntry };
 
   const handlePriceEntryChange = (field, raw) => {
     if (field === "pricePerDay") setPriceEntryPerDay(raw);
     else if (field === "priceForSale") setPriceEntryForSale(raw);
     else if (field === "caution") setCautionEntry(raw);
+    else if (field === "pricePerMonth") setPricePerMonthEntry(raw);
     else if (DRIVER_ENTRY_FIELDS[field]) DRIVER_ENTRY_FIELDS[field](raw);
     const setTarget = DRIVER_ENTRY_FIELDS[field] ? setDrv : setVeh;
     if (raw === "" || isNaN(Number(raw))) { setTarget(field, ""); return; }
@@ -251,6 +255,14 @@ const VendorSubmit = () => {
       const num = Number(cautionEntry);
       setVeh("caution", code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100);
     }
+    if (pricePerMonthEntry !== "" && !isNaN(Number(pricePerMonthEntry))) {
+      const num = Number(pricePerMonthEntry);
+      setVeh("pricePerMonth", code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100);
+    }
+    if (tarifMoisEntry !== "" && !isNaN(Number(tarifMoisEntry))) {
+      const num = Number(tarifMoisEntry);
+      setDrv("tarifMois", code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100);
+    }
     if (tarifEntry !== "" && !isNaN(Number(tarifEntry))) {
       const num = Number(tarifEntry);
       setDrv("tarif", code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100);
@@ -268,7 +280,7 @@ const VendorSubmit = () => {
   // ── Données chauffeur
   const [driver, setDriver] = useState({
     firstName: "", lastName: "", title: "", telephone: "",
-    tarif: "", tarifDemiJournee: "", tarifHeure: "",
+    tarif: "", tarifDemiJournee: "", tarifHeure: "", tarifMois: "",
     disponibilite: "Temps plein", zone: "", ville: "",
     experience: "", langues: ["Français"],
     permisCategorie: ["B"], vehiculePersonnel: false, typeVehicule: "",
@@ -340,6 +352,8 @@ const VendorSubmit = () => {
       if (d.priceEntryPerDay !== undefined) setPriceEntryPerDay(d.priceEntryPerDay);
       if (d.priceEntryForSale !== undefined) setPriceEntryForSale(d.priceEntryForSale);
       if (d.cautionEntry !== undefined) setCautionEntry(d.cautionEntry);
+      if (d.pricePerMonthEntry !== undefined) setPricePerMonthEntry(d.pricePerMonthEntry);
+      if (d.tarifMoisEntry !== undefined) setTarifMoisEntry(d.tarifMoisEntry);
       if (d.driver) setDriver((p) => ({ ...p, ...d.driver }));
       success("📝 Brouillon restauré — pensez à réajouter vos photos.");
     } catch { /* brouillon corrompu — ignoré silencieusement */ }
@@ -352,12 +366,12 @@ const VendorSubmit = () => {
       try {
         localStorage.setItem(DRAFT_KEY, JSON.stringify({
           step, adType, identity, selectedBusinessId, leasing, credit, vehicle,
-          priceCurrency, priceEntryPerDay, priceEntryForSale, cautionEntry, driver,
+          priceCurrency, priceEntryPerDay, priceEntryForSale, cautionEntry, pricePerMonthEntry, tarifMoisEntry, driver,
         }));
       } catch { /* quota plein — tant pis, brouillon simplement pas sauvegardé */ }
     }, 600);
     return () => clearTimeout(t);
-  }, [userId, step, adType, identity, selectedBusinessId, leasing, credit, vehicle, priceCurrency, priceEntryPerDay, priceEntryForSale, cautionEntry, driver]);
+  }, [userId, step, adType, identity, selectedBusinessId, leasing, credit, vehicle, priceCurrency, priceEntryPerDay, priceEntryForSale, cautionEntry, pricePerMonthEntry, tarifMoisEntry, driver]);
 
   const clearDraft = () => {
     try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
@@ -698,6 +712,7 @@ const VendorSubmit = () => {
             tarifEntered:            tarifEntry            !== "" && !isNaN(Number(tarifEntry))            ? Number(tarifEntry)            : null,
             tarifDemiJourneeEntered: tarifDemiJourneeEntry !== "" && !isNaN(Number(tarifDemiJourneeEntry)) ? Number(tarifDemiJourneeEntry) : null,
             tarifHeureEntered:       tarifHeureEntry       !== "" && !isNaN(Number(tarifHeureEntry))       ? Number(tarifHeureEntry)       : null,
+            tarifMoisEntered:        tarifMoisEntry        !== "" && !isNaN(Number(tarifMoisEntry))        ? Number(tarifMoisEntry)        : null,
             priceEntryCurrency: priceCurrency,
           }),
         });
@@ -765,6 +780,8 @@ const VendorSubmit = () => {
           pricePerDayEntered:  priceEntryPerDay  !== "" && !isNaN(Number(priceEntryPerDay))  ? Number(priceEntryPerDay)  : null,
           priceForSaleEntered: priceEntryForSale !== "" && !isNaN(Number(priceEntryForSale)) ? Number(priceEntryForSale) : null,
           cautionEntered:      cautionEntry      !== "" && !isNaN(Number(cautionEntry))      ? Number(cautionEntry)      : null,
+          pricePerMonth:        adType === "location" && vehicle.pricePerMonth !== "" && vehicle.pricePerMonth != null ? Number(vehicle.pricePerMonth) : null,
+          pricePerMonthEntered: adType === "location" && pricePerMonthEntry !== "" && !isNaN(Number(pricePerMonthEntry)) ? Number(pricePerMonthEntry) : null,
           priceEntryCurrency:  priceCurrency,
           leasing: adType === "vente" ? {
             disponible:    leasing.disponible,
@@ -1305,6 +1322,19 @@ const VendorSubmit = () => {
                     <span className={styles.hint}>≈ {fmt(driver.tarifDemiJournee)} USD / demi-j. (converti automatiquement)</span>
                   )}
                 </div>
+                <div className={styles.field}>
+                  <label>Tarif au mois — optionnel</label>
+                  <div className={styles.inputAffix}>
+                    <input type="number" value={tarifMoisEntry}
+                      onChange={(e) => handlePriceEntryChange("tarifMois", e.target.value)}
+                      placeholder="Ex : 400000" min="0" />
+                    <span>{priceCurrency}</span>
+                  </div>
+                  <span className={styles.hint}>Chauffeur à disposition 30 jours. Affiché « ou X / mois » sur votre annonce.</span>
+                  {priceCurrency !== "USD" && driver.tarifMois !== "" && driver.tarifMois != null && (
+                    <span className={styles.hint}>≈ {fmt(driver.tarifMois)} USD / mois (converti automatiquement)</span>
+                  )}
+                </div>
                 {driver.vehiculePersonnel && (
                   <div className={styles.field}>
                     <label>Tarif à l'heure — optionnel, avec véhicule</label>
@@ -1373,6 +1403,19 @@ const VendorSubmit = () => {
                   </div>
                   {priceCurrency !== "USD" && vehicle.caution !== "" && (
                     <span className={styles.hint}>≈ {fmt(vehicle.caution)} USD (converti automatiquement)</span>
+                  )}
+                </div>
+                <div className={styles.field}>
+                  <label>Tarif mensuel — optionnel</label>
+                  <div className={styles.inputAffix}>
+                    <input type="number" value={pricePerMonthEntry}
+                      onChange={(e) => handlePriceEntryChange("pricePerMonth", e.target.value)}
+                      placeholder="Ex : 900000" min="0" />
+                    <span>{priceCurrency}</span>
+                  </div>
+                  <span className={styles.hint}>Appliqué par tranche de 30 jours dès un mois de location ; affiché « ou X / mois » sur l'annonce.</span>
+                  {priceCurrency !== "USD" && vehicle.pricePerMonth !== "" && vehicle.pricePerMonth != null && (
+                    <span className={styles.hint}>≈ {fmt(vehicle.pricePerMonth)} USD / mois (converti automatiquement)</span>
                   )}
                 </div>
                 <div className={styles.field}>
@@ -2044,8 +2087,10 @@ const VendorSubmit = () => {
         </button>
       </div>
 
-      {/* Bannière Import/Export — visible uniquement à l'étape 1 */}
-      {step === 1 && (
+      {/* Bannière Import/Export — visible uniquement à l'étape 1, et
+          seulement pour un compte qui couvre l'exportation : un loueur ou un
+          vendeur n'a rien à y publier (secteurs séparés, règle de l'exploitant). */}
+      {step === 1 && couvreSecteur(user, "exportateur") && (
         <div style={{
           background: "linear-gradient(135deg, rgba(99,102,241,.07), rgba(255,77,45,.06))",
           border: "1.5px solid rgba(99,102,241,.20)",

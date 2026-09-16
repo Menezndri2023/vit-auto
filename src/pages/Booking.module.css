@@ -619,6 +619,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;   /* « Total 1 853,07 DH réel : $186.85 » débordait de 23 px sur téléphone */
+  gap: 2px 10px;
   padding: 9px 0;
   border-bottom: 1px solid #f0f4f8;
   font-size: 0.87rem;
@@ -626,7 +628,7 @@
 }
 
 .sidebarRow:last-child { border-bottom: none; }
-.sidebarRow strong { color: #0f1b3f; font-weight: 700; }
+.sidebarRow strong { color: #0f1b3f; font-weight: 700; margin-left: auto; text-align: right; min-width: 0; }
 
 .sidebarTotal { font-weight: 800; font-size: 1rem; margin-top: 4px; }
 .sidebarTotal span, .sidebarTotal strong { color: #ff4d2d; font-size: 1.05rem; }
@@ -720,9 +722,14 @@
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 768px) {
   .page {
-    grid-template-columns: 1fr;
+    /* minmax(0, 1fr) : avec « 1fr » seul, la piste s'élargit au contenu le
+       plus large (indicateur d'étapes, champ) et la page faisait 413 px sur
+       un écran de 390 (audit mobile 2026-09-16). */
+    grid-template-columns: minmax(0, 1fr);
     padding: 16px 12px 48px;
   }
+  .content, .sidebar { min-width: 0; }
+  .stepIndicator { overflow-x: auto; }
   .sidebar      { position: static; order: -1; }
   .row          { grid-template-columns: 1fr; }
   .pickupCards  { grid-template-columns: 1fr; }

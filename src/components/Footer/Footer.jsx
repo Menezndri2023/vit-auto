@@ -3,8 +3,18 @@ import { Link } from "react-router-dom";
 import VitAutoLogo from "../Logo/VitAutoLogo";
 import styles from "./Footer.module.css";
 import { COMPANY } from "../../constants/company";
+import useIsMobile from "../../hooks/useIsMobile";
+
+// Sur téléphone, les trois colonnes de liens (22 entrées) faisaient trois
+// écrans sous CHAQUE page — la connexion, par exemple, en avait plus de pied
+// de page que de formulaire. Elles se replient en accordéons ; sur bureau,
+// rien ne change. `<details>` natif : pas d'état à gérer, accessible.
+const Colonne = ({ titre, mobile, children }) => mobile
+  ? <details className={`${styles.col} ${styles.colRepliable}`}><summary><h3>{titre}</h3></summary>{children}</details>
+  : <div className={styles.col}><h3>{titre}</h3>{children}</div>;
 
 const Footer = () => {
+  const mobile = useIsMobile();
   return (
     <footer className={styles.footer}>
       {/* ── Ligne supérieure : brand + tagline ── */}
@@ -26,7 +36,7 @@ const Footer = () => {
 
         <div className={styles.cols}>
           {/* Services */}
-          <div className={styles.col}>
+          <Colonne titre="Services" mobile={mobile}>
             {/* Colonne restructurée : elle listait « Location courte durée » et
                 « Location longue durée » comme deux entrées distinctes menant
                 à la MÊME adresse (/catalogue?mode=Louer) — deux libellés, une
@@ -36,7 +46,6 @@ const Footer = () => {
                 Import/Export gagne en revanche sa vitrine d'annonces, qui
                 n'était atteignable que depuis sa page d'accueil — c'est le
                 point d'entrée que la barre de navigation n'a pas à porter. */}
-            <h3>Services</h3>
             <ul>
               <li><Link to="/catalogue?mode=Louer">Location de véhicules</Link></li>
               <li><Link to="/catalogue?mode=Acheter">Vente de véhicules</Link></li>
@@ -46,11 +55,10 @@ const Footer = () => {
               <li><Link to="/import-export">Import / Export international</Link></li>
               <li><Link to="/import-export/listings">Annonces Import / Export</Link></li>
             </ul>
-          </div>
+          </Colonne>
 
           {/* Navigation */}
-          <div className={styles.col}>
-            <h3>Navigation</h3>
+          <Colonne titre="Navigation" mobile={mobile}>
             <ul>
               <li><Link to="/">Accueil</Link></li>
               <li><Link to="/catalogue">Catalogue</Link></li>
@@ -61,11 +69,10 @@ const Footer = () => {
               <li><Link to="/help">Centre d'aide</Link></li>
               <li><Link to="/faq">FAQ</Link></li>
             </ul>
-          </div>
+          </Colonne>
 
           {/* Légal */}
-          <div className={styles.col}>
-            <h3>Légal & Confiance</h3>
+          <Colonne titre="Légal & Confiance" mobile={mobile}>
             <ul>
               <li><Link to="/cgu">Conditions d'utilisation</Link></li>
               <li><Link to="/cgv">Conditions de vente</Link></li>
@@ -86,7 +93,7 @@ const Footer = () => {
               </li>
               <li className={styles.hours}>🕐 Ouvert 7j/7 · 24h/24</li>
             </ul>
-          </div>
+          </Colonne>
         </div>
       </div>
 

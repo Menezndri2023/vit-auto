@@ -8,7 +8,7 @@ import { useToast }    from "../context/ToastContext";
 import { haversineKm, geocodeAddress, getCurrentPosition, reverseGeocode } from "../utils/geo";
 import { getKycBadge, generateBookingRef } from "../utils/kycEngine.js";
 import { selectBestPromotionRule } from "../utils/promotion";
-import { computeLocationTotal as computeSeasonalLocationTotal } from "../utils/seasonalPricing";
+import { computeLocationTotal as computeSeasonalLocationTotal, moisFactures } from "../utils/seasonalPricing";
 import { getCustomerServiceContact } from "../utils/customerServiceContact";
 import { useI18n } from "../context/I18nContext";
 import PriceTag from "../components/PriceTag/PriceTag";
@@ -121,7 +121,7 @@ export default function Booking() {
   const [searchParams]  = useSearchParams();
   const navigate        = useNavigate();
   const location        = useLocation();
-  const { fmt, getPaymentMethodsForCountry, catalogCountry, countryCode } = useCurrency();
+  const { fmt: fmtVisiteur, fmtPinned, getPaymentMethodsForCountry, catalogCountry, countryCode } = useCurrency();
   const { vehicles, addBooking, removeLocalBooking, getItemById } = useVehicles();
   const { token, user } = useAuth();
   const { error: toastError } = useToast();
@@ -130,6 +130,12 @@ export default function Booking() {
   const getVehicleById = getItemById
     || ((vid) => vehicles?.find((v) => String(v.id) === String(vid) || v._id === String(vid)));
   const vehicle = getVehicleById(id);
+  // Devise épinglée de l'annonce (Vehicle.currency, choix du partenaire) : la
+  // fiche affichait « 170 € / jour » et cette page « 1 843 DH réel : $185 » —
+  // trois devises pour un même prix (audit mobile 2026-09-16). Tous les
+  // montants de la page suivent la devise de l'annonce quand elle en a une.
+  const deviseAnnonce = vehicle?.currency && vehicle.currency !== "USD" ? vehicle.currency : null;
+  const fmt = useCallback((usd) => (deviseAnnonce ? fmtPinned(usd, deviseAnnonce) : fmtVisiteur(usd)), [deviseAnnonce, fmtPinned, fmtVisiteur]);
 
   // "leasing" (LOA) et "credit" (crédit classique) partagent exactement le
   // même parcours de réservation — seule la source des conditions financières
@@ -1303,7 +1309,7 @@ export default function Booking() {
               <div className={styles.confirmRow}><span>{t("booking.paymentLabel")}</span><strong>{(() => { const pm = PAYMENT_METHODS.find((p) => p.value === payMethod); return pm ? (pm.translate ? t(pm.label) : pm.label) : payMethod; })()}</strong></div>
               <div className={`${styles.confirmRow} ${styles.confirmTotal}`}>
                 <span>{t("booking.totalToPayLabel")}</span>
-                <strong><PriceTag amountUSD={totalToPay} /></strong>
+                <strong><PriceTag amountUSD={totalToPay} pinnedCurrency={deviseAnnonce} /></strong>
               </div>
             </div>
 
@@ -1427,8 +1433,14 @@ export default function Booking() {
               </>
             ) : (
               <>
-                {!isTrial && <div className={styles.sidebarRow}><span>{t("booking.pricePerDayLabel")}</span><strong><PriceTag amountUSD={vehicle.pricePerDay || 0} enteredAmount={vehicle.pricePerDayEntered} enteredCurrency={vehicle.priceEntryCurrency} /></strong></div>}
+                {!isTrial && <div className={styles.sidebarRow}><span>{t("booking.pricePerDayLabel")}</span><strong><PriceTag amountUSD={vehicle.pricePerDay || 0} pinnedCurrency={deviseAnnonce} enteredAmount={vehicle.pricePerDayEntered} enteredCurrency={vehicle.priceEntryCurrency} /></strong></div>}
                 {days > 0 && !isTrial && <div className={styles.sidebarRow}><span>{t("booking.durationLabel")}</span><strong>{t("booking.daysAbbrev", { n: days })}</strong></div>}
+                {!isTrial && moisFactures(vehicle, days) > 0 && (
+                  <div className={styles.sidebarRow} style={{ color: "#059669" }}>
+                    <span>{t("booking.monthlyRateApplied", { n: moisFactures(vehicle, days) })}</span>
+                    <strong>{fmt(vehicle.pricePerMonth)}{t("booking.perMonthSuffix")}</strong>
+                  </div>
+                )}
                 {baseTotal > 0 && !isTrial && <div className={styles.sidebarRow}><span>{t("booking.baseAmountLabel")}</span><strong>{fmt(baseTotal)}</strong></div>}
                 {promoActive && !isTrial && (
                   <div className={styles.sidebarRow} style={{ color: "#dc2626" }}>
@@ -1451,7 +1463,7 @@ export default function Booking() {
             <div className={styles.sidebarRow}><span>{t("booking.serviceFeeShortLabel")}</span><strong>{fmt(SERVICE_FEE)}</strong></div>
             <div className={`${styles.sidebarRow} ${styles.sidebarTotal}`}>
               <span>{t("booking.totalLabel")}</span>
-              <strong><PriceTag amountUSD={totalToPay} /></strong>
+              <strong><PriceTag amountUSD={totalToPay} pinnedCurrency={deviseAnnonce} /></strong>
             </div>
           </div>
 

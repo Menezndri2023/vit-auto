@@ -46,6 +46,7 @@ const driverSchema = new mongoose.Schema({
   tarif:            { type: Number }, // par jour
   tarifDemiJournee: { type: Number }, // demi-journée
   tarifHeure:       { type: Number }, // à l'heure — pertinent surtout avec véhicule (vehiculePersonnel)
+  tarifMois:        { type: Number }, // au mois (facultatif, 2026-09-16) — chauffeur à disposition 30 jours
 
   // Montant EXACT tel que tapé par le partenaire (dans `priceEntryCurrency`),
   // conservé à côté de tarif/tarifDemiJournee/tarifHeure (toujours en USD) —
@@ -55,6 +56,7 @@ const driverSchema = new mongoose.Schema({
   tarifEntered:            { type: Number, default: null },
   tarifDemiJourneeEntered: { type: Number, default: null },
   tarifHeureEntered:       { type: Number, default: null },
+  tarifMoisEntered:        { type: Number, default: null },
   priceEntryCurrency:      { type: String, default: null },
 
   // ── Disponibilité & zone ──────────────────────────────────

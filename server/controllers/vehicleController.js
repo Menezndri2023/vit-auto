@@ -794,6 +794,7 @@ export const updateVehicle = async (req, res) => {
       // Montant exact saisi (voir Vehicle.js / buildVehicleWhitelist) — évite
       // la perte de précision de l'aller-retour de conversion via l'USD stocké.
       "pricePerDayEntered", "priceForSaleEntered", "cautionEntered", "priceEntryCurrency",
+      "pricePerMonth", "pricePerMonthEntered",
     ];
     // Champs réservés admin
     const ADMIN_ONLY = ["featured", "sponsoredUntil", "boostLevel"];
@@ -865,6 +866,9 @@ export const updateVehicle = async (req, res) => {
     }
     if (safeUpdate.priceForSale !== undefined && req.body.priceForSaleEntered === undefined) {
       safeUpdate.priceForSaleEntered = null;
+    }
+    if (safeUpdate.pricePerMonth !== undefined && req.body.pricePerMonthEntered === undefined) {
+      safeUpdate.pricePerMonthEntered = null;
     }
     if (safeUpdate.caution !== undefined && req.body.cautionEntered === undefined) {
       safeUpdate.cautionEntered = null;
