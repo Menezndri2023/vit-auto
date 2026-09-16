@@ -101,9 +101,12 @@ const normalizeVehicle = (v) => {
     || (typeof v.owner === "string" ? v.owner : null)
     || v.ownerId?.toString()
     || null;
-  const ownerName = v.owner?.firstName
-    ? `${v.owner.firstName} ${v.owner.lastName || ""}`.trim()
-    : v.contactNom || v.partnerName || null;
+  // L'annonceur affiché est l'ENTITÉ qui publie (« RENT À CAR CÔTE D'AZUR »),
+  // pas le prénom du gérant (« Aleksandr ») — le catalogue ne renvoie de
+  // toute façon que le prénom (2026-09-16).
+  const ownerName = v.business?.companyName
+    || (v.owner?.firstName ? `${v.owner.firstName} ${v.owner.lastName || ""}`.trim() : null)
+    || v.contactNom || v.partnerName || null;
 
   return {
     ...v,

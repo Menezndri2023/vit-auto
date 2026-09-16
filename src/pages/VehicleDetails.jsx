@@ -13,6 +13,7 @@ import { getCustomerServiceContact } from "../utils/customerServiceContact";
 import { resolveImportOrigin } from "../constants/importOrigins";
 import TestDriveRequestModal from "../components/TestDriveRequest/TestDriveRequestModal";
 import styles from "./VehicleDetails.module.css";
+import { getDisplayRule } from "../utils/promotion";
 
 const fmtInspDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" }) : null;
 const RATING_LABEL = { excellent: "Excellent", bon: "Bon", moyen: "Moyen", mauvais: "Mauvais", na: "N/A" };
@@ -485,6 +486,14 @@ export default function VehicleDetails() {
             <span className={styles.caution}>{t("vd.caution")} <PriceTag amountUSD={vehicle.caution} pinnedCurrency={vehicle.currency}
               enteredAmount={vehicle.cautionEntered} enteredCurrency={vehicle.priceEntryCurrency} compact /></span>
           )}
+          {/* Promotion du partenaire : visible sur la carte, elle n'apparaissait
+              nulle part sur la fiche (2026-09-16). Toutes les règles actives,
+              pas seulement la première. */}
+          {!isSale && (vehicle.promotions || []).filter((r) => getDisplayRule([r])).map((r, i) => (
+            <span key={i} className={styles.caution} style={{ background: "#fee2e2", color: "#dc2626" }}>
+              🏷️ {r.label ? r.label : `${r.type === "percent" ? `-${r.value} %` : `-${fmt(r.value)}`}${r.minDays > 1 ? ` dès ${r.minDays} jours` : ""}`}
+            </span>
+          ))}
           {!isSale && (vehicle.seasonalRates || []).some((r) => r.active) && (
             <span className={styles.caution}>🗓️ Tarif variable selon la période — voir le détail aux dates choisies</span>
           )}

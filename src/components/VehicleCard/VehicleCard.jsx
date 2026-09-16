@@ -112,13 +112,16 @@ const VehicleCard = React.memo(({ car, compact }) => {
           <span className={`${styles.badge} ${car.available ? styles.available : styles.reserve}`}>
             {car.available ? "Disponible" : "Réservé"}
           </span>
-          {promoActive && (
-            <span className={styles.badge} style={{ background: "#dc2626", color: "#fff" }}>
-              🏷️ {promo.type === "percent" ? `-${promo.value}%` : `-${fmt(promo.value)}`}
-              {promo.minDays > 1 ? ` dès ${promo.minDays}j` : ""} {promo.label || ""}
-            </span>
-          )}
+          {/* Badge COURT : le libellé du partenaire (« Tarif semaine : 900 €
+              les 7 jours »), en capitales espacées, recouvrait la photo
+              entière (2026-09-16). Il descend sous le prix, dans le bloc info. */}
         </div>
+        {promoActive && (
+          <span className={`${styles.badge} ${styles.promo}`}>
+            🏷️ {promo.type === "percent" ? `-${promo.value} %` : `-${fmt(promo.value)}`}
+            {promo.minDays > 1 ? ` dès ${promo.minDays} j` : ""}
+          </span>
+        )}
       </div>
 
       <div className={styles.info}>
@@ -199,6 +202,13 @@ const VehicleCard = React.memo(({ car, compact }) => {
               : <PriceTag amountUSD={car.pricePerDay || 0} pinnedCurrency={car.currency}
                   enteredAmount={car.pricePerDayEntered} enteredCurrency={car.priceEntryCurrency} suffix=" / jour" compact />}
           </p>
+          {promoActive && (
+            <p className={styles.promoLine}>
+              🏷️ {promo.label
+                ? promo.label
+                : `${promo.type === "percent" ? `-${promo.value} %` : `-${fmt(promo.value)}`}${promo.minDays > 1 ? ` dès ${promo.minDays} jours` : ""}`}
+            </p>
+          )}
           {/* Tarif mensuel facultatif du loueur (2026-09-16), affiché dès qu'il existe. */}
           {!(car.mode === "Acheter" || car.listingType === "vente") && car.pricePerMonth > 0 && (
             <p className={styles.priceMonth}>

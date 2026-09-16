@@ -338,7 +338,7 @@ const Register = () => {
                   </div>
                 )}
               </div>
-              <p className={styles.hint}>Vous êtes partenaire ? Choisissez « Partenaire » dans le formulaire avant de continuer avec Google.</p>
+              <p className={styles.hint}>Vous publiez des annonces ? Choisissez votre profil (« Vous êtes ») dans le formulaire avant de continuer avec Google.</p>
             </div>
           )}
         </div>
