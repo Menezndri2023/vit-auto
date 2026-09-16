@@ -98,9 +98,13 @@ const signaler = (ecran, chemin, problemes) => {
 // 500 y resterait signalé.
 const ATTENDU = (statut, url) => statut === 404 && /\/api\/partner-onboarding\/my(\?|$)/.test(url);
 
+// Une erreur levée DANS un cadre Google (bouton « Continuer avec Google »,
+// accounts.google.com/gsi/…) n'est pas la nôtre et arrive par intermittence
+// (« gis is not defined », 2026-09-16) : elle ne doit pas bloquer un push.
+const erreurTierce = (e) => /accounts\.google\.com|gsi\/|apis\.google\.com/.test(String(e?.stack || "")) || /^gis is not defined/.test(String(e?.message || e || ""));
 function ecouter(page) {
   const js = [], echecs = [], http = [];
-  page.on("pageerror", (e) => js.push(String(e).slice(0, 140)));
+  page.on("pageerror", (e) => { if (!erreurTierce(e)) js.push(String(e).slice(0, 140)); });
   // Le message « Failed to load resource » ne contient pas l'URL : elle est
   // dans m.location(). Filtrer sur le seul texte laissait passer le bruit.
   page.on("console", (m) => {
@@ -263,13 +267,15 @@ if (ADMIN_ID && ADMIN_PWD) {
       // production (composant jamais importé, 2026-09-16) alors que l'onglet
       // lui-même s'ouvrait sans erreur. Chaque bouton de ce genre est cliqué,
       // l'écran est vérifié, puis l'onglet est rouvert.
-      const CONSULTATION = [/afficher les pièces/i, /^examiner/i, /voir les documents/i, /voir le dossier/i, /^documents?$/i, /^détails?$/i, /voir le détail/i];
+      const CONSULTATION = [/afficher les pièces/i, /^examiner/i, /voir les documents/i, /voir le dossier/i, /^(📄 )?documents?( →)?$/i, /^détails?( →)?$/i, /voir le détail/i];
+      // Jamais un bouton qui AGIT — le libellé exclut tout verbe de modification.
+      const INTERDIT = /g[ée]n[ée]r|valid|refus|supprim|envoy|approuv|relanc|pay|cr[ée]|ajout|enregistr|activ|bloqu|réinitialis|export|import|publi|rejet|accept|résou|clôtur/i;
       for (const motif of CONSULTATION) {
-        const libelle = await page.evaluate((src) => {
-          const re = new RegExp(src, "i");
-          const b = [...document.querySelectorAll("button")].find((x) => re.test((x.textContent || "").trim()) && !x.disabled);
+        const libelle = await page.evaluate(({ src, interditSrc }) => {
+          const re = new RegExp(src, "i"), interdit = new RegExp(interditSrc, "i");
+          const b = [...document.querySelectorAll("button")].find((x) => { const t = (x.textContent || "").trim(); return re.test(t) && !interdit.test(t) && !x.disabled; });
           if (!b) return null; b.click(); return (b.textContent || "").trim().slice(0, 40);
-        }, motif.source);
+        }, { src: motif.source, interditSrc: INTERDIT.source });
         if (!libelle) continue;
         e.vider();
         await page.waitForTimeout(3500);

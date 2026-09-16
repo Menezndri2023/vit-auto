@@ -788,6 +788,16 @@ export default function AdminPanel() {
     } catch { /* ignore — le badge live reste affiché, l'admin peut réessayer via Actualiser */ }
   }, [token, headers, vehiclesLimit, bookingsLimit, fetchPaged]);
 
+  // Chauffeurs seuls (pièces d'identité et permis en URL signées à durée
+  // limitée — voir l'effet par onglet plus bas).
+  const loadDriversList = useCallback(async () => {
+    if (!token) return;
+    try {
+      const r = await fetch("/api/drivers/pending?status=all", { headers });
+      if (r.ok) setDrivers((await r.json()).drivers || []);
+    } catch { /* la liste déjà chargée reste affichée */ }
+  }, [token, headers]);
+
   const loadMoreUsers = useCallback(() => setUsersLimit((l) => l + 200), []);
   const loadMoreBookings = useCallback(() => setBookingsLimit((l) => l + 200), []);
   const loadMoreVehicles = useCallback(() => setVehiclesLimit((l) => l + 200), []);
@@ -2329,6 +2339,11 @@ export default function AdminPanel() {
     if (activeTab === "commissions")    loadCommissions();
     if (activeTab === "factures")       { loadInvoices(); loadServiceInvoicesAdmin(); }
     if (activeTab === "kyc")            loadKycList(kycFilter);
+    // Les pièces d'identité et permis des chauffeurs sont des URL SIGNÉES à
+    // durée limitée (voir config/imagekit.js) : chargées une fois avec le
+    // panneau, elles étaient périmées (403, image cassée) quand l'admin
+    // ouvrait l'onglet plus tard. Rechargé à chaque ouverture de l'onglet.
+    if (activeTab === "chauffeurs")     loadDriversList();
     if (activeTab === "certification")  loadCertList();
     if (activeTab === "partner_verif")     loadPartnerVerif();
     if (activeTab === "pms_partners")      loadPMSAdmin();
@@ -2355,7 +2370,7 @@ export default function AdminPanel() {
     if (activeTab === "whatsapp")          loadWaConversations();
     if (activeTab === "business_config")   loadBusinessConfig();
     if (activeTab === "reversements")      loadPayouts();
-  }, [activeTab, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadPartnerCrm, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds, loadInsurance, loadServiceRequests, loadImportCostData, loadReports, loadWaConversations, loadBusinessConfig, loadPayouts, loadPendingValidation, loadClientPartnerChats, loadSystemHealth]);
+  }, [activeTab, loadDriversList, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadPartnerCrm, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds, loadInsurance, loadServiceRequests, loadImportCostData, loadReports, loadWaConversations, loadBusinessConfig, loadPayouts, loadPendingValidation, loadClientPartnerChats, loadSystemHealth]);
 
   // Chargé indépendamment de l'onglet actif (contrairement au bloc ci-dessus,
   // conditionné par activeTab === "business_config") : le message d'invitation

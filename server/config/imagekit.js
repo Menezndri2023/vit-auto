@@ -116,10 +116,12 @@ const isPrivateFolder = (folder) => PRIVATE_FOLDERS.some((f) => folder === f || 
 // erreur de classement casse silencieusement une page publique.
 export const isPrivateFolderForTest = isPrivateFolder;
 
-// Durée de validité d'une URL signée. Assez longue pour consulter et
-// télécharger un document dans la foulée, assez courte pour qu'une URL ayant
-// fuité ne serve plus.
-const SIGNED_URL_TTL_SECONDS = 15 * 60;
+// Durée de validité d'une URL signée. 15 minutes ne couvraient pas une
+// session de travail : l'admin chargeait son panneau, traitait d'autres
+// onglets, puis ouvrait « Chauffeurs » — pièces en 403 (2026-09-16). Une
+// URL ne circule qu'à l'intérieur d'une réponse authentifiée ; une journée de
+// travail est le bon ordre de grandeur, et une fuite reste bornée.
+const SIGNED_URL_TTL_SECONDS = 12 * 60 * 60;
 
 // Rend affichable une URL de document. Un fichier PRIVÉ n'est lisible que via
 // une URL signée ; un fichier public (déposé avant ce changement) traverse la

@@ -46,8 +46,12 @@ async function apiAs(id, pwd = PWD) {
 }
 const attendu = (r, statut, quoi) => { const ok = Array.isArray(statut) ? statut.includes(r.status) : r.status === statut; if (!ok) throw new Error(`${quoi} : ${r.status} ${JSON.stringify(r.data).slice(0, 160)}`); return r.data; };
 
+// Une erreur levée DANS un cadre Google (bouton « Continuer avec Google »,
+// accounts.google.com/gsi/…) n'est pas la nôtre et arrive par intermittence
+// (« gis is not defined », 2026-09-16) : elle ne doit pas bloquer un push.
+const erreurTierce = (e) => /accounts\.google\.com|gsi\/|apis\.google\.com/.test(String(e?.stack || "")) || /^gis is not defined/.test(String(e?.message || e || ""));
 function surveiller(page, nom, journal) {
-  page.on("pageerror", (e) => journal.push(`[${nom}] pageerror: ${e.message.slice(0, 160)}`));
+  page.on("pageerror", (e) => { if (!erreurTierce(e)) journal.push(`[${nom}] pageerror: ${e.message.slice(0, 160)}`); });
   page.on("response", async (r) => {
     if (r.status() >= 400 && r.url().startsWith(BASE) && !/auth\/me|auth\/refresh|\/api\/geo\/|business-config\/pricing|partner-onboarding\/my/.test(r.url())) {
       const corps = await r.text().catch(() => "");
