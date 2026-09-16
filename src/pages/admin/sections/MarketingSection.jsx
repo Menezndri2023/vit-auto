@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCurrency } from "../../../context/CurrencyContext";
 import styles from "../../AdminPanel.module.css";
 import { MAX_SPOTLIGHTS_M } from "../shared.jsx";
+import { AdsSection } from "./AdsSection.jsx";
 
 // Filtre de recherche/pays/type réutilisé par les deux pickers (hero &
 // vedette) — barre compacte pensée mobile-first (colonne unique sous ~480px,

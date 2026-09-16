@@ -1,5 +1,6 @@
 // Extrait d'AdminPanel.jsx (découpe par onglet, 2026-09-12) — logique inchangée.
 import { useCallback, useEffect, useState } from "react";
+import { ClientDocuments } from "./ClientDocuments.jsx";
 
 // ── Pièces d'identité soumises depuis le profil client ────────────────────
 // Manque réel : les endpoints existaient des deux côtés (getPendingIdentities,

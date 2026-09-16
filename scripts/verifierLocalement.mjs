@@ -257,6 +257,33 @@ if (ADMIN_ID && ADMIN_PWD) {
       await page.waitForTimeout(3000);
       const m = await mesurer(page);
       signaler("admin", nom, problemesDe({ ...m, coupes: 0 }, e, { exigerSw: false }));
+
+      // Actions de CONSULTATION dans l'onglet (jamais valider/refuser/supprimer) :
+      // « Afficher les pièces justificatives » plantait tout l'onglet KYC en
+      // production (composant jamais importé, 2026-09-16) alors que l'onglet
+      // lui-même s'ouvrait sans erreur. Chaque bouton de ce genre est cliqué,
+      // l'écran est vérifié, puis l'onglet est rouvert.
+      const CONSULTATION = [/afficher les pièces/i, /^examiner/i, /voir les documents/i, /voir le dossier/i, /^documents?$/i, /^détails?$/i, /voir le détail/i];
+      for (const motif of CONSULTATION) {
+        const libelle = await page.evaluate((src) => {
+          const re = new RegExp(src, "i");
+          const b = [...document.querySelectorAll("button")].find((x) => re.test((x.textContent || "").trim()) && !x.disabled);
+          if (!b) return null; b.click(); return (b.textContent || "").trim().slice(0, 40);
+        }, motif.source);
+        if (!libelle) continue;
+        e.vider();
+        await page.waitForTimeout(3500);
+        const ma = await mesurer(page);
+        signaler("admin", `${nom} › ${libelle}`, problemesDe({ ...ma, coupes: 0 }, e, { exigerSw: false }));
+        await page.keyboard.press("Escape").catch(() => {});
+        if (ma.boundary) {
+          // La frontière d'erreur a remplacé le panneau : le rouvrir pour la suite.
+          await page.goto(BASE + "/admin", { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
+          await page.waitForTimeout(6000);
+          await page.evaluate((idx) => { const b = [...document.querySelectorAll("button")].filter((x) => { const s = x.querySelectorAll(":scope > span"); return s.length >= 2 && (s[1].textContent || "").trim().length > 2; })[idx]; b?.click(); }, i);
+          await page.waitForTimeout(3000);
+        }
+      }
     }
 
     // Déconnexion PROPRE en fin de vérification : chaque connexion ajoute un
