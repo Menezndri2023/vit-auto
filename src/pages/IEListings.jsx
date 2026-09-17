@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { COUNTRIES_ALL, CAR_MAKES, getCountryFlag } from "../data/autocomplete";
-import { useCurrency } from "../context/CurrencyContext";
 import PriceTag from "../components/PriceTag/PriceTag";
 import styles from "./IEListings.module.css";
 import ieModalStyles from "./ImportExport.module.css";
@@ -192,7 +191,6 @@ export default function IEListings() {
     description: "Véhicules disponibles à l'import depuis la Chine, Dubaï, l'Europe et le Japon, avec coût rendu-dédouané estimé.",
   });
 
-  const { catalogCountry } = useCurrency();
   const [listings,     setListings]     = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [total,        setTotal]        = useState(0);
@@ -208,7 +206,9 @@ export default function IEListings() {
     try {
       const params = new URLSearchParams({ status: "approved", limit: 12, page });
       if (filterCountry) params.set("sourceCountry", filterCountry);
-      if (catalogCountry) params.set("country", catalogCountry);
+      // Les annonces d'exportation sont INTERNATIONALES (règle de l'exploitant,
+      // 2026-09-17) : jamais restreintes au pays du visiteur — un acheteur
+      // voit toute l'offre, quel que soit son pays.
       const res = await fetch(`/api/import-export/listings?${params}`);
       if (res.ok) {
         const d = await res.json();
@@ -229,7 +229,7 @@ export default function IEListings() {
       }
     } catch { /* ignoré volontairement */ }
     setLoading(false);
-  }, [page, filterCountry, searchMake, sortOrder, catalogCountry]);
+  }, [page, filterCountry, searchMake, sortOrder]);
 
   useEffect(() => { load(); }, [load]);
 

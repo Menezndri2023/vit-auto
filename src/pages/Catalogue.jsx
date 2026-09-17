@@ -379,7 +379,8 @@ const Catalogue = () => {
     try {
       const params = new URLSearchParams({ status: "approved", limit: 24 });
       if (ieSource) params.set("sourceCountry", ieSource);
-      if (catalogCountry) params.set("country", catalogCountry);
+      // Import/Export : offre internationale, jamais filtrée au pays du visiteur
+      // (règle de l'exploitant, 2026-09-17).
       const res = await fetch(`/api/import-export/listings?${params}`);
       if (res.ok) {
         const d = await res.json();
@@ -411,7 +412,7 @@ const Catalogue = () => {
       }
     } catch { /* ignoré volontairement */ }
     setIeLoading(false);
-  }, [ieSource, ieSearch, ieSortKey, catalogCountry, ieMaxPrice, rateFromUSD]);
+  }, [ieSource, ieSearch, ieSortKey, ieMaxPrice, rateFromUSD]);
 
   useEffect(() => {
     if (isImportMode) loadIEListings();
