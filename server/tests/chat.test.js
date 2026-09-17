@@ -318,3 +318,67 @@ describe("chatController.sendMessage / getMessages / getUnreadCount", () => {
     expect(res.status).toHaveBeenCalledWith(404);
   });
 });
+
+// ── Blocage (App Store 1.2 : signaler ET bloquer) ────────────────────────────
+describe("chatController — utilisateur bloqué", () => {
+  it("refuse le message dans les DEUX sens dès que l'un a bloqué l'autre, puis le rétablit au déblocage", async () => {
+    const { blockUser, unblockUser } = await import("../controllers/usersController.js");
+    const client = await createUser();
+    const owner  = await createUser({ role: "partenaire" });
+    const booking = await createBookingBetween(client, owner._id);
+
+    const ouverture = mockReqRes({ user: client, body: { type: "client_partner", bookingId: booking._id.toString() } });
+    await getOrCreateChat(ouverture.req, ouverture.res);
+    const chatId = ouverture.res.body.chat._id.toString();
+
+    // Le client bloque le partenaire
+    const blocage = mockReqRes({ user: client, params: { id: owner._id.toString() } });
+    await blockUser(blocage.req, blocage.res);
+    expect(blocage.res.body.blocked).toBe(true);
+
+    const duClient = mockReqRes({ user: client, params: { id: chatId }, body: { content: "bonjour" } });
+    await sendMessage(duClient.req, duClient.res);
+    expect(duClient.res.status).toHaveBeenCalledWith(403);
+    expect(duClient.res.body.code).toBe("BLOCKED");
+
+    const duPartenaire = mockReqRes({ user: owner, params: { id: chatId }, body: { content: "bonjour" } });
+    await sendMessage(duPartenaire.req, duPartenaire.res);
+    expect(duPartenaire.res.status).toHaveBeenCalledWith(403);
+    expect(duPartenaire.res.body.code).toBe("BLOCKED");
+
+    // Déblocage : les messages passent à nouveau
+    const deblocage = mockReqRes({ user: client, params: { id: owner._id.toString() } });
+    await unblockUser(deblocage.req, deblocage.res);
+    const apres = mockReqRes({ user: client, params: { id: chatId }, body: { content: "bonjour" } });
+    await sendMessage(apres.req, apres.res);
+    expect(apres.res.status).not.toHaveBeenCalledWith(403);
+    expect(apres.res.body.message?.content).toBe("bonjour");
+  });
+
+  it("empêche d'ouvrir une nouvelle conversation avec un utilisateur bloqué, sans toucher au support", async () => {
+    const { blockUser } = await import("../controllers/usersController.js");
+    const client = await createUser();
+    const owner  = await createUser({ role: "partenaire" });
+    const admin  = await createUser({ role: "admin" });
+    const booking = await createBookingBetween(client, owner._id);
+
+    const blocage = mockReqRes({ user: owner, params: { id: client._id.toString() } });
+    await blockUser(blocage.req, blocage.res);
+
+    const cp = mockReqRes({ user: client, body: { type: "client_partner", bookingId: booking._id.toString() } });
+    await getOrCreateChat(cp.req, cp.res);
+    expect(cp.res.status).toHaveBeenCalledWith(403);
+
+    const support = mockReqRes({ user: client, body: { type: "client_support" } });
+    await getOrCreateChat(support.req, support.res);
+    expect(support.res.body.chat).toBeTruthy();
+
+    // Un admin ne se bloque pas, ni soi-même
+    const surAdmin = mockReqRes({ user: client, params: { id: admin._id.toString() } });
+    await blockUser(surAdmin.req, surAdmin.res);
+    expect(surAdmin.res.status).toHaveBeenCalledWith(400);
+    const surSoi = mockReqRes({ user: client, params: { id: client._id.toString() } });
+    await blockUser(surSoi.req, surSoi.res);
+    expect(surSoi.res.status).toHaveBeenCalledWith(400);
+  });
+});

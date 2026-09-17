@@ -7,6 +7,25 @@ import Notification from "../models/Notification.js";
 
 const SUPPORT_TYPES = ["client_support", "partner_support"];
 
+// Blocage (User.blockedUsers) : un message ne passe dans AUCUN des deux sens
+// dès que l'un des deux a bloqué l'autre. Le support (admin) n'est jamais
+// concerné : c'est la voie de recours.
+async function blocageEntre(aId, bId) {
+  const [a, b] = await Promise.all([
+    User.findById(aId).select("blockedUsers").lean(),
+    User.findById(bId).select("blockedUsers").lean(),
+  ]);
+  const aBloqueB = (a?.blockedUsers || []).some((id) => id.toString() === bId.toString());
+  const bBloqueA = (b?.blockedUsers || []).some((id) => id.toString() === aId.toString());
+  return { aBloqueB, bBloqueA, bloque: aBloqueB || bBloqueA };
+}
+const REFUS_BLOCAGE = (jai) => ({
+  code: "BLOCKED",
+  message: jai
+    ? "Vous avez bloqué cet utilisateur. Débloquez-le pour reprendre la conversation."
+    : "Cet utilisateur n'accepte plus vos messages. Le service client VIT AUTO reste joignable.",
+});
+
 // Un admin doit pouvoir répondre à N'IMPORTE QUELLE conversation de support, pas
 // seulement celle où il figure déjà comme participant (le premier admin trouvé au
 // moment de la création — voir getOrCreateChat) : sinon les autres admins restent
@@ -56,6 +75,8 @@ export const getMyChats = async (req, res) => {
       .sort({ lastMessageAt: -1 })
       .populate("participants", "firstName lastName role profilePhoto")
       .populate("booking", "type status");
+    const moi = await User.findById(req.user._id).select("blockedUsers").lean();
+    const bloques = new Set((moi?.blockedUsers || []).map((id) => id.toString()));
 
     const result = chats.map((c) => {
       const unread = c.unreadCount?.get?.(req.user._id.toString()) || 0;
@@ -65,6 +86,8 @@ export const getMyChats = async (req, res) => {
         type:         c.type,
         booking:      c.booking,
         other,
+        // Le front affiche « Débloquer » et neutralise la saisie.
+        blockedByMe:  !!(other && bloques.has(other._id.toString())),
         lastMessage:  c.lastMessage,
         lastMessageAt: c.lastMessageAt,
         unread,
@@ -160,6 +183,11 @@ export const getOrCreateChat = async (req, res) => {
 
     if (targetId === myId) return res.status(400).json({ message: "Impossible de vous écrire à vous-même." });
 
+    if (type === "client_partner") {
+      const b = await blocageEntre(myId, targetId);
+      if (b.bloque) return res.status(403).json(REFUS_BLOCAGE(b.aBloqueB));
+    }
+
     // Chercher conversation existante. Pour le support, un seul chat par
     // (client, type) doit exister quel que soit l'admin nominal — sinon, comme
     // aucun ordre n'est garanti sur `User.findOne({role:"admin"})` quand
@@ -223,6 +251,14 @@ export const sendMessage = async (req, res) => {
 
     const chat = await findAccessibleChat(id, req.user);
     if (!chat) return res.status(404).json({ message: "Conversation introuvable." });
+
+    if (chat.type === "client_partner") {
+      const autre = chat.participants.find((p) => p.toString() !== myId);
+      if (autre) {
+        const b = await blocageEntre(myId, autre);
+        if (b.bloque) return res.status(403).json(REFUS_BLOCAGE(b.aBloqueB));
+      }
+    }
 
     const msg = {
       sender:     req.user._id,

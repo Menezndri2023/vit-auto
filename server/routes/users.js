@@ -23,6 +23,12 @@ router.patch("/me",            authenticate, u.updateMyProfile);
 router.post("/me/identity",    authenticate, u.submitIdentity);
 router.post("/me/email-change", strictLimiter, authenticate, validate(requestEmailChangeSchema), u.requestEmailChange);
 router.post("/me/deactivate",   strictLimiter, authenticate, validate(deactivateAccountSchema), u.deactivateMyAccount);
+// Blocage d'un utilisateur (exigence App Store 1.2, à côté du signalement).
+// Déclaré AVANT les routes admin "/:id" : "/me/blocked" ne doit pas être lu
+// comme un identifiant.
+router.get("/me/blocked",       authenticate, u.getBlockedUsers);
+router.post("/:id/block",       authenticate, validateObjectId(), u.blockUser);
+router.delete("/:id/block",     authenticate, validateObjectId(), u.unblockUser);
 
 // ── Profil partenaire public (page PartnerProfile.jsx) ─────────────────────
 router.get("/:id/public",      validateObjectId(), u.getPublicProfile);

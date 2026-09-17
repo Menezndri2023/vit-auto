@@ -4,6 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useChat } from "../../context/ChatContext";
 import { useToast } from "../../context/ToastContext";
 import { getAssistantResponse } from "./VirtualAssistant";
+import ReportButton from "../ReportButton/ReportButton";
 import styles from "./Chat.module.css";
 
 // Routes sans chat FAB (admin ERP gère son propre support)
@@ -127,7 +128,7 @@ function ChannelList({ onSelect, onOpenChannel, user }) {
 // ── Vue : conversation ────────────────────────────────────────────────────
 function ConversationView({ channel }) {
   const { user }   = useAuth();
-  const { messages, sendMessage } = useChat();
+  const { messages, sendMessage, activeChat, setBlocked } = useChat();
   const { error }  = useToast();
   const [text, setText]  = useState("");
   const [sending, setSending] = useState(false);
@@ -189,6 +190,18 @@ function ConversationView({ channel }) {
         )}
         <div ref={bottomRef} />
       </div>
+      {activeChat?.blockedByMe ? (
+        <div className={styles.blockedRow}>
+          <span>⛔ Vous avez bloqué cet utilisateur : plus aucun message n'est échangé.</span>
+          <button
+            type="button"
+            className={styles.unblockBtn}
+            onClick={async () => { const r = await setBlocked(activeChat.other?._id, false); if (!r.ok) error(r.message); }}
+          >
+            Débloquer
+          </button>
+        </div>
+      ) : (
       <div className={styles.inputRow}>
         <textarea
           className={styles.input}
@@ -202,6 +215,7 @@ function ConversationView({ channel }) {
           ➤
         </button>
       </div>
+      )}
     </>
   );
 }
@@ -211,7 +225,7 @@ function ConversationView({ channel }) {
 // ══════════════════════════════════════════════════════════════════════════
 export default function Chat() {
   const { user, isAuthenticated } = useAuth();
-  const { open, setOpen, closeChat, openOrCreateChat, selectChat, activeChat, unreadTotal, loading } = useChat();
+  const { open, setOpen, closeChat, openOrCreateChat, selectChat, activeChat, unreadTotal, loading, setBlocked } = useChat();
   const { error } = useToast();
   const location = useLocation();
 
@@ -315,6 +329,26 @@ export default function Chat() {
               <div className={styles.headerName}>{view === "list" ? "VIT AUTO Chat" : channelName}</div>
               <div className={styles.headerSub}>{view === "list" ? `Bonjour ${user?.firstName || ""}` : channelSub}</div>
             </div>
+            {/* Signaler + bloquer l'interlocuteur : contenu généré par les
+                utilisateurs (App Store 1.2). Jamais sur le support ni sur
+                l'assistant, qui ne sont pas des utilisateurs. */}
+            {view === "convo" && activeChat?.type === "client_partner" && activeChat?.other?._id && !activeChannel?.bot && (
+              <div className={styles.headerActions}>
+                <ReportButton targetType="user" targetId={activeChat.other._id} compact />
+                <button
+                  type="button"
+                  className={styles.blockBtn}
+                  onClick={async () => {
+                    const bloquer = !activeChat.blockedByMe;
+                    if (bloquer && !window.confirm(`Bloquer ${channelName} ? Vous ne recevrez plus ses messages et il ne recevra plus les vôtres.`)) return;
+                    const r = await setBlocked(activeChat.other._id, bloquer);
+                    if (!r.ok) error(r.message);
+                  }}
+                >
+                  {activeChat.blockedByMe ? "Débloquer" : "⛔ Bloquer"}
+                </button>
+              </div>
+            )}
             <button className={styles.headerClose} onClick={handleFab}>✕</button>
           </div>
 

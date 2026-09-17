@@ -42,31 +42,63 @@ describe("usersController.deactivateMyAccount", () => {
     expect(res.body.code).toBe("GOOGLE_ACCOUNT_NO_PASSWORD");
   });
 
-  it("désactive le compte, incrémente tokenVersion et vide refreshTokens", async () => {
-    const user = await withPassword({ refreshTokens: ["some-old-hash"], tokenVersion: 1 });
-    const oldToken = signOldToken(user);
+  // App Store 5.1.1 (v) : une désactivation « réversible via le support » est
+  // explicitement insuffisante. Sans réservation, le compte est SUPPRIMÉ ; avec
+  // des réservations (que les autres parties doivent garder), il est anonymisé
+  // et rendu définitivement inutilisable.
+  it("supprime le compte sans réservation, avec ses annonces non réservées", async () => {
+    const Vehicle = (await import("../models/Vehicle.js")).default;
+    const user = await withPassword({ role: "partenaire" });
+    await Vehicle.create({ title: "Clio", type: "location", owner: user._id });
 
     const { req, res } = mockReqRes({ body: { password: PASSWORD }, user });
     await deactivateMyAccount(req, res);
     expect(res.statusCode).toBe(200);
-    // Contrairement à changePassword/logoutOtherSessions : aucun token n'est
-    // réémis, la désactivation doit déconnecter, pas prolonger la session.
     expect(res.body.token).toBeUndefined();
+    expect(await User.findById(user._id)).toBeNull();
+    expect(await Vehicle.countDocuments({ owner: user._id })).toBe(0);
+  });
+
+  it("anonymise et verrouille le compte qui a des réservations ; l'ancien jeton est rejeté ; l'e-mail est libéré", async () => {
+    const Booking = (await import("../models/Booking.js")).default;
+    const Vehicle = (await import("../models/Vehicle.js")).default;
+    const user = await withPassword({ refreshTokens: ["some-old-hash"], tokenVersion: 1, phone: "+2250700000001", profilePhoto: "https://x/y.jpg",
+      identity: { type: "passport", number: "P123", frontImage: "data:...", status: "verified" } });
+    const owner = await createUser({ role: "partenaire" });
+    const vehicle = await Vehicle.create({ title: "Corolla", type: "location", owner: owner._id });
+    await Booking.create({ type: "location", client: user._id, vehicle: vehicle._id, clientInfo: { firstName: "A", lastName: "B", email: user.email, passportNumber: "P123" }, adminValidation: { status: "approved" } });
+    const oldToken = signOldToken(user);
+    const ancienEmail = user.email;
+
+    const { req, res } = mockReqRes({ body: { password: PASSWORD }, user });
+    await deactivateMyAccount(req, res);
+    expect(res.statusCode).toBe(200);
 
     const reloaded = await User.findById(user._id);
+    expect(reloaded).toBeTruthy();
     expect(reloaded.isActive).toBe(false);
+    expect(reloaded.deletedAt).toBeTruthy();
+    expect(reloaded.email).not.toBe(ancienEmail);
+    expect(reloaded.phone).toBeNull();
+    expect(reloaded.profilePhoto).toBeNull();
+    expect(reloaded.identity.frontImage).toBeNull();
+    expect(reloaded.identity.number).toBeNull();
+    expect(reloaded.firstName).toBe("Compte");
     expect(reloaded.tokenVersion).toBe(2);
     expect(reloaded.refreshTokens).toEqual([]);
+    // La réservation reste lisible par le partenaire
+    expect(await Booking.countDocuments({ client: user._id })).toBe(1);
 
-    // Le token émis avant la désactivation doit désormais être rejeté par le
-    // middleware authenticate (via isActive, en défense en profondeur via
-    // tokenVersion aussi si le compte était un jour réactivé).
     const authReq = { headers: { authorization: `Bearer ${oldToken}` } };
     const { res: authRes } = mockReqRes();
     let nextCalled = false;
     await authenticate(authReq, authRes, () => { nextCalled = true; });
     expect(nextCalled).toBe(false);
-    expect(authRes.statusCode).toBe(403); // "Compte bloqué." — isActive:false
+    expect(authRes.statusCode).toBe(403);
+
+    // Réinscription possible avec la même adresse
+    const nouveau = await createUser({ email: ancienEmail });
+    expect(nouveau._id.toString()).not.toBe(user._id.toString());
   });
 
   it("gère un compte déjà inactif sans erreur", async () => {
@@ -74,9 +106,7 @@ describe("usersController.deactivateMyAccount", () => {
     const { req, res } = mockReqRes({ body: { password: PASSWORD }, user });
     await deactivateMyAccount(req, res);
     expect(res.statusCode).toBe(200);
-
-    const reloaded = await User.findById(user._id);
-    expect(reloaded.isActive).toBe(false);
+    expect(await User.findById(user._id)).toBeNull();
   });
 
   it("crée une entrée d'audit", async () => {
@@ -86,7 +116,7 @@ describe("usersController.deactivateMyAccount", () => {
     expect(res.statusCode).toBe(200);
 
     const AuditLog = (await import("../models/AuditLog.js")).default;
-    const entry = await AuditLog.findOne({ action: "user.self_deactivate", resourceId: user._id.toString() });
+    const entry = await AuditLog.findOne({ action: "user.self_delete", resourceId: user._id.toString() });
     expect(entry).toBeTruthy();
   });
 });

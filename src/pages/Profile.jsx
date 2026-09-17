@@ -531,7 +531,7 @@ const Profile = () => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Erreur.");
-      toastSuccess(data.message || "Votre compte a été désactivé.");
+      toastSuccess(data.message || "Votre compte a été supprimé.");
       // Le token courant est immédiatement invalide côté serveur (isActive:false
       // + tokenVersion incrémenté) — déconnexion locale obligatoire. `logout()`
       // tente aussi de révoquer le refresh token (non bloquant si déjà invalide).
@@ -1233,7 +1233,7 @@ const Profile = () => {
                 <div className={`${styles.securityItem} ${styles.dangerZone}`}>
                   <div>
                     <p className={styles.secTitle}>Supprimer le compte</p>
-                    <p className={styles.secDesc}>Désactive votre compte (réversible via le support) — vous serez déconnecté immédiatement.</p>
+                    <p className={styles.secDesc}>Suppression définitive : vos données personnelles sont effacées et vous êtes déconnecté immédiatement. Irréversible.</p>
                   </div>
                   <button className={styles.dangerBtn} onClick={() => setShowDeactivateConfirm(true)}>
                     Supprimer
@@ -1244,7 +1244,7 @@ const Profile = () => {
               <ConfirmDialog
                 open={showDeactivateConfirm}
                 title="Supprimer votre compte ?"
-                description="Votre compte sera désactivé et vous serez immédiatement déconnecté. Contactez le support pour le réactiver."
+                description="Suppression définitive et irréversible : vos données personnelles sont effacées et vous êtes immédiatement déconnecté. Vous pourrez créer un nouveau compte plus tard avec la même adresse."
                 confirmLabel="Supprimer mon compte"
                 danger
                 requirePassword

@@ -122,6 +122,55 @@
 }
 .headerClose:hover { background: rgba(255,255,255,0.15); color: #fff; }
 
+/* Signaler + bloquer (en-tête d'une conversation client ↔ partenaire) */
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.headerActions button { color: rgba(255,255,255,0.85) !important; }
+.blockBtn {
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.blockBtn:hover { background: rgba(255,255,255,0.22); }
+
+/* Conversation bloquée : la saisie est remplacée par ce bandeau */
+.blockedRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fff7ed;
+  border-top: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+.unblockBtn {
+  background: #0f1b3f;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  min-height: 40px;
+}
+
 /* ── Vue liste ── */
 .channelList {
   flex: 1;

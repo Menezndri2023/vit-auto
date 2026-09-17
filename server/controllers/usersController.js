@@ -937,6 +937,45 @@ export const requestEmailChange = async (req, res) => {
 // suppression définitive — l'effacement RGPD/suppression dure des données
 // (réservations, factures, documents KYC liés) nécessite un arbitrage
 // produit/légal séparé, volontairement hors scope ici.
+// ── Bloquer / débloquer un utilisateur ───────────────────────────────────────
+// Symétrique du signalement : le signalement remonte à la modération, le
+// blocage agit tout de suite pour la personne. Un admin ne se bloque pas (il
+// est le support), et l'on ne se bloque pas soi-même.
+export const blockUser = async (req, res) => {
+  try {
+    const cibleId = req.params.id;
+    if (cibleId === req.user._id.toString()) return res.status(400).json({ message: "Vous ne pouvez pas vous bloquer vous-même." });
+    const cible = await User.findById(cibleId).select("role").lean();
+    if (!cible) return res.status(404).json({ message: "Utilisateur introuvable." });
+    if (cible.role === "admin") return res.status(400).json({ message: "Le service client VIT AUTO ne peut pas être bloqué." });
+    await User.updateOne({ _id: req.user._id }, { $addToSet: { blockedUsers: cible._id } });
+    res.json({ blocked: true, userId: cibleId });
+  } catch (err) {
+    logger.error("blockUser:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+export const unblockUser = async (req, res) => {
+  try {
+    await User.updateOne({ _id: req.user._id }, { $pull: { blockedUsers: req.params.id } });
+    res.json({ blocked: false, userId: req.params.id });
+  } catch (err) {
+    logger.error("unblockUser:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+export const getBlockedUsers = async (req, res) => {
+  try {
+    const me = await User.findById(req.user._id).select("blockedUsers").populate("blockedUsers", "firstName lastName role profilePhoto").lean();
+    res.json({ blocked: me?.blockedUsers || [] });
+  } catch (err) {
+    logger.error("getBlockedUsers:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
 export const deactivateMyAccount = async (req, res) => {
   try {
     const { password } = req.body;
@@ -956,17 +995,72 @@ export const deactivateMyAccount = async (req, res) => {
       return res.status(401).json({ message: "Mot de passe incorrect." });
     }
 
-    user.isActive = false;
-    user.refreshTokens = [];
-    user.tokenVersion = (user.tokenVersion || 0) + 1;
-    await user.save();
+    // SUPPRESSION RÉELLE, pas une désactivation. App Store 5.1.1 (v) : une app
+    // qui crée des comptes doit permettre de les supprimer, et « désactiver ou
+    // suspendre temporairement » est explicitement insuffisant — c'était
+    // pourtant tout ce que faisait cette route (isActive:false, « réversible
+    // via le support »). Deux cas :
+    //  - aucune réservation ni commande ne cite ce compte : suppression pure,
+    //    avec le même nettoyage des annonces que la suppression par un admin ;
+    //  - sinon : les réservations, factures et litiges des AUTRES parties
+    //    doivent rester lisibles (obligations contractuelles et comptables),
+    //    donc le document reste mais toute donnée personnelle est effacée
+    //    (identité, pièces, photo, téléphone, adresse, e-mail remplacé) et le
+    //    compte est définitivement inutilisable. L'e-mail et le téléphone sont
+    //    libérés : la personne peut se réinscrire.
+    const aDesReservations = await Booking.exists({ client: user._id });
+    const [vehicules, chauffeurs] = await Promise.all([
+      Vehicle.find({ owner: user._id }).select("_id").lean(),
+      Driver.find({ owner: user._id }).select("_id").lean(),
+    ]);
+    const idsV = vehicules.map((v) => v._id), idsD = chauffeurs.map((d) => d._id);
+    const [vReserves, dReserves] = await Promise.all([
+      idsV.length ? Booking.distinct("vehicle", { vehicle: { $in: idsV } }) : [],
+      idsD.length ? Booking.distinct("driver",  { driver:  { $in: idsD } })  : [],
+    ]);
+    const vReservesSet = new Set(vReserves.map(String)), dReservesSet = new Set(dReserves.map(String));
+    await Promise.all([
+      Vehicle.deleteMany({ _id: { $in: idsV.filter((id) => !vReservesSet.has(String(id))) } }),
+      Vehicle.updateMany({ _id: { $in: idsV.filter((id) => vReservesSet.has(String(id))) } }, { $set: { available: false, status: "archived" } }),
+      Driver.deleteMany({ _id: { $in: idsD.filter((id) => !dReservesSet.has(String(id))) } }),
+      Driver.updateMany({ _id: { $in: idsD.filter((id) => dReservesSet.has(String(id))) } }, { $set: { status: "archived" } }),
+    ]);
 
-    await logAction(req, "user.self_deactivate", "User", user._id, {
-      before: { isActive: true },
-      after:  { isActive: false },
+    // Autres annonces du compte (loisirs, pièces, export) : retirées de la
+    // vente — archivées, jamais supprimées, des commandes peuvent les citer.
+    const [Activity, SparePart, ImportExportListing] = await Promise.all([
+      import("../models/Activity.js"), import("../models/SparePart.js"), import("../models/ImportExportListing.js"),
+    ]).then((m) => m.map((x) => x.default));
+    await Promise.all([
+      Activity.updateMany({ owner: user._id, status: { $ne: "archived" } }, { $set: { status: "archived" } }),
+      SparePart.updateMany({ owner: user._id, status: { $ne: "archived" } }, { $set: { status: "archived" } }),
+      ImportExportListing.updateMany({ partner: user._id, status: { $nin: ["archived", "sold"] } }, { $set: { status: "archived" } }),
+    ]);
+
+    const mode = aDesReservations || vReserves.length || dReserves.length ? "anonymise" : "supprime";
+    if (mode === "supprime") {
+      await User.deleteOne({ _id: user._id });
+    } else {
+      Object.assign(user, {
+        firstName: "Compte", lastName: "supprimé",
+        email: `supprime-${user._id}@anonyme.vit-auto.com`, phone: null, googleId: null,
+        profilePhoto: null, address: null, birthDate: null,
+        identity: { type: null, number: null, frontImage: null, backImage: null, selfie: null, status: "not_submitted" },
+        kycStatus: "EN_ATTENTE", kycOcrData: null, kycFaceMatchScore: null, kycScore: 0, kycDocumentHash: null,
+        driverLicenseOcr: null, blockedUsers: [],
+        isActive: false, deletedAt: new Date(),
+        refreshTokens: [], tokenVersion: (user.tokenVersion || 0) + 1,
+        password: await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10),
+      });
+      await user.save({ validateBeforeSave: false });
+    }
+
+    await logAction(req, "user.self_delete", "User", user._id, {
+      before: { email: req.user.email, role: user.role },
+      after:  { mode },
     });
 
-    res.json({ message: "Votre compte a été désactivé. Contactez le support pour le réactiver." });
+    res.json({ message: "Votre compte a été supprimé définitivement." });
   } catch (err) {
     logger.error("deactivateMyAccount:", err);
     res.status(500).json({ message: "Erreur serveur." });

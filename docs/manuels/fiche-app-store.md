@@ -169,3 +169,70 @@ Sélectionner le **build 5** (ou le plus récent) → Version Release :
 En cas de rejet 4.2 (« site web emballé ») : répondre dans Resolution Center
 en renvoyant aux capacités natives listées dans les notes, avec les captures
 du KYC caméra et de la livraison GPS.
+
+## Demande d'information Apple (règle 2.1, 2026-09-16) — réponse
+
+Premier verdict sur la version 1.0 (build 6) : « Guideline 2.1 – Information
+Needed – New App Submission ». Ce n'est pas un rejet sur le fond : Apple le
+demande à tout compte développeur récent. Il faut (1) une vidéo d'écran sur
+un iPhone réel, (2) une réponse en six points dans App Store Connect, (3) la
+même réponse collée dans les Notes de l'App Review Information.
+
+Ce qui a été construit pour y répondre honnêtement (commit du 2026-09-17) :
+- **Suppression réelle du compte** (5.1.1 v) : la route « Supprimer mon
+  compte » ne faisait que désactiver (« réversible via le support ») — ce
+  qu'Apple juge explicitement insuffisant. Désormais : suppression pure sans
+  réservation, anonymisation définitive sinon (voir usersController).
+- **Signaler + bloquer dans le chat** (1.2) : boutons dans l'en-tête d'une
+  conversation client ↔ partenaire ; un utilisateur bloqué ne peut plus
+  écrire ni recevoir (`User.blockedUsers`, `POST/DELETE /api/users/:id/block`).
+- **Compte partenaire de démonstration** : `review-partner@vit-auto.com`
+  (`node server/scripts/creerCompteReviewApple.mjs --apply --partenaire`,
+  mot de passe dans `~/Desktop/COMPTE-REVIEW-PARTENAIRE.txt`).
+
+### Scénario de la vidéo (iPhone, iOS à jour, TestFlight build 6 ou suivant)
+
+Réglages → Centre de contrôle → ajouter « Enregistrement de l'écran », puis
+lancer l'enregistrement AVANT d'ouvrir l'app. 4 à 6 minutes, sans son.
+1. Lancement de l'app (splash) → accueil → catalogue → fiche d'un véhicule.
+2. **Inscription** d'un nouveau compte client (adresse jetable, code e-mail).
+3. Connexion avec ce compte → réservation d'un chauffeur (aucun document)
+   jusqu'à l'écran de confirmation → « Mes réservations ».
+4. Chat : ouvrir la conversation avec le partenaire, montrer **Signaler** (la
+   fenêtre) puis **Bloquer** → bandeau « vous avez bloqué » → Débloquer.
+5. Vérification d'identité : /kyc, montrer l'ouverture de la caméra (sans
+   aller au bout).
+6. Se déconnecter, se connecter avec `review-partner@vit-auto.com` → espace
+   partenaire → « Publier une annonce » jusqu'à l'étape photos (caméra).
+7. Retour au compte créé en 2 → Profil → **Supprimer le compte** → mot de
+   passe → déconnexion → tenter de se reconnecter : refusé.
+Ne pas montrer la page /plans (abonnements partenaires contractés hors app).
+
+### Texte de réponse (Resolution Center ET Notes) — en anglais
+
+```
+Thank you for reviewing VIT AUTO. Answers to your six points:
+
+1. SCREEN RECORDING — attached (recorded on a physical iPhone, latest iOS). It shows: app launch, account registration with e-mail code, login, a full chauffeur booking, the client ↔ partner chat with the Report and Block actions, the identity-verification camera flow, the partner side (login with the partner demo account, listing creation with photo capture), and account deletion from Profile → "Supprimer le compte" (permanent: personal data erased, the account can no longer sign in).
+
+2. PURPOSE AND AUDIENCE — VIT AUTO is a vehicle-services marketplace for Africa, the Maghreb and Europe (28 countries). It connects customers with verified professional partners for car rental, vehicle purchase (test-drive request), chauffeur services, leisure activities, spare parts and international vehicle import/export. The problem it solves: in these markets, renting or buying a vehicle still relies on phone calls, informal listings and no identity verification on either side. Value: verified partners, verified customers (ID + selfie check), transparent prices in the customer's currency, bookings tracked from request to completion, and a direct chat with the partner. Audience: adults (18+) travelling or living in these countries, and professional vehicle partners (rental companies, dealers, chauffeurs, leisure operators, parts sellers, exporters).
+
+3. SETUP AND ACCESS — No sample files are needed. Two demo accounts are provided in App Review Information:
+   • Customer: review-apple@vit-auto.com / (password in the credentials field) — identity already verified, so booking is immediate.
+   • Partner (rental company): review-partner@vit-auto.com / (password in the Notes) — sees the partner dashboard, can publish a listing and receive bookings.
+   Main features: Catalogue → vehicle → "Réserver"; Services → Chauffeur → "Réserver ce chauffeur"; bottom bar "Chat" for conversations; Profile → "Vérification d'identité" (camera) and "Supprimer le compte". Registration with a new e-mail works too: a 6-digit code is sent by e-mail.
+
+4. EXTERNAL SERVICES — Hosting: Render (API) and Vercel (web assets), MongoDB Atlas (database), Upstash Redis (rate limiting). Images: ImageKit (storage/CDN). E-mail: Resend. SMS verification codes: Twilio Verify. Authentication: our own e-mail/password accounts plus optional "Continue with Google" (Google Identity Services). Identity verification: document OCR runs on-device (Tesseract.js inside the app), reviewed by our staff. Error monitoring: Sentry. Maps/geolocation: the device's location API only. No third-party AI service is used in the app. No payment processor is active in the app: bookings are paid to the partner at pickup (cash, card or transfer at the partner's premises), and partner subscription plans are business contracts signed and invoiced outside the app (the in-app plans page is informational and only sends a request to our team). There are no in-app purchases and no digital goods sold in the app.
+
+5. REGIONAL DIFFERENCES — Features are identical in every region. Only the content adapts: the catalogue shows listings of the customer's country first (worldwide listings remain accessible), prices are shown converted into the local currency next to the partner's price, and the interface is available in French, English and Arabic. Nothing is restricted by region.
+
+6. REGULATED INDUSTRY / THIRD-PARTY MATERIAL — VIT AUTO is an intermediary marketplace, not a rental company, carrier or financial institution; it does not require a licence to operate. Partners are independent professionals responsible for their own business licences and vehicle insurance, and they accept our partner terms (https://vit-auto.com/conditions-partenaires) before publishing. The app contains no protected third-party material: listings, photos and descriptions are supplied by partners under those terms; illustrative vehicle photos carry their author credit on the listing. Terms: https://vit-auto.com/cgu — Privacy: https://vit-auto.com/privacy — Support: contact@vit-auto.com.
+
+User-generated content (listings, reviews, chat messages) is moderated: every listing is approved by our staff before publication; users can report any listing, review, profile or chat contact ("Signaler") and block another user from the chat ("Bloquer"); reported content is reviewed by our moderation team and abusive accounts are suspended.
+```
+
+Champs App Review Information à mettre à jour : Sign-in required = Oui ;
+User name / Password = compte CLIENT ; dans Notes : le texte ci-dessus, suivi
+de « Partner demo account: review-partner@vit-auto.com / <mot de passe> ».
+Joindre la vidéo (fichier .mov/.mp4 < 500 Mo) dans le fil du Resolution Center
+(bouton trombone) — pas dans les Notes, qui n'acceptent que du texte.

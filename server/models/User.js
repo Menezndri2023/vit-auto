@@ -350,6 +350,19 @@ const userSchema = new mongoose.Schema({
   // ── Statut Founding Partner ─────────────────────────────────────────────────
   isFounder: { type: Boolean, default: false },
 
+  // ── Utilisateurs bloqués (contenu généré par les utilisateurs) ──────────────
+  // Exigence App Store 1.2 : à côté du signalement, l'utilisateur doit pouvoir
+  // BLOQUER un autre compte. Effet : plus aucun message échangé dans le chat
+  // client ↔ partenaire, dans les deux sens (voir chatController). Les
+  // réservations en cours ne sont pas touchées : le service client reste
+  // joignable pour les régler.
+  blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
+  // Suppression du compte par son titulaire (App Store 5.1.1 v) : quand des
+  // réservations d'autres parties citent encore ce compte, le document est
+  // conservé anonymisé et cette date est posée. Jamais réactivable.
+  deletedAt: { type: Date, default: null },
+
   // ── Fidélité client ──────────────────────────────────────────────────────────
   // N'existait pas du tout jusqu'ici. 1 point = 1 USD dépensé sur une commande
   // menée à "completed" (voir bookingController — awardLoyaltyPoints, appelée

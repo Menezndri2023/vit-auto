@@ -103,6 +103,27 @@ export const ChatProvider = ({ children }) => {
     }
   }, [token, activeChat]);
 
+  // Bloquer / débloquer l'interlocuteur d'une conversation client ↔ partenaire
+  // (exigence App Store 1.2, à côté du signalement). L'état `blockedByMe`
+  // vient du serveur (GET /api/chats) ; ici on le reflète sans attendre.
+  const setBlocked = useCallback(async (userId, blocked) => {
+    if (!token || !userId) return { ok: false, message: "Vous devez être connecté." };
+    try {
+      const res = await fetch(`/api/users/${userId}/block`, {
+        method: blocked ? "POST" : "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, message: data.message || "Action impossible." };
+      const marque = (c) => (c?.other?._id === userId ? { ...c, blockedByMe: blocked } : c);
+      setChats((prev) => prev.map(marque));
+      setActiveChat((prev) => marque(prev));
+      return { ok: true };
+    } catch {
+      return { ok: false, message: "Erreur réseau. Réessayez." };
+    }
+  }, [token]);
+
   const selectChat = useCallback(async (chat) => {
     setActiveChat(chat);
     await fetchMessages(chat._id);
@@ -166,7 +187,7 @@ export const ChatProvider = ({ children }) => {
     <ChatContext.Provider value={{
       chats, activeChat, messages, unreadTotal,
       open, setOpen, loading,
-      openOrCreateChat, sendMessage, selectChat, closeChat, fetchChats,
+      openOrCreateChat, sendMessage, selectChat, closeChat, fetchChats, setBlocked,
     }}>
       {children}
     </ChatContext.Provider>
