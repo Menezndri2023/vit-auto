@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useCallback } from "react"; // useCallback pour vehicleToSlide
 import { useNavigate, Link } from "react-router-dom";
-import { useVehicles } from "../../context/VehicleContext";
+import { useSpotlight } from "../../hooks/useSpotlight";
 import { useCurrency } from "../../context/CurrencyContext";
 import { useI18n } from "../../context/I18nContext";
 import { IMPORT_ORIGINS } from "../../constants/importOrigins";
@@ -93,8 +93,13 @@ const DEFAULT_SLIDES = [
 ];
 
 export default function HeroSection() {
-  const { vehicles, featuredVehicles } = useVehicles();
-  const { fmt, catalogCountry } = useCurrency();
+  // Carrousel composé par le MOTEUR de mise en avant (emplacement « hero »,
+  // 2026-09-17) : sélection admin du pays en tête, puis boosts, abonnements,
+  // mérite — filtré strictement au pays du visiteur, 2 par partenaire dès 5
+  // partenaires, international sans partenaire dans le pays. Un seul chemin,
+  // le même que les autres vitrines (voir server/services/spotlightEngine.js).
+  const { items: heroItems, repliMondial: heroInternational } = useSpotlight("hero");
+  const { fmt, fmtPinned, formatLiteral } = useCurrency();
   const { t } = useI18n();
   const navigate     = useNavigate();
 
@@ -125,81 +130,44 @@ export default function HeroSection() {
       .catch(() => {});
   }, []);
 
-  // Sélection par pays si l'admin en a configuré une pour le pays de catalogue
-  // du visiteur (voir catalogCountry/CurrencyContext) — sinon repli sur la
-  // sélection par défaut (heroSpotlights globale, voir SiteContent.js).
-  const activeSpotlights = useMemo(() => {
-    const byCountry = (heroContent.heroSpotlightsByCountry || []).find((c) => c.country === catalogCountry);
-    return byCountry?.vehicles?.length ? byCountry.vehicles : (heroContent.heroSpotlights || []);
-  }, [heroContent.heroSpotlightsByCountry, heroContent.heroSpotlights, catalogCountry]);
-
-  // heroSpotlights est déjà peuplé par le backend (voir siteContentController
-  // .populate) avec les champs nécessaires à l'affichage — un index par id
-  // permet de retrouver la version la PLUS complète (celle du catalogue
-  // général, avec nom du partenaire/carburant) quand elle est disponible,
-  // tout en gardant en repli la version peuplée renvoyée par cet endpoint.
-  // Bug réel corrigé (audit) : sans ce repli, un véhicule choisi par l'admin
-  // pour le carousel mais absent des 50 premiers résultats du catalogue
-  // général (VehicleContext.loadVehicles, trié par date) disparaissait
-  // silencieusement du carousel malgré le choix explicite de l'admin.
-  const adminSpotlightVehicles = useMemo(() => {
-    const byId = new Map(vehicles.map((v) => [(v._id || v.id)?.toString(), v]));
-    return activeSpotlights
-      .map((spot) => {
-        const id = (spot?._id || spot)?.toString();
-        if (!id) return null;
-        return byId.get(id) || spot; // repli sur la version peuplée par l'API hero
-      })
-      .filter(Boolean);
-  }, [activeSpotlights, vehicles]);
-
   const defaultSlides = useMemo(() => DEFAULT_SLIDES.map((s) => ({
     ...s,
     price: `${fmt(s.priceUSD)}${s.isSale ? "" : " / jour"}`,
   })), [fmt]);
 
-  const vehicleToSlide = useCallback((v) => {
-    const isSale = v.listingType === "vente" || v.mode === "Acheter";
-    const rawPrice = isSale ? (v.buyPrice || v.priceForSale) : v.pricePerDay;
+  // Un élément de vitrine → une diapositive. Le prix suit la devise épinglée
+  // de l'annonce (montant saisi si la devise correspond), sinon celle du visiteur.
+  const itemToSlide = useCallback((it) => {
+    const isSale = it.type === "vente";
+    let price = "Sur demande";
+    if (it.prix != null) {
+      if (it.deviseAffichage && it.deviseSaisie === it.deviseAffichage && it.prixSaisi != null) price = formatLiteral(it.prixSaisi, it.deviseAffichage);
+      else if (it.deviseAffichage) price = fmtPinned(it.prix, it.deviseAffichage);
+      else price = fmt(it.prix);
+      if (!isSale) price += " / jour";
+    }
     return {
-      img:     v.images?.[0] || v.image || DEFAULT_SLIDES[0].img,
-      name:    v.title  || v.name  || "Véhicule VIT AUTO",
-      type:    v.vehicleType || v.type || "Véhicule",
-      city:    v.ville  || v.city  || "",
-      fuel:    v.fuel   || v.carburant || "",
-      partner: v.ownerName || v.partnerName || v.contactNom || "Partenaire VIT AUTO",
-      price:   rawPrice ? `${fmt(rawPrice)}${isSale ? "" : " / jour"}` : "Sur demande",
-      vid:     v._id    || v.id,
-      ownerId: v.ownerId || null,
+      img:     it.image || DEFAULT_SLIDES[0].img,
+      name:    it.titre || "Véhicule VIT AUTO",
+      type:    it.categorie || it.type || "Véhicule",
+      city:    it.ville || "",
+      fuel:    it.carburant || "",
+      partner: it.partenaire || "Partenaire VIT AUTO",
+      price,
+      vid:     it.id,
+      ownerId: null,
     };
-  }, [fmt]);
+  }, [fmt, fmtPinned, formatLiteral]);
 
   // Construire les slides : sélection admin (ordre choisi) > featured > défauts
   // — JAMAIS de repli sur des annonces non validées par un admin (bug réel
   // corrigé, audit).
   const slides = useMemo(() => {
-    // 1. Slides choisies explicitement par l'admin, dans l'ordre choisi —
-    // vérifiée en premier, indépendamment du chargement du catalogue général
-    // (bug réel corrigé : un `vehicles.length === 0` transitoire au tout
-    // premier rendu masquait sinon un vrai choix admin déjà disponible).
-    if (adminSpotlightVehicles.length > 0) {
-      return adminSpotlightVehicles.map(vehicleToSlide);
-    }
-
-    // 2. Repli : véhicules marqués "en vedette" par un admin (bouton ⭐,
-    // AdminPanel.jsx) — bug réel corrigé (audit) : ce filtre incluait aussi
-    // `v.available` seul, laissant N'IMPORTE QUELLE annonce approuvée
-    // apparaître dans le carousel d'accueil sans validation admin explicite.
-    // Uniquement `featuredVehicles` désormais (déjà filtré featured:true
-    // côté backend) — jamais de repli non curaté.
-    if (featuredVehicles.length > 0) {
-      return featuredVehicles.slice(0, 5).map(vehicleToSlide);
-    }
-
-    // 3. Fallback absolu (aucune sélection admin configurée) — slides
-    // statiques génériques, jamais des annonces non validées.
+    if (heroItems.length > 0) return heroItems.map(itemToSlide);
+    // Vitrine vide (rien de publiable, ou chargement) : diapositives
+    // génériques, jamais des annonces non validées.
     return defaultSlides;
-  }, [adminSpotlightVehicles, featuredVehicles, vehicleToSlide, defaultSlides]);
+  }, [heroItems, itemToSlide, defaultSlides]);
 
   const total = slides.length;
 
@@ -278,7 +246,7 @@ export default function HeroSection() {
           <div className={styles.spotGradient} />
 
           {/* Badge */}
-          <span className={styles.spotBadge}>🟢 Sélection du moment</span>
+          <span className={styles.spotBadge}>{heroInternational ? "🌍 Sélection internationale" : "🟢 Sélection du moment"}</span>
 
           {/* Infos toujours visibles */}
           <div className={styles.spotOverlay}>

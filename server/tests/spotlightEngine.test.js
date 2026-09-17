@@ -268,15 +268,61 @@ describe("Composition d'une vitrine", () => {
     expect(score(b._id)).toBeGreaterThan(score(a._id));
   });
 
-  it("respecte le pays du visiteur et garde les annonces sans pays", async () => {
+  it("respecte STRICTEMENT le pays du visiteur : Maroc → Maroc, sans annonce d'ailleurs ni sans pays", async () => {
+    // Règle de l'exploitant (2026-09-17) : le contenu mis en avant est celui du
+    // pays, et seulement lui. Cinq partenaires marocains pour dépasser le seuil.
+    for (let i = 0; i < 5; i++) await annonce({ country: "MA", owner: (await createUser({ role: "partenaire", country: "MA" }))._id });
+    const ma = await annonce({ country: "MA", owner: (await createUser({ role: "partenaire", country: "MA" }))._id });
     const ci = await annonce({ country: "CI" });
-    const ma = await annonce({ country: "MA" });
     const sansPays = await annonce({ country: null });
-    const v = await composerVitrine("vedette", { country: "CI" });
+    const v = await composerVitrine("vedette", { country: "MA" });
     const ids = v.items.map((i) => i.id);
-    expect(ids).toContain(String(ci._id));
-    expect(ids).toContain(String(sansPays._id));
-    expect(ids).not.toContain(String(ma._id));
+    expect(ids).toContain(String(ma._id));
+    expect(ids).not.toContain(String(ci._id));
+    expect(ids).not.toContain(String(sansPays._id));
+    expect(v.regle).toMatchObject({ pays: "MA", maxParPartenaire: 2, seuilPartenaires: 5, plafond: 2, international: false });
+    expect(v.regle.nbPartenaires).toBeGreaterThanOrEqual(5);
+  });
+
+  it("sous le seuil de partenaires, le plafond par partenaire s'assouplit pour remplir la vitrine", async () => {
+    // Deux partenaires au Sénégal, huit places : chacun peut en occuper quatre.
+    const a = await createUser({ role: "partenaire", country: "SN" });
+    const b = await createUser({ role: "partenaire", country: "SN" });
+    for (let i = 0; i < 6; i++) await annonce({ country: "SN", owner: a._id });
+    for (let i = 0; i < 6; i++) await annonce({ country: "SN", owner: b._id });
+    const v = await composerVitrine("vedette", { country: "SN" });
+    expect(v.regle).toMatchObject({ nbPartenaires: 2, plafond: 4, international: false });
+    expect(v.items).toHaveLength(EMPLACEMENTS.vedette.capacite);
+    const idsA = (await Vehicle.find({ owner: a._id }).select("_id").lean()).map((x) => String(x._id));
+    expect(v.items.filter((i) => idsA.includes(i.id))).toHaveLength(4);
+  });
+
+  it("sans aucun partenaire dans le pays, la vitrine devient internationale", async () => {
+    const ci = await annonce({ country: "CI" });
+    const { vitrineEnCache } = await import("../services/spotlightEngine.js");
+    const v = await vitrineEnCache("vedette", { country: "TG" });
+    expect(v.repliMondial).toBe(true);
+    expect(v.regle).toMatchObject({ pays: "TG", nbPartenaires: 0, international: true });
+    expect(v.items.map((i) => i.id)).toContain(String(ci._id));
+  });
+
+  it("« Partenaires à la une » reste internationale, tous pays combinés", async () => {
+    expect(EMPLACEMENTS.partenaires.parPays).toBe(false);
+    const v = await composerVitrine("partenaires", { country: "MA" });
+    expect(v.pays).toBeNull();
+    expect(v.regle).toBeNull();
+  });
+
+  it("le carrousel reprend la sélection « Carrousel Hero » de l'admin pour le pays, en tête et dans l'ordre", async () => {
+    const SiteContent = (await import("../models/SiteContent.js")).default;
+    for (let i = 0; i < 5; i++) await annonce({ country: "MA", owner: (await createUser({ role: "partenaire", country: "MA" }))._id });
+    const un = await annonce({ country: "MA" });
+    const deux = await annonce({ country: "MA" });
+    await SiteContent.create({ heroSpotlightsByCountry: [{ country: "MA", vehicles: [deux._id, un._id] }] });
+    const v = await composerVitrine("hero", { country: "MA" });
+    expect(v.items.slice(0, 2).map((i) => i.id)).toEqual([String(deux._id), String(un._id)]);
+    expect(v.items[0].origine).toBe("epingle");
+    expect(v.items[0].partenaire).toBeTruthy();
   });
 
   it("ne mélange pas les types quand un type est demandé", async () => {

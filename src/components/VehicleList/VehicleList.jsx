@@ -13,7 +13,7 @@ const VehicleList = () => {
   // approuvée pouvait s'y retrouver sans validation explicite. `featured`
   // (voir VehicleContext.loadFeaturedVehicles) ne contient QUE les annonces
   // explicitement marquées par un admin (bouton "⭐", AdminPanel.jsx).
-  const { featuredVehicles } = useVehicles();
+  const { featuredVehicles, featuredInternational } = useVehicles();
   const featured = featuredVehicles.slice(0, 8);
   const total = featured.length;
 
@@ -67,7 +67,7 @@ const VehicleList = () => {
     <section className={styles.container}>
       <div className={styles.header}>
         <div>
-          <span className={styles.tag}>🔒 SÉLECTION DU MOMENT</span>
+          <span className={styles.tag}>{featuredInternational ? "🌍 SÉLECTION INTERNATIONALE" : "🔒 SÉLECTION DU MOMENT"}</span>
           <h2>Véhicules en vedette</h2>
         </div>
         <Link to="/catalogue" className={styles.ctaLink}>

@@ -59,3 +59,11 @@
 - **Aucun chiffrement au repos** des données sensibles (KYC, identité) à ce jour — traiter tout accès à ces données avec la plus grande prudence (voir ARCHITECTURE.md §7.4).
 - **Aucun remboursement automatique** — toute décision de remboursement doit être exécutée manuellement en dehors de la plateforme.
 - Les mots de passe admin et les identifiants MongoDB Atlas doivent être **rotés régulièrement** (point de vigilance déjà identifié lors de l'audit sécurité de juillet 2026).
+
+## Contenu & mise en avant — règles par pays (2026-09-17)
+
+Un visiteur voit en page d'accueil le contenu de **son pays** (déduit de sa position) : **carrousel**, **véhicules en vedette** et **activités & loisirs** ne montrent que des annonces de ce pays. **Partenaires à la une** reste internationale, tous pays combinés.
+
+- **N places par partenaire** (2 par défaut) dès que le pays compte **S partenaires** actifs (5 par défaut). En dessous du seuil, le plafond s'assouplit juste assez pour remplir la vitrine. Sans aucun partenaire dans le pays : vitrine **internationale** (mention « 🌍 Sélection internationale » sur le site).
+- Réglage : *Contenu & Mise en avant → Règles par pays* — valeurs par défaut, exceptions par pays, et aperçu « ce que voit un visiteur » pour chaque pays (avec l'origine de chaque place : épinglé, boost, abonnement, mérite).
+- Le carrousel reprend en tête, dans l'ordre choisi, la sélection *Page d'accueil → Carrousel Hero* du pays (sinon la sélection par défaut), puis complète avec le moteur. Une annonce épinglée d'un autre pays n'apparaît jamais chez ce visiteur.

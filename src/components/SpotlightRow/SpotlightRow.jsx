@@ -22,7 +22,7 @@ import styles from "./SpotlightRow.module.css";
  * jeune passe donc `minimum={2}` explicitement.
  */
 export default function SpotlightRow({ emplacement, titre, sousTitre, minimum = 3, lienTout = null, libelleTout = null }) {
-  const { chargement, items } = useSpotlight(emplacement);
+  const { chargement, items, repliMondial } = useSpotlight(emplacement);
   const { fmt } = useCurrency();
 
   if (chargement || items.length < minimum) return null;
@@ -31,7 +31,10 @@ export default function SpotlightRow({ emplacement, titre, sousTitre, minimum = 
     <section className={styles.section} aria-labelledby={`spotlight-${emplacement}`}>
       <header className={styles.entete}>
         <div>
-          <h2 id={`spotlight-${emplacement}`} className={styles.titre}>{titre}</h2>
+          <h2 id={`spotlight-${emplacement}`} className={styles.titre}>
+            {titre}
+            {repliMondial && <span style={{ marginLeft: 10, fontSize: ".72rem", fontWeight: 700, color: "#4338ca", background: "#e0e7ff", padding: "3px 10px", borderRadius: 999, verticalAlign: "middle" }}>🌍 Sélection internationale</span>}
+          </h2>
           {sousTitre && <p className={styles.sousTitre}>{sousTitre}</p>}
         </div>
         {lienTout && <Link to={lienTout} className={styles.lienTout}>{libelleTout || "Tout voir"} →</Link>}

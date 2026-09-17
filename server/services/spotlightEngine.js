@@ -48,6 +48,8 @@ import { planActifDe } from "./planAccess.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 import { clauseHorsComptesDeTest } from "../utils/comptesDeTest.js";
 import { MARQUEUR_MONTANT_DOUTEUX } from "../constants/plausibilitePrix.js";
+import SiteContent from "../models/SiteContent.js";
+import { regleEffective } from "./spotlightRules.js";
 
 // ── Places réservées par palier d'abonnement ───────────────────────────────
 // Le nombre progresse avec la formule : c'est la contrepartie visible de
@@ -62,9 +64,12 @@ export const PLACES_PAR_PLAN = {
 const PALIERS = Object.keys(PLACES_PAR_PLAN).sort((a, b) => PLAN_RANK[b] - PLAN_RANK[a]);
 export const PLACES_RESERVEES = Object.values(PLACES_PAR_PLAN).reduce((s, n) => s + n, 0);
 
-// Deux entrées au maximum par partenaire dans une même vitrine. Sans ce
-// plafond, un partenaire à trois cents annonces occuperait toute la page
-// d'accueil au mérite, et la vitrine cesserait de représenter la plateforme.
+// Deux entrées au maximum par partenaire dans une même vitrine (valeur par
+// défaut). Sans ce plafond, un partenaire à trois cents annonces occuperait
+// toute la page d'accueil au mérite, et la vitrine cesserait de représenter
+// la plateforme. Depuis le 2026-09-17 le plafond effectif vient des RÈGLES
+// PAR PAYS (services/spotlightRules.js) : 2 dès 5 partenaires dans le pays,
+// assoupli en dessous pour remplir la vitrine, international sans partenaire.
 export const MAX_PAR_PARTENAIRE = 2;
 
 // Part maximale d'une vitrine occupée par des boosts achetés. Un boost payé
@@ -204,7 +209,7 @@ const ADAPTATEURS = {
     // s'achète pour un `vehicleId` (voir purchaseBoost). Le jour où les
     // activités le pourront, il suffira de passer ce drapeau à `true`.
     supporteBoost: true,
-    champs: "title type marque modele annee ville country pricePerDay priceForSale currency images vues noteMoyenne nombreAvis description updatedAt owner featured sponsoredUntil boostLevel",
+    champs: "title type marque modele annee ville country pricePerDay priceForSale currency images vues noteMoyenne nombreAvis description updatedAt owner featured sponsoredUntil boostLevel carburant vehicleType business pricePerDayEntered priceForSaleEntered priceEntryCurrency",
     filtreBase: (type) => ({
       status: "approved", available: true,
       // Une annonce dont le moteur de validation a signalé un montant douteux
@@ -240,7 +245,26 @@ const ADAPTATEURS = {
       image: d.images?.[0] || null,
       note: d.noteMoyenne || 0, avis: d.nombreAvis || 0,
       lien: `/vehicle/${d._id}`,
+      // Pour le carrousel (2026-09-17) : annonceur, carburant, catégorie et
+      // montant exact saisi — la fiche affiche le même prix que la carte.
+      partenaire: d._partenaire || null,
+      carburant: d.carburant || null,
+      categorie: d.vehicleType || null,
+      prixSaisi: d.type === "vente" ? (d.priceForSaleEntered ?? null) : (d.pricePerDayEntered ?? null),
+      deviseSaisie: d.priceEntryCurrency || null,
     }),
+    // Nom de l'annonceur (entité d'abord, sinon prénom) pour les seuls retenus.
+    enrichir: async (docs) => {
+      if (!docs.length) return docs;
+      const PartnerBusiness = (await import("../models/PartnerBusiness.js")).default;
+      const [proprios, entites] = await Promise.all([
+        User.find({ _id: { $in: docs.map((d) => d.owner).filter(Boolean) } }).select("firstName business.companyName").lean(),
+        PartnerBusiness.find({ _id: { $in: docs.map((d) => d.business).filter(Boolean) } }).select("companyName").lean(),
+      ]);
+      const parProprio = new Map(proprios.map((u) => [String(u._id), u.business?.companyName || u.firstName || null]));
+      const parEntite = new Map(entites.map((b) => [String(b._id), b.companyName || null]));
+      return docs.map((d) => ({ ...d, _partenaire: (d.business && parEntite.get(String(d.business))) || parProprio.get(String(d.owner)) || null }));
+    },
   },
 
   activites: {
@@ -386,11 +410,15 @@ const ADAPTATEURS = {
 };
 
 // ── Emplacements ───────────────────────────────────────────────────────────
+// `parPays` : la vitrine est composée pour le PAYS du visiteur (Maroc →
+// Maroc, France → France), avec repli international sans partenaire dans le
+// pays. « Partenaires à la une » reste internationale pour tous les pays
+// combinés — décision de l'exploitant (2026-09-17).
 export const EMPLACEMENTS = {
-  hero:        { source: "vehicules",   capacite: 6, type: null },
-  vedette:     { source: "vehicules",   capacite: 8, type: null },
-  loisirs:     { source: "activites",   capacite: 6, type: null },
-  partenaires: { source: "partenaires", capacite: 6, type: null },
+  hero:        { source: "vehicules",   capacite: 6, type: null, parPays: true },
+  vedette:     { source: "vehicules",   capacite: 8, type: null, parPays: true },
+  loisirs:     { source: "activites",   capacite: 6, type: null, parPays: true },
+  partenaires: { source: "partenaires", capacite: 6, type: null, parPays: false },
 };
 
 // Rangs d'abonnement en vigueur, résolus À LA VOLÉE plutôt que recopiés sur
@@ -410,16 +438,16 @@ async function rangsParProprietaire() {
   return rangs;
 }
 
-// Le filtre pays applique la même règle que le catalogue : une annonce sans
-// pays renseigné — créée avant l'internationalisation — reste visible partout.
-// Jamais de régression de visibilité pour une annonce existante.
+// Filtre pays STRICT (2026-09-17) : un visiteur au Maroc ne voit que le
+// contenu marocain. Une annonce sans pays renseigné n'appartient à aucun pays :
+// elle n'apparaît que dans la sélection internationale (pays = null).
 // `[MONTANT]` contient des crochets, qui sont des classes de caractères en
 // expression régulière : sans échappement, le filtre ne correspondrait à rien
 // et la garde serait silencieusement inopérante.
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const clausePays = (country) =>
-  country ? { $or: [{ country: String(country).toUpperCase() }, { country: null }] } : {};
+  country ? { country: String(country).toUpperCase() } : {};
 
 async function candidats(adaptateur, { country, type, limite }) {
   // Comptes de test écartés de TOUTES les vitrines, pas seulement de celle des
@@ -511,7 +539,7 @@ async function signaux(source, docs, adaptateur) {
 
 // Ajoute au fur et à mesure en refusant tout doublon et tout partenaire déjà
 // représenté MAX_PAR_PARTENAIRE fois.
-function accumulateur(capacite) {
+function accumulateur(capacite, maxParPartenaire = MAX_PAR_PARTENAIRE) {
   const retenus = [];
   const vus = new Set();
   const parPartenaire = new Map();
@@ -521,7 +549,7 @@ function accumulateur(capacite) {
     reste: () => capacite - retenus.length,
     // Places encore ouvertes à ce partenaire, pour composer un vivier qui tienne
     // déjà compte du plafond au lieu de le découvrir au moment d'insérer.
-    budget: (proprietaire) => MAX_PAR_PARTENAIRE - (parPartenaire.get(String(proprietaire || "")) || 0),
+    budget: (proprietaire) => maxParPartenaire - (parPartenaire.get(String(proprietaire || "")) || 0),
     // `ignorerPlafond` sert au seul épinglage administrateur : c'est une
     // décision humaine sur une annonce précise, pas un choix algorithmique. La
     // brider silencieusement contredirait l'administrateur. Le compteur est
@@ -532,7 +560,7 @@ function accumulateur(capacite) {
       const id = String(doc._id);
       if (vus.has(id)) return false;
       const p = String(proprietaire || "");
-      if (!ignorerPlafond && p && (parPartenaire.get(p) || 0) >= MAX_PAR_PARTENAIRE) return false;
+      if (!ignorerPlafond && p && (parPartenaire.get(p) || 0) >= maxParPartenaire) return false;
       vus.add(id);
       if (p) parPartenaire.set(p, (parPartenaire.get(p) || 0) + 1);
       retenus.push({ doc, origine, score });
@@ -557,9 +585,13 @@ export async function composerVitrine(nomEmplacement, { country = null, type = n
   const capacite = emplacement.capacite;
   const typeVoulu = type || emplacement.type;
 
-  const [rangs, bruts] = await Promise.all([
+  // Pays appliqué seulement aux emplacements « par pays » ; la règle (plafond
+  // par partenaire, seuil, repli) est lue une fois par composition.
+  const paysVitrine = emplacement.parPays ? country : null;
+  const [rangs, bruts, regle] = await Promise.all([
     rangsParProprietaire(),
-    candidats(adaptateur, { country, type: typeVoulu, limite: capacite * FACTEUR_VIVIER * 6 }),
+    candidats(adaptateur, { country: paysVitrine, type: typeVoulu, limite: capacite * FACTEUR_VIVIER * 6 }),
+    emplacement.parPays ? regleEffective(paysVitrine, capacite) : Promise.resolve(null),
   ]);
   // Éligibilité que la seule requête ne peut pas exprimer — par exemple
   // « ce partenaire a-t-il au moins une annonce publiée ».
@@ -567,15 +599,29 @@ export async function composerVitrine(nomEmplacement, { country = null, type = n
 
   const proprioDe = (d) =>
     String(adaptateur.champProprietaire === "_id" ? d._id : d[adaptateur.champProprietaire] || "");
-  const acc = accumulateur(capacite);
+  const acc = accumulateur(capacite, regle?.plafond ?? MAX_PAR_PARTENAIRE);
 
   // ── 1. Épinglés par un administrateur ───────────────────────────────────
   // Facultatif, et volontairement servi en premier : un administrateur doit
   // pouvoir imposer une annonce sans que le moteur la déclasse.
+  // Pour le CARROUSEL, la sélection « Carrousel Hero » de l'admin (SiteContent,
+  // par pays puis par défaut) vaut épinglage, dans l'ordre choisi : elle passait
+  // jusqu'ici par un chemin séparé, sans règle de pays ni plafond.
   if (adaptateur.supporteEpinglage) {
+    let choixAdmin = [];
+    if (nomEmplacement === "hero") {
+      const contenu = await SiteContent.findOne().select("heroSpotlights heroSpotlightsByCountry").lean();
+      const parPays = paysVitrine ? (contenu?.heroSpotlightsByCountry || []).find((c) => c.country === paysVitrine) : null;
+      choixAdmin = ((parPays?.vehicles?.length ? parPays.vehicles : contenu?.heroSpotlights) || []).map(String);
+    }
+    const rangChoix = new Map(choixAdmin.map((id, i) => [id, i]));
     const epinglees = vivier
-      .filter((v) => v.featured)
-      .sort((a, b) => String(a._id).localeCompare(String(b._id)));
+      .filter((v) => v.featured || rangChoix.has(String(v._id)))
+      .sort((a, b) => {
+        const ra = rangChoix.has(String(a._id)) ? rangChoix.get(String(a._id)) : Infinity;
+        const rb = rangChoix.has(String(b._id)) ? rangChoix.get(String(b._id)) : Infinity;
+        return ra - rb || String(a._id).localeCompare(String(b._id));
+      });
     const plafond = Math.min(Math.floor(capacite * PART_MAX_EPINGLES), capacite);
     for (const d of fenetreDuJour(epinglees, plafond, maintenant)) {
       acc.ajouter(d, "epingle", proprioDe(d), null, true);
@@ -665,7 +711,9 @@ export async function composerVitrine(nomEmplacement, { country = null, type = n
   return {
     emplacement: nomEmplacement,
     source: emplacement.source,
-    pays: country || null,
+    pays: paysVitrine || null,
+    // Règle appliquée, exposée pour l'administration (« pourquoi cette vitrine »).
+    regle: regle ? { ...regle } : null,
     // Identifiants BRUTS (ObjectId), en plus des items présentés. Le catalogue
     // les injecte dans un `$match` d'agrégation, où Mongoose ne convertit RIEN :
     // une chaîne hexadécimale n'y apparie aucun ObjectId, et la vitrine
@@ -693,11 +741,12 @@ export async function vitrineEnCache(nomEmplacement, { country = null, type = nu
 
   const vitrine = await composerVitrine(nomEmplacement, { country, type });
 
-  // Repli MONDIAL, et seulement si le pays du visiteur ne donne RIEN — replier
-  // par morceaux mélangerait annonces locales et lointaines dans la même
-  // vitrine, ce qu'un visiteur lirait comme une erreur.
-  const resultat = (!vitrine.items.length && country)
-    ? { ...(await composerVitrine(nomEmplacement, { country: null, type })), repliMondial: true }
+  // Repli INTERNATIONAL : aucun partenaire actif dans le pays (règle de
+  // l'exploitant), ou aucun contenu publiable — jamais par morceaux, ce qui
+  // mélangerait local et lointain dans la même vitrine.
+  const replier = vitrine.pays && (vitrine.regle?.international || !vitrine.items.length);
+  const resultat = replier
+    ? { ...(await composerVitrine(nomEmplacement, { country: null, type })), pays: vitrine.pays, repliMondial: true, regle: vitrine.regle }
     : vitrine;
 
   cacheSet(cle, resultat, TTL_CACHE_MS);

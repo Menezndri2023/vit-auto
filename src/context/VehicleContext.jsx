@@ -250,6 +250,9 @@ export const VehicleProvider = ({ children }) => {
   // qui aurait aussi pu en manquer des vrais si le catalogue dépasse 50
   // annonces. Requête backend dédiée, filtrée strictement sur featured:true.
   const [featuredVehicles, setFeaturedVehicles] = useState([]);
+  // Vrai quand la vedette du pays du visiteur est vide et qu'on montre la
+  // sélection internationale (règle par pays, 2026-09-17).
+  const [featuredInternational, setFeaturedInternational] = useState(false);
   const [featuredLoading, setFeaturedLoading] = useState(false);
   // Filtré par pays de catalogue du visiteur quand connu (voir
   // catalogCountry/CurrencyContext) — demande explicite : la mise en avant
@@ -268,14 +271,17 @@ export const VehicleProvider = ({ children }) => {
         const data = await byCountry.json();
         list = Array.isArray(data) ? data : (data.vehicles || []);
       }
+      let international = false;
       if (!list.length) {
         const response = await fetch("/api/vehicles?featured=true&limit=12");
         if (response.ok) {
           const data = await response.json();
           list = Array.isArray(data) ? data : (data.vehicles || []);
+          international = !!catalogCountry && list.length > 0;
         }
       }
       setFeaturedVehicles(list.map(normalizeVehicle));
+      setFeaturedInternational(international);
     } catch {
       // Section vide si le backend est indisponible — jamais de repli sur
       // des véhicules non curatés par un admin.
@@ -786,6 +792,7 @@ export const VehicleProvider = ({ children }) => {
       vehicles,
       vehiclesLoading,
       featuredVehicles,
+      featuredInternational,
       featuredLoading,
       partnerVehicles,
       partnerBookings,
@@ -817,7 +824,7 @@ export const VehicleProvider = ({ children }) => {
       refreshVehicles: loadVehicles,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [vehicles, vehiclesLoading, featuredVehicles, featuredLoading, partnerVehicles, partnerBookings, drivers, activities, parts, bookings, loadPartnerVehicles, loadPartnerOrders, loadMyOrders, updateBookingStatus, loadVehicles, getMyActivities, approveActivity]
+    [vehicles, vehiclesLoading, featuredVehicles, featuredInternational, featuredLoading, partnerVehicles, partnerBookings, drivers, activities, parts, bookings, loadPartnerVehicles, loadPartnerOrders, loadMyOrders, updateBookingStatus, loadVehicles, getMyActivities, approveActivity]
   );
 
   return <VehicleContext.Provider value={value}>{children}</VehicleContext.Provider>;

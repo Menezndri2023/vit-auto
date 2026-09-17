@@ -1,3 +1,4 @@
+import { cacheClear } from "../utils/catalogCache.js";
 import logger from "../utils/logger.js";
 import SiteContent from "../models/SiteContent.js";
 
@@ -34,6 +35,9 @@ export const getHero = async (req, res) => {
 // admins simultanés).
 export const updateHero = async (req, res) => {
   try {
+    // Le carrousel est désormais composé par le moteur de mise en avant (épinglage
+    // par pays) : la sélection modifiée doit se voir sans attendre le cache.
+    cacheClear();
     const { heroTitle, heroSubtitle, heroSpotlights, country } = req.body;
     const isCountryScoped = country && country !== "GLOBAL";
 

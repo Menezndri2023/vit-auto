@@ -4,6 +4,7 @@ import { useCurrency } from "../../../context/CurrencyContext";
 import styles from "../../AdminPanel.module.css";
 import { MAX_SPOTLIGHTS_M } from "../shared.jsx";
 import { AdsSection } from "./AdsSection.jsx";
+import { SpotlightRulesSection } from "./SpotlightRulesSection.jsx";
 
 // Filtre de recherche/pays/type réutilisé par les deux pickers (hero &
 // vedette) — barre compacte pensée mobile-first (colonne unique sous ~480px,
@@ -186,6 +187,7 @@ export function MarketingSection({ vehicles, token, onRefresh, adsList, adsLoadi
   const SUB_TABS_M = [
     { k: "accueil",  l: "🏠 Page d'accueil",       desc: "Texte hero & carrousel" },
     { k: "vedette",  l: "⭐ Véhicules en vedette",  desc: "Mise en avant catalogue" },
+    { k: "pays",     l: "🌍 Règles par pays",        desc: "Ce que voit chaque pays" },
     { k: "campagnes",l: "📢 Campagnes",             desc: "Bannières & promotions (bientôt)" },
   ];
 
@@ -347,6 +349,9 @@ export function MarketingSection({ vehicles, token, onRefresh, adsList, adsLoadi
           )}
         </div>
       )}
+
+      {/* ── Règles par pays ── */}
+      {subTab === "pays" && <SpotlightRulesSection token={token} showToast={flash} />}
 
       {/* ── Campagnes ── */}
       {subTab === "campagnes" && (
