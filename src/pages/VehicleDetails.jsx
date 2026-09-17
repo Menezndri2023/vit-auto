@@ -478,6 +478,10 @@ export default function VehicleDetails() {
           <span className={styles.price}><PriceTag amountUSD={priceAmountUSD} pinnedCurrency={vehicle.currency}
             enteredAmount={isSale ? vehicle.priceForSaleEntered : vehicle.pricePerDayEntered} enteredCurrency={vehicle.priceEntryCurrency} /></span>
           {priceSuffix && <span className={styles.priceSuffix}>{priceSuffix}</span>}
+          {!isSale && vehicle.pricePerWeek > 0 && (
+            <span className={styles.caution}>📅 ou <PriceTag amountUSD={vehicle.pricePerWeek} pinnedCurrency={vehicle.currency}
+              enteredAmount={vehicle.pricePerWeekEntered} enteredCurrency={vehicle.priceEntryCurrency} suffix=" / semaine" compact /> (dès 7 jours)</span>
+          )}
           {!isSale && vehicle.pricePerMonth > 0 && (
             <span className={styles.caution}>📅 ou <PriceTag amountUSD={vehicle.pricePerMonth} pinnedCurrency={vehicle.currency}
               enteredAmount={vehicle.pricePerMonthEntered} enteredCurrency={vehicle.priceEntryCurrency} suffix=" / mois" compact /> (dès 30 jours)</span>

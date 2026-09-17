@@ -65,21 +65,50 @@ export function computeSeasonalTotal(pricePerDay, seasonalRates, startDate, days
 // un tarif mois mal saisi ne peut pas pénaliser le client. Sans tarif mois ou
 // sous 30 jours, le résultat est strictement celui d'avant.
 export const JOURS_PAR_MOIS = 30;
+export const JOURS_PAR_SEMAINE = 7;
 
+// Tarif semaine (2026-09-17, loueurs) : même principe que le mois, appliqué
+// aux jours restants après les mois entiers — dès 7 jours, chaque tranche de
+// 7 jours est au tarif semaine ; le reste au journalier, plafonné à une
+// semaine de plus. Le total ne dépasse jamais le calcul journalier.
 export function computeLocationTotal(vehicle, startDate, days) {
   const nbJours = Math.max(Number(days) || 1, 1);
   const journalier = computeDailyTotal(vehicle, startDate, nbJours);
   const mensuel = Number(vehicle?.pricePerMonth) || 0;
-  if (!(mensuel > 0) || nbJours < JOURS_PAR_MOIS) return journalier;
-  const mois  = Math.floor(nbJours / JOURS_PAR_MOIS);
-  const reste = nbJours - mois * JOURS_PAR_MOIS;
-  let montantReste = 0;
-  if (reste > 0) {
-    const debutReste = startDate ? new Date(new Date(startDate).getTime() + mois * JOURS_PAR_MOIS * 86400000) : null;
-    montantReste = Math.min(computeDailyTotal(vehicle, debutReste, reste), mensuel);
+  const hebdo   = Number(vehicle?.pricePerWeek) || 0;
+  if (!(mensuel > 0 && nbJours >= JOURS_PAR_MOIS) && !(hebdo > 0 && nbJours >= JOURS_PAR_SEMAINE)) return journalier;
+
+  let total = 0;
+  let cursor = startDate ? new Date(startDate) : null;
+  let reste = nbJours;
+  const avancer = (n) => { if (cursor) cursor = new Date(cursor.getTime() + n * 86400000); };
+
+  if (mensuel > 0 && reste >= JOURS_PAR_MOIS) {
+    const mois = Math.floor(reste / JOURS_PAR_MOIS);
+    total += mois * mensuel; reste -= mois * JOURS_PAR_MOIS; avancer(mois * JOURS_PAR_MOIS);
   }
-  const mensualise = Math.round((mois * mensuel + montantReste) * 100) / 100;
-  return Math.min(journalier, mensualise);
+  if (hebdo > 0 && reste >= JOURS_PAR_SEMAINE) {
+    const semaines = Math.floor(reste / JOURS_PAR_SEMAINE);
+    total += semaines * hebdo; reste -= semaines * JOURS_PAR_SEMAINE; avancer(semaines * JOURS_PAR_SEMAINE);
+  }
+  if (reste > 0) {
+    // Le reliquat journalier ne coûte jamais plus que la tranche supérieure.
+    const plafond = hebdo > 0 ? hebdo : mensuel;
+    total += Math.min(computeDailyTotal(vehicle, cursor, reste), plafond);
+  }
+  return Math.min(journalier, Math.round(total * 100) / 100);
+}
+
+// Décomposition affichée au client : mois et semaines facturés aux tarifs
+// mois/semaine pour une durée donnée ({ mois, semaines }, zéros si sans objet).
+export function tranchesFacturees(vehicle, days) {
+  const nbJours = Math.max(Number(days) || 1, 1);
+  const mensuel = Number(vehicle?.pricePerMonth) || 0;
+  const hebdo   = Number(vehicle?.pricePerWeek) || 0;
+  let reste = nbJours, mois = 0, semaines = 0;
+  if (mensuel > 0 && reste >= JOURS_PAR_MOIS) { mois = Math.floor(reste / JOURS_PAR_MOIS); reste -= mois * JOURS_PAR_MOIS; }
+  if (hebdo > 0 && reste >= JOURS_PAR_SEMAINE) { semaines = Math.floor(reste / JOURS_PAR_SEMAINE); }
+  return { mois, semaines };
 }
 
 // Nombre de mois entiers facturés au tarif mois pour une durée donnée (0 si

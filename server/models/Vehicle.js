@@ -84,6 +84,9 @@ const vehicleSchema = new mongoose.Schema({
   // « ou X / mois ». Toujours en USD, montant saisi conservé à côté.
   pricePerMonth:        { type: Number, default: null },
   pricePerMonthEntered: { type: Number, default: null },
+  // Tarif semaine facultatif (2026-09-17) : tranches de 7 jours, après les mois entiers.
+  pricePerWeek:         { type: Number, default: null },
+  pricePerWeekEntered:  { type: Number, default: null },
   priceEntryCurrency:  { type: String, default: null },
 
   // Durée de location proposée (uniquement pertinent pour type "location") —

@@ -8,7 +8,7 @@ import { useToast }    from "../context/ToastContext";
 import { haversineKm, geocodeAddress, getCurrentPosition, reverseGeocode } from "../utils/geo";
 import { getKycBadge, generateBookingRef } from "../utils/kycEngine.js";
 import { selectBestPromotionRule } from "../utils/promotion";
-import { computeLocationTotal as computeSeasonalLocationTotal, moisFactures } from "../utils/seasonalPricing";
+import { computeLocationTotal as computeSeasonalLocationTotal, tranchesFacturees } from "../utils/seasonalPricing";
 import { getCustomerServiceContact } from "../utils/customerServiceContact";
 import { useI18n } from "../context/I18nContext";
 import PriceTag from "../components/PriceTag/PriceTag";
@@ -1435,10 +1435,16 @@ export default function Booking() {
               <>
                 {!isTrial && <div className={styles.sidebarRow}><span>{t("booking.pricePerDayLabel")}</span><strong><PriceTag amountUSD={vehicle.pricePerDay || 0} pinnedCurrency={deviseAnnonce} enteredAmount={vehicle.pricePerDayEntered} enteredCurrency={vehicle.priceEntryCurrency} /></strong></div>}
                 {days > 0 && !isTrial && <div className={styles.sidebarRow}><span>{t("booking.durationLabel")}</span><strong>{t("booking.daysAbbrev", { n: days })}</strong></div>}
-                {!isTrial && moisFactures(vehicle, days) > 0 && (
+                {!isTrial && tranchesFacturees(vehicle, days).mois > 0 && (
                   <div className={styles.sidebarRow} style={{ color: "#059669" }}>
-                    <span>{t("booking.monthlyRateApplied", { n: moisFactures(vehicle, days) })}</span>
+                    <span>{t("booking.monthlyRateApplied", { n: tranchesFacturees(vehicle, days).mois })}</span>
                     <strong>{fmt(vehicle.pricePerMonth)}{t("booking.perMonthSuffix")}</strong>
+                  </div>
+                )}
+                {!isTrial && tranchesFacturees(vehicle, days).semaines > 0 && (
+                  <div className={styles.sidebarRow} style={{ color: "#059669" }}>
+                    <span>{t("booking.weeklyRateApplied", { n: tranchesFacturees(vehicle, days).semaines })}</span>
+                    <strong>{fmt(vehicle.pricePerWeek)}{t("booking.perWeekSuffix")}</strong>
                   </div>
                 )}
                 {baseTotal > 0 && !isTrial && <div className={styles.sidebarRow}><span>{t("booking.baseAmountLabel")}</span><strong>{fmt(baseTotal)}</strong></div>}

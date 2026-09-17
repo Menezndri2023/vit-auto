@@ -183,7 +183,7 @@ const VendorSubmit = () => {
     carburant: "Essence", transmission: "Automatique",
     nombrePlaces: 5, nombrePortes: 4, climatisation: true, withDriver: false,
     kilometrage: "",
-    pricePerDay: "", priceForSale: "", caution: "", pricePerMonth: "",
+    pricePerDay: "", priceForSale: "", caution: "", pricePerMonth: "", pricePerWeek: "",
     rentalDurationType: "les_deux", // courte | longue | les_deux — location uniquement
     ageMin: 21, permisRequis: true, assuranceOptionnelle: true, dureeMinLocation: 1, instantBook: false,
     conditionsLocation: "", conditionsVente: "",
@@ -223,6 +223,7 @@ const VendorSubmit = () => {
   const [tarifMoisEntry,        setTarifMoisEntry]         = useState("");
   // Tarif mensuel facultatif du véhicule (2026-09-16) — même mécanique que la caution.
   const [pricePerMonthEntry,    setPricePerMonthEntry]     = useState("");
+  const [pricePerWeekEntry,     setPricePerWeekEntry]      = useState(""); // tarif semaine facultatif (2026-09-17)
 
   const DRIVER_ENTRY_FIELDS = { tarif: setTarifEntry, tarifDemiJournee: setTarifDemiJourneeEntry, tarifHeure: setTarifHeureEntry, tarifMois: setTarifMoisEntry };
 
@@ -231,6 +232,7 @@ const VendorSubmit = () => {
     else if (field === "priceForSale") setPriceEntryForSale(raw);
     else if (field === "caution") setCautionEntry(raw);
     else if (field === "pricePerMonth") setPricePerMonthEntry(raw);
+    else if (field === "pricePerWeek") setPricePerWeekEntry(raw);
     else if (DRIVER_ENTRY_FIELDS[field]) DRIVER_ENTRY_FIELDS[field](raw);
     const setTarget = DRIVER_ENTRY_FIELDS[field] ? setDrv : setVeh;
     if (raw === "" || isNaN(Number(raw))) { setTarget(field, ""); return; }
@@ -258,6 +260,10 @@ const VendorSubmit = () => {
     if (pricePerMonthEntry !== "" && !isNaN(Number(pricePerMonthEntry))) {
       const num = Number(pricePerMonthEntry);
       setVeh("pricePerMonth", code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100);
+    }
+    if (pricePerWeekEntry !== "" && !isNaN(Number(pricePerWeekEntry))) {
+      const num = Number(pricePerWeekEntry);
+      setVeh("pricePerWeek", code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100);
     }
     if (tarifMoisEntry !== "" && !isNaN(Number(tarifMoisEntry))) {
       const num = Number(tarifMoisEntry);
@@ -353,6 +359,7 @@ const VendorSubmit = () => {
       if (d.priceEntryForSale !== undefined) setPriceEntryForSale(d.priceEntryForSale);
       if (d.cautionEntry !== undefined) setCautionEntry(d.cautionEntry);
       if (d.pricePerMonthEntry !== undefined) setPricePerMonthEntry(d.pricePerMonthEntry);
+      if (d.pricePerWeekEntry !== undefined) setPricePerWeekEntry(d.pricePerWeekEntry);
       if (d.tarifMoisEntry !== undefined) setTarifMoisEntry(d.tarifMoisEntry);
       if (d.driver) setDriver((p) => ({ ...p, ...d.driver }));
       success("📝 Brouillon restauré — pensez à réajouter vos photos.");
@@ -366,12 +373,12 @@ const VendorSubmit = () => {
       try {
         localStorage.setItem(DRAFT_KEY, JSON.stringify({
           step, adType, identity, selectedBusinessId, leasing, credit, vehicle,
-          priceCurrency, priceEntryPerDay, priceEntryForSale, cautionEntry, pricePerMonthEntry, tarifMoisEntry, driver,
+          priceCurrency, priceEntryPerDay, priceEntryForSale, cautionEntry, pricePerMonthEntry, pricePerWeekEntry, tarifMoisEntry, driver,
         }));
       } catch { /* quota plein — tant pis, brouillon simplement pas sauvegardé */ }
     }, 600);
     return () => clearTimeout(t);
-  }, [userId, step, adType, identity, selectedBusinessId, leasing, credit, vehicle, priceCurrency, priceEntryPerDay, priceEntryForSale, cautionEntry, pricePerMonthEntry, tarifMoisEntry, driver]);
+  }, [userId, step, adType, identity, selectedBusinessId, leasing, credit, vehicle, priceCurrency, priceEntryPerDay, priceEntryForSale, cautionEntry, pricePerMonthEntry, pricePerWeekEntry, tarifMoisEntry, driver]);
 
   const clearDraft = () => {
     try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
@@ -782,6 +789,8 @@ const VendorSubmit = () => {
           cautionEntered:      cautionEntry      !== "" && !isNaN(Number(cautionEntry))      ? Number(cautionEntry)      : null,
           pricePerMonth:        adType === "location" && vehicle.pricePerMonth !== "" && vehicle.pricePerMonth != null ? Number(vehicle.pricePerMonth) : null,
           pricePerMonthEntered: adType === "location" && pricePerMonthEntry !== "" && !isNaN(Number(pricePerMonthEntry)) ? Number(pricePerMonthEntry) : null,
+          pricePerWeek:         adType === "location" && vehicle.pricePerWeek !== "" && vehicle.pricePerWeek != null ? Number(vehicle.pricePerWeek) : null,
+          pricePerWeekEntered:  adType === "location" && pricePerWeekEntry !== "" && !isNaN(Number(pricePerWeekEntry)) ? Number(pricePerWeekEntry) : null,
           priceEntryCurrency:  priceCurrency,
           leasing: adType === "vente" ? {
             disponible:    leasing.disponible,
@@ -1403,6 +1412,19 @@ const VendorSubmit = () => {
                   </div>
                   {priceCurrency !== "USD" && vehicle.caution !== "" && (
                     <span className={styles.hint}>≈ {fmt(vehicle.caution)} USD (converti automatiquement)</span>
+                  )}
+                </div>
+                <div className={styles.field}>
+                  <label>Tarif semaine — optionnel</label>
+                  <div className={styles.inputAffix}>
+                    <input type="number" value={pricePerWeekEntry}
+                      onChange={(e) => handlePriceEntryChange("pricePerWeek", e.target.value)}
+                      placeholder="Ex : 250000" min="0" />
+                    <span>{priceCurrency}</span>
+                  </div>
+                  <span className={styles.hint}>Appliqué par tranche de 7 jours dès une semaine de location ; affiché « ou X / semaine » sur l'annonce.</span>
+                  {priceCurrency !== "USD" && vehicle.pricePerWeek !== "" && vehicle.pricePerWeek != null && (
+                    <span className={styles.hint}>≈ {fmt(vehicle.pricePerWeek)} USD / semaine (converti automatiquement)</span>
                   )}
                 </div>
                 <div className={styles.field}>

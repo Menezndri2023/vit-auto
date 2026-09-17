@@ -336,6 +336,8 @@ const translations = {
   "booking.mobileNumberLabel":  { fr: "Numéro mobile *", en: "Mobile number *", ar: "رقم الهاتف المحمول *", es: "Número de móvil *", zh: "手机号码 *" },
   "booking.optionPricePerDay": { fr: "+{price}/jour", en: "+{price}/day", ar: "+{price}/يوم", es: "+{price}/día", zh: "+{price}/天" },
   "booking.monthlyRateApplied": { fr: "Tarif mensuel × {n} mois", en: "Monthly rate × {n} month(s)", ar: "السعر الشهري × {n} شهر", es: "Tarifa mensual × {n} mes(es)", zh: "月租价 × {n} 个月" },
+  "booking.weeklyRateApplied": { fr: "Tarif semaine × {n} semaine(s)", en: "Weekly rate × {n} week(s)", ar: "السعر الأسبوعي × {n} أسبوع", es: "Tarifa semanal × {n} semana(s)", zh: "周租价 × {n} 周" },
+  "booking.perWeekSuffix": { fr: "/semaine", en: "/week", ar: "/أسبوع", es: "/semana", zh: "/周" },
   "booking.perMonthSuffix": { fr: "/mois", en: "/month", ar: "/شهر", es: "/mes", zh: "/月" },
   "booking.optionPricePerRental": { fr: "+{price} par location", en: "+{price} per rental", ar: "+{price} لكل تأجير", es: "+{price} por alquiler", zh: "+{price}/次租赁" },
   "booking.optionsFlatNote": { fr: "les forfaits sont comptés une seule fois", en: "flat fees are charged once", ar: "الرسوم الثابتة تُحسب مرة واحدة", es: "las tarifas fijas se cobran una vez", zh: "固定费用仅收取一次" },

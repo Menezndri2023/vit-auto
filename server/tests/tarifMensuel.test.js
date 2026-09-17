@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeLocationTotal, moisFactures, JOURS_PAR_MOIS } from "../utils/seasonalPricing.js";
+import { computeLocationTotal, moisFactures, tranchesFacturees, JOURS_PAR_MOIS } from "../utils/seasonalPricing.js";
 
 // Tarif mensuel facultatif (2026-09-16) : demande de l'exploitant pour les
 // loueurs (et les chauffeurs, voir bookingController UNITES.mois). Les règles
@@ -41,5 +41,42 @@ describe("Tarif mensuel — computeLocationTotal", () => {
     const v = { ...base, pricePerMonth: 900, promotions: [{ type: "percent", value: 10, minDays: 1, active: true }] };
     // reste 10 jours à 50 −10 % = 450
     expect(computeLocationTotal(v, "2026-10-01", 40)).toBe(900 + 450);
+  });
+});
+
+// Tarif semaine (2026-09-17, loueurs) : tranches de 7 jours après les mois
+// entiers, reliquat journalier plafonné à une semaine, jamais plus cher que
+// le journalier.
+describe("Tarif semaine — computeLocationTotal", () => {
+  const base = { pricePerDay: 50 };
+
+  it("sous 7 jours : ignoré ; 7 jours = une semaine", () => {
+    expect(computeLocationTotal({ ...base, pricePerWeek: 280 }, "2026-10-01", 6)).toBe(300);
+    expect(computeLocationTotal({ ...base, pricePerWeek: 280 }, "2026-10-01", 7)).toBe(280);
+    expect(tranchesFacturees({ ...base, pricePerWeek: 280 }, 7)).toEqual({ mois: 0, semaines: 1 });
+  });
+
+  it("10 jours = une semaine + 3 jours au journalier", () => {
+    expect(computeLocationTotal({ ...base, pricePerWeek: 280 }, "2026-10-01", 10)).toBe(280 + 150);
+  });
+
+  it("le reliquat ne coûte jamais plus qu'une semaine de plus", () => {
+    // 6 jours à 50 = 300 > 280 : plafonné.
+    expect(computeLocationTotal({ ...base, pricePerWeek: 280 }, "2026-10-01", 13)).toBe(280 + 280);
+  });
+
+  it("mois puis semaines puis jours, dans cet ordre", () => {
+    const v = { ...base, pricePerMonth: 900, pricePerWeek: 280 };
+    // 45 jours = 1 mois (30) + 2 semaines (14) + 1 jour
+    expect(computeLocationTotal(v, "2026-10-01", 45)).toBe(900 + 2 * 280 + 50);
+    expect(tranchesFacturees(v, 45)).toEqual({ mois: 1, semaines: 2 });
+  });
+
+  it("un tarif semaine plus cher que 7 jours ne pénalise jamais le client", () => {
+    expect(computeLocationTotal({ ...base, pricePerWeek: 500 }, "2026-10-01", 7)).toBe(350);
+  });
+
+  it("sans tarif semaine, le calcul mensuel est strictement inchangé", () => {
+    expect(computeLocationTotal({ ...base, pricePerMonth: 900 }, "2026-10-01", 45)).toBe(900 + 15 * 50);
   });
 });

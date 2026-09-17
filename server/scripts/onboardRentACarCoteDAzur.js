@@ -207,7 +207,6 @@ async function main() {
       images.push(await televerser(chemin, `${FOLDERS.vehicles}/rentacar-azur`, `${v.code}-${j + 1}.jpg`, ["rentacar-azur", "catalogue-partenaire"]));
     }
     if (!images.length) throw new Error(`aucune photo pour ${v.titre}`);
-    const remise = Math.round((1 - v.prixSemaine / (v.prixJour * 7)) * 100);
     await Vehicle.create({
       owner: user._id, business: business._id,
       title: v.titre, marque: v.marque, modele: v.modele, ...(v.annee ? { annee: v.annee } : {}),
@@ -217,7 +216,10 @@ async function main() {
       description: v.desc,
       pricePerDay: enUSD(v.prixJour), pricePerDayEntered: v.prixJour, priceEntryCurrency: "EUR", currency: "EUR",
       caution: enUSD(CONDITIONS.cautionEUR), cautionEntered: CONDITIONS.cautionEUR,
-      promotions: remise > 0 ? [{ type: "percent", value: remise, minDays: 7, label: `Tarif semaine : ${v.prixSemaine} € les 7 jours`, active: true }] : [],
+      // Tarif semaine réel (champ pricePerWeek, 2026-09-17) — auparavant rendu
+      // par une promotion « dès 7 jours », voir la remise en simulation.
+      pricePerWeek: enUSD(v.prixSemaine), pricePerWeekEntered: v.prixSemaine,
+      promotions: [],
       images, thumbnail: images[0],
       ville: AGENCE.ville, adresse: AGENCE.stationnement, country: AGENCE.country, coordonnees: AGENCE.coordonnees,
       contactNom: business.contactNom, contactTel: AGENCE.phone,
@@ -227,7 +229,7 @@ async function main() {
       status: "approved", available: true,
     });
     creees += 1;
-    console.log(`   ✓ ${String(v.prixJour).padStart(3)} €/j  ${v.titre}  (${images.length} photos, −${remise} % dès 7 j)`);
+    console.log(`   ✓ ${String(v.prixJour).padStart(3)} €/j  ${v.prixSemaine} €/sem  ${v.titre}  (${images.length} photos)`);
     await new Promise((r) => setTimeout(r, 250));
   }
   console.log(`\n══ ${creees} annonces créées et publiées.`);

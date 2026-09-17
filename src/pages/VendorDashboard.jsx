@@ -1662,6 +1662,7 @@ export default function VendorDashboard() {
   // même correctif à la création.
   const [editCautionEntry, setEditCautionEntry] = useState("");
   const [editMonthEntry,   setEditMonthEntry]   = useState(""); // tarif mensuel facultatif (2026-09-16)
+  const [editWeekEntry,    setEditWeekEntry]    = useState(""); // tarif semaine facultatif (2026-09-17)
   const [editSaving, setEditSaving] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [editPhotos, setEditPhotos] = useState([]); // [{ id, preview }] — photos actuelles + nouvelles
@@ -2142,6 +2143,9 @@ export default function VendorDashboard() {
       setEditMonthEntry(
         v.pricePerMonthEntered != null ? String(v.pricePerMonthEntered) : (v.pricePerMonth ? String(v.pricePerMonth) : "")
       );
+      setEditWeekEntry(
+        v.pricePerWeekEntered != null ? String(v.pricePerWeekEntered) : (v.pricePerWeek ? String(v.pricePerWeek) : "")
+      );
       setEditForm({
         type:        v.type || (vehicle.mode === "Acheter" ? "vente" : "location"),
         title:       v.title || vehicle.name || "",
@@ -2162,6 +2166,7 @@ export default function VendorDashboard() {
         priceForSale: v.priceForSale || "",
         caution:     v.caution || "",
         pricePerMonth: v.pricePerMonth || "",
+        pricePerWeek:  v.pricePerWeek || "",
         country:     v.country || "",
         ville:       v.ville || "",
         adresse:     v.adresse || "",
@@ -2214,6 +2219,7 @@ export default function VendorDashboard() {
     if (field === "pricePerDay") setEditPriceEntryPerDay(raw);
     else if (field === "priceForSale") setEditPriceEntryForSale(raw);
     else if (field === "pricePerMonth") setEditMonthEntry(raw);
+    else if (field === "pricePerWeek") setEditWeekEntry(raw);
     else setEditCautionEntry(raw);
     if (raw === "" || isNaN(Number(raw))) { setEditForm((p) => ({ ...p, [field]: "" })); return; }
     const num = Number(raw);
@@ -2238,6 +2244,10 @@ export default function VendorDashboard() {
     if (editMonthEntry !== "" && !isNaN(Number(editMonthEntry))) {
       const num = Number(editMonthEntry);
       setEditForm((p) => ({ ...p, pricePerMonth: code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100 }));
+    }
+    if (editWeekEntry !== "" && !isNaN(Number(editWeekEntry))) {
+      const num = Number(editWeekEntry);
+      setEditForm((p) => ({ ...p, pricePerWeek: code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100 }));
     }
   };
 
@@ -2268,6 +2278,8 @@ export default function VendorDashboard() {
         cautionEntered: editCautionEntry !== "" && !isNaN(Number(editCautionEntry)) ? Number(editCautionEntry) : null,
         pricePerMonth: editForm.type !== "vente" && editForm.pricePerMonth !== "" ? Number(editForm.pricePerMonth) || null : null,
         pricePerMonthEntered: editForm.type !== "vente" && editMonthEntry !== "" && !isNaN(Number(editMonthEntry)) ? Number(editMonthEntry) : null,
+        pricePerWeek: editForm.type !== "vente" && editForm.pricePerWeek !== "" ? Number(editForm.pricePerWeek) || null : null,
+        pricePerWeekEntered: editForm.type !== "vente" && editWeekEntry !== "" && !isNaN(Number(editWeekEntry)) ? Number(editWeekEntry) : null,
         description: editForm.description,
         country:     editForm.country || null,
         ville:       editForm.ville,
@@ -5460,6 +5472,16 @@ export default function VendorDashboard() {
                       {editPriceCurrency !== "USD" && (
                         <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>≈ {Number(editForm.caution || 0).toLocaleString("fr-FR")} USD (converti automatiquement)</span>
                       )}
+                    </div>
+                  )}
+                  {editForm.type !== "vente" && (
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>Tarif semaine (optionnel)</label>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <input type="number" min="0" className={styles.rejectTextarea} style={{ minHeight: "auto", padding: "8px 12px", flex: 1 }}
+                          value={editWeekEntry} onChange={(e) => handleEditPriceEntryChange("pricePerWeek", e.target.value)} placeholder="dès 7 jours" />
+                        <span style={{ display: "flex", alignItems: "center", padding: "0 8px", fontSize: "0.82rem", color: "#64748b" }}>{editPriceCurrency}</span>
+                      </div>
                     </div>
                   )}
                   {editForm.type !== "vente" && (

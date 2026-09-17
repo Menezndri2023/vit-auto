@@ -155,20 +155,20 @@ export const buildVehicleWhitelist = (data) => {
     title, marque, modele, annee, couleur, kilometrage, etat,
     type: vType, vehicleType, carburant, transmission,
     nombrePlaces, nombrePortes, climatisation, withDriver,
-    pricePerDay, priceForSale, caution, pricePerMonth, leasing, credit,
+    pricePerDay, priceForSale, caution, pricePerMonth, pricePerWeek, leasing, credit,
     ageMin, permisRequis, assuranceOptionnelle, dureeMinLocation, instantBook,
     conditionsLocation, conditionsVente,
     fuelPolicy, cancellationPolicy, insuranceIncluded,
     contactNom, contactTel, ville, adresse, coordonnees,
     images, thumbnail, description, rentalDurationType,
-    currency, pricePerDayEntered, priceForSaleEntered, cautionEntered, pricePerMonthEntered, priceEntryCurrency,
+    currency, pricePerDayEntered, priceForSaleEntered, cautionEntered, pricePerMonthEntered, pricePerWeekEntered, priceEntryCurrency,
   } = data;
 
   return {
     title, marque, modele, annee, couleur, kilometrage, etat,
     type: vType, vehicleType, carburant, transmission,
     nombrePlaces, nombrePortes, climatisation, withDriver,
-    pricePerDay, priceForSale, caution, pricePerMonth, leasing, credit,
+    pricePerDay, priceForSale, caution, pricePerMonth, pricePerWeek, leasing, credit,
     ageMin, permisRequis, assuranceOptionnelle,
     dureeMinLocation: Number.isFinite(Number(dureeMinLocation)) && Number(dureeMinLocation) >= 1 ? Number(dureeMinLocation) : 1,
     instantBook: !!instantBook,
@@ -188,6 +188,8 @@ export const buildVehicleWhitelist = (data) => {
     cautionEntered:      cautionEntered      ?? null,
     pricePerMonth:        pricePerMonth        ?? null,
     pricePerMonthEntered: pricePerMonthEntered ?? null,
+    pricePerWeek:         pricePerWeek         ?? null,
+    pricePerWeekEntered:  pricePerWeekEntered  ?? null,
     priceEntryCurrency:  priceEntryCurrency  || null,
   };
 };

@@ -14,6 +14,8 @@
 ### 2.1 Véhicule (location ou vente)
 Formulaire complet : marque/modèle/année/état, caractéristiques techniques, photos (jusqu'à 6, la première devient la vignette de couverture), tarification, pays/ville/adresse (pré-remplis automatiquement par géolocalisation IP puis GPS), options (climatisation, chauffeur, durée de location courte/longue).
 
+**Tarif semaine (facultatif, loueurs, 2026-09-17)** : champ « Tarif semaine » ; affiché « ou X / semaine ». Dès 7 jours, chaque tranche de 7 jours est facturée au tarif semaine (après les mois entiers si un tarif mois existe), le reste au tarif journalier plafonné à une semaine ; jamais plus cher que le calcul journalier.
+
 **Tarif mensuel (facultatif, loueurs et chauffeurs, 2026-09-16)** : dans le bloc tarification, un champ « Tarif mensuel » (véhicule) ou « Tarif au mois » (chauffeur). Affiché « ou X / mois » sur la carte et la fiche. À la réservation, dès 30 jours, chaque tranche de 30 jours est facturée au tarif mois, le reste au tarif journalier (plafonné à un mois de plus) ; le total ne dépasse jamais le calcul journalier. Pour un chauffeur, « Au mois » devient une unité de mission à part entière (30 jours à disposition).
 
 ### 2.1 bis Options et suppléments de location (règle commune à tous les loueurs)
