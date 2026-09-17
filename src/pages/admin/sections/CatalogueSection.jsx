@@ -47,6 +47,11 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
   // Bug réel corrigé (audit) : la caution était étiquetée "USD" ici aussi mais
   // n'avait aucune conversion (même bug que VendorSubmit.jsx/VendorDashboard.jsx).
   const [editCautionEntry, setEditCautionEntry] = useState("");
+  // Tarifs semaine / mois facultatifs des loueurs (2026-09-17) : même saisie
+  // que dans la modale partenaire (VendorDashboard), sinon l'admin ne pouvait
+  // ni les voir ni les corriger.
+  const [editWeekEntry,  setEditWeekEntry]  = useState("");
+  const [editMonthEntry, setEditMonthEntry] = useState("");
   const [editLoading,  setEditLoading]  = useState(false);
   const [editSaving,   setEditSaving]   = useState(false);
   const [exportMode, setExportMode] = useState(false);
@@ -385,6 +390,8 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
       setEditCautionEntry(
         v.cautionEntered != null ? String(v.cautionEntered) : (v.caution ? String(v.caution) : "")
       );
+      setEditWeekEntry(v.pricePerWeekEntered != null ? String(v.pricePerWeekEntered) : (v.pricePerWeek ? String(v.pricePerWeek) : ""));
+      setEditMonthEntry(v.pricePerMonthEntered != null ? String(v.pricePerMonthEntered) : (v.pricePerMonth ? String(v.pricePerMonth) : ""));
       setEditForm({
         type: v.type || "location",
         title: v.title || "", marque: v.marque || "", modele: v.modele || "",
@@ -395,7 +402,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
         kilometrage: v.kilometrage || "", climatisation: !!v.climatisation,
         rentalDurationType: v.rentalDurationType || "les_deux",
         pricePerDay: v.pricePerDay || "", priceForSale: v.priceForSale || "",
-        caution: v.caution || "", country: v.country || "",
+        caution: v.caution || "", pricePerWeek: v.pricePerWeek || "", pricePerMonth: v.pricePerMonth || "", country: v.country || "",
         ville: v.ville || "", adresse: v.adresse || "", description: v.description || "",
         contactNom: v.contactNom || "", contactTel: v.contactTel || "",
         currency: v.currency || "", // "" = automatique (devise du visiteur)
@@ -416,6 +423,8 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
   const handleEditPriceEntryChange = (field, raw) => {
     if (field === "pricePerDay") setEditPriceEntryPerDay(raw);
     else if (field === "priceForSale") setEditPriceEntryForSale(raw);
+    else if (field === "pricePerWeek") setEditWeekEntry(raw);
+    else if (field === "pricePerMonth") setEditMonthEntry(raw);
     else setEditCautionEntry(raw);
     if (raw === "" || isNaN(Number(raw))) { setEditForm((p) => ({ ...p, [field]: "" })); return; }
     const num = Number(raw);
@@ -436,6 +445,12 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
     if (editCautionEntry !== "" && !isNaN(Number(editCautionEntry))) {
       const num = Number(editCautionEntry);
       setEditForm((p) => ({ ...p, caution: code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100 }));
+    }
+    for (const [entree, champ] of [[editWeekEntry, "pricePerWeek"], [editMonthEntry, "pricePerMonth"]]) {
+      if (entree !== "" && !isNaN(Number(entree))) {
+        const num = Number(entree);
+        setEditForm((p) => ({ ...p, [champ]: code === "USD" ? num : Math.round((num / rateFromUSD(code)) * 100) / 100 }));
+      }
     }
   };
 
@@ -473,6 +488,12 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
         patch.pricePerDayEntered = editPriceEntryPerDay !== "" && !isNaN(Number(editPriceEntryPerDay)) ? Number(editPriceEntryPerDay) : null;
       }
       patch.cautionEntered = editCautionEntry !== "" && !isNaN(Number(editCautionEntry)) ? Number(editCautionEntry) : null;
+      if (editForm.type !== "vente") {
+        patch.pricePerWeek         = editForm.pricePerWeek !== "" ? Number(editForm.pricePerWeek) || null : null;
+        patch.pricePerWeekEntered  = editWeekEntry !== "" && !isNaN(Number(editWeekEntry)) ? Number(editWeekEntry) : null;
+        patch.pricePerMonth        = editForm.pricePerMonth !== "" ? Number(editForm.pricePerMonth) || null : null;
+        patch.pricePerMonthEntered = editMonthEntry !== "" && !isNaN(Number(editMonthEntry)) ? Number(editMonthEntry) : null;
+      }
       patch.priceEntryCurrency = editPriceCurrency;
       if (images[0]) patch.thumbnail = await compressImageAdmin(images[0], 480, 0.6);
 
@@ -1280,7 +1301,9 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                             v.type === "location"
                               ? ["Prix / jour", v.pricePerDay ? (v.currency ? fmtPinned(v.pricePerDay, v.currency) : fmtUSD(v.pricePerDay)) : "—"]
                               : ["Prix vente", v.priceForSale ? (v.currency ? fmtPinned(v.priceForSale, v.currency) : fmtUSD(v.priceForSale)) : "—"],
-                            v.type === "location" && v.caution ? ["Caution", fmtUSD(v.caution)] : null,
+                            v.type === "location" && v.pricePerWeek ? ["Tarif semaine", v.currency ? fmtPinned(v.pricePerWeek, v.currency) : fmtUSD(v.pricePerWeek)] : null,
+                            v.type === "location" && v.pricePerMonth ? ["Tarif mensuel", v.currency ? fmtPinned(v.pricePerMonth, v.currency) : fmtUSD(v.pricePerMonth)] : null,
+                            v.type === "location" && v.caution ? ["Caution", v.currency ? fmtPinned(v.caution, v.currency) : fmtUSD(v.caution)] : null,
                             ["Ville", v.ville || "—"],
                             ["Adresse", v.adresse || "—"],
                             ["Âge min", v.ageMin ? `${v.ageMin} ans` : "—"],
@@ -1605,6 +1628,23 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                       </div>
                     )}
                   </div>
+                  {editForm.type !== "vente" && (
+                    <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+                      {[["pricePerWeek", editWeekEntry, "Tarif semaine (optionnel, dès 7 jours)"], ["pricePerMonth", editMonthEntry, "Tarif mensuel (optionnel, dès 30 jours)"]].map(([champ, entree, libelle]) => (
+                        <div key={champ} style={{ flex: 1, minWidth: 200 }}>
+                          <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>{libelle}</label>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <input type="number" min="0" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
+                              value={entree} onChange={(e) => handleEditPriceEntryChange(champ, e.target.value)} />
+                            <span style={{ display: "flex", alignItems: "center", padding: "0 8px", fontSize: ".82rem", color: "#64748b" }}>{editPriceCurrency}</span>
+                          </div>
+                          {editPriceCurrency !== "USD" && editForm[champ] !== "" && (
+                            <span style={{ fontSize: ".75rem", color: "#94a3b8" }}>≈ {Number(editForm[champ] || 0).toLocaleString("fr-FR")} USD</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   <div style={{ marginBottom: 12 }}>
                     <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Devise d'affichage de l'annonce</label>

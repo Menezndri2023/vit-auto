@@ -3538,6 +3538,8 @@ export default function VendorDashboard() {
                       </div>
                       <div className={styles.vehiclePrice}>
                         {vehicle.pricePerDay ? `${prixDuPartenaire(vehicle, "pricePerDay", "pricePerDayEntered")} / jour` : vehicle.buyPrice ? prixDuPartenaire(vehicle, "buyPrice", "priceForSaleEntered") : "—"}
+                        {vehicle.pricePerDay && vehicle.pricePerWeek > 0 && <span style={{ marginLeft: 8, fontSize: ".78rem", fontWeight: 600, color: "#64748b" }}>· {prixDuPartenaire(vehicle, "pricePerWeek", "pricePerWeekEntered")} / sem.</span>}
+                        {vehicle.pricePerDay && vehicle.pricePerMonth > 0 && <span style={{ marginLeft: 8, fontSize: ".78rem", fontWeight: 600, color: "#64748b" }}>· {prixDuPartenaire(vehicle, "pricePerMonth", "pricePerMonthEntered")} / mois</span>}
                         {(vehicle.promotions || []).filter((r) => r.active).map((r, i) => (
                           <span key={i} style={{ marginLeft: 8, background: "#fee2e2", color: "#dc2626", fontSize: "0.72rem", fontWeight: 800, padding: "2px 8px", borderRadius: 999 }}>
                             {r.type === "percent" ? `-${r.value}%` : `-${fmtXOF(r.value)}`}{r.minDays > 1 ? ` dès ${r.minDays}j` : ""}
