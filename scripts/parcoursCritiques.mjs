@@ -40,6 +40,20 @@ const ok = (m) => console.log(`✓ ${m}`);
 const ko = (m) => { anomalies.push(m); console.log(`✗ ${m}`); };
 const dateISO = (jours) => { const d = new Date(Date.now() + jours * 86400000); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
 
+// Clic robuste : attend la fin des animations d'entrée finies de la page
+// (rise/slideIn — un clic pendant l'animation échoue « not stable ») avec un
+// plafond de 3 s, puis clique. Deux refus de la garde le 2026-09-17 sur ce
+// seul motif, sans défaut de code (rejoués verts en local).
+async function clicStable(locator, options = {}) {
+  await locator.waitFor({ timeout: options.timeout || 30000 });
+  await locator.page().evaluate(() => Promise.race([
+    Promise.all(document.getAnimations().filter((a) => { const t = a.effect?.getTiming?.(); return t && t.iterations !== Infinity; }).map((a) => a.finished.catch(() => {}))),
+    new Promise((r) => setTimeout(r, 3000)),
+  ]));
+  await locator.scrollIntoViewIfNeeded().catch(() => {});
+  await locator.click({ timeout: options.timeout || 30000 });
+}
+
 async function apiAdmin() {
   const r = await fetch(`${API}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://vit-auto.com" }, body: JSON.stringify({ identifier: ADMIN_ID, password: ADMIN_PWD }) });
   const d = await r.json().catch(() => ({}));
@@ -117,11 +131,11 @@ async function demandeEssai(browser) {
     }));
     throw new Error(`bouton d'envoi toujours désactivé — état du formulaire : ${JSON.stringify(etat)}`);
   }
-  await envoyer.click();
+  await clicStable(envoyer);
   await pc.getByText(/Demande d'essai envoyée/).first().waitFor({ timeout: 30000 });
   const ref = (await pc.locator("strong").filter({ hasText: /VA-LEAD-/ }).first().textContent()).trim();
   ok(`demande d'essai créée (${ref})`);
-  await pc.getByRole("link", { name: /Suivre ma demande/ }).click();
+  await clicStable(pc.getByRole("link", { name: /Suivre ma demande/ }));
   await pc.getByText(/Qualification en cours|Transmise au vendeur/).first().waitFor({ timeout: 30000 });
 
   // Admin : qualifie et transmet depuis l'onglet Leads vente.

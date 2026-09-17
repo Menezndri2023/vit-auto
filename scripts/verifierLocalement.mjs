@@ -78,7 +78,10 @@ const ECRANS = [
 // La « langue vide » contient en réalité un caractère de contrôle (U+0012),
 // invisible dans un terminal : le motif tolère 0 à 2 caractères entre les
 // apostrophes, et rien de plus large.
-const BRUIT_COMMUN = /ipapi\.co|sentry|favicon|subscriptions\/insights|Parameter not found:|Error opening data file \.\/.{0,2}\.traineddata|TESSDATA_PREFIX|Failed loading language '.{0,2}'/;
+// « AudioContext … audio device » : le son de notification (NotificationContext)
+// sur un Chromium sans périphérique audio — artefact du harnais, jamais un
+// défaut du site.
+const BRUIT_COMMUN = /ipapi\.co|sentry|favicon|subscriptions\/insights|Parameter not found:|Error opening data file \.\/.{0,2}\.traineddata|TESSDATA_PREFIX|Failed loading language '.{0,2}'|AudioContext encountered an error from the audio device/;
 // En local, Google Sign-In refuse l'origine localhost, non enregistrée chez
 // Google (« The given origin is not allowed for the given client ID ») —
 // artefact du harnais, pas un défaut du site. Jamais ignoré en production.
@@ -112,9 +115,29 @@ function ecouter(page) {
     const texte = m.text(), url = m.location()?.url || "";
     if (BRUIT.test(texte) || BRUIT.test(url)) return;
     if (/status of 404/.test(texte) && ATTENDU(404, url)) return;
+    // Coupure passagère du CDN : suivie (et réessayée) par requestfailed ci-dessous.
+    if (/ERR_CONNECTION_(CLOSED|RESET)|ERR_HTTP2/.test(texte) && /ik\.imagekit\.io/.test(url)) return;
     js.push("console: " + texte.slice(0, 140) + (url ? ` [${url.slice(0, 70)}]` : ""));
   });
-  page.on("requestfailed", (r) => { if (!BRUIT.test(r.url())) echecs.push(`${r.failure()?.errorText} ${r.url().slice(0, 90)}`); });
+  page.on("requestfailed", async (r) => {
+    if (BRUIT.test(r.url())) return;
+    const erreur = r.failure()?.errorText || "", url = r.url();
+    const entree = `${erreur} ${url.slice(0, 90)}`;
+    echecs.push(entree);
+    // Coupure passagère du CDN (ERR_CONNECTION_CLOSED/RESET sur ImageKit — trois
+    // refus de la garde sur le MÊME fichier, servi en 200 à la main) : l'image
+    // est redemandée une fois ; si elle répond, l'échec est retiré et la balise
+    // rechargée pour que la mesure des images cassées ne la compte pas.
+    if (/ik\.imagekit\.io/.test(url) && /CONNECTION_(CLOSED|RESET)|HTTP2|NETWORK_CHANGED/.test(erreur)) {
+      try {
+        const rep = await page.request.get(url, { timeout: 15000 });
+        if (rep.ok()) {
+          const i = echecs.indexOf(entree); if (i !== -1) echecs.splice(i, 1);
+          await page.evaluate((u) => { for (const img of document.querySelectorAll("img")) if (img.src === u || img.currentSrc === u) { const src = img.src; img.src = ""; img.src = src; } }, url).catch(() => {});
+        }
+      } catch { /* l'échec reste compté */ }
+    }
+  });
   page.on("response", (r) => { if (r.status() >= 400 && !BRUIT.test(r.url()) && !ATTENDU(r.status(), r.url())) http.push(`${r.status()} ${r.url().slice(0, 90)}`); });
   return { js, echecs, http, vider() { js.length = 0; echecs.length = 0; http.length = 0; } };
 }

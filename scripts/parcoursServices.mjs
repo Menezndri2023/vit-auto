@@ -35,6 +35,20 @@ const ko = (m) => { anomalies.push(m); console.log(`✗ ${m}`); };
 const DECALAGE = 20 + Math.floor(Math.random() * 300);
 const dateISO = (jours) => { const d = new Date(Date.now() + jours * 86400000); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
 
+// Clic robuste : attend la fin des animations d'entrée finies de la page
+// (rise/slideIn — un clic pendant l'animation échoue « not stable ») avec un
+// plafond de 3 s, puis clique. Deux refus de la garde le 2026-09-17 sur ce
+// seul motif, sans défaut de code (rejoués verts en local).
+async function clicStable(locator, options = {}) {
+  await locator.waitFor({ timeout: options.timeout || 30000 });
+  await locator.page().evaluate(() => Promise.race([
+    Promise.all(document.getAnimations().filter((a) => { const t = a.effect?.getTiming?.(); return t && t.iterations !== Infinity; }).map((a) => a.finished.catch(() => {}))),
+    new Promise((r) => setTimeout(r, 3000)),
+  ]));
+  await locator.scrollIntoViewIfNeeded().catch(() => {});
+  await locator.click({ timeout: options.timeout || 30000 });
+}
+
 async function apiAs(id, pwd = PWD) {
   const r = await fetch(`${API}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://vit-auto.com" }, body: JSON.stringify({ identifier: id, password: pwd }) });
   const d = await r.json().catch(() => ({}));
@@ -330,11 +344,11 @@ async function partenaire(browser) {
     await remplirEtape(page, { "BMW X5": titre, "Toyota": "Peugeot", "Hilux": `3008 V${DECALAGE}`, "45000": "60", "50000": "60", "28000": "60", "Rue 10": "12 rue des Parcs, Casablanca", "Dakar": "Casablanca", "Grand Dakar": "Casablanca", "kilométrage": "Kilométrage 200 km/jour inclus", "Noir": "Gris" });
     if (etape === 7) {
       for (const c of await page.locator("input[type=checkbox]").all()) { if (await c.isVisible() && !(await c.isChecked())) await c.check().catch(() => {}); }
-      await page.getByRole("button", { name: /Publier l'annonce/ }).click();
+      await clicStable(page.getByRole("button", { name: /Publier l'annonce/ }));
       break;
     }
     const avantClic = (await texte(page)).slice(0, 120);
-    await page.getByRole("button", { name: /Suivant/ }).first().click();
+    await clicStable(page.getByRole("button", { name: /Suivant/ }).first());
     await page.waitForTimeout(600);
     const toast = await page.evaluate(() => [...document.querySelectorAll("[role=alert], [class*=toast]")].map((e) => e.innerText).join(" | ").slice(0, 200));
     if (/obligatoire|requis|invalide|veuillez|manquant/i.test(toast)) throw new Error(`étape ${etape} refusée : ${toast} — écran : ${avantClic}`);
