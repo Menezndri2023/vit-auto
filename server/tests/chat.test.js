@@ -355,6 +355,16 @@ describe("chatController — utilisateur bloqué", () => {
     expect(apres.res.body.message?.content).toBe("bonjour");
   });
 
+  it("renvoie `other` et `blockedByMe` à l'ouverture, comme la liste des conversations", async () => {
+    const client = await createUser();
+    const owner  = await createUser({ role: "partenaire" });
+    const booking = await createBookingBetween(client, owner._id);
+    const { req, res } = mockReqRes({ user: client, body: { type: "client_partner", bookingId: booking._id.toString() } });
+    await getOrCreateChat(req, res);
+    expect(res.body.chat.other?._id.toString()).toBe(owner._id.toString());
+    expect(res.body.chat.blockedByMe).toBe(false);
+  });
+
   it("empêche d'ouvrir une nouvelle conversation avec un utilisateur bloqué, sans toucher au support", async () => {
     const { blockUser } = await import("../controllers/usersController.js");
     const client = await createUser();

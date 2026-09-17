@@ -210,7 +210,21 @@ export const getOrCreateChat = async (req, res) => {
       chat = await chat.populate("participants", "firstName lastName role profilePhoto");
     }
 
-    res.json({ chat });
+    // Même forme que GET /api/chats (`other`, `blockedByMe`) : la conversation
+    // ouverte depuis « Message au partenaire » doit offrir signaler/bloquer
+    // exactement comme celle choisie dans la liste — sans ces champs, l'en-tête
+    // n'affichait pas les actions (constaté à l'enregistrement de la vidéo
+    // de review, 2026-09-17).
+    const objet = chat.toObject();
+    objet.other = objet.participants.find((p) => p._id.toString() !== myId) || null;
+    if (type === "client_partner" && objet.other) {
+      const moi = await User.findById(myId).select("blockedUsers").lean();
+      objet.blockedByMe = (moi?.blockedUsers || []).some((id) => id.toString() === objet.other._id.toString());
+    } else {
+      objet.blockedByMe = false;
+    }
+
+    res.json({ chat: objet });
   } catch (err) {
     logger.error("getOrCreateChat:", err);
     res.status(500).json({ message: "Erreur serveur." });

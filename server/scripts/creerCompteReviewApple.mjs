@@ -6,6 +6,13 @@
  *   node scripts/creerCompteReviewApple.mjs --apply         # crée (ou réinitialise le mot de passe)
  *   node scripts/creerCompteReviewApple.mjs --apply --supprimer
  *   node scripts/creerCompteReviewApple.mjs --apply --partenaire   # 2e compte : PARTENAIRE
+ *   node scripts/creerCompteReviewApple.mjs --apply --partenaire --annonces
+ *       # + un véhicule de location et un chauffeur APPROUVÉS sous ce partenaire
+ *       # (Abidjan) : la vidéo de review et le reviewer réservent CHEZ LE
+ *       # PARTENAIRE DE DÉMO, jamais chez un vrai partenaire qui recevrait une
+ *       # fausse mission. Le partenaire cesse d'être « compte de test » pour que
+ *       # ces annonces soient visibles au catalogue ; les repasser en test
+ *       # (--annonces --retirer) après l'approbation de l'app.
  *
  * Apple demande des identifiants POUR CHAQUE TYPE DE COMPTE (règle 2.1,
  * demande d'information du 2026-09-16). Le compte partenaire est une
@@ -33,6 +40,8 @@ dotenv.config({ path: new URL("../.env", import.meta.url).pathname });
 const APPLIQUER = process.argv.includes("--apply");
 const SUPPRIMER = process.argv.includes("--supprimer");
 const PARTENAIRE = process.argv.includes("--partenaire");
+const ANNONCES = process.argv.includes("--annonces");
+const RETIRER = process.argv.includes("--retirer");
 const EMAIL = PARTENAIRE ? "review-partner@vit-auto.com" : "review-apple@vit-auto.com";
 
 await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 20000 });
@@ -76,6 +85,10 @@ const champs = PARTENAIRE ? {
   kycSubmittedAt: new Date(), identity: { type: "passport", status: "verified", submittedAt: new Date(), verifiedAt: new Date() },
 };
 let user;
+// --annonces sur un compte existant : ne pas régénérer le mot de passe déjà
+// communiqué (fichier Desktop, notes de review).
+const garderMotDePasse = !!(existant && ANNONCES);
+if (garderMotDePasse) delete champs.password;
 if (existant) {
   Object.assign(existant, champs);
   user = await existant.save();
@@ -88,7 +101,45 @@ if (PARTENAIRE && !(await PartnerBusiness.findOne({ owner: user._id }))) {
   await PartnerBusiness.create({ owner: user._id, companyName: "Review Auto Demo", country: "CI", ville: "Abidjan", isDefault: true });
   console.log("Entité partenaire créée.");
 }
+if (PARTENAIRE && ANNONCES) {
+  const Vehicle = (await import("../models/Vehicle.js")).default;
+  const Driver = (await import("../models/Driver.js")).default;
+  if (RETIRER) {
+    await Vehicle.updateMany({ owner: user._id }, { $set: { status: "archived", available: false } });
+    await Driver.updateMany({ owner: user._id }, { $set: { status: "archived" } });
+    await User.updateOne({ _id: user._id }, { $set: { isTestAccount: true } });
+    console.log("Annonces de démonstration archivées, partenaire repassé en compte de test.");
+  } else {
+    // Photos déjà hébergées et créditées (MediaCredit) : aucun fichier nouveau.
+    const PHOTOS = [
+      "https://ik.imagekit.io/vitauto/vit-auto/vehicles/reference/2024_Toyota_Yaris_Cross_X_in_Grayish_Blue_front_left_RD4gruipka.jpg",
+      "https://ik.imagekit.io/vitauto/vit-auto/vehicles/reference/2023_Toyota_Yaris_Cross_Design_HEV_Automatic_1_5_Front_KaH9d-u8d.jpg",
+    ];
+    if (!(await Vehicle.findOne({ owner: user._id, status: "approved" }))) {
+      await Vehicle.create({
+        owner: user._id, title: "Toyota Yaris Cross 2024 — Review Auto Demo", marque: "Toyota", modele: "Yaris Cross", annee: 2024,
+        type: "location", carburant: "Hybride", transmission: "Automatique", nombrePlaces: 5, climatisation: true,
+        pricePerDay: 40, pricePerDayEntered: 24000, priceEntryCurrency: "XOF", currency: "XOF",
+        ville: "Abidjan", country: "CI", images: PHOTOS, thumbnail: PHOTOS[0], status: "approved", available: true,
+        description: "Véhicule de démonstration du partenaire Review Auto Demo (Abidjan), destiné aux tests de l'application.",
+      });
+      console.log("Véhicule de démonstration créé.");
+    }
+    if (!(await Driver.findOne({ owner: user._id, status: "approved" }))) {
+      await Driver.create({
+        owner: user._id, firstName: "Kouassi", lastName: "Demo", title: "Chauffeur professionnel — Review Auto Demo",
+        tarif: 35, tarifEntered: 21000, tarifDemiJournee: 20, tarifDemiJourneeEntered: 12000, tarifHeure: 5, tarifHeureEntered: 3000,
+        priceEntryCurrency: "XOF", currency: "XOF", zone: "Abidjan", ville: "Abidjan", country: "CI",
+        experience: "8 ans", langues: ["Français", "Anglais"], disponibilite: "Temps plein", status: "approved",
+        description: "Chauffeur de démonstration du partenaire Review Auto Demo (Abidjan), destiné aux tests de l'application.",
+      });
+      console.log("Chauffeur de démonstration créé.");
+    }
+    await User.updateOne({ _id: user._id }, { $set: { isTestAccount: false } });
+    console.log("Partenaire visible au catalogue (isTestAccount:false) le temps de la review.");
+  }
+}
 const fichier = path.join(os.homedir(), "Desktop", PARTENAIRE ? "COMPTE-REVIEW-PARTENAIRE.txt" : "COMPTE-REVIEW-APPLE.txt");
-fs.writeFileSync(fichier, `Compte de démonstration App Store (App Review Information) — ${PARTENAIRE ? "PARTENAIRE" : "CLIENT"}\n\nUser name : ${EMAIL}\nPassword  : ${motDePasse}\n\nCréé le ${new Date().toISOString().slice(0, 10)} par scripts/creerCompteReviewApple.mjs${PARTENAIRE ? " --partenaire" : ""}\n`, { mode: 0o600 });
-console.log(`Identifiants écrits dans ${fichier}`);
+if (!garderMotDePasse) fs.writeFileSync(fichier, `Compte de démonstration App Store (App Review Information) — ${PARTENAIRE ? "PARTENAIRE" : "CLIENT"}\n\nUser name : ${EMAIL}\nPassword  : ${motDePasse}\n\nCréé le ${new Date().toISOString().slice(0, 10)} par scripts/creerCompteReviewApple.mjs${PARTENAIRE ? " --partenaire" : ""}\n`, { mode: 0o600 });
+console.log(garderMotDePasse ? "Mot de passe inchangé." : `Identifiants écrits dans ${fichier}`);
 await mongoose.disconnect();

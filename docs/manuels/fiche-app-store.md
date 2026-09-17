@@ -192,20 +192,37 @@ Ce qui a été construit pour y répondre honnêtement (commit du 2026-09-17) :
 
 ### Scénario de la vidéo (iPhone, iOS à jour, TestFlight build 6 ou suivant)
 
+Annonces de démonstration (script `--partenaire --annonces`, 2026-09-17) : le
+partenaire de démo possède un véhicule de location et un chauffeur approuvés
+à Abidjan — la vidéo et le reviewer réservent CHEZ LUI, jamais chez un vrai
+partenaire. Liens directs : `https://vit-auto.com/vehicle/6aac5bbf16806fbcdbeafb20`
+et `https://vit-auto.com/driver-booking/6aac5bbf16806fbcdbeafb26`. Après
+l'approbation de l'app : `--partenaire --annonces --retirer` (archive et
+repasse le partenaire en compte de test).
+
+Une répétition filmée sur la pile locale (Playwright) est sur le Bureau :
+`VIT-AUTO-repetition-video-Apple.webm` (à ouvrir avec Chrome).
+
 Réglages → Centre de contrôle → ajouter « Enregistrement de l'écran », puis
 lancer l'enregistrement AVANT d'ouvrir l'app. 4 à 6 minutes, sans son.
-1. Lancement de l'app (splash) → accueil → catalogue → fiche d'un véhicule.
+1. Lancement de l'app (splash) → accueil → catalogue → fiche du véhicule
+   « Review Auto Demo ».
 2. **Inscription** d'un nouveau compte client (adresse jetable, code e-mail).
-3. Connexion avec ce compte → réservation d'un chauffeur (aucun document)
-   jusqu'à l'écran de confirmation → « Mes réservations ».
-4. Chat : ouvrir la conversation avec le partenaire, montrer **Signaler** (la
-   fenêtre) puis **Bloquer** → bandeau « vous avez bloqué » → Débloquer.
-5. Vérification d'identité : /kyc, montrer l'ouverture de la caméra (sans
+3. Connecté avec ce compte : ouvrir le chauffeur « Kouassi Demo » (lien
+   ci-dessus ou Services → Chauffeur) → Journée complète → date → lieu →
+   « Réserver ce chauffeur » (aucun document) → écran de confirmation.
+4. Se déconnecter (menu ≡ → Déconnexion) → se connecter avec
+   `review-partner@vit-auto.com` → Espace partenaire → bandeau « commandes
+   en attente » → **Accepter** la mission → puis « Nouvelle annonce » jusqu'à
+   l'étape photos (caméra).
+5. Se déconnecter → se reconnecter avec le compte créé en 2 → Mes
+   réservations → **Message au partenaire** → écrire un message → en-tête :
+   **Signaler** (montrer la fenêtre, Annuler) puis **Bloquer** → bandeau
+   « vous avez bloqué » → **Débloquer**.
+6. Profil → Vérification d'identité : montrer l'ouverture de la caméra (sans
    aller au bout).
-6. Se déconnecter, se connecter avec `review-partner@vit-auto.com` → espace
-   partenaire → « Publier une annonce » jusqu'à l'étape photos (caméra).
-7. Retour au compte créé en 2 → Profil → **Supprimer le compte** → mot de
-   passe → déconnexion → tenter de se reconnecter : refusé.
+7. Profil → Sécurité → **Supprimer le compte** → mot de passe → déconnexion →
+   tenter de se reconnecter : refusé.
 Ne pas montrer la page /plans (abonnements partenaires contractés hors app).
 
 ### Texte de réponse (Resolution Center ET Notes) — en anglais
