@@ -3,6 +3,11 @@ import * as Sentry from '@sentry/react'
 import { GoogleOAuthProvider } from '@react-oauth/google'
 import './index.css'
 import App from './App.jsx'
+import { installerRafraichissementSession } from './utils/fetchSession.js'
+
+// Avant tout rendu : toute requête /api authentifiée part avec le jeton
+// courant et est rejouée après rafraîchissement sur 401 (voir fetchSession.js).
+installerRafraichissementSession()
 
 // No-op silencieux si VITE_SENTRY_DSN n'est pas configurée (même logique
 // défensive que server/config/sentry.js côté backend).
