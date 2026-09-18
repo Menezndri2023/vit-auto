@@ -43,7 +43,18 @@ const reloadOnceForStaleChunk = (msg) => {
 window.addEventListener("error", (e) => reloadOnceForStaleChunk(e?.message));
 window.addEventListener("unhandledrejection", (e) => reloadOnceForStaleChunk(e?.reason?.message || String(e?.reason || "")));
 // Chargement réussi : on réarme le mécanisme pour le prochain déploiement.
-window.addEventListener("load", () => { try { sessionStorage.removeItem(RELOAD_FLAG); } catch { /* ignore */ } });
+window.addEventListener("load", () => {
+  try { sessionStorage.removeItem(RELOAD_FLAG); } catch { /* ignore */ }
+  // Le cache-buster posé par utils/lazyAvecReprise.js n'a plus de raison de
+  // rester dans l'adresse (partage, favoris).
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("v") && /^\d{13}$/.test(url.searchParams.get("v"))) {
+      url.searchParams.delete("v");
+      window.history.replaceState(window.history.state, "", url.toString());
+    }
+  } catch { /* ignore */ }
+});
 
 // Service worker (PWA). Était un script inline dans index.html, que la
 // Content-Security-Policy bloquait depuis son ajout — voir le commentaire

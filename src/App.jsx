@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { Suspense, lazy, useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
+import { lazyAvecReprise as lazy } from "./utils/lazyAvecReprise";
 import { Capacitor } from "@capacitor/core";
 import { SplashScreen as NativeSplashScreen } from "@capacitor/splash-screen";
 import ErrorBoundary from "./components/ErrorBoundary";

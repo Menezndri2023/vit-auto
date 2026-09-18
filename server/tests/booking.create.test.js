@@ -493,7 +493,12 @@ describe("bookingController.createBooking", () => {
     expect(stored.status).toBe("pending"); // au partenaire de confirmer
   });
 
-  it("exige une pièce d'identité pour réserver un chauffeur professionnel, mais jamais de permis (le chauffeur conduit) — restructuration 2026-09", async () => {
+  // Règle de l'exploitant (2026-09-15, commit eabb2d6) : le client d'une
+  // mission chauffeur ne conduit pas — AUCUNE pièce ne lui est demandée, ni
+  // identité ni permis. Ce test affirmait encore l'ancienne règle (identité
+  // exigée) et échouait depuis, invisible tant que la suite complète n'avait
+  // pas été relancée (2026-09-18).
+  it("n'exige AUCUNE pièce pour réserver un chauffeur professionnel — le client ne conduit pas (règle 2026-09-15)", async () => {
     const client = await verifiedClient();
     const owner = await createUser({ role: "partenaire" });
     const driver = await Driver.create({
@@ -504,12 +509,12 @@ describe("bookingController.createBooking", () => {
 
     const withoutDocs = mockReqRes({ user: client, body: { type: "chauffeur", clientInfo, driverId: driver._id.toString(), chauffeur: { date, heures: 3 } } });
     await createBooking(withoutDocs.req, withoutDocs.res);
-    expect(withoutDocs.res.status).toHaveBeenCalledWith(403);
-    expect(withoutDocs.res.body.code).toBe("VERIFICATION_LEVEL_2_REQUIRED");
+    expect(withoutDocs.res.status, JSON.stringify(withoutDocs.res.body)).toHaveBeenCalledWith(201);
 
+    // Une pièce fournie spontanément ne gêne pas non plus.
     const identityOnly = mockReqRes({
       user: client,
-      body: { type: "chauffeur", clientInfo, documents: { identity: bookingDocuments.identity }, driverId: driver._id.toString(), chauffeur: { date, heures: 3 } },
+      body: { type: "chauffeur", clientInfo, documents: { identity: bookingDocuments.identity }, driverId: driver._id.toString(), chauffeur: { date: new Date(Date.now() + 9 * 24 * 3600 * 1000).toISOString(), heures: 3 } },
     });
     await createBooking(identityOnly.req, identityOnly.res);
     expect(identityOnly.res.status).not.toHaveBeenCalledWith(403);
