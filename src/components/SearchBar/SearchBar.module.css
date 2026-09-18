@@ -568,3 +568,11 @@
 }
 /* 9,9 px et 10,9 px → 11,2 px (minimum Apple). */
 .field label { font-size: 0.7rem; }
+
+/* Portrait : « 🔄 Occasion » débordait de sa demi-colonne (430 px, audit
+   2026-09-18). Les trois états passent à la ligne si besoin au lieu de
+   dépasser du cadre. */
+@media (max-width: 640px) {
+  .etatToggle { flex-wrap: wrap; }
+  .etatBtn { flex: 1 1 auto; min-width: 0; white-space: nowrap; }
+}

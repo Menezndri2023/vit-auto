@@ -563,3 +563,10 @@
   .headerRight .headerLink, .headerRight .btnPrimary { flex: 1 1 calc(50% - 30px); justify-content: center; padding-left: 10px; padding-right: 10px; }
   .headerRight .btnPrimary { flex-basis: 100%; }
 }
+
+/* Tactile (audit 2026-09-18) : voile « voir la pièce » visible sans survol ;
+   lien « Voir les plans » à 44 px. */
+@media (hover: none) and (pointer: coarse) {
+  .docImgOverlay { opacity: 1; }
+  .upgradeLink { display: inline-flex; align-items: center; min-height: 44px; }
+}

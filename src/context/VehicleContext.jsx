@@ -199,41 +199,58 @@ export const VehicleProvider = ({ children }) => {
   const [bookings, setBookings] = useState(() => loadBookings());
   const [vehiclesLoading, setVehiclesLoading] = useState(false);
 
-  const loadVehicles = useCallback(async (page = 1, append = false) => {
+  // Cache local du catalogue (stale-while-revalidate) : au démarrage, la liste
+  // enregistrée à la dernière visite s'affiche IMMÉDIATEMENT, puis l'API la
+  // remplace. Sans lui, chaque ouverture de l'app attendait 4 requêtes
+  // séquentielles de 100 annonces (≈ 0,7 à 1,5 s chacune depuis l'Afrique)
+  // avant le premier véhicule (« beaucoup plus rapide », 2026-09-18). Le cache
+  // n'est jamais montré seul plus de CACHE_TTL_MS : au-delà, il sert de
+  // premier affichage mais la liste est de toute façon rechargée.
+  const CACHE_KEY = "vit-auto-catalogue-v1";
+  const CACHE_TTL_MS = 15 * 60 * 1000;
+  const lireCache = () => {
+    try {
+      const brut = localStorage.getItem(CACHE_KEY); if (!brut) return null;
+      const { at, vehicles: liste } = JSON.parse(brut);
+      if (!Array.isArray(liste) || !liste.length) return null;
+      return { age: Date.now() - (at || 0), liste };
+    } catch { return null; }
+  };
+  const ecrireCache = (liste) => {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), vehicles: liste })); } catch { /* quota : tant pis */ }
+  };
+
+  const loadVehicles = useCallback(async () => {
     setVehiclesLoading(true);
     try {
-      // Bug réel corrigé (audit) : ne chargeait jamais que les 50 véhicules
-      // les plus récents (limit fixe, `page` jamais incrémenté malgré le
-      // paramètre existant) — tous les filtres du catalogue public (pays,
-      // type, carburant, transmission, prix...) semblaient "ne rien trouver"
-      // pour tout ce qui existait au-delà de cette première page, alors que
-      // le catalogue réel pouvait en contenir bien plus (même schéma que le
-      // bug admin "plafonné à 200" déjà corrigé, jamais appliqué ici). Charge
-      // désormais automatiquement les pages suivantes tant qu'il en reste
-      // (limit=100, max backend public), plafonné à 20 pages (2000 annonces)
-      // pour éviter un cas pathologique.
-      const response = await fetch(`/api/vehicles?limit=100&page=${page}`);
-      if (!response.ok) throw new Error("Failed to fetch vehicles");
-      const data = await response.json();
-      // Gère l'ancien format (tableau) et le nouveau format paginé ({ vehicles, total, pages })
-      const list = Array.isArray(data) ? data : (data.vehicles || []);
-      const normalized = list.map(normalizeVehicle);
-      setVehicles((prev) => append ? [...prev, ...normalized] : normalized);
-      const totalPages = Array.isArray(data) ? 1 : (data.pages || 1);
-      if (totalPages > page && page < 20) {
-        await loadVehicles(page + 1, true);
-      }
+      const chargerPage = async (page) => {
+        const response = await fetch(`/api/vehicles?limit=100&page=${page}`);
+        if (!response.ok) throw new Error("Failed to fetch vehicles");
+        return response.json();
+      };
+      const premiere = await chargerPage(1);
+      const liste1 = Array.isArray(premiere) ? premiere : (premiere.vehicles || []);
+      const totalPages = Array.isArray(premiere) ? 1 : Math.min(premiere.pages || 1, 20);
+      // Pages suivantes EN PARALLÈLE (elles se chargeaient l'une après l'autre).
+      const suites = totalPages > 1
+        ? await Promise.all(Array.from({ length: totalPages - 1 }, (_, i) => chargerPage(i + 2).then((d) => (Array.isArray(d) ? d : (d.vehicles || []))).catch(() => [])))
+        : [];
+      const normalized = [...liste1, ...suites.flat()].map(normalizeVehicle);
+      setVehicles(normalized);
+      ecrireCache(normalized);
     } catch {
-      // Repli sur la fixture démo uniquement si le chargement initial échoue
-      // et qu'on n'a jamais reçu de vraies données — jamais lors d'un échec de
-      // pagination "load more", qui écraserait un catalogue réel déjà affiché.
-      setVehicles((prev) => (prev.length === 0 ? initialVehicles : prev));
+      // Repli sur le cache local puis sur la fixture démo, uniquement si rien
+      // n'est déjà affiché — jamais écraser un catalogue réel.
+      setVehicles((prev) => (prev.length === 0 ? (lireCache()?.liste || initialVehicles) : prev));
     } finally {
       setVehiclesLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    // Premier affichage depuis le cache local, sans attendre le réseau.
+    const cache = lireCache();
+    if (cache) setVehicles(cache.liste);
     // Différé après le premier rendu (requestIdleCallback) pour ne pas faire concurrence
     // aux ressources critiques du premier affichage (JS/CSS/police/image LCP) sur TOUTES
     // les routes, y compris celles qui n'affichent aucun véhicule (login, profil, kyc...).

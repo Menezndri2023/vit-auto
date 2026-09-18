@@ -40,8 +40,9 @@ const ECRANS = [
 
 const PUBLIQUES = ["/", "/catalogue", "/catalogue?mode=Acheter", "/catalogue?mode=Autres", "/catalogue?mode=Pieces", "/plans", "/services",
   "/login", "/register", "/pourquoi", "/partenaires", "/faq", "/import-export", "/import-export/listings", "/cgu", "/privacy", "/help"];
-const CLIENT = ["/dashboard", "/profile", "/favorites", "/loyalty", "/kyc", "/cart"];
-const PARTENAIRE = ["/vendor/dashboard", "/vendor/dashboard?tab=annonces", "/vendor/dashboard?tab=calendrier", "/vendor/pro", "/vendor/publish", "/vendor/submit-activity", "/vendor/submit-part", "/partner-pms", "/partner-onboarding"];
+const CLIENT = ["/dashboard", "/profile", "/favorites", "/loyalty", "/kyc", "/cart",
+  "/dashboard#chat", "/dashboard#conversation", "/profile#suppression", "/dashboard#notifications", "/#menu"];
+const PARTENAIRE = ["/vendor/dashboard#conversation", "/vendor/dashboard", "/vendor/dashboard?tab=annonces", "/vendor/dashboard?tab=calendrier", "/vendor/pro", "/vendor/publish", "/vendor/submit-activity", "/vendor/submit-part", "/partner-pms", "/partner-onboarding"];
 
 // Pages dynamiques : premières annonces semées par apiLocale.mjs.
 async function pagesDynamiques() {
@@ -66,12 +67,40 @@ const ETIQUETTE = (e) => `<${e.tagName.toLowerCase()}${e.id ? "#" + e.id : ""}${
 async function mesurer(page, ecran) {
   return page.evaluate(({ mobile, ETIQ }) => {
     const etiq = new Function("e", `return (${ETIQ})(e)`);
-    const visible = (e) => { const s = getComputedStyle(e); const b = e.getBoundingClientRect(); return s.visibility !== "hidden" && s.display !== "none" && b.width > 0 && b.height > 0 && b.bottom > 0 && b.top < innerHeight; };
-    const out = { scrollX: 0, cibles: [], coupes: [], caches: [], petits: [], chevauchements: [] };
+    // `<details>` fermé : Chromium récent garde des boîtes (content-visibility)
+    // aux enfants — ils ne sont ni visibles ni tapables. checkVisibility() les
+    // exclut, ainsi que tout ancêtre en visibility:hidden.
+    const visible = (e) => { const s = getComputedStyle(e); const b = e.getBoundingClientRect(); if (e.closest("details:not([open]) > :not(summary)")) return false; if (e.checkVisibility && !e.checkVisibility({ visibilityProperty: true, contentVisibilityAuto: true })) return false; return s.visibility !== "hidden" && s.display !== "none" && b.width > 0 && b.height > 0 && b.bottom > 0 && b.top < innerHeight; };
+    const out = { scrollX: 0, cibles: [], coupes: [], caches: [], petits: [], chevauchements: [], barreEtat: [], interceptes: [] };
     const doc = document.scrollingElement || document.documentElement;
     out.scrollX = Math.max(0, doc.scrollWidth - innerWidth);
 
     const interactifs = [...document.querySelectorAll('a[href], button, [role="button"], input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea')].filter(visible);
+    // Encoche iOS : l'app native place la page SOUS la barre d'état
+    // (contentInset never) ; tout ce qui se cale en haut de l'écran doit
+    // réserver --safe-top. Simulée par l'audit (:root{--safe-top:47px}) : une
+    // commande dont le centre tombe dans ces 47 px est sous la barre d'état.
+    const safeTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--safe-top")) || 0;
+    if (mobile && safeTop > 0) {
+      for (const e of interactifs) {
+        const b = e.getBoundingClientRect();
+        const s = getComputedStyle(e);
+        if (b.top + b.height / 2 < safeTop && (s.position === "fixed" || e.closest("[class*=window], [class*=modal], [class*=sheet], [class*=drawer], [class*=fullscreen], header, nav") || true)) {
+          // seulement les éléments fixés/collés à l'écran (le contenu qui défile passe sous la barre naturellement)
+          let f = e, fixe = false; while (f && f !== document.body) { const ps = getComputedStyle(f).position; if (ps === "fixed" || ps === "sticky") { fixe = true; break; } f = f.parentElement; }
+          if (fixe) out.barreEtat.push(`y=${Math.round(b.top)} ${etiq(e)}`);
+        }
+      }
+    }
+    // Appui intercepté : un autre élément (voile, bandeau, canvas de fête…)
+    // reçoit le toucher à la place du bouton → « il faut appuyer plusieurs fois ».
+    for (const e of interactifs) {
+      const b = e.getBoundingClientRect();
+      const x = b.left + b.width / 2, y = b.top + b.height / 2;
+      if (x < 0 || x >= innerWidth || y < 0 || y >= innerHeight) continue; // hors écran (liste à défilement horizontal)
+      const pt = document.elementFromPoint(x, y);
+      if (pt && pt !== e && !e.contains(pt) && !pt.contains(e)) out.interceptes.push(`${etiq(e)} ← ${etiq(pt)}`);
+    }
     if (mobile) {
       for (const e of interactifs) {
         const b = e.getBoundingClientRect();
@@ -147,10 +176,38 @@ async function connecter(page, compte) {
   return page.evaluate(() => !!localStorage.getItem("vit-auto-token"));
 }
 
+// Chemins « à état » : la page puis une action qui ouvre un écran fixe
+// (messagerie, dialogue…). Codés comme des chemins spéciaux « /page#etat ».
+async function ouvrirEtat(page, chemin) {
+  const etat = String(chemin).split("#")[1];
+  if (!etat) return;
+  try {
+    if (etat === "chat" || etat === "conversation") {
+      await page.locator("nav, div").getByText("Chat", { exact: true }).last().click({ timeout: 10000 });
+      await page.waitForTimeout(800);
+      if (etat === "conversation") {
+        const carte = page.locator("[class*=channelCard]").filter({ hasNotText: /Assistant|Service Client/ }).first();
+        if (await carte.isVisible().catch(() => false)) { await carte.click(); await page.waitForTimeout(800); }
+        else { await page.locator("[class*=channelCard]").last().click(); await page.waitForTimeout(800); }
+      }
+    } else if (etat === "suppression") {
+      const secu = page.getByRole("button", { name: /Sécurité/ }).first(); if (await secu.isVisible().catch(() => false)) await secu.click();
+      await page.getByRole("button", { name: "Supprimer", exact: true }).click({ timeout: 10000 }); await page.waitForTimeout(600);
+    } else if (etat === "menu") {
+      await page.getByRole("button", { name: /Ouvrir le menu/ }).click({ timeout: 10000 }); await page.waitForTimeout(600);
+    } else if (etat === "notifications") {
+      await page.locator("[class*=bell]").first().click({ timeout: 10000 }); await page.waitForTimeout(600);
+    }
+  } catch (e) { console.log(`  (état ${etat} : ${String(e).slice(0, 80)})`); }
+}
+
 const rapport = []; let anomalies = 0;
 const dyn = await pagesDynamiques();
+// --ecrans se,iphone : restreindre aux écrans nommés (audit ciblé mobile).
+const idxEcrans = process.argv.indexOf("--ecrans");
+const ECRANS_CHOISIS = idxEcrans !== -1 ? ECRANS.filter((e) => process.argv[idxEcrans + 1].split(",").includes(e.nom)) : ECRANS;
 const browser = await chromium.launch({ executablePath: EXE, headless: true });
-for (const ecran of ECRANS) {
+for (const ecran of ECRANS_CHOISIS) {
   const ctx = await browser.newContext({ viewport: { width: ecran.width, height: ecran.height }, deviceScaleFactor: ecran.scale, isMobile: ecran.mobile, hasTouch: ecran.mobile, locale: "fr-FR" });
   await ctx.addInitScript(() => { try { sessionStorage.setItem("vit_splash_shown", "1"); for (const r of ["client", "partenaire", "admin"]) localStorage.setItem(`vit-auto-guide-${r}`, "1"); } catch {} });
   const page = await ctx.newPage();
@@ -162,8 +219,10 @@ for (const ecran of ECRANS) {
   for (const [role, compte, chemins] of lots) {
     if (compte) { if (!compte.pwd) { console.log(`  (${role} : VERIF_SEME_PWD absent, lot ignoré)`); continue; } const ok = await connecter(page, compte); if (!ok) { console.log(`✗ ${ecran.nom} connexion ${role} impossible`); anomalies++; continue; } }
     for (const chemin of chemins) {
-      await page.goto(BASE + chemin, { waitUntil: "networkidle", timeout: 60000 }).catch(() => {});
+      await page.goto(BASE + String(chemin).split("#")[0], { waitUntil: "networkidle", timeout: 60000 }).catch(() => {});
+      if (ecran.mobile && ecran.width < 900) await page.addStyleTag({ content: ":root{--safe-top:47px}" }).catch(() => {});
       await page.waitForTimeout(1200);
+      await ouvrirEtat(page, chemin);
       for (const t of ["Accepter", "J'ai compris", "Compris", "Fermer le guide"]) { const b = page.getByRole("button", { name: t }).first(); if (await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); } }
       const m = await mesurer(page, ecran).catch((e) => ({ erreur: String(e).slice(0, 120) }));
       const pbs = [];
@@ -176,6 +235,9 @@ for (const ecran of ECRANS) {
       for (const c of (m.petits || []).slice(0, 5)) pbs.push("texte < 11px : " + c);
       if ((m.petits || []).length > 5) pbs.push(`… ${m.petits.length - 5} autres textes < 11px`);
       for (const c of (m.chevauchements || []).slice(0, 3)) pbs.push("fixes qui se chevauchent : " + c);
+      for (const c of (m.barreEtat || []).slice(0, 6)) pbs.push("sous la barre d'état (encoche) : " + c);
+      for (const c of (m.interceptes || []).slice(0, 6)) pbs.push("appui intercepté : " + c);
+      if ((m.interceptes || []).length > 6) pbs.push(`… ${m.interceptes.length - 6} autres appuis interceptés`);
       if (pbs.length) anomalies++;
       rapport.push({ ecran: ecran.nom, role, chemin, problemes: pbs, brut: m });
       console.log(`${pbs.length ? "✗" : "✓"} ${ecran.nom.padEnd(6)} ${role.padEnd(10)} ${chemin.padEnd(34)}${pbs.length ? "\n     " + pbs.join("\n     ") : ""}`);

@@ -15,6 +15,7 @@ import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, isWeatherDep
 import { PART_CATEGORIES, PART_CATEGORY_LABELS, PART_CATEGORY_ICONS, PART_CONDITION_LABELS } from "../constants/spareParts";
 import { useI18n } from "../context/I18nContext";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
+import { optimizedImageUrl } from "../utils/imageOptim";
 
 const MODES = [
   { key: "Tout",      icon: "⚡", label: "catalogue.all" },
@@ -78,7 +79,7 @@ function IECard({ l }) {
     <div className={styles.ieCard}>
       <div className={styles.ieCardImg}>
         {l.mainPhoto
-          ? <img src={l.mainPhoto} alt={l.title} loading="lazy" width="320" height="200" />
+          ? <img src={optimizedImageUrl(l.mainPhoto, { width: 640 })} alt={l.title} loading="lazy" decoding="async" width="320" height="200" />
           : <div className={styles.ieCardImgFallback}>🚗</div>
         }
         <div className={styles.ieCardOrigin}>{getCountryFlag(l.sourceCountry)} {l.sourceCountry}</div>
@@ -142,7 +143,7 @@ export function DriverCard({ d }) {
     <div className={styles.ieCard}>
       <div className={styles.ieCardImg}>
         {d.profilePhoto || d.images?.[0]
-          ? <img src={d.profilePhoto || d.images[0]} alt={`${d.firstName} ${d.lastName}`} loading="lazy" width="320" height="200" />
+          ? <img src={optimizedImageUrl(d.profilePhoto || d.images[0], { width: 640 })} alt={`${d.firstName} ${d.lastName}`} loading="lazy" decoding="async" width="320" height="200" />
           : <div className={styles.ieCardImgFallback}>🧑‍✈️</div>
         }
       </div>
@@ -190,7 +191,7 @@ export function ActivityCard({ a }) {
     <div className={styles.ieCard}>
       <div className={styles.ieCardImg}>
         {a.thumbnail || a.images?.[0]
-          ? <img src={a.thumbnail || a.images[0]} alt={a.title} loading="lazy" width="320" height="200" />
+          ? <img src={optimizedImageUrl(a.thumbnail || a.images[0], { width: 640 })} alt={a.title} loading="lazy" decoding="async" width="320" height="200" />
           : <div className={styles.ieCardImgFallback}>{ACTIVITY_TYPE_ICONS[a.activityType] || "🎟️"}</div>
         }
         <div className={styles.ieCardTypeBadge}>{ACTIVITY_TYPE_ICONS[a.activityType] || "🎟️"} {ACTIVITY_TYPE_LABELS[a.activityType] || a.activityType}</div>
@@ -227,7 +228,7 @@ export function PartCard({ p }) {
     <div className={styles.ieCard}>
       <div className={styles.ieCardImg}>
         {p.thumbnail || p.images?.[0]
-          ? <img src={p.thumbnail || p.images[0]} alt={p.title} loading="lazy" width="320" height="200" />
+          ? <img src={optimizedImageUrl(p.thumbnail || p.images[0], { width: 640 })} alt={p.title} loading="lazy" decoding="async" width="320" height="200" />
           : <div className={styles.ieCardImgFallback}>{PART_CATEGORY_ICONS[p.category] || "📦"}</div>
         }
         <div className={styles.ieCardTypeBadge}>{PART_CATEGORY_ICONS[p.category] || "📦"} {PART_CATEGORY_LABELS[p.category] || p.category}</div>

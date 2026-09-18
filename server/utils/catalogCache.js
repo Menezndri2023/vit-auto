@@ -4,9 +4,14 @@
  * Volontairement PAS Redis : le catalogue est haute-lecture, faible-écriture,
  * et Redis (Upstash, quota limité — voir queue/connection.js) n'a pas besoin
  * d'une charge supplémentaire pour un cache que la latence/mémoire locale
- * suffit largement à couvrir. Une courte durée de vie (quelques dizaines de
- * secondes) tolère la légère fraîcheur perdue sans jamais nécessiter
- * d'invalidation explicite à chaque création/modification d'annonce.
+ * suffit largement à couvrir.
+ *
+ * Durée de vie : 10 minutes (2026-09-18). Depuis le 2026-09-15, les modèles
+ * (Vehicle, Driver, Activity, ImportExportListing, SparePart) vident ce cache
+ * à chaque écriture — la fraîcheur ne dépend plus de la durée de vie, qui
+ * n'était que de 30 s : la quasi-totalité des ouvertures de l'app retapait
+ * Mongo (0,6 à 1,4 s par page de 100 annonces depuis l'Afrique). Un seul
+ * processus sert l'API : l'invalidation par les hooks est complète.
  */
 const store = new Map();
 const MAX_ENTRIES = 500;
@@ -21,7 +26,7 @@ export function cacheGet(key) {
   return entry.value;
 }
 
-export function cacheSet(key, value, ttlMs = 30_000) {
+export function cacheSet(key, value, ttlMs = 10 * 60_000) {
   if (store.size >= MAX_ENTRIES) {
     const oldestKey = store.keys().next().value;
     store.delete(oldestKey);

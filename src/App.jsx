@@ -94,13 +94,20 @@ const PaymentSimulate         = lazy(() => import("./pages/PaymentSimulate"));
 const PaymentResult           = lazy(() => import("./pages/PaymentResult"));
 
 // ── Routes internes — accès à authReady pour éviter le flash ──────────────
-function AppRoutes() {
+function AppRoutes({ splashDone, onSplashDone }) {
   const { authReady } = useAuth();
 
-  // Attendre que la validation du token soit terminée avant d'afficher quoi que ce soit
-  if (!authReady) return <SplashScreen persistent />;
+  // Premier écran de la session : le splash complet reste affiché tant que la
+  // session n'est pas validée (au minimum ~1 s, au plus 4 s), et l'app se
+  // rend DESSOUS dès que possible — quand il s'efface, la page est déjà là.
+  // Ensuite (navigation, rechargement dans la même session) : simple écran
+  // d'attente le temps de la validation.
+  if (!authReady && splashDone) return <SplashScreen persistent />;
 
   return (
+    <>
+    {!splashDone && <SplashScreen onDone={onSplashDone} ready={authReady} />}
+    {authReady && (
     <Layout>
       {/* Filet de sécurité global : certaines pages listées ci-dessous ont leur
           propre <ErrorBoundary> (comportement de repli spécifique), mais toute
@@ -230,6 +237,8 @@ function AppRoutes() {
         </Suspense>
       </ErrorBoundary>
     </Layout>
+    )}
+    </>
   );
 }
 
@@ -261,7 +270,6 @@ function App() {
 
   return (
     <>
-      {!splashDone && <SplashScreen onDone={handleSplashDone} />}
       <BrowserRouter>
         <ToastProvider>
           <AuthProvider>
@@ -274,7 +282,7 @@ function App() {
                         <VehicleProvider>
                           <FavoritesProvider>
                             <CartProvider>
-                              <AppRoutes />
+                              <AppRoutes splashDone={splashDone} onSplashDone={handleSplashDone} />
                               <ToastContainer />
                               <UpdateBanner />
                               <Chat />

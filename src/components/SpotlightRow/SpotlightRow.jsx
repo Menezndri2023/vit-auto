@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useCurrency } from "../../context/CurrencyContext";
 import { useSpotlight } from "../../hooks/useSpotlight";
 import styles from "./SpotlightRow.module.css";
+import { optimizedImageUrl } from "../../utils/imageOptim";
 
 /**
  * Bande de mise en avant générique — activités et loisirs, partenaires.
@@ -45,7 +46,7 @@ export default function SpotlightRow({ emplacement, titre, sousTitre, minimum = 
           <Link key={item.id} to={item.lien} className={styles.carte}>
             <div className={styles.visuel}>
               {item.image
-                ? <img src={item.image} alt="" loading="lazy" />
+                ? <img src={optimizedImageUrl(item.image, { width: 640 })} alt="" loading="lazy" decoding="async" />
                 : <span className={styles.sansVisuel} aria-hidden="true">🎟️</span>}
             </div>
             <div className={styles.corps}>

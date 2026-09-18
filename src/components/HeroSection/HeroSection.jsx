@@ -10,6 +10,7 @@ import { IMPORT_ORIGINS } from "../../constants/importOrigins";
 import { slugifyCity } from "../../constants/citySlug";
 import SearchBar from "../SearchBar/SearchBar";
 import styles from "./HeroSection.module.css";
+import { optimizedImageUrl } from "../../utils/imageOptim";
 
 // Chiffres affichés sous la barre de recherche. Ils étaient écrits en dur —
 // « 3 500+ véhicules », « 20+ pays », « 4.9/5 de note moyenne » — alors que la
@@ -231,7 +232,7 @@ export default function HeroSection() {
 
           {/* Image — LCP : priorité haute sur la première slide */}
           <img
-            src={slide.img}
+            src={optimizedImageUrl(slide.img, { width: 1200 })}
             alt={slide.name}
             className={styles.spotImg}
             width="600"

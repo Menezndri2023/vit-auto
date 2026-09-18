@@ -1089,16 +1089,19 @@
 
 /* ── Responsive ──────────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
+  /* Tiroir au-dessus de la barre de navigation globale (z 500) — son bouton
+     ✕ était sous la barre et sous l'encoche iOS (audit 2026-09-18). */
   .sidebar {
     position: fixed;
     left: 0;
     top: 0;
+    padding-top: var(--safe-top, 0px);
     transform: translateX(-100%);
-    z-index: 100;
+    z-index: 600;
   }
   .sidebarOpen       { transform: translateX(0); }
-  .sidebarClose      { display: flex; }
-  .sidebarOverlay    { display: block; }
+  .sidebarClose      { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; }
+  .sidebarOverlay    { display: block; z-index: 599; }
   .topBar            { display: flex; }
   .content           { padding: 20px 16px; }
   .leadLayout        { grid-template-columns: 1fr; }

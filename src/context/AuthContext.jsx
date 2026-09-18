@@ -147,6 +147,15 @@ export const AuthProvider = ({ children }) => {
     const storedToken = loadToken();
     if (!storedToken) { setAuthReady(true); return; }
 
+    // Session déjà connue (jeton + profil en local) : l'app démarre TOUT DE
+    // SUITE avec ce profil, la validation se fait en arrière-plan. Avant, tout
+    // l'écran restait sur le splash le temps d'un aller-retour /api/auth/me
+    // (0,5 à 1,5 s depuis l'Afrique) — et jusqu'à 16 s sur réseau capricieux
+    // (8 tentatives espacées de 2 s). Si la validation révèle une session
+    // révoquée, clearSession() ramène à l'accueil, comme avant. Premier
+    // démarrage sans profil local : on attend la validation, comme avant.
+    if (loadUser()) setAuthReady(true);
+
     const validate = async (attemptsLeft = 8) => {
       try {
         const res = await fetch("/api/auth/me", {

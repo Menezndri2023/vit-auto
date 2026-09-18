@@ -73,10 +73,10 @@
 .header {
   background: linear-gradient(135deg, #0f1b3f, #1e40af);
   color: #fff;
-  padding: 0.9rem 1rem 0.85rem;
+  padding: 0.6rem 1rem;
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.6rem;
   flex-shrink: 0;
 }
 
@@ -85,10 +85,14 @@
   border: none;
   color: rgba(255,255,255,0.8);
   cursor: pointer;
-  font-size: 1.1rem;
-  padding: 2px 6px;
-  border-radius: 6px;
+  font-size: 1.2rem;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  margin-left: -8px;
+  border-radius: 10px;
   line-height: 1;
+  flex-shrink: 0;
 }
 .headerBack:hover { background: rgba(255,255,255,0.15); }
 
@@ -116,33 +120,68 @@
   border: none;
   color: rgba(255,255,255,0.7);
   cursor: pointer;
-  font-size: 1rem;
-  padding: 4px 7px;
-  border-radius: 6px;
+  font-size: 1.05rem;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  margin-right: -8px;
+  border-radius: 10px;
+  flex-shrink: 0;
 }
 .headerClose:hover { background: rgba(255,255,255,0.15); color: #fff; }
 
-/* Signaler + bloquer (en-tête d'une conversation client ↔ partenaire) */
+/* Signaler + bloquer (en-tête d'une conversation client ↔ partenaire) :
+   un bouton « ⋯ » de 44 px, menu déroulant sous l'en-tête. */
 .headerActions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  position: relative;
   flex-shrink: 0;
 }
-.headerActions button { color: rgba(255,255,255,0.85) !important; }
-.blockBtn {
-  background: rgba(255,255,255,0.12);
-  border: 1px solid rgba(255,255,255,0.2);
-  color: #fff;
-  border-radius: 8px;
-  padding: 4px 8px;
-  font-size: 0.74rem;
-  font-weight: 700;
+.headerMenuBtn {
+  width: 44px;
+  height: 44px;
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.85);
+  font-size: 1.4rem;
+  line-height: 1;
+  border-radius: 10px;
   cursor: pointer;
   font-family: inherit;
-  white-space: nowrap;
 }
-.blockBtn:hover { background: rgba(255,255,255,0.22); }
+.headerMenuBtn:hover, .headerMenuBtn[aria-expanded="true"] { background: rgba(255,255,255,0.15); color: #fff; }
+.headerMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 240px;
+  background: #fff;
+  border: 1px solid #e5eaf5;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(15, 27, 63, 0.18);
+  padding: 6px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+}
+.headerMenuItem {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 12px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  color: #0f1b3f;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  width: 100%;
+}
+.headerMenuItem:hover { background: #f1f5fb; }
+/* Le bouton « Signaler » (ReportButton compact) prend la ligne entière */
+.headerMenuItem > button { width: 100%; text-align: left; font-size: 0.9rem !important; font-weight: 600 !important; color: #0f1b3f !important; min-height: 48px; }
 
 /* Conversation bloquée : la saisie est remplacée par ce bandeau */
 .blockedRow {
@@ -376,6 +415,14 @@
     border-radius: 0;
     z-index: 1200;
   }
+  /* Encoche iOS : la fenêtre part du bord haut de l'écran, SOUS la barre
+     d'état (contentInset never). Sans cette réserve, ←, ⋯ et ✕ étaient
+     sous l'heure et la batterie — « impossible de ressortir de la
+     conversation » (exploitant, 2026-09-18). L'en-tête sombre absorbe la
+     zone, comme la barre de navigation. */
+  .header {
+    padding-top: calc(0.6rem + var(--safe-top, 0px));
+  }
 
   /* FAB avec safe area bottom (Android notch bas) */
   .fab {
@@ -396,8 +443,8 @@
   }
 
   .sendBtn {
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
     border-radius: 12px;
     align-self: flex-end;
   }

@@ -230,6 +230,14 @@ export default function Chat() {
   const location = useLocation();
 
   const [view, setView]             = useState("list"); // "list" | "convo"
+  const [menuActionsOpen, setMenuActionsOpen] = useState(false);
+  const menuActionsRef = useRef(null);
+  useEffect(() => {
+    if (!menuActionsOpen) return;
+    const fermer = (e) => { if (menuActionsRef.current && !menuActionsRef.current.contains(e.target)) setMenuActionsOpen(false); };
+    document.addEventListener("pointerdown", fermer);
+    return () => document.removeEventListener("pointerdown", fermer);
+  }, [menuActionsOpen]);
   const [activeChannel, setActiveChannel] = useState(null);
 
   // Dérive le libellé/icône d'un canal à partir d'une conversation — factorisé
@@ -318,7 +326,7 @@ export default function Chat() {
           {/* Header */}
           <div className={styles.header}>
             {view === "convo" && (
-              <button className={styles.headerBack} onClick={handleBack}>←</button>
+              <button className={styles.headerBack} onClick={handleBack} aria-label="Retour à la liste">←</button>
             )}
             <div className={styles.headerAvatar}>
               {view === "convo"
@@ -331,25 +339,44 @@ export default function Chat() {
             </div>
             {/* Signaler + bloquer l'interlocuteur : contenu généré par les
                 utilisateurs (App Store 1.2). Jamais sur le support ni sur
-                l'assistant, qui ne sont pas des utilisateurs. */}
+                l'assistant, qui ne sont pas des utilisateurs. Dans un menu
+                « ⋯ » : deux boutons en ligne débordaient l'en-tête sur un
+                téléphone (audit 2026-09-18) et poussaient ← et ✕ hors de
+                portée. */}
             {view === "convo" && activeChat?.type === "client_partner" && activeChat?.other?._id && !activeChannel?.bot && (
-              <div className={styles.headerActions}>
-                <ReportButton targetType="user" targetId={activeChat.other._id} compact />
+              <div className={styles.headerActions} ref={menuActionsRef}>
                 <button
                   type="button"
-                  className={styles.blockBtn}
-                  onClick={async () => {
-                    const bloquer = !activeChat.blockedByMe;
-                    if (bloquer && !window.confirm(`Bloquer ${channelName} ? Vous ne recevrez plus ses messages et il ne recevra plus les vôtres.`)) return;
-                    const r = await setBlocked(activeChat.other._id, bloquer);
-                    if (!r.ok) error(r.message);
-                  }}
-                >
-                  {activeChat.blockedByMe ? "Débloquer" : "⛔ Bloquer"}
-                </button>
+                  className={styles.headerMenuBtn}
+                  aria-label="Options de la conversation"
+                  aria-expanded={menuActionsOpen}
+                  onClick={() => setMenuActionsOpen((o) => !o)}
+                >⋯</button>
+                {menuActionsOpen && (
+                  <div className={styles.headerMenu} role="menu">
+                    {/* Le menu reste ouvert : la fenêtre de signalement vit
+                        DANS ce bouton, la fermer le démonterait. */}
+                    <div className={styles.headerMenuItem}>
+                      <ReportButton targetType="user" targetId={activeChat.other._id} compact />
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.headerMenuItem}
+                      onClick={async () => {
+                        setMenuActionsOpen(false);
+                        const bloquer = !activeChat.blockedByMe;
+                        if (bloquer && !window.confirm(`Bloquer ${channelName} ? Vous ne recevrez plus ses messages et il ne recevra plus les vôtres.`)) return;
+                        const r = await setBlocked(activeChat.other._id, bloquer);
+                        if (!r.ok) error(r.message);
+                      }}
+                    >
+                      {activeChat.blockedByMe ? "✅ Débloquer cet utilisateur" : "⛔ Bloquer cet utilisateur"}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
-            <button className={styles.headerClose} onClick={handleFab}>✕</button>
+            <button className={styles.headerClose} onClick={handleFab} aria-label="Fermer la messagerie">✕</button>
           </div>
 
           {/* Corps */}

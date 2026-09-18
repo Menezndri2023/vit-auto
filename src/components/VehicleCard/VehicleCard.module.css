@@ -571,3 +571,9 @@
   .badges { gap: 4px; top: 8px; left: 8px; }
   .badge { padding: 3px 8px; letter-spacing: 0.04em; }
 }
+
+/* Tactile : les flèches du carrousel photo n'apparaissaient qu'au survol —
+   premier appui perdu sur iOS. Visibles au doigt. */
+@media (hover: none) and (pointer: coarse) {
+  .imgArrow { opacity: 1; width: 40px; height: 40px; }
+}

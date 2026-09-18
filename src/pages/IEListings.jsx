@@ -6,6 +6,7 @@ import PriceTag from "../components/PriceTag/PriceTag";
 import styles from "./IEListings.module.css";
 import ieModalStyles from "./ImportExport.module.css";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
+import { optimizedImageUrl } from "../utils/imageOptim";
 
 const BADGE_CFG = {
   silver:   { label: "Silver",   icon: "🥈" },
@@ -115,7 +116,7 @@ function ListingCard({ l }) {
       <Link to={`/import-export/listings/${l._id}`} className={styles.cardImgLink}>
         <div className={styles.cardImg}>
           {l.mainPhoto
-            ? <img src={l.mainPhoto} alt={l.title} loading="lazy" decoding="async" />
+            ? <img src={optimizedImageUrl(l.mainPhoto, { width: 640 })} alt={l.title} loading="lazy" decoding="async" />
             : <div className={styles.cardImgFallback}>🚗</div>
           }
           <div className={styles.cardOrigin}>{getCountryFlag(l.sourceCountry)} {l.sourceCountry}</div>

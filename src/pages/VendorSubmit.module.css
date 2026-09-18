@@ -1129,3 +1129,8 @@
   font-size: 0.82rem;
   padding: 11px 12px;
 }
+
+/* Tactile : la croix de retrait d'une photo n'apparaissait qu'au survol. */
+@media (hover: none) and (pointer: coarse) {
+  .photoRemove { opacity: 1; }
+}

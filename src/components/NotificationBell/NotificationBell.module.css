@@ -297,3 +297,12 @@
     justify-content: center;
   }
 }
+
+/* Tactile (audit 2026-09-18) : le bouton « supprimer » n'apparaissait qu'au
+   survol (opacity 0) — sur iOS le premier appui ne sert qu'à « survoler »,
+   il fallait appuyer deux fois. Toujours visible au doigt, et 44 px, comme
+   le bouton son. */
+@media (hover: none) and (pointer: coarse) {
+  .delBtn { opacity: 1; min-width: 44px; min-height: 44px; }
+  .soundBtn { min-width: 44px; min-height: 44px; }
+}

@@ -3,6 +3,7 @@ import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import VehicleCard from "../components/VehicleCard/VehicleCard";
 import styles from "./Favorites.module.css";
+import { optimizedImageUrl } from "../utils/imageOptim";
 
 export default function Favorites() {
   const { isAuthenticated, authFetch } = useAuth();
@@ -58,7 +59,7 @@ export default function Favorites() {
               <div className={styles.grid}>
                 {listings.map((f) => (
                   <Link key={f.favoriteId} to={`/import-export/listings/${f.item._id}`} className={styles.ieCard}>
-                    {f.item.mainPhoto && <img src={f.item.mainPhoto} alt={f.item.title} loading="lazy" decoding="async" />}
+                    {f.item.mainPhoto && <img src={optimizedImageUrl(f.item.mainPhoto, { width: 640 })} alt={f.item.title} loading="lazy" decoding="async" />}
                     <div className={styles.ieCardBody}>
                       <strong>{f.item.title}</strong>
                       <span>{f.item.make} {f.item.model} — {f.item.year}</span>

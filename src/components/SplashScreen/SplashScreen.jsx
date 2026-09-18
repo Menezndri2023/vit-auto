@@ -2,23 +2,40 @@ import { useState, useEffect } from "react";
 import VitAutoLogo from "../Logo/VitAutoLogo";
 import styles from "./SplashScreen.module.css";
 
-const SplashScreen = ({ onDone, persistent = false }) => {
+// Durée : le splash ne fait plus attendre pour rien. Il restait 3,5 s à
+// heure fixe (2,8 s + 0,65 s de sortie) quelle que soit la vitesse de
+// chargement — sur l'app iOS, après le splash natif, c'était 3,5 s de plus
+// avant le premier écran (« le projet doit être beaucoup plus rapide »,
+// exploitant, 2026-09-18). Désormais : un minimum de MIN_MS pour que le logo
+// se pose, puis il s'efface dès que l'app est prête (`ready` : session
+// validée) — ou au plus tard à MAX_MS si l'API tarde, l'écran d'attente
+// discret prenant alors le relais.
+const MIN_MS = 900;
+const MAX_MS = 4000;
+const SORTIE_MS = 450;
+
+const SplashScreen = ({ onDone, persistent = false, ready = true }) => {
   const [phase, setPhase] = useState("visible");
 
   useEffect(() => {
     if (persistent) return;
-
-    const exitTimer = setTimeout(() => setPhase("exit"), 2800);
-    const doneTimer = setTimeout(() => {
-      setPhase("done");
-      onDone?.();
-    }, 3500);
-
-    return () => {
-      clearTimeout(exitTimer);
-      clearTimeout(doneTimer);
+    const debut = Date.now();
+    let exitTimer, doneTimer;
+    const sortir = () => {
+      if (exitTimer) return;
+      setPhase("exit");
+      exitTimer = setTimeout(() => { setPhase("done"); onDone?.(); }, SORTIE_MS);
     };
-  }, [onDone, persistent]);
+    if (ready) {
+      const reste = Math.max(0, MIN_MS - (Date.now() - debut));
+      doneTimer = setTimeout(sortir, reste);
+    } else {
+      doneTimer = setTimeout(sortir, MAX_MS);
+    }
+    return () => { clearTimeout(exitTimer); clearTimeout(doneTimer); };
+    // `ready` qui bascule relance l'effet : le minutage repart mais MIN_MS
+    // est déjà écoulé dans le cas courant (session validée après 1 s).
+  }, [onDone, persistent, ready]);
 
   if (phase === "done") return null;
 

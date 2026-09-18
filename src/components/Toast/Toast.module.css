@@ -100,3 +100,7 @@
     max-width: none;
   }
 }
+
+@media (hover: none) and (pointer: coarse) {
+  .close { min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; margin-left: 0; }
+}

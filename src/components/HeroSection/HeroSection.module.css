@@ -673,3 +673,15 @@
 }
 /* 10,9 px → 11,2 px : minimum lisible des règles Apple (11 pt). */
 .spotBadge { font-size: 0.7rem; }
+
+/* Rangée des pays d'origine en portrait : la règle de base `.originsRow
+   { grid-row: 3 }` est écrite PLUS BAS dans ce fichier que le bloc portrait
+   (grid-row: 4) et l'emportait donc — les pastilles Chine/Japon/Dubaï se
+   plaçaient sur la rangée de la recherche, sous son cadre, injoignables au
+   doigt (audit 2026-09-18, iPhone 430 px). Répétée ici, après la règle de
+   base. */
+@media (max-width: 640px) {
+  .searchRow  { grid-row: 3; }
+  .originsRow { grid-row: 4; }
+  .statsRow   { grid-row: 5; }
+}
