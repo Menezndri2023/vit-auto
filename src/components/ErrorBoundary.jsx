@@ -1,3 +1,4 @@
+import { rechargerProprement } from '../utils/rechargementPropre.js';
 import React from 'react';
 import * as Sentry from '@sentry/react';
 
@@ -118,7 +119,7 @@ class ErrorBoundary extends React.Component {
               {m.home}
             </button>
             <button
-              onClick={() => window.location.reload()}
+              onClick={() => rechargerProprement()}
               style={{
                 background: 'transparent', color: '#64748b',
                 border: '1.5px solid #e2e8f0',

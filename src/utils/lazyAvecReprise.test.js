@@ -31,11 +31,16 @@ describe("Chargement différé avec reprise", () => {
     const replace = vi.fn();
     const original = window.location;
     Object.defineProperty(window, "location", { configurable: true, value: { href: "https://vit-auto.com/admin?tab=kyc", replace } });
+    const unregister = vi.fn().mockResolvedValue(true);
+    Object.defineProperty(navigator, "serviceWorker", { configurable: true, value: { getRegistrations: () => Promise.resolve([{ unregister }]) } });
+    globalThis.caches = { keys: () => Promise.resolve(["vit-auto-v6"]), delete: vi.fn().mockResolvedValue(true) };
     const chargeur = vi.fn().mockRejectedValue(new Error("Importing a module script failed."));
     const p1 = importerAvecReprise(chargeur);
     p1.catch(() => {}); // jamais résolue quand le rechargement prend la main
     await vi.advanceTimersByTimeAsync(2100);
     expect(replace).toHaveBeenCalledTimes(1);
+    expect(unregister).toHaveBeenCalledTimes(1);
+    expect(globalThis.caches.delete).toHaveBeenCalledWith("vit-auto-v6");
     expect(replace.mock.calls[0][0]).toMatch(/^https:\/\/vit-auto\.com\/admin\?tab=kyc&v=\d{13}$/);
     void p1; // ne se résout jamais : le rechargement prend la main
     // Second échec dans la foulée (nouvelle version toujours cassée) : pas de boucle.

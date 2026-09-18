@@ -1,4 +1,5 @@
 import { lazy } from "react";
+import { rechargerProprement } from "./rechargementPropre.js";
 
 // ── Chargement différé qui ne casse pas l'écran ─────────────────────────────
 //
@@ -38,9 +39,9 @@ export async function importerAvecReprise(chargeur) {
     const dernier = Number(sessionStorage.getItem(CLE) || 0);
     if (Date.now() - dernier > 30_000) {
       sessionStorage.setItem(CLE, String(Date.now()));
-      const url = new URL(window.location.href);
-      url.searchParams.set("v", String(Date.now()));
-      window.location.replace(url.toString());
+      // Worker désinscrit et caches vidés avant de recharger : une copie
+      // périmée servie par un ancien worker rendait l'échec PERSISTANT.
+      rechargerProprement();
       // Le rechargement prend la main ; on rend une promesse qui ne se résout pas.
       return new Promise(() => {});
     }
