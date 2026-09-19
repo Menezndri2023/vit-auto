@@ -184,3 +184,8 @@
   .carouselPrev { left: -8px; }
   .carouselNext { right: -8px; }
 }
+
+/* Tactile (audit iPad 2026-09-19) : « Voir tout le catalogue » mesurait 37 px. */
+@media (hover: none) and (pointer: coarse) {
+  .ctaLink { display: inline-flex; align-items: center; min-height: 44px; }
+}

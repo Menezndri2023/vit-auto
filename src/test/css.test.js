@@ -176,4 +176,16 @@ describe("Cibles tactiles hors des cartes", () => {
     const config = JSON.parse(fs.readFileSync(path.join(process.cwd(), "capacitor.config.json"), "utf8"));
     expect(config.ios?.contentInset).toBe("never");
   });
+
+  // 2026-09-19 : site injoignable depuis l'opérateur → WebView blanc sous un
+  // splash natif qui ne se fermait jamais. Le splash doit se fermer seul et
+  // une page d'erreur EMBARQUÉE doit exister dans le bundle (public/ → dist/).
+  it("l'app native ne peut pas rester bloquée sur le splash si le site ne répond pas", () => {
+    const config = JSON.parse(fs.readFileSync(path.join(process.cwd(), "capacitor.config.json"), "utf8"));
+    expect(config.plugins?.SplashScreen?.launchAutoHide).toBe(true);
+    expect(config.server?.errorPath).toBe("erreur-app.html");
+    const page = fs.readFileSync(path.join(process.cwd(), "public", "erreur-app.html"), "utf8");
+    expect(page).toMatch(/https:\/\/vit-auto\.com\//);
+    expect(page).toMatch(/Réessayer/);
+  });
 });

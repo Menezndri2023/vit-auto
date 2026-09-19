@@ -11,7 +11,8 @@
     "allowNavigation": [
       "*.vit-auto.com",
       "*.openstreetmap.org"
-    ]
+    ],
+    "errorPath": "erreur-app.html"
   },
   "android": {
     "allowMixedContent": true,
@@ -26,11 +27,12 @@
   },
   "plugins": {
     "SplashScreen": {
-      "launchAutoHide": false,
+      "launchAutoHide": true,
       "backgroundColor": "#0f1b3f",
       "androidSplashResourceName": "splash",
       "androidScaleType": "CENTER_CROP",
-      "showSpinner": false
+      "showSpinner": false,
+      "launchShowDuration": 4000
     },
     "StatusBar": {
       "style": "LIGHT",

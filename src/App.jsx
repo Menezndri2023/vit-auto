@@ -259,9 +259,11 @@ function App() {
     setSplashDone(true);
   };
 
-  // launchAutoHide=false dans capacitor.config.json : le splash natif reste
-  // affiché jusqu'à ce que ce composant JS ait pris le relais visuellement,
-  // pour éviter un flash blanc entre le splash natif et le splash React.
+  // Le splash natif est fermé dès que ce composant JS a pris le relais. Il se
+  // ferme aussi TOUT SEUL au bout de 4 s (launchAutoHide, capacitor.config.json)
+  // — avant, il ne se fermait jamais si la page distante ne se chargeait pas
+  // (site injoignable depuis l'opérateur, 2026-09-19) : l'app semblait ne pas
+  // s'ouvrir. La page d'erreur embarquée (server.errorPath) prend alors le relais.
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
       NativeSplashScreen.hide();

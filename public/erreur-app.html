@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>VIT AUTO</title>
+<!-- Page d'erreur de l'APP NATIVE (capacitor.config.json → server.errorPath).
+     L'app charge https://vit-auto.com en direct ; quand ce chargement échoue
+     (réseau coupé, adresse du site injoignable depuis l'opérateur…), le
+     WebView restait blanc SOUS le splash natif qui, lui, ne se fermait jamais
+     — « je n'arrive pas à ouvrir l'app » (2026-09-19). Cette page, embarquée
+     dans l'app, prend le relais : elle explique et réessaie toute seule. -->
+<style>
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+         font-family: "Poppins", system-ui, -apple-system, sans-serif; background: #0f1b3f; color: #fff; text-align: center;
+         padding: calc(24px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px)); box-sizing: border-box; }
+  .carte { max-width: 420px; }
+  .logo { font-size: 1.6rem; font-weight: 800; color: #ff4d2d; letter-spacing: -0.02em; margin-bottom: 20px; }
+  h1 { font-size: 1.25rem; margin: 0 0 10px; }
+  p { color: #b8c2dc; line-height: 1.6; margin: 0 0 24px; font-size: .95rem; }
+  a { display: inline-block; min-height: 48px; line-height: 48px; padding: 0 28px; background: #ff4d2d; color: #fff;
+      border-radius: 12px; font-weight: 700; text-decoration: none; }
+  .compte { color: #8a9bbf; font-size: .82rem; margin-top: 16px; }
+</style>
+</head>
+<body>
+  <div class="carte">
+    <div class="logo">VIT-AUTO</div>
+    <h1>Connexion au service impossible</h1>
+    <p>L'app n'a pas pu joindre vit-auto.com. Vérifiez votre connexion (Wi‑Fi ou données mobiles), puis réessayez.</p>
+    <a id="reessayer" href="https://vit-auto.com/">Réessayer</a>
+    <div class="compte" id="compte">Nouvel essai automatique dans 8 s…</div>
+  </div>
+  <script>
+    // Réessai automatique, puis toutes les 15 s : un réseau qui revient ne
+    // doit pas exiger un appui.
+    var reste = 8, el = document.getElementById("compte");
+    var t = setInterval(function () {
+      reste -= 1;
+      if (reste <= 0) { clearInterval(t); el.textContent = "Nouvel essai…"; location.href = "https://vit-auto.com/?r=" + Date.now(); }
+      else el.textContent = "Nouvel essai automatique dans " + reste + " s…";
+    }, 1000);
+  </script>
+</body>
+</html>
