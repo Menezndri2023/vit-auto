@@ -30,6 +30,12 @@
 	<string>VIT AUTO utilise l'appareil photo pour scanner votre pièce d'identité et prendre votre selfie de vérification (KYC).</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>VIT AUTO utilise votre position pour trouver les véhicules à proximité et estimer les frais de livraison.</string>
+	<!-- ITMS-90683 (build 7, 2026-09-19) : le plugin Geolocation de Capacitor
+	     référence l'API « toujours », Apple exige la phrase même si l'app ne
+	     demande jamais cette autorisation (elle n'utilise la position qu'en
+	     cours d'utilisation). -->
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>VIT AUTO utilise votre position, uniquement pendant l'utilisation de l'app, pour trouver les véhicules à proximité et estimer les frais de livraison.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>VIT AUTO enregistre les photos prises pour votre dossier de vérification.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
