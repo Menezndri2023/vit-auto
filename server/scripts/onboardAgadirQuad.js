@@ -30,7 +30,9 @@ dotenv.config();
 //
 // Aucune photo de l'activité fournie pour l'instant (uniquement le logo de
 // l'entreprise, non représentatif de l'expérience réelle) — images laissées
-// vides, à compléter dès réception.
+// vides, à compléter dès réception. Le logo est facultatif : l'absence du
+// fichier temporaire ou d'ImageKit ne doit jamais empêcher la création du
+// partenaire et de l'annonce.
 //
 // SIMULATION PAR DÉFAUT :
 //   node scripts/onboardAgadirQuad.js            → simulation
@@ -85,8 +87,10 @@ function motDePasseTemporaire() {
 }
 
 async function main() {
-  if (!isImageKitConfigured()) throw new Error("ImageKit non configuré — le logo ne pourrait pas être hébergé.");
-  if (!fs.existsSync(LOGO_PATH)) throw new Error(`Logo introuvable : ${LOGO_PATH}`);
+  const peutHebergerLogo = isImageKitConfigured() && fs.existsSync(LOGO_PATH);
+  if (!peutHebergerLogo) {
+    console.warn("Logo non importé (ImageKit ou fichier temporaire indisponible) : partenaire créé sans logo.");
+  }
 
   await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI);
   console.log(CONFIRME ? "\n⚡ CRÉATION RÉELLE\n" : "\n🔍 SIMULATION — ajouter --confirm pour créer\n");
@@ -128,6 +132,11 @@ async function main() {
       ville:      AGENCE.ville,
       isActive:   true,
       emailVerified: true,
+      business: {
+        companyName: AGENCE.companyName,
+        address: AGENCE.adresse,
+      },
+      defaultLocation: { address: AGENCE.adresse, city: AGENCE.ville },
     });
   }
 
@@ -149,7 +158,7 @@ async function main() {
   );
 
   // ── Logo (User.business.logo) ──────────────────────────────────────────
-  if (!user.business?.logo) {
+  if (!user.business?.logo && peutHebergerLogo) {
     const buf = fs.readFileSync(LOGO_PATH);
     const dataUri = `data:image/png;base64,${buf.toString("base64")}`;
     const logo = await uploadImage(dataUri, {
@@ -162,12 +171,35 @@ async function main() {
     await user.save();
   }
 
+  // L'administration et la fiche publique lisent ces informations directement
+  // sur le compte User ; PartnerBusiness reste l'entité opérationnelle liée aux
+  // annonces. Les deux doivent donc rester cohérents, même sans logo.
+  if (user.business?.companyName !== AGENCE.companyName || user.business?.address !== AGENCE.adresse
+    || user.defaultLocation?.city !== AGENCE.ville) {
+    user.business = {
+      ...(user.business?.toObject?.() || user.business || {}),
+      companyName: AGENCE.companyName,
+      address: AGENCE.adresse,
+    };
+    user.defaultLocation = { ...(user.defaultLocation?.toObject?.() || user.defaultLocation || {}), address: AGENCE.adresse, city: AGENCE.ville };
+    await user.save();
+  }
+
   console.log(`✓ compte ${user.email}${motDePasse ? "" : "  (déjà existant, mot de passe inchangé)"}\n✓ entité ${business.companyName}\n✓ logo ${user.business?.logo ? "hébergé" : "(déjà présent)"}\n`);
 
   // ── Activité ────────────────────────────────────────────────────────────
   let activite = await Activity.findOne({ owner: user._id, title: ACTIVITE.titre });
   if (activite) {
-    console.log(`   · ${ACTIVITE.titre}  (déjà en base)`);
+    // Une intégration explicitement validée doit rester visible même si une
+    // première exécution l'avait laissée en attente de revue.
+    if (activite.status !== "approved" || !activite.available || activite.manuallyPaused) {
+      activite.status = "approved";
+      activite.available = true;
+      activite.manuallyPaused = false;
+      activite.rejectionReason = null;
+      await activite.save();
+    }
+    console.log(`   · ${ACTIVITE.titre}  (déjà en base, active)`);
   } else {
     activite = await Activity.create({
       owner:    user._id,
@@ -186,8 +218,10 @@ async function main() {
       country: AGENCE.country,
       ville:   AGENCE.ville,
       adresse: AGENCE.adresse,
-      // Défaut du modèle : revue manuelle par un administrateur.
-      status: "pending",
+      // Intégration validée explicitement par l'exploitant : visible dans
+      // l'administration et le catalogue dès la création.
+      status: "approved",
+      available: true,
     });
     console.log(`   ✓ ${ACTIVITE.prixMAD} MAD  ${activite.title}`);
   }
