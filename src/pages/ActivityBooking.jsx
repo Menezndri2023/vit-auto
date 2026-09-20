@@ -102,6 +102,11 @@ const ActivityBooking = () => {
     );
   }
 
+  // Une activité peut regrouper plusieurs expériences (quad, buggy,
+  // sandboard…). La carte catalogue utilise une image de couverture, mais la
+  // fiche doit rendre toute la galerie pour que le client voie l'expérience
+  // complète avant de réserver.
+  const galleryImages = [...new Set([activity.thumbnail, ...(activity.images || [])].filter(Boolean))];
   const unitPrice = wantEssai ? (activity.essaiPrice ?? activity.price) : activity.price;
   const total = activity.priceUnit === "per_person" ? unitPrice * (Number(participants) || 1) : unitPrice;
   // essaiPrice ne conserve pas de montant saisi exact (voir Activity.js) —
@@ -259,6 +264,19 @@ const ActivityBooking = () => {
           <ReportButton targetType="activity" targetId={activity._id || activity.id} compact />
         </div>
       </div>
+
+      {galleryImages.length > 0 && (
+        <section className={dbStyles.vehiclePhotos} aria-label="Photos de l'expérience">
+          <h2 className={dbStyles.vehiclePhotosTitle}>Photos de l’expérience</h2>
+          <div className={dbStyles.vehiclePhotosGrid}>
+            {galleryImages.map((image, index) => (
+              <a key={image} href={image} target="_blank" rel="noreferrer" aria-label={`Voir la photo ${index + 1} de ${activity.title}`}>
+                <img className={dbStyles.vehiclePhotoImg} src={image} alt={`${activity.title} — photo ${index + 1}`} loading="lazy" decoding="async" />
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
 
       {activity.description && (
         <p className={dbStyles.description}>{activity.description}</p>
