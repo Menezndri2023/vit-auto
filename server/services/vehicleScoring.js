@@ -168,7 +168,10 @@ export const buildVehicleWhitelist = (data) => {
     title, marque, modele, annee, couleur, kilometrage, etat,
     type: vType, vehicleType, carburant, transmission,
     nombrePlaces, nombrePortes, climatisation, withDriver,
-    pricePerDay, priceForSale, caution, pricePerMonth, pricePerWeek, leasing, credit,
+    // pricePerMonth / pricePerWeek ne sont pas repris ici : ils sont normalisés
+    // plus bas avec `?? null`. Les lister aussi en abrégé laissait une clé morte,
+    // écrasée par le second littéral (no-dupe-keys).
+    pricePerDay, priceForSale, caution, leasing, credit,
     ageMin, permisRequis, assuranceOptionnelle,
     dureeMinLocation: Number.isFinite(Number(dureeMinLocation)) && Number(dureeMinLocation) >= 1 ? Number(dureeMinLocation) : 1,
     instantBook: !!instantBook,

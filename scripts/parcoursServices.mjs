@@ -489,7 +489,7 @@ async function compteClient(browser) {
   ok("client : chat support ouvert et message envoyé");
   // Fidélité et KYC.
   const fid = attendu(await client("/api/loyalty/me"), 200, "fidélité");
-  ok(`client : fidélité lue (${fid.points ?? fid.loyalty?.points ?? "?"} points, palier ${fid.tier?.name ?? fid.tier?.id ?? fid.tier ?? "?"})`);
+  ok(`client : fidélité lue (${fid.points ?? fid.loyalty?.points ?? "?"} points, palier ${fid.tier?.label ?? fid.tier?.key ?? "?"})`);
   await page.goto(`${BASE}/loyalty`, { waitUntil: "networkidle", timeout: 60000 });
   await page.goto(`${BASE}/kyc`, { waitUntil: "networkidle", timeout: 60000 });
   if (!/identité/i.test(await texte(page))) journal.push("[client] page KYC vide");
