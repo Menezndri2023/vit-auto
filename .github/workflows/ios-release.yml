@@ -28,9 +28,15 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version affichée sur l'App Store (ex. 1.0.0)"
+        # Apple FERME définitivement un numéro de version dès qu'il est
+        # approuvé : le réutiliser fait échouer l'envoi après l'archivage
+        # (erreurs 90186 « train closed » et 90062 « must contain a higher
+        # version »). La valeur par défaut « 1.0.0 » est restée en place après
+        # la publication de la 1.0 et a fait échouer le run #10 du 2026-09-24 :
+        # elle doit toujours désigner la PROCHAINE version, jamais la dernière.
+        description: "Version App Store — STRICTEMENT supérieure à la dernière publiée, et identique à celle créée dans App Store Connect (ex. 1.1)"
         required: true
-        default: "1.0.0"
+        default: "1.1"
 
 env:
   NODE_VERSION: "22"
@@ -60,6 +66,23 @@ jobs:
           echo "Secrets présents. Team ID : ${APPLE_TEAM_ID:0:2}******** ; clé API : ${APP_STORE_CONNECT_KEY_ID}"
 
       - uses: actions/checkout@v4
+      - name: Refuser une version déjà publiée
+        # Coûte une seconde et une requête publique (aucun secret) ; sans elle,
+        # l'erreur n'apparaît qu'après l'archivage et la signature, soit ~90 s
+        # plus tard, dans un journal où elle se remarque à peine.
+        # L'API publique retarde de quelques heures après une mise en vente :
+        # cette garde attrape le cas courant — resaisir la version en ligne —
+        # sans prétendre remplacer la vérification d'Apple à l'envoi.
+        run: |
+          saisie="${{ inputs.version }}"
+          enligne=$(curl -sf --max-time 20 "https://itunes.apple.com/lookup?id=6812376006" \
+            | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{console.log(JSON.parse(d).results?.[0]?.version||'')}catch{console.log('')}})")
+          echo "Version saisie : $saisie — version en vente sur l'App Store : ${enligne:-inconnue}"
+          if [ -n "$enligne" ] && [ "$saisie" = "$enligne" ]; then
+            echo "::error::La version $saisie est DÉJÀ publiée : Apple a fermé ce numéro et refusera l'envoi (erreur 90186). Relancez avec un numéro supérieur, identique à la version préparée dans App Store Connect."
+            exit 1
+          fi
+
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
