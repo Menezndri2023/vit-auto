@@ -329,12 +329,13 @@
   transition: background 0.28s;
   pointer-events: none;
 }
-
-.adTypeCard:hover {
+@media (hover: hover) {
+  .adTypeCard:hover {
   border-color: #ff4d2d;
   background: white;
   transform: translateY(-4px);
   box-shadow: 0 10px 28px rgba(255,77,45,0.13);
+}
 }
 
 .adTypeActive {
@@ -569,8 +570,9 @@
   box-shadow: 0 4px 14px rgba(255,77,45,0.32);
   transition: box-shadow 0.2s, transform 0.2s;
 }
-
-.dropBtn:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(255,77,45,0.42); }
+@media (hover: hover) {
+  .dropBtn:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(255,77,45,0.42); }
+}
 
 /* ── Zone secondaire (quand déjà des photos) ── */
 .dropZoneSmall {
@@ -862,8 +864,9 @@
   align-items: center;
   gap: 6px;
 }
-
-.nextBtn:hover { transform: translateY(-2px); box-shadow: 0 9px 26px rgba(255,77,45,0.48); }
+@media (hover: hover) {
+  .nextBtn:hover { transform: translateY(-2px); box-shadow: 0 9px 26px rgba(255,77,45,0.48); }
+}
 
 .submitBtn {
   padding: 14px 34px;
@@ -878,8 +881,9 @@
   transition: all 0.25s;
   font-family: inherit;
 }
-
-.submitBtn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 9px 26px rgba(16,185,129,0.46); }
+@media (hover: hover) {
+  .submitBtn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 9px 26px rgba(16,185,129,0.46); }
+}
 .submitBtn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* ─── Boutons génériques ───────────────────────────────────── */
@@ -895,8 +899,9 @@
   transition: all 0.2s;
   font-family: inherit;
 }
-
-.primaryBtn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(255,77,45,0.36); }
+@media (hover: hover) {
+  .primaryBtn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(255,77,45,0.36); }
+}
 
 .secondaryBtn {
   padding: 12px 24px;

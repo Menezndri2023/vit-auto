@@ -151,10 +151,11 @@
   overflow: hidden;
   transition: transform .28s cubic-bezier(.34,1.56,.64,1), box-shadow .28s ease;
 }
-
-.planCard:hover {
+@media (hover: hover) {
+  .planCard:hover {
   transform: translateY(-6px);
   box-shadow: 0 20px 48px rgba(15,27,63,.12);
+}
 }
 
 .planPopular {
@@ -277,10 +278,11 @@
   border: 2px solid;
   background: transparent;
 }
-
-.planCta:hover:not(:disabled) {
+@media (hover: hover) {
+  .planCta:hover:not(:disabled) {
   filter: brightness(1.08);
   transform: translateY(-1px);
+}
 }
 
 .planCtaDisabled {
@@ -509,10 +511,11 @@
   text-decoration: none;
   display: inline-block;
 }
-
-.btnPrimary:hover {
+@media (hover: hover) {
+  .btnPrimary:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 30px rgba(255,77,45,.55);
+}
 }
 
 .btnSecondary {

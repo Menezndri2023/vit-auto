@@ -81,10 +81,11 @@
   gap: 8px;
   transition: box-shadow .2s, transform .2s;
 }
-
-.kpiCard:hover {
+@media (hover: hover) {
+  .kpiCard:hover {
   box-shadow: 0 8px 24px rgba(15,27,63,.10);
   transform: translateY(-2px);
+}
 }
 
 .kpiGood  { border-color: rgba(16,185,129,.25);  background: rgba(16,185,129,.02); }
@@ -184,8 +185,9 @@
   height: 100%;
   position: relative;
 }
-
-.barCol:hover .barTooltip { opacity: 1; transform: translateY(0); }
+@media (hover: hover) {
+  .barCol:hover .barTooltip { opacity: 1; transform: translateY(0); }
+}
 
 .barTooltip {
   position: absolute;
@@ -396,12 +398,13 @@
   text-decoration: none;
   transition: all .18s;
 }
-
-.quickLink:hover {
+@media (hover: hover) {
+  .quickLink:hover {
   background: #f0f4fb;
   border-color: #cbd5e1;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(15,27,63,.07);
+}
 }
 
 /* ── No data ── */

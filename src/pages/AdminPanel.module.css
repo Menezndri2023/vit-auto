@@ -277,7 +277,9 @@
   min-width: 0;
   transition: box-shadow 0.2s, transform 0.2s;
 }
-.statCard:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.08); transform: translateY(-1px); }
+@media (hover: hover) {
+  .statCard:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.08); transform: translateY(-1px); }
+}
 .statIcon {
   width: 2.6rem; height: 2.6rem; border-radius: 0.75rem;
   display: flex; align-items: center; justify-content: center;

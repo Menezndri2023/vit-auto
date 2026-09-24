@@ -25,7 +25,9 @@
 
 /* ── Carte transaction ── */
 .txCard { display: flex; gap: 0; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 14px; overflow: hidden; text-decoration: none; color: inherit; transition: border-color .2s, box-shadow .2s, transform .15s; }
-.txCard:hover { border-color: #6366f1; box-shadow: 0 4px 20px rgba(99,102,241,.12); transform: translateY(-2px); }
+@media (hover: hover) {
+  .txCard:hover { border-color: #6366f1; box-shadow: 0 4px 20px rgba(99,102,241,.12); transform: translateY(-2px); }
+}
 .txCardUrgent { border-color: #fed7aa; }
 .txCardUrgent:hover { border-color: #f97316; }
 

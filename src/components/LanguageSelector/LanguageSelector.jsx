@@ -1,19 +1,15 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useI18n } from "../../context/I18nContext";
 import styles from "./LanguageSelector.module.css";
+import { useFermetureExterieure } from "../../hooks/useFermetureExterieure";
 
 const LanguageSelector = () => {
   const { lang, setLang, SUPPORTED_LANGS } = useI18n();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
-  useEffect(() => {
-    const close = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, []);
+  // Voir hooks/useFermetureExterieure : `click` et non `mousedown`.
+  useFermetureExterieure(ref, open, () => setOpen(false));
 
   const current = SUPPORTED_LANGS.find((l) => l.code === lang) || SUPPORTED_LANGS[0];
 

@@ -197,10 +197,11 @@
   gap: 12px;
   transition: transform .22s, box-shadow .22s;
 }
-
-.zoneCard:hover {
+@media (hover: hover) {
+  .zoneCard:hover {
   transform: translateY(-4px);
   box-shadow: 0 12px 32px rgba(15,27,63,.10);
+}
 }
 
 .zoneHeader {
@@ -331,19 +332,21 @@
   position: relative;
   transition: transform .22s, box-shadow .22s;
 }
-
-.packCard:hover {
+@media (hover: hover) {
+  .packCard:hover {
   transform: translateY(-5px);
   box-shadow: 0 16px 40px rgba(15,27,63,.12);
+}
 }
 
 .packPopular {
   transform: scale(1.03);
   box-shadow: 0 8px 32px rgba(245,158,11,.18);
 }
-
-.packPopular:hover {
+@media (hover: hover) {
+  .packPopular:hover {
   transform: scale(1.03) translateY(-5px);
+}
 }
 
 .popularBadge {
@@ -422,8 +425,9 @@
   text-decoration: none;
   transition: filter .2s, transform .2s;
 }
-
-.packBtn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+@media (hover: hover) {
+  .packBtn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+}
 
 /* ── MODÈLE ÉCONOMIQUE ── */
 .econSection {
@@ -534,10 +538,11 @@
   background: #fff;
   transition: transform .22s, box-shadow .22s;
 }
-
-.pricingCard:hover {
+@media (hover: hover) {
+  .pricingCard:hover {
   transform: translateY(-4px);
   box-shadow: 0 12px 32px rgba(15,27,63,.10);
+}
 }
 
 .pricingCardHeader {
@@ -645,10 +650,11 @@
   gap: 14px;
   transition: transform .22s, box-shadow .22s;
 }
-
-.subCard:hover {
+@media (hover: hover) {
+  .subCard:hover {
   transform: translateY(-4px);
   box-shadow: 0 12px 30px rgba(15,27,63,.10);
+}
 }
 
 .subHighlight {
@@ -817,11 +823,12 @@
   color: #0f1b3f;
   transition: all .18s;
 }
-
-.partnerChip:hover {
+@media (hover: hover) {
+  .partnerChip:hover {
   border-color: #0f1b3f33;
   background: #eff3fb;
   transform: translateY(-2px);
+}
 }
 
 .partnerIcon { font-size: 1.2rem; }
@@ -891,8 +898,9 @@
   transition: all .2s;
   display: inline-block;
 }
-
-.primaryBtn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255,77,45,.45); }
+@media (hover: hover) {
+  .primaryBtn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255,77,45,.45); }
+}
 
 .secondaryBtn {
   background: rgba(255,255,255,.10);
@@ -944,7 +952,9 @@
   .stepsGrid { grid-template-columns: repeat(2, 1fr); }
   .packsGrid { grid-template-columns: 1fr; }
   .packPopular { transform: none; }
-  .packPopular:hover { transform: translateY(-5px); }
+  @media (hover: hover) {
+    .packPopular:hover { transform: translateY(-5px); }
+  }
   .subsGrid { grid-template-columns: 1fr; }
   .partsBanner { flex-direction: column; padding: 36px 28px; }
   .ctaInner { padding: 44px 24px; }

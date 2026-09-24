@@ -5,6 +5,7 @@ import { publierAnnoncesDues } from "../utils/publicationPlanifiee.js";
 import { bloquerPublication } from "../controllers/vehicleController.js";
 import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
+import { calculerDigest } from "../utils/dailyOpsDigest.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PRÉ-APPROBATION : PUBLIER SANS RENONCER AU CONTRÔLE
@@ -131,5 +132,78 @@ describe("Blocage par un administrateur", () => {
     const m = mockReqRes({ user: a, params: { id: v._id.toString() }, body: { bloquer: true, motif: "trop tard" } });
     await bloquerPublication(m.req, m.res);
     expect(m.res.statusCode).toBe(409);
+  });
+});
+
+describe("Récapitulatif quotidien — l'administrateur voit ce qui va paraître", () => {
+  // Le délai de 24 h n'a de sens que si l'administrateur SAIT ce qui est sur le
+  // point de sortir. Sans cette ligne, la fenêtre de blocage existerait sur le
+  // papier et personne ne s'en servirait.
+  it("liste les annonces qui paraîtront dans les 24 h", async () => {
+    await createVehicleDoc({ status: "pending", available: false, title: "Annonce imminente",
+      publicationPlanifieeA: new Date(Date.now() + 3600000) });
+    const d = await calculerDigest();
+    expect(d.publicationsImminentes.map((v) => v.title)).toContain("Annonce imminente");
+  });
+
+  it("ne liste pas une annonce bloquée", async () => {
+    await createVehicleDoc({ status: "pending", available: false, title: "Annonce bloquée",
+      publicationPlanifieeA: new Date(Date.now() + 3600000), publicationBloqueeA: new Date() });
+    const d = await calculerDigest();
+    expect(d.publicationsImminentes.map((v) => v.title)).not.toContain("Annonce bloquée");
+  });
+});
+
+describe("Aucune annonce ne se perd", () => {
+  // Exigence de l'exploitant (2026-09-24) : une annonce qui n'est PAS
+  // pré-approuvée doit rester dans l'admin, en attente, indéfiniment. Le délai
+  // de publication ne doit jamais devenir une date de péremption : rien ne
+  // s'archive, ne s'efface ni ne change de statut du seul fait que le temps
+  // passe. Seul un humain retire une annonce.
+
+  const tresLoinDansLeTemps = new Date(Date.now() + 365 * 86400000);
+
+  it("une annonce trop incomplète reste « en attente », même un an plus tard", async () => {
+    const v = await createVehicleDoc({ status: "pending", available: false, publicationPlanifieeA: null });
+    // Plusieurs tours du planificateur, très au-delà de tout délai.
+    for (let i = 0; i < 3; i++) expect(await publierAnnoncesDues(tresLoinDansLeTemps)).toBe(0);
+    const apres = await Vehicle.findById(v._id).lean();
+    expect(apres).not.toBeNull();            // jamais supprimée
+    expect(apres.status).toBe("pending");    // jamais publiée d'office
+    expect(apres.available).toBe(false);
+  });
+
+  it("une annonce bloquée reste « en attente », indéfiniment", async () => {
+    const v = await createVehicleDoc({
+      status: "pending", available: false,
+      publicationPlanifieeA: new Date(Date.now() - 86400000),
+      publicationBloqueeA: new Date(), publicationBloqueeMotif: "Photos non conformes",
+    });
+    for (let i = 0; i < 3; i++) expect(await publierAnnoncesDues(tresLoinDansLeTemps)).toBe(0);
+    const apres = await Vehicle.findById(v._id).lean();
+    expect(apres.status).toBe("pending");
+    expect(apres.publicationBloqueeMotif).toBe("Photos non conformes");
+  });
+
+  it("une annonce DÉJÀ PUBLIÉE n'est jamais touchée par le planificateur", async () => {
+    const v = await createVehicleDoc({ status: "approved", available: true });
+    await publierAnnoncesDues(tresLoinDansLeTemps);
+    const apres = await Vehicle.findById(v._id).lean();
+    expect(apres.status).toBe("approved");
+    expect(apres.available).toBe(true);
+  });
+
+  it("le planificateur ne publie QUE ce qui avait rendez-vous — le reste est intact", async () => {
+    const due     = await createVehicleDoc({ status: "pending", available: false, publicationPlanifieeA: new Date(Date.now() - 1000) });
+    const sansRdv = await createVehicleDoc({ status: "pending", available: false, publicationPlanifieeA: null });
+    const rejetee = await createVehicleDoc({ status: "rejected", available: false });
+
+    expect(await publierAnnoncesDues()).toBe(1);
+
+    expect((await Vehicle.findById(due._id).lean()).status).toBe("approved");
+    expect((await Vehicle.findById(sansRdv._id).lean()).status).toBe("pending");
+    expect((await Vehicle.findById(rejetee._id).lean()).status).toBe("rejected");
+    // Et le compte y est : rien n'a disparu en chemin.
+    expect(await Vehicle.countDocuments({ _id: { $in: [due._id, sansRdv._id, rejetee._id] } })).toBe(3);
   });
 });

@@ -92,6 +92,22 @@ const notificationSchema = new mongoose.Schema({
       "loyalty_tier_up",
       // Prospects vente (demande d'essai) — voir services/salesLeadService.js
       "sales_lead",
+      // Rapports périodiques destinés aux administrateurs — type PROPRE, pour
+       // qu'ils puissent partir par e-mail sans rouvrir la porte aux
+       // notifications individuelles qui partagaient leur ancien type
+       // (le rapport hebdomadaire était typé "sales_lead", comme chaque
+       // prospect). Voir utils/adminAlertEmail.js.
+      "rapport_admin",
+      // Relance de dossier adressée au PARTENAIRE. Était typée "system" —
+      // sans rapport avec une panne, et il suffisait que le compte admin ait
+      // lui aussi un dossier incomplet pour que ces relances lui arrivent par
+      // e-mail au titre des alertes systèmes.
+      "dossier_partenaire",
+      // Dossier administratif à traiter — sans urgence : rejoint le
+      // récapitulatif quotidien. Ces évènements étaient typés "system", qui
+      // sert aux PANNES : les mélanger obligeait à choisir entre rater une
+      // panne et recevoir chaque dossier partenaire par e-mail.
+      "dossier_admin",
       // Système
       "system",
       "info",

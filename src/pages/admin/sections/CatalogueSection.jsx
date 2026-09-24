@@ -550,7 +550,27 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
     setPreviewLoading(false);
   };
 
+  // Une annonce pré-approuvée paraîtra d'elle-même : c'est la seule catégorie
+  // où l'INACTION de l'administrateur a une conséquence publique. Elle mérite
+  // donc son propre onglet, et pas d'être noyée dans « En attente ».
+  const estProgrammee = (v) => v.status === "pending" && v.publicationPlanifieeA && !v.publicationBloqueeA;
+
+  const bloquerPublication = async (vid, nom) => {
+    const motif = window.prompt(`Bloquer la publication de « ${nom} » — motif (visible par le partenaire) :`);
+    if (!motif) return;
+    try {
+      const r = await fetch(`/api/vehicles/${vid}/publication`, {
+        method: "PATCH", headers, body: JSON.stringify({ bloquer: true, motif }),
+      });
+      const d = await r.json();
+      if (!r.ok) return showToast(d.message || "Blocage impossible", "error");
+      showToast("Publication bloquée.", "success");
+      onRefresh?.();
+    } catch { showToast("Blocage impossible", "error"); }
+  };
+
   const filtered = vehicles.filter((v) => {
+    if (subTab === "scheduled") return estProgrammee(v);
     if (subTab === "pending")   return v.status === "pending";
     if (subTab === "approved")  return v.status === "approved";
     if (subTab === "rejected")  return v.status === "rejected";
@@ -582,6 +602,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
 
   const SUB_TABS = [
     { k: "pending",  l: "En attente",  icon: "⏳", count: vehicles.filter(v => v.status === "pending").length, color: "#f59e0b" },
+    { k: "scheduled", l: "Programmées", icon: "🕒", count: vehicles.filter(estProgrammee).length, color: "#7c3aed" },
     { k: "approved", l: "Publiées",    icon: "✅", count: vehicles.filter(v => v.status === "approved").length, color: "#16a34a" },
     { k: "rejected", l: "Rejetées",    icon: "❌", count: vehicles.filter(v => v.status === "rejected").length, color: "#ef4444" },
     { k: "drivers",  l: "Chauffeurs",  icon: "👨‍✈️", count: drivers.filter(d => d.status === "pending").length, color: "#8b5cf6" },
@@ -734,7 +755,16 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                     const vid = v._id || v.id;
                     const score = v.validationScore;
                     const SC = { approved: { l: "Publiée", c: "#16a34a", bg: "#dcfce7" }, pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, rejected: { l: "Rejetée", c: "#dc2626", bg: "#fee2e2" } };
-                    const sc = SC[v.status] || SC.pending;
+                    // Trois situations se cachaient derrière le seul mot « En
+                    // attente » : celle qui va paraître toute seule, celle qu'un
+                    // administrateur a bloquée, et celle qui attend vraiment un
+                    // examen. Les distinguer est ce qui permet de ne perdre
+                    // aucune annonce de vue — toutes restent listées.
+                    const sc = v.status === "pending" && v.publicationBloqueeA
+                      ? { l: "Bloquée", c: "#7c3aed", bg: "#f5f3ff" }
+                      : estProgrammee(v)
+                        ? { l: `Paraît le ${new Date(v.publicationPlanifieeA).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`, c: "#6d28d9", bg: "#ede9fe" }
+                        : (SC[v.status] || SC.pending);
                     const owner = v.owner || v.userId;
                     return (
                       <tr key={vid} className={styles.tr}>
@@ -807,6 +837,16 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                               <button className={styles.btnReject} style={{ fontSize: ".75rem", padding: "4px 10px" }}
                                 onClick={() => { setRejectModal({ vid, name: v.title || v.name }); setRejectReason(""); }}>
                                 ✕
+                              </button>
+                            )}
+                            {/* Publication programmée : sans ce bouton, la fenêtre de
+                                blocage n'existerait que côté serveur et personne ne
+                                pourrait s'en servir. */}
+                            {estProgrammee(v) && (
+                              <button title={`Paraîtra le ${new Date(v.publicationPlanifieeA).toLocaleString("fr-FR")} — bloquer`}
+                                onClick={() => bloquerPublication(vid, v.title || v.name)}
+                                style={{ display: "inline-flex", alignItems: "center", padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#f5f3ff", color: "#6d28d9", border: "1.5px solid #ddd6fe", borderRadius: 6, cursor: "pointer" }}>
+                                🕒 Bloquer
                               </button>
                             )}
                             <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }}

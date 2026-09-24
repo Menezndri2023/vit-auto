@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useChat } from "../../context/ChatContext";
 import styles from "./BottomNav.module.css";
+import { useFermetureExterieure } from "../../hooks/useFermetureExterieure";
 
 // Barre d'onglets mobile — remplace le menu hamburger sur petit écran.
 // Navbar reste montée en parallèle (logo, notifications, langue) : voir Layout.jsx.
@@ -12,18 +13,16 @@ export default function BottomNav() {
   const { setOpen: setChatOpen, unreadTotal } = useChat();
   const [moreOpen, setMoreOpen] = useState(false);
   const sheetRef = useRef(null);
+  const plusRef = useRef(null);
 
   const isPartner = user?.role === "partenaire" || user?.role === "admin";
   const isAdmin   = user?.role === "admin";
 
-  useEffect(() => {
-    if (!moreOpen) return;
-    const handle = (e) => {
-      if (sheetRef.current && !sheetRef.current.contains(e.target)) setMoreOpen(false);
-    };
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, [moreOpen]);
+  // Cas particulier : `sheetRef` ne couvre QUE la feuille, le bouton « plus »
+  // est dehors. Écouter `click` sans exclure ce bouton fermerait la feuille
+  // dans le même appui qui vient de l'ouvrir — d'où `plusRef` en zone sûre.
+  // Voir hooks/useFermetureExterieure pour le choix de `click`.
+  useFermetureExterieure(sheetRef, moreOpen, () => setMoreOpen(false), [plusRef]);
 
   const goAuthGated = (path) => {
     navigate(isAuthenticated ? path : "/login");
@@ -74,6 +73,7 @@ export default function BottomNav() {
 
         <button
           className={`${styles.item} ${moreOpen ? styles.active : ""}`}
+          ref={plusRef}
           onClick={() => setMoreOpen((o) => !o)}
           aria-label="Plus d'options"
           aria-expanded={moreOpen}

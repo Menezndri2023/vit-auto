@@ -218,9 +218,10 @@
   transition: transform 0.2s;
   border-radius: 4px;
 }
-
-.gpsBtn:hover:not(:disabled) {
+@media (hover: hover) {
+  .gpsBtn:hover:not(:disabled) {
   transform: scale(1.2);
+}
 }
 
 .gpsBtn:disabled {
@@ -326,11 +327,12 @@
   align-self: stretch;
   font-family: inherit;
 }
-
-.resetBtn:hover {
+@media (hover: hover) {
+  .resetBtn:hover {
   background: #fee2da;
   color: #ff4d2d;
   transform: rotate(180deg);
+}
 }
 
 /* Spinner dans le btn Rechercher */

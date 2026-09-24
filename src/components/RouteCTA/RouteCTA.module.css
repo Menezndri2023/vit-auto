@@ -129,10 +129,11 @@
   transition: all 0.22s ease;
   white-space: nowrap;
 }
-
-.primaryBtn:hover {
+@media (hover: hover) {
+  .primaryBtn:hover {
   transform: translateY(-3px);
   box-shadow: 0 12px 36px rgba(255, 77, 45, 0.58);
+}
 }
 
 .secondaryBtn {
@@ -148,11 +149,12 @@
   transition: all 0.22s ease;
   white-space: nowrap;
 }
-
-.secondaryBtn:hover {
+@media (hover: hover) {
+  .secondaryBtn:hover {
   background: rgba(255,255,255,0.17);
   border-color: rgba(255,255,255,0.45);
   transform: translateY(-2px);
+}
 }
 
 /* ─── Responsive ─── */

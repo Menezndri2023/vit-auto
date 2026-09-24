@@ -90,10 +90,11 @@
   transition: all .2s;
   flex-shrink: 0;
 }
-
-.refreshBtn:hover:not(:disabled) {
+@media (hover: hover) {
+  .refreshBtn:hover:not(:disabled) {
   background: rgba(255,255,255,.18);
   transform: rotate(30deg);
+}
 }
 
 .refreshBtn:disabled { opacity: .5; cursor: wait; }
@@ -735,10 +736,11 @@
   flex-direction: column;
   transition: transform .15s, box-shadow .15s;
 }
-
-.ieCard:hover {
+@media (hover: hover) {
+  .ieCard:hover {
   transform: translateY(-3px);
   box-shadow: 0 8px 24px rgba(0,0,0,.11);
+}
 }
 
 .ieCardImg {

@@ -149,7 +149,9 @@
 .starPicker { display: flex; gap: 4px; margin-bottom: 10px; }
 .starBtn { background: none; border: none; font-size: 24px; cursor: pointer; opacity: .3; transition: opacity .15s, transform .1s; padding: 2px; }
 .starBtn:hover, .starActive { opacity: 1; }
-.starBtn:hover { transform: scale(1.1); }
+@media (hover: hover) {
+  .starBtn:hover { transform: scale(1.1); }
+}
 .reviewTextarea { width: 100%; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 10px; font-size: 13px; font-family: inherit; outline: none; resize: vertical; margin-bottom: 10px; box-sizing: border-box; }
 .reviewTextarea:focus { border-color: #6366f1; }
 

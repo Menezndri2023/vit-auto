@@ -92,10 +92,11 @@
   transition: all 0.2s ease;
   white-space: nowrap;
 }
-
-.ctaPrimary:hover {
+@media (hover: hover) {
+  .ctaPrimary:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(255, 77, 45, 0.42);
+}
 }
 
 .ctaSecondary {
@@ -292,10 +293,11 @@
   white-space: nowrap;
   box-shadow: 0 4px 12px rgba(255,77,45,0.35);
 }
-
-.spotCta:hover {
+@media (hover: hover) {
+  .spotCta:hover {
   background: #e63a1a;
   transform: translateY(-1px);
+}
 }
 
 /* Dots */

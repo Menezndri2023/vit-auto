@@ -210,7 +210,9 @@
   transition: background .2s, transform .1s;
   font-family: inherit;
 }
-.primaryBtn:hover:not(:disabled) { background: var(--kyc-primary-dk); transform: translateY(-1px); }
+@media (hover: hover) {
+  .primaryBtn:hover:not(:disabled) { background: var(--kyc-primary-dk); transform: translateY(-1px); }
+}
 .primaryBtn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
 
 .secondaryBtn {
@@ -697,7 +699,9 @@
   transition: background .15s, transform .1s;
   font-family: inherit;
 }
-.captureBtn:hover:not(:disabled) { background: var(--kyc-primary-dk); transform: scale(1.03); }
+@media (hover: hover) {
+  .captureBtn:hover:not(:disabled) { background: var(--kyc-primary-dk); transform: scale(1.03); }
+}
 .captureBtn:disabled { opacity: .5; cursor: not-allowed; }
 .cancelBtn {
   background: transparent;

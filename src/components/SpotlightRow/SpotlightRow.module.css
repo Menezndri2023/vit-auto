@@ -24,7 +24,9 @@
   overflow: hidden; display: flex; flex-direction: column;
   transition: box-shadow .18s ease, transform .18s ease;
 }
-.carte:hover { box-shadow: 0 10px 28px rgba(15, 27, 63, .12); transform: translateY(-2px); }
+@media (hover: hover) {
+  .carte:hover { box-shadow: 0 10px 28px rgba(15, 27, 63, .12); transform: translateY(-2px); }
+}
 
 /* L'image est positionnée en absolu, donc retirée du calcul de taille de la
    boîte. Sans ça, `.visuel` est une grille dont la rangée est dimensionnée en

@@ -137,10 +137,11 @@
   min-height: 36px;
   box-shadow: 0 3px 10px rgba(255, 77, 45, 0.30);
 }
-
-.ctaBtn:hover {
+@media (hover: hover) {
+  .ctaBtn:hover {
   transform: translateY(-1px);
   box-shadow: 0 5px 16px rgba(255, 77, 45, 0.45);
+}
 }
 
 .ctaBtn:active {
@@ -387,11 +388,12 @@
   text-align: center;
   transition: background var(--t-fast, .15s), border-color var(--t-fast, .15s), transform var(--t-fast, .15s);
 }
-
-.activitiesGridItem:hover {
+@media (hover: hover) {
+  .activitiesGridItem:hover {
   background: #fff5f2;
   border-color: rgba(255, 77, 45, 0.3);
   transform: translateY(-2px);
+}
 }
 
 .activitiesGridIcon {

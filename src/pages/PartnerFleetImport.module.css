@@ -29,7 +29,9 @@
   transition: border-color 0.15s, transform 0.15s;
   font-family: inherit;
 }
-.methodCard:hover:not(:disabled) { border-color: #0f1b3f; transform: translateY(-2px); }
+@media (hover: hover) {
+  .methodCard:hover:not(:disabled) { border-color: #0f1b3f; transform: translateY(-2px); }
+}
 .methodCard:disabled { cursor: default; }
 
 .methodCardSoon { opacity: 0.6; }

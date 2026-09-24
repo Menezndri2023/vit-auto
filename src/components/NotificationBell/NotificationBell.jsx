@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotifications } from "../../context/NotificationContext";
 import styles from "./NotificationBell.module.css";
+import { useFermetureExterieure } from "../../hooks/useFermetureExterieure";
 
 const TYPE_ICONS = {
   booking_confirmed: "✅",
@@ -53,15 +54,11 @@ export default function NotificationBell() {
     prevCount.current = unreadCount;
   }, [unreadCount]);
 
-  // Fermer si clic en dehors
-  useEffect(() => {
-    if (!open) return;
-    const handle = (e) => {
-      if (panelRef.current && !panelRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, [open]);
+  // Fermeture au clic extérieur — voir hooks/useFermetureExterieure : sur
+  // `click` et non `mousedown`, sinon le premier appui d'un téléphone ne sert
+  // qu'à fermer. `panelRef` enveloppe le bouton de la cloche, donc l'ouvrir ne
+  // déclenche pas la fermeture.
+  useFermetureExterieure(panelRef, open, () => setOpen(false));
 
   const handleClick = async (notif) => {
     if (!notif.lu) await markAsRead(notif._id);

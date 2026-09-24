@@ -560,8 +560,9 @@
   letter-spacing: 0.01em;
   box-shadow: 0 4px 16px rgba(255, 77, 45, 0.35);
 }
-
-.kycGateCta:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255, 77, 45, 0.45); }
+@media (hover: hover) {
+  .kycGateCta:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255, 77, 45, 0.45); }
+}
 
 .kycGateNote {
   font-size: 0.76rem;
@@ -684,8 +685,9 @@
   transition: all 0.2s;
   white-space: nowrap;
 }
-
-.primaryBtn:hover:not(:disabled)  { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(255,77,45,0.35); }
+@media (hover: hover) {
+  .primaryBtn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(255,77,45,0.35); }
+}
 .primaryBtn:disabled               { opacity: 0.4; cursor: not-allowed; transform: none; }
 
 .secondaryBtn {
@@ -715,8 +717,9 @@
   flex: 1;
   max-width: 340px;
 }
-
-.confirmBtn:hover:not(:disabled)  { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(16,185,129,0.35); }
+@media (hover: hover) {
+  .confirmBtn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(16,185,129,0.35); }
+}
 .confirmBtn:disabled               { opacity: 0.5; cursor: not-allowed; transform: none; }
 
 /* ── Responsive ──────────────────────────────────────────── */

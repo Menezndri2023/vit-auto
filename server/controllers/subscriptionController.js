@@ -123,7 +123,7 @@ export const activatePlan = async (req, res) => {
     // ignorait avoir à faire. Non bloquante — une notification manquée ne doit
     // pas faire échouer une demande déjà enregistrée.
     await notifyAdmins(
-      "system",
+      "dossier_admin",
       "💳 Demande d'abonnement partenaire",
       `${req.user.firstName || "Un partenaire"} ${req.user.lastName || ""} demande le plan « ${planTier} » (${priceUSD} USD). À confirmer dans Finance › Paiements.`.trim(),
       "/admin?tab=paiements"

@@ -76,6 +76,22 @@ describe("Alertes admin — seul l'urgent part par e-mail", () => {
     }
   });
 
+  // Les rapports REMPLACENT les alertes unitaires : les couper viderait la
+  // boîte de tout ce qui a de la valeur. Ils ont leur type propre — le rapport
+  // hebdomadaire partageait « sales_lead » avec chaque prospect individuel,
+  // donc l'autoriser aurait rouvert la porte à tout le reste.
+  it("garde les deux rapports, et EUX SEULS parmi les périodiques", () => {
+    expect(TYPES_ALERTE_IMMEDIATE.has("rapport_admin")).toBe(true);
+    expect(TYPES_ALERTE_IMMEDIATE.has("sales_lead")).toBe(false);
+  });
+
+  // Ces trois-là étaient typés « system » et passaient donc pour des pannes.
+  it("écarte les dossiers administratifs, qui n'ont rien de systémique", () => {
+    for (const t of ["dossier_admin", "dossier_partenaire"]) {
+      expect(TYPES_ALERTE_IMMEDIATE.has(t)).toBe(false);
+    }
+  });
+
   // 30 des 54 copies admin d'un mois portaient sur des annonces à valider, et
   // l'e-mail de la notification interne les doublait — 60 messages pour 30
   // évènements. Le récapitulatif quotidien les couvre en un seul.

@@ -157,7 +157,9 @@
 .sideShipping span, .sideDelay span { color: #64748b; }
 .sideShipping strong, .sideDelay strong { color: #0f172a; font-weight: 600; }
 .btnReserve { width: 100%; padding: 14px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; margin: 16px 0 8px; transition: opacity .2s, transform .1s; }
-.btnReserve:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); }
+@media (hover: hover) {
+  .btnReserve:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); }
+}
 .btnReserve:disabled { opacity: .5; cursor: not-allowed; }
 .reserveNote { text-align: center; font-size: 11px; color: #94a3b8; line-height: 1.5; margin-bottom: 20px; }
 .sideSteps { border-top: 1px solid #e2e8f0; padding-top: 16px; }

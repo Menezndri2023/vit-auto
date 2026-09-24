@@ -304,10 +304,11 @@
   text-decoration: none;
   display: inline-block;
 }
-
-.primaryBtn:hover:not(:disabled) {
+@media (hover: hover) {
+  .primaryBtn:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(255,77,45,0.4);
+}
 }
 
 .primaryBtn:disabled {

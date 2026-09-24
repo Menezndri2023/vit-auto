@@ -56,12 +56,12 @@ export async function sendReminder({ userId, companyName, missingDocs, portalPat
   if (!user) return false;
   const titre   = "📋 Dossier partenaire incomplet";
   const message = `Il manque des documents dans votre dossier : ${missingDocs.join(", ")}. Complétez-le pour accélérer sa vérification.`;
-  const notif = await Notification.create({ user: userId, titre, message, type: "system" }).catch(() => null);
+  const notif = await Notification.create({ user: userId, titre, message, type: "dossier_partenaire" }).catch(() => null);
   // "notification_new" (pas "notification") + payload complet — voir
   // insuranceController.notify, même correctif (bug réel trouvé en audit).
   if (notif && global._io) {
     global._io.to(`user_${userId}`).emit("notification_new", {
-      _id: notif._id, type: "system", titre, message, lien: portalPath || null, lu: false, createdAt: notif.createdAt,
+      _id: notif._id, type: "dossier_partenaire", titre, message, lien: portalPath || null, lu: false, createdAt: notif.createdAt,
     });
   }
   if (user.email) {
@@ -245,7 +245,7 @@ async function checkFoundingPartnerPendingSignature() {
     const notif = await Notification.create({ user: doc.userId._id, titre, message, type: "system" }).catch(() => null);
     if (notif && global._io) {
       global._io.to(`user_${doc.userId._id}`).emit("notification_new", {
-        _id: notif._id, type: "system", titre, message, lien: "/partner-onboarding", lu: false, createdAt: notif.createdAt,
+        _id: notif._id, type: "dossier_partenaire", titre, message, lien: "/partner-onboarding", lu: false, createdAt: notif.createdAt,
       });
     }
 
@@ -298,7 +298,7 @@ async function checkIncompleteListings() {
     const notif = await Notification.create({ user: grp._id, titre, message, type: "system" }).catch(() => null);
     if (notif && global._io) {
       global._io.to(`user_${grp._id}`).emit("notification_new", {
-        _id: notif._id, type: "system", titre, message, lien: "/vendor/dashboard", lu: false, createdAt: notif.createdAt,
+        _id: notif._id, type: "dossier_partenaire", titre, message, lien: "/vendor/dashboard", lu: false, createdAt: notif.createdAt,
       });
     }
     // Réutilise le gabarit « dossier incomplet » : le besoin est le même —

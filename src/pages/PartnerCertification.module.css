@@ -426,7 +426,9 @@
   transition: opacity .2s, transform .15s;
   letter-spacing: 0.01em;
 }
-.submitBtn:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); }
+@media (hover: hover) {
+  .submitBtn:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); }
+}
 .submitBtn:disabled { opacity: .55; cursor: not-allowed; transform: none; background: #94a3b8; }
 
 /* ── Export documents (niveau 6) ───────────────────────────── */
@@ -546,7 +548,9 @@
   transition: all .2s;
   background: #fafbfc;
 }
-.badgeCard:hover { border-color: var(--badge-color, #6366f1); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.09); }
+@media (hover: hover) {
+  .badgeCard:hover { border-color: var(--badge-color, #6366f1); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.09); }
+}
 .badgeCardActive {
   border-color: var(--badge-color, #6366f1) !important;
   background: var(--cert-card) !important;

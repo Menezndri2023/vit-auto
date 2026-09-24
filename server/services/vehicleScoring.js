@@ -12,10 +12,17 @@ import { MARQUEUR_MONTANT_DOUTEUX } from "../constants/plausibilitePrix.js";
 // le visiteur.
 export const SEUIL_PREAPPROBATION = 80;
 
-// Fenêtre laissée à l'administrateur pour bloquer avant mise en ligne. Assez
-// courte pour que le partenaire ne se décourage pas, assez longue pour couvrir
-// une nuit : une annonce déposée à 23 h est vue au réveil.
-export const DELAI_PUBLICATION_MS = 6 * 60 * 60 * 1000;
+// Fenêtre laissée à l'administrateur pour bloquer avant mise en ligne.
+//
+// 72 h (choix de l'exploitant, 2026-09-24, après un premier réglage à 6 h puis
+// 24 h). Six heures ne servaient à rien : une annonce déposée à 20 h paraissait
+// à 2 h du matin, avant que personne n'ait rien lu. Trois jours garantissent que
+// l'annonce figure dans PLUSIEURS récapitulatifs quotidiens (voir
+// utils/dailyOpsDigest.js) avant de paraître — y compris si l'administrateur
+// s'absente un week-end. C'est ce qui rend le blocage possible en pratique, et
+// ce qui permet de continuer à dire qu'un humain peut arrêter une annonce avant
+// sa mise en ligne.
+export const DELAI_PUBLICATION_MS = 72 * 60 * 60 * 1000;
 
 export const scoreAnnonce = (data) => {
   const errors   = [];

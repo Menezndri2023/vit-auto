@@ -204,3 +204,36 @@ describe("Cibles tactiles hors des cartes", () => {
     expect(source).toMatch(/from "\.\/origineApi\.js"/);
   });
 });
+
+// ── Survol sur écran tactile ───────────────────────────────────────────────
+// Signalé le 2026-09-24 : « je suis obligé d'appuyer deux fois ». Sur tactile,
+// l'état :hover se COLLE après un appui — un bouton qui se soulève de 2 px au
+// survol reste soulevé, et le doigt suivant ne tombe plus au même endroit.
+// 88 règles étaient dans ce cas, dont le « Suivant » de l'assistant de
+// publication et le bouton de confirmation d'une réservation.
+//
+// La parade est « @media (hover: hover) » : le style ne s'applique que là où le
+// survol existe. Neutraliser globalement (`*:hover { transform: none }`) était
+// exclu — certains éléments sont POSITIONNÉS par un transform (.imgArrow est
+// centrée par translateY(-50%)) et sauteraient pendant l'état collé.
+describe("Survol et tactile", () => {
+  it("aucune règle :hover ne déplace un élément hors de @media (hover: hover)", () => {
+    const fautives = [];
+    const marcher = (d) => {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const p = path.join(d, e.name);
+        if (e.isDirectory()) { marcher(p); continue; }
+        if (!e.name.endsWith(".css")) continue;
+        const src = fs.readFileSync(p, "utf8");
+        for (const m of src.matchAll(/([^{}]*:hover[^{}]*)\{([^{}]*)\}/g)) {
+          if (!/transform\s*:/.test(m[2])) continue;
+          const avant = src.slice(Math.max(0, m.index - 400), m.index);
+          if (/@media[^{]*hover\s*:\s*hover[^{]*\{[^}]*$/i.test(avant)) continue;
+          fautives.push(`${p.replace(process.cwd() + "/", "")} — ${m[1].trim().slice(0, 50)}`);
+        }
+      }
+    };
+    marcher(path.join(process.cwd(), "src"));
+    expect(fautives, "envelopper dans @media (hover: hover)").toEqual([]);
+  });
+});

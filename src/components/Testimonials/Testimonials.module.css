@@ -69,10 +69,11 @@
   overflow: hidden;
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
-
-.card:hover {
+@media (hover: hover) {
+  .card:hover {
   transform: translateY(-5px);
   box-shadow: 0 16px 36px rgba(15, 27, 63, 0.10);
+}
 }
 
 /* Guillemet déco */

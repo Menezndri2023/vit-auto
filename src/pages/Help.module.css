@@ -63,10 +63,11 @@
   flex: 1;
   max-width: 240px;
 }
-
-.qlCard:hover {
+@media (hover: hover) {
+  .qlCard:hover {
   transform: translateY(-4px);
   box-shadow: 0 12px 36px rgba(0,0,0,0.1);
+}
 }
 
 .qlIcon {
@@ -223,10 +224,11 @@
   font-size: 0.88rem;
   transition: background 0.2s, transform 0.2s;
 }
-
-.contactBtn:hover {
+@media (hover: hover) {
+  .contactBtn:hover {
   background: #e63a1a;
   transform: translateY(-1px);
+}
 }
 
 /* ── Responsive ───────────────────────────────────────────── */

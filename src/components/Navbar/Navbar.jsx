@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
@@ -8,6 +8,7 @@ import VitAutoLogo from "../Logo/VitAutoLogo";
 import useIsMobile from "../../hooks/useIsMobile";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "../../constants/activityTypes";
 import styles from "./Navbar.module.css";
+import { useFermetureExterieure } from "../../hooks/useFermetureExterieure";
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -31,47 +32,15 @@ const Navbar = () => {
 
   // Menu mobile (burger) : se ferme à Échap ou au toucher hors du menu — il
   // restait ouvert tant qu'on ne cliquait pas un lien ou la croix.
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handleClick = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
-    const handleEscape = (e) => { if (e.key === "Escape") setMenuOpen(false); };
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("touchstart", handleClick, { passive: true });
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("touchstart", handleClick);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [menuOpen]);
+  // `touchstart` fermait le menu AVANT que le doigt ne se lève : le clic visé
+  // n'atteignait plus rien et il fallait appuyer deux fois. Voir
+  // hooks/useFermetureExterieure.
+  useFermetureExterieure(menuRef, menuOpen, () => setMenuOpen(false));
 
   // Fermer le dropdown si clic en dehors
-  useEffect(() => {
-    const handleClick = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setDropdownOpen(false);
-      }
-    };
-    if (dropdownOpen) document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [dropdownOpen]);
+  useFermetureExterieure(dropdownRef, dropdownOpen, () => setDropdownOpen(false));
 
-  useEffect(() => {
-    const handleClick = (e) => {
-      if (activitiesRef.current && !activitiesRef.current.contains(e.target)) {
-        setActivitiesOpen(false);
-      }
-    };
-    const handleEscape = (e) => { if (e.key === "Escape") setActivitiesOpen(false); };
-    if (activitiesOpen) {
-      document.addEventListener("mousedown", handleClick);
-      document.addEventListener("keydown", handleEscape);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [activitiesOpen]);
+  useFermetureExterieure(activitiesRef, activitiesOpen, () => setActivitiesOpen(false));
 
   const goToActivity = (activityType) => {
     setActivitiesOpen(false);

@@ -308,9 +308,11 @@
   text-align: center;
   box-shadow: 0 6px 18px rgba(230, 58, 26, 0.3);
 }
-.actionBtn:hover {
+@media (hover: hover) {
+  .actionBtn:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 24px rgba(230, 58, 26, 0.4);
+}
 }
 
 /* CTA secondaires de la vente classique (« Être rappelé », « Contacter le vendeur ») */
@@ -487,7 +489,9 @@
   font-family: inherit;
   box-shadow: 0 4px 14px rgba(99,102,241,0.3);
 }
-.leasingBtn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(99,102,241,0.4); }
+@media (hover: hover) {
+  .leasingBtn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(99,102,241,0.4); }
+}
 
 /* ── Carte annonceur ─────────────────────────────────────────────────────── */
 .publisherCard {

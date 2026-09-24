@@ -671,7 +671,7 @@ export const submitIdentity = async (req, res) => {
     // pour vehicle/driver/KYC/showroom/Import-Export) — basculé sur
     // notifyAdmins() (email + in-app + socket, un seul mécanisme partout).
     notifyAdmins(
-      "system",
+      "dossier_admin",
       "📋 Nouvelle pièce d'identité soumise",
       `${user.firstName} ${user.lastName} a soumis sa pièce d'identité.`,
       "/admin",

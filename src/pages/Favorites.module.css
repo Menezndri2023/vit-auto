@@ -75,8 +75,9 @@
   background: #fff;
   transition: transform 0.2s ease;
 }
-
-.ieCard:hover { transform: translateY(-3px); }
+@media (hover: hover) {
+  .ieCard:hover { transform: translateY(-3px); }
+}
 
 .ieCard img {
   width: 100%;

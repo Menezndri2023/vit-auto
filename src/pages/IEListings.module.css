@@ -59,10 +59,11 @@
   box-shadow: 0 4px 20px rgba(255,77,45,.25);
   transition: transform .18s, box-shadow .18s;
 }
-
-.heroCta:hover {
+@media (hover: hover) {
+  .heroCta:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 28px rgba(255,77,45,.35);
+}
 }
 
 /* ── Barre de filtres ── */
@@ -218,10 +219,11 @@
   flex-direction: column;
   transition: transform .15s, box-shadow .15s;
 }
-
-.card:hover {
+@media (hover: hover) {
+  .card:hover {
   transform: translateY(-3px);
   box-shadow: 0 8px 28px rgba(0,0,0,.12);
+}
 }
 
 .cardImg {

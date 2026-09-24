@@ -556,7 +556,9 @@
   cursor: pointer;
   transition: all .2s;
 }
-.btnPrimary:hover:not(:disabled) { background: #166c7a; transform: translateY(-1px); }
+@media (hover: hover) {
+  .btnPrimary:hover:not(:disabled) { background: #166c7a; transform: translateY(-1px); }
+}
 .btnPrimary:disabled { opacity: .5; cursor: not-allowed; }
 
 .btnSecondary {
@@ -584,7 +586,9 @@
   transition: all .2s;
   box-shadow: 0 4px 14px rgba(5,150,105,.3);
 }
-.btnSuccess:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(5,150,105,.4); }
+@media (hover: hover) {
+  .btnSuccess:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(5,150,105,.4); }
+}
 .btnSuccess:disabled { opacity: .5; cursor: not-allowed; }
 
 .btnSign {
@@ -599,7 +603,9 @@
   transition: all .2s;
   white-space: nowrap;
 }
-.btnSign:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(124,58,237,.3); }
+@media (hover: hover) {
+  .btnSign:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(124,58,237,.3); }
+}
 .btnSign:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ── Modal ───────────────────────────────────────────────────────── */
@@ -803,7 +809,9 @@
   font-weight: 700; font-size: 0.9rem; text-decoration: none;
   transition: border-color .15s, transform .15s;
 }
-.legalLinkCard:hover { border-color: var(--po-teal); transform: translateY(-2px); }
+@media (hover: hover) {
+  .legalLinkCard:hover { border-color: var(--po-teal); transform: translateY(-2px); }
+}
 
 .applySection {
   background: linear-gradient(135deg, var(--po-dark) 0%, #0f3460 60%, var(--po-teal) 100%);

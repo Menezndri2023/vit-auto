@@ -37,6 +37,9 @@ function alertHtml({ titre, message, type, lien }) {
 // annonces, les réservations, les dossiers KYC et les demandes d'assistance
 // passent au récapitulatif.
 export const TYPES_ALERTE_IMMEDIATE = new Set([
+  "rapport_admin", // récapitulatif quotidien et rapport hebdomadaire — c'est
+                   // précisément ce qui REMPLACE les alertes unitaires : les
+                   // couper viderait la boîte de tout ce qui a de la valeur
   "system",        // panne de file, échecs d'envoi en série
   "email_bounce",  // réputation d'envoi menacée
   "warning",       // alertes de supervision

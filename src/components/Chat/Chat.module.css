@@ -26,8 +26,9 @@
   transition: transform 0.2s, box-shadow 0.2s;
   position: relative;
 }
-
-.fabBtn:hover { transform: scale(1.08); box-shadow: 0 6px 28px rgba(37, 99, 235, 0.55); }
+@media (hover: hover) {
+  .fabBtn:hover { transform: scale(1.08); box-shadow: 0 6px 28px rgba(37, 99, 235, 0.55); }
+}
 
 .fabBadge {
   position: absolute;

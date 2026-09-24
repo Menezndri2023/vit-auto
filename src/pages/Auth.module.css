@@ -411,10 +411,11 @@
   margin-top: 4px;
   letter-spacing: 0.01em;
 }
-
-.submitBtn:hover:not(:disabled) {
+@media (hover: hover) {
+  .submitBtn:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 10px 28px rgba(255, 77, 45, 0.48);
+}
 }
 
 .submitBtn:active:not(:disabled) {

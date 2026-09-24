@@ -55,11 +55,12 @@
   text-decoration: none;
   transition: all 0.2s ease;
 }
-
-.socials a:hover {
+@media (hover: hover) {
+  .socials a:hover {
   background: rgba(255, 77, 45, 0.18);
   border-color: rgba(255, 77, 45, 0.4);
   transform: translateY(-2px);
+}
 }
 
 /* ── Colonnes ── */

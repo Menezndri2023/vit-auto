@@ -103,7 +103,9 @@
   padding: 16px; display: flex; align-items: center; gap: 12px;
   box-shadow: var(--vd-shadow); transition: transform .15s;
 }
-.kpiCard:hover { transform: translateY(-2px); }
+@media (hover: hover) {
+  .kpiCard:hover { transform: translateY(-2px); }
+}
 .kpiIcon  { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
 .kpiBody  { flex: 1; min-width: 0; }
 .kpiValue { font-size: 1.5rem; font-weight: 900; color: var(--vd-text); line-height: 1; }
@@ -169,7 +171,9 @@
   box-shadow: var(--vd-shadow); transition: box-shadow .15s, transform .1s;
   animation: slideUp .2s ease;
 }
-.orderCard:hover   { box-shadow: var(--vd-shadow-md); transform: translateY(-1px); }
+@media (hover: hover) {
+  .orderCard:hover { box-shadow: var(--vd-shadow-md); transform: translateY(-1px); }
+}
 .orderCardNew      { border-left: 4px solid #f59e0b; }
 .orderCardAbsent   { border-left: 4px solid #ef4444; background: #fffafa; }
 .orderProgressBar  { height: 3px; background: #f1f5f9; margin: 0 0 0; }

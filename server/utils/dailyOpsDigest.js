@@ -17,6 +17,7 @@ import User from "../models/User.js";
 import DriverEmployment from "../models/DriverEmployment.js";
 import PartnerSectorRequest from "../models/PartnerSectorRequest.js";
 import SchedulerLock, { avecVerrou } from "./schedulerLock.js";
+import Vehicle from "../models/Vehicle.js";
 import { notifyAdmins } from "./notifyAdmins.js";
 import { nonBloquant } from "./nonBloquant.js";
 import { getSalesLeadConfig } from "../services/salesLeadService.js";
@@ -38,6 +39,7 @@ export async function calculerDigest(maintenant = new Date()) {
   const slaMs = (cfg.responseSlaMinutes || 120) * 60000;
   const [
     sansReponse, livreesNonConfirmees, litiges, fraudes, embauchesSansReponse, secteurs, leadsEnRetard, acomptesEnAttente,
+    publicationsImminentes,
   ] = await Promise.all([
     // Demandes transmises au partenaire depuis plus de 24 h, toujours sans réponse.
     Booking.find({ status: "pending", "adminValidation.status": "approved", partnerNotifiedAt: { $lte: new Date(maintenant - h(24)) } })
@@ -51,6 +53,15 @@ export async function calculerDigest(maintenant = new Date()) {
     PartnerSectorRequest.countDocuments({ status: "pending" }),
     SalesLead.find({ status: "SENT_TO_PARTNER", "milestones.sentToPartnerAt": { $lte: new Date(maintenant - slaMs) } }).limit(0).select("reference").lean(),
     Booking.countDocuments({ type: "piece", status: { $in: ["confirmed", "preparing"] }, "piece.depositUSD": { $gt: 0 }, "piece.depositReceivedAt": null, updatedAt: { $lte: new Date(maintenant - h(48)) } }),
+    // Annonces qui paraîtront dans les prochaines 24 h sans intervention.
+    // C'est ce qui rend la fenêtre de blocage utilisable : sans cette ligne,
+    // l'administrateur devrait deviner ce qui est sur le point de sortir.
+    Vehicle.find({
+      status: "pending",
+      publicationPlanifieeA: { $ne: null, $lte: new Date(maintenant.getTime() + h(24)) },
+      publicationBloqueeA: null,
+    }).limit(0).select("title publicationPlanifieeA").lean(),
+
   ]);
   return {
     sansReponse: sansReponse.length,
@@ -59,7 +70,7 @@ export async function calculerDigest(maintenant = new Date()) {
     fraudes: fraudes.length, fraudesRefs: fraudes.slice(0, 5).map((b) => b.reference),
     embauchesSansReponse, secteurs,
     leadsEnRetard: leadsEnRetard.length, leadsRefs: leadsEnRetard.slice(0, 5).map((l) => l.reference),
-    acomptesEnAttente,
+    acomptesEnAttente, publicationsImminentes,
   };
 }
 
@@ -71,6 +82,11 @@ export function composerDigest(d) {
   if (d.fraudes)              lignes.push(`${d.fraudes} alerte(s) fraude en 24 h (${d.fraudesRefs.join(", ")})`);
   if (d.livreesNonConfirmees) lignes.push(`${d.livreesNonConfirmees} pièce(s) livrée(s) sans confirmation client depuis 3 j`);
   if (d.acomptesEnAttente)    lignes.push(`${d.acomptesEnAttente} commande(s) de pièce importée avec acompte non déclaré reçu depuis 48 h`);
+  // En TÊTE d'esprit pour l'administrateur : c'est la seule ligne du
+  // récapitulatif sur laquelle l'inaction a une conséquence visible du public.
+  if (d.publicationsImminentes?.length) {
+    lignes.push(`${d.publicationsImminentes.length} annonce(s) pré-approuvée(s) paraîtront dans les 24 h sauf blocage (${d.publicationsImminentes.slice(0, 5).map((v) => v.title).join(", ")}${d.publicationsImminentes.length > 5 ? "…" : ""})`);
+  }
   if (d.embauchesSansReponse) lignes.push(`${d.embauchesSansReponse} proposition(s) d'embauche sans réponse depuis 48 h`);
   if (d.secteurs)             lignes.push(`${d.secteurs} demande(s) d'ajout de secteur à valider`);
   return lignes;
@@ -86,7 +102,7 @@ export async function envoyerDigestQuotidien(maintenant = new Date()) {
     // Marqueur posé même sans envoi : « rien à traiter » vaut digest du jour.
     await SchedulerLock.updateOne({ _id: MARQUEUR }, { $set: { acquiredAt: maintenant, holder: "dailyOpsDigest" } }, { upsert: true });
     if (!lignes.length) return { sent: false, digest, vide: true };
-    await notifyAdmins("warning", `🗓️ À traiter aujourd'hui — ${lignes.length} point(s)`, lignes.join(" · ") + ".", "/admin?tab=bookings");
+    await notifyAdmins("rapport_admin", `🗓️ À traiter aujourd'hui — ${lignes.length} point(s)`, lignes.join(" · ") + ".", "/admin?tab=bookings");
     logger.info("[DailyOpsDigest] Digest envoyé", digest);
     return { sent: true, digest, lignes };
   } catch (err) {

@@ -113,7 +113,7 @@ export async function envoyerRapportHebdo(maintenant = new Date()) {
     const depuis = new Date(jusqua.getTime() - 7 * 86400000);
     const cfg = await getSalesLeadConfig();
     const resume = await calculerResume(depuis, jusqua, cfg);
-    await notifyAdmins("sales_lead", "📊 Funnel vente — rapport de la semaine", composerMessage(resume, depuis, jusqua), "/admin?tab=sales_leads");
+    await notifyAdmins("rapport_admin", "📊 Funnel vente — rapport de la semaine", composerMessage(resume, depuis, jusqua), "/admin?tab=sales_leads");
     await SchedulerLock.updateOne({ _id: MARQUEUR }, { $set: { acquiredAt: maintenant, holder: "weeklyFunnelReport" } }, { upsert: true });
     logger.info("[WeeklyFunnelReport] Rapport envoyé", resume);
     return { sent: true, resume };

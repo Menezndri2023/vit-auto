@@ -78,10 +78,11 @@
   transition: all 0.2s ease;
   white-space: nowrap;
 }
-
-.ctaBtn:hover {
+@media (hover: hover) {
+  .ctaBtn:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(255, 77, 45, 0.4);
+}
 }
 
 /* ── Stats ──────────────────────────────────────────────────────────────── */
@@ -106,10 +107,11 @@
   gap: 0.3rem;
   transition: transform var(--t-base), box-shadow var(--t-base);
 }
-
-.statCard:hover {
+@media (hover: hover) {
+  .statCard:hover {
   transform: translateY(-2px);
   box-shadow: var(--sh-md);
+}
 }
 
 .statBlue  { border-color: #3b82f6; }
@@ -233,10 +235,11 @@
   overflow: hidden;
   transition: box-shadow 0.25s ease, transform 0.25s ease;
 }
-
-.bookingCard:hover {
+@media (hover: hover) {
+  .bookingCard:hover {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   transform: translateY(-2px);
+}
 }
 
 /* Bandeau couleur statut */
@@ -602,10 +605,11 @@
   color: white;
   box-shadow: 0 4px 12px rgba(255, 77, 45, 0.3);
 }
-
-.primaryBtn:hover {
+@media (hover: hover) {
+  .primaryBtn:hover {
   transform: translateY(-1px);
   box-shadow: 0 6px 18px rgba(255, 77, 45, 0.4);
+}
 }
 
 .btnSecondary {
@@ -848,7 +852,9 @@
 }
 
 .starOn { color: #f59e0b; }
-.star:hover { transform: scale(1.2); }
+@media (hover: hover) {
+  .star:hover { transform: scale(1.2); }
+}
 
 .noteLabel {
   margin-left: 0.5rem;
@@ -1023,7 +1029,9 @@
   min-width: 180px;
   transition: opacity 0.2s, transform 0.2s;
 }
-.btnValidate:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+@media (hover: hover) {
+  .btnValidate:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+}
 .btnValidate:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .btnDispute {

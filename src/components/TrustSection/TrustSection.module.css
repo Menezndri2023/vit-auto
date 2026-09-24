@@ -71,11 +71,12 @@
   overflow: hidden;
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
-
-.card:hover {
+@media (hover: hover) {
+  .card:hover {
   transform: translateY(-4px);
   box-shadow: 0 12px 32px rgba(15, 27, 63, 0.09);
   background: #fff;
+}
 }
 
 .cardBar {
