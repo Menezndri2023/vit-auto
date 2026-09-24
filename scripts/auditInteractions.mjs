@@ -53,11 +53,16 @@ async function connecter(page, compte) {
   await page.goto(`${BASE}/login`, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForTimeout(800);
   try {
-    await page.fill('input[type="email"], input[name="email"]', compte.id);
-    await page.fill('input[type="password"], input[name="password"]', compte.pwd);
-    await page.click('button[type="submit"]');
-    await page.waitForTimeout(2500);
-    return !page.url().includes("/login");
+    // Mêmes identifiants de champs que parcoursServices.mjs — les sélecteurs
+    // génériques ne correspondent à rien sur ce formulaire.
+    await page.evaluate(() => { try { sessionStorage.setItem("vit_splash_shown", "1"); } catch { /* ignore */ } });
+    await page.fill("#login-identifier", compte.id);
+    await page.fill("#login-password", compte.pwd);
+    await page.click("button[type=submit]");
+    await page.waitForFunction(() => !!localStorage.getItem("vit-auto-token"), null, { timeout: 30000 });
+    // Le guide de bienvenue recouvre les boutons : le marquer comme vu.
+    await page.evaluate(() => { try { const u = JSON.parse(localStorage.getItem("vit-auto-user") || "{}"); if (u.id) localStorage.setItem(`vit-welcome-guide-seen-${u.id}`, "1"); } catch { /* ignore */ } });
+    return true;
   } catch { return false; }
 }
 
@@ -76,11 +81,25 @@ async function releverInatteignables(page) {
     for (const el of document.querySelectorAll(selecteur)) {
       const st = getComputedStyle(el);
       if (st.display === "none" || st.visibility === "hidden" || Number(st.opacity) === 0) continue;
+      // Rangé, pas inaccessible : un lien dans un accordéon FERMÉ (le pied de
+      // page en a deux) n'a pas à être cliquable — l'utilisateur ouvre d'abord.
+      // `getComputedStyle` ne le dit pas : <details> masque son contenu sans
+      // poser display:none sur les enfants. Première version de cet audit :
+      // 18 faux positifs par page, tous des liens de pied de page repliés.
+      if (el.closest("details:not([open])")) continue;
+      if (typeof el.checkVisibility === "function"
+          && !el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue;
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) continue;
       // Hors de la fenêtre : ce n'est pas un recouvrement, l'utilisateur fait
       // défiler pour l'atteindre.
       if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
+      // Un élément qui tombe sous la barre fixe du bas À CETTE position de
+      // défilement n'est pas inatteignable : il suffit de faire défiler. On le
+      // ramène donc au MILIEU de la fenêtre avant de juger — sinon l'audit
+      // signale tout ce qui passe derrière la barre, ce qui est normal et
+      // constant. Seul ce qui reste recouvert au centre est un vrai défaut.
+      el.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
 
       // Un élément interactif neutralisé ne réagira jamais au doigt.
       if (st.pointerEvents === "none" && !el.disabled) {
@@ -90,8 +109,9 @@ async function releverInatteignables(page) {
 
       // Le point réellement touché : le centre, borné à la fenêtre pour les
       // éléments qui dépassent.
-      const x = Math.min(Math.max(r.left + r.width / 2, 1), innerWidth - 1);
-      const y = Math.min(Math.max(r.top + r.height / 2, 1), innerHeight - 1);
+      const r2 = el.getBoundingClientRect();
+      const x = Math.min(Math.max(r2.left + r2.width / 2, 1), innerWidth - 1);
+      const y = Math.min(Math.max(r2.top + r2.height / 2, 1), innerHeight - 1);
       const touche = document.elementFromPoint(x, y);
       if (!touche) continue;
       // Le clic aboutit si l'on touche l'élément, un de ses descendants (une

@@ -89,7 +89,10 @@ const VendorSubmit = () => {
     setIdentity((p) => ({
       ...p,
       typePubliant: p.typePubliant === "particulier" ? "entreprise" : p.typePubliant,
-      nomEntreprise: business.companyName,
+      // Repli comme les champs voisins : sans lui, une entité sans nom
+      // posait `null` ici, et `identity.nomEntreprise.trim()` levait une
+      // exception dès le premier « Suivant » — écran d'erreur, rechargement.
+      nomEntreprise: business.companyName || p.nomEntreprise,
       ville: business.ville || p.ville,
       adresse: business.adresse || p.adresse,
       telephone: business.contactTel || p.telephone,
@@ -595,17 +598,26 @@ const VendorSubmit = () => {
   };
 
   // ─── Validation par étape ────────────────────────────────────────────────────
+  // Un champ absent ou `null` ne doit pas faire tomber l'assistant : la
+  // validation sert justement à traiter les valeurs incomplètes. Seize appels à
+  // `.trim()` et `.length` s'y faisaient à nu — il suffisait qu'une seule valeur
+  // vienne `null` de la base ou d'un brouillon ancien pour que le clic sur
+  // « Suivant » lève une exception, remplace l'écran par la page d'erreur et
+  // oblige à tout recharger, saisie perdue.
+  const txt = (v) => String(v ?? "").trim();
+  const liste = (v) => (Array.isArray(v) ? v : []);
+
   const validate = () => {
     const e = {};
     if (step === 1) {
-      if (identity.typePubliant !== "particulier" && !identity.nomEntreprise.trim())
+      if (identity.typePubliant !== "particulier" && !txt(identity.nomEntreprise))
         e.nomEntreprise = "Nom de structure requis";
-      if (identity.typePubliant === "particulier" && !identity.prenom.trim())
+      if (identity.typePubliant === "particulier" && !txt(identity.prenom))
         e.prenom = "Prénom requis";
-      if (!identity.nom.trim())       e.nom       = "Nom requis";
-      if (!identity.telephone.trim()) e.telephone = "Téléphone requis";
-      if (!identity.ville.trim())     e.ville     = "Ville requise";
-      if (!identity.adresse.trim())   e.adresse   = "Adresse requise (utilisée pour le calcul de livraison)";
+      if (!txt(identity.nom))       e.nom       = "Nom requis";
+      if (!txt(identity.telephone)) e.telephone = "Téléphone requis";
+      if (!txt(identity.ville))     e.ville     = "Ville requise";
+      if (!txt(identity.adresse))   e.adresse   = "Adresse requise (utilisée pour le calcul de livraison)";
     }
     if (step === 2) {
       if (!adType) e.adType = "Choisissez un type d'annonce";
@@ -615,19 +627,19 @@ const VendorSubmit = () => {
     }
     if (step === 3) {
       if (adType !== "chauffeur") {
-        if (!vehicle.title.trim())  e.title  = "Titre requis";
-        if (!vehicle.marque.trim()) e.marque = "Marque requise";
-        if (!vehicle.modele.trim()) e.modele = "Modèle requis";
+        if (!txt(vehicle.title))  e.title  = "Titre requis";
+        if (!txt(vehicle.marque)) e.marque = "Marque requise";
+        if (!txt(vehicle.modele)) e.modele = "Modèle requis";
       } else {
-        if (!driver.firstName.trim()) e.firstName = "Prénom requis";
-        if (!driver.lastName.trim())  e.lastName  = "Nom requis";
-        if (!driver.title.trim())     e.title     = "Titre du service requis";
-        if (!driver.experience.trim())e.experience= "Expérience requise";
-        if (!driver.permisCategorie.length) e.permisCategorie = "Sélectionnez au moins une catégorie de permis";
+        if (!txt(driver.firstName)) e.firstName = "Prénom requis";
+        if (!txt(driver.lastName))  e.lastName  = "Nom requis";
+        if (!txt(driver.title))     e.title     = "Titre du service requis";
+        if (!txt(driver.experience))e.experience= "Expérience requise";
+        if (!liste(driver.permisCategorie).length) e.permisCategorie = "Sélectionnez au moins une catégorie de permis";
       }
     }
     if (step === 4 && adType === "chauffeur") {
-      if (!driver.zone.trim())         e.zone         = "Zone de couverture requise";
+      if (!txt(driver.zone))         e.zone         = "Zone de couverture requise";
       if (!driver.disponibilite)       e.disponibilite= "Disponibilité requise";
     }
     if (step === 5) {
@@ -2175,6 +2187,9 @@ const VendorSubmit = () => {
 
       {/* Navigation */}
       <div className={styles.nav}>
+        {/* Le premier appui après une saisie était perdu : il refermait le
+            clavier, la page se réagençait et le bouton se dérobait sous le
+            doigt. Traité globalement — voir utils/appuiFiable.js. */}
         {step > 1 && (
           <button type="button" className={styles.prevBtn} onClick={prev}>
             ← Précédent

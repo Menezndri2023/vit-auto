@@ -81,7 +81,11 @@ describe("Aucun composant ne referme sur un évènement antérieur au clic", () 
       for (const e of fs.readdirSync(d, { withFileTypes: true })) {
         const p = path.join(d, e.name);
         if (e.isDirectory()) marcher(p);
-        else if (/\.jsx?$/.test(e.name) && !/\.test\./.test(e.name)) {
+        // `appuiFiable.js` écoute mousedown À DESSEIN, et pour l'inverse : il
+        // n'y ferme rien, il empêche le transfert de focus qui refermerait le
+        // clavier et déplacerait le bouton. La garde vise les FERMETURES de
+        // panneau — d'où l'exception, nommée plutôt qu'implicite.
+        else if (/\.jsx?$/.test(e.name) && !/\.test\./.test(e.name) && !/appuiFiable\.js$/.test(e.name)) {
           const src = fs.readFileSync(p, "utf8");
           if (/addEventListener\(\s*["'](mousedown|touchstart)["']/.test(src)) {
             fautifs.push(p.replace(process.cwd() + "/", ""));

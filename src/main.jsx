@@ -4,11 +4,16 @@ import { GoogleOAuthProvider } from '@react-oauth/google'
 import './index.css'
 import App from './App.jsx'
 import { installerRafraichissementSession } from './utils/fetchSession.js'
+import { installerAppuiFiable } from './utils/appuiFiable.js'
 import { Capacitor } from '@capacitor/core'
 
 // Avant tout rendu : toute requête /api authentifiée part avec le jeton
 // courant et est rejouée après rafraîchissement sur 401 (voir fetchSession.js).
 installerRafraichissementSession()
+
+// Un appui sur un bouton alors qu'un champ a le focus ne doit pas être perdu
+// à refermer le clavier (voir utils/appuiFiable.js).
+installerAppuiFiable()
 
 // No-op silencieux si VITE_SENTRY_DSN n'est pas configurée (même logique
 // défensive que server/config/sentry.js côté backend).
