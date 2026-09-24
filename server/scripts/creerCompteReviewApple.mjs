@@ -110,6 +110,19 @@ if (PARTENAIRE && ANNONCES) {
     await User.updateOne({ _id: user._id }, { $set: { isTestAccount: true } });
     console.log("Annonces de démonstration archivées, partenaire repassé en compte de test.");
   } else {
+    // RÉTABLISSEMENT avant une nouvelle soumission : on réactive les annonces
+    // ARCHIVÉES au lieu d'en créer d'autres. Les tests ci-dessous ne cherchent
+    // que le statut "approved" : après un --retirer, ils ne trouvaient rien et
+    // fabriquaient un second jeu d'annonces avec de NOUVEAUX identifiants —
+    // alors que les notes de review citent les anciens par leur URL. Les liens
+    // seraient restés morts, et le partenaire aurait accumulé des doublons à
+    // chaque cycle de soumission.
+    const vRendus = await Vehicle.updateMany({ owner: user._id, status: "archived" }, { $set: { status: "approved", available: true } });
+    const cRendus = await Driver.updateMany({ owner: user._id, status: "archived" }, { $set: { status: "approved" } });
+    if (vRendus.modifiedCount || cRendus.modifiedCount) {
+      console.log(`Annonces archivées rétablies : ${vRendus.modifiedCount} véhicule(s), ${cRendus.modifiedCount} chauffeur(s) — identifiants conservés.`);
+    }
+
     // Photos déjà hébergées et créditées (MediaCredit) : aucun fichier nouveau.
     const PHOTOS = [
       "https://ik.imagekit.io/vitauto/vit-auto/vehicles/reference/2024_Toyota_Yaris_Cross_X_in_Grayish_Blue_front_left_RD4gruipka.jpg",
