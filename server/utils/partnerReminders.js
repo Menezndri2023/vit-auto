@@ -31,8 +31,24 @@ const APP_URL = process.env.APP_URL || "https://vit-auto.com";
 const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours entre deux relances du même dossier
 const STALE_MS    = 3 * 24 * 60 * 60 * 1000; // ignore les dossiers créés il y a moins de 3 jours
 
-function isDue(lastReminderSentAt) {
+// Au-delà, on se tait. Un partenaire qui n'a pas complété son dossier après
+// trois rappels ne le fera pas au quatrième : insister ne convertit personne,
+// entraîne les plaintes pour courrier indésirable et abîme la réputation
+// d'envoi pour ceux qui attendent une confirmation de réservation. La relance
+// reprend d'elle-même dès que le dossier bouge (voir `reprendreRelances`).
+const MAX_RELANCES = 3;
+
+function isDue(lastReminderSentAt, reminderCount = 0) {
+  if (reminderCount >= MAX_RELANCES) return false;
   return !lastReminderSentAt || (Date.now() - new Date(lastReminderSentAt).getTime()) > COOLDOWN_MS;
+}
+
+/**
+ * Remet le compteur à zéro : le dossier a bougé, la personne est de nouveau
+ * joignable. À appeler quand un document est déposé ou le dossier modifié.
+ */
+export async function reprendreRelances(Modele, filtre) {
+  return Modele.updateOne(filtre, { $set: { reminderCount: 0 } });
 }
 
 export async function sendReminder({ userId, companyName, missingDocs, portalPath }) {
@@ -69,17 +85,17 @@ export function missingVerificationDocs(doc) {
 
 async function checkPartnerVerification() {
   const docs = await PartnerVerification.find({ status: { $ne: "verifie" } })
-    .select("userId companyName documents lastReminderSentAt updatedAt")
+    .select("userId companyName documents lastReminderSentAt reminderCount updatedAt")
     .lean();
   let sent = 0;
   for (const doc of docs) {
     if (Date.now() - new Date(doc.updatedAt).getTime() < STALE_MS) continue;
-    if (!isDue(doc.lastReminderSentAt)) continue;
+    if (!isDue(doc.lastReminderSentAt, doc.reminderCount)) continue;
     const missing = missingVerificationDocs(doc);
     if (!missing.length) continue;
     const ok = await sendReminder({ userId: doc.userId, companyName: doc.companyName, missingDocs: missing, portalPath: "/profile" });
     if (ok) {
-      await PartnerVerification.updateOne({ _id: doc._id }, { $set: { lastReminderSentAt: new Date() } });
+      await PartnerVerification.updateOne({ _id: doc._id }, { $set: { lastReminderSentAt: new Date() }, $inc: { reminderCount: 1 } });
       sent++;
     }
   }
@@ -105,7 +121,7 @@ export function missingCertificationDocs(cert) {
 
 async function checkPartnerCertification() {
   const certs = await PartnerCertification.find({ overallStatus: { $in: ["not_started", "in_progress"] } })
-    .select("userId level1 level2 lastReminderSentAt updatedAt")
+    .select("userId level1 level2 lastReminderSentAt reminderCount updatedAt")
     .populate("userId", "role")
     .lean();
   let sent = 0;
@@ -114,12 +130,12 @@ async function checkPartnerCertification() {
     // jamais à compléter cette certification.
     if (!cert.userId || cert.userId.role !== "partenaire") continue;
     if (Date.now() - new Date(cert.updatedAt).getTime() < STALE_MS) continue;
-    if (!isDue(cert.lastReminderSentAt)) continue;
+    if (!isDue(cert.lastReminderSentAt, cert.reminderCount)) continue;
     const missing = missingCertificationDocs(cert);
     if (!missing.length) continue;
     const ok = await sendReminder({ userId: cert.userId._id, companyName: cert.level1?.companyName, missingDocs: missing, portalPath: "/partner-certification" });
     if (ok) {
-      await PartnerCertification.updateOne({ _id: cert._id }, { $set: { lastReminderSentAt: new Date() } });
+      await PartnerCertification.updateOne({ _id: cert._id }, { $set: { lastReminderSentAt: new Date() }, $inc: { reminderCount: 1 } });
       sent++;
     }
   }
@@ -178,7 +194,7 @@ async function checkFoundingPartnerDrafts() {
   let sent = 0;
   for (const doc of docs) {
     if (Date.now() - new Date(doc.updatedAt).getTime() < STALE_MS) continue;
-    if (!isDue(doc.lastReminderSentAt)) continue;
+    if (!isDue(doc.lastReminderSentAt, doc.reminderCount)) continue;
     const missing = doc.status === "info_demandee" && doc.adminReview?.infoRequested
       ? [doc.adminReview.infoRequested]
       : ["Documents légaux de l'entreprise (registre de commerce, licence commerciale...)"];
@@ -207,7 +223,7 @@ async function checkFoundingPartnerPendingSignature() {
   for (const doc of docs) {
     if (!doc.userId?.email) continue;
     if (Date.now() - new Date(doc.updatedAt).getTime() < STALE_MS) continue;
-    if (!isDue(doc.lastReminderSentAt)) continue;
+    if (!isDue(doc.lastReminderSentAt, doc.reminderCount)) continue;
 
     const isLoiStep = doc.status === "loi_envoyee";
     const token = crypto.randomBytes(32).toString("hex");

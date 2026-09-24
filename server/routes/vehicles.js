@@ -49,6 +49,7 @@ router.get("/:id/image-credits", vid, v.getVehicleImageCredits);                
 router.get("/:id/inspection-report",  vid, optionalAuth,  getVehicleInspectionReport);   // rapport d'inspection (public)
 router.post("/:id/inspection-report", vid, authenticate,  createVehicleInspectionReport); // publié/mis à jour par le propriétaire
 router.patch("/:id/status",   vid, authenticate, authorizeAdmin, requireAdminScope("catalogue"), v.updateVehicleStatus); // approuver/rejeter
+router.patch("/:id/publication", vid, authenticate, authorizeAdmin, requireAdminScope("catalogue"), v.bloquerPublication); // bloquer/reprogrammer une publication pré-approuvée
 router.patch("/:id/transfer", vid, authenticate, authorizeAdmin, requireAdminScope("catalogue"), v.transferVehicle); // réassigner compte/entreprise/pays/ville (admin)
 router.patch("/:id/lifecycle",vid, authenticate, v.updateVehicleLifecycle);               // brouillon/vendu/archivé (partenaire)
 router.patch("/:id/promotion",vid, authenticate, exigeOutil("promotions"), v.updatePromotion);        // activer/désactiver une promotion — outil par plan

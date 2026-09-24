@@ -21,7 +21,7 @@ import ImportExportListing from "../models/ImportExportListing.js";
 import VehicleMaintenanceLog from "../models/VehicleMaintenanceLog.js";
 import { syncVehicleAvailability } from "./bookingController.js";
 import { dispatch } from "../queue/index.js";
-import { scoreAnnonce, buildVehicleWhitelist, limitVehicleImages } from "../services/vehicleScoring.js";
+import { scoreAnnonce, buildVehicleWhitelist, limitVehicleImages , DELAI_PUBLICATION_MS } from "../services/vehicleScoring.js";
 import { logAction } from "../middleware/auditLog.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
@@ -237,6 +237,11 @@ export const createVehicle = async (req, res) => {
       country:            business?.country || req.user.country || null,
       status:             validation.status,
       available:          validation.status === "approved",
+      // Annonce complète : sa publication est datée plutôt que suspendue à ce
+      // qu'un administrateur la remarque. Voir utils/publicationPlanifiee.js.
+      publicationPlanifieeA: validation.preApprouvee
+        ? new Date(Date.now() + DELAI_PUBLICATION_MS)
+        : null,
       validationScore:    validation.score,
       validationErrors:   validation.errors,
       validationWarnings: validation.warnings,
@@ -287,10 +292,18 @@ export const createVehicle = async (req, res) => {
     // d'une nouvelle annonce en attente — ils ne la découvraient qu'en
     // rechargeant manuellement l'onglet Annonces & Validations.
     if (validation.status === "pending") {
+      // Pré-approuvée : la publication est planifiée et l'administrateur est
+      // informé de ce qui va PARAÎTRE, avec le délai dont il dispose pour s'y
+      // opposer — et non plus d'une tâche de validation à faire. Ce message ne
+      // part plus par e-mail (voir utils/adminAlertEmail.js) : il rejoint le
+      // récapitulatif quotidien, sauf blocage explicite.
+      const quand = vehicle.publicationPlanifieeA;
       notifyAdmins(
         "new_vehicle",
-        "🚗 Nouvelle annonce à valider",
-        `"${vehicle.title}" publiée par ${req.user.firstName || ""} ${req.user.lastName || ""} attend une validation manuelle. Score : ${validation.score}/100.`,
+        quand ? "🚗 Annonce pré-approuvée — publication programmée" : "🚗 Nouvelle annonce à valider",
+        quand
+          ? `"${vehicle.title}" (${validation.score}/100) paraîtra le ${quand.toLocaleString("fr-FR")} sauf blocage.`
+          : `"${vehicle.title}" publiée par ${req.user.firstName || ""} ${req.user.lastName || ""} attend une validation manuelle. Score : ${validation.score}/100.`,
         "/admin",
       ).catch((err) => logger.error("notifyAdmins createVehicle (non bloquant) :", err.message));
     }
@@ -684,6 +697,60 @@ export const getPendingVehicles = async (req, res) => {
 };
 
 // ── Approuver / rejeter une annonce (admin) ───────────────────────────────────
+// ── Bloquer (ou débloquer) une publication programmée ──────────────────────
+// Le pendant de la pré-approbation : l'administrateur n'a plus à valider chaque
+// annonce, mais il doit pouvoir en arrêter une avant qu'elle ne paraisse. Sans
+// ce geste, la « fenêtre de blocage » n'existerait que sur le papier.
+export const bloquerPublication = async (req, res) => {
+  try {
+    const bloquer = req.body?.bloquer !== false;
+    const motif = typeof req.body?.motif === "string" ? req.body.motif.slice(0, 300) : null;
+    if (bloquer && !motif) {
+      return res.status(400).json({ message: "Un motif est requis pour bloquer une publication." });
+    }
+
+    const vehicle = await Vehicle.findById(req.params.id).select("status publicationPlanifieeA publicationBloqueeA title owner");
+    if (!vehicle) return res.status(404).json({ message: "Annonce introuvable." });
+    if (vehicle.status === "approved") {
+      return res.status(409).json({ message: "Annonce déjà publiée — utiliser le changement de statut." });
+    }
+
+    if (bloquer) {
+      vehicle.publicationPlanifieeA = null;
+      vehicle.publicationBloqueeA = new Date();
+      vehicle.publicationBloqueePar = req.user._id;
+      vehicle.publicationBloqueeMotif = motif;
+    } else {
+      // Débloquer ne republie pas sur-le-champ : on redonne la fenêtre entière,
+      // pour qu'un déblocage par erreur reste rattrapable.
+      vehicle.publicationBloqueeA = null;
+      vehicle.publicationBloqueePar = null;
+      vehicle.publicationBloqueeMotif = null;
+      vehicle.publicationPlanifieeA = new Date(Date.now() + DELAI_PUBLICATION_MS);
+    }
+    await vehicle.save();
+
+    Notification.create({
+      user: vehicle.owner,
+      type: bloquer ? "vehicle_pending" : "vehicle_approved",
+      titre: bloquer ? "Annonce en attente de correction" : "Publication reprogrammée",
+      message: bloquer
+        ? `"${vehicle.title}" ne sera pas publiée en l'état : ${motif}`
+        : `"${vehicle.title}" paraîtra le ${vehicle.publicationPlanifieeA.toLocaleString("fr-FR")}.`,
+      lien: "/vendor-dashboard",
+    }).catch(nonBloquant("bloquerPublication"));
+
+    res.json({
+      message: bloquer ? "Publication bloquée." : "Publication reprogrammée.",
+      publicationPlanifieeA: vehicle.publicationPlanifieeA,
+      publicationBloqueeA: vehicle.publicationBloqueeA,
+    });
+  } catch (err) {
+    logger.error("bloquerPublication:", err);
+    res.status(500).json({ message: "Erreur lors du blocage." });
+  }
+};
+
 export const updateVehicleStatus = async (req, res) => {
   try {
     const { status, rejectionReason } = req.body;
@@ -705,6 +772,10 @@ export const updateVehicleStatus = async (req, res) => {
           available: status === "approved"
             ? { $ne: ["$manuallyPaused", true] }
             : false,
+          // Une décision explicite prime sur la publication programmée : sans
+          // cela, une annonce remise en « pending » par un administrateur
+          // reparaissait d'elle-même au tour suivant du planificateur.
+          publicationPlanifieeA: null,
         },
       }],
       { new: true }

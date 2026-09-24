@@ -383,6 +383,15 @@ const vehicleSchema = new mongoose.Schema({
   }],
 
   // ── Validation automatique ────────────────────────────────
+  // ── Pré-approbation automatique (2026-09-24) ─────────────────────────────
+  // Une annonce qui atteint le seuil de complétude n'est plus mise en file
+  // d'attente indéfinie : sa publication est PLANIFIÉE, et un administrateur
+  // garde une fenêtre pour la bloquer. Le contrôle humain reste possible avant
+  // toute mise en ligne — l'engagement pris envers Apple (règle 1.2) tient.
+  publicationPlanifieeA:  { type: Date, default: null },
+  publicationBloqueeA:    { type: Date, default: null },
+  publicationBloqueePar:  { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  publicationBloqueeMotif:{ type: String, default: null },
   validationScore:    { type: Number, default: null },
   validationErrors:   { type: [String], default: [] },
   validationWarnings: { type: [String], default: [] },

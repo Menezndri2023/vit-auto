@@ -6,6 +6,17 @@ import { MARQUEUR_MONTANT_DOUTEUX } from "../constants/plausibilitePrix.js";
 // Utilisé par vehicleController.createVehicle (saisie manuelle) et par
 // vehicleImportService.processImportBatch (import en masse).
 // ══════════════════════════════════════════════════════════════════════════════
+// Seuil de complétude à partir duquel une annonce se publie d'elle-même après
+// un délai. 80 sur 100 : au-dessous, il manque des éléments que le catalogue
+// affiche (photos, prix, ville) et l'annonce dessert le partenaire autant que
+// le visiteur.
+export const SEUIL_PREAPPROBATION = 80;
+
+// Fenêtre laissée à l'administrateur pour bloquer avant mise en ligne. Assez
+// courte pour que le partenaire ne se décourage pas, assez longue pour couvrir
+// une nuit : une annonce déposée à 23 h est vue au réveil.
+export const DELAI_PUBLICATION_MS = 6 * 60 * 60 * 1000;
+
 export const scoreAnnonce = (data) => {
   const errors   = [];
   const warnings = [];
@@ -113,9 +124,23 @@ export const scoreAnnonce = (data) => {
   // (téléphone manquant + prix manquant, etc.) — sinon toujours pending pour examen admin
   const autoRejected = criticalErrors.length >= 3;
 
+  // ── PRÉ-APPROBATION ───────────────────────────────────────────────────────
+  // Décision de l'exploitant (2026-09-24) : au-delà de ce seuil de complétude
+  // et sans aucune erreur critique, l'annonce n'attend plus qu'un administrateur
+  // la découvre. Sa publication est PLANIFIÉE (voir Vehicle.publicationPlanifieeA)
+  // et l'administrateur dispose d'une fenêtre pour la bloquer.
+  //
+  // Le statut reste « pending » : rien ne se publie à la seconde où le
+  // partenaire clique. C'est ce qui distingue cette mécanique d'une publication
+  // automatique, et ce qui permet de continuer à dire qu'une annonce peut être
+  // arrêtée par un humain avant d'être visible — engagement pris envers Apple
+  // au titre de la règle 1.2 sur le contenu publié par les utilisateurs.
+  const preApprouvee = !autoRejected && score >= SEUIL_PREAPPROBATION && criticalErrors.length === 0;
+
   return {
     score,
     status:   autoRejected ? "rejected" : "pending",
+    preApprouvee,
     errors,
     warnings,
   };

@@ -6,6 +6,7 @@
  */
 import { randomUUID } from "crypto";
 import { estEmailDeTest } from "../../constants/testAccounts.js";
+import { estAdresseSupprimee } from "../../utils/suppressionEmail.js";
 import logger from "../../utils/logger.js";
 import User from "../../models/User.js";
 import { logSend } from "./analytics/CommunicationAnalytics.js";
@@ -71,6 +72,19 @@ export async function sendViaEmail({
   if (destinataires.length && destinataires.every((d) => estEmailDeTest(d))) {
     await logSend({ userId, to, channel: "email", template, subject, preview: subject, provider: "console", status: "simulated", trackingId, context: { ...context, motif: "compte de test" }, tags, priority });
     return { sent: true, simulated: true, messageId: `test-${trackingId}`, trackingId };
+  }
+
+  // Adresse qui a déjà rebondi (voir utils/suppressionEmail.js). Le garde-fou
+  // ci-dessus ne couvre que les domaines RÉSERVÉS ; il ne pouvait rien contre
+  // une adresse d'apparence normale mais sans boîte — c'est le cas des trois
+  // adresses de VIT AUTO qui produisaient 19 des 20 échecs restants. Continuer
+  // à leur écrire n'apporte rien et abîme la réputation d'envoi pour les vrais
+  // clients. La vérification d'adresse et la réinitialisation de mot de passe
+  // passent quand même : elles sont demandées à l'instant par la personne.
+  if (await estAdresseSupprimee(to, template)) {
+    await logSend({ userId, to, channel: "email", template, subject, preview: subject, provider: "console", status: "simulated", trackingId, context: { ...context, motif: "adresse supprimée (rebonds répétés)" }, tags, priority });
+    logger.info("[CommService] Email non envoyé — adresse supprimée", { template });
+    return { sent: true, simulated: true, supprime: true, messageId: `supprime-${trackingId}`, trackingId };
   }
 
   try {

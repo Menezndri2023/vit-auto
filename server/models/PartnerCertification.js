@@ -166,6 +166,10 @@ const partnerCertificationSchema = new mongoose.Schema({
   // Dernière relance envoyée pour compléter un niveau resté incomplet — voir
   // utils/partnerReminders.js (relance manuelle admin + job automatique).
   lastReminderSentAt: { type: Date, default: null },
+  // Nombre de relances DÉJÀ envoyées. Sans compteur, le délai de 7 jours
+  // relançait indéfiniment un dossier jamais complété : 5 messages par
+  // personne en un mois, relevés en production le 2026-09-24.
+  reminderCount: { type: Number, default: 0 },
 
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },

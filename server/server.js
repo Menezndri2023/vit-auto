@@ -16,6 +16,7 @@ import { runOnceMigration } from "./utils/runOnceMigration.js";
 import { initSentry, sentryRequestHandler, sentryTracingHandler, sentryErrorHandler, captureException } from "./config/sentry.js";
 import { initQueues, isReady as isQueuesReady, getQueueStats } from "./queue/index.js";
 import { startPartnerReminderScheduler } from "./utils/partnerReminders.js";
+import { startPublicationScheduler } from "./utils/publicationPlanifiee.js";
 import { startMonthlyReportScheduler } from "./utils/monthlyPartnerReport.js";
 import { startBookingReminderScheduler } from "./utils/bookingReminders.js";
 import { startPartnerResponseScheduler } from "./utils/partnerResponseReminders.js";
@@ -945,6 +946,10 @@ const startServer = async () => {
     // ── Demandes d'essai : SLA partenaire, résultat, suivi client ─────────
     // En mémoire (pas de job Redis) — voir utils/salesLeadScheduler.js.
     startSalesLeadScheduler();
+
+    // ── Publication des annonces pré-approuvées ──────────────────────────
+    // En mémoire (pas de job Redis) — voir utils/publicationPlanifiee.js.
+    startPublicationScheduler();
 
     // ── Rapport hebdomadaire du funnel vente aux admins (lundi) ──────────
     startWeeklyFunnelReportScheduler();
