@@ -6,6 +6,7 @@ import { useCurrency } from "../context/CurrencyContext";
 import { pointsToUSD, MAX_LOYALTY_BALANCE_POINTS } from "../constants/loyalty";
 import LoyaltyTierBadge from "../components/LoyaltyTierBadge/LoyaltyTierBadge";
 import styles from "./Loyalty.module.css";
+import { lienPublic } from "../utils/origineApi.js";
 
 const REASON_LABEL = {
   booking_completed:        "Commande complétée",
@@ -144,7 +145,7 @@ export default function Loyalty() {
             <button
               type="button"
               onClick={() => {
-                const link = `${window.location.origin}/register?ref=${user.referralCode}`;
+                const link = lienPublic(`/register?ref=${user.referralCode}`);
                 navigator.clipboard?.writeText(link).then(() => toastSuccess("Lien de parrainage copié !"));
               }}
               style={{ background: "#0f1b3f", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontWeight: 700, cursor: "pointer" }}

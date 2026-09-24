@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import { io } from "socket.io-client";
 import { useAuth } from "./AuthContext";
+import { ORIGINE_API } from "../utils/origineApi.js";
 
 const SocketContext = createContext(null);
 
@@ -47,10 +48,15 @@ export function SocketProvider({ children }) {
     // (les appels du front sont relatifs) mais chat et notifications seraient
     // morts, sans le moindre symptôme visible. Le repli sur l'origine courante
     // est le cas sûr (/socket.io est réécrit vers le backend, voir vercel.json).
+    // Dans l'app native, `window.location.origin` vaut le serveur LOCAL qui sert
+    // le paquet embarqué : s'y connecter ne joindrait jamais le backend. On
+    // reprend l'origine résolue une fois pour toutes par origineApi.js — vide
+    // sur le web, donc le repli historique ci-dessous reste intact.
     const envUrl = import.meta.env.VITE_API_URL;
-    const SOCKET_URL = /^https?:\/\//i.test(envUrl || "")
-      ? envUrl
-      : (import.meta.env.PROD ? window.location.origin : "http://localhost:5001");
+    const SOCKET_URL = ORIGINE_API
+      || (/^https?:\/\//i.test(envUrl || "")
+        ? envUrl
+        : (import.meta.env.PROD ? window.location.origin : "http://localhost:5001"));
 
     const socket = io(SOCKET_URL, {
       auth:                { token },

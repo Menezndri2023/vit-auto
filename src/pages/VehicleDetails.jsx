@@ -14,6 +14,7 @@ import { resolveImportOrigin } from "../constants/importOrigins";
 import TestDriveRequestModal from "../components/TestDriveRequest/TestDriveRequestModal";
 import styles from "./VehicleDetails.module.css";
 import { getDisplayRule } from "../utils/promotion";
+import { lienPublicCourant } from "../utils/origineApi.js";
 
 const fmtInspDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" }) : null;
 const RATING_LABEL = { excellent: "Excellent", bon: "Bon", moyen: "Moyen", mauvais: "Mauvais", na: "N/A" };
@@ -416,7 +417,9 @@ export default function VehicleDetails() {
   const priceAmountUSD = isSale ? (vehicle.buyPrice || vehicle.priceForSale) : vehicle.pricePerDay;
   const priceSuffix = isSale ? "" : ` ${t("vd.perDay")}`;
 
-  const shareUrl = window.location.href;
+  // Cette adresse part dans un SMS, un WhatsApp, un presse-papier : elle doit
+  // viser le site public, pas le paquet embarqué de l'app (voir origineApi.js).
+  const shareUrl = lienPublicCourant();
   const handleShare = async () => {
     if (navigator.share) {
       try {

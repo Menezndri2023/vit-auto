@@ -194,8 +194,21 @@ logger.info("[CORS] Domaines autorisés (www/non-www acceptés automatiquement)"
   fromEnv: configuredOrigins, resolvedHosts: ALLOWED_HOSTS,
 });
 
+// Origines de l'APP NATIVE. Depuis que l'interface est embarquée (1.1) et non
+// plus chargée depuis vit-auto.com, la vue web sert le paquet local et présente
+// donc SA propre origine : `vitauto://localhost` sur iOS (voir `ios.scheme`),
+// `https://localhost` sur Android (`androidScheme`). Sans elles, chaque appel
+// d'API de l'app est refusé par le CORS — et l'app est alors invisible à
+// corriger : il faut une nouvelle vérification Apple.
+// Liste FERMÉE, pas un joker sur « localhost » : le navigateur d'un poste de
+// développement présente lui aussi `http://localhost:5173`, déjà couvert par
+// FRONTEND_URL, et l'ouvrir plus largement reviendrait à autoriser n'importe
+// quelle page servie en local sur la machine d'un visiteur.
+const ORIGINES_APP_NATIVE = ["capacitor://localhost", "vitauto://localhost", "https://localhost"];
+
 const isOriginAllowed = (origin) => {
   if (!origin) return false;
+  if (ORIGINES_APP_NATIVE.includes(origin)) return true;
   try {
     const host = new URL(origin).hostname.replace(/^www\./i, "").toLowerCase();
     return ALLOWED_HOSTS.includes(host);

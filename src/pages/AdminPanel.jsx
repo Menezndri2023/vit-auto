@@ -29,6 +29,7 @@ import { PartnerVerifSection } from "./admin/sections/PartnerVerifSection.jsx";
 import { SectorRequestsSection } from "./admin/sections/SectorRequestsSection.jsx";
 import { CatalogueSection } from "./admin/sections/CatalogueSection.jsx";
 import { MarketingSection } from "./admin/sections/MarketingSection.jsx";
+import { lienPublic } from "../utils/origineApi.js";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMPOSANT PRINCIPAL
@@ -8275,7 +8276,7 @@ export default function AdminPanel() {
             {/* ── Lien d'invitation universel ─────────────────────────────────── */}
             {(() => {
               if (foundingView !== "onboarding") return null;
-              const inviteLink = `${window.location.origin}/partner-onboarding`;
+              const inviteLink = lienPublic("/partner-onboarding");
               // Taux lus depuis bizConfig (PricingConfig live) — jamais figés dans le
               // texte d'invitation, sinon ce message continuerait d'annoncer d'anciens
               // taux après une modification depuis Configuration métier.

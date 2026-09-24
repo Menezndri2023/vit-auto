@@ -4,6 +4,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google'
 import './index.css'
 import App from './App.jsx'
 import { installerRafraichissementSession } from './utils/fetchSession.js'
+import { Capacitor } from '@capacitor/core'
 
 // Avant tout rendu : toute requête /api authentifiée part avec le jeton
 // courant et est rejouée après rafraîchissement sur 401 (voir fetchSession.js).
@@ -59,7 +60,13 @@ window.addEventListener("load", () => {
 // Service worker (PWA). Était un script inline dans index.html, que la
 // Content-Security-Policy bloquait depuis son ajout — voir le commentaire
 // laissé à sa place. Ici, c'est du code de module servi depuis l'origine.
-if ("serviceWorker" in navigator) {
+// JAMAIS dans l'app native : le service worker sert à mettre en cache un site
+// servi par le réseau. Sur le paquet embarqué, tout est déjà local — il n'aurait
+// rien à accélérer, mais il garderait en cache les fichiers d'une version de
+// l'app et les servirait après une mise à jour de l'App Store, ce qui est
+// exactement la panne « fichier de page introuvable » du 18/09, en pire :
+// impossible à corriger sans une nouvelle vérification Apple.
+if ("serviceWorker" in navigator && !Capacitor.isNativePlatform()) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   });

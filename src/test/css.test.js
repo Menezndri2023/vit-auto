@@ -178,14 +178,29 @@ describe("Cibles tactiles hors des cartes", () => {
   });
 
   // 2026-09-19 : site injoignable depuis l'opérateur → WebView blanc sous un
-  // splash natif qui ne se fermait jamais. Le splash doit se fermer seul et
-  // une page d'erreur EMBARQUÉE doit exister dans le bundle (public/ → dist/).
-  it("l'app native ne peut pas rester bloquée sur le splash si le site ne répond pas", () => {
+  // splash natif qui ne se fermait jamais.
+  //
+  // La parade d'alors était `errorPath` : une page d'erreur embarquée servie
+  // quand le chargement de https://vit-auto.com échouait. L'interface étant
+  // désormais EMBARQUÉE (1.1), il n'y a plus de chargement distant à échouer —
+  // `errorPath` n'a plus d'objet, et la garantie est plus forte : l'app
+  // s'ouvre sans réseau. Ce test vérifie donc la CAUSE, pas l'ancien remède.
+  it("l'app native ne dépend pas du réseau pour s'ouvrir", () => {
     const config = JSON.parse(fs.readFileSync(path.join(process.cwd(), "capacitor.config.json"), "utf8"));
+    // Un splash qui ne se ferme pas seul reste un écran figé, embarqué ou non.
     expect(config.plugins?.SplashScreen?.launchAutoHide).toBe(true);
-    expect(config.server?.errorPath).toBe("erreur-app.html");
-    const page = fs.readFileSync(path.join(process.cwd(), "public", "erreur-app.html"), "utf8");
-    expect(page).toMatch(/https:\/\/vit-auto\.com\//);
-    expect(page).toMatch(/Réessayer/);
+    // LE point : aucune URL distante. La remettre rebrancherait l'incident.
+    expect(config.server?.url, "server.url rebranche le chargement distant — voir l'incident du 2026-09-19").toBeUndefined();
+    expect(config.webDir).toBe("dist");
+  });
+
+  // Les appels d'API ne peuvent plus être relatifs une fois l'interface
+  // embarquée : « /api/… » y désigne le paquet local. La réécriture est posée
+  // une seule fois, dans l'enrobage de fetch — si cet import disparaît, les 507
+  // appels du front repartent vers la coquille et l'app s'ouvre vide.
+  it("l'enrobage de fetch rend les chemins d'API absolus dans l'app", () => {
+    const source = fs.readFileSync(path.join(process.cwd(), "src", "utils", "fetchSession.js"), "utf8");
+    expect(source).toMatch(/absolutiserApi/);
+    expect(source).toMatch(/from "\.\/origineApi\.js"/);
   });
 });

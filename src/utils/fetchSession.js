@@ -17,6 +17,7 @@
 // déconnexion. Les routes d'authentification elles-mêmes ne sont jamais
 // rejouées (un 401 y est une réponse, pas une session périmée).
 import { refreshAccessTokenOnce } from "./tokenRefreshLock.js";
+import { absolutiserApi } from "./origineApi.js";
 
 const KEY_TOKEN = "vit-auto-token";
 const SANS_REPRISE = /\/api\/auth\/(login|register|refresh-token|revoke-token|logout|verify-2fa|oauth)/;
@@ -36,6 +37,16 @@ export function installerRafraichissementSession(fetchOriginal = window.fetch) {
   const original = fetchOriginal.bind(window);
 
   window.fetch = async (input, init = {}) => {
+    // Interface embarquée dans l'app : « /api/… » désigne le paquet local et
+    // non l'API. La réécriture se fait ICI, avant toute autre décision, pour
+    // que les appels PUBLICS (catalogue, vitrines — sans jeton, donc écartés
+    // par le test ci-dessous) soient réécrits eux aussi. Sans effet sur le web.
+    input = typeof input === "string"
+      ? absolutiserApi(input)
+      : (typeof Request !== "undefined" && input instanceof Request && absolutiserApi(input.url) !== input.url
+          ? new Request(absolutiserApi(input.url), input)
+          : input);
+
     const url = typeof input === "string" ? input : (input && input.url) || "";
     const headers = new Headers(init.headers || (typeof Request !== "undefined" && input instanceof Request ? input.headers : undefined));
     if (!estRequeteApiAuthentifiee(url, headers)) return original(input, init);
