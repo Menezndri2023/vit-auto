@@ -540,8 +540,20 @@ export const getVehicles = async (req, res) => {
     // `repliMondial` est renvoyé pour que l'interface puisse le DIRE : un
     // visiteur ivoirien à qui l'on montre des voitures marocaines sans
     // explication croit à une erreur.
+    //
+    // La bascule se décide sur les annonces DU PAYS, pas sur un total non nul :
+    // la clause laisse aussi passer les annonces sans pays (`country: null`,
+    // antérieures au champ). Elles doivent rester visibles, mais elles
+    // n'appartiennent à aucun pays et ne prouvent rien sur l'offre locale — une
+    // seule suffisait à priver tout un pays de l'offre internationale, et il
+    // s'en crée dès qu'un partenaire n'a pas de pays sur sa fiche. Un compte de
+    // plus, servi par le même index et couvert par le cache du catalogue. Même
+    // règle que les activités, chauffeurs et pièces (utils/repliMondial.js).
     let repliMondial = false;
-    if (total === 0 && clausePaysAppliquee && !isAdmin) {
+    const totalDuPays = clausePaysAppliquee && !isAdmin
+      ? await Vehicle.countDocuments({ ...filter, country: String(country).toUpperCase() })
+      : null;
+    if (totalDuPays === 0) {
       const { $or: _paysRetire, ...filtreMondial } = filter;
       const [vMondial, tMondial] = await Promise.all([
         Vehicle.find(filtreMondial)

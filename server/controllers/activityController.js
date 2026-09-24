@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import logger from "../utils/logger.js";
+import { avecRepliMondial } from "../utils/repliMondial.js";
 import Activity from "../models/Activity.js";
 import User from "../models/User.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
@@ -180,16 +181,22 @@ export const getActivities = async (req, res) => {
     if (activityType && ACTIVITY_TYPES.includes(activityType)) filter.activityType = activityType;
     if (ville) filter.ville = new RegExp(escapeRegex(String(ville).slice(0, 100)), "i");
     if (essaiDisponible === "true") filter.essaiDisponible = true;
+    let clePays = null;
     if (country && country !== "INTL") {
       filter.$or = [{ country: String(country).toUpperCase() }, { country: null }];
+      clePays = "$or";
     }
 
-    const activities = await Activity.find(filter)
-      .sort({ noteMoyenne: -1, createdAt: -1 })
-      // Fuite PII corrigée (audit 2026-09) : `phone` était peuplé sur des routes
-      // PUBLIQUES — aucun contact direct partenaire ne doit être exposé.
-      .populate("owner", "firstName")
-      .lean();
+    // Repli mondial : aucune activité dans le pays du visiteur → l'offre
+    // internationale entière, jamais une page vide (voir utils/repliMondial.js).
+    const { resultat: activities } = await avecRepliMondial(filter, clePays, (f) =>
+      Activity.find(f)
+        .sort({ noteMoyenne: -1, createdAt: -1 })
+        // Fuite PII corrigée (audit 2026-09) : `phone` était peuplé sur des routes
+        // PUBLIQUES — aucun contact direct partenaire ne doit être exposé.
+        .populate("owner", "firstName")
+        .lean(),
+      (a) => a.country === String(country).toUpperCase());
 
     cacheSet(cacheKey, activities);
     res.json(activities);

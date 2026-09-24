@@ -80,8 +80,12 @@ describe("Pièces détachées — publication", () => {
     expect(m.res.body).toHaveLength(1); expect(m.res.body[0].title).toMatch(/Mann/);
     m = mockReqRes({ query: { q: "W712" } }); await getParts(m.req, m.res);
     expect(m.res.body).toHaveLength(1);
+    // Repli mondial étendu aux pièces le 2026-09-24 (règle de l'exploitant) :
+    // aucune pièce livrable en Côte d'Ivoire, donc l'offre internationale
+    // entière plutôt qu'une page vide. Ce test attendait 0 auparavant — c'était
+    // précisément le comportement à corriger. Voir cataloguesSecteursRepliMondial.
     m = mockReqRes({ query: { country: "CI" } }); await getParts(m.req, m.res);
-    expect(m.res.body).toHaveLength(0); // MA seulement, aucun pays desservi supplémentaire
+    expect(m.res.body).toHaveLength(2);
   });
 
   it("le propriétaire modifie stock, prix et pays desservis ; un autre partenaire est refusé", async () => {

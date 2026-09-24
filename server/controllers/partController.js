@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import logger from "../utils/logger.js";
+import { avecRepliMondial } from "../utils/repliMondial.js";
 import SparePart from "../models/SparePart.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
 import Notification from "../models/Notification.js";
@@ -261,18 +262,32 @@ export const getParts = async (req, res) => {
       const rx = new RegExp(escapeRegex(String(q).slice(0, 100)), "i");
       filter.$or = [{ title: rx }, { reference: rx }, { brand: rx }, { compatibilityText: rx }];
     }
+    // `$and` et non `$or` : le `$or` porte déjà la recherche `q` ci-dessus, et
+    // l'écraser ferait disparaître le critère de recherche sans bruit. C'est
+    // aussi la clé que le repli retire.
+    let clePays = null;
     if (country && country !== "INTL") {
       const up = String(country).toUpperCase();
       // Une pièce livrable dans le pays du client (pays de l'annonce ou pays
       // desservi) — la pièce importée voyage, la pièce en stock aussi.
       filter.$and = [{ $or: [{ country: up }, { "shipping.countries": up }, { country: null }] }];
+      clePays = "$and";
     }
 
-    const parts = await SparePart.find(filter)
-      .sort({ noteMoyenne: -1, createdAt: -1 })
-      .limit(500)
-      .populate("owner", "firstName")
-      .lean();
+    // Repli mondial : aucune pièce livrable dans le pays du visiteur → l'offre
+    // internationale entière (voir utils/repliMondial.js).
+    const { resultat: parts } = await avecRepliMondial(filter, clePays, (f) =>
+      SparePart.find(f)
+        .sort({ noteMoyenne: -1, createdAt: -1 })
+        .limit(500)
+        .populate("owner", "firstName")
+        .lean(),
+      // Une pièce est « du pays » si elle y est stockée OU livrable : c'est la
+      // même définition que la clause ci-dessus, sans les pièces sans pays.
+      (p) => {
+        const up = String(country).toUpperCase();
+        return p.country === up || (p.shipping?.countries || []).includes(up);
+      });
     cacheSet(cacheKey, parts);
     res.json(parts);
   } catch (err) {

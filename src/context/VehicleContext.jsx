@@ -399,10 +399,19 @@ export const VehicleProvider = ({ children }) => {
     }
   }, [authReady, loadMyOrders, token]);
 
+  // Chauffeurs, activités et pièces sont désormais filtrés PAR LE SERVEUR sur
+  // le pays du visiteur, avec repli mondial côté serveur (utils/repliMondial.js) :
+  // charger le catalogue mondial entier pour le filtrer ensuite dans le
+  // navigateur ne tenait qu'aux volumes actuels (12 activités, 1 chauffeur).
+  // `paysOk`/`repliInternational` restent en place côté catalogue : ils
+  // reconnaissent le repli au fait qu'aucune annonce reçue n'est du pays du
+  // visiteur, et affichent le bandeau qui l'explique.
+  const paramsPays = catalogCountry ? `?country=${encodeURIComponent(catalogCountry)}` : "";
+
   useEffect(() => {
     const loadDrivers = async () => {
       try {
-        const response = await fetch("/api/drivers");
+        const response = await fetch(`/api/drivers${paramsPays}`);
         if (!response.ok) {
           setDrivers([]);
           return;
@@ -417,14 +426,14 @@ export const VehicleProvider = ({ children }) => {
     const cancelIdle = window.cancelIdleCallback || clearTimeout;
     const id = idle(loadDrivers);
     return () => cancelIdle(id);
-  }, []);
+  }, [paramsPays]);
 
   // Activités (section OTHERS — Quad, Surf, Montgolfière, Jetski, Jet privé,
   // Bateau...) — même chargement différé que drivers ci-dessus.
   useEffect(() => {
     const loadActivities = async () => {
       try {
-        const response = await fetch("/api/activities");
+        const response = await fetch(`/api/activities${paramsPays}`);
         if (!response.ok) {
           setActivities([]);
           return;
@@ -439,13 +448,13 @@ export const VehicleProvider = ({ children }) => {
     const cancelIdle = window.cancelIdleCallback || clearTimeout;
     const id = idle(loadActivities);
     return () => cancelIdle(id);
-  }, []);
+  }, [paramsPays]);
 
   // Pièces détachées — même chargement différé que activities ci-dessus.
   useEffect(() => {
     const loadParts = async () => {
       try {
-        const response = await fetch("/api/parts");
+        const response = await fetch(`/api/parts${paramsPays}`);
         if (!response.ok) { setParts([]); return; }
         const data = await response.json();
         if (Array.isArray(data)) setParts(data);
@@ -457,7 +466,7 @@ export const VehicleProvider = ({ children }) => {
     const cancelIdle = window.cancelIdleCallback || clearTimeout;
     const id = idle(loadParts);
     return () => cancelIdle(id);
-  }, []);
+  }, [paramsPays]);
 
   const getItemById = (id) => {
     const sid = String(id);

@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import logger from "../utils/logger.js";
+import { avecRepliMondial } from "../utils/repliMondial.js";
 import Driver from "../models/Driver.js";
 import User from "../models/User.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
@@ -286,8 +287,10 @@ export const getDrivers = async (req, res) => {
     if (zone)         filter.zone = new RegExp(escapeRegex(String(zone).slice(0, 100)), "i");
     if (disponibilite) filter.disponibilite = disponibilite;
     // Voir vehicleController.getVehicles pour le même filtre (pays absent = pas de restriction).
+    let clePays = null;
     if (country && country !== "INTL") {
       filter.$or = [{ country: String(country).toUpperCase() }, { country: null }];
+      clePays = "$or";
     }
 
     // owner.identity/driverLicenseOcr sont récupérés UNIQUEMENT pour calculer les
@@ -295,10 +298,14 @@ export const getDrivers = async (req, res) => {
     // renvoyés tels quels : `owner` est reconstruit sans eux avant res.json (voir
     // .map ci-dessous). Le CV (`cv`), lui, est déjà public par conception (voir
     // Driver.js — "consultable par l'employeur potentiel").
-    const drivers = await Driver.find(filter)
-      .sort({ noteMoyenne: -1, createdAt: -1 })
-      .populate("owner", "firstName phone identity.type identity.status driverLicenseOcr.licenseNumber driverLicenseOcr.isExpired")
-      .lean();
+    // Repli mondial : aucun chauffeur dans le pays du visiteur → l'offre
+    // internationale entière (voir utils/repliMondial.js).
+    const { resultat: drivers } = await avecRepliMondial(filter, clePays, (f) =>
+      Driver.find(f)
+        .sort({ noteMoyenne: -1, createdAt: -1 })
+        .populate("owner", "firstName phone identity.type identity.status driverLicenseOcr.licenseNumber driverLicenseOcr.isExpired")
+        .lean(),
+      (d) => d.country === String(country).toUpperCase());
 
     const publicDrivers = drivers.map((d) => {
       const owner = d.owner || {};

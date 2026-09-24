@@ -48,13 +48,28 @@ describe("Catalogue — repli mondial", () => {
     expect(res.body.repliMondial).toBeUndefined();
   });
 
-  it("les annonces sans pays restent visibles partout, sans déclencher de repli", async () => {
+  it("les annonces sans pays restent visibles partout", async () => {
     const p = await createUser({ role: "partenaire" });
     await createVehicleDoc({ owner: p._id, status: "approved", available: true, country: null, title: "Sans pays" });
 
     const res = await lister({ country: "CI", limit: 10 });
     expect(res.body.vehicles.map((v) => v.title)).toEqual(["Sans pays"]);
-    expect(res.body.repliMondial).toBeUndefined();
+  });
+
+  // Corrigé le 2026-09-24 : ce test attendait l'inverse (« sans déclencher de
+  // repli »). Une annonce sans pays n'appartient à AUCUN pays — elle ne prouve
+  // pas qu'il y a de l'offre chez le visiteur. Tant qu'elle comptait comme
+  // telle, une seule suffisait à priver tout un pays de l'offre
+  // internationale : le visiteur ivoirien ne voyait qu'elle, seule au milieu
+  // d'une page vide. Elle reste visible dans les deux cas.
+  it("une annonce sans pays n'empêche pas le repli vers l'international", async () => {
+    const p = await createUser({ role: "partenaire" });
+    await createVehicleDoc({ owner: p._id, status: "approved", available: true, country: null, title: "Sans pays" });
+    await createVehicleDoc({ owner: p._id, status: "approved", available: true, country: "MA", title: "Dacia marocaine" });
+
+    const res = await lister({ country: "CI", limit: 10 });
+    expect(res.body.vehicles.map((v) => v.title).sort()).toEqual(["Dacia marocaine", "Sans pays"]);
+    expect(res.body.repliMondial).toBe(true);
   });
 
   it("ne replie pas sur une RECHERCHE explicite — l'absence de résultat est la réponse", async () => {
