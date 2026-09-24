@@ -225,7 +225,9 @@ export function generateContractPDF(contract, res) {
     row(doc, "Lieu de prise",     contract.terms?.pickupLocation || "—");
     row(doc, "Lieu de retour",    contract.terms?.returnLocation || "—");
     row(doc, "Tarif journalier",  fmtAmount(contract.terms?.dailyRateXOF, contract.currency));
-    row(doc, "Caution",           fmtAmount(contract.terms?.cautionXOF, contract.currency));
+    // Rangée dans les conditions, JAMAIS dans le récapitulatif financier :
+    // elle se règle au partenaire et n'entre pas dans le total.
+    row(doc, "Caution (au partenaire)", fmtAmount(contract.terms?.cautionXOF, contract.currency));
   }
   if (contract.type === "leasing") {
     row(doc, "Apport initial",    fmtAmount(contract.terms?.apportInitial, contract.currency));

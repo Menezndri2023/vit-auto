@@ -242,9 +242,21 @@ export default function ContractPage() {
               {t.returnLocation  && <div className={styles.finRow}><span>Lieu de retour</span><strong>{t.returnLocation}</strong></div>}
               {fmt(t.dailyRateXOF) && <div className={styles.finRow}><span>Tarif journalier</span><strong>{fmt(t.dailyRateXOF)}</strong></div>}
               {fmt(t.optionsXOF)   && <div className={styles.finRow}><span>Options</span><strong>{fmt(t.optionsXOF)}</strong></div>}
-              {fmt(t.cautionXOF)   && <div className={styles.finRow}><span>Caution</span><strong>{fmt(t.cautionXOF)}</strong></div>}
               {fmt(t.serviceFeeXOF) && <div className={styles.finRow}><span>Frais de service VIT AUTO</span><strong>{fmt(t.serviceFeeXOF)}</strong></div>}
               {fmt(t.totalXOF)     && <div className={`${styles.finRow} ${styles.finTotal}`}><span>TOTAL</span><strong>{fmt(t.totalXOF)}</strong></div>}
+              {/* La caution est APRÈS le total, et le dit : elle n'en fait pas
+                  partie (voir bookingController.createBooking — montantTotal =
+                  base + options + livraison − fidélité). Placée au-dessus, elle
+                  se lisait comme un poste du total : le client additionnait les
+                  lignes et ne retombait pas sur le TOTAL, sur un document
+                  contractuel. Le PDF du même contrat la range d'ailleurs dans
+                  « Conditions de la prestation », hors du récapitulatif. */}
+              {fmt(t.cautionXOF)   && (
+                <div className={styles.finRow} style={{ color: "#b45309", marginTop: 8 }}>
+                  <span>Caution — à régler au partenaire, hors total</span>
+                  <strong>{fmt(t.cautionXOF)}</strong>
+                </div>
+              )}
             </div>
           ) : (
             <div className={styles.finGrid}>

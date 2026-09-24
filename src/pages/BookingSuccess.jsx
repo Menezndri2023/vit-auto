@@ -286,7 +286,7 @@ const BookingSuccess = () => {
               </div>
               {!isEssai && (booking.cautionAmount > 0) && (
                 <div className={`${styles.fRow} ${styles.fRowCaution}`}>
-                  <span>Caution de garantie (remboursable)</span>
+                  <span>Caution — à régler au partenaire sur place (restituée au retour)</span>
                   <span>{fmt(booking.cautionAmount)}</span>
                 </div>
               )}

@@ -90,7 +90,7 @@ export default function CGU() {
         <p>Toute réservation confirmée constitue un contrat entre le client et le partenaire. VIT AUTO génère automatiquement un contrat digital. Le client s'engage à :</p>
         <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
           <Li>Restituer le véhicule à la date et en l'état convenu</Li>
-          <Li>Payer la caution prévue au moment de la réservation</Li>
+          <Li>Régler la caution directement au partenaire à la remise du véhicule — elle n'est pas incluse dans le montant de la réservation et vous est restituée au retour, déduction faite des dommages constatés</Li>
           <Li>Signaler tout incident dans les 24 heures</Li>
           <Li>Respecter les conditions d'âge et de permis de l'annonce</Li>
           <Li>Fournir une adresse de livraison précise (GPS ou texte) si livraison à domicile demandée</Li>
