@@ -409,7 +409,13 @@ export function CurrencyProvider({ children }) {
           const cur = COUNTRY_TO_CURRENCY[cc];
           if (cur) setCurrency(cur);
         },
-        catalogCountry: catalogCountry || detectedCountry || "MA",
+        // Visiteur non localisable (VPN, opérateur absent de geoip, ipapi
+        // bloqué) : sélection INTERNATIONALE, jamais le Maroc. Ce repli était le
+        // dernier reste du biais que geoController décrit comme corrigé côté
+        // serveur — il déclarait marocain un visiteur d'Afrique de l'Ouest dont
+        // l'IP ne se résolvait pas. « INTL » est déjà compris comme « aucune
+        // restriction » par le catalogue comme par les vitrines.
+        catalogCountry: catalogCountry || detectedCountry || COUNTRY_INTERNATIONAL,
         setCatalogCountry,
         detectPreciseCountry,
         COUNTRY_INTERNATIONAL,

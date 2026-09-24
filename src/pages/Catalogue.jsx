@@ -16,6 +16,7 @@ import { PART_CATEGORIES, PART_CATEGORY_LABELS, PART_CATEGORY_ICONS, PART_CONDIT
 import { useI18n } from "../context/I18nContext";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import { optimizedImageUrl } from "../utils/imageOptim";
+import { repliInternational, annonceVisible } from "../utils/repliInternational";
 
 const MODES = [
   { key: "Tout",      icon: "⚡", label: "catalogue.all" },
@@ -466,21 +467,19 @@ const Catalogue = () => {
   // il peut y avoir des véhicules dans son pays mais aucune activité de loisir,
   // et chaque section doit répondre pour elle-même.
   const jeuCourant = isChauffeurMode ? drivers : isOthersMode ? activities : isPartsMode ? (parts || []) : vehicles;
+  // La règle elle-même vit dans src/utils/repliInternational.js — pure, donc
+  // testable ; le composant ne garde que ce qui lui appartient : une recherche
+  // explicite et le mode international désactivent tout filtrage pays.
   const repliMondial = useMemo(() => {
     if (searchTerm.trim() || catalogCountry === COUNTRY_INTERNATIONAL) return false;
-    // Rien n'est encore chargé : se taire plutôt qu'annoncer un repli qui n'a
-    // pas lieu d'être.
-    if (!jeuCourant.length) return false;
-    return !jeuCourant.some((x) => !x.country || x.country === catalogCountry);
+    return repliInternational(jeuCourant, catalogCountry);
   }, [jeuCourant, searchTerm, catalogCountry, COUNTRY_INTERNATIONAL]);
 
   const paysOk = useCallback(
     (paysAnnonce) =>
       !!searchTerm.trim()
       || catalogCountry === COUNTRY_INTERNATIONAL
-      || repliMondial
-      || !paysAnnonce
-      || paysAnnonce === catalogCountry,
+      || annonceVisible(paysAnnonce, catalogCountry, repliMondial),
     [searchTerm, catalogCountry, COUNTRY_INTERNATIONAL, repliMondial]
   );
 
