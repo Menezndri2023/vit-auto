@@ -391,7 +391,26 @@ export const getVehicles = async (req, res) => {
       if (maxPrice) filter.pricePerDay.$lte = Number(maxPrice);
     }
     // Filtre par propriétaire (showroom public partenaire) — validé ObjectId uniquement
-    if (owner && /^[0-9a-f]{24}$/i.test(String(owner))) filter.owner = owner;
+    // Demander un partenaire précis et recevoir TOUT le catalogue serait le
+    // pire des deux mondes : la vitrine partagée d'un partenaire afficherait
+    // les annonces de ses concurrents. C'est pourtant ce qui se passait — un
+    // `owner` illisible était ignoré en silence, et l'ancienne écriture rendait
+    // les 405 annonces du catalogue (mesuré le 2026-09-24).
+    //
+    // Un filtre demandé mais incompréhensible doit donc ne RIEN rendre : c'est
+    // la seule réponse qui ne trompe personne.
+    if (owner !== undefined && String(owner).trim() !== "") {
+      if (!/^[0-9a-f]{24}$/i.test(String(owner).trim())) {
+        return res.json({ vehicles: [], total: 0, page: 1, pages: 0, filtreProprietaireInvalide: true });
+      }
+      // ObjectId et NON la chaîne : la liste passe par `Vehicle.aggregate`
+      // (tri par boost puis par plan), et dans un `$match` d'agrégation
+      // Mongoose NE CONVERTIT RIEN. Une chaîne hexadécimale n'y apparie aucun
+      // ObjectId — `countDocuments` castait, lui, d'où un total juste et une
+      // liste vide, sans erreur. Exactement le piège que spotlightEngine.js
+      // documente déjà pour ses identifiants de vitrine.
+      filter.owner = new mongoose.Types.ObjectId(String(owner).trim());
+    }
 
     // Mise en avant (carousel d'accueil/"Véhicules en vedette") — STRICTEMENT
     // réservé aux annonces qu'un admin a explicitement marquées `featured`
@@ -444,7 +463,20 @@ export const getVehicles = async (req, res) => {
 
     const maxLimit  = isAdmin ? 500 : 100;
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), maxLimit);
-    const skip  = (Math.max(Number(page), 1) - 1) * safeLimit;
+    // `Number(undefined)` vaut NaN, et `Math.max(NaN, 1)` vaut NaN : sans page
+    // demandée, `skip` valait NaN et la requête ne rendait AUCUNE annonce —
+    // alors que `total` restait juste, ce qui rendait le défaut invisible côté
+    // client (« 2 résultats » affichés, liste vide). Le front passe toujours
+    // une page, d'où des années sans que cela se voie ; la vitrine partenaire,
+    // elle, n'en passait pas.
+    // `Number("abc")` vaut NaN et `Number("1e9999")` vaut Infinity ; dans les
+    // deux cas `$skip` recevait une valeur non entière et l'agrégation
+    // échouait — `GET /api/vehicles?page=abc` rendait HTTP 500 en production
+    // (vérifié le 2026-09-24). Une page illisible vaut la première : le
+    // catalogue ne doit pas tomber parce qu'une URL a été mal recopiée.
+    const pageBrute = Math.trunc(Number(page));
+    const pageDemandee = Number.isFinite(pageBrute) && pageBrute >= 1 ? pageBrute : 1;
+    const skip  = (pageDemandee - 1) * safeLimit;
 
     let vehicles, total;
     if (hasGeo) {
@@ -582,7 +614,7 @@ export const getVehicles = async (req, res) => {
       }
     }
 
-    const payload = { vehicles, total, page: Number(page), pages: Math.ceil(total / safeLimit), ...(repliMondial ? { repliMondial: true } : {}) };
+    const payload = { vehicles, total, page: pageDemandee, pages: Math.ceil(total / safeLimit), ...(repliMondial ? { repliMondial: true } : {}) };
     if (cacheKey) cacheSet(cacheKey, payload);
     res.json(payload);
   } catch (err) {
