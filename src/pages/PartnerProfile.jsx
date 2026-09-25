@@ -14,15 +14,36 @@ const CERT_BADGE = {
 };
 
 export default function PartnerProfile() {
-  const { id } = useParams();
+  // Deux adresses mènent ici : /partner/<id>, qui a toujours existé, et
+  // /p/<nom>, l'adresse courte qu'un partenaire imprime sur sa carte de visite
+  // (2026-09-25). La seconde doit d'abord être traduite en identifiant — tout
+  // le reste de la page en dépend.
+  const { id: idParam, slug } = useParams();
   const navigate = useNavigate();
   const { vehicles, drivers, activities, parts } = useVehicles();
   const [partner, setPartner] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [profilCharge, setProfilCharge] = useState(false);
   const [certBadge, setCertBadge] = useState(null);
 
+  const [idDuSlug, setIdDuSlug] = useState(null);
+  const [slugIntrouvable, setSlugIntrouvable] = useState(false);
+  const id = idParam || idDuSlug;
+
   useEffect(() => {
-    if (!id) { setLoading(false); return; }
+    if (idParam || !slug) return undefined;
+    let annule = false;
+    fetch(`/api/partenaires/p/${encodeURIComponent(slug)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (annule) return;
+        if (d?.id) setIdDuSlug(d.id); else setSlugIntrouvable(true);
+      })
+      .catch(() => { if (!annule) setSlugIntrouvable(true); });
+    return () => { annule = true; };
+  }, [idParam, slug]);
+
+  useEffect(() => {
+    if (!id) return;
     // Profil partenaire + certification en parallèle
     Promise.all([
       fetch(`/api/users/${id}/public`).then((r) => r.ok ? r.json() : null).catch(() => null),
@@ -32,8 +53,14 @@ export default function PartnerProfile() {
       if (certData?.certificationBadge && certData.certificationBadge !== "none") {
         setCertBadge({ ...CERT_BADGE[certData.certificationBadge], score: certData.certificationScore, statement: certData.publicStatement });
       }
-    }).finally(() => setLoading(false));
+    }).finally(() => setProfilCharge(true));
   }, [id]);
+
+  // « Chargement » se DÉDUIT, il ne se pose pas : tant que le slug n'est pas
+  // résolu, on ne conclut pas à l'absence de partenaire, sinon l'adresse
+  // courte affiche « introuvable » le temps d'un aller-retour réseau — sur la
+  // page même que le partenaire vient de faire imprimer.
+  const loading = !!(idParam || slug) && !slugIntrouvable && !profilCharge;
 
   // ── La flotte vient du SERVEUR, pas du catalogue déjà chargé ─────────────
   // Filtrer `useVehicles()` paraissait économique, mais ce contexte est paginé

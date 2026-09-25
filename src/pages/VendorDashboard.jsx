@@ -21,6 +21,7 @@ import { PART_CATEGORY_LABELS, PART_CATEGORY_ICONS, PART_CONDITIONS, PART_CONDIT
 import { estUniquementLoisirs, estUniquementPieces, couvreSecteur } from "../constants/partnerTaxonomy";
 import PartnerSectors from "../components/PartnerSectors/PartnerSectors";
 import styles from "./VendorDashboard.module.css";
+import VitrinePartage from "../components/VitrinePartage/VitrinePartage.jsx";
 
 /* ── Utilitaires ────────────────────────────────────────────────────────── */
 // fmtXOF n'existe plus en tant que constante module — chaque composant qui en
@@ -3106,6 +3107,10 @@ export default function VendorDashboard() {
       {/* ══ TAB : DASHBOARD ═══════════════════════════════════════════════ */}
       {activeTab === "dashboard" && (
         <div className={styles.tabContent}>
+          {/* Le lien de vitrine, en tête : c'est ce qu'un partenaire vient
+              chercher pour l'envoyer à un client, et il n'existait nulle part
+              avant le 2026-09-25. */}
+          <VitrinePartage />
           {/* KPIs */}
           <div className={styles.kpiGrid}>
             <div className={styles.kpiCard} style={{ borderTopColor: "#6366f1" }}>

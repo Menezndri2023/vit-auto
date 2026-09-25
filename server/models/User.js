@@ -350,6 +350,18 @@ const userSchema = new mongoose.Schema({
   // ── Statut Founding Partner ─────────────────────────────────────────────────
   isFounder: { type: Boolean, default: false },
 
+  // ── Adresse lisible de la vitrine partageable (/p/:slug) ───────────────────
+  // Attribué à la DEMANDE, jamais en masse : un slug écrit dans la base est
+  // une adresse publique que le partenaire peut avoir imprimée, et la faire
+  // bouger ensuite casserait ses cartes de visite. Tant qu'il n'existe pas, la
+  // vitrine reste atteignable par /partner/<id> — la page n'a jamais dépendu
+  // du slug (décision de l'exploitant : la page publique reste ouverte à tous
+  // les paliers, c'est le lien COURT qui s'achète).
+  //
+  // `sparse` est indispensable : sans lui, l'index unique refuserait le
+  // deuxième compte sans slug — c'est-à-dire tous les clients du site.
+  vitrineSlug: { type: String, trim: true, lowercase: true, unique: true, sparse: true },
+
   // ── Utilisateurs bloqués (contenu généré par les utilisateurs) ──────────────
   // Exigence App Store 1.2 : à côté du signalement, l'utilisateur doit pouvoir
   // BLOQUER un autre compte. Effet : plus aucun message échangé dans le chat

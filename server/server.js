@@ -75,6 +75,7 @@ import partnerSectorRoutes from "./routes/partnerSectors.js";
 import apiKeyRoutes from "./routes/apiKeys.js";
 import publicApiRoutes from "./routes/publicApi.js";
 import partnerRequestRoutes from "./routes/partnerRequests.js";
+import vitrinePartenaireRoutes from "./routes/vitrinePartenaire.js";
 import spotlightRoutes from "./routes/spotlight.js";
 import salesLeadRoutes from "./routes/salesLeads.js";
 import { authenticate, authorizeAdmin } from "./middleware/auth.js";
@@ -446,6 +447,7 @@ app.use("/api/vehicles",       catalogueLimiter, vehicleRoutes);   // Anti-scrap
 app.use("/api/bookings",       apiLimiter,       bookingRoutes);
 app.use("/api/payments",       apiLimiter,       paymentRoutes);
 app.use("/api/users",          apiLimiter,       userRoutes);
+app.use("/api/partenaires",    apiLimiter,       vitrinePartenaireRoutes);
 app.use("/api/drivers",        apiLimiter,       driverRoutes);
 app.use("/api/activities",     apiLimiter,       activityRoutes);
 // Pièces détachées (secteur « pieces », 2026-09-14) — voir docs/pieces-detachees.md.

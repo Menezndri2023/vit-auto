@@ -1,0 +1,69 @@
+.carte {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 18px;
+}
+
+.entete { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.titre  { font-size: 1.05rem; font-weight: 700; margin: 0; }
+.sous   { color: var(--text-muted, #6b7280); font-size: .88rem; margin: 0 0 14px; }
+
+.ligne {
+  display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap; margin-bottom: 10px;
+}
+
+.champ {
+  flex: 1 1 260px;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .86rem;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 9px;
+  background: var(--surface-2, #f9fafb);
+  color: var(--text, #111827);
+  /* Une adresse doit pouvoir être relue et sélectionnée, pas devinée. */
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+/* Cible tactile : on IMPOSE la hauteur, on ne l'additionne pas — la hauteur de
+   ligne dépend de la police chargée, et le calcul « padding + ligne » donne un
+   résultat différent en production (leçon du 2026-09-15). */
+.bouton {
+  min-height: 44px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 0 16px;
+  border: 0; border-radius: 9px;
+  background: var(--primary, #2563eb); color: #fff;
+  font-weight: 600; font-size: .88rem;
+  cursor: pointer;
+}
+.bouton:disabled { opacity: .55; cursor: not-allowed; }
+.secondaire { background: var(--surface-2, #f3f4f6); color: var(--text, #111827); border: 1px solid var(--border, #e5e7eb); }
+
+@media (hover: hover) {
+  .bouton:hover { filter: brightness(1.08); }
+}
+
+.qrBloc { display: flex; align-items: center; gap: 16px; margin-top: 14px; flex-wrap: wrap; }
+.qr { width: 132px; height: 132px; border-radius: 10px; border: 1px solid var(--border, #e5e7eb); background: #fff; }
+.qrTexte { flex: 1 1 200px; font-size: .84rem; color: var(--text-muted, #6b7280); margin: 0; }
+
+.verrou {
+  margin-top: 12px; padding: 12px 14px;
+  border: 1px dashed var(--border, #d1d5db); border-radius: 10px;
+  background: var(--surface-2, #f9fafb);
+  font-size: .86rem; color: var(--text-muted, #4b5563);
+}
+.verrou strong { color: var(--text, #111827); }
+
+.compte { font-size: .84rem; color: var(--text-muted, #6b7280); margin: 0 0 12px; }
+.alerte { color: #b91c1c; font-size: .86rem; margin: 0; }
+
+@media (prefers-color-scheme: dark) {
+  .qr { background: #fff; }
+}

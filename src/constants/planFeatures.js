@@ -41,6 +41,7 @@ export const FEATURE_MIN_PLAN = {
   importFlotte:         "business",
   showroom:             "business",
   crmLeadsDevis:        "business",
+  lienCourtVitrine:     "individuel_plus",
 };
 
 // Avance, en heures, sur les demandes clients fraîchement déposées.

@@ -76,22 +76,42 @@ export function exigeFonctionnalite(feature) {
 export function exigeOutil(feature, { maintenant = () => new Date() } = {}) {
   return async (req, res, next) => {
     try {
-      if (req.user?.role === "admin") return next();
-      const proprietaire = req.user?.teamOf || req.user?._id;
-      req.proprietaireId = proprietaire;
-      const now = maintenant();
-      if (now < FIN_IMMUNITE_QUOTAS) return next();
-      if (await fondateurActif(proprietaire, now)) return next();
-      const plan = await planEffectif(proprietaire);
-      if (!planOuvre(plan, feature)) {
+      const verdict = await outilOuvert(req.user, feature, { maintenant });
+      if (!verdict.ouvert) {
         return res.status(403).json({ message: messageRefus(feature), code: "PLAN_REQUIS", feature });
       }
-      req.planEffectif = plan;
+      req.proprietaireId = verdict.proprietaireId;
+      if (verdict.plan) req.planEffectif = verdict.plan;
       next();
     } catch (err) {
       next(err);
     }
   };
+}
+
+// Même règle que `exigeOutil`, en PRÉDICAT — pour les endpoints qui ne
+// refusent pas l'appel mais composent une réponse partielle.
+//
+// Le cas qui l'a rendu nécessaire : la vitrine partenaire rend TOUJOURS
+// l'adresse publique (décision de l'exploitant : la page reste ouverte à
+// tous), et n'ajoute le lien court et le QR code que si le palier les ouvre.
+// Un middleware ne sait faire que « passe » ou « 403 » ; réécrire les trois
+// passe-droits dans le contrôleur aurait donné une seconde vérité sur qui a
+// droit à quoi, et c'est exactement ainsi qu'on finit avec deux réponses
+// différentes à la même question.
+//
+// `raison` sert à l'interface : « inclus à partir d'Essentiel » ne se dit pas
+// de la même façon qu'un accès déjà acquis.
+export async function outilOuvert(user, feature, { maintenant = () => new Date() } = {}) {
+  if (user?.role === "admin") return { ouvert: true, raison: "admin", proprietaireId: user?._id };
+  const proprietaireId = user?.teamOf || user?._id;
+  const now = maintenant();
+  if (now < FIN_IMMUNITE_QUOTAS) return { ouvert: true, raison: "immunite", proprietaireId };
+  if (await fondateurActif(proprietaireId, now)) return { ouvert: true, raison: "fondateur", proprietaireId };
+  const plan = await planEffectif(proprietaireId);
+  return planOuvre(plan, feature)
+    ? { ouvert: true, raison: "plan", plan, proprietaireId }
+    : { ouvert: false, raison: "plan_insuffisant", plan, planRequis: FEATURE_MIN_PLAN[feature], proprietaireId };
 }
 
 export { seatsDuPlan, slaHeuresDuPlan, planOuvre };

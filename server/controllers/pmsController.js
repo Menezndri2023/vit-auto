@@ -12,6 +12,7 @@ import PartnerBusiness from "../models/PartnerBusiness.js";
 import { sendViaEmail, sendViaSms } from "../services/communication/CommunicationService.js";
 import { refusDePublication } from "../utils/publishingGate.js";
 import { nonBloquant, signalerNonBloquant } from "../utils/nonBloquant.js";
+import { slugUnique } from "../utils/slugPartenaire.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
 
@@ -629,12 +630,14 @@ export async function getMyShowroom(req, res) {
 // vignette de la vitrine pointait sur /showroom/undefined (audit des parcours,
 // 2026-09-15). Calculé ici, unique, avec repli sur l'identifiant du partenaire
 // quand le nom n'est pas encore renseigné.
+// Normalisation partagée avec la vitrine /p/:slug (utils/slugPartenaire.js) :
+// une même entreprise doit s'écrire pareil sur ses deux pages publiques.
 async function slugDisponible(base, partnerId) {
-  const racine = (base || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
-    || `partenaire-${String(partnerId).slice(-6)}`;
-  let slug = racine;
-  for (let i = 2; await PartnerShowroom.exists({ slug, partnerId: { $ne: partnerId } }); i++) slug = `${racine}-${i}`;
-  return slug;
+  return slugUnique(base, {
+    collection: PartnerShowroom,
+    proprietaire: partnerId,
+    exclure: { partnerId: { $ne: partnerId } },
+  });
 }
 
 export async function upsertShowroom(req, res) {

@@ -151,6 +151,9 @@ function AppRoutes({ splashDone, onSplashDone }) {
           <Route path="/partenaires"            element={<Partenaires />} />
           <Route path="/pourquoi"               element={<PourquoiVitAuto />} />
           <Route path="/partner/:id"            element={<PartnerProfile />} />
+          {/* Adresse courte imprimée sur les cartes de visite et encodée dans
+              les QR codes (2026-09-25). Même page, résolue par le slug. */}
+          <Route path="/p/:slug"                element={<PartnerProfile />} />
           <Route path="/import-export"                    element={<ImportExport />} />
           <Route path="/import-export/listings"          element={<IEListings />} />
           <Route path="/import-export/listings/:id"      element={<IEListingDetail />} />

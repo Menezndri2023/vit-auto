@@ -84,6 +84,42 @@ Le socle gratuit reste utile et honnête : la vitrine existe et fonctionne. Ce
 qui se vend, c'est de la **rendre partageable et mesurable**, pas de la
 débloquer.
 
+### Livré le 2026-09-25
+
+Les deux premières lignes du tableau et la ligne « lien court / QR code » sont
+en place.
+
+| Où | Quoi |
+|---|---|
+| Tableau de bord partenaire | Carte « Ma vitrine à partager », en tête de l'onglet |
+| Panneau d'administration | Bouton **🔗 Vitrine** sur chaque ligne de partenaire |
+| `/p/<nom>` | Adresse courte, résolue côté serveur puis rendue par la même page |
+| QR code | Image PNG téléchargeable, encodant l'adresse courte |
+
+Décision de l'exploitant, prise ce jour-là : **la page reste publique à tous les
+paliers.** Elle est déjà atteignable en cliquant le nom d'un partenaire sur une
+annonce ; la fermer obligerait à casser ce lien dans le catalogue et priverait
+de vitrine les partenaires au palier gratuit — presque tous aujourd'hui. Le
+palier ouvre l'adresse **courte** et le **QR code** (`lienCourtVitrine`,
+Essentiel), pas la page.
+
+Trois points qui ne se devinent pas à la lecture du code :
+
+- **L'administrateur lit le palier DU PARTENAIRE**, pas le sien. Le passe-droit
+  administrateur de `exigeOutil` ne s'applique pas ici : sinon « octroyé selon
+  le plan » cesserait de vouloir dire quoi que ce soit dès qu'un admin partage,
+  et l'admin verrait une adresse courte que le partenaire n'a pas.
+- **Un slug n'est jamais réattribué.** C'est une adresse imprimée sur des cartes
+  de visite ; la faire bouger quand le nom change casserait ces cartes.
+- **La résolution de `/p/<nom>` ne vérifie aucun palier.** Un lien cesse d'être
+  ÉMIS si le palier se ferme, mais un lien déjà imprimé continue de fonctionner
+  — le contraire ferait d'un changement de palier une panne pour les clients du
+  partenaire, qui n'y sont pour rien.
+
+Jusqu'à `FIN_IMMUNITE_QUOTAS`, tout partenaire garde ses outils : l'adresse
+courte est donc ouverte à tous **aujourd'hui**, et la règle prend effet à cette
+date, comme les autres outils.
+
 ---
 
 ## 2. Outils métier par secteur

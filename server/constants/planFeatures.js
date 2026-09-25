@@ -38,6 +38,10 @@ export const FEATURE_MIN_PLAN = {
   importFlotte:      "business",        // import CSV / Excel / Google Sheets
   showroom:          "business",        // page showroom publique personnalisée
   crmLeadsDevis:     "business",        // leads et devis du PMS
+  // Lien court /p/<nom> + QR code de la vitrine partageable. La PAGE
+  // /partner/<id> reste publique à tous les paliers (décision de l'exploitant,
+  // 2026-09-25) : ce qui s'achète, c'est une adresse imprimable.
+  lienCourtVitrine:  "individuel_plus",
 };
 
 // Sièges d'équipe INCLUS, titulaire compris. `business` en ouvre trois : un

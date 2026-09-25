@@ -315,6 +315,28 @@ async function profilPartenaire(browser) {
   if (reserver < 1) throw new Error("aucune activité réservable sur la page publique du partenaire");
   if (await pv.getByText(/exemple\.test/).count()) throw new Error("le site web du partenaire apparaît sur la page publique");
   ok(`visiteur : page publique avec présentation (sans site web) et ${reserver} annonce(s) réservable(s)`);
+
+  // ── Le lien de vitrine partageable (2026-09-25) ──────────────────────────
+  // Consigne de l'exploitant : chaque partenaire dispose d'un lien qu'il peut
+  // partager, ne contenant QUE ses annonces. Vérifié de bout en bout parce que
+  // les trois maillons peuvent casser séparément : l'écran qui DONNE le lien,
+  // la résolution du nom en identifiant, et la réécriture SPA de /p/:slug —
+  // cette dernière n'existe que dans vercel.json, invisible aux tests unitaires.
+  await pp.goto(`${BASE}/vendor/dashboard`, { waitUntil: "domcontentloaded", timeout: 60000 });
+  const champLien = pp.getByLabel(/Adresse courte de la vitrine|Adresse complète de la vitrine/).first();
+  await champLien.waitFor({ timeout: 30000 });
+  const lienVitrine = await champLien.inputValue();
+  if (!lienVitrine) throw new Error("le tableau de bord partenaire n'affiche aucun lien de vitrine");
+  ok(`partenaire : lien de vitrine proposé au partage (${lienVitrine})`);
+
+  // On ne suit pas le lien tel quel — il porte le domaine de production. C'est
+  // son CHEMIN qui doit fonctionner sur l'aperçu local, avec ses en-têtes.
+  const chemin = new URL(lienVitrine).pathname;
+  const pl = await ctx.newPage(); surveiller(pl, "vitrine", journal);
+  await pl.goto(`${BASE}${chemin}`, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await pl.getByRole("heading", { name: /Atlas Loisirs Démo/ }).first().waitFor({ timeout: 30000 });
+  ok(`visiteur : ${chemin} ouvre bien la vitrine du partenaire`);
+
   await ctx.close();
   for (const j of journal) ko(`profil partenaire — ${j}`);
 }

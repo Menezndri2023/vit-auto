@@ -30,6 +30,7 @@ import { SectorRequestsSection } from "./admin/sections/SectorRequestsSection.js
 import { CatalogueSection } from "./admin/sections/CatalogueSection.jsx";
 import { MarketingSection } from "./admin/sections/MarketingSection.jsx";
 import { lienPublic } from "../utils/origineApi.js";
+import VitrinePartage from "../components/VitrinePartage/VitrinePartage.jsx";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMPOSANT PRINCIPAL
@@ -1681,6 +1682,8 @@ export default function AdminPanel() {
       setLoyaltySaving(false);
     }
   };
+
+  const [vitrineModal, setVitrineModal] = useState(null);
 
   const openTrustOverview = async (u) => {
     setTrustModal(u);
@@ -3719,6 +3722,15 @@ export default function AdminPanel() {
                                   onClick={() => openTrustOverview(u)}
                                   title="Vue de confiance unifiée">🛡️ Confiance</button>
                               )}
+                              {/* L'administrateur partage lui aussi les liens
+                                  de vitrine des partenaires (consigne du
+                                  2026-09-25). Le lien court suit le palier DU
+                                  PARTENAIRE, pas les droits de l'admin. */}
+                              {u.role === "partenaire" && (
+                                <button className={styles.btnGhost} style={{ fontSize: ".72rem" }}
+                                  onClick={() => setVitrineModal(u)}
+                                  title="Lien de vitrine à partager">🔗 Vitrine</button>
+                              )}
                               {u.role === "client" && (
                                 <button className={styles.btnGhost} style={{ fontSize: ".72rem" }}
                                   onClick={() => openLoyalty(u)}
@@ -3882,6 +3894,17 @@ export default function AdminPanel() {
           )}
 
           {/* ── Modal vue de confiance unifiée ── */}
+          {vitrineModal && (
+            <div className={styles.overlay} onClick={() => setVitrineModal(null)}>
+              <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
+                <VitrinePartage partenaireId={vitrineModal._id} />
+                <button className={styles.btnGhost} onClick={() => setVitrineModal(null)} style={{ width: "100%", minHeight: 44 }}>
+                  Fermer
+                </button>
+              </div>
+            </div>
+          )}
+
           {trustModal && (
             <div className={styles.overlay} onClick={() => setTrustModal(null)}>
               <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
