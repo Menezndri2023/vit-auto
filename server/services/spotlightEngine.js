@@ -50,6 +50,7 @@ import { clauseHorsComptesDeTest } from "../utils/comptesDeTest.js";
 import { MARQUEUR_MONTANT_DOUTEUX } from "../constants/plausibilitePrix.js";
 import SiteContent from "../models/SiteContent.js";
 import { regleEffective } from "./spotlightRules.js";
+import { SEUIL_CONTENU_PAYS } from "../utils/repliMondial.js";
 
 // ── Places réservées par palier d'abonnement ───────────────────────────────
 // Le nombre progresse avec la formule : c'est la contrepartie visible de
@@ -742,9 +743,17 @@ export async function vitrineEnCache(nomEmplacement, { country = null, type = nu
   const vitrine = await composerVitrine(nomEmplacement, { country, type });
 
   // Repli INTERNATIONAL : aucun partenaire actif dans le pays (règle de
-  // l'exploitant), ou aucun contenu publiable — jamais par morceaux, ce qui
-  // mélangerait local et lointain dans la même vitrine.
-  const replier = vitrine.pays && (vitrine.regle?.international || !vitrine.items.length);
+  // l'exploitant), ou trop peu de contenu publiable — jamais par morceaux, ce
+  // qui mélangerait local et lointain dans la même vitrine.
+  //
+  // Le seuil, et non « zéro » : mesuré en production le 2026-09-25, la Côte
+  // d'Ivoire rendait DEUX vignettes sur un carrousel qui en tient six, parce
+  // que les deux annonces de démonstration de la review Apple suffisaient à
+  // éteindre le repli. Une vitrine au quart pleine est pire qu'une vitrine
+  // internationale : elle donne d'un marché l'image d'un site désert. Même
+  // constante que les quatre catalogues (utils/repliMondial.js).
+  const replier = vitrine.pays
+    && (vitrine.regle?.international || vitrine.items.length < SEUIL_CONTENU_PAYS);
   const resultat = replier
     ? { ...(await composerVitrine(nomEmplacement, { country: null, type })), pays: vitrine.pays, repliMondial: true, regle: vitrine.regle }
     : vitrine;

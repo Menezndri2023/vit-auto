@@ -52,8 +52,21 @@ describe("Catalogue — recherche par ville et par pays", () => {
   it("sans recherche, le filtre pays reste appliqué", async () => {
     // Le garde-fou du correctif : c'est bien la RECHERCHE qui lève la
     // restriction, pas le correctif qui l'aurait supprimée pour tout le monde.
+    //
+    // Il faut atteindre SEUIL_CONTENU_PAYS annonces ivoiriennes, sinon c'est le
+    // repli mondial qui ramène l'annonce française — et ce test prouverait le
+    // contraire de ce qu'il annonce. Ajouté le 2026-09-25 avec le seuil.
+    await createVehicleDoc({
+      owner: proprio._id, title: "Hyundai i10 citadine",
+      marque: "Hyundai", modele: "i10", country: "CI", ville: "Abidjan",
+    });
+    await createVehicleDoc({
+      owner: proprio._id, title: "Kia Picanto citadine",
+      marque: "Kia", modele: "Picanto", country: "CI", ville: "Bouaké",
+    });
+
     const res = await chercher({ country: "CI" });
-    expect(titres(res)).toEqual(["Toyota Corolla berline"]);
+    expect(titres(res).sort()).toEqual(["Hyundai i10 citadine", "Kia Picanto citadine", "Toyota Corolla berline"]);
   });
 
   it("une recherche qui ne correspond à aucun lieu ne ramène pas tout", async () => {

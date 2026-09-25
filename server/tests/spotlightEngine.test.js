@@ -306,6 +306,44 @@ describe("Composition d'une vitrine", () => {
     expect(v.items.map((i) => i.id)).toContain(String(ci._id));
   });
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // UNE VITRINE AU QUART PLEINE VAUT MOINS QUE LA VITRINE INTERNATIONALE
+  // ─────────────────────────────────────────────────────────────────────────
+  // Mesuré en production le 2026-09-25 : /api/spotlight/hero?country=CI rendait
+  // DEUX vignettes sur les six du carrousel, sans repli — les deux annonces de
+  // démonstration créées pour la review Apple étaient les seules du pays, et
+  // « au moins une » suffisait alors à éteindre le repli. Le marché principal
+  // avait l'air d'un site désert. Le repli se décide désormais sous
+  // SEUIL_CONTENU_PAYS, comme les quatre catalogues.
+  it("replie à l'international quand le pays ne remplit pas la vitrine", async () => {
+    // Assez de partenaires pour que la règle par pays s'applique (sinon c'est
+    // `international: true` qui déclencherait le repli, et le test ne prouverait
+    // rien sur le seuil de CONTENU).
+    const locaux = [];
+    for (let i = 0; i < 5; i++) locaux.push(await createUser({ role: "partenaire", country: "CI" }));
+    await annonce({ country: "CI", owner: locaux[0]._id });
+    await annonce({ country: "CI", owner: locaux[1]._id });
+    const lointaine = await annonce({ country: "MA" });
+
+    const { vitrineEnCache } = await import("../services/spotlightEngine.js");
+    const v = await vitrineEnCache("hero", { country: "CI" });
+    expect(v.regle).toMatchObject({ pays: "CI", international: false });
+    expect(v.repliMondial).toBe(true);
+    expect(v.items.map((i) => i.id)).toContain(String(lointaine._id));
+  });
+
+  it("ne replie pas quand le pays a de quoi remplir la vitrine", async () => {
+    const locaux = [];
+    for (let i = 0; i < 5; i++) locaux.push(await createUser({ role: "partenaire", country: "CI" }));
+    for (let i = 0; i < 6; i++) await annonce({ country: "CI", owner: locaux[i % 5]._id });
+    const lointaine = await annonce({ country: "MA" });
+
+    const { vitrineEnCache } = await import("../services/spotlightEngine.js");
+    const v = await vitrineEnCache("hero", { country: "CI" });
+    expect(v.repliMondial).toBeUndefined();
+    expect(v.items.map((i) => i.id)).not.toContain(String(lointaine._id));
+  });
+
   it("« Partenaires à la une » reste internationale, tous pays combinés", async () => {
     expect(EMPLACEMENTS.partenaires.parPays).toBe(false);
     const v = await composerVitrine("partenaires", { country: "MA" });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 
 // ── Interface embarquée : où partent les appels ? ──────────────────────────
 // Sur le web, le front et l'API partagent le domaine : « /api/… » suffit, et

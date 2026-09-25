@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import Vehicle from "../models/Vehicle.js";
 import { idsVitrine, jourDeRotation } from "../services/spotlightEngine.js";
 import { clauseHorsComptesDeTest } from "../utils/comptesDeTest.js";
+import { SEUIL_CONTENU_PAYS } from "../utils/repliMondial.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Booking from "../models/Booking.js";
@@ -598,7 +599,18 @@ export const getVehicles = async (req, res) => {
     const totalDuPays = clausePaysAppliquee && !isAdmin
       ? await Vehicle.countDocuments({ ...filter, country: String(country).toUpperCase() })
       : null;
-    if (totalDuPays === 0) {
+    // Même seuil que les autres catalogues (utils/repliMondial.js) : un pays
+    // qui compte moins de trois annonces n'a pas de catalogue, il a deux
+    // lignes. Mieux vaut montrer le monde. Constaté le 2026-09-25 : les deux
+    // annonces de démonstration créées pour la review Apple suffisaient à
+    // couper la Côte d'Ivoire — marché principal — des 405 annonces publiées.
+    //
+    // Une vitrine de partenaire (`owner` posé) garde le seuil à zéro : un
+    // loueur qui n'a qu'une voiture au Maroc en a vraiment une, et son client
+    // demande CE partenaire, pas un catalogue. Le seuil sert à juger si un PAYS
+    // a une offre, pas si un partenaire en a une.
+    const seuilPays = filter.owner ? 1 : SEUIL_CONTENU_PAYS;
+    if (totalDuPays !== null && totalDuPays < seuilPays) {
       const { $or: _paysRetire, ...filtreMondial } = filter;
       const [vMondial, tMondial] = await Promise.all([
         Vehicle.find(filtreMondial)

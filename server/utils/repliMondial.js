@@ -35,9 +35,23 @@
  *   lieu de l'offre internationale entière.
  * @returns {Promise<{resultat: Array, repliMondial: boolean}>}
  */
+// Combien d'annonces DU PAYS faut-il pour qu'un catalogue local ait un sens ?
+//
+// Zéro ne suffisait pas comme seuil. Constaté le 2026-09-25 : les deux annonces
+// de démonstration Apple, seules annonces ivoiriennes, ont fait passer la Côte
+// d'Ivoire pour un pays « pourvu » — le repli s'est éteint et les 403 autres
+// annonces sont devenues invisibles depuis le marché principal. Un visiteur y
+// voyait un catalogue de deux lignes.
+//
+// Trois est le premier nombre qui ressemble à un choix. En dessous, montrer le
+// monde sert mieux le visiteur ET le partenaire local, qui reste visible dans
+// la sélection internationale au lieu d'être noyé dans une page désolée.
+export const SEUIL_CONTENU_PAYS = 3;
+
 export async function avecRepliMondial(filtre, clePays, requete, estDuPays) {
   const resultat = await requete(filtre);
-  const offreLocale = estDuPays ? resultat.some(estDuPays) : resultat.length > 0;
+  const nLocal = estDuPays ? resultat.filter(estDuPays).length : resultat.length;
+  const offreLocale = nLocal >= SEUIL_CONTENU_PAYS;
   if (offreLocale || !clePays || !(clePays in filtre)) {
     return { resultat, repliMondial: false };
   }

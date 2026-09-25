@@ -40,11 +40,51 @@ describe("Catalogue — repli mondial", () => {
 
   it("ne replie PAS quand le pays du visiteur a ses propres annonces", async () => {
     const p = await createUser({ role: "partenaire" });
-    await createVehicleDoc({ owner: p._id, status: "approved", available: true, country: "CI", title: "Toyota locale" });
+    for (const title of ["Toyota locale", "Hyundai locale", "Kia locale"]) {
+      await createVehicleDoc({ owner: p._id, status: "approved", available: true, country: "CI", title });
+    }
     await createVehicleDoc({ owner: p._id, status: "approved", available: true, country: "MA", title: "Dacia lointaine" });
 
     const res = await lister({ country: "CI", limit: 10 });
-    expect(res.body.vehicles.map((v) => v.title)).toEqual(["Toyota locale"]);
+    expect(res.body.vehicles.map((v) => v.title).sort()).toEqual(["Hyundai locale", "Kia locale", "Toyota locale"]);
+    expect(res.body.repliMondial).toBeUndefined();
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // LE SEUIL : DEUX ANNONCES NE FONT PAS UN CATALOGUE
+  // ─────────────────────────────────────────────────────────────────────────
+  // Constaté en production le 2026-09-25. Les deux annonces de démonstration
+  // créées pour la review Apple (compte `review-partner@vit-auto.com`) étaient
+  // les SEULES portant `country: "CI"`. Le repli, qui ne se déclenchait qu'à
+  // zéro, s'est donc éteint : les visiteurs ivoiriens — marché principal — ne
+  // voyaient plus que ces deux voitures au lieu des 405 annonces publiées, et
+  // le carrousel d'accueil tombait de six vignettes à deux.
+  //
+  // Une poignée d'annonces dans un pays n'y prouve pas une offre. Le repli se
+  // déclenche désormais sous `SEUIL_CONTENU_PAYS`, comme les autres catalogues.
+  it("replie quand le pays du visiteur n'a qu'une poignée d'annonces", async () => {
+    const p = await createUser({ role: "partenaire" });
+    await createVehicleDoc({ owner: p._id, status: "approved", available: true, country: "CI", title: "Démo 1" });
+    await createVehicleDoc({ owner: p._id, status: "approved", available: true, country: "CI", title: "Démo 2" });
+    await createVehicleDoc({ owner: p._id, status: "approved", available: true, country: "MA", title: "Dacia lointaine" });
+
+    const res = await lister({ country: "CI", limit: 10 });
+    expect(res.body.repliMondial).toBe(true);
+    // Le repli ÉLARGIT, il n'exclut pas : les annonces locales restent là.
+    expect(res.body.vehicles.map((v) => v.title).sort()).toEqual(["Dacia lointaine", "Démo 1", "Démo 2"]);
+  });
+
+  // La vitrine d'un partenaire n'est pas un catalogue de pays : un loueur qui
+  // n'a qu'une voiture au Maroc en a vraiment une. Élargir au monde entier
+  // trahirait la consigne « les liens partagés ne contiennent que les annonces
+  // du partenaire » (voir tests/vitrinePartenaire.test.js).
+  it("le seuil ne s'applique pas à une vitrine de partenaire", async () => {
+    const p = await createUser({ role: "partenaire" });
+    await createVehicleDoc({ owner: p._id, status: "approved", available: true, country: "MA", title: "Unique au Maroc" });
+    await createVehicleDoc({ owner: p._id, status: "approved", available: true, country: "FR", title: "Unique en France" });
+
+    const res = await lister({ owner: p._id.toString(), country: "MA", limit: 10 });
+    expect(res.body.vehicles.map((v) => v.title)).toEqual(["Unique au Maroc"]);
     expect(res.body.repliMondial).toBeUndefined();
   });
 

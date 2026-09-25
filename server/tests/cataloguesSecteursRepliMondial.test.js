@@ -48,13 +48,27 @@ describe("Catalogues sectoriels — repli mondial", () => {
       expect(liste.map((a) => a.title)).toEqual(["Quad Agadir"]);
     });
 
+    // « Avoir les siennes » veut dire SEUIL_CONTENU_PAYS, pas une. Voir le
+    // commentaire du seuil dans utils/repliMondial.js.
     it("ne replie pas quand le pays du visiteur a les siennes", async () => {
+      const p = await createUser({ role: "partenaire" });
+      for (const title of ["Jetski Abidjan", "Quad Bassam", "Plongée Assinie"]) {
+        await createActivityDoc({ owner: p._id, country: "CI", title });
+      }
+      await createActivityDoc({ owner: p._id, country: "MA", title: "Quad Agadir" });
+
+      const liste = await appeler(getActivities, { country: "CI" });
+      expect(liste.map((a) => a.title).sort()).toEqual(["Jetski Abidjan", "Plongée Assinie", "Quad Bassam"]);
+    });
+
+    // Le seuil lui-même : une offre de deux n'est pas une offre.
+    it("replie quand le pays du visiteur n'en a qu'une poignée", async () => {
       const p = await createUser({ role: "partenaire" });
       await createActivityDoc({ owner: p._id, country: "CI", title: "Jetski Abidjan" });
       await createActivityDoc({ owner: p._id, country: "MA", title: "Quad Agadir" });
 
       const liste = await appeler(getActivities, { country: "CI" });
-      expect(liste.map((a) => a.title)).toEqual(["Jetski Abidjan"]);
+      expect(liste.map((a) => a.title).sort()).toEqual(["Jetski Abidjan", "Quad Agadir"]);
     });
 
     // Le défaut corrigé côté interface le 2026-09-24, vérifié ici côté serveur :
@@ -85,11 +99,13 @@ describe("Catalogues sectoriels — repli mondial", () => {
 
     it("ne replie pas quand le pays du visiteur a les siens", async () => {
       const p = await createUser({ role: "partenaire" });
-      await createDriverDoc({ owner: p._id, country: "CI", firstName: "Kouassi" });
+      for (const firstName of ["Kouassi", "Aya", "Yao"]) {
+        await createDriverDoc({ owner: p._id, country: "CI", firstName });
+      }
       await createDriverDoc({ owner: p._id, country: "MA", firstName: "Hassan" });
 
       const liste = await appeler(getDrivers, { country: "CI" });
-      expect(liste.map((d) => d.firstName)).toEqual(["Kouassi"]);
+      expect(liste.map((d) => d.firstName).sort()).toEqual(["Aya", "Kouassi", "Yao"]);
     });
   });
 
@@ -101,12 +117,15 @@ describe("Catalogues sectoriels — repli mondial", () => {
       expect(liste.map((p) => p.title)).toEqual(["Filtre marocain"]);
     });
 
-    it("ne replie pas quand une pièce est livrable dans le pays du visiteur", async () => {
-      await creerPiece({ country: "MA", title: "Filtre expédié en CI", shipping: { countries: ["CI"] } });
+    it("ne replie pas quand assez de pièces sont livrables dans le pays du visiteur", async () => {
+      for (const title of ["Filtre expédié en CI", "Courroie expédiée en CI", "Plaquettes expédiées en CI"]) {
+        await creerPiece({ country: "MA", title, shipping: { countries: ["CI"] } });
+      }
       await creerPiece({ country: "MA", title: "Filtre marocain seul" });
 
       const liste = await appeler(getParts, { country: "CI" });
-      expect(liste.map((p) => p.title)).toEqual(["Filtre expédié en CI"]);
+      expect(liste.map((p) => p.title).sort())
+        .toEqual(["Courroie expédiée en CI", "Filtre expédié en CI", "Plaquettes expédiées en CI"]);
     });
 
     // La clause pays des pièces vit dans `$and` parce que `$or` porte déjà la
