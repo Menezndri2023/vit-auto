@@ -17,7 +17,8 @@ import { getDisplayRule } from "../utils/promotion";
 import { lienPublicCourant } from "../utils/origineApi.js";
 
 const fmtInspDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" }) : null;
-const RATING_LABEL = { excellent: "Excellent", bon: "Bon", moyen: "Moyen", mauvais: "Mauvais", na: "N/A" };
+// Les notes d'inspection passent par t() : clé insp.<note> (excellent, bon,
+// moyen, mauvais, na). Seules les COULEURS restent dans une table ici.
 const RATING_COLOR = { excellent: "#10b981", bon: "#3b82f6", moyen: "#f59e0b", mauvais: "#ef4444", na: "#94a3b8" };
 
 // ── Rapport d'inspection ─────────────────────────────────────────────────
@@ -25,6 +26,7 @@ const RATING_COLOR = { excellent: "#10b981", bon: "#3b82f6", moyen: "#f59e0b", m
 // endpoint /api/vehicles/:id/inspection-report (généralisation d'
 // InspectionReport au-delà des annonces Import/Export).
 function InspectionSection({ vehicleId }) {
+  const { t } = useI18n();
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -39,23 +41,23 @@ function InspectionSection({ vehicleId }) {
   if (loading || !report) return null; // pas de rapport = section masquée (pas de bruit sur la fiche véhicule)
 
   const components = [
-    { key: "engine",       label: "Moteur",           icon: "⚙️" },
-    { key: "transmission", label: "Boîte de vitesses", icon: "🔧" },
-    { key: "suspension",   label: "Suspension",       icon: "🛞" },
-    { key: "brakes",       label: "Freins",           icon: "🛑" },
-    { key: "tires",        label: "Pneus",            icon: "⬛" },
-    { key: "bodywork",     label: "Carrosserie",      icon: "🚗" },
-    { key: "interior",     label: "Intérieur",        icon: "🪑" },
-    { key: "electronics",  label: "Électronique",     icon: "💡" },
-    { key: "battery",      label: "Batterie (VE)",    icon: "🔋" },
+    { key: "engine",       cle: "insp.engine",     icon: "⚙️" },
+    { key: "transmission", cle: "fiche.gearbox", icon: "🔧" },
+    { key: "suspension",   cle: "insp.suspension", icon: "🛞" },
+    { key: "brakes",       cle: "insp.brakes",     icon: "🛑" },
+    { key: "tires",        cle: "insp.tires",      icon: "⬛" },
+    { key: "bodywork",     cle: "insp.bodywork",   icon: "🚗" },
+    { key: "interior",     cle: "fiche.interior", icon: "🪑" },
+    { key: "electronics",  cle: "fiche.electronics", icon: "💡" },
+    { key: "battery",      cle: "insp.battery",    icon: "🔋" },
   ];
 
   return (
     <div className={styles.card}>
       <div className={styles.inspSectionHeader}>
-        <span>🔍</span><h3 className={styles.cardTitle}>Rapport d'inspection</h3>
+        <span>🔍</span><h3 className={styles.cardTitle}>{t("insp.title")}</h3>
         <div className={styles.overallBadge} style={{ background: RATING_COLOR[report.overallRating] + "22", color: RATING_COLOR[report.overallRating] }}>
-          {RATING_LABEL[report.overallRating]}
+          {t(`insp.${report.overallRating}`)}
         </div>
       </div>
 
@@ -66,16 +68,16 @@ function InspectionSection({ vehicleId }) {
       </div>
 
       <div className={styles.inspGrid}>
-        {components.map(({ key, label, icon }) => {
+        {components.map(({ key, cle, icon }) => {
           const comp = report[key];
           if (!comp || comp.rating === "na") return null;
           return (
             <div key={key} className={styles.inspItem}>
               <span className={styles.inspIcon}>{icon}</span>
               <div>
-                <p className={styles.inspLabel}>{label}</p>
+                <p className={styles.inspLabel}>{t(cle)}</p>
                 <span className={styles.inspRating} style={{ color: RATING_COLOR[comp.rating] }}>
-                  {RATING_LABEL[comp.rating]}
+                  {t(`insp.${comp.rating}`)}
                 </span>
                 {comp.notes && <p className={styles.inspNotes}>{comp.notes}</p>}
               </div>
@@ -86,7 +88,7 @@ function InspectionSection({ vehicleId }) {
 
       {report.overallNotes && (
         <div className={styles.overallNotes}>
-          <strong>Observations générales :</strong>
+          <strong>{t("fiche.generalNotes")}</strong>
           <p>{report.overallNotes}</p>
         </div>
       )}
@@ -104,7 +106,7 @@ function InspectionSection({ vehicleId }) {
                     {d.severity === "majeur" ? "🔴" : d.severity === "modere" ? "🟡" : "🟢"} {d.severity}
                   </span>
                   <p>{d.description}</p>
-                  {d.photo && <img src={d.photo} alt="défaut" className={styles.defectPhoto} loading="lazy" decoding="async" />}
+                  {d.photo && <img src={d.photo} alt={t("fiche.default")} className={styles.defectPhoto} loading="lazy" decoding="async" />}
                 </div>
               ))}
             </div>
@@ -202,16 +204,18 @@ function ReviewsSection({ vehicleId, t }) {
   );
 }
 
-// Mirroir de LeasingCard pour le Crédit classique — mêmes champs financiers
-// (Vehicle.credit), textes en dur (pas d'entrées i18n dédiées pour l'instant,
-// cohérent avec le reste des ajouts de cette session).
+// Miroir de LeasingCard pour le Crédit classique — mêmes champs financiers
+// (Vehicle.credit). Les textes sont passés par t() : ils étaient en dur, ce
+// qui affichait « Financement bancaire — propriété immédiate » en français au
+// milieu d'une fiche servie en arabe ou en chinois.
 function CreditCard({ credit, fmt }) {
+  const { t } = useI18n();
   const totalEstime = (credit.apportInitial || 0) + (credit.mensualite || 0) * (credit.duree || 36);
   return (
     <div className={styles.leasingCard}>
       <div className={styles.leasingHeader}>
-        <span className={styles.leasingBadge}>Crédit classique</span>
-        <span className={styles.leasingTitle}>Financement bancaire — propriété immédiate</span>
+        <span className={styles.leasingBadge}>{t("fiche.classicCredit")}</span>
+        <span className={styles.leasingTitle}>{t("fiche.classicCreditDesc")}</span>
       </div>
       <div className={styles.leasingGrid}>
         <div className={styles.leasingItem}>
@@ -219,11 +223,11 @@ function CreditCard({ credit, fmt }) {
           <strong>{fmt(credit.apportInitial || 0)}</strong>
         </div>
         <div className={styles.leasingItem}>
-          <span>Mensualité</span>
+          <span>{t("fiche.monthly")}</span>
           <strong className={styles.leasingHighlight}>{fmt(credit.mensualite)} / mois</strong>
         </div>
         <div className={styles.leasingItem}>
-          <span>Durée</span>
+          <span>{t("fiche.duration")}</span>
           <strong>{credit.duree} mois</strong>
         </div>
         <div className={styles.leasingItem}>
@@ -436,10 +440,10 @@ export default function VehicleDetails() {
     vehicle.carburant    && { key: "carburant",    label: t("vehicle.fuel")         || "Carburant",   value: vehicle.carburant },
     vehicle.transmission && { key: "transmission", label: t("vehicle.transmission") || "Transmission", value: vehicle.transmission },
     (vehicle.seats || vehicle.nombrePlaces) && { key: "seats", label: t("vehicle.seats") || "Places", value: vehicle.seats || vehicle.nombrePlaces },
-    vehicle.annee        && { key: "annee",        label: t("vehicle.year")         || "Année",        value: vehicle.annee },
-    vehicle.kilometrage  && { key: "kilometrage",  label: t("vehicle.mileage")      || "Kilométrage",  value: `${Number(vehicle.kilometrage).toLocaleString("fr-FR")} km` },
+    vehicle.annee        && { key: "annee",        label: t("vehicle.year"),        value: vehicle.annee },
+    vehicle.kilometrage  && { key: "kilometrage",  label: t("vehicle.mileage"),  value: `${Number(vehicle.kilometrage).toLocaleString("fr-FR")} km` },
     vehicle.couleur      && { key: "couleur",      label: t("vehicle.color")        || "Couleur",      value: vehicle.couleur },
-    vehicle.etat         && { key: "etat",         label: t("vehicle.condition")    || "État",         value: vehicle.etat },
+    vehicle.etat         && { key: "etat",         label: t("vehicle.condition"),         value: vehicle.etat },
   ].filter(Boolean);
 
   return (
@@ -471,7 +475,7 @@ export default function VehicleDetails() {
           </div>
           <h1 className={styles.heading}>{vehicle.title || vehicle.name}</h1>
           {vehicle.instantBook && !isSale && (
-            <span className={styles.condItem} title="Confirmée automatiquement, sans attendre le partenaire">⚡ Réservation instantanée</span>
+            <span className={styles.condItem} title={t("card.instantTitle")}>{t("fiche.instantBook")}</span>
           )}
           {(vehicle.ville || vehicle.adresse) && (
             <p className={styles.location}>📍 {[vehicle.ville, vehicle.adresse].filter(Boolean).join(", ")}</p>
@@ -483,11 +487,11 @@ export default function VehicleDetails() {
           {priceSuffix && <span className={styles.priceSuffix}>{priceSuffix}</span>}
           {!isSale && vehicle.pricePerWeek > 0 && (
             <span className={styles.caution}>📅 ou <PriceTag amountUSD={vehicle.pricePerWeek} pinnedCurrency={vehicle.currency}
-              enteredAmount={vehicle.pricePerWeekEntered} enteredCurrency={vehicle.priceEntryCurrency} suffix=" / semaine" compact /> (dès 7 jours)</span>
+              enteredAmount={vehicle.pricePerWeekEntered} enteredCurrency={vehicle.priceEntryCurrency} suffix=" / semaine" compact /> {t("fiche.fromDays7")}</span>
           )}
           {!isSale && vehicle.pricePerMonth > 0 && (
             <span className={styles.caution}>📅 ou <PriceTag amountUSD={vehicle.pricePerMonth} pinnedCurrency={vehicle.currency}
-              enteredAmount={vehicle.pricePerMonthEntered} enteredCurrency={vehicle.priceEntryCurrency} suffix=" / mois" compact /> (dès 30 jours)</span>
+              enteredAmount={vehicle.pricePerMonthEntered} enteredCurrency={vehicle.priceEntryCurrency} suffix=" / mois" compact /> {t("fiche.fromDays30")}</span>
           )}
           {vehicle.caution > 0 && !isSale && (
             <span className={styles.caution}>{t("vd.caution")} <PriceTag amountUSD={vehicle.caution} pinnedCurrency={vehicle.currency}
@@ -502,7 +506,7 @@ export default function VehicleDetails() {
             </span>
           ))}
           {!isSale && (vehicle.seasonalRates || []).some((r) => r.active) && (
-            <span className={styles.caution}>🗓️ Tarif variable selon la période — voir le détail aux dates choisies</span>
+            <span className={styles.caution}>{t("fiche.seasonal")}</span>
           )}
           {vehicle.noteMoyenne > 0 && (
             <span className={styles.rating}>
@@ -741,7 +745,7 @@ export default function VehicleDetails() {
                     className={styles.actionBtn}
                     onClick={() => navigate(`/booking/${vehicle._id || vehicle.id}`)}
                   >
-                    {estAImporter ? "🚢 Acheter à l'import" : t("vd.bookBtn")}
+                    {estAImporter ? t("fiche.buyImport") : t("vd.bookBtn")}
                   </button>
                 )}
                 {/* Panier multi-véhicules — uniquement location (le panier ne
@@ -755,11 +759,11 @@ export default function VehicleDetails() {
                     disabled={isInCart(vehicle._id || vehicle.id)}
                     onClick={() => {
                       const result = addItem(vehicle);
-                      if (result.ok) success("Véhicule ajouté au panier.");
+                      if (result.ok) success(t("fiche.addedToCart"));
                       else toastError(result.message);
                     }}
                   >
-                    {isInCart(vehicle._id || vehicle.id) ? "🛒 Déjà dans le panier" : "🛒 Ajouter au panier"}
+                    {isInCart(vehicle._id || vehicle.id) ? t("fiche.alreadyInCart") : t("cart.add")}
                   </button>
                 )}
                 {isSale && vehicle.leasing?.disponible && (
@@ -775,7 +779,7 @@ export default function VehicleDetails() {
                     className={styles.leasingBtn}
                     onClick={() => navigate(`/booking/${vehicle._id || vehicle.id}?type=credit`)}
                   >
-                    💳 Demander ce crédit
+                    {t("fiche.askCredit")}
                   </button>
                 )}
               </>

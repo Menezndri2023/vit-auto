@@ -41,7 +41,7 @@ const TOLERE = [
   // du catalogue et sont comparées côté serveur. Les traduire ferait filtrer
   // un visiteur anglophone sur « Saloon », que rien n'indexe. Seul leur
   // AFFICHAGE est traduit (clés bodyType.*, search.*).
-  /^(Tous modèles|Tous|Neuf|Occasion|Louer|Acheter|Chauffeur|Autres|Pieces|Courte|Longue)$/,
+  /^(Tous modèles|Tous|Neuf|Occasion|Louer|Acheter|Chauffeur|Autres|Pieces|Courte|Longue|Essence|Diesel|Hybride|Électrique|GPL|Dubaï)$/,
 ];
 
 function sansCommentaires(src) {

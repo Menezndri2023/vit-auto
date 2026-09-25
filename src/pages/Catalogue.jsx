@@ -206,7 +206,7 @@ export function ActivityCard({ a }) {
         </span>
         <span className={styles.ieCardMeta}>
           {t("catalogue.activityDurationCapacity", { min: a.durationMinutes || 60, n: a.capacity || 1 })}
-          {isWeatherDependent(a) && <> · 🌤️ selon météo</>}
+          {isWeatherDependent(a) && <> {t("catalogue.weatherDependent")}</>}
         </span>
         <div className={styles.ieCardFooter}>
           <div>
@@ -279,15 +279,20 @@ const SORT_OPTIONS  = [
 ];
 
 const Catalogue = () => {
+  const { t } = useI18n();
   // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
   // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
   // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
+  //
+  // L'appel est APRÈS useI18n : il lit `t`. Placé avant, il produisait un
+  // « Cannot access before initialization » à l'exécution — la règle maison
+  // vit/lecture-avant-declaration l'a refusé, comme pour le crash de l'admin.
   useDocumentMeta({
-    title: "Catalogue de véhicules",
-    description: "Louez ou achetez un véhicule parmi les annonces vérifiées de VIT AUTO : voitures, SUV, utilitaires, chauffeurs privés et activités, dans 28 pays.",
+    title:       t("catalogue.metaTitle"),
+    description: t("catalogue.metaDesc"),
+    traduite:    true,
   });
 
-  const { t } = useI18n();
   const { vehicles, drivers, activities, parts, refreshVehicles, vehiclesLoading } = useVehicles();
   const { fmt, catalogCountry, setCatalogCountry, COUNTRIES_CONFIG, COUNTRY_INTERNATIONAL, detectPreciseCountry, rateFromUSD } = useCurrency();
   const { success: toastSuccess, error: toastError } = useToast();
@@ -811,7 +816,7 @@ const Catalogue = () => {
             background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10,
             color: "#1e40af", fontSize: ".88rem", lineHeight: 1.6,
           }}>
-            Aucune annonce disponible en {nomDuPays(catalogCountry) || "votre pays"} pour le moment —
+            Aucune annonce disponible en {nomDuPays(catalogCountry) || t("catalogue.yourCountry")} pour le moment —
             voici les annonces disponibles à l'international.
           </p>
         )}
@@ -1091,7 +1096,7 @@ const Catalogue = () => {
 
         {isOthersMode && villesActivites.length > 0 && (
           <section style={{ margin: "28px auto 0", maxWidth: 1180, padding: "18px 1.25rem 0", borderTop: "1.5px solid #e2e8f0" }}>
-            <h2 style={{ fontSize: ".95rem", color: "#0f1b3f", margin: "0 0 10px" }}>Activités & loisirs par ville</h2>
+            <h2 style={{ fontSize: ".95rem", color: "#0f1b3f", margin: "0 0 10px" }}>{t("catalogue.leisureByCity")}</h2>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {villesActivites.map((c) => (
                 <Link key={c.slug} to={`/activites/${c.slug}`}
@@ -1104,7 +1109,7 @@ const Catalogue = () => {
         )}
         {isPartsMode && marquesPieces.length > 0 && (
           <section style={{ margin: "28px auto 0", maxWidth: 1180, padding: "18px 1.25rem 0", borderTop: "1.5px solid #e2e8f0" }}>
-            <h2 style={{ fontSize: ".95rem", color: "#0f1b3f", margin: "0 0 10px" }}>Pièces détachées par marque</h2>
+            <h2 style={{ fontSize: ".95rem", color: "#0f1b3f", margin: "0 0 10px" }}>{t("catalogue.partsByBrand")}</h2>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {marquesPieces.map((c) => (
                 <Link key={c.slug} to={`/pieces-detachees/${c.slug}`}

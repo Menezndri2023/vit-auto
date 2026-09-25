@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
+import { useI18n } from "../context/I18nContext";
 
 const Li = ({ children }) => (
   <li style={{ marginBottom: 8, display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -21,19 +22,53 @@ const BenefitCard = ({ icon, title, desc }) => (
 );
 
 const STEPS = [
-  { n: "1", title: "Créez votre compte", desc: "Inscription gratuite en 2 minutes avec vos informations partenaire.", icon: "📝" },
-  { n: "2", title: "Soumettez vos véhicules", desc: "Publiez vos annonces avec photos, prix et disponibilités.", icon: "🚗" },
-  { n: "3", title: "Recevez des réservations", desc: "Les clients réservent directement. Vous confirmez ou refusez en un clic.", icon: "📥" },
-  { n: "4", title: "Encaissez en sécurité", desc: "Paiements sécurisés, contrats digitaux automatiques, virements rapides.", icon: "💳" },
+  { n: "1", cle: "s1", icon: "📝" },
+  { n: "2", cle: "s2", icon: "🚗" },
+  { n: "3", cle: "s3", icon: "📥" },
+  { n: "4", cle: "s4", icon: "💳" },
 ];
+
+const AVANTAGES = [
+  { icon: "🌍", cle: "b1" }, { icon: "📄", cle: "b2" }, { icon: "🚚", cle: "b3" },
+  { icon: "💳", cle: "b4" }, { icon: "📊", cle: "b5" }, { icon: "🔒", cle: "b6" },
+];
+
+const FONDATEUR = [
+  { icon: "🎁", cle: "f1" }, { icon: "💸", cle: "f2" }, { icon: "🏅", cle: "f3" },
+  { icon: "📢", cle: "f4" }, { icon: "🔓", cle: "f5" },
+];
+
+const PROFILS = [
+  { icon: "🏢", cle: "w1" }, { icon: "🏪", cle: "w2" },
+  { icon: "👤", cle: "w3" }, { icon: "👨‍✈️", cle: "w4" },
+];
+
+// Grille de commissions. Les taux sont ceux réellement facturés
+// (server/scripts/setCommissionRates.mjs) ; la ligne « pièces détachées »
+// manquait, et les frais de service annonçaient « 15 DH fixe » là où le moteur
+// applique max(1 $US ; 0,5 %) plafonné à 25 $US.
+const COMMISSIONS = [
+  { cle: "rental",     standard: "15 %", founder: "10 %", icon: "🚗" },
+  { cle: "sale",       standard: "5 %",  founder: "3 %",  icon: "🏷️" },
+  { cle: "export",     standard: "5 %",  founder: "3 %",  icon: "🌍" },
+  { cle: "driver",     standard: "15 %", founder: "10 %", icon: "👨‍✈️" },
+  { cle: "leisure",    standard: "15 %", founder: "10 %", icon: "🎈" },
+  { cle: "parts",      standard: "10 %", founder: "7 %",  icon: "🔩" },
+  { cle: "insurance",  standardCle: "part.negotiated", founderCle: "part.negotiated", icon: "🛡️" },
+  { cle: "serviceFee", standardCle: "part.c.serviceFeeValue", founderCle: "part.c.serviceFeeValue", icon: "⚙️" },
+];
+
+const FOURNIR = ["p1", "p2", "p3", "p4", "p5", "p6"];
 
 export default function Partenaires() {
   // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
   // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
   // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
+  const { t } = useI18n();
   useDocumentMeta({
-    title: "Devenir partenaire",
-    description: "Publiez vos véhicules sur VIT AUTO et vendez ou louez dans 28 pays. Commission transparente, paiement sécurisé, contrats automatiques.",
+    title:       t("part.metaTitle"),
+    description: t("part.metaDesc"),
+    traduite:    true,
   });
 
   return (
@@ -53,14 +88,13 @@ export default function Partenaires() {
           display: "inline-block", background: "rgba(255,77,45,.22)", color: "#ff8060",
           fontSize: "0.72rem", fontWeight: 800, padding: "4px 14px",
           borderRadius: 999, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16,
-        }}>🤝 PROGRAMME PARTENAIRES VIT AUTO</span>
+        }}>{t("part.badge")}</span>
         <h1 style={{ margin: "0 0 12px", fontSize: "clamp(1.6rem,3vw,2.3rem)", fontWeight: 900, lineHeight: 1.2 }}>
-          Rejoignez la plateforme automobile<br />
-          <span style={{ color: "#ff6b4a" }}>qui propulse vos revenus</span>
+          {t("part.h1a")}<br />
+          <span style={{ color: "#ff6b4a" }}>{t("part.h1b")}</span>
         </h1>
         <p style={{ margin: "0 0 26px", color: "rgba(255,255,255,.92)", fontSize: "0.97rem", maxWidth: 540, lineHeight: 1.65 }}>
-          Agences, concessionnaires, particuliers — publiez vos véhicules sur VIT AUTO
-          et touchez des milliers de clients dans 20+ pays. Commission transparente, paiements sécurisés.
+          {t("part.heroDesc")}
         </p>
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
           <Link to="/register?role=partenaire" style={{
@@ -68,21 +102,21 @@ export default function Partenaires() {
             padding: "14px 28px", borderRadius: 12, textDecoration: "none",
             boxShadow: "0 4px 18px rgba(255,77,45,.45)", display: "inline-block",
           }}>
-            Devenir partenaire →
+            {t("part.becomeCta")}
           </Link>
           <Link to="/partner-pms" style={{
             background: "rgba(255,255,255,.15)", color: "#fff", fontWeight: 700, fontSize: "0.92rem",
             padding: "14px 28px", borderRadius: 12, textDecoration: "none",
             border: "1px solid rgba(255,255,255,.3)", display: "inline-block",
           }}>
-            🤝 Espace Partner Hub
+            {t("part.hubCta")}
           </Link>
           <a href="#offre-fondateur" style={{
             background: "rgba(255,255,255,.08)", color: "rgba(255,255,255,.85)", fontWeight: 700, fontSize: "0.88rem",
             padding: "14px 24px", borderRadius: 12, textDecoration: "none",
             border: "1px solid rgba(255,255,255,.15)", display: "inline-block",
           }}>
-            Voir l'Offre Fondateur ⭐
+            {t("part.seeFounder")}
           </a>
         </div>
       </div>
@@ -99,41 +133,34 @@ export default function Partenaires() {
           fontSize: "0.72rem", padding: "7px 18px", borderRadius: "0 22px 0 14px",
           letterSpacing: "0.08em", textTransform: "uppercase",
         }}>
-          ⭐ ÉTAPE OBLIGATOIRE
+          {t("part.mandatory")}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
           <span style={{ fontSize: "2rem" }}>👑</span>
           <div>
             <h2 style={{ margin: 0, fontSize: "clamp(1.2rem,2.2vw,1.65rem)", fontWeight: 900, color: "#0f1b3f" }}>
-              Programme Fondateur
+              {t("part.founderTitle")}
             </h2>
             <p style={{ margin: "3px 0 0", color: "#92400e", fontWeight: 700, fontSize: "0.85rem" }}>
-              Le parcours obligatoire de tout nouveau partenaire
+              {t("part.founderSub")}
             </p>
           </div>
         </div>
 
         <p style={{ color: "#78350f", fontSize: "0.9rem", lineHeight: 1.65, marginBottom: 26, maxWidth: 580 }}>
-          En tant que partenaire fondateur, vous bénéficiez d'avantages exclusifs pendant 12 mois,
-          d'une visibilité prioritaire et d'un accès anticipé à toutes les futures fonctionnalités.
+          {t("part.founderDesc")}
         </p>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", gap: 16, marginBottom: 28 }}>
-          {[
-            { icon: "🎁", label: "Gratuit 12 mois", desc: "Aucun abonnement, aucune carte requise pendant un an complet." },
-            { icon: "💸", label: "Commission réduite", desc: "Pendant 12 mois, entreprise comme particulier : location 10 % (au lieu de 15 %), vente et export 3 % (au lieu de 5 %), chauffeur et loisirs 10 % (au lieu de 15 %)." },
-            { icon: "🏅", label: "Badge Fondateur", desc: "Mention exclusive \"Partenaire Fondateur\" sur toutes vos annonces." },
-            { icon: "📢", label: "Mise en avant permanente", desc: "Vos annonces apparaissent en premier dans le catalogue et les recherches." },
-            { icon: "🔓", label: "Accès anticipé", desc: "Accès prioritaire aux nouvelles fonctionnalités avant tous les autres." },
-          ].map((item) => (
-            <div key={item.label} style={{
+          {FONDATEUR.map((item) => (
+            <div key={item.cle} style={{
               background: "#fff", border: "1px solid #fde68a", borderRadius: 14,
               padding: "18px 16px", boxShadow: "0 2px 8px rgba(251,191,36,.12)",
             }}>
               <div style={{ fontSize: "1.6rem", marginBottom: 8 }}>{item.icon}</div>
-              <div style={{ fontWeight: 800, color: "#0f1b3f", fontSize: "0.9rem", marginBottom: 5 }}>{item.label}</div>
-              <div style={{ color: "#78350f", fontSize: "0.82rem", lineHeight: 1.55 }}>{item.desc}</div>
+              <div style={{ fontWeight: 800, color: "#0f1b3f", fontSize: "0.9rem", marginBottom: 5 }}>{t(`part.${item.cle}.label`)}</div>
+              <div style={{ color: "#78350f", fontSize: "0.82rem", lineHeight: 1.55 }}>{t(`part.${item.cle}.desc`)}</div>
             </div>
           ))}
         </div>
@@ -144,7 +171,7 @@ export default function Partenaires() {
             padding: "13px 30px", borderRadius: 11, textDecoration: "none",
             boxShadow: "0 4px 18px rgba(245,158,11,.4)", display: "inline-block",
           }}>
-            Devenir partenaire →
+            {t("part.becomeCta")}
           </Link>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{
@@ -160,7 +187,7 @@ export default function Partenaires() {
               ))}
             </div>
             <span style={{ color: "#92400e", fontSize: "0.85rem", fontWeight: 700 }}>
-              Places restantes limitées — agissez vite
+              {t("part.founderWindow")}
             </span>
           </div>
         </div>
@@ -171,19 +198,16 @@ export default function Partenaires() {
         textAlign: "center", fontSize: "clamp(1.3rem,2.5vw,1.7rem)", fontWeight: 900,
         color: "#0f1b3f", marginBottom: 8,
       }}>
-        Pourquoi choisir VIT AUTO ?
+        {t("part.whyTitle")}
       </h2>
       <p style={{ textAlign: "center", color: "#64748b", marginBottom: 36, fontSize: "0.95rem" }}>
-        Des outils professionnels pour développer votre activité
+        {t("part.whySub")}
       </p>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", gap: 20, marginBottom: 56 }}>
-        <BenefitCard icon="🌍" title="Présence internationale" desc="20+ pays, 9 devises. Chine, Dubaï, Europe, Afrique, Maghreb — touchez des clients partout." />
-        <BenefitCard icon="📄" title="Contrats digitaux" desc="Chaque réservation génère automatiquement un contrat à valeur légale." />
-        <BenefitCard icon="🚚" title="Livraison GPS" desc="Calcul automatique des frais de livraison. Plus de négociation." />
-        <BenefitCard icon="💳" title="Paiements sécurisés" desc="Orange Money, Wave, MTN, carte bancaire. Virement rapide vers vous." />
-        <BenefitCard icon="📊" title="Tableau de bord" desc="Statistiques en temps réel : vues, réservations, revenus." />
-        <BenefitCard icon="🔒" title="Vérification clients" desc="Identité et téléphone vérifiés. Réduisez les risques d'impayé." />
+        {AVANTAGES.map((a) => (
+          <BenefitCard key={a.cle} icon={a.icon} title={t(`part.${a.cle}.title`)} desc={t(`part.${a.cle}.desc`)} />
+        ))}
       </div>
 
       {/* ── Types de partenaires ── */}
@@ -191,22 +215,17 @@ export default function Partenaires() {
         background: "#f8fafc", borderRadius: 20, padding: "40px 36px", marginBottom: 56,
       }}>
         <h2 style={{ margin: "0 0 28px", fontSize: "1.3rem", fontWeight: 900, color: "#0f1b3f" }}>
-          Qui peut devenir partenaire ?
+          {t("part.whoTitle")}
         </h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px,1fr))", gap: 16 }}>
-          {[
-            { icon: "🏢", title: "Agences de location", desc: "Multipliez vos canaux de réservation et automatisez votre gestion." },
-            { icon: "🏪", title: "Concessionnaires & Importateurs", desc: "Vendez neuf et occasion à une audience qualifiée dans 20+ pays. Importez depuis la Chine ou Dubaï via Import/Export." },
-            { icon: "👤", title: "Particuliers", desc: "Monétisez votre véhicule quand vous ne l'utilisez pas." },
-            { icon: "👨‍✈️", title: "Chauffeurs professionnels", desc: "Proposez vos services avec conducteur à des clients partout." },
-          ].map((t) => (
-            <div key={t.title} style={{
+          {PROFILS.map((profil) => (
+            <div key={profil.cle} style={{
               background: "#fff", borderRadius: 14, padding: "22px 20px",
               border: "1px solid #e2e8f0",
             }}>
-              <div style={{ fontSize: "1.8rem", marginBottom: 10 }}>{t.icon}</div>
-              <div style={{ fontWeight: 800, color: "#0f1b3f", fontSize: "0.95rem", marginBottom: 6 }}>{t.title}</div>
-              <div style={{ color: "#64748b", fontSize: "0.86rem", lineHeight: 1.6 }}>{t.desc}</div>
+              <div style={{ fontSize: "1.8rem", marginBottom: 10 }}>{profil.icon}</div>
+              <div style={{ fontWeight: 800, color: "#0f1b3f", fontSize: "0.95rem", marginBottom: 6 }}>{t(`part.${profil.cle}.title`)}</div>
+              <div style={{ color: "#64748b", fontSize: "0.86rem", lineHeight: 1.6 }}>{t(`part.${profil.cle}.desc`)}</div>
             </div>
           ))}
         </div>
@@ -217,7 +236,7 @@ export default function Partenaires() {
         textAlign: "center", fontSize: "clamp(1.3rem,2.5vw,1.7rem)", fontWeight: 900,
         color: "#0f1b3f", marginBottom: 36,
       }}>
-        Comment ça marche ?
+        {t("part.howTitle")}
       </h2>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", gap: 20, marginBottom: 56 }}>
         {STEPS.map((s) => (
@@ -228,8 +247,8 @@ export default function Partenaires() {
               margin: "0 auto 14px", fontSize: "1.1rem", fontWeight: 900, color: "#fff",
             }}>{s.n}</div>
             <div style={{ fontSize: "1.5rem", marginBottom: 10 }}>{s.icon}</div>
-            <h3 style={{ margin: "0 0 8px", fontWeight: 800, color: "#0f1b3f", fontSize: "0.95rem" }}>{s.title}</h3>
-            <p style={{ margin: 0, color: "#64748b", fontSize: "0.86rem", lineHeight: 1.6 }}>{s.desc}</p>
+            <h3 style={{ margin: "0 0 8px", fontWeight: 800, color: "#0f1b3f", fontSize: "0.95rem" }}>{t(`part.${s.cle}.title`)}</h3>
+            <p style={{ margin: 0, color: "#64748b", fontSize: "0.86rem", lineHeight: 1.6 }}>{t(`part.${s.cle}.desc`)}</p>
           </div>
         ))}
       </div>
@@ -239,40 +258,30 @@ export default function Partenaires() {
         background: "linear-gradient(135deg, #0f1b3f 0%, #1e3a6e 100%)",
         borderRadius: 20, padding: "40px 36px", marginBottom: 56, color: "#fff",
       }}>
-        <h2 style={{ margin: "0 0 8px", fontWeight: 900, fontSize: "1.3rem", color: "#ffffff", textShadow: "0 2px 16px rgba(0,0,0,.4)" }}>Commissions transparentes</h2>
+        <h2 style={{ margin: "0 0 8px", fontWeight: 900, fontSize: "1.3rem", color: "#ffffff", textShadow: "0 2px 16px rgba(0,0,0,.4)" }}>{t("part.commTitle")}</h2>
         <p style={{ margin: "0 0 28px", color: "rgba(255,255,255,.92)", fontSize: "0.9rem" }}>
-          Aucun frais caché. Vous savez exactement ce que vous payez. Pour la vente, VIT AUTO n'est pas une boutique en ligne :
-          nous vous apportons des prospects qualifiés (demandes d'essai), vous restez maître du véhicule, du prix, de la négociation
-          et de la conclusion — aucun abonnement ni frais de publication, une commission uniquement sur la vente conclue.
+          {t("part.commDesc")}
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px,1fr))", gap: 16 }}>
-          {[
-            { label: "Location", standard: "15 %", founder: "10 %", icon: "🚗", note: "Ex. 500 DH → 75 DH commission (50 DH en Partenaire Fondateur)" },
-            { label: "Vente", standard: "5 %", founder: "3 %", icon: "🏷️", note: "Du prix de vente final, uniquement si la vente est conclue avec un prospect apporté par VIT AUTO (90 jours). Ex. 100 000 DH → 5 000 DH (3 000 DH fondateur)" },
-            { label: "Vente à l'export", standard: "5 %", founder: "3 %", icon: "🌍", note: "Prélevée à la libération des fonds (séquestre)" },
-            { label: "Chauffeur", standard: "15 %", founder: "10 %", icon: "👨‍✈️", note: "Ex. 300 DH → 45 DH commission (30 DH fondateur)" },
-            { label: "Activités et loisirs", standard: "15 %", founder: "10 %", icon: "🎈", note: "Quad, plongée, jetski… Ex. 400 DH → 60 DH (40 DH fondateur)" },
-            { label: "Assurance", standard: "Négociée", founder: "Négociée", icon: "🛡️", note: "Selon accord partenaire" },
-            { label: "Frais service client", standard: "15 DH fixe", founder: "15 DH fixe", icon: "⚙️", note: "À la charge du client" },
-          ].map((c) => (
-            <div key={c.label} style={{
+          {COMMISSIONS.map((c) => (
+            <div key={c.cle} style={{
               background: "rgba(255,255,255,.08)", borderRadius: 14, padding: "22px 20px",
               border: "1px solid rgba(255,255,255,.12)",
             }}>
               <div style={{ fontSize: "1.5rem", marginBottom: 10 }}>{c.icon}</div>
-              <div style={{ fontWeight: 800, fontSize: "1rem", marginBottom: 12 }}>{c.label}</div>
+              <div style={{ fontWeight: 800, fontSize: "1rem", marginBottom: 12 }}>{t(`part.c.${c.cle}`)}</div>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                <span style={{ color: "rgba(255,255,255,.85)", fontSize: "0.82rem" }}>Standard</span>
-                <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>{c.standard}</span>
+                <span style={{ color: "rgba(255,255,255,.85)", fontSize: "0.82rem" }}>{t("part.standard")}</span>
+                <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>{c.standard || t(c.standardCle)}</span>
               </div>
               <div style={{
                 display: "flex", justifyContent: "space-between",
                 background: "rgba(255,215,0,.15)", borderRadius: 8, padding: "6px 10px",
               }}>
-                <span style={{ color: "#ffd700", fontSize: "0.82rem", fontWeight: 700 }}>👑 Fondateur</span>
-                <span style={{ color: "#ffd700", fontWeight: 900, fontSize: "0.9rem" }}>{c.founder}</span>
+                <span style={{ color: "#ffd700", fontSize: "0.82rem", fontWeight: 700 }}>{t("part.founder")}</span>
+                <span style={{ color: "#ffd700", fontWeight: 900, fontSize: "0.9rem" }}>{c.founder || t(c.founderCle)}</span>
               </div>
-              {c.note && <div style={{ color: "rgba(255,255,255,.70)", fontSize: "0.76rem", marginTop: 8 }}>{c.note}</div>}
+              <div style={{ color: "rgba(255,255,255,.70)", fontSize: "0.76rem", marginTop: 8 }}>{t(`part.c.${c.cle}Note`)}</div>
             </div>
           ))}
         </div>
@@ -284,15 +293,10 @@ export default function Partenaires() {
         padding: "28px 28px", marginBottom: 40,
       }}>
         <h3 style={{ margin: "0 0 16px", fontWeight: 800, color: "#0f1b3f", fontSize: "1rem" }}>
-          Ce que vous devez fournir
+          {t("part.provideTitle")}
         </h3>
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          <Li>Pièce d'identité valide (CNI ou passeport)</Li>
-          <Li>Numéro de téléphone vérifié pour les notifications</Li>
-          <Li>Adresse exacte du véhicule (indispensable pour le calcul GPS de livraison)</Li>
-          <Li>Photos réelles et récentes des véhicules publiés</Li>
-          <Li>Documents en règle : assurance, carte grise, contrôle technique</Li>
-          <Li>Disponibilité pour confirmer les réservations dans les 24 heures</Li>
+          {FOURNIR.map((cle) => <Li key={cle}>{t(`part.${cle}`)}</Li>)}
         </ul>
       </div>
 
@@ -312,13 +316,12 @@ export default function Partenaires() {
             display: "inline-block", background: "rgba(59,130,246,.18)", color: "#60a5fa",
             fontSize: "0.70rem", fontWeight: 800, padding: "4px 12px",
             borderRadius: 999, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12,
-          }}>🤝 PARTNER HUB</span>
+          }}>{t("part.hubBadge")}</span>
           <h3 style={{ margin: "0 0 10px", fontWeight: 900, color: "#fff", fontSize: "clamp(1.1rem,2vw,1.4rem)" }}>
-            Tableau de bord partenaire professionnel
+            {t("part.hubTitle")}
           </h3>
           <p style={{ margin: 0, color: "rgba(255,255,255,.85)", fontSize: "0.88rem", lineHeight: 1.65, maxWidth: 500 }}>
-            Gérez vos leads, créez des devis professionnels, construisez votre showroom en ligne
-            et suivez vos performances avec le Partner Management System (PMS) de VIT AUTO.
+            {t("part.hubDesc")}
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 16 }}>
             {["🎯 Lead Management","📄 Quotation Builder","🏪 Showroom","📊 Analytics","⭐ Trust Score"].map((f) => (
@@ -336,7 +339,7 @@ export default function Partenaires() {
           borderRadius: 11, textDecoration: "none", whiteSpace: "nowrap",
           boxShadow: "0 4px 18px rgba(59,130,246,.35)", flexShrink: 0,
         }}>
-          Accéder au Partner Hub →
+          {t("part.hubCta2")}
         </Link>
       </div>
 
@@ -356,13 +359,12 @@ export default function Partenaires() {
             display: "inline-block", background: "rgba(255,77,45,.18)", color: "#ff7a5c",
             fontSize: "0.70rem", fontWeight: 800, padding: "4px 12px",
             borderRadius: 999, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12,
-          }}>🌍 SERVICE EXCLUSIF</span>
+          }}>{t("part.ieBadge")}</span>
           <h3 style={{ margin: "0 0 10px", fontWeight: 900, color: "#fff", fontSize: "clamp(1.1rem,2vw,1.4rem)" }}>
-            Import / Export International
+            {t("svc.ie.title")}
           </h3>
           <p style={{ margin: 0, color: "rgba(255,255,255,.92)", fontSize: "0.88rem", lineHeight: 1.65, maxWidth: 460 }}>
-            Importez des véhicules depuis la Chine, Dubaï ou l'Europe et revendez-les sur 20+ marchés.
-            Inspection, transport maritime, dédouanement — VIT AUTO gère tout avec vous.
+            {t("part.ieDesc")}
           </p>
         </div>
         <Link to="/import-export" style={{
@@ -371,7 +373,7 @@ export default function Partenaires() {
           borderRadius: 11, textDecoration: "none", whiteSpace: "nowrap",
           boxShadow: "0 4px 18px rgba(255,77,45,.35)", flexShrink: 0,
         }}>
-          Découvrir Import/Export →
+          {t("part.ieCta")}
         </Link>
       </div>
 
@@ -381,10 +383,10 @@ export default function Partenaires() {
         borderRadius: 20, padding: "48px 32px", color: "#fff",
       }}>
         <h2 style={{ margin: "0 0 12px", fontWeight: 900, fontSize: "clamp(1.3rem,2.5vw,1.8rem)" }}>
-          Prêt à rejoindre VIT AUTO ?
+          {t("part.ctaTitle")}
         </h2>
         <p style={{ margin: "0 0 28px", color: "rgba(255,255,255,.8)", fontSize: "0.95rem" }}>
-          L'inscription est gratuite. Le programme Fondateur (LOI + Accord) fait partie du parcours de tout partenaire.
+          {t("part.ctaDesc")}
         </p>
         <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
           <Link to="/register?role=partenaire" style={{
@@ -392,14 +394,14 @@ export default function Partenaires() {
             padding: "14px 32px", borderRadius: 12, textDecoration: "none",
             boxShadow: "0 4px 16px rgba(0,0,0,.2)", display: "inline-block",
           }}>
-            Démarrer gratuitement →
+            {t("part.ctaStart")}
           </Link>
           <Link to="/conditions-partenaires" style={{
             background: "rgba(255,255,255,.15)", color: "#fff", fontWeight: 700, fontSize: "0.9rem",
             padding: "14px 28px", borderRadius: 12, textDecoration: "none",
             border: "1px solid rgba(255,255,255,.3)", display: "inline-block",
           }}>
-            Lire les conditions partenaires
+            {t("part.ctaTerms")}
           </Link>
         </div>
       </div>
