@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "../../context/AuthContext.jsx";
 import styles from "./VitrinePartage.module.css";
 
 // ── Le lien que le partenaire donne à ses clients ──────────────────────────
@@ -14,19 +15,26 @@ import styles from "./VitrinePartage.module.css";
 // Ce composant sert les deux cas : le partenaire pour lui-même (sans
 // `partenaireId`), l'administrateur pour un partenaire donné.
 export default function VitrinePartage({ partenaireId = null, compact = false }) {
+  // Le site s'authentifie par JETON, pas par cookie de session. Écrit d'abord
+  // avec `credentials: "include"`, ce composant recevait un 401 sur le tableau
+  // de bord partenaire — attrapé par le balayage navigateur du hook, qui
+  // surveille les requêtes en échec, et par rien d'autre : l'écran se
+  // contentait de ne rien afficher.
+  const { token } = useAuth();
   const [vitrine, setVitrine] = useState(null);
   const [erreur, setErreur] = useState(null);
   const [copie, setCopie] = useState(null);
 
   useEffect(() => {
+    if (!token) return undefined;
     let annule = false;
     const url = partenaireId ? `/api/partenaires/${partenaireId}/vitrine` : "/api/partenaires/ma-vitrine";
-    fetch(url, { credentials: "include" })
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d) => { if (!annule) setVitrine(d); })
       .catch(() => { if (!annule) setErreur("Lien de vitrine indisponible pour le moment."); });
     return () => { annule = true; };
-  }, [partenaireId]);
+  }, [partenaireId, token]);
 
   // Retour visible et bref. Sans lui, le partenaire appuie deux fois faute de
   // savoir si le premier appui a compté — c'est exactement la plainte remontée

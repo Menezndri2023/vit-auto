@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import VitrinePartage from "./VitrinePartage.jsx";
 
+vi.mock("../../context/AuthContext.jsx", () => ({ useAuth: () => ({ token: "jeton-de-test" }) }));
+
 // ═══════════════════════════════════════════════════════════════════════════
 // LE LIEN DE VITRINE DOIT ÊTRE DONNÉ, PAS DEVINÉ
 // ═══════════════════════════════════════════════════════════════════════════
@@ -50,6 +52,19 @@ describe("VitrinePartage", () => {
     render(<VitrinePartage />);
     await waitFor(() => expect(global.fetch).toHaveBeenCalled());
     expect(global.fetch.mock.calls[0][0]).toBe("/api/partenaires/ma-vitrine");
+  });
+
+  // Écrit APRÈS coup, parce que rien ici ne l'avait vu : la première version
+  // s'authentifiait par `credentials: "include"` alors que le site utilise un
+  // JETON. Résultat : 401, et une carte qui ne s'affichait simplement pas.
+  // Seul le balayage navigateur du hook de pré-push l'a attrapé, en surveillant
+  // les requêtes en échec. Un écran muet ne se voit pas dans un test qui
+  // n'interroge que le rendu.
+  it("porte le jeton d'authentification — un cookie ne suffit pas ici", async () => {
+    render(<VitrinePartage />);
+    await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+    const options = global.fetch.mock.calls[0][1] || {};
+    expect(options.headers?.Authorization).toBe("Bearer jeton-de-test");
   });
 
   it("demande celle d'un partenaire donné pour l'administrateur", async () => {
