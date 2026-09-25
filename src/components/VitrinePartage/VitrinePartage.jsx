@@ -84,31 +84,28 @@ export default function VitrinePartage({ partenaireId = null, compact = false })
           : `${annonces} annonce${annonces > 1 ? "s" : ""} visible${annonces > 1 ? "s" : ""} sur cette page.`}
       </p>
 
-      {lienCourt && (
-        <div className={styles.ligne}>
-          <input className={styles.champ} value={lienCourt} readOnly aria-label="Adresse courte de la vitrine" onFocus={(e) => e.target.select()} />
-          <button type="button" className={styles.bouton} onClick={() => copier(lienCourt, "court")}>
-            {copie === "court" ? "Copié ✓" : "Copier"}
-          </button>
-          <button type="button" className={`${styles.bouton} ${styles.secondaire}`} onClick={() => partager(lienCourt, partenaire?.nom)}>
-            Partager
-          </button>
-        </div>
-      )}
-
-      {/* L'adresse longue reste offerte même quand la courte existe : elle
-          fonctionne quoi qu'il arrive au palier, et c'est elle qu'on colle
-          dans un courriel ou un document. */}
+      {/* UN SEUL lien. Cet écran en affichait deux — l'adresse courte ET
+          l'adresse longue, chacune avec son bouton « Copier » — au motif que
+          la longue fonctionne quel que soit le palier. À l'usage, le partenaire
+          ne sait plus lequel donner : deux adresses pour une même page, c'est
+          une hésitation à chaque partage, et deux liens qui circulent pour la
+          même vitrine. On donne la meilleure disponible : l'adresse courte
+          quand le palier l'ouvre, la longue sinon. (Constat de l'exploitant,
+          2026-09-25.) */}
       <div className={styles.ligne}>
-        <input className={styles.champ} value={lien} readOnly aria-label="Adresse complète de la vitrine" onFocus={(e) => e.target.select()} />
-        <button type="button" className={`${styles.bouton} ${lienCourt ? styles.secondaire : ""}`} onClick={() => copier(lien, "long")}>
-          {copie === "long" ? "Copié ✓" : "Copier"}
+        <input
+          className={styles.champ}
+          value={aPartager}
+          readOnly
+          aria-label="Adresse de la vitrine"
+          onFocus={(e) => e.target.select()}
+        />
+        <button type="button" className={styles.bouton} onClick={() => copier(aPartager, "lien")}>
+          {copie === "lien" ? "Copié ✓" : "Copier"}
         </button>
-        {!lienCourt && (
-          <button type="button" className={`${styles.bouton} ${styles.secondaire}`} onClick={() => partager(lien, partenaire?.nom)}>
-            Partager
-          </button>
-        )}
+        <button type="button" className={`${styles.bouton} ${styles.secondaire}`} onClick={() => partager(aPartager, partenaire?.nom)}>
+          Partager
+        </button>
       </div>
 
       {qr && (

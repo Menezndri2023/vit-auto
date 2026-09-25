@@ -7,6 +7,7 @@ import styles from "./IEListings.module.css";
 import ieModalStyles from "./ImportExport.module.css";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import { optimizedImageUrl } from "../utils/imageOptim";
+import { useI18n } from "../context/I18nContext";
 
 const BADGE_CFG = {
   silver:   { label: "Silver",   icon: "🥈" },
@@ -15,14 +16,13 @@ const BADGE_CFG = {
   none:     { label: "",         icon: "" },
 };
 
-const FUEL_LABELS = {
-  essence: "Essence", diesel: "Diesel", hybride: "Hybride",
-  hybride_rechargeable: "Hybride rech.", electrique: "Électrique",
-  gpl: "GPL", autre: "Autre",
-};
+// Les libellés de carburant sont traduits à l'affichage (clés fuel.*) ; la
+// VALEUR stockée reste le code (essence, diesel…), jamais le libellé.
+const FUEL_CODES = ["essence", "diesel", "hybride", "hybride_rechargeable", "electrique", "gpl", "autre"];
 
 // ── Modal de demande rapide ────────────────────────────────────────────────
 function QuickRequestModal({ listing, onClose }) {
+  const { t } = useI18n();
   const { token } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({
@@ -65,31 +65,31 @@ function QuickRequestModal({ listing, onClose }) {
         {done ? (
           <div className={ieModalStyles.modalSuccess}>
             <div className={ieModalStyles.modalSuccessIcon}>✅</div>
-            <h3>Demande envoyée !</h3>
-            <p>Notre équipe vous contactera sous 24h à l'adresse <strong>{form.email}</strong>.</p>
-            <button className={ieModalStyles.primaryBtn} onClick={onClose}>Fermer</button>
+            <h3>{t("ie.sent")}</h3>
+            <p>{t("ie.sentDesc")} <strong>{form.email}</strong>.</p>
+            <button className={ieModalStyles.primaryBtn} onClick={onClose}>{t("ie.close")}</button>
           </div>
         ) : (
           <>
             <div className={ieModalStyles.modalHeader}>
               <span className={ieModalStyles.modalBadge}>🌍 DEMANDE DE CONTACT</span>
               <h2>{listing?.title}</h2>
-              <p>Notre équipe vous répond sous 24h.</p>
+              <p>{t("ie.formIntroShort")}</p>
             </div>
             <form onSubmit={submit} className={ieModalStyles.requestForm} autoComplete="on">
               <datalist id="qr-countries">{COUNTRIES_ALL.map((c) => <option key={c} value={c} />)}</datalist>
               <div className={ieModalStyles.formRow}>
-                <label><span>Prénom *</span><input autoComplete="given-name" value={form.firstName} onChange={(e) => set("firstName", e.target.value)} placeholder="Jean" required /></label>
+                <label><span>{t("ie.firstName")}</span><input autoComplete="given-name" value={form.firstName} onChange={(e) => set("firstName", e.target.value)} placeholder="Jean" required /></label>
                 <label><span>Nom *</span><input autoComplete="family-name" value={form.lastName} onChange={(e) => set("lastName", e.target.value)} placeholder="Dupont" required /></label>
               </div>
               <div className={ieModalStyles.formRow}>
                 <label><span>Email *</span><input type="email" autoComplete="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="vous@exemple.com" required /></label>
-                <label><span>Téléphone</span><input type="tel" autoComplete="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+225 07 00 00 00" /></label>
+                <label><span>{t("ie.phone")}</span><input type="tel" autoComplete="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+225 07 00 00 00" /></label>
               </div>
               <div className={ieModalStyles.formRow}>
                 <label className={ieModalStyles.formFull}>
                   <span>Pays de destination</span>
-                  <input list="qr-countries" value={form.destCountry} onChange={(e) => set("destCountry", e.target.value)} placeholder="Côte d'Ivoire, Sénégal…" />
+                  <input list="qr-countries" value={form.destCountry} onChange={(e) => set("destCountry", e.target.value)} placeholder={t("ie.countryPh")} />
                 </label>
               </div>
               <label className={ieModalStyles.formFull}>
@@ -110,6 +110,7 @@ function QuickRequestModal({ listing, onClose }) {
 
 // ── Carte annonce ──────────────────────────────────────────────────────────
 function ListingCard({ l }) {
+  const { t } = useI18n();
   const badge = BADGE_CFG[l.importerProfile?.badgeLevel || "none"];
   return (
     <div className={styles.card}>
@@ -131,7 +132,7 @@ function ListingCard({ l }) {
             <div className={styles.cardPhotoCount}>📷 {l.photosCount ?? l.photos.length}</div>
           )}
           {l.inspectionReport && (
-            <div className={styles.cardInspected}>🔍 Inspecté</div>
+            <div className={styles.cardInspected}>{t("iel.inspected")}</div>
           )}
         </div>
       </Link>
@@ -141,7 +142,7 @@ function ListingCard({ l }) {
           <p className={styles.cardTitle}>{l.title}</p>
         </Link>
         <span className={styles.cardMeta}>
-          {l.make} {l.model} {l.year} · {FUEL_LABELS[l.fuelType] || l.fuelType} · {l.condition === "neuf" ? "Neuf" : l.condition === "occasion" ? "Occasion" : "Reconditionné"}
+          {l.make} {l.model} {l.year} · {FUEL_CODES.includes(l.fuelType) ? t(`fuel.${l.fuelType}`) : l.fuelType} · {l.condition === "neuf" ? t("iel.condNew") : l.condition === "occasion" ? t("iel.condUsed") : t("iel.refurbished")}
         </span>
 
         {l.availableIn?.length > 0 && (
@@ -166,7 +167,7 @@ function ListingCard({ l }) {
         <div className={styles.cardFooter}>
           <div>
             <span className={styles.cardPrice}><PriceTag amount={l.price} sourceCurrency={l.currency} compact /></span>
-            {l.negotiable && <span className={styles.cardNeg}>Négociable</span>}
+            {l.negotiable && <span className={styles.cardNeg}>{t("iel.negotiable")}</span>}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span className={styles.cardViews}>👁️ {l.views || 0}</span>
@@ -184,12 +185,14 @@ function ListingCard({ l }) {
 // PAGE PRINCIPALE
 // ═════════════════════════════════════════════════════════════════════════
 export default function IEListings() {
+  const { t } = useI18n();
   // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
   // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
   // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
   useDocumentMeta({
-    title: "Annonces Import / Export",
-    description: "Véhicules disponibles à l'import depuis la Chine, Dubaï, l'Europe et le Japon, avec coût rendu-dédouané estimé.",
+    title:       t("footer.svcIEListings"),
+    description: t("iel.metaDesc"),
+    traduite:    true,
   });
 
   const [listings,     setListings]     = useState([]);
@@ -241,9 +244,9 @@ export default function IEListings() {
       <section className={styles.hero}>
         <div className={styles.heroGlow} />
         <span className={styles.heroBadge}>🌍 ANNONCES IMPORT / EXPORT</span>
-        <h1 className={styles.heroTitle}>Véhicules disponibles à l'import</h1>
+        <h1 className={styles.heroTitle}>{t("iel.h1")}</h1>
         <p className={styles.heroSub}>
-          Annonces publiées par nos importateurs certifiés VIT AUTO — Chine, Dubaï, Europe & Afrique.
+          {t("iel.sub")}
         </p>
         <Link to="/importer-apply" className={styles.heroCta}>
           Devenir importateur partenaire →
@@ -263,7 +266,7 @@ export default function IEListings() {
               className={styles.filterInput}
               value={searchMake}
               onChange={(e) => { setSearchMake(e.target.value); setPage(1); }}
-              placeholder="Marque, modèle, type…"
+              placeholder={t("iel.searchPh")}
             />
             {searchMake && (
               <button className={styles.filterClear} onClick={() => setSearchMake("")}>✕</button>
@@ -289,9 +292,9 @@ export default function IEListings() {
           value={sortOrder}
           onChange={(e) => { setSortOrder(e.target.value); setPage(1); }}
         >
-          <option value="newest">📅 Plus récentes</option>
+          <option value="newest">{t("iel.newest")}</option>
           <option value="price_asc">💶 Prix croissant</option>
-          <option value="price_desc">💶 Prix décroissant</option>
+          <option value="price_desc">{t("iel.priceDesc")}</option>
         </select>
       </div>
 
@@ -314,20 +317,20 @@ export default function IEListings() {
         ) : listings.length === 0 ? (
           <div className={styles.empty}>
             <div className={styles.emptyIcon}>🌍</div>
-            <h3>{searchMake || filterCountry ? "Aucun résultat pour ce filtre" : "Aucune annonce disponible"}</h3>
+            <h3>{t(searchMake || filterCountry ? "iel.noResult" : "iel.noListing")}</h3>
             <p>
               {searchMake || filterCountry
-                ? "Essayez un autre filtre ou effacez la recherche."
-                : "Les importateurs partenaires vérifiés publieront bientôt leurs véhicules ici."}
+                ? t("iel.noResultSub")
+                : t("iel.noListingSub")}
             </p>
             <div className={styles.emptyActions}>
               {(searchMake || filterCountry) && (
                 <button className={styles.emptyBtnPrimary} onClick={() => { setSearchMake(""); setFilterCountry(""); }}>
-                  Effacer les filtres
+                  {t("iel.clearFilters")}
                 </button>
               )}
-              <button className={styles.emptyBtnSecondary} onClick={() => setContactModal({ title: "Demande personnalisée" })}>
-                Faire une demande personnalisée →
+              <button className={styles.emptyBtnSecondary} onClick={() => setContactModal({ title: t("ie.customReq") })}>
+                {t("iel.customRequest")}
               </button>
             </div>
           </div>
@@ -342,11 +345,11 @@ export default function IEListings() {
             {total > 12 && (
               <div className={styles.pagination}>
                 {page > 1 && (
-                  <button className={styles.pageBtn} onClick={() => setPage((p) => p - 1)}>← Précédent</button>
+                  <button className={styles.pageBtn} onClick={() => setPage((p) => p - 1)}>{t("iel.previous")}</button>
                 )}
                 <span className={styles.pageInfo}>Page {page} / {Math.ceil(total / 12)}</span>
                 {page < Math.ceil(total / 12) && (
-                  <button className={styles.pageBtn} onClick={() => setPage((p) => p + 1)}>Suivant →</button>
+                  <button className={styles.pageBtn} onClick={() => setPage((p) => p + 1)}>{t("iel.next")}</button>
                 )}
               </div>
             )}
@@ -356,12 +359,12 @@ export default function IEListings() {
         {/* CTA Partenaire */}
         <div className={styles.partnerCta}>
           <div className={styles.partnerCtaText}>
-            <h3>Vous êtes importateur ?</h3>
-            <p>Rejoignez notre réseau de partenaires vérifiés et publiez vos véhicules import/export.</p>
+            <h3>{t("iel.importerQ")}</h3>
+            <p>{t("iel.importerDesc")}</p>
           </div>
           <div className={styles.partnerCtaActions}>
             <Link to="/importer-apply" className={styles.partnerCtaBtnPrimary}>Devenir partenaire →</Link>
-            <Link to="/import-export" className={styles.partnerCtaBtnGhost}>En savoir plus</Link>
+            <Link to="/import-export" className={styles.partnerCtaBtnGhost}>{t("pourquoi.card.insurance.cta")}</Link>
           </div>
         </div>
       </div>

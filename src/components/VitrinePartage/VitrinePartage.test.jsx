@@ -41,11 +41,26 @@ beforeEach(() => { global.fetch = vi.fn(() => reponse(VITRINE_OUVERTE)); });
 afterEach(() => { vi.restoreAllMocks(); });
 
 describe("VitrinePartage", () => {
-  it("affiche l'adresse courte, l'adresse complète et le QR code", async () => {
+  it("n'affiche QU'UNE adresse — la courte — et le QR code", async () => {
+    // L'écran en affichait deux, courte ET longue, chacune avec son bouton
+    // « Copier ». Le partenaire ne savait plus laquelle donner, et deux liens
+    // circulaient pour la même vitrine (constat de l'exploitant, 2026-09-25).
     render(<VitrinePartage />);
     expect(await screen.findByDisplayValue("https://vit-auto.com/p/boyzone-car")).toBeTruthy();
-    expect(screen.getByDisplayValue("https://vit-auto.com/partner/68f")).toBeTruthy();
+    expect(screen.queryByDisplayValue("https://vit-auto.com/partner/68f")).toBeNull();
+    // Un seul champ d'adresse, donc un seul « Copier » et un seul « Partager ».
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /copier/i })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /partager/i })).toHaveLength(1);
     expect(screen.getByRole("img", { name: /QR code/i })).toBeTruthy();
+  });
+
+  it("se rabat sur l'adresse complète quand le palier n'ouvre pas la courte", async () => {
+    // Sans lien court, il faut toujours UNE adresse copiable : la longue.
+    global.fetch = vi.fn(() => reponse({ ...VITRINE_OUVERTE, lienCourt: null, qr: null, lienCourtOuvert: false }));
+    render(<VitrinePartage />);
+    expect(await screen.findByDisplayValue("https://vit-auto.com/partner/68f")).toBeTruthy();
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
   });
 
   it("demande SA vitrine quand aucun partenaire n'est précisé", async () => {

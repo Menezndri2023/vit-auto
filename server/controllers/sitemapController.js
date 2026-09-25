@@ -47,7 +47,7 @@ export const PAGES_STATIQUES = [
   { loc: "/catalogue?mode=Autres",  changefreq: "daily",   priority: "0.8", traduite: true },
   { loc: "/catalogue?mode=Pieces",  changefreq: "daily",   priority: "0.8", traduite: true },
   { loc: "/import-export",          changefreq: "daily",   priority: "0.8" },
-  { loc: "/import-export/listings", changefreq: "hourly",  priority: "0.8" },
+  { loc: "/import-export/listings", changefreq: "hourly",  priority: "0.8", traduite: true },
   { loc: "/services",               changefreq: "monthly", priority: "0.6", traduite: true },
   { loc: "/partenaires",            changefreq: "weekly",  priority: "0.7", traduite: true },
   { loc: "/pourquoi",               changefreq: "monthly", priority: "0.5", traduite: true },
