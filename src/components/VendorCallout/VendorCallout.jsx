@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useI18n } from "../../context/I18nContext";
 import styles from "./VendorCallout.module.css";
 
 // "Commission 0% les 30 premiers jours" retiré — aucune exemption de ce type
@@ -7,14 +8,17 @@ import styles from "./VendorCallout.module.css";
 // bookingController.js COMMISSION_RATES, toujours appliqué dès la première
 // réservation). Remplacé par un fait vérifiable : la publication d'annonce
 // elle-même est gratuite, quel que soit le statut du partenaire.
+// Les chiffres restent en dur (ils ne se traduisent pas) ; leurs légendes
+// passent par t().
 const STATS = [
-  { value: "20+",   label: "Pays couverts",          sub: "Afrique · Europe · Asie" },
-  { value: "0 %",   label: "Frais de publication",   sub: "toujours gratuit" },
-  { value: "24h",   label: "Validation",             sub: "annonce en ligne" },
+  { value: "20+", cle: "Countries" },
+  { value: "0 %", cle: "Fees" },
+  { value: "24h", cle: "Validation" },
 ];
 
 const VendorCallout = () => {
   const { user } = useAuth();
+  const { t } = useI18n();
   const isPartner = user?.role === "partenaire" || user?.role === "admin";
 
   return (
@@ -29,24 +33,20 @@ const VendorCallout = () => {
           {/* Left */}
           <div className={styles.left}>
             <span className={styles.tag}>
-              {isPartner ? "🚀 ESPACE PARTENAIRE" : "🤝 DEVENEZ PARTENAIRE"}
+              {t(isPartner ? "vendor.tagPartner" : "vendor.tagVisitor")}
             </span>
             <h2 className={styles.title}>
-              {isPartner
-                ? "Publiez votre prochain véhicule"
-                : "Vendez ou importez à l'international"}
+              {t(isPartner ? "vendor.titlePartner" : "vendor.titleVisitor")}
             </h2>
             <p className={styles.desc}>
-              {isPartner
-                ? "Ajoutez une annonce en quelques minutes — location, vente, chauffeur ou import/export. Visibilité dans 20+ pays, paiements automatisés."
-                : "Rejoignez des centaines de partenaires sur 20+ pays — Afrique, Europe, Chine, Dubaï. Publication gratuite, clients vérifiés, revenus automatiques."}
+              {t(isPartner ? "vendor.descPartner" : "vendor.descVisitor")}
             </p>
 
             <Link
               to={isPartner ? "/vendor" : "/register"}
               className={styles.cta}
             >
-              {isPartner ? "Publier une annonce →" : "Commencer gratuitement →"}
+              {t(isPartner ? "vendor.ctaPartner" : "vendor.ctaVisitor")}
             </Link>
           </div>
 
@@ -54,10 +54,10 @@ const VendorCallout = () => {
           {!isPartner && (
             <div className={styles.right}>
               {STATS.map((s) => (
-                <div key={s.label} className={styles.stat}>
+                <div key={s.cle} className={styles.stat}>
                   <span className={styles.statVal}>{s.value}</span>
-                  <span className={styles.statLabel}>{s.label}</span>
-                  <span className={styles.statSub}>{s.sub}</span>
+                  <span className={styles.statLabel}>{t(`vendor.stat${s.cle}`)}</span>
+                  <span className={styles.statSub}>{t(`vendor.stat${s.cle}Sub`)}</span>
                 </div>
               ))}
             </div>

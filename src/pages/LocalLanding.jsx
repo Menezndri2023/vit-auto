@@ -5,6 +5,7 @@ import { useVehicles } from "../context/VehicleContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import { slugifyCity } from "../constants/citySlug";
+import { useI18n } from "../context/I18nContext";
 
 // Page d'entrée par VILLE — le seul levier de référencement local qui manquait.
 //
@@ -19,20 +20,29 @@ import { slugifyCity } from "../constants/citySlug";
 // décoratif. Une page locale qui promet ce qu'elle n'a pas dessert autant le
 // visiteur que le référencement.
 
+// Les libellés sont des CLÉS, plus des gabarits français : la page est servie
+// en cinq langues (/en/location-voiture/abidjan…) et déclare son hreflang.
+// Le segment d'adresse, lui, reste français dans toutes les langues — le
+// traduire casserait les 643 adresses déjà indexées et les liens partagés,
+// pour un gain que Google tire de toute façon du CONTENU de la page.
 const MODES = {
   location: {
     listingType: "location",
-    h1:      (ville) => `Location de voiture à ${ville}`,
-    titre:   (ville) => `Location de voiture à ${ville}`,
-    verbe:   "louer",
-    autre:   { chemin: "achat-voiture", libelle: "Acheter un véhicule" },
+    h1:       "ville.h1Rent",
+    titre:    "ville.titleRent",
+    compteUn: "ville.countRentOne",
+    comptePl: "ville.countRentMany",
+    prixCle:  "ville.fromPerDay",
+    autre:    { chemin: "achat-voiture", libelle: "ville.otherSale" },
   },
   vente: {
     listingType: "vente",
-    h1:      (ville) => `Voitures à vendre à ${ville}`,
-    titre:   (ville) => `Achat de voiture à ${ville}`,
-    verbe:   "acheter",
-    autre:   { chemin: "location-voiture", libelle: "Louer un véhicule" },
+    h1:       "ville.h1Sale",
+    titre:    "ville.titleSale",
+    compteUn: "ville.countSaleOne",
+    comptePl: "ville.countSaleMany",
+    prixCle:  "ville.from",
+    autre:    { chemin: "location-voiture", libelle: "ville.otherRent" },
   },
 };
 
@@ -40,6 +50,7 @@ export default function LocalLanding({ mode = "location" }) {
   const { ville: slug } = useParams();
   const { vehicles } = useVehicles();
   const { fmtUSD } = useCurrency();
+  const { t } = useI18n();
   const cfg = MODES[mode] || MODES.location;
 
   // Annonces publiées dans cette ville, pour ce mode.
@@ -78,25 +89,31 @@ export default function LocalLanding({ mode = "location" }) {
   );
 
   const url = `https://vit-auto.com/${mode === "vente" ? "achat-voiture" : "location-voiture"}/${slug}`;
+  // Composée de morceaux traduits, jamais concaténée en français : « 3
+  // véhicules à louer à Abidjan, à partir de … » n'a pas le même ordre de mots
+  // en arabe ou en chinois.
   const description = annonces.length
-    ? `${annonces.length} véhicule${annonces.length > 1 ? "s" : ""} à ${cfg.verbe} à ${nomVille}`
-      + (prixMin ? `, à partir de ${fmtUSD(prixMin)}${cfg.listingType === "location" ? " par jour" : ""}` : "")
-      + `. Réservation en ligne, contrat digital et assistance VIT AUTO.`
-    : `Aucune annonce disponible à ${nomVille} pour le moment. Découvrez tout le catalogue VIT AUTO.`;
+    ? t(annonces.length > 1 ? cfg.comptePl : cfg.compteUn, { n: annonces.length, ville: nomVille })
+      + (prixMin ? t(cfg.prixCle, { prix: fmtUSD(prixMin) }) : "")
+      + t("ville.descTail")
+    : t("ville.empty", { ville: nomVille });
 
   useDocumentMeta({
-    title: cfg.titre(nomVille),
+    title: t(cfg.titre, { ville: nomVille }),
     description,
     url,
     // Une ville sans annonce est une page mince : la laisser indexable
     // fabriquerait des dizaines d'adresses sans contenu, ce que les moteurs
     // sanctionnent — et ce que l'utilisateur déteste trouver.
     robots: annonces.length ? undefined : "noindex, follow",
+    // Contenu entièrement traduit (y compris le pied de page) : la page peut
+    // déclarer ses cinq versions aux moteurs.
+    traduite: true,
     structuredData: annonces.length
       ? {
           "@context": "https://schema.org",
           "@type": "Service",
-          name: cfg.h1(nomVille),
+          name: t(cfg.h1, { ville: nomVille }),
           serviceType: cfg.listingType === "vente" ? "Car Sales" : "Car Rental",
           provider: { "@type": "AutoDealer", name: "VIT AUTO", url: "https://vit-auto.com" },
           areaServed: { "@type": "City", name: nomVille },
@@ -111,36 +128,36 @@ export default function LocalLanding({ mode = "location" }) {
   return (
     <div style={{ maxWidth: 1180, margin: "0 auto", padding: "2rem 1.25rem 3rem" }}>
       <nav style={{ fontSize: ".8rem", color: "#64748b", marginBottom: 12 }}>
-        <Link to="/" style={{ color: "#64748b" }}>Accueil</Link>
+        <Link to="/" style={{ color: "#64748b" }}>{t("nav.home")}</Link>
         {" › "}
-        <Link to="/catalogue" style={{ color: "#64748b" }}>Catalogue</Link>
+        <Link to="/catalogue" style={{ color: "#64748b" }}>{t("nav.catalogue")}</Link>
         {" › "}<span style={{ color: "#0f1b3f", fontWeight: 700 }}>{nomVille}</span>
       </nav>
 
-      <h1 style={{ fontSize: "1.7rem", color: "#0f1b3f", margin: "0 0 8px" }}>{cfg.h1(nomVille)}</h1>
+      <h1 style={{ fontSize: "1.7rem", color: "#0f1b3f", margin: "0 0 8px" }}>{t(cfg.h1, { ville: nomVille })}</h1>
       <p style={{ color: "#475569", fontSize: ".95rem", maxWidth: 760, lineHeight: 1.55 }}>{description}</p>
 
       {marques.length > 0 && (
         <p style={{ color: "#64748b", fontSize: ".85rem", marginTop: 4 }}>
-          Marques disponibles à {nomVille} : {marques.join(", ")}.
+          {t("ville.brands", { ville: nomVille, marques: marques.join(", ") })}
         </p>
       )}
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", margin: "16px 0 24px" }}>
         <Link to={`/catalogue?location=${encodeURIComponent(nomVille)}`}
           style={{ padding: "9px 16px", borderRadius: 10, background: "#0f1b3f", color: "#fff", fontWeight: 700, fontSize: ".85rem", textDecoration: "none" }}>
-          Voir tout le catalogue de {nomVille}
+          {t("ville.seeAll", { ville: nomVille })}
         </Link>
         <Link to={`/${cfg.autre.chemin}/${slug}`}
           style={{ padding: "9px 16px", borderRadius: 10, border: "1.5px solid #dbe2ef", color: "#1a3a6e", fontWeight: 700, fontSize: ".85rem", textDecoration: "none" }}>
-          {cfg.autre.libelle} à {nomVille}
+          {t(cfg.autre.libelle, { ville: nomVille })}
         </Link>
       </div>
 
       {annonces.length === 0 ? (
         <p style={{ color: "#64748b" }}>
-          Aucune annonce publiée à {nomVille} pour l'instant.{" "}
-          <Link to="/catalogue" style={{ color: "#4338ca", fontWeight: 700 }}>Parcourir tout le catalogue</Link>.
+          {t("ville.noListing", { ville: nomVille })}{" "}
+          <Link to="/catalogue" style={{ color: "#4338ca", fontWeight: 700 }}>{t("ville.browseAll")}</Link>.
         </p>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 18 }}>
@@ -150,7 +167,7 @@ export default function LocalLanding({ mode = "location" }) {
 
       {autresVilles.length > 0 && (
         <section style={{ marginTop: 36, paddingTop: 20, borderTop: "1.5px solid #e2e8f0" }}>
-          <h2 style={{ fontSize: "1rem", color: "#0f1b3f", marginBottom: 10 }}>Autres villes desservies</h2>
+          <h2 style={{ fontSize: "1rem", color: "#0f1b3f", marginBottom: 10 }}>{t("ville.otherCities")}</h2>
           {/* Maillage interne : sans ces liens, chaque page locale serait une
               impasse que les moteurs n'atteindraient que par le sitemap. */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>

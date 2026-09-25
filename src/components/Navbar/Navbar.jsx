@@ -9,8 +9,10 @@ import useIsMobile from "../../hooks/useIsMobile";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "../../constants/activityTypes";
 import styles from "./Navbar.module.css";
 import { useFermetureExterieure } from "../../hooks/useFermetureExterieure";
+import { useI18n } from "../../context/I18nContext";
 
 const Navbar = () => {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { user, isAuthenticated, logout } = useAuth();
@@ -61,8 +63,8 @@ const Navbar = () => {
 
       {/* Liens principaux — sur mobile, c'est le menu ouvert par le burger */}
       <ul id="navigation-principale" className={`${styles.navLinks} ${menuOpen ? styles.navOpen : ""}`}>
-        <li><NavLink to="/" end className={navLink} onClick={() => setMenuOpen(false)}>Accueil</NavLink></li>
-        <li><NavLink to="/catalogue" className={navLink} onClick={() => setMenuOpen(false)}>Catalogue</NavLink></li>
+        <li><NavLink to="/" end className={navLink} onClick={() => setMenuOpen(false)}>{t("nav.home")}</NavLink></li>
+        <li><NavLink to="/catalogue" className={navLink} onClick={() => setMenuOpen(false)}>{t("nav.catalogue")}</NavLink></li>
 
         {/* Import/Export N'EST PAS ici, volontairement. Elle y a figuré
             brièvement — au motif qu'elle n'était accessible que par le pied de
@@ -75,14 +77,14 @@ const Navbar = () => {
         {/* Services (assurance, financement, transport…) : réservé jusqu'ici
             aux visiteurs NON connectés, ce qui revenait à le retirer du menu
             au moment précis où le client devient susceptible d'y souscrire. */}
-        <li><NavLink to="/services" className={navLink} onClick={() => setMenuOpen(false)}>Services</NavLink></li>
+        <li><NavLink to="/services" className={navLink} onClick={() => setMenuOpen(false)}>{t("nav.services")}</NavLink></li>
 
         {/* Liens visibles uniquement par les partenaires */}
         {isPartner && (
           <>
             {/* end = exact match /vendor seulement, pas /vendor/dashboard */}
-            <li><NavLink to="/vendor" end className={navLink} onClick={() => setMenuOpen(false)}>Publier</NavLink></li>
-            <li><NavLink to="/vendor/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>Mon espace</NavLink></li>
+            <li><NavLink to="/vendor" end className={navLink} onClick={() => setMenuOpen(false)}>{t("nav.publish")}</NavLink></li>
+            <li><NavLink to="/vendor/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>{t("nav.mySpace")}</NavLink></li>
           </>
         )}
 
@@ -136,9 +138,9 @@ const Navbar = () => {
               <div className={styles.activitiesBackdrop} onClick={() => setActivitiesOpen(false)} />
               <div className={styles.activitiesMenu}>
                 <div className={styles.activitiesMenuHeader}>
-                  <span className={styles.activitiesMenuTitle}>🎈 Activités et Loisirs</span>
+                  <span className={styles.activitiesMenuTitle}>{t("nav.leisureMenu")}</span>
                   <button className={styles.activitiesMenuAll} onClick={() => goToActivity(null)}>
-                    Toutes les activités →
+                    {t("nav.allActivities")}
                   </button>
                 </div>
                 <div className={styles.activitiesGrid}>
@@ -185,7 +187,7 @@ const Navbar = () => {
               <NavLink to="/help" className={navLink} onClick={() => setMenuOpen(false)}>Centre d'aide</NavLink>
             </li>
             <li className={styles.mobileOnly}>
-              <a href="/" className={styles.mobileLogout} onClick={(e) => { e.preventDefault(); setMenuOpen(false); logout(); }}>Déconnexion</a>
+              <a href="/" className={styles.mobileLogout} onClick={(e) => { e.preventDefault(); setMenuOpen(false); logout(); }}>{t("nav.logout")}</a>
             </li>
           </>
         )}
@@ -195,10 +197,10 @@ const Navbar = () => {
           <>
             <li className={styles.mobileDivider} />
             <li className={styles.mobileOnly}>
-              <NavLink to="/login"    className={navLink} onClick={() => setMenuOpen(false)}>Connexion</NavLink>
+              <NavLink to="/login"    className={navLink} onClick={() => setMenuOpen(false)}>{t("nav.login")}</NavLink>
             </li>
             <li className={styles.mobileOnly}>
-              <NavLink to="/register" className={navLink} onClick={() => setMenuOpen(false)}>Inscription</NavLink>
+              <NavLink to="/register" className={navLink} onClick={() => setMenuOpen(false)}>{t("nav.register")}</NavLink>
             </li>
             <li className={styles.mobileOnly}>
               <NavLink to="/help"     className={navLink} onClick={() => setMenuOpen(false)}>Centre d'aide</NavLink>
@@ -233,7 +235,7 @@ const Navbar = () => {
               {isPartner ? "🤝 " : "👤 "}
               {user?.firstName || user?.email}
             </button>
-            <button className={styles.linkBtn} onClick={logout}>Déconnexion</button>
+            <button className={styles.linkBtn} onClick={logout}>{t("nav.logout")}</button>
           </>
         ) : (
           /* Dropdown burger (desktop uniquement) */
@@ -252,10 +254,10 @@ const Navbar = () => {
             {dropdownOpen && (
               <div className={styles.dropdownMenu}>
                 <button onClick={() => { navigate("/login");    setDropdownOpen(false); }}>
-                  <span className={styles.diIcon}>🔑</span> Connexion
+                  <span className={styles.diIcon}>🔑</span> {t("nav.login")}
                 </button>
                 <button onClick={() => { navigate("/register"); setDropdownOpen(false); }}>
-                  <span className={styles.diIcon}>✏️</span> Inscription
+                  <span className={styles.diIcon}>✏️</span> {t("nav.register")}
                 </button>
 
                 <div className={styles.dropdownDivider} />
@@ -278,7 +280,7 @@ const Navbar = () => {
         <button
           className={`${styles.burger} ${menuOpen ? styles.burgerOpen : ""}`}
           onClick={() => setMenuOpen((o) => !o)}
-          aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"}
+          aria-label={menuOpen ? t("nav.closeMenu") : t("nav.openMenu")}
           aria-expanded={menuOpen}
           aria-controls="navigation-principale"
         >

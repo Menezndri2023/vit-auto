@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { baseRouteur } from "./i18n/langueUrl";
 import { Suspense, useState, useEffect } from "react";
 import { lazyAvecReprise as lazy } from "./utils/lazyAvecReprise";
 import { Capacitor } from "@capacitor/core";
@@ -275,7 +276,12 @@ function App() {
 
   return (
     <>
-      <BrowserRouter>
+      {/* La langue est un préfixe de chemin (/en/catalogue). Donnée ici comme
+          base du routeur, elle est ajoutée par React Router à TOUS les liens
+          internes : aucun <Link> de l'application n'a eu à changer, et un
+          visiteur en anglais reste en anglais en naviguant. Voir
+          i18n/langueUrl.js. */}
+      <BrowserRouter basename={baseRouteur(window.location.pathname)}>
         <ToastProvider>
           <AuthProvider>
             <SocketProvider>

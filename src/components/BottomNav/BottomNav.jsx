@@ -4,10 +4,12 @@ import { useAuth } from "../../context/AuthContext";
 import { useChat } from "../../context/ChatContext";
 import styles from "./BottomNav.module.css";
 import { useFermetureExterieure } from "../../hooks/useFermetureExterieure";
+import { useI18n } from "../../context/I18nContext";
 
 // Barre d'onglets mobile — remplace le menu hamburger sur petit écran.
 // Navbar reste montée en parallèle (logo, notifications, langue) : voir Layout.jsx.
 export default function BottomNav() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
   const { setOpen: setChatOpen, unreadTotal } = useChat();
@@ -32,15 +34,15 @@ export default function BottomNav() {
 
   return (
     <>
-      <nav className={styles.bar} aria-label="Navigation principale">
+      <nav className={styles.bar} aria-label={t("nav.mainNav")}>
         <NavLink to="/" end className={navClass}>
           <span className={styles.icon}>🏠</span>
-          <span className={styles.label}>Accueil</span>
+          <span className={styles.label}>{t("nav.home")}</span>
         </NavLink>
 
         <NavLink to="/catalogue" className={navClass}>
           <span className={styles.icon}>🚗</span>
-          <span className={styles.label}>Catalogue</span>
+          <span className={styles.label}>{t("nav.catalogue")}</span>
         </NavLink>
 
         {/* Section OTHERS (activités : Quad, Surf, Montgolfière, Jetski, Jet
@@ -52,7 +54,7 @@ export default function BottomNav() {
           {/* Libellé abrégé : les 5 onglets se partagent la largeur à égalité
               (voir .item flex:1) — "Activités et Loisirs" en entier y
               passait sur 2 lignes, seul onglet plus haut que les autres. */}
-          <span className={styles.label}>Loisirs</span>
+          <span className={styles.label}>{t("nav.leisure")}</span>
         </button>
 
         <button
@@ -63,23 +65,23 @@ export default function BottomNav() {
             💬
             {unreadTotal > 0 && <span className={styles.badge}>{unreadTotal > 9 ? "9+" : unreadTotal}</span>}
           </span>
-          <span className={styles.label}>Chat</span>
+          <span className={styles.label}>{t("nav.chat")}</span>
         </button>
 
         <button className={styles.item} onClick={() => goAuthGated("/profile")}>
           <span className={styles.icon}>👤</span>
-          <span className={styles.label}>Profil</span>
+          <span className={styles.label}>{t("nav.profile")}</span>
         </button>
 
         <button
           className={`${styles.item} ${moreOpen ? styles.active : ""}`}
           ref={plusRef}
           onClick={() => setMoreOpen((o) => !o)}
-          aria-label="Plus d'options"
+          aria-label={t("nav.moreOptions")}
           aria-expanded={moreOpen}
         >
           <span className={styles.icon}>☰</span>
-          <span className={styles.label}>Plus</span>
+          <span className={styles.label}>{t("nav.more")}</span>
         </button>
       </nav>
 
@@ -119,7 +121,7 @@ export default function BottomNav() {
                 </button>
                 <div className={styles.sheetDivider} />
                 <button className={styles.sheetItem} onClick={() => { logout(); setMoreOpen(false); }}>
-                  🚪 Déconnexion
+                  🚪 {t("nav.logout")}
                 </button>
               </>
             ) : (

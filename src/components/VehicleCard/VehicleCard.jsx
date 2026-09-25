@@ -7,8 +7,10 @@ import PriceTag from "../PriceTag/PriceTag";
 import { getDisplayRule } from "../../utils/promotion";
 import { optimizedImageUrl } from "../../utils/imageOptim";
 import styles from "./VehicleCard.module.css";
+import { useI18n } from "../../context/I18nContext";
 
 const VehicleCard = React.memo(({ car, compact }) => {
+  const { t } = useI18n();
   const navigate  = useNavigate();
   const location  = useLocation();
   const { fmt } = useCurrency();
@@ -72,8 +74,8 @@ const VehicleCard = React.memo(({ car, compact }) => {
           type="button"
           className={`${styles.favBtn} ${favActive ? styles.favBtnActive : ""}`}
           onClick={handleFavClick}
-          aria-label={favActive ? "Retirer des favoris" : "Ajouter aux favoris"}
-          title={favActive ? "Retirer des favoris" : "Ajouter aux favoris"}
+          aria-label={t(favActive ? "card.removeFav" : "card.addFav")}
+          title={t(favActive ? "card.removeFav" : "card.addFav")}
         >
           {favActive ? "❤️" : "🤍"}
         </button>
@@ -88,7 +90,7 @@ const VehicleCard = React.memo(({ car, compact }) => {
             {/* Navigation images si plusieurs */}
             {imgs.length > 1 && (
               <>
-                <button type="button" aria-label="Photo précédente" className={`${styles.imgArrow} ${styles.imgPrev}`} onClick={(e) => goImg(e, -1)}>‹</button>
+                <button type="button" aria-label={t("card.prevPhoto")} className={`${styles.imgArrow} ${styles.imgPrev}`} onClick={(e) => goImg(e, -1)}>‹</button>
                 <button type="button" aria-label="Photo suivante" className={`${styles.imgArrow} ${styles.imgNext}`} onClick={(e) => goImg(e, 1)}>›</button>
                 <div className={styles.imgDots}>
                   {imgs.map((_, i) => (
@@ -107,10 +109,10 @@ const VehicleCard = React.memo(({ car, compact }) => {
 
         <div className={styles.badges}>
           <span className={`${styles.badge} ${(car.mode === "Acheter" || car.listingType === "vente") ? styles.sale : styles.location}`}>
-            {(car.mode === "Acheter" || car.listingType === "vente") ? "Vente" : "Location"}
+            {t((car.mode === "Acheter" || car.listingType === "vente") ? "card.badgeSale" : "card.badgeRent")}
           </span>
           <span className={`${styles.badge} ${car.available ? styles.available : styles.reserve}`}>
-            {car.available ? "Disponible" : "Réservé"}
+            {t(car.available ? "card.available" : "card.booked")}
           </span>
           {/* Badge COURT : le libellé du partenaire (« Tarif semaine : 900 €
               les 7 jours »), en capitales espacées, recouvrait la photo
@@ -143,7 +145,7 @@ const VehicleCard = React.memo(({ car, compact }) => {
                 e.stopPropagation();
                 if (car.ownerId) navigate(`/partner/${car.ownerId}`);
               }}
-              title={car.ownerId ? "Voir le profil du partenaire" : "Annonceur"}
+              title={t(car.ownerId ? "card.seePartner" : "card.advertiser")}
             >
               <span className={styles.publisherAvt}>
                 {(car.ownerName || car.contactNom || "P").charAt(0).toUpperCase()}
@@ -175,7 +177,7 @@ const VehicleCard = React.memo(({ car, compact }) => {
                     car.certificationBadge === "fondateur" ? "linear-gradient(135deg,#d97706,#f59e0b)" :
                     "linear-gradient(135deg,#059669,#10b981)",
                 }}
-                title="Partenaire certifié par VIT AUTO"
+                title={t("card.certified")}
               >
                 {car.certificationBadge === "premium" ? "⭐" : car.certificationBadge === "fondateur" ? "🏆" : "🟢"} Vérifié
               </span>
@@ -184,7 +186,7 @@ const VehicleCard = React.memo(({ car, compact }) => {
         )}
 
         <div className={styles.meta}>
-          {car.instantBook && <span title="Confirmée automatiquement, sans attendre le partenaire">⚡ Instantanée</span>}
+          {car.instantBook && <span title={t("card.instantTitle")}>{t("card.instant")}</span>}
           {car.rating    != null && <span>⭐ {car.rating} ({car.reviews || 0})</span>}
           {(car.nombrePlaces || car.seats) != null && <span>🧍 {car.nombrePlaces || car.seats} pl.</span>}
           {(car.transmission) && <span>⚙️ {car.transmission}</span>}
@@ -233,10 +235,10 @@ const VehicleCard = React.memo(({ car, compact }) => {
           onClick={() => navigate(`/vehicle/${car._id || car.id}`)}
           className={styles.secondary}
         >
-          Détails
+          {t("card.details")}
         </button>
         <button onClick={() => navigate(`/booking/${car._id || car.id}`)}>
-          {(car.mode === "Acheter" || car.listingType === "vente") ? "Essai gratuit" : "Réserver"}
+          {t((car.mode === "Acheter" || car.listingType === "vente") ? "card.freeTestDrive" : "card.book")}
         </button>
       </div>
     </div>

@@ -1,212 +1,70 @@
 import { Link } from "react-router-dom";
 import styles from "./Services.module.css";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
+import { useI18n } from "../context/I18nContext";
 
+// Les libellés sont des clés (i18n/services.js) : la page est publique,
+// indexée, et servie en cinq langues. Seuls l'icône, la couleur et le lien
+// restent ici — ils ne se traduisent pas.
 const SERVICES = [
-  {
-    icon:  "🚗",
-    color: "#6366f1",
-    bg:    "rgba(99,102,241,.10)",
-    title: "Location courte durée",
-    desc:  "Louez un véhicule à la journée pour vos déplacements ponctuels. Disponible en Côte d'Ivoire, Maroc, Sénégal, France et 10 autres pays.",
-    cta:   "Explorer le catalogue",
-    link:  "/catalogue?mode=Louer&duree=Courte",
-  },
-  {
-    icon:  "📅",
-    color: "#10b981",
-    bg:    "rgba(16,185,129,.10)",
-    title: "Location longue durée",
-    desc:  "Tarif mensuel dégressif sans engagement d'achat. Idéal pour les expatriés, les missions professionnelles et les étudiants.",
-    cta:   "Voir les offres",
-    link:  "/catalogue?mode=Louer&duree=Longue",
-  },
-  {
-    icon:  "🚚",
-    color: "#f59e0b",
-    bg:    "rgba(245,158,11,.10)",
-    title: "Livraison GPS à domicile",
-    desc:  "Votre véhicule livré à votre adresse exacte grâce au calcul GPS Haversine. Frais transparents, calculés selon la distance et le tarif de votre pays.",
-    cta:   "Réserver avec livraison",
-    link:  "/catalogue",
-    highlight: true,
-  },
-  {
-    icon:  "💰",
-    color: "#ff4d2d",
-    bg:    "rgba(255,77,45,.10)",
-    title: "Vente de véhicules",
-    desc:  "Achetez ou vendez votre véhicule en toute sécurité. Contrat digital, vérification d'identité, paiement sécurisé. Neuf ou occasion.",
-    cta:   "Voir les véhicules à vendre",
-    link:  "/catalogue?mode=Acheter",
-  },
-  {
-    icon:  "👨‍✈️",
-    color: "#0f1b3f",
-    bg:    "rgba(15,27,63,.08)",
-    title: "Service chauffeur privé",
-    desc:  "Réservez un chauffeur professionnel vérifié pour vos transferts aéroport, mariages, événements ou trajets quotidiens.",
-    cta:   "Trouver un chauffeur",
-    link:  "/catalogue?mode=Chauffeur",
-  },
-  {
-    icon:  "🏦",
-    color: "#6366f1",
-    bg:    "rgba(99,102,241,.10)",
-    title: "Leasing & Mensualités",
-    desc:  "Accédez à la propriété sans payer comptant. Sur la fiche du véhicule choisi, sélectionnez Leasing ou Crédit classique : apport réduit + mensualités adaptées, contrat électronique à valeur légale.",
-    cta:   "Choisir un véhicule à financer",
-    link:  "/catalogue?mode=Acheter",
-  },
-  {
-    icon:  "🏢",
-    color: "#0ea5e9",
-    bg:    "rgba(14,165,233,.10)",
-    title: "Solutions entreprise",
-    desc:  "Flottes multi-véhicules, tarifs négociés, facturation centralisée. Pack Corporate disponible pour les agences et sociétés de transport.",
-    cta:   "Contactez-nous",
-    link:  "/help",
-  },
-  {
-    icon:  "📄",
-    color: "#10b981",
-    bg:    "rgba(16,185,129,.10)",
-    title: "Contrat digital automatique",
-    desc:  "Chaque réservation génère un contrat électronique sécurisé, signable en ligne. Valeur juridique reconnue en Afrique et Europe.",
-    cta:   "Mon tableau de bord",
-    link:  "/dashboard",
-  },
-  {
-    icon:  "🌍",
-    color: "#ff4d2d",
-    bg:    "rgba(255,77,45,.10)",
-    title: "Import / Export International",
-    desc:  "Achetez depuis la Chine, Dubaï, l'Europe ou l'Afrique. VIT AUTO gère la recherche, l'inspection, le transport et le dédouanement.",
-    cta:   "Découvrir le service",
-    link:  "/import-export",
-    highlight: true,
-  },
-  {
-    icon:  "🔒",
-    color: "#0891b2",
-    bg:    "rgba(8,145,178,.10)",
-    title: "Assurance Automobile",
-    desc:  "Demande d'assurance auto, location ou import/export en quelques clics. Notre équipe étudie votre dossier et vous propose une prime adaptée.",
-    cta:   "Faire une demande",
-    link:  "/insurance-request",
-  },
-  {
-    icon:  "🚢",
-    color: "#0ea5e9",
-    bg:    "rgba(14,165,233,.10)",
-    title: "Transport international",
-    desc:  "Organisez le transport de votre véhicule entre deux pays — maritime, terrestre ou aérien.",
-    cta:   "Faire une demande",
-    link:  "/services/transport",
-  },
-  {
-    icon:  "🛃",
-    color: "#6366f1",
-    bg:    "rgba(99,102,241,.10)",
-    title: "Transit",
-    desc:  "Faites transiter votre véhicule via un pays tiers avant sa destination finale.",
-    cta:   "Faire une demande",
-    link:  "/services/transit",
-  },
-  {
-    icon:  "🏛️",
-    color: "#f59e0b",
-    bg:    "rgba(245,158,11,.10)",
-    title: "Douanes",
-    desc:  "Faites dédouaner votre véhicule à l'import ou à l'export, dans votre pays de destination.",
-    cta:   "Faire une demande",
-    link:  "/services/douanes",
-  },
-  {
-    icon:  "🪪",
-    color: "#10b981",
-    bg:    "rgba(16,185,129,.10)",
-    title: "Immatriculation",
-    desc:  "Faites immatriculer votre véhicule dans son pays de destination.",
-    cta:   "Faire une demande",
-    link:  "/services/immatriculation",
-  },
-  {
-    icon:  "🛡️",
-    color: "#0891b2",
-    bg:    "rgba(8,145,178,.10)",
-    title: "Garantie",
-    desc:  "Souscrivez une garantie mécanique/panne pour votre véhicule.",
-    cta:   "Faire une demande",
-    link:  "/services/garantie",
-  },
-  {
-    icon:  "🏦",
-    color: "#ff4d2d",
-    bg:    "rgba(255,77,45,.10)",
-    title: "Financement",
-    desc:  "Demandez une solution de financement personnalisée pour votre achat, en dehors du leasing intégré.",
-    cta:   "Faire une demande",
-    link:  "/services/financement",
-  },
-  {
-    icon:  "💱",
-    color: "#0f1b3f",
-    bg:    "rgba(15,27,63,.08)",
-    title: "Change de devises",
-    desc:  "Faites convertir un montant entre deux devises pour votre transaction internationale.",
-    cta:   "Faire une demande",
-    link:  "/services/change_devises",
-  },
-  {
-    icon:  "🔍",
-    color: "#0ea5e9",
-    bg:    "rgba(14,165,233,.10)",
-    title: "Inspection indépendante",
-    desc:  "Faites inspecter un véhicule par un expert VIT AUTO avant achat ou import.",
-    cta:   "Faire une demande",
-    link:  "/services/inspection",
-  },
-  {
-    icon:  "🔒",
-    color: "#0891b2",
-    bg:    "rgba(8,145,178,.10)",
-    title: "Séquestre / Escrow",
-    desc:  "Sécurisez le paiement d'une transaction entre particuliers via un compte séquestre VIT AUTO.",
-    cta:   "Faire une demande",
-    link:  "/services/sequestre",
-  },
+  { cle: "shortRent",    icon: "🚗",   color: "#6366f1", bg: "rgba(99,102,241,.10)",  link: "/catalogue?mode=Louer&duree=Courte" },
+  { cle: "longRent",     icon: "📅",   color: "#10b981", bg: "rgba(16,185,129,.10)",  link: "/catalogue?mode=Louer&duree=Longue" },
+  { cle: "delivery",     icon: "🚚",   color: "#f59e0b", bg: "rgba(245,158,11,.10)",  link: "/catalogue", highlight: true },
+  { cle: "sale",         icon: "💰",   color: "#ff4d2d", bg: "rgba(255,77,45,.10)",   link: "/catalogue?mode=Acheter" },
+  { cle: "driver",       icon: "👨‍✈️", color: "#0f1b3f", bg: "rgba(15,27,63,.08)",    link: "/catalogue?mode=Chauffeur" },
+  { cle: "leasing",      icon: "🏦",   color: "#6366f1", bg: "rgba(99,102,241,.10)",  link: "/catalogue?mode=Acheter" },
+  { cle: "corporate",    icon: "🏢",   color: "#0ea5e9", bg: "rgba(14,165,233,.10)",  link: "/help" },
+  { cle: "contract",     icon: "📄",   color: "#10b981", bg: "rgba(16,185,129,.10)",  link: "/dashboard" },
+  { cle: "ie",           icon: "🌍",   color: "#ff4d2d", bg: "rgba(255,77,45,.10)",   link: "/import-export", highlight: true },
+  // Les onze services suivants partagent le même appel à l'action : une seule
+  // clé (`svc.ctaRequest`) au lieu de onze copies à traduire.
+  { cle: "insurance",    icon: "🔒",   color: "#0891b2", bg: "rgba(8,145,178,.10)",   link: "/insurance-request",       cta: "svc.ctaRequest" },
+  { cle: "transport",    icon: "🚢",   color: "#0ea5e9", bg: "rgba(14,165,233,.10)",  link: "/services/transport",      cta: "svc.ctaRequest" },
+  { cle: "transit",      icon: "🛃",   color: "#6366f1", bg: "rgba(99,102,241,.10)",  link: "/services/transit",        cta: "svc.ctaRequest" },
+  { cle: "customs",      icon: "🏛️",  color: "#f59e0b", bg: "rgba(245,158,11,.10)",  link: "/services/douanes",        cta: "svc.ctaRequest" },
+  { cle: "registration", icon: "🪪",   color: "#10b981", bg: "rgba(16,185,129,.10)",  link: "/services/immatriculation", cta: "svc.ctaRequest" },
+  { cle: "warranty",     icon: "🛡️",  color: "#0891b2", bg: "rgba(8,145,178,.10)",   link: "/services/garantie",       cta: "svc.ctaRequest" },
+  { cle: "financing",    icon: "🏦",   color: "#ff4d2d", bg: "rgba(255,77,45,.10)",   link: "/services/financement",    cta: "svc.ctaRequest" },
+  { cle: "fx",           icon: "💱",   color: "#0f1b3f", bg: "rgba(15,27,63,.08)",    link: "/services/change_devises", cta: "svc.ctaRequest" },
+  { cle: "inspection",   icon: "🔍",   color: "#0ea5e9", bg: "rgba(14,165,233,.10)",  link: "/services/inspection",     cta: "svc.ctaRequest" },
+  { cle: "escrow",       icon: "🔒",   color: "#0891b2", bg: "rgba(8,145,178,.10)",   link: "/services/sequestre",      cta: "svc.ctaRequest" },
 ];
 
+// Les quatre étapes réutilisent les intitulés de la section « Pourquoi » de
+// l'accueil (why.s1.label…) : même parcours, mêmes mots.
 const STEPS = [
-  { num: "01", icon: "🔍", title: "Recherchez",   desc: "Filtrez par ville, type, état (neuf/occasion) et budget depuis la barre de recherche." },
-  { num: "02", icon: "📋", title: "Réservez",     desc: "3 étapes : informations, vérification d'identité, paiement sécurisé." },
-  { num: "03", icon: "🚚", title: "Recevez",      desc: "Livraison GPS à domicile par le partenaire ou retrait en agence, à votre choix." },
-  { num: "04", icon: "🏆", title: "Profitez",     desc: "Contrat digital signé, support 7j/7, véhicule assuré et vérifié." },
+  { num: "01", icon: "🔍", titre: "why.s1.label", desc: "svc.step1.desc" },
+  { num: "02", icon: "📋", titre: "why.s2.label", desc: "svc.step2.desc" },
+  { num: "03", icon: "🚚", titre: "why.s3.label", desc: "svc.step3.desc" },
+  { num: "04", icon: "🏆", titre: "why.s4.label", desc: "svc.step4.desc" },
 ];
 
+// Drapeau et clés — le nom du pays comme celui de la ville se traduisent
+// (« Allemagne » / « Germany » / « ألمانيا » / « 德国 »).
 const COUNTRIES = [
-  { flag: "🇨🇳", name: "Chine",         city: "Shanghai"    },
-  { flag: "🇦🇪", name: "Émirats",       city: "Dubaï"       },
-  { flag: "🇩🇪", name: "Allemagne",     city: "Munich"      },
-  { flag: "🇫🇷", name: "France",        city: "Paris"       },
-  { flag: "🇲🇦", name: "Maroc",         city: "Casablanca"  },
-  { flag: "🇩🇿", name: "Algérie",       city: "Alger"       },
-  { flag: "🇨🇮", name: "Côte d'Ivoire", city: "Abidjan"     },
-  { flag: "🇸🇳", name: "Sénégal",       city: "Dakar"       },
-  { flag: "🇬🇭", name: "Ghana",         city: "Accra"       },
-  { flag: "🇳🇬", name: "Nigeria",       city: "Lagos"       },
-  { flag: "🇧🇯", name: "Bénin",         city: "Cotonou"     },
-  { flag: "🇹🇬", name: "Togo",          city: "Lomé"        },
+  { flag: "🇨🇳", pays: "country.cn", ville: "city.shanghai"   },
+  { flag: "🇦🇪", pays: "country.ae", ville: "city.dubai"      },
+  { flag: "🇩🇪", pays: "country.de", ville: "city.munich"     },
+  { flag: "🇫🇷", pays: "country.fr", ville: "city.paris"      },
+  { flag: "🇲🇦", pays: "country.ma", ville: "city.casablanca" },
+  { flag: "🇩🇿", pays: "country.dz", ville: "city.alger"      },
+  { flag: "🇨🇮", pays: "country.ci", ville: "city.abidjan"    },
+  { flag: "🇸🇳", pays: "country.sn", ville: "city.dakar"      },
+  { flag: "🇬🇭", pays: "country.gh", ville: "city.accra"      },
+  { flag: "🇳🇬", pays: "country.ng", ville: "city.lagos"      },
+  { flag: "🇧🇯", pays: "country.bj", ville: "city.cotonou"    },
+  { flag: "🇹🇬", pays: "country.tg", ville: "city.lome"       },
 ];
 
 const Services = () => {
+  const { t } = useI18n();
   // Métadonnées propres à cette page — voir hooks/useDocumentMeta.js. Le
   // composant avait un corps implicite (`=> (`), qui ne peut pas contenir
   // d'appel de hook : converti en corps explicite.
   useDocumentMeta({
-    title: "Services automobiles",
-    description: "Assurance, financement, transport, inspection, garantie mécanique : les services VIT AUTO qui accompagnent votre location, votre achat ou votre import.",
+    title:       t("svc.metaTitle"),
+    description: t("svc.metaDesc"),
+    traduite:    true,
   });
 
   return (
@@ -217,15 +75,12 @@ const Services = () => {
       <div className={styles.heroBubble1} />
       <div className={styles.heroBubble2} />
       <div className={styles.heroContent}>
-        <span className={styles.heroBadge}>🌍 NOS SERVICES — 20+ PAYS</span>
-        <h1>La passerelle automobile<br />entre tous les continents</h1>
-        <p>
-          Location, vente, import depuis la Chine ou Dubaï, livraison GPS, chauffeur privé —
-          VIT AUTO couvre l'intégralité de vos besoins automobile à l'échelle mondiale.
-        </p>
+        <span className={styles.heroBadge}>{t("svc.heroBadge")}</span>
+        <h1>{t("svc.heroTitle1")}<br />{t("svc.heroTitle2")}</h1>
+        <p>{t("svc.heroDesc")}</p>
         <div className={styles.heroBtns}>
-          <Link className={styles.primaryBtn} to="/catalogue">Voir le catalogue</Link>
-          <Link className={styles.secondaryBtn} to="/import-export">Import / Export →</Link>
+          <Link className={styles.primaryBtn} to="/catalogue">{t("svc.seeCatalogue")}</Link>
+          <Link className={styles.secondaryBtn} to="/import-export">{t("routecta.ctaIE")}</Link>
         </div>
       </div>
     </section>
@@ -233,13 +88,13 @@ const Services = () => {
     {/* ── PAYS COUVERTS ── */}
     <section className={styles.countriesSection}>
       <div className={styles.countriesInner}>
-        <p className={styles.countriesLabel}>Présents dans 20+ pays :</p>
+        <p className={styles.countriesLabel}>{t("svc.countriesLabel")}</p>
         <div className={styles.countriesGrid}>
           {COUNTRIES.map((c) => (
-            <div key={c.name} className={styles.country}>
+            <div key={c.pays} className={styles.country}>
               <span className={styles.countryFlag}>{c.flag}</span>
-              <span className={styles.countryName}>{c.name}</span>
-              <span className={styles.countryCity}>{c.city}</span>
+              <span className={styles.countryName}>{t(c.pays)}</span>
+              <span className={styles.countryCity}>{t(c.ville)}</span>
             </div>
           ))}
         </div>
@@ -249,23 +104,23 @@ const Services = () => {
     {/* ── SERVICES GRID ── */}
     <section className={styles.servicesSection}>
       <div className={styles.sectionHeader}>
-        <span className={styles.sectionTag}>🚀 NOS OFFRES</span>
-        <h2>Des services mondiaux, une seule plateforme</h2>
-        <p>Location, vente, import depuis l'Asie ou le Moyen-Orient, chauffeur privé — tout en un, partout dans le monde.</p>
+        <span className={styles.sectionTag}>{t("svc.sectionTag")}</span>
+        <h2>{t("svc.sectionTitle")}</h2>
+        <p>{t("svc.sectionDesc")}</p>
       </div>
       <div className={styles.grid}>
         {SERVICES.map((s) => (
           <div
-            key={s.title}
+            key={s.cle}
             className={`${styles.card} ${s.highlight ? styles.cardHighlight : ""}`}
           >
             <div className={styles.cardIconWrap} style={{ background: s.bg }}>
               <span style={{ color: s.color }}>{s.icon}</span>
             </div>
-            <h3 className={styles.cardTitle}>{s.title}</h3>
-            <p className={styles.cardDesc}>{s.desc}</p>
+            <h3 className={styles.cardTitle}>{t(`svc.${s.cle}.title`)}</h3>
+            <p className={styles.cardDesc}>{t(`svc.${s.cle}.desc`)}</p>
             <Link to={s.link} className={styles.cardBtn} style={{ color: s.color, borderColor: s.color + "33" }}>
-              {s.cta} →
+              {t(s.cta || `svc.${s.cle}.cta`)} →
             </Link>
           </div>
         ))}
@@ -276,9 +131,9 @@ const Services = () => {
     <section className={styles.howSection}>
       <div className={styles.howInner}>
         <div className={styles.sectionHeader}>
-          <span className={styles.sectionTag}>⚡ PROCESSUS</span>
-          <h2>Comment ça fonctionne ?</h2>
-          <p>Réservez un véhicule ou publiez une annonce en quelques minutes.</p>
+          <span className={styles.sectionTag}>{t("svc.howTag")}</span>
+          <h2>{t("svc.howTitle")}</h2>
+          <p>{t("svc.howDesc")}</p>
         </div>
         <div className={styles.steps}>
           {STEPS.map((s, i) => (
@@ -286,8 +141,8 @@ const Services = () => {
               <div className={styles.stepNum}>{s.num}</div>
               {i < STEPS.length - 1 && <div className={styles.stepConnector} />}
               <div className={styles.stepIcon}>{s.icon}</div>
-              <h4 className={styles.stepTitle}>{s.title}</h4>
-              <p className={styles.stepDesc}>{s.desc}</p>
+              <h4 className={styles.stepTitle}>{t(s.titre)}</h4>
+              <p className={styles.stepDesc}>{t(s.desc)}</p>
             </div>
           ))}
         </div>
@@ -298,12 +153,12 @@ const Services = () => {
     <section className={styles.ctaBanner}>
       <div className={styles.ctaBannerInner}>
         <div className={styles.ctaBubble} />
-        <span className={styles.ctaTag}>🌍 MARCHÉ AUTOMOBILE MONDIAL</span>
-        <h2>Votre véhicule, depuis n'importe où dans le monde</h2>
-        <p>Location locale, achat, import depuis la Chine ou Dubaï — 50 000+ utilisateurs satisfaits sur 5 continents.</p>
+        <span className={styles.ctaTag}>{t("routecta.badge")}</span>
+        <h2>{t("svc.ctaTitle")}</h2>
+        <p>{t("svc.ctaDesc")}</p>
         <div className={styles.ctaBtns}>
-          <Link className={styles.primaryBtn} to="/catalogue">Explorer le catalogue</Link>
-          <Link className={styles.ghostBtn}   to="/import-export">Import / Export →</Link>
+          <Link className={styles.primaryBtn} to="/catalogue">{t("routecta.ctaCatalogue")}</Link>
+          <Link className={styles.ghostBtn}   to="/import-export">{t("routecta.ctaIE")}</Link>
         </div>
       </div>
     </section>

@@ -140,7 +140,7 @@ export default function HeroSection() {
   // de l'annonce (montant saisi si la devise correspond), sinon celle du visiteur.
   const itemToSlide = useCallback((it) => {
     const isSale = it.type === "vente";
-    let price = "Sur demande";
+    let price = t("hero.onRequest");
     if (it.prix != null) {
       if (it.deviseAffichage && it.deviseSaisie === it.deviseAffichage && it.prixSaisi != null) price = formatLiteral(it.prixSaisi, it.deviseAffichage);
       else if (it.deviseAffichage) price = fmtPinned(it.prix, it.deviseAffichage);
@@ -149,16 +149,16 @@ export default function HeroSection() {
     }
     return {
       img:     it.image || DEFAULT_SLIDES[0].img,
-      name:    it.titre || "Véhicule VIT AUTO",
-      type:    it.categorie || it.type || "Véhicule",
+      name:    it.titre || t("hero.vehicleAlt"),
+      type:    it.categorie || it.type || t("hero.vehicle"),
       city:    it.ville || "",
       fuel:    it.carburant || "",
-      partner: it.partenaire || "Partenaire VIT AUTO",
+      partner: it.partenaire || t("hero.partnerFallback"),
       price,
       vid:     it.id,
       ownerId: null,
     };
-  }, [fmt, fmtPinned, formatLiteral]);
+  }, [fmt, fmtPinned, formatLiteral, t]);
 
   // Construire les slides : sélection admin (ordre choisi) > featured > défauts
   // — JAMAIS de repli sur des annonces non validées par un admin (bug réel
@@ -197,21 +197,21 @@ export default function HeroSection() {
     <section className={styles.hero}>
       {/* ─── COLONNE GAUCHE ─── */}
       <div className={styles.left}>
-        <span className={styles.intlBadge}>🌍 Plateforme automobile internationale • 20+ pays</span>
+        <span className={styles.intlBadge}>{t("hero.intlBadge")}</span>
 
         <h1 className={styles.title}>
           {heroContent.heroTitle
             ? heroContent.heroTitle
-            : <>Achetez, louez, importez<br /><span className={styles.titleAccent}>depuis n'importe où</span></>}
+            : <>{t("hero.h1a")}<br /><span className={styles.titleAccent}>{t("hero.fromAnywhere")}</span></>}
         </h1>
 
         <p className={styles.subtitle}>
-          {heroContent.heroSubtitle || "Afrique, Europe, Chine, Dubaï — VIT AUTO connecte acheteurs et vendeurs à travers le monde. Livraison GPS, contrat digital, paiement sécurisé."}
+          {heroContent.heroSubtitle || t("hero.desc")}
         </p>
 
         <div className={styles.ctas}>
           <Link to="/catalogue" className={styles.ctaPrimary}>
-            Explorer le catalogue
+            {t("routecta.ctaCatalogue")}
           </Link>
           <Link to="/import-export" className={styles.ctaSecondary}>
             Import / Export →
@@ -220,9 +220,9 @@ export default function HeroSection() {
 
         {/* Mini-stats sous les CTA */}
         <div className={styles.trustPills}>
-          <span>✅ Identité vérifiée</span>
-          <span>🛡️ Paiement sécurisé</span>
-          <span>🚢 Import clé en main</span>
+          <span>{t("hero.badgeIdentity")}</span>
+          <span>{t("hero.badgePayment")}</span>
+          <span>{t("hero.badgeImport")}</span>
         </div>
       </div>
 
@@ -247,12 +247,12 @@ export default function HeroSection() {
           <div className={styles.spotGradient} />
 
           {/* Badge */}
-          <span className={styles.spotBadge}>{heroInternational ? "🌍 Sélection internationale" : "🟢 Sélection du moment"}</span>
+          <span className={styles.spotBadge}>{t(heroInternational ? "hero.intlSelection" : "hero.nowSelection")}</span>
 
           {/* Infos toujours visibles */}
           <div className={styles.spotOverlay}>
             <p className={styles.spotPublisher}>
-              <span>🏢</span> Publié par <strong>{slide.partner}</strong>
+              <span>🏢</span> {t("hero.publishedBy")} <strong>{slide.partner}</strong>
             </p>
             <h3 className={styles.spotName}>{slide.name}</h3>
             <div className={styles.spotTags}>
@@ -296,13 +296,13 @@ export default function HeroSection() {
                 type="button"
                 className={`${styles.carouselArrow} ${styles.carouselPrev}`}
                 onClick={() => goTo((current - 1 + total) % total)}
-                aria-label="Précédent"
+                aria-label={t("hero.previous")}
               >‹</button>
               <button
                 type="button"
                 className={`${styles.carouselArrow} ${styles.carouselNext}`}
                 onClick={goNext}
-                aria-label="Suivant"
+                aria-label={t("hero.next")}
               >›</button>
             </>
           )}
@@ -321,7 +321,7 @@ export default function HeroSection() {
           l'essentiel du catalogue Import/Export. Chaque pays mène au catalogue
           filtré sur cette origine. */}
       <div className={styles.originsRow}>
-        <span className={styles.originsLabel}>🚢 Import depuis :</span>
+        <span className={styles.originsLabel}>{t("hero.importFrom")}</span>
         <div className={styles.originsScroll}>
           {IMPORT_ORIGINS.map((o) => (
             <Link

@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import styles from "./RouteCTA.module.css";
+import { useI18n } from "../../context/I18nContext";
 
 // Ces arguments annonçaient « 3 500+ véhicules » et « 20+ pays », et le
 // paragraphe ci-dessous « 50 000+ utilisateurs satisfaits sur 5 continents ».
@@ -11,55 +12,54 @@ import styles from "./RouteCTA.module.css";
 // Le décompte réel des véhicules, lui, est affiché sur la page d'accueil
 // (HeroSection, GET /api/vehicles/public-stats) où il grandit tout seul.
 const HIGHLIGHTS = [
-  { icon: "🚗", text: "Location & achat" },
-  { icon: "🚢", text: "Import Chine · Dubaï · Europe" },
-  { icon: "🛡️", text: "Paiement séquestré" },
-  { icon: "⚡", text: "Livraison GPS" },
+  { icon: "🚗", cle: "routecta.h1" },
+  { icon: "🚢", cle: "routecta.h2" },
+  { icon: "🛡️", cle: "routecta.h3" },
+  { icon: "⚡", cle: "routecta.h4" },
 ];
 
-const RouteCTA = () => (
-  <section className={styles.section}>
-    <div className={styles.wrapper}>
+const RouteCTA = () => {
+  const { t } = useI18n();
+  return (
+    <section className={styles.section}>
+      <div className={styles.wrapper}>
 
-      {/* Deco */}
-      <div className={styles.decoCircle1} />
-      <div className={styles.decoCircle2} />
+        {/* Deco */}
+        <div className={styles.decoCircle1} />
+        <div className={styles.decoCircle2} />
 
-      <div className={styles.content}>
-        <span className={styles.badge}>🌍 MARCHÉ AUTOMOBILE MONDIAL</span>
+        <div className={styles.content}>
+          <span className={styles.badge}>{t("routecta.badge")}</span>
 
-        <h2 className={styles.title}>
-          Votre véhicule, depuis n'importe<br />
-          <span className={styles.accent}>quel pays du monde</span>
-        </h2>
+          <h2 className={styles.title}>
+            {t("routecta.title1")}<br />
+            <span className={styles.accent}>{t("routecta.title2")}</span>
+          </h2>
 
-        <p className={styles.desc}>
-          Location, achat, import depuis la Chine, Dubaï ou l'Europe — inspection,
-          transport, dédouanement et livraison gérés de bout en bout, avec paiement
-          séquestré jusqu'à la remise du véhicule.
-        </p>
+          <p className={styles.desc}>{t("routecta.desc")}</p>
 
-        {/* Highlights */}
-        <div className={styles.highlights}>
-          {HIGHLIGHTS.map((h) => (
-            <div key={h.text} className={styles.hl}>
-              <span className={styles.hlIcon}>{h.icon}</span>
-              <span>{h.text}</span>
-            </div>
-          ))}
-        </div>
+          {/* Highlights */}
+          <div className={styles.highlights}>
+            {HIGHLIGHTS.map((h) => (
+              <div key={h.cle} className={styles.hl}>
+                <span className={styles.hlIcon}>{h.icon}</span>
+                <span>{t(h.cle)}</span>
+              </div>
+            ))}
+          </div>
 
-        <div className={styles.actions}>
-          <Link to="/catalogue" className={styles.primaryBtn}>
-            Explorer le catalogue
-          </Link>
-          <Link to="/import-export" className={styles.secondaryBtn}>
-            Import / Export →
-          </Link>
+          <div className={styles.actions}>
+            <Link to="/catalogue" className={styles.primaryBtn}>
+              {t("routecta.ctaCatalogue")}
+            </Link>
+            <Link to="/import-export" className={styles.secondaryBtn}>
+              {t("routecta.ctaIE")}
+            </Link>
+          </div>
         </div>
       </div>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
 export default RouteCTA;

@@ -4,6 +4,7 @@ import { useCurrency } from "../context/CurrencyContext";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import { slugifyCity } from "../constants/citySlug";
 import { IMPORT_ORIGINS } from "../constants/importOrigins";
+import { useI18n } from "../context/I18nContext";
 
 // Page d'entrée par PAYS D'ORIGINE — pendant international des pages de ville.
 //
@@ -20,6 +21,7 @@ import { IMPORT_ORIGINS } from "../constants/importOrigins";
 export default function ImportOriginLanding() {
   const { pays: slug } = useParams();
   const { fmtUSD } = useCurrency();
+  const { t } = useI18n();
   // `null` = pas encore chargé, `[]` = chargé et vide. Un état de chargement
   // distinct imposait un setState synchrone dans le corps de l'effet, qui
   // provoque des rendus en cascade.
@@ -57,22 +59,24 @@ export default function ImportOriginLanding() {
   );
 
   const url = `https://vit-auto.com/import-voiture/${slug}`;
+  // Assemblée de morceaux traduits (voir LocalLanding pour le raisonnement).
   const description = annonces.length
-    ? `${annonces.length} véhicule${annonces.length > 1 ? "s" : ""} à importer depuis ${nomPays}`
-      + (prixMin ? `, à partir de ${fmtUSD(prixMin)}` : "")
-      + `. Inspection avant achat, transport maritime, dédouanement et livraison gérés par VIT AUTO.`
-    : `Importation de véhicules depuis ${nomPays} avec VIT AUTO : inspection, transport, dédouanement et livraison. Aucune annonce en stock pour le moment.`;
+    ? t(annonces.length > 1 ? "origine.countMany" : "origine.countOne", { n: annonces.length, pays: nomPays })
+      + (prixMin ? t("ville.from", { prix: fmtUSD(prixMin) }) : "")
+      + t("origine.tail")
+    : t("origine.empty", { pays: nomPays });
 
   useDocumentMeta({
-    title: `Importer une voiture depuis ${nomPays}`,
+    title: t("origine.title", { pays: nomPays }),
     description,
     url,
     robots: annonces.length ? undefined : "noindex, follow",
+    traduite: true,
     structuredData: annonces.length
       ? {
           "@context": "https://schema.org",
           "@type": "Service",
-          name: `Importation de véhicules depuis ${nomPays}`,
+          name: t("origine.sdName", { pays: nomPays }),
           serviceType: "Vehicle Import",
           provider: { "@type": "AutoDealer", name: "VIT AUTO", url: "https://vit-auto.com" },
           areaServed: { "@type": "Country", name: nomPays },
@@ -89,39 +93,39 @@ export default function ImportOriginLanding() {
   return (
     <div style={{ maxWidth: 1180, margin: "0 auto", padding: "2rem 1.25rem 3rem" }}>
       <nav style={{ fontSize: ".8rem", color: "#64748b", marginBottom: 12 }}>
-        <Link to="/" style={{ color: "#64748b" }}>Accueil</Link>{" › "}
-        <Link to="/import-export" style={{ color: "#64748b" }}>Import / Export</Link>{" › "}
+        <Link to="/" style={{ color: "#64748b" }}>{t("nav.home")}</Link>{" › "}
+        <Link to="/import-export" style={{ color: "#64748b" }}>{t("nav.importExport")}</Link>{" › "}
         <span style={{ color: "#0f1b3f", fontWeight: 700 }}>{nomPays}</span>
       </nav>
 
       <h1 style={{ fontSize: "1.7rem", color: "#0f1b3f", margin: "0 0 8px" }}>
-        {origine?.flag ? `${origine.flag} ` : ""}Importer une voiture depuis {nomPays}
+        {origine?.flag ? `${origine.flag} ` : ""}{t("origine.title", { pays: nomPays })}
       </h1>
       <p style={{ color: "#475569", fontSize: ".95rem", maxWidth: 780, lineHeight: 1.55 }}>{description}</p>
 
       {marques.length > 0 && (
         <p style={{ color: "#64748b", fontSize: ".85rem", marginTop: 4 }}>
-          Marques disponibles depuis {nomPays} : {marques.join(", ")}.
+          {t("origine.brands", { pays: nomPays, marques: marques.join(", ") })}
         </p>
       )}
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", margin: "16px 0 24px" }}>
         <Link to={`/import-export/listings?source=${encodeURIComponent(nomPays)}`}
           style={{ padding: "9px 16px", borderRadius: 10, background: "#0f1b3f", color: "#fff", fontWeight: 700, fontSize: ".85rem", textDecoration: "none" }}>
-          Voir toutes les annonces depuis {nomPays}
+          {t("origine.seeAll", { pays: nomPays })}
         </Link>
         <Link to="/import-export"
           style={{ padding: "9px 16px", borderRadius: 10, border: "1.5px solid #dbe2ef", color: "#1a3a6e", fontWeight: 700, fontSize: ".85rem", textDecoration: "none" }}>
-          Comment fonctionne l'importation
+          {t("origine.how")}
         </Link>
       </div>
 
       {chargement ? (
-        <p style={{ color: "#94a3b8" }}>Chargement des annonces…</p>
+        <p style={{ color: "#94a3b8" }}>{t("origine.loading")}</p>
       ) : annonces.length === 0 ? (
         <p style={{ color: "#64748b" }}>
-          Aucune annonce en stock depuis {nomPays} actuellement — le corridor reste ouvert.{" "}
-          <Link to="/import-export/listings" style={{ color: "#4338ca", fontWeight: 700 }}>Voir toutes les origines</Link>.
+          {t("origine.noStock", { pays: nomPays })}{" "}
+          <Link to="/import-export/listings" style={{ color: "#4338ca", fontWeight: 700 }}>{t("origine.allOrigins")}</Link>.
         </p>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 16 }}>
@@ -149,7 +153,7 @@ export default function ImportOriginLanding() {
       )}
 
       <section style={{ marginTop: 36, paddingTop: 20, borderTop: "1.5px solid #e2e8f0" }}>
-        <h2 style={{ fontSize: "1rem", color: "#0f1b3f", marginBottom: 10 }}>Autres pays d'origine</h2>
+        <h2 style={{ fontSize: "1rem", color: "#0f1b3f", marginBottom: 10 }}>{t("origine.otherCountries")}</h2>
         {/* Maillage interne entre les quinze corridors : chaque page renvoie
             vers les autres, sinon chacune serait une impasse. */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>

@@ -6,6 +6,12 @@ import App from './App.jsx'
 import { installerRafraichissementSession } from './utils/fetchSession.js'
 import { installerAppuiFiable } from './utils/appuiFiable.js'
 import { Capacitor } from '@capacitor/core'
+import { redirigerPrefixeFrancais } from './i18n/langueUrl.js'
+
+// `/fr/...` doublonnerait la forme nue, qui EST la version française. Redirigé
+// avant tout rendu : la page ne s'affiche jamais à la mauvaise adresse, et le
+// canonical n'a pas à arbitrer entre deux URL pour un même contenu.
+redirigerPrefixeFrancais()
 
 // Avant tout rendu : toute requête /api authentifiée part avec le jeton
 // courant et est rejouée après rafraîchissement sur 401 (voir fetchSession.js).

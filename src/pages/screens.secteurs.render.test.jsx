@@ -30,8 +30,21 @@ describe("Secteurs d'activité et page Tarifs — rendu", () => {
     expect(container.textContent).toMatch(/Premium/);
     expect(container.textContent).not.toMatch(/Individuel Plus/);
     expect(container.textContent).not.toMatch(/pour les particuliers/i);
-    // Depuis la grille du 2026-09-09, aucun plan ne réduit la commission.
-    expect(container.textContent).not.toMatch(/commission réduite/i);
+    // Depuis la grille du 2026-09-09, aucun ABONNEMENT ne réduit la
+    // commission — l'Offre Partenaire Fondateur, elle, la réduit bel et bien
+    // pendant 12 mois (voir PricingConfig et la grille affichée plus bas).
+    //
+    // L'assertion était « le texte ne contient nulle part "commission
+    // réduite" », et elle passait pour une mauvaise raison : jusqu'au
+    // 2026-09-25, la langue était choisie par `navigator.language`, qui vaut
+    // "en-US" sous jsdom. La moitié traduite de la page se rendait donc en
+    // ANGLAIS ("Reduced commission"), et la négation française ne trouvait
+    // rien. C'est le même mécanisme qui faisait indexer par Google une page
+    // anglaise à une adresse déclarée française. La langue vient maintenant
+    // de l'URL (i18n/langueUrl.js) : la page se rend en français, et
+    // l'assertion doit dire ce qu'elle voulait dire.
+    expect(container.textContent).toMatch(/jamais une remise sur la commission/i);
+    expect(container.textContent).toMatch(/commissions sont identiques pour tous les plans/i);
 
     expect(container.textContent).toMatch(/Fermeture automatique selon la météo/);
     expect(container.textContent).not.toMatch(/Import de flotte/);

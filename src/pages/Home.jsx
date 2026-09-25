@@ -7,6 +7,8 @@ import VendorCallout  from "../components/VendorCallout/VendorCallout";
 import Testimonials   from "../components/Testimonials/Testimonials";
 import RouteCTA       from "../components/RouteCTA/RouteCTA";
 import AdBanner       from "../components/AdBanner/AdBanner";
+import { useI18n }     from "../context/I18nContext";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 /**
  * Ordre :
@@ -31,7 +33,17 @@ import AdBanner       from "../components/AdBanner/AdBanner";
  * statique : c'est la seule version que les robots lisent sans exécuter le
  * JavaScript, et deux blocs concurrents se contrediraient.
  */
-const Home = () => (
+const Home = () => {
+  const { t } = useI18n();
+  // `traduite` : toute la page — héros, sections, pied de page — passe par
+  // t() dans les cinq langues. C'est ce qui autorise le hreflang ; voir
+  // hooks/useDocumentMeta.js.
+  useDocumentMeta({
+    title:       t("home.metaTitle"),
+    description: t("home.metaDesc"),
+    traduite:    true,
+  });
+  return (
   <>
     <HeroSection />
     <VehicleList />
@@ -42,15 +54,15 @@ const Home = () => (
     <SpotlightRow
       emplacement="loisirs"
       minimum={2}
-      titre="Activités et loisirs"
-      sousTitre="Plongée, quad, jetski — à faire près de chez vous."
+      titre={t("home.leisureTitle")}
+      sousTitre={t("home.leisureSub")}
       lienTout="/catalogue?mode=Autres"
-      libelleTout="Toutes les activités"
+      libelleTout={t("home.leisureAll")}
     />
     <SpotlightRow
       emplacement="partenaires"
-      titre="Partenaires à la une"
-      sousTitre="Les professionnels les plus actifs sur VIT AUTO."
+      titre={t("home.partnersTitle")}
+      sousTitre={t("home.partnersSub")}
     />
     <WhySection />
     <AdBanner position="featured_section" />
@@ -59,6 +71,7 @@ const Home = () => (
     <Testimonials />
     <RouteCTA />
   </>
-);
+  );
+};
 
 export default Home;
