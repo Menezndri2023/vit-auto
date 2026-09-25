@@ -12,6 +12,7 @@ import crypto from "crypto";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { adresseAdminRequise } from "../utils/adresseAdmin.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, "../../.env") });
@@ -23,7 +24,7 @@ dotenv.config();
 // compte de départ. Avant, seule cette dernière valeur était utilisée : le mot
 // de passe de tout autre administrateur était irrécupérable par ce script.
 //   node server/scripts/resetAdminPassword.js prenom.nom@exemple.com
-const ADMIN_EMAIL    = process.argv[2] || process.env.ADMIN_SEED_EMAIL || "admin@vitauto.ci";
+const ADMIN_EMAIL    = adresseAdminRequise(process.argv[2] || process.env.ADMIN_SEED_EMAIL);
 // Nouveau mot de passe fourni via ADMIN_RESET_PASSWORD, sinon généré aléatoirement
 // et affiché une seule fois — jamais de mot de passe en dur dans le code source.
 const NEW_PASSWORD   = process.env.ADMIN_RESET_PASSWORD || crypto.randomBytes(12).toString("base64url");

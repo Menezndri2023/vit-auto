@@ -9,6 +9,7 @@ import crypto from "crypto";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { adresseAdminRequise } from "../utils/adresseAdmin.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Cherche .env à la racine du projet (un ou deux niveaux au-dessus)
@@ -23,7 +24,7 @@ dotenv.config();
 const ADMIN = {
   firstName: "Admin",
   lastName:  "VIT AUTO",
-  email:     process.env.ADMIN_SEED_EMAIL || "admin@vitauto.ci",
+  email:     adresseAdminRequise(process.env.ADMIN_SEED_EMAIL),
   password:  process.env.ADMIN_SEED_PASSWORD || crypto.randomBytes(12).toString("base64url"),
   role:      "admin",
   // ADMINISTRATEUR GÉNÉRAL explicite : depuis que le tableau de permissions

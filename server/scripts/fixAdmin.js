@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { adresseAdminRequise } from "../utils/adresseAdmin.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Même ordre de chargement que createAdmin.js / resetAdminPassword.js (racine du
@@ -13,8 +14,8 @@ dotenv.config();
 
 // Même variable ADMIN_SEED_EMAIL que les deux autres scripts admin — sinon un
 // opérateur qui la définit pour créer/réinitialiser l'admin voit CE script agir
-// silencieusement sur "admin@vitauto.ci" (qui peut ne pas exister) au lieu du bon compte.
-const ADMIN_EMAIL = process.env.ADMIN_SEED_EMAIL || "admin@vitauto.ci";
+// silencieusement sur une adresse par défaut (qui peut ne pas exister) au lieu du bon compte.
+const ADMIN_EMAIL = adresseAdminRequise(process.env.ADMIN_SEED_EMAIL);
 
 async function main() {
   const uri = process.env.MONGODB_URI || process.env.MONGO_URI;

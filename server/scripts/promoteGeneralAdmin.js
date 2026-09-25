@@ -18,6 +18,7 @@ import mongoose from "mongoose";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { adresseAdminRequise } from "../utils/adresseAdmin.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, "../../.env") });
@@ -26,7 +27,7 @@ dotenv.config();
 
 const arg = process.argv[2];
 const ALL = arg === "--all";
-const EMAIL = ALL ? null : (arg || process.env.ADMIN_SEED_EMAIL || "admin@vitauto.ci");
+const EMAIL = ALL ? null : adresseAdminRequise(arg || process.env.ADMIN_SEED_EMAIL);
 
 async function main() {
   const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
