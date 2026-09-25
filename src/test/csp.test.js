@@ -124,3 +124,55 @@ describe("Le moteur OCR du KYC passe la CSP", () => {
     expect(directive("script-src").join(" ")).toContain(`tesseract.js@v${installee}/`);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// QUI A LE DROIT D'ÊTRE MIS EN CACHE
+// ═══════════════════════════════════════════════════════════════════════════
+// Deux exigences opposées vivent dans la même règle fourre-tout, et il serait
+// facile d'en casser une en réglant l'autre :
+//
+//  - `index.html` ne doit JAMAIS être servi depuis un cache. Il l'a été après
+//    un déploiement, et un visiteur qui revenait recevait un HTML nu pointant
+//    des fichiers disparus (incident du 2026-09-12). D'où `no-store` sur tout
+//    ce qui n'est pas un asset versionné.
+//  - `/sitemap.xml` GAGNE à être mis en cache : servi par l'API depuis le
+//    2026-09-25, chaque passage de robot réveille sinon un serveur endormi.
+describe("vercel.json — politique de cache", () => {
+  const config = JSON.parse(fs.readFileSync(path.join(process.cwd(), "vercel.json"), "utf8"));
+  const regleDe = (chemin) => config.headers.find((h) => {
+    const rx = new RegExp("^" + h.source.replace("/((?!", "(?!").replace(").*)", ").*$"));
+    return rx.test(chemin) || h.source === `/${chemin}`;
+  });
+  const valeur = (chemin) =>
+    (regleDe(chemin)?.headers || []).find((x) => x.key.toLowerCase() === "cache-control")?.value || "";
+
+  it("interdit toujours le cache de index.html et des pages", () => {
+    for (const chemin of ["index.html", "", "catalogue", "vehicle/abc", "p/boyzone-car"]) {
+      expect(valeur(chemin), `/${chemin} doit rester non mis en cache`).toMatch(/no-store/);
+    }
+  });
+
+  it("autorise le cache du sitemap — sinon chaque robot réveille l'API", () => {
+    const regle = config.headers.find((h) => h.source === "/sitemap.xml");
+    expect(regle, "aucune règle dédiée au sitemap").toBeTruthy();
+    const v = regle.headers.find((x) => x.key.toLowerCase() === "cache-control")?.value || "";
+    expect(v).toMatch(/max-age=\d{3,}/);
+    expect(v).not.toMatch(/no-store/);
+
+    // Et surtout : la règle FOURRE-TOUT ne doit pas l'attraper aussi. Écrite
+    // d'abord sans cette vérification, cette garde ne pouvait pas échouer —
+    // remettre le sitemap sous `no-store` la laissait verte, puisque la règle
+    // dédiée existait toujours. Deux règles qui se contredisent laissent la
+    // réponse dépendre d'un ordre de priorité qu'on ne maîtrise pas.
+    const fourreTout = config.headers[0];
+    const rx = new RegExp("^" + fourreTout.source.replace("/((?!", "(?!").replace(").*)", ").*$"));
+    expect(rx.test("sitemap.xml"), "la règle fourre-tout impose aussi no-store au sitemap").toBe(false);
+  });
+
+  it("le sitemap est bien relayé vers l'API, avant le repli SPA", () => {
+    const i = config.rewrites.findIndex((r) => r.source === "/sitemap.xml");
+    const repli = config.rewrites.findIndex((r) => r.destination === "/index.html");
+    expect(i, "aucune réécriture pour /sitemap.xml").toBeGreaterThanOrEqual(0);
+    expect(i, "la réécriture doit précéder le repli SPA").toBeLessThan(repli);
+  });
+});

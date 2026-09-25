@@ -27,7 +27,18 @@ describe("Panneau d'administration — tous les onglets", () => {
 
   const PLANTAGE = /before initialization|is not a function|Cannot read propert|is not defined|Rendered (more|fewer) hooks|Objects are not valid as a React child/;
 
-  it("chaque onglet du menu s'ouvre sans lever d'exception", async () => {
+  // ── Pourquoi ce test a son propre budget de temps ───────────────────────
+  // Il ouvre les ~40 onglets du panneau d'administration, un par un, dans le
+  // plus gros composant du projet. Mesuré seul le 2026-09-25 : **16,8 s**, soit
+  // plus de la moitié du budget global de 30 s. Il tenait donc uniquement tant
+  // que rien d'autre ne tournait en parallèle — et il s'est mis à échouer
+  // systématiquement dès que trois fichiers de test ont été ajoutés ailleurs.
+  //
+  // Le budget est porté à 90 s POUR CE TEST. Aucune assertion n'est touchée :
+  // ce qui était faux, c'est la mesure du temps qu'il lui faut, pas ce qu'il
+  // vérifie. Le relancer jusqu'à ce qu'il passe aurait masqué une fragilité
+  // qui aurait fini par bloquer un push sans rapport avec sa cause.
+  it("chaque onglet du menu s'ouvre sans lever d'exception", { timeout: 90000 }, async () => {
     connecter(utilisateurTest("admin", { adminScope: [] }));
     const { container } = renderPage(<AdminPanel />, { route: "/admin" });
 

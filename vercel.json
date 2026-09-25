@@ -22,11 +22,20 @@
   ],
   "headers": [
     {
-      "source": "/((?!assets/|api/|socket\\.io/).*)",
+      "source": "/((?!assets/|api/|socket\\.io/|sitemap\\.xml).*)",
       "headers": [
         {
           "key": "Cache-Control",
           "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/sitemap.xml",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600, s-maxage=3600"
         }
       ]
     },
