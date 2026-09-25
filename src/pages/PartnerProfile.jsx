@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import { useEffect, useState } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import VehicleCard from "../components/VehicleCard/VehicleCard";
@@ -118,6 +119,43 @@ export default function PartnerProfile() {
   }[partner?.partnerActivity] || "Partenaire";
 
   const logo = partner?.business?.logo || partner?.profilePhoto || null;
+
+  // ── Ce que voit un moteur, et ce que montre un partage WhatsApp ─────────
+  // Cette page n'appelait pas useDocumentMeta : elle gardait donc le titre, la
+  // description ET l'adresse canonique de la page d'accueil. Deux conséquences
+  // mesurées le 2026-09-25 :
+  //
+  //  - un partenaire qui partage son lien (fonction livrée la veille) affiche
+  //    l'aperçu générique de VIT AUTO au lieu de son nom et de sa flotte ;
+  //  - la balise canonique désignait l'accueil, ce qui revient à dire à un
+  //    moteur « cette page est un doublon de la page d'accueil ».
+  //
+  // Le canonique pointe sur l'adresse COURTE quand elle existe : c'est celle
+  // que le partenaire imprime et partage, et deux adresses pour une même page
+  // se disputeraient le référencement.
+  const villeDuPartenaire = partner?.defaultLocation?.city;
+  useDocumentMeta(partner ? {
+    title: `${displayName}${villeDuPartenaire ? ` — ${villeDuPartenaire}` : ""}`,
+    description: partner?.business?.description
+      || `${displayName} sur VIT AUTO : ${totalListings > 0 ? `${totalListings} annonce${totalListings > 1 ? "s" : ""} à réserver` : "profil partenaire"}${villeDuPartenaire ? ` à ${villeDuPartenaire}` : ""}. Réservation et paiement sécurisés.`,
+    image: logo || undefined,
+    url: `https://vit-auto.com${slug ? `/p/${slug}` : `/partner/${id}`}`,
+    structuredData: {
+      "@context": "https://schema.org",
+      "@type": "LocalBusiness",
+      name: displayName,
+      ...(partner?.business?.description ? { description: partner.business.description } : {}),
+      ...(logo ? { image: logo } : {}),
+      ...(villeDuPartenaire ? { address: { "@type": "PostalAddress", addressLocality: villeDuPartenaire, ...(partner?.country ? { addressCountry: partner.country } : {}) } } : {}),
+      ...(partner?.rating?.count ? {
+        aggregateRating: { "@type": "AggregateRating", ratingValue: partner.rating.average, reviewCount: partner.rating.count },
+      } : {}),
+      url: `https://vit-auto.com${slug ? `/p/${slug}` : `/partner/${id}`}`,
+    },
+    // Une vitrine sans aucune annonce est une page mince : l'annoncer aux
+    // moteurs dessert le site entier. Elle reste évidemment partageable.
+    robots: totalListings === 0 ? "noindex, follow" : undefined,
+  } : {});
 
   if (loading) {
     return (

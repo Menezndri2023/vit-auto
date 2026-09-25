@@ -41,4 +41,6 @@ graphify-out/
 .verif.env
 
 # Généré à chaque build (prebuild) depuis l'API — jamais versionné
+# public/sitemap.xml : le sitemap est désormais servi par l'API
+# (server/controllers/sitemapController.js), plus généré au build.
 public/sitemap.xml

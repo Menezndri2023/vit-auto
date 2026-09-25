@@ -28,7 +28,21 @@ export function mockReqRes({ body = {}, params = {}, user = null, query = {} } =
       res.statusCode = code;
       return res;
     }),
-    setHeader: vi.fn(),
+    // `res.set(nom, valeur)` d'Express — les en-têtes comptent pour les
+    // réponses qui n'en sont pas du JSON (sitemap : Content-Type XML,
+    // Cache-Control, Retry-After). Sans lui, un contrôleur qui les pose
+    // plantait ici alors qu'il fonctionne en production : le double mentait
+    // par omission.
+    headers: {},
+    set: vi.fn(function set(nom, valeur) {
+      if (typeof nom === "object") Object.assign(res.headers, nom);
+      else res.headers[nom] = valeur;
+      return res;
+    }),
+    setHeader: vi.fn(function setHeader(nom, valeur) {
+      res.headers[nom] = valeur;
+      return res;
+    }),
   };
   return { req, res };
 }

@@ -76,6 +76,7 @@ import apiKeyRoutes from "./routes/apiKeys.js";
 import publicApiRoutes from "./routes/publicApi.js";
 import partnerRequestRoutes from "./routes/partnerRequests.js";
 import vitrinePartenaireRoutes from "./routes/vitrinePartenaire.js";
+import { servirSitemap } from "./controllers/sitemapController.js";
 import spotlightRoutes from "./routes/spotlight.js";
 import salesLeadRoutes from "./routes/salesLeads.js";
 import { authenticate, authorizeAdmin } from "./middleware/auth.js";
@@ -441,6 +442,11 @@ app.get("/api/health", async (req, res) => {
 });
 
 // ── Routes API ────────────────────────────────────────────────────────────
+// Sitemap : servi par l'API et relayé par vercel.json. Hors limiteur — un
+// robot d'indexation n'est pas un client, et le faire tomber sur un 429
+// reviendrait à se retirer des moteurs.
+app.get(["/sitemap.xml", "/api/sitemap.xml"], servirSitemap);
+
 app.use("/api/auth",           authLimiter,      authRoutes);
 app.use("/api/vehicles/import", apiLimiter,      vehicleImportRoutes); // AVANT /api/vehicles (routes statiques d'abord)
 app.use("/api/vehicles",       catalogueLimiter, vehicleRoutes);   // Anti-scraping catalogue

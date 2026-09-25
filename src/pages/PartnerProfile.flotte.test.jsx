@@ -51,3 +51,41 @@ describe("PartnerProfile — la flotte vient du serveur", () => {
     }
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LA VITRINE DOIT SE PRÉSENTER ELLE-MÊME AUX MOTEURS ET AUX PARTAGES
+// ═══════════════════════════════════════════════════════════════════════════
+// Constaté le 2026-09-25, le lendemain de la mise en service du lien
+// partageable : la page n'appelait pas `useDocumentMeta`. Elle héritait donc
+// du titre, de la description ET de l'adresse canonique de la page d'accueil.
+//
+// Un partenaire qui envoyait son lien sur WhatsApp — l'usage même pour lequel
+// la fonction a été construite — affichait l'aperçu générique de VIT AUTO au
+// lieu de son nom et de sa flotte. Et la balise canonique disait aux moteurs
+// « cette page est un doublon de l'accueil ».
+describe("PartnerProfile — ce que voient les moteurs et les partages", () => {
+  it("pose ses propres balises", () => {
+    expect(source, "la page hérite des balises de l'accueil").toMatch(/useDocumentMeta\(/);
+    expect(source).toMatch(/import \{ useDocumentMeta \}/);
+  });
+
+  // LE point : le canonique doit désigner CETTE page. Pointer l'accueil revient
+  // à demander aux moteurs de ne pas indexer la vitrine.
+  it("déclare une adresse canonique propre à la vitrine, pas l'accueil", () => {
+    const bloc = source.slice(source.indexOf("useDocumentMeta("), source.indexOf("if (loading)"));
+    expect(bloc).toMatch(/url:\s*`https:\/\/vit-auto\.com\$\{slug/);
+    expect(bloc, "le canonique ne doit pas retomber sur la racine").not.toMatch(/url:\s*"https:\/\/vit-auto\.com"/);
+  });
+
+  // Le lien court est celui que le partenaire imprime : deux adresses pour une
+  // même page se disputeraient le référencement.
+  it("préfère l'adresse courte quand elle existe", () => {
+    const bloc = source.slice(source.indexOf("useDocumentMeta("), source.indexOf("if (loading)"));
+    expect(bloc).toMatch(/slug \? `\/p\/\$\{slug\}` : `\/partner\/\$\{id\}`/);
+  });
+
+  it("met en noindex une vitrine sans aucune annonce — une page mince dessert le site", () => {
+    const bloc = source.slice(source.indexOf("useDocumentMeta("), source.indexOf("if (loading)"));
+    expect(bloc).toMatch(/robots: totalListings === 0 \? "noindex, follow"/);
+  });
+});
