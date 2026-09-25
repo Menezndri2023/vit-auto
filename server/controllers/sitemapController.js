@@ -25,6 +25,7 @@ import User from "../models/User.js";
 import { clauseHorsComptesDeTest } from "../utils/comptesDeTest.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 import logger from "../utils/logger.js";
+import { LANGUES, LANGUE_DEFAUT, cheminDansLangue } from "../utils/langues.js";
 
 const SITE = "https://vit-auto.com";
 // Une heure : le catalogue bouge, mais un moteur ne relit pas un sitemap plus
@@ -35,19 +36,24 @@ const TTL_MS = 60 * 60 * 1000;
 // mince nuit plus qu'elle ne rapporte, et la page elle-même se met en noindex.
 const MIN_ANNONCES_PAR_VILLE = 2;
 
+// `traduite` : la page existe réellement dans les cinq langues (tout son texte
+// passe par t(), garanti par src/i18n/i18n.pagesTraduites.test.js). Elle reçoit
+// alors ses alternates hreflang ci-dessous. Les autres n'en reçoivent PAS :
+// déclarer cinq versions d'une page qui n'en a qu'une est une fausse
+// déclaration, que les moteurs traitent en contenu dupliqué.
 export const PAGES_STATIQUES = [
-  { loc: "/",                       changefreq: "daily",   priority: "1.0" },
+  { loc: "/",                       changefreq: "daily",   priority: "1.0", traduite: true },
   { loc: "/catalogue",              changefreq: "hourly",  priority: "0.9" },
   { loc: "/catalogue?mode=Autres",  changefreq: "daily",   priority: "0.8" },
   { loc: "/catalogue?mode=Pieces",  changefreq: "daily",   priority: "0.8" },
   { loc: "/import-export",          changefreq: "daily",   priority: "0.8" },
   { loc: "/import-export/listings", changefreq: "hourly",  priority: "0.8" },
-  { loc: "/services",               changefreq: "monthly", priority: "0.6" },
+  { loc: "/services",               changefreq: "monthly", priority: "0.6", traduite: true },
   { loc: "/partenaires",            changefreq: "weekly",  priority: "0.7" },
-  { loc: "/pourquoi",               changefreq: "monthly", priority: "0.5" },
+  { loc: "/pourquoi",               changefreq: "monthly", priority: "0.5", traduite: true },
   { loc: "/plans",                  changefreq: "monthly", priority: "0.5" },
-  { loc: "/faq",                    changefreq: "monthly", priority: "0.4" },
-  { loc: "/help",                   changefreq: "monthly", priority: "0.4" },
+  { loc: "/faq",                    changefreq: "monthly", priority: "0.4", traduite: true },
+  { loc: "/help",                   changefreq: "monthly", priority: "0.4", traduite: true },
   { loc: "/register",               changefreq: "yearly",  priority: "0.5" },
   { loc: "/login",                  changefreq: "yearly",  priority: "0.3" },
   { loc: "/privacy",                changefreq: "yearly",  priority: "0.2" },
@@ -65,13 +71,43 @@ export const slugifyVille = (v) => String(v || "")
 const echapper = (s) => String(s).replace(/[<>&'"]/g, (c) =>
   ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[c]));
 
-export function entree({ loc, changefreq, priority, lastmod }) {
+// Alternates `hreflang`, au format que Google attend dans un sitemap : CHAQUE
+// version linguistique reçoit son propre bloc <url>, et chacun liste les cinq
+// versions PLUS x-default — y compris lui-même. Un jeu incomplet ou non
+// réciproque est ignoré en bloc.
+//
+// Le paramètre de requête (/catalogue?mode=Pieces) est réattaché après le
+// préfixe : c'est le chemin, pas la requête, qui porte la langue.
+function alternates(loc) {
+  const [chemin, requete] = loc.split("?");
+  const suffixe = requete ? `?${requete}` : "";
+  const liens = LANGUES.map((l) =>
+    `<xhtml:link rel="alternate" hreflang="${l.hreflang}" href="${echapper(SITE + cheminDansLangue(chemin, l.code) + suffixe)}"/>`);
+  liens.push(`<xhtml:link rel="alternate" hreflang="x-default" href="${echapper(SITE + cheminDansLangue(chemin, LANGUE_DEFAUT) + suffixe)}"/>`);
+  return liens.join("");
+}
+
+export function entree({ loc, changefreq, priority, lastmod, traduite }) {
   const jour = lastmod ? `<lastmod>${new Date(lastmod).toISOString().slice(0, 10)}</lastmod>` : "";
-  return `  <url><loc>${echapper(SITE + loc)}</loc>${jour}<changefreq>${changefreq}</changefreq><priority>${priority}</priority></url>`;
+  const liens = traduite ? alternates(loc) : "";
+  return `  <url><loc>${echapper(SITE + loc)}</loc>${jour}<changefreq>${changefreq}</changefreq><priority>${priority}</priority>${liens}</url>`;
+}
+
+/**
+ * Une page traduite occupe cinq blocs <url> — un par langue — portant tous le
+ * même jeu d'alternates. C'est ce que demande la documentation Google : sans
+ * son propre bloc, une version linguistique n'est pas déclarée.
+ */
+function entreesToutesLangues(page) {
+  return LANGUES.map((l) => entree({ ...page, loc: (() => {
+    const [chemin, requete] = page.loc.split("?");
+    return cheminDansLangue(chemin, l.code) + (requete ? `?${requete}` : "");
+  })() }));
 }
 
 export async function construireSitemap() {
-  const urls = PAGES_STATIQUES.map(entree);
+  const urls = PAGES_STATIQUES.flatMap((p) =>
+    p.traduite ? entreesToutesLangues(p) : [entree(p)]);
 
   // Les comptes de démonstration (review Apple, jeux d'essai) ne doivent pas
   // peupler un sitemap : on annoncerait aux moteurs des pages qui disparaîtront.
@@ -115,7 +151,11 @@ export async function construireSitemap() {
     parVille.set(clef, (parVille.get(clef) || 0) + 1);
   }
   for (const [chemin, n] of parVille) {
-    if (n >= MIN_ANNONCES_PAR_VILLE) urls.push(entree({ loc: `/${chemin}`, changefreq: "daily", priority: "0.8" }));
+    // Les pages de ville passent par LocalLanding, entièrement traduite :
+    // elles méritent donc leurs cinq versions et leurs alternates.
+    if (n >= MIN_ANNONCES_PAR_VILLE) {
+      urls.push(...entreesToutesLangues({ loc: `/${chemin}`, changefreq: "daily", priority: "0.8", traduite: true }));
+    }
   }
 
   const parOrigine = new Map();
@@ -125,10 +165,13 @@ export async function construireSitemap() {
     parOrigine.set(slug, (parOrigine.get(slug) || 0) + 1);
   }
   for (const [slug, n] of parOrigine) {
-    if (n >= MIN_ANNONCES_PAR_VILLE) urls.push(entree({ loc: `/import-voiture/${slug}`, changefreq: "daily", priority: "0.8" }));
+    // Idem pour les pays d'origine : ImportOriginLanding est traduite.
+    if (n >= MIN_ANNONCES_PAR_VILLE) {
+      urls.push(...entreesToutesLangues({ loc: `/import-voiture/${slug}`, changefreq: "daily", priority: "0.8", traduite: true }));
+    }
   }
 
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>\n`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${urls.join("\n")}\n</urlset>\n`;
 }
 
 export const servirSitemap = async (req, res) => {

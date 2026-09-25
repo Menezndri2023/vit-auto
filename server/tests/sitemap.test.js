@@ -4,6 +4,8 @@ import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 import { cacheClear } from "../utils/catalogCache.js";
 import { slugifyCity } from "../../src/constants/citySlug.js";
+import { LANGUES as LANGUES_SERVEUR } from "../utils/langues.js";
+import { LANGUES as LANGUES_APP, cheminDansLangue } from "../../src/i18n/langueUrl.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LE SITEMAP DOIT CONTENIR LE CATALOGUE, PAS SEULEMENT LE MENU
@@ -20,6 +22,8 @@ import { slugifyCity } from "../../src/constants/citySlug.js";
 //
 // Le sitemap est désormais construit par l'API elle-même : toujours complet,
 // toujours frais, sans dépendre d'un réveil au bon moment.
+
+import { cheminDansLangue as cheminDansLangueServeur } from "../utils/langues.js";
 
 const compter = (xml, motif) => (xml.match(new RegExp(motif, "g")) || []).length;
 
@@ -75,7 +79,11 @@ describe("Sitemap", () => {
 
     await createVehicleDoc({ owner: p._id, status: "approved", available: true, ville: "Yamoussoukro", type: "location" });
     xml = await construireSitemap();
-    expect(compter(xml, "location-voiture/yamoussoukro")).toBe(1);
+    // Une page de ville est traduite : elle occupe désormais CINQ blocs <url>,
+    // un par langue. On compte les <loc>, pas les mentions — chaque bloc cite
+    // aussi la ville dans ses six alternates.
+    expect(compter(xml, "<loc>https://vit-auto\\.com/location-voiture/yamoussoukro</loc>")).toBe(1);
+    expect(compter(xml, "<loc>https://vit-auto\\.com/(?:en|ar|es|zh)/location-voiture/yamoussoukro</loc>")).toBe(4);
   });
 
   it("annonce les vitrines partenaires qui ont une adresse lisible", async () => {
@@ -86,6 +94,66 @@ describe("Sitemap", () => {
     const xml = await construireSitemap();
     expect(xml).toContain("https://vit-auto.com/p/boyzone-car");
     expect(compter(xml, "<loc>https://vit-auto.com/p/")).toBe(1);
+  });
+
+
+  // ── hreflang ──────────────────────────────────────────────────────────────
+  //
+  // Le sitemap est le signal le plus fort pour déclarer les versions
+  // linguistiques : il les couvre toutes d'un coup, sans dépendre de
+  // l'exécution du JavaScript par le robot. Encore faut-il que ce qu'il
+  // annonce existe et soit réciproque.
+
+  it("annonce les mêmes langues que l'application", () => {
+    // Une divergence publierait des adresses que le routeur ne sait pas
+    // résoudre — un sitemap plein d'URL mortes.
+    expect(LANGUES_SERVEUR.map((l) => l.code)).toEqual(LANGUES_APP.map((l) => l.code));
+  });
+
+  it("préfixe les adresses exactement comme l'application", () => {
+    for (const chemin of ["/", "/faq", "/location-voiture/abidjan"]) {
+      for (const l of LANGUES_SERVEUR) {
+        expect(cheminDansLangueServeur(chemin, l.code)).toBe(cheminDansLangue(chemin, l.code));
+      }
+    }
+  });
+
+  it("donne à chaque page traduite ses cinq versions et x-default", async () => {
+    const xml = await construireSitemap();
+    // /faq est déclarée traduite : les cinq adresses doivent exister comme
+    // <loc> à part entière, pas seulement comme alternates.
+    for (const l of LANGUES_SERVEUR) {
+      const attendu = `<loc>https://vit-auto.com${cheminDansLangue("/faq", l.code)}</loc>`;
+      expect(xml, `version ${l.code} de /faq absente`).toContain(attendu);
+    }
+    expect(xml).toContain('hreflang="x-default" href="https://vit-auto.com/faq"');
+    expect(xml).toContain('hreflang="zh-Hans"');
+    // L'espace de noms, sans lequel <xhtml:link> rend le sitemap invalide.
+    expect(xml).toContain('xmlns:xhtml="http://www.w3.org/1999/xhtml"');
+  });
+
+  it("ne déclare AUCUN alternate sur une page qui n'est pas traduite", async () => {
+    const xml = await construireSitemap();
+    // Les pages légales restent françaises : annoncer cinq versions d'un même
+    // texte français serait une fausse déclaration.
+    const blocCgu = xml.split("\n").find((l) => l.includes("<loc>https://vit-auto.com/cgu</loc>"));
+    expect(blocCgu, "/cgu absente du sitemap").toBeTruthy();
+    expect(blocCgu).not.toContain("xhtml:link");
+    expect(xml).not.toContain("https://vit-auto.com/en/cgu");
+  });
+
+  it("chaque jeu d'alternates est réciproque", async () => {
+    const xml = await construireSitemap();
+    // Google ignore en bloc un jeu non réciproque : la version anglaise doit
+    // déclarer la française autant que l'inverse.
+    const blocs = xml.split("<url>").filter((b) => b.includes("xhtml:link"));
+    expect(blocs.length).toBeGreaterThan(0);
+    for (const bloc of blocs.slice(0, 20)) {
+      for (const l of LANGUES_SERVEUR) {
+        expect(bloc, `alternate ${l.hreflang} manquant`).toContain(`hreflang="${l.hreflang}"`);
+      }
+      expect(bloc).toContain('hreflang="x-default"');
+    }
   });
 
   it("est du XML servi avec le bon type", async () => {

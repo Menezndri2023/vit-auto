@@ -12,6 +12,8 @@ import pagesPubliques, { LIBELLES_METIER } from "./pagesPubliques";
 import services from "./services";
 import pourquoi from "./pourquoi";
 import chrome from "./chrome";
+import faq from "./faq";
+import aide from "./aide";
 
 const translations = {
 
@@ -817,4 +819,4 @@ const translations = {
 // Fusion des vagues. En cas de clé en double, le module le plus récent gagne —
 // mais i18n.completude.test.js refuse les doublons : deux définitions d'une
 // même clé, c'est une traduction qu'on croit corriger sans effet.
-export default { ...translations, ...accueil, ...pagesPubliques, ...LIBELLES_METIER, ...services, ...pourquoi, ...chrome };
+export default { ...translations, ...accueil, ...pagesPubliques, ...LIBELLES_METIER, ...services, ...pourquoi, ...chrome, ...faq, ...aide };

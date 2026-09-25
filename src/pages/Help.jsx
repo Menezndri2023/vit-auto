@@ -3,41 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import styles from "./Help.module.css";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
+import { useI18n } from "../context/I18nContext";
 
-const faqs = [
-  {
-    q: "Comment créer un compte sur VIT AUTO ?",
-    a: "Cliquez sur « Inscription » en haut de la page, renseignez vos informations (nom, e-mail, mot de passe) et validez. Vous recevrez un e-mail de confirmation.",
-  },
-  {
-    q: "Comment réserver un véhicule ?",
-    a: "Parcourez le catalogue, choisissez votre véhicule et cliquez sur « Réserver ». Sélectionnez vos dates, vérifiez le récapitulatif, puis confirmez la réservation.",
-  },
-  {
-    q: "Quels modes de paiement sont acceptés ?",
-    a: "Nous acceptons les cartes bancaires (Visa, Mastercard) ainsi que les paiements via Mobile Money. Le paiement est sécurisé et chiffré.",
-  },
-  {
-    q: "Puis-je annuler ma réservation ?",
-    a: "Oui. Vous pouvez annuler depuis votre tableau de bord jusqu'à 24 h avant la date de prise en charge pour obtenir un remboursement complet.",
-  },
-  {
-    q: "Comment devenir partenaire (loueur) ?",
-    a: "Inscrivez-vous puis sélectionnez le rôle « Partenaire ». Après validation de votre profil, vous pourrez publier vos véhicules et gérer vos réservations depuis votre espace partenaire.",
-  },
-  {
-    q: "Que faire en cas de panne pendant la location ?",
-    a: "Contactez notre assistance 24h/24 via le numéro fourni dans votre confirmation de réservation. Un service de dépannage sera dépêché dans les meilleurs délais.",
-  },
-  {
-    q: "Comment importer un véhicule depuis la Chine ou Dubaï ?",
-    a: "Rendez-vous sur la page Import/Export pour découvrir nos packs (Silver, Gold, Platinum). Notre équipe gère l'inspection, le transport international, le dédouanement et la livraison de A à Z.",
-  },
-  {
-    q: "VIT AUTO opère dans combien de pays ?",
-    a: "VIT AUTO est présent dans 20+ pays : Afrique de l'Ouest, Maghreb, Europe, Émirats arabes unis et Chine. Notre service Import/Export couvre l'ensemble de ces marchés.",
-  },
-];
+// Contenu dans i18n/aide.js, en cinq langues. Deux réponses y ont été
+// réalignées sur la FAQ, qui disait autre chose (annulation, étape Founding
+// Partner) — le détail est en tête de ce fichier.
+const QUESTIONS = [1, 2, 3, 4, 5, 6, 7, 8];
 
 const FAQ = ({ q, a }) => {
   const [open, setOpen] = useState(false);
@@ -56,9 +27,11 @@ const Help = () => {
   // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
   // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
   // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
+  const { t } = useI18n();
   useDocumentMeta({
-    title: "Centre d'aide",
-    description: "Réponses aux questions sur la réservation, le paiement, la livraison, les documents et le programme partenaire VIT AUTO.",
+    title:       t("aide.metaTitle"),
+    description: t("aide.metaDesc"),
+    traduite:    true,
   });
 
   const navigate = useNavigate();
@@ -68,44 +41,44 @@ const Help = () => {
     <div className={styles.page}>
       {/* Hero */}
       <section className={styles.hero}>
-        <span className={styles.heroBadge}>Centre d'aide</span>
-        <h1>Comment pouvons-nous vous aider ?</h1>
-        <p>Trouvez rapidement des réponses à vos questions sur VIT AUTO.</p>
+        <span className={styles.heroBadge}>{t("aide.metaTitle")}</span>
+        <h1>{t("aide.h1")}</h1>
+        <p>{t("aide.sub")}</p>
       </section>
 
       {/* Quick links */}
       <section className={styles.quickLinks}>
         <div className={styles.qlCard} onClick={() => navigate("/catalogue")}>
           <span className={styles.qlIcon}>🚗</span>
-          <h3>Nos véhicules</h3>
-          <p>Parcourir le catalogue</p>
+          <h3>{t("aide.qlVehicles")}</h3>
+          <p>{t("aide.qlVehiclesSub")}</p>
         </div>
         <div className={styles.qlCard} onClick={() => navigate(isAuthenticated ? "/profile" : "/login")}>
           <span className={styles.qlIcon}>👤</span>
-          <h3>Mon compte</h3>
-          <p>{isAuthenticated ? "Accéder à mon profil" : "Connexion ou inscription"}</p>
+          <h3>{t("aide.qlAccount")}</h3>
+          <p>{t(isAuthenticated ? "aide.qlAccountIn" : "aide.qlAccountOut")}</p>
         </div>
         <div className={styles.qlCard} onClick={() => navigate("/services")}>
           <span className={styles.qlIcon}>🛡️</span>
-          <h3>Nos services</h3>
-          <p>Découvrir ce que nous offrons</p>
+          <h3>{t("aide.qlServices")}</h3>
+          <p>{t("aide.qlServicesSub")}</p>
         </div>
         <div className={styles.qlCard} onClick={() => navigate("/import-export")}>
           <span className={styles.qlIcon}>🌍</span>
-          <h3>Import / Export</h3>
-          <p>Importer depuis Chine, Dubaï, Europe</p>
+          <h3>{t("nav.importExport")}</h3>
+          <p>{t("aide.qlIESub")}</p>
         </div>
       </section>
 
       {/* FAQ */}
       <section className={styles.faqSection}>
         <div className={styles.sectionHeader}>
-          <h2>Questions fréquentes</h2>
-          <p>Vous ne trouvez pas votre réponse ? Contactez-nous directement.</p>
+          <h2>{t("faq.metaTitle")}</h2>
+          <p>{t("aide.contactSub")}</p>
         </div>
         <div className={styles.faqList}>
-          {faqs.map((f) => (
-            <FAQ key={f.q} q={f.q} a={f.a} />
+          {QUESTIONS.map((i) => (
+            <FAQ key={i} q={t(`aide.q${i}`)} a={t(`aide.a${i}`)} />
           ))}
         </div>
       </section>
@@ -114,16 +87,16 @@ const Help = () => {
       <section className={styles.contact}>
         <div className={styles.contactCard}>
           <div className={styles.contactIcon}>✉️</div>
-          <h3>Email — réponse sous 24h</h3>
-          <p>Pour toute question ou réclamation.</p>
+          <h3>{t("aide.email")}</h3>
+          <p>{t("aide.emailSub")}</p>
           <a href="mailto:contact@vit-auto.com" className={styles.contactBtn}>
             contact@vit-auto.com
           </a>
         </div>
         <div className={styles.contactCard}>
           <div className={styles.contactIcon}>📞</div>
-          <h3>Assistance téléphonique</h3>
-          <p>Disponible lundi – samedi, 8h – 20h.</p>
+          <h3>{t("aide.phone")}</h3>
+          <p>{t("aide.phoneSub")}</p>
           <a href="tel:+212607742672" className={styles.contactBtn}>
             +212 6 07 74 26 72
           </a>
@@ -131,9 +104,9 @@ const Help = () => {
         <div className={styles.contactCard}>
           <div className={styles.contactIcon}>💬</div>
           <h3>WhatsApp</h3>
-          <p>Réponse rapide via WhatsApp.</p>
+          <p>{t("aide.whatsappSub")}</p>
           <a href="https://wa.me/212607742672" target="_blank" rel="noopener noreferrer" className={styles.contactBtn}>
-            Ouvrir WhatsApp
+            {t("aide.openWhatsapp")}
           </a>
         </div>
       </section>
