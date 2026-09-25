@@ -35,15 +35,36 @@ export default function PartnerProfile() {
     }).finally(() => setLoading(false));
   }, [id]);
 
-  const partnerVehicles = vehicles.filter((v) => {
-    const vid = v.ownerId || v.owner?._id || v.owner?.id || v.owner;
-    return String(vid) === String(id) && v.available !== false;
-  });
+  // ── La flotte vient du SERVEUR, pas du catalogue déjà chargé ─────────────
+  // Filtrer `useVehicles()` paraissait économique, mais ce contexte est paginé
+  // à 100 annonces ET filtré sur le pays du visiteur. Mesuré en production le
+  // 2026-09-24 sur le partenaire le plus fourni (270 annonces) : 12 % de sa
+  // flotte visible depuis le Maroc, 1 % sans pays détecté, et ZÉRO depuis la
+  // Côte d'Ivoire. Un partenaire qui partageait son lien à un client à
+  // l'étranger l'envoyait sur une page vide.
+  //
+  // `country=INTL` est délibéré : on regarde CE partenaire, on ne parcourt pas
+  // le catalogue de son propre pays. Le filtre pays n'a aucun sens ici.
+  const [flotte, setFlotte] = useState(null);
+  useEffect(() => {
+    if (!id) return undefined;
+    let annule = false;
+    fetch(`/api/vehicles?owner=${encodeURIComponent(id)}&country=INTL&limit=100`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!annule) setFlotte(d?.vehicles || []); })
+      .catch(() => { if (!annule) setFlotte([]); });
+    return () => { annule = true; };
+  }, [id]);
+
+  const ownerOf = (x) => String(x.ownerId || x.owner?._id || x.owner?.id || x.owner);
+  // Repli sur le contexte tant que la requête n'a pas répondu : la page reste
+  // utile pendant le chargement plutôt que d'afficher « aucun véhicule ».
+  const partnerVehicles = (flotte ?? vehicles.filter((v) => ownerOf(v) === String(id)))
+    .filter((v) => v.available !== false);
   // Un partenaire loisirs ou chauffeur n'a AUCUN véhicule : sa page publique
   // affichait « Aucun véhicule disponible » alors qu'il a des annonces
-  // (2026-09-14, NEMO Diving). Les chauffeurs et activités viennent du même
-  // contexte que le catalogue.
-  const ownerOf = (x) => String(x.ownerId || x.owner?._id || x.owner?.id || x.owner);
+  // (2026-09-14, NEMO Diving). Chauffeurs, activités et pièces restent servis
+  // par le contexte : leurs volumes se comptent en dizaines, pas en centaines.
   const partnerDrivers    = (drivers || []).filter((d) => ownerOf(d) === String(id));
   const partnerActivities = (activities || []).filter((a) => ownerOf(a) === String(id));
   // Pièces détachées : secteur distinct des loisirs, section à part.
