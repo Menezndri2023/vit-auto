@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { claimCaution } from "../controllers/bookingController.js";
+import { claimCaution, enregistrerEtatDesLieux } from "../controllers/bookingController.js";
 import Booking from "../models/Booking.js";
 import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
@@ -93,5 +93,84 @@ describe("bookingController.claimCaution", () => {
     const second = mockReqRes({ user: owner, params: { id: booking._id.toString() }, body: { amountClaimed: 0 } });
     await claimCaution(second.req, second.res);
     expect(second.res.statusCode).toBe(409);
+  });
+});
+
+// ── État des lieux photo (2026-09-26) ──────────────────────────────────────
+//
+// `claimCaution` ci-dessus permet de retenir sur la caution, mais SANS aucune
+// preuve : le client n'a rien à opposer, le partenaire rien à produire, et
+// l'administration arbitre parole contre parole. La caution est le premier
+// motif de friction du secteur location.
+describe("bookingController.enregistrerEtatDesLieux", () => {
+  const PHOTO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+  const releve = (user, booking, body) => mockReqRes({
+    user, params: { id: booking._id.toString() },
+    body: { photos: [PHOTO], ...body },
+  });
+
+  it("enregistre le départ avec ses photos, son kilométrage et son carburant", async () => {
+    const { owner, booking } = await makeCompletedLocationBooking();
+    const { req, res } = releve(owner, booking, { moment: "depart", kilometrage: 45000, carburant: 80, notes: "Rayure aile avant droite" });
+    await enregistrerEtatDesLieux(req, res);
+    expect(res.statusCode).toBe(200);
+
+    const apres = await Booking.findById(booking._id).lean();
+    expect(apres.etatDesLieux.depart.photos).toHaveLength(1);
+    expect(apres.etatDesLieux.depart.kilometrage).toBe(45000);
+    expect(apres.etatDesLieux.depart.carburant).toBe(80);
+    expect(apres.etatDesLieux.depart.faitLe).toBeTruthy();
+    expect(apres.etatDesLieux.depart.parQui.toString()).toBe(owner._id.toString());
+  });
+
+  it("refuse un retour tant que le départ n'a pas été relevé", async () => {
+    // Comparer un état à un état jamais relevé ne prouve rien.
+    const { owner, booking } = await makeCompletedLocationBooking();
+    const { req, res } = releve(owner, booking, { moment: "retour", kilometrage: 46000 });
+    await enregistrerEtatDesLieux(req, res);
+    expect(res.statusCode).toBe(409);
+    expect(res.body.message).toMatch(/départ/i);
+  });
+
+  it("ne réécrit jamais un relevé déjà fait", async () => {
+    // Le refaire effacerait précisément ce qu'il sert à prouver.
+    const { owner, booking } = await makeCompletedLocationBooking();
+    const un = releve(owner, booking, { moment: "depart", kilometrage: 45000 });
+    await enregistrerEtatDesLieux(un.req, un.res);
+    expect(un.res.statusCode).toBe(200);
+
+    const deux = releve(owner, booking, { moment: "depart", kilometrage: 99999 });
+    await enregistrerEtatDesLieux(deux.req, deux.res);
+    expect(deux.res.statusCode).toBe(409);
+    expect((await Booking.findById(booking._id).lean()).etatDesLieux.depart.kilometrage).toBe(45000);
+  });
+
+  it("exige au moins une photo — c'est tout l'objet d'un état des lieux", async () => {
+    const { owner, booking } = await makeCompletedLocationBooking();
+    const { req, res } = mockReqRes({
+      user: owner, params: { id: booking._id.toString() },
+      body: { moment: "depart", photos: [], kilometrage: 45000 },
+    });
+    await enregistrerEtatDesLieux(req, res);
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("refuse un partenaire qui n'est pas propriétaire, et un moment inconnu", async () => {
+    const { owner, booking } = await makeCompletedLocationBooking();
+    const inconnu = await createUser({ role: "partenaire" });
+    const etranger = releve(inconnu, booking, { moment: "depart" });
+    await enregistrerEtatDesLieux(etranger.req, etranger.res);
+    expect(etranger.res.statusCode).toBe(403);
+
+    const mauvais = releve(owner, booking, { moment: "milieu" });
+    await enregistrerEtatDesLieux(mauvais.req, mauvais.res);
+    expect(mauvais.res.statusCode).toBe(400);
+  });
+
+  it("le carburant est un pourcentage : 120 % est refusé", async () => {
+    const { owner, booking } = await makeCompletedLocationBooking();
+    const { req, res } = releve(owner, booking, { moment: "depart", carburant: 120 });
+    await enregistrerEtatDesLieux(req, res);
+    expect(res.statusCode).toBe(400);
   });
 });

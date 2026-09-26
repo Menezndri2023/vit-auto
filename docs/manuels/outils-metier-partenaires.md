@@ -323,7 +323,6 @@ Classés par rapport valeur/effort. Aucun n'est annoncé tant qu'il n'existe pas
 
 | Palier | Outil | Secteur | Pourquoi il se vend |
 |---|---|---|---|
-| Business | **État des lieux photo** au départ et au retour | Location | Tranche les litiges de caution, premier motif de friction |
 | Business | **Report météo** au lieu d'annulation | Loisirs | Une sortie reportée se facture ; annulée, non |
 | Essentiel | **Zones tarifaires** — tarif par zone desservie | Chauffeur | Un trajet aéroport ne vaut pas un trajet intra-ville |
 | Business | **Mise à disposition longue durée** | Chauffeur | Le revenu récurrent, ce que cherche tout professionnel |
@@ -430,3 +429,33 @@ Le **devis multi-pièces** de la ligne d'origine reste à construire : une
 commande porte aujourd'hui UNE pièce (`Booking.part`), et permettre un panier
 de références touche le modèle de commande, le panier et le paiement. C'est un
 chantier distinct, pas une variante de celui-ci.
+
+## 9. Livré le 2026-09-26 — État des lieux photo (Business, secteur Location)
+
+`Booking.cautionClaim` permettait déjà au partenaire de **retenir** sur la
+caution. Sans aucune preuve attachée : le client n'avait rien à opposer, le
+partenaire rien à produire, et l'administration arbitrait parole contre parole.
+La caution est le premier motif de friction du secteur.
+
+`Booking.etatDesLieux` porte deux relevés horodatés — départ et retour —
+chacun avec ses photos, son kilométrage, son niveau de carburant et ses notes.
+Ils ne bloquent rien : une location peut se dérouler sans. Ils rendent une
+retenue **défendable**, et une contestation aussi.
+
+Cinq décisions :
+
+- **Un relevé déjà fait n'est jamais réécrit.** Le refaire effacerait
+  précisément ce qu'il sert à prouver. Si le partenaire s'est trompé,
+  l'administration corrige — pas lui.
+- **Le retour exige le départ.** Comparer un état à un état jamais relevé ne
+  prouve rien.
+- **Au moins une photo**, sinon l'objet même du relevé disparaît.
+- **Écriture conditionnelle** : deux enregistrements simultanés ne peuvent pas
+  se superposer, le premier arrivé fait foi.
+- **Dossier privé** (`FOLDERS.bookingDocs`) : un état des lieux montre des
+  plaques, parfois les affaires du client, et reste accessible longtemps après
+  la location. Les deux parties sont authentifiées, une URL signée suffit.
+
+Six tests dans `server/tests/bookingCaution.test.js`, à côté de ceux de la
+caution — c'est le même sujet. Vérifié en neutralisant la règle d'ordre : le
+test passe au rouge.

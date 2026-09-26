@@ -18,6 +18,7 @@ export default {
 
   // ─── Outils par secteur (OUTILS_PAR_SECTEUR) ──────────────────────────────
   "outil.partsImport":    { fr: "Import du catalogue par fichier (CSV, Excel, Google Sheets)", en: "Catalogue import from a file (CSV, Excel, Google Sheets)", ar: "استيراد الفهرس من ملف (CSV، Excel، Google Sheets)", es: "Importación del catálogo por archivo (CSV, Excel, Google Sheets)", zh: "通过文件导入目录（CSV、Excel、Google 表格）" },
+  "outil.conditionReport": { fr: "État des lieux photo au départ et au retour", en: "Photo condition report at pick-up and return", ar: "محضر حالة مصوّر عند التسليم والاستلام", es: "Parte fotográfico de estado a la entrega y devolución", zh: "取车与还车的照片状态记录" },
   "outil.shippingZones":  { fr: "Frais de port par zone de pays", en: "Shipping rates by country zone", ar: "رسوم الشحن حسب منطقة البلدان", es: "Gastos de envío por zona de países", zh: "按国家分区的运费" },
   "outil.stockAlert":     { fr: "Alerte de stock bas, par référence", en: "Low-stock alert, per reference", ar: "تنبيه انخفاض المخزون، لكل مرجع", es: "Alerta de stock bajo, por referencia", zh: "按编号的低库存提醒" },
   "outil.seasonalRates":  { fr: "Tarifs saisonniers — haute et basse saison", en: "Seasonal rates — high and low season", ar: "أسعار موسمية — الموسم المرتفع والمنخفض", es: "Tarifas de temporada — alta y baja", zh: "季节性定价——旺季与淡季" },

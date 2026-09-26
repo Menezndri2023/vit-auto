@@ -70,6 +70,11 @@ export const FEATURE_MIN_PLAN = {
   // partenaire perd les commandes proches et perd de l'argent sur les
   // lointaines.
   fraisPortParZone:   "business",        // pièces
+  // État des lieux photo au départ et au retour d'une location. La caution
+  // est le premier motif de friction du secteur : sans preuve horodatée, une
+  // retenue se discute parole contre parole et l'administration arbitre à
+  // l'aveugle.
+  etatDesLieux:       "business",        // loueur
 };
 
 // Sièges d'équipe INCLUS, titulaire compris. `business` en ouvre trois : un

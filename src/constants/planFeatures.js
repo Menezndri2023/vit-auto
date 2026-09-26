@@ -128,8 +128,9 @@ export const OUTILS_PAR_SECTEUR = {
       { key: "outil.promotions",    feature: "promotions" },
     ],
     business: [
-      { key: "outil.fleetImport", feature: "importFlotte" },
-      { key: "outil.fleetMgmt",   feature: "journalVehicule" },
+      { key: "outil.fleetImport",     feature: "importFlotte" },
+      { key: "outil.fleetMgmt",       feature: "journalVehicule" },
+      { key: "outil.conditionReport", feature: "etatDesLieux" },
     ],
     exportateur: [
       { key: "outil.fleetApi", feature: "accesApi" },

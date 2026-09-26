@@ -33,7 +33,7 @@ import {
 import { resolveTier, MAX_LOYALTY_BALANCE_POINTS, MAX_LOYALTY_DISCOUNT_RATE, POINTS_PER_USD } from "../constants/loyaltyTiers.js";
 import LoyaltyTransaction from "../models/LoyaltyTransaction.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
-import { uploadBase64Document, FOLDERS } from "../config/imagekit.js";
+import { uploadBase64Document, uploadBase64Images, FOLDERS } from "../config/imagekit.js";
 import { isMalformedObjectId } from "../utils/objectId.js";
 import { prochainNumero, formatReference } from "../utils/sequence.js";
 import { invokeController } from "../utils/invokeController.js";
@@ -3721,6 +3721,97 @@ export const completeMission = async (req, res) => {
 // restitué à ce stade dans le flux existant — voir validateTransaction/
 // adminForceComplete). Une seule décision par réservation : pas de correction
 // après coup pour éviter toute contestation sur un montant déjà notifié au client.
+/**
+ * État des lieux photo au départ ou au retour d'une location.
+ *
+ * Outil du palier Business (`etatDesLieux`). Ce qu'il change : `claimCaution`
+ * permettait de retenir sur la caution sans qu'aucune preuve existe — parole
+ * contre parole, et une administration qui arbitre à l'aveugle. Deux relevés
+ * horodatés rendent la retenue défendable, et la contestation aussi.
+ *
+ * Idempotent par moment : un relevé déjà fait n'est pas écrasé. Le refaire
+ * effacerait précisément ce qu'il sert à prouver — si le partenaire s'est
+ * trompé, l'administration corrige, pas lui.
+ */
+export const enregistrerEtatDesLieux = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Identifiant de réservation invalide." });
+    }
+    const moment = String(req.body?.moment || "").trim();
+    if (!["depart", "retour"].includes(moment)) {
+      return res.status(400).json({ message: "Moment invalide : « depart » ou « retour »." });
+    }
+
+    const booking = await Booking.findById(id).populate("vehicle", "owner title");
+    if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
+    if (booking.type !== "location") {
+      return res.status(400).json({ message: "L'état des lieux ne s'applique qu'aux locations." });
+    }
+
+    const ownerId = booking.vehicle?.owner?._id?.toString() || booking.vehicle?.owner?.toString();
+    if (req.user.role !== "admin" && ownerId !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+    if (!assertPartnerCanAct(booking, req, res)) return;
+
+    if (booking.etatDesLieux?.[moment]?.faitLe) {
+      return res.status(409).json({
+        message: moment === "depart"
+          ? "L'état des lieux de départ a déjà été enregistré."
+          : "L'état des lieux de retour a déjà été enregistré.",
+      });
+    }
+    // Le retour sans le départ ne prouve rien : on ne peut pas comparer un
+    // état à un état qui n'a jamais été relevé.
+    if (moment === "retour" && !booking.etatDesLieux?.depart?.faitLe) {
+      return res.status(409).json({
+        message: "Enregistrez d'abord l'état des lieux de départ — sans lui, celui du retour ne prouve rien.",
+      });
+    }
+
+    const brut = Array.isArray(req.body.photos) ? req.body.photos.filter(Boolean).slice(0, 12) : [];
+    if (brut.length === 0) {
+      return res.status(400).json({ message: "Au moins une photo est requise : c'est tout l'objet d'un état des lieux." });
+    }
+    // Dossier PRIVÉ : un état des lieux montre des plaques, parfois les
+    // affaires du client, et reste accessible longtemps après la location.
+    // Les deux parties sont authentifiées — une URL signée suffit.
+    const photos = await uploadBase64Images(brut, FOLDERS.bookingDocs);
+
+    const nombreOuNull = (v, max) => {
+      if (v === undefined || v === null || v === "") return null;
+      const n = Number(v);
+      return Number.isFinite(n) && n >= 0 && (max == null || n <= max) ? n : undefined;
+    };
+    const kilometrage = nombreOuNull(req.body.kilometrage);
+    const carburant   = nombreOuNull(req.body.carburant, 100);
+    if (kilometrage === undefined) return res.status(400).json({ message: "Kilométrage invalide." });
+    if (carburant === undefined)   return res.status(400).json({ message: "Niveau de carburant invalide (0 à 100 %)." });
+
+    // Écriture conditionnelle : deux enregistrements simultanés ne peuvent pas
+    // se superposer, et le premier arrivé fait foi.
+    const maj = await Booking.updateOne(
+      { _id: id, [`etatDesLieux.${moment}.faitLe`]: null },
+      { $set: { [`etatDesLieux.${moment}`]: {
+        photos, kilometrage, carburant,
+        notes: String(req.body.notes || "").trim().slice(0, 1000) || null,
+        faitLe: new Date(), parQui: req.user._id,
+      } } }
+    );
+    if (maj.modifiedCount !== 1) {
+      return res.status(409).json({ message: "L'état des lieux vient d'être enregistré par ailleurs." });
+    }
+
+    const apres = await Booking.findById(id).select("etatDesLieux").lean();
+    res.json({ etatDesLieux: apres.etatDesLieux });
+  } catch (err) {
+    logger.error("enregistrerEtatDesLieux:", err);
+    res.status(500).json({ message: "Erreur lors de l'enregistrement de l'état des lieux." });
+  }
+};
+
 export const claimCaution = async (req, res) => {
   try {
     const { id } = req.params;

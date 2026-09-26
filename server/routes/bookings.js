@@ -2,6 +2,7 @@ import express from "express";
 import { rateLimit } from "express-rate-limit";
 import * as b from "../controllers/bookingController.js";
 import { authorizeAdmin, requireAdminScope } from "../middleware/auth.js";
+import { exigeOutil } from "../services/planAccess.js";
 // `authenticate` provient de middleware/team.js et non de middleware/auth.js :
 // il enchaîne l'authentification habituelle avec la délégation d'accès des
 // comptes d'équipe (un agent travaille sur les annonces et les réservations de
@@ -66,6 +67,10 @@ router.get("/partner/export",             authenticate, b.exportPartnerBookings)
 router.patch("/:id/status",              vid, authenticate, b.updateBookingStatus);
 router.patch("/:id/transaction",         vid, authenticate, b.recordTransaction);
 router.patch("/:id/partner-confirm",     vid, authenticate, b.partnerConfirm);
+// État des lieux photo au départ et au retour — outil du palier Business.
+// Ce qu'il change : `claimCaution` permettait de retenir sur la caution sans
+// qu'aucune preuve existe, et l'administration arbitrait parole contre parole.
+router.patch("/:id/etat-des-lieux",      vid, authenticate, exigeOutil("etatDesLieux"), b.enregistrerEtatDesLieux);
 router.patch("/:id/partner-kyc-verify",  vid, authenticate, b.partnerVerifyKyc);
 // Booking Engine (2026-09) — alternative proposée par le partenaire, réponse
 // du client (voir server/services/bookingActionService.js).

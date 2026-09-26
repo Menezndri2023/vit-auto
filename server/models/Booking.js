@@ -524,6 +524,38 @@ const bookingSchema = new mongoose.Schema({
   cancelReasonCode: { type: String, default: null },
   cancelledBy: { type: String, enum: ["client", "partenaire", "admin", "system", null], default: null },
 
+  // ── État des lieux photo, au départ et au retour (2026-09-26) ─────────
+  //
+  // `cautionClaim` ci-dessous permet au partenaire de retenir sur la caution,
+  // mais SANS AUCUNE PREUVE attachée : le client n'a rien à opposer, le
+  // partenaire rien à produire, et l'administration arbitre un litige sur
+  // parole contre parole. La caution est le premier motif de friction du
+  // secteur location.
+  //
+  // Deux relevés horodatés, chacun avec ses photos, son kilométrage et son
+  // niveau de carburant. Ils ne bloquent rien — une location peut se dérouler
+  // sans — mais ils rendent une retenue défendable, et une contestation aussi.
+  //
+  // Outil du palier Business (`etatDesLieux`).
+  etatDesLieux: {
+    depart: {
+      photos:      { type: [String], default: [] },
+      kilometrage: { type: Number, min: 0, default: null },
+      carburant:   { type: Number, min: 0, max: 100, default: null }, // en %
+      notes:       { type: String, trim: true, maxlength: 1000, default: null },
+      faitLe:      { type: Date, default: null },
+      parQui:      { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    },
+    retour: {
+      photos:      { type: [String], default: [] },
+      kilometrage: { type: Number, min: 0, default: null },
+      carburant:   { type: Number, min: 0, max: 100, default: null },
+      notes:       { type: String, trim: true, maxlength: 1000, default: null },
+      faitLe:      { type: Date, default: null },
+      parQui:      { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    },
+  },
+
   // ── Caution (dépôt de garantie) : traitement au retour ────────────────
   // cautionAmount (ci-dessus) n'était qu'un montant à percevoir, affiché mais
   // jamais réellement traité : le contrat promet "tout dommage sera prélevé
