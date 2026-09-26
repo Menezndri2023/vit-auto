@@ -134,6 +134,8 @@ node scripts/indexNow.mjs /faq /plans  # seulement ces pages
 
 Quand s'en servir : après une mise en ligne qui change beaucoup de pages, ou quand une page importante vient d'être publiée. **Pas tous les jours** — cela n'accélère rien et un 429 finit par tomber.
 
+⚠️ **La première soumission échoue normalement.** Bing vérifie la clé de façon **asynchrone** : juste après la mise en ligne du fichier, il répond `403 SiteVerificationNotCompleted` — « patientez et réessayez ». Ce n'est pas un défaut de déploiement, et le script le dit désormais explicitement. Constaté le 2026-09-26 alors que le fichier répondait bien `200 text/plain` avec le bon contenu, y compris pour un robot Bing interrogé depuis une adresse tierce. Il suffit de relancer quelques heures plus tard.
+
 ⚠️ **Le fichier clé doit être DÉPLOYÉ avant toute soumission.** IndexNow le lit pour vérifier la propriété ; s'il ne le trouve pas, il répond 403 et rien n'est signalé. Après un changement de clé : déployer d'abord, soumettre ensuite. Un test (`src/seo.indexnow.test.js`) verrouille les deux pièges silencieux — un contenu de fichier différent de son nom, et deux fichiers clés concurrents.
 
 Bing Webmaster Tools reste utile pour **voir** ce qui est indexé : la propriété s'y **importe** depuis Search Console en quelques clics, une fois l'étape 1 faite. Mais l'indexation, elle, n'attend pas ce compte.

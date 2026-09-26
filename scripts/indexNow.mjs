@@ -91,7 +91,15 @@ async function principal() {
     const ok = r.status === 200 || r.status === 202;
     console.log(`${ok ? "✓" : "✗"} lot ${i / LOT + 1} : ${lot.length} URL → HTTP ${r.status}${corps ? " " + corps.slice(0, 200) : ""}`);
     if (!ok) {
-      if (r.status === 403) console.error("  403 = clé introuvable ou non conforme. Le fichier est-il DÉPLOYÉ ?");
+      // ⚠️ Deux 403 très différents, et le message compte : le premier se
+      // résout tout seul, le second demande une correction.
+      if (r.status === 403 && corps.includes("SiteVerificationNotCompleted")) {
+        console.error("  403 « vérification en cours » — Bing lit la clé de façon ASYNCHRONE.");
+        console.error("  Ce n'est PAS un défaut de déploiement : réessayer dans quelques heures suffit.");
+        console.error(`  Pour s'en assurer : curl -s https://${HOTE}/${key}.txt  → doit rendre ${key}`);
+      } else if (r.status === 403) {
+        console.error("  403 = clé introuvable ou non conforme. Le fichier est-il DÉPLOYÉ ?");
+      }
       if (r.status === 422) console.error("  422 = une URL ne relève pas du domaine déclaré.");
       if (r.status === 429) console.error("  429 = trop de soumissions. IndexNow n'accélère rien : espacez.");
       process.exitCode = 1;
