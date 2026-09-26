@@ -7,6 +7,7 @@ import Driver from "../models/Driver.js";
 import Activity from "../models/Activity.js";
 import SparePart from "../models/SparePart.js";
 import { calculerLivraisonPiece, fraisImportationPiece } from "../services/partShipping.js";
+import { prixParPersonne } from "../services/tarifGroupe.js";
 import { reserverStockPiece, restituerStockPiece, enregistrerVentePiece } from "../services/partStock.js";
 import { MAX_PART_QUANTITY } from "../constants/spareParts.js";
 import Payment from "../models/Payment.js";
@@ -890,7 +891,12 @@ export const createBooking = async (req, res) => {
       // envoyé par le client) — "per_person" multiplie par le nombre de
       // participants, "per_session" reste forfaitaire quel que soit ce nombre
       // (voir Activity.priceUnit).
-      const unitPrice = activityIsEssai ? (activityObj.essaiPrice ?? activityObj.price) : activityObj.price;
+      // Les paliers de groupe (services/tarifGroupe.js) ne s'appliquent PAS à
+      // un essai : un essai est individuel par nature, et son prix est déjà
+      // une faveur commerciale.
+      const unitPrice = activityIsEssai
+        ? (activityObj.essaiPrice ?? activityObj.price)
+        : prixParPersonne(activityObj, activityParticipants);
       montantBase = activityObj.priceUnit === "per_person" ? unitPrice * activityParticipants : unitPrice;
     }
 

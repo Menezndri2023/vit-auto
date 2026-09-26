@@ -6,6 +6,7 @@ import User from "../models/User.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
 import Notification from "../models/Notification.js";
 import PartnerVerification from "../models/PartnerVerification.js";
+import { outilOuvert, messageRefus } from "../services/planAccess.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
 import { logAction } from "../middleware/auditLog.js";
@@ -44,12 +45,46 @@ const EDITABLE = [
   "durationMinutes", "capacity",
   "essaiDisponible", "essaiDurationMinutes", "essaiPrice",
   "weatherDependent",
+  "tarifsGroupe",
   "images", "thumbnail",
   "ville", "adresse", "coordonnees",
   "available", "manuallyPaused",
 ];
 
 // ── Créer une annonce activité (partenaire) ───────────────────────────────
+/**
+ * Valide et normalise les paliers de groupe, et vérifie le palier d'abonnement.
+ *
+ * Renvoie `{ error }`, `{ refus }` ou `{ paliers }`. La validation est ici et
+ * pas dans le modèle : un message qui dit CE QUI cloche vaut mieux qu'un
+ * ValidationError Mongoose, que le partenaire ne sait pas lire.
+ */
+async function normaliserTarifsGroupe(user, brut) {
+  if (brut === undefined) return {};
+  if (!Array.isArray(brut)) return { error: "Tarifs de groupe invalides." };
+  if (brut.length === 0) return { paliers: [] }; // retirer reste toujours libre
+
+  const verdict = await outilOuvert(user, "tarifsGroupe");
+  if (!verdict.ouvert) {
+    return { refus: { message: messageRefus("tarifsGroupe"), code: "PLAN_REQUIS", feature: "tarifsGroupe" } };
+  }
+
+  const paliers = [];
+  const seuils = new Set();
+  for (const p of brut.slice(0, 8)) {
+    const seuil = Math.floor(Number(p?.aPartirDe));
+    const prix  = Number(p?.prixParPersonne);
+    if (!Number.isFinite(seuil) || seuil < 2) {
+      return { error: "Un palier de groupe commence à 2 participants au minimum." };
+    }
+    if (!Number.isFinite(prix) || prix < 0) return { error: "Prix de groupe invalide." };
+    if (seuils.has(seuil)) return { error: `Deux paliers commencent à ${seuil} participants — le prix deviendrait ambigu.` };
+    seuils.add(seuil);
+    paliers.push({ aPartirDe: seuil, prixParPersonne: Math.round(prix * 100) / 100 });
+  }
+  return { paliers };
+}
+
 export const createActivity = async (req, res) => {
   try {
     if (!["partenaire", "admin"].includes(req.user.role)) {
@@ -314,6 +349,10 @@ export const updateActivity = async (req, res) => {
     if (safeUpdate.priceUnit && !ACTIVITY_PRICE_UNITS.includes(safeUpdate.priceUnit)) {
       return res.status(400).json({ message: "Unité de prix invalide." });
     }
+    const groupe = await normaliserTarifsGroupe(req.user, safeUpdate.tarifsGroupe);
+    if (groupe.error) return res.status(400).json({ message: groupe.error });
+    if (groupe.refus) return res.status(403).json(groupe.refus);
+    if (groupe.paliers !== undefined) safeUpdate.tarifsGroupe = groupe.paliers;
 
     const nextImages = safeUpdate.images !== undefined ? safeUpdate.images : activity.images;
     if (!nextImages || nextImages.length === 0) {

@@ -48,6 +48,28 @@ const activitySchema = new mongoose.Schema({
   // pour ne jamais perdre de précision à l'aller-retour de conversion.
   currency:      { type: String, default: null },
   priceEntered:  { type: Number, default: null },
+
+  // ── Tarifs de groupe dégressifs (outil de palier, 2026-09-26) ────────────
+  //
+  // Les groupes font le gros du chiffre en loisirs — un club, une famille
+  // élargie, une sortie d'entreprise — et c'est précisément là que le
+  // partenaire n'avait aucun levier : un prix par personne, identique pour
+  // deux plongeurs comme pour quinze.
+  //
+  // Chaque palier dit « à partir de N participants, le prix par personne
+  // devient X ». Le palier retenu est le PLUS ÉLEVÉ qui reste atteint. Sans
+  // palier atteint, le prix normal s'applique : le comportement d'avant.
+  //
+  // N'a de sens que pour `priceUnit: "per_person"` — un forfait de séance ne
+  // dépend déjà pas du nombre de participants.
+  tarifsGroupe: {
+    type: [{
+      _id:              false,
+      aPartirDe:        { type: Number, min: 2, required: true },
+      prixParPersonne:  { type: Number, min: 0, required: true },
+    }],
+    default: [],
+  },
   priceEntryCurrency: { type: String, default: null },
 
   // Durée d'une session complète (minutes) — sert à calculer le créneau

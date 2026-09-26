@@ -219,3 +219,47 @@ describe("createBooking activité — condition météo", () => {
     expect(m.res.statusCode).toBe(201);
   });
 });
+
+// ── Tarifs de groupe dégressifs (2026-09-26) ───────────────────────────────
+//
+// Le prix est TOUJOURS recalculé côté serveur : un client qui réserve pour
+// douze ne doit pas pouvoir envoyer le tarif d'un seul, ni l'inverse.
+describe("bookingController.createBooking — tarifs de groupe", () => {
+  // Dates DISTINCTES : la capacité d'un créneau est agrégée, et trois
+  // réservations au même horaire la dépasseraient — ce qui testerait la
+  // capacité, pas le tarif.
+  const reserver = async (activity, participants, jour = "01") => {
+    const client = await verifiedClient();
+    const { req, res } = mockReqRes({
+      user: client,
+      body: {
+        type: "activite", clientInfo, activityId: activity._id.toString(),
+        activite: { date: `2027-06-${jour}T10:00:00.000Z`, participants },
+      },
+    });
+    await createBooking(req, res);
+    return res;
+  };
+
+  it("applique le palier atteint, et le prix normal en dessous", async () => {
+    const activity = await createActivityDoc({
+      price: 100, priceUnit: "per_person", capacity: 20,
+      tarifsGroupe: [{ aPartirDe: 5, prixParPersonne: 80 }, { aPartirDe: 10, prixParPersonne: 60 }],
+    });
+
+    // 4 participants : sous le premier palier.
+    expect((await reserver(activity, 4, "01")).body.booking.montantBase).toBe(400);
+    // 6 : palier « à partir de 5 ».
+    expect((await reserver(activity, 6, "02")).body.booking.montantBase).toBe(480);
+    // 12 : palier « à partir de 10 » — le plus élevé atteint.
+    expect((await reserver(activity, 12, "03")).body.booking.montantBase).toBe(720);
+  });
+
+  it("un forfait de séance ignore les paliers", async () => {
+    const activity = await createActivityDoc({
+      price: 300, priceUnit: "per_session", capacity: 20,
+      tarifsGroupe: [{ aPartirDe: 2, prixParPersonne: 10 }],
+    });
+    expect((await reserver(activity, 15)).body.booking.montantBase).toBe(300);
+  });
+});

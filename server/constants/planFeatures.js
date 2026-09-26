@@ -75,6 +75,11 @@ export const FEATURE_MIN_PLAN = {
   // retenue se discute parole contre parole et l'administration arbitre à
   // l'aveugle.
   etatDesLieux:       "business",        // loueur
+  // Paliers de prix dégressifs par nombre de participants. Les groupes font
+  // le gros du chiffre en loisirs — un club, une famille élargie, une sortie
+  // d'entreprise — et c'est là que le partenaire n'avait aucun levier : un
+  // prix par personne identique pour deux plongeurs comme pour quinze.
+  tarifsGroupe:       "business",        // loisirs
 };
 
 // Sièges d'équipe INCLUS, titulaire compris. `business` en ouvre trois : un

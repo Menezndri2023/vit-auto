@@ -185,6 +185,7 @@ export const OUTILS_PAR_SECTEUR = {
     // modèle Activity et fonctionnent pour tout le monde.
     individuel_plus: [],
     business: [
+      { key: "outil.groupRates",     feature: "tarifsGroupe" },
       { key: "outil.instructorTeam", feature: "multiUtilisateurs" },
     ],
     exportateur: [],

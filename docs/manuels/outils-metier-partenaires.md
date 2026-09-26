@@ -326,7 +326,6 @@ Classés par rapport valeur/effort. Aucun n'est annoncé tant qu'il n'existe pas
 | Business | **Report météo** au lieu d'annulation | Loisirs | Une sortie reportée se facture ; annulée, non |
 | Essentiel | **Zones tarifaires** — tarif par zone desservie | Chauffeur | Un trajet aéroport ne vaut pas un trajet intra-ville |
 | Business | **Mise à disposition longue durée** | Chauffeur | Le revenu récurrent, ce que cherche tout professionnel |
-| Business | **Tarifs de groupe** dégressifs | Loisirs | Les groupes font le gros du chiffre |
 | Premium | **Compatibilité par immatriculation** | Pièces | Le client saisit sa plaque, on lui montre ce qui va |
 | Premium | **Billet à QR code** scanné à l'arrivée | Loisirs | Fin des listes papier et des litiges de présence |
 
@@ -459,3 +458,34 @@ Cinq décisions :
 Six tests dans `server/tests/bookingCaution.test.js`, à côté de ceux de la
 caution — c'est le même sujet. Vérifié en neutralisant la règle d'ordre : le
 test passe au rouge.
+
+## 10. Livré le 2026-09-26 — Tarifs de groupe (Business, secteur Loisirs)
+
+**Premier outil payant du secteur loisirs.** Créneaux, capacité et report
+météo existaient déjà et sont restés GRATUITS (voir §2) : ce qui manquait,
+c'est le levier commercial. Les groupes font le gros du chiffre — un club, une
+famille élargie, une sortie d'entreprise — et le partenaire n'avait qu'un prix
+par personne, identique pour deux plongeurs comme pour quinze.
+
+`Activity.tarifsGroupe` porte des paliers « à partir de N participants, le
+prix par personne devient X ». Le calcul vit dans `services/tarifGroupe.js`,
+point de passage unique du devis et du montant facturé — deux calculs
+finiraient par diverger, et c'est le client qui découvrirait l'écart au
+paiement.
+
+Quatre décisions :
+
+- **Le palier retenu est le PLUS ÉLEVÉ atteint.** « À partir de 10 » l'emporte
+  sur « à partir de 5 » quand douze personnes réservent.
+- **Les paliers ne sont pas supposés triés.** Le partenaire les saisit dans
+  l'ordre qui lui vient ; un tri implicite serait une règle invisible de plus.
+- **Un palier plus CHER que le tarif normal est ignoré.** C'est une erreur de
+  saisie, jamais une intention : l'appliquer ferait payer un groupe plus cher
+  qu'une somme d'individus.
+- **Aucun effet sur un forfait de séance ni sur un essai.** Le premier ne
+  dépend déjà pas du nombre de participants ; le second est individuel par
+  nature et son prix est déjà une faveur.
+
+Huit tests — six sur le calcul pur (`tests/tarifGroupe.test.js`), deux sur la
+réservation réelle, le prix étant toujours recalculé côté serveur. Vérifiés en
+neutralisant la recherche de palier : quatre passent au rouge.
