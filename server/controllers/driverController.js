@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import logger from "../utils/logger.js";
 import { avecRepliMondial } from "../utils/repliMondial.js";
 import Driver from "../models/Driver.js";
+import { outilOuvert, messageRefus } from "../services/planAccess.js";
 import User from "../models/User.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
 import Notification from "../models/Notification.js";
@@ -539,6 +540,38 @@ export const bulkDeleteDrivers = async (req, res) => {
 // Il n'existait jusqu'ici aucune route d'édition pour un chauffeur (contrairement
 // à Vehicle) — un partenaire ne pouvait que créer ou supprimer. Whitelist calquée
 // sur vehicleController.updateVehicle : mêmes garde-fous (mass assignment, photos).
+/**
+ * Valide les zones tarifaires et vérifie le palier d'abonnement.
+ *
+ * Renvoie `{ error }`, `{ refus }` ou `{ zones }`. Comme ailleurs, DÉFINIR
+ * des zones demande le palier ; les RETIRER reste libre — on ne piège pas un
+ * partenaire dans une grille qu'il ne pourrait plus simplifier.
+ */
+async function normaliserZonesTarifaires(user, brut) {
+  if (brut === undefined) return {};
+  if (!Array.isArray(brut)) return { error: "Zones tarifaires invalides." };
+  if (brut.length === 0) return { zones: [] };
+
+  const verdict = await outilOuvert(user, "zonesTarifairesChauffeur");
+  if (!verdict.ouvert) {
+    return { refus: { message: messageRefus("zonesTarifairesChauffeur"), code: "PLAN_REQUIS", feature: "zonesTarifairesChauffeur" } };
+  }
+
+  const zones = [];
+  const noms = new Set();
+  for (const z of brut.slice(0, 12)) {
+    const nom = String(z?.nom || "").trim().slice(0, 60);
+    const supplement = Number(z?.supplementUSD);
+    if (!nom) return { error: "Chaque zone tarifaire doit porter un nom." };
+    if (!Number.isFinite(supplement) || supplement < 0) return { error: `Supplément invalide pour la zone « ${nom} ».` };
+    const cle = nom.toLowerCase();
+    if (noms.has(cle)) return { error: `Deux zones s'appellent « ${nom} » — le supplément deviendrait ambigu.` };
+    noms.add(cle);
+    zones.push({ nom, supplementUSD: Math.round(supplement * 100) / 100 });
+  }
+  return { zones };
+}
+
 export const updateDriver = async (req, res) => {
   try {
     const driver = await Driver.findById(req.params.id);
@@ -553,7 +586,7 @@ export const updateDriver = async (req, res) => {
       "firstName", "lastName", "phone", "profilePhoto", "cv", "title", "description",
       "tarif", "tarifDemiJournee", "tarifHeure", "tarifMois",
       "tarifEntered", "tarifDemiJourneeEntered", "tarifHeureEntered", "tarifMoisEntered", "priceEntryCurrency", "currency",
-      "disponibilite", "zone", "ville",
+      "disponibilite", "zone", "ville", "zonesTarifaires",
       "experience", "langues", "permisCategorie", "vehiculePersonnel", "typeVehicule",
       "images",
     ];
@@ -569,6 +602,11 @@ export const updateDriver = async (req, res) => {
     for (const key of EDITABLE) {
       if (req.body[key] !== undefined) safeUpdate[key] = req.body[key];
     }
+
+    const zonesTarif = await normaliserZonesTarifaires(req.user, safeUpdate.zonesTarifaires);
+    if (zonesTarif.error) return res.status(400).json({ message: zonesTarif.error });
+    if (zonesTarif.refus) return res.status(403).json(zonesTarif.refus);
+    if (zonesTarif.zones !== undefined) safeUpdate.zonesTarifaires = zonesTarif.zones;
 
     // Cohérence photos si l'un des deux champs est modifié (voir createDriver)
     const nextProfilePhoto = safeUpdate.profilePhoto !== undefined ? safeUpdate.profilePhoto : driver.profilePhoto;

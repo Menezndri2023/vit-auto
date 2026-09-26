@@ -164,7 +164,10 @@ export const OUTILS_PAR_SECTEUR = {
   chauffeur: {
     // Le planning et les indisponibilités restent GRATUITS : ils existaient
     // déjà pour tous, et les vendre en Essentiel revenait à facturer l'air.
-    individuel_plus: [],
+    // Ce palier n'avait donc RIEN à vendre jusqu'au 2026-09-26.
+    individuel_plus: [
+      { key: "outil.driverZones", feature: "zonesTarifairesChauffeur" },
+    ],
     business: [
       { key: "outil.driverCompany", feature: "multiUtilisateurs" },
     ],

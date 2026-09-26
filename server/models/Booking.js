@@ -287,6 +287,12 @@ const bookingSchema = new mongoose.Schema({
     // ou demi-journée (le cas le plus courant) ne l'était pas du tout.
     unite:       { type: String, enum: ["heure", "demi_journee", "journee", "mois", null], default: null },
     quantite:    { type: Number, default: null },
+    // Zone tarifaire retenue et son supplément, figés au moment de la
+    // réservation (2026-09-26). Conservés sur la commande et non relus depuis
+    // le chauffeur : un supplément modifié après coup changerait le montant
+    // d'une mission déjà payée — même principe que Vehicle.currency figée.
+    zone:              { type: String, default: null },
+    supplementZoneUSD: { type: Number, default: 0 },
     lieuDepart:  { type: String },
     destination: { type: String },
     notes:       { type: String },

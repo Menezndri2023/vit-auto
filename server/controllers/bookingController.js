@@ -763,7 +763,23 @@ export const createBooking = async (req, res) => {
         return res.status(400).json({ message: `Ce chauffeur ne propose pas de tarif ${libelle}.`, code: "DRIVER_RATE_UNAVAILABLE" });
       }
       montantBase = UNITES[unite].tarif * quantite;
-      if (chauffeur) { chauffeur.unite = unite; chauffeur.quantite = quantite; chauffeur.heures = quantite * UNITES[unite].heuresParUnite; }
+
+      // ── Supplément de zone (outil `zonesTarifairesChauffeur`) ───────────
+      // Ajouté UNE fois par mission, jamais multiplié par la durée : c'est le
+      // déplacement qui coûte, pas le temps passé sur place. Une zone inconnue
+      // est ignorée plutôt que refusée — le client choisit dans une liste, et
+      // une zone retirée entre-temps ne doit pas bloquer sa réservation.
+      const zoneDemandee = String(chauffeur?.zone || "").trim();
+      const zoneTarifaire = zoneDemandee
+        ? (driver.zonesTarifaires || []).find((z) => String(z.nom).trim().toLowerCase() === zoneDemandee.toLowerCase())
+        : null;
+      if (zoneTarifaire) montantBase += Number(zoneTarifaire.supplementUSD) || 0;
+
+      if (chauffeur) {
+        chauffeur.unite = unite; chauffeur.quantite = quantite; chauffeur.heures = quantite * UNITES[unite].heuresParUnite;
+        chauffeur.zone = zoneTarifaire ? zoneTarifaire.nom : null;
+        chauffeur.supplementZoneUSD = zoneTarifaire ? (Number(zoneTarifaire.supplementUSD) || 0) : 0;
+      }
       ownerId = driver.owner;
 
       // Date/heure de mission requise pour pouvoir détecter les conflits de

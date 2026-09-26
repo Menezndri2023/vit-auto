@@ -66,6 +66,25 @@ const driverSchema = new mongoose.Schema({
     required: true,
   },
   zone:        { type: String, required: true, trim: true },
+
+  // ── Zones tarifaires (outil de palier, 2026-09-26) ───────────────────────
+  //
+  // Le chauffeur avait QUATRE tarifs (heure, demi-journée, journée, mois) et
+  // UNE zone, en texte libre. Un transfert aéroport était donc facturé comme
+  // une course intra-ville : il refusait les longues distances ou les perdait.
+  //
+  // Un SUPPLÉMENT par zone, et non une grille de tarifs complète : quatre
+  // unités de facturation multipliées par N zones donneraient 4N champs que
+  // personne ne remplirait. Le supplément s'ajoute UNE fois par mission,
+  // quelle que soit la durée — c'est le déplacement qui coûte, pas sa durée.
+  zonesTarifaires: {
+    type: [{
+      _id:           false,
+      nom:           { type: String, required: true, trim: true, maxlength: 60 },
+      supplementUSD: { type: Number, required: true, min: 0 },
+    }],
+    default: [],
+  },
   ville:       { type: String, trim: true },
   // Hérité du pays du partenaire propriétaire (jamais depuis le body) — même
   // usage que Vehicle.country pour le filtrage international du catalogue.

@@ -80,6 +80,11 @@ export const FEATURE_MIN_PLAN = {
   // d'entreprise — et c'est là que le partenaire n'avait aucun levier : un
   // prix par personne identique pour deux plongeurs comme pour quinze.
   tarifsGroupe:       "business",        // loisirs
+  // Un supplément par zone desservie. Le chauffeur avait quatre tarifs et UNE
+  // zone en texte libre : un transfert aéroport était facturé comme une course
+  // intra-ville, donc refusé ou perdu. Premier outil du secteur au palier
+  // Essentiel, qui n'avait rien.
+  zonesTarifairesChauffeur: "individuel_plus", // chauffeur
 };
 
 // Sièges d'équipe INCLUS, titulaire compris. `business` en ouvre trois : un

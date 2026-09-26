@@ -324,7 +324,6 @@ Classés par rapport valeur/effort. Aucun n'est annoncé tant qu'il n'existe pas
 | Palier | Outil | Secteur | Pourquoi il se vend |
 |---|---|---|---|
 | Business | **Report météo** au lieu d'annulation | Loisirs | Une sortie reportée se facture ; annulée, non |
-| Essentiel | **Zones tarifaires** — tarif par zone desservie | Chauffeur | Un trajet aéroport ne vaut pas un trajet intra-ville |
 | Business | **Mise à disposition longue durée** | Chauffeur | Le revenu récurrent, ce que cherche tout professionnel |
 | Premium | **Compatibilité par immatriculation** | Pièces | Le client saisit sa plaque, on lui montre ce qui va |
 | Premium | **Billet à QR code** scanné à l'arrivée | Loisirs | Fin des listes papier et des litiges de présence |
@@ -489,3 +488,33 @@ Quatre décisions :
 Huit tests — six sur le calcul pur (`tests/tarifGroupe.test.js`), deux sur la
 réservation réelle, le prix étant toujours recalculé côté serveur. Vérifiés en
 neutralisant la recherche de palier : quatre passent au rouge.
+
+## 11. Livré le 2026-09-26 — Zones tarifaires chauffeur (Essentiel, secteur Chauffeur)
+
+Le chauffeur avait **quatre tarifs** — heure, demi-journée, journée, mois — et
+**une seule zone**, en texte libre. Un transfert aéroport était donc facturé
+comme une course intra-ville : il le refusait, ou il le perdait.
+
+C'était aussi le dernier palier Essentiel vide : planning et indisponibilités
+(`Driver.blackoutDates`) existaient déjà pour tous et sont redevenus gratuits
+ce matin (voir §1).
+
+`Driver.zonesTarifaires` porte des **suppléments nommés** — « Aéroport »,
+« Hors ville » — ajoutés au montant de la mission.
+
+Quatre décisions :
+
+- **Un supplément, pas une grille de tarifs complète.** Quatre unités de
+  facturation multipliées par N zones donneraient 4N champs que personne ne
+  remplirait.
+- **Ajouté UNE fois par mission, jamais multiplié par la durée.** C'est le
+  déplacement qui coûte, pas le temps passé sur place.
+- **Une zone inconnue est ignorée, pas refusée.** Le client choisit dans une
+  liste ; une zone retirée entre-temps ne doit pas bloquer sa réservation.
+- **Zone et supplément sont FIGÉS sur la commande** (`Booking.chauffeur.zone`,
+  `supplementZoneUSD`) et non relus depuis le chauffeur : un supplément
+  modifié après coup changerait le montant d'une mission déjà payée — même
+  principe que la devise figée par annonce.
+
+Six tests dans `server/tests/driverZonesTarifaires.test.js`, vérifiés en
+neutralisant l'ajout du supplément : le test du montant passe au rouge.
