@@ -10,8 +10,19 @@
 // genre de table).
 import { PLAN_RANK, planRank } from "./subscriptionPlans.js";
 
+// ⚠️ Une entrée ici est une PROMESSE VENDUE : src/constants/planFeatures.js
+// l'annonce sur la page Tarifs, et planFeatures.coherence.test.js refuse tout
+// outil annoncé qui n'aurait pas sa ligne ici, au même palier. Une entrée que
+// personne ne vérifie est pire qu'absente — elle se vend sans rien donner.
+//
+// Retirée le 2026-09-26, parce que DÉCLARÉE et jamais appliquée :
+//  · `carrouselReserve` — place réservée au carrousel d'accueil. Le moteur de
+//    mise en avant lit le mérite et les boosts achetés, jamais le plan. Tant
+//    que ce n'est pas construit, ne pas le vendre.
 export const FEATURE_MIN_PLAN = {
-  statistiques:      "individuel_plus", // tableau de bord de performance
+  // Tableau d'analyse : vues, taux de conversion, prix face à la médiane de la
+  // ville, recommandations. Verrouillé dans getPartnerInsights.
+  statistiques:      "individuel_plus",
   exportStatistiques:"business",        // téléchargement CSV
   assistancePremium: "business",        // file prioritaire + délai garanti
   multiUtilisateurs: "business",        // comptes d'équipe rattachés
@@ -20,9 +31,6 @@ export const FEATURE_MIN_PLAN = {
   // exclusivité : les non-abonnés les voient après un délai (voir
   // partnerRequestsController.AVANCE_ABONNE_MS).
   demandesPrioritaires: "business",
-  // Place réservée dans le carrousel d'accueil, distincte des mises en avant
-  // achetées à l'unité.
-  carrouselReserve:  "exportateur",
   // Rapport mensuel de performance envoyé par e-mail.
   rapportMensuel:    "business",
 
@@ -42,6 +50,11 @@ export const FEATURE_MIN_PLAN = {
   // /partner/<id> reste publique à tous les paliers (décision de l'exploitant,
   // 2026-09-25) : ce qui s'achète, c'est une adresse imprimable.
   lienCourtVitrine:  "individuel_plus",
+  // Plusieurs prix pour un même véhicule d'export, un par Incoterm (FOB, CIF,
+  // CFR…). Le partenaire les saisit depuis son tableau de bord importateur ;
+  // l'acheteur voit le devis correspondant à l'Incoterm qu'il choisit. Le
+  // palier gratuit garde UN prix et UN Incoterm — ce qui suffit pour vendre.
+  incotermsMultiples: "individuel_plus", // exportateur
 };
 
 // Sièges d'équipe INCLUS, titulaire compris. `business` en ouvre trois : un

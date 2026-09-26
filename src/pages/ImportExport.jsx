@@ -57,28 +57,40 @@ const ZONES = [
   },
 ];
 
-/* ── Packs Import Assist ── Silver/Gold/Platinum/Executive sont des noms
-   commerciaux : ils ne se traduisent pas, leur contenu si. ── */
+/* ── Packs Import Assist ──
+   Silver/Gold/Platinum/Executive sont des noms commerciaux : ils ne se
+   traduisent pas, leur contenu si.
+
+   ⚠️ Ces montants étaient les SEULS du site libellés en euros, figés et non
+   convertis — un client ivoirien voyait des FCFA partout et « 399 € » ici.
+   Ils passent par fmtUSD comme le reste et suivent la devise du visiteur.
+
+   Grille proposée le 2026-09-26, à valider par l'exploitant : la progression
+   double à chaque palier, et l'inspection à l'unité (90/220/490 $) reste
+   cohérente avec ce que les packs incluent. Executive passe SUR DEVIS — une
+   conciergerie 24 h/7 j avec financement, assurance et garantie de
+   satisfaction ne tient pas dans un prix fixe : l'annoncer à un montant
+   unique, c'est soit se tromper, soit refuser le dossier ensuite. ── */
 const PACKS = [
   {
-    name: "Silver", price: "399 €", color: "#94a3b8",
+    name: "Silver", priceUSD: 390, color: "#94a3b8",
     accent: "rgba(148,163,184,.12)", border: "rgba(148,163,184,.3)",
     items: ["ie.svc.sellerCheck", "ie.svc.buyAssist", "ie.svc.fileTracking", "ie.svc.emailSupport"],
   },
   {
-    name: "Gold", price: "799 €", color: "#f59e0b",
+    name: "Gold", priceUSD: 890, color: "#f59e0b",
     accent: "rgba(245,158,11,.10)", border: "rgba(245,158,11,.35)", popular: true,
     inherits: "Silver",
     items: ["ie.svc.proInspection", "ie.svc.fullLogistics", "ie.svc.prioritySupport", "ie.svc.negotiation"],
   },
   {
-    name: "Platinum", price: "1 499 €", color: "#6366f1",
+    name: "Platinum", priceUSD: 1790, color: "#6366f1",
     accent: "rgba(99,102,241,.10)", border: "rgba(99,102,241,.35)",
     inherits: "Gold",
     items: ["ie.svc.fullFile", "ie.svc.customs", "ie.svc.deliveryCoord", "ie.svc.advisor"],
   },
   {
-    name: "Executive", price: "2 999 €", color: "#ff4d2d",
+    name: "Executive", priceUSD: null, color: "#ff4d2d",
     accent: "rgba(255,77,45,.10)", border: "rgba(255,77,45,.35)",
     inherits: "Platinum",
     items: ["ie.svc.concierge", "ie.svc.financeIns", "ie.svc.doorToDoor", "ie.svc.satisfaction"],
@@ -484,7 +496,7 @@ const ImportExport = () => {
               {p.popular && <div className={styles.popularBadge}>{t("ie.mostPopular")}</div>}
               <div className={styles.packTop} style={{ background: p.accent }}>
                 <span className={styles.packName} style={{ color: p.color }}>{p.name}</span>
-                <span className={styles.packPrice}>{p.price}</span>
+                <span className={styles.packPrice}>{p.priceUSD === null ? t("ie.onQuote") : fmtUSD(p.priceUSD)}</span>
                 <span className={styles.packPriceSub}>{t("ie.onePack")}</span>
               </div>
               <ul className={styles.packFeatures}>
@@ -548,12 +560,12 @@ const ImportExport = () => {
             </div>
             <div className={styles.servicesList}>
               {[
-                { key: "ie.svc.inspStd",        price: "79 €" },
-                { key: "ie.svc.inspPrem",       price: "199 €" },
-                { key: "ie.svc.fullExpertise",  price: "399 €" },
+                { key: "ie.svc.inspStd",        price: fmtUSD(90) },
+                { key: "ie.svc.inspPrem",       price: fmtUSD(220) },
+                { key: "ie.svc.fullExpertise",  price: fmtUSD(490) },
                 { key: "ie.svc.intlTransport",  price: t("ie.price.margin") },
                 { key: "ie.svc.partnerIns",     price: t("ie.price.comm") },
-                { key: "ie.svc.autoCredit",     price: t("ie.price.perFile") },
+                { key: "ie.svc.autoCredit",     price: t("ie.price.perFile", { min: fmtUSD(110), max: fmtUSD(2200) }) },
                 { key: "ie.delivery",           price: t("ie.onQuote") },
               ].map((sv) => (
                 <div key={sv.key} className={styles.servicesRow}>

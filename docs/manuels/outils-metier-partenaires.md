@@ -228,3 +228,111 @@ l'administrateur pose le palier, sans étape de paiement. C'est déjà le cas de
 
 Les points 1 et 2 se tiennent en quelques heures. Les suivants méritent d'être
 pris un par un, chacun avec sa garde de non-régression.
+
+---
+
+# Révision du 2026-09-26 — ce qui a été rangé
+
+Demande de l'exploitant : verrouiller ce qui est vendu, ranger les outils par
+palier, **retirer de la vente ce qui n'en vaut pas la peine**, et proposer des
+tarifs de packs cohérents.
+
+## 1. L'audit, outil par outil
+
+Sur les 25 outils annoncés, **neuf n'étaient pas vendables** — pour quatre
+raisons distinctes, toutes vérifiées dans le code :
+
+| Outil annoncé | Réalité | Décision |
+|---|---|---|
+| Planning et indisponibilités (chauffeur) | `Driver.blackoutDates`, ouvert à tous | **Gratuit** |
+| Créneaux et capacité par séance (loisirs) | `Activity.capacity`, ouvert à tous | **Gratuit** |
+| Fermeture automatique selon la météo | `Activity.weatherDependent`, ouvert à tous | **Gratuit** |
+| Prix face au marché (vendeur) | n'existe pas | Retiré |
+| Tarifs de groupe et de saison (loisirs) | n'existe pas | Retiré |
+| Dossier financement et crédit | routes **admin** uniquement | Retiré |
+| Suivi de dossier import/export | c'est le SERVICE, pas un outil d'abonnement | Retiré |
+| Documents LOI et accord partenaire | relève de l'onboarding Fondateur | Retiré |
+| Mise en avant dans la rubrique (chauffeur, loisirs) | le moteur lit le mérite et les boosts, jamais le plan | Retiré |
+
+Deux entrées de la matrice serveur étaient **déclarées et jamais vérifiées** :
+
+- `carrouselReserve` — retirée. Le moteur de mise en avant ne lit pas le plan.
+- `statistiques` — **conservée** : elle EST vérifiée, dans `getPartnerInsights`.
+
+⚠️ **Le deuxième cas m'avait d'abord échappé** : mon inventaire passait par un
+`grep … | head -3`, et l'unique occurrence arrivait en quatrième position. J'ai
+supprimé une garde réelle avant que `planTiers.test.js` ne me reprenne. La
+leçon vaut d'être écrite ici : **ne jamais conclure d'une sortie tronquée.**
+
+## 2. La matrice remise à plat
+
+Le principe retenu : **aucune case vide, sans rien inventer.** Un secteur sans
+outil propre à un palier n'est pas laissé vide — il reçoit les avantages
+transversaux, qui sont réels et verrouillés (lien court, sièges d'équipe,
+export tableur, demandes en avance, API).
+
+| | Gratuit | Essentiel | Business | Premium |
+|---|---|---|---|---|
+| **Tous** | vitrine, contrat, messagerie, revenus | lien court + QR, classement prioritaire, statistiques d'analyse, 1 place vitrine | 3 sièges, export tableur, demandes en avance, bilan mensuel, 2 places | 10 sièges, API, 3 places, assistance 4 h |
+| Location | planning | tarifs saisonniers, promotions | import de flotte, journal d'entretien | synchro du parc par API |
+| Vente | — | promotions | CRM, showroom, bilan des ventes | synchro du stock par API |
+| Export | 1 prix + 1 Incoterm | **prix par Incoterm** | CRM, demandes en avance | API catalogue revendeurs |
+| Chauffeur | planning, zones desservies | — | société de chauffeurs | — |
+| Loisirs | créneaux, capacité, report météo | — | équipe de moniteurs | — |
+| Pièces | stock et références | — | — | — |
+
+**Le verrou posé** : `incotermsMultiples` (Essentiel). Le secteur Export était
+le seul à ne rien verrouiller ; c'est désormais faux. Refus explicite à la
+création et à la modification d'une annonce, jamais un filtrage silencieux.
+
+## 3. La garde qui empêche la rechute
+
+`src/constants/planFeatures.coherence.test.js` relit
+`server/constants/planFeatures.js` — la matrice qui fait autorité — et refuse :
+
+- un outil annoncé sans nom de garde serveur ;
+- une garde qui n'existe pas côté serveur ;
+- **un palier annoncé différent du palier imposé** ;
+- un libellé sans traduction dans les cinq langues.
+
+Il ne peut pas être satisfait en éditant la page : c'est tout l'intérêt.
+
+## 4. Tarifs des packs — proposition
+
+Les montants étaient les **seuls du site libellés en euros**, figés et non
+convertis : un client ivoirien voyait des FCFA partout et « 399 € » ici. Ils
+passent par `fmtUSD` et suivent la devise du visiteur.
+
+| Pack | Avant | Proposé | Pourquoi |
+|---|---|---|---|
+| Silver | 399 € | **390 $** | équivalent, arrondi |
+| Gold | 799 € | **890 $** | ×2,3 — il ajoute l'inspection professionnelle (220 $) |
+| Platinum | 1 499 € | **1 790 $** | ×2 — dédouanement et conseiller dédié |
+| Executive | 2 999 € | **sur devis** | conciergerie 24/7 + financement + assurance : un prix fixe ne tient pas |
+
+Inspection à l'unité : 90 $ / 220 $ / 490 $. L'expertise complète (490 $) coûte
+plus que le pack Silver (390 $), ce qui est cohérent : un rapport d'expert
+demande plus de travail qu'un accompagnement à l'achat.
+
+**À valider par l'exploitant.** Une seule ligne à changer : `PACKS` dans
+`src/pages/ImportExport.jsx`.
+
+## 5. Outils proposés, non construits
+
+Classés par rapport valeur/effort. Aucun n'est annoncé tant qu'il n'existe pas.
+
+| Palier | Outil | Secteur | Pourquoi il se vend |
+|---|---|---|---|
+| Business | **État des lieux photo** au départ et au retour | Location | Tranche les litiges de caution, premier motif de friction |
+| Business | **Report météo** au lieu d'annulation | Loisirs | Une sortie reportée se facture ; annulée, non |
+| Essentiel | **Zones tarifaires** — tarif par zone desservie | Chauffeur | Un trajet aéroport ne vaut pas un trajet intra-ville |
+| Business | **Mise à disposition longue durée** | Chauffeur | Le revenu récurrent, ce que cherche tout professionnel |
+| Business | **Tarifs de groupe** dégressifs | Loisirs | Les groupes font le gros du chiffre |
+| Essentiel | **Alerte de stock bas** | Pièces | Une pièce vendue mais indisponible = commande annulée |
+| Business | **Import de catalogue par fichier** | Pièces | Un stock de pièces se compte en centaines de références |
+| Premium | **Compatibilité par immatriculation** | Pièces | Le client saisit sa plaque, on lui montre ce qui va |
+| Premium | **Billet à QR code** scanné à l'arrivée | Loisirs | Fin des listes papier et des litiges de présence |
+
+Les trois outils « Pièces » sont les plus rentables : le secteur est ouvert
+depuis le 2026-09-14 et n'a **aucun** outil propre, donc rien à vendre à un
+palier payant aujourd'hui.

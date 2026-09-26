@@ -210,7 +210,7 @@ export default {
   "ie.svc.partnerIns": { fr: "Assurance partenaire", en: "Partner insurance", ar: "تأمين الشركاء", es: "Seguro de socio", zh: "合作方保险" },
   "ie.price.margin": { fr: "5–15 % de marge", en: "5–15 % margin", ar: "هامش ٥–١٥ ٪", es: "5–15 % de margen", zh: "5–15 % 毛利" },
   "ie.price.comm":  { fr: "10–25 % de commission", en: "10–25 % commission", ar: "عمولة ١٠–٢٥ ٪", es: "10–25 % de comisión", zh: "10–25 % 佣金" },
-  "ie.price.perFile": { fr: "100–2 000 € par dossier", en: "€100–2,000 per file", ar: "١٠٠–٢٠٠٠ يورو لكل ملف", es: "100–2000 € por expediente", zh: "每单 100–2,000 欧元" },
+  "ie.price.perFile": { fr: "{min} à {max} par dossier", en: "{min} to {max} per file", ar: "من {min} إلى {max} لكل ملف", es: "De {min} a {max} por expediente", zh: "每单 {min} 至 {max}" },
 
   // ─── Tarification transparente ────────────────────────────────────────────
   "ie.delivery":    { fr: "Livraison", en: "Delivery", ar: "التسليم", es: "Entrega", zh: "交付" },

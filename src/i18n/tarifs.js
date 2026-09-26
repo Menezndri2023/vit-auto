@@ -17,7 +17,8 @@ export default {
   "sect.pieces":      { fr: "Pièces détachées", en: "Spare parts", ar: "قطع الغيار", es: "Repuestos", zh: "汽车配件" },
 
   // ─── Outils par secteur (OUTILS_PAR_SECTEUR) ──────────────────────────────
-  "outil.seasonalRates":  { fr: "Tarifs saisonniers et promotions multi-paliers", en: "Seasonal rates and tiered promotions", ar: "أسعار موسمية وعروض متعددة المستويات", es: "Tarifas de temporada y promociones por niveles", zh: "季节性定价与多档促销" },
+  "outil.seasonalRates":  { fr: "Tarifs saisonniers — haute et basse saison", en: "Seasonal rates — high and low season", ar: "أسعار موسمية — الموسم المرتفع والمنخفض", es: "Tarifas de temporada — alta y baja", zh: "季节性定价——旺季与淡季" },
+  "outil.promotions":     { fr: "Promotions multi-paliers (−10 % à 3 jours, −20 % à 7)", en: "Tiered promotions (−10 % at 3 days, −20 % at 7)", ar: "عروض متعددة المستويات (−١٠ ٪ لثلاثة أيام، −٢٠ ٪ لسبعة)", es: "Promociones por niveles (−10 % a 3 días, −20 % a 7)", zh: "多档促销（3 天 −10 %，7 天 −20 %）" },
   "outil.fleetImport":    { fr: "Import de flotte par fichier (CSV, Excel, Google Sheets)", en: "Fleet import from a file (CSV, Excel, Google Sheets)", ar: "استيراد الأسطول من ملف (CSV، Excel، Google Sheets)", es: "Importación de flota por archivo (CSV, Excel, Google Sheets)", zh: "通过文件导入车队（CSV、Excel、Google 表格）" },
   "outil.fleetMgmt":      { fr: "Gestion de parc : planning, entretien, journal de chaque véhicule", en: "Fleet management: scheduling, servicing, per-vehicle log", ar: "إدارة الأسطول: الجدولة والصيانة وسجل لكل مركبة", es: "Gestión de flota: planificación, mantenimiento, historial por vehículo", zh: "车队管理：排期、保养、每车日志" },
   "outil.fleetApi":       { fr: "Synchronisation du parc par API depuis votre logiciel", en: "Fleet synchronisation by API from your own software", ar: "مزامنة الأسطول عبر واجهة برمجية من برنامجك", es: "Sincronización de flota por API desde tu software", zh: "通过 API 从贵司系统同步车队" },
@@ -89,6 +90,9 @@ export default {
   "plans.f.customQuote":  { fr: "Devis manuel adapté à votre volume", en: "Manual quote matched to your volume", ar: "عرض سعر يدوي يناسب حجمك", es: "Presupuesto manual adaptado a tu volumen", zh: "按业务量人工报价" },
 
   // ─── Page Tarifs : divers ─────────────────────────────────────────────────
+  "plans.f.shortLink":    { fr: "Lien court {lien} + QR code à imprimer", en: "Short link {lien} + printable QR code", ar: "رابط قصير {lien} + رمز QR للطباعة", es: "Enlace corto {lien} + código QR imprimible", zh: "短链接 {lien} + 可打印二维码" },
+  "plans.f.viewsPerAd":   { fr: "Vues de chaque annonce", en: "Views on each listing", ar: "مشاهدات كل إعلان", es: "Vistas de cada anuncio", zh: "每条房源的浏览量" },
+  "plans.freeReally":     { fr: "Ce que le palier gratuit donne déjà", en: "What the free tier already gives you", ar: "ما تمنحه الباقة المجانية أصلاً", es: "Lo que el plan gratuito ya te da", zh: "免费套餐已经提供的内容" },
   "plans.metaDesc":       { fr: "Commissions transparentes et abonnements partenaires VIT AUTO. Publier une annonce est gratuit ; vous ne payez qu'à la transaction.", en: "Transparent commissions and VIT AUTO partner subscriptions. Listing is free; you only pay on a transaction.", ar: "عمولات شفافة واشتراكات شركاء VIT AUTO. النشر مجاني؛ لا تدفع إلا عند إتمام معاملة.", es: "Comisiones transparentes y suscripciones de socios VIT AUTO. Publicar un anuncio es gratis; solo pagas al cerrar una transacción.", zh: "透明佣金与 VIT AUTO 合作伙伴订阅。发布房源免费；仅在成交时付费。" },
   "plans.currentPlan":    { fr: "Plan actuel", en: "Current plan", ar: "الخطة الحالية", es: "Plan actual", zh: "当前套餐" },
   "plans.choosePlan":     { fr: "Choisir {plan}", en: "Choose {plan}", ar: "اختر {plan}", es: "Elegir {plan}", zh: "选择 {plan}" },
@@ -128,4 +132,19 @@ export default {
   // ─── Paiements fermés (config/featureFlags.js) ────────────────────────────
   "pay.disabledNotice": { fr: "Paiement en ligne pas encore ouvert : votre demande part au support, qui active le plan sur votre compte.", en: "Online payment is not open yet: your request goes to support, who will activate the plan on your account.", ar: "الدفع الإلكتروني غير مفتوح بعد: يُرسَل طلبك إلى الدعم الذي يفعّل الخطة على حسابك.", es: "El pago en línea aún no está abierto: tu solicitud va al soporte, que activará el plan en tu cuenta.", zh: "在线支付尚未开放：您的申请将转交客服，由其在您的账户上启用该套餐。" },
   "pay.disabledCta":    { fr: "Demander l'activation", en: "Request activation", ar: "اطلب التفعيل", es: "Solicitar la activación", zh: "申请启用" },
+
+  // ─── Ce que le palier GRATUIT donne déjà ──────────────────────────────────
+  // Annoncé explicitement : un socle qu'on cache laisse croire que tout est
+  // payant, et pousse à souscrire pour ce qu'on a déjà.
+  "socle.vitrine":    { fr: "Vitrine publique et flotte complète, réservable", en: "Public storefront and full fleet, bookable", ar: "واجهة عامة وأسطول كامل قابل للحجز", es: "Escaparate público y flota completa, reservable", zh: "公开展示页与可预订的全部车辆" },
+  "socle.contrat":    { fr: "Contrat digital automatique à chaque réservation", en: "Automatic digital contract on every booking", ar: "عقد رقمي تلقائي مع كل حجز", es: "Contrato digital automático en cada reserva", zh: "每笔预订自动生成数字合同" },
+  "socle.messagerie": { fr: "Messagerie directe avec le client", en: "Direct messaging with the customer", ar: "مراسلة مباشرة مع العميل", es: "Mensajería directa con el cliente", zh: "与客户直接沟通" },
+  "socle.revenus":    { fr: "Vos réservations et vos revenus nets, en temps réel", en: "Your bookings and net earnings, in real time", ar: "حجوزاتك وأرباحك الصافية، في الوقت الفعلي", es: "Tus reservas e ingresos netos, en tiempo real", zh: "实时查看您的预订与净收益" },
+  "socle.planning":   { fr: "Planning et indisponibilités", en: "Scheduling and time off", ar: "الجدولة وأوقات عدم التوفر", es: "Planificación e indisponibilidades", zh: "排期与不可用时段" },
+  "socle.creneaux":   { fr: "Créneaux et capacité par séance", en: "Time slots and capacity per session", ar: "الفترات الزمنية والسعة لكل جلسة", es: "Franjas horarias y capacidad por sesión", zh: "每场次的时段与容量" },
+  "socle.meteo":      { fr: "Report automatique des sorties dépendant de la météo", en: "Automatic postponement of weather-dependent outings", ar: "تأجيل تلقائي للرحلات المرتبطة بالطقس", es: "Aplazamiento automático de salidas dependientes del tiempo", zh: "受天气影响的行程自动顺延" },
+  "socle.zonesDesservies": { fr: "Zones desservies et type de disponibilité", en: "Areas served and availability type", ar: "المناطق المخدومة ونوع التوفر", es: "Zonas cubiertas y tipo de disponibilidad", zh: "服务区域与可用类型" },
+  "socle.unIncoterm": { fr: "Un prix et un Incoterm par annonce d'export", en: "One price and one Incoterm per export listing", ar: "سعر واحد وإنكوترم واحد لكل إعلان تصدير", es: "Un precio y un Incoterm por anuncio de exportación", zh: "每条出口房源一个价格与一个贸易术语" },
+  "socle.stock":      { fr: "Stock et références de pièces", en: "Stock and part references", ar: "المخزون ومراجع القطع", es: "Stock y referencias de piezas", zh: "库存与配件编号" },
+  "socle.title":      { fr: "Inclus dans le palier gratuit", en: "Included in the free tier", ar: "مشمول في الباقة المجانية", es: "Incluido en el plan gratuito", zh: "免费套餐已包含" },
 };

@@ -52,13 +52,27 @@ describe("Secteurs d'activité et page Tarifs — rendu", () => {
     expect(container.textContent).toMatch(/jamais une remise sur la commission/i);
     expect(container.textContent).toMatch(/commissions sont identiques pour tous les plans/i);
 
-    expect(container.textContent).toMatch(/Fermeture automatique selon la météo/);
+    // Le report météo (Activity.weatherDependent) existe pour TOUS depuis
+    // toujours : il était vendu en Business jusqu'au 2026-09-26. Il doit
+    // désormais figurer dans le palier GRATUIT — et nulle part ailleurs.
+    const gratuit = container.textContent.split("Essentiel")[0];
+    expect(gratuit).toMatch(/Report automatique des sorties dépendant de la météo/);
+    expect(container.textContent).not.toMatch(/Fermeture automatique selon la météo/);
     expect(container.textContent).not.toMatch(/Import de flotte/);
 
-    // Changer d'onglet change les outils, pas les prix ni les paliers.
+    // Aucune promesse sans contrepartie : le badge « Pro » n'est affiché nulle
+    // part dans le produit, et les statistiques d'une annonce sont gratuites.
+    expect(container.textContent).not.toMatch(/Badge « Pro »/);
+    // Les statistiques d'analyse (vues, conversion, prix face à la médiane)
+    // SONT verrouillées par getPartnerInsights : gratuit ne les a pas.
+    const gratuit2 = container.textContent.split("Essentiel")[0];
+    expect(gratuit2).toMatch(/✗Statistiques de performance|Statistiques de performance/);
+
+    // Changer d'onglet change les outils du métier, pas les prix ni les paliers.
     fireEvent.click(screen.getByRole("tab", { name: "Location" }));
     expect(container.textContent).toMatch(/Import de flotte/);
-    expect(container.textContent).not.toMatch(/Fermeture automatique selon la météo/);
+    expect(container.textContent).not.toMatch(/Report automatique des sorties/);
+    expect(container.textContent).toMatch(/Planning et indisponibilités/);
     expect(container.textContent).toMatch(/secteurs? d'activité/);
     expect(container.textContent).toMatch(/annonces actives par secteur/);
   });

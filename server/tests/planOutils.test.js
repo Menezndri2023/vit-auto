@@ -24,7 +24,7 @@ const passer = async (user, feature, maintenant) => {
   return { suivant, res };
 };
 
-const OUTILS = ["tarifsSaisonniers", "promotions", "journalVehicule", "importFlotte", "showroom", "crmLeadsDevis"];
+const OUTILS = ["tarifsSaisonniers", "promotions", "journalVehicule", "importFlotte", "showroom", "crmLeadsDevis", "incotermsMultiples"];
 
 describe("Outils par secteur — verrouillage par plan", () => {
   it("chaque outil vendu sur la page Tarifs a une entrée dans la matrice, et un palier supérieur hérite", () => {
@@ -87,5 +87,37 @@ describe("Outils par secteur — verrouillage par plan", () => {
     await abonner(titulaire, "business");
     const agent = await createUser({ role: "partenaire", teamOf: titulaire._id, teamRole: "gestionnaire" });
     expect((await passer(agent, "crmLeadsDevis", APRES)).suivant).toBe(true);
+  });
+});
+
+// ── Prix par Incoterm (2026-09-26) ─────────────────────────────────────────
+//
+// Le secteur Export était le seul à ne RIEN verrouiller : sept outils vendus,
+// zéro garde. Le premier posé est le plus concret — plusieurs prix pour un
+// même véhicule, un par Incoterm (FOB, CIF, CFR…).
+//
+// Le refus est explicite, pas un filtrage silencieux : un partenaire qui a
+// saisi trois variantes doit savoir qu'elles n'ont pas été retenues, sinon il
+// croit vendre en CIF pendant que l'acheteur voit du FOB.
+describe("Prix par Incoterm — verrou du secteur Export", () => {
+  it("le palier gratuit garde un prix et un Incoterm", () => {
+    expect(planOuvre("free", "incotermsMultiples")).toBe(false);
+    expect(planOuvre("individuel_plus", "incotermsMultiples")).toBe(true);
+    expect(planOuvre("business", "incotermsMultiples")).toBe(true);
+  });
+
+  it("après l'immunité, un partenaire gratuit est refusé et un abonné passe", async () => {
+    const gratuit = await createUser({ role: "partenaire" });
+    const refus = await passer(gratuit, "incotermsMultiples", APRES);
+    expect(refus.suivant).toBe(false);
+    expect(refus.res.statusCode).toBe(403);
+    expect(refus.res.body.code).toBe("PLAN_REQUIS");
+    // Le message doit nommer le palier qui débloque, sinon le partenaire
+    // ignore quoi faire de l'information.
+    expect(refus.res.body.message).toMatch(/Essentiel/);
+
+    const abonne = await createUser({ role: "partenaire" });
+    await abonner(abonne, "individuel_plus");
+    expect((await passer(abonne, "incotermsMultiples", APRES)).suivant).toBe(true);
   });
 });

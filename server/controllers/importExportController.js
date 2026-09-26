@@ -10,6 +10,7 @@ import PartnerVerification     from "../models/PartnerVerification.js";
 import PartnerOnboarding       from "../models/PartnerOnboarding.js";
 import PartnerBusiness         from "../models/PartnerBusiness.js";
 import { ensureImporterProfile } from "../utils/ensureImporterProfile.js";
+import { outilOuvert, messageRefus } from "../services/planAccess.js";
 import { COUNTRY_CODE_TO_NAME } from "../utils/countries.js";
 import { cacheGet, cacheSet, buildCacheKey } from "../utils/catalogCache.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
@@ -61,6 +62,20 @@ function validateListingImages(images) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // POST /api/import-export/requests  — public, pas besoin d'être connecté
+/**
+ * Les prix par Incoterm sont un outil de palier (`incotermsMultiples`).
+ *
+ * Refus explicite plutôt que suppression silencieuse : un partenaire qui a
+ * saisi trois variantes de prix doit savoir qu'elles n'ont pas été retenues,
+ * sinon il croit vendre en CIF alors que l'acheteur voit du FOB. Un palier
+ * gratuit garde UN prix et UN Incoterm, ce qui suffit pour vendre.
+ */
+async function incotermsRefuses(user, incotermPricing) {
+  if (!Array.isArray(incotermPricing) || incotermPricing.length === 0) return null;
+  const verdict = await outilOuvert(user, "incotermsMultiples");
+  return verdict.ouvert ? null : messageRefus("incotermsMultiples");
+}
+
 export const createRequest = async (req, res) => {
   try {
     const {
@@ -651,6 +666,11 @@ export const createListing = async (req, res) => {
       acceptedPaymentMethods, incoterm, incotermPricing,
     } = req.body;
 
+    const refusIncoterms = await incotermsRefuses(req.user, incotermPricing);
+    if (refusIncoterms) {
+      return res.status(403).json({ message: refusIncoterms, code: "PLAN_REQUIS", feature: "incotermsMultiples" });
+    }
+
     // Contrôle complet avant publication. La validation se résumait à
     // « Champs obligatoires manquants » — sans dire lesquels : le partenaire
     // corrigeait au hasard, ou renonçait. Elle distingue désormais ce qui
@@ -780,6 +800,11 @@ export const updateListing = async (req, res) => {
       estimatedDelay, shippingType, exportDocumentsAvailable, videoUrl,
       acceptedPaymentMethods, incoterm, incotermPricing, businessId,
     } = req.body;
+
+    const refusIncoterms = await incotermsRefuses(req.user, incotermPricing);
+    if (refusIncoterms) {
+      return res.status(403).json({ message: refusIncoterms, code: "PLAN_REQUIS", feature: "incotermsMultiples" });
+    }
 
     let business = undefined;
     if (businessId !== undefined) {

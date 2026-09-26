@@ -98,75 +98,109 @@ export const PLAN_QUOTA_ANNONCES = {
 export const FIN_IMMUNITE_QUOTAS = new Date("2027-09-10T00:00:00Z");
 
 // ── Outils par secteur, par palier ─────────────────────────────────────────
-// Même prix et même palier pour tous les métiers ; ce qui change, c'est le
-// contenu montré à chaque partenaire. UNIQUEMENT ce qui existe : la page
-// Tarifs ne vend pas de « bientôt » (un test le verrouille) — les outils à
-// construire sont listés dans docs/manuels/acces-partenaires.md, pas ici.
+//
+// ⚠️ CHAQUE entrée porte le nom de sa garde serveur (`feature`), et
+// planFeatures.coherence.test.js refuse tout outil dont la garde n'existe pas
+// dans server/constants/planFeatures.js AU MÊME PALIER.
+//
+// Pourquoi ce champ existe (audit du 2026-09-26) : la table annonçait
+// 25 outils, le serveur n'en verrouillait que 8. Neuf d'entre eux étaient
+// invendables pour une raison ou une autre —
+//  · déjà GRATUITS pour tous : planning et indisponibilités du chauffeur
+//    (Driver.blackoutDates), créneaux et capacité d'une séance
+//    (Activity.capacity), report météo (Activity.weatherDependent) ;
+//  · INEXISTANTS : « prix face au marché », « tarifs de groupe » ;
+//  · réservés à l'ADMINISTRATION : dossier de financement ;
+//  · confondus avec le SERVICE lui-même : suivi de dossier import/export,
+//    documents LOI — ils viennent de l'accompagnement, pas d'un abonnement ;
+//  · dépendant d'un autre mécanisme : « mise en avant dans la rubrique »,
+//    que le moteur attribue au mérite et aux boosts, jamais au plan.
+//
+// Ils ont été retirés plutôt que déplacés : un partenaire qui souscrit pour
+// une fonction qu'il avait déjà ne s'en aperçoit qu'une fois, et ne renouvelle
+// pas. Les secteurs sans outil propre à un palier n'ont PAS de case vide : ils
+// reçoivent les avantages transversaux (lien court, sièges, export tableur,
+// demandes en avance, API), qui sont réels et verrouillés.
 export const OUTILS_PAR_SECTEUR = {
   loueur: {
     individuel_plus: [
-      { key: "outil.seasonalRates" },
+      { key: "outil.seasonalRates", feature: "tarifsSaisonniers" },
+      { key: "outil.promotions",    feature: "promotions" },
     ],
     business: [
-      { key: "outil.fleetImport" },
-      { key: "outil.fleetMgmt" },
+      { key: "outil.fleetImport", feature: "importFlotte" },
+      { key: "outil.fleetMgmt",   feature: "journalVehicule" },
     ],
     exportateur: [
-      { key: "outil.fleetApi" },
+      { key: "outil.fleetApi", feature: "accesApi" },
     ],
   },
   vendeur: {
     individuel_plus: [
-      { key: "outil.marketPrice" },
+      { key: "outil.promotions", feature: "promotions" },
     ],
     business: [
-      { key: "outil.crmSales" },
-      { key: "outil.showroom" },
-      { key: "outil.salesReport" },
+      { key: "outil.crmSales",    feature: "crmLeadsDevis" },
+      { key: "outil.showroom",    feature: "showroom" },
+      { key: "outil.salesReport", feature: "rapportMensuel" },
     ],
     exportateur: [
-      { key: "outil.stockApi" },
-      { key: "outil.financeFile" },
+      { key: "outil.stockApi", feature: "accesApi" },
     ],
   },
   exportateur: {
     individuel_plus: [
-      { key: "outil.incoterms" },
+      { key: "outil.incoterms", feature: "incotermsMultiples" },
     ],
     business: [
-      { key: "outil.fileTracking" },
-      { key: "outil.earlyIeLeads" },
-      { key: "outil.loiDocs" },
+      { key: "outil.crmExport",    feature: "crmLeadsDevis" },
+      { key: "outil.earlyIeLeads", feature: "demandesPrioritaires" },
     ],
     exportateur: [
-      { key: "outil.crmExport" },
-      { key: "outil.resellerApi" },
-      { key: "outil.importCost" },
+      { key: "outil.resellerApi", feature: "accesApi" },
     ],
   },
   chauffeur: {
-    individuel_plus: [
-      { key: "outil.driverSpotlight" },
-      { key: "outil.driverPlanning" },
-    ],
+    // Le planning et les indisponibilités restent GRATUITS : ils existaient
+    // déjà pour tous, et les vendre en Essentiel revenait à facturer l'air.
+    individuel_plus: [],
     business: [
-      { key: "outil.driverCompany" },
+      { key: "outil.driverCompany", feature: "multiUtilisateurs" },
     ],
     exportateur: [],
   },
-  // Secteur créé le 2026-09-14 : aucun outil spécifique construit à ce jour.
+  // Secteur créé le 2026-09-14 : aucun outil propre à ce jour. Les avantages
+  // transversaux s'appliquent.
   pieces: { individuel_plus: [], business: [], exportateur: [] },
   loisirs: {
-    individuel_plus: [
-      { key: "outil.leisureSpotlight" },
-      { key: "outil.leisureSlots" },
-    ],
+    // Créneaux, capacité et report météo restent GRATUITS — ils sont dans le
+    // modèle Activity et fonctionnent pour tout le monde.
+    individuel_plus: [],
     business: [
-      { key: "outil.weatherClose" },
-      { key: "outil.groupRates" },
-      { key: "outil.instructorTeam" },
+      { key: "outil.instructorTeam", feature: "multiUtilisateurs" },
     ],
-    exportateur: [
-    ],
+    exportateur: [],
   },
 };
+
+// ── Ce que le palier GRATUIT donne déjà ────────────────────────────────────
+// Annoncé explicitement sur la page Tarifs : un socle qu'on cache donne
+// l'impression que tout est payant, et pousse à souscrire pour rien.
+export const SOCLE_GRATUIT = [
+  { key: "socle.vitrine" },
+  { key: "socle.contrat" },
+  { key: "socle.messagerie" },
+  { key: "socle.revenus" },
+];
+
+// Outils gratuits PROPRES à un métier — affichés dans l'onglet du secteur,
+// pour que le partenaire voie ce qu'il a avant ce qu'il peut acheter.
+export const GRATUIT_PAR_SECTEUR = {
+  loueur:      [{ key: "socle.planning" }],
+  vendeur:     [],
+  exportateur: [{ key: "socle.unIncoterm" }],
+  chauffeur:   [{ key: "socle.planning" }, { key: "socle.zonesDesservies" }],
+  loisirs:     [{ key: "socle.creneaux" }, { key: "socle.meteo" }],
+  pieces:      [{ key: "socle.stock" }],
+};
+

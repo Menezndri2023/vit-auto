@@ -5,7 +5,7 @@ import { useCurrency } from "../context/CurrencyContext";
 import { useI18n } from "../context/I18nContext";
 import { PAYMENTS_ENABLED_FALLBACK } from "../config/featureFlags";
 import { PLAN_INCLUDED_BOOSTS } from "../constants/subscriptionPlans";
-import { PLAN_SEATS, PLAN_SUPPORT_SLA_HOURS, AVANCE_DEMANDES_HEURES, PLACES_VITRINE_PAR_PLAN, LIBELLE_PLAN, PLAN_SECTEURS, PLAN_QUOTA_ANNONCES, FIN_IMMUNITE_QUOTAS, OUTILS_PAR_SECTEUR } from "../constants/planFeatures";
+import { PLAN_SEATS, PLAN_SUPPORT_SLA_HOURS, AVANCE_DEMANDES_HEURES, PLACES_VITRINE_PAR_PLAN, LIBELLE_PLAN, PLAN_SECTEURS, PLAN_QUOTA_ANNONCES, FIN_IMMUNITE_QUOTAS, OUTILS_PAR_SECTEUR, SOCLE_GRATUIT, GRATUIT_PAR_SECTEUR } from "../constants/planFeatures";
 import { ACTIVITIES, SECTEUR_LABELS, secteursDuPartenaire } from "../constants/partnerTaxonomy";
 import { libelleTraduit } from "../i18n/libelles";
 import styles from "./Plans.module.css";
@@ -121,15 +121,19 @@ export default function Plans() {
       id: "free", planTier: null, name: LIBELLE_PLAN.free, price: 0, period: null,
       badge: null, color: "#64748b", icon: "🚀",
       desc: t("plans.desc.free"),
+      // ⚠️ Ce palier listait trois manques (« classement prioritaire »,
+      // « statistiques avancées », « badge Pro ») et taisait ce qu'il donne.
+      // Le badge Pro n'est affiché nulle part dans le produit, et les
+      // statistiques d'une annonce — ses vues — sont ouvertes à tous : deux
+      // manques inventés. Le socle réel est désormais énuméré, plus le
+      // gratuit PROPRE au métier affiché dans l'onglet.
       features: [
         { ok: true,  text: texteSecteurs("free") },
         { ok: true,  text: texteQuota("free") },
-        { ok: true,  text: t("plans.f.fullProfile") },
-        { ok: true,  text: t("plans.f.receiveLeads") },
-        { ok: true,  text: t("plans.f.digitalContract") },
+        ...SOCLE_GRATUIT.map((x) => ({ ok: true, text: t(x.key) })),
+        ...(GRATUIT_PAR_SECTEUR[secteur] || []).map((x) => ({ ok: true, text: t(x.key) })),
         { ok: false, text: t("plans.f.topRank") },
-        { ok: false, text: t("plans.f.advStats") },
-        { ok: false, text: t("plans.f.proBadge") },
+        { ok: false, text: t("plans.f.perfStats") },
       ],
       cta: t("plans.currentPlan"), ctaDisabled: true, popular: false,
     },
@@ -146,7 +150,7 @@ export default function Plans() {
         { ok: true,  text: t("plans.f.boosts", { n: PLAN_INCLUDED_BOOSTS.individuel_plus }) },
         { ok: true,  text: t("plans.f.topRank") },
         { ok: true,  text: t("plans.f.perfStats") },
-        { ok: true,  text: t("plans.f.proBadgeAll") },
+        { ok: true,  text: t("plans.f.shortLink", { lien: "vit-auto.com/p/<nom>" }) },
         { ok: true,  text: t("plans.f.support", { n: PLAN_SUPPORT_SLA_HOURS.individuel_plus }) },
         { ok: true,  text: t(PLACES_VITRINE_PAR_PLAN.individuel_plus > 1 ? "plans.f.seats" : "plans.f.seat", { n: PLACES_VITRINE_PAR_PLAN.individuel_plus }) },
         { ok: false, text: t("plans.f.noStatsExport") },
@@ -167,13 +171,11 @@ export default function Plans() {
         ...outils("business"),
         { ok: true,  text: t("plans.f.boosts", { n: PLAN_INCLUDED_BOOSTS.business }) },
         { ok: true,  text: t("plans.f.topRankPlus") },
-        { ok: true,  text: t("plans.f.statsPerAd") },
         { ok: true,  text: t("plans.f.statsExport") },
         { ok: true,  text: t("plans.f.supportPrio", { n: PLAN_SUPPORT_SLA_HOURS.business }) },
         { ok: true,  text: t("plans.f.userSeats", { n: PLAN_SEATS.business }) },
         { ok: true,  text: t("plans.f.earlyLeads", { n: AVANCE_DEMANDES_HEURES }) },
         { ok: true,  text: t("plans.f.monthlyReport") },
-        { ok: true,  text: t("plans.f.proBadgeAll") },
         { ok: false, text: t("plans.f.apiAccess") },
         { ok: true,  text: t(PLACES_VITRINE_PAR_PLAN.business > 1 ? "plans.f.seats" : "plans.f.seat", { n: PLACES_VITRINE_PAR_PLAN.business }) },
       ],
@@ -190,7 +192,6 @@ export default function Plans() {
         { ok: true,  text: texteQuota("exportateur") },
         ...outils("exportateur"),
         { ok: true,  text: t("plans.f.boosts", { n: PLAN_INCLUDED_BOOSTS.exportateur }) },
-        { ok: true,  text: t("plans.f.crm") },
         { ok: true,  text: t("plans.f.apiSync") },
         { ok: true,  text: t("plans.f.userSeatsPlain", { n: PLAN_SEATS.exportateur }) },
         { ok: true,  text: t(PLACES_VITRINE_PAR_PLAN.exportateur > 1 ? "plans.f.seats" : "plans.f.seat", { n: PLACES_VITRINE_PAR_PLAN.exportateur }) },
