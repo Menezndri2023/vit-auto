@@ -46,7 +46,7 @@ export default {
   "outil.leisureSpotlight":{ fr: "Mise en avant dans la rubrique Loisirs", en: "Highlighted in the Leisure section", ar: "إبراز في قسم الترفيه", es: "Destacado en la sección Ocio", zh: "在休闲版块突出展示" },
   "outil.leisureSlots":   { fr: "Créneaux et capacité par séance", en: "Time slots and capacity per session", ar: "الفترات الزمنية والسعة لكل جلسة", es: "Franjas horarias y capacidad por sesión", zh: "每场次的时段与容量" },
   "outil.weatherClose":   { fr: "Fermeture automatique selon la météo", en: "Automatic closure based on the weather", ar: "إغلاق تلقائي حسب الطقس", es: "Cierre automático según la meteorología", zh: "依天气自动关闭" },
-  "outil.groupRates":     { fr: "Tarifs de groupe et de saison", en: "Group and seasonal rates", ar: "أسعار المجموعات والمواسم", es: "Tarifas de grupo y de temporada", zh: "团体与季节价" },
+  "outil.sessionReschedule": { fr: "Report de séance au lieu d'annulation (météo, matériel)", en: "Session postponement instead of cancellation (weather, equipment)", ar: "تأجيل الجلسة بدل الإلغاء (الطقس، المعدات)", es: "Aplazamiento de la sesión en lugar de cancelación (tiempo, material)", zh: "改期而非取消（天气、装备）" },
   "outil.groupRates":     { fr: "Tarifs de groupe dégressifs", en: "Tiered group rates", ar: "أسعار مجموعات تنازلية", es: "Tarifas de grupo decrecientes", zh: "团体阶梯优惠价" },
   "outil.instructorTeam": { fr: "Équipe de moniteurs sous un même compte", en: "Team of instructors under one account", ar: "فريق مدرّبين تحت حساب واحد", es: "Equipo de monitores en una sola cuenta", zh: "一个账户管理教练团队" },
 

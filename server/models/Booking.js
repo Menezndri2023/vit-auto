@@ -314,6 +314,30 @@ const bookingSchema = new mongoose.Schema({
     // Le client a accepté que la sortie soit soumise à la météo (activités
     // Activity.weatherDependent / WEATHER_DEPENDENT_TYPES) — exigé à la création.
     weatherAcknowledged: { type: Boolean, default: false },
+
+    // ── Report de séance (outil de palier, 2026-09-26) ────────────────────
+    //
+    // Une sortie annulée pour météo ne rapporte rien : le client est
+    // remboursé, le partenaire a mobilisé son matériel et son équipe pour
+    // rien. Une sortie REPORTÉE se facture. C'est le partenaire qui propose
+    // une nouvelle date, le client qui accepte ou refuse — jamais un
+    // déplacement unilatéral, qui reviendrait à confisquer le paiement.
+    //
+    // Pas de source météo automatique : aucune n'existe dans le produit, et
+    // en inventer une déciderait à la place du partenaire, qui est sur place.
+    // Le motif est déclaratif.
+    report: {
+      nouvelleDate: { type: Date, default: null },
+      motif:        { type: String, enum: ["meteo", "materiel", "effectif", "autre", null], default: null },
+      note:         { type: String, trim: true, maxlength: 500, default: null },
+      proposeLe:    { type: Date, default: null },
+      proposePar:   { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      accepteLe:    { type: Date, default: null },
+      refuseLe:     { type: Date, default: null },
+      // Date d'origine, conservée après acceptation : sans elle, plus personne
+      // ne sait qu'il y a eu report, ni depuis quand.
+      dateInitiale: { type: Date, default: null },
+    },
   },
 
   // ── Commande de pièce détachée (type "piece") ─────────────

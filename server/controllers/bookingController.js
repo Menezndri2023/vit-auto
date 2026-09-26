@@ -430,6 +430,12 @@ async function awardLoyaltyPoints(booking) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1. CRÉER UNE COMMANDE
 // ═══════════════════════════════════════════════════════════════════════════════
+// Statuts qui « occupent » une ressource — un créneau d'activité, un chauffeur,
+// un véhicule. Partagé par la création et le report de séance : deux listes
+// finiraient par diverger, et un report verrait alors moins de réservations
+// que la création, donc autoriserait un surbooking qu'elle interdit.
+const activeStatusesGeneric = ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "driver_arrived", "transaction_concluded", "waiting_client_validation"];
+
 export const createBooking = async (req, res) => {
   // Déclaré hors du try — le filet de sécurité fidélité dans le catch (voir
   // plus bas) doit pouvoir y accéder même si l'échec survient après le débit
@@ -823,7 +829,6 @@ export const createBooking = async (req, res) => {
 
     // ── Activité (section OTHERS — Quad, Surf, Montgolfière, Jetski, Jet
     // privé, Bateau...) ──────────────────────────────────────────────────────
-    const activeStatusesGeneric = ["pending", "confirmed", "preparing", "ready", "in_progress", "client_arrived", "driver_arrived", "transaction_concluded", "waiting_client_validation"];
     let activityObj          = null;
     let activityDateStart    = null;
     let activityDateFin      = null;
@@ -3831,6 +3836,164 @@ export const enregistrerEtatDesLieux = async (req, res) => {
   } catch (err) {
     logger.error("enregistrerEtatDesLieux:", err);
     res.status(500).json({ message: "Erreur lors de l'enregistrement de l'état des lieux." });
+  }
+};
+
+/**
+ * Capacité restante d'une activité sur un créneau, hors une réservation donnée.
+ *
+ * Extraite pour que le REPORT vérifie exactement ce que vérifie la création :
+ * deux calculs de capacité finiraient par diverger, et un report créerait le
+ * surbooking que la création interdit.
+ */
+async function capaciteRestante(activity, debut, fin, exclureBookingId = null) {
+  const filtre = {
+    activity: activity._id,
+    status:   { $in: activeStatusesGeneric },
+    "activite.date":    { $lt: fin },
+    "activite.dateFin": { $gt: debut },
+  };
+  if (exclureBookingId) filtre._id = { $ne: exclureBookingId };
+  const chevauchantes = await Booking.find(filtre).select("activite.participants");
+  const pris = chevauchantes.reduce((sum, b) => sum + (b.activite?.participants || 1), 0);
+  return (activity.capacity || 0) - pris;
+}
+
+/**
+ * Le partenaire propose une nouvelle date pour une séance.
+ *
+ * Outil du palier Business (`reportSeance`). Une sortie annulée pour météo ne
+ * rapporte rien — le client est remboursé, le partenaire a mobilisé matériel
+ * et équipe pour rien. Une sortie reportée se facture.
+ *
+ * Le partenaire PROPOSE, le client dispose : déplacer unilatéralement une
+ * séance payée reviendrait à confisquer le paiement.
+ */
+export const proposerReportSeance = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Identifiant de réservation invalide." });
+    }
+    const booking = await Booking.findById(id).populate("activity", "owner title capacity durationMinutes essaiDurationMinutes blackoutDates");
+    if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
+    if (booking.type !== "activite") {
+      return res.status(400).json({ message: "Le report ne s'applique qu'aux activités." });
+    }
+
+    const ownerId = booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString();
+    if (req.user.role !== "admin" && ownerId !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+    if (!assertPartnerCanAct(booking, req, res)) return;
+
+    // Une séance déjà conclue ou annulée n'a plus rien à reporter.
+    if (!["pending", "confirmed", "preparing", "ready"].includes(booking.status)) {
+      return res.status(409).json({ message: "Cette séance ne peut plus être reportée." });
+    }
+    if (booking.activite?.report?.proposeLe && !booking.activite.report.refuseLe && !booking.activite.report.accepteLe) {
+      return res.status(409).json({ message: "Un report est déjà proposé et attend la réponse du client." });
+    }
+
+    const nouvelleDate = req.body?.nouvelleDate ? new Date(req.body.nouvelleDate) : null;
+    if (!nouvelleDate || isNaN(nouvelleDate.getTime())) {
+      return res.status(400).json({ message: "Nouvelle date invalide." });
+    }
+    if (nouvelleDate <= new Date()) {
+      return res.status(400).json({ message: "La nouvelle date doit être dans le futur." });
+    }
+    const motif = ["meteo", "materiel", "effectif", "autre"].includes(req.body?.motif) ? req.body.motif : "autre";
+
+    const duree = (booking.activite?.essai
+      ? (booking.activity.essaiDurationMinutes || 30)
+      : (booking.activity.durationMinutes || 60)) * 60000;
+    const fin = new Date(nouvelleDate.getTime() + duree);
+
+    // Congés du partenaire : reporter DANS ses propres congés n'aurait aucun sens.
+    const enConges = (booking.activity.blackoutDates || []).some(
+      (b) => new Date(b.start) < fin && new Date(b.end) > nouvelleDate
+    );
+    if (enConges) {
+      return res.status(409).json({ message: "Cette date tombe sur une période que vous avez bloquée." });
+    }
+
+    // Même contrôle de capacité qu'à la création, en s'excluant soi-même :
+    // sans lui, un report créerait le surbooking que la création interdit.
+    const participants = booking.activite?.participants || 1;
+    const restante = await capaciteRestante(booking.activity, nouvelleDate, fin, booking._id);
+    if (participants > restante) {
+      return res.status(409).json({ message: `Capacité insuffisante à cette date (${Math.max(0, restante)} place(s) restante(s)).` });
+    }
+
+    booking.activite.report = {
+      nouvelleDate, motif,
+      note: String(req.body?.note || "").trim().slice(0, 500) || null,
+      proposeLe: new Date(), proposePar: req.user._id,
+      accepteLe: null, refuseLe: null,
+      dateInitiale: booking.activite.date,
+    };
+    await booking.save();
+
+    await Notification.create({
+      user: booking.client,
+      type: "system",
+      titre: "📅 Nouvelle date proposée",
+      message: `${booking.activity.title} : le partenaire propose de reporter votre séance au ${nouvelleDate.toLocaleString("fr-FR")}. Acceptez ou refusez depuis votre tableau de bord.`,
+      lien: "/dashboard",
+    }).catch((e) => logger.error("notification report (non bloquant) :", e.message));
+
+    res.json({ report: booking.activite.report });
+  } catch (err) {
+    logger.error("proposerReportSeance:", err);
+    res.status(500).json({ message: "Erreur lors de la proposition de report." });
+  }
+};
+
+/** Le client accepte ou refuse le report proposé. */
+export const repondreReportSeance = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Identifiant de réservation invalide." });
+    }
+    const accepte = req.body?.accepte === true || req.body?.accepte === "true";
+
+    const booking = await Booking.findById(id).populate("activity", "title capacity durationMinutes essaiDurationMinutes");
+    if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
+    if (booking.client?.toString() !== req.user._id.toString() && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+    const report = booking.activite?.report;
+    if (!report?.proposeLe || report.accepteLe || report.refuseLe) {
+      return res.status(409).json({ message: "Aucun report n'est en attente de réponse." });
+    }
+
+    if (!accepte) {
+      booking.activite.report.refuseLe = new Date();
+      await booking.save();
+      return res.json({ report: booking.activite.report, message: "Report refusé. Vous pouvez annuler la réservation si la date d'origine ne vous convient plus." });
+    }
+
+    // La capacité est revérifiée à l'ACCEPTATION : d'autres clients ont pu
+    // réserver ce créneau entre la proposition et la réponse.
+    const duree = (booking.activite.essai
+      ? (booking.activity.essaiDurationMinutes || 30)
+      : (booking.activity.durationMinutes || 60)) * 60000;
+    const fin = new Date(new Date(report.nouvelleDate).getTime() + duree);
+    const restante = await capaciteRestante(booking.activity, new Date(report.nouvelleDate), fin, booking._id);
+    if ((booking.activite.participants || 1) > restante) {
+      return res.status(409).json({ message: "Ce créneau n'est plus disponible — demandez une autre date au partenaire." });
+    }
+
+    booking.activite.date = report.nouvelleDate;
+    booking.activite.dateFin = fin;
+    booking.activite.report.accepteLe = new Date();
+    await booking.save();
+
+    res.json({ report: booking.activite.report, date: booking.activite.date });
+  } catch (err) {
+    logger.error("repondreReportSeance:", err);
+    res.status(500).json({ message: "Erreur lors de la réponse au report." });
   }
 };
 

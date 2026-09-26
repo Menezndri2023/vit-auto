@@ -71,6 +71,11 @@ router.patch("/:id/partner-confirm",     vid, authenticate, b.partnerConfirm);
 // Ce qu'il change : `claimCaution` permettait de retenir sur la caution sans
 // qu'aucune preuve existe, et l'administration arbitrait parole contre parole.
 router.patch("/:id/etat-des-lieux",      vid, authenticate, exigeOutil("etatDesLieux"), b.enregistrerEtatDesLieux);
+// Report de séance — outil du palier Business. Le PARTENAIRE propose une
+// nouvelle date (verrouillé), le CLIENT accepte ou refuse (jamais verrouillé :
+// répondre à une proposition qu'on lui fait ne s'achète pas).
+router.patch("/:id/report-seance",       vid, authenticate, exigeOutil("reportSeance"), b.proposerReportSeance);
+router.patch("/:id/report-seance/reponse", vid, authenticate, b.repondreReportSeance);
 router.patch("/:id/partner-kyc-verify",  vid, authenticate, b.partnerVerifyKyc);
 // Booking Engine (2026-09) — alternative proposée par le partenaire, réponse
 // du client (voir server/services/bookingActionService.js).

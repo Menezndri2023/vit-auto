@@ -80,6 +80,10 @@ export const FEATURE_MIN_PLAN = {
   // d'entreprise — et c'est là que le partenaire n'avait aucun levier : un
   // prix par personne identique pour deux plongeurs comme pour quinze.
   tarifsGroupe:       "business",        // loisirs
+  // Proposer une nouvelle date plutôt que d'annuler. Une sortie annulée pour
+  // météo ne rapporte rien — le client est remboursé, le partenaire a mobilisé
+  // matériel et équipe pour rien. Une sortie reportée se facture.
+  reportSeance:       "business",        // loisirs
   // Un supplément par zone desservie. Le chauffeur avait quatre tarifs et UNE
   // zone en texte libre : un transfert aéroport était facturé comme une course
   // intra-ville, donc refusé ou perdu. Premier outil du secteur au palier

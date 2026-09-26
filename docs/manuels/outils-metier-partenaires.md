@@ -323,7 +323,6 @@ Classés par rapport valeur/effort. Aucun n'est annoncé tant qu'il n'existe pas
 
 | Palier | Outil | Secteur | Pourquoi il se vend |
 |---|---|---|---|
-| Business | **Report météo** au lieu d'annulation | Loisirs | Une sortie reportée se facture ; annulée, non |
 | Business | **Mise à disposition longue durée** | Chauffeur | Le revenu récurrent, ce que cherche tout professionnel |
 | Premium | **Compatibilité par immatriculation** | Pièces | Le client saisit sa plaque, on lui montre ce qui va |
 | Premium | **Billet à QR code** scanné à l'arrivée | Loisirs | Fin des listes papier et des litiges de présence |
@@ -518,3 +517,42 @@ Quatre décisions :
 
 Six tests dans `server/tests/driverZonesTarifaires.test.js`, vérifiés en
 neutralisant l'ajout du supplément : le test du montant passe au rouge.
+
+## 12. Livré le 2026-09-26 — Report de séance (Business, secteur Loisirs)
+
+Une sortie annulée pour météo ne rapporte **rien** : le client est remboursé,
+le partenaire a mobilisé matériel et équipe pour rien. Une sortie **reportée**
+se facture.
+
+⚠️ **Le document parlait de « report météo AUTOMATIQUE ». Ce n'est pas ce qui a
+été construit, et c'est délibéré.** Aucune source météo n'existe dans le
+produit ; en brancher une ferait décider un service tiers à la place du
+partenaire, qui est sur place et voit la mer. `Activity.weatherDependent`
+n'est qu'un drapeau d'affichage, et le reste — une API, un seuil de vent, une
+règle par type d'activité — serait du devinage. **Le motif est déclaratif** :
+météo, matériel, effectif, autre.
+
+`Booking.activite.report` porte la proposition. Le partenaire PROPOSE, le
+client accepte ou refuse.
+
+Cinq décisions :
+
+- **Jamais de déplacement unilatéral.** Déplacer une séance payée sans
+  l'accord du client reviendrait à confisquer son paiement.
+- **La capacité est vérifiée à la proposition ET à l'acceptation.** D'autres
+  clients peuvent réserver le créneau entre les deux. Le calcul est
+  `capaciteRestante()`, partagé avec la création — deux calculs finiraient par
+  diverger, et un report créerait le surbooking que la création interdit.
+- **Un seul report en attente à la fois.**
+- **La date d'origine est conservée** (`dateInitiale`) : sans elle, plus
+  personne ne sait qu'il y a eu report, ni depuis quand.
+- **Proposer est verrouillé, répondre ne l'est pas.** Répondre à une
+  proposition qu'on vous fait ne s'achète pas.
+
+Au passage, `activeStatusesGeneric` — la liste des statuts qui occupent un
+créneau — a été hissée au niveau du module. Elle était locale à `createBooking` ;
+la recopier dans le report aurait produit deux listes qui divergent, donc un
+report voyant moins de réservations que la création.
+
+Cinq tests dans `server/tests/reportSeance.test.js`, vérifiés en neutralisant
+le contrôle de capacité : le test correspondant passe au rouge.
