@@ -55,6 +55,12 @@ export const FEATURE_MIN_PLAN = {
   // l'acheteur voit le devis correspondant à l'Incoterm qu'il choisit. Le
   // palier gratuit garde UN prix et UN Incoterm — ce qui suffit pour vendre.
   incotermsMultiples: "individuel_plus", // exportateur
+  // Seuil sous lequel le partenaire est prévenu qu'une pièce va manquer.
+  // Premier outil du secteur « pièces », ouvert le 2026-09-14 et resté sans
+  // rien à vendre jusqu'ici. Une pièce commandée mais indisponible, c'est une
+  // commande annulée : sur un catalogue de plusieurs centaines de références,
+  // personne ne surveille les compteurs à la main.
+  alerteStockBas:     "individuel_plus", // pièces
 };
 
 // Sièges d'équipe INCLUS, titulaire compris. `business` en ouvre trois : un

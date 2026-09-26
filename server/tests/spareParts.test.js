@@ -326,3 +326,94 @@ describe("Pièces détachées — import CSV en masse", () => {
     expect(res.body.code).toBe("SECTEUR_REQUIS");
   });
 });
+
+// ── Alerte de stock bas (2026-09-26) ───────────────────────────────────────
+//
+// Premier outil propre au secteur « pièces », ouvert le 2026-09-14 et resté
+// sans rien à vendre à un palier payant. Une pièce commandée mais
+// indisponible, c'est une commande annulée : sur un catalogue de plusieurs
+// centaines de références, personne ne surveille les compteurs à la main.
+describe("Pièces détachées — alerte de stock bas", () => {
+  const alertes = (ownerId) => Notification.find({
+    user: ownerId, titre: { $in: ["⚠️ Stock bas", "⛔ Pièce épuisée"] },
+  }).sort({ createdAt: 1 }).lean();
+
+  it("prévient au FRANCHISSEMENT du seuil, une seule fois tant qu'on reste dessous", async () => {
+    const owner = await partenaire();
+    const piece = await publier(owner, { stock: 4 });
+    await SparePart.updateOne({ _id: piece._id }, { $set: { seuilStockBas: 2 } });
+
+    const c = await client();
+    const commander = async (quantity) => {
+      const { req, res } = mockReqRes({ user: c, body: {
+        type: "piece", partId: piece._id.toString(), clientInfo,
+        piece: { quantity, delivery: { address: "12 rue des Fleurs", ville: "Casablanca", country: "MA" } },
+      } });
+      await createBooking(req, res);
+      return res;
+    };
+
+    // 4 → 3 : au-dessus du seuil, rien ne doit partir.
+    expect((await commander(1)).statusCode).toBe(201);
+    expect(await alertes(owner._id)).toHaveLength(0);
+
+    // 3 → 2 : le seuil est atteint, une alerte part.
+    expect((await commander(1)).statusCode).toBe(201);
+    let vues = await alertes(owner._id);
+    expect(vues).toHaveLength(1);
+    expect(vues[0].message).toMatch(/seuil de 2/);
+
+    // 2 → 1 : toujours sous le seuil, mais PAS de seconde alerte — sinon
+    // chaque vente renotifierait et le partenaire cesserait de lire.
+    expect((await commander(1)).statusCode).toBe(201);
+    expect(await alertes(owner._id)).toHaveLength(1);
+  });
+
+  it("se réarme après un réassort saisi par le partenaire", async () => {
+    const owner = await partenaire();
+    const piece = await publier(owner, { stock: 1 });
+    await SparePart.updateOne({ _id: piece._id }, { $set: { seuilStockBas: 1, alerteStockLe: new Date() } });
+
+    const { req, res } = mockReqRes({
+      user: owner, params: { id: piece._id.toString() },
+      body: { stock: 20, images: [IMG] },
+    });
+    await updatePart(req, res);
+    expect(res.statusCode).toBe(200);
+    const apres = await SparePart.findById(piece._id).lean();
+    expect(apres.stock).toBe(20);
+    expect(apres.alerteStockLe).toBeNull();
+  });
+
+  it("une pièce sans suivi de stock (sur commande) n'alerte jamais", async () => {
+    const owner = await partenaire();
+    const piece = await publier(owner, { stock: null });
+    await SparePart.updateOne({ _id: piece._id }, { $set: { seuilStockBas: 5 } });
+
+    const c = await client();
+    const { req, res } = mockReqRes({ user: c, body: {
+      type: "piece", partId: piece._id.toString(), clientInfo,
+      piece: { quantity: 3, delivery: { address: "12 rue des Fleurs", ville: "Casablanca", country: "MA" } },
+    } });
+    await createBooking(req, res);
+    expect(res.statusCode).toBe(201);
+    expect(await alertes(owner._id)).toHaveLength(0);
+  });
+
+  it("le seuil ne se POSE qu'avec le palier, mais se RETIRE toujours", async () => {
+    const owner = await partenaire();
+    const piece = await publier(owner, { stock: 10 });
+
+    // L'immunité de lancement couvre encore tout le monde aujourd'hui : le
+    // refus se vérifie donc sur la matrice, pas sur une date simulée ici.
+    // Ce qui doit être vrai en tout temps : retirer un seuil n'exige rien.
+    await SparePart.updateOne({ _id: piece._id }, { $set: { seuilStockBas: 3 } });
+    const { req, res } = mockReqRes({
+      user: owner, params: { id: piece._id.toString() },
+      body: { seuilStockBas: null, images: [IMG] },
+    });
+    await updatePart(req, res);
+    expect(res.statusCode).toBe(200);
+    expect((await SparePart.findById(piece._id).lean()).seuilStockBas).toBeNull();
+  });
+});

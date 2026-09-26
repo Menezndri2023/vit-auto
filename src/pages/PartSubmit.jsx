@@ -76,6 +76,7 @@ const PartSubmit = () => {
   const [priceCurrency, setPriceCurrency] = useState(currencyCode || "USD");
   const [priceEntry,    setPriceEntry]    = useState("");
   const [stock,         setStock]         = useState("");
+  const [seuilStockBas, setSeuilStockBas] = useState("");
   const [minOrderQty,   setMinOrderQty]   = useState(1);
   const [weightKg,      setWeightKg]      = useState("");
 
@@ -148,6 +149,9 @@ const PartSubmit = () => {
         priceEntered: priceEntry !== "" ? Number(priceEntry) : null,
         priceEntryCurrency: priceCurrency,
         stock: stock === "" ? null : Number(stock),
+        // Vide = aucune alerte. Le serveur refuse de POSER un seuil sans le
+        // palier qui l'ouvre, et le message de refus nomme ce palier.
+        seuilStockBas: seuilStockBas === "" ? null : Number(seuilStockBas),
         minOrderQty: Number(minOrderQty) || 1,
         weightKg: weightKg === "" ? null : Number(weightKg),
         shipping: {
@@ -256,6 +260,18 @@ const PartSubmit = () => {
             <input type="number" min="0" value={stock} onChange={(e) => setStock(e.target.value)} placeholder="Ex : 12" />
           </label>
         </div>
+        {/* Seuil d'alerte — n'a de sens qu'avec un stock suivi : sur une pièce
+            « sur commande », il n'y a rien à surveiller. */}
+        {stock !== "" && (
+          <label className={styles.field}>
+            <span>
+              M'alerter quand le stock descend à{" "}
+              <small style={{ fontWeight: 400, color: "#6d7a95" }}>(vide = pas d'alerte · inclus à partir d'Essentiel)</small>
+            </span>
+            <input type="number" min="0" value={seuilStockBas}
+              onChange={(e) => setSeuilStockBas(e.target.value)} placeholder="Ex : 3" />
+          </label>
+        )}
         {errors.priceEntry && <p className={styles.err}>{errors.priceEntry}</p>}
         <div className={styles.grid2}>
           <label className={styles.field}>

@@ -12,6 +12,8 @@ import { notifyAdmins } from "../utils/notifyAdmins.js";
 import { uploadBase64Images, FOLDERS } from "../config/imagekit.js";
 import { refusDePublication } from "../utils/publishingGate.js";
 import { refusDePerimetre } from "../utils/perimetre.js";
+import { outilOuvert, messageRefus } from "../services/planAccess.js";
+import { rearmerAlerteStock } from "../services/partStock.js";
 import { refusDeQuota, enregistrerCompteur } from "../services/quotaAnnonces.js";
 import { isValidCountryCode } from "../utils/countries.js";
 import { calculerLivraisonPiece, fraisImportationPiece } from "../services/partShipping.js";
@@ -118,6 +120,14 @@ async function normaliserChamps(body, { partial = false } = {}) {
     if (s === undefined) return { error: "Stock invalide." };
     data.stock = s == null ? null : Math.floor(s);
   }
+  // Seuil d'alerte de stock bas — outil de palier (`alerteStockBas`). Le
+  // contrôle du plan se fait dans le handler, qui connaît l'utilisateur ;
+  // ici on ne fait que valider la forme.
+  if (has("seuilStockBas")) {
+    const v = num(body.seuilStockBas, { min: 0, def: null });
+    if (v === undefined) return { error: "Seuil d'alerte invalide." };
+    data.seuilStockBas = v == null ? null : Math.floor(v);
+  }
   if (has("minOrderQty")) {
     const q = num(body.minOrderQty, { min: 1, max: MAX_PART_QUANTITY, def: 1 });
     if (q === undefined) return { error: "Quantité minimale invalide." };
@@ -165,6 +175,19 @@ async function dossierSuspendu(userId) {
   };
 }
 
+/**
+ * Poser un seuil d'alerte de stock demande le palier qui l'ouvre.
+ *
+ * Le RETRAIT reste libre : on ne piège pas un partenaire dans une alerte
+ * qu'il ne pourrait plus enlever si son abonnement s'arrête.
+ */
+async function refusSeuilAlerte(user, seuilDemande, seuilActuel = null) {
+  if (seuilDemande == null || seuilDemande === seuilActuel) return null;
+  const verdict = await outilOuvert(user, "alerteStockBas");
+  if (verdict.ouvert) return null;
+  return { message: messageRefus("alerteStockBas"), code: "PLAN_REQUIS", feature: "alerteStockBas" };
+}
+
 // ── Créer une annonce pièce (partenaire) ──────────────────────────────────
 export const createPart = async (req, res) => {
   try {
@@ -189,6 +212,8 @@ export const createPart = async (req, res) => {
 
     const { error, data } = await normaliserChamps(req.body);
     if (error) return res.status(400).json({ message: error });
+    const refusSeuil = await refusSeuilAlerte(req.user, data.seuilStockBas);
+    if (refusSeuil) return res.status(403).json(refusSeuil);
     if (data.saleMode === "import" && !data.importInfo?.originCountry) {
       return res.status(400).json({ message: "Pays d'origine requis pour une vente importation." });
     }
@@ -381,8 +406,14 @@ export const updatePart = async (req, res) => {
     const origin = data.importInfo?.originCountry ?? part.importInfo?.originCountry;
     if (saleMode === "import" && !origin) return res.status(400).json({ message: "Pays d'origine requis pour une vente importation." });
 
+    const refusSeuil = await refusSeuilAlerte(req.user, data.seuilStockBas, part.seuilStockBas);
+    if (refusSeuil) return res.status(403).json(refusSeuil);
+
     Object.assign(part, data);
     await part.save();
+    // Un réassort saisi à la main doit réarmer l'alerte, sinon la rupture
+    // suivante passerait sous silence.
+    if (data.stock !== undefined || data.seuilStockBas !== undefined) await rearmerAlerteStock(part._id);
     res.json({ part });
   } catch (err) {
     logger.error("updatePart:", err);

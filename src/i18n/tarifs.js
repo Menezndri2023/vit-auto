@@ -17,6 +17,7 @@ export default {
   "sect.pieces":      { fr: "Pièces détachées", en: "Spare parts", ar: "قطع الغيار", es: "Repuestos", zh: "汽车配件" },
 
   // ─── Outils par secteur (OUTILS_PAR_SECTEUR) ──────────────────────────────
+  "outil.stockAlert":     { fr: "Alerte de stock bas, par référence", en: "Low-stock alert, per reference", ar: "تنبيه انخفاض المخزون، لكل مرجع", es: "Alerta de stock bajo, por referencia", zh: "按编号的低库存提醒" },
   "outil.seasonalRates":  { fr: "Tarifs saisonniers — haute et basse saison", en: "Seasonal rates — high and low season", ar: "أسعار موسمية — الموسم المرتفع والمنخفض", es: "Tarifas de temporada — alta y baja", zh: "季节性定价——旺季与淡季" },
   "outil.promotions":     { fr: "Promotions multi-paliers (−10 % à 3 jours, −20 % à 7)", en: "Tiered promotions (−10 % at 3 days, −20 % at 7)", ar: "عروض متعددة المستويات (−١٠ ٪ لثلاثة أيام، −٢٠ ٪ لسبعة)", es: "Promociones por niveles (−10 % a 3 días, −20 % a 7)", zh: "多档促销（3 天 −10 %，7 天 −20 %）" },
   "outil.fleetImport":    { fr: "Import de flotte par fichier (CSV, Excel, Google Sheets)", en: "Fleet import from a file (CSV, Excel, Google Sheets)", ar: "استيراد الأسطول من ملف (CSV، Excel، Google Sheets)", es: "Importación de flota por archivo (CSV, Excel, Google Sheets)", zh: "通过文件导入车队（CSV、Excel、Google 表格）" },

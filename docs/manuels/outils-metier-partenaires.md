@@ -328,11 +328,38 @@ Classés par rapport valeur/effort. Aucun n'est annoncé tant qu'il n'existe pas
 | Essentiel | **Zones tarifaires** — tarif par zone desservie | Chauffeur | Un trajet aéroport ne vaut pas un trajet intra-ville |
 | Business | **Mise à disposition longue durée** | Chauffeur | Le revenu récurrent, ce que cherche tout professionnel |
 | Business | **Tarifs de groupe** dégressifs | Loisirs | Les groupes font le gros du chiffre |
-| Essentiel | **Alerte de stock bas** | Pièces | Une pièce vendue mais indisponible = commande annulée |
 | Business | **Import de catalogue par fichier** | Pièces | Un stock de pièces se compte en centaines de références |
 | Premium | **Compatibilité par immatriculation** | Pièces | Le client saisit sa plaque, on lui montre ce qui va |
 | Premium | **Billet à QR code** scanné à l'arrivée | Loisirs | Fin des listes papier et des litiges de présence |
 
-Les trois outils « Pièces » sont les plus rentables : le secteur est ouvert
-depuis le 2026-09-14 et n'a **aucun** outil propre, donc rien à vendre à un
-palier payant aujourd'hui.
+Les outils « Pièces » restants sont les plus rentables : le secteur est ouvert
+depuis le 2026-09-14 et n'avait **aucun** outil propre.
+
+## 6. Livré le 2026-09-26 — Alerte de stock bas (Essentiel, secteur Pièces)
+
+Premier outil propre au secteur. Le partenaire pose un seuil par référence ;
+dès que le stock le franchit, une notification part.
+
+| Où | Quoi |
+|---|---|
+| `SparePart.seuilStockBas` | Le seuil, par référence. `null` = pas d'alerte |
+| `SparePart.alerteStockLe` | Horodatage de la dernière alerte, remis à `null` au réassort |
+| `services/partStock.js` | L'alerte est posée dans `reserverStockPiece` — **le seul endroit où le stock descend** |
+| `PartSubmit.jsx` | Champ « M'alerter quand le stock descend à », visible seulement si le stock est suivi |
+| `FEATURE_MIN_PLAN.alerteStockBas` | `individuel_plus` |
+
+Quatre décisions qui ne se devinent pas à la lecture :
+
+- **On alerte au FRANCHISSEMENT, pas tant qu'on reste dessous.** Sans
+  `alerteStockLe`, chaque vente sous le seuil renotifierait et le partenaire
+  cesserait de lire ses notifications.
+- **La pose du seuil est verrouillée, son RETRAIT ne l'est pas.** On ne piège
+  pas un partenaire dans une alerte qu'il ne pourrait plus enlever si son
+  abonnement s'arrête.
+- **Une pièce « sur commande » (`stock: null`) n'alerte jamais** — il n'y a
+  rien à surveiller.
+- **La mise à jour est conditionnelle** (`alerteStockLe: null`), donc deux
+  commandes simultanées ne produisent qu'une seule notification.
+
+Quatre tests dans `server/tests/spareParts.test.js`, dont un vérifié en
+désactivant l'alerte : il passe au rouge.

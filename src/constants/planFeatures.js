@@ -169,9 +169,13 @@ export const OUTILS_PAR_SECTEUR = {
     ],
     exportateur: [],
   },
-  // Secteur créé le 2026-09-14 : aucun outil propre à ce jour. Les avantages
-  // transversaux s'appliquent.
-  pieces: { individuel_plus: [], business: [], exportateur: [] },
+  pieces: {
+    individuel_plus: [
+      { key: "outil.stockAlert", feature: "alerteStockBas" },
+    ],
+    business: [],
+    exportateur: [],
+  },
   loisirs: {
     // Créneaux, capacité et report météo restent GRATUITS — ils sont dans le
     // modèle Activity et fonctionnent pour tout le monde.

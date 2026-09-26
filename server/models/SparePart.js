@@ -58,6 +58,18 @@ const sparePartSchema = new mongoose.Schema({
   // Stock : null = sur commande / non suivi ; sinon décrémenté à la commande
   // et restitué à l'annulation (voir bookingController, branche "piece").
   stock:       { type: Number, min: 0, default: null },
+  // ── Alerte de stock bas (outil de palier, 2026-09-26) ────────────────────
+  // Une pièce vendue mais indisponible, c'est une commande annulée et un
+  // client perdu : sur un catalogue de plusieurs centaines de références,
+  // personne ne surveille les compteurs à la main.
+  //
+  // `null` = pas de seuil, donc pas d'alerte. Le seuil ne peut être POSÉ
+  // qu'avec le palier qui l'ouvre (`alerteStockBas`) ; une fois posé, il vit
+  // sa vie — on ne retire pas au partenaire une alerte déjà configurée.
+  seuilStockBas: { type: Number, min: 0, default: null },
+  // Horodatage de la dernière alerte, remis à null dès que le stock repasse
+  // au-dessus du seuil. Sans lui, chaque vente sous le seuil renotifierait.
+  alerteStockLe: { type: Date, default: null },
   minOrderQty: { type: Number, min: 1, default: 1 },
   weightKg:    { type: Number, min: 0, default: null },
 
