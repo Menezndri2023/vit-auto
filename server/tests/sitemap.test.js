@@ -146,6 +146,12 @@ describe("Sitemap", () => {
     const xml = await construireSitemap();
     // Google ignore en bloc un jeu non réciproque : la version anglaise doit
     // déclarer la française autant que l'inverse.
+    //
+    // ⚠️ Ce test n'a longtemps vérifié que la PRÉSENCE des attributs hreflang,
+    // jamais la valeur des href. Il a donc laissé passer en production un
+    // sitemap où /en/faq déclarait /en/en/faq (2026-09-26) : le chemin déjà
+    // préfixé était préfixé une seconde fois. On compare désormais les
+    // adresses elles-mêmes.
     const blocs = xml.split("<url>").filter((b) => b.includes("xhtml:link"));
     expect(blocs.length).toBeGreaterThan(0);
     for (const bloc of blocs.slice(0, 20)) {
@@ -153,6 +159,39 @@ describe("Sitemap", () => {
         expect(bloc, `alternate ${l.hreflang} manquant`).toContain(`hreflang="${l.hreflang}"`);
       }
       expect(bloc).toContain('hreflang="x-default"');
+    }
+  });
+
+  it("aucun alternate ne pointe vers une adresse absente du sitemap", async () => {
+    const xml = await construireSitemap();
+    // L'invariant qui manquait : un href d'alternate n'est pas un texte libre,
+    // c'est une page que le sitemap doit aussi déclarer comme <loc>. Un double
+    // préfixe, une faute de frappe ou un chemin nu oublié échouent ici.
+    const locs = new Set([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]));
+    const hrefs = new Set(
+      [...xml.matchAll(/<xhtml:link rel="alternate" hreflang="[^"]+" href="([^"]+)"\/>/g)]
+        .map((m) => m[1])
+    );
+    expect(hrefs.size).toBeGreaterThan(0);
+    const orphelins = [...hrefs].filter((h) => !locs.has(h));
+    expect(orphelins.slice(0, 5), `${orphelins.length} alternate(s) vers une page non déclarée`).toEqual([]);
+  });
+
+  it("les cinq versions d'une page déclarent toutes le même jeu d'alternates", async () => {
+    const xml = await construireSitemap();
+    // La réciprocité au sens strict : /faq, /en/faq, /ar/faq… doivent porter
+    // des alternates IDENTIQUES, et chacun doit s'y désigner lui-même.
+    const alternatesDe = (loc) => {
+      const bloc = xml.split("\n").find((l) => l.includes(`<loc>${loc}</loc>`));
+      expect(bloc, `${loc} absente du sitemap`).toBeTruthy();
+      return [...bloc.matchAll(/hreflang="([^"]+)" href="([^"]+)"/g)].map((m) => `${m[1]} ${m[2]}`).join("|");
+    };
+    const reference = alternatesDe("https://vit-auto.com/faq");
+    expect(reference).toContain("x-default https://vit-auto.com/faq");
+    for (const l of LANGUES_SERVEUR) {
+      const loc = `https://vit-auto.com${cheminDansLangue("/faq", l.code)}`;
+      expect(alternatesDe(loc), `jeu d'alternates divergent sur ${loc}`).toBe(reference);
+      expect(reference, `${loc} ne se déclare pas elle-même`).toContain(`${l.hreflang} ${loc}`);
     }
   });
 

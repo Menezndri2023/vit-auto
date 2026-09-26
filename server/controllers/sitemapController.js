@@ -87,9 +87,13 @@ function alternates(loc) {
   return liens.join("");
 }
 
-export function entree({ loc, changefreq, priority, lastmod, traduite }) {
+// `alternatesDe` porte le chemin NU (français, sans préfixe). Sans lui, la
+// version anglaise recalculerait ses alternates depuis « /en/faq » et
+// publierait « /en/en/faq » : des adresses mortes, et un jeu non réciproque
+// que Google ignore en bloc.
+export function entree({ loc, changefreq, priority, lastmod, traduite, alternatesDe }) {
   const jour = lastmod ? `<lastmod>${new Date(lastmod).toISOString().slice(0, 10)}</lastmod>` : "";
-  const liens = traduite ? alternates(loc) : "";
+  const liens = traduite ? alternates(alternatesDe || loc) : "";
   return `  <url><loc>${echapper(SITE + loc)}</loc>${jour}<changefreq>${changefreq}</changefreq><priority>${priority}</priority>${liens}</url>`;
 }
 
@@ -99,10 +103,15 @@ export function entree({ loc, changefreq, priority, lastmod, traduite }) {
  * son propre bloc, une version linguistique n'est pas déclarée.
  */
 function entreesToutesLangues(page) {
-  return LANGUES.map((l) => entree({ ...page, loc: (() => {
-    const [chemin, requete] = page.loc.split("?");
-    return cheminDansLangue(chemin, l.code) + (requete ? `?${requete}` : "");
-  })() }));
+  const [chemin, requete] = page.loc.split("?");
+  const suffixe = requete ? `?${requete}` : "";
+  // Les cinq blocs partagent le MÊME jeu d'alternates, calculé une fois depuis
+  // le chemin nu : c'est la réciprocité que Google exige.
+  return LANGUES.map((l) => entree({
+    ...page,
+    loc: cheminDansLangue(chemin, l.code) + suffixe,
+    alternatesDe: page.loc,
+  }));
 }
 
 export async function construireSitemap() {
