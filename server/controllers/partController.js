@@ -519,6 +519,7 @@ const COLONNES = {
   currency: ["devise", "currency"],
   stock: ["stock", "quantite", "quantité", "qty"],
   minOrderQty: ["qte_min", "quantite_min", "min_order", "minimum"],
+  seuilStockBas: ["seuil_alerte", "seuil_stock", "alerte_stock", "low_stock"],
   saleMode: ["mode", "mode_vente", "sale_mode", "vente"],
   originCountry: ["pays_origine", "origine", "origin", "origin_country"],
   leadTimeDays: ["delai_jours", "délai", "delai", "lead_time"],
@@ -592,6 +593,12 @@ export const importParts = async (req, res) => {
       business = await PartnerBusiness.findOne({ _id: req.body.businessId, owner: req.user._id }).lean();
     }
 
+    // Le seuil d'alerte de stock est un outil de palier : un import en masse ne
+    // doit pas servir de porte dérobée. Résolu UNE fois pour tout le fichier
+    // — le plan ne change pas au milieu d'un import — plutôt qu'à chaque
+    // ligne, ce qui ferait une requête d'abonnement par référence.
+    const seuilAutorise = (await outilOuvert(req.user, "alerteStockBas")).ouvert;
+
     const erreurs = [];
     const prets = [];
     for (const [i, row] of rows.entries()) {
@@ -611,6 +618,7 @@ export const importParts = async (req, res) => {
         importInfo: mode === "import" ? { originCountry: val("originCountry"), leadTimeDays: val("leadTimeDays") || 21, feesUSD: val("importFees") || 0, customsIncluded: true, depositPercent: val("depositPercent") ?? 50 } : undefined,
         price: val("price"), currency: val("currency") || null, priceEntered: val("price"), priceEntryCurrency: val("currency") || "USD",
         stock: val("stock"), minOrderQty: val("minOrderQty") || 1, weightKg: val("weightKg"),
+      seuilStockBas: seuilAutorise ? val("seuilStockBas") : undefined,
         shipping: { mode: shippingMode, forfaitUSD: val("forfait") || 0, freeAboveUSD: val("freeAbove") || null, deliveryDaysMin: val("deliveryDaysMin") || 1, deliveryDaysMax: val("deliveryDaysMax") || 5, countries: [] },
         ville: val("ville") || business?.ville || "",
       };

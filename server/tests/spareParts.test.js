@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createPart, getParts, updatePart, quoteShipping, updatePartStatus, deletePart } from "../controllers/partController.js";
+import { createPart, getParts, updatePart, quoteShipping, updatePartStatus, deletePart, importParts } from "../controllers/partController.js";
 import { createBooking, updateBookingStatus, validateTransaction, cancelBookingByClient } from "../controllers/bookingController.js";
 import SparePart from "../models/SparePart.js";
 import Booking from "../models/Booking.js";
@@ -415,5 +415,41 @@ describe("Pièces détachées — alerte de stock bas", () => {
     await updatePart(req, res);
     expect(res.statusCode).toBe(200);
     expect((await SparePart.findById(piece._id).lean()).seuilStockBas).toBeNull();
+  });
+});
+
+// ── Import du catalogue (verrouillé le 2026-09-26) ─────────────────────────
+//
+// ⚠️ Cet import EXISTAIT déjà et était GRATUIT. Il n'a pas été construit ici :
+// il a été verrouillé au palier Business (`importCatalogue`), parce que c'est
+// précisément ce qui justifie un palier payant pour un secteur qui n'avait
+// rien à vendre. L'immunité de lancement s'applique : personne ne le perd
+// aujourd'hui.
+describe("Pièces détachées — import du catalogue", () => {
+  const CSV = [
+    "titre;categorie;fabricant;reference;etat;prix;devise;stock;seuil_alerte;compatibilite;photos;ville",
+    "Plaquettes avant;Freinage;Bosch;0986424797;neuf;400;USD;10;3;Volkswagen Golf 2004-2012;https://ik.imagekit.io/vitauto/p1.jpg;Casablanca",
+  ].join("\n");
+  const base64 = "data:text/csv;base64," + Buffer.from(CSV, "utf-8").toString("base64");
+
+  it("lit la colonne « seuil_alerte » et la pose sur la pièce", async () => {
+    const owner = await partenaire();
+    const { req, res } = mockReqRes({ user: owner, body: { fileBase64: base64, fileName: "catalogue.csv" } });
+    await importParts(req, res);
+    expect(res.statusCode).toBe(201); // créé
+    expect(res.body.crees).toBe(1);
+
+    const piece = await SparePart.findOne({ owner: owner._id, reference: "0986424797" }).lean();
+    expect(piece).toBeTruthy();
+    expect(piece.seuilStockBas).toBe(3);
+    expect(piece.stock).toBe(10);
+    expect(piece.compatibility[0].marque).toBe("Volkswagen");
+  });
+
+  it("refuse un partenaire dont le compte ne couvre pas le secteur pièces", async () => {
+    const loueur = await createUser({ role: "partenaire", isFounder: true, partnerActivity: "loueur", country: "MA" });
+    const { req, res } = mockReqRes({ user: loueur, body: { fileBase64: base64, fileName: "catalogue.csv" } });
+    await importParts(req, res);
+    expect(res.statusCode).toBe(403);
   });
 });

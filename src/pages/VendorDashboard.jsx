@@ -2751,9 +2751,12 @@ export default function VendorDashboard() {
 
   // Import en masse de pièces (CSV « ; » ou « , », .xlsx) — même convention
   // que l'import de flotte : fichier lu en base64, traité par POST /api/parts/import.
-  const MODELE_IMPORT_PIECES = "titre;categorie;fabricant;reference;etat;prix;devise;stock;qte_min;mode;pays_origine;delai_jours;frais_import;acompte;livraison;forfait_livraison;offerte_des;delai_min;delai_max;compatibilite;photos;description;ville\n"
-    + "Plaquettes de frein avant;Freinage;Bosch;0986424797;neuf;400;MAD;10;1;direct;;;;;forfait;40;1500;1;3;Volkswagen Golf 2004-2012 | Seat Leon 2005-2012;https://exemple.com/photo1.jpg | https://exemple.com/photo2.jpg;Jeu de 4 plaquettes;Casablanca\n"
-    + "Alternateur 150 A;Électrique / batterie;Valeo;439731;reconditionné;1600;MAD;;1;import;FR;15;250;50;gratuit;;;2;5;Dacia Duster 2010-2018;https://exemple.com/alternateur.jpg;Garantie 6 mois;Casablanca\n";
+  // « seuil_alerte » ajouté le 2026-09-26 : le seuil sous lequel le partenaire
+  // est prévenu qu'une référence va manquer. Ignoré si le palier ne l'ouvre
+  // pas — l'import ne sert pas de porte dérobée.
+  const MODELE_IMPORT_PIECES = "titre;categorie;fabricant;reference;etat;prix;devise;stock;seuil_alerte;qte_min;mode;pays_origine;delai_jours;frais_import;acompte;livraison;forfait_livraison;offerte_des;delai_min;delai_max;compatibilite;photos;description;ville\n"
+    + "Plaquettes de frein avant;Freinage;Bosch;0986424797;neuf;400;MAD;10;3;1;direct;;;;;forfait;40;1500;1;3;Volkswagen Golf 2004-2012 | Seat Leon 2005-2012;https://exemple.com/photo1.jpg | https://exemple.com/photo2.jpg;Jeu de 4 plaquettes;Casablanca\n"
+    + "Alternateur 150 A;Électrique / batterie;Valeo;439731;reconditionné;1600;MAD;;;1;import;FR;15;250;50;gratuit;;;2;5;Dacia Duster 2010-2018;https://exemple.com/alternateur.jpg;Garantie 6 mois;Casablanca\n";
   const telechargerModelePieces = () => {
     const blob = new Blob(["\ufeff" + MODELE_IMPORT_PIECES], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);

@@ -328,7 +328,6 @@ Classés par rapport valeur/effort. Aucun n'est annoncé tant qu'il n'existe pas
 | Essentiel | **Zones tarifaires** — tarif par zone desservie | Chauffeur | Un trajet aéroport ne vaut pas un trajet intra-ville |
 | Business | **Mise à disposition longue durée** | Chauffeur | Le revenu récurrent, ce que cherche tout professionnel |
 | Business | **Tarifs de groupe** dégressifs | Loisirs | Les groupes font le gros du chiffre |
-| Business | **Import de catalogue par fichier** | Pièces | Un stock de pièces se compte en centaines de références |
 | Premium | **Compatibilité par immatriculation** | Pièces | Le client saisit sa plaque, on lui montre ce qui va |
 | Premium | **Billet à QR code** scanné à l'arrivée | Loisirs | Fin des listes papier et des litiges de présence |
 
@@ -363,3 +362,32 @@ Quatre décisions qui ne se devinent pas à la lecture :
 
 Quatre tests dans `server/tests/spareParts.test.js`, dont un vérifié en
 désactivant l'alerte : il passe au rouge.
+
+## 7. Livré le 2026-09-26 — Import du catalogue (Business, secteur Pièces)
+
+⚠️ **Cet outil n'a pas été construit : il EXISTAIT DÉJÀ et était gratuit.**
+
+`POST /api/parts/import` — avec son modèle de fichier téléchargeable, son
+écran dans le tableau de bord, son mode simulation et son rapport d'erreurs
+ligne par ligne — tournait depuis l'ouverture du secteur, sans aucun verrou.
+Je l'ai découvert après avoir écrit **394 lignes d'un second import**, greffé
+sur le pipeline d'import de flotte. Ces lignes ont été supprimées : deux
+importeurs du même catalogue auraient divergé, comme les deux générateurs de
+sitemap avant eux.
+
+**Ce qui a réellement été fait** :
+
+| | |
+|---|---|
+| `routes/parts.js` | `exigeOutil("importCatalogue")` sur `POST /import` |
+| `FEATURE_MIN_PLAN.importCatalogue` | `business` |
+| Colonne `seuil_alerte` | Lue à l'import, ignorée si le palier ne l'ouvre pas — l'import ne sert pas de porte dérobée |
+| Modèle téléchargeable | Complété de la nouvelle colonne |
+
+Le plan est résolu **une fois pour tout le fichier**, pas à chaque ligne : il
+ne change pas au milieu d'un import, et une requête d'abonnement par référence
+coûterait cher sur un catalogue de plusieurs centaines de lignes.
+
+**La leçon, écrite ici parce qu'elle se rejouera** : avant de construire un
+outil « qui manque », chercher s'il existe déjà sous un autre nom. Le document
+de conception le listait comme à construire ; le code disait le contraire.

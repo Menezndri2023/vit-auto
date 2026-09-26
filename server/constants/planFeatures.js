@@ -61,6 +61,9 @@ export const FEATURE_MIN_PLAN = {
   // commande annulée : sur un catalogue de plusieurs centaines de références,
   // personne ne surveille les compteurs à la main.
   alerteStockBas:     "individuel_plus", // pièces
+  // Import d'un catalogue de pièces par fichier — jumeau d'`importFlotte`,
+  // vendu séparément : un vendeur de pièces n'achète pas l'import de flotte.
+  importCatalogue:    "business",        // pièces
 };
 
 // Sièges d'équipe INCLUS, titulaire compris. `business` en ouvre trois : un

@@ -173,7 +173,9 @@ export const OUTILS_PAR_SECTEUR = {
     individuel_plus: [
       { key: "outil.stockAlert", feature: "alerteStockBas" },
     ],
-    business: [],
+    business: [
+      { key: "outil.partsImport", feature: "importCatalogue" },
+    ],
     exportateur: [],
   },
   loisirs: {
