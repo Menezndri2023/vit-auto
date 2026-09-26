@@ -117,6 +117,23 @@ Le contrôle mécanique, lui, est déjà automatisé de notre côté et bloque t
 
 ---
 
-## 8. Bing
+## 8. Bing et Yandex — déjà branchés, sans aucun compte
 
-Bing Webmaster Tools permet d'**importer** la propriété depuis Search Console en quelques clics, une fois l'étape 1 faite. Le même sitemap sert. C'est peu de travail pour une part de trafic non nulle, notamment en Europe.
+Contrairement à Google, Bing et Yandex acceptent **IndexNow** : on leur signale directement les pages à (re)lire, et la propriété du domaine se prouve par un simple fichier hébergé sur le site. Aucun compte, aucun DNS.
+
+C'est en place :
+
+- la clé est le fichier `public/<clé>.txt`, servi sur `https://vit-auto.com/<clé>.txt` ;
+- `scripts/indexNow.mjs` lit le **sitemap de production** — pas une liste écrite à la main — et soumet les URL.
+
+```bash
+node scripts/indexNow.mjs --dry-run    # montre ce qui serait soumis
+node scripts/indexNow.mjs              # soumet tout le sitemap
+node scripts/indexNow.mjs /faq /plans  # seulement ces pages
+```
+
+Quand s'en servir : après une mise en ligne qui change beaucoup de pages, ou quand une page importante vient d'être publiée. **Pas tous les jours** — cela n'accélère rien et un 429 finit par tomber.
+
+⚠️ **Le fichier clé doit être DÉPLOYÉ avant toute soumission.** IndexNow le lit pour vérifier la propriété ; s'il ne le trouve pas, il répond 403 et rien n'est signalé. Après un changement de clé : déployer d'abord, soumettre ensuite. Un test (`src/seo.indexnow.test.js`) verrouille les deux pièges silencieux — un contenu de fichier différent de son nom, et deux fichiers clés concurrents.
+
+Bing Webmaster Tools reste utile pour **voir** ce qui est indexé : la propriété s'y **importe** depuis Search Console en quelques clics, une fois l'étape 1 faite. Mais l'indexation, elle, n'attend pas ce compte.
