@@ -926,7 +926,7 @@ export const createBooking = async (req, res) => {
       }
       const lat = d.lat != null && d.lat !== "" ? Number(d.lat) : null;
       const lng = d.lng != null && d.lng !== "" ? Number(d.lng) : null;
-      const livraison = await calculerLivraisonPiece(partObj, { quantity, clientLat: lat, clientLng: lng });
+      const livraison = await calculerLivraisonPiece(partObj, { quantity, clientLat: lat, clientLng: lng, destCountry: country });
       if (livraison.feeUSD == null) {
         return res.status(400).json({ message: "Placez votre adresse sur la carte : ce vendeur facture la livraison selon la distance.", code: "DELIVERY_POSITION_REQUIRED" });
       }

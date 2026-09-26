@@ -453,3 +453,96 @@ describe("Pièces détachées — import du catalogue", () => {
     expect(res.statusCode).toBe(403);
   });
 });
+
+// ── Frais de port par zone (2026-09-26) ────────────────────────────────────
+//
+// Jusqu'ici UN forfait pour tous les pays desservis : livrer dans sa propre
+// ville coûtait au client le même prix qu'à l'autre bout du corridor. Le
+// partenaire perdait les commandes proches (trop cher) et perdait de l'argent
+// sur les lointaines (trop bon marché).
+describe("Pièces détachées — frais de port par zone", () => {
+  const avecZones = (zones) => ({
+    shipping: {
+      mode: "forfait", forfaitUSD: 40, freeAboveUSD: null,
+      deliveryDaysMin: 1, deliveryDaysMax: 5,
+      countries: ["MA", "SN", "CI"], zones,
+    },
+  });
+
+  it("le pays de destination choisit la zone, et sans zone on garde le forfait unique", async () => {
+    const part = {
+      price: 100,
+      shipping: {
+        mode: "forfait", forfaitUSD: 40,
+        zones: [
+          { countries: ["MA"], forfaitUSD: 5,  freeAboveUSD: null },
+          { countries: ["SN", "CI"], forfaitUSD: 60, freeAboveUSD: 500 },
+        ],
+      },
+    };
+    expect((await calculerLivraisonPiece(part, { quantity: 1, destCountry: "MA" })).feeUSD).toBe(5);
+    expect((await calculerLivraisonPiece(part, { quantity: 1, destCountry: "CI" })).feeUSD).toBe(60);
+    // Pays hors zones : on retombe EXACTEMENT sur le comportement d'avant.
+    expect((await calculerLivraisonPiece(part, { quantity: 1, destCountry: "FR" })).feeUSD).toBe(40);
+    expect((await calculerLivraisonPiece(part, { quantity: 1 })).feeUSD).toBe(40);
+  });
+
+  it("le seuil de gratuité est celui de la zone, pas celui du forfait unique", async () => {
+    const part = {
+      price: 100,
+      shipping: {
+        mode: "forfait", forfaitUSD: 40, freeAboveUSD: 50,
+        zones: [{ countries: ["CI"], forfaitUSD: 60, freeAboveUSD: 500 }],
+      },
+    };
+    // 3 × 100 = 300 : au-dessus du seuil GÉNÉRAL (50) mais sous celui de la
+    // zone (500). C'est la zone qui doit trancher.
+    const vu = await calculerLivraisonPiece(part, { quantity: 3, destCountry: "CI" });
+    expect(vu.feeUSD).toBe(60);
+    expect(vu.detail).toMatch(/zone CI/);
+  });
+
+  it("refuse deux zones qui se chevauchent — le prix deviendrait inexplicable", async () => {
+    const owner = await partenaire();
+    const piece = await publier(owner);
+    const { req, res } = mockReqRes({
+      user: owner, params: { id: piece._id.toString() },
+      body: { images: [IMG], ...avecZones([
+        { countries: ["MA", "SN"], forfaitUSD: 10 },
+        { countries: ["SN"],       forfaitUSD: 90 },
+      ]) },
+    });
+    await updatePart(req, res);
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/deux zones/i);
+  });
+
+  it("une zone sans aucun pays est refusée", async () => {
+    const owner = await partenaire();
+    const piece = await publier(owner);
+    const { req, res } = mockReqRes({
+      user: owner, params: { id: piece._id.toString() },
+      body: { images: [IMG], ...avecZones([{ countries: [], forfaitUSD: 10 }]) },
+    });
+    await updatePart(req, res);
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("des zones valides sont enregistrées", async () => {
+    const owner = await partenaire();
+    const piece = await publier(owner);
+    const { req, res } = mockReqRes({
+      user: owner, params: { id: piece._id.toString() },
+      body: { images: [IMG], ...avecZones([
+        { countries: ["MA"], forfaitUSD: 5, deliveryDaysMin: 1, deliveryDaysMax: 2 },
+        { countries: ["SN", "CI"], forfaitUSD: 60, freeAboveUSD: 500 },
+      ]) },
+    });
+    await updatePart(req, res);
+    expect(res.statusCode).toBe(200);
+    const apres = await SparePart.findById(piece._id).lean();
+    expect(apres.shipping.zones).toHaveLength(2);
+    expect(apres.shipping.zones[0].forfaitUSD).toBe(5);
+    expect(apres.shipping.zones[1].countries).toEqual(["SN", "CI"]);
+  });
+});

@@ -150,7 +150,35 @@ async function normaliserChamps(body, { partial = false } = {}) {
     if ([forfaitUSD, freeAboveUSD, dMin, dMax].includes(undefined)) return { error: "Conditions de livraison invalides." };
     const countries = Array.isArray(sh.countries) ? sh.countries.map((c) => String(c).toUpperCase()).filter(Boolean).slice(0, 30) : [];
     for (const c of countries) if (!(await isValidCountryCode(c))) return { error: `Pays de livraison invalide : ${c}.` };
-    data.shipping = { mode, forfaitUSD, freeAboveUSD, deliveryDaysMin: dMin, deliveryDaysMax: Math.max(dMin, dMax), countries };
+    // ── Zones tarifaires (outil de palier `fraisPortParZone`) ────────────
+    // La forme est validée ici ; le PALIER est vérifié dans le handler, qui
+    // connaît l'utilisateur. Un pays ne peut appartenir qu'à une zone : deux
+    // zones qui se chevauchent rendraient le prix impossible à expliquer.
+    const zones = [];
+    if (Array.isArray(sh.zones)) {
+      const vus = new Set();
+      for (const z of sh.zones.slice(0, 10)) {
+        const pays = Array.isArray(z?.countries)
+          ? z.countries.map((c) => String(c).toUpperCase().trim()).filter(Boolean).slice(0, 30) : [];
+        if (pays.length === 0) return { error: "Une zone de livraison doit couvrir au moins un pays." };
+        for (const c of pays) {
+          if (!(await isValidCountryCode(c))) return { error: `Pays de livraison invalide : ${c}.` };
+          if (vus.has(c)) return { error: `Le pays ${c} figure dans deux zones de livraison — un pays ne peut appartenir qu'à une seule.` };
+          vus.add(c);
+        }
+        const zf = num(z.forfaitUSD, { min: 0, def: 0 });
+        const za = num(z.freeAboveUSD, { min: 0, def: null });
+        const zMin = num(z.deliveryDaysMin, { min: 0, max: 120, def: null });
+        const zMax = num(z.deliveryDaysMax, { min: 0, max: 120, def: null });
+        if ([zf, za, zMin, zMax].includes(undefined)) return { error: "Conditions d'une zone de livraison invalides." };
+        zones.push({
+          countries: pays, forfaitUSD: zf, freeAboveUSD: za,
+          deliveryDaysMin: zMin,
+          deliveryDaysMax: zMin != null && zMax != null ? Math.max(zMin, zMax) : zMax,
+        });
+      }
+    }
+    data.shipping = { mode, forfaitUSD, freeAboveUSD, deliveryDaysMin: dMin, deliveryDaysMax: Math.max(dMin, dMax), countries, zones };
   }
 
   for (const k of ["ville", "adresse"]) if (has(k)) data[k] = String(body[k] || "").trim().slice(0, 160);
@@ -188,6 +216,19 @@ async function refusSeuilAlerte(user, seuilDemande, seuilActuel = null) {
   return { message: messageRefus("alerteStockBas"), code: "PLAN_REQUIS", feature: "alerteStockBas" };
 }
 
+/**
+ * Définir des zones tarifaires demande le palier qui les ouvre.
+ *
+ * Comme pour le seuil d'alerte, les SUPPRIMER reste libre : on ne piège pas
+ * un partenaire dans une grille qu'il ne pourrait plus simplifier.
+ */
+async function refusZonesLivraison(user, zonesDemandees) {
+  if (!Array.isArray(zonesDemandees) || zonesDemandees.length === 0) return null;
+  const verdict = await outilOuvert(user, "fraisPortParZone");
+  if (verdict.ouvert) return null;
+  return { message: messageRefus("fraisPortParZone"), code: "PLAN_REQUIS", feature: "fraisPortParZone" };
+}
+
 // ── Créer une annonce pièce (partenaire) ──────────────────────────────────
 export const createPart = async (req, res) => {
   try {
@@ -214,6 +255,8 @@ export const createPart = async (req, res) => {
     if (error) return res.status(400).json({ message: error });
     const refusSeuil = await refusSeuilAlerte(req.user, data.seuilStockBas);
     if (refusSeuil) return res.status(403).json(refusSeuil);
+    const refusZones = await refusZonesLivraison(req.user, data.shipping?.zones);
+    if (refusZones) return res.status(403).json(refusZones);
     if (data.saleMode === "import" && !data.importInfo?.originCountry) {
       return res.status(400).json({ message: "Pays d'origine requis pour une vente importation." });
     }
@@ -346,7 +389,11 @@ export const quoteShipping = async (req, res) => {
     const quantity = Math.max(1, Math.min(MAX_PART_QUANTITY, Math.floor(Number(req.query.quantity) || 1)));
     const lat = req.query.lat != null && req.query.lat !== "" ? Number(req.query.lat) : null;
     const lng = req.query.lng != null && req.query.lng !== "" ? Number(req.query.lng) : null;
-    const livraison = await calculerLivraisonPiece(part, { quantity, clientLat: lat, clientLng: lng });
+    // Le pays de destination choisit la zone tarifaire. Le client le fournit
+    // avant même son adresse exacte : c'est ce qui rend le devis utile sur la
+    // fiche, quand il compare encore.
+    const destCountry = String(req.query.country || "").trim().toUpperCase().slice(0, 2) || null;
+    const livraison = await calculerLivraisonPiece(part, { quantity, clientLat: lat, clientLng: lng, destCountry });
     const importFeesUSD = fraisImportationPiece(part);
     const sousTotal = Math.round(part.price * quantity * 100) / 100;
     res.json({
@@ -408,6 +455,8 @@ export const updatePart = async (req, res) => {
 
     const refusSeuil = await refusSeuilAlerte(req.user, data.seuilStockBas, part.seuilStockBas);
     if (refusSeuil) return res.status(403).json(refusSeuil);
+    const refusZones = await refusZonesLivraison(req.user, data.shipping?.zones);
+    if (refusZones) return res.status(403).json(refusZones);
 
     Object.assign(part, data);
     await part.save();

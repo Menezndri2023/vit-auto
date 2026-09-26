@@ -64,6 +64,12 @@ export const FEATURE_MIN_PLAN = {
   // Import d'un catalogue de pièces par fichier — jumeau d'`importFlotte`,
   // vendu séparément : un vendeur de pièces n'achète pas l'import de flotte.
   importCatalogue:    "business",        // pièces
+  // Un forfait de livraison PAR ZONE de pays, au lieu d'un forfait unique
+  // pour tout le corridor. Sans lui, livrer dans sa propre ville coûte au
+  // client le même prix qu'à l'autre bout de l'Afrique de l'Ouest : le
+  // partenaire perd les commandes proches et perd de l'argent sur les
+  // lointaines.
+  fraisPortParZone:   "business",        // pièces
 };
 
 // Sièges d'équipe INCLUS, titulaire compris. `business` en ouvre trois : un

@@ -391,3 +391,42 @@ coûterait cher sur un catalogue de plusieurs centaines de lignes.
 **La leçon, écrite ici parce qu'elle se rejouera** : avant de construire un
 outil « qui manque », chercher s'il existe déjà sous un autre nom. Le document
 de conception le listait comme à construire ; le code disait le contraire.
+
+## 8. Livré le 2026-09-26 — Frais de port par zone (Business, secteur Pièces)
+
+Le catalogue connaissait déjà les **pays desservis** (`shipping.countries`),
+mais UN seul forfait pour tous : livrer dans sa propre ville coûtait au client
+le même prix qu'à l'autre bout du corridor. Le partenaire perdait les
+commandes proches — trop cher — et perdait de l'argent sur les lointaines.
+
+`shipping.zones` porte désormais un forfait, un seuil de gratuité et des
+délais **par groupe de pays**. Le pays de destination choisit la zone.
+
+Quatre décisions :
+
+- **Sans zone qui corresponde, on retombe EXACTEMENT sur le forfait unique.**
+  Le palier gratuit ne perd rien, et une zone oubliée ne casse pas une vente.
+- **Un pays ne peut appartenir qu'à une seule zone.** Deux zones qui se
+  chevauchent rendraient le prix impossible à expliquer, au client comme au
+  partenaire ; un arbitrage silencieux (la moins chère ? la plus chère ?)
+  serait pire que le refus.
+- **Le seuil de gratuité de la zone l'emporte** sur le seuil général — sinon
+  une commande lointaine deviendrait gratuite au seuil du marché local.
+- **Définir des zones demande le palier, les supprimer reste libre.** Même
+  règle que le seuil d'alerte : on ne piège pas un partenaire dans une grille
+  qu'il ne pourrait plus simplifier.
+
+La saisie se fait en texte, une zone par ligne — `MA: 5 offerte dès 300` —
+parce qu'un tableau de champs pour deux ou trois zones coûterait plus de clics
+qu'il n'en ferait gagner. Le serveur revalide tout : pays réels, chevauchement,
+bornes.
+
+Cinq tests dans `server/tests/spareParts.test.js`, dont deux vérifiés en
+neutralisant la recherche de zone : ils passent au rouge.
+
+### Ce qui n'a PAS été fait
+
+Le **devis multi-pièces** de la ligne d'origine reste à construire : une
+commande porte aujourd'hui UNE pièce (`Booking.part`), et permettre un panier
+de références touche le modèle de commande, le panier et le paiement. C'est un
+chantier distinct, pas une variante de celui-ci.

@@ -174,7 +174,8 @@ export const OUTILS_PAR_SECTEUR = {
       { key: "outil.stockAlert", feature: "alerteStockBas" },
     ],
     business: [
-      { key: "outil.partsImport", feature: "importCatalogue" },
+      { key: "outil.partsImport",   feature: "importCatalogue" },
+      { key: "outil.shippingZones", feature: "fraisPortParZone" },
     ],
     exportateur: [],
   },

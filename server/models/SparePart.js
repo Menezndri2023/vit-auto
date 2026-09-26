@@ -82,6 +82,27 @@ const sparePartSchema = new mongoose.Schema({
     deliveryDaysMax: { type: Number, min: 0, default: 5 },
     // Pays desservis (ISO-2) ; vide = uniquement le pays de l'annonce.
     countries:       { type: [String], default: [] },
+    // ── Zones tarifaires (outil de palier, 2026-09-26) ────────────────────
+    // Jusqu'ici, UN forfait pour tous les pays desservis : livrer dans sa
+    // propre ville coûtait au client le même prix qu'à l'autre bout du
+    // corridor. Le partenaire perdait les commandes proches (trop cher) et
+    // perdait de l'argent sur les lointaines (trop bon marché).
+    //
+    // Chaque zone porte son forfait, son seuil de gratuité et ses délais.
+    // Le pays de destination choisit la zone ; s'il n'appartient à aucune,
+    // on retombe sur le forfait unique ci-dessus — le palier gratuit garde
+    // donc exactement le comportement d'avant.
+    zones: {
+      type: [{
+        _id:             false,
+        countries:       { type: [String], default: [] },
+        forfaitUSD:      { type: Number, min: 0, default: 0 },
+        freeAboveUSD:    { type: Number, min: 0, default: null },
+        deliveryDaysMin: { type: Number, min: 0, default: null },
+        deliveryDaysMax: { type: Number, min: 0, default: null },
+      }],
+      default: [],
+    },
   },
 
   images:    { type: [String], default: [] },

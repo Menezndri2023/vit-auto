@@ -10,7 +10,22 @@
 import { resolveDeliveryFee, detectCountryFromCoords } from "./deliveryFee.js";
 import { convertAmount } from "./currencyEngine.js";
 
-export async function calculerLivraisonPiece(part, { quantity = 1, clientLat = null, clientLng = null } = {}) {
+/**
+ * La zone tarifaire qui couvre le pays de destination, s'il y en a une.
+ *
+ * Première zone gagnante : l'ordre de saisie du partenaire fait foi. Deux
+ * zones qui se chevauchent sont une erreur de saisie, pas un cas à arbitrer
+ * — et un arbitrage silencieux (la moins chère ? la plus chère ?) serait
+ * impossible à expliquer au client comme au partenaire.
+ */
+export function zoneDeLivraison(part, destCountry) {
+  const pays = String(destCountry || "").trim().toUpperCase();
+  if (!pays) return null;
+  return (part.shipping?.zones || []).find((z) =>
+    (z.countries || []).some((c) => String(c).trim().toUpperCase() === pays)) || null;
+}
+
+export async function calculerLivraisonPiece(part, { quantity = 1, clientLat = null, clientLng = null, destCountry = null } = {}) {
   const qty = Math.max(1, Math.floor(Number(quantity) || 1));
   const sousTotal = (part.price || 0) * qty;
   const mode = part.shipping?.mode || "forfait";
@@ -18,10 +33,21 @@ export async function calculerLivraisonPiece(part, { quantity = 1, clientLat = n
   if (mode === "gratuit") return { feeUSD: 0, mode, detail: "Livraison offerte" };
 
   if (mode === "forfait") {
-    const forfait = Number(part.shipping?.forfaitUSD) || 0;
-    const seuil = part.shipping?.freeAboveUSD;
-    if (seuil != null && seuil >= 0 && sousTotal >= seuil) return { feeUSD: 0, mode, detail: "Livraison offerte (montant de commande atteint)" };
-    return { feeUSD: forfait, mode, detail: forfait > 0 ? "Forfait de livraison" : "Livraison offerte" };
+    // Une zone tarifaire l'emporte sur le forfait unique. Sans zone qui
+    // corresponde, on retombe exactement sur le comportement d'avant : le
+    // palier gratuit ne perd rien.
+    const zone = zoneDeLivraison(part, destCountry);
+    const forfait = Number(zone ? zone.forfaitUSD : part.shipping?.forfaitUSD) || 0;
+    const seuil = zone ? zone.freeAboveUSD : part.shipping?.freeAboveUSD;
+    const suffixe = zone ? ` (zone ${(zone.countries || []).join(", ")})` : "";
+    if (seuil != null && seuil >= 0 && sousTotal >= seuil) {
+      return { feeUSD: 0, mode, zone: zone || null, detail: `Livraison offerte (montant de commande atteint)${suffixe}` };
+    }
+    return {
+      feeUSD: forfait, mode, zone: zone || null,
+      detail: (forfait > 0 ? "Forfait de livraison" : "Livraison offerte") + suffixe,
+      ...(zone && zone.deliveryDaysMin != null ? { deliveryDaysMin: zone.deliveryDaysMin, deliveryDaysMax: zone.deliveryDaysMax } : {}),
+    };
   }
 
   // Selon la distance : il faut les deux positions ; sans celle du client,

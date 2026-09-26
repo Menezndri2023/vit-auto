@@ -2712,6 +2712,12 @@ export default function VendorDashboard() {
       priceEntry: part.priceEntered != null ? String(part.priceEntered) : String(part.price ?? ""), priceCurrency: part.priceEntryCurrency || part.currency || "USD",
       stock: part.stock == null ? "" : String(part.stock), minOrderQty: part.minOrderQty || 1,
       shippingMode: part.shipping?.mode || "forfait", forfaitUSD: part.shipping?.forfaitUSD ?? 0, freeAboveUSD: part.shipping?.freeAboveUSD ?? "",
+      // Zones tarifaires : saisies en texte (« MA,EH: 5 » une par ligne), la
+      // forme la plus rapide à remplir et à relire. Un tableau de champs pour
+      // deux ou trois zones coûterait plus de clics qu'il n'en fait gagner.
+      zonesTexte: (part.shipping?.zones || [])
+        .map((z) => `${(z.countries || []).join(",")}: ${z.forfaitUSD ?? 0}${z.freeAboveUSD != null ? ` offerte dès ${z.freeAboveUSD}` : ""}`)
+        .join("\n"),
       deliveryDaysMin: part.shipping?.deliveryDaysMin ?? 1, deliveryDaysMax: part.shipping?.deliveryDaysMax ?? 5,
       originCountry: part.importInfo?.originCountry || "", leadTimeDays: part.importInfo?.leadTimeDays || 21, importFeesUSD: part.importInfo?.feesUSD ?? 0,
       customsIncluded: part.importInfo?.customsIncluded !== false, depositPercent: part.importInfo?.depositPercent ?? 50,
@@ -2734,7 +2740,7 @@ export default function VendorDashboard() {
           title: f.title, description: f.description, brand: f.brand, reference: f.reference, condition: f.condition, saleMode: f.saleMode,
           price: priceUSD, currency: f.priceCurrency !== "USD" ? f.priceCurrency : null, priceEntered: priceNum, priceEntryCurrency: f.priceCurrency,
           stock: f.stock === "" ? null : Number(f.stock), minOrderQty: Number(f.minOrderQty) || 1,
-          shipping: { mode: f.shippingMode, forfaitUSD: Number(f.forfaitUSD) || 0, freeAboveUSD: f.freeAboveUSD === "" ? null : Number(f.freeAboveUSD), deliveryDaysMin: Number(f.deliveryDaysMin) || 0, deliveryDaysMax: Number(f.deliveryDaysMax) || 0, countries: partEditModal.shipping?.countries || [] },
+          shipping: { mode: f.shippingMode, forfaitUSD: Number(f.forfaitUSD) || 0, freeAboveUSD: f.freeAboveUSD === "" ? null : Number(f.freeAboveUSD), deliveryDaysMin: Number(f.deliveryDaysMin) || 0, deliveryDaysMax: Number(f.deliveryDaysMax) || 0, countries: partEditModal.shipping?.countries || [], zones: lireZones(f.zonesTexte) },
           importInfo: f.saleMode === "import" ? { originCountry: f.originCountry, leadTimeDays: Number(f.leadTimeDays) || 21, feesUSD: Number(f.importFeesUSD) || 0, customsIncluded: !!f.customsIncluded, depositPercent: Number(f.depositPercent) || 0 } : undefined,
           compatibilityText: f.compatibilityText, ville: f.ville, images: f.images, thumbnail: f.images[0] || null,
         }),
@@ -2757,6 +2763,24 @@ export default function VendorDashboard() {
   const MODELE_IMPORT_PIECES = "titre;categorie;fabricant;reference;etat;prix;devise;stock;seuil_alerte;qte_min;mode;pays_origine;delai_jours;frais_import;acompte;livraison;forfait_livraison;offerte_des;delai_min;delai_max;compatibilite;photos;description;ville\n"
     + "Plaquettes de frein avant;Freinage;Bosch;0986424797;neuf;400;MAD;10;3;1;direct;;;;;forfait;40;1500;1;3;Volkswagen Golf 2004-2012 | Seat Leon 2005-2012;https://exemple.com/photo1.jpg | https://exemple.com/photo2.jpg;Jeu de 4 plaquettes;Casablanca\n"
     + "Alternateur 150 A;Électrique / batterie;Valeo;439731;reconditionné;1600;MAD;;;1;import;FR;15;250;50;gratuit;;;2;5;Dacia Duster 2010-2018;https://exemple.com/alternateur.jpg;Garantie 6 mois;Casablanca\n";
+  /**
+   * « MA,EH: 5 offerte dès 300 » → { countries: ["MA","EH"], forfaitUSD: 5, freeAboveUSD: 300 }
+   *
+   * Le serveur revalide tout (pays réels, chevauchement, bornes) : cette
+   * lecture ne fait que transformer, elle n'autorise rien.
+   */
+  const lireZones = (texte) => String(texte || "").split(/\n+/).map((l) => l.trim()).filter(Boolean).map((ligne) => {
+    const [gauche, droite = ""] = ligne.split(":");
+    const countries = gauche.split(/[,;]/).map((c) => c.trim().toUpperCase()).filter(Boolean);
+    const forfait = droite.match(/-?\d+(?:[.,]\d+)?/);
+    const offerte = droite.match(/(?:offerte|free)[^\d]*(\d+(?:[.,]\d+)?)/i);
+    return {
+      countries,
+      forfaitUSD: forfait ? Number(String(forfait[0]).replace(",", ".")) : 0,
+      freeAboveUSD: offerte ? Number(String(offerte[1]).replace(",", ".")) : null,
+    };
+  }).filter((z) => z.countries.length > 0);
+
   const telechargerModelePieces = () => {
     const blob = new Blob(["\ufeff" + MODELE_IMPORT_PIECES], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -4993,6 +5017,21 @@ export default function VendorDashboard() {
                 <label style={{ fontSize: ".78rem", color: "#64748b" }}>Ville d'expédition
                   <input type="text" value={partEditForm.ville} onChange={(e) => setPartEditForm((p) => ({ ...p, ville: e.target.value }))} style={MI} /></label>
               </div>
+              {/* Zones tarifaires — un forfait par groupe de pays. Sans elles,
+                  livrer dans sa propre ville coûte au client le même prix qu'à
+                  l'autre bout du corridor. */}
+              {partEditForm.shippingMode === "forfait" && (
+                <label style={{ fontSize: ".78rem", color: "#64748b", display: "block" }}>
+                  Frais de port par zone <span style={{ color: "#94a3b8" }}>— une zone par ligne, « pays : forfait » (inclus à partir de Business)</span>
+                  <textarea
+                    rows={3}
+                    value={partEditForm.zonesTexte}
+                    onChange={(e) => setPartEditForm((p) => ({ ...p, zonesTexte: e.target.value }))}
+                    placeholder={"MA: 5 offerte dès 300\nSN,CI: 60"}
+                    style={{ ...MI, fontFamily: "monospace", resize: "vertical" }}
+                  />
+                </label>
+              )}
               <label style={{ fontSize: ".78rem", color: "#64748b" }}>Compatibilité (texte)
                 <input type="text" value={partEditForm.compatibilityText} onChange={(e) => setPartEditForm((p) => ({ ...p, compatibilityText: e.target.value }))} style={MI} maxLength={500} /></label>
               <label style={{ fontSize: ".78rem", color: "#64748b" }}>Description
