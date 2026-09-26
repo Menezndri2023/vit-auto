@@ -323,11 +323,16 @@ async function profilPartenaire(browser) {
   // la résolution du nom en identifiant, et la réécriture SPA de /p/:slug —
   // cette dernière n'existe que dans vercel.json, invisible aux tests unitaires.
   await pp.goto(`${BASE}/vendor/dashboard`, { waitUntil: "domcontentloaded", timeout: 60000 });
-  const champLien = pp.getByLabel(/Adresse courte de la vitrine|Adresse complète de la vitrine/).first();
-  await champLien.waitFor({ timeout: 30000 });
-  const lienVitrine = await champLien.inputValue();
+  // UNE seule adresse depuis le 2026-09-25 : l'écran en proposait deux (courte
+  // et longue), le partenaire ne savait plus laquelle donner. On vérifie donc
+  // aussi qu'il n'y en a qu'une — deux champs signifieraient la régression.
+  const champsLien = pp.getByLabel(/Adresse de la vitrine/);
+  await champsLien.first().waitFor({ timeout: 30000 });
+  const nbChamps = await champsLien.count();
+  if (nbChamps !== 1) throw new Error(`${nbChamps} adresses de vitrine proposées au partage, il n'en faut qu'une`);
+  const lienVitrine = await champsLien.first().inputValue();
   if (!lienVitrine) throw new Error("le tableau de bord partenaire n'affiche aucun lien de vitrine");
-  ok(`partenaire : lien de vitrine proposé au partage (${lienVitrine})`);
+  ok(`partenaire : une seule adresse proposée au partage (${lienVitrine})`);
 
   // On ne suit pas le lien tel quel — il porte le domaine de production. C'est
   // son CHEMIN qui doit fonctionner sur l'aperçu local, avec ses en-têtes.
