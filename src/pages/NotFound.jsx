@@ -1,7 +1,25 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { useI18n } from "../context/I18nContext";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 export default function NotFound() {
+  const { t } = useI18n();
+
+  // Sans `noindex`, CHAQUE adresse morte du site devient une page indexable :
+  // l'application monopage répond 200 partout, donc un lien cassé, une URL
+  // tapée de travers ou une annonce supprimée deviennent autant de pages
+  // « Page introuvable » en concurrence avec les vraies dans les résultats.
+  // `follow` est conservé : les liens de secours vers l'accueil et le
+  // catalogue doivent rester suivis.
+  //
+  // Pas de `traduite` ici : une 404 n'a rien à déclarer en cinq versions.
+  useDocumentMeta({
+    title: t("nf.title"),
+    description: t("nf.desc"),
+    robots: "noindex, follow",
+  });
+
   return (
     <div style={{
       minHeight: "70vh",
@@ -27,7 +45,7 @@ export default function NotFound() {
         fontWeight: 800,
         color: "#0f1b3f",
         margin: "0 0 14px",
-      }}>Page introuvable</h2>
+      }}>{t("nf.title")}</h2>
       <p style={{
         color: "#5a6a8a",
         fontSize: ".96rem",
@@ -35,8 +53,7 @@ export default function NotFound() {
         maxWidth: 400,
         margin: "0 0 32px",
       }}>
-        Cette page n'existe pas ou a été déplacée.
-        Revenez à l'accueil pour explorer nos véhicules.
+        {t("nf.desc")}
       </p>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
         <Link to="/" style={{
@@ -50,7 +67,7 @@ export default function NotFound() {
           boxShadow: "0 4px 16px rgba(255,77,45,.35)",
           transition: "all .2s",
         }}>
-          ← Retour à l'accueil
+          {t("nf.home")}
         </Link>
         <Link to="/catalogue" style={{
           background: "transparent",
@@ -62,7 +79,7 @@ export default function NotFound() {
           fontSize: ".92rem",
           border: "2px solid #d1d9e8",
         }}>
-          Voir le catalogue
+          {t("nf.catalogue")}
         </Link>
       </div>
     </div>

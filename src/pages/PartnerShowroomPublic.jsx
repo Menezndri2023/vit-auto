@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import VehicleCard from "../components/VehicleCard/VehicleCard";
 import ReportButton from "../components/ReportButton/ReportButton";
 import { getCustomerServiceContact } from "../utils/customerServiceContact";
+import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 
 // ── Score donut ────────────────────────────────────────────────────────────────
@@ -67,6 +68,45 @@ export default function PartnerShowroomPublic() {
       .then((d) => setPartnerVehicles(d.vehicles || []))
       .catch(() => setPartnerVehicles([]));
   }, [showroom?.partnerId]);
+
+  // Même défaut que PartnerProfile avant le 2026-09-25 : sans cet appel, la
+  // page gardait le titre, la description ET l'adresse canonique de l'accueil
+  // — un partenaire partageant son showroom affichait l'aperçu générique de
+  // VIT AUTO, et le canonique disait aux moteurs « doublon de l'accueil ».
+  //
+  // Pas de `traduite` : le contenu est écrit par le partenaire, dans sa
+  // langue. Déclarer cinq versions d'un texte unique serait faux.
+  const ville = showroom?.city;
+  const urlShowroom = `https://vit-auto.com/showroom/${id}`;
+  useDocumentMeta(showroom ? {
+    title: `${showroom.companyName || "Showroom"}${ville ? ` — ${ville}` : ""}`,
+    description: showroom.description || showroom.tagline
+      || `${showroom.companyName || "Ce partenaire"} sur VIT AUTO${ville ? ` à ${ville}` : ""} : ${partnerVehicles.length > 0 ? `${partnerVehicles.length} véhicule${partnerVehicles.length > 1 ? "s" : ""} à réserver` : "showroom partenaire"}. Réservation et paiement sécurisés.`,
+    image: showroom.logo || showroom.banner || undefined,
+    url: urlShowroom,
+    structuredData: {
+      "@context": "https://schema.org",
+      "@type": "AutoDealer",
+      name: showroom.companyName || "Showroom",
+      ...(showroom.description ? { description: showroom.description } : {}),
+      ...(showroom.logo ? { image: showroom.logo } : {}),
+      ...(showroom.website ? { sameAs: [showroom.website] } : {}),
+      ...(showroom.foundedYear ? { foundingDate: String(showroom.foundedYear) } : {}),
+      ...(ville || showroom.address || showroom.country ? {
+        address: {
+          "@type": "PostalAddress",
+          ...(showroom.address ? { streetAddress: showroom.address } : {}),
+          ...(ville ? { addressLocality: ville } : {}),
+          ...(showroom.country ? { addressCountry: showroom.country } : {}),
+        },
+      } : {}),
+      ...(showroom.brands?.length ? { brand: showroom.brands.map((b) => ({ "@type": "Brand", name: b })) } : {}),
+      url: urlShowroom,
+    },
+    // Un showroom sans aucun véhicule est une page mince : l'annoncer aux
+    // moteurs dessert le site entier. Il reste évidemment partageable.
+    robots: partnerVehicles.length === 0 ? "noindex, follow" : undefined,
+  } : {});
 
   if (loading) {
     return (

@@ -13,4 +13,21 @@ Disallow: /payment/
 Disallow: /sign/
 Disallow: /stats
 
+# Les mêmes espaces sous préfixe de langue (/en/, /ar/, /es/, /zh/).
+# Depuis que la langue est dans l'URL (2026-09-25), /en/admin et /ar/kyc
+# existent et résolvent : sans ces lignes, les règles ci-dessus ne les
+# couvraient pas. Le joker est compris par Google et Bing.
+Disallow: /*/admin
+Disallow: /*/vendor/dashboard
+Disallow: /*/partner-pms
+Disallow: /*/partner-fleet-import
+Disallow: /*/profile
+Disallow: /*/checkout
+Disallow: /*/kyc
+Disallow: /*/reset-password
+Disallow: /*/verify-email
+Disallow: /*/payment/
+Disallow: /*/sign/
+Disallow: /*/stats
+
 Sitemap: https://vit-auto.com/sitemap.xml

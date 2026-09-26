@@ -109,4 +109,8 @@ export default {
   "iel.sourcePh":   { fr: "Pays d'origine…", en: "Country of origin…", ar: "بلد المنشأ…", es: "País de origen…", zh: "来源国…" },
   "iel.sending":    { fr: "Envoi en cours…", en: "Sending…", ar: "جارٍ الإرسال…", es: "Enviando…", zh: "发送中…" },
   "iel.submit":     { fr: "Envoyer ma demande →", en: "Send my request →", ar: "إرسال طلبي →", es: "Enviar mi solicitud →", zh: "提交申请 →" },
+  "nf.title":       { fr: "Page introuvable", en: "Page not found", ar: "الصفحة غير موجودة", es: "Página no encontrada", zh: "页面未找到" },
+  "nf.desc":        { fr: "Cette page n'existe pas ou a été déplacée. Revenez à l'accueil pour explorer nos véhicules.", en: "This page does not exist or has been moved. Head back to the home page to browse our vehicles.", ar: "هذه الصفحة غير موجودة أو تم نقلها. عُد إلى الصفحة الرئيسية لتصفّح مركباتنا.", es: "Esta página no existe o se ha movido. Vuelve al inicio para explorar nuestros vehículos.", zh: "该页面不存在或已被移动。返回首页浏览我们的车辆。" },
+  "nf.home":        { fr: "← Retour à l'accueil", en: "← Back to home", ar: "← العودة إلى الرئيسية", es: "← Volver al inicio", zh: "← 返回首页" },
+  "nf.catalogue":   { fr: "Voir le catalogue", en: "Browse the catalogue", ar: "تصفّح الفهرس", es: "Ver el catálogo", zh: "浏览目录" },
 };

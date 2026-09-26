@@ -22,7 +22,13 @@ describe("Secteurs d'activité et page Tarifs — rendu", () => {
     const { container } = renderPage(<Plans />, { route: "/plans" });
     // Le secteur du partenaire connecté est sélectionné dès que la session
     // est résolue : ses outils s'affichent.
-    await screen.findByRole("tab", { name: "Activités & loisirs", selected: true });
+    //
+    // Délai explicite : la sélection dépend d'un effet qui attend la session,
+    // et le défaut d'une seconde de findBy* est dépassé environ une fois sur
+    // trois quand la suite tourne entière (32 workers en parallèle). Le test
+    // échouait alors au hasard et aurait bloqué des push sans rien prouver —
+    // ce qui est vérifié n'a pas changé, seule la patience (2026-09-26).
+    await screen.findByRole("tab", { name: "Activités & loisirs", selected: true }, { timeout: 8000 });
     verifier("Tarifs");
 
     // Les paliers ne portent plus un nom de métier ni de type d'entité.
