@@ -49,20 +49,8 @@ export default {
   "ie.packsTitle":  { fr: "Choisissez votre niveau d'accompagnement", en: "Choose your level of support", ar: "اختر مستوى المرافقة الذي يناسبك", es: "Elige tu nivel de acompañamiento", zh: "选择您需要的服务级别" },
   "ie.packsSub":    { fr: "Des packs conciergerie automobile adaptés à chaque besoin, du simple achat à la gestion complète.", en: "Automotive concierge packages for every need, from a simple purchase to full handling.", ar: "باقات خدمة سيارات متكاملة تناسب كل حاجة، من الشراء البسيط إلى الإدارة الكاملة.", es: "Paquetes de conserjería automotriz adaptados a cada necesidad, de la compra simple a la gestión completa.", zh: "汽车管家套餐，覆盖从单纯购车到全程代办的各种需求。" },
   "ie.mostPopular": { fr: "⭐ Plus populaire", en: "⭐ Most popular", ar: "⭐ الأكثر اختياراً", es: "⭐ Más popular", zh: "⭐ 最受欢迎" },
-  "ie.feesTitle":   { fr: "Transparent & compétitif", en: "Transparent & competitive", ar: "شفاف وتنافسي", es: "Transparente y competitivo", zh: "透明且有竞争力" },
   "ie.feesSub":     { fr: "Des frais clairs sur chaque transaction internationale.", en: "Clear fees on every international transaction.", ar: "رسوم واضحة على كل معاملة دولية.", es: "Tarifas claras en cada transacción internacional.", zh: "每笔跨境交易费用清晰。" },
-  "ie.commission":  { fr: "Commission sur transaction", en: "Transaction commission", ar: "عمولة على المعاملة", es: "Comisión por transacción", zh: "交易佣金" },
-  "ie.profile":     { fr: "Profil", en: "Profile", ar: "الملف", es: "Perfil", zh: "类型" },
-  "ie.pricesTitle": { fr: "Des prix clairs, sans surprises", en: "Clear prices, no surprises", ar: "أسعار واضحة بلا مفاجآت", es: "Precios claros, sin sorpresas", zh: "价格清晰，绝无意外" },
-  "ie.pricesSub":   { fr: "Nous affichons nos tarifs publiquement. Vous savez exactement ce que vous payez avant de commencer.", en: "We publish our rates. You know exactly what you pay before you start.", ar: "نعرض أسعارنا علناً. تعرف بالضبط ما ستدفعه قبل أن تبدأ.", es: "Publicamos nuestras tarifas. Sabes exactamente lo que pagas antes de empezar.", zh: "我们公开标价。开始之前，您就清楚要付多少。" },
-  "ie.priceFrom":   { fr: "À partir de", en: "From", ar: "ابتداءً من", es: "Desde", zh: "起价" },
   "ie.onQuote":     { fr: "Sur devis", en: "On quotation", ar: "حسب عرض السعر", es: "Bajo presupuesto", zh: "按需报价" },
-  "ie.buySupport":  { fr: "Accompagnement à l'achat international", en: "International purchase support", ar: "مرافقة الشراء الدولي", es: "Acompañamiento en la compra internacional", zh: "跨境购车陪跑" },
-  "ie.techCheck":   { fr: "Vérification technique avant achat", en: "Technical check before purchase", ar: "فحص تقني قبل الشراء", es: "Verificación técnica antes de comprar", zh: "购前技术检测" },
-  "ie.transportTo": { fr: "Transport du pays source jusqu'à vous", en: "Transport from the source country to you", ar: "النقل من بلد المصدر إليك", es: "Transporte desde el país de origen hasta ti", zh: "从出口国运送至您手中" },
-  "ie.pricesNote":  { fr: "* Les prix varient selon le pays d'origine, le volume et les options choisies. Demandez un devis personnalisé — réponse sous 24 h.", en: "* Prices vary with the country of origin, the volume and the options chosen. Ask for a tailored quote — reply within 24 hours.", ar: "* تختلف الأسعار حسب بلد المصدر والحجم والخيارات المختارة. اطلب عرض سعر مخصصاً — الرد خلال ٢٤ ساعة.", es: "* Los precios varían según el país de origen, el volumen y las opciones elegidas. Pide un presupuesto personalizado — respuesta en 24 h.", zh: "* 价格因出口国、数量与所选方案而异。可索取定制报价——24 小时内回复。" },
-  "ie.subsTitle":   { fr: "Abonnements pour vendeurs & importateurs", en: "Plans for sellers & importers", ar: "اشتراكات للبائعين والمستوردين", es: "Suscripciones para vendedores e importadores", zh: "面向卖家与进口商的订阅" },
-  "ie.subsSub":     { fr: "Concessionnaires, garages et importateurs : gérez vos annonces à l'international.", en: "Dealers, garages and importers: manage your listings internationally.", ar: "الوكلاء والورش والمستوردون: أدِر إعلاناتك دولياً.", es: "Concesionarios, talleres e importadores: gestiona tus anuncios a nivel internacional.", zh: "经销商、修理厂与进口商：在国际范围内管理您的车源。" },
   "ie.partsTag":    { fr: "🔩 NOUVELLE ACTIVITÉ", en: "🔩 NEW ACTIVITY", ar: "🔩 نشاط جديد", es: "🔩 NUEVA ACTIVIDAD", zh: "🔩 新增业务" },
   "ie.partsTitle":  { fr: "Pièces détachées internationales", en: "International spare parts", ar: "قطع غيار دولية", es: "Repuestos internacionales", zh: "国际零配件" },
   "ie.partsDesc":   { fr: "Importation depuis la Chine, Dubaï et l'Europe. Distribution en Afrique de l'Ouest et au Maghreb. Moteurs, carrosserie, pneumatiques, batteries, accessoires.", en: "Imported from China, Dubai and Europe. Distributed across West Africa and the Maghreb. Engines, bodywork, tyres, batteries, accessories.", ar: "استيراد من الصين ودبي وأوروبا، وتوزيع في غرب إفريقيا والمغرب العربي. محركات وهياكل وإطارات وبطاريات وإكسسوارات.", es: "Importación desde China, Dubái y Europa. Distribución en África Occidental y el Magreb. Motores, carrocería, neumáticos, baterías, accesorios.", zh: "自中国、迪拜与欧洲进口，在西非与马格里布地区分销。发动机、车身件、轮胎、电池、配件。" },
@@ -94,11 +82,7 @@ export default {
   "ie.svc.customs":      { fr: "Assistance dédouanement", en: "Customs clearance assistance", ar: "مساعدة في التخليص الجمركي", es: "Asistencia en el despacho aduanero", zh: "清关协助" },
   "ie.svc.advisor":      { fr: "Conseiller dédié", en: "Dedicated adviser", ar: "مستشار مخصص", es: "Asesor dedicado", zh: "专属顾问" },
   "ie.svc.doorToDoor":   { fr: "Livraison porte-à-porte", en: "Door-to-door delivery", ar: "تسليم من الباب إلى الباب", es: "Entrega puerta a puerta", zh: "门到门交付" },
-  "ie.svc.premiumSub":   { fr: "Abonné premium", en: "Premium subscriber", ar: "مشترك بريميوم", es: "Suscriptor premium", zh: "Premium 订阅用户" },
-  "ie.svc.team3":        { fr: "Équipe de 3 accès", en: "Team of 3 seats", ar: "فريق بثلاثة حسابات", es: "Equipo de 3 accesos", zh: "3 个团队席位" },
-  "ie.svc.unlimitedAds": { fr: "Annonces illimitées", en: "Unlimited listings", ar: "إعلانات غير محدودة", es: "Anuncios ilimitados", zh: "无限发布车源" },
   "ie.svc.allSectors":   { fr: "Tous les secteurs", en: "All sectors", ar: "كل القطاعات", es: "Todos los sectores", zh: "全部业务板块" },
-  "ie.svc.seats10":      { fr: "10 accès", en: "10 seats", ar: "١٠ حسابات", es: "10 accesos", zh: "10 个席位" },
   "ie.svc.customPricing":{ fr: "Tarification personnalisée", en: "Custom pricing", ar: "تسعير مخصص", es: "Tarificación personalizada", zh: "定制定价" },
   "ie.svc.unlimited":    { fr: "Fonctionnalités illimitées", en: "Unlimited features", ar: "ميزات غير محدودة", es: "Funciones ilimitadas", zh: "功能不限" },
   "ie.svc.fullExpertise":{ fr: "Expertise complète", en: "Full expertise", ar: "خبرة كاملة", es: "Experiencia completa", zh: "全面专业服务" },
@@ -219,10 +203,6 @@ export default {
 
   // ─── Modèle économique ────────────────────────────────────────────────────
   "ie.feesTag":     { fr: "💰 TARIFICATION", en: "💰 PRICING", ar: "💰 التسعير", es: "💰 TARIFAS", zh: "💰 收费" },
-  "ie.commissionCol": { fr: "Commission", en: "Commission", ar: "العمولة", es: "Comisión", zh: "佣金" },
-  "ie.serviceFeeCol": { fr: "Frais de service (ex. 15 000 $)", en: "Service fee (e.g. $15,000)", ar: "رسوم الخدمة (مثال ١٥٬٠٠٠ $)", es: "Comisión de servicio (ej. 15 000 $)", zh: "服务费（例：15,000 美元）" },
-  "ie.standard":    { fr: "Standard", en: "Standard", ar: "قياسي", es: "Estándar", zh: "标准" },
-  "ie.premium":     { fr: "Premium", en: "Premium", ar: "متميّز", es: "Premium", zh: "高级" },
   "ie.addlServices": { fr: "Services additionnels", en: "Additional services", ar: "خدمات إضافية", es: "Servicios adicionales", zh: "附加服务" },
   "ie.svc.inspStd": { fr: "Inspection standard", en: "Standard inspection", ar: "فحص قياسي", es: "Inspección estándar", zh: "标准检验" },
   "ie.svc.inspPrem": { fr: "Inspection premium", en: "Premium inspection", ar: "فحص متميّز", es: "Inspección premium", zh: "高级检验" },
@@ -233,26 +213,10 @@ export default {
   "ie.price.perFile": { fr: "100–2 000 € par dossier", en: "€100–2,000 per file", ar: "١٠٠–٢٠٠٠ يورو لكل ملف", es: "100–2000 € por expediente", zh: "每单 100–2,000 欧元" },
 
   // ─── Tarification transparente ────────────────────────────────────────────
-  "ie.pricesTag":   { fr: "💶 TARIFICATION TRANSPARENTE", en: "💶 TRANSPARENT PRICING", ar: "💶 تسعير شفّاف", es: "💶 TARIFAS TRANSPARENTES", zh: "💶 透明定价" },
-  "ie.planCol":     { fr: "Formule", en: "Package", ar: "الصيغة", es: "Fórmula", zh: "方案" },
-  "ie.priceCol":    { fr: "Prix", en: "Price", ar: "السعر", es: "Precio", zh: "价格" },
-  "ie.inspection":  { fr: "Inspection", en: "Inspection", ar: "الفحص", es: "Inspección", zh: "检验" },
   "ie.delivery":    { fr: "Livraison", en: "Delivery", ar: "التسليم", es: "Entrega", zh: "交付" },
-  "ie.national":    { fr: "Nationale", en: "Domestic", ar: "محلية", es: "Nacional", zh: "国内" },
-  "ie.international": { fr: "Internationale", en: "International", ar: "دولية", es: "Internacional", zh: "国际" },
 
   // ─── Abonnements professionnels ───────────────────────────────────────────
-  "ie.prosTag":     { fr: "🏢 PROFESSIONNELS", en: "🏢 PROFESSIONALS", ar: "🏢 للمحترفين", es: "🏢 PROFESIONALES", zh: "🏢 企业用户" },
   "ie.perMonth":    { fr: "/mois", en: "/month", ar: "/شهر", es: "/mes", zh: "/月" },
-  "ie.start":       { fr: "Commencer →", en: "Get started →", ar: "ابدأ الآن →", es: "Empezar →", zh: "开始使用 →" },
-  "ie.svc.topRank": { fr: "Classement prioritaire", en: "Priority ranking", ar: "ترتيب ذو أولوية", es: "Posicionamiento prioritario", zh: "优先排序" },
-  "ie.svc.incoterms": { fr: "Calculateur Incoterms", en: "Incoterms calculator", ar: "حاسبة الإنكوترمز", es: "Calculadora de Incoterms", zh: "国际贸易术语计算器" },
-  "ie.svc.perfStats": { fr: "Statistiques de performance", en: "Performance statistics", ar: "إحصاءات الأداء", es: "Estadísticas de rendimiento", zh: "业绩统计" },
-  "ie.svc.fullTracking": { fr: "Suivi de dossier complet", en: "Full file tracking", ar: "متابعة كاملة للملف", es: "Seguimiento completo del expediente", zh: "完整案件跟踪" },
-  "ie.svc.earlyLeads": { fr: "Demandes clients en avance", en: "Early access to customer requests", ar: "وصول مبكر لطلبات العملاء", es: "Solicitudes de clientes por adelantado", zh: "优先获取客户需求" },
-  "ie.svc.spotlights": { fr: "Mises en avant incluses", en: "Spotlights included", ar: "إبرازات مشمولة", es: "Destacados incluidos", zh: "含推荐位" },
-  "ie.svc.crmExport": { fr: "CRM export multi-devises", en: "Multi-currency export CRM", ar: "نظام CRM للتصدير متعدد العملات", es: "CRM de exportación multidivisa", zh: "多币种出口 CRM" },
-  "ie.svc.catalogApi": { fr: "API catalogue", en: "Catalogue API", ar: "واجهة برمجة الفهرس", es: "API de catálogo", zh: "目录 API" },
 
   // ─── Pièces détachées et écosystème ───────────────────────────────────────
   "ie.askCatalog":  { fr: "Demander un catalogue", en: "Request a catalogue", ar: "اطلب الفهرس", es: "Pedir un catálogo", zh: "索取目录" },
@@ -273,4 +237,49 @@ export default {
   // ─── Appel à l'action final ───────────────────────────────────────────────
   "ie.ctaTag":      { fr: "🌍 COMMENCEZ MAINTENANT", en: "🌍 START NOW", ar: "🌍 ابدأ الآن", es: "🌍 EMPIEZA AHORA", zh: "🌍 立即开始" },
   "ie.becomeImporter": { fr: "Devenir partenaire importateur →", en: "Become an importer partner →", ar: "كن شريكاً مستورداً →", es: "Ser socio importador →", zh: "成为进口合作伙伴 →" },
+
+  // ─── Les deux publics ─────────────────────────────────────────────────────
+  // La page servait un seul discours à deux métiers opposés : celui qui FAIT
+  // VENIR un véhicule (client, packs d'accompagnement) et celui qui EXPÉDIE
+  // depuis son pays (partenaire, secteur + profil vérifié + abonnement).
+  "ie.chooseTitle":  { fr: "Deux métiers, deux parcours", en: "Two trades, two journeys", ar: "مهنتان، مساران", es: "Dos oficios, dos recorridos", zh: "两种业务，两条路径" },
+  "ie.chooseSub":    { fr: "Faire venir un véhicule et en expédier un ne demandent ni les mêmes démarches, ni les mêmes services. Choisissez votre côté.", en: "Bringing a vehicle in and shipping one out call for different steps and different services. Pick your side.", ar: "إحضار مركبة وشحن أخرى لا يتطلبان الخطوات نفسها ولا الخدمات نفسها. اختر جانبك.", es: "Traer un vehículo y enviar otro no exigen los mismos trámites ni los mismos servicios. Elige tu lado.", zh: "引进车辆与向外发运，所需流程与服务并不相同。请选择您的一侧。" },
+  "ie.doorImport":   { fr: "Je fais venir un véhicule", en: "I'm bringing a vehicle in", ar: "أريد إحضار مركبة", es: "Quiero traer un vehículo", zh: "我要引进车辆" },
+  "ie.doorImportDesc": { fr: "Vous achetez à l'étranger et voulez être accompagné jusqu'à la livraison. Vous choisissez un pack, nous faisons le reste.", en: "You are buying abroad and want support all the way to delivery. You pick a package, we handle the rest.", ar: "تشتري من الخارج وتريد مرافقة حتى التسليم. تختار باقة، ونتكفّل بالباقي.", es: "Compras en el extranjero y quieres acompañamiento hasta la entrega. Eliges un paquete y nosotros hacemos el resto.", zh: "您在海外购车并希望获得直至交付的全程支持。您选择套餐，其余由我们处理。" },
+  "ie.doorImportWho": { fr: "Particulier ou entreprise · Compte client", en: "Private individual or company · Customer account", ar: "فرد أو شركة · حساب عميل", es: "Particular o empresa · Cuenta de cliente", zh: "个人或企业 · 客户账户" },
+  "ie.doorExport":   { fr: "J'exporte depuis mon pays", en: "I export from my country", ar: "أصدّر من بلدي", es: "Exporto desde mi país", zh: "我从本国出口" },
+  "ie.doorExportDesc": { fr: "Vous vendez des véhicules à l'international. Vous publiez vos annonces sur VIT AUTO et payez une commission à la vente.", en: "You sell vehicles internationally. You publish your listings on VIT AUTO and pay a commission on each sale.", ar: "تبيع المركبات دولياً. تنشر إعلاناتك على VIT AUTO وتدفع عمولة عند كل بيع.", es: "Vendes vehículos a escala internacional. Publicas tus anuncios en VIT AUTO y pagas una comisión por venta.", zh: "您从事车辆国际销售。在 VIT AUTO 发布房源，按成交支付佣金。" },
+  "ie.doorExportWho": { fr: "Professionnel vérifié · Compte partenaire", en: "Verified professional · Partner account", ar: "محترف موثّق · حساب شريك", es: "Profesional verificado · Cuenta de socio", zh: "经核验的专业机构 · 合作伙伴账户" },
+
+  // ─── Côté importateur (client) ────────────────────────────────────────────
+  "ie.impTag":       { fr: "📥 CÔTÉ IMPORTATEUR", en: "📥 IMPORTER SIDE", ar: "📥 جانب المستورد", es: "📥 LADO IMPORTADOR", zh: "📥 进口方" },
+  "ie.impTitle":     { fr: "Vous faites venir un véhicule", en: "You are bringing a vehicle in", ar: "أنت تُحضر مركبة", es: "Traes un vehículo", zh: "您正在引进车辆" },
+  "ie.impSub":       { fr: "Vous achetez dans un pays, vous recevez chez vous. Entre les deux : recherche, inspection, paiement sous séquestre, transport, dédouanement. Vous choisissez jusqu'où nous allons.", en: "You buy in one country and take delivery at home. In between: sourcing, inspection, escrowed payment, shipping, customs. You decide how far we go.", ar: "تشتري في بلد وتستلم في بلدك. وبينهما: البحث، الفحص، الدفع بالضمان، النقل، التخليص الجمركي. أنت تحدّد إلى أي مدى نرافقك.", es: "Compras en un país y recibes en el tuyo. Entre medias: búsqueda, inspección, pago en depósito, transporte y aduana. Tú decides hasta dónde llegamos.", zh: "您在一国购车，在家收车。其间包括：寻源、检验、托管付款、运输、清关。由您决定我们走多远。" },
+  "ie.impWhatYouPay": { fr: "Ce que vous payez", en: "What you pay", ar: "ما الذي تدفعه", es: "Lo que pagas", zh: "您需要支付的费用" },
+  "ie.impPay1":      { fr: "Le pack choisi, une fois, au dépôt du dossier.", en: "The package you choose, once, when you open the file.", ar: "الباقة التي تختارها، مرة واحدة، عند فتح الملف.", es: "El paquete elegido, una sola vez, al abrir el expediente.", zh: "所选套餐，开档时一次性支付。" },
+  "ie.impPay2":      { fr: "Les frais de service VIT AUTO sur la transaction : max({min}, {pct} % du montant), plafonnés à {max}.", en: "The VIT AUTO service fee on the transaction: max({min}, {pct} % of the amount), capped at {max}.", ar: "رسوم خدمة VIT AUTO على المعاملة: الأكبر بين ({min} و{pct} ٪ من المبلغ)، بحد أقصى {max}.", es: "La comisión de servicio de VIT AUTO sobre la transacción: máx({min}, {pct} % del importe), con tope de {max}.", zh: "交易的 VIT AUTO 服务费：取 {min} 与金额 {pct} % 的较大者，上限 {max}。" },
+  "ie.impPay3":      { fr: "Le prix du véhicule et les frais réels de transport et de douane, qui ne passent pas par nous.", en: "The vehicle price and the actual shipping and customs costs, which do not go through us.", ar: "ثمن المركبة والتكاليف الفعلية للنقل والجمارك، وهي لا تمرّ عبرنا.", es: "El precio del vehículo y los costes reales de transporte y aduana, que no pasan por nosotros.", zh: "车辆价格及实际运输与关税费用，这些不经由我们收取。" },
+  "ie.impNoCommission": { fr: "Aucune commission ne vous est prélevée : elle est à la charge du vendeur.", en: "No commission is taken from you: it is charged to the seller.", ar: "لا تُقتطع منك أي عمولة: فهي على عاتق البائع.", es: "No se te cobra ninguna comisión: corre a cargo del vendedor.", zh: "不向您收取佣金：佣金由卖方承担。" },
+
+  // ─── Côté exportateur (partenaire) ────────────────────────────────────────
+  "ie.expTag":       { fr: "📤 CÔTÉ EXPORTATEUR", en: "📤 EXPORTER SIDE", ar: "📤 جانب المصدّر", es: "📤 LADO EXPORTADOR", zh: "📤 出口方" },
+  "ie.expTitle":     { fr: "Vous expédiez depuis votre pays", en: "You ship from your country", ar: "أنت تشحن من بلدك", es: "Envías desde tu país", zh: "您从本国发运" },
+  "ie.expSub":       { fr: "Concessionnaire, parc automobile ou négociant : vous publiez vos véhicules sur VIT AUTO et vendez à des acheteurs de vingt pays. Pas de pack à acheter — un abonnement ouvre vos outils, et vous ne payez la commission qu'à la vente.", en: "Dealership, fleet or trader: you list your vehicles on VIT AUTO and sell to buyers in twenty countries. No package to buy — a subscription unlocks your tools, and commission is due only on a sale.", ar: "وكيل أو أسطول أو تاجر: تنشر مركباتك على VIT AUTO وتبيع لمشترين في عشرين دولة. لا باقة تُشترى — الاشتراك يفتح أدواتك، والعمولة لا تُستحق إلا عند البيع.", es: "Concesionario, flota o comerciante: publicas tus vehículos en VIT AUTO y vendes a compradores de veinte países. No hay paquete que comprar: una suscripción abre tus herramientas y la comisión solo se paga al vender.", zh: "经销商、车队或贸易商：在 VIT AUTO 发布车辆，面向二十个国家的买家销售。无需购买套餐——订阅即开启工具，仅在成交时收取佣金。" },
+  "ie.expHowTitle":  { fr: "Comment on commence", en: "How you get started", ar: "كيف تبدأ", es: "Cómo se empieza", zh: "如何开始" },
+  "ie.expStep1":     { fr: "Demander le secteur Import / Export", en: "Request the Import / Export sector", ar: "اطلب قطاع الاستيراد / التصدير", es: "Solicitar el sector Importación / Exportación", zh: "申请进出口板块" },
+  "ie.expStep1d":    { fr: "Depuis votre espace partenaire, onglet « Mes secteurs ». Le nombre de secteurs cumulables dépend de votre plan.", en: "From your partner space, “My sectors” tab. How many sectors you may combine depends on your plan.", ar: "من فضاء الشريك، تبويب «قطاعاتي». عدد القطاعات القابلة للجمع يتبع خطتك.", es: "Desde tu espacio de socio, pestaña «Mis sectores». Cuántos sectores puedes combinar depende de tu plan.", zh: "在合作伙伴空间的「我的板块」中申请。可叠加的板块数量取决于您的套餐。" },
+  "ie.expStep2":     { fr: "Faire vérifier votre entreprise", en: "Get your company verified", ar: "توثيق شركتك", es: "Verificar tu empresa", zh: "完成企业核验" },
+  "ie.expStep2d":    { fr: "Registre de commerce, identifiant fiscal, agrément d'importateur s'il y a lieu, pays d'opération. Un administrateur examine le dossier avant toute publication.", en: "Trade register, tax number, importer licence where applicable, countries of operation. An administrator reviews the file before you can publish.", ar: "السجل التجاري، الرقم الضريبي، ترخيص الاستيراد عند الاقتضاء، بلدان العمل. يراجع مسؤول الملف قبل أي نشر.", es: "Registro mercantil, identificador fiscal, licencia de importador si procede, países de operación. Un administrador revisa el expediente antes de publicar.", zh: "商业登记、税号、（如适用）进口许可、经营国家。发布前由管理员审核材料。" },
+  "ie.expStep3":     { fr: "Publier vos véhicules à l'export", en: "Publish your export vehicles", ar: "انشر مركباتك للتصدير", es: "Publicar tus vehículos de exportación", zh: "发布您的出口车辆" },
+  "ie.expStep3d":    { fr: "Chaque annonce est modérée puis visible dans le catalogue export, filtrable par pays d'origine. Les acheteurs vous contactent ou achètent directement.", en: "Every listing is moderated, then appears in the export catalogue, filterable by country of origin. Buyers contact you or buy outright.", ar: "يُراجَع كل إعلان ثم يظهر في فهرس التصدير، قابلاً للتصفية حسب بلد المنشأ. يتواصل المشترون معك أو يشترون مباشرة.", es: "Cada anuncio se modera y luego aparece en el catálogo de exportación, filtrable por país de origen. Los compradores te contactan o compran directamente.", zh: "每条房源经审核后进入出口目录，可按来源国筛选。买家可联系您或直接下单。" },
+  "ie.expToolsTitle": { fr: "Vos outils, selon votre abonnement", en: "Your tools, by subscription", ar: "أدواتك بحسب اشتراكك", es: "Tus herramientas, según tu suscripción", zh: "工具随订阅套餐而定" },
+  "ie.expToolsSub":  { fr: "Publier reste gratuit. L'abonnement n'ouvre pas de remise sur la commission — il ouvre des outils et de la visibilité.", en: "Listing stays free. A subscription buys no discount on commission — it unlocks tools and visibility.", ar: "النشر يبقى مجانياً. الاشتراك لا يمنح خصماً على العمولة — بل يفتح أدوات وظهوراً.", es: "Publicar sigue siendo gratis. La suscripción no da ningún descuento sobre la comisión: abre herramientas y visibilidad.", zh: "发布始终免费。订阅不减免佣金——它带来工具与曝光。" },
+  "ie.expNoTools":   { fr: "Aucun outil spécifique à ce palier — les outils des paliers inférieurs restent acquis.", en: "No tool specific to this tier — the tools of lower tiers still apply.", ar: "لا توجد أداة خاصة بهذا المستوى — أدوات المستويات الأدنى تبقى متاحة.", es: "Ninguna herramienta específica de este nivel: las de los niveles inferiores siguen incluidas.", zh: "本档位无专属工具——较低档位的工具依然适用。" },
+  "ie.expCommTitle": { fr: "Ce que vous payez à la vente", en: "What you pay on a sale", ar: "ما تدفعه عند البيع", es: "Lo que pagas al vender", zh: "成交时您支付的费用" },
+  "ie.expCommStd":   { fr: "Commission standard, tous plans confondus", en: "Standard commission, on every plan", ar: "العمولة القياسية، في كل الخطط", es: "Comisión estándar, en todos los planes", zh: "标准佣金，适用于所有套餐" },
+  "ie.expCommFounder": { fr: "Partenaire Fondateur, pendant {n} mois", en: "Founding Partner, for {n} months", ar: "شريك مؤسس، لمدة {n} شهراً", es: "Socio Fundador, durante {n} meses", zh: "创始合作伙伴，为期 {n} 个月" },
+  "ie.expCommNote":  { fr: "Le taux réduit vient de l'Offre Partenaire Fondateur, pas de l'abonnement : aucun palier payant ne baisse la commission.", en: "The reduced rate comes from the Founding Partner offer, not from a subscription: no paid tier lowers the commission.", ar: "السعر المخفّض يأتي من عرض الشريك المؤسس، لا من الاشتراك: لا يخفّض أي مستوى مدفوع العمولة.", es: "La tarifa reducida procede de la Oferta Socio Fundador, no de la suscripción: ningún plan de pago reduce la comisión.", zh: "优惠费率来自创始合作伙伴计划，而非订阅：任何付费档位都不会降低佣金。" },
+  "ie.expCtaApply":  { fr: "Déposer mon profil exportateur →", en: "Submit my exporter profile →", ar: "إيداع ملف المصدّر →", es: "Enviar mi perfil de exportador →", zh: "提交我的出口方资料 →" },
+  "ie.expCtaRegister": { fr: "Créer un compte partenaire →", en: "Create a partner account →", ar: "إنشاء حساب شريك →", es: "Crear una cuenta de socio →", zh: "创建合作伙伴账户 →" },
+  "ie.expCtaPlans":  { fr: "Comparer les abonnements", en: "Compare the subscriptions", ar: "قارن الاشتراكات", es: "Comparar las suscripciones", zh: "比较订阅套餐" },
 };

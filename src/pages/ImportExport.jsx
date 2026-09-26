@@ -6,12 +6,20 @@ import { COUNTRIES_ALL, VEHICLE_TYPES } from "../data/autocomplete";
 import { useCurrency } from "../context/CurrencyContext";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import { useI18n } from "../context/I18nContext";
-import { LIBELLE_PLAN } from "../constants/planFeatures";
+import { LIBELLE_PLAN, OUTILS_PAR_SECTEUR } from "../constants/planFeatures";
+import { useAuth as useAuthSession } from "../context/AuthContext";
 
 // Repli tant que GET /api/pricing/config n'a pas répondu — mêmes valeurs que
 // server/config/defaultPricingConfig.js (source de vérité réelle).
 const FALLBACK_PRICING = {
-  commissions:  { standard: { import_export: 0.03 }, premium: { import_export: 0.02 } },
+  // ⚠️ Ce repli s'affiche une fraction de seconde sur une page qui annonce des
+  // TAUX. Il annonçait 3 % en standard et 2 % pour un abonné premium : les
+  // deux étaient faux (5 % et 5 %), et le second inventait une remise liée à
+  // l'abonnement — ce que la règle du 2026-09-09 interdit explicitement. Le
+  // taux réduit vient de l'Offre Fondateur, pas d'un palier payant.
+  // Miroir exact de server/config/defaultPricingConfig.js.
+  commissions:  { standard: { import_export: 0.05 }, premium: { import_export: 0.05 } },
+  foundingPartner: { durationMonths: 12, entreprise: { import_export: 0.03 } },
   serviceFee:   { minUSD: 1, percent: 0.005, maxUSD: 25 },
   subscriptions:{ individuel_plus: { priceUSD: 9.99 }, business: { priceUSD: 19.99 }, exportateur: { priceUSD: 49.99 } },
 };
@@ -285,6 +293,10 @@ const ImportExport = () => {
   // plante toute la page (règle vit/lecture-avant-declaration).
   const { t } = useI18n();
   const { fmtUSD } = useCurrency();
+  // Le parcours exportateur mène à /importer-apply, réservé aux partenaires
+  // connectés : un visiteur y serait refoulé sans explication.
+  const { user } = useAuthSession();
+  const estPartenaire = user?.role === "partenaire" || user?.role === "admin";
 
   // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
   // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
@@ -310,27 +322,30 @@ const ImportExport = () => {
 
   // Commission réelle sur une transaction Import/Export (voir
   // pricingEngine.resolveCommissionRate("import_export", ...)) — un seul taux
-  // plat, pas de palier par valeur ; le "frais acheteur" est le frais de
-  // service générique (max(min, montant×%), plafonné) sur un exemple de 15 000$.
-  const stdRate = pricing.commissions.standard.import_export;
-  const premRate = pricing.commissions.premium.import_export;
-  const { minUSD, percent, maxUSD } = pricing.serviceFee;
-  const exampleFee = Math.min(Math.max(minUSD, 15000 * percent), maxUSD);
-  const COMMISSIONS = [
-    { label: t("ie.standard"),        rate: `${Math.round(stdRate * 1000) / 10} %`,  fee: fmtUSD(exampleFee) },
-    { label: t("ie.svc.premiumSub"),  rate: `${Math.round(premRate * 1000) / 10} %`, fee: fmtUSD(exampleFee) },
-  ];
+  // plat, pas de palier par valeur. Elle est à la charge du VENDEUR : elle
+  // appartient donc au parcours exportateur, pas au parcours importateur.
+  //
+  // La seconde ligne montre le FONDATEUR, pas un « abonné premium » : les taux
+  // d'abonnement sont identiques au standard, et afficher deux lignes au
+  // contenu identique laissait croire à un avantage inexistant — même
+  // correction que celle déjà faite sur /plans.
+  const pct = (r) => r == null ? "—" : `${Math.round(r * 1000) / 10} %`;
+  const stdRate = pricing.commissions?.standard?.import_export ?? FALLBACK_PRICING.commissions.standard.import_export;
+  const fondateur = pricing.foundingPartner || FALLBACK_PRICING.foundingPartner;
+  const fpRate = fondateur.entreprise?.import_export;
+  const { minUSD, percent, maxUSD } = pricing.serviceFee || FALLBACK_PRICING.serviceFee;
 
-  // Abonnements réels (Subscription.js) — les mêmes 3 paliers self-service que
-  // /plans, présentés ici dans le contexte Import/Export. "Enterprise" reste
-  // à devis manuel (pas de self-service, voir PricingConfig.subscriptions).
-  const PLANS = [
-    // Pas de « commission réduite » : depuis la grille du 2026-09-09, un
-    // abonnement ouvre des outils et de la visibilité, jamais une remise.
-    { name: LIBELLE_PLAN.individuel_plus, price: `${fmtUSD(pricing.subscriptions.individuel_plus.priceUSD)}${t("ie.perMonth")}`, features: ["ie.svc.topRank", "ie.svc.incoterms", "ie.svc.perfStats"] },
-    { name: LIBELLE_PLAN.business,        price: `${fmtUSD(pricing.subscriptions.business.priceUSD)}${t("ie.perMonth")}`,        features: ["ie.svc.fullTracking", "ie.svc.earlyLeads", "ie.svc.team3", "ie.svc.spotlights"] },
-    { name: LIBELLE_PLAN.exportateur,     price: `${fmtUSD(pricing.subscriptions.exportateur.priceUSD)}${t("ie.perMonth")}`,     highlight: true, features: ["ie.svc.unlimitedAds", "ie.svc.crmExport", "ie.svc.catalogApi", "ie.svc.allSectors", "ie.svc.seats10"] },
-    { name: LIBELLE_PLAN.entreprise,      price: t("ie.onQuote"), inherits: LIBELLE_PLAN.exportateur, features: ["ie.svc.customPricing", "ie.svc.unlimited"] },
+  // Outils export réellement livrés, par palier — lus dans la même table que
+  // /plans, pour que les deux pages ne puissent pas diverger.
+  const PALIERS_EXPORT = [
+    { plan: "individuel_plus", nom: LIBELLE_PLAN.individuel_plus, prix: pricing.subscriptions?.individuel_plus?.priceUSD, couleur: "#6366f1" },
+    { plan: "business",        nom: LIBELLE_PLAN.business,        prix: pricing.subscriptions?.business?.priceUSD,        couleur: "#f59e0b" },
+    { plan: "exportateur",     nom: LIBELLE_PLAN.exportateur,     prix: pricing.subscriptions?.exportateur?.priceUSD,     couleur: "#0ea5e9" },
+    // Entreprise reste à devis manuel (pas de self-service, voir
+    // PricingConfig.subscriptions) : aucun prix, et des avantages propres
+    // plutôt que la table des outils, qui n'en déclare pas pour ce palier.
+    { plan: "entreprise",      nom: LIBELLE_PLAN.entreprise,      prix: null, couleur: "#0f1b3f",
+      avantages: ["ie.svc.customPricing", "ie.svc.unlimited", "ie.svc.allSectors"] },
   ];
 
   return (
@@ -346,8 +361,8 @@ const ImportExport = () => {
         <h1>{t("ie.h1a")}<br />{t("ie.h1b")}<br />{t("ie.h1c")}</h1>
         <p>{t("ie.heroDesc")}</p>
         <div className={styles.heroBtns}>
-          <button className={styles.primaryBtn} onClick={() => openModal()}>{t("ie.askQuote")}</button>
-          <Link className={styles.secondaryBtn} to="/import-export/listings">{t("ie.seeListings")}</Link>
+          <a className={styles.primaryBtn} href="#importateur">{t("ie.doorImport")}</a>
+          <a className={styles.secondaryBtn} href="#exportateur">{t("ie.doorExport")}</a>
         </div>
       </div>
     </section>
@@ -362,6 +377,34 @@ const ImportExport = () => {
               <span>{c.flag}</span>
               <span>{t(c.key)}</span>
             </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    {/* ── LES DEUX PUBLICS ──
+        La page servait un seul discours à deux métiers opposés : celui qui
+        fait VENIR un véhicule (client, packs) et celui qui EXPÉDIE depuis son
+        pays (partenaire, secteur + profil vérifié + abonnement). Ils ne
+        partagent ni les démarches, ni ce qu'ils paient. ── */}
+    <section className={styles.zonesSection}>
+      <div className={styles.inner}>
+        <div className={styles.sectionHeader}>
+          <h2>{t("ie.chooseTitle")}</h2>
+          <p>{t("ie.chooseSub")}</p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 18 }}>
+          {[
+            { ancre: "#importateur", icone: "📥", titre: t("ie.doorImport"), desc: t("ie.doorImportDesc"), qui: t("ie.doorImportWho"), couleur: "#6366f1", fond: "rgba(99,102,241,.06)" },
+            { ancre: "#exportateur", icone: "📤", titre: t("ie.doorExport"), desc: t("ie.doorExportDesc"), qui: t("ie.doorExportWho"), couleur: "#0ea5e9", fond: "rgba(14,165,233,.06)" },
+          ].map((porte) => (
+            <a key={porte.ancre} href={porte.ancre}
+              style={{ display: "block", background: porte.fond, border: `1.5px solid ${porte.couleur}33`, borderRadius: 16, padding: "22px 24px", textDecoration: "none", color: "inherit" }}>
+              <div style={{ fontSize: "1.8rem", marginBottom: 8 }}>{porte.icone}</div>
+              <h3 style={{ margin: "0 0 8px", color: porte.couleur, fontSize: "1.05rem", fontWeight: 800 }}>{porte.titre}</h3>
+              <p style={{ margin: "0 0 12px", color: "#475569", fontSize: ".9rem", lineHeight: 1.55 }}>{porte.desc}</p>
+              <span style={{ fontSize: ".76rem", color: "#64748b", fontWeight: 700, letterSpacing: ".02em" }}>{porte.qui}</span>
+            </a>
           ))}
         </div>
       </div>
@@ -396,10 +439,15 @@ const ImportExport = () => {
       </div>
     </section>
 
-    {/* ── PROCESSUS 7 ÉTAPES ── */}
-    <section className={styles.processSection}>
+    {/* ══════════ PARCOURS IMPORTATEUR (client) ══════════ */}
+    <section id="importateur" className={styles.processSection} style={{ scrollMarginTop: 80 }}>
       <div className={styles.inner}>
         <div className={styles.sectionHeader}>
+          <span className={styles.sectionTag}>{t("ie.impTag")}</span>
+          <h2>{t("ie.impTitle")}</h2>
+          <p>{t("ie.impSub")}</p>
+        </div>
+        <div className={styles.sectionHeader} style={{ marginTop: 28 }}>
           <span className={styles.sectionTag}>{t("ie.stepsTag")}</span>
           <h2>{t("ie.stepsTitle")}</h2>
           <p>{t("ie.stepsSub")}</p>
@@ -466,42 +514,33 @@ const ImportExport = () => {
       </div>
     </section>
 
-    {/* ── MODÈLE ÉCONOMIQUE ── */}
+    {/* ── CE QUE PAIE L'IMPORTATEUR ──
+        La commission n'y figure pas : elle est à la charge du VENDEUR. La
+        mettre ici laissait croire au client qu'il la payait deux fois. ── */}
     <section className={styles.econSection}>
       <div className={styles.inner}>
         <div className={styles.sectionHeader}>
           <span className={styles.sectionTag}>{t("ie.feesTag")}</span>
-          <h2>{t("ie.feesTitle")}</h2>
+          <h2>{t("ie.impWhatYouPay")}</h2>
           <p>{t("ie.feesSub")}</p>
         </div>
         <div className={styles.econGrid}>
-          {/* Commissions */}
           <div className={styles.econCard}>
             <div className={styles.econCardHeader}>
-              <span className={styles.econIcon}>📊</span>
-              <h3>{t("ie.commission")}</h3>
+              <span className={styles.econIcon}>🧾</span>
+              <h3>{t("ie.impWhatYouPay")}</h3>
             </div>
-            <table className={styles.econTable}>
-              <thead>
-                <tr>
-                  <th>{t("ie.profile")}</th>
-                  <th>{t("ie.commissionCol")}</th>
-                  <th>{t("ie.serviceFeeCol")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {COMMISSIONS.map((c) => (
-                  <tr key={c.label}>
-                    <td>{c.label}</td>
-                    <td className={styles.econRate}>{c.rate}</td>
-                    <td>{c.fee}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <ul style={{ margin: 0, padding: "0 0 0 18px", color: "#475569", fontSize: ".9rem", lineHeight: 1.7 }}>
+              <li>{t("ie.impPay1")}</li>
+              <li>{t("ie.impPay2", { min: fmtUSD(minUSD), pct: percent * 100, max: fmtUSD(maxUSD) })}</li>
+              <li>{t("ie.impPay3")}</li>
+            </ul>
+            <p style={{ marginTop: 14, padding: "10px 12px", background: "rgba(16,185,129,.08)", borderRadius: 10, color: "#047857", fontSize: ".85rem", fontWeight: 700 }}>
+              ✓ {t("ie.impNoCommission")}
+            </p>
           </div>
 
-          {/* Autres services */}
+          {/* Services additionnels */}
           <div className={styles.econCard}>
             <div className={styles.econCardHeader}>
               <span className={styles.econIcon}>🛠️</span>
@@ -515,130 +554,108 @@ const ImportExport = () => {
                 { key: "ie.svc.intlTransport",  price: t("ie.price.margin") },
                 { key: "ie.svc.partnerIns",     price: t("ie.price.comm") },
                 { key: "ie.svc.autoCredit",     price: t("ie.price.perFile") },
-              ].map((s) => (
-                <div key={s.key} className={styles.servicesRow}>
-                  <span className={styles.servicesLabel}>{t(s.key)}</span>
-                  <span className={styles.servicesPrice}>{s.price}</span>
+                { key: "ie.delivery",           price: t("ie.onQuote") },
+              ].map((sv) => (
+                <div key={sv.key} className={styles.servicesRow}>
+                  <span className={styles.servicesLabel}>{t(sv.key)}</span>
+                  <span className={styles.servicesPrice}>{sv.price}</span>
                 </div>
               ))}
             </div>
           </div>
         </div>
-
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 24, justifyContent: "center" }}>
+          <button className={styles.primaryBtn} onClick={() => openModal()}>{t("ie.askQuote")}</button>
+          <Link className={styles.secondaryBtn} to="/import-export/listings">{t("ie.seeListings")}</Link>
+        </div>
       </div>
     </section>
 
-    {/* ── TARIFICATION TRANSPARENTE ──
-        Les montants repris ici sont ceux des packs ci-dessus : une seule
-        source affichée deux fois se contredit tôt ou tard. ── */}
-    <section className={styles.pricingSection}>
+    {/* ══════════ PARCOURS EXPORTATEUR (partenaire) ══════════
+        Aucun pack de ce côté : le partenaire demande le secteur, fait vérifier
+        son entreprise, publie — et ses OUTILS dépendent de son abonnement. Le
+        taux réduit vient de l'Offre Fondateur, jamais d'un palier payant. ── */}
+    <section id="exportateur" className={styles.subsSection} style={{ scrollMarginTop: 80 }}>
       <div className={styles.inner}>
         <div className={styles.sectionHeader}>
-          <span className={styles.sectionTag}>{t("ie.pricesTag")}</span>
-          <h2>{t("ie.pricesTitle")}</h2>
-          <p>{t("ie.pricesSub")}</p>
+          <span className={styles.sectionTag}>{t("ie.expTag")}</span>
+          <h2>{t("ie.expTitle")}</h2>
+          <p>{t("ie.expSub")}</p>
         </div>
 
-        <div className={styles.pricingGrid}>
-
-          {/* Import Assist */}
-          <div className={styles.pricingCard}>
-            <div className={styles.pricingCardHeader} style={{ background: "rgba(99,102,241,.08)", borderColor: "rgba(99,102,241,.18)" }}>
-              <span className={styles.pricingIcon}>🚘</span>
-              <h3 style={{ color: "#6366f1" }}>Import Assist</h3>
-              <p>{t("ie.buySupport")}</p>
-            </div>
-            <table className={styles.pricingTable}>
-              <thead>
-                <tr><th>{t("ie.planCol")}</th><th>{t("ie.priceCol")}</th></tr>
-              </thead>
-              <tbody>
-                {PACKS.map((p) => (
-                  <tr key={p.name}>
-                    <td><span className={styles.pricingTier} style={{ color: p.color }}>{p.name}</span></td>
-                    <td className={styles.pricingPrice}><strong>{p.price}</strong></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Inspection */}
-          <div className={styles.pricingCard}>
-            <div className={styles.pricingCardHeader} style={{ background: "rgba(16,185,129,.08)", borderColor: "rgba(16,185,129,.18)" }}>
-              <span className={styles.pricingIcon}>🔬</span>
-              <h3 style={{ color: "#10b981" }}>{t("ie.inspection")}</h3>
-              <p>{t("ie.techCheck")}</p>
-            </div>
-            <table className={styles.pricingTable}>
-              <thead>
-                <tr><th>{t("ie.service")}</th><th>{t("ie.priceCol")}</th></tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><span className={styles.pricingTier} style={{ color: "#10b981" }}>{t("ie.standard")}</span></td>
-                  <td className={styles.pricingPrice}>{t("ie.priceFrom")} <strong>79 €</strong></td>
-                </tr>
-                <tr>
-                  <td><span className={styles.pricingTier} style={{ color: "#10b981" }}>{t("ie.premium")}</span></td>
-                  <td className={styles.pricingPrice}>{t("ie.priceFrom")} <strong>199 €</strong></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          {/* Livraison */}
-          <div className={styles.pricingCard}>
-            <div className={styles.pricingCardHeader} style={{ background: "rgba(245,158,11,.08)", borderColor: "rgba(245,158,11,.18)" }}>
-              <span className={styles.pricingIcon}>🚢</span>
-              <h3 style={{ color: "#f59e0b" }}>{t("ie.delivery")}</h3>
-              <p>{t("ie.transportTo")}</p>
-            </div>
-            <table className={styles.pricingTable}>
-              <thead>
-                <tr><th>{t("ie.service")}</th><th>{t("ie.priceCol")}</th></tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><span className={styles.pricingTier} style={{ color: "#f59e0b" }}>{t("ie.national")}</span></td>
-                  <td className={styles.pricingPrice}><strong>{t("ie.onQuote")}</strong></td>
-                </tr>
-                <tr>
-                  <td><span className={styles.pricingTier} style={{ color: "#f59e0b" }}>{t("ie.international")}</span></td>
-                  <td className={styles.pricingPrice}><strong>{t("ie.onQuote")}</strong></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
+        {/* Les trois étapes d'entrée */}
+        <div className={styles.sectionHeader} style={{ marginTop: 28 }}>
+          <h2 style={{ fontSize: "1.1rem" }}>{t("ie.expHowTitle")}</h2>
         </div>
-
-        <p className={styles.pricingNote}>{t("ie.pricesNote")}</p>
-      </div>
-    </section>
-
-    {/* ── ABONNEMENTS PROS ── */}
-    <section className={styles.subsSection}>
-      <div className={styles.inner}>
-        <div className={styles.sectionHeader}>
-          <span className={styles.sectionTag}>{t("ie.prosTag")}</span>
-          <h2>{t("ie.subsTitle")}</h2>
-          <p>{t("ie.subsSub")}</p>
-        </div>
-        <div className={styles.subsGrid}>
-          {PLANS.map((p) => (
-            <div key={p.name} className={`${styles.subCard} ${p.highlight ? styles.subHighlight : ""}`}>
-              <h4 className={styles.subName}>{p.name}</h4>
-              <div className={styles.subPrice}>{p.price}</div>
-              <ul className={styles.subFeatures}>
-                {p.inherits && <li key="inherits"><span>✓</span>{t("ie.allIncluded", { pack: p.inherits })}</li>}
-                {p.features.map((f) => <li key={f}><span>✓</span>{t(f)}</li>)}
-              </ul>
-              <Link to="/plans" className={`${styles.subBtn} ${p.highlight ? styles.subBtnPrimary : ""}`}>
-                {t("ie.start")}
-              </Link>
+        <div className={styles.stepsGrid}>
+          {["ie.expStep1", "ie.expStep2", "ie.expStep3"].map((cle, i) => (
+            <div key={cle} className={styles.stepCard}>
+              <div className={styles.stepNumBadge}>{String(i + 1).padStart(2, "0")}</div>
+              {i < 2 && <div className={styles.stepArrow}>→</div>}
+              <div className={styles.stepIcon}>{["🧭", "🛡️", "🚢"][i]}</div>
+              <h4 className={styles.stepTitle}>{t(cle)}</h4>
+              <p className={styles.stepDesc}>{t(`${cle}d`)}</p>
             </div>
           ))}
+        </div>
+
+        {/* Les outils, par palier — même table que /plans */}
+        <div className={styles.sectionHeader} style={{ marginTop: 36 }}>
+          <h2 style={{ fontSize: "1.1rem" }}>{t("ie.expToolsTitle")}</h2>
+          <p>{t("ie.expToolsSub")}</p>
+        </div>
+        <div className={styles.subsGrid}>
+          {PALIERS_EXPORT.map((palier) => {
+            const outils = OUTILS_PAR_SECTEUR.exportateur?.[palier.plan] || [];
+            return (
+              <div key={palier.plan} className={`${styles.subCard} ${palier.plan === "exportateur" ? styles.subHighlight : ""}`}>
+                <h4 className={styles.subName} style={{ color: palier.couleur }}>{palier.nom}</h4>
+                <div className={styles.subPrice}>
+                  {typeof palier.prix === "number" ? `${fmtUSD(palier.prix)}${t("ie.perMonth")}` : t("ie.onQuote")}
+                </div>
+                <ul className={styles.subFeatures}>
+                  {palier.avantages
+                    ? palier.avantages.map((a) => <li key={a}><span>✓</span>{t(a)}</li>)
+                    : outils.length === 0
+                      ? <li><span>·</span>{t("ie.expNoTools")}</li>
+                      : outils.map((o) => <li key={o.key}><span>✓</span>{t(o.key)}</li>)}
+                </ul>
+                <Link to="/plans" className={`${styles.subBtn} ${palier.plan === "exportateur" ? styles.subBtnPrimary : ""}`}>
+                  {t("ie.expCtaPlans")}
+                </Link>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* La commission, à la charge du vendeur */}
+        <div className={styles.econCard} style={{ marginTop: 32, maxWidth: 640, marginInline: "auto" }}>
+          <div className={styles.econCardHeader}>
+            <span className={styles.econIcon}>📊</span>
+            <h3>{t("ie.expCommTitle")}</h3>
+          </div>
+          <table className={styles.econTable}>
+            <tbody>
+              <tr>
+                <td>{t("ie.expCommStd")}</td>
+                <td className={styles.econRate}>{pct(stdRate)}</td>
+              </tr>
+              <tr>
+                <td>{t("ie.expCommFounder", { n: fondateur.durationMonths })}</td>
+                <td className={styles.econRate} style={{ color: "#f59e0b" }}>{pct(fpRate)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p style={{ marginTop: 12, color: "#64748b", fontSize: ".82rem", lineHeight: 1.55 }}>{t("ie.expCommNote")}</p>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 24, justifyContent: "center" }}>
+          {/* /importer-apply est réservé aux partenaires connectés : un visiteur
+              y serait refoulé sans explication. On l'envoie créer son compte. */}
+          <Link className={styles.primaryBtn} to={estPartenaire ? "/importer-apply" : "/register"}>
+            {estPartenaire ? t("ie.expCtaApply") : t("ie.expCtaRegister")}
+          </Link>
+          <Link className={styles.secondaryBtn} to="/plans">{t("ie.expCtaPlans")}</Link>
         </div>
       </div>
     </section>
